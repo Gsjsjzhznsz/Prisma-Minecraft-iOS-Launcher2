@@ -88,13 +88,14 @@ id getPrefObject(NSString *key) {
 // ZL2Home.m 直接调用的符号，无 duplicate symbol。
 
 // utils.h 声明：NSString* localize(NSString *key, NSString *comment)
-// 预览桩：仅映射启动三态既有键，其余返回键名
+// 预览桩：优先映射启动三态既有键，未命中回退 comment——本仓 localize 约定
+// 第二参即中文译文（7.0-UI-9 起），一处覆盖四页全部键，截图不再出现键名
 NSString *localize(NSString *key, NSString *comment) {
     NSDictionary *table = @{@"i18n_str_412": @"启动游戏",
                             @"i18n_str_434": @"下载中",
                             @"i18n_str_435": @"登录并启动"};
     NSString *hit = table[key];
-    return hit ?: key;
+    return hit ?: (comment ?: key);
 }
 
 // BaseAuthenticator 最小桩：预览恒未登录态（launchReady = 登录并启动文案）。
