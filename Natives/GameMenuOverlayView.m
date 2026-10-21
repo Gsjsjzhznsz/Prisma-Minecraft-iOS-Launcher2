@@ -11,6 +11,7 @@
 #import "LauncherPreferences.h"
 #import "utils.h"        // Task230：localize（齿轮标签文案）
 #import "NMToast.h"     // Task230：预留（未绑定提示等悬浮提示）
+#import "AmeTheme.h"            // ★ 7.0-UI-3f：Fluent 设计令牌（仅拖拽高亮蓝；悬浮件深色胶囊为游戏帧上功能性可读性处理，保留）
 
 // 位置持久化的 pref key
 static NSString *const kPrefMenuButtonX = @"game.menu_button_x";
@@ -435,7 +436,7 @@ static BOOL ame227_g_dockedLeft = NO;
         self.dragStartPoint = [sender locationInView:self];
         self.dragStartCenter = self.menuButton.center;
         // 拖拽时高亮
-        self.menuButton.backgroundColor = [UIColor colorWithRed:0.2 green:0.5 blue:0.9 alpha:0.8];
+        self.menuButton.backgroundColor = [[AmeTheme brandPrimary] colorWithAlphaComponent:0.8];
     } else if (sender.state == UIGestureRecognizerStateChanged) {
         CGFloat dx = [sender locationInView:self].x - self.dragStartPoint.x;
         CGFloat dy = [sender locationInView:self].y - self.dragStartPoint.y;

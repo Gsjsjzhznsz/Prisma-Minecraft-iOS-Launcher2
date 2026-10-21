@@ -13,6 +13,7 @@
 #import "ModVersionTableViewCell.h"
 #import "BackgroundManager.h"
 #import "ModLoaderIconHelper.h"
+#import "AmeTheme.h"            // ★ 7.0-UI-3f：Fluent 设计令牌（长尾单元格簇颜色迁移）
 
 @interface ModVersionTableViewCell ()
 // 卡片容器：圆角 + 阴影 + 半透明背景（统一视觉规范）
@@ -53,11 +54,11 @@
     // ===== 卡片容器：圆角 + 半透明背景 + 浅阴影（阶段3 UI 调整：圆角 14→12，阴影更轻）=====
     self.cardContainer = [[UIView alloc] init];
     self.cardContainer.translatesAutoresizingMaskIntoConstraints = NO;
-    self.cardContainer.backgroundColor = [[UIColor whiteColor] colorWithAlphaComponent:0.08];
+    self.cardContainer.backgroundColor = [[AmeTheme surfaceCard] colorWithAlphaComponent:0.08];
     self.cardContainer.layer.cornerRadius = 12;  // Task137：回归原生卡片圆角
     self.cardContainer.layer.cornerCurve = kCACornerCurveContinuous;
     self.cardContainer.layer.borderWidth = 0.5;
-    self.cardContainer.layer.borderColor = [[UIColor whiteColor] colorWithAlphaComponent:0.10].CGColor;
+    self.cardContainer.layer.borderColor = [[AmeTheme divider] colorWithAlphaComponent:0.10].CGColor;
     self.cardContainer.layer.shadowColor = [UIColor blackColor].CGColor;
     self.cardContainer.layer.shadowOffset = CGSizeMake(0, 2);
     self.cardContainer.layer.shadowOpacity = 0.10;
@@ -67,7 +68,7 @@
     // ===== 左侧：版本名行（含发布类型徽章）+ 版本号 =====
     self.nameLabel = [[UILabel alloc] init];
     self.nameLabel.font = [UIFont systemFontOfSize:15 weight:UIFontWeightSemibold];
-    self.nameLabel.textColor = [UIColor labelColor];
+    self.nameLabel.textColor = [AmeTheme textPrimary];
     self.nameLabel.numberOfLines = 1;
     self.nameLabel.adjustsFontSizeToFitWidth = YES;
     self.nameLabel.minimumScaleFactor = 0.7;
@@ -78,7 +79,7 @@
     // 发布类型徽章（Release/Beta/Alpha，参照 FCL/ZL2 版本行的发布类型标签）
     self.releaseTypeBadge = [[UILabel alloc] init];
     self.releaseTypeBadge.font = [UIFont systemFontOfSize:8 weight:UIFontWeightBold];
-    self.releaseTypeBadge.textColor = [UIColor whiteColor];
+    self.releaseTypeBadge.textColor = [AmeTheme textOnBrand];
     self.releaseTypeBadge.textAlignment = NSTextAlignmentCenter;
     self.releaseTypeBadge.layer.cornerRadius = 4;
     self.releaseTypeBadge.layer.cornerCurve = kCACornerCurveContinuous;
@@ -99,7 +100,7 @@
 
     self.versionNumberLabel = [[UILabel alloc] init];
     self.versionNumberLabel.font = [UIFont systemFontOfSize:12];
-    self.versionNumberLabel.textColor = [UIColor secondaryLabelColor];
+    self.versionNumberLabel.textColor = [AmeTheme textSecondary];
     self.versionNumberLabel.numberOfLines = 1;
     self.versionNumberLabel.adjustsFontSizeToFitWidth = YES;
     self.versionNumberLabel.minimumScaleFactor = 0.7;
@@ -124,17 +125,17 @@
     // ===== 右侧：日期 + 文件大小 + 游戏版本 =====
     self.datePublishedLabel = [[UILabel alloc] init];
     self.datePublishedLabel.font = [UIFont systemFontOfSize:11];
-    self.datePublishedLabel.textColor = [UIColor tertiaryLabelColor];
+    self.datePublishedLabel.textColor = [AmeTheme textTertiary];
     self.datePublishedLabel.textAlignment = NSTextAlignmentRight;
 
     self.fileSizeLabel = [[UILabel alloc] init];
     self.fileSizeLabel.font = [UIFont systemFontOfSize:11];
-    self.fileSizeLabel.textColor = [UIColor tertiaryLabelColor];
+    self.fileSizeLabel.textColor = [AmeTheme textTertiary];
     self.fileSizeLabel.textAlignment = NSTextAlignmentRight;
 
     self.gameVersionsLabel = [[UILabel alloc] init];
     self.gameVersionsLabel.font = [UIFont systemFontOfSize:11];
-    self.gameVersionsLabel.textColor = [UIColor tertiaryLabelColor];
+    self.gameVersionsLabel.textColor = [AmeTheme textTertiary];
     self.gameVersionsLabel.textAlignment = NSTextAlignmentRight;
     self.gameVersionsLabel.numberOfLines = 1;
     self.gameVersionsLabel.lineBreakMode = NSLineBreakByTruncatingTail;
@@ -186,7 +187,7 @@
     UILabel *badge = [[UILabel alloc] init];
     badge.text = loaderName;
     badge.font = [UIFont systemFontOfSize:9 weight:UIFontWeightBold];
-    badge.textColor = [UIColor whiteColor];
+    badge.textColor = [AmeTheme textOnBrand];
     badge.textAlignment = NSTextAlignmentCenter;
     badge.backgroundColor = [self colorForLoader:loaderName];
     badge.layer.cornerRadius = 7;
@@ -229,9 +230,9 @@
         UILabel *moreBadge = [[UILabel alloc] init];
         moreBadge.text = [NSString stringWithFormat:@"+%ld", (long)(loaders.count - 4)];
         moreBadge.font = [UIFont systemFontOfSize:9 weight:UIFontWeightBold];
-        moreBadge.textColor = [UIColor whiteColor];
+        moreBadge.textColor = [AmeTheme textPrimary];
         moreBadge.textAlignment = NSTextAlignmentCenter;
-        moreBadge.backgroundColor = [UIColor tertiaryLabelColor];
+        moreBadge.backgroundColor = [AmeTheme fillStrong];
         moreBadge.layer.cornerRadius = 7;
         moreBadge.layer.masksToBounds = YES;
         moreBadge.translatesAutoresizingMaskIntoConstraints = NO;
@@ -256,17 +257,17 @@
     if ([vType isEqualToString:@"release"] || vType.length == 0) {
         // Release：绿色徽章
         self.releaseTypeBadge.text = @" Release ";
-        self.releaseTypeBadge.backgroundColor = [UIColor colorWithRed:0.30 green:0.75 blue:0.40 alpha:1.0];
+        self.releaseTypeBadge.backgroundColor = [AmeTheme statusSuccess];
         self.releaseTypeBadge.hidden = NO;
     } else if ([vType isEqualToString:@"beta"]) {
         // Beta：橙色徽章
         self.releaseTypeBadge.text = @" Beta ";
-        self.releaseTypeBadge.backgroundColor = [UIColor colorWithRed:0.90 green:0.60 blue:0.10 alpha:1.0];
+        self.releaseTypeBadge.backgroundColor = [AmeTheme statusWarning];
         self.releaseTypeBadge.hidden = NO;
     } else if ([vType isEqualToString:@"alpha"]) {
         // Alpha：红色徽章
         self.releaseTypeBadge.text = @" Alpha ";
-        self.releaseTypeBadge.backgroundColor = [UIColor colorWithRed:0.85 green:0.30 blue:0.30 alpha:1.0];
+        self.releaseTypeBadge.backgroundColor = [AmeTheme statusDanger];
         self.releaseTypeBadge.hidden = NO;
     } else {
         self.releaseTypeBadge.hidden = YES;

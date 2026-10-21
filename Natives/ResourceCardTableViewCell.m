@@ -8,6 +8,7 @@
 #import "ResourceCardTableViewCell.h"
 #import "BackgroundManager.h"
 #import "LauncherPreferences.h"
+#import "AmeTheme.h"            // ★ 7.0-UI-3f：Fluent 设计令牌（资源卡片面/文字/图标白字迁移）
 
 static NSString * const kResourceCardDefaultIcon = @"doc.fill";
 
@@ -50,11 +51,11 @@ static NSString * const kResourceCardDefaultIcon = @"doc.fill";
         self.layer.shadowOffset = CGSizeMake(0, 2);
 
         // ----- 卡片本体 = contentView：半透明基底 + 12pt continuous 圆角 + 0.5pt 描边，裁圆角 -----
-        self.contentView.backgroundColor = [[UIColor whiteColor] colorWithAlphaComponent:0.08];
+        self.contentView.backgroundColor = [[AmeTheme surfaceCard] colorWithAlphaComponent:0.08];
         self.contentView.layer.cornerRadius = 12.0;  // Task137：回归原生卡片圆角
         self.contentView.layer.cornerCurve = kCACornerCurveContinuous;
         self.contentView.layer.borderWidth = 0.5;
-        self.contentView.layer.borderColor = [[UIColor whiteColor] colorWithAlphaComponent:0.10].CGColor;
+        self.contentView.layer.borderColor = [[AmeTheme divider] colorWithAlphaComponent:0.10].CGColor;
         self.contentView.layer.masksToBounds = YES;
 
         [self createSubviews];
@@ -86,7 +87,7 @@ static NSString * const kResourceCardDefaultIcon = @"doc.fill";
     _iconImageView = [[UIImageView alloc] init];
     _iconImageView.translatesAutoresizingMaskIntoConstraints = NO;
     _iconImageView.contentMode = UIViewContentModeScaleAspectFit;
-    _iconImageView.tintColor = [UIColor whiteColor];
+    _iconImageView.tintColor = [AmeTheme textOnBrand];
     _iconImageView.preferredSymbolConfiguration =
         [UIImageSymbolConfiguration configurationWithPointSize:20 weight:UIFontWeightMedium];
     _iconImageView.image = [UIImage systemImageNamed:kResourceCardDefaultIcon];
@@ -95,7 +96,7 @@ static NSString * const kResourceCardDefaultIcon = @"doc.fill";
     // 中部文字
     _nameLabel = [[UILabel alloc] init];
     _nameLabel.font = [UIFont systemFontOfSize:15 weight:UIFontWeightSemibold];
-    _nameLabel.textColor = [UIColor labelColor];
+    _nameLabel.textColor = [AmeTheme textPrimary];
     _nameLabel.adjustsFontSizeToFitWidth = YES;
     _nameLabel.minimumScaleFactor = 0.7;
     _nameLabel.lineBreakMode = NSLineBreakByTruncatingTail;
@@ -104,7 +105,7 @@ static NSString * const kResourceCardDefaultIcon = @"doc.fill";
 
     _subtitleLabel = [[UILabel alloc] init];
     _subtitleLabel.font = [UIFont systemFontOfSize:12 weight:UIFontWeightRegular];
-    _subtitleLabel.textColor = [UIColor secondaryLabelColor];
+    _subtitleLabel.textColor = [AmeTheme textSecondary];
     _subtitleLabel.adjustsFontSizeToFitWidth = YES;
     _subtitleLabel.minimumScaleFactor = 0.7;
     _subtitleLabel.lineBreakMode = NSLineBreakByTruncatingTail;
@@ -113,7 +114,7 @@ static NSString * const kResourceCardDefaultIcon = @"doc.fill";
 
     _detailLabel = [[UILabel alloc] init];
     _detailLabel.font = [UIFont systemFontOfSize:11 weight:UIFontWeightRegular];
-    _detailLabel.textColor = [UIColor tertiaryLabelColor];
+    _detailLabel.textColor = [AmeTheme textTertiary];
     _detailLabel.lineBreakMode = NSLineBreakByTruncatingTail;
     [_detailLabel setContentCompressionResistancePriority:UILayoutPriorityDefaultLow forAxis:UILayoutConstraintAxisHorizontal];
     _detailLabel.hidden = YES;
@@ -198,7 +199,7 @@ static NSString * const kResourceCardDefaultIcon = @"doc.fill";
         _chevronImageView = [[UIImageView alloc] initWithImage:[UIImage systemImageNamed:@"chevron.right"]];
         _chevronImageView.translatesAutoresizingMaskIntoConstraints = NO;
         _chevronImageView.contentMode = UIViewContentModeScaleAspectFit;
-        _chevronImageView.tintColor = [UIColor tertiaryLabelColor];
+        _chevronImageView.tintColor = [AmeTheme textTertiary];
         _chevronImageView.hidden = YES;
         [_chevronImageView setContentHuggingPriority:UILayoutPriorityRequired forAxis:UILayoutConstraintAxisHorizontal];
         [_chevronImageView setContentCompressionResistancePriority:UILayoutPriorityRequired forAxis:UILayoutConstraintAxisHorizontal];
@@ -284,7 +285,7 @@ static NSString * const kResourceCardDefaultIcon = @"doc.fill";
         self.selectionTintView.hidden = NO;
     } else {
         // 默认态：0.5pt 白 0.10 描边（Prisma-Design 5.3 边框规格）
-        self.contentView.layer.borderColor = [[UIColor whiteColor] colorWithAlphaComponent:0.10].CGColor;
+        self.contentView.layer.borderColor = [[AmeTheme divider] colorWithAlphaComponent:0.10].CGColor;
         self.contentView.layer.borderWidth = 0.5;
         self.selectionTintView.hidden = YES;
     }

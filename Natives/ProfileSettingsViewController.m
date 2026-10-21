@@ -15,6 +15,7 @@
 #import "utils.h"
 #import "UIKit+NativeSurface.h"
 #import <objc/runtime.h>
+#import "AmeTheme.h"            // ★ 7.0-UI-3f：Fluent 设计令牌（长尾单元格簇颜色迁移）
 
 #import "BackgroundManager.h"
 #import "DownloadTaskManager.h"
@@ -392,7 +393,7 @@ static NSString * localizeProfileTitle(NSString *title) {
     // ===== Hero 图标（56x56，14pt 圆角，accentColor 背景，白色 cube.fill SF Symbol）=====
     UIImageView *iconView = [[UIImageView alloc] init];
     iconView.image = [UIImage systemImageNamed:@"cube.fill"];
-    iconView.tintColor = [UIColor whiteColor];
+    iconView.tintColor = [AmeTheme textOnBrand];
     iconView.contentMode = UIViewContentModeCenter;
     iconView.backgroundColor = accentColor();
     iconView.layer.cornerRadius = 14;
@@ -411,7 +412,7 @@ static NSString * localizeProfileTitle(NSString *title) {
 
     // ===== 版本 pill（11pt bold，绿底白字，checkmark.circle.fill + 版本号）=====
     UIView *versionPill = [[UIView alloc] init];
-    versionPill.backgroundColor = [UIColor systemGreenColor];
+    versionPill.backgroundColor = [AmeTheme statusSuccess];
     versionPill.layer.cornerRadius = 9;
     versionPill.layer.cornerCurve = kCACornerCurveContinuous;
     versionPill.layer.masksToBounds = YES;
@@ -419,7 +420,7 @@ static NSString * localizeProfileTitle(NSString *title) {
 
     UIImageView *pillIcon = [[UIImageView alloc] init];
     pillIcon.image = [UIImage systemImageNamed:@"checkmark.circle.fill"];
-    pillIcon.tintColor = [UIColor whiteColor];
+    pillIcon.tintColor = [AmeTheme textOnBrand];
     pillIcon.contentMode = UIViewContentModeScaleAspectFit;
     [versionPill addSubview:pillIcon];
 
@@ -427,7 +428,7 @@ static NSString * localizeProfileTitle(NSString *title) {
     NSString *currentVersion = self.profile[@"lastVersionId"];
     pillLabel.text = currentVersion.length > 0 ? currentVersion : localize(@"i18n_str_864", nil);
     pillLabel.font = [UIFont systemFontOfSize:11 weight:UIFontWeightBold];
-    pillLabel.textColor = [UIColor whiteColor];
+    pillLabel.textColor = [AmeTheme textOnBrand];
     pillLabel.adjustsFontSizeToFitWidth = YES;
     pillLabel.minimumScaleFactor = 0.7;
     [versionPill addSubview:pillLabel];
@@ -916,8 +917,8 @@ static NSString * localizeProfileTitle(NSString *title) {
     // 复用流向其它行前必须还原，secondaryLabel 与 value1 样式的
     // 原生灰同族且深色模式安全）
     cell.imageView.tintColor = nil;
-    cell.textLabel.textColor = [UIColor labelColor];
-    cell.detailTextLabel.textColor = [UIColor secondaryLabelColor];
+    cell.textLabel.textColor = [AmeTheme textPrimary];
+    cell.detailTextLabel.textColor = [AmeTheme textSecondary];
 
     NSInteger globalSection = [self globalSectionForTableView:tableView localSection:indexPath.section];
     if (globalSection < 0 || globalSection >= (NSInteger)self.sections.count) return cell;
@@ -975,7 +976,7 @@ static NSString * localizeProfileTitle(NSString *title) {
         case 2: // 组件安装
             if ([title isEqualToString:@"Fabric API"]) {
                 cell.imageView.image = [UIImage systemImageNamed:@"bolt.fill"];
-                cell.imageView.tintColor = [UIColor systemOrangeColor];
+                cell.imageView.tintColor = [AmeTheme statusWarning];
                 cell.accessoryView = [self ame163_disclosureChevron];
                 cell.detailTextLabel.text = [self isFabricProfile] ? localize(@"i18n_str_2043", nil) : localize(@"i18n_str_885", nil);
             } else if ([title isEqualToString:@"Sodium + Iris Shaders"]) {
@@ -983,7 +984,7 @@ static NSString * localizeProfileTitle(NSString *title) {
                 // API 同逻辑，一键装 Sodium + Iris + Podium 三模组，仅 Fabric
                 // 实例可用）
                 cell.imageView.image = [UIImage systemImageNamed:@"flame.fill"];
-                cell.imageView.tintColor = [UIColor systemOrangeColor];
+                cell.imageView.tintColor = [AmeTheme statusWarning];
                 cell.accessoryView = [self ame163_disclosureChevron];
                 cell.detailTextLabel.text = [self isFabricProfile] ? localize(@"i18n_str_2043", nil) : localize(@"i18n_str_885", nil);
             } else if ([title isEqualToString:@"TouchController"]) {
@@ -994,7 +995,7 @@ static NSString * localizeProfileTitle(NSString *title) {
                 // 模式；可安装 → 点击安装。零新 l10n 键（复用 Task172 的
                 // preference.touchcontroller.mode.udp + 组件区现成键）。
                 cell.imageView.image = [UIImage systemImageNamed:@"hand.tap.fill"];
-                cell.imageView.tintColor = [UIColor systemOrangeColor];
+                cell.imageView.tintColor = [AmeTheme statusWarning];
                 cell.accessoryView = [self ame163_disclosureChevron];
                 cell.detailTextLabel.text = ![self isFabricProfile]
                     ? localize(@"i18n_str_885", nil)
@@ -1003,7 +1004,7 @@ static NSString * localizeProfileTitle(NSString *title) {
                         : localize(@"i18n_str_2043", nil));
             } else if ([title isEqualToString:@"OptiFine"]) {
                 cell.imageView.image = [UIImage systemImageNamed:@"speedometer"];
-                cell.imageView.tintColor = [UIColor systemRedColor];
+                cell.imageView.tintColor = [AmeTheme statusDanger];
                 cell.accessoryView = [self ame163_disclosureChevron];
                 cell.detailTextLabel.text = [self isOptiFineCompatibleProfile] ? localize(@"i18n_str_2043", nil) : localize(@"i18n_str_886", nil);
             }
@@ -1050,8 +1051,8 @@ static NSString * localizeProfileTitle(NSString *title) {
                 cell.detailTextLabel.text = nil;
             } else if ([title isEqualToString:@"清除JVM参数"]) {
                 cell.imageView.image = [UIImage systemImageNamed:@"trash"];
-                cell.imageView.tintColor = [UIColor systemRedColor];
-                cell.textLabel.textColor = [UIColor systemRedColor];
+                cell.imageView.tintColor = [AmeTheme statusDanger];
+                cell.textLabel.textColor = [AmeTheme statusDanger];
                 cell.detailTextLabel.text = self.javaArgs.length > 0 ? localize(@"i18n_str_2044", nil) : localize(@"i18n_str_889", nil);
             }
             // Task173：TouchController 行已迁往组件安装区（case 2），高级设置
@@ -1109,7 +1110,7 @@ static NSString * localizeProfileTitle(NSString *title) {
 - (UIView *)ame163_disclosureChevron {
     UIView *container = [[UIView alloc] initWithFrame:CGRectMake(0, 0, 14, 30)];
     UIImageView *chevron = [[UIImageView alloc] initWithImage:[UIImage systemImageNamed:@"chevron.right"]];
-    chevron.tintColor = [UIColor tertiaryLabelColor];
+    chevron.tintColor = [AmeTheme textTertiary];
     chevron.contentMode = UIViewContentModeScaleAspectFit;
     chevron.frame = CGRectMake(0, 8.5, 8, 13);
     [container addSubview:chevron];
@@ -1134,7 +1135,7 @@ static NSString * localizeProfileTitle(NSString *title) {
     textField.text = [NSString stringWithFormat:@"%ld", (long)self.resolutionScale];
     // Task160：与内存分配行 detailTextLabel 同色同字号（系统 detail 默认 17pt regular）
     textField.font = [UIFont systemFontOfSize:17];
-    textField.textColor = [UIColor secondaryLabelColor];
+    textField.textColor = [AmeTheme textSecondary];
     textField.keyboardType = UIKeyboardTypeNumberPad;
     textField.textAlignment = NSTextAlignmentRight;
     textField.autocorrectionType = UITextAutocorrectionTypeNo;
@@ -1151,7 +1152,7 @@ static NSString * localizeProfileTitle(NSString *title) {
     UILabel *percentLabel = [[UILabel alloc] initWithFrame:CGRectMake(58, 0, 18, 30)];
     percentLabel.text = @"%";
     percentLabel.font = [UIFont systemFontOfSize:17];
-    percentLabel.textColor = [UIColor secondaryLabelColor];
+    percentLabel.textColor = [AmeTheme textSecondary];
 
     // Task160：容器尾端自绘箭头（chevron.right，tertiaryLabel 灰）——
     // accessoryView 被本容器占用后 cell 自带的向右箭头不会绘制，在此补齐；
@@ -1159,7 +1160,7 @@ static NSString * localizeProfileTitle(NSString *title) {
     // 同 glyph/同色/同尺寸），渲染器等所有跳转行已与其对齐
     UIImage *chevronImage = [UIImage systemImageNamed:@"chevron.right"];
     UIImageView *chevronView = [[UIImageView alloc] initWithImage:chevronImage];
-    chevronView.tintColor = [UIColor tertiaryLabelColor];
+    chevronView.tintColor = [AmeTheme textTertiary];
     chevronView.contentMode = UIViewContentModeScaleAspectFit;
     chevronView.frame = CGRectMake(82, 9, 8, 13);
 
@@ -3524,7 +3525,7 @@ static ModVersion *ame217_pickVersionForGameVersion(NSArray<ModVersion *> *versi
             // 无自定义背景：使用系统默认色，保持原 UI 风格
             if (@available(iOS 13.0, *)) {
                 UIView *bg = [[UIView alloc] initWithFrame:tv.bounds];
-                bg.backgroundColor = [UIColor systemBackgroundColor];
+                bg.backgroundColor = [AmeTheme bgPrimary];
                 bg.autoresizingMask = UIViewAutoresizingFlexibleWidth | UIViewAutoresizingFlexibleHeight;
                 tv.backgroundView = bg;
             }

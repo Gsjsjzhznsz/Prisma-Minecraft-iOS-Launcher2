@@ -4,6 +4,7 @@
 #import "LauncherNewsViewController.h"
 #import "BackgroundManager.h"
 #import <QuartzCore/QuartzCore.h>
+#import "AmeTheme.h"            // ★ 7.0-UI-3f：Fluent 设计令牌（磁贴文字/尺寸徽章/危险按钮迁移）
 
 // MARK: - Available Shortcut Definitions
 
@@ -63,32 +64,32 @@ static UIColor *hexColor(NSString *hex) {
         self.tileIconView = [[UIImageView alloc] init];
         self.tileIconView.translatesAutoresizingMaskIntoConstraints = NO;
         self.tileIconView.contentMode = UIViewContentModeScaleAspectFit;
-        self.tileIconView.tintColor = [UIColor labelColor];
+        self.tileIconView.tintColor = [AmeTheme textPrimary];
         [self.contentView addSubview:self.tileIconView];
         
         // 标题
         self.tileTitleLabel = [[UILabel alloc] init];
         self.tileTitleLabel.translatesAutoresizingMaskIntoConstraints = NO;
         self.tileTitleLabel.font = [UIFont systemFontOfSize:15 weight:UIFontWeightSemibold];
-        self.tileTitleLabel.textColor = [UIColor labelColor];
+        self.tileTitleLabel.textColor = [AmeTheme textPrimary];
         [self.contentView addSubview:self.tileTitleLabel];
         
         // 详情（类型+大小）
         self.tileDetailLabel = [[UILabel alloc] init];
         self.tileDetailLabel.translatesAutoresizingMaskIntoConstraints = NO;
         self.tileDetailLabel.font = [UIFont systemFontOfSize:11 weight:UIFontWeightMedium];
-        self.tileDetailLabel.textColor = [UIColor tertiaryLabelColor];
+        self.tileDetailLabel.textColor = [AmeTheme textTertiary];
         [self.contentView addSubview:self.tileDetailLabel];
         
         // 尺寸标签
         self.sizeLabel = [[UILabel alloc] init];
         self.sizeLabel.translatesAutoresizingMaskIntoConstraints = NO;
         self.sizeLabel.font = [UIFont systemFontOfSize:10 weight:UIFontWeightBold];
-        self.sizeLabel.textColor = [UIColor secondaryLabelColor];
+        self.sizeLabel.textColor = [AmeTheme textSecondary];
         self.sizeLabel.textAlignment = NSTextAlignmentCenter;
         self.sizeLabel.layer.cornerRadius = 4;
         self.sizeLabel.layer.masksToBounds = YES;
-        self.sizeLabel.backgroundColor = [UIColor colorWithWhite:0.2 alpha:0.5];
+        self.sizeLabel.backgroundColor = [AmeTheme fillStrong];
         [self.contentView addSubview:self.sizeLabel];
         
         // 可见性开关
@@ -215,7 +216,7 @@ static UIColor *hexColor(NSString *hex) {
                                                                 style:UIBarButtonItemStylePlain
                                                                target:self
                                                                action:@selector(resetTapped)];
-    resetBtn.tintColor = [UIColor systemRedColor];
+    resetBtn.tintColor = [AmeTheme statusDanger];
     UIBarButtonItem *flex = [[UIBarButtonItem alloc] initWithBarButtonSystemItem:UIBarButtonSystemItemFlexibleSpace target:nil action:nil];
     
     self.toolbarItems = @[addBtn, flex, resetBtn];
@@ -225,7 +226,7 @@ static UIColor *hexColor(NSString *hex) {
     if ([[BackgroundManager sharedManager] hasBackground]) {
         self.view.backgroundColor = [UIColor clearColor];
     } else {
-        self.view.backgroundColor = [UIColor systemGroupedBackgroundColor];
+        self.view.backgroundColor = [AmeTheme bgPrimary];
     }
     
     [self setupTableView];

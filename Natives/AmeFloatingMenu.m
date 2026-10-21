@@ -28,6 +28,7 @@
 #import "LauncherPreferences.h" // ★ Task250：accentColor()（菜单行符号 tint 跟随主题强调色）
 #import "AmeLiquidGlassView.h"  // ★ Task252：TG LegacyGlassView 配方接管面板玻璃
 #import "SurfaceViewController.h" // ★ Task252：+surface 判定游戏域（快照供料 vs 实况采样）
+#import "AmeTheme.h" // ★ 7.0-UI-3e：Fluent 设计令牌层（浮层底/描边/填充/文字语义化迁移）
 
 #pragma mark - 前向声明与工具
 
@@ -42,36 +43,10 @@
 @implementation Ame237MenuActionMirror
 @end
 
-/// 动态明暗颜色：深色模式 = 白 alpha；浅色模式 = 黑 alpha。
-static UIColor *Ame237Dyn(CGFloat darkWhiteAlpha, CGFloat lightBlackAlpha) {
-    return [UIColor colorWithDynamicProvider:^UIColor * _Nonnull(UITraitCollection * _Nonnull tc) {
-        return (tc.userInterfaceStyle == UIUserInterfaceStyleDark)
-            ? [UIColor colorWithWhite:1.0 alpha:darkWhiteAlpha]
-            : [UIColor colorWithWhite:0.0 alpha:lightBlackAlpha];
-    }];
-}
-
-/// 面板防御性实底：深色 = 近黑 55%；浅色 = 白 80%（磨砂失效时仍是一块
-/// 可读面板——绝不是“透明面板 + 悬浮文字”）。
-static UIColor *Ame237PanelBase(void) {
-    return [UIColor colorWithDynamicProvider:^UIColor * _Nonnull(UITraitCollection * _Nonnull tc) {
-        return (tc.userInterfaceStyle == UIUserInterfaceStyleDark)
-            ? [UIColor colorWithWhite:0.02 alpha:0.55]
-            : [UIColor colorWithWhite:1.0 alpha:0.80];
-    }];
-}
-
-/// ★ Task239：原生玻璃（UIGlassEffect）面板底——比 Task237 防御底更通透
-///   （真玻璃自带磨砂与折光，厚底会把它闷成实心板）；仍保留中等浓度
-///   兑底（玻璃在个别进程环境渲染异常时面板不会变成“透明 + 悬浮文字”）。
-static UIColor *Ame239GlassPanelBase(void) {
-    return [UIColor colorWithDynamicProvider:^UIColor * _Nonnull(UITraitCollection * _Nonnull tc) {
-        return (tc.userInterfaceStyle == UIUserInterfaceStyleDark)
-            ? [UIColor colorWithWhite:0.02 alpha:0.30]
-            : [UIColor colorWithWhite:1.0 alpha:0.58];
-    }];
-}
-
+// 7.0-UI-3e：原局部动态色助手 Ame237Dyn / Ame237PanelBase / Ame239GlassPanelBase
+// 退役——面板底改 surfaceOverlay、填充改 fillStrong、描边改 divider、文字改
+// text 令牌（全部自带动态深浅适配）；快照磨砂可读性 tint（Ame244SnapshotTint）
+// 属磨砂材质管线功能色，保留。
 static CGFloat Ame237TextHeight(NSString *text, UIFont *font, CGFloat width) {
     if (text.length == 0) return 0.0;
     NSAttributedString *s = [[NSAttributedString alloc] initWithString:text
@@ -276,7 +251,7 @@ static UIColor *Ame244SnapshotTint(void) {
                      animations:^{
         self.transform = highlighted ? CGAffineTransformMakeScale(0.97, 0.97) : CGAffineTransformIdentity;
     } completion:nil];
-    self.backgroundColor = highlighted ? Ame237Dyn(0.12, 0.06) : nil;
+    self.backgroundColor = highlighted ? [AmeTheme fillStrong] : nil; // 7.0-UI-3e：按压态强填充令牌（原黑白 alpha 混合 0.12/0.06）
 }
 
 @end
@@ -360,13 +335,12 @@ static UIColor *Ame244SnapshotTint(void) {
 
     // 悬浮面板（防御性实底 + 毛玻璃 + 阴影）
     self.panel = [[UIView alloc] init];
-    // ★ Task239（用户指令：“请用 iOS 26 原生液态玻璃 API 重写所有悬浮菜单
-    //   …使用 UIGlassEffect（UIKit）实现真正的液态玻璃弹窗”）：玻璃风格下
-    //   底色分两档——原生玻璃用通透底（真玻璃自带磨砂折光），材质回退
-    //   保留 Task237 厚防御底（磨砂不合成时独立承载可读性）。
-    self.panel.backgroundColor = LGCNativeGlassEngaged() ? Ame239GlassPanelBase()
-                                                         : Ame237PanelBase();
-    self.panel.layer.cornerRadius = 26.0;
+    // ★ Task239 → 7.0-UI-3e 更新：面板底色不再分“原生玻璃通透底/材质回退厚防御底”
+    //   两档，统一收敛为 surfaceOverlay 浮层令牌（动态深浅自带）。玻璃风格下
+    //   TG 玻璃接管时底色置 nil（见下方分支）；磨砂/快照护栏仍由 blurView/
+    //   快照层独立承载可读性，防御面不回退。
+    self.panel.backgroundColor = [AmeTheme surfaceOverlay]; // ★ 7.0-UI-3e：浮层底色令牌（原 Task237/239 防御性半透明实底退役，磨砂/快照护栏仍由 blurView/快照层承载）
+    self.panel.layer.cornerRadius = [AmeTheme radiusL]; // ★ 7.0-UI-3e：浮层大圆角令牌（原 26pt 硬编码；blur/快照/描边/阴影路径六处同步换令牌保持裁剪一致）
     self.panel.layer.cornerCurve = kCACornerCurveContinuous;
     self.panel.layer.shadowColor = [UIColor blackColor].CGColor;
     self.panel.layer.shadowOpacity = 0.32;
@@ -390,7 +364,7 @@ static UIColor *Ame244SnapshotTint(void) {
     }
     self.blurView = [[UIVisualEffectView alloc] initWithEffect:ame239_effect];
     self.blurView.userInteractionEnabled = NO;
-    self.blurView.layer.cornerRadius = 26.0;
+    self.blurView.layer.cornerRadius = [AmeTheme radiusL]; // 7.0-UI-3e
     self.blurView.layer.cornerCurve = kCACornerCurveContinuous;
     self.blurView.layer.masksToBounds = YES;
     [self.panel addSubview:self.blurView];   // index 0：恒在全部内容之下
@@ -416,7 +390,7 @@ static UIColor *Ame244SnapshotTint(void) {
                               [AmeLiquidGlassView ame252_isSupported];
     if (ame252_glassActive) {
         BOOL ame252_dark = (self.traitCollection.userInterfaceStyle == UIUserInterfaceStyleDark);
-        self.ame252_glass = [AmeLiquidGlassView ame252_glassViewWithCornerRadius:26.0
+        self.ame252_glass = [AmeLiquidGlassView ame252_glassViewWithCornerRadius:[AmeTheme radiusL] // 7.0-UI-3e
                                                                           isDark:ame252_dark];
         if (self.ame252_glass != nil) {
             self.ame252_glass.frame = self.panel.bounds;
@@ -451,7 +425,7 @@ static UIColor *Ame244SnapshotTint(void) {
         UIView *ame245_clip = [[UIView alloc] initWithFrame:self.panel.bounds];
         ame245_clip.autoresizingMask =
             UIViewAutoresizingFlexibleWidth | UIViewAutoresizingFlexibleHeight;
-        ame245_clip.layer.cornerRadius = 26.0;
+        ame245_clip.layer.cornerRadius = [AmeTheme radiusL]; // 7.0-UI-3e
         ame245_clip.layer.cornerCurve = kCACornerCurveContinuous;
         ame245_clip.layer.masksToBounds = YES;
         ame245_clip.userInteractionEnabled = NO;
@@ -489,7 +463,7 @@ static UIColor *Ame244SnapshotTint(void) {
         self.titleLabel = [[UILabel alloc] init];
         self.titleLabel.text = self.ame237_title;
         self.titleLabel.font = [UIFont systemFontOfSize:17 weight:UIFontWeightSemibold];
-        self.titleLabel.textColor = [UIColor labelColor];
+        self.titleLabel.textColor = [AmeTheme textPrimary]; // 7.0-UI-3e
         self.titleLabel.textAlignment = NSTextAlignmentCenter;
         self.titleLabel.numberOfLines = 0;
         [self.panel addSubview:self.titleLabel];
@@ -498,7 +472,7 @@ static UIColor *Ame244SnapshotTint(void) {
         self.messageLabel = [[UILabel alloc] init];
         self.messageLabel.text = self.ame237_message;
         self.messageLabel.font = [UIFont systemFontOfSize:14 weight:UIFontWeightRegular];
-        self.messageLabel.textColor = [UIColor secondaryLabelColor];
+        self.messageLabel.textColor = [AmeTheme textSecondary]; // 7.0-UI-3e
         self.messageLabel.textAlignment = NSTextAlignmentCenter;
         self.messageLabel.numberOfLines = 0;
         [self.panel addSubview:self.messageLabel];
@@ -510,7 +484,7 @@ static UIColor *Ame244SnapshotTint(void) {
         if (![src isKindOfClass:[UITextField class]]) continue;
         UITextField *f = [[UITextField alloc] init];
         f.font = [UIFont systemFontOfSize:15];
-        f.textColor = [UIColor labelColor];
+        f.textColor = [AmeTheme textPrimary]; // 7.0-UI-3e
         f.placeholder = src.placeholder;
         f.text = src.text;
         f.secureTextEntry = src.secureTextEntry;
@@ -520,10 +494,10 @@ static UIColor *Ame244SnapshotTint(void) {
         f.clearButtonMode = src.clearButtonMode;
         f.returnKeyType = src.returnKeyType;
         f.tag = src.tag;
-        f.backgroundColor = Ame237Dyn(0.12, 0.06);
+        f.backgroundColor = [AmeTheme fillStrong]; // 7.0-UI-3e：输入内衬强填充令牌（原黑白 alpha 0.12/0.06）
         f.layer.cornerRadius = 10.0;
         f.layer.borderWidth = 0.5;
-        f.layer.borderColor = Ame237Dyn(0.25, 0.12).CGColor;
+        f.layer.borderColor = [AmeTheme divider].CGColor; // 7.0-UI-3e：描边令牌（原黑白 alpha 0.25/0.12，Fluent 发丝线规格）
         f.layer.cornerCurve = kCACornerCurveContinuous;
         UIView *leftPad = [[UIView alloc] initWithFrame:CGRectMake(0, 0, 12, 1)];
         f.leftView = leftPad;
@@ -557,13 +531,13 @@ static UIColor *Ame244SnapshotTint(void) {
                      : @"circle.dotted";
         }
         UIImage *icon = [AmeFloatingMenu symbolImageForName:iconName];
-        UIColor *textColor = (m.style == 2) ? [UIColor systemRedColor] : [UIColor labelColor];
+        UIColor *textColor = (m.style == 2) ? [AmeTheme statusDanger] : [AmeTheme textPrimary]; // 7.0-UI-3e：destructive 红/常规主文字
         // ★ Task250（反馈 5：恢复主题强调色适配）：符号 tint 从硬编码
         //   systemBlueColor 改为主题强调色（accentColor()，与设置页/右栏
         //   启动按钮同源）——伪玻璃档全接管后本面板是用户最高频的菜单面，
         //   主题色必须跟随；destructive 红/取消灰语义不变。
-        UIColor *symbolTint = (m.style == 2) ? [UIColor systemRedColor]
-                            : (m.style == 1) ? [UIColor secondaryLabelColor]
+        UIColor *symbolTint = (m.style == 2) ? [AmeTheme statusDanger] // 7.0-UI-3e
+                            : (m.style == 1) ? [AmeTheme textSecondary] // 7.0-UI-3e：取消灰语义
                             : accentColor();
         [row ame237_configureWithIcon:icon
                                 title:(m.title.length > 0 ? m.title : @"")
@@ -579,7 +553,7 @@ static UIColor *Ame244SnapshotTint(void) {
         [self.rows addObject:row];
         if (idx + 1 < self.ame237_actions.count) {
             UIView *sep = [[UIView alloc] init];
-            sep.backgroundColor = Ame237Dyn(0.16, 0.10);
+            sep.backgroundColor = [AmeTheme divider]; // 7.0-UI-3e：发丝分隔线令牌（原黑白 alpha 0.16/0.10）
             sep.userInteractionEnabled = NO;
             [self.rowsScroll addSubview:sep];
             [self.separators addObject:sep];
@@ -590,10 +564,10 @@ static UIColor *Ame244SnapshotTint(void) {
     // 发丝描边覆盖环（最上层；空心底环不遮内容、不参与命中）
     self.borderOverlay = [[UIView alloc] init];
     self.borderOverlay.backgroundColor = [UIColor clearColor];
-    self.borderOverlay.layer.cornerRadius = 26.0;
+    self.borderOverlay.layer.cornerRadius = [AmeTheme radiusL]; // 7.0-UI-3e
     self.borderOverlay.layer.cornerCurve = kCACornerCurveContinuous;
     self.borderOverlay.layer.borderWidth = 0.75;
-    self.borderOverlay.layer.borderColor = Ame237Dyn(0.30, 0.10).CGColor;
+    self.borderOverlay.layer.borderColor = [AmeTheme divider].CGColor; // 7.0-UI-3e：发丝描边环令牌（原黑白 alpha 0.30/0.10）
     self.borderOverlay.userInteractionEnabled = NO;
     // ★ Task252：TG 玻璃接管时自带 0.8pt 描边环，旧发丝环退场。
     self.borderOverlay.hidden = (self.ame252_glass != nil);
@@ -786,7 +760,7 @@ static UIColor *Ame244SnapshotTint(void) {
         }
         self.panel.layer.shadowPath =
             [UIBezierPath bezierPathWithRoundedRect:self.panel.bounds
-                                       cornerRadius:26.0].CGPath;
+                                       cornerRadius:[AmeTheme radiusL]].CGPath; // 7.0-UI-3e：与面板圆角同令牌
     }
     self.blurView.frame = self.panel.bounds;
     // ★ Task245：窗口对位磨砂帧刷新（面板挪位/旋转/键盘避让后，快照与

@@ -1,6 +1,7 @@
 #import "utils.h"
 #import "DownloadHistoryViewController.h"
 #import "DownloadHistoryStore.h"
+#import "AmeTheme.h"            // 7.0-UI-3b：Fluent 设计令牌（下载簇换肤）
 #import "DownloadTaskItem.h"
 #import "BackgroundManager.h"
 
@@ -22,14 +23,14 @@ static NSString * const kHistoryCellReuseIdentifier = @"DownloadHistoryCell";
 - (instancetype)initWithStyle:(UITableViewCellStyle)style reuseIdentifier:(NSString *)reuseIdentifier {
     self = [super initWithStyle:style reuseIdentifier:reuseIdentifier];
     if (self) {
-        self.backgroundColor = [UIColor secondarySystemBackgroundColor];
+        self.backgroundColor = [AmeTheme surfaceCard]; // 卡片单元格面
         self.layer.cornerRadius = 12.0;
         self.layer.masksToBounds = YES;
 
         self.nameLabel = [[UILabel alloc] init];
         self.nameLabel.translatesAutoresizingMaskIntoConstraints = NO;
         self.nameLabel.font = [UIFont boldSystemFontOfSize:15];
-        self.nameLabel.textColor = [UIColor labelColor];
+        self.nameLabel.textColor = [AmeTheme textPrimary];
         self.nameLabel.numberOfLines = 1;
         self.nameLabel.lineBreakMode = NSLineBreakByTruncatingMiddle;
         [self.contentView addSubview:self.nameLabel];
@@ -37,14 +38,14 @@ static NSString * const kHistoryCellReuseIdentifier = @"DownloadHistoryCell";
         self.detailLabel = [[UILabel alloc] init];
         self.detailLabel.translatesAutoresizingMaskIntoConstraints = NO;
         self.detailLabel.font = [UIFont systemFontOfSize:12];
-        self.detailLabel.textColor = [UIColor secondaryLabelColor];
+        self.detailLabel.textColor = [AmeTheme textSecondary];
         self.detailLabel.numberOfLines = 1;
         [self.contentView addSubview:self.detailLabel];
 
         self.timeLabel = [[UILabel alloc] init];
         self.timeLabel.translatesAutoresizingMaskIntoConstraints = NO;
         self.timeLabel.font = [UIFont monospacedDigitSystemFontOfSize:11 weight:UIFontWeightRegular];
-        self.timeLabel.textColor = [UIColor tertiaryLabelColor];
+        self.timeLabel.textColor = [AmeTheme textTertiary];
         self.timeLabel.textAlignment = NSTextAlignmentRight;
         self.timeLabel.numberOfLines = 2;
         [self.contentView addSubview:self.timeLabel];
@@ -159,7 +160,7 @@ static NSString * const kHistoryCellReuseIdentifier = @"DownloadHistoryCell";
 
     // 适配自定义启动器背景：透明化当前视图控制器，使全局背景壁纸透出（与下载中心一致）
     [[BackgroundManager sharedManager] makeViewControllerTransparent:self];
-    self.view.backgroundColor = [UIColor systemBackgroundColor]; // Task136：主题化页面底色
+    self.view.backgroundColor = [AmeTheme bgPrimary]; // Task136：主题化页面底色
 
     self.title = localize(@"download.history.title", nil);
 
@@ -190,7 +191,7 @@ static NSString * const kHistoryCellReuseIdentifier = @"DownloadHistoryCell";
     if (!self.emptyLabel) {
         self.emptyLabel = [[UILabel alloc] init];
         self.emptyLabel.font = [UIFont systemFontOfSize:16];
-        self.emptyLabel.textColor = [UIColor secondaryLabelColor];
+        self.emptyLabel.textColor = [AmeTheme textSecondary];
         self.emptyLabel.textAlignment = NSTextAlignmentCenter;
         self.emptyLabel.numberOfLines = 0;
     }

@@ -17,6 +17,7 @@
 #import "ModVersionTableViewCell.h"
 #import "AssetDetailHeaderView.h"
 #import "BackgroundManager.h"
+#import "AmeTheme.h"          // ★ 7.0-UI-3c：Fluent 设计令牌层（硬编码 UIColor 语义化迁移）
 
 // ============================================================================
 // 排序方式常量（与 ModVersionViewController 保持一致，阶段3统一）
@@ -83,7 +84,7 @@ static NSArray<NSDictionary *> *SortOptionItems(void) {
 
 - (void)viewDidLoad {
     [super viewDidLoad];
-    self.view.backgroundColor = [UIColor systemBackgroundColor]; // Task136：主题化页面底色
+    self.view.backgroundColor = [AmeTheme bgPrimary]; // Task136：主题化页面底色
     self.title = self.projectDisplayName ?: [self titleForAssetType];
     // 适配自定义启动器背景：透明化当前 VC，让全局背景图/毛玻璃透出
     [[BackgroundManager sharedManager] makeViewControllerTransparent:self];
@@ -138,11 +139,11 @@ static NSArray<NSDictionary *> *SortOptionItems(void) {
 
     // 根据 assetType 选占位 SF Symbol + 配色（与 ModernAssetCell 的资源类型配色一致）
     NSString *placeholderSymbol = @"doc.fill";
-    UIColor *placeholderColor = [UIColor systemBlueColor];
+    UIColor *placeholderColor = [AmeTheme brandPrimary];
     switch (self.assetType) {
         case AssetVersionTypeResourcePack:
             placeholderSymbol = @"photo.stack.fill";
-            placeholderColor = [UIColor systemBlueColor];
+            placeholderColor = [AmeTheme brandPrimary];
             break;
         case AssetVersionTypeDataPack:
             placeholderSymbol = @"doc.text.fill";
@@ -279,7 +280,7 @@ static NSArray<NSDictionary *> *SortOptionItems(void) {
     UIImageView *iconView = [[UIImageView alloc] init];
     iconView.translatesAutoresizingMaskIntoConstraints = NO;
     iconView.image = [UIImage systemImageNamed:iconName];
-    iconView.tintColor = [UIColor secondaryLabelColor];
+    iconView.tintColor = [AmeTheme textSecondary];
     iconView.contentMode = UIViewContentModeScaleAspectFit;
     [iconView setContentHuggingPriority:UILayoutPriorityRequired forAxis:UILayoutConstraintAxisHorizontal];
     [iconView setContentCompressionResistancePriority:UILayoutPriorityRequired forAxis:UILayoutConstraintAxisHorizontal];
@@ -292,7 +293,7 @@ static NSArray<NSDictionary *> *SortOptionItems(void) {
     label.translatesAutoresizingMaskIntoConstraints = NO;
     label.text = labelText;
     label.font = [UIFont systemFontOfSize:11 weight:UIFontWeightMedium];
-    label.textColor = [UIColor secondaryLabelColor];
+    label.textColor = [AmeTheme textSecondary];
     label.textAlignment = NSTextAlignmentLeft;
     [label setContentHuggingPriority:UILayoutPriorityRequired forAxis:UILayoutConstraintAxisHorizontal];
     [label setContentCompressionResistancePriority:UILayoutPriorityRequired forAxis:UILayoutConstraintAxisHorizontal];
@@ -367,13 +368,13 @@ static NSArray<NSDictionary *> *SortOptionItems(void) {
 - (void)applyChipStyle:(UIButton *)chip selected:(BOOL)selected {
     if (selected) {
         // 选中态：主题色背景 + 白字（参照 FCL 选中标签高亮）
-        chip.backgroundColor = [UIColor systemBlueColor];
-        [chip setTitleColor:[UIColor whiteColor] forState:UIControlStateNormal];
+        chip.backgroundColor = [AmeTheme brandPrimary];
+        [chip setTitleColor:[AmeTheme textOnBrand] forState:UIControlStateNormal];
         chip.layer.borderWidth = 0;
     } else {
         // 未选中态：半透明背景 + 标签色文字 + 浅边框
         chip.backgroundColor = [[UIColor whiteColor] colorWithAlphaComponent:0.08];
-        [chip setTitleColor:[UIColor labelColor] forState:UIControlStateNormal];
+        [chip setTitleColor:[AmeTheme textPrimary] forState:UIControlStateNormal];
         chip.layer.borderWidth = 0.5;
         chip.layer.borderColor = [[UIColor whiteColor] colorWithAlphaComponent:0.15].CGColor;
     }

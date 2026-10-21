@@ -4,6 +4,7 @@
 #import "ios_uikit_bridge.h"
 #import "utils.h"
 #import "BackgroundManager.h"
+#import "AmeTheme.h" // 7.0-UI-3e：Fluent 设计令牌层（崩溃视图颜色语义化迁移）
 
 @interface PLCrashView ()
 // 数据
@@ -286,11 +287,11 @@ static NSString *const kGitHubIssuesURL = @"https://github.com/herbrine8403/Amet
 
 - (void)setupErrorCard {
     _errorCardView = [[UIView alloc] init];
-    _errorCardView.backgroundColor = [[UIColor whiteColor] colorWithAlphaComponent:0.08];
+    _errorCardView.backgroundColor = [AmeTheme fillSubtle]; // 7.0-UI-3e：玻璃卡面（原白 8% 半透明，统一填充令牌）
     _errorCardView.layer.cornerRadius = 16;  // Task137：回归原生卡片圆角
     _errorCardView.layer.cornerCurve = kCACornerCurveContinuous;
     _errorCardView.layer.borderWidth = 0.5;
-    _errorCardView.layer.borderColor = [[UIColor whiteColor] colorWithAlphaComponent:0.10].CGColor;
+    _errorCardView.layer.borderColor = [AmeTheme divider].CGColor; // 7.0-UI-3e：描边令牌（原白 10%）
     _errorCardView.layer.shadowColor = [UIColor blackColor].CGColor;
     _errorCardView.layer.shadowOffset = CGSizeMake(0, 4);
     _errorCardView.layer.shadowOpacity = 0.12;
@@ -303,8 +304,8 @@ static NSString *const kGitHubIssuesURL = @"https://github.com/herbrine8403/Amet
     // 顶部红色 accent 条（2pt 高的渐变层，从红色到透明）
     _accentGradientLayer = [CAGradientLayer layer];
     _accentGradientLayer.colors = @[
-        (__bridge id)[UIColor systemRedColor].CGColor,
-        (__bridge id)[[UIColor systemRedColor] colorWithAlphaComponent:0].CGColor,
+        (__bridge id)[AmeTheme statusDanger].CGColor, // 7.0-UI-3e：错误 accent 渐变（红→statusDanger）
+        (__bridge id)[[AmeTheme statusDanger] colorWithAlphaComponent:0].CGColor,
     ];
     _accentGradientLayer.locations = @[@0.0, @1.0];
     _accentGradientLayer.startPoint = CGPointMake(0.5, 0.0);
@@ -320,7 +321,7 @@ static NSString *const kGitHubIssuesURL = @"https://github.com/herbrine8403/Amet
         UIImageSymbolConfiguration *config = [UIImageSymbolConfiguration configurationWithPointSize:36 weight:UIImageSymbolWeightBold];
         _errorIconView.image = [UIImage systemImageNamed:@"exclamationmark.triangle.fill" withConfiguration:config];
     }
-    _errorIconView.tintColor = [UIColor systemRedColor];
+    _errorIconView.tintColor = [AmeTheme statusDanger]; // 7.0-UI-3e
     _errorIconView.contentMode = UIViewContentModeScaleAspectFit;
     [_errorCardView addSubview:_errorIconView];
 
@@ -329,7 +330,7 @@ static NSString *const kGitHubIssuesURL = @"https://github.com/herbrine8403/Amet
     _errorTitleLabel.translatesAutoresizingMaskIntoConstraints = NO;
     _errorTitleLabel.text = _customTitle ?: localize(@"crash.error_title", nil);
     _errorTitleLabel.font = [UIFont boldSystemFontOfSize:18];
-    _errorTitleLabel.textColor = [UIColor labelColor];
+    _errorTitleLabel.textColor = [AmeTheme textPrimary]; // 7.0-UI-3e
     _errorTitleLabel.textAlignment = NSTextAlignmentCenter;
     _errorTitleLabel.numberOfLines = 0;
     [_errorCardView addSubview:_errorTitleLabel];
@@ -339,7 +340,7 @@ static NSString *const kGitHubIssuesURL = @"https://github.com/herbrine8403/Amet
     _errorCodeLabel.translatesAutoresizingMaskIntoConstraints = NO;
     _errorCodeLabel.text = [NSString stringWithFormat:@"%@%d", localize(@"crash.error_code", nil), _exitCode];
     _errorCodeLabel.font = [UIFont systemFontOfSize:14];
-    _errorCodeLabel.textColor = [UIColor secondaryLabelColor];
+    _errorCodeLabel.textColor = [AmeTheme textSecondary]; // 7.0-UI-3e
     _errorCodeLabel.textAlignment = NSTextAlignmentCenter;
     [_errorCardView addSubview:_errorCodeLabel];
 
@@ -348,7 +349,7 @@ static NSString *const kGitHubIssuesURL = @"https://github.com/herbrine8403/Amet
     _reasonLabel.translatesAutoresizingMaskIntoConstraints = NO;
     _reasonLabel.text = [self crashReasonText];
     _reasonLabel.font = [UIFont systemFontOfSize:13];
-    _reasonLabel.textColor = [UIColor secondaryLabelColor];
+    _reasonLabel.textColor = [AmeTheme textSecondary]; // 7.0-UI-3e
     _reasonLabel.textAlignment = NSTextAlignmentCenter;
     _reasonLabel.numberOfLines = 0;
     [_errorCardView addSubview:_reasonLabel];
@@ -378,7 +379,7 @@ static NSString *const kGitHubIssuesURL = @"https://github.com/herbrine8403/Amet
         _oomSuggestionLabel = [[UILabel alloc] init];
         _oomSuggestionLabel.translatesAutoresizingMaskIntoConstraints = NO;
         _oomSuggestionLabel.font = [UIFont systemFontOfSize:12];
-        _oomSuggestionLabel.textColor = [UIColor secondaryLabelColor];
+        _oomSuggestionLabel.textColor = [AmeTheme textSecondary]; // 7.0-UI-3e
         _oomSuggestionLabel.textAlignment = NSTextAlignmentCenter;
         _oomSuggestionLabel.numberOfLines = 0;
         NSString *suggestion = [NSString stringWithFormat:@"%@ %@",
@@ -421,11 +422,11 @@ static NSString *const kGitHubIssuesURL = @"https://github.com/herbrine8403/Amet
     if (suggestions.count == 0) return; // 无建议时不显示卡片
 
     _suggestionsCardView = [[UIView alloc] init];
-    _suggestionsCardView.backgroundColor = [[UIColor whiteColor] colorWithAlphaComponent:0.06];
+    _suggestionsCardView.backgroundColor = [AmeTheme fillSubtle]; // 7.0-UI-3e：玻璃卡面（原白 6% 半透明，统一填充令牌）
     _suggestionsCardView.layer.cornerRadius = 16;  // Task137：回归原生卡片圆角
     _suggestionsCardView.layer.cornerCurve = kCACornerCurveContinuous;
     _suggestionsCardView.layer.borderWidth = 0.5;
-    _suggestionsCardView.layer.borderColor = [[UIColor whiteColor] colorWithAlphaComponent:0.10].CGColor;
+    _suggestionsCardView.layer.borderColor = [AmeTheme divider].CGColor; // 7.0-UI-3e
     _suggestionsCardView.translatesAutoresizingMaskIntoConstraints = NO;
     [_mainStackView addArrangedSubview:_suggestionsCardView];
     // 应用毛玻璃效果（适配自定义背景壁纸）
@@ -434,8 +435,8 @@ static NSString *const kGitHubIssuesURL = @"https://github.com/herbrine8403/Amet
     // 顶部黄色 accent 条（提示性质，非致命错误）
     CAGradientLayer *suggestionAccent = [CAGradientLayer layer];
     suggestionAccent.colors = @[
-        (__bridge id)[UIColor systemYellowColor].CGColor,
-        (__bridge id)[[UIColor systemYellowColor] colorWithAlphaComponent:0].CGColor,
+        (__bridge id)[AmeTheme statusWarning].CGColor, // 7.0-UI-3e：建议 accent 渐变（黄→statusWarning，保留警示区分度）
+        (__bridge id)[[AmeTheme statusWarning] colorWithAlphaComponent:0].CGColor,
     ];
     suggestionAccent.locations = @[@0.0, @1.0];
     suggestionAccent.startPoint = CGPointMake(0.5, 0.0);
@@ -457,7 +458,7 @@ static NSString *const kGitHubIssuesURL = @"https://github.com/herbrine8403/Amet
         UIImageSymbolConfiguration *config = [UIImageSymbolConfiguration configurationWithPointSize:16 weight:UIImageSymbolWeightSemibold];
         titleIcon.image = [UIImage systemImageNamed:@"lightbulb.fill" withConfiguration:config];
     }
-    titleIcon.tintColor = [UIColor systemYellowColor];
+    titleIcon.tintColor = [AmeTheme statusWarning]; // 7.0-UI-3e
     titleIcon.contentMode = UIViewContentModeScaleAspectFit;
     [titleRow addSubview:titleIcon];
 
@@ -465,7 +466,7 @@ static NSString *const kGitHubIssuesURL = @"https://github.com/herbrine8403/Amet
     _suggestionsTitleLabel.translatesAutoresizingMaskIntoConstraints = NO;
     _suggestionsTitleLabel.text = localize(@"crash.quick_fix", @"快速修复建议");
     _suggestionsTitleLabel.font = [UIFont systemFontOfSize:15 weight:UIFontWeightSemibold];
-    _suggestionsTitleLabel.textColor = [UIColor labelColor];
+    _suggestionsTitleLabel.textColor = [AmeTheme textPrimary]; // 7.0-UI-3e
     [titleRow addSubview:_suggestionsTitleLabel];
 
     // 建议列表（垂直 StackView）
@@ -519,7 +520,7 @@ static NSString *const kGitHubIssuesURL = @"https://github.com/herbrine8403/Amet
         UIImageSymbolConfiguration *config = [UIImageSymbolConfiguration configurationWithPointSize:13 weight:UIImageSymbolWeightRegular];
         icon.image = [UIImage systemImageNamed:iconName withConfiguration:config] ?: [UIImage systemImageNamed:@"chevron.right.circle" withConfiguration:config];
     }
-    icon.tintColor = [UIColor systemYellowColor];
+    icon.tintColor = [AmeTheme statusWarning]; // 7.0-UI-3e
     icon.contentMode = UIViewContentModeScaleAspectFit;
     [row addSubview:icon];
 
@@ -527,7 +528,7 @@ static NSString *const kGitHubIssuesURL = @"https://github.com/herbrine8403/Amet
     label.translatesAutoresizingMaskIntoConstraints = NO;
     label.text = text;
     label.font = [UIFont systemFontOfSize:13];
-    label.textColor = [UIColor secondaryLabelColor];
+    label.textColor = [AmeTheme textSecondary]; // 7.0-UI-3e
     label.numberOfLines = 0;
     [row addSubview:label];
 
@@ -865,12 +866,12 @@ static NSString *const kGitHubIssuesURL = @"https://github.com/herbrine8403/Amet
 
 - (void)setupLogCard {
     _logCardView = [[UIView alloc] init];
-    _logCardView.backgroundColor = [[UIColor whiteColor] colorWithAlphaComponent:0.08];
+    _logCardView.backgroundColor = [AmeTheme fillSubtle]; // 7.0-UI-3e：玻璃卡面（原白 8% 半透明，统一填充令牌）
     _logCardView.layer.cornerRadius = 16;  // Task137：回归原生卡片圆角
     _logCardView.layer.cornerCurve = kCACornerCurveContinuous;
     _logCardView.layer.masksToBounds = YES;
     _logCardView.layer.borderWidth = 0.5;
-    _logCardView.layer.borderColor = [[UIColor whiteColor] colorWithAlphaComponent:0.10].CGColor;
+    _logCardView.layer.borderColor = [AmeTheme divider].CGColor; // 7.0-UI-3e
     _logCardView.translatesAutoresizingMaskIntoConstraints = NO;
     // 注意：不在此处添加到 _mainStackView，由 setupUI 中的水平分栏容器管理
     // 应用毛玻璃效果（适配自定义背景壁纸）
@@ -881,14 +882,14 @@ static NSString *const kGitHubIssuesURL = @"https://github.com/herbrine8403/Amet
     _logTitleLabel.translatesAutoresizingMaskIntoConstraints = NO;
     _logTitleLabel.text = localize(@"crash.log_info", nil);
     _logTitleLabel.font = [UIFont systemFontOfSize:15 weight:UIFontWeightSemibold];
-    _logTitleLabel.textColor = [UIColor labelColor];
+    _logTitleLabel.textColor = [AmeTheme textPrimary]; // 7.0-UI-3e
     [_logCardView addSubview:_logTitleLabel];
 
     // 日志文本视图（可内部滚动）
     _logTextView = [[UITextView alloc] init];
     _logTextView.translatesAutoresizingMaskIntoConstraints = NO;
     _logTextView.backgroundColor = [UIColor clearColor];
-    _logTextView.textColor = [UIColor labelColor];
+    _logTextView.textColor = [AmeTheme textPrimary]; // 7.0-UI-3e（正文等宽字体照常迁移，仅色令牌化）
     _logTextView.font = [UIFont fontWithName:@"Menlo" size:11];
     _logTextView.editable = NO;
     _logTextView.showsVerticalScrollIndicator = YES;
@@ -900,7 +901,7 @@ static NSString *const kGitHubIssuesURL = @"https://github.com/herbrine8403/Amet
     _logPlaceholderLabel.translatesAutoresizingMaskIntoConstraints = NO;
     _logPlaceholderLabel.text = localize(@"crash.log_info", nil);
     _logPlaceholderLabel.font = [UIFont systemFontOfSize:36 weight:UIFontWeightBold];
-    _logPlaceholderLabel.textColor = [UIColor tertiaryLabelColor];
+    _logPlaceholderLabel.textColor = [AmeTheme textTertiary]; // 7.0-UI-3e
     _logPlaceholderLabel.textAlignment = NSTextAlignmentCenter;
     [_logCardView addSubview:_logPlaceholderLabel];
 
@@ -948,8 +949,8 @@ static NSString *const kGitHubIssuesURL = @"https://github.com/herbrine8403/Amet
     // 参照 FCL：很多崩溃是临时加载失败（JIT/dylib/内存碎片），重启即可解决。
     _restartButton = [self createButtonWithTitle:localize(@"crash.restart_launcher", @"重启启动器")
                                             icon:@"arrow.clockwise"
-                                   backgroundColor:[UIColor colorWithRed:0.2 green:0.6 blue:0.95 alpha:1.0]
-                                       textColor:[UIColor whiteColor]
+                                   backgroundColor:[AmeTheme brandPrimary] // 7.0-UI-3e：重启主操作（蓝色强调）
+                                       textColor:[AmeTheme textOnBrand]
                                           bold:YES
                                           action:@selector(restartLauncherAction)];
     [container addArrangedSubview:_restartButton];
@@ -960,8 +961,8 @@ static NSString *const kGitHubIssuesURL = @"https://github.com/herbrine8403/Amet
     // 不重启应用，与 FCL 的"退出"行为一致。
     _exitButton = [self createButtonWithTitle:localize(@"crash.return_launcher", @"退出启动器")
                                          icon:@"xmark.circle.fill"
-                                backgroundColor:[UIColor colorWithRed:0.85 green:0.2 blue:0.2 alpha:1.0]
-                                    textColor:[UIColor whiteColor]
+                                backgroundColor:[AmeTheme statusDanger] // 7.0-UI-3e：退出危险操作
+                                    textColor:[AmeTheme textOnBrand]
                                        bold:YES
                                        action:@selector(exitLauncherAction)];
     [container addArrangedSubview:_exitButton];
@@ -969,8 +970,8 @@ static NSString *const kGitHubIssuesURL = @"https://github.com/herbrine8403/Amet
     // 3. 分享日志按钮
     _shareButton = [self createButtonWithTitle:localize(@"crash.share_log", @"分享日志")
                                           icon:@"square.and.arrow.up"
-                                 backgroundColor:[[UIColor whiteColor] colorWithAlphaComponent:0.15]
-                                     textColor:[UIColor labelColor]
+                                 backgroundColor:[AmeTheme fillStrong] // 7.0-UI-3e：次级按钮（原白 15% 强填充档）
+                                     textColor:[AmeTheme textPrimary]
                                         bold:NO
                                         action:@selector(shareLog)];
     [container addArrangedSubview:_shareButton];
@@ -978,8 +979,8 @@ static NSString *const kGitHubIssuesURL = @"https://github.com/herbrine8403/Amet
     // 4. GitHub Issues 按钮
     _githubButton = [self createButtonWithTitle:localize(@"crash.github_issue", @"前往 GitHub Issues")
                                            icon:@"link"
-                                  backgroundColor:[[UIColor colorWithRed:0.3 green:0.5 blue:0.9 alpha:1.0] colorWithAlphaComponent:0.3]
-                                      textColor:[UIColor whiteColor]
+                                  backgroundColor:[[AmeTheme brandPrimary] colorWithAlphaComponent:0.3] // 7.0-UI-3e：保留原 30% 淡蓝底语义
+                                      textColor:[AmeTheme textOnBrand]
                                          bold:NO
                                          action:@selector(openGitHubIssues)];
     [container addArrangedSubview:_githubButton];
@@ -989,7 +990,7 @@ static NSString *const kGitHubIssuesURL = @"https://github.com/herbrine8403/Amet
     _fullLogButton.translatesAutoresizingMaskIntoConstraints = NO;
     [_fullLogButton setTitle:localize(@"crash.view_log", @"查看日志详情") forState:UIControlStateNormal];
     _fullLogButton.titleLabel.font = [UIFont systemFontOfSize:14];
-    [_fullLogButton setTitleColor:[UIColor secondaryLabelColor] forState:UIControlStateNormal];
+    [_fullLogButton setTitleColor:[AmeTheme textSecondary] forState:UIControlStateNormal]; // 7.0-UI-3e
     [_fullLogButton addTarget:self action:@selector(showFullLog) forControlEvents:UIControlEventTouchUpInside];
     [container addArrangedSubview:_fullLogButton];
 }

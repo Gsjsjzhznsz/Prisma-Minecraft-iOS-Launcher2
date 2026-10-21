@@ -19,6 +19,7 @@
 #import "AmeNativeMenu.h"       // ★ Task240：菜单全面系统原生 UIMenu 化
 #import "BackgroundManager.h"
 #import "ModpackImportService.h"
+#import "AmeTheme.h"            // ★ 7.0-UI-3f：Fluent 设计令牌（导入页按钮/文案/卡片面迁移）
 #import "ModpackExportViewController.h"
 #import "PLProfiles.h"
 #import "UnzipKit.h"
@@ -112,7 +113,7 @@
     self.hintLabel = [[UILabel alloc] init];
     self.hintLabel.translatesAutoresizingMaskIntoConstraints = NO;
     self.hintLabel.textAlignment = NSTextAlignmentCenter;
-    self.hintLabel.textColor = [UIColor secondaryLabelColor];
+    self.hintLabel.textColor = [AmeTheme textSecondary];
     self.hintLabel.font = [UIFont systemFontOfSize:12];
     self.hintLabel.numberOfLines = 0;
     self.hintLabel.text = localize(@"i18n_str_566", nil);
@@ -122,9 +123,9 @@
     self.importButton.translatesAutoresizingMaskIntoConstraints = NO;
     [self.importButton setTitle:[@"  " stringByAppendingString:localize(@"i18n_str_2055", nil)] forState:UIControlStateNormal];
     [self.importButton setImage:[UIImage systemImageNamed:@"doc.badge.plus"] forState:UIControlStateNormal];
-    self.importButton.backgroundColor = [UIColor systemBlueColor];
-    [self.importButton setTitleColor:[UIColor whiteColor] forState:UIControlStateNormal];
-    self.importButton.tintColor = [UIColor whiteColor];
+    self.importButton.backgroundColor = [AmeTheme brandPrimary];
+    [self.importButton setTitleColor:[AmeTheme textOnBrand] forState:UIControlStateNormal];
+    self.importButton.tintColor = [AmeTheme textOnBrand];
     self.importButton.layer.cornerRadius = 12;
     self.importButton.layer.masksToBounds = YES;
     self.importButton.titleLabel.font = [UIFont boldSystemFontOfSize:16];
@@ -145,7 +146,7 @@
     self.emptyLabel = [[UILabel alloc] init];
     self.emptyLabel.translatesAutoresizingMaskIntoConstraints = NO;
     self.emptyLabel.textAlignment = NSTextAlignmentCenter;
-    self.emptyLabel.textColor = [UIColor secondaryLabelColor];
+    self.emptyLabel.textColor = [AmeTheme textSecondary];
     self.emptyLabel.text = localize(@"i18n_str_568", nil);
     self.emptyLabel.numberOfLines = 0;
     self.emptyLabel.font = [UIFont systemFontOfSize:14];
@@ -580,7 +581,7 @@
     shadowView.layer.shadowOffset = CGSizeMake(0, 2);
     shadowView.layer.shadowOpacity = 0.10;
     shadowView.layer.shadowRadius = 4;
-    shadowView.layer.backgroundColor = [[UIColor whiteColor] colorWithAlphaComponent:0.08].CGColor;
+    shadowView.layer.backgroundColor = [[AmeTheme surfaceCard] colorWithAlphaComponent:0.08].CGColor;
     [cell.contentView insertSubview:shadowView atIndex:0];
 
     UIVisualEffectView *blurView = [[UIVisualEffectView alloc] initWithEffect:[UIBlurEffect effectWithStyle:UIBlurEffectStyleSystemMaterial]];

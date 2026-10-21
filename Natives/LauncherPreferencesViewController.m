@@ -23,6 +23,7 @@
 #import "CustomIconManager.h"
 #import "BackgroundSettingsViewController.h"
 #import "BackgroundManager.h"
+#import "AmeTheme.h"   // ★ 7.0-UI-3d：Fluent 设计令牌（颜色/字体单一事实源）
 #import "LiquidGlassCompat.h"   // Task224（#4/#19）：界面风格 + 界面缩放中枢
 #import "NMToast.h"
 #import "UpdateChecker.h"
@@ -2220,7 +2221,7 @@ if ([section isEqualToString:@"general"]) {
     // Hero 图标（56x56，14pt 圆角，accentColor 纯色背景，白色 SF Symbol）
     UIImageView *iconView = [[UIImageView alloc] init];
     iconView.image = [UIImage systemImageNamed:@"cube.fill"];
-    iconView.tintColor = [UIColor whiteColor];
+    iconView.tintColor = [AmeTheme textOnBrand];
     iconView.contentMode = UIViewContentModeCenter;
     iconView.backgroundColor = accentColor();
     iconView.layer.cornerRadius = 14;
@@ -2252,7 +2253,7 @@ if ([section isEqualToString:@"general"]) {
     // 右侧 chevron（12x12，tertiary-labelColor）
     UIImageView *chevronView = [[UIImageView alloc] init];
     chevronView.image = [UIImage systemImageNamed:@"chevron.right"];
-    chevronView.tintColor = [UIColor tertiaryLabelColor];
+    chevronView.tintColor = [AmeTheme textTertiary];
     chevronView.contentMode = UIViewContentModeScaleAspectFit;
     [heroCard addSubview:chevronView];
 
@@ -2573,12 +2574,12 @@ if ([section isEqualToString:@"general"]) {
         // Task160：去掉文字黑色阴影（用户实测重影：每行文字带 shadowOffset
         // (0,1) 的黑影，看起来像"文字重叠两次"）——回归原生纯色：浅色模式
         // 黑色标题 + 灰色小字（label / secondaryLabel 语义色，深浅色自适应）
-        cell.textLabel.textColor = [UIColor labelColor];
+        cell.textLabel.textColor = [AmeTheme textPrimary];
         cell.textLabel.shadowColor = nil;
         cell.textLabel.shadowOffset = CGSizeZero;
 
         // Detail text：原生次要文字色（替代写死 0.8 灰 + 阴影）
-        cell.detailTextLabel.textColor = [UIColor secondaryLabelColor];
+        cell.detailTextLabel.textColor = [AmeTheme textSecondary];
         cell.detailTextLabel.shadowColor = nil;
         cell.detailTextLabel.shadowOffset = CGSizeZero;
 
@@ -2604,15 +2605,15 @@ if ([section isEqualToString:@"general"]) {
             // Style text fields
             if ([subview isKindOfClass:[UITextField class]]) {
                 UITextField *textField = (UITextField *)subview;
-                textField.textColor = [UIColor labelColor]; // Task91：文字与输入框底色同步主题化
-                textField.backgroundColor = [UIColor tertiarySystemFillColor];
+                textField.textColor = [AmeTheme textPrimary]; // Task91：文字与输入框底色同步主题化
+                textField.backgroundColor = [AmeTheme fillStrong];   // 7.0-UI-3d：输入框底（tertiarySystemFill 同档深一档填充）
                 textField.layer.cornerRadius = 8;
             }
 
             // Style labels
             if ([subview isKindOfClass:[UILabel class]]) {
                 UILabel *label = (UILabel *)subview;
-                label.textColor = [UIColor labelColor]; // Task91
+                label.textColor = [AmeTheme textPrimary]; // Task91
                 // Task160：同步去阴影（重影修复）
                 label.shadowColor = nil;
                 label.shadowOffset = CGSizeZero;
@@ -2622,15 +2623,15 @@ if ([section isEqualToString:@"general"]) {
         // Style the picker label if exists
         if (cell.accessoryView && [cell.accessoryView isKindOfClass:[UILabel class]]) {
             UILabel *pickerLabel = (UILabel *)cell.accessoryView;
-            pickerLabel.textColor = [UIColor secondaryLabelColor]; // Task160：原生次要色（替代写死 0.8 灰）
+            pickerLabel.textColor = [AmeTheme textSecondary]; // Task160：原生次要色（替代写死 0.8 灰）
         }
     } else {
         // Reset to default when no background
-        cell.backgroundColor = [UIColor secondarySystemBackgroundColor];
-        cell.textLabel.textColor = [UIColor labelColor];
+        cell.backgroundColor = [AmeTheme surfaceCard];   // 7.0-UI-3d：无壁纸时单元格面（原 secondarySystemBackground 同角色）
+        cell.textLabel.textColor = [AmeTheme textPrimary];
         cell.textLabel.shadowColor = nil;
         cell.textLabel.shadowOffset = CGSizeZero;
-        cell.detailTextLabel.textColor = [UIColor secondaryLabelColor];
+        cell.detailTextLabel.textColor = [AmeTheme textSecondary];
         cell.detailTextLabel.shadowColor = nil;
         cell.detailTextLabel.shadowOffset = CGSizeZero;
     }
@@ -2710,7 +2711,7 @@ if ([section isEqualToString:@"general"]) {
                              destructive:(BOOL)destructive {
     // 危险操作项统一红色
     if (destructive) {
-        return [UIColor systemRedColor];
+        return [AmeTheme statusDanger];
     }
 
     // 搜索结果模式：按原所属 section 着色
@@ -2719,7 +2720,7 @@ if ([section isEqualToString:@"general"]) {
         if (origSection) {
             return [self colorForPreferenceSection:origSection.intValue];
         }
-        return [UIColor systemBlueColor];
+        return [AmeTheme brandPrimary];   // 7.0-UI-3d：蓝色强调 → 品牌蓝
     }
 
     // 正常模式：按 section 着色
@@ -2778,7 +2779,7 @@ if ([section isEqualToString:@"general"]) {
     if ([[BackgroundManager sharedManager] hasBackground]) {
         if ([view isKindOfClass:[UITableViewHeaderFooterView class]]) {
             UITableViewHeaderFooterView *header = (UITableViewHeaderFooterView *)view;
-            header.textLabel.textColor = [UIColor labelColor];
+            header.textLabel.textColor = [AmeTheme textPrimary];
             // Task160：去文字阴影（重影修复）
             header.textLabel.shadowColor = nil;
             header.textLabel.shadowOffset = CGSizeZero;
@@ -2825,7 +2826,7 @@ if ([section isEqualToString:@"general"]) {
     if ([[BackgroundManager sharedManager] hasBackground]) {
         if ([view isKindOfClass:[UITableViewHeaderFooterView class]]) {
             UITableViewHeaderFooterView *footer = (UITableViewHeaderFooterView *)view;
-            footer.textLabel.textColor = [UIColor secondaryLabelColor]; // Task160：原生次要色
+            footer.textLabel.textColor = [AmeTheme textSecondary]; // Task160：原生次要色
             footer.textLabel.shadowColor = nil;
             footer.textLabel.shadowOffset = CGSizeZero;
             footer.backgroundView = [[UIView alloc] init];

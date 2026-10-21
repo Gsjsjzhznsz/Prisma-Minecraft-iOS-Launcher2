@@ -18,105 +18,66 @@
 
 #import "CurseForgeAPIKeyViewController.h"
 #import "PLPreferences.h"
+#import "AmeTheme.h"            // 7.0-UI-3b：Fluent 设计令牌（下载簇换肤）
 // Task211：修正失效导入——Natives/ 下并无 CurseForgeAPI.h（本文件不在
 // CMake 目标列表里，旧导入从未被编译发现；真被编入时用完整路径）
 #import "installer/modpack/CurseForgeAPI.h"
 #import "config.h"
 #import "BackgroundManager.h"
 
-/// Material Design 3 主色调（CurseForge 橙色调，与品牌呼应）
+/// Material Design 3 主色调（7.0-UI-3b：CurseForge 橙 → 品牌主色令牌）
 static UIColor *CFKMD3PrimaryColor(void) {
-    return [UIColor colorWithDynamicProvider:^UIColor * _Nonnull(UITraitCollection * _Nonnull traitCollection) {
-        if (traitCollection.userInterfaceStyle == UIUserInterfaceStyleDark) {
-            return [UIColor colorWithRed:0.85 green:0.55 blue:0.30 alpha:1.0];
-        }
-        return [UIColor colorWithRed:0.80 green:0.42 blue:0.16 alpha:1.0];
-    }];
+    return [AmeTheme brandPrimary];
 }
 
-/// Material Design 3 主色调上的文字颜色（始终白色）
+/// Material Design 3 主色调上的文字颜色（7.0-UI-3b：恒白令牌）
 static UIColor *CFKMD3OnPrimaryColor(void) {
-    return [UIColor whiteColor];
+    return [AmeTheme textOnBrand];
 }
 
-/// Material Design 3 描边按钮的描边颜色
+/// Material Design 3 描边按钮的描边颜色（7.0-UI-3b：描边灰令牌，原 24%/32% 描边归一为 divider）
 static UIColor *CFKMD3OutlineColor(void) {
-    return [UIColor colorWithDynamicProvider:^UIColor * _Nonnull(UITraitCollection * _Nonnull traitCollection) {
-        if (traitCollection.userInterfaceStyle == UIUserInterfaceStyleDark) {
-            return [UIColor colorWithWhite:1.0 alpha:0.32];
-        }
-        return [UIColor colorWithWhite:0.0 alpha:0.24];
-    }];
+    return [AmeTheme divider];
 }
 
-/// 卡片背景色（适配深浅色）
+/// 卡片背景色（7.0-UI-3b：原半透明磨砂卡（浅 75% 白/深 6% 白）统一为卡片面令牌）
 static UIColor *CFKCardBackgroundColor(void) {
-    return [UIColor colorWithDynamicProvider:^UIColor * _Nonnull(UITraitCollection * _Nonnull traitCollection) {
-        if (traitCollection.userInterfaceStyle == UIUserInterfaceStyleDark) {
-            return [UIColor colorWithWhite:1.0 alpha:0.06];
-        }
-        return [UIColor colorWithWhite:1.0 alpha:0.75];
-    }];
+    return [AmeTheme surfaceCard];
 }
 
-/// 卡片描边色
+/// 卡片描边色（7.0-UI-3b：divider 令牌，取值与原 8%/10% 描边几乎一致）
 static UIColor *CFKCardBorderColor(void) {
-    return [UIColor colorWithDynamicProvider:^UIColor * _Nonnull(UITraitCollection * _Nonnull traitCollection) {
-        if (traitCollection.userInterfaceStyle == UIUserInterfaceStyleDark) {
-            return [UIColor colorWithWhite:1.0 alpha:0.10];
-        }
-        return [UIColor colorWithWhite:0.0 alpha:0.08];
-    }];
+    return [AmeTheme divider];
 }
 
-/// 页面背景色
+/// 页面背景色（7.0-UI-3b：页面大底令牌，取值与原色几乎一致）
 static UIColor *CFKPageBackgroundColor(void) {
-    return [UIColor colorWithDynamicProvider:^UIColor * _Nonnull(UITraitCollection * _Nonnull traitCollection) {
-        if (traitCollection.userInterfaceStyle == UIUserInterfaceStyleDark) {
-            return [UIColor colorWithRed:0.05 green:0.05 blue:0.07 alpha:1.0];
-        }
-        return [UIColor colorWithRed:0.96 green:0.96 blue:0.98 alpha:1.0];
-    }];
+    return [AmeTheme bgPrimary];
 }
 
-/// 主要文字颜色
+/// 主要文字颜色（7.0-UI-3b：一级文本令牌）
 static UIColor *CFKPrimaryTextColor(void) {
-    return [UIColor colorWithDynamicProvider:^UIColor * _Nonnull(UITraitCollection * _Nonnull traitCollection) {
-        if (traitCollection.userInterfaceStyle == UIUserInterfaceStyleDark) {
-            return [UIColor whiteColor];
-        }
-        return [UIColor colorWithRed:0.10 green:0.10 blue:0.12 alpha:1.0];
-    }];
+    return [AmeTheme textPrimary];
 }
 
-/// 次要文字颜色
+/// 次要文字颜色（7.0-UI-3b：二级文本令牌，原透明白 60%/透黑 55% 归一为实色阶）
 static UIColor *CFKSecondaryTextColor(void) {
-    return [UIColor colorWithDynamicProvider:^UIColor * _Nonnull(UITraitCollection * _Nonnull traitCollection) {
-        if (traitCollection.userInterfaceStyle == UIUserInterfaceStyleDark) {
-            return [UIColor colorWithWhite:1.0 alpha:0.60];
-        }
-        return [UIColor colorWithWhite:0.0 alpha:0.55];
-    }];
+    return [AmeTheme textSecondary];
 }
 
-/// 输入框背景色
+/// 输入框背景色（7.0-UI-3b：极浅填充令牌，取值与原 4%/8% 填充几乎一致）
 static UIColor *CFKFieldBackgroundColor(void) {
-    return [UIColor colorWithDynamicProvider:^UIColor * _Nonnull(UITraitCollection * _Nonnull traitCollection) {
-        if (traitCollection.userInterfaceStyle == UIUserInterfaceStyleDark) {
-            return [UIColor colorWithWhite:1.0 alpha:0.08];
-        }
-        return [UIColor colorWithWhite:0.0 alpha:0.04];
-    }];
+    return [AmeTheme fillSubtle];
 }
 
-/// 成功状态颜色
+/// 成功状态颜色（7.0-UI-3b：状态令牌）
 static UIColor *CFKSuccessColor(void) {
-    return [UIColor colorWithRed:0.18 green:0.69 blue:0.45 alpha:1.0];
+    return [AmeTheme statusSuccess];
 }
 
-/// 失败状态颜色
+/// 失败状态颜色（7.0-UI-3b：状态令牌）
 static UIColor *CFKErrorColor(void) {
-    return [UIColor colorWithRed:0.86 green:0.27 blue:0.27 alpha:1.0];
+    return [AmeTheme statusDanger];
 }
 
 @interface CurseForgeAPIKeyViewController () <UITextFieldDelegate>

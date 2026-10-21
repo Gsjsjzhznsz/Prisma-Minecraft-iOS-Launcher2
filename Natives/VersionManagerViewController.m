@@ -1,6 +1,7 @@
 #import "VersionManagerViewController.h"
 #import "UIKit+NativeSurface.h"
 #import "BackgroundManager.h"
+#import "AmeTheme.h"   // ★ 7.0-UI-3d：Fluent 设计令牌（颜色/字体单一事实源）
 #import "PLProfiles.h"
 #import "ProfileSettingsViewController.h"
 #import "ModsManagerViewController.h"
@@ -174,14 +175,14 @@ static const CGFloat kVMCardCornerRadius = 16.0;
     self.titleLabel = [[UILabel alloc] init];
     self.titleLabel.translatesAutoresizingMaskIntoConstraints = NO;
     self.titleLabel.font = [UIFont systemFontOfSize:titleFont weight:UIFontWeightSemibold];
-    self.titleLabel.textColor = [UIColor labelColor]; // Task137：语义色（原 Task91 主题色）
+    self.titleLabel.textColor = [AmeTheme textPrimary]; // Task137：语义色（原 Task91 主题色）
     self.titleLabel.adjustsFontForContentSizeCategory = NO;
     [self.contentContainer addSubview:self.titleLabel];
 
     self.subtitleLabel = [[UILabel alloc] init];
     self.subtitleLabel.translatesAutoresizingMaskIntoConstraints = NO;
     self.subtitleLabel.font = [UIFont systemFontOfSize:[ScreenUtils sp:10] weight:UIFontWeightRegular];
-    self.subtitleLabel.textColor = [UIColor secondaryLabelColor]; // Task137
+    self.subtitleLabel.textColor = [AmeTheme textSecondary]; // Task137
     self.subtitleLabel.numberOfLines = 0;
     self.subtitleLabel.lineBreakMode = NSLineBreakByWordWrapping;
     self.subtitleLabel.adjustsFontForContentSizeCategory = NO;
@@ -272,13 +273,13 @@ static const CGFloat kVMCardCornerRadius = 16.0;
     // 替代旧白 0.28 固定色（浅色平贴灰面上不可见）。
     self.ellipsisButton = [UIButton buttonWithType:UIButtonTypeCustom];
     self.ellipsisButton.translatesAutoresizingMaskIntoConstraints = NO;
-    self.ellipsisButton.backgroundColor = [[UIColor labelColor] colorWithAlphaComponent:0.12];
+    self.ellipsisButton.backgroundColor = [[AmeTheme fillStrong] colorWithAlphaComponent:0.12];   // 7.0-UI-3d：labelColor@0.12 同源（fill 强填充，RGB 黑/白对偶一致）
     self.ellipsisButton.layer.cornerRadius = ellipsisSize / 2.0;
     self.ellipsisButton.layer.cornerCurve = kCACornerCurveContinuous;
     UIImageSymbolConfiguration *ellipsisConfig = [UIImageSymbolConfiguration configurationWithPointSize:16.0 weight:UIFontWeightBlack];
     [self.ellipsisButton setImage:[UIImage systemImageNamed:@"ellipsis" withConfiguration:ellipsisConfig]
                           forState:UIControlStateNormal];
-    self.ellipsisButton.tintColor = [UIColor labelColor];
+    self.ellipsisButton.tintColor = [AmeTheme textPrimary];
     // 复用长按菜单的"编辑配置"文案做无障碍标签（不新增 l10n 键）
     self.ellipsisButton.accessibilityLabel = localize(@"i18n_str_1091", nil);
     [self.ellipsisButton addTarget:self
@@ -367,7 +368,7 @@ static const CGFloat kVMCardCornerRadius = 16.0;
     // 的根因修复，见基类 ame216_rebindCardSurface 注释）；⋯ 钮圆底同步绑定。
     [self ame216_rebindCardSurface];
     self.ellipsisButton.backgroundColor =
-        [[UIColor labelColor] colorWithAlphaComponent:0.12 * [self ame216_effectOpacityFactor]];
+        [[AmeTheme fillStrong] colorWithAlphaComponent:0.12 * [self ame216_effectOpacityFactor]];
     self.nameLabel.text = name;
     self.versionLabel.text = version ?: localize(@"i18n_str_1052", nil);
     self.selectionRing.hidden = !isSelected;
@@ -449,19 +450,19 @@ static const CGFloat kVMCardCornerRadius = 16.0;
     self.iconView.translatesAutoresizingMaskIntoConstraints = NO;
     self.iconView.contentMode = UIViewContentModeScaleAspectFit;
     self.iconView.image = [UIImage systemImageNamed:@"folder.fill"];
-    self.iconView.tintColor = [UIColor systemBlueColor];
+    self.iconView.tintColor = [AmeTheme brandPrimary];   // 7.0-UI-3d：蓝色强调 → 品牌蓝
     [self.contentContainer addSubview:self.iconView];
 
     // ----- 右上叉号删除钮（与实例卡 ⋯ 钮同构：自适应色圆底 + 16pt Black）-----
     self.deleteButton = [UIButton buttonWithType:UIButtonTypeCustom];
     self.deleteButton.translatesAutoresizingMaskIntoConstraints = NO;
-    self.deleteButton.backgroundColor = [[UIColor labelColor] colorWithAlphaComponent:0.12];
+    self.deleteButton.backgroundColor = [[AmeTheme fillStrong] colorWithAlphaComponent:0.12];   // 7.0-UI-3d：同 ⋯ 钮圆底
     self.deleteButton.layer.cornerRadius = deleteSize / 2.0;
     self.deleteButton.layer.cornerCurve = kCACornerCurveContinuous;
     UIImageSymbolConfiguration *xConfig = [UIImageSymbolConfiguration configurationWithPointSize:16.0 weight:UIFontWeightBlack];
     [self.deleteButton setImage:[UIImage systemImageNamed:@"xmark" withConfiguration:xConfig]
                        forState:UIControlStateNormal];
-    self.deleteButton.tintColor = [UIColor labelColor];
+    self.deleteButton.tintColor = [AmeTheme textPrimary];
     self.deleteButton.accessibilityLabel = localize(@"i18n_str_1083", nil);
     [self.deleteButton addTarget:self
                           action:@selector(deleteTapped)
@@ -540,20 +541,20 @@ static const CGFloat kVMCardCornerRadius = 16.0;
     // 叉钮圆底同步绑定。加号卡的绿淡底在本调用之后覆盖管线卡面（保持原语义）。
     [self ame216_rebindCardSurface];
     self.deleteButton.backgroundColor =
-        [[UIColor labelColor] colorWithAlphaComponent:0.12 * [self ame216_effectOpacityFactor]];
+        [[AmeTheme fillStrong] colorWithAlphaComponent:0.12 * [self ame216_effectOpacityFactor]];
     if (isAddButton) {
         // "新建目录"加号卡：Task214（用户"删除添加目录卡片的绿色边框"）——
         // 绿色 1pt 描边退役，描边回归基类默认（白 0.10 / 0.5pt）；绿色 plus
         // 直出与绿 0.08 淡底保留；布局走同一套新几何；叉号与选中环隐藏。
         self.iconView.image = [UIImage systemImageNamed:@"plus"];
-        self.iconView.tintColor = [UIColor systemGreenColor];
+        self.iconView.tintColor = [AmeTheme statusSuccess];
         self.nameLabel.text = localize(@"i18n_str_1053", nil);
         self.detailLabel.text = localize(@"i18n_str_1054", nil);
         self.deleteButton.hidden = YES;
         self.selectionRing.hidden = YES;
         self.contentContainer.layer.borderColor = [[UIColor whiteColor] colorWithAlphaComponent:0.10].CGColor;
         self.contentContainer.layer.borderWidth = 0.5;
-        self.contentContainer.backgroundColor = [[UIColor systemGreenColor] colorWithAlphaComponent:0.08];
+        self.contentContainer.backgroundColor = [[AmeTheme statusSuccess] colorWithAlphaComponent:0.08];
         return;
     }
 
@@ -563,7 +564,7 @@ static const CGFloat kVMCardCornerRadius = 16.0;
     // 的实时变化，随 Task216 移除；描边仍按基类默认（白 0.10 / 0.5pt）。
     self.deleteButton.hidden = NO;
     self.iconView.image = [UIImage systemImageNamed:@"folder.fill"];
-    self.iconView.tintColor = [UIColor systemBlueColor];
+    self.iconView.tintColor = [AmeTheme brandPrimary];   // 7.0-UI-3d：蓝色强调 → 品牌蓝
     self.nameLabel.text = name;
     self.detailLabel.text = detail ?: @"";
     self.selectionRing.hidden = !isSelected;
@@ -575,7 +576,7 @@ static const CGFloat kVMCardCornerRadius = 16.0;
 - (void)prepareForReuse {
     [super prepareForReuse];
     self.iconView.image = [UIImage systemImageNamed:@"folder.fill"];
-    self.iconView.tintColor = [UIColor systemBlueColor];
+    self.iconView.tintColor = [AmeTheme brandPrimary];   // 7.0-UI-3d：蓝色强调 → 品牌蓝
     self.nameLabel.text = nil;
     self.detailLabel.text = nil;
     self.selectionRing.hidden = YES;
@@ -613,7 +614,7 @@ static const CGFloat kVMCardCornerRadius = 16.0;
     self.nameLabel = [[UILabel alloc] init];
     self.nameLabel.translatesAutoresizingMaskIntoConstraints = NO;
     self.nameLabel.font = [UIFont systemFontOfSize:[ScreenUtils sp:13] weight:UIFontWeightSemibold];
-    self.nameLabel.textColor = [UIColor labelColor]; // Task137：语义色（原 Task91 主题色）
+    self.nameLabel.textColor = [AmeTheme textPrimary]; // Task137：语义色（原 Task91 主题色）
     self.nameLabel.numberOfLines = 1;
     self.nameLabel.adjustsFontForContentSizeCategory = NO;
     [self.contentContainer addSubview:self.nameLabel];
@@ -621,7 +622,7 @@ static const CGFloat kVMCardCornerRadius = 16.0;
     self.descLabel = [[UILabel alloc] init];
     self.descLabel.translatesAutoresizingMaskIntoConstraints = NO;
     self.descLabel.font = [UIFont systemFontOfSize:[ScreenUtils sp:10] weight:UIFontWeightRegular];
-    self.descLabel.textColor = [UIColor secondaryLabelColor]; // Task137
+    self.descLabel.textColor = [AmeTheme textSecondary]; // Task137
     self.descLabel.numberOfLines = 2;
     self.descLabel.lineBreakMode = NSLineBreakByWordWrapping;
     self.descLabel.adjustsFontForContentSizeCategory = NO;
@@ -637,7 +638,7 @@ static const CGFloat kVMCardCornerRadius = 16.0;
     UIImageView *checkmark = [[UIImageView alloc] init];
     checkmark.translatesAutoresizingMaskIntoConstraints = NO;
     checkmark.image = [UIImage systemImageNamed:@"checkmark" withConfiguration:[UIImageSymbolConfiguration configurationWithPointSize:8 weight:UIFontWeightBold]];
-    checkmark.tintColor = [UIColor whiteColor];
+    checkmark.tintColor = [AmeTheme textOnBrand];
     [self.selectedBadge addSubview:checkmark];
 
     [NSLayoutConstraint activateConstraints:@[
@@ -667,7 +668,7 @@ static const CGFloat kVMCardCornerRadius = 16.0;
               isSelected:(BOOL)isSelected
                   isBest:(BOOL)isBest {
     self.iconView.image = [UIImage systemImageNamed:iconName];
-    self.iconView.tintColor = isBest ? accentColor() : [UIColor systemGrayColor];
+    self.iconView.tintColor = isBest ? accentColor() : [AmeTheme textTertiary];   // 7.0-UI-3d：非推荐档灰标 → 三级文本
     self.nameLabel.text = name;
     self.descLabel.text = details;
     self.selectedBadge.hidden = !isSelected;
@@ -746,7 +747,7 @@ static const CGFloat kVMCardCornerRadius = 16.0;
         self.countBadge = [[AmeBadgeLabel alloc] init];
         self.countBadge.translatesAutoresizingMaskIntoConstraints = NO;
         self.countBadge.font = [UIFont systemFontOfSize:[ScreenUtils sp:12] weight:UIFontWeightSemibold];
-        self.countBadge.textColor = [UIColor whiteColor];
+        self.countBadge.textColor = [AmeTheme textOnBrand];
         self.countBadge.backgroundColor = accentColor();
         self.countBadge.hidden = YES;
         [self addSubview:self.countBadge];
@@ -884,7 +885,7 @@ static const CGFloat kVMCardCornerRadius = 16.0;
     UIImageSymbolConfiguration *plusConfig = [UIImageSymbolConfiguration configurationWithPointSize:18 weight:UIFontWeightBold];
     UIImage *plusImg = [UIImage systemImageNamed:@"plus" withConfiguration:plusConfig];
     [fab setImage:plusImg forState:UIControlStateNormal];
-    fab.tintColor = [UIColor whiteColor];
+    fab.tintColor = [AmeTheme textOnBrand];
     // 规范 2.6：使用 accentColor() 而非 systemBlueColor
     fab.backgroundColor = accentColor();
     // 规范 5.1：FAB 完全圆形（22pt 圆角 = 44/2）
@@ -930,7 +931,7 @@ static const CGFloat kVMCardCornerRadius = 16.0;
     UIImageSymbolConfiguration *scanConfig = [UIImageSymbolConfiguration configurationWithPointSize:17 weight:UIFontWeightBold];
     UIImage *scanImg = [UIImage systemImageNamed:@"magnifyingglass" withConfiguration:scanConfig];
     [scan setImage:scanImg forState:UIControlStateNormal];
-    scan.tintColor = [UIColor whiteColor];
+    scan.tintColor = [AmeTheme textOnBrand];
     scan.backgroundColor = accentColor();
     scan.layer.cornerRadius = 22;
     scan.layer.cornerCurve = kCACornerCurveContinuous;
@@ -1047,8 +1048,8 @@ static const CGFloat kVMCardCornerRadius = 16.0;
     [ctaButton setImage:btnIcon forState:UIControlStateNormal];
     [ctaButton setTitle:[@"  " stringByAppendingString:localize(@"i18n_str_2028", nil)] forState:UIControlStateNormal];
     ctaButton.titleLabel.font = [UIFont systemFontOfSize:[ScreenUtils sp:15] weight:UIFontWeightSemibold];
-    [ctaButton setTitleColor:[UIColor whiteColor] forState:UIControlStateNormal];
-    ctaButton.tintColor = [UIColor whiteColor];
+    [ctaButton setTitleColor:[AmeTheme textOnBrand] forState:UIControlStateNormal];
+    ctaButton.tintColor = [AmeTheme textOnBrand];
     ctaButton.backgroundColor = accentColor();
     ctaButton.layer.cornerRadius = 22;
     ctaButton.layer.cornerCurve = kCACornerCurveContinuous;

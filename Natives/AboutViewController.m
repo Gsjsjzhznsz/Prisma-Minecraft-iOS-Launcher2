@@ -7,6 +7,7 @@
 //
 
 #import "AboutViewController.h"
+#import "AmeTheme.h"   // ★ 7.0-UI-3d：Fluent 设计令牌（颜色/字体单一事实源）
 #import "BackgroundManager.h"
 #import "UpdateChecker.h"
 #import "LauncherPreferences.h"
@@ -29,7 +30,7 @@ static NSString *const ame217_qqGroup = @"1126547426";
 - (void)viewDidLoad {
     [super viewDidLoad];
     self.title = localize(@"about.nav_title", nil);
-    self.view.backgroundColor = [UIColor systemBackgroundColor];
+    self.view.backgroundColor = [AmeTheme bgPrimary];
 
     // 适配自定义启动器背景：透明化当前页，让全局背景/毛玻璃透出
     [[BackgroundManager sharedManager] makeViewControllerTransparent:self];
@@ -155,13 +156,13 @@ static NSString *const ame217_qqGroup = @"1126547426";
 
     [inner addArrangedSubview:[self ame217_labelText:@"Prisma"
         font:[UIFont systemFontOfSize:24 weight:UIFontWeightBold]
-        color:[UIColor labelColor]]];
+        color:[AmeTheme textPrimary]]];
 
     NSString *version = [NSBundle.mainBundle objectForInfoDictionaryKey:@"CFBundleShortVersionString"] ?: @"?";
     NSString *build = [NSBundle.mainBundle objectForInfoDictionaryKey:@"CFBundleVersion"] ?: version;
     self.versionValueLabel = [self ame217_labelText:[NSString stringWithFormat:@"%@ (%@)", version, build]
         font:[UIFont systemFontOfSize:14 weight:UIFontWeightMedium]
-        color:[UIColor secondaryLabelColor]];
+        color:[AmeTheme textSecondary]];
     [inner addArrangedSubview:self.versionValueLabel];
 
     [self ame217_addCard:card inner:inner];
@@ -181,7 +182,7 @@ static NSString *const ame217_qqGroup = @"1126547426";
 
     [inner addArrangedSubview:[self ame217_labelText:localize(@"about.qq.title", nil)
         font:[UIFont systemFontOfSize:15 weight:UIFontWeightSemibold]
-        color:[UIColor labelColor]]];
+        color:[AmeTheme textPrimary]]];
     [inner addArrangedSubview:[self ame217_labelText:ame217_qqGroup
         font:[UIFont monospacedDigitSystemFontOfSize:20 weight:UIFontWeightSemibold]
         color:accentColor()]];
@@ -239,11 +240,11 @@ static NSString *const ame217_qqGroup = @"1126547426";
 
     [inner addArrangedSubview:[self ame217_labelText:localize(@"about.update.section", nil)
         font:[UIFont systemFontOfSize:15 weight:UIFontWeightSemibold]
-        color:[UIColor labelColor]]];
+        color:[AmeTheme textPrimary]]];
 
     UIButton *checkButton = [UIButton buttonWithType:UIButtonTypeSystem];
     [checkButton setTitle:localize(@"preference.title.check_update", nil) forState:UIControlStateNormal];
-    [checkButton setTitleColor:[UIColor whiteColor] forState:UIControlStateNormal];
+    [checkButton setTitleColor:[AmeTheme textOnBrand] forState:UIControlStateNormal];
     checkButton.titleLabel.font = [UIFont systemFontOfSize:14 weight:UIFontWeightSemibold];
     checkButton.backgroundColor = accentColor();
     checkButton.layer.cornerRadius = 12.0;
@@ -265,10 +266,10 @@ static NSString *const ame217_qqGroup = @"1126547426";
     textCol.spacing = 2;
     [textCol addArrangedSubview:[self ame217_labelText:localize(@"preference.title.auto_update_check", nil)
         font:[UIFont systemFontOfSize:14 weight:UIFontWeightMedium]
-        color:[UIColor labelColor]]];
+        color:[AmeTheme textPrimary]]];
     [textCol addArrangedSubview:[self ame217_labelText:localize(@"preference.detail.auto_update_check", nil)
         font:[UIFont systemFontOfSize:11]
-        color:[UIColor tertiaryLabelColor]]];
+        color:[AmeTheme textTertiary]]];
 
     self.autoUpdateSwitch = [[UISwitch alloc] init];
     self.autoUpdateSwitch.on = [getPrefObject(@"general.auto_update_check") boolValue];
@@ -293,10 +294,10 @@ static NSString *const ame217_qqGroup = @"1126547426";
 
     [inner addArrangedSubview:[self ame217_labelText:localize(@"about.license.title", nil)
         font:[UIFont systemFontOfSize:15 weight:UIFontWeightSemibold]
-        color:[UIColor labelColor]]];
+        color:[AmeTheme textPrimary]]];
     [inner addArrangedSubview:[self ame217_labelText:localize(@"about.license.body", nil)
         font:[UIFont systemFontOfSize:12]
-        color:[UIColor secondaryLabelColor]]];
+        color:[AmeTheme textSecondary]]];
 
     [self ame217_addCard:card inner:inner];
 }
@@ -312,10 +313,10 @@ static NSString *const ame217_qqGroup = @"1126547426";
 
     [inner addArrangedSubview:[self ame217_labelText:localize(@"about.credits.title", nil)
         font:[UIFont systemFontOfSize:15 weight:UIFontWeightSemibold]
-        color:[UIColor labelColor]]];
+        color:[AmeTheme textPrimary]]];
     [inner addArrangedSubview:[self ame217_labelText:localize(@"about.credits.body", nil)
         font:[UIFont systemFontOfSize:12]
-        color:[UIColor secondaryLabelColor]]];
+        color:[AmeTheme textSecondary]]];
 
     // ★ Task254（反馈 7）：贡献者署名——kxdw（B站 @KX_dw，用户指令：
     //   关于页与 README 都要列出另一位贡献者）。文案走四语言表新键
@@ -327,7 +328,7 @@ static NSString *const ame217_qqGroup = @"1126547426";
         ![ame254_kxdwBody isEqualToString:@"about.credits.kxdw"]) {
         [inner addArrangedSubview:[self ame217_labelText:ame254_kxdwBody
             font:[UIFont systemFontOfSize:12]
-            color:[UIColor secondaryLabelColor]]];
+            color:[AmeTheme textSecondary]]];
     }
     UIButton *ame254_biliButton = [UIButton buttonWithType:UIButtonTypeSystem];
     [ame254_biliButton setTitle:@"@KX_dw - bilibili"
@@ -370,10 +371,10 @@ static NSString *const ame217_qqGroup = @"1126547426";
 
     [inner addArrangedSubview:[self ame217_labelText:localize(@"about.donate.title", nil)
         font:[UIFont systemFontOfSize:15 weight:UIFontWeightSemibold]
-        color:[UIColor labelColor]]];
+        color:[AmeTheme textPrimary]]];
     [inner addArrangedSubview:[self ame217_labelText:localize(@"about.donate.body", nil)
         font:[UIFont systemFontOfSize:12]
-        color:[UIColor secondaryLabelColor]]];
+        color:[AmeTheme textSecondary]]];
 
     // ★ Task223（清单第 19 项）：捐献主按钮行右侧同排 GitHub Star CTA
     //   （用户指令：在捐献旁边摆一个“如果没钱可以点个 ⭐️ 支持一下”，
@@ -389,7 +390,7 @@ static NSString *const ame217_qqGroup = @"1126547426";
     UIButton *afdianButton = [UIButton buttonWithType:UIButtonTypeSystem];
     [afdianButton setTitle:[NSString stringWithFormat:@"❤️ %@", localize(@"about.donate.afdian", nil)]
                   forState:UIControlStateNormal];
-    [afdianButton setTitleColor:[UIColor whiteColor] forState:UIControlStateNormal];
+    [afdianButton setTitleColor:[AmeTheme textOnBrand] forState:UIControlStateNormal];
     afdianButton.titleLabel.font = [UIFont systemFontOfSize:14 weight:UIFontWeightSemibold];
     afdianButton.backgroundColor = [UIColor colorWithRed:0.95 green:0.36 blue:0.42 alpha:1.0];
     afdianButton.layer.cornerRadius = 12.0;
@@ -416,7 +417,7 @@ static NSString *const ame217_qqGroup = @"1126547426";
     // Task223：“如果没钱可以点个 ⭐️ 支持一下”提示行（轻文案，置于按钮行下）。
     [inner addArrangedSubview:[self ame217_labelText:localize(@"about.donate.star_hint", nil)
         font:[UIFont systemFontOfSize:11]
-        color:[UIColor tertiaryLabelColor]]];
+        color:[AmeTheme textTertiary]]];
 
     // 微信赞赏码：bundle 内 donate.png 直显；缺失时回退链接按钮
     NSString *donatePath = [NSBundle.mainBundle.resourcePath stringByAppendingPathComponent:@"donate.png"];

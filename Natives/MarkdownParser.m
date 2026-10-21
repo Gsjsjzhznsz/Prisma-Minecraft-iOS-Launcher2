@@ -1,4 +1,5 @@
 #import "utils.h"
+#import "AmeTheme.h"            // ★ 7.0-UI-3f：Fluent 设计令牌（正文/链接/代码块底色语义映射；字体族不动）
 //
 //  MarkdownParser.m
 //  Amethyst
@@ -41,11 +42,11 @@
     UIFont *h2Font = [UIFont systemFontOfSize:20 weight:UIFontWeightBold];
     UIFont *h3Font = [UIFont systemFontOfSize:17 weight:UIFontWeightBold];
 
-    UIColor *textColor = [UIColor labelColor];
-    UIColor *secondaryColor = [UIColor secondaryLabelColor];
-    UIColor *linkColor = [UIColor systemBlueColor];
-    UIColor *codeBgColor = [UIColor secondarySystemBackgroundColor];
-    UIColor *separatorColor = [UIColor separatorColor];
+    UIColor *textColor = [AmeTheme textPrimary];
+    UIColor *secondaryColor = [AmeTheme textSecondary];
+    UIColor *linkColor = [AmeTheme brandPrimary];
+    UIColor *codeBgColor = [AmeTheme fillSubtle];
+    UIColor *separatorColor = [AmeTheme divider];
 
     NSMutableAttributedString *result = [[NSMutableAttributedString alloc] init];
     NSArray *lines = [markdown componentsSeparatedByString:@"\n"];

@@ -13,6 +13,7 @@
 #import "BingWallpaperManager.h"
 #import "BackgroundManager.h"
 #import "utils.h"
+#import "AmeTheme.h"           // 7.0-UI-3a：Fluent 设计令牌（背景/壁纸簇颜色迁移）
 
 static NSString * const kBingCellIdentifier = @"BingWallpaperCell";
 
@@ -34,19 +35,19 @@ static NSString * const kBingCellIdentifier = @"BingWallpaperCell";
         _thumbView.autoresizingMask = UIViewAutoresizingFlexibleWidth;
         _thumbView.contentMode = UIViewContentModeScaleAspectFill;
         _thumbView.clipsToBounds = YES;
-        _thumbView.backgroundColor = [UIColor tertiarySystemBackgroundColor];
+        _thumbView.backgroundColor = [AmeTheme surfaceCard];   // 7.0-UI-3a：缩略图占位卡面
         [self.contentView addSubview:_thumbView];
 
         _dateLabel = [[UILabel alloc] initWithFrame:CGRectMake(8, _thumbView.frame.size.height + 4, frame.size.width - 16, 14)];
         _dateLabel.autoresizingMask = UIViewAutoresizingFlexibleWidth;
         _dateLabel.font = [UIFont monospacedDigitSystemFontOfSize:11 weight:UIFontWeightRegular];
-        _dateLabel.textColor = [UIColor secondaryLabelColor];
+        _dateLabel.textColor = [AmeTheme textSecondary];   // 7.0-UI-3a：日期元信息
         [self.contentView addSubview:_dateLabel];
 
         _titleLabel = [[UILabel alloc] initWithFrame:CGRectMake(8, _thumbView.frame.size.height + 20, frame.size.width - 16, 30)];
         _titleLabel.autoresizingMask = UIViewAutoresizingFlexibleWidth;
         _titleLabel.font = [UIFont systemFontOfSize:12];
-        _titleLabel.textColor = [UIColor labelColor];
+        _titleLabel.textColor = [AmeTheme textPrimary];   // 7.0-UI-3a
         _titleLabel.numberOfLines = 2;
         [self.contentView addSubview:_titleLabel];
     }
@@ -78,7 +79,7 @@ static NSString * const kBingCellIdentifier = @"BingWallpaperCell";
 - (void)viewDidLoad {
     [super viewDidLoad];
 
-    self.collectionView.backgroundColor = [UIColor systemBackgroundColor];
+    self.collectionView.backgroundColor = [AmeTheme bgPrimary];   // 7.0-UI-3a：页面大底
     self.collectionView.alwaysBounceVertical = YES;
     [self.collectionView registerClass:[BingWallpaperCell class] forCellWithReuseIdentifier:kBingCellIdentifier];
 
@@ -90,7 +91,7 @@ static NSString * const kBingCellIdentifier = @"BingWallpaperCell";
     self.emptyLabel = [[UILabel alloc] initWithFrame:CGRectZero];
     self.emptyLabel.text = localize(@"bing.status.unsynced", nil);
     self.emptyLabel.font = [UIFont systemFontOfSize:14];
-    self.emptyLabel.textColor = [UIColor secondaryLabelColor];
+    self.emptyLabel.textColor = [AmeTheme textSecondary];   // 7.0-UI-3a：空态提示
     self.emptyLabel.textAlignment = NSTextAlignmentCenter;
     self.emptyLabel.translatesAutoresizingMaskIntoConstraints = NO;
     [self.view addSubview:self.emptyLabel];
@@ -217,7 +218,7 @@ static NSString * const kBingCellIdentifier = @"BingWallpaperCell";
     // 当前应用项勾选
     BOOL applied = [self isItemApplied:item];
     cell.contentView.layer.borderWidth = applied ? 2.0 : 0.0;
-    cell.contentView.layer.borderColor = applied ? [UIColor systemBlueColor].CGColor : nil;
+    cell.contentView.layer.borderColor = applied ? [AmeTheme brandPrimary].CGColor : nil;   // 7.0-UI-3a：选中描边
 
     return cell;
 }

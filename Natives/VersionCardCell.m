@@ -10,6 +10,7 @@
 #import "VersionCardCell.h"
 #import "BackgroundManager.h"
 #import "UIKit+NativeSurface.h"
+#import "AmeTheme.h" // 7.0-UI-3e：Fluent 设计令牌层（版本卡颜色语义化迁移）
 
 // Task137："正式版/测试版"类型胶囊改用共享的 AmeBadgeLabel
 // （UIKit+NativeSurface.h）：完整实现 intrinsicContentSize = 文字尺寸 +
@@ -57,14 +58,14 @@
         self.iconContainer.layer.cornerRadius = 10;
         self.iconContainer.layer.cornerCurve = kCACornerCurveContinuous;
         self.iconContainer.layer.masksToBounds = YES;
-        self.iconContainer.backgroundColor = [UIColor systemGreenColor];
+        self.iconContainer.backgroundColor = [AmeTheme statusSuccess]; // 7.0-UI-3e：类型色默认绿（正式版）
         [self.cardContainer addSubview:self.iconContainer];
 
         // 图标本体：白色 SF Symbol，居中
         self.iconImageView = [[UIImageView alloc] init];
         self.iconImageView.translatesAutoresizingMaskIntoConstraints = NO;
         self.iconImageView.contentMode = UIViewContentModeScaleAspectFit;
-        self.iconImageView.tintColor = [UIColor whiteColor];
+        self.iconImageView.tintColor = [AmeTheme textOnBrand]; // 7.0-UI-3e：类型色底上白字
         self.iconImageView.image = [UIImage systemImageNamed:@"cube.fill"];
         [self.iconContainer addSubview:self.iconImageView];
 
@@ -91,7 +92,7 @@
         self.typeLabel = [[AmeBadgeLabel alloc] init];
         self.typeLabel.translatesAutoresizingMaskIntoConstraints = NO;
         self.typeLabel.font = [UIFont systemFontOfSize:12 weight:UIFontWeightSemibold];
-        self.typeLabel.textColor = [UIColor whiteColor];
+        self.typeLabel.textColor = [AmeTheme textOnBrand]; // 7.0-UI-3e：类型胶囊彩底白字
         self.typeLabel.textAlignment = NSTextAlignmentCenter;
         // 类型标签尺寸由 intrinsicContentSize 保证，空间不足时由版本号侧压缩
         [self.cardContainer addSubview:self.typeLabel];
@@ -118,7 +119,7 @@
         // ----- 右侧 chevron：提示可点击进入加载器选择 -----
         self.chevronView = [[UIImageView alloc] initWithImage:[UIImage systemImageNamed:@"chevron.right"]];
         self.chevronView.translatesAutoresizingMaskIntoConstraints = NO;
-        self.chevronView.tintColor = [UIColor tertiaryLabelColor];
+        self.chevronView.tintColor = [AmeTheme textTertiary]; // 7.0-UI-3e
         self.chevronView.contentMode = UIViewContentModeScaleAspectFit;
         // chevron 固定尺寸，不被拉伸
         [self.chevronView setContentHuggingPriority:UILayoutPriorityRequired forAxis:UILayoutConstraintAxisHorizontal];
@@ -130,10 +131,10 @@
         // 既保留"已安装"指示，又不遮挡右侧 chevron 与版本号。
         self.installedBadge = [[UIView alloc] init];
         self.installedBadge.translatesAutoresizingMaskIntoConstraints = NO;
-        self.installedBadge.backgroundColor = [UIColor systemGreenColor];
+        self.installedBadge.backgroundColor = [AmeTheme statusSuccess]; // 7.0-UI-3e：已安装徽标绿
         self.installedBadge.layer.cornerRadius = 7;
         self.installedBadge.layer.masksToBounds = YES;
-        self.installedBadge.layer.borderColor = [UIColor systemBackgroundColor].CGColor;
+        self.installedBadge.layer.borderColor = [AmeTheme surfaceCard].CGColor; // 7.0-UI-3e：徽章描边与卡面同色（原 systemBackground）
         self.installedBadge.layer.borderWidth = 1.5;
         self.installedBadge.hidden = YES;
         [self.cardContainer addSubview:self.installedBadge];
@@ -143,7 +144,7 @@
         checkmark.translatesAutoresizingMaskIntoConstraints = NO;
         checkmark.image = [UIImage systemImageNamed:@"checkmark"
                                   withConfiguration:[UIImageSymbolConfiguration configurationWithPointSize:7 weight:UIFontWeightBold]];
-        checkmark.tintColor = [UIColor whiteColor];
+        checkmark.tintColor = [AmeTheme textOnBrand]; // 7.0-UI-3e
         [self.installedBadge addSubview:checkmark];
 
         // ----- 布局约束 -----
@@ -225,16 +226,16 @@
     // old_alpha → clock.fill + systemPurple（远古 alpha）
     // old_beta  → clock.fill + systemPurple（远古 beta）
     NSString *iconName = @"cube.fill";
-    UIColor *typeColor = [UIColor systemGreenColor];
+    UIColor *typeColor = [AmeTheme statusSuccess]; // 7.0-UI-3e：默认正式版绿
     NSString *typeText = localize(@"i18n_str_2058", nil);
 
     if ([type isEqualToString:localize(@"ame193.misc.3", @"正式版")] || [type isEqualToString:@"release"]) {
         iconName = @"cube.fill";
-        typeColor = [UIColor systemGreenColor];
+        typeColor = [AmeTheme statusSuccess]; // 7.0-UI-3e：release 绿
         typeText = localize(@"i18n_str_2058", nil);
     } else if ([type isEqualToString:localize(@"ame193.misc.4", @"测试版")] || [type isEqualToString:@"snapshot"]) {
         iconName = @"hammer.fill";
-        typeColor = [UIColor systemOrangeColor];
+        typeColor = [AmeTheme statusWarning]; // 7.0-UI-3e：snapshot 橙→警示橙令牌
         typeText = localize(@"i18n_str_2059", nil);
     } else if ([type isEqualToString:@"old_alpha"]) {
         iconName = @"clock.fill";
@@ -255,7 +256,7 @@
     if (symbol) {
         self.iconImageView.image = symbol;
     }
-    self.iconImageView.tintColor = [UIColor whiteColor];
+    self.iconImageView.tintColor = [AmeTheme textOnBrand]; // 7.0-UI-3e
 
     // 修复问题4：使用 HMCL 仓库自带的标准草方块图标（grass.png/grass@2x.png），
     // 已导入 Assets.xcassets 的 VanillaIcon 图片集，与 FCL/ZL2/HMCL 等主流启动器视觉完全一致。
@@ -270,7 +271,7 @@
     } else {
         // 兜底：图片集加载失败时回退 SF Symbol + 类型色背景
         self.iconImageView.contentMode = UIViewContentModeScaleAspectFit;
-        self.iconImageView.tintColor = [UIColor whiteColor];
+        self.iconImageView.tintColor = [AmeTheme textOnBrand]; // 7.0-UI-3e：类型色底上白字
         self.iconContainer.backgroundColor = [typeColor colorWithAlphaComponent:0.85];
     }
 
@@ -287,15 +288,15 @@
     [super prepareForReuse];
     // 重置为 SF Symbol 默认状态（configureWithVersionId 会再次加载 VanillaIcon 覆盖）
     self.iconImageView.image = [UIImage systemImageNamed:@"cube.fill"];
-    self.iconImageView.tintColor = [UIColor whiteColor];
+    self.iconImageView.tintColor = [AmeTheme textOnBrand]; // 7.0-UI-3e
     self.iconImageView.contentMode = UIViewContentModeScaleAspectFit;
-    self.iconContainer.backgroundColor = [UIColor systemGreenColor];
+    self.iconContainer.backgroundColor = [AmeTheme statusSuccess]; // 7.0-UI-3e
     self.versionLabel.text = nil;
     self.dateLabel.text = nil;
     self.typeLabel.text = nil;
-    self.typeLabel.backgroundColor = [UIColor systemBlueColor];
+    self.typeLabel.backgroundColor = [AmeTheme brandPrimary]; // 7.0-UI-3e：胶囊复位默认底→品牌色
     self.installedBadge.hidden = YES;
-    self.chevronView.tintColor = [UIColor tertiaryLabelColor];
+    self.chevronView.tintColor = [AmeTheme textTertiary]; // 7.0-UI-3e
 }
 
 @end

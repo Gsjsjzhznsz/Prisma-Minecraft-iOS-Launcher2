@@ -7,6 +7,7 @@
 
 #import "ThirdPartyLoginViewController.h"
 #import "AmeNativeMenu.h"       // ★ Task240：菜单全面系统原生 UIMenu 化
+#import "AmeTheme.h"           // ★ 7.0-UI-3d：Fluent 设计令牌（颜色/字体单一事实源）
 #import "authenticator/ThirdPartyAuthenticator.h"
 #import "BackgroundManager.h"
 #import "LauncherPreferences.h"
@@ -132,7 +133,7 @@
     self.errorLabel = [[UILabel alloc] init];
     self.errorLabel.translatesAutoresizingMaskIntoConstraints = NO;
     self.errorLabel.font = [UIFont systemFontOfSize:13];
-    self.errorLabel.textColor = [UIColor systemRedColor];
+    self.errorLabel.textColor = [AmeTheme statusDanger];
     self.errorLabel.numberOfLines = 0;
     self.errorLabel.textAlignment = NSTextAlignmentCenter;
     self.errorLabel.hidden = YES;
@@ -155,7 +156,7 @@
 - (void)buildHeaderCard {
     self.headerCard = [[UIView alloc] init];
     self.headerCard.translatesAutoresizingMaskIntoConstraints = NO;
-    self.headerCard.backgroundColor = [UIColor secondarySystemBackgroundColor];
+    self.headerCard.backgroundColor = [AmeTheme surfaceCard];   // 7.0-UI-3d：卡片面（原 secondarySystemBackground 同角色）
     self.headerCard.layer.cornerRadius = 16;
     [[BackgroundManager sharedManager] applyEffectToView:self.headerCard];
 
@@ -166,12 +167,12 @@
     self.headerTitle = [[UILabel alloc] init];
     self.headerTitle.translatesAutoresizingMaskIntoConstraints = NO;
     self.headerTitle.font = [UIFont systemFontOfSize:18 weight:UIFontWeightBold];
-    self.headerTitle.textColor = [UIColor labelColor];
+    self.headerTitle.textColor = [AmeTheme textPrimary];
 
     self.headerSubtitle = [[UILabel alloc] init];
     self.headerSubtitle.translatesAutoresizingMaskIntoConstraints = NO;
     self.headerSubtitle.font = [UIFont systemFontOfSize:13];
-    self.headerSubtitle.textColor = [UIColor secondaryLabelColor];
+    self.headerSubtitle.textColor = [AmeTheme textSecondary];
     self.headerSubtitle.numberOfLines = 0;
 
     if (self.mode == ThirdPartyLoginModeLittleSkin) {
@@ -218,7 +219,7 @@
                          returnField:(UITextField **)outField {
     UIView *card = [[UIView alloc] init];
     card.translatesAutoresizingMaskIntoConstraints = NO;
-    card.backgroundColor = [UIColor secondarySystemBackgroundColor];
+    card.backgroundColor = [AmeTheme surfaceCard];   // 7.0-UI-3d：输入卡片面（原 secondarySystemBackground 同角色）
     card.layer.cornerRadius = 14;
     [[BackgroundManager sharedManager] applyEffectToView:card];
 
@@ -233,7 +234,7 @@
     field.translatesAutoresizingMaskIntoConstraints = NO;
     field.placeholder = placeholder;
     field.font = [UIFont systemFontOfSize:16];
-    field.textColor = [UIColor labelColor];
+    field.textColor = [AmeTheme textPrimary];
     field.secureTextEntry = isSecure;
     field.keyboardType = keyboardType;
     field.autocapitalizationType = UITextAutocapitalizationTypeNone;
@@ -262,7 +263,7 @@
 - (void)buildUsernameCard {
     UITextField *field = nil;
     self.usernameCard = [self buildInputCardWithIcon:@"person"
-                                         accentColor:[UIColor systemBlueColor]
+                                         accentColor:[AmeTheme brandPrimary]
                                           placeholder:localize(@"i18n_str_1039", nil)
                                             isSecure:NO
                                         keyboardType:UIKeyboardTypeDefault
@@ -273,7 +274,7 @@
 - (void)buildPasswordCard {
     UITextField *field = nil;
     self.passwordCard = [self buildInputCardWithIcon:@"lock"
-                                         accentColor:[UIColor systemBlueColor]
+                                         accentColor:[AmeTheme brandPrimary]
                                           placeholder:localize(@"i18n_str_1040", nil)
                                             isSecure:YES
                                         keyboardType:UIKeyboardTypeDefault
@@ -285,7 +286,7 @@
 - (void)buildServerCard {
     UITextField *field = nil;
     self.serverCard = [self buildInputCardWithIcon:@"link"
-                                       accentColor:[UIColor systemBlueColor]
+                                       accentColor:[AmeTheme brandPrimary]
                                         placeholder:localize(@"i18n_str_1041", nil)
                                           isSecure:NO
                                       keyboardType:UIKeyboardTypeURL
@@ -349,7 +350,7 @@
     title.translatesAutoresizingMaskIntoConstraints = NO;
     title.text = localize(@"login.thirdparty.servers.title", @"已保存的服务器");
     title.font = [UIFont systemFontOfSize:13 weight:UIFontWeightSemibold];
-    title.textColor = [UIColor secondaryLabelColor];
+    title.textColor = [AmeTheme textSecondary];
     [self.serversCard addSubview:title];
 
     self.serverChipsStack = [[UIStackView alloc] init];
@@ -379,7 +380,7 @@
     if ([display hasPrefix:@"http://"]) display = [display substringFromIndex:7];
     if (display.length > 34) display = [[display substringToIndex:31] stringByAppendingString:@"…"];
     [chip setTitle:display forState:UIControlStateNormal];
-    [chip setTitleColor:[UIColor labelColor] forState:UIControlStateNormal];
+    [chip setTitleColor:[AmeTheme textPrimary] forState:UIControlStateNormal];
     chip.titleLabel.font = [UIFont systemFontOfSize:14];
     chip.titleLabel.lineBreakMode = NSLineBreakByTruncatingMiddle;
     chip.contentHorizontalAlignment = UIControlContentHorizontalAlignmentLeading;
@@ -453,7 +454,7 @@
     self.loginButton = [UIButton buttonWithType:UIButtonTypeSystem];
     self.loginButton.translatesAutoresizingMaskIntoConstraints = NO;
     [self.loginButton setTitle:localize(@"i18n_str_1042", nil) forState:UIControlStateNormal];
-    [self.loginButton setTitleColor:[UIColor whiteColor] forState:UIControlStateNormal];
+    [self.loginButton setTitleColor:[AmeTheme textOnBrand] forState:UIControlStateNormal];
     self.loginButton.titleLabel.font = [UIFont boldSystemFontOfSize:17];
     UIColor *accent = (self.mode == ThirdPartyLoginModeLittleSkin)
                         ? [UIColor systemPurpleColor]
@@ -515,7 +516,7 @@
     // 参照 authlib-injector 启动器技术规范：登录前先解析 ALI，将简写地址解析为完整 API Root
     // 同时预取服务器元数据，用于启动时传 -Dauthlibinjector.yggdrasil.prefetched
     [self showError:localize(@"i18n_str_1046", nil)];
-    self.errorLabel.textColor = [UIColor secondaryLabelColor];
+    self.errorLabel.textColor = [AmeTheme textSecondary];
 
     __weak typeof(self) weakSelf = self;
     [ThirdPartyAuthenticator resolveAuthserverURL:serverURL completion:^(NSString *resolvedURL, NSString *metadata) {
@@ -578,7 +579,7 @@
                     NSString *msg = [(NSError *)status localizedDescription];
                     if (msg.length > 0) {
                         [sSelf.errorLabel setText:msg];
-                        sSelf.errorLabel.textColor = [UIColor secondaryLabelColor];
+                        sSelf.errorLabel.textColor = [AmeTheme textSecondary];
                         sSelf.errorLabel.hidden = NO;
                     }
                     return;
@@ -637,7 +638,7 @@
 
 - (void)showError:(NSString *)message {
     self.errorLabel.text = message;
-    self.errorLabel.textColor = [UIColor systemRedColor];
+    self.errorLabel.textColor = [AmeTheme statusDanger];
     self.errorLabel.hidden = NO;
 }
 

@@ -19,6 +19,7 @@
 #import "LiquidGlassCompat.h"   // Task224（#19）：界面缩放（右栏字号/间距）
 #import "AmeNativeMenu.h"       // ★ Task240：菜单全面系统原生 UIMenu 化
 #import "AboutViewController.h"   // Task217：启动器版本卡 about 路由
+#import "AmeTheme.h"              // 7.0-UI-3e：Fluent 设计令牌层（右栏侧边颜色语义化迁移）
 #import "ios_uikit_bridge.h"
 #import "utils.h"
 #import "AvatarManager.h"
@@ -313,9 +314,9 @@ static const CGFloat AmePanelVerticalEdgeInset = 12;
     self.avatarImageView.layer.masksToBounds = YES;
     // Task137：占位底色原生化（0.2 白硬编码深灰与下载中心小框同族问题，
     // 改 tertiarySystemFillColor 随深浅色自适应）
-    self.avatarImageView.backgroundColor = [UIColor tertiarySystemFillColor];
+    self.avatarImageView.backgroundColor = [AmeTheme fillSubtle]; // 7.0-UI-3e：占位底令牌（原 tertiarySystemFill）
     self.avatarImageView.image = [UIImage systemImageNamed:@"person.circle.fill"];
-    self.avatarImageView.tintColor = [UIColor systemGrayColor];
+    self.avatarImageView.tintColor = [AmeTheme textSecondary]; // 7.0-UI-3e：占位头像灰
     self.avatarImageView.userInteractionEnabled = YES;
     [self.avatarImageView addGestureRecognizer:[[UITapGestureRecognizer alloc] initWithTarget:self action:@selector(selectAccount:)]];
     // 长按头像：弹出自定义头像导入/清除菜单
@@ -369,7 +370,7 @@ static const CGFloat AmePanelVerticalEdgeInset = 12;
     self.downloadCenterButton = [UIButton buttonWithType:UIButtonTypeSystem];
     self.downloadCenterButton.translatesAutoresizingMaskIntoConstraints = NO;
     [self.downloadCenterButton setTitle:localize(@"i18n_str_136", nil) forState:UIControlStateNormal];
-    [self.downloadCenterButton setTitleColor:[UIColor labelColor] forState:UIControlStateNormal];
+    [self.downloadCenterButton setTitleColor:[AmeTheme textPrimary] forState:UIControlStateNormal]; // 7.0-UI-3e
     self.downloadCenterButton.titleLabel.font = [UIFont systemFontOfSize:13 weight:UIFontWeightMedium];
     self.downloadCenterButton.titleLabel.adjustsFontSizeToFitWidth = YES;
     self.downloadCenterButton.titleLabel.minimumScaleFactor = 0.7;
@@ -378,7 +379,7 @@ static const CGFloat AmePanelVerticalEdgeInset = 12;
     // 配 labelColor 字（浅色模式下黑字），深浅模式都可能不可读。改用原生卡片
     // 表面（secondarySystemGroupedBackground），深浅色对比度由系统语义色保证。
     // Task183：Task180 按钮透明度接线撤销，回归恒定语义色底
-    self.downloadCenterButton.backgroundColor = [UIColor secondarySystemGroupedBackgroundColor];
+    self.downloadCenterButton.backgroundColor = [AmeTheme surfaceCard]; // Task137 原生卡面；7.0-UI-3e：改 surfaceCard 令牌
     self.downloadCenterButton.layer.cornerRadius = 10;
     self.downloadCenterButton.layer.masksToBounds = YES;
     // 左侧下载图标
@@ -413,8 +414,8 @@ static const CGFloat AmePanelVerticalEdgeInset = 12;
     self.downloadCenterBadgeLabel = [[UILabel alloc] init];
     self.downloadCenterBadgeLabel.translatesAutoresizingMaskIntoConstraints = NO;
     self.downloadCenterBadgeLabel.font = [UIFont monospacedDigitSystemFontOfSize:10 weight:UIFontWeightBold];
-    self.downloadCenterBadgeLabel.textColor = [UIColor whiteColor];
-    self.downloadCenterBadgeLabel.backgroundColor = [UIColor systemRedColor];
+    self.downloadCenterBadgeLabel.textColor = [AmeTheme textOnBrand]; // 7.0-UI-3e：徽标彩底白字
+    self.downloadCenterBadgeLabel.backgroundColor = [AmeTheme statusDanger]; // 7.0-UI-3e：任务数徽标红
     self.downloadCenterBadgeLabel.textAlignment = NSTextAlignmentCenter;
     self.downloadCenterBadgeLabel.layer.cornerRadius = 8.0;
     self.downloadCenterBadgeLabel.layer.masksToBounds = YES;
@@ -425,7 +426,7 @@ static const CGFloat AmePanelVerticalEdgeInset = 12;
     self.launchButton = [UIButton buttonWithType:UIButtonTypeSystem];
     self.launchButton.translatesAutoresizingMaskIntoConstraints = NO;
     [self.launchButton setTitle:localize(@"i18n_str_412", nil) forState:UIControlStateNormal];
-    [self.launchButton setTitleColor:[UIColor whiteColor] forState:UIControlStateNormal];
+    [self.launchButton setTitleColor:[AmeTheme textOnBrand] forState:UIControlStateNormal]; // 7.0-UI-3e：accent 底白字
     self.launchButton.titleLabel.font = [UIFont boldSystemFontOfSize:18];
     // iPhone 右侧面板更窄：标题字号自适应，避免"下载中..."等长文案被截断
     self.launchButton.titleLabel.adjustsFontSizeToFitWidth = YES;
@@ -500,10 +501,10 @@ static const CGFloat AmePanelVerticalEdgeInset = 12;
 
     // 卡片配色（用户指定）：新卡 #64C466 绿；设备/系统同色（系统蓝）；
     // JIT 与内存权限卡同色系（橙/黄）。卡片正文之外一律不带小字。
-    UIColor *cardGreen = [UIColor colorWithRed:0x64 / 255.0 green:0xC4 / 255.0 blue:0x66 / 255.0 alpha:1.0];  // #64C466
-    UIColor *cardBlue = [UIColor systemBlueColor];
-    UIColor *cardOrange = [UIColor colorWithRed:1.0 green:0.584 blue:0.0 alpha:1.0];                          // #FF9500
-    UIColor *cardAmber = [UIColor colorWithRed:0.906 green:0.635 blue:0.0 alpha:1.0];                         // #E7A200（黄系加深保可读）
+    UIColor *cardGreen = [AmeTheme statusSuccess];  // 7.0-UI-3e：原用户指定 #64C466 绿 → 状态绿令牌（动态适配深浅）
+    UIColor *cardBlue = [AmeTheme brandPrimary];    // 7.0-UI-3e：系统蓝 → 品牌色令牌
+    UIColor *cardOrange = [AmeTheme statusWarning]; // 7.0-UI-3e：原 #FF9500 橙 → 警示橙令牌
+    UIColor *cardAmber = [AmeTheme statusWarning];  // 7.0-UI-3e：原 #E7A200 黄系加深 → 同并警示橙（保持“同色系”用户意图，见下组卡）
 
     // 设备图标按机型选 iPad/iPhone 轮廓；系统卡沿用苹果标
     NSString *deviceIconName = [UIDevice currentDevice].userInterfaceIdiom == UIUserInterfaceIdiomPad
@@ -570,7 +571,7 @@ static const CGFloat AmePanelVerticalEdgeInset = 12;
     self.manageVersionBtn.translatesAutoresizingMaskIntoConstraints = NO;
     [self.manageVersionBtn setTitle:localize(@"i18n_str_38", nil) forState:UIControlStateNormal];
     // Task96：与「登录并启动」同款配色（accentColor 底 + 白字）
-    [self.manageVersionBtn setTitleColor:[UIColor whiteColor] forState:UIControlStateNormal];
+    [self.manageVersionBtn setTitleColor:[AmeTheme textOnBrand] forState:UIControlStateNormal]; // 7.0-UI-3e
     [self.manageVersionBtn.titleLabel setFont:[UIFont systemFontOfSize:14 weight:UIFontWeightMedium]];
     self.manageVersionBtn.titleLabel.adjustsFontSizeToFitWidth = YES;
     self.manageVersionBtn.titleLabel.minimumScaleFactor = 0.7;
@@ -585,7 +586,7 @@ static const CGFloat AmePanelVerticalEdgeInset = 12;
     self.executeJarBtn.translatesAutoresizingMaskIntoConstraints = NO;
     [self.executeJarBtn setTitle:localize(@"i18n_str_414", nil) forState:UIControlStateNormal];
     // Task96：按用户要求与「登录并启动」同款配色（accentColor 底 + 白字）
-    [self.executeJarBtn setTitleColor:[UIColor whiteColor] forState:UIControlStateNormal];
+    [self.executeJarBtn setTitleColor:[AmeTheme textOnBrand] forState:UIControlStateNormal]; // 7.0-UI-3e
     self.executeJarBtn.titleLabel.adjustsFontSizeToFitWidth = YES;
     self.executeJarBtn.titleLabel.minimumScaleFactor = 0.7;
     self.executeJarBtn.titleLabel.lineBreakMode = NSLineBreakByTruncatingTail;
@@ -1093,15 +1094,11 @@ static const CGFloat AmePanelVerticalEdgeInset = 12;
     titleLabel.text = title;
     [card addSubview:titleLabel];
 
-    // 大号正文（Task91 字色规范：浅色 #222222 / 深色 #EEEEEE，动态色自动跟随）
+    // 大号正文（Task91 字色规范由 7.0-UI-3e 收敛为 textPrimary 令牌，动态深浅自动跟随）
     UILabel *valueLabel = [[UILabel alloc] init];
     valueLabel.translatesAutoresizingMaskIntoConstraints = NO;
     valueLabel.font = [UIFont systemFontOfSize:LGCScaledFontSize(15) weight:UIFontWeightSemibold]; // Task224（#19）缩放
-    valueLabel.textColor = [UIColor colorWithDynamicProvider:^UIColor *(UITraitCollection *traitCollection) {
-        return traitCollection.userInterfaceStyle == UIUserInterfaceStyleDark
-            ? [UIColor colorWithRed:0xEE / 255.0 green:0xEE / 255.0 blue:0xEE / 255.0 alpha:1.0]
-            : [UIColor colorWithRed:0x22 / 255.0 green:0x22 / 255.0 blue:0x22 / 255.0 alpha:1.0];
-    }];
+    valueLabel.textColor = [AmeTheme textPrimary]; // 7.0-UI-3e：原手写动态色（浅 #222/深 #EEE）≈ 一级文字令牌
     // 超长正文自动缩小到不溢出（用户指定），极限时截尾
     valueLabel.adjustsFontSizeToFitWidth = YES;
     valueLabel.minimumScaleFactor = 0.55;

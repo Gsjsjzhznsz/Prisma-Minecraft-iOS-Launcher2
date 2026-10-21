@@ -1,5 +1,6 @@
 #import "DownloadViewController.h"
 #import "AmeNativeMenu.h"       // ★ Task240：菜单全面系统原生 UIMenu 化
+#import "AmeTheme.h"            // 7.0-UI-3b：Fluent 设计令牌（下载簇换肤）
 #import "BackgroundManager.h"
 #import "ControlRepoViewController.h"   // Task189：下载页控件仓库 tab
 // IconLoader：统一的项目图标加载器（双层缓存 + 降采样 + 并发控制 + CDN 镜像），
@@ -113,8 +114,8 @@ typedef NS_ENUM(NSInteger, ModernAssetType) {
         self.iconView.layer.cornerRadius = 5;
         self.iconView.layer.cornerCurve = kCACornerCurveContinuous;
         self.iconView.clipsToBounds = YES;
-        // Task137：原生气泡占位底色（图标需要裁剪， tertiarySystemFillColor 随深浅色适配）
-        self.iconView.backgroundColor = [UIColor tertiarySystemFillColor];
+        // Task137：原生气泡占位底色（图标需要裁剪， 7.0-UI-3b：fillSubtle 随深浅色适配）
+        self.iconView.backgroundColor = [AmeTheme fillSubtle];
         self.iconView.contentMode = UIViewContentModeScaleAspectFit;
         self.iconView.tintColor = [UIColor systemOrangeColor];
         [self.contentContainer addSubview:self.iconView];
@@ -123,7 +124,7 @@ typedef NS_ENUM(NSInteger, ModernAssetType) {
         self.titleLabel = [[UILabel alloc] init];
         self.titleLabel.translatesAutoresizingMaskIntoConstraints = NO;
         self.titleLabel.font = [UIFont systemFontOfSize:13 weight:UIFontWeightMedium];
-        self.titleLabel.textColor = [UIColor labelColor];
+        self.titleLabel.textColor = [AmeTheme textPrimary];
         self.titleLabel.numberOfLines = 1;
         self.titleLabel.lineBreakMode = NSLineBreakByTruncatingTail;
         [self.titleLabel setContentCompressionResistancePriority:UILayoutPriorityDefaultLow forAxis:UILayoutConstraintAxisHorizontal];
@@ -133,7 +134,7 @@ typedef NS_ENUM(NSInteger, ModernAssetType) {
         self.descLabel = [[UILabel alloc] init];
         self.descLabel.translatesAutoresizingMaskIntoConstraints = NO;
         self.descLabel.font = [UIFont systemFontOfSize:11];
-        self.descLabel.textColor = [UIColor secondaryLabelColor];
+        self.descLabel.textColor = [AmeTheme textSecondary];
         self.descLabel.numberOfLines = 1;
         self.descLabel.lineBreakMode = NSLineBreakByTruncatingTail;
         [self.contentContainer addSubview:self.descLabel];
@@ -162,7 +163,7 @@ typedef NS_ENUM(NSInteger, ModernAssetType) {
             downloadSymbol = [UIImage systemImageNamed:@"arrow.down.circle.fill"];
         }
         [self.downloadButton setImage:downloadSymbol forState:UIControlStateNormal];
-        self.downloadButton.tintColor = [UIColor systemGreenColor];
+        self.downloadButton.tintColor = [AmeTheme statusSuccess];
         self.downloadButton.showsTouchWhenHighlighted = NO;
         [self.downloadButton setContentHuggingPriority:UILayoutPriorityRequired forAxis:UILayoutConstraintAxisHorizontal];
         [self.downloadButton setContentCompressionResistancePriority:UILayoutPriorityRequired forAxis:UILayoutConstraintAxisHorizontal];
@@ -218,7 +219,7 @@ typedef NS_ENUM(NSInteger, ModernAssetType) {
     self.iconView.image = nil;
     self.iconView.tintColor = [UIColor systemOrangeColor];
     self.iconView.contentMode = UIViewContentModeScaleAspectFit;
-    self.iconView.backgroundColor = [[UIColor whiteColor] colorWithAlphaComponent:0.06];
+    self.iconView.backgroundColor = [AmeTheme fillSubtle]; // 7.0-UI-3b：原白 6% 半透明，统一为 subtle 填充令牌
     self.currentIconURL = nil;
     // 移除所有标签
     [self.tagsStack.arrangedSubviews makeObjectsPerformSelector:@selector(removeFromSuperview)];
@@ -364,7 +365,7 @@ typedef NS_ENUM(NSInteger, ModernAssetType) {
     if ([lower containsString:@"utility"])   return [UIColor systemBlueColor];
     if ([lower containsString:@"world"])     return [UIColor systemGreenColor];
     // 兜底
-    return [UIColor tertiaryLabelColor];
+    return [AmeTheme textTertiary];
 }
 
 - (UILabel *)createTagLabel:(NSString *)text {
@@ -372,7 +373,7 @@ typedef NS_ENUM(NSInteger, ModernAssetType) {
     label.text = text;
     // FCL tag 11sp Medium（紧凑模式 10pt）
     label.font = [UIFont systemFontOfSize:10 weight:UIFontWeightMedium];
-    label.textColor = [UIColor whiteColor];
+    label.textColor = [AmeTheme textOnBrand]; // 彩色类别底上白字
     label.backgroundColor = [self colorForCategory:text];
     label.layer.cornerRadius = 4;
     label.layer.cornerCurve = kCACornerCurveContinuous;
@@ -835,12 +836,12 @@ typedef NS_ENUM(NSInteger, ModernAssetType) {
                           ?: [UIImage systemImageNamed:@"tray.and.arrow.down"];
     [self.importModpackButton setImage:importIcon forState:UIControlStateNormal];
     [self.importModpackButton setTitle:localize(@"i18n_str_156", nil) forState:UIControlStateNormal];
-    // Task137：恢复 Task89 之前的原生主按钮（系统紫底白字）
-    self.importModpackButton.tintColor = [UIColor whiteColor];
-    self.importModpackButton.backgroundColor = [UIColor systemPurpleColor];
+    // Task137：恢复 Task89 之前的原生主按钮（7.0-UI-3b：紫→品牌主色令牌）
+    self.importModpackButton.tintColor = [AmeTheme textOnBrand];
+    self.importModpackButton.backgroundColor = [AmeTheme brandPrimary];
     self.importModpackButton.layer.cornerRadius = 10;
     self.importModpackButton.layer.masksToBounds = YES;
-    [self.importModpackButton setTitleColor:[UIColor whiteColor] forState:UIControlStateNormal];
+    [self.importModpackButton setTitleColor:[AmeTheme textOnBrand] forState:UIControlStateNormal];
     self.importModpackButton.titleLabel.font = [UIFont boldSystemFontOfSize:14];
     self.importModpackButton.contentEdgeInsets = UIEdgeInsetsMake(0, 10, 0, 10);
     self.importModpackButton.imageEdgeInsets = UIEdgeInsetsMake(0, -4, 0, 4);
@@ -1114,7 +1115,7 @@ typedef NS_ENUM(NSInteger, ModernAssetType) {
     // 圆角胶囊背景轨道
     self.sourceSwitchTrack = [[UIView alloc] init];
     self.sourceSwitchTrack.translatesAutoresizingMaskIntoConstraints = NO;
-    self.sourceSwitchTrack.backgroundColor = [UIColor tertiarySystemFillColor];
+    self.sourceSwitchTrack.backgroundColor = [AmeTheme fillStrong]; // 滑轨/开关底令牌
     self.sourceSwitchTrack.layer.cornerRadius = 16;
     self.sourceSwitchTrack.layer.masksToBounds = YES;
     [self.sourceSwitchContainer addSubview:self.sourceSwitchTrack];
@@ -1122,7 +1123,7 @@ typedef NS_ENUM(NSInteger, ModernAssetType) {
     // 选中项滑块（初始为 Modrinth 绿）
     self.sourceSwitchSlider = [[UIView alloc] init];
     self.sourceSwitchSlider.translatesAutoresizingMaskIntoConstraints = NO;
-    self.sourceSwitchSlider.backgroundColor = [UIColor systemGreenColor];
+    self.sourceSwitchSlider.backgroundColor = [AmeTheme statusSuccess]; // Modrinth 选中滑块
     self.sourceSwitchSlider.layer.cornerRadius = 14;
     // 阴影提升层次感
     self.sourceSwitchSlider.layer.shadowColor = [UIColor blackColor].CGColor;
@@ -1240,13 +1241,13 @@ typedef NS_ENUM(NSInteger, ModernAssetType) {
     sourceTitleLabel.translatesAutoresizingMaskIntoConstraints = NO;
     sourceTitleLabel.text = localize(@"i18n_str_157", nil);
     sourceTitleLabel.font = [UIFont systemFontOfSize:13 weight:UIFontWeightSemibold];
-    sourceTitleLabel.textColor = [UIColor secondaryLabelColor];
+    sourceTitleLabel.textColor = [AmeTheme textSecondary];
     [self.filterSidebarContainer addSubview:sourceTitleLabel];
 
     // 下载源轨道
     self.sidebarSourceTrack = [[UIView alloc] init];
     self.sidebarSourceTrack.translatesAutoresizingMaskIntoConstraints = NO;
-    self.sidebarSourceTrack.backgroundColor = [UIColor tertiarySystemFillColor];
+    self.sidebarSourceTrack.backgroundColor = [AmeTheme fillStrong];
     self.sidebarSourceTrack.layer.cornerRadius = 14;
     self.sidebarSourceTrack.layer.masksToBounds = YES;
     [self.sidebarSourceContainer addSubview:self.sidebarSourceTrack];
@@ -1254,7 +1255,7 @@ typedef NS_ENUM(NSInteger, ModernAssetType) {
     // 下载源滑块
     self.sidebarSourceSlider = [[UIView alloc] init];
     self.sidebarSourceSlider.translatesAutoresizingMaskIntoConstraints = NO;
-    self.sidebarSourceSlider.backgroundColor = [UIColor systemGreenColor];
+    self.sidebarSourceSlider.backgroundColor = [AmeTheme statusSuccess];
     self.sidebarSourceSlider.layer.cornerRadius = 12;
     self.sidebarSourceSlider.layer.shadowColor = [UIColor blackColor].CGColor;
     self.sidebarSourceSlider.layer.shadowOpacity = 0.15;
@@ -1367,9 +1368,9 @@ typedef NS_ENUM(NSInteger, ModernAssetType) {
     [self.sidebarResetButton setTitle:localize(@"i18n_str_163", nil) forState:UIControlStateNormal];
     self.sidebarResetButton.titleLabel.font = [UIFont systemFontOfSize:13 weight:UIFontWeightMedium];
     [self.sidebarResetButton setImage:[UIImage systemImageNamed:@"arrow.counterclockwise"] forState:UIControlStateNormal];
-    self.sidebarResetButton.tintColor = [UIColor systemRedColor];
+    self.sidebarResetButton.tintColor = [AmeTheme statusDanger];
     // Task137：恢复 Task89 之前的原生样式（tertiarySystemFill 底，标题随 tint 呈红色）
-    self.sidebarResetButton.backgroundColor = [UIColor tertiarySystemFillColor];
+    self.sidebarResetButton.backgroundColor = [AmeTheme fillSubtle];
     self.sidebarResetButton.layer.cornerRadius = 8;
     self.sidebarResetButton.layer.masksToBounds = YES;
     self.sidebarResetButton.imageEdgeInsets = UIEdgeInsetsMake(0, -2, 0, 2);
@@ -1387,7 +1388,7 @@ typedef NS_ENUM(NSInteger, ModernAssetType) {
     // 底部分隔线
     UIView *sidebarSeparator = [[UIView alloc] init];
     sidebarSeparator.translatesAutoresizingMaskIntoConstraints = NO;
-    sidebarSeparator.backgroundColor = [UIColor separatorColor];
+    sidebarSeparator.backgroundColor = [AmeTheme divider];
     [self.filterSidebarContainer addSubview:sidebarSeparator];
     [NSLayoutConstraint activateConstraints:@[
         [sidebarSeparator.trailingAnchor constraintEqualToAnchor:self.filterSidebarContainer.trailingAnchor],
@@ -1406,7 +1407,7 @@ typedef NS_ENUM(NSInteger, ModernAssetType) {
     UIButton *button = [UIButton buttonWithType:UIButtonTypeSystem];
     button.translatesAutoresizingMaskIntoConstraints = NO;
     // Task137：恢复 Task89 之前的原生选择按钮（tertiarySystemFill 底 + 8pt 圆角）
-    button.backgroundColor = [UIColor tertiarySystemFillColor];
+    button.backgroundColor = [AmeTheme fillSubtle];
     button.layer.cornerRadius = 8;
     button.layer.masksToBounds = YES;
     [button addTarget:self action:selector forControlEvents:UIControlEventTouchUpInside];
@@ -1417,7 +1418,7 @@ typedef NS_ENUM(NSInteger, ModernAssetType) {
     titleLabel.translatesAutoresizingMaskIntoConstraints = NO;
     titleLabel.text = title;
     titleLabel.font = [UIFont systemFontOfSize:12 weight:UIFontWeightSemibold];
-    titleLabel.textColor = [UIColor secondaryLabelColor];
+    titleLabel.textColor = [AmeTheme textSecondary];
     titleLabel.tag = 100;
     [button addSubview:titleLabel];
 
@@ -1425,7 +1426,7 @@ typedef NS_ENUM(NSInteger, ModernAssetType) {
     valueLabel.translatesAutoresizingMaskIntoConstraints = NO;
     valueLabel.text = value;
     valueLabel.font = [UIFont systemFontOfSize:12];
-    valueLabel.textColor = [UIColor labelColor];
+    valueLabel.textColor = [AmeTheme textPrimary];
     valueLabel.adjustsFontSizeToFitWidth = YES;
     valueLabel.minimumScaleFactor = 0.7;
     valueLabel.textAlignment = NSTextAlignmentRight;
@@ -1434,7 +1435,7 @@ typedef NS_ENUM(NSInteger, ModernAssetType) {
 
     UIImageView *arrow = [[UIImageView alloc] initWithImage:[UIImage systemImageNamed:@"chevron.right"]];
     arrow.translatesAutoresizingMaskIntoConstraints = NO;
-    arrow.tintColor = [UIColor tertiaryLabelColor];
+    arrow.tintColor = [AmeTheme textTertiary];
     arrow.contentMode = UIViewContentModeScaleAspectFit;
     arrow.tag = 102;
     [button addSubview:arrow];
@@ -1497,7 +1498,7 @@ typedef NS_ENUM(NSInteger, ModernAssetType) {
     self.loadingIndicator = [[UIActivityIndicatorView alloc] initWithActivityIndicatorStyle:UIActivityIndicatorViewStyleLarge];
     self.loadingIndicator.translatesAutoresizingMaskIntoConstraints = NO;
     self.loadingIndicator.hidesWhenStopped = YES;
-    self.loadingIndicator.color = [UIColor labelColor];
+    self.loadingIndicator.color = [AmeTheme textPrimary];
     [self.view addSubview:self.loadingIndicator];
     
     [NSLayoutConstraint activateConstraints:@[
@@ -1511,7 +1512,7 @@ typedef NS_ENUM(NSInteger, ModernAssetType) {
     self.emptyLabel.translatesAutoresizingMaskIntoConstraints = NO;
     self.emptyLabel.text = localize(@"i18n_str_164", nil);
     self.emptyLabel.textAlignment = NSTextAlignmentCenter;
-    self.emptyLabel.textColor = [UIColor secondaryLabelColor];
+    self.emptyLabel.textColor = [AmeTheme textSecondary];
     self.emptyLabel.font = [UIFont preferredFontForTextStyle:UIFontTextStyleBody];
     self.emptyLabel.hidden = YES;
     [self.view addSubview:self.emptyLabel];
@@ -1657,13 +1658,13 @@ typedef NS_ENUM(NSInteger, ModernAssetType) {
     BOOL isModrinth = [currentSource isEqualToString:@"modrinth"];
 
     // 选中项文字白色，未选中项使用 labelColor（顶部 sourceSwitch，已弃用但保留同步）
-    [self.modrinthSourceButton setTitleColor:isModrinth ? [UIColor whiteColor] : [UIColor labelColor] forState:UIControlStateNormal];
-    [self.curseforgeSourceButton setTitleColor:isModrinth ? [UIColor labelColor] : [UIColor whiteColor] forState:UIControlStateNormal];
+    [self.modrinthSourceButton setTitleColor:isModrinth ? [AmeTheme textOnBrand] : [AmeTheme textPrimary] forState:UIControlStateNormal];
+    [self.curseforgeSourceButton setTitleColor:isModrinth ? [AmeTheme textPrimary] : [AmeTheme textOnBrand] forState:UIControlStateNormal];
 
     // 滑块位置：通过激活 left/right 约束二选一切换，配合颜色动画
     self.sliderLeftPosConstraint.active = isModrinth;
     self.sliderRightPosConstraint.active = !isModrinth;
-    UIColor *sliderColor = isModrinth ? [UIColor systemGreenColor] : [UIColor systemOrangeColor];
+    UIColor *sliderColor = isModrinth ? [AmeTheme statusSuccess] : [AmeTheme statusWarning];
 
     [UIView animateWithDuration:0.25 delay:0 options:UIViewAnimationOptionCurveEaseInOut animations:^{
         self.sourceSwitchSlider.backgroundColor = sliderColor;
@@ -1674,12 +1675,12 @@ typedef NS_ENUM(NSInteger, ModernAssetType) {
     self.curseforgeSourceButton.tag = [self tagForType:type];
 
     // ===== 同步更新侧边栏的下载源选择器 =====
-    [self.sidebarModrinthButton setTitleColor:isModrinth ? [UIColor whiteColor] : [UIColor labelColor] forState:UIControlStateNormal];
-    [self.sidebarCurseforgeButton setTitleColor:isModrinth ? [UIColor labelColor] : [UIColor whiteColor] forState:UIControlStateNormal];
+    [self.sidebarModrinthButton setTitleColor:isModrinth ? [AmeTheme textOnBrand] : [AmeTheme textPrimary] forState:UIControlStateNormal];
+    [self.sidebarCurseforgeButton setTitleColor:isModrinth ? [AmeTheme textPrimary] : [AmeTheme textOnBrand] forState:UIControlStateNormal];
 
     self.sidebarSliderLeftConstraint.active = isModrinth;
     self.sidebarSliderRightConstraint.active = !isModrinth;
-    UIColor *sidebarSliderColor = isModrinth ? [UIColor systemGreenColor] : [UIColor systemOrangeColor];
+    UIColor *sidebarSliderColor = isModrinth ? [AmeTheme statusSuccess] : [AmeTheme statusWarning];
 
     [UIView animateWithDuration:0.25 delay:0 options:UIViewAnimationOptionCurveEaseInOut animations:^{
         self.sidebarSourceSlider.backgroundColor = sidebarSliderColor;
@@ -5060,7 +5061,7 @@ typedef NS_ENUM(NSInteger, ModernAssetType) {
         UITableViewCell *cell = [[UITableViewCell alloc] initWithStyle:UITableViewCellStyleDefault reuseIdentifier:@"LoadingCell"];
         cell.textLabel.text = localize(@"i18n_str_264", nil);
         cell.textLabel.textAlignment = NSTextAlignmentCenter;
-        cell.textLabel.textColor = [UIColor secondaryLabelColor];
+        cell.textLabel.textColor = [AmeTheme textSecondary];
         cell.backgroundColor = [UIColor clearColor];
         return cell;
     }
@@ -5069,7 +5070,7 @@ typedef NS_ENUM(NSInteger, ModernAssetType) {
         UITableViewCell *cell = [[UITableViewCell alloc] initWithStyle:UITableViewCellStyleDefault reuseIdentifier:@"LoadingCell"];
         cell.textLabel.text = localize(@"i18n_str_264", nil);
         cell.textLabel.textAlignment = NSTextAlignmentCenter;
-        cell.textLabel.textColor = [UIColor secondaryLabelColor];
+        cell.textLabel.textColor = [AmeTheme textSecondary];
         cell.backgroundColor = [UIColor clearColor];
         return cell;
     }
@@ -5078,7 +5079,7 @@ typedef NS_ENUM(NSInteger, ModernAssetType) {
         UITableViewCell *cell = [[UITableViewCell alloc] initWithStyle:UITableViewCellStyleDefault reuseIdentifier:@"LoadingCell"];
         cell.textLabel.text = localize(@"i18n_str_264", nil);
         cell.textLabel.textAlignment = NSTextAlignmentCenter;
-        cell.textLabel.textColor = [UIColor secondaryLabelColor];
+        cell.textLabel.textColor = [AmeTheme textSecondary];
         cell.backgroundColor = [UIColor clearColor];
         return cell;
     }
@@ -5087,7 +5088,7 @@ typedef NS_ENUM(NSInteger, ModernAssetType) {
         UITableViewCell *cell = [[UITableViewCell alloc] initWithStyle:UITableViewCellStyleDefault reuseIdentifier:@"LoadingCell"];
         cell.textLabel.text = localize(@"i18n_str_264", nil);
         cell.textLabel.textAlignment = NSTextAlignmentCenter;
-        cell.textLabel.textColor = [UIColor secondaryLabelColor];
+        cell.textLabel.textColor = [AmeTheme textSecondary];
         cell.backgroundColor = [UIColor clearColor];
         return cell;
     }
@@ -5096,7 +5097,7 @@ typedef NS_ENUM(NSInteger, ModernAssetType) {
         UITableViewCell *cell = [[UITableViewCell alloc] initWithStyle:UITableViewCellStyleDefault reuseIdentifier:@"LoadingCell"];
         cell.textLabel.text = localize(@"i18n_str_264", nil);
         cell.textLabel.textAlignment = NSTextAlignmentCenter;
-        cell.textLabel.textColor = [UIColor secondaryLabelColor];
+        cell.textLabel.textColor = [AmeTheme textSecondary];
         cell.backgroundColor = [UIColor clearColor];
         return cell;
     }
@@ -5105,7 +5106,7 @@ typedef NS_ENUM(NSInteger, ModernAssetType) {
         UITableViewCell *cell = [[UITableViewCell alloc] initWithStyle:UITableViewCellStyleDefault reuseIdentifier:@"LoadingCell"];
         cell.textLabel.text = localize(@"i18n_str_264", nil);
         cell.textLabel.textAlignment = NSTextAlignmentCenter;
-        cell.textLabel.textColor = [UIColor secondaryLabelColor];
+        cell.textLabel.textColor = [AmeTheme textSecondary];
         cell.backgroundColor = [UIColor clearColor];
         return cell;
     }

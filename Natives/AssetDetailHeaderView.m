@@ -17,6 +17,7 @@
 // （AFNetworking 仅内存缓存无降采样，IconLoader 提供双层缓存+降采样+CDN镜像+并发控制）
 #import "IconLoader.h"
 #import "ModLoaderIconHelper.h"
+#import "AmeTheme.h"          // ★ 7.0-UI-3c：Fluent 设计令牌层（硬编码 UIColor 语义化迁移）
 
 @interface AssetDetailHeaderView ()
 
@@ -96,7 +97,7 @@
     self.placeholderSymbolView = [[UIImageView alloc] init];
     self.placeholderSymbolView.translatesAutoresizingMaskIntoConstraints = NO;
     self.placeholderSymbolView.contentMode = UIViewContentModeScaleAspectFit;
-    self.placeholderSymbolView.tintColor = [UIColor systemBlueColor];
+    self.placeholderSymbolView.tintColor = [AmeTheme brandPrimary];
     [self.iconPlaceholderContainer addSubview:self.placeholderSymbolView];
 
     // 真实封面图 ImageView（覆盖在占位容器上，有图时显示）
@@ -115,7 +116,7 @@
     self.titleLabel = [[UILabel alloc] init];
     self.titleLabel.translatesAutoresizingMaskIntoConstraints = NO;
     self.titleLabel.font = [UIFont systemFontOfSize:18 weight:UIFontWeightBold];
-    self.titleLabel.textColor = [UIColor labelColor];
+    self.titleLabel.textColor = [AmeTheme textPrimary];
     self.titleLabel.numberOfLines = 2;
     self.titleLabel.adjustsFontSizeToFitWidth = YES;
     self.titleLabel.minimumScaleFactor = 0.75;
@@ -126,7 +127,7 @@
     self.authorLabel = [[UILabel alloc] init];
     self.authorLabel.translatesAutoresizingMaskIntoConstraints = NO;
     self.authorLabel.font = [UIFont systemFontOfSize:13];
-    self.authorLabel.textColor = [UIColor secondaryLabelColor];
+    self.authorLabel.textColor = [AmeTheme textSecondary];
     self.authorLabel.numberOfLines = 1;
     self.authorLabel.lineBreakMode = NSLineBreakByTruncatingTail;
     [self.cardContainer addSubview:self.authorLabel];
@@ -152,7 +153,7 @@
     self.descriptionLabel = [[UILabel alloc] init];
     self.descriptionLabel.translatesAutoresizingMaskIntoConstraints = NO;
     self.descriptionLabel.font = [UIFont systemFontOfSize:14];
-    self.descriptionLabel.textColor = [UIColor secondaryLabelColor];
+    self.descriptionLabel.textColor = [AmeTheme textSecondary];
     self.descriptionLabel.numberOfLines = 3; // 默认 3 行
     self.descriptionLabel.lineBreakMode = NSLineBreakByTruncatingTail;
     [self.cardContainer addSubview:self.descriptionLabel];
@@ -258,7 +259,7 @@
         }
         [attrText appendAttributedString:[[NSAttributedString alloc] initWithString:author
                                                                        attributes:@{NSFontAttributeName: [UIFont systemFontOfSize:13],
-                                                                                    NSForegroundColorAttributeName: [UIColor secondaryLabelColor]}]];
+                                                                                    NSForegroundColorAttributeName: [AmeTheme textSecondary]}]];
         self.authorLabel.attributedText = attrText;
     } else {
         self.authorLabel.text = localize(@"i18n_str_28", nil);
@@ -296,7 +297,7 @@
     if (downloads) {
         UIView *item = [self createMetaInfoItemWithSymbol:@"arrow.down.circle"
                                                     text:[self formatDownloadCount:downloads.integerValue]
-                                               tintColor:[UIColor systemBlueColor]];
+                                               tintColor:[AmeTheme brandPrimary]];
         [self.metaInfoStack addArrangedSubview:item];
     }
 
@@ -332,7 +333,7 @@
     UILabel *label = [[UILabel alloc] init];
     label.translatesAutoresizingMaskIntoConstraints = NO;
     label.font = [UIFont systemFontOfSize:13 weight:UIFontWeightMedium];
-    label.textColor = [UIColor secondaryLabelColor];
+    label.textColor = [AmeTheme textSecondary];
     label.text = text;
     label.adjustsFontSizeToFitWidth = YES;
     label.minimumScaleFactor = 0.7;
@@ -413,7 +414,7 @@
     UILabel *badge = [[UILabel alloc] init];
     badge.text = category;
     badge.font = [UIFont systemFontOfSize:10 weight:UIFontWeightBold];
-    badge.textColor = [UIColor whiteColor];
+    badge.textColor = [AmeTheme textOnBrand];
     badge.textAlignment = NSTextAlignmentCenter;
     badge.backgroundColor = [self colorForCategory:category];
     badge.layer.cornerRadius = 8;
@@ -526,8 +527,8 @@
     UIImageSymbolConfiguration *config = [UIImageSymbolConfiguration configurationWithPointSize:30 weight:UIFontWeightRegular];
     UIImage *placeholderSymbol = [UIImage systemImageNamed:symbolName withConfiguration:config] ?: [UIImage systemImageNamed:@"puzzlepiece.extension.fill" withConfiguration:config];
     self.placeholderSymbolView.image = placeholderSymbol;
-    self.placeholderSymbolView.tintColor = color ?: [UIColor systemBlueColor];
-    self.iconPlaceholderContainer.backgroundColor = [color ?: [UIColor systemBlueColor] colorWithAlphaComponent:0.18];
+    self.placeholderSymbolView.tintColor = color ?: [AmeTheme brandPrimary];
+    self.iconPlaceholderContainer.backgroundColor = [color ?: [AmeTheme brandPrimary] colorWithAlphaComponent:0.18];
 
     // 无 URL 或非法 URL：iconImageView 保持透明，透出底层占位 SF Symbol
     if (!iconURL || iconURL.length == 0) {

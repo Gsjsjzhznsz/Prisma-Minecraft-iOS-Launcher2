@@ -13,6 +13,7 @@
 // Task151：Bing 每日壁纸（开关/画廊/刷新）
 #import "BingWallpaperManager.h"
 #import "BingWallpaperGalleryViewController.h"
+#import "AmeTheme.h"           // 7.0-UI-3a：Fluent 设计令牌（背景/壁纸簇颜色迁移）
 
 @interface BackgroundSettingsViewController ()
 @property (nonatomic, strong) NSArray<NSArray *> *sections;
@@ -34,11 +35,11 @@
         self.tableView.backgroundColor = [UIColor clearColor];
         self.tableView.backgroundView = nil;
     } else {
-        // Task137：无自定义背景时回归原生页面底色（systemBackgroundColor，
-        // 深浅色自适应；cell 走 applyEffectToCell 的透明默认分支，标准
-        // 列表外观）。tableView 必须显式同色（默认即是，显式声明防漂移）。
-        self.view.backgroundColor = [UIColor systemBackgroundColor];
-        self.tableView.backgroundColor = [UIColor systemBackgroundColor];
+        // Task137：无自定义背景时回归原生页面底色（7.0-UI-3a 起为 AmeTheme
+        // bgPrimary 令牌，动态深浅色自适应；cell 走 applyEffectToCell 的
+        // 透明默认分支，标准列表外观）。tableView 显式同色（防漂移）。
+        self.view.backgroundColor = [AmeTheme bgPrimary];
+        self.tableView.backgroundColor = [AmeTheme bgPrimary];
     }
     
     // Setup table view
@@ -88,8 +89,8 @@
         [[BackgroundManager sharedManager] makeViewControllerTransparent:self];
     } else {
         // Task111：与 viewDidLoad 同步的无背景底色（主题切换后保持一致）
-        self.view.backgroundColor = [UIColor systemBackgroundColor];
-        self.tableView.backgroundColor = [UIColor systemBackgroundColor];
+        self.view.backgroundColor = [AmeTheme bgPrimary];
+        self.tableView.backgroundColor = [AmeTheme bgPrimary];
     }
 }
 
@@ -100,7 +101,7 @@
     if ([[BackgroundManager sharedManager] hasBackground]) {
         headerView.backgroundColor = [UIColor clearColor];
     } else {
-        headerView.backgroundColor = [UIColor secondarySystemBackgroundColor];
+        headerView.backgroundColor = [AmeTheme bgSecondary];   // 7.0-UI-3a：内嵌面板底
     }
     
     // Preview image view
@@ -108,13 +109,13 @@
     self.previewImageView.contentMode = UIViewContentModeScaleAspectFill;
     self.previewImageView.clipsToBounds = YES;
     self.previewImageView.layer.cornerRadius = 12;
-    self.previewImageView.backgroundColor = [UIColor tertiarySystemBackgroundColor];
+    self.previewImageView.backgroundColor = [AmeTheme surfaceCard];   // 7.0-UI-3a：卡片面
     self.previewImageView.autoresizingMask = UIViewAutoresizingFlexibleWidth;
     
     // Add placeholder label
     UILabel *placeholderLabel = [[UILabel alloc] init];
     placeholderLabel.text = localize(@"i18n_str_54", nil);
-    placeholderLabel.textColor = [UIColor secondaryLabelColor];
+    placeholderLabel.textColor = [AmeTheme textSecondary];   // 7.0-UI-3a：次要文本
     placeholderLabel.font = [UIFont systemFontOfSize:16];
     placeholderLabel.textAlignment = NSTextAlignmentCenter;
     placeholderLabel.tag = 100;
@@ -211,7 +212,7 @@
     UILabel *footer = [[UILabel alloc] init];
     footer.text = localize(@"background.effect.footer", nil);
     footer.font = [UIFont systemFontOfSize:[UIFont smallSystemFontSize]];
-    footer.textColor = [UIColor secondaryLabelColor];
+    footer.textColor = [AmeTheme textSecondary];   // 7.0-UI-3a：页脚辅助文本
     footer.numberOfLines = 0;
     footer.lineBreakMode = NSLineBreakByWordWrapping;
     footer.textAlignment = NSTextAlignmentNatural;
@@ -288,7 +289,7 @@
                 UILabel *titleLabel = [[UILabel alloc] init];
                 titleLabel.translatesAutoresizingMaskIntoConstraints = NO;
                 titleLabel.font = [UIFont systemFontOfSize:15];
-                titleLabel.textColor = [UIColor labelColor];
+                titleLabel.textColor = [AmeTheme textPrimary];   // 7.0-UI-3a
                 titleLabel.tag = [ame173_rowSpec[2] integerValue];
                 [cell.contentView addSubview:titleLabel];
 
@@ -342,7 +343,7 @@
                 valueLabel.text = [NSString stringWithFormat:@"%.0f%%", manager.blurIntensity * 100];
                 cell.imageView.image = [UIImage systemImageNamed:@"drop.halffull"];
             }
-            valueLabel.textColor = [UIColor labelColor]; // Task91
+            valueLabel.textColor = [AmeTheme textPrimary]; // Task91（7.0-UI-3a 令牌化）
             cell.textLabel.text = nil;
 
             return cell;
@@ -403,7 +404,7 @@
 
     if (indexPath.section == 1) {
         // 选择背景类型标题
-        cell.textLabel.textColor = [UIColor secondaryLabelColor];
+        cell.textLabel.textColor = [AmeTheme textSecondary];   // 7.0-UI-3a：区块标题行
         cell.imageView.image = nil;
         cell.accessoryType = UITableViewCellAccessoryNone;
     } else if (indexPath.section == 3) {
@@ -418,12 +419,12 @@
         if (indexPath.row == 0) {
             // 恢复默认背景
             cell.imageView.image = [UIImage systemImageNamed:@"arrow.counterclockwise"];
-            cell.textLabel.textColor = [UIColor systemBlueColor];
+            cell.textLabel.textColor = [AmeTheme brandPrimary];   // 7.0-UI-3a：蓝色强调 → 品牌色
             cell.accessoryType = UITableViewCellAccessoryNone;
         } else if (indexPath.row == 1) {
             // 清除背景
             cell.imageView.image = [UIImage systemImageNamed:@"xmark.circle"];
-            cell.textLabel.textColor = [UIColor systemRedColor];
+            cell.textLabel.textColor = [AmeTheme statusDanger];   // 7.0-UI-3a：清除/危险红
             cell.accessoryType = UITableViewCellAccessoryNone;
         }
     }
@@ -437,9 +438,9 @@
     // 新拟态退役，标准列表外观）。
     [[BackgroundManager sharedManager] applyEffectToCell:cell];
     if (hasBackground) {
-        cell.textLabel.textColor = [UIColor labelColor]; // Task91：写死白色改主题主文字色
+        cell.textLabel.textColor = [AmeTheme textPrimary]; // Task91：写死白色改主题主文字色（7.0-UI-3a 令牌化）
     } else {
-        cell.textLabel.textColor = [UIColor labelColor];
+        cell.textLabel.textColor = [AmeTheme textPrimary];
     }
 }
 
@@ -633,8 +634,8 @@
         [self.tableView reloadData];
         
         // 恢复默认背景色
-        self.view.backgroundColor = [UIColor systemBackgroundColor]; // Task136：主题化页面底色
-        self.tableView.backgroundColor = [UIColor systemBackgroundColor]; // Task136：主题化页面底色
+        self.view.backgroundColor = [AmeTheme bgPrimary]; // Task136：主题化页面底色（7.0-UI-3a 令牌）
+        self.tableView.backgroundColor = [AmeTheme bgPrimary]; // Task136：主题化页面底色（7.0-UI-3a 令牌）
         self.tableView.backgroundView = nil;
 
         [[NSNotificationCenter defaultCenter] postNotificationName:@"BackgroundChanged" object:nil];
@@ -664,8 +665,8 @@
         [self.tableView reloadData];
         
         // Restore default background color
-        self.view.backgroundColor = [UIColor systemBackgroundColor]; // Task136：主题化页面底色
-        self.tableView.backgroundColor = [UIColor systemBackgroundColor]; // Task136：主题化页面底色
+        self.view.backgroundColor = [AmeTheme bgPrimary]; // Task136：主题化页面底色（7.0-UI-3a 令牌）
+        self.tableView.backgroundColor = [AmeTheme bgPrimary]; // Task136：主题化页面底色（7.0-UI-3a 令牌）
 
         [[NSNotificationCenter defaultCenter] postNotificationName:@"BackgroundChanged" object:nil];
 

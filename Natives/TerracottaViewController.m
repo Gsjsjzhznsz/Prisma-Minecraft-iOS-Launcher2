@@ -30,6 +30,7 @@
 #import "SurfaceViewController.h"   // ★ Task248（⑧）：+surface 取游戏呈现面做快照磨砂
 #import "LiquidGlassCompat.h"       // ★ Task248（⑧）：玻璃家族档位判定
 #import "AmeLiquidGlassView.h"  // ★ Task252：TG 玻璃材料升级整页磨砂（滤镜栈供料）
+#import "AmeTheme.h"             // ★ 7.0-UI-3c：Fluent 设计令牌层（硬编码 UIColor 语义化迁移）
 #import <objc/runtime.h>            // ★ Task248（⑧）：objc_get/setAssociatedObject（CI r1 编译雷）
 
 typedef NS_ENUM(NSInteger, TCUIState) {
@@ -262,8 +263,8 @@ static const void *kAme252ArmedKey = &kAme252ArmedKey;
             configurationWithPointSize:17 weight:UIImageSymbolWeightSemibold];
         [closeFab setImage:[UIImage systemImageNamed:@"chevron.down" withConfiguration:cfg]
                   forState:UIControlStateNormal];
-        closeFab.tintColor = [UIColor whiteColor];
-        closeFab.backgroundColor = [UIColor systemBlueColor];
+        closeFab.tintColor = [AmeTheme textOnBrand];
+        closeFab.backgroundColor = [AmeTheme brandPrimary];
         closeFab.layer.cornerRadius = 18;
         closeFab.layer.masksToBounds = YES;
         closeFab.translatesAutoresizingMaskIntoConstraints = NO;
@@ -320,8 +321,8 @@ static const void *kAme252ArmedKey = &kAme252ArmedKey;
     UIButton *ztFab = [UIButton buttonWithType:UIButtonTypeSystem];
     UIImageSymbolConfiguration *cfg = [UIImageSymbolConfiguration configurationWithPointSize:17 weight:UIImageSymbolWeightSemibold];
     [ztFab setImage:[UIImage systemImageNamed:@"network" withConfiguration:cfg] forState:UIControlStateNormal];
-    ztFab.tintColor = [UIColor whiteColor];
-    ztFab.backgroundColor = [UIColor systemBlueColor];
+    ztFab.tintColor = [AmeTheme textOnBrand];
+    ztFab.backgroundColor = [AmeTheme brandPrimary];
     ztFab.layer.cornerRadius = 18;
     ztFab.layer.masksToBounds = YES;
     ztFab.translatesAutoresizingMaskIntoConstraints = NO;
@@ -395,10 +396,10 @@ static const void *kAme252ArmedKey = &kAme252ArmedKey;
     self.spinner.hidesWhenStopped = YES;
     [card addSubview:self.spinner];
 
-    self.statusTitle = [self makeLabelWithFont:[UIFont systemFontOfSize:19 weight:UIFontWeightSemibold] color:[UIColor labelColor]];
+    self.statusTitle = [self makeLabelWithFont:[UIFont systemFontOfSize:19 weight:UIFontWeightSemibold] color:[AmeTheme textPrimary]];
     [card addSubview:self.statusTitle];
 
-    self.statusSubtitle = [self makeLabelWithFont:[UIFont systemFontOfSize:13] color:[UIColor secondaryLabelColor]];
+    self.statusSubtitle = [self makeLabelWithFont:[UIFont systemFontOfSize:13] color:[AmeTheme textSecondary]];
     self.statusSubtitle.numberOfLines = 0;
     [card addSubview:self.statusSubtitle];
 
@@ -467,7 +468,7 @@ static const void *kAme252ArmedKey = &kAme252ArmedKey;
     /* 自动检测开关行 */
     UIView *autoRow = [[UIView alloc] init];
     autoRow.translatesAutoresizingMaskIntoConstraints = NO;
-    UILabel *autoTitle = [self makeLabelWithFont:[UIFont systemFontOfSize:16 weight:UIFontWeightMedium] color:[UIColor labelColor]];
+    UILabel *autoTitle = [self makeLabelWithFont:[UIFont systemFontOfSize:16 weight:UIFontWeightMedium] color:[AmeTheme textPrimary]];
     autoTitle.text = localize(@"i18n_str_2093", nil);
     [autoRow addSubview:autoTitle];
 
@@ -492,7 +493,7 @@ static const void *kAme252ArmedKey = &kAme252ArmedKey;
     /* 默认走自动检测，输入框只作为"检测到的端口"的展示位 */
     self.portField.enabled = NO;
 
-    self.portHintLabel = [self makeLabelWithFont:[UIFont systemFontOfSize:13] color:[UIColor secondaryLabelColor]];
+    self.portHintLabel = [self makeLabelWithFont:[UIFont systemFontOfSize:13] color:[AmeTheme textSecondary]];
     self.portHintLabel.numberOfLines = 0;
     self.portHintLabel.text = localize(@"i18n_str_2073", nil);
 
@@ -541,12 +542,12 @@ static const void *kAme252ArmedKey = &kAme252ArmedKey;
     [indicator startAnimating];
     [stack addArrangedSubview:indicator];
 
-    UILabel *title = [self makeLabelWithFont:[UIFont systemFontOfSize:16 weight:UIFontWeightSemibold] color:[UIColor labelColor]];
+    UILabel *title = [self makeLabelWithFont:[UIFont systemFontOfSize:16 weight:UIFontWeightSemibold] color:[AmeTheme textPrimary]];
     title.text = localize(@"i18n_str_2072", nil);
     title.textAlignment = NSTextAlignmentCenter;
     [stack addArrangedSubview:title];
 
-    self.detectingHintLabel = [self makeLabelWithFont:[UIFont systemFontOfSize:13] color:[UIColor secondaryLabelColor]];
+    self.detectingHintLabel = [self makeLabelWithFont:[UIFont systemFontOfSize:13] color:[AmeTheme textSecondary]];
     self.detectingHintLabel.numberOfLines = 0;
     self.detectingHintLabel.textAlignment = NSTextAlignmentCenter;
     self.detectingHintLabel.text = localize(@"i18n_str_2073", nil);
@@ -583,7 +584,7 @@ static const void *kAme252ArmedKey = &kAme252ArmedKey;
     self.codeField.delegate = self;
     [self.codeField addTarget:self action:@selector(codeFieldChanged:) forControlEvents:UIControlEventEditingChanged];
 
-    self.codeHintLabel = [self makeLabelWithFont:[UIFont systemFontOfSize:13] color:[UIColor secondaryLabelColor]];
+    self.codeHintLabel = [self makeLabelWithFont:[UIFont systemFontOfSize:13] color:[AmeTheme textSecondary]];
     self.codeHintLabel.numberOfLines = 0;
     self.codeHintLabel.text = localize(@"i18n_str_2088", nil);
 
@@ -621,11 +622,11 @@ static const void *kAme252ArmedKey = &kAme252ArmedKey;
 
     /* 邀请码 / 直连地址卡片 */
     self.infoCard = [self makeCard];
-    self.infoTitleLabel = [self makeLabelWithFont:[UIFont systemFontOfSize:13] color:[UIColor secondaryLabelColor]];
+    self.infoTitleLabel = [self makeLabelWithFont:[UIFont systemFontOfSize:13] color:[AmeTheme textSecondary]];
     [self.infoCard addSubview:self.infoTitleLabel];
 
     self.infoValueLabel = [self makeLabelWithFont:[UIFont fontWithName:@"Menlo" size:17]
-                                            color:[UIColor labelColor]];
+                                            color:[AmeTheme textPrimary]];
     self.infoValueLabel.numberOfLines = 0;
     self.infoValueLabel.textAlignment = NSTextAlignmentCenter;
     [self.infoCard addSubview:self.infoValueLabel];
@@ -637,7 +638,7 @@ static const void *kAme252ArmedKey = &kAme252ArmedKey;
     [self.infoCopyButton addTarget:self action:@selector(copyInfoValue:) forControlEvents:UIControlEventTouchUpInside];
     [self.infoCard addSubview:self.infoCopyButton];
 
-    self.infoDescLabel = [self makeLabelWithFont:[UIFont systemFontOfSize:12] color:[UIColor secondaryLabelColor]];
+    self.infoDescLabel = [self makeLabelWithFont:[UIFont systemFontOfSize:12] color:[AmeTheme textSecondary]];
     self.infoDescLabel.numberOfLines = 0;
     self.infoDescLabel.textAlignment = NSTextAlignmentCenter;
     [self.infoCard addSubview:self.infoDescLabel];
@@ -661,7 +662,7 @@ static const void *kAme252ArmedKey = &kAme252ArmedKey;
     ]];
 
     UILabel *playersTitle = [self makeLabelWithFont:[UIFont systemFontOfSize:15 weight:UIFontWeightSemibold]
-                                              color:[UIColor labelColor]];
+                                              color:[AmeTheme textPrimary]];
     playersTitle.text = localize(@"i18n_str_1014", nil);
 
     self.playersStack = [[UIStackView alloc] init];
@@ -672,7 +673,7 @@ static const void *kAme252ArmedKey = &kAme252ArmedKey;
 
     self.leaveButton = [self makeSecondaryButtonWithTitle:localize(@"i18n_str_694", nil)
                                                    action:@selector(leaveTapped:)];
-    [self.leaveButton setTitleColor:[UIColor systemRedColor] forState:UIControlStateNormal];
+    [self.leaveButton setTitleColor:[AmeTheme statusDanger] forState:UIControlStateNormal];
 
     [stack addArrangedSubview:self.infoCard];
     [stack addArrangedSubview:playersTitle];
@@ -726,7 +727,7 @@ static const void *kAme252ArmedKey = &kAme252ArmedKey;
     UIButton *btn = [UIButton buttonWithType:UIButtonTypeSystem];
     btn.translatesAutoresizingMaskIntoConstraints = NO;
     [btn setTitle:title forState:UIControlStateNormal];
-    [btn setTitleColor:[UIColor whiteColor] forState:UIControlStateNormal];
+    [btn setTitleColor:[AmeTheme textOnBrand] forState:UIControlStateNormal];
     btn.titleLabel.font = [UIFont systemFontOfSize:17 weight:UIFontWeightSemibold];
     btn.backgroundColor = accentColor();
     btn.layer.cornerRadius = 14;
@@ -742,7 +743,7 @@ static const void *kAme252ArmedKey = &kAme252ArmedKey;
     btn.titleLabel.font = [UIFont systemFontOfSize:16 weight:UIFontWeightMedium];
     btn.layer.cornerRadius = 14;
     btn.layer.borderWidth = 1;
-    btn.layer.borderColor = [UIColor tertiaryLabelColor].CGColor;
+    btn.layer.borderColor = [AmeTheme divider].CGColor;
     [btn addTarget:self action:action forControlEvents:UIControlEventTouchUpInside];
     return btn;
 }
@@ -763,11 +764,11 @@ static const void *kAme252ArmedKey = &kAme252ArmedKey;
     [card addSubview:icon];
 
     UILabel *titleLabel = [self makeLabelWithFont:[UIFont systemFontOfSize:17 weight:UIFontWeightSemibold]
-                                            color:[UIColor labelColor]];
+                                            color:[AmeTheme textPrimary]];
     titleLabel.text = title;
     [card addSubview:titleLabel];
 
-    UILabel *subLabel = [self makeLabelWithFont:[UIFont systemFontOfSize:13] color:[UIColor secondaryLabelColor]];
+    UILabel *subLabel = [self makeLabelWithFont:[UIFont systemFontOfSize:13] color:[AmeTheme textSecondary]];
     subLabel.text = subtitle;
     subLabel.numberOfLines = 0;
     [card addSubview:subLabel];
@@ -776,7 +777,7 @@ static const void *kAme252ArmedKey = &kAme252ArmedKey;
     chevron.translatesAutoresizingMaskIntoConstraints = NO;
     UIImageSymbolConfiguration *smallCfg = [UIImageSymbolConfiguration configurationWithPointSize:14 weight:UIImageSymbolWeightSemibold];
     chevron.image = [UIImage systemImageNamed:@"chevron.right" withConfiguration:smallCfg];
-    chevron.tintColor = [UIColor tertiaryLabelColor];
+    chevron.tintColor = [AmeTheme textTertiary];
     [card addSubview:chevron];
 
     [NSLayoutConstraint activateConstraints:@[
@@ -922,19 +923,19 @@ static const void *kAme252ArmedKey = &kAme252ArmedKey;
                 title = (mgr.role == TerracottaRoleHost) ? localize(@"i18n_str_2046", nil) : localize(@"i18n_str_1031", nil);
                 subtitle = mgr.stageDescription ?: @"";
                 iconName = @"arrow.triangle.2.circlepath";
-                tint = [UIColor systemOrangeColor];
+                tint = [AmeTheme statusWarning];
                 break;
             case TerracottaStatusConnected:
                 title = (mgr.role == TerracottaRoleHost) ? localize(@"i18n_str_2047", nil) : localize(@"i18n_str_1006", nil);
                 subtitle = mgr.stageDescription ?: @"";
                 iconName = @"checkmark.seal.fill";
-                tint = [UIColor systemGreenColor];
+                tint = [AmeTheme statusSuccess];
                 break;
             case TerracottaStatusError:
                 title = localize(@"i18n_str_1033", nil);
                 subtitle = mgr.lastError ?: localize(@"i18n_str_2087", nil);
                 iconName = @"exclamationmark.triangle.fill";
-                tint = [UIColor systemRedColor];
+                tint = [AmeTheme statusDanger];
                 break;
             default:
                 title = localize(@"i18n_str_1029", nil);
@@ -1004,7 +1005,7 @@ static const void *kAme252ArmedKey = &kAme252ArmedKey;
     }
     if (players.count == 0) {
         UILabel *empty = [self makeLabelWithFont:[UIFont systemFontOfSize:13]
-                                           color:[UIColor tertiaryLabelColor]];
+                                           color:[AmeTheme textTertiary]];
         empty.text = (role == TerracottaRoleHost) ? localize(@"i18n_str_2045", nil) : localize(@"i18n_str_1026", nil);
         [self.playersStack addArrangedSubview:empty];
         return;
@@ -1025,11 +1026,11 @@ static const void *kAme252ArmedKey = &kAme252ArmedKey;
     avatar.tintColor = accentColor();
     [row addSubview:avatar];
 
-    UILabel *nameLabel = [self makeLabelWithFont:[UIFont systemFontOfSize:15] color:[UIColor labelColor]];
+    UILabel *nameLabel = [self makeLabelWithFont:[UIFont systemFontOfSize:15] color:[AmeTheme textPrimary]];
     nameLabel.text = profile.name.length > 0 ? profile.name : localize(@"i18n_str_351", nil);
     [row addSubview:nameLabel];
 
-    UILabel *roleLabel = [self makeLabelWithFont:[UIFont systemFontOfSize:12] color:[UIColor secondaryLabelColor]];
+    UILabel *roleLabel = [self makeLabelWithFont:[UIFont systemFontOfSize:12] color:[AmeTheme textSecondary]];
     roleLabel.text = [self playerRoleText:profile];
     roleLabel.textAlignment = NSTextAlignmentRight;
     [row addSubview:roleLabel];
@@ -1347,8 +1348,8 @@ static UIView *ame252_cachedPseudoSrc = nil;
 
 - (void)applyBackgroundEffects {
     BOOL hasBg = [[BackgroundManager sharedManager] hasBackground];
-    UIColor *primary = hasBg ? [UIColor whiteColor] : [UIColor labelColor];
-    UIColor *secondary = hasBg ? [UIColor colorWithWhite:1.0 alpha:0.85] : [UIColor secondaryLabelColor];
+    UIColor *primary = hasBg ? [UIColor whiteColor] : [AmeTheme textPrimary];
+    UIColor *secondary = hasBg ? [UIColor colorWithWhite:1.0 alpha:0.85] : [AmeTheme textSecondary];
 
     // ★ Task248（⑧）：玻璃家族档位 + 游戏在场 → 快照自绘磨砂背景（原生档
     //   /启动器呈现自动短路为零改动，见方法内护栏）。
@@ -1392,8 +1393,8 @@ static UIView *ame252_cachedPseudoSrc = nil;
             [self.leaveButton setTitleColor:[UIColor whiteColor] forState:UIControlStateNormal];
             self.leaveButton.layer.borderColor = [UIColor colorWithWhite:1.0 alpha:0.6].CGColor;
         } else {
-            [self.leaveButton setTitleColor:[UIColor systemRedColor] forState:UIControlStateNormal];
-            self.leaveButton.layer.borderColor = [UIColor systemRedColor].CGColor;
+            [self.leaveButton setTitleColor:[AmeTheme statusDanger] forState:UIControlStateNormal];
+            self.leaveButton.layer.borderColor = [AmeTheme statusDanger].CGColor;
         }
         self.infoTitleLabel.textColor = secondary;
         self.infoValueLabel.textColor = primary;
@@ -1634,13 +1635,13 @@ static UIView *ame252_cachedPseudoSrc = nil;
     NSString *code = [field.text stringByTrimmingCharactersInSet:[NSCharacterSet whitespaceAndNewlineCharacterSet]];
     if (code.length == 0) {
         self.codeHintLabel.text = localize(@"i18n_str_2088", nil);
-        self.codeHintLabel.textColor = [UIColor secondaryLabelColor];
+        self.codeHintLabel.textColor = [AmeTheme textSecondary];
         return;
     }
     if ([TerracottaBridge respondsToSelector:@selector(verifyRoomCode:)]) {
         BOOL valid = [TerracottaBridge verifyRoomCode:code];
         self.codeHintLabel.text = valid ? localize(@"i18n_str_2085", nil) : localize(@"i18n_str_1017", nil);
-        self.codeHintLabel.textColor = valid ? [UIColor systemGreenColor] : [UIColor systemRedColor];
+        self.codeHintLabel.textColor = valid ? [AmeTheme statusSuccess] : [AmeTheme statusDanger];
     }
 }
 

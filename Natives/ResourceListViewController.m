@@ -10,6 +10,7 @@
 #import "ResourceListViewController.h"
 #import "BackgroundManager.h"
 #import "LauncherPreferences.h"
+#import "AmeTheme.h"            // ★ 7.0-UI-3f：Fluent 设计令牌（资源列表基类页面底/搜索框/工具栏/空态迁移）
 #import "DownloadTaskItem.h"
 #import "DownloadTaskManager.h"
 #import "utils.h"
@@ -65,7 +66,7 @@ static CGFloat const kBatchToolbarBottomGap = 12.0; // 工具栏与安全区底�
     if (self.pageTitle.length > 0) {
         self.title = self.pageTitle;
     }
-    self.view.backgroundColor = [UIColor systemBackgroundColor]; // Task136：主题化页面底色
+    self.view.backgroundColor = [AmeTheme bgPrimary]; // Task136：主题化页面底色
     // 适配自定义启动器背景：透明化当前 VC，让全局背景图/毛玻璃透出
     [[BackgroundManager sharedManager] makeViewControllerTransparent:self];
 
@@ -191,7 +192,7 @@ static CGFloat const kBatchToolbarBottomGap = 12.0; // 工具栏与安全区底�
 - (void)applyCapsuleStyleToSearchField {
     // 胶囊形搜索输入框：圆角 = 高度/2、半透明背景（白 0.08）、保留系统放大镜图标
     UISearchTextField *field = self.searchBar.searchTextField;
-    field.backgroundColor = [[UIColor whiteColor] colorWithAlphaComponent:0.08];
+    field.backgroundColor = [AmeTheme fillSubtle];
     field.layer.cornerRadius = 18.0; // 输入框标准高度 36 / 2
     field.layer.cornerCurve = kCACornerCurveContinuous;
     field.layer.masksToBounds = YES;
@@ -231,18 +232,18 @@ static CGFloat const kBatchToolbarBottomGap = 12.0; // 工具栏与安全区底�
     self.emptyIconView = [[UIImageView alloc] init];
     self.emptyIconView.translatesAutoresizingMaskIntoConstraints = NO;
     self.emptyIconView.contentMode = UIViewContentModeScaleAspectFit;
-    self.emptyIconView.tintColor = [UIColor secondaryLabelColor];
+    self.emptyIconView.tintColor = [AmeTheme textSecondary];
     self.emptyIconView.image = [UIImage systemImageNamed:@"tray"];
 
     self.emptyLabel = [[UILabel alloc] init];
     self.emptyLabel.font = [UIFont preferredFontForTextStyle:UIFontTextStyleBody]; // 启用 Dynamic Type
-    self.emptyLabel.textColor = [UIColor secondaryLabelColor];
+    self.emptyLabel.textColor = [AmeTheme textSecondary];
     self.emptyLabel.textAlignment = NSTextAlignmentCenter;
     self.emptyLabel.numberOfLines = 0;
 
     self.emptyActionButton = [UIButton buttonWithType:UIButtonTypeSystem];
     self.emptyActionButton.titleLabel.font = [UIFont systemFontOfSize:15 weight:UIFontWeightSemibold];
-    [self.emptyActionButton setTitleColor:[UIColor whiteColor] forState:UIControlStateNormal];
+    [self.emptyActionButton setTitleColor:[AmeTheme textOnBrand] forState:UIControlStateNormal];
     self.emptyActionButton.backgroundColor = accentColor();
     self.emptyActionButton.contentEdgeInsets = UIEdgeInsetsMake(0, 20, 0, 20);
     self.emptyActionButton.layer.cornerRadius = 20.0; // 高度 40 / 2，完美胶囊端
@@ -274,25 +275,25 @@ static CGFloat const kBatchToolbarBottomGap = 12.0; // 工具栏与安全区底�
     self.batchToolbar = [[UIView alloc] init];
     self.batchToolbar.translatesAutoresizingMaskIntoConstraints = NO;
     self.batchToolbar.hidden = YES;
-    self.batchToolbar.backgroundColor = [[UIColor whiteColor] colorWithAlphaComponent:0.08];
+    self.batchToolbar.backgroundColor = [[AmeTheme surfaceOverlay] colorWithAlphaComponent:0.08];
     self.batchToolbar.layer.cornerRadius = 12.0;
     self.batchToolbar.layer.cornerCurve = kCACornerCurveContinuous;
     self.batchToolbar.layer.borderWidth = 0.5;
-    self.batchToolbar.layer.borderColor = [[UIColor whiteColor] colorWithAlphaComponent:0.10].CGColor;
+    self.batchToolbar.layer.borderColor = [[AmeTheme divider] colorWithAlphaComponent:0.10].CGColor;
     [[BackgroundManager sharedManager] applyEffectToView:self.batchToolbar];
     [self.view addSubview:self.batchToolbar];
 
     self.selectAllButton = [UIButton buttonWithType:UIButtonTypeSystem];
     [self.selectAllButton setTitle:localize(@"resman.common.select_all", nil) forState:UIControlStateNormal];
     self.selectAllButton.titleLabel.font = [UIFont systemFontOfSize:15 weight:UIFontWeightMedium];
-    self.selectAllButton.tintColor = [UIColor labelColor];
+    self.selectAllButton.tintColor = [AmeTheme textPrimary];
     self.selectAllButton.contentEdgeInsets = UIEdgeInsetsMake(8, 12, 8, 12);
     [self.selectAllButton addTarget:self action:@selector(selectAllTapped) forControlEvents:UIControlEventTouchUpInside];
 
     self.cancelButton = [UIButton buttonWithType:UIButtonTypeSystem];
     [self.cancelButton setTitle:localize(@"resman.common.cancel", nil) forState:UIControlStateNormal];
     self.cancelButton.titleLabel.font = [UIFont systemFontOfSize:15 weight:UIFontWeightMedium];
-    self.cancelButton.tintColor = [UIColor secondaryLabelColor];
+    self.cancelButton.tintColor = [AmeTheme textSecondary];
     self.cancelButton.contentEdgeInsets = UIEdgeInsetsMake(8, 12, 8, 12);
     [self.cancelButton addTarget:self action:@selector(cancelSelectModeTapped) forControlEvents:UIControlEventTouchUpInside];
 
@@ -333,7 +334,7 @@ static CGFloat const kBatchToolbarBottomGap = 12.0; // 工具栏与安全区底�
     NSString *iconName = sfSymbol.length > 0 ? sfSymbol
                         : (self.resourceTypeIcon.length > 0 ? self.resourceTypeIcon : @"tray");
     self.emptyIconView.image = [UIImage systemImageNamed:iconName] ?: [UIImage systemImageNamed:@"tray"];
-    self.emptyIconView.tintColor = color ?: self.resourceTypeIconColor ?: [UIColor secondaryLabelColor];
+    self.emptyIconView.tintColor = color ?: self.resourceTypeIconColor ?: [AmeTheme textSecondary];
 
     self.emptyLabel.text = message;
 

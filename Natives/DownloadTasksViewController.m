@@ -1,6 +1,7 @@
 #import "utils.h"
 #import "DownloadTasksViewController.h"
 #import "AmeNativeMenu.h"       // ★ Task240：菜单全面系统原生 UIMenu 化
+#import "AmeTheme.h"            // 7.0-UI-3b：Fluent 设计令牌（下载簇换肤）
 #import "DownloadTaskManager.h"
 #import "DownloadTaskItem.h"
 #import "LauncherPreferences.h"
@@ -56,7 +57,7 @@ static const CGFloat kSectionInset = 16.0;
 }
 
 - (void)setupUI {
-    self.contentView.backgroundColor = [UIColor secondarySystemBackgroundColor];
+    self.contentView.backgroundColor = [AmeTheme surfaceCard]; // 任务卡片面
     self.contentView.layer.cornerRadius = kCardCornerRadius;
     self.contentView.layer.masksToBounds = YES;
 
@@ -65,22 +66,22 @@ static const CGFloat kSectionInset = 16.0;
     self.iconImageView.contentMode = UIViewContentModeScaleAspectFit;
     self.iconImageView.layer.cornerRadius = 8.0;
     self.iconImageView.layer.masksToBounds = YES;
-    self.iconImageView.backgroundColor = [UIColor tertiarySystemBackgroundColor];
-    self.iconImageView.tintColor = [UIColor secondaryLabelColor];
+    self.iconImageView.backgroundColor = [AmeTheme fillSubtle];
+    self.iconImageView.tintColor = [AmeTheme textSecondary];
     [self.contentView addSubview:self.iconImageView];
 
     self.nameLabel = [[UILabel alloc] init];
     self.nameLabel.translatesAutoresizingMaskIntoConstraints = NO;
     self.nameLabel.font = [UIFont boldSystemFontOfSize:15];
-    self.nameLabel.textColor = [UIColor labelColor];
+    self.nameLabel.textColor = [AmeTheme textPrimary];
     self.nameLabel.numberOfLines = 1;
     [self.contentView addSubview:self.nameLabel];
 
     self.typeTagLabel = [[UILabel alloc] init];
     self.typeTagLabel.translatesAutoresizingMaskIntoConstraints = NO;
     self.typeTagLabel.font = [UIFont systemFontOfSize:10];
-    self.typeTagLabel.textColor = [UIColor whiteColor];
-    self.typeTagLabel.backgroundColor = [UIColor systemBlueColor];
+    self.typeTagLabel.textColor = [AmeTheme textOnBrand];
+    self.typeTagLabel.backgroundColor = [AmeTheme brandPrimary];
     self.typeTagLabel.layer.cornerRadius = 4.0;
     self.typeTagLabel.layer.masksToBounds = YES;
     self.typeTagLabel.textAlignment = NSTextAlignmentCenter;
@@ -98,35 +99,35 @@ static const CGFloat kSectionInset = 16.0;
     self.speedLabel = [[UILabel alloc] init];
     self.speedLabel.translatesAutoresizingMaskIntoConstraints = NO;
     self.speedLabel.font = [UIFont monospacedDigitSystemFontOfSize:11 weight:UIFontWeightRegular];
-    self.speedLabel.textColor = [UIColor secondaryLabelColor];
+    self.speedLabel.textColor = [AmeTheme textSecondary];
     self.speedLabel.textAlignment = NSTextAlignmentRight;
     self.speedLabel.numberOfLines = 1;
     [self.contentView addSubview:self.speedLabel];
 
     self.progressView = [[UIProgressView alloc] initWithProgressViewStyle:UIProgressViewStyleDefault];
     self.progressView.translatesAutoresizingMaskIntoConstraints = NO;
-    self.progressView.progressTintColor = [UIColor systemBlueColor];
-    self.progressView.trackTintColor = [UIColor tertiarySystemBackgroundColor];
+    self.progressView.progressTintColor = [AmeTheme brandPrimary];
+    self.progressView.trackTintColor = [AmeTheme fillSubtle];
     [self.contentView addSubview:self.progressView];
 
     self.progressLabel = [[UILabel alloc] init];
     self.progressLabel.translatesAutoresizingMaskIntoConstraints = NO;
     self.progressLabel.font = [UIFont monospacedDigitSystemFontOfSize:11 weight:UIFontWeightMedium];
-    self.progressLabel.textColor = [UIColor labelColor];
+    self.progressLabel.textColor = [AmeTheme textPrimary];
     self.progressLabel.textAlignment = NSTextAlignmentRight;
     self.progressLabel.numberOfLines = 1;
     [self.contentView addSubview:self.progressLabel];
 
     self.separatorView = [[UIView alloc] init];
     self.separatorView.translatesAutoresizingMaskIntoConstraints = NO;
-    self.separatorView.backgroundColor = [UIColor separatorColor];
+    self.separatorView.backgroundColor = [AmeTheme divider];
     [self.contentView addSubview:self.separatorView];
 
     // 阶段信息行：左侧当前阶段名（单行截断）+ 右侧阶段计数（如 "3/6"）
     self.stageTitleLabel = [[UILabel alloc] init];
     self.stageTitleLabel.translatesAutoresizingMaskIntoConstraints = NO;
     self.stageTitleLabel.font = [UIFont systemFontOfSize:12 weight:UIFontWeightMedium];
-    self.stageTitleLabel.textColor = [UIColor secondaryLabelColor];
+    self.stageTitleLabel.textColor = [AmeTheme textSecondary];
     self.stageTitleLabel.numberOfLines = 1;
     self.stageTitleLabel.lineBreakMode = NSLineBreakByTruncatingTail;
     [self.contentView addSubview:self.stageTitleLabel];
@@ -134,7 +135,7 @@ static const CGFloat kSectionInset = 16.0;
     self.stageCountLabel = [[UILabel alloc] init];
     self.stageCountLabel.translatesAutoresizingMaskIntoConstraints = NO;
     self.stageCountLabel.font = [UIFont monospacedDigitSystemFontOfSize:12 weight:UIFontWeightMedium];
-    self.stageCountLabel.textColor = [UIColor secondaryLabelColor];
+    self.stageCountLabel.textColor = [AmeTheme textSecondary];
     self.stageCountLabel.textAlignment = NSTextAlignmentRight;
     self.stageCountLabel.numberOfLines = 1;
     [self.contentView addSubview:self.stageCountLabel];
@@ -370,20 +371,20 @@ static const CGFloat kSectionInset = 16.0;
 }
 
 - (void)configureActionButtonsForTask:(DownloadTaskItem *)task {
-    UIColor *primaryColor = [UIColor systemBlueColor];
-    UIColor *secondaryColor = [UIColor systemRedColor];
+    UIColor *primaryColor = [AmeTheme brandPrimary];
+    UIColor *secondaryColor = [AmeTheme statusDanger];
 
     switch (task.state) {
         case DownloadTaskStateDownloading:
         case DownloadTaskStatePending:
             // 主操作：暂停；次操作：取消
             [self.primaryActionButton setTitle:localize(@"i18n_str_128", nil) forState:UIControlStateNormal];
-            [self.primaryActionButton setTitleColor:[UIColor whiteColor] forState:UIControlStateNormal];
+            [self.primaryActionButton setTitleColor:[AmeTheme textOnBrand] forState:UIControlStateNormal];
             self.primaryActionButton.backgroundColor = primaryColor;
             self.primaryActionButton.hidden = NO;
 
             [self.secondaryActionButton setTitle:localize(@"resman.common.cancel", nil) forState:UIControlStateNormal];
-            [self.secondaryActionButton setTitleColor:[UIColor whiteColor] forState:UIControlStateNormal];
+            [self.secondaryActionButton setTitleColor:[AmeTheme textOnBrand] forState:UIControlStateNormal];
             self.secondaryActionButton.backgroundColor = secondaryColor;
             self.secondaryActionButton.hidden = NO;
             break;
@@ -392,19 +393,19 @@ static const CGFloat kSectionInset = 16.0;
             // 主操作：继续（不可续传时置灰，如 App 重启恢复的暂停任务）；次操作：取消
             if (task.supportsResume) {
                 [self.primaryActionButton setTitle:localize(@"i18n_str_129", nil) forState:UIControlStateNormal];
-                [self.primaryActionButton setTitleColor:[UIColor whiteColor] forState:UIControlStateNormal];
+                [self.primaryActionButton setTitleColor:[AmeTheme textOnBrand] forState:UIControlStateNormal];
                 self.primaryActionButton.backgroundColor = primaryColor;
                 self.primaryActionButton.userInteractionEnabled = YES;
             } else {
                 [self.primaryActionButton setTitle:localize(@"i18n_str_130", nil) forState:UIControlStateNormal];
-                [self.primaryActionButton setTitleColor:[UIColor secondaryLabelColor] forState:UIControlStateNormal];
-                self.primaryActionButton.backgroundColor = [UIColor tertiarySystemBackgroundColor];
+                [self.primaryActionButton setTitleColor:[AmeTheme textTertiary] forState:UIControlStateNormal];
+                self.primaryActionButton.backgroundColor = [AmeTheme fillSubtle];
                 self.primaryActionButton.userInteractionEnabled = NO;
             }
             self.primaryActionButton.hidden = NO;
 
             [self.secondaryActionButton setTitle:localize(@"resman.common.cancel", nil) forState:UIControlStateNormal];
-            [self.secondaryActionButton setTitleColor:[UIColor whiteColor] forState:UIControlStateNormal];
+            [self.secondaryActionButton setTitleColor:[AmeTheme textOnBrand] forState:UIControlStateNormal];
             self.secondaryActionButton.backgroundColor = secondaryColor;
             self.secondaryActionButton.hidden = NO;
             break;
@@ -419,14 +420,14 @@ static const CGFloat kSectionInset = 16.0;
                     ? [NSString stringWithFormat:localize(@"i18n_str_131", nil), (long)task.retryCount, (long)task.maxRetryCount]
                     : localize(@"i18n_str_21", nil);
                 [self.primaryActionButton setTitle:retryTitle forState:UIControlStateNormal];
-                [self.primaryActionButton setTitleColor:[UIColor whiteColor] forState:UIControlStateNormal];
+                [self.primaryActionButton setTitleColor:[AmeTheme textOnBrand] forState:UIControlStateNormal];
                 self.primaryActionButton.backgroundColor = primaryColor;
                 self.primaryActionButton.hidden = NO;
             } else if (task.retryHandler != nil && task.retryCount >= task.maxRetryCount && task.maxRetryCount > 0) {
                 // 已达最大重试次数，显示禁用状态
                 [self.primaryActionButton setTitle:localize(@"i18n_str_132", nil) forState:UIControlStateNormal];
-                [self.primaryActionButton setTitleColor:[UIColor secondaryLabelColor] forState:UIControlStateNormal];
-                self.primaryActionButton.backgroundColor = [UIColor tertiarySystemBackgroundColor];
+                [self.primaryActionButton setTitleColor:[AmeTheme textTertiary] forState:UIControlStateNormal];
+                self.primaryActionButton.backgroundColor = [AmeTheme fillSubtle];
                 self.primaryActionButton.userInteractionEnabled = NO;
                 self.primaryActionButton.hidden = NO;
             } else {
@@ -434,7 +435,7 @@ static const CGFloat kSectionInset = 16.0;
             }
 
             [self.secondaryActionButton setTitle:localize(@"i18n_str_133", nil) forState:UIControlStateNormal];
-            [self.secondaryActionButton setTitleColor:[UIColor whiteColor] forState:UIControlStateNormal];
+            [self.secondaryActionButton setTitleColor:[AmeTheme textOnBrand] forState:UIControlStateNormal];
             self.secondaryActionButton.backgroundColor = secondaryColor;
             self.secondaryActionButton.userInteractionEnabled = YES;
             self.secondaryActionButton.hidden = NO;
@@ -446,8 +447,8 @@ static const CGFloat kSectionInset = 16.0;
             self.primaryActionButton.hidden = YES;
 
             [self.secondaryActionButton setTitle:localize(@"i18n_str_133", nil) forState:UIControlStateNormal];
-            [self.secondaryActionButton setTitleColor:[UIColor whiteColor] forState:UIControlStateNormal];
-            self.secondaryActionButton.backgroundColor = [UIColor systemGrayColor];
+            [self.secondaryActionButton setTitleColor:[AmeTheme textPrimary] forState:UIControlStateNormal];
+            self.secondaryActionButton.backgroundColor = [AmeTheme fillStrong]; // 中性幽灵按钮（原 systemGray 实底）
             self.secondaryActionButton.userInteractionEnabled = YES;
             self.secondaryActionButton.hidden = NO;
             break;
@@ -518,12 +519,12 @@ static const CGFloat kSectionInset = 16.0;
             // 未识别的加载器：用通用 SF Symbol
             placeholder = [UIImage systemImageNamed:[self iconNameForResourceType:task.resourceType]];
             self.iconImageView.image = placeholder;
-            self.iconImageView.tintColor = [UIColor secondaryLabelColor];
+            self.iconImageView.tintColor = [AmeTheme textSecondary];
         }
     } else {
         placeholder = [UIImage systemImageNamed:[self iconNameForResourceType:task.resourceType]];
         self.iconImageView.image = placeholder;
-        self.iconImageView.tintColor = [UIColor secondaryLabelColor];
+        self.iconImageView.tintColor = [AmeTheme textSecondary];
     }
 
     if (task.iconURL.length > 0) {
@@ -577,13 +578,13 @@ static const CGFloat kSectionInset = 16.0;
 
     if ([normalized isEqualToString:@"modrinth"]) {
         title = @"Modrinth";
-        backgroundColor = [UIColor colorWithRed:0.18 green:0.80 blue:0.45 alpha:1.0];
+        backgroundColor = [AmeTheme statusSuccess]; // Modrinth 源徽章
     } else if ([normalized isEqualToString:@"curseforge"]) {
         title = @"CurseForge";
-        backgroundColor = [UIColor colorWithRed:0.95 green:0.45 blue:0.15 alpha:1.0];
+        backgroundColor = [AmeTheme statusWarning]; // CurseForge 源徽章
     } else if ([normalized isEqualToString:@"bmclapi"]) {
         title = @"BMCLAPI";
-        backgroundColor = [UIColor colorWithRed:0.20 green:0.60 blue:0.90 alpha:1.0];
+        backgroundColor = [AmeTheme brandPrimary]; // BMCLAPI 源徽章
     } else {
         title = @"Official";
         backgroundColor = [UIColor systemGrayColor];
@@ -610,7 +611,7 @@ static const CGFloat kSectionInset = 16.0;
         self.messageLabel = [[UILabel alloc] init];
         self.messageLabel.translatesAutoresizingMaskIntoConstraints = NO;
         self.messageLabel.font = [UIFont systemFontOfSize:16];
-        self.messageLabel.textColor = [UIColor secondaryLabelColor];
+        self.messageLabel.textColor = [AmeTheme textSecondary];
         self.messageLabel.textAlignment = NSTextAlignmentCenter;
         self.messageLabel.numberOfLines = 0;
         self.messageLabel.text = localize(@"i18n_str_135", nil);
@@ -658,7 +659,7 @@ static const CGFloat kSectionInset = 16.0;
     // 适配自定义启动器背景：将当前视图控制器透明化，使全局背景壁纸能够透出
     [[BackgroundManager sharedManager] makeViewControllerTransparent:self];
 
-    self.view.backgroundColor = [UIColor systemBackgroundColor]; // Task136：主题化页面底色
+    self.view.backgroundColor = [AmeTheme bgPrimary]; // Task136：主题化页面底色
     self.filterState = DownloadTaskStatePending;
     self.filterType = nil;
 
@@ -722,21 +723,21 @@ static const CGFloat kSectionInset = 16.0;
 - (void)setupHeaderView {
     self.headerView = [[UIView alloc] init];
     self.headerView.translatesAutoresizingMaskIntoConstraints = NO;
-    self.headerView.backgroundColor = [UIColor secondarySystemBackgroundColor];
+    self.headerView.backgroundColor = [AmeTheme surfaceCard];
     self.headerView.layer.cornerRadius = kCardCornerRadius;
     [self.view addSubview:self.headerView];
 
     self.titleLabel = [[UILabel alloc] init];
     self.titleLabel.translatesAutoresizingMaskIntoConstraints = NO;
     self.titleLabel.font = [UIFont boldSystemFontOfSize:22];
-    self.titleLabel.textColor = [UIColor labelColor];
+    self.titleLabel.textColor = [AmeTheme textPrimary];
     self.titleLabel.text = localize(@"i18n_str_136", nil);
     [self.headerView addSubview:self.titleLabel];
 
     self.closeButton = [UIButton buttonWithType:UIButtonTypeSystem];
     self.closeButton.translatesAutoresizingMaskIntoConstraints = NO;
     [self.closeButton setImage:[UIImage systemImageNamed:@"xmark.circle.fill"] forState:UIControlStateNormal];
-    self.closeButton.tintColor = [UIColor labelColor];
+    self.closeButton.tintColor = [AmeTheme textPrimary];
     [self.closeButton addTarget:self action:@selector(closeTapped:) forControlEvents:UIControlEventTouchUpInside];
     [self.headerView addSubview:self.closeButton];
 
@@ -744,7 +745,7 @@ static const CGFloat kSectionInset = 16.0;
     self.historyButton = [UIButton buttonWithType:UIButtonTypeSystem];
     self.historyButton.translatesAutoresizingMaskIntoConstraints = NO;
     [self.historyButton setImage:[UIImage systemImageNamed:@"clock.arrow.circlepath"] forState:UIControlStateNormal];
-    self.historyButton.tintColor = [UIColor labelColor];
+    self.historyButton.tintColor = [AmeTheme textPrimary];
     self.historyButton.accessibilityLabel = localize(@"download.history.entry", nil);
     [self.historyButton addTarget:self action:@selector(historyTapped:) forControlEvents:UIControlEventTouchUpInside];
     [self.headerView addSubview:self.historyButton];
@@ -855,14 +856,14 @@ static const CGFloat kSectionInset = 16.0;
 
     UIImageView *iconView = [[UIImageView alloc] initWithImage:[UIImage systemImageNamed:@"arrow.down.circle"]];
     iconView.translatesAutoresizingMaskIntoConstraints = NO;
-    iconView.tintColor = [UIColor tertiaryLabelColor];
+    iconView.tintColor = [AmeTheme textTertiary];
     iconView.contentMode = UIViewContentModeScaleAspectFit;
     [self.emptyStateView addSubview:iconView];
 
     UILabel *label = [[UILabel alloc] init];
     label.translatesAutoresizingMaskIntoConstraints = NO;
     label.font = [UIFont systemFontOfSize:16];
-    label.textColor = [UIColor secondaryLabelColor];
+    label.textColor = [AmeTheme textSecondary];
     label.textAlignment = NSTextAlignmentCenter;
     label.text = localize(@"i18n_str_139", nil);
     [self.emptyStateView addSubview:label];
@@ -980,8 +981,8 @@ static const CGFloat kSectionInset = 16.0;
     NSString *fullTitle = [NSString stringWithFormat:@"%@ (%@)", title, count];
     [button setTitle:fullTitle forState:UIControlStateNormal];
     button.titleLabel.font = [UIFont systemFontOfSize:13 weight:selected ? UIFontWeightSemibold : UIFontWeightRegular];
-    [button setTitleColor:selected ? [UIColor whiteColor] : [UIColor labelColor] forState:UIControlStateNormal];
-    button.backgroundColor = selected ? [UIColor systemBlueColor] : [UIColor secondarySystemBackgroundColor];
+    [button setTitleColor:selected ? [AmeTheme textOnBrand] : [AmeTheme textPrimary] forState:UIControlStateNormal];
+    button.backgroundColor = selected ? [AmeTheme brandPrimary] : [AmeTheme fillSubtle];
     button.layer.cornerRadius = 8.0;
     button.layer.masksToBounds = YES;
     button.contentEdgeInsets = UIEdgeInsetsMake(8, 12, 8, 12);

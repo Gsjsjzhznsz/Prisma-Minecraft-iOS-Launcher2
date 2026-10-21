@@ -49,6 +49,7 @@
 #import "LiquidGlassCompat.h"   // ★ Task246：界面风格存取（欢迎页风格选择步骤）
 #import <objc/runtime.h>        // ★ Task260：objc_get/setAssociatedObject（兄弟迁移卡源路径）
 #import "BackgroundManager.h"
+#import "AmeTheme.h"   // ★ 7.0-UI-3d：Fluent 设计令牌（颜色/字体单一事实源）
 #import "WelcomeViewController.h"
 #import "AboutViewController.h"
 #import "LauncherPreferences.h"
@@ -182,7 +183,7 @@ static const NSInteger ame218_welcomeStepCount = 8;  // Task246：+1 界面风�
     //   旧实现：不透明 systemBackground——全局背景容器被全屏呈现的向导盖住
     //   = “欢迎画面依旧没有显示自定义壁纸”。新实现：自带壁纸图层（与视图
     //   层级无关），暗壁纸→浅字、亮壁纸→深字（ame223_adaptiveTextColor）。
-    self.view.backgroundColor = [UIColor systemBackgroundColor];
+    self.view.backgroundColor = [AmeTheme bgPrimary];
     [self ame223_applyWallpaperBackground];
     [[NSNotificationCenter defaultCenter] addObserver:self
                                              selector:@selector(ame223_wallpaperChanged:)
@@ -258,7 +259,7 @@ static const NSInteger ame218_welcomeStepCount = 8;  // Task246：+1 界面风�
         self.ame223_scrimView = scrim;
         NSLog(@"[Welcome] Task223 wallpaper layer applied (dark=%d)", (int)dark);
     } else {
-        self.view.backgroundColor = [UIColor systemBackgroundColor];
+        self.view.backgroundColor = [AmeTheme bgPrimary];
         NSLog(@"[Welcome] Task224 wallpaper layer absent, semantic colors");
     }
     // Task224：直排文字/圆点颜色跟随壁纸亮度刷新（无壁纸 = 语义色）。
@@ -293,7 +294,7 @@ static const NSInteger ame218_welcomeStepCount = 8;  // Task246：+1 界面风�
         UIView *ame218_dot = [[UIView alloc] init];
         ame218_dot.layer.cornerRadius = 4;
         ame218_dot.layer.cornerCurve = kCACornerCurveContinuous;
-        ame218_dot.backgroundColor = [UIColor separatorColor];
+        ame218_dot.backgroundColor = [AmeTheme divider];
         ame218_dot.translatesAutoresizingMaskIntoConstraints = NO;
         [ame218_dotRow addArrangedSubview:ame218_dot];
         [ame218_dot.widthAnchor constraintEqualToConstant:8].active = YES;
@@ -325,7 +326,7 @@ static const NSInteger ame218_welcomeStepCount = 8;  // Task246：+1 界面风�
     // 主按钮（胶囊形 + 主色填充 = iPadOS 主操作）
     self.primaryButton = [UIButton buttonWithType:UIButtonTypeSystem];
     self.primaryButton.titleLabel.font = [UIFont systemFontOfSize:17 weight:UIFontWeightSemibold];
-    [self.primaryButton setTitleColor:[UIColor whiteColor] forState:UIControlStateNormal];
+    [self.primaryButton setTitleColor:[AmeTheme textOnBrand] forState:UIControlStateNormal];
     self.primaryButton.backgroundColor = accentColor();
     self.primaryButton.layer.cornerRadius = 14;
     self.primaryButton.layer.cornerCurve = kCACornerCurveContinuous;
@@ -337,7 +338,7 @@ static const NSInteger ame218_welcomeStepCount = 8;  // Task246：+1 界面风�
     // 次按钮（跳过——灰字无填充）
     self.secondaryButton = [UIButton buttonWithType:UIButtonTypeSystem];
     self.secondaryButton.titleLabel.font = [UIFont systemFontOfSize:15 weight:UIFontWeightRegular];
-    [self.secondaryButton setTitleColor:[UIColor secondaryLabelColor] forState:UIControlStateNormal];
+    [self.secondaryButton setTitleColor:[AmeTheme textSecondary] forState:UIControlStateNormal];
     self.secondaryButton.translatesAutoresizingMaskIntoConstraints = NO;
     [self.secondaryButton addTarget:self action:@selector(ame218_finish)
                  forControlEvents:UIControlEventTouchUpInside];
@@ -391,7 +392,7 @@ static const NSInteger ame218_welcomeStepCount = 8;  // Task246：+1 界面风�
     if (self.ame223_wallpaperView != nil) {
         return [[BackgroundManager sharedManager] ame223_adaptiveTextColor];
     }
-    return [UIColor labelColor];
+    return [AmeTheme textPrimary];
 }
 
 /// 直接坐在壁纸上的次级文字色。
@@ -399,7 +400,7 @@ static const NSInteger ame218_welcomeStepCount = 8;  // Task246：+1 界面风�
     if (self.ame223_wallpaperView != nil) {
         return [[BackgroundManager sharedManager] ame223_adaptiveSecondaryTextColor];
     }
-    return [UIColor secondaryLabelColor];
+    return [AmeTheme textSecondary];
 }
 
 /// 未选中进度圆点色（壁纸上用自适应次级色的六成透明度）。
@@ -407,7 +408,7 @@ static const NSInteger ame218_welcomeStepCount = 8;  // Task246：+1 界面风�
     if (self.ame223_wallpaperView != nil) {
         return [[self ame224_directSecondaryColor] colorWithAlphaComponent:0.6];
     }
-    return [UIColor separatorColor];
+    return [AmeTheme divider];
 }
 
 /// 直排控件颜色刷新（跳过按钮标题 + 未选中圆点）。
@@ -493,7 +494,7 @@ static const NSInteger ame218_welcomeStepCount = 8;  // Task246：+1 界面风�
                  subtitle:(NSString *)subtitle {
     UILabel *ame219_t = [[UILabel alloc] init];
     ame219_t.text = title;
-    ame219_t.font = [UIFont systemFontOfSize:30 weight:UIFontWeightBold];
+    ame219_t.font = [AmeTheme fontTitle];   // 7.0-UI-3d：欢迎页大标题升级 Fluent 字阶
     ame219_t.textColor = [self ame224_directTextColor];
     ame219_t.translatesAutoresizingMaskIntoConstraints = NO;
     [container addSubview:ame219_t];
@@ -1073,21 +1074,21 @@ static const NSInteger ame218_welcomeStepCount = 8;  // Task246：+1 界面风�
     UILabel *ame224_title = [[UILabel alloc] init];
     ame224_title.text = localize(@"welcome.lang.row.title", nil);
     ame224_title.font = [UIFont systemFontOfSize:16 weight:UIFontWeightSemibold];
-    ame224_title.textColor = [UIColor labelColor];
+    ame224_title.textColor = [AmeTheme textPrimary];
     ame224_title.userInteractionEnabled = NO;
     ame224_title.translatesAutoresizingMaskIntoConstraints = NO;
     [ame224_row addSubview:ame224_title];
 
     self.ame224_langValueLabel = [[UILabel alloc] init];
     self.ame224_langValueLabel.font = [UIFont systemFontOfSize:15 weight:UIFontWeightRegular];
-    self.ame224_langValueLabel.textColor = [UIColor secondaryLabelColor];
+    self.ame224_langValueLabel.textColor = [AmeTheme textSecondary];
     self.ame224_langValueLabel.userInteractionEnabled = NO;
     self.ame224_langValueLabel.translatesAutoresizingMaskIntoConstraints = NO;
     [ame224_row addSubview:self.ame224_langValueLabel];
 
     UIImageView *ame224_chev = [[UIImageView alloc]
         initWithImage:[UIImage systemImageNamed:@"chevron.right"]];
-    ame224_chev.tintColor = [UIColor tertiaryLabelColor];
+    ame224_chev.tintColor = [AmeTheme textTertiary];
     ame224_chev.contentMode = UIViewContentModeScaleAspectFit;
     ame224_chev.userInteractionEnabled = NO;
     ame224_chev.translatesAutoresizingMaskIntoConstraints = NO;
@@ -1208,7 +1209,7 @@ static const NSInteger ame218_welcomeStepCount = 8;  // Task246：+1 界面风�
     UILabel *ame224_title = [[UILabel alloc] init];
     ame224_title.text = title;
     ame224_title.font = [UIFont systemFontOfSize:16 weight:UIFontWeightMedium];
-    ame224_title.textColor = [UIColor labelColor];
+    ame224_title.textColor = [AmeTheme textPrimary];
     ame224_title.userInteractionEnabled = NO;
     ame224_title.translatesAutoresizingMaskIntoConstraints = NO;
     [ame224_row addSubview:ame224_title];
@@ -1239,7 +1240,7 @@ static const NSInteger ame218_welcomeStepCount = 8;  // Task246：+1 界面风�
         UILabel *ame224_sub = [[UILabel alloc] init];
         ame224_sub.text = subtitle;
         ame224_sub.font = [UIFont systemFontOfSize:12 weight:UIFontWeightRegular];
-        ame224_sub.textColor = [UIColor secondaryLabelColor];
+        ame224_sub.textColor = [AmeTheme textSecondary];
         ame224_sub.numberOfLines = 2;
         ame224_sub.userInteractionEnabled = NO;
         ame224_sub.translatesAutoresizingMaskIntoConstraints = NO;
@@ -1320,7 +1321,7 @@ static const NSInteger ame218_welcomeStepCount = 8;  // Task246：+1 界面风�
     ame219_lcTitle.text = ame219_inLC ? localize(@"welcome.env.lc.detected", nil)
                                       : localize(@"welcome.env.notlc", nil);
     ame219_lcTitle.font = [UIFont systemFontOfSize:15 weight:UIFontWeightSemibold];
-    ame219_lcTitle.textColor = [UIColor labelColor];
+    ame219_lcTitle.textColor = [AmeTheme textPrimary];
     ame219_lcTitle.numberOfLines = 0;
     ame219_lcTitle.translatesAutoresizingMaskIntoConstraints = NO;
     [ame219_lcHead addSubview:ame219_lcTitle];
@@ -1340,7 +1341,7 @@ static const NSInteger ame218_welcomeStepCount = 8;  // Task246：+1 界面风�
         // 包名对照区（当前包名 vs LiveContainer 宿主包名）
         UILabel *ame219_pair = [[UILabel alloc] init];
         ame219_pair.font = [UIFont monospacedDigitSystemFontOfSize:12 weight:UIFontWeightRegular];
-        ame219_pair.textColor = [UIColor secondaryLabelColor];
+        ame219_pair.textColor = [AmeTheme textSecondary];
         ame219_pair.numberOfLines = 0;
         ame219_pair.text = [NSString stringWithFormat:
             @"%@: %@\n%@: %@",
@@ -1353,7 +1354,7 @@ static const NSInteger ame218_welcomeStepCount = 8;  // Task246：+1 界面风�
             UILabel *ame219_ok = [[UILabel alloc] init];
             ame219_ok.text = [NSString stringWithFormat:localize(@"welcome.env.lc.ok", nil), ame219_hostId];
             ame219_ok.font = [UIFont systemFontOfSize:13 weight:UIFontWeightMedium];
-            ame219_ok.textColor = [UIColor systemGreenColor];
+            ame219_ok.textColor = [AmeTheme statusSuccess];
             ame219_ok.numberOfLines = 0;
             [ame219_lcStack addArrangedSubview:ame219_ok];
         } else {
@@ -1362,14 +1363,14 @@ static const NSInteger ame218_welcomeStepCount = 8;  // Task246：+1 界面风�
             UILabel *ame219_warn = [[UILabel alloc] init];
             ame219_warn.text = localize(@"welcome.env.lc.mismatch.title", nil);
             ame219_warn.font = [UIFont systemFontOfSize:13 weight:UIFontWeightSemibold];
-            ame219_warn.textColor = [UIColor systemOrangeColor];
+            ame219_warn.textColor = [AmeTheme statusWarning];
             ame219_warn.numberOfLines = 0;
             [ame219_lcStack addArrangedSubview:ame219_warn];
             UILabel *ame219_body = [[UILabel alloc] init];
             ame219_body.text = [NSString stringWithFormat:localize(@"welcome.env.lc.mismatch.body", nil),
                 ame219_mainId ?: @"?", ame219_hostId ?: @"?"];
             ame219_body.font = [UIFont systemFontOfSize:12 weight:UIFontWeightRegular];
-            ame219_body.textColor = [UIColor secondaryLabelColor];
+            ame219_body.textColor = [AmeTheme textSecondary];
             ame219_body.numberOfLines = 0;
             [ame219_lcStack addArrangedSubview:ame219_body];
             if (ame219_hostId.length > 0) {
@@ -1416,14 +1417,14 @@ static const NSInteger ame218_welcomeStepCount = 8;  // Task246：+1 界面风�
     [ame219_statusCard.contentView addSubview:ame219_statusRow];
 
     UIImageView *ame219_jitIcon = [[UIImageView alloc] initWithImage:[UIImage systemImageNamed:@"hare"]];
-    ame219_jitIcon.tintColor = [UIColor systemOrangeColor];
+    ame219_jitIcon.tintColor = [AmeTheme statusWarning];
     ame219_jitIcon.contentMode = UIViewContentModeScaleAspectFit;
     ame219_jitIcon.translatesAutoresizingMaskIntoConstraints = NO;
     [ame219_statusRow addSubview:ame219_jitIcon];
 
     self.jitStatusLabel = [[UILabel alloc] init];
     self.jitStatusLabel.font = [UIFont systemFontOfSize:14 weight:UIFontWeightMedium];
-    self.jitStatusLabel.textColor = [UIColor secondaryLabelColor];
+    self.jitStatusLabel.textColor = [AmeTheme textSecondary];
     self.jitStatusLabel.numberOfLines = 0;
     self.jitStatusLabel.translatesAutoresizingMaskIntoConstraints = NO;
     [ame219_statusRow addSubview:self.jitStatusLabel];
@@ -1566,7 +1567,7 @@ static const NSInteger ame218_welcomeStepCount = 8;  // Task246：+1 界面风�
     BOOL ame219_on = isJITEnabled(NO);
     self.jitStatusLabel.text = ame219_on ? localize(@"welcome.jit.status.on", nil)
                                          : localize(@"welcome.jit.status.off", nil);
-    self.jitStatusLabel.textColor = ame219_on ? [UIColor systemGreenColor] : [UIColor secondaryLabelColor];
+    self.jitStatusLabel.textColor = ame219_on ? [AmeTheme statusSuccess] : [AmeTheme textSecondary];
 }
 
 /// 复制宿主包名（②指引的配套动作）。
@@ -1764,7 +1765,7 @@ static const NSInteger ame218_welcomeStepCount = 8;  // Task246：+1 界面风�
         row.accessibilityLabel = title;
         row.accessibilityHint = subtitle;
         [row addTarget:self action:action forControlEvents:UIControlEventTouchUpInside];
-        row.backgroundColor = [[UIColor secondarySystemGroupedBackgroundColor] colorWithAlphaComponent:0.92];
+        row.backgroundColor = [[AmeTheme surfaceCard] colorWithAlphaComponent:0.92];
         row.layer.cornerRadius = 14.0;
         row.layer.cornerCurve = kCACornerCurveContinuous;
         row.translatesAutoresizingMaskIntoConstraints = NO;
@@ -1776,7 +1777,7 @@ static const NSInteger ame218_welcomeStepCount = 8;  // Task246：+1 界面风�
         UILabel *t = [[UILabel alloc] init];
         t.text = title;
         t.font = [UIFont systemFontOfSize:16 weight:UIFontWeightSemibold];
-        t.textColor = [UIColor labelColor];
+        t.textColor = [AmeTheme textPrimary];
         t.userInteractionEnabled = NO;
         t.translatesAutoresizingMaskIntoConstraints = NO;
         [row addSubview:t];
@@ -1784,14 +1785,14 @@ static const NSInteger ame218_welcomeStepCount = 8;  // Task246：+1 界面风�
         UILabel *s = [[UILabel alloc] init];
         s.text = subtitle;
         s.font = [UIFont systemFontOfSize:12];
-        s.textColor = [UIColor secondaryLabelColor];
+        s.textColor = [AmeTheme textSecondary];
         s.numberOfLines = 2;
         s.userInteractionEnabled = NO;
         s.translatesAutoresizingMaskIntoConstraints = NO;
         [row addSubview:s];
 
         UIImageView *chev = [[UIImageView alloc] initWithImage:[UIImage systemImageNamed:@"chevron.right"]];
-        chev.tintColor = [UIColor tertiaryLabelColor];
+        chev.tintColor = [AmeTheme textTertiary];
         chev.contentMode = UIViewContentModeScaleAspectFit;
         chev.userInteractionEnabled = NO;
         chev.translatesAutoresizingMaskIntoConstraints = NO;
@@ -1834,11 +1835,11 @@ static const NSInteger ame218_welcomeStepCount = 8;  // Task246：+1 界面风�
         ame260_row.backgroundColor = [UIColor colorWithWhite:1.0 alpha:0.07];
         ame260_row.layer.cornerRadius = 14;
         ame260_row.layer.borderWidth = 1.0;
-        ame260_row.layer.borderColor = [UIColor colorWithWhite:1.0 alpha:0.18].CGColor;
+        ame260_row.layer.borderColor = [UIColor colorWithWhite:1.0 alpha:0.18].CGColor;   // 7.0-UI-3d 保留：壁纸玻璃描边（白叠层语言）
 
         UIImageView *ame260_tile = [[UIImageView alloc] initWithImage:
             [UIImage systemImageNamed:@"arrow.triangle.branch"]];
-        ame260_tile.tintColor = [UIColor systemGreenColor];
+        ame260_tile.tintColor = [AmeTheme statusSuccess];
         ame260_tile.translatesAutoresizingMaskIntoConstraints = NO;
         [ame260_row addSubview:ame260_tile];
 
@@ -1852,7 +1853,7 @@ static const NSInteger ame218_welcomeStepCount = 8;  // Task246：+1 界面风�
         ame260_s.text = [NSString stringWithFormat:
             localize(@"welcome.data.sibling.desc", nil), ame260_sizeText];
         ame260_s.font = [UIFont systemFontOfSize:12.5];
-        ame260_s.textColor = [UIColor secondaryLabelColor];
+        ame260_s.textColor = [AmeTheme textSecondary];
         ame260_s.numberOfLines = 2;
         ame260_s.translatesAutoresizingMaskIntoConstraints = NO;
         [ame260_row addSubview:ame260_s];
@@ -2030,7 +2031,7 @@ static const void *kAme260SiblingPathKey = &kAme260SiblingPathKey;
     ame246_preview.contentEdgeInsets = UIEdgeInsetsMake(13, 18, 13, 18);
     [ame246_preview setTitle:localize(@"welcome.style.preview", nil)
                     forState:UIControlStateNormal];
-    [ame246_preview setTitleColor:[UIColor whiteColor]
+    [ame246_preview setTitleColor:[AmeTheme textOnBrand]
                          forState:UIControlStateNormal];
     ame246_preview.titleLabel.font = [UIFont systemFontOfSize:16 weight:UIFontWeightSemibold];
     [ame246_preview addTarget:self action:@selector(ame246_previewTapped:)
@@ -2151,7 +2152,7 @@ static const void *kAme260SiblingPathKey = &kAme260SiblingPathKey;
     ];
     for (NSDictionary *f in ame222_features) {
         UIView *row = [[UIView alloc] init];
-        row.backgroundColor = [[UIColor secondarySystemGroupedBackgroundColor] colorWithAlphaComponent:0.92];
+        row.backgroundColor = [[AmeTheme surfaceCard] colorWithAlphaComponent:0.92];
         row.layer.cornerRadius = 14.0;
         row.layer.cornerCurve = kCACornerCurveContinuous;
         row.translatesAutoresizingMaskIntoConstraints = NO;
@@ -2163,14 +2164,14 @@ static const void *kAme260SiblingPathKey = &kAme260SiblingPathKey;
         UILabel *t = [[UILabel alloc] init];
         t.text = localize(f[@"t"], nil);
         t.font = [UIFont systemFontOfSize:15 weight:UIFontWeightSemibold];
-        t.textColor = [UIColor labelColor];
+        t.textColor = [AmeTheme textPrimary];
         t.translatesAutoresizingMaskIntoConstraints = NO;
         [row addSubview:t];
 
         UILabel *b = [[UILabel alloc] init];
         b.text = localize(f[@"b"], nil);
         b.font = [UIFont systemFontOfSize:12];
-        b.textColor = [UIColor secondaryLabelColor];
+        b.textColor = [AmeTheme textSecondary];
         b.numberOfLines = 0;
         b.translatesAutoresizingMaskIntoConstraints = NO;
         [row addSubview:b];
@@ -2204,7 +2205,7 @@ static const void *kAme260SiblingPathKey = &kAme260SiblingPathKey;
     UILabel *commTitle = [[UILabel alloc] init];
     commTitle.text = localize(@"welcome.intro.community.title", nil);
     commTitle.font = [UIFont systemFontOfSize:15 weight:UIFontWeightSemibold];
-    commTitle.textColor = [UIColor labelColor];
+    commTitle.textColor = [AmeTheme textPrimary];
     commTitle.textAlignment = NSTextAlignmentCenter;
     commTitle.translatesAutoresizingMaskIntoConstraints = NO;
     [comm addSubview:commTitle];
@@ -2212,7 +2213,7 @@ static const void *kAme260SiblingPathKey = &kAme260SiblingPathKey;
     UILabel *commHint = [[UILabel alloc] init];
     commHint.text = localize(@"welcome.intro.community.hint", nil);
     commHint.font = [UIFont systemFontOfSize:12];
-    commHint.textColor = [UIColor secondaryLabelColor];
+    commHint.textColor = [AmeTheme textSecondary];
     commHint.textAlignment = NSTextAlignmentCenter;
     commHint.numberOfLines = 0;
     commHint.translatesAutoresizingMaskIntoConstraints = NO;
@@ -2257,14 +2258,14 @@ static const void *kAme260SiblingPathKey = &kAme260SiblingPathKey;
     [container addSubview:ame218_center];
 
     UIImageView *ame218_check = [[UIImageView alloc] initWithImage:[UIImage systemImageNamed:@"checkmark.circle.fill"]];
-    ame218_check.tintColor = [UIColor systemGreenColor];
+    ame218_check.tintColor = [AmeTheme statusSuccess];
     ame218_check.contentMode = UIViewContentModeScaleAspectFit;
     ame218_check.translatesAutoresizingMaskIntoConstraints = NO;
     [ame218_center addSubview:ame218_check];
 
     UILabel *ame218_title = [[UILabel alloc] init];
     ame218_title.text = localize(@"welcome.done.title", nil);
-    ame218_title.font = [UIFont systemFontOfSize:30 weight:UIFontWeightBold];
+    ame218_title.font = [AmeTheme fontTitle];   // 7.0-UI-3d：完成页大标题升级 Fluent 字阶
     ame218_title.textColor = [self ame224_directTextColor];   // Task224：壁纸直排自适应
     ame218_title.textAlignment = NSTextAlignmentCenter;
     ame218_title.translatesAutoresizingMaskIntoConstraints = NO;

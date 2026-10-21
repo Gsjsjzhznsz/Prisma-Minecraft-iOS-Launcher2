@@ -7,6 +7,7 @@
 #import "BackgroundManager.h"
 #import "ModLoaderIconHelper.h"
 #import "IconLoader.h"
+#import "AmeTheme.h" // 7.0-UI-3e：Fluent 设计令牌层（任务进度页颜色语义化迁移）
 
 #pragma mark - 常量与辅助
 
@@ -93,7 +94,7 @@ static NSString *PLFormatDuration(NSTimeInterval seconds) {
 - (instancetype)initWithFrame:(CGRect)frame {
     self = [super initWithFrame:frame];
     if (self) {
-        self.backgroundColor = [UIColor tertiarySystemFillColor];
+        self.backgroundColor = [AmeTheme fillSubtle]; // 7.0-UI-3e：进度槽填充令牌（原 tertiarySystemFill）
         self.layer.cornerRadius = 2.0;
         self.layer.masksToBounds = YES;
     }
@@ -103,9 +104,9 @@ static NSString *PLFormatDuration(NSTimeInterval seconds) {
 - (void)startFlowing {
     CAGradientLayer *layer = (CAGradientLayer *)self.layer;
     // 颜色在启动时刷新（accentColor 为可变主题色）
-    layer.colors = @[(id)[UIColor tertiarySystemFillColor].CGColor,
+    layer.colors = @[(id)[AmeTheme fillSubtle].CGColor,
                      (id)accentColor().CGColor,
-                     (id)[UIColor tertiarySystemFillColor].CGColor];
+                     (id)[AmeTheme fillSubtle].CGColor];
     if (![layer animationForKey:@"plFlowAnimation"]) {
         CABasicAnimation *flow = [CABasicAnimation animationWithKeyPath:@"locations"];
         flow.fromValue = @[@(-0.8), @(-0.4), @(0.0)];
@@ -175,18 +176,18 @@ static NSString *PLFormatDuration(NSTimeInterval seconds) {
     self.statusIconView = [[UIImageView alloc] init];
     self.statusIconView.contentMode = UIViewContentModeScaleAspectFit;
     self.statusIconView.image = [UIImage systemImageNamed:@"circle"];
-    self.statusIconView.tintColor = [UIColor tertiaryLabelColor];
+    self.statusIconView.tintColor = [AmeTheme textTertiary]; // 7.0-UI-3e
 
     self.titleLabel = [[UILabel alloc] init];
     self.titleLabel.font = [UIFont systemFontOfSize:14 weight:UIFontWeightMedium];
-    self.titleLabel.textColor = [UIColor labelColor];
+    self.titleLabel.textColor = [AmeTheme textPrimary]; // 7.0-UI-3e
     self.titleLabel.numberOfLines = 1;
     [self.titleLabel setContentHuggingPriority:249 forAxis:UILayoutConstraintAxisHorizontal];
     [self.titleLabel setContentCompressionResistancePriority:749 forAxis:UILayoutConstraintAxisHorizontal];
 
     self.runningBadgeLabel = [[UILabel alloc] init];
     self.runningBadgeLabel.font = [UIFont systemFontOfSize:10 weight:UIFontWeightMedium];
-    self.runningBadgeLabel.textColor = [UIColor whiteColor];
+    self.runningBadgeLabel.textColor = [AmeTheme textOnBrand]; // 7.0-UI-3e：accent 色底徽标白字
     self.runningBadgeLabel.backgroundColor = accentColor();
     self.runningBadgeLabel.layer.cornerRadius = 4.0;
     self.runningBadgeLabel.layer.masksToBounds = YES;
@@ -220,7 +221,7 @@ static NSString *PLFormatDuration(NSTimeInterval seconds) {
     // 当前文件名（单行中部截断，长文件名仍能看清首尾）
     self.messageLabel = [[UILabel alloc] init];
     self.messageLabel.font = [UIFont systemFontOfSize:12];
-    self.messageLabel.textColor = [UIColor secondaryLabelColor];
+    self.messageLabel.textColor = [AmeTheme textSecondary]; // 7.0-UI-3e
     self.messageLabel.numberOfLines = 1;
     self.messageLabel.lineBreakMode = NSLineBreakByTruncatingMiddle;
     self.messageLabel.hidden = YES;
@@ -229,7 +230,7 @@ static NSString *PLFormatDuration(NSTimeInterval seconds) {
     // 进度行：进度条（确定）/ 流动动画（不确定）+ 百分比·速率
     self.progressView = [[UIProgressView alloc] initWithProgressViewStyle:UIProgressViewStyleDefault];
     self.progressView.progressTintColor = accentColor();
-    self.progressView.trackTintColor = [UIColor tertiarySystemFillColor];
+    self.progressView.trackTintColor = [AmeTheme fillSubtle]; // 7.0-UI-3e：进度槽令牌
     [self.progressView setContentHuggingPriority:251 forAxis:UILayoutConstraintAxisHorizontal];
 
     self.flowView = [[PLFlowIndicatorView alloc] init];
@@ -238,7 +239,7 @@ static NSString *PLFormatDuration(NSTimeInterval seconds) {
 
     self.percentRateLabel = [[UILabel alloc] init];
     self.percentRateLabel.font = [UIFont monospacedDigitSystemFontOfSize:12 weight:UIFontWeightMedium];
-    self.percentRateLabel.textColor = [UIColor secondaryLabelColor];
+    self.percentRateLabel.textColor = [AmeTheme textSecondary]; // 7.0-UI-3e
     self.percentRateLabel.textAlignment = NSTextAlignmentRight;
     self.percentRateLabel.numberOfLines = 1;
     [self.percentRateLabel setContentHuggingPriority:252 forAxis:UILayoutConstraintAxisHorizontal];
@@ -256,7 +257,7 @@ static NSString *PLFormatDuration(NSTimeInterval seconds) {
     // 双维度："12/38 个文件 · 45MB/180MB"
     self.dimsLabel = [[UILabel alloc] init];
     self.dimsLabel.font = [UIFont monospacedDigitSystemFontOfSize:12 weight:UIFontWeightRegular];
-    self.dimsLabel.textColor = [UIColor secondaryLabelColor];
+    self.dimsLabel.textColor = [AmeTheme textSecondary]; // 7.0-UI-3e
     self.dimsLabel.numberOfLines = 1;
     self.dimsLabel.hidden = YES;
     [self.detailStack addArrangedSubview:self.dimsLabel];
@@ -264,7 +265,7 @@ static NSString *PLFormatDuration(NSTimeInterval seconds) {
     // ETA："剩余约 1 分 20 秒"
     self.etaLabel = [[UILabel alloc] init];
     self.etaLabel.font = [UIFont systemFontOfSize:12];
-    self.etaLabel.textColor = [UIColor tertiaryLabelColor];
+    self.etaLabel.textColor = [AmeTheme textTertiary]; // 7.0-UI-3e
     self.etaLabel.numberOfLines = 1;
     self.etaLabel.hidden = YES;
     [self.detailStack addArrangedSubview:self.etaLabel];
@@ -297,23 +298,23 @@ static NSString *PLFormatDuration(NSTimeInterval seconds) {
 
     // 五态图标：✓绿(完成) / ◐主题色(运行中) / ○灰(未开始) / ✕红(失败) / -灰(跳过)
     NSString *symbol = @"circle";
-    UIColor *iconTint = [UIColor tertiaryLabelColor];
-    UIColor *titleColor = [UIColor secondaryLabelColor];
+    UIColor *iconTint = [AmeTheme textTertiary]; // 7.0-UI-3e：未开始态
+    UIColor *titleColor = [AmeTheme textSecondary]; // 7.0-UI-3e
     switch (stage.status) {
         case PLTaskStageStatusCompleted:
             symbol = @"checkmark.circle.fill";
-            iconTint = [UIColor systemGreenColor];
-            titleColor = [UIColor labelColor];
+            iconTint = [AmeTheme statusSuccess]; // 7.0-UI-3e：完成绿
+            titleColor = [AmeTheme textPrimary]; // 7.0-UI-3e
             break;
         case PLTaskStageStatusRunning:
             symbol = @"circle.lefthalf.fill";
             iconTint = accentColor();
-            titleColor = [UIColor labelColor];
+            titleColor = [AmeTheme textPrimary]; // 7.0-UI-3e
             break;
         case PLTaskStageStatusFailed:
             symbol = @"xmark.circle.fill";
-            iconTint = [UIColor systemRedColor];
-            titleColor = [UIColor labelColor];
+            iconTint = [AmeTheme statusDanger]; // 7.0-UI-3e：失败红
+            titleColor = [AmeTheme textPrimary]; // 7.0-UI-3e
             break;
         case PLTaskStageStatusSkipped:
             symbol = @"minus.circle";
@@ -475,7 +476,7 @@ static __weak PLTaskProgressViewController *PLTaskProgressActiveInstance = nil;
     [super viewDidLoad];
     // 适配自定义启动器背景（与下载中心一致）
     [[BackgroundManager sharedManager] makeViewControllerTransparent:self];
-    self.view.backgroundColor = [UIColor systemBackgroundColor]; // Task136：主题化页面底色
+    self.view.backgroundColor = [AmeTheme bgPrimary]; // Task136 页面底色；7.0-UI-3e：改 bgPrimary 令牌
 
     // iPad：FormSheet 居中卡片（约 560pt 宽，内容超高内部滚动）；iPhone：PageSheet 近全屏
     if ([UIDevice currentDevice].userInterfaceIdiom == UIUserInterfaceIdiomPad) {
@@ -548,7 +549,7 @@ static __weak PLTaskProgressViewController *PLTaskProgressActiveInstance = nil;
     self.titleLabel = [[UILabel alloc] init];
     self.titleLabel.translatesAutoresizingMaskIntoConstraints = NO;
     self.titleLabel.font = [UIFont systemFontOfSize:18 weight:UIFontWeightBold];
-    self.titleLabel.textColor = [UIColor labelColor];
+    self.titleLabel.textColor = [AmeTheme textPrimary]; // 7.0-UI-3e
     self.titleLabel.textAlignment = NSTextAlignmentCenter;
     self.titleLabel.numberOfLines = 0;
     [headerContainer addSubview:self.titleLabel];
@@ -556,7 +557,7 @@ static __weak PLTaskProgressViewController *PLTaskProgressActiveInstance = nil;
     self.subtitleLabel = [[UILabel alloc] init];
     self.subtitleLabel.translatesAutoresizingMaskIntoConstraints = NO;
     self.subtitleLabel.font = [UIFont systemFontOfSize:13];
-    self.subtitleLabel.textColor = [UIColor secondaryLabelColor];
+    self.subtitleLabel.textColor = [AmeTheme textSecondary]; // 7.0-UI-3e
     self.subtitleLabel.textAlignment = NSTextAlignmentCenter;
     self.subtitleLabel.numberOfLines = 1;
     [headerContainer addSubview:self.subtitleLabel];
@@ -591,14 +592,14 @@ static __weak PLTaskProgressViewController *PLTaskProgressActiveInstance = nil;
     // 失败摘要（多行，始终随失败态显示）
     self.errorSummaryLabel = [[UILabel alloc] init];
     self.errorSummaryLabel.font = [UIFont systemFontOfSize:13];
-    self.errorSummaryLabel.textColor = [UIColor systemRedColor];
+    self.errorSummaryLabel.textColor = [AmeTheme statusDanger]; // 7.0-UI-3e：错误摘要红
     self.errorSummaryLabel.numberOfLines = 0;
     self.errorSummaryLabel.hidden = YES;
     [self.contentStack addArrangedSubview:self.errorSummaryLabel];
 
     // 完整错误详情（「查看详情」按钮展开）
     self.errorDetailContainer = [[UIView alloc] init];
-    self.errorDetailContainer.backgroundColor = [UIColor secondarySystemBackgroundColor];
+    self.errorDetailContainer.backgroundColor = [AmeTheme bgSecondary]; // 7.0-UI-3e：内嵌详情面板底
     self.errorDetailContainer.layer.cornerRadius = 12.0;
     self.errorDetailContainer.layer.masksToBounds = YES;
     self.errorDetailContainer.hidden = YES;
@@ -607,14 +608,14 @@ static __weak PLTaskProgressViewController *PLTaskProgressActiveInstance = nil;
     self.errorDetailTitleLabel = [[UILabel alloc] init];
     self.errorDetailTitleLabel.translatesAutoresizingMaskIntoConstraints = NO;
     self.errorDetailTitleLabel.font = [UIFont systemFontOfSize:13 weight:UIFontWeightSemibold];
-    self.errorDetailTitleLabel.textColor = [UIColor labelColor];
+    self.errorDetailTitleLabel.textColor = [AmeTheme textPrimary]; // 7.0-UI-3e
     self.errorDetailTitleLabel.text = PLTaskProgressText(@"taskProgress.errorDetail.title", localize(@"i18n_str_1307", nil));
     [self.errorDetailContainer addSubview:self.errorDetailTitleLabel];
 
     self.errorDetailBodyLabel = [[UILabel alloc] init];
     self.errorDetailBodyLabel.translatesAutoresizingMaskIntoConstraints = NO;
     self.errorDetailBodyLabel.font = [UIFont monospacedDigitSystemFontOfSize:12 weight:UIFontWeightRegular];
-    self.errorDetailBodyLabel.textColor = [UIColor secondaryLabelColor];
+    self.errorDetailBodyLabel.textColor = [AmeTheme textSecondary]; // 7.0-UI-3e
     self.errorDetailBodyLabel.numberOfLines = 0;
     [self.errorDetailContainer addSubview:self.errorDetailBodyLabel];
 
@@ -638,7 +639,7 @@ static __weak PLTaskProgressViewController *PLTaskProgressActiveInstance = nil;
     // 总进度汇总卡片
     UIView *totalCard = [[UIView alloc] init];
     totalCard.translatesAutoresizingMaskIntoConstraints = NO;
-    totalCard.backgroundColor = [UIColor secondarySystemBackgroundColor];
+    totalCard.backgroundColor = [AmeTheme surfaceCard]; // 7.0-UI-3e：汇总卡面
     totalCard.layer.cornerRadius = 12.0;
     totalCard.layer.masksToBounds = YES;
     [self.footerView addSubview:totalCard];
@@ -646,21 +647,21 @@ static __weak PLTaskProgressViewController *PLTaskProgressActiveInstance = nil;
     self.totalTitleLabel = [[UILabel alloc] init];
     self.totalTitleLabel.translatesAutoresizingMaskIntoConstraints = NO;
     self.totalTitleLabel.font = [UIFont systemFontOfSize:13 weight:UIFontWeightSemibold];
-    self.totalTitleLabel.textColor = [UIColor secondaryLabelColor];
+    self.totalTitleLabel.textColor = [AmeTheme textSecondary]; // 7.0-UI-3e
     self.totalTitleLabel.text = PLTaskProgressText(@"taskProgress.total.title", localize(@"i18n_str_1308", nil));
     [totalCard addSubview:self.totalTitleLabel];
 
     self.totalValueLabel = [[UILabel alloc] init];
     self.totalValueLabel.translatesAutoresizingMaskIntoConstraints = NO;
     self.totalValueLabel.font = [UIFont monospacedDigitSystemFontOfSize:13 weight:UIFontWeightMedium];
-    self.totalValueLabel.textColor = [UIColor labelColor];
+    self.totalValueLabel.textColor = [AmeTheme textPrimary]; // 7.0-UI-3e
     self.totalValueLabel.textAlignment = NSTextAlignmentRight;
     [totalCard addSubview:self.totalValueLabel];
 
     self.totalProgressView = [[UIProgressView alloc] initWithProgressViewStyle:UIProgressViewStyleDefault];
     self.totalProgressView.translatesAutoresizingMaskIntoConstraints = NO;
     self.totalProgressView.progressTintColor = accentColor();
-    self.totalProgressView.trackTintColor = [UIColor tertiarySystemFillColor];
+    self.totalProgressView.trackTintColor = [AmeTheme fillSubtle]; // 7.0-UI-3e：进度槽令牌
     [totalCard addSubview:self.totalProgressView];
 
     // 流动动画条与普通进度条同位置叠放（不确定进度时互斥显示）
@@ -700,7 +701,7 @@ static __weak PLTaskProgressViewController *PLTaskProgressActiveInstance = nil;
     [self.pauseResumeButton addTarget:self action:@selector(pauseResumeTapped) forControlEvents:UIControlEventTouchUpInside];
 
     self.cancelButton = [self makeFooterButton];
-    self.cancelButton.backgroundColor = [UIColor systemRedColor];
+    self.cancelButton.backgroundColor = [AmeTheme statusDanger]; // 7.0-UI-3e：取消危险操作红
     [self.cancelButton setTitle:PLTaskProgressText(@"taskProgress.button.cancel", localize(@"resman.common.cancel", nil)) forState:UIControlStateNormal];
     [self.cancelButton addTarget:self action:@selector(cancelTapped) forControlEvents:UIControlEventTouchUpInside];
 
@@ -755,7 +756,7 @@ static __weak PLTaskProgressViewController *PLTaskProgressActiveInstance = nil;
     button.contentEdgeInsets = UIEdgeInsetsMake(8, 14, 8, 14);
     button.layer.cornerRadius = 10.0;
     button.layer.masksToBounds = YES;
-    [button setTitleColor:[UIColor whiteColor] forState:UIControlStateNormal];
+    [button setTitleColor:[AmeTheme textOnBrand] forState:UIControlStateNormal]; // 7.0-UI-3e：accent/状态色底白字
     return button;
 }
 
@@ -917,12 +918,12 @@ static __weak PLTaskProgressViewController *PLTaskProgressActiveInstance = nil;
         } else {
             placeholder = [UIImage systemImageNamed:[self iconNameForType:task.resourceType]];
             self.iconView.image = placeholder;
-            self.iconView.tintColor = [UIColor secondaryLabelColor];
+            self.iconView.tintColor = [AmeTheme textSecondary]; // 7.0-UI-3e
         }
     } else {
         placeholder = [UIImage systemImageNamed:[self iconNameForType:task.resourceType]];
         self.iconView.image = placeholder;
-        self.iconView.tintColor = [UIColor secondaryLabelColor];
+        self.iconView.tintColor = [AmeTheme textSecondary]; // 7.0-UI-3e
     }
 
     if (task.iconURL.length > 0) {

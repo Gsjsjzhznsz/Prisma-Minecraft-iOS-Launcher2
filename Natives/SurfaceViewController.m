@@ -27,6 +27,7 @@
 #import "BackgroundManager.h"
 #import "AmeNativeMenu.h"   // Task247（T9）：伪玻璃档 ⚙ 按钮菜单走磨砂面板路由
 #import "LiquidGlassCompat.h"   // Task247（T9）：LGCIsPseudoGlassStyleActive 风格分档判定
+#import "AmeTheme.h"   // ★ 7.0-UI-3f：Fluent 设计令牌（仅启动器铬件色；游戏画布/HUD/控制按钮色一律不动）
 // Task 166：MobileGL DirectVulkan 的 Metal 层 FSR1（updateSavedResolution 钩子）。
 #import "ctxbridges/mgl_metal_fsr.h"
 // ZeroTier/Terracotta 联机暂时移除（排查启动崩溃）
@@ -1453,7 +1454,7 @@ extern void ame_hook_realSDLGetWindowSize(int *w, int *h);
     // Task225（#7 键盘循环根修）：常驻拒绝非自愿 resign（上游 Zalith 同款）。
     // 显式收起点一律走 ame225_resignInputTextField 包夹（临时清标志）。
     self.inputTextField.preventUnexpectedResign = YES;
-    self.inputTextField.backgroundColor = UIColor.secondarySystemBackgroundColor;
+    self.inputTextField.backgroundColor = [AmeTheme bgSecondary];
     self.inputTextField.delegate = self;
     self.inputTextField.font = [UIFont fontWithName:@"Menlo-Regular" size:20];
     // Task171：clearsOnBeginEditing 改 NO。哨兵空格由触发点在
@@ -1480,10 +1481,10 @@ extern void ame_hook_realSDLGetWindowSize(int *w, int *h);
     {
         UIButton *ame247_dismissBar = [UIButton buttonWithType:UIButtonTypeSystem];
         ame247_dismissBar.frame = CGRectMake(0, 0, self.view.frame.size.width, 36.0);
-        ame247_dismissBar.backgroundColor = UIColor.tertiarySystemBackgroundColor;
+        ame247_dismissBar.backgroundColor = [AmeTheme fillSubtle];
         [ame247_dismissBar setTitle:localize(@"ame247.keyboard.dismiss", nil)
                            forState:UIControlStateNormal];
-        [ame247_dismissBar setTitleColor:UIColor.secondaryLabelColor forState:UIControlStateNormal];
+        [ame247_dismissBar setTitleColor:[AmeTheme textSecondary] forState:UIControlStateNormal];
         ame247_dismissBar.titleLabel.font = [UIFont systemFontOfSize:14 weight:UIFontWeightMedium];
         [ame247_dismissBar addTarget:self
                               action:@selector(ame247_dismissKeyboardFromBar)

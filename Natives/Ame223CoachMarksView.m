@@ -2,6 +2,7 @@
 #import "utils.h"
 #import "UIKit+hook.h"   // UIWindow.mainWindow 分类声明（同 NMToast/ControlJoystick 先例）
 #import "LauncherPreferences.h"   // Task224 CI 修复 r1：accentColor() 声明（预检工具抓的头闭包缺口）
+#import "AmeTheme.h"            // ★ 7.0-UI-3f：Fluent 设计令牌（气泡面/文字迁移；蒙层黑保持原 alpha）
 
 #pragma mark - item 字典键（集中声明，避免裸字符串散落）
 
@@ -164,7 +165,7 @@ static NSString * const ame224_kRound = @"round";
         // 下偶发整层不渲染（用户只见圆环不见内容）。改为实底自适应卡片：
         // systemBackground 0.94 + 发丝描边，任何管线下都稳定可读。
         _ame224_stage = [[UIView alloc] init];
-        _ame224_stage.backgroundColor = [[UIColor systemBackgroundColor] colorWithAlphaComponent:0.94];
+        _ame224_stage.backgroundColor = [[AmeTheme surfaceOverlay] colorWithAlphaComponent:0.94];
         _ame224_stage.frame = CGRectMake(0, 0, 172, 172);
         _ame224_stage.layer.cornerRadius = 86;
         _ame224_stage.layer.cornerCurve = kCACornerCurveContinuous;
@@ -193,12 +194,12 @@ static NSString * const ame224_kRound = @"round";
         //   压暗背景上倒是清晰）。改用 secondarySystemGroupedBackground
         //   （浅色 ≈ 白、深色 ≈ 深灰）：两种模式下卡都与幕布拉开层次，
         //   文字卡永远不会“融进背景”。masksToBounds 保持关闭放行投影。
-        _ame224_card.backgroundColor = [UIColor secondarySystemGroupedBackgroundColor];
+        _ame224_card.backgroundColor = [AmeTheme surfaceCard];
         _ame224_card.layer.shadowColor = [UIColor blackColor].CGColor;
         _ame224_card.layer.shadowOpacity = 0.45;
         _ame224_card.layer.shadowRadius = 18.0;
         _ame224_card.layer.shadowOffset = CGSizeMake(0, 8);
-        _ame224_card.layer.borderColor = [[UIColor separatorColor] colorWithAlphaComponent:0.6].CGColor;
+        _ame224_card.layer.borderColor = [[AmeTheme divider] colorWithAlphaComponent:0.6].CGColor;
         _ame224_card.layer.borderWidth = 0.5;
         _ame224_card.translatesAutoresizingMaskIntoConstraints = NO;
         _ame224_card.layer.cornerRadius = 24.0;
@@ -214,7 +215,7 @@ static NSString * const ame224_kRound = @"round";
         extern void ame229_labelSetStrokeExempt(UILabel *, BOOL);
         ame229_labelSetStrokeExempt(_ame224_titleLabel, YES);
         _ame224_titleLabel.font = [UIFont systemFontOfSize:19 weight:UIFontWeightBold];
-        _ame224_titleLabel.textColor = [UIColor labelColor];
+        _ame224_titleLabel.textColor = [AmeTheme textPrimary];
         _ame224_titleLabel.numberOfLines = 0;
         _ame224_titleLabel.translatesAutoresizingMaskIntoConstraints = NO;
         [_ame224_card addSubview:_ame224_titleLabel];
@@ -231,7 +232,7 @@ static NSString * const ame224_kRound = @"round";
         //   这一个。
         _ame224_bodyLabel.translatesAutoresizingMaskIntoConstraints = NO;
         _ame224_bodyLabel.font = [UIFont systemFontOfSize:14 weight:UIFontWeightRegular];
-        _ame224_bodyLabel.textColor = [UIColor secondaryLabelColor];
+        _ame224_bodyLabel.textColor = [AmeTheme textSecondary];
         _ame224_bodyLabel.numberOfLines = 0;
         [_ame224_card addSubview:_ame224_bodyLabel];
 
@@ -246,7 +247,7 @@ static NSString * const ame224_kRound = @"round";
         // Next（胶囊主色）与 Skip（右上角描边胶囊）
         _ame224_nextButton = [UIButton buttonWithType:UIButtonTypeSystem];
         _ame224_nextButton.titleLabel.font = [UIFont systemFontOfSize:17 weight:UIFontWeightSemibold];
-        [_ame224_nextButton setTitleColor:[UIColor whiteColor] forState:UIControlStateNormal];
+        [_ame224_nextButton setTitleColor:[AmeTheme textOnBrand] forState:UIControlStateNormal];
         _ame224_nextButton.backgroundColor = accentColor();
         _ame224_nextButton.layer.cornerRadius = 24;
         _ame224_nextButton.layer.cornerCurve = kCACornerCurveContinuous;

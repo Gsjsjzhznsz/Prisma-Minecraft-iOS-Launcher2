@@ -28,6 +28,7 @@
 #import "VersionManagerViewController.h"   // ★ Task256：复用版本扫描（类方法）
 #import <SafariServices/SafariServices.h>
 #import <QuartzCore/QuartzCore.h>
+#import "AmeTheme.h" // 7.0-UI-3e：Fluent 设计令牌层（主页磁贴/新闻簇颜色语义化迁移）
 
 // MARK: - Task224（#18/#19）：主菜单磁贴文字统一刷新点
 // 字号乘界面缩放倍率（1.0 时与原值逐字节一致）；壁纸存在时颜色换为
@@ -148,7 +149,7 @@ static UIColor *colorFromHex(NSString *hex) {
         case HomeTileTypeVersionSnapshot:return colorFromHex(@"#F59E0B");
         case HomeTileTypeNews:           return colorFromHex(@"#EF4444");
         case HomeTileTypeShortcut:       return colorFromHex(@"#14B8A6");
-        default:                         return [UIColor systemBlueColor];
+        default:                         return [AmeTheme brandPrimary]; // 7.0-UI-3e：磁贴类型兑底蓝→品牌色（其余为数据驱动身份色，保留）
     }
 }
 
@@ -593,7 +594,7 @@ static NSString *festivalGreeting(void) {
     self.avatarImageView.layer.borderWidth = 2.5;
     self.avatarImageView.layer.borderColor = [UIColor colorWithWhite:1.0 alpha:0.35].CGColor;
     // Task137：原生占位底色
-    self.avatarImageView.backgroundColor = [UIColor tertiarySystemFillColor];
+    self.avatarImageView.backgroundColor = [AmeTheme fillSubtle]; // 7.0-UI-3e：占位底令牌（原 tertiarySystemFill）
     // Task149：首帧即默认头像（用户实测“不点击不加载”——init 先用 SF
     // 占位、等 cellForItem 才换 DefaultAccount 的时序路径封死：无账号
     // 首帧直接呈现账户列表同款 DefaultAccount；账号态仍由 cellForItem
@@ -605,7 +606,7 @@ static NSString *festivalGreeting(void) {
         self.avatarImageView.contentMode = UIViewContentModeScaleAspectFill;
     } else {
         self.avatarImageView.image = [UIImage systemImageNamed:@"person.circle.fill"];
-        self.avatarImageView.tintColor = [UIColor systemGrayColor];
+        self.avatarImageView.tintColor = [AmeTheme textSecondary]; // 7.0-UI-3e：占位头像灰
     }
     [self.contentContainer addSubview:self.avatarImageView];
     
@@ -684,20 +685,20 @@ static NSString *festivalGreeting(void) {
     self.iconView = [[UIImageView alloc] init];
     self.iconView.translatesAutoresizingMaskIntoConstraints = NO;
     self.iconView.contentMode = UIViewContentModeScaleAspectFit;
-    self.iconView.tintColor = [UIColor systemGreenColor];
+    self.iconView.tintColor = [AmeTheme statusSuccess]; // 7.0-UI-3e：信息磁贴默认图标绿
     [self.contentContainer addSubview:self.iconView];
     
     self.titleLabel = [[UILabel alloc] init];
     self.titleLabel.translatesAutoresizingMaskIntoConstraints = NO;
     self.titleLabel.font = [UIFont systemFontOfSize:12 weight:UIFontWeightMedium];
-    self.titleLabel.textColor = [UIColor tertiaryLabelColor];
+    self.titleLabel.textColor = [AmeTheme textTertiary]; // 7.0-UI-3e
     self.titleLabel.textAlignment = NSTextAlignmentLeft;
     [self.contentContainer addSubview:self.titleLabel];
     
     self.valueLabel = [[UILabel alloc] init];
     self.valueLabel.translatesAutoresizingMaskIntoConstraints = NO;
     self.valueLabel.font = [UIFont systemFontOfSize:18 weight:UIFontWeightBold];
-    self.valueLabel.textColor = [UIColor labelColor];
+    self.valueLabel.textColor = [AmeTheme textPrimary]; // 7.0-UI-3e
     self.valueLabel.numberOfLines = 2;
     self.valueLabel.adjustsFontSizeToFitWidth = YES;
     self.valueLabel.minimumScaleFactor = 0.6;
@@ -834,9 +835,9 @@ static NSString *festivalGreeting(void) {
     self.thumbnailView.layer.cornerRadius = 10;
     self.thumbnailView.layer.cornerCurve = kCACornerCurveContinuous;
     // Task137：原生占位底色
-    self.thumbnailView.backgroundColor = [UIColor tertiarySystemFillColor];
+    self.thumbnailView.backgroundColor = [AmeTheme fillSubtle]; // 7.0-UI-3e：缩略图占位底令牌
     self.thumbnailView.image = [UIImage systemImageNamed:@"newspaper.fill"];
-    self.thumbnailView.tintColor = [UIColor secondaryLabelColor];
+    self.thumbnailView.tintColor = [AmeTheme textSecondary]; // 7.0-UI-3e
     [self.contentContainer addSubview:self.thumbnailView];
     
     // 标题
@@ -872,7 +873,7 @@ static NSString *festivalGreeting(void) {
     self.dateLabel = [[UILabel alloc] init];
     self.dateLabel.translatesAutoresizingMaskIntoConstraints = NO;
     self.dateLabel.font = [UIFont systemFontOfSize:11 weight:UIFontWeightMedium];
-    self.dateLabel.textColor = [UIColor quaternaryLabelColor];
+    self.dateLabel.textColor = [AmeTheme textTertiary]; // 7.0-UI-3e：日期元信息（原 quaternary，令牌仅三阶，就近升档）
     self.dateLabel.textAlignment = NSTextAlignmentRight;
     self.dateLabel.numberOfLines = 1;
     self.dateLabel.hidden = YES;
@@ -883,7 +884,7 @@ static NSString *festivalGreeting(void) {
     self.placeholderLabel = [[UILabel alloc] init];
     self.placeholderLabel.translatesAutoresizingMaskIntoConstraints = NO;
     self.placeholderLabel.font = [UIFont systemFontOfSize:11 weight:UIFontWeightMedium];
-    self.placeholderLabel.textColor = [UIColor quaternaryLabelColor];
+    self.placeholderLabel.textColor = [AmeTheme textTertiary]; // 7.0-UI-3e：占位提示（原 quaternary，就近升档）
     self.placeholderLabel.text = localize(@"i18n_str_346", nil);
     [self.contentContainer addSubview:self.placeholderLabel];
     
@@ -966,7 +967,7 @@ static NSString *festivalGreeting(void) {
     self.chevronView.translatesAutoresizingMaskIntoConstraints = NO;
     self.chevronView.contentMode = UIViewContentModeScaleAspectFit;
     self.chevronView.image = [UIImage systemImageNamed:@"chevron.right"];
-    self.chevronView.tintColor = [UIColor tertiaryLabelColor];
+    self.chevronView.tintColor = [AmeTheme textTertiary]; // 7.0-UI-3e
     [self.contentContainer addSubview:self.chevronView];
     
     [NSLayoutConstraint activateConstraints:@[
@@ -1111,7 +1112,7 @@ static NSString *festivalGreeting(void) {
         if ([[BackgroundManager sharedManager] hasBackground]) {
             [BackgroundManager ame224_applyAdaptiveTextToLabel:self.headerTitleLabel secondary:NO];
         } else {
-            self.headerTitleLabel.textColor = [UIColor labelColor];
+            self.headerTitleLabel.textColor = [AmeTheme textPrimary]; // 7.0-UI-3e
             self.headerTitleLabel.layer.shadowColor = nil;
             self.headerTitleLabel.layer.shadowOpacity = 0.0;
             self.headerTitleLabel.layer.shadowRadius = 0.0;
@@ -1232,7 +1233,7 @@ static NSString *festivalGreeting(void) {
     self.headerTitleLabel.translatesAutoresizingMaskIntoConstraints = NO;
     self.headerTitleLabel.text = localize(@"i18n_str_349", nil);
     self.headerTitleLabel.font = [UIFont systemFontOfSize:LGCScaledFontSize(26) weight:UIFontWeightBold];
-    self.headerTitleLabel.textColor = [UIColor labelColor];
+    self.headerTitleLabel.textColor = [AmeTheme textPrimary]; // 7.0-UI-3e
     // Task224（#18）：标题直接压在（半透明）卡面上、壁纸可透出——
     // 壁纸存在时换亮度自适应色 + 软阴影（无壁纸保持 labelColor）。
     if ([[BackgroundManager sharedManager] hasBackground]) {
@@ -1246,7 +1247,7 @@ static NSString *festivalGreeting(void) {
     [self.customizeButton setImage:gearIcon forState:UIControlStateNormal];
     [self.customizeButton setTitle:[@" " stringByAppendingString:localize(@"preference.title.appicon-custom", nil)] forState:UIControlStateNormal];
     self.customizeButton.titleLabel.font = [UIFont systemFontOfSize:14 weight:UIFontWeightMedium];
-    self.customizeButton.tintColor = [UIColor secondaryLabelColor];
+    self.customizeButton.tintColor = [AmeTheme textSecondary]; // 7.0-UI-3e
     [self.customizeButton addTarget:self action:@selector(openCustomize) forControlEvents:UIControlEventTouchUpInside];
     [self.headerView addSubview:self.customizeButton];
     
@@ -1411,7 +1412,7 @@ static NSString *festivalGreeting(void) {
                     cell.avatarImageView.contentMode = UIViewContentModeScaleAspectFill;
                 } else {
                     cell.avatarImageView.image = [UIImage systemImageNamed:@"person.circle.fill"];
-                    cell.avatarImageView.tintColor = [UIColor systemGrayColor];
+                    cell.avatarImageView.tintColor = [AmeTheme textSecondary]; // 7.0-UI-3e
                     cell.avatarImageView.contentMode = UIViewContentModeScaleAspectFit;
                 }
             }
@@ -1467,7 +1468,7 @@ static NSString *festivalGreeting(void) {
                     cell.actionButton.hidden = NO;
                     [cell.actionButton setTitle:ann.actionTitle forState:UIControlStateNormal];
                     cell.actionButton.backgroundColor = colorFromHex(@"#3B82F6");
-                    [cell.actionButton setTitleColor:[UIColor whiteColor] forState:UIControlStateNormal];
+                    [cell.actionButton setTitleColor:[AmeTheme textOnBrand] forState:UIControlStateNormal]; // 7.0-UI-3e：彩色底白字
                     [cell.actionButton removeTarget:nil action:nil forControlEvents:UIControlEventAllEvents];
                     [cell.actionButton addTarget:self action:@selector(openAnnouncementActionURL) forControlEvents:UIControlEventTouchUpInside];
                 } else {
@@ -1483,7 +1484,7 @@ static NSString *festivalGreeting(void) {
                     cell.actionButton.hidden = NO;
                     [cell.actionButton setTitle:localize(@"i18n_str_353", nil) forState:UIControlStateNormal];
                     cell.actionButton.backgroundColor = colorFromHex(@"#3B82F6");
-                    [cell.actionButton setTitleColor:[UIColor whiteColor] forState:UIControlStateNormal];
+                    [cell.actionButton setTitleColor:[AmeTheme textOnBrand] forState:UIControlStateNormal]; // 7.0-UI-3e：彩色底白字
                     [cell.actionButton removeTarget:nil action:nil forControlEvents:UIControlEventAllEvents];
                     [cell.actionButton addTarget:self action:@selector(downloadLatestVersion) forControlEvents:UIControlEventTouchUpInside];
                 } else {

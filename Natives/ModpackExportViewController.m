@@ -18,6 +18,7 @@
 #import "AmeNativeMenu.h"       // ★ Task240：菜单全面系统原生 UIMenu 化
 #import "BackgroundManager.h"
 #import "ModpackExportService.h"
+#import "AmeTheme.h"            // ★ 7.0-UI-3f：Fluent 设计令牌（导出页卡片/按钮/进度弹层迁移）
 #import "PLProfiles.h"
 
 @interface ModpackExportViewController () <UITextFieldDelegate, UITableViewDataSource, UITableViewDelegate>
@@ -156,7 +157,7 @@
 - (UIView *)createCardContainerWithTitle:(NSString *)title {
     UIView *card = [[UIView alloc] init];
     card.translatesAutoresizingMaskIntoConstraints = NO;
-    card.backgroundColor = [UIColor secondarySystemGroupedBackgroundColor];
+    card.backgroundColor = [AmeTheme surfaceCard];
     card.layer.cornerRadius = 14;
     card.layer.masksToBounds = YES;
 
@@ -164,7 +165,7 @@
     titleLabel.translatesAutoresizingMaskIntoConstraints = NO;
     titleLabel.text = title;
     titleLabel.font = [UIFont systemFontOfSize:13 weight:UIFontWeightSemibold];
-    titleLabel.textColor = [UIColor secondaryLabelColor];
+    titleLabel.textColor = [AmeTheme textSecondary];
     [card addSubview:titleLabel];
 
     UIStackView *contentStack = [[UIStackView alloc] init];
@@ -211,14 +212,14 @@
     self.profileButton.contentHorizontalAlignment = UIControlContentHorizontalAlignmentLeft;
     self.profileButton.contentEdgeInsets = UIEdgeInsetsMake(0, 0, 0, 0);
     [self.profileButton setImage:[UIImage systemImageNamed:@"person.crop.circle"] forState:UIControlStateNormal];
-    [self.profileButton setTintColor:[UIColor systemBlueColor]];
+    [self.profileButton setTintColor:[AmeTheme brandPrimary]];
     [self.profileButton addTarget:self action:@selector(showProfilePicker) forControlEvents:UIControlEventTouchUpInside];
     [stack addArrangedSubview:self.profileButton];
 
     self.profileInfoLabel = [[UILabel alloc] init];
     self.profileInfoLabel.translatesAutoresizingMaskIntoConstraints = NO;
     self.profileInfoLabel.font = [UIFont systemFontOfSize:12];
-    self.profileInfoLabel.textColor = [UIColor tertiaryLabelColor];
+    self.profileInfoLabel.textColor = [AmeTheme textTertiary];
     self.profileInfoLabel.numberOfLines = 0;
     [stack addArrangedSubview:self.profileInfoLabel];
 
@@ -230,7 +231,7 @@
         [self.profileButton setTitle:localize(@"i18n_str_493", nil) forState:UIControlStateNormal];
         self.profileInfoLabel.text = localize(@"i18n_str_494", nil);
         self.exportButton.enabled = NO;
-        self.exportButton.backgroundColor = [UIColor systemGray3Color];
+        self.exportButton.backgroundColor = [AmeTheme fillStrong];
         return;
     }
     [self.profileButton setTitle:self.selectedProfileName forState:UIControlStateNormal];
@@ -269,7 +270,7 @@
     UILabel *hint = [[UILabel alloc] init];
     hint.translatesAutoresizingMaskIntoConstraints = NO;
     hint.font = [UIFont systemFontOfSize:11];
-    hint.textColor = [UIColor tertiaryLabelColor];
+    hint.textColor = [AmeTheme textTertiary];
     hint.numberOfLines = 0;
     hint.text = localize(@"i18n_str_499", nil);
     [stack addArrangedSubview:hint];
@@ -400,12 +401,12 @@
     [self.exportButton setTitle:localize(@"i18n_str_513", nil) forState:UIControlStateNormal];
     [self.exportButton setImage:[UIImage systemImageNamed:@"square.and.arrow.up"] forState:UIControlStateNormal];
     // Task137：恢复 Task89 之前的原生主按钮（系统蓝底白字，内容裁剪到圆角）
-    self.exportButton.backgroundColor = [UIColor systemBlueColor];
+    self.exportButton.backgroundColor = [AmeTheme brandPrimary];
     self.exportButton.layer.cornerRadius = 12;
     self.exportButton.layer.masksToBounds = YES;
-    [self.exportButton setTitleColor:[UIColor whiteColor] forState:UIControlStateNormal];
+    [self.exportButton setTitleColor:[AmeTheme textOnBrand] forState:UIControlStateNormal];
     self.exportButton.titleLabel.font = [UIFont systemFontOfSize:16 weight:UIFontWeightSemibold];
-    self.exportButton.tintColor = [UIColor whiteColor];
+    self.exportButton.tintColor = [AmeTheme textOnBrand];
     [self.exportButton addTarget:self action:@selector(startExport) forControlEvents:UIControlEventTouchUpInside];
 
     [self.exportButton.heightAnchor constraintEqualToConstant:50].active = YES;
@@ -564,7 +565,7 @@
 
     UIView *card = [[UIView alloc] init];
     card.translatesAutoresizingMaskIntoConstraints = NO;
-    card.backgroundColor = [UIColor secondarySystemGroupedBackgroundColor];
+    card.backgroundColor = [AmeTheme surfaceCard];
     card.layer.cornerRadius = 16;
     card.layer.masksToBounds = YES;
     [overlay addSubview:card];
@@ -585,13 +586,13 @@
 
     UIProgressView *bar = [[UIProgressView alloc] initWithProgressViewStyle:UIProgressViewStyleDefault];
     bar.translatesAutoresizingMaskIntoConstraints = NO;
-    bar.progressTintColor = [UIColor systemBlueColor];
+    bar.progressTintColor = [AmeTheme brandPrimary];
     [card addSubview:bar];
 
     UILabel *stageLabel = [[UILabel alloc] init];
     stageLabel.translatesAutoresizingMaskIntoConstraints = NO;
     stageLabel.font = [UIFont systemFontOfSize:13];
-    stageLabel.textColor = [UIColor secondaryLabelColor];
+    stageLabel.textColor = [AmeTheme textSecondary];
     stageLabel.textAlignment = NSTextAlignmentCenter;
     stageLabel.numberOfLines = 0;
     [card addSubview:stageLabel];
@@ -605,7 +606,7 @@
     cancelBtn.translatesAutoresizingMaskIntoConstraints = NO;
     [cancelBtn setTitle:localize(@"i18n_str_520", nil) forState:UIControlStateNormal];
     cancelBtn.titleLabel.font = [UIFont systemFontOfSize:15 weight:UIFontWeightMedium];
-    [cancelBtn setTitleColor:[UIColor systemRedColor] forState:UIControlStateNormal];
+    [cancelBtn setTitleColor:[AmeTheme statusDanger] forState:UIControlStateNormal];
     [cancelBtn addTarget:self action:@selector(cancelExport) forControlEvents:UIControlEventTouchUpInside];
     [card addSubview:cancelBtn];
 

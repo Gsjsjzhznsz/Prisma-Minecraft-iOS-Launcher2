@@ -14,6 +14,7 @@
 #import "ModService.h"
 #import "PLProfiles.h"
 #import "NMToast.h"
+#import "AmeTheme.h" // 7.0-UI-3e：Fluent 设计令牌层（Mod 版本页颜色语义化迁移）
 
 // ============================================================================
 // 下载源常量（与 ModVersion.apiSource 字段保持一致：1=Modrinth, 2=CurseForge）
@@ -123,7 +124,7 @@ static NSArray<NSDictionary *> *SortOptionItems(void) {
 - (void)viewDidLoad {
     [super viewDidLoad];
     self.title = self.modItem.displayName;
-    self.view.backgroundColor = [UIColor systemBackgroundColor]; // Task136：主题化页面底色
+    self.view.backgroundColor = [AmeTheme bgPrimary]; // Task136 页面底色；7.0-UI-3e：改 bgPrimary 令牌
     // 适配自定义启动器背景：透明化当前 VC，让全局背景图/毛玻璃透出
     [[BackgroundManager sharedManager] makeViewControllerTransparent:self];
 
@@ -188,7 +189,7 @@ static NSArray<NSDictionary *> *SortOptionItems(void) {
                                     categories:self.modItem.categories
                                    lastUpdated:self.modItem.lastUpdated
                            placeholderSymbolName:@"puzzlepiece.extension.fill"
-                               placeholderColor:[UIColor systemOrangeColor]];
+                               placeholderColor:[AmeTheme statusWarning]]; // 7.0-UI-3e：占位拼图橙→警示橙令牌（动态适配深浅）
 
     [self updateTableHeaderHeight];
     self.tableView.tableHeaderView = self.detailHeaderView;
@@ -269,11 +270,11 @@ static NSArray<NSDictionary *> *SortOptionItems(void) {
     // ===== 筛选面板容器（半透明 + 毛玻璃，固定在顶部不随列表滚动）=====
     self.filterContainerView = [[UIView alloc] init];
     self.filterContainerView.translatesAutoresizingMaskIntoConstraints = NO;
-    self.filterContainerView.backgroundColor = [[UIColor whiteColor] colorWithAlphaComponent:0.06];
+    self.filterContainerView.backgroundColor = [AmeTheme fillSubtle]; // 7.0-UI-3e：筛选面板玻璃卡面（原白 6% 半透明）
     self.filterContainerView.layer.cornerRadius = 14;
     self.filterContainerView.layer.cornerCurve = kCACornerCurveContinuous;
     self.filterContainerView.layer.borderWidth = 0.5;
-    self.filterContainerView.layer.borderColor = [[UIColor whiteColor] colorWithAlphaComponent:0.10].CGColor;
+    self.filterContainerView.layer.borderColor = [AmeTheme divider].CGColor; // 7.0-UI-3e：描边令牌（原白 10%）
     [self.view addSubview:self.filterContainerView];
     // 应用毛玻璃背景效果，与启动器整体风格一致
     [[BackgroundManager sharedManager] applyEffectToView:self.filterContainerView];
@@ -365,7 +366,7 @@ static NSArray<NSDictionary *> *SortOptionItems(void) {
     UIImageView *iconView = [[UIImageView alloc] init];
     iconView.translatesAutoresizingMaskIntoConstraints = NO;
     iconView.image = [UIImage systemImageNamed:iconName];
-    iconView.tintColor = [UIColor secondaryLabelColor];
+    iconView.tintColor = [AmeTheme textSecondary]; // 7.0-UI-3e
     iconView.contentMode = UIViewContentModeScaleAspectFit;
     [iconView setContentHuggingPriority:UILayoutPriorityRequired forAxis:UILayoutConstraintAxisHorizontal];
     [iconView setContentCompressionResistancePriority:UILayoutPriorityRequired forAxis:UILayoutConstraintAxisHorizontal];
@@ -378,7 +379,7 @@ static NSArray<NSDictionary *> *SortOptionItems(void) {
     label.translatesAutoresizingMaskIntoConstraints = NO;
     label.text = labelText;
     label.font = [UIFont systemFontOfSize:11 weight:UIFontWeightMedium];
-    label.textColor = [UIColor secondaryLabelColor];
+    label.textColor = [AmeTheme textSecondary]; // 7.0-UI-3e
     label.textAlignment = NSTextAlignmentLeft;
     [label setContentHuggingPriority:UILayoutPriorityRequired forAxis:UILayoutConstraintAxisHorizontal];
     [label setContentCompressionResistancePriority:UILayoutPriorityRequired forAxis:UILayoutConstraintAxisHorizontal];
@@ -453,15 +454,15 @@ static NSArray<NSDictionary *> *SortOptionItems(void) {
 - (void)applyChipStyle:(UIButton *)chip selected:(BOOL)selected {
     if (selected) {
         // 选中态：主题色背景 + 白字（参照 FCL 选中标签高亮）
-        chip.backgroundColor = [UIColor systemBlueColor];
-        [chip setTitleColor:[UIColor whiteColor] forState:UIControlStateNormal];
+        chip.backgroundColor = [AmeTheme brandPrimary]; // 7.0-UI-3e：选中 chip 品牌色底
+        [chip setTitleColor:[AmeTheme textOnBrand] forState:UIControlStateNormal]; // 7.0-UI-3e
         chip.layer.borderWidth = 0;
     } else {
         // 未选中态：半透明背景 + 标签色文字 + 浅边框
-        chip.backgroundColor = [[UIColor whiteColor] colorWithAlphaComponent:0.08];
-        [chip setTitleColor:[UIColor labelColor] forState:UIControlStateNormal];
+        chip.backgroundColor = [AmeTheme fillSubtle]; // 7.0-UI-3e：未选中 chip 淡填充（原白 8%）
+        [chip setTitleColor:[AmeTheme textPrimary] forState:UIControlStateNormal]; // 7.0-UI-3e
         chip.layer.borderWidth = 0.5;
-        chip.layer.borderColor = [[UIColor whiteColor] colorWithAlphaComponent:0.15].CGColor;
+        chip.layer.borderColor = [AmeTheme divider].CGColor; // 7.0-UI-3e：描边令牌（原白 15%，令牌化后偏轻，Fluent 发丝线规格）
     }
 }
 
@@ -1005,7 +1006,7 @@ static NSArray<NSDictionary *> *SortOptionItems(void) {
     UILabel *ame236_header = [[UILabel alloc] init];
     ame236_header.numberOfLines = 0;
     ame236_header.font = [UIFont systemFontOfSize:12 weight:UIFontWeightMedium];
-    ame236_header.textColor = [UIColor secondaryLabelColor];
+    ame236_header.textColor = [AmeTheme textSecondary]; // 7.0-UI-3e
     ame236_header.text = [NSString stringWithFormat:@"%@\n%@",
                           [NSString stringWithFormat:localize(@"ame227.deps.footer", nil),
                            (unsigned long)rows.count, ame236_names],
@@ -1060,7 +1061,7 @@ static NSArray<NSDictionary *> *SortOptionItems(void) {
 /// 图标默认不拦截触摸）；ⓘ 沿用既有详情页（统计/浏览器兜底）。
 - (UIView *)ame236_dependencyRow:(NSDictionary *)row {
     UIView *ame236_row = [[UIView alloc] init];
-    ame236_row.backgroundColor = [UIColor secondarySystemFillColor];
+    ame236_row.backgroundColor = [AmeTheme fillStrong]; // 7.0-UI-3e：前置条目填充（原 secondarySystemFill → 强填充档）
     ame236_row.layer.cornerRadius = 12;
     ame236_row.layer.cornerCurve = kCACornerCurveContinuous;
 
@@ -1081,15 +1082,15 @@ static NSArray<NSDictionary *> *SortOptionItems(void) {
     ame236_icon.clipsToBounds = YES;
     ame236_icon.layer.cornerRadius = 10;
     ame236_icon.layer.cornerCurve = kCACornerCurveContinuous;
-    ame236_icon.backgroundColor = [UIColor tertiarySystemFillColor];
+    ame236_icon.backgroundColor = [AmeTheme fillSubtle]; // 7.0-UI-3e：图标占位底（原 tertiarySystemFill → 淡填充档）
     ame236_icon.image = [UIImage systemImageNamed:@"puzzlepiece.fill"];
-    ame236_icon.tintColor = [UIColor secondaryLabelColor];
+    ame236_icon.tintColor = [AmeTheme textSecondary]; // 7.0-UI-3e
     [ame236_row addSubview:ame236_icon];
 
     UILabel *ame236_title = [[UILabel alloc] init];
     ame236_title.translatesAutoresizingMaskIntoConstraints = NO;
     ame236_title.font = [UIFont systemFontOfSize:15 weight:UIFontWeightSemibold];
-    ame236_title.textColor = [UIColor labelColor];
+    ame236_title.textColor = [AmeTheme textPrimary]; // 7.0-UI-3e
     ame236_title.numberOfLines = 1;
     ame236_title.text = row[@"name"];
     [ame236_row addSubview:ame236_title];
@@ -1097,7 +1098,7 @@ static NSArray<NSDictionary *> *SortOptionItems(void) {
     UILabel *ame236_desc = [[UILabel alloc] init];
     ame236_desc.translatesAutoresizingMaskIntoConstraints = NO;
     ame236_desc.font = [UIFont systemFontOfSize:12];
-    ame236_desc.textColor = [UIColor secondaryLabelColor];
+    ame236_desc.textColor = [AmeTheme textSecondary]; // 7.0-UI-3e
     ame236_desc.numberOfLines = 2;
     NSString *ame236_kindText = ([row[@"kind"] integerValue] == ModDependencyKindRequired)
         ? localize(@"ame230.deps.required", nil)
@@ -1112,7 +1113,7 @@ static NSArray<NSDictionary *> *SortOptionItems(void) {
     UIButton *ame236_info = [UIButton buttonWithType:UIButtonTypeSystem];
     ame236_info.translatesAutoresizingMaskIntoConstraints = NO;
     [ame236_info setImage:[UIImage systemImageNamed:@"info.circle"] forState:UIControlStateNormal];
-    ame236_info.tintColor = [UIColor tertiaryLabelColor];
+    ame236_info.tintColor = [AmeTheme textTertiary]; // 7.0-UI-3e
     [ame236_info addTarget:self action:@selector(ame230_openDependencyPage:)
          forControlEvents:UIControlEventTouchUpInside];
     objc_setAssociatedObject(ame236_info, "ame230.dep.pid", row[@"pid"], OBJC_ASSOCIATION_RETAIN_NONATOMIC);
@@ -1443,7 +1444,7 @@ static NSArray<NSDictionary *> *SortOptionItems(void) {
 
 - (void)viewDidLoad {
     [super viewDidLoad];
-    self.view.backgroundColor = [UIColor systemBackgroundColor];
+    self.view.backgroundColor = [AmeTheme bgPrimary]; // 7.0-UI-3e：详情页实底→页面大底令牌
     self.title = _name.length > 0 ? _name : (_pid ?: @"");
     self.navigationItem.rightBarButtonItem = [[UIBarButtonItem alloc]
         initWithBarButtonSystemItem:UIBarButtonSystemItemDone
@@ -1455,13 +1456,13 @@ static NSArray<NSDictionary *> *SortOptionItems(void) {
     _iconView.clipsToBounds = YES;
     _iconView.layer.cornerRadius = 20.0;
     _iconView.layer.cornerCurve = kCACornerCurveContinuous;
-    _iconView.backgroundColor = [UIColor secondarySystemFillColor];
+    _iconView.backgroundColor = [AmeTheme fillStrong]; // 7.0-UI-3e：大图标占位底（原 secondarySystemFill → 强填充档）
     _iconView.translatesAutoresizingMaskIntoConstraints = NO;
     [self.view addSubview:_iconView];
 
-    _titleLabel = [self ame232_label:20 weight:UIFontWeightBold color:[UIColor labelColor] lines:1];
-    _descLabel = [self ame232_label:14 weight:UIFontWeightRegular color:[UIColor secondaryLabelColor] lines:0];
-    _statsLabel = [self ame232_label:13 weight:UIFontWeightMedium color:[UIColor tertiaryLabelColor] lines:1];
+    _titleLabel = [self ame232_label:20 weight:UIFontWeightBold color:[AmeTheme textPrimary] lines:1]; // 7.0-UI-3e
+    _descLabel = [self ame232_label:14 weight:UIFontWeightRegular color:[AmeTheme textSecondary] lines:0]; // 7.0-UI-3e
+    _statsLabel = [self ame232_label:13 weight:UIFontWeightMedium color:[AmeTheme textTertiary] lines:1]; // 7.0-UI-3e
 
     _spinner = [[UIActivityIndicatorView alloc] initWithActivityIndicatorStyle:UIActivityIndicatorViewStyleMedium];
     _spinner.translatesAutoresizingMaskIntoConstraints = NO;
@@ -1484,8 +1485,8 @@ static NSArray<NSDictionary *> *SortOptionItems(void) {
     UIButton *ame235_goDl = [UIButton buttonWithType:UIButtonTypeSystem];
     [ame235_goDl setTitle:localize(@"ame235.deps.godl", nil) forState:UIControlStateNormal];
     ame235_goDl.titleLabel.font = [UIFont systemFontOfSize:16 weight:UIFontWeightBold];
-    ame235_goDl.tintColor = [UIColor whiteColor];
-    ame235_goDl.backgroundColor = [UIColor systemBlueColor];
+    ame235_goDl.tintColor = [AmeTheme textOnBrand]; // 7.0-UI-3e
+    ame235_goDl.backgroundColor = [AmeTheme brandPrimary]; // 7.0-UI-3e：主操作按钮品牌色
     ame235_goDl.layer.cornerRadius = 12;
     ame235_goDl.layer.cornerCurve = kCACornerCurveContinuous;
     [ame235_goDl addTarget:self action:@selector(ame235_openDownloadPage) forControlEvents:UIControlEventTouchUpInside];

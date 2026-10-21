@@ -53,6 +53,7 @@
 #import "LanPortDetector.h"
 #import "ZeroTierBridge.h"
 #import "TerracottaManager.h"   // ★ Task258（清单 1）：状态行接入陶瓦数据层（阶段/房间码/玩家列表/端口）
+#import "AmeTheme.h"           // ★ 7.0-UI-3c：Fluent 设计令牌层（硬编码 UIColor 语义化迁移）
 #import "utils.h"
 #import <objc/runtime.h>   // ★ Task249（T7）：objc_get/setAssociatedObject（ frost 层挂载；CI r1 编译雷——本文件首次引入关联对象）
 
@@ -1963,11 +1964,11 @@ static const void *kAme250FrostLinkKey = &kAme250FrostLinkKey;   // ★ Task250�
         case MultiplayerRoomStatusDisconnected:
             return [UIColor systemGrayColor];
         case MultiplayerRoomStatusConnecting:
-            return [UIColor systemOrangeColor];
+            return [AmeTheme statusWarning];
         case MultiplayerRoomStatusConnected:
-            return [UIColor systemGreenColor];
+            return [AmeTheme statusSuccess];
         case MultiplayerRoomStatusError:
-            return [UIColor systemRedColor];
+            return [AmeTheme statusDanger];
     }
     return [UIColor systemGrayColor];
 }
@@ -2010,7 +2011,7 @@ static const void *kAme250FrostLinkKey = &kAme250FrostLinkKey;   // ★ Task250�
 
     if (room.status == MultiplayerRoomStatusConnected) {
         title = MPLocalized(@"mp.room.button.disconnect", localize(@"ame193.mp.118", @"断开"));
-        bgColor = [UIColor systemRedColor];
+        bgColor = [AmeTheme statusDanger];
         button.enabled = YES;
     } else if (room.status == MultiplayerRoomStatusConnecting) {
         title = MPLocalized(@"mp.room.button.connecting", localize(@"ame193.mp.116", @"连接中"));
@@ -2018,12 +2019,12 @@ static const void *kAme250FrostLinkKey = &kAme250FrostLinkKey;   // ★ Task250�
         button.enabled = NO;
     } else {
         title = MPLocalized(@"mp.room.button.connect", localize(@"ame193.mp.119", @"连接"));
-        bgColor = [UIColor systemBlueColor];
+        bgColor = [AmeTheme brandPrimary];
         button.enabled = YES;
     }
 
     [button setTitle:title forState:UIControlStateNormal];
-    [button setTitleColor:[UIColor whiteColor] forState:UIControlStateNormal];
+    [button setTitleColor:[AmeTheme textOnBrand] forState:UIControlStateNormal];
     button.backgroundColor = bgColor;
 
     return button;
@@ -2198,11 +2199,11 @@ static const void *kAme250FrostLinkKey = &kAme250FrostLinkKey;   // ★ Task250�
 
         // 适配自定义背景
         if ([[BackgroundManager sharedManager] hasBackground]) {
-            cell.textLabel.textColor = [UIColor labelColor]; // Task91
-            cell.detailTextLabel.textColor = [UIColor labelColor]; // Task91
+            cell.textLabel.textColor = [AmeTheme textPrimary]; // Task91
+            cell.detailTextLabel.textColor = [AmeTheme textPrimary]; // Task91
         } else {
-            cell.textLabel.textColor = [UIColor labelColor];
-            cell.detailTextLabel.textColor = [UIColor secondaryLabelColor];
+            cell.textLabel.textColor = [AmeTheme textPrimary];
+            cell.detailTextLabel.textColor = [AmeTheme textSecondary];
         }
 
         [[BackgroundManager sharedManager] applyEffectToCell:cell];
@@ -2239,11 +2240,11 @@ static const void *kAme250FrostLinkKey = &kAme250FrostLinkKey;   // ★ Task250�
 
         // 适配自定义背景
         if ([[BackgroundManager sharedManager] hasBackground]) {
-            cell.textLabel.textColor = [UIColor labelColor]; // Task91
-            cell.detailTextLabel.textColor = [UIColor labelColor]; // Task91
+            cell.textLabel.textColor = [AmeTheme textPrimary]; // Task91
+            cell.detailTextLabel.textColor = [AmeTheme textPrimary]; // Task91
         } else {
-            cell.textLabel.textColor = [UIColor labelColor];
-            cell.detailTextLabel.textColor = [UIColor secondaryLabelColor];
+            cell.textLabel.textColor = [AmeTheme textPrimary];
+            cell.detailTextLabel.textColor = [AmeTheme textSecondary];
         }
 
         [[BackgroundManager sharedManager] applyEffectToCell:cell];
@@ -2264,7 +2265,7 @@ static const void *kAme250FrostLinkKey = &kAme250FrostLinkKey;   // ★ Task250�
 
     // 左侧图标：问号圆圈
     cell.imageView.image = [UIImage systemImageNamed:@"questionmark.circle"];
-    cell.imageView.tintColor = [UIColor systemBlueColor];
+    cell.imageView.tintColor = [AmeTheme brandPrimary];
 
     // 右侧箭头
     cell.accessoryType = UITableViewCellAccessoryDisclosureIndicator;
@@ -2275,11 +2276,11 @@ static const void *kAme250FrostLinkKey = &kAme250FrostLinkKey;   // ★ Task250�
 
     // 适配自定义背景
     if ([[BackgroundManager sharedManager] hasBackground]) {
-        cell.textLabel.textColor = [UIColor labelColor]; // Task91
-        cell.detailTextLabel.textColor = [UIColor labelColor]; // Task91
+        cell.textLabel.textColor = [AmeTheme textPrimary]; // Task91
+        cell.detailTextLabel.textColor = [AmeTheme textPrimary]; // Task91
     } else {
-        cell.textLabel.textColor = [UIColor labelColor];
-        cell.detailTextLabel.textColor = [UIColor secondaryLabelColor];
+        cell.textLabel.textColor = [AmeTheme textPrimary];
+        cell.detailTextLabel.textColor = [AmeTheme textSecondary];
     }
 
     [[BackgroundManager sharedManager] applyEffectToCell:cell];
@@ -2298,9 +2299,9 @@ static const void *kAme250FrostLinkKey = &kAme250FrostLinkKey;   // ★ Task250�
         cell.textLabel.font = [UIFont systemFontOfSize:14];
         // 适配自定义背景
         if ([[BackgroundManager sharedManager] hasBackground]) {
-            cell.textLabel.textColor = [UIColor labelColor]; // Task91
+            cell.textLabel.textColor = [AmeTheme textPrimary]; // Task91
         } else {
-            cell.textLabel.textColor = [UIColor secondaryLabelColor];
+            cell.textLabel.textColor = [AmeTheme textSecondary];
         }
         [[BackgroundManager sharedManager] applyEffectToCell:cell];
         return cell;
@@ -2356,11 +2357,11 @@ static const void *kAme250FrostLinkKey = &kAme250FrostLinkKey;   // ★ Task250�
 
     // 适配自定义背景
     if ([[BackgroundManager sharedManager] hasBackground]) {
-        cell.textLabel.textColor = [UIColor labelColor]; // Task91
-        cell.detailTextLabel.textColor = [UIColor labelColor]; // Task91
+        cell.textLabel.textColor = [AmeTheme textPrimary]; // Task91
+        cell.detailTextLabel.textColor = [AmeTheme textPrimary]; // Task91
     } else {
-        cell.textLabel.textColor = [UIColor labelColor];
-        cell.detailTextLabel.textColor = [UIColor secondaryLabelColor];
+        cell.textLabel.textColor = [AmeTheme textPrimary];
+        cell.detailTextLabel.textColor = [AmeTheme textSecondary];
     }
 
     [[BackgroundManager sharedManager] applyEffectToCell:cell];
@@ -2453,13 +2454,13 @@ static const void *kAme250FrostLinkKey = &kAme250FrostLinkKey;   // ★ Task250�
         // 适配自定义背景
         BOOL hasBackground = [[BackgroundManager sharedManager] hasBackground];
         if (hasBackground) {
-            self.directIPField.textColor = [UIColor labelColor]; // Task91
-            self.directPortField.textColor = [UIColor labelColor]; // Task91
-            colonLabel.textColor = [UIColor labelColor]; // Task91
+            self.directIPField.textColor = [AmeTheme textPrimary]; // Task91
+            self.directPortField.textColor = [AmeTheme textPrimary]; // Task91
+            colonLabel.textColor = [AmeTheme textPrimary]; // Task91
         } else {
-            self.directIPField.textColor = [UIColor labelColor];
-            self.directPortField.textColor = [UIColor labelColor];
-            colonLabel.textColor = [UIColor labelColor];
+            self.directIPField.textColor = [AmeTheme textPrimary];
+            self.directPortField.textColor = [AmeTheme textPrimary];
+            colonLabel.textColor = [AmeTheme textPrimary];
         }
 
         [[BackgroundManager sharedManager] applyEffectToCell:cell];
@@ -2473,9 +2474,9 @@ static const void *kAme250FrostLinkKey = &kAme250FrostLinkKey;   // ★ Task250�
         cell.textLabel.font = [UIFont systemFontOfSize:16 weight:UIFontWeightSemibold];
         // 适配自定义背景
         if ([[BackgroundManager sharedManager] hasBackground]) {
-            cell.textLabel.textColor = [UIColor labelColor]; // Task91
+            cell.textLabel.textColor = [AmeTheme textPrimary]; // Task91
         } else {
-            cell.textLabel.textColor = [UIColor systemBlueColor];
+            cell.textLabel.textColor = [AmeTheme brandPrimary];
         }
         [[BackgroundManager sharedManager] applyEffectToCell:cell];
         return cell;
@@ -2522,7 +2523,7 @@ static const void *kAme250FrostLinkKey = &kAme250FrostLinkKey;   // ★ Task250�
     } else {
         // 当房客
         cell.imageView.image = [UIImage systemImageNamed:@"person.2"];
-        cell.imageView.tintColor = [UIColor systemBlueColor];
+        cell.imageView.tintColor = [AmeTheme brandPrimary];
         cell.textLabel.text = MPLocalized(@"mp.ingame.guest_title", localize(@"ame193.mp.142", @"当房客"));
         cell.textLabel.font = [UIFont systemFontOfSize:18 weight:UIFontWeightSemibold];
         cell.detailTextLabel.text = MPLocalized(@"mp.ingame.guest_desc", localize(@"ame193.mp.143", @"输入分享代码，加入房主的联机网络"));
@@ -2539,11 +2540,11 @@ static const void *kAme250FrostLinkKey = &kAme250FrostLinkKey;   // ★ Task250�
 
     // 适配自定义背景
     if ([[BackgroundManager sharedManager] hasBackground]) {
-        cell.textLabel.textColor = [UIColor labelColor]; // Task91
-        cell.detailTextLabel.textColor = [UIColor labelColor]; // Task91
+        cell.textLabel.textColor = [AmeTheme textPrimary]; // Task91
+        cell.detailTextLabel.textColor = [AmeTheme textPrimary]; // Task91
     } else {
-        cell.textLabel.textColor = [UIColor labelColor];
-        cell.detailTextLabel.textColor = [UIColor secondaryLabelColor];
+        cell.textLabel.textColor = [AmeTheme textPrimary];
+        cell.detailTextLabel.textColor = [AmeTheme textSecondary];
     }
 
     [[BackgroundManager sharedManager] applyEffectToCell:cell];
@@ -2664,17 +2665,17 @@ static const void *kAme250FrostLinkKey = &kAme250FrostLinkKey;   // ★ Task250�
     cell.detailTextLabel.numberOfLines = 0;
 
     // 状态指示点
-    UIColor *statusColor = connected ? [UIColor systemGreenColor] : [UIColor systemGrayColor];
+    UIColor *statusColor = connected ? [AmeTheme statusSuccess] : [UIColor systemGrayColor];
     UIImage *dotImage = [self circleImageWithColor:statusColor size:10];
     cell.imageView.image = dotImage;
 
     // 适配自定义背景
     if ([[BackgroundManager sharedManager] hasBackground]) {
-        cell.textLabel.textColor = [UIColor labelColor]; // Task91
-        cell.detailTextLabel.textColor = [UIColor labelColor]; // Task91
+        cell.textLabel.textColor = [AmeTheme textPrimary]; // Task91
+        cell.detailTextLabel.textColor = [AmeTheme textPrimary]; // Task91
     } else {
-        cell.textLabel.textColor = [UIColor labelColor];
-        cell.detailTextLabel.textColor = [UIColor secondaryLabelColor];
+        cell.textLabel.textColor = [AmeTheme textPrimary];
+        cell.detailTextLabel.textColor = [AmeTheme textSecondary];
     }
 
     [[BackgroundManager sharedManager] applyEffectToCell:cell];
