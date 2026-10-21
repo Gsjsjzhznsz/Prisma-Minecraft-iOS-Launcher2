@@ -53,8 +53,10 @@ static const CGFloat FluentProgressRingLine    = 2.0;
             // 视图中心，CAShapeLayer 不裁剪 → 巨大圆弧外溢成全屏蓝圈。
             // 双保险：①固定尺寸环抗拉伸/抗压缩 REQUIRED；②ame_layoutRing
             // 半径改取短边（非方 bounds 退化安全，见下方）。
-            self.contentHuggingPriority = UILayoutPriorityRequired;
-            self.contentCompressionResistancePriority = UILayoutPriorityRequired;
+            [self setContentHuggingPriority:UILayoutPriorityRequired forAxis:UILayoutConstraintAxisHorizontal];
+            [self setContentHuggingPriority:UILayoutPriorityRequired forAxis:UILayoutConstraintAxisVertical];
+            [self setContentCompressionResistancePriority:UILayoutPriorityRequired forAxis:UILayoutConstraintAxisHorizontal];
+            [self setContentCompressionResistancePriority:UILayoutPriorityRequired forAxis:UILayoutConstraintAxisVertical];
         }
     }
     return self;
