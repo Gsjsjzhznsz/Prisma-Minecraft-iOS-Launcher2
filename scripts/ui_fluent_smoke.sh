@@ -213,6 +213,19 @@ PLIST
     fi
 
     sleep 4
+    # 崩溃哨兵（7.0-UI-10-r6）：launch 成功≠进程存活——7.0-UI-10 首两轮截图全为
+    # SpringBoard（app 启动即崩，run 39645342866/39646927775 实证），fail-fast 并
+    # 把宿主 DiagnosticReports 崩溃报告关键行打进 stdout（artifact glob 仅 *.png）。
+    if ! xcrun simctl spawn "$device" launchctl list 2>/dev/null | grep -q ame-fluent; then
+      echo "✗ 存活检查失败[$p]：launch 成功但进程已亡（启动即崩）"
+      for f in ~/Library/Logs/DiagnosticReports/*ame-fluent*.ips ~/Library/Logs/DiagnosticReports/*AmeFluent*.ips; do
+        [ -f "$f" ] || continue
+        echo "── 崩溃报告: $f"
+        grep -aoE 'Application Specific Information[^}]{0,400}|unrecognized selector[^"]{0,140}|NSInternalInconsistencyException[^"]{0,200}|NSInvalidArgumentException[^"]{0,200}|"type":"[^"]{0,60}"|"signal":"[^"]{0,20}"' "$f" | head -15
+      done
+      FAIL=1
+      return
+    fi
     xcrun simctl io "$device" screenshot "$OUT/ame-zl2-$p-light.png" >/dev/null 2>&1 \
       && echo "  ✓ 截图[$p/浅色]: $OUT/ame-zl2-$p-light.png"
 
