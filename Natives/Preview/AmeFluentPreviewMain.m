@@ -317,11 +317,11 @@ static NSInteger AmePreviewRailSlotForItem(NSUInteger itemIndex) {
 @implementation AmePreviewShellController
 
 // 横屏（7.0-UI-10-c）：有效支持方向 = 本值 ∩ AppDelegate
-// supportedInterfaceOrientationsForWindow（两侧同给 LandscapeButUpsideDown，
+// supportedInterfaceOrientationsForWindow（两侧同给 MaskLandscape，
 // 双保险收敛）；呈现首选方向 UIKit 只向 root VC 查询——AppDelegate 无此
 // 回调，故挂在根 VC 上（LandscapeRight：设备竖放时 app 强制横置渲染）
 - (UIInterfaceOrientationMask)supportedInterfaceOrientations {
-    return UIInterfaceOrientationMaskLandscapeButUpsideDown;
+    return UIInterfaceOrientationMaskLandscape;
 }
 
 - (UIInterfaceOrientation)preferredInterfaceOrientationForPresentation {
@@ -596,7 +596,7 @@ static NSInteger AmePreviewRailSlotForItem(NSUInteger itemIndex) {
 // 的 AppDelegate 不在本文件，零影响。
 - (UIInterfaceOrientationMask)application:(UIApplication *)application
         supportedInterfaceOrientationsForWindow:(UIWindow *)window {
-    return UIInterfaceOrientationMaskLandscapeButUpsideDown;
+    return UIInterfaceOrientationMaskLandscape;
 }
 
 - (BOOL)application:(UIApplication *)application didFinishLaunchingWithOptions:(NSDictionary *)launchOptions {
