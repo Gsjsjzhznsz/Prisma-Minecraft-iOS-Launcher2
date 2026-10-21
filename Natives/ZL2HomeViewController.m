@@ -717,11 +717,11 @@ moveItemAtIndexPath:(NSIndexPath *)sourceIndexPath
         }
         case UIGestureRecognizerStateChanged: {
             if (!self.ame_dragInteractive) break;
-            NSIndexPath *target = [self.gridView indexPathForItemAtPoint:location];
-            // 首张越界由 targetIndexPathForMoveFromItemAtIndexPath 拦截
-            if (target) {
-                [self.gridView updateInteractiveMovementTargetItemAtIndexPath:target];
-            }
+            // 官方点基 API：updateInteractiveMovementTargetPosition:（CGPoint 入参，
+            // 内部自行解析目标卡）；CI 实证 updateInteractiveMovementTargetItemAtIndexPath:
+            // 不存在于 SDK（记忆混淆伪 API，首卡越界拦截仍由
+            // targetIndexPathForMoveFromItemAtIndexPath 承担）
+            [self.gridView updateInteractiveMovementTargetPosition:location];
             break;
         }
         case UIGestureRecognizerStateEnded: {

@@ -57,8 +57,9 @@
 //   DownloadTaskManagerDidUpdateTaskNotification → 任务胶囊刷新（manager 全部
 //     变更均经 postUpdateForTask 派发；防御性回主线程后刷 UI）+ viewWillAppear
 //     补刷
-//   UINavigationControllerDidShowViewControllerNotification → 返回钮显隐与
-//     「页名 - 子页名」标题跟随当前 nav 栈深刷新（object 非当前子 nav 时忽略）
+//   UINavigationControllerDelegate.didShow → 返回钮显隐与
+//     「页名 - 子页名」标题跟随当前 nav 栈深刷新（非当前子 nav 时忽略；
+//     DidShow 通知常量在 SDK 非公开——CI 实证 undeclared，改走公开 delegate）
 //
 // 红线遵守：iOS 14.0+（无 button.configuration/UIMenu 等 iOS15+ API；
 //   AnimatedVisibility 以 UIStackView hidden 塌缩 + 宽度约束动画等价实现）；
@@ -342,7 +343,7 @@ static UIImage *ZL2ShellSystemImage(NSString *name, NSString *fallback) {
 
 #pragma mark - 壳本体
 
-@interface ZL2ShellViewController ()
+@interface ZL2ShellViewController () <UINavigationControllerDelegate>
 @property(nonatomic, strong) UIView *topBar;                          // safeArea 顶延伸 + 40pt 内容带
 @property(nonatomic, strong) UIStackView *barRow;                     // [左簇 | 标题 | 右簇]
 @property(nonatomic, strong) UIStackView *leftCluster;                // [返回 | 主页]
@@ -395,10 +396,6 @@ static UIImage *ZL2ShellSystemImage(NSString *name, NSString *fallback) {
                                              selector:@selector(ame_taskManagerDidChange:)
                                                  name:DownloadTaskManagerDidUpdateTaskNotification
                                                object:nil];
-    [[NSNotificationCenter defaultCenter] addObserver:self
-                                             selector:@selector(ame_navDidShow:)
-                                                 name:UINavigationControllerDidShowViewControllerNotification
-                                               object:nil];
 
     [self showPageAtIndex:0];
 }
@@ -430,7 +427,7 @@ static UIImage *ZL2ShellSystemImage(NSString *name, NSString *fallback) {
     self.barRow.spacing = 16.0;  // 标题 start = 左簇 end + 16dp
     // 右簇 end margin 12dp（前导边距由左簇自带，塌缩时标题回到 16pt 位）
     self.barRow.layoutMargins = UIEdgeInsetsMake(0.0, 0.0, 0.0, ZL2ShellBarEdgeInset);
-    self.barRow.isLayoutMarginsRelativeArrangement = YES;
+    self.barRow.layoutMarginsRelativeArrangement = YES;
     self.barRow.translatesAutoresizingMaskIntoConstraints = NO;
     [self.topBar addSubview:self.barRow];
 
@@ -440,7 +437,7 @@ static UIImage *ZL2ShellSystemImage(NSString *name, NSString *fallback) {
     self.leftCluster.alignment = UIStackViewAlignmentCenter;
     self.leftCluster.spacing = 4.0;  // 返回/主页间距 4
     self.leftCluster.layoutMargins = UIEdgeInsetsMake(0.0, ZL2ShellBarEdgeInset, 0.0, 0.0);
-    self.leftCluster.isLayoutMarginsRelativeArrangement = YES;
+    self.leftCluster.layoutMarginsRelativeArrangement = YES;
     self.leftCluster.translatesAutoresizingMaskIntoConstraints = NO;
     self.leftCluster.hidden = YES;   // 主页初始态（showPageAtIndex:0 统一同步）
     self.leftCluster.alpha = 0.0;
@@ -572,9 +569,9 @@ static UIImage *ZL2ShellSystemImage(NSString *name, NSString *fallback) {
 }
 
 // 仅当前子 nav 的栈变化参与顶栏刷新（跨页导航不误触）
-- (void)ame_navDidShow:(NSNotification *)note {
-    if (note.object != [self ame_currentNav]) return;
-    [self ame_refreshTopBarStateAnimated:YES];
+- (void)navigationController:(UINavigationController *)navigationController didShowViewController:(UIViewController *)viewController animated:(BOOL)animated {
+    if (navigationController != [self ame_currentNav]) return;
+    [self ame_refreshTopBarStateAnimated:animated];
 }
 
 #pragma mark - 页面切换
@@ -813,6 +810,11 @@ static UIImage *ZL2ShellSystemImage(NSString *name, NSString *fallback) {
         }
         default:
             return nil;
+    }
+    // 顶栏返回钮/标题跟随子 nav 栈深：UINavigationControllerDelegate 公开 API
+    //（DidShow 通知常量在 SDK 非公开——CI 实证 undeclared，改走 delegate）
+    if ([vc isKindOfClass:[UINavigationController class]]) {
+        ((UINavigationController *)vc).delegate = self;
     }
     self.childCache[@(index)] = vc;
     return vc;
