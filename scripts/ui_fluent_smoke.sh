@@ -217,11 +217,14 @@ PLIST
     # SpringBoard（app 启动即崩，run 39645342866/39646927775 实证），fail-fast 并
     # 把宿主 DiagnosticReports 崩溃报告关键行打进 stdout（artifact glob 仅 *.png）。
     if ! xcrun simctl spawn "$device" launchctl list 2>/dev/null | grep -q ame-fluent; then
-      echo "✗ 存活检查失败[$p]：launch 成功但进程已亡（启动即崩）"
-      for f in ~/Library/Logs/DiagnosticReports/*ame-fluent*.ips ~/Library/Logs/DiagnosticReports/*AmeFluent*.ips; do
-        [ -f "$f" ] || continue
-        echo "── 崩溃报告: $f"
-        grep -aoE 'Application Specific Information[^}]{0,400}|unrecognized selector[^"]{0,140}|NSInternalInconsistencyException[^"]{0,200}|NSInvalidArgumentException[^"]{0,200}|"type":"[^"]{0,60}"|"signal":"[^"]{0,20}"' "$f" | head -15
+      echo "✗ 存活检查失败[see-log]：launch 成功但进程已亡（启动即崩）"
+      echo "── launchctl list 原始输出（前 15 行，验证命令可用性）:"
+      xcrun simctl spawn "$device" launchctl list 2>&1 | head -15
+      echo "── DiagnosticReports 最近 13 项:"
+      ls -lt ~/Library/Logs/DiagnosticReports/ 2>/dev/null | head -13
+      for f in $(ls -t ~/Library/Logs/DiagnosticReports/*.ips 2>/dev/null | head -3); do
+        echo "── 崩溃报告(最近): $f"
+        grep -aoE '"exception"[^}]{0,260}|"asi":\{[^}]{0,600}|Application Specific Information[^}]{0,400}|unrecognized selector[^"]{0,140}|dyld[^"]{0,200}|"terminationDetails":"[^"]{0,300}' "$f" | head -15
       done
       FAIL=1
       return
