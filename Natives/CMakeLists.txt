@@ -498,6 +498,12 @@ add_executable(AngelAuraAmethyst
   AmeFloatingMenu.m
   AmeNativeMenu.m
   AmeTheme.m
+  # 7.0-UI-4：Fluent 组件库首批（fluent2_kit 规格 ObjC 重建）
+  FluentButton.m
+  FluentCard.m
+  FluentListCell.m
+  FluentTextField.m
+  FluentToast.m
   InlineMessageView.m
   DownloadTaskItem.m
   DownloadTaskManager.m
