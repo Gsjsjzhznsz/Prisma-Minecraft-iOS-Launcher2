@@ -67,8 +67,8 @@
         _detailLabel = [[UILabel alloc] init];
         _detailLabel.font = [AmeTheme fontCaption];
         _detailLabel.textColor = [AmeTheme textTertiary];
-        _detailLabel.setContentCompressionResistancePriority(UILayoutPriorityRequired - 1,
-                                                             forHorizontalAxis);
+        [_detailLabel setContentCompressionResistancePriority:UILayoutPriorityRequired - 1
+                                                      forAxis:UILayoutConstraintAxisHorizontal];
         _detailLabel.translatesAutoresizingMaskIntoConstraints = NO;
         [self.contentView addSubview:_detailLabel];
 
