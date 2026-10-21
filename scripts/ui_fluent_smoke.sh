@@ -64,7 +64,7 @@ syntax_mode() {
     elif grep -q "fatal error: '.*' file not found" "$log" 2>/dev/null; then
       # 迁移面外的头链缺失（如游戏域 C 头）——记 SKIP 不算失败：
       # 本门禁只管 AmeTheme/Fluent 迁移面自身的编译错误
-      echo "  ⚠ SKIP $base（迁移面外头依赖，正式构建覆盖）"
+      echo "  ⚠ SKIP ${base}（迁移面外头依赖，正式构建覆盖）"
       rm -f "$log"
     else
       echo "  ✗ $base"
