@@ -612,6 +612,26 @@ static NSInteger AmePreviewRailSlotForItem(NSUInteger itemIndex) {
     return YES;
 }
 
+// iOS 16+ 场景化几何更新：preferredInterfaceOrientationForPresentation 在新
+// runtime（CI 26.2 实证）对经典生命周期 app 被弱化——启动仍竖屏。官方正解是
+// 显式请求几何更新（supportedInterfaceOrientations 双侧横屏收敛仍保留，为
+// iOS 14/15 老路径与本请求的合法性背书）。@available 门护，仅 harness 生效。
+- (void)applicationDidBecomeActive:(UIApplication *)application {
+    if (@available(iOS 16.0, *)) {
+        UIWindowScene *scene = self.window.windowScene;
+        if (!scene && application.connectedScenes.count > 0) {
+            scene = (UIWindowScene *)application.connectedScenes.anyObject;
+        }
+        if ([scene isKindOfClass:[UIWindowScene class]]) {
+            UIWindowSceneGeometryPreferencesIOS *prefs =
+                [[UIWindowSceneGeometryPreferencesIOS alloc]
+                    initWithInterfaceOrientations:UIInterfaceOrientationMaskLandscape];
+            [scene requestGeometryUpdateWithPreferences:prefs errorHandler:nil];
+            [self.window.rootViewController setNeedsUpdateOfSupportedInterfaceOrientations];
+        }
+    }
+}
+
 @end
 
 int main(int argc, char *argv[]) {
