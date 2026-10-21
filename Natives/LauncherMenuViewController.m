@@ -6,6 +6,7 @@
 #import "PLProfiles.h"
 #import "BackgroundManager.h"
 #import "utils.h"
+#import "AmeTheme.h"   // ★ 7.0-UI-5b：Fluent 设计令牌（颜色/字体单一事实源；仅令牌替换，结构不动）
 
 @interface LauncherMenuViewController ()
 
@@ -160,8 +161,8 @@
     
     [btn addTarget:self action:@selector(menuButtonTapped:) forControlEvents:UIControlEventTouchUpInside];
 
-    // 统一圆角：防御性设置 10pt，避免后续给选中态加背景高亮时出现直角方块
-    btn.layer.cornerRadius = 10;
+    // 统一圆角：防御性设置（7.0-UI-5b：10→Fluent 按钮档 radiusL），避免后续给选中态加背景高亮时出现直角方块
+    btn.layer.cornerRadius = [AmeTheme radiusL];
     // Task137：新拟态退役——初始选中项直接应用原生 accent 半透明高亮
     // （选中态在 updateButtonColors 维护）
     if (index == self.selectedIndex) {
@@ -355,14 +356,14 @@
     [[NSNotificationCenter defaultCenter] removeObserver:self];
 }
 
-// 未选中菜单项的颜色：优先使用用户自定义的 general.text_color，否则默认 systemGray
+// 未选中菜单项的颜色：优先使用用户自定义的 general.text_color，否则默认 Fluent textSecondary（7.0-UI-5b：systemGray→令牌）
 - (UIColor *)menuNormalColor {
     NSString *hex = getPrefObject(@"general.text_color");
     if (hex.length > 0) {
         UIColor *custom = [self colorFromHexString:hex];
         if (custom) return custom;
     }
-    return [UIColor systemGrayColor];
+    return [AmeTheme textSecondary];
 }
 
 - (UIColor *)colorFromHexString:(NSString *)hexString {

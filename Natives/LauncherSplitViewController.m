@@ -5,6 +5,7 @@
 #import "LauncherPreferences.h"
 #import "utils.h"
 #import "BackgroundManager.h"
+#import "AmeTheme.h"   // ★ 7.0-UI-5b：Fluent 设计令牌（颜色/字体单一事实源）
 
 extern NSMutableDictionary *prefDict;
 
@@ -20,7 +21,7 @@ extern NSMutableDictionary *prefDict;
     if ([[BackgroundManager sharedManager] hasBackground]) {
         self.view.backgroundColor = [UIColor clearColor];
     } else {
-        self.view.backgroundColor = [UIColor systemBackgroundColor]; // Task136：主题化页面底色（随深浅色自适应）
+        self.view.backgroundColor = [AmeTheme bgPrimary]; // Task136：主题化页面底色；7.0-UI-5b→Fluent canvas 令牌（随深浅色自适应）
     }
 
     if ([getPrefObject(@"control.control_safe_area") length] == 0) {
@@ -101,7 +102,7 @@ extern NSMutableDictionary *prefDict;
     if ([[BackgroundManager sharedManager] hasBackground]) {
         self.view.backgroundColor = [UIColor clearColor];
     } else {
-        self.view.backgroundColor = [UIColor systemBackgroundColor]; // Task136：主题化页面底色（随深浅色自适应）
+        self.view.backgroundColor = [AmeTheme bgPrimary]; // Task136：主题化页面底色；7.0-UI-5b→Fluent canvas 令牌（随深浅色自适应）
     }
 }
 

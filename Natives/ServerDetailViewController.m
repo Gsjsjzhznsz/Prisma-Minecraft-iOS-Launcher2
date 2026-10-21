@@ -5,6 +5,7 @@
 
 #import "ServerDetailViewController.h"
 #import "BackgroundManager.h"
+#import "AmeTheme.h"   // ★ 7.0-UI-5c：Fluent 设计令牌（颜色/字体单一事实源）
 #import "InlineMessageView.h"
 #import "PLProfiles.h"
 #import "ServerService.h"
@@ -42,7 +43,7 @@
     // 适配自定义启动器背景：将当前视图控制器透明化，使全局背景壁纸能够透出
     [[BackgroundManager sharedManager] makeViewControllerTransparent:self];
     [[BackgroundManager sharedManager] applyEffectToView:self.view];
-    self.view.backgroundColor = [UIColor systemBackgroundColor]; // Task136：主题化页面底色
+    self.view.backgroundColor = [AmeTheme bgPrimary]; // Task136：主题化页面底色
     self.title = localize(@"i18n_str_958", nil);
 
     [self setupUI];
@@ -97,7 +98,7 @@
     self.iconView.layer.cornerRadius = 16;
     self.iconView.clipsToBounds = YES;
     self.iconView.contentMode = UIViewContentModeScaleAspectFill;
-    self.iconView.backgroundColor = [UIColor secondarySystemBackgroundColor];
+    self.iconView.backgroundColor = [AmeTheme bgSecondary];
     [content addSubview:self.iconView];
 
     // 标题
@@ -111,7 +112,7 @@
     self.metaLabel = [[UILabel alloc] init];
     self.metaLabel.translatesAutoresizingMaskIntoConstraints = NO;
     self.metaLabel.font = [UIFont preferredFontForTextStyle:UIFontTextStyleFootnote];
-    self.metaLabel.textColor = [UIColor secondaryLabelColor];
+    self.metaLabel.textColor = [AmeTheme textSecondary];
     self.metaLabel.numberOfLines = 0;
     [content addSubview:self.metaLabel];
 
@@ -131,7 +132,7 @@
     self.addressLabel.translatesAutoresizingMaskIntoConstraints = NO;
     self.addressLabel.font = [UIFont fontWithName:@"Menlo" size:15] ?: [UIFont monospacedSystemFontOfSize:15 weight:UIFontWeightRegular];
     self.addressLabel.numberOfLines = 0;
-    self.addressLabel.textColor = [UIColor labelColor];
+    self.addressLabel.textColor = [AmeTheme textPrimary];
     [content addSubview:self.addressLabel];
 
     // 复制地址按钮
@@ -148,9 +149,9 @@
     self.joinButton.translatesAutoresizingMaskIntoConstraints = NO;
     [self.joinButton setTitle:localize(@"i18n_str_960", nil) forState:UIControlStateNormal];
     // Task137：恢复 Task89 之前的原生主按钮（系统蓝底白字）
-    self.joinButton.backgroundColor = [UIColor systemBlueColor];
+    self.joinButton.backgroundColor = [AmeTheme brandPrimary];
     self.joinButton.layer.cornerRadius = 10;
-    [self.joinButton setTitleColor:[UIColor whiteColor] forState:UIControlStateNormal];
+    [self.joinButton setTitleColor:[AmeTheme textOnBrand] forState:UIControlStateNormal];
     self.joinButton.titleLabel.font = [UIFont boldSystemFontOfSize:16];
     [self.joinButton addTarget:self action:@selector(joinServer) forControlEvents:UIControlEventTouchUpInside];
     [content addSubview:self.joinButton];
@@ -160,9 +161,9 @@
     self.downloadPackButton.translatesAutoresizingMaskIntoConstraints = NO;
     [self.downloadPackButton setTitle:localize(@"i18n_str_961", nil) forState:UIControlStateNormal];
     // Task137：恢复 Task89 之前的原生次按钮（系统紫底白字）
-    self.downloadPackButton.backgroundColor = [UIColor systemPurpleColor];
+    self.downloadPackButton.backgroundColor = [AmeTheme brandPrimary];
     self.downloadPackButton.layer.cornerRadius = 10;
-    [self.downloadPackButton setTitleColor:[UIColor whiteColor] forState:UIControlStateNormal];
+    [self.downloadPackButton setTitleColor:[AmeTheme textOnBrand] forState:UIControlStateNormal];
     self.downloadPackButton.titleLabel.font = [UIFont boldSystemFontOfSize:16];
     [self.downloadPackButton addTarget:self action:@selector(downloadServerPack) forControlEvents:UIControlEventTouchUpInside];
     [content addSubview:self.downloadPackButton];

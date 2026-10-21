@@ -11,6 +11,7 @@
 #import "LauncherPreferences.h"
 #import "UIImageView+AFNetworking.h"
 #import "BackgroundManager.h"
+#import "AmeTheme.h"   // ★ 7.0-UI-5c：Fluent 设计令牌（颜色/字体单一事实源）
 #import "AmeNativeMenu.h"
 #import "LiquidGlassCompat.h"   // Task247（T9）：伪玻璃档长按菜单路由分档
 // Task213：AmeCard 主/次文字色函数声明处（安装器同构卡配色依赖；CI 15.4 SDK
@@ -127,7 +128,7 @@
     self.avatarView.layer.cornerRadius = ame190_avatarSize / 2;
     self.avatarView.layer.cornerCurve = kCACornerCurveContinuous;
     self.avatarView.layer.masksToBounds = YES;
-    self.avatarView.backgroundColor = [UIColor tertiarySystemFillColor];
+    self.avatarView.backgroundColor = [AmeTheme fillSubtle];
     self.avatarView.image = [UIImage imageNamed:@"DefaultAccount"];
     [self.contentContainer addSubview:self.avatarView];
 
@@ -157,7 +158,7 @@
     // + 白勾 9pt bold，右 -14 垂直居中）-----
     self.selectedBadge = [[UIView alloc] init];
     self.selectedBadge.translatesAutoresizingMaskIntoConstraints = NO;
-    self.selectedBadge.backgroundColor = [UIColor systemGreenColor];
+    self.selectedBadge.backgroundColor = [AmeTheme statusSuccess];
     self.selectedBadge.layer.cornerRadius = 10;
     self.selectedBadge.layer.cornerCurve = kCACornerCurveContinuous;
     self.selectedBadge.layer.masksToBounds = YES;
@@ -167,7 +168,7 @@
     UIImageView *checkmark = [[UIImageView alloc] init];
     checkmark.translatesAutoresizingMaskIntoConstraints = NO;
     checkmark.image = [UIImage systemImageNamed:@"checkmark" withConfiguration:[UIImageSymbolConfiguration configurationWithPointSize:9 weight:UIFontWeightBold]];
-    checkmark.tintColor = [UIColor whiteColor];
+    checkmark.tintColor = [AmeTheme textOnBrand];
     [self.selectedBadge addSubview:checkmark];
 
     // ★ Task223（清单第 20 项）：行内 “⋯” 菜单按钮（长按菜单的可见入口）。
@@ -253,7 +254,7 @@
 // 强化随卡面管线统一切换退役，选中反馈只来自徽章）
 - (void)ame190_applySelectedAppearance:(BOOL)selected {
     self.selectedBadge.hidden = !selected;
-    self.selectedBadge.backgroundColor = [UIColor systemGreenColor];
+    self.selectedBadge.backgroundColor = [AmeTheme statusSuccess];
 }
 
 - (void)ame190_configureWithUsername:(NSString *)username
@@ -383,7 +384,7 @@
     [addBtn setTitle:localize(@"login.option.add", @"添加账户") forState:UIControlStateNormal];
     addBtn.titleLabel.font = [UIFont systemFontOfSize:16 weight:UIFontWeightSemibold];
     [addBtn setImage:[UIImage systemImageNamed:@"plus"] forState:UIControlStateNormal];
-    addBtn.tintColor = [UIColor whiteColor];
+    addBtn.tintColor = [AmeTheme textOnBrand];
     addBtn.backgroundColor = accentColor();
     addBtn.layer.cornerRadius = 24;
     addBtn.layer.cornerCurve = kCACornerCurveContinuous;
@@ -972,7 +973,7 @@ static NSMutableSet *ame128_validatedSet(void) {
                                 handler:(void (^)(void))handler {
     UIButton *btn = [UIButton buttonWithType:UIButtonTypeSystem];
     btn.translatesAutoresizingMaskIntoConstraints = NO;
-    UIColor *tint = destructive ? [UIColor systemRedColor] : accentColor();
+    UIColor *tint = destructive ? [AmeTheme statusDanger] : accentColor();
     btn.tintColor = tint;
     btn.backgroundColor = [tint colorWithAlphaComponent:0.14];
     btn.layer.cornerRadius = 18;

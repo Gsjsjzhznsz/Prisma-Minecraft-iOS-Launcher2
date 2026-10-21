@@ -15,6 +15,7 @@
 #import "ShaderVersionTableViewCell.h"
 #import "AssetDetailHeaderView.h"
 #import "BackgroundManager.h"
+#import "AmeTheme.h"   // ★ 7.0-UI-5a：Fluent 设计令牌（颜色/字体单一事实源）
 
 // ============================================================================
 // 下载源常量（与 ShaderVersion.apiSource 字段保持一致：1=Modrinth, 2=CurseForge）
@@ -98,7 +99,7 @@ static NSArray<NSDictionary *> *SortOptionItems(void) {
 - (void)viewDidLoad {
     [super viewDidLoad];
     self.title = self.shaderItem.displayName;
-    self.view.backgroundColor = [UIColor systemBackgroundColor]; // Task136：主题化页面底色
+    self.view.backgroundColor = [AmeTheme bgPrimary]; // Task136：主题化页面底色
     // 适配自定义启动器背景：透明化当前 VC，让全局背景图/毛玻璃透出
     [[BackgroundManager sharedManager] makeViewControllerTransparent:self];
 
@@ -201,11 +202,11 @@ static NSArray<NSDictionary *> *SortOptionItems(void) {
     // ===== 筛选面板容器（半透明 + 毛玻璃，固定在顶部不随列表滚动）=====
     self.filterContainerView = [[UIView alloc] init];
     self.filterContainerView.translatesAutoresizingMaskIntoConstraints = NO;
-    self.filterContainerView.backgroundColor = [[UIColor whiteColor] colorWithAlphaComponent:0.06];
-    self.filterContainerView.layer.cornerRadius = 14;
+    self.filterContainerView.backgroundColor = [[AmeTheme surfaceOverlay] colorWithAlphaComponent:0.06];
+    self.filterContainerView.layer.cornerRadius = [AmeTheme radiusXL];
     self.filterContainerView.layer.cornerCurve = kCACornerCurveContinuous;
     self.filterContainerView.layer.borderWidth = 0.5;
-    self.filterContainerView.layer.borderColor = [[UIColor whiteColor] colorWithAlphaComponent:0.10].CGColor;
+    self.filterContainerView.layer.borderColor = [[AmeTheme divider] colorWithAlphaComponent:0.10].CGColor;
     [self.view addSubview:self.filterContainerView];
     // 应用毛玻璃背景效果，与启动器整体风格一致
     [[BackgroundManager sharedManager] applyEffectToView:self.filterContainerView];
@@ -297,7 +298,7 @@ static NSArray<NSDictionary *> *SortOptionItems(void) {
     UIImageView *iconView = [[UIImageView alloc] init];
     iconView.translatesAutoresizingMaskIntoConstraints = NO;
     iconView.image = [UIImage systemImageNamed:iconName];
-    iconView.tintColor = [UIColor secondaryLabelColor];
+    iconView.tintColor = [AmeTheme textSecondary];
     iconView.contentMode = UIViewContentModeScaleAspectFit;
     [iconView setContentHuggingPriority:UILayoutPriorityRequired forAxis:UILayoutConstraintAxisHorizontal];
     [iconView setContentCompressionResistancePriority:UILayoutPriorityRequired forAxis:UILayoutConstraintAxisHorizontal];
@@ -310,7 +311,7 @@ static NSArray<NSDictionary *> *SortOptionItems(void) {
     label.translatesAutoresizingMaskIntoConstraints = NO;
     label.text = labelText;
     label.font = [UIFont systemFontOfSize:11 weight:UIFontWeightMedium];
-    label.textColor = [UIColor secondaryLabelColor];
+    label.textColor = [AmeTheme textSecondary];
     label.textAlignment = NSTextAlignmentLeft;
     [label setContentHuggingPriority:UILayoutPriorityRequired forAxis:UILayoutConstraintAxisHorizontal];
     [label setContentCompressionResistancePriority:UILayoutPriorityRequired forAxis:UILayoutConstraintAxisHorizontal];
@@ -385,15 +386,15 @@ static NSArray<NSDictionary *> *SortOptionItems(void) {
 - (void)applyChipStyle:(UIButton *)chip selected:(BOOL)selected {
     if (selected) {
         // 选中态：主题色背景 + 白字（参照 FCL 选中标签高亮）
-        chip.backgroundColor = [UIColor systemBlueColor];
-        [chip setTitleColor:[UIColor whiteColor] forState:UIControlStateNormal];
+        chip.backgroundColor = [AmeTheme brandPrimary];
+        [chip setTitleColor:[AmeTheme textOnBrand] forState:UIControlStateNormal];
         chip.layer.borderWidth = 0;
     } else {
         // 未选中态：半透明背景 + 标签色文字 + 浅边框
-        chip.backgroundColor = [[UIColor whiteColor] colorWithAlphaComponent:0.08];
-        [chip setTitleColor:[UIColor labelColor] forState:UIControlStateNormal];
+        chip.backgroundColor = [[AmeTheme surfaceCard] colorWithAlphaComponent:0.08];
+        [chip setTitleColor:[AmeTheme textPrimary] forState:UIControlStateNormal];
         chip.layer.borderWidth = 0.5;
-        chip.layer.borderColor = [[UIColor whiteColor] colorWithAlphaComponent:0.15].CGColor;
+        chip.layer.borderColor = [[AmeTheme divider] colorWithAlphaComponent:0.15].CGColor;
     }
 }
 

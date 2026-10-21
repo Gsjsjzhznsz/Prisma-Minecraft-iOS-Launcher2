@@ -8,6 +8,7 @@
 #import "LauncherPreferences.h"
 #import "PLPrefTableViewController.h"
 #import "BackgroundManager.h"
+#import "AmeTheme.h"   // ★ 7.0-UI-5c：Fluent 设计令牌（颜色/字体单一事实源）
 #import "UIKit+hook.h"
 
 #import "ios_uikit_bridge.h"
@@ -203,7 +204,7 @@
             cell.detailTextLabel.text = nil;
         }
         cell.imageView.image = [UIImage systemImageNamed:item[@"icon"]];
-        cell.imageView.tintColor = [item[@"destructive"] boolValue] ? UIColor.systemRedColor : nil;
+        cell.imageView.tintColor = [item[@"destructive"] boolValue] ? [AmeTheme statusDanger] : nil;
         cell.userInteractionEnabled = YES;
         return cell;
     }
@@ -256,7 +257,7 @@
 
     // Set general properties
     BOOL destructive = [item[@"destructive"] boolValue];
-    cell.imageView.tintColor = destructive ? UIColor.systemRedColor : nil;
+    cell.imageView.tintColor = destructive ? [AmeTheme statusDanger] : nil;
     cell.imageView.image = [UIImage systemImageNamed:item[@"icon"]];
     
     if (cellStyle != UITableViewCellStyleValue1) {
@@ -283,7 +284,7 @@
     self.typeButton = ^void(UITableViewCell *cell, NSString *section, NSString *key, NSDictionary *item) {
         BOOL destructive = [item[@"destructive"] boolValue];
         cell.selectionStyle = UITableViewCellSelectionStyleGray;
-        cell.textLabel.textColor = destructive ? UIColor.systemRedColor : weakSelf.view.tintColor;
+        cell.textLabel.textColor = destructive ? [AmeTheme statusDanger] : weakSelf.view.tintColor;
     };
 
     self.typeChildPane = ^void(UITableViewCell *cell, NSString *section, NSString *key, NSDictionary *item) {

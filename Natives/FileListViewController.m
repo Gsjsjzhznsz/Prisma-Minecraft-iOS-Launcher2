@@ -1,5 +1,6 @@
 #import "FileListViewController.h"
 #import "BackgroundManager.h"
+#import "AmeTheme.h"   // ★ 7.0-UI-5c：Fluent 设计令牌（颜色/字体单一事实源）
 
 @interface FileListViewController () {
 }
@@ -17,8 +18,8 @@
     //   + 洗白单元格）让列表内容隐形——与 Task229 修的 FolderBrowser 同款
     //   病，但这个遗留的 .json 选择器（自定义控件/偏好配置页在用）漏了。
     //   改为实底（与系统文件 App 同观感）：背景重申不交还透明管线。
-    self.view.backgroundColor = [UIColor systemBackgroundColor];
-    self.tableView.backgroundColor = [UIColor secondarySystemGroupedBackgroundColor];
+    self.view.backgroundColor = [AmeTheme bgPrimary];
+    self.tableView.backgroundColor = [AmeTheme bgPrimary];
     self.tableView.backgroundView = nil;
     {
         // 整树豁免全局白底描边字体（实底浅色列表上白字隐形）
@@ -55,8 +56,8 @@
 
 /// 背景效果改变时重申实底（不再交还透明管线——旧重铺会把列表洗回隐形）
 - (void)reapplyBackgroundEffect {
-    self.view.backgroundColor = [UIColor systemBackgroundColor];
-    self.tableView.backgroundColor = [UIColor secondarySystemGroupedBackgroundColor];
+    self.view.backgroundColor = [AmeTheme bgPrimary];
+    self.tableView.backgroundColor = [AmeTheme bgPrimary];
     self.tableView.backgroundView = nil;
 }
 
@@ -79,8 +80,8 @@
 
     cell.textLabel.text = [self.fileList objectAtIndex:indexPath.row];
     // Task230：实底列表 + 语义色（白底描边字体豁免后的原生观感）
-    cell.textLabel.textColor = [UIColor labelColor];
-    cell.backgroundColor = [UIColor secondarySystemGroupedBackgroundColor];
+    cell.textLabel.textColor = [AmeTheme textPrimary];
+    cell.backgroundColor = [AmeTheme surfaceCard];
     return cell;
 }
 

@@ -4,6 +4,7 @@
 #import "FileListViewController.h"
 #import "LauncherPreferences.h"
 #import "ios_uikit_bridge.h"
+#import "AmeTheme.h"   // ★ 7.0-UI-5d：Fluent 设计令牌（颜色/字体单一事实源）
 
 #import "customcontrols/ControlDrawer.h"
 #import "customcontrols/ControlJoystick.h"
@@ -59,12 +60,12 @@
     guideLabel.autoresizingMask = UIViewAutoresizingFlexibleWidth | UIViewAutoresizingFlexibleHeight;
     guideLabel.numberOfLines = 0;
     guideLabel.textAlignment = NSTextAlignmentCenter;
-    guideLabel.textColor = [UIColor labelColor]; // Task91：写死白色改主题主文字色
+    guideLabel.textColor = [AmeTheme textPrimary]; // Task91：写死白色改主题主文字色
     guideLabel.text = localize(@"custom_controls.hint", nil);
     [self.view addSubview:guideLabel]; 
 
     self.ctrlView = [[ControlLayout alloc] initWithFrame:getSafeArea(self.view.frame)];
-    self.ctrlView.layer.borderColor = UIColor.labelColor.CGColor;
+    self.ctrlView.layer.borderColor = [AmeTheme textPrimary].CGColor;
     [self.view addSubview:self.ctrlView];
 
     // Prepare the navigation bar for safe area customization
@@ -724,7 +725,7 @@ CGFloat currentY;
         (self.view.frame.size.width - MAX(tempW, tempH))/2,
         (self.view.frame.size.height - MIN(tempW, tempH))/2,
         MAX(tempW, tempH), MIN(tempW, tempH));
-    blurView.layer.cornerRadius = 10.0;
+    blurView.layer.cornerRadius = [AmeTheme radiusXL];   // 7.0-UI-5d：浮层 10 → Fluent xLarge 12
     blurView.clipsToBounds = YES;
     [self.view addSubview:blurView];
 

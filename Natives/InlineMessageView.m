@@ -7,6 +7,7 @@
 
 #import "InlineMessageView.h"
 #import "utils.h"
+#import "AmeTheme.h"   // ★ 7.0-UI-5d：Fluent 设计令牌（颜色/字体单一事实源）
 
 @interface InlineMessageView ()
 
@@ -75,10 +76,10 @@
     // 毛玻璃容器
     self.containerView = [[UIView alloc] init];
     self.containerView.translatesAutoresizingMaskIntoConstraints = NO;
-    self.containerView.layer.cornerRadius = 16;
+    self.containerView.layer.cornerRadius = [AmeTheme radiusXL];   // 7.0-UI-5d：浮层 16 → Fluent xLarge 12
     self.containerView.layer.masksToBounds = YES;
     self.containerView.layer.borderWidth = 1;
-    self.containerView.layer.borderColor = [UIColor colorWithWhite:1 alpha:0.1].CGColor;
+    self.containerView.layer.borderColor = [[AmeTheme divider] colorWithAlphaComponent:0.1].CGColor;   // 7.0-UI-5d：白 0.1 发丝描边 → divider×0.1（alpha 语义保留）
 
     // 根据类型设置背景色
     UIBlurEffect *blur = [UIBlurEffect effectWithStyle:UIBlurEffectStyleSystemThinMaterial];
@@ -139,7 +140,7 @@
     self.titleLabel = [[UILabel alloc] init];
     self.titleLabel.text = title ?: @"";
     self.titleLabel.font = [UIFont systemFontOfSize:16 weight:UIFontWeightSemibold];
-    self.titleLabel.textColor = [UIColor labelColor];
+    self.titleLabel.textColor = [AmeTheme textPrimary];
     self.titleLabel.numberOfLines = 1;
     self.titleLabel.textAlignment = NSTextAlignmentCenter;
     [headerStack addArrangedSubview:self.titleLabel];
@@ -149,7 +150,7 @@
         self.closeButton = [UIButton buttonWithType:UIButtonTypeSystem];
         UIImage *closeIcon = [UIImage systemImageNamed:@"xmark"];
         [self.closeButton setImage:closeIcon forState:UIControlStateNormal];
-        self.closeButton.tintColor = [UIColor secondaryLabelColor];
+        self.closeButton.tintColor = [AmeTheme textSecondary];
         [self.closeButton addTarget:self action:@selector(closeButtonTapped) forControlEvents:UIControlEventTouchUpInside];
         [headerStack addArrangedSubview:self.closeButton];
         [NSLayoutConstraint activateConstraints:@[
@@ -171,8 +172,8 @@
     if (message.length > 0) {
         self.messageLabel = [[UILabel alloc] init];
         self.messageLabel.text = message;
-        self.messageLabel.font = [UIFont systemFontOfSize:13];
-        self.messageLabel.textColor = [UIColor secondaryLabelColor];
+        self.messageLabel.font = [AmeTheme fontCaption];
+        self.messageLabel.textColor = [AmeTheme textSecondary];
         self.messageLabel.numberOfLines = 0;
         self.messageLabel.textAlignment = NSTextAlignmentCenter;
         self.messageLabel.preferredMaxLayoutWidth = 260;
@@ -216,12 +217,12 @@
 
 - (UIColor *)tintColorForType:(InlineMessageType)type {
     switch (type) {
-        case InlineMessageTypeError:   return [UIColor systemRedColor];
-        case InlineMessageTypeSuccess: return [UIColor systemGreenColor];
-        case InlineMessageTypeInfo:    return [UIColor systemBlueColor];
-        case InlineMessageTypeLoading: return [UIColor systemBlueColor];
+        case InlineMessageTypeError:   return [AmeTheme statusDanger];
+        case InlineMessageTypeSuccess: return [AmeTheme statusSuccess];
+        case InlineMessageTypeInfo:    return [AmeTheme brandPrimary];
+        case InlineMessageTypeLoading: return [AmeTheme brandPrimary];
     }
-    return [UIColor systemBlueColor];
+    return [AmeTheme brandPrimary];
 }
 
 - (void)updateWithMessage:(NSString *)message type:(InlineMessageType)type {

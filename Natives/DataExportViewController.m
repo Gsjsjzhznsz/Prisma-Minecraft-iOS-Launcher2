@@ -1,5 +1,6 @@
 #import "DataExportViewController.h"
 #import "BackgroundManager.h"
+#import "AmeTheme.h"   // ★ 7.0-UI-5c：Fluent 设计令牌（颜色/字体单一事实源）
 #import "DataTransferService.h"
 #import "DownloadTaskManager.h"
 #import "DownloadTaskItem.h"
@@ -58,11 +59,11 @@
     [self.stack addArrangedSubview:[self ame223_card:^(UIView *card, UIStackView *inner) {
         UILabel *title = [self ame223_label:localize(@"dataexport.summary.title", nil)
                                        font:[UIFont systemFontOfSize:17 weight:UIFontWeightSemibold]
-                                      color:[UIColor labelColor]];
+                                      color:[AmeTheme textPrimary]];
         [inner addArrangedSubview:title];
         self.summaryLabel = [self ame223_label:@" "
                                           font:[UIFont monospacedDigitSystemFontOfSize:14 weight:UIFontWeightRegular]
-                                         color:[UIColor secondaryLabelColor]];
+                                         color:[AmeTheme textSecondary]];
         self.summaryLabel.numberOfLines = 3;
         [inner addArrangedSubview:self.summaryLabel];
     }]];
@@ -72,7 +73,7 @@
     [self.stack addArrangedSubview:[self ame223_card:^(UIView *card, UIStackView *inner) {
         UILabel *title = [self ame223_label:localize(@"dataexport.sections.title", nil)
                                        font:[UIFont systemFontOfSize:17 weight:UIFontWeightSemibold]
-                                      color:[UIColor labelColor]];
+                                      color:[AmeTheme textPrimary]];
         [inner addArrangedSubview:title];
         self.sectionRowsStack = [[UIStackView alloc] init];
         self.sectionRowsStack.axis = UILayoutConstraintAxisVertical;
@@ -84,7 +85,7 @@
     [self.stack addArrangedSubview:[self ame223_card:^(UIView *card, UIStackView *inner) {
         UILabel *title = [self ame223_label:localize(@"dataexport.level.title", nil)
                                        font:[UIFont systemFontOfSize:17 weight:UIFontWeightSemibold]
-                                      color:[UIColor labelColor]];
+                                      color:[AmeTheme textPrimary]];
         [inner addArrangedSubview:title];
         self.levelSegment = [[UISegmentedControl alloc] initWithItems:@[
             localize(@"dataexport.level.none", nil),
@@ -97,7 +98,7 @@
         [inner addArrangedSubview:self.levelSegment];
         self.levelHintLabel = [self ame223_label:@""
                                             font:[UIFont systemFontOfSize:12]
-                                           color:[UIColor tertiaryLabelColor]];
+                                           color:[AmeTheme textTertiary]];
         self.levelHintLabel.numberOfLines = 3;
         [inner addArrangedSubview:self.levelHintLabel];
         [self ame223_levelChanged:self.levelSegment];
@@ -106,7 +107,7 @@
     self.startButton = [UIButton buttonWithType:UIButtonTypeSystem];
     [self.startButton setTitle:[NSString stringWithFormat:@"🚀 %@", localize(@"dataexport.start", nil)]
                       forState:UIControlStateNormal];
-    [self.startButton setTitleColor:[UIColor whiteColor] forState:UIControlStateNormal];
+    [self.startButton setTitleColor:[AmeTheme textOnBrand] forState:UIControlStateNormal];
     self.startButton.titleLabel.font = [UIFont systemFontOfSize:16 weight:UIFontWeightSemibold];
     self.startButton.backgroundColor = accentColor();
     self.startButton.layer.cornerRadius = 14.0;
@@ -149,7 +150,7 @@
 
 - (UIView *)ame223_card:(void(^)(UIView *card, UIStackView *inner))builder {
     UIView *card = [[UIView alloc] init];
-    card.backgroundColor = [UIColor secondarySystemGroupedBackgroundColor];
+    card.backgroundColor = [AmeTheme surfaceCard];
     card.layer.cornerRadius = 16.0;
     card.layer.cornerCurve = kCACornerCurveContinuous;
     card.translatesAutoresizingMaskIntoConstraints = NO;
@@ -226,14 +227,14 @@
 
     UILabel *title = [self ame223_label:localize([NSString stringWithFormat:@"dataexport.section.%@", sid], nil)
                                     font:[UIFont systemFontOfSize:15 weight:UIFontWeightMedium]
-                                   color:[UIColor labelColor]];
+                                   color:[AmeTheme textPrimary]];
     title.userInteractionEnabled = NO;
     title.translatesAutoresizingMaskIntoConstraints = NO;
     [row addSubview:title];
 
     UILabel *subtitle = [self ame223_label:@""
                                        font:[UIFont monospacedDigitSystemFontOfSize:12 weight:UIFontWeightRegular]
-                                      color:[UIColor secondaryLabelColor]];
+                                      color:[AmeTheme textSecondary]];
     subtitle.userInteractionEnabled = NO;
     subtitle.translatesAutoresizingMaskIntoConstraints = NO;
     if (stats != nil) {
@@ -335,7 +336,7 @@
     if (files == 0) {
         self.summaryLabel.text = localize(@"dataexport.empty", nil);
         self.startButton.enabled = NO;
-        self.startButton.backgroundColor = [UIColor tertiarySystemFillColor];
+        self.startButton.backgroundColor = [AmeTheme fillSubtle];
         return;
     }
     self.startButton.enabled = YES;
@@ -350,7 +351,7 @@
     self.spinner.hidden = YES;
     self.summaryLabel.text = [NSString stringWithFormat:localize(@"dataexport.failed", nil), reason];
     self.startButton.enabled = NO;
-    self.startButton.backgroundColor = [UIColor tertiarySystemFillColor];
+    self.startButton.backgroundColor = [AmeTheme fillSubtle];
 }
 
 #pragma mark - Level
@@ -404,7 +405,7 @@
     [manager updateTaskWithId:taskId stageAtIndex:0 status:PLTaskStageStatusRunning];
 
     self.startButton.enabled = NO;
-    self.startButton.backgroundColor = [UIColor tertiarySystemFillColor];
+    self.startButton.backgroundColor = [AmeTheme fillSubtle];
 
     // ★ Task224（#12/#13）：分区选择 + 3 路并行 deflate + 单写线程有序落盘
     //   （详见 DataTransferService ame224_runBackupExport 注释）。进度全维度

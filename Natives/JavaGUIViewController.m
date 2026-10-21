@@ -9,6 +9,7 @@
 #import "UnzipKit.h"
 #import "ios_uikit_bridge.h"
 #import "BackgroundManager.h"
+#import "AmeTheme.h"   // ★ 7.0-UI-5d：Fluent 设计令牌（颜色/字体单一事实源）
 #include "glfw_keycodes.h"
 #include "utils.h"
 
@@ -284,7 +285,7 @@ void AWTInputBridge_sendKey(int keycode) {
     [self.view addSubview:self.surfaceScrollView];
 
     self.inputTextField = [[TrackedTextField alloc] initWithFrame:CGRectMake(0, -32.0, self.view.frame.size.width, 30.0)];
-    self.inputTextField.backgroundColor = UIColor.secondarySystemBackgroundColor;
+    self.inputTextField.backgroundColor = [AmeTheme bgSecondary];
     self.inputTextField.delegate = self;
     self.inputTextField.font = [UIFont fontWithName:@"Menlo-Regular" size:20];
     self.inputTextField.clearsOnBeginEditing = YES;
@@ -552,7 +553,8 @@ dispatch_async(dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_DEFAULT, 0), ^{
         }
     }
     
-    return _requiredJavaVersion = javaVersion;
+    return _requiredJavaVersion = javaVersion;
+
 }
 
 - (void)showErrorMessage:(NSString *)message {

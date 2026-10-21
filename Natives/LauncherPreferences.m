@@ -6,6 +6,7 @@
 #import "PLMirrorCenter.h"  // Task138: loadPreferences 末尾的测速预热
 #import "installer/modpack/CurseForgeAPI.h"  // Task211: ame211_migrateCfSourceToModrinth 的 isPlaceholderAPIKey/isAPIKeyConfigured
 #import "NMToast.h"    // Task138: 渲染器 dylib 缺失回退的用户提示
+#import "AmeTheme.h"   // ★ 7.0-UI-5c：Fluent 设计令牌（颜色/字体单一事实源）
 #import "UIKit+hook.h"
 #import <CoreFoundation/CoreFoundation.h>
 
@@ -352,12 +353,13 @@ static UIColor *colorFromHex(NSString *hex) {
 }
 
 UIColor *accentColor(void) {
-    // 优先读取用户自定义主题强调色，未设置则回退到默认蓝 #429CF5
+    // 优先读取用户自定义主题强调色，未设置则回退到 Fluent 品牌主色
     NSString *hex = getPrefObject(@"general.accent_color");
     UIColor *custom = colorFromHex(hex);
     if (custom) return custom;
-    // 默认蓝 RGB(0.26, 0.63, 0.96) = #429CF5
-    return [UIColor colorWithRed:0.26 green:0.63 blue:0.96 alpha:1.0];
+    // 默认强调色 = Fluent 品牌主色（7.0-UI-5c：Light #0F6CBD / Dark #2A93EE，
+    // 替换旧默认蓝 #429CF5——用户未自定义 accent_color 时的全局兜底）
+    return [AmeTheme brandPrimary];
 }
 
 #pragma mark Safe area

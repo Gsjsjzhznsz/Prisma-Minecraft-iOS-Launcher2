@@ -7,6 +7,7 @@
 #import "ios_uikit_bridge.h"
 #import "utils.h"
 #import "BackgroundManager.h"
+#import "AmeTheme.h"   // ★ 7.0-UI-5c：Fluent 设计令牌（颜色/字体单一事实源）
 
 @interface LauncherProfileEditorViewController()<UIPickerViewDataSource, UIPickerViewDelegate>
 @property(nonatomic) NSString* oldName;
@@ -34,7 +35,7 @@
     
     // 设置导航栏半透明样式
     [[BackgroundManager sharedManager] applyEffectToNavigationBar:self.navigationController.navigationBar];
-    self.navigationController.navigationBar.tintColor = [UIColor systemBlueColor];
+    self.navigationController.navigationBar.tintColor = [AmeTheme brandPrimary];
 
     // Setup preference getter and setter
     __weak LauncherProfileEditorViewController *weakSelf = self;

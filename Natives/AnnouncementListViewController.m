@@ -9,6 +9,7 @@
 #import "AnnouncementItem.h"
 #import "AnnouncementDetailViewController.h"
 #import "BackgroundManager.h"
+#import "AmeTheme.h"   // ★ 7.0-UI-5d：Fluent 设计令牌（颜色/字体单一事实源）
 
 /// 卡片间距
 static const CGFloat kAnnCardSpacing = 12.0;
@@ -39,7 +40,7 @@ static const CGFloat kAnnCardCornerRadius = 14.0;
 - (instancetype)initWithFrame:(CGRect)frame {
     self = [super initWithFrame:frame];
     if (self) {
-        self.contentView.backgroundColor = [UIColor secondarySystemBackgroundColor];
+        self.contentView.backgroundColor = [AmeTheme surfaceCard];
         self.backgroundColor = [UIColor clearColor];
         self.layer.cornerRadius = kAnnCardCornerRadius;
         self.layer.cornerCurve = kCACornerCurveContinuous;
@@ -51,21 +52,21 @@ static const CGFloat kAnnCardCornerRadius = 14.0;
         _titleLabel = [[UILabel alloc] init];
         _titleLabel.translatesAutoresizingMaskIntoConstraints = NO;
         _titleLabel.font = [UIFont systemFontOfSize:16 weight:UIFontWeightSemibold];
-        _titleLabel.textColor = [UIColor labelColor];
+        _titleLabel.textColor = [AmeTheme textPrimary];
         _titleLabel.numberOfLines = 2;
         [self.contentView addSubview:_titleLabel];
 
         _dateLabel = [[UILabel alloc] init];
         _dateLabel.translatesAutoresizingMaskIntoConstraints = NO;
         _dateLabel.font = [UIFont systemFontOfSize:11 weight:UIFontWeightRegular];
-        _dateLabel.textColor = [UIColor tertiaryLabelColor];
+        _dateLabel.textColor = [AmeTheme textTertiary];
         _dateLabel.numberOfLines = 1;
         [self.contentView addSubview:_dateLabel];
 
         _summaryLabel = [[UILabel alloc] init];
         _summaryLabel.translatesAutoresizingMaskIntoConstraints = NO;
-        _summaryLabel.font = [UIFont systemFontOfSize:13 weight:UIFontWeightRegular];
-        _summaryLabel.textColor = [UIColor secondaryLabelColor];
+        _summaryLabel.font = [AmeTheme fontCaption];
+        _summaryLabel.textColor = [AmeTheme textSecondary];
         _summaryLabel.numberOfLines = 2;
         [self.contentView addSubview:_summaryLabel];
 
@@ -114,7 +115,7 @@ static const CGFloat kAnnCardCornerRadius = 14.0;
 - (void)viewDidLoad {
     [super viewDidLoad];
     self.title = localize(@"i18n_str_20", nil);
-    self.view.backgroundColor = [UIColor systemBackgroundColor]; // Task136：主题化页面底色
+    self.view.backgroundColor = [AmeTheme bgPrimary]; // Task136：主题化页面底色
 
     // 适配自定义启动器背景
     [[BackgroundManager sharedManager] makeViewControllerTransparent:self];
@@ -182,7 +183,7 @@ static const CGFloat kAnnCardCornerRadius = 14.0;
 
     self.errorLabel = [[UILabel alloc] init];
     self.errorLabel.translatesAutoresizingMaskIntoConstraints = NO;
-    self.errorLabel.textColor = [UIColor secondaryLabelColor];
+    self.errorLabel.textColor = [AmeTheme textSecondary];
     self.errorLabel.textAlignment = NSTextAlignmentCenter;
     self.errorLabel.numberOfLines = 0;
     self.errorLabel.hidden = YES;

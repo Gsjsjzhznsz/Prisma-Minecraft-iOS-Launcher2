@@ -22,6 +22,7 @@
 // UIWindow.mainWindow 来自工程内 UIWindow(global) 分类（UIKit+hook.h）
 // Task137：文件已从 NeomorphKit/ 迁至 Natives/ 根，相对路径 ../ 已平化
 #import "UIKit+hook.h"
+#import "AmeTheme.h"   // ★ 7.0-UI-5d：Fluent 设计令牌（颜色/字体单一事实源）
 
 static NSTimeInterval const kNMToastDefaultDuration = 4.5;
 static CGFloat const kNMToastHorizontalMargin = 16.0;
@@ -128,7 +129,7 @@ static __weak NMToast *s_nm125_current = nil;
         [self.actionButton addTarget:self action:@selector(actionTapped)
                     forControlEvents:UIControlEventTouchUpInside];
         // 高对比但不过分抢眼：label 色加粗（不引入品牌色依赖）
-        [self.actionButton setTitleColor:[UIColor labelColor] forState:UIControlStateNormal];
+        [self.actionButton setTitleColor:[AmeTheme textPrimary] forState:UIControlStateNormal];
         [self.cardView addSubview:self.actionButton];
     }
 

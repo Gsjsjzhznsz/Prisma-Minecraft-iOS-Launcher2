@@ -13,6 +13,7 @@
 #import "DataPackItem.h"
 #import "ResourceCardTableViewCell.h"
 #import "DownloadViewController.h"
+#import "AmeTheme.h"   // ★ 7.0-UI-5a：Fluent 设计令牌（颜色/字体单一事实源）
 #import "utils.h"
 
 #pragma mark - 数据包卡片 Cell（继承 Prisma-Design 卡片基类，本文件内轻量子类）
@@ -141,17 +142,17 @@
 - (void)setupTipHeaderView {
     // 数据包目录说明横幅：轻量卡片样式（半透明基底 + 0.5pt 描边 + 10pt 圆角）
     UIView *container = [[UIView alloc] init];
-    container.backgroundColor = [[UIColor whiteColor] colorWithAlphaComponent:0.06];
+    container.backgroundColor = [[AmeTheme surfaceOverlay] colorWithAlphaComponent:0.06];
     container.layer.cornerRadius = 10.0;
     container.layer.cornerCurve = kCACornerCurveContinuous;
     container.layer.borderWidth = 0.5;
-    container.layer.borderColor = [[UIColor whiteColor] colorWithAlphaComponent:0.10].CGColor;
+    container.layer.borderColor = [[AmeTheme divider] colorWithAlphaComponent:0.10].CGColor;
     container.clipsToBounds = YES;
 
     UILabel *tipLabel = [[UILabel alloc] init];
     tipLabel.translatesAutoresizingMaskIntoConstraints = NO;
     tipLabel.font = [UIFont systemFontOfSize:11];
-    tipLabel.textColor = [UIColor systemOrangeColor];
+    tipLabel.textColor = [AmeTheme statusWarning];
     tipLabel.textAlignment = NSTextAlignmentCenter;
     tipLabel.numberOfLines = 0;
     tipLabel.text = localize(@"resman.datapacks.tip", nil);
@@ -334,7 +335,7 @@
     } else {
         // 搜索无结果：不放引导按钮
         [self showEmptyStateWithIcon:@"magnifyingglass"
-                           iconColor:[UIColor secondaryLabelColor]
+                           iconColor:[AmeTheme textSecondary]
                              message:localize(@"resman.datapacks.search_empty", nil)
                         actionTitle:nil
                       actionHandler:nil];
@@ -415,7 +416,7 @@
         }]];
         [weakSelf presentViewController:alert animated:YES completion:nil];
     }];
-    deleteAction.backgroundColor = [UIColor systemRedColor];
+    deleteAction.backgroundColor = [AmeTheme statusDanger];
 
     return [UISwipeActionsConfiguration configurationWithActions:@[deleteAction]];
 }

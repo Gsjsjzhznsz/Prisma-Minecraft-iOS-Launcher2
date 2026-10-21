@@ -10,6 +10,7 @@
 #import "UIKit+NativeSurface.h"
 #import "IconLoader.h"
 #import "utils.h"
+#import "AmeTheme.h"   // ★ 7.0-UI-5d：Fluent 设计令牌（颜色/字体单一事实源）
 #import <SafariServices/SafariServices.h>
 
 /// 缩略图目标尺寸（用于 IconLoader 降采样）
@@ -44,7 +45,7 @@ static const NSInteger kNewsPageSize = 24;
     [super prepareForReuse];
     [IconLoader cancelLoadingForImageView:self.thumbnailView];
     self.thumbnailView.image = [UIImage systemImageNamed:@"newspaper.fill"];
-    self.thumbnailView.tintColor = [UIColor secondaryLabelColor];
+    self.thumbnailView.tintColor = [AmeTheme textSecondary];
     self.titleLabel.text = nil;
     self.metaLabel.text = nil;
     self.summaryLabel.text = nil;
@@ -76,9 +77,9 @@ static const NSInteger kNewsPageSize = 24;
         _thumbnailView.clipsToBounds = YES;
         _thumbnailView.layer.cornerRadius = kNewsThumbnailCornerRadius;
         _thumbnailView.layer.cornerCurve = kCACornerCurveContinuous;
-        _thumbnailView.backgroundColor = [UIColor secondarySystemBackgroundColor];
+        _thumbnailView.backgroundColor = [AmeTheme bgSecondary];
         _thumbnailView.image = [UIImage systemImageNamed:@"newspaper.fill"];
-        _thumbnailView.tintColor = [UIColor secondaryLabelColor];
+        _thumbnailView.tintColor = [AmeTheme textSecondary];
         [self.contentView addSubview:_thumbnailView];
 
         // 加载指示器（封面图加载时显示）
@@ -90,21 +91,21 @@ static const NSInteger kNewsPageSize = 24;
         _titleLabel = [[UILabel alloc] init];
         _titleLabel.translatesAutoresizingMaskIntoConstraints = NO;
         _titleLabel.font = [UIFont systemFontOfSize:15 weight:UIFontWeightSemibold];
-        _titleLabel.textColor = [UIColor labelColor];
+        _titleLabel.textColor = [AmeTheme textPrimary];
         _titleLabel.numberOfLines = 3;
         [self.contentView addSubview:_titleLabel];
 
         _metaLabel = [[UILabel alloc] init];
         _metaLabel.translatesAutoresizingMaskIntoConstraints = NO;
         _metaLabel.font = [UIFont systemFontOfSize:11 weight:UIFontWeightRegular];
-        _metaLabel.textColor = [UIColor tertiaryLabelColor];
+        _metaLabel.textColor = [AmeTheme textTertiary];
         _metaLabel.numberOfLines = 1;
         [self.contentView addSubview:_metaLabel];
 
         _summaryLabel = [[UILabel alloc] init];
         _summaryLabel.translatesAutoresizingMaskIntoConstraints = NO;
         _summaryLabel.font = [UIFont systemFontOfSize:12 weight:UIFontWeightRegular];
-        _summaryLabel.textColor = [UIColor secondaryLabelColor];
+        _summaryLabel.textColor = [AmeTheme textSecondary];
         // Task149：新闻简介全部显示而非截断（用户指令）——行数不限制，
         // 卡片高度随内容自 sizing（布局侧 estimated 尺寸）
         _summaryLabel.numberOfLines = 0;
@@ -112,7 +113,7 @@ static const NSInteger kNewsPageSize = 24;
         _readMoreLabel = [[UILabel alloc] init];
         _readMoreLabel.translatesAutoresizingMaskIntoConstraints = NO;
         _readMoreLabel.font = [UIFont systemFontOfSize:12 weight:UIFontWeightSemibold];
-        _readMoreLabel.textColor = [UIColor systemBlueColor];
+        _readMoreLabel.textColor = [AmeTheme brandPrimary];
         _readMoreLabel.text = localize(@"mc_news.read_more", nil);
         _readMoreLabel.textAlignment = NSTextAlignmentRight;
 
@@ -207,7 +208,7 @@ static const NSInteger kNewsPageSize = 24;
 - (void)viewDidLoad {
     [super viewDidLoad];
     self.title = localize(@"mc_news.title", nil);
-    self.view.backgroundColor = [UIColor systemBackgroundColor]; // Task137：原生页面底色
+    self.view.backgroundColor = [AmeTheme bgPrimary]; // Task137：原生页面底色
 
     // 适配自定义启动器背景
     [[BackgroundManager sharedManager] makeViewControllerTransparent:self];
@@ -267,7 +268,7 @@ static const NSInteger kNewsPageSize = 24;
 
     self.errorLabel = [[UILabel alloc] init];
     self.errorLabel.translatesAutoresizingMaskIntoConstraints = NO;
-    self.errorLabel.textColor = [UIColor secondaryLabelColor];
+    self.errorLabel.textColor = [AmeTheme textSecondary];
     self.errorLabel.textAlignment = NSTextAlignmentCenter;
     self.errorLabel.numberOfLines = 0;
     self.errorLabel.hidden = YES;

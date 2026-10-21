@@ -7,6 +7,7 @@
 //
 
 #import "ModLoaderIconHelper.h"
+#import "AmeTheme.h" // ★ 7.0-UI-5f：Fluent 设计令牌层（未知加载器占位兜底灰 → textTertiary）
 
 @implementation ModLoaderIconHelper
 
@@ -16,7 +17,7 @@
 /// 配色参照各加载器官方品牌指南，与 FCL/ZL2 使用的官方色保持一致
 + (UIColor *)brandColorForLoader:(NSString *)loader {
     if (!loader || loader.length == 0) {
-        return [UIColor tertiaryLabelColor];
+        return [AmeTheme textTertiary]; // 7.0-UI-5f：占位兜底灰（原 tertiaryLabelColor）
     }
     NSString *lower = loader.lowercaseString;
 
@@ -58,8 +59,8 @@
         // 原版绿 #66CC66
         return [UIColor colorWithRed:0.40 green:0.80 blue:0.40 alpha:1.0];
     }
-    // 未识别：返回系统次级标签色（灰色，作为兜底）
-    return [UIColor tertiaryLabelColor];
+    // 未识别：三级文本灰兜底（7.0-UI-5f：tertiaryLabelColor → textTertiary）
+    return [AmeTheme textTertiary];
 }
 
 #pragma mark - SF Symbol 名称

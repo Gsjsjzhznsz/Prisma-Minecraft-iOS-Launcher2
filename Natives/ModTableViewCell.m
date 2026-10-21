@@ -13,6 +13,7 @@
 #import "ModService.h"
 #import "ModLoaderIconHelper.h"
 #import "LauncherPreferences.h"
+#import "AmeTheme.h"   // ★ 7.0-UI-5a：Fluent 设计令牌（颜色/字体单一事实源）
 #import "utils.h"
 #import <QuartzCore/QuartzCore.h>
 
@@ -91,7 +92,7 @@
     // 无图标可用时的语义色回退（容器内 SF Symbol，非裸图标）
     if (!self.iconImageView.image) {
         self.iconImageView.image = [UIImage systemImageNamed:@"puzzlepiece.extension.fill"];
-        self.iconImageView.tintColor = [UIColor whiteColor];
+        self.iconImageView.tintColor = [AmeTheme textOnBrand];
     }
 }
 
@@ -143,7 +144,7 @@
         _downloadButton.translatesAutoresizingMaskIntoConstraints = NO;
         [_downloadButton setTitle:localize(@"resman.mods.download", nil) forState:UIControlStateNormal];
         // Task137：恢复 Task89 之前的原生下载按钮（accent 底白字 + 胶囊圆角）
-        [_downloadButton setTitleColor:[UIColor whiteColor] forState:UIControlStateNormal];
+        [_downloadButton setTitleColor:[AmeTheme textOnBrand] forState:UIControlStateNormal];
         _downloadButton.backgroundColor = accentColor();
         _downloadButton.layer.cornerRadius = 13.0;
         _downloadButton.titleLabel.font = [UIFont systemFontOfSize:12 weight:UIFontWeightSemibold];
@@ -161,7 +162,7 @@
     if (!_openLinkButton) {
         _openLinkButton = [UIButton buttonWithType:UIButtonTypeSystem];
         _openLinkButton.translatesAutoresizingMaskIntoConstraints = NO;
-        UIImage *image = [[UIImage systemImageNamed:@"globe"] imageWithTintColor:[UIColor secondaryLabelColor]];
+        UIImage *image = [[UIImage systemImageNamed:@"globe"] imageWithTintColor:[AmeTheme textSecondary]];
         [_openLinkButton setImage:image forState:UIControlStateNormal];
         _openLinkButton.contentMode = UIViewContentModeScaleAspectFit;
         [_openLinkButton setContentHuggingPriority:UILayoutPriorityRequired forAxis:UILayoutConstraintAxisHorizontal];

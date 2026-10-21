@@ -3,12 +3,16 @@
 //  Amethyst
 //
 //  Task210：新拟态引擎整体退役后的卡片表面样式辅助（设计说明见头文件）。
-//  保留三件套：平贴表面色 + 深浅自适应主/次文字色（色值逐字节沿用 Task177
-//  定稿），命名去 Neumorph 字样；AmeNeumorphShadowView 承载引擎、渐变表面、
-//  双阴影、卡体透明度原语与圆角钉住全部随 Task210 删除。
+//  保留三件套：平贴表面色 + 深浅自适应主/次文字色（命名去 Neumorph 字样；
+//  AmeNeumorphShadowView 承载引擎、渐变表面、双阴影、卡体透明度原语与圆角
+//  钉住全部随 Task210 删除）。
+//  ★ 7.0-UI-5f：三件套色值由 Task177 定稿硬编码迁至 AmeTheme Fluent 令牌
+//  （卡面→surfaceCard / 主文本→textPrimary / 次文本→textSecondary，令牌
+//  自带 dynamicProvider 深浅自适应，AmeCardDynamicColor 包裹保留零逻辑变动）。
 //
 
 #import "UIKit+NativeSurface.h"
+#import "AmeTheme.h" // ★ 7.0-UI-5f：Fluent 设计令牌层（卡面/主次文字 → surfaceCard/textPrimary/textSecondary）
 #import <objc/runtime.h>
 
 #pragma mark - Task210 卡面色（动态 provider，深浅色自适应）
@@ -23,18 +27,18 @@ static UIColor *AmeCardDynamicColor(UIColor *light, UIColor *dark) {
 }
 
 UIColor *AmeCardSurfaceColor(void) {
-    return AmeCardDynamicColor([UIColor colorWithRed:0xE0/255.0 green:0xE0/255.0 blue:0xE0/255.0 alpha:1.0],   // #e0e0e0
-                               [UIColor colorWithRed:0x2C/255.0 green:0x2C/255.0 blue:0x2C/255.0 alpha:1.0]);  // #2c2c2c
+    // 7.0-UI-5f：系统层卡面 → surfaceCard（原 Task177 定稿 #e0e0e0/#2c2c2c 退役）
+    return AmeCardDynamicColor([AmeTheme surfaceCard], [AmeTheme surfaceCard]);
 }
 
 UIColor *AmeCardPrimaryTextColor(void) {
-    return AmeCardDynamicColor([UIColor colorWithRed:0x33/255.0 green:0x33/255.0 blue:0x33/255.0 alpha:1.0],   // #333333
-                               [UIColor colorWithRed:0xF5/255.0 green:0xF5/255.0 blue:0xF5/255.0 alpha:1.0]);  // #f5f5f5
+    // 7.0-UI-5f：系统层主文本 → textPrimary（原 Task177 定稿 #333333/#f5f5f5 退役）
+    return AmeCardDynamicColor([AmeTheme textPrimary], [AmeTheme textPrimary]);
 }
 
 UIColor *AmeCardSecondaryTextColor(void) {
-    return AmeCardDynamicColor([UIColor colorWithRed:0x88/255.0 green:0x88/255.0 blue:0x88/255.0 alpha:1.0],   // #888888
-                               [UIColor colorWithRed:0xA0/255.0 green:0xA0/255.0 blue:0xA0/255.0 alpha:1.0]);  // #a0a0a0
+    // 7.0-UI-5f：系统层次文本 → textSecondary（原 Task177 定稿 #888888/#a0a0a0 退役）
+    return AmeCardDynamicColor([AmeTheme textSecondary], [AmeTheme textSecondary]);
 }
 
 #pragma mark - 平贴表面分类

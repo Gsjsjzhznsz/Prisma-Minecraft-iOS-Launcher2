@@ -8,6 +8,7 @@
 #import "AnnouncementItem.h"
 #import "MarkdownParser.h"
 #import "BackgroundManager.h"
+#import "AmeTheme.h"   // ★ 7.0-UI-5d：Fluent 设计令牌（颜色/字体单一事实源）
 #import <SafariServices/SafariServices.h>
 
 @interface AnnouncementDetailViewController () <SFSafariViewControllerDelegate>
@@ -31,7 +32,7 @@
 
 - (void)viewDidLoad {
     [super viewDidLoad];
-    self.view.backgroundColor = [UIColor systemBackgroundColor]; // Task136：主题化页面底色
+    self.view.backgroundColor = [AmeTheme bgPrimary]; // Task136：主题化页面底色
 
     // 适配自定义启动器背景
     [[BackgroundManager sharedManager] makeViewControllerTransparent:self];
@@ -55,15 +56,15 @@
 
     self.titleLabel = [[UILabel alloc] init];
     self.titleLabel.translatesAutoresizingMaskIntoConstraints = NO;
-    self.titleLabel.font = [UIFont systemFontOfSize:22 weight:UIFontWeightBold];
-    self.titleLabel.textColor = [UIColor labelColor];
+    self.titleLabel.font = [AmeTheme fontTitle2];   // 7.0-UI-5d：22 bold → Fluent title2 22 semibold
+    self.titleLabel.textColor = [AmeTheme textPrimary];
     self.titleLabel.numberOfLines = 0;
     [self.scrollView addSubview:self.titleLabel];
 
     self.dateLabel = [[UILabel alloc] init];
     self.dateLabel.translatesAutoresizingMaskIntoConstraints = NO;
-    self.dateLabel.font = [UIFont systemFontOfSize:13 weight:UIFontWeightRegular];
-    self.dateLabel.textColor = [UIColor secondaryLabelColor];
+    self.dateLabel.font = [AmeTheme fontCaption];
+    self.dateLabel.textColor = [AmeTheme textSecondary];
     self.dateLabel.numberOfLines = 1;
     [self.scrollView addSubview:self.dateLabel];
 
@@ -74,19 +75,19 @@
     self.contentTextView.backgroundColor = [UIColor clearColor];
     self.contentTextView.textContainerInset = UIEdgeInsetsZero;
     self.contentTextView.textContainer.lineFragmentPadding = 0;
-    self.contentTextView.font = [UIFont systemFontOfSize:15];
+    self.contentTextView.font = [AmeTheme fontBody2];
     self.contentTextView.dataDetectorTypes = UIDataDetectorTypeLink;
     [self.scrollView addSubview:self.contentTextView];
 
     self.actionButton = [UIButton buttonWithType:UIButtonTypeSystem];
     self.actionButton.translatesAutoresizingMaskIntoConstraints = NO;
     self.actionButton.titleLabel.font = [UIFont systemFontOfSize:15 weight:UIFontWeightSemibold];
-    self.actionButton.layer.cornerRadius = 10;
+    self.actionButton.layer.cornerRadius = [AmeTheme radiusL];   // 7.0-UI-5d：按钮 10 → Fluent large 8
     self.actionButton.layer.cornerCurve = kCACornerCurveContinuous;
     // Task137：恢复 Task89 之前的原生主按钮（系统蓝底白字，内容裁剪到圆角）
     self.actionButton.clipsToBounds = YES;
-    self.actionButton.backgroundColor = [UIColor systemBlueColor];
-    [self.actionButton setTitleColor:[UIColor whiteColor] forState:UIControlStateNormal];
+    self.actionButton.backgroundColor = [AmeTheme brandPrimary];
+    [self.actionButton setTitleColor:[AmeTheme textOnBrand] forState:UIControlStateNormal];
     [self.actionButton addTarget:self action:@selector(openActionURL) forControlEvents:UIControlEventTouchUpInside];
     self.actionButton.hidden = YES;
     [self.scrollView addSubview:self.actionButton];
@@ -125,7 +126,7 @@
     // 用 MarkdownParser 渲染正文
     NSString *content = self.item.content.length > 0 ? self.item.content : self.item.summary;
     NSAttributedString *attributed = [MarkdownParser parseMarkdown:content
-                                                         baseFont:[UIFont systemFontOfSize:15]];
+                                                         baseFont:[AmeTheme fontBody2]];
     self.contentTextView.attributedText = attributed;
 
     // 若有 actionURL 显示按钮

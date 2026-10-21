@@ -10,6 +10,7 @@
 #import "ShaderService.h"
 #import "ShaderItem.h"
 #import "DownloadViewController.h"
+#import "AmeTheme.h"   // ★ 7.0-UI-5a：Fluent 设计令牌（颜色/字体单一事实源）
 #import "utils.h"
 
 #pragma mark - ShaderCardCell（光影卡片，Prisma-Design L2 标准卡片）
@@ -196,9 +197,9 @@ static NSString * const kShaderCardCellIdentifier = @"ShaderCardCell";
         // 危险操作 pill：红底白字胶囊（高 32 / 圆角 16，Prisma-Design 7）
         _batchDeleteButton = [UIButton buttonWithType:UIButtonTypeSystem];
         [_batchDeleteButton setTitle:localize(@"resman.shaders.delete_selected", nil) forState:UIControlStateNormal];
-        [_batchDeleteButton setTitleColor:[UIColor whiteColor] forState:UIControlStateNormal];
+        [_batchDeleteButton setTitleColor:[AmeTheme textOnBrand] forState:UIControlStateNormal];
         _batchDeleteButton.titleLabel.font = [UIFont systemFontOfSize:15 weight:UIFontWeightSemibold];
-        _batchDeleteButton.backgroundColor = [UIColor systemRedColor];
+        _batchDeleteButton.backgroundColor = [AmeTheme statusDanger];
         _batchDeleteButton.contentEdgeInsets = UIEdgeInsetsMake(6, 16, 6, 16);
         _batchDeleteButton.layer.cornerRadius = 16.0;
         _batchDeleteButton.layer.cornerCurve = kCACornerCurveContinuous;
@@ -529,7 +530,7 @@ static NSString * const kShaderCardCellIdentifier = @"ShaderCardCell";
         [self presentViewController:alert animated:YES completion:nil];
     }];
 
-    deleteAction.backgroundColor = [UIColor systemRedColor];
+    deleteAction.backgroundColor = [AmeTheme statusDanger];
 
     UISwipeActionsConfiguration *configuration = [UISwipeActionsConfiguration configurationWithActions:@[deleteAction]];
     configuration.performsFirstActionWithFullSwipe = YES;

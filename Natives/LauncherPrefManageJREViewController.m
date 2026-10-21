@@ -9,6 +9,7 @@
 #import "ios_uikit_bridge.h"
 #import "utils.h"
 #import "BackgroundManager.h"
+#import "AmeTheme.h"   // ★ 7.0-UI-5c：Fluent 设计令牌（颜色/字体单一事实源）
 #import "DownloadTaskManager.h"
 #import "DownloadTaskItem.h"
 #import "PLTaskStages.h"
@@ -290,12 +291,12 @@ static NSString *currentImportTaskId;
     // 透明背景：不再使用毛玻璃，可看到背景图
     header.backgroundView = nil;
     if ([[BackgroundManager sharedManager] hasBackground]) {
-        header.textLabel.textColor = [UIColor labelColor];
+        header.textLabel.textColor = [AmeTheme textPrimary];
         // Task160：去文字阴影（重影修复，与启动器设置页同口径）
         header.textLabel.shadowColor = nil;
         header.textLabel.shadowOffset = CGSizeZero;
     } else {
-        header.textLabel.textColor = [UIColor labelColor];
+        header.textLabel.textColor = [AmeTheme textPrimary];
         header.textLabel.shadowColor = nil;
     }
 }

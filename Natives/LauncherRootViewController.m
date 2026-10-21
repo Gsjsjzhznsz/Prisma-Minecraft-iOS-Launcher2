@@ -31,6 +31,7 @@
 #import "AI/AIViewController.h"
 #import "AI/AiSessionStore.h"
 #import "LauncherHelpViewController.h"
+#import "AmeTheme.h"   // ★ 7.0-UI-5b：Fluent 设计令牌（颜色/字体单一事实源）
 
 // 布局常量（iPad 基准值；iPhone 上通过 LauncherRootLayoutWidth 适配后会变窄）
 static const CGFloat kSidebarWidthPad = 70.0;      // iPad 左侧边栏宽度
@@ -328,7 +329,7 @@ static CGFloat LauncherRootLayoutRightPanelWidth(UITraitCollection *trait) {
     // 表面应用统一收敛到 updateChromeSurfaces（setupContainers 尾部一次调用）。
     self.sidebarContainer = [[UIView alloc] init];
     self.sidebarContainer.translatesAutoresizingMaskIntoConstraints = NO;
-    self.sidebarContainer.layer.cornerRadius = 16;
+    self.sidebarContainer.layer.cornerRadius = [AmeTheme radiusXL];   // 7.0-UI-5b：16→Fluent XL12
     self.sidebarContainer.layer.maskedCorners = kCALayerMinXMinYCorner | kCALayerMinXMaxYCorner;
     self.sidebarContainer.layer.masksToBounds = YES;
     [self.view addSubview:self.sidebarContainer];
@@ -342,7 +343,7 @@ static CGFloat LauncherRootLayoutRightPanelWidth(UITraitCollection *trait) {
     // 右侧面板容器 - 表面同侧栏随背景模式切换（Task111），仅保留外侧（右上/右下）圆角
     self.rightPanelContainer = [[UIView alloc] init];
     self.rightPanelContainer.translatesAutoresizingMaskIntoConstraints = NO;
-    self.rightPanelContainer.layer.cornerRadius = 16;
+    self.rightPanelContainer.layer.cornerRadius = [AmeTheme radiusXL];   // 7.0-UI-5b：16→Fluent XL12
     self.rightPanelContainer.layer.maskedCorners = kCALayerMaxXMinYCorner | kCALayerMaxXMaxYCorner;
     self.rightPanelContainer.layer.masksToBounds = YES;
     [self.view addSubview:self.rightPanelContainer];
@@ -780,8 +781,8 @@ static CGFloat LauncherRootLayoutRightPanelWidth(UITraitCollection *trait) {
         [[BackgroundManager sharedManager] applyEffectToView:self.sidebarContainer];
         [[BackgroundManager sharedManager] applyEffectToView:self.rightPanelContainer];
     } else {
-        [self.sidebarContainer ame_applyPanelSurfaceWithRadius:16];
-        [self.rightPanelContainer ame_applyPanelSurfaceWithRadius:16];
+        [self.sidebarContainer ame_applyPanelSurfaceWithRadius:[AmeTheme radiusXL]];   // 7.0-UI-5b：16→XL12
+        [self.rightPanelContainer ame_applyPanelSurfaceWithRadius:[AmeTheme radiusXL]];   // 7.0-UI-5b：16→XL12
     }
     // ★ Task250（反馈 5：恢复卡片颜色适配）：与 Card 布局同语义——用户自选
     //   general.card_color 时叠半透明纯色底（毛玻璃/平贴表面照常在下层）；

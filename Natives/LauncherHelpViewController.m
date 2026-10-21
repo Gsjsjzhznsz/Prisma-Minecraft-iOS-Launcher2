@@ -2,6 +2,7 @@
 #import "BackgroundManager.h"
 #import "LauncherPreferences.h"
 #import "utils.h"
+#import "AmeTheme.h"   // ★ 7.0-UI-5d：Fluent 设计令牌（颜色/字体单一事实源）
 
 // ============================================================================
 // Task 82：启动器"使用问题"（FAQ）页面
@@ -157,7 +158,7 @@
 - (UITableViewCell *)tableView:(UITableView *)tableView cellForRowAtIndexPath:(NSIndexPath *)indexPath {
     UITableViewCell *cell = [tableView dequeueReusableCellWithIdentifier:@"HelpFaqCell" forIndexPath:indexPath];
     cell.selectionStyle = UITableViewCellSelectionStyleNone;
-    cell.backgroundColor = [UIColor secondarySystemBackgroundColor];
+    cell.backgroundColor = [AmeTheme surfaceCard];
 
     LauncherHelpFaqItem *item = self.itemsByCategory[indexPath.section][indexPath.row];
     BOOL expanded = [self.expandedPaths containsObject:@(indexPath.row * 1000 + indexPath.section)];
@@ -166,7 +167,7 @@
     NSMutableAttributedString *title = [[NSMutableAttributedString alloc] initWithString:item.question
                                                                               attributes:@{
         NSFontAttributeName: [UIFont systemFontOfSize:16 weight:UIFontWeightSemibold],
-        NSForegroundColorAttributeName: UIColor.labelColor
+        NSForegroundColorAttributeName: [AmeTheme textPrimary]
     }];
     if (expanded) {
         // 答案直接拼进同一 cell（动态行高展开），问题与答案之间空一行
@@ -174,7 +175,7 @@
         [title appendAttributedString:[[NSAttributedString alloc] initWithString:answerBlock
                                                                        attributes:@{
             NSFontAttributeName: [UIFont systemFontOfSize:14],
-            NSForegroundColorAttributeName: UIColor.secondaryLabelColor
+            NSForegroundColorAttributeName: [AmeTheme textSecondary]
         }]];
     }
     cell.textLabel.attributedText = title;

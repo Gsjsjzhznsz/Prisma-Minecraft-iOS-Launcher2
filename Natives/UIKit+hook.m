@@ -4,6 +4,7 @@
 #import "UIKit+hook.h"
 #import "utils.h"
 #import "AmeFloatingMenu.h"   // ★ Task237：悬浮菜单中央路由（钩子实现所在）
+#import "AmeTheme.h"   // ★ 7.0-UI-5b：Fluent 设计令牌（颜色/字体单一事实源）
 
 __weak UIWindow *mainWindow, *externalWindow;
 
@@ -168,7 +169,7 @@ void init_hookUIKitConstructor(void) {
             CGRectMake(self.view.bounds.origin.x, self.view.bounds.size.height - 100,
             self.view.bounds.size.width, 100)];
         toolbar.autoresizingMask = UIViewAutoresizingFlexibleTopMargin | UIViewAutoresizingFlexibleWidth;
-        toolbar.backgroundColor = UIColor.systemBackgroundColor;
+        toolbar.backgroundColor = [AmeTheme bgSecondary];   // 7.0-UI-5b：tvOS 伪工具栏内嵌容器底 → Fluent bg2 令牌
         objc_setAssociatedObject(self, @selector(toolbar), toolbar, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
         [self performSelector:@selector(_configureToolbar)];
     }

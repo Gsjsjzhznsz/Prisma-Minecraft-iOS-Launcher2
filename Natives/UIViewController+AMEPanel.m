@@ -7,6 +7,7 @@
 
 #import "UIViewController+AMEPanel.h"
 #import <objc/runtime.h>
+#import "AmeTheme.h"   // ★ 7.0-UI-5b：Fluent 设计令牌（颜色/字体单一事实源）
 
 static void *s_ame137_appliedKey = &s_ame137_appliedKey;
 
@@ -27,12 +28,13 @@ static void *s_ame137_appliedKey = &s_ame137_appliedKey;
     UIView *rootView = self.view;
     if (!rootView) return;
 
-    // (1) 基底画布：系统默认底（nil）-> systemBackgroundColor（iOS 原生，
-    //     深浅色自动适配）。已是 clearColor 的（BackgroundManager 全局背景
+    // (1) 基底画布：系统默认底（nil）-> AmeTheme bgPrimary（Fluent canvas
+    //     F5F5F5/141414，动态深浅自动适配；7.0-UI-5b 原生 systemBackgroundColor→令牌）。
+    //     已是 clearColor 的（BackgroundManager 全局背景
     //     透出面板）不动——那是刻意的透明定制，覆盖会破坏背景照片/视频功能
     //     （Task111）。
     if (rootView.backgroundColor != UIColor.clearColor) {
-        rootView.backgroundColor = [UIColor systemBackgroundColor];
+        rootView.backgroundColor = [AmeTheme bgPrimary];
     }
 
     // (2) 表格基底：背景清透（画布/照片透出）+ 系统分隔线。
@@ -58,8 +60,9 @@ static void *s_ame137_appliedKey = &s_ame137_appliedKey;
                 tv.backgroundColor = UIColor.clearColor;
             }
         }
-        // Task137：分隔线回归系统默认色（原新拟态版本改成了 secondaryLabel 灰）
-        tv.separatorColor = [UIColor separatorColor];
+        // Task137：分隔线回归系统默认色（原新拟态版本改成了 secondaryLabel 灰）；
+        // 7.0-UI-5b：系统 separator → Fluent stroke1 divider 令牌
+        tv.separatorColor = [AmeTheme divider];
         // 滚动指示器回归系统默认（自动适配深浅色）
         if (@available(iOS 13.0, *)) {
             tv.indicatorStyle = UIScrollViewIndicatorStyleDefault;

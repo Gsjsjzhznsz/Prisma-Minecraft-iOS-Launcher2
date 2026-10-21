@@ -20,6 +20,7 @@
 #import "LauncherPreferences.h"
 #import "DownloadViewController.h"
 #import "ProfileSettingsViewController.h"   // Task225：隔离徽标 → 版本设置入口
+#import "AmeTheme.h"   // ★ 7.0-UI-5a：Fluent 设计令牌（颜色/字体单一事实源）
 #import "utils.h"
 #import <CommonCrypto/CommonDigest.h>
 
@@ -356,7 +357,7 @@ static NSString *ModsManagerSHA1ForFile(NSString *path) {
     UIButton *chip = [UIButton buttonWithType:UIButtonTypeSystem];
     chip.translatesAutoresizingMaskIntoConstraints = NO;
     [chip setTitle:title forState:UIControlStateNormal];
-    chip.titleLabel.font = [UIFont systemFontOfSize:13 weight:UIFontWeightMedium];
+    chip.titleLabel.font = [AmeTheme fontCaption];
     chip.contentEdgeInsets = UIEdgeInsetsMake(5, 14, 5, 14);
     chip.layer.cornerRadius = 14.0;
     chip.layer.cornerCurve = kCACornerCurveContinuous;
@@ -371,15 +372,15 @@ static NSString *ModsManagerSHA1ForFile(NSString *path) {
 - (void)applyChipStyle:(UIButton *)chip selected:(BOOL)selected {
     if (selected) {
         chip.backgroundColor = accentColor();
-        [chip setTitleColor:[UIColor whiteColor] forState:UIControlStateNormal];
-        chip.tintColor = [UIColor whiteColor];
+        [chip setTitleColor:[AmeTheme textOnBrand] forState:UIControlStateNormal];
+        chip.tintColor = [AmeTheme textOnBrand];
         chip.layer.borderWidth = 0;
     } else {
-        chip.backgroundColor = [[UIColor whiteColor] colorWithAlphaComponent:0.08];
-        [chip setTitleColor:[UIColor labelColor] forState:UIControlStateNormal];
-        chip.tintColor = [UIColor labelColor];
+        chip.backgroundColor = [[AmeTheme surfaceCard] colorWithAlphaComponent:0.08];
+        [chip setTitleColor:[AmeTheme textPrimary] forState:UIControlStateNormal];
+        chip.tintColor = [AmeTheme textPrimary];
         chip.layer.borderWidth = 0.5;
-        chip.layer.borderColor = [[UIColor whiteColor] colorWithAlphaComponent:0.15].CGColor;
+        chip.layer.borderColor = [[AmeTheme divider] colorWithAlphaComponent:0.15].CGColor;
     }
 }
 
@@ -540,7 +541,7 @@ static NSString *ModsManagerSHA1ForFile(NSString *path) {
             }];
         } else {
             [self showEmptyStateWithIcon:@"magnifyingglass"
-                               iconColor:[UIColor secondaryLabelColor]
+                               iconColor:[AmeTheme textSecondary]
                                  message:localize(@"resman.mods.search_empty", nil)
                             actionTitle:nil
                           actionHandler:nil];
@@ -662,7 +663,7 @@ static NSString *ModsManagerSHA1ForFile(NSString *path) {
         }]];
         [self presentViewController:alert animated:YES completion:nil];
     }];
-    deleteAction.backgroundColor = [UIColor systemRedColor];
+    deleteAction.backgroundColor = [AmeTheme statusDanger];
 
     UISwipeActionsConfiguration *configuration = [UISwipeActionsConfiguration configurationWithActions:@[deleteAction]];
     configuration.performsFirstActionWithFullSwipe = YES;
@@ -684,13 +685,13 @@ static NSString *ModsManagerSHA1ForFile(NSString *path) {
     if (enabled) {
         // 填充批量操作按钮（首次懒创建，之后保持在 stack 中随工具栏显隐）
         if (!self.batchEnableButton) {
-            self.batchEnableButton = [self makeBatchActionButtonWithTitle:localize(@"resman.common.enable", nil) tintColor:[UIColor systemGreenColor]];
+            self.batchEnableButton = [self makeBatchActionButtonWithTitle:localize(@"resman.common.enable", nil) tintColor:[AmeTheme statusSuccess]];
             [self.batchEnableButton addTarget:self action:@selector(batchEnableTapped) forControlEvents:UIControlEventTouchUpInside];
 
-            self.batchDisableButton = [self makeBatchActionButtonWithTitle:localize(@"resman.common.disable", nil) tintColor:[UIColor systemOrangeColor]];
+            self.batchDisableButton = [self makeBatchActionButtonWithTitle:localize(@"resman.common.disable", nil) tintColor:[AmeTheme statusWarning]];
             [self.batchDisableButton addTarget:self action:@selector(batchDisableTapped) forControlEvents:UIControlEventTouchUpInside];
 
-            self.batchDeleteButton = [self makeBatchActionButtonWithTitle:localize(@"resman.common.delete", nil) tintColor:[UIColor systemRedColor]];
+            self.batchDeleteButton = [self makeBatchActionButtonWithTitle:localize(@"resman.common.delete", nil) tintColor:[AmeTheme statusDanger]];
             [self.batchDeleteButton addTarget:self action:@selector(batchDeleteTapped) forControlEvents:UIControlEventTouchUpInside];
 
             [self.batchActionStack addArrangedSubview:self.batchEnableButton];

@@ -1,5 +1,6 @@
 #import "FolderBrowserViewController.h"
 #import "BackgroundManager.h"
+#import "AmeTheme.h"   // ★ 7.0-UI-5c：Fluent 设计令牌（颜色/字体单一事实源）
 #import "LiquidGlassCompat.h"   // Task224（#4）：界面风格解析（文件夹浏览器头部随风格）
 #import "utils.h"
 #import "NMToast.h"
@@ -43,8 +44,8 @@
     // SOLID sheet exactly like the system Files app is the readable answer
     // for a file listing, and the sheet chrome itself already carries the
     // launcher look.
-    self.view.backgroundColor = [UIColor systemBackgroundColor];
-    self.tableView.backgroundColor = [UIColor secondarySystemGroupedBackgroundColor];
+    self.view.backgroundColor = [AmeTheme bgPrimary];
+    self.tableView.backgroundColor = [AmeTheme bgPrimary];
     self.tableView.backgroundView = nil;
     // ★ Task228：浏览器头部"交还系统玻璃"退役（与全局栏管线一致——用户
     // 指令软件 UI 保持原样、玻璃只用于悬浮弹窗；系统玻璃渲染在本进程
@@ -86,8 +87,8 @@
     //   尝试不在留存日志里）。防御 + 取证双管齐下：出现即再断言实底
     //   （任何管线若再洗它立即纠正），并落行数与首行文件名锚点——
     //   下一轮装机日志直接区分"没打开/打开了但 0 行/有行但不可见"。
-    self.view.backgroundColor = [UIColor systemBackgroundColor];
-    self.tableView.backgroundColor = [UIColor secondarySystemGroupedBackgroundColor];
+    self.view.backgroundColor = [AmeTheme bgPrimary];
+    self.tableView.backgroundColor = [AmeTheme bgPrimary];
     NSLog(@"[FolderBrowser] Task232 viewWillAppear: rows=%lu first=%@ path=%@",
           (unsigned long)_rows.count,
           _rows.count > 0 ? (_rows[0][@"name"] ?: @"-") : @"(none)",
@@ -98,8 +99,8 @@
     // Task229: the browser is a SOLID sheet now (see viewDidLoad) -- the old
     // transparency reapply would wash it back to the invisible frosted state
     // on every background-effect broadcast. Reassert the solid colors.
-    self.view.backgroundColor = [UIColor systemBackgroundColor];
-    self.tableView.backgroundColor = [UIColor secondarySystemGroupedBackgroundColor];
+    self.view.backgroundColor = [AmeTheme bgPrimary];
+    self.tableView.backgroundColor = [AmeTheme bgPrimary];
     // Task228：头部不再随风格切换交还系统（见 viewDidLoad 注释）。
 }
 
@@ -197,7 +198,7 @@
         UILabel *ame224_empty = [[UILabel alloc] init];
         ame224_empty.numberOfLines = 0;
         ame224_empty.textAlignment = NSTextAlignmentCenter;
-        ame224_empty.textColor = [UIColor secondaryLabelColor];
+        ame224_empty.textColor = [AmeTheme textSecondary];
         ame224_empty.font = [UIFont preferredFontForTextStyle:UIFontTextStyleSubheadline];
         ame224_empty.text = (retry < 3)
             ? localize(@"folderbrowser.empty.retrying", nil)
@@ -325,11 +326,11 @@ didPickDocumentsAtURLs:(NSArray<NSURL *> *)urls {
     extern void ame229_labelSetStrokeExempt(UILabel *, BOOL);
     ame229_labelSetStrokeExempt(cell.textLabel, YES);
     ame229_labelSetStrokeExempt(cell.detailTextLabel, YES);
-    cell.textLabel.textColor = [UIColor labelColor];
-    cell.detailTextLabel.textColor = [UIColor secondaryLabelColor];
+    cell.textLabel.textColor = [AmeTheme textPrimary];
+    cell.detailTextLabel.textColor = [AmeTheme textSecondary];
     if (isDir) {
         cell.imageView.image = [UIImage systemImageNamed:@"folder.fill"];
-        cell.imageView.tintColor = [UIColor systemBlueColor];
+        cell.imageView.tintColor = [AmeTheme brandPrimary];
         NSUInteger count = [self ame223_childCountOfPath:row[@"path"]];
         cell.detailTextLabel.text = [NSString stringWithFormat:localize(@"folderbrowser.item_count", nil), (unsigned long)count];
         cell.accessoryType = UITableViewCellAccessoryDisclosureIndicator;
@@ -341,13 +342,13 @@ didPickDocumentsAtURLs:(NSArray<NSURL *> *)urls {
         }
         if (icon == nil) icon = [UIImage systemImageNamed:@"doc"];
         cell.imageView.image = icon;
-        cell.imageView.tintColor = [UIColor secondaryLabelColor];
+        cell.imageView.tintColor = [AmeTheme textSecondary];
         unsigned long long size = [row[@"size"] unsignedLongLongValue];
         cell.detailTextLabel.text = [NSByteCountFormatter stringFromByteCount:size
                                                                   countStyle:NSByteCountFormatterCountStyleFile];
         cell.accessoryType = UITableViewCellAccessoryNone;
     }
-    cell.backgroundColor = [UIColor secondarySystemGroupedBackgroundColor];
+    cell.backgroundColor = [AmeTheme surfaceCard];
     return cell;
 }
 
@@ -397,7 +398,7 @@ didPickDocumentsAtURLs:(NSArray<NSURL *> *)urls {
         done(YES);
     }];
     share.image = [UIImage systemImageNamed:@"square.and.arrow.up"];
-    share.backgroundColor = [UIColor systemBlueColor];
+    share.backgroundColor = [AmeTheme brandPrimary];
     return [UISwipeActionsConfiguration configurationWithActions:@[share]];
 }
 

@@ -25,6 +25,7 @@
 #import "ios_uikit_bridge.h"
 #import "utils.h"
 #import "installer/modpack/ModrinthAPI.h"
+#import "AmeTheme.h"   // ★ 7.0-UI-5b：Fluent 设计令牌（颜色/字体单一事实源）
 
 #include <sys/time.h>
 
@@ -128,11 +129,11 @@ static void *ProgressObserverContext = &ProgressObserverContext;
     setButtonPointerInteraction(self.buttonInstall);
     [self.buttonInstall setTitle:localize(@"Play", nil) forState:UIControlStateNormal];
     self.buttonInstall.autoresizingMask = AUTORESIZE_MASKS;
-    // Task137：恢复 Task89 之前的原生主按钮（品牌紫底白字）
-    self.buttonInstall.backgroundColor = [UIColor colorWithRed:121/255.0 green:56/255.0 blue:162/255.0 alpha:1.0];
-    self.buttonInstall.layer.cornerRadius = 5;
+    // Task137：恢复 Task89 之前的原生主按钮（品牌底白字；7.0-UI-5b 紫→Fluent brandPrimary）
+    self.buttonInstall.backgroundColor = [AmeTheme brandPrimary];
+    self.buttonInstall.layer.cornerRadius = [AmeTheme radiusL];
     self.buttonInstall.frame = CGRectMake(self.toolbar.frame.size.width * 0.8, 4, self.toolbar.frame.size.width * 0.2, self.toolbar.frame.size.height - 8);
-    self.buttonInstall.tintColor = UIColor.whiteColor;
+    self.buttonInstall.tintColor = [AmeTheme textOnBrand];
     self.buttonInstall.enabled = NO;
     [self.buttonInstall addTarget:self action:@selector(performInstallOrShowDetails:) forControlEvents:UIControlEventPrimaryActionTriggered];
     [targetToolbar addSubview:self.buttonInstall];
@@ -145,13 +146,13 @@ static void *ProgressObserverContext = &ProgressObserverContext;
     CGFloat dcBtnHeight = self.toolbar.frame.size.height - 8;
     self.downloadCenterButton = [UIButton buttonWithType:UIButtonTypeSystem];
     // 不使用按钮的 title 显示文字，改用独立的 progressLabel 避免与图标布局冲突
-    // Task137：恢复 Task89 之前的原生入口按钮（品牌紫底 + 白色图标）
-    self.downloadCenterButton.backgroundColor = [UIColor colorWithRed:121/255.0 green:56/255.0 blue:162/255.0 alpha:0.85];
-    self.downloadCenterButton.layer.cornerRadius = 5;
+    // Task137：恢复 Task89 之前的原生入口按钮（品牌底 + 白色图标；7.0-UI-5b 紫→brandPrimary，保留原 0.85 alpha 语义）
+    self.downloadCenterButton.backgroundColor = [[AmeTheme brandPrimary] colorWithAlphaComponent:0.85];
+    self.downloadCenterButton.layer.cornerRadius = [AmeTheme radiusL];
     self.downloadCenterButton.frame = CGRectMake(4, 4, dcBtnWidth, dcBtnHeight);
     self.downloadCenterButton.autoresizingMask = UIViewAutoresizingFlexibleRightMargin;
     [self.downloadCenterButton setImage:[UIImage systemImageNamed:@"arrow.down.circle"] forState:UIControlStateNormal];
-    self.downloadCenterButton.tintColor = [UIColor whiteColor];
+    self.downloadCenterButton.tintColor = [AmeTheme textOnBrand];
     // 图标固定在按钮左侧
     CGFloat iconSize = 22.0;
     [self.downloadCenterButton setImageEdgeInsets:UIEdgeInsetsMake(0, 4, 0, dcBtnWidth - iconSize - 4)];
@@ -162,7 +163,7 @@ static void *ProgressObserverContext = &ProgressObserverContext;
     // 活动指示器（按钮右侧，下载中时旋转）
     self.downloadCenterActivityIndicator = [[UIActivityIndicatorView alloc] initWithActivityIndicatorStyle:UIActivityIndicatorViewStyleMedium];
     // Task137：恢复原生白色指示器（原紫色按钮底假设）
-    self.downloadCenterActivityIndicator.color = [UIColor whiteColor];
+    self.downloadCenterActivityIndicator.color = [AmeTheme textOnBrand];
     self.downloadCenterActivityIndicator.hidesWhenStopped = YES;
     CGFloat indicatorSize = 20.0;
     self.downloadCenterActivityIndicator.frame = CGRectMake(dcBtnWidth - indicatorSize - 4, (dcBtnHeight - indicatorSize) / 2.0, indicatorSize, indicatorSize);
@@ -172,7 +173,7 @@ static void *ProgressObserverContext = &ProgressObserverContext;
     // 进度百分比标签（按钮中间，显示聚合进度百分比）
     self.downloadCenterProgressLabel = [[UILabel alloc] init];
     self.downloadCenterProgressLabel.font = [UIFont monospacedDigitSystemFontOfSize:11 weight:UIFontWeightBold];
-    self.downloadCenterProgressLabel.textColor = [UIColor whiteColor];
+    self.downloadCenterProgressLabel.textColor = [AmeTheme textOnBrand];
     self.downloadCenterProgressLabel.textAlignment = NSTextAlignmentCenter;
     self.downloadCenterProgressLabel.text = @"";
     self.downloadCenterProgressLabel.frame = CGRectMake(iconSize + 6, 0, dcBtnWidth - iconSize - indicatorSize - 12, dcBtnHeight);
@@ -184,10 +185,10 @@ static void *ProgressObserverContext = &ProgressObserverContext;
     // 按钮内部已无空余空间（图标+百分比+指示器排满），叠图标视觉损耗最小。
     self.downloadCenterBadgeLabel = [[UILabel alloc] init];
     self.downloadCenterBadgeLabel.font = [UIFont monospacedDigitSystemFontOfSize:10 weight:UIFontWeightBold];
-    self.downloadCenterBadgeLabel.textColor = [UIColor whiteColor];
-    self.downloadCenterBadgeLabel.backgroundColor = [UIColor systemRedColor];
+    self.downloadCenterBadgeLabel.textColor = [AmeTheme textOnBrand];
+    self.downloadCenterBadgeLabel.backgroundColor = [AmeTheme statusDanger];
     self.downloadCenterBadgeLabel.textAlignment = NSTextAlignmentCenter;
-    self.downloadCenterBadgeLabel.layer.cornerRadius = 8.0;
+    self.downloadCenterBadgeLabel.layer.cornerRadius = [AmeTheme radiusL];
     self.downloadCenterBadgeLabel.layer.masksToBounds = YES;
     self.downloadCenterBadgeLabel.frame = CGRectMake(iconSize - 10, 0, 16, 16);
     self.downloadCenterBadgeLabel.autoresizingMask = UIViewAutoresizingFlexibleRightMargin;

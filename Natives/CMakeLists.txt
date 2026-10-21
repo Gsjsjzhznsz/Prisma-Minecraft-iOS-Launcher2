@@ -504,6 +504,10 @@ add_executable(AngelAuraAmethyst
   FluentListCell.m
   FluentTextField.m
   FluentToast.m
+  # 7.0-UI-5g：Fluent 组件库第二批
+  FluentSegmentedControl.m
+  FluentProgress.m
+  FluentBanner.m
   InlineMessageView.m
   DownloadTaskItem.m
   DownloadTaskManager.m

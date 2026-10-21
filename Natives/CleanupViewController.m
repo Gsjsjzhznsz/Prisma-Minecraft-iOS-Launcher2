@@ -17,6 +17,7 @@
 #import "CleanupViewController.h"
 #import "PLProfiles.h"
 #import "utils.h"
+#import "AmeTheme.h"   // ★ 7.0-UI-5d：Fluent 设计令牌（颜色/字体单一事实源）
 
 // 行模型：title / detail / cleanupBlock（点击执行，已含确认弹窗）
 @interface CleanupViewController ()
@@ -203,7 +204,7 @@
                 style:UIBarButtonItemStylePlain
                target:self action:@selector(ame255_close)];
     if (@available(iOS 13.0, *)) {
-        self.navigationItem.rightBarButtonItem.tintColor = [UIColor labelColor];
+        self.navigationItem.rightBarButtonItem.tintColor = [AmeTheme textPrimary];
     }
     [self ame255_reloadRows];
     NSLog(@"[Cleanup] Task255: cleanup center opened");
@@ -225,8 +226,8 @@
     if (cell == nil) {
         cell = [[UITableViewCell alloc] initWithStyle:UITableViewCellStyleSubtitle reuseIdentifier:reuse];
         if (@available(iOS 13.0, *)) {
-            cell.textLabel.textColor = [UIColor labelColor];
-            cell.detailTextLabel.textColor = [UIColor secondaryLabelColor];
+            cell.textLabel.textColor = [AmeTheme textPrimary];
+            cell.detailTextLabel.textColor = [AmeTheme textSecondary];
         }
         cell.textLabel.font = [UIFont systemFontOfSize:16 weight:UIFontWeightMedium];
     }
@@ -236,7 +237,7 @@
     if (@available(iOS 13.0, *)) {
         UIImageSymbolConfiguration *cfg = [UIImageSymbolConfiguration configurationWithPointSize:18];
         cell.imageView.image = [UIImage systemImageNamed:@"trash" withConfiguration:cfg];
-        cell.imageView.tintColor = [UIColor systemRedColor];
+        cell.imageView.tintColor = [AmeTheme statusDanger];
     }
     return cell;
 }

@@ -10,6 +10,7 @@
 // ★ [MP-RESTORE] Task222：Terracotta 联机恢复（上游同日恢复）
 #import "TerracottaManager.h"
 #import "TerracottaBridge.h"
+#import "AmeTheme.h"   // ★ 7.0-UI-5b：Fluent 设计令牌（颜色/字体单一事实源）
 
 extern __weak UIWindow *mainWindow;
 
@@ -92,10 +93,11 @@ extern BOOL Amethyst_EnforceSDL3Presentation(void);
     
     self.window = [[UIWindow alloc] initWithWindowScene:windowScene];
     self.window.frame = windowScene.coordinateSpace.bounds;
-    // Task137：窗口底色回归 iOS 原生系统底色（深浅色由语义色自动适配）；
+    // Task137：窗口底色回归系统底色语义（深浅色由语义色自动适配）；
+    // 7.0-UI-5b：systemBackgroundColor → AmeTheme bgPrimary（Fluent canvas）。
     // 用户设置自定义壁纸时仍由 BackgroundManager.applyBackgroundToWindow
     // 接管（Task111 检测并切换）。
-    self.window.backgroundColor = [UIColor systemBackgroundColor];
+    self.window.backgroundColor = [AmeTheme bgPrimary];
     mainWindow = self.window;
 
     // 根据设置选择布局：Task180 用户定稿默认 = 卡片式便当盒布局；显式选择

@@ -12,6 +12,7 @@
 #import "ResourcePackItem.h"
 #import "ResourceCardTableViewCell.h"
 #import "DownloadViewController.h"
+#import "AmeTheme.h"   // ★ 7.0-UI-5a：Fluent 设计令牌（颜色/字体单一事实源）
 #import "utils.h"
 
 #pragma mark - 资源包卡片 Cell（继承 Prisma-Design 卡片基类，本文件内轻量子类）
@@ -273,7 +274,7 @@
     } else {
         // 搜索无结果：不放引导按钮
         [self showEmptyStateWithIcon:@"magnifyingglass"
-                           iconColor:[UIColor secondaryLabelColor]
+                           iconColor:[AmeTheme textSecondary]
                              message:localize(@"resman.resourcepacks.search_empty", nil)
                         actionTitle:nil
                       actionHandler:nil];
@@ -354,7 +355,7 @@
         }]];
         [weakSelf presentViewController:alert animated:YES completion:nil];
     }];
-    deleteAction.backgroundColor = [UIColor systemRedColor];
+    deleteAction.backgroundColor = [AmeTheme statusDanger];
 
     return [UISwipeActionsConfiguration configurationWithActions:@[deleteAction]];
 }

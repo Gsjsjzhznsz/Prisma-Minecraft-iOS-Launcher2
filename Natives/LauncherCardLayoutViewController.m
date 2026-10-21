@@ -29,6 +29,7 @@
 #import "AI/AiSessionStore.h"
 // Task212：使用问题 FAQ 页（侧边栏问号按钮）在卡片布局下的落地依赖
 #import "LauncherHelpViewController.h"
+#import "AmeTheme.h"   // ★ 7.0-UI-5b：Fluent 设计令牌（颜色/字体单一事实源）
 
 // 布局常量（iPad/宽屏基准值；iPhone 上通过 traitCollection 适配后会变窄）
 static const CGFloat kSidebarWidthPad = 70.0;      // iPad 左侧边栏卡片宽度
@@ -38,7 +39,6 @@ static const CGFloat kRightPanelWidthPhone = 168.0; // iPhone 右侧面板卡片
 static const CGFloat kCardSpacing = 12.0;          // 卡片间距
 static const CGFloat kCardOuterMarginPad = 12.0;   // iPad 卡片到外边缘的间距
 static const CGFloat kCardOuterMarginPhone = 8.0;  // iPhone 卡片到外边缘的间距（窄屏减小留白）
-static const CGFloat kCardCornerRadius = 16.0;     // 卡片圆角
 
 /// 检测物理设备是否为 iPhone（不受 debug.debug_ipad_ui 的 idiom hook 影响）。
 /// UIKit+hook.m 会把 idiom 强制改成 Pad，导致 trait.userInterfaceIdiom 不可靠。
@@ -315,7 +315,7 @@ static CGFloat LauncherCardLayoutRightPanelWidth(UITraitCollection *trait) {
 - (UIView *)createCardContainer {
     UIView *card = [[UIView alloc] init];
     card.translatesAutoresizingMaskIntoConstraints = NO;
-    card.layer.cornerRadius = kCardCornerRadius;
+    card.layer.cornerRadius = [AmeTheme radiusXL];   // 7.0-UI-5b：kCardCornerRadius 16→Fluent XL12（令牌随 AmeTheme 单一事实源）
     card.layer.masksToBounds = YES;
     [[BackgroundManager sharedManager] applyEffectToView:card];
     [self applyCustomCardColorToCard:card];
