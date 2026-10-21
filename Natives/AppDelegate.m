@@ -1,4 +1,5 @@
 #import "AppDelegate.h"
+#import "AmeTheme.h"
 #import "SceneDelegate.h"
 #import "ios_uikit_bridge.h"
 #import "utils.h"
@@ -18,6 +19,8 @@ extern dispatch_group_t fatalExitGroup;
 #pragma mark - UISceneSession lifecycle
 
 - (UISceneConfiguration *)application:(UIApplication *)application configurationForConnectingSceneSession:(UISceneSession *)connectingSceneSession options:(UISceneConnectionOptions *)options {
+    // 7.0-UI-2：Fluent 风格令牌层全局外观接线（UIAppearance 代理，scene 配置期一次）
+    [AmeTheme applyGlobalAppearance];
     // Task189：异常处理器晚装复挂。main.m 预初始化里装的
     // NSSetUncaughtExceptionHandler 被 LiveContainer 宿主（其共享框架在
     // invokeAppMain 前后装载自己的崩溃处理链）覆盖——c3f4623 会话的

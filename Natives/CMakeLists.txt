@@ -497,6 +497,7 @@ add_executable(AngelAuraAmethyst
   GameMenuOverlayView.m
   AmeFloatingMenu.m
   AmeNativeMenu.m
+  AmeTheme.m
   InlineMessageView.m
   DownloadTaskItem.m
   DownloadTaskManager.m

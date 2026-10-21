@@ -1,13 +1,9 @@
-name: Development build
+name: Development build (7.0 test repo - auto-release disabled)
 
+# 7.0-UI 红线：本仓库为 7.0 测试专用（Prisma-Minecraft-iOS-Launcher2），
+# 仅出测试版不上传发行版——push/PR 自动触发器已拆除（原配置每次 push 都会
+# 重发 nightly release），只保留手动 workflow_dispatch。
 on:
-  pull_request:
-    branches-ignore:
-      - 'l10n_main'
-    types: [opened, reopened, synchronize]
-  push:
-    branches-ignore:
-      - 'l10n_main'
   workflow_dispatch:
 
 # 并发控制：同一分支/PR 新的推送会取消仍在排队或运行的旧构建。
