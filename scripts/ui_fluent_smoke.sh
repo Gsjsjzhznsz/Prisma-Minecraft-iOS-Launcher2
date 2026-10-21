@@ -87,6 +87,7 @@ preview_mode() {
     AmeTheme FluentButton FluentCard FluentListCell FluentTextField
     FluentToast FluentSegmentedControl FluentProgress FluentBanner
     LauncherMenuViewController
+    ZL2Theme ZL2RailView ZL2HomeViewController
   )
   local objs=()
   for s in "${sources[@]}"; do
@@ -187,7 +188,7 @@ PLIST
   xcrun simctl ui "$device" appearance light >/dev/null 2>&1 || true
 
   xcrun simctl terminate "$device" com.prisma-devs.ame-fluent-preview >/dev/null 2>&1 || true
-  echo "== 预览冒烟完成（截图即视觉验收：侧栏 pill/IconButton 着色/组件两态）=="
+  echo "== 预览冒烟完成（截图即视觉验收：ZL2 新壳 rail/Home 大启动按钮/版本卡 + Fluent 侧栏双栏对比）=="
 }
 
 case "$MODE" in

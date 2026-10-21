@@ -508,6 +508,11 @@ add_executable(AngelAuraAmethyst
   FluentSegmentedControl.m
   FluentProgress.m
   FluentBanner.m
+  # 7.0-UI-8：ZL2 对标重构（M3 令牌层 + NavigationRail 壳 + ZL2 主页）
+  ZL2Theme.m
+  ZL2RailView.m
+  ZL2HomeViewController.m
+  ZL2ShellViewController.m
   InlineMessageView.m
   DownloadTaskItem.m
   DownloadTaskManager.m

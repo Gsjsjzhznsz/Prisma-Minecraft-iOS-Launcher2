@@ -1,9 +1,11 @@
 //
-// AmeFluentPreviewMain.m — Fluent 2 前端预览/冒烟 harness（7.0-UI-7）
+// AmeFluentPreviewMain.m — Fluent 2 / ZL2 前端预览/冒烟 harness（7.0-UI-7/8）
 //
 // 用途：scripts/ui_fluent_smoke.sh preview 的宿主 App——在 iOS 模拟器里
-//   1:1 渲染侧栏 Navigation Rail 重搭成果（真实 LauncherMenuViewController
-//   原样嵌入）+ 组件库 8 件套全陈列，供浅/深两态截图冒烟。
+//   1:1 渲染 ZL2 新壳视觉（M3 NavigationRail + ZL2HomeViewController 原样
+//   嵌入，7.0-UI-8）+ Fluent 8 件套全陈列（含真实 LauncherMenuViewController
+//   侧栏，双栏对比），供浅/深两态截图冒烟。
+//
 //
 // ★ 正式构建不含本文件：Natives/CMakeLists.txt 为显式源列表（唯一的
 //   file(GLOB) 仅涉 ModLoaderIcons/*.png），本文件不会被编入 App。
@@ -23,6 +25,9 @@
 #import "FluentProgress.h"
 #import "FluentBanner.h"
 #import "LauncherMenuViewController.h"
+#import "ZL2Theme.h"
+#import "ZL2RailView.h"
+#import "ZL2HomeViewController.h"
 
 #pragma mark - 服务桩（预览链路专用）
 
@@ -59,6 +64,138 @@ id getPrefObject(NSString *key) {
     viewController.view.backgroundColor = [UIColor clearColor];
 }
 
+@end
+
+#pragma mark - ZL2 预览桩（7.0-UI-8：ZL2HomeViewController 链接期依赖）
+
+// 签名全部取自真实头文件（BaseAuthenticator.h / PLProfiles.h /
+// MinecraftResourceDownloadTask.h / DownloadTaskManager.h /
+// PLTaskProgressViewController.h / utils.h）；桩 TU 不 import 真头，
+// 手写同名类声明 + 实现（与 BackgroundManager 桩同款先例），仅补齐
+// ZL2Home.m 直接调用的符号，无 duplicate symbol。
+
+// utils.h 声明：NSString* localize(NSString *key, NSString *comment)
+// 预览桩：仅映射启动三态既有键，其余返回键名
+NSString *localize(NSString *key, NSString *comment) {
+    NSDictionary *table = @{@"i18n_str_412": @"启动游戏",
+                            @"i18n_str_434": @"下载中",
+                            @"i18n_str_435": @"登录并启动"};
+    NSString *hit = table[key];
+    return hit ?: key;
+}
+
+// BaseAuthenticator 最小桩：预览恒未登录态（launchReady = 登录并启动文案）
+@interface BaseAuthenticator : NSObject
++ (id)current;
+@end
+
+@implementation BaseAuthenticator
++ (id)current { return nil; }
+@end
+
+// PLProfiles 最小桩：无 profile（版本卡显示"未选择实例"）
+@interface PLProfiles : NSObject
++ (PLProfiles *)current;
+- (NSString *)selectedProfileName;
+- (NSMutableDictionary *)profiles;
+- (void)save;
+@end
+
+@implementation PLProfiles
+
++ (PLProfiles *)current {
+    static PLProfiles *p = nil;
+    static dispatch_once_t onceToken;
+    dispatch_once(&onceToken, ^{ p = [[PLProfiles alloc] init]; });
+    return p;
+}
+
+- (NSString *)selectedProfileName { return nil; }
+- (NSMutableDictionary *)profiles { return [NSMutableDictionary dictionary]; }
+- (void)save {}
+
+@end
+
+// MinecraftResourceDownloadTask 最小桩：预览演示态——downloadVersion: 后
+// 模拟进度推进（NSProgress completedUnitCount 驱动 KVO → Home 状态 label
+// 显示"下载中 xx%"），让截图可验收下载态视觉
+@interface MinecraftResourceDownloadTask : NSObject
+@property(nonatomic, strong) NSProgress *progress;
+@property(nonatomic, copy) void (^handleError)(void);
+- (void)downloadVersion:(NSDictionary *)version;
+@end
+
+@implementation MinecraftResourceDownloadTask
+
+- (instancetype)init {
+    self = [super init];
+    if (self) {
+        _progress = [[NSProgress alloc] initWithParent:nil userInfo:nil];
+        _progress.totalUnitCount = 100;
+    }
+    return self;
+}
+
+- (void)downloadVersion:(NSDictionary *)version {
+    __weak MinecraftResourceDownloadTask *weakSelf = self;
+    dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(1.5 * NSEC_PER_SEC)),
+                   dispatch_get_main_queue(), ^{
+        __strong MinecraftResourceDownloadTask *strongSelf = weakSelf;
+        if (!strongSelf) return;
+        [strongSelf.progress becomeCurrentWithPendingUnitCount:100];
+        strongSelf.progress.completedUnitCount = 8;
+        [strongSelf.progress resignCurrent];
+        dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.5 * NSEC_PER_SEC)),
+                       dispatch_get_main_queue(), ^{
+            __strong MinecraftResourceDownloadTask *s2 = weakSelf;
+            if (!s2) return;
+            [s2.progress becomeCurrentWithPendingUnitCount:92];
+            s2.progress.completedUnitCount += 55;
+            [s2.progress resignCurrent];
+        });
+    });
+}
+
+@end
+
+// DownloadTaskManager 最小桩：预览无真实任务
+@interface DownloadTaskItem : NSObject
+@property(nonatomic, copy) NSString *taskId;
+@property(nonatomic, weak) id rawTask;
+@end
+
+@implementation DownloadTaskItem
+@end
+
+@interface DownloadTaskManager : NSObject
++ (instancetype)sharedManager;
+- (NSArray<DownloadTaskItem *> *)allTasks;
+- (BOOL)hasActiveTasks;
+@end
+
+@implementation DownloadTaskManager
+
++ (instancetype)sharedManager {
+    static DownloadTaskManager *m = nil;
+    static dispatch_once_t onceToken;
+    dispatch_once(&onceToken, ^{ m = [[DownloadTaskManager alloc] init]; });
+    return m;
+}
+
+- (NSArray<DownloadTaskItem *> *)allTasks { return @[]; }
+- (BOOL)hasActiveTasks { return NO; }
+
+@end
+
+// PLTaskProgressViewController 最小桩：预览不真呈现
+@interface PLTaskProgressViewController : UIViewController
++ (void)presentForTaskId:(NSString *)taskId;
+@end
+
+@implementation PLTaskProgressViewController
++ (void)presentForTaskId:(NSString *)taskId {
+    NSLog(@"[AmeFluentPreview] stub presentForTaskId:%@", taskId);
+}
 @end
 
 #pragma mark - 组件陈列面板（右侧）
@@ -313,6 +450,217 @@ id getPrefObject(NSString *key) {
 
 @end
 
+#pragma mark - Fluent 旧栏陈列页（双栏对比：真实旧侧栏 + 8 件套）
+
+// 原 7.0-UI-7 根组装平移至此：左侧真实 LauncherMenuViewController（56pt
+// Fluent 栏宿主）+ 右侧组件陈列面板，挂 ZL2 壳 rail 第 6 项"组件"
+@interface AmeFluentLegacyPageViewController : UIViewController
+@end
+
+@implementation AmeFluentLegacyPageViewController
+
+- (void)viewDidLoad {
+    [super viewDidLoad];
+    self.view.backgroundColor = [AmeTheme bgPrimary];
+
+    UIView *sidebarHost = [[UIView alloc] init];
+    sidebarHost.backgroundColor = [AmeTheme bgSecondary];
+    sidebarHost.layer.cornerRadius = [AmeTheme radiusXL];
+    sidebarHost.layer.cornerCurve = kCACornerCurveContinuous;
+    sidebarHost.layer.maskedCorners = kCALayerMinXMinYCorner | kCALayerMinXMaxYCorner;
+    sidebarHost.layer.masksToBounds = YES;
+    sidebarHost.translatesAutoresizingMaskIntoConstraints = NO;
+    [self.view addSubview:sidebarHost];
+
+    LauncherMenuViewController *menu = [[LauncherMenuViewController alloc] init];
+    menu.onMenuItemSelected = ^(NSInteger index, NSString *title) {
+        NSLog(@"[AmeFluentPreview] menu index=%ld title=%@", (long)index, title);
+    };
+    [self addChildViewController:menu];
+    [sidebarHost addSubview:menu.view];
+    // 7.0-UI-7：子 VC 编程视图默认 translates=YES，autoresizing 恒等约束会与
+    // 四边钉冲突被拆（首跑截图侧栏整体缺失根因），必须显式关
+    menu.view.translatesAutoresizingMaskIntoConstraints = NO;
+    [menu didMoveToParentViewController:self];
+
+    AmeDemoPanelViewController *demo = [[AmeDemoPanelViewController alloc] init];
+    [self addChildViewController:demo];
+    [self.view addSubview:demo.view];
+    demo.view.translatesAutoresizingMaskIntoConstraints = NO;
+
+    [NSLayoutConstraint activateConstraints:@[
+        [sidebarHost.leadingAnchor constraintEqualToAnchor:self.view.leadingAnchor constant:8],
+        [sidebarHost.widthAnchor constraintEqualToConstant:56],
+        [sidebarHost.topAnchor constraintEqualToAnchor:self.view.topAnchor constant:8],
+        [sidebarHost.bottomAnchor constraintEqualToAnchor:self.view.bottomAnchor constant:-8],
+        [menu.view.leadingAnchor constraintEqualToAnchor:sidebarHost.leadingAnchor],
+        [menu.view.trailingAnchor constraintEqualToAnchor:sidebarHost.trailingAnchor],
+        [menu.view.topAnchor constraintEqualToAnchor:sidebarHost.topAnchor],
+        [menu.view.bottomAnchor constraintEqualToAnchor:sidebarHost.bottomAnchor],
+        [demo.view.leadingAnchor constraintEqualToAnchor:sidebarHost.trailingAnchor constant:8],
+        [demo.view.trailingAnchor constraintEqualToAnchor:self.view.trailingAnchor constant:-8],
+        [demo.view.topAnchor constraintEqualToAnchor:self.view.topAnchor constant:8],
+        [demo.view.bottomAnchor constraintEqualToAnchor:self.view.bottomAnchor constant:-8]
+    ]];
+}
+
+@end
+
+#pragma mark - ZL2 占位页（rail 1-4：功能页复用现有 VC，正式构建壳内托管）
+
+@interface ZL2PlaceholderPageViewController : UIViewController
+- (instancetype)initWithTitle:(NSString *)title note:(NSString *)note;
+@end
+
+@implementation ZL2PlaceholderPageViewController {
+    NSString *_pageTitle;
+    NSString *_note;
+}
+
+- (instancetype)initWithTitle:(NSString *)title note:(NSString *)note {
+    self = [super init];
+    if (self) { _pageTitle = title; _note = note; }
+    return self;
+}
+
+- (void)viewDidLoad {
+    [super viewDidLoad];
+    self.view.backgroundColor = [ZL2Theme surface];
+
+    UIView *card = [[UIView alloc] init];
+    card.translatesAutoresizingMaskIntoConstraints = NO;
+    card.backgroundColor = [ZL2Theme surfaceContainer];
+    card.layer.cornerRadius = [ZL2Theme radiusM];
+    [self.view addSubview:card];
+
+    UILabel *title = [[UILabel alloc] init];
+    title.translatesAutoresizingMaskIntoConstraints = NO;
+    title.text = _pageTitle;
+    title.font = [ZL2Theme fontTitleMedium];
+    title.textColor = [ZL2Theme onSurface];
+    [card addSubview:title];
+
+    UILabel *noteLabel = [[UILabel alloc] init];
+    noteLabel.translatesAutoresizingMaskIntoConstraints = NO;
+    noteLabel.text = _note;
+    noteLabel.font = [ZL2Theme fontBodyMedium];
+    noteLabel.textColor = [ZL2Theme onSurfaceVariant];
+    noteLabel.numberOfLines = 0;
+    [card addSubview:noteLabel];
+
+    [NSLayoutConstraint activateConstraints:@[
+        [card.centerXAnchor constraintEqualToAnchor:self.view.centerXAnchor],
+        [card.centerYAnchor constraintEqualToAnchor:self.view.centerYAnchor],
+        [card.widthAnchor constraintLessThanOrEqualToConstant:420],
+        [title.topAnchor constraintEqualToAnchor:card.topAnchor constant:20],
+        [title.leadingAnchor constraintEqualToAnchor:card.leadingAnchor constant:20],
+        [title.trailingAnchor constraintLessThanOrEqualToAnchor:card.trailingAnchor constant:-20],
+        [noteLabel.topAnchor constraintEqualToAnchor:title.bottomAnchor constant:8],
+        [noteLabel.leadingAnchor constraintEqualToAnchor:card.leadingAnchor constant:20],
+        [noteLabel.trailingAnchor constraintEqualToAnchor:card.trailingAnchor constant:-20],
+        [noteLabel.bottomAnchor constraintEqualToAnchor:card.bottomAnchor constant:-20],
+    ]];
+}
+
+@end
+
+#pragma mark - ZL2 壳预览控制器（rail 6 项 + 容器切换，1:1 壳视觉）
+
+@interface AmePreviewShellController : UIViewController <ZL2RailViewDelegate>
+@property(nonatomic, strong) ZL2RailView *rail;
+@property(nonatomic, strong) UIView *container;
+@property(nonatomic, strong) NSMutableDictionary<NSNumber *, UIViewController *> *cache;
+@property(nonatomic, assign) NSInteger currentIndex;
+@end
+
+@implementation AmePreviewShellController
+
+- (void)viewDidLoad {
+    [super viewDidLoad];
+    self.view.backgroundColor = [ZL2Theme surface];
+    self.cache = [NSMutableDictionary dictionary];
+    self.currentIndex = -1;
+
+    CGFloat railW = [ZL2RailView widthForIdiom:[[UIDevice currentDevice] userInterfaceIdiom]];
+    self.rail = [[ZL2RailView alloc] initWithItems:@[@"主页", @"下载", @"版本", @"账户", @"设置", @"组件"]
+                                           symbols:@[@"house.fill",
+                                                     @"arrow.down.circle.fill",
+                                                     @"folder.fill",
+                                                     @"person.fill",
+                                                     @"gearshape.fill",
+                                                     @"square.grid.2x2.fill"]];
+    self.rail.translatesAutoresizingMaskIntoConstraints = NO;
+    self.rail.delegate = self;
+    [self.view addSubview:self.rail];
+
+    self.container = [[UIView alloc] init];
+    self.container.translatesAutoresizingMaskIntoConstraints = NO;
+    [self.view addSubview:self.container];
+
+    [NSLayoutConstraint activateConstraints:@[
+        [self.rail.leadingAnchor constraintEqualToAnchor:self.view.leadingAnchor],
+        [self.rail.topAnchor constraintEqualToAnchor:self.view.topAnchor],
+        [self.rail.bottomAnchor constraintEqualToAnchor:self.view.bottomAnchor],
+        [self.rail.widthAnchor constraintEqualToConstant:railW],
+        [self.container.leadingAnchor constraintEqualToAnchor:self.rail.trailingAnchor],
+        [self.container.trailingAnchor constraintEqualToAnchor:self.view.trailingAnchor],
+        [self.container.topAnchor constraintEqualToAnchor:self.view.topAnchor],
+        [self.container.bottomAnchor constraintEqualToAnchor:self.view.bottomAnchor],
+    ]];
+
+    [self ame_showIndex:0];
+}
+
+- (void)ame_showIndex:(NSInteger)index {
+    if (index == self.currentIndex) return;
+    UIViewController *next = self.cache[@(index)];
+    if (!next) {
+        switch (index) {
+            case 0: next = [[ZL2HomeViewController alloc] init]; break;
+            case 1: next = [[ZL2PlaceholderPageViewController alloc] initWithTitle:@"下载中心"
+                                                                        note:@"复用 DownloadViewController（7.0-UI 迁移成果），正式构建由 ZL2ShellViewController 壳内托管。"]; break;
+            case 2: next = [[ZL2PlaceholderPageViewController alloc] initWithTitle:@"版本管理"
+                                                                        note:@"复用 VersionManagerViewController，正式构建由 ZL2ShellViewController 壳内托管。"]; break;
+            case 3: next = [[ZL2PlaceholderPageViewController alloc] initWithTitle:@"账户"
+                                                                        note:@"复用 AccountListViewController，正式构建由 ZL2ShellViewController 壳内托管。"]; break;
+            case 4: next = [[ZL2PlaceholderPageViewController alloc] initWithTitle:@"设置"
+                                                                        note:@"复用 LauncherPreferencesViewController，正式构建由 ZL2ShellViewController 壳内托管。"]; break;
+            case 5: next = [[AmeFluentLegacyPageViewController alloc] init]; break;
+            default: return;
+        }
+        self.cache[@(index)] = next;
+    }
+
+    UIViewController *prev = self.cache[@(self.currentIndex)];
+    [self addChildViewController:next];
+    next.view.translatesAutoresizingMaskIntoConstraints = NO;
+    [self.container addSubview:next.view];
+    [NSLayoutConstraint activateConstraints:@[
+        [next.view.leadingAnchor constraintEqualToAnchor:self.container.leadingAnchor],
+        [next.view.trailingAnchor constraintEqualToAnchor:self.container.trailingAnchor],
+        [next.view.topAnchor constraintEqualToAnchor:self.container.topAnchor],
+        [next.view.bottomAnchor constraintEqualToAnchor:self.container.bottomAnchor],
+    ]];
+    [next didMoveToParentViewController:self];
+
+    [UIView transitionWithView:self.container
+                      duration:0.18
+                       options:UIViewAnimationOptionTransitionCrossDissolve
+                    animations:^{
+        prev.view.hidden = YES;
+        next.view.hidden = NO;
+    } completion:nil];
+
+    self.currentIndex = index;
+    self.rail.selectedIndex = index;
+}
+
+- (void)railView:(ZL2RailView *)rail didSelectIndex:(NSInteger)index {
+    [self ame_showIndex:index];
+}
+
+@end
+
 #pragma mark - AppDelegate + main
 
 @interface AmePreviewAppDelegate : UIResponder <UIApplicationDelegate>
@@ -323,53 +671,11 @@ id getPrefObject(NSString *key) {
 
 - (BOOL)application:(UIApplication *)application didFinishLaunchingWithOptions:(NSDictionary *)launchOptions {
     self.window = [[UIWindow alloc] initWithFrame:[UIScreen mainScreen].bounds];
-    self.window.backgroundColor = [AmeTheme bgPrimary];
+    self.window.backgroundColor = [ZL2Theme surface];
 
-    UIViewController *root = [[UIViewController alloc] init];
-    root.view.backgroundColor = [AmeTheme bgPrimary];
-
-    // ── 左：侧栏宿主（模拟 RootVC 布局：surface 底 + radiusXL + 单侧圆角）──
-    UIView *sidebarHost = [[UIView alloc] init];
-    sidebarHost.backgroundColor = [AmeTheme bgSecondary];
-    sidebarHost.layer.cornerRadius = [AmeTheme radiusXL];
-    sidebarHost.layer.cornerCurve = kCACornerCurveContinuous;
-    sidebarHost.layer.maskedCorners = kCALayerMinXMinYCorner | kCALayerMinXMaxYCorner;
-    sidebarHost.layer.masksToBounds = YES;
-    sidebarHost.translatesAutoresizingMaskIntoConstraints = NO;
-    [root.view addSubview:sidebarHost];
-
-    // ── 真实侧栏原样嵌入（重搭成果的直接视觉验证）──
-    LauncherMenuViewController *menu = [[LauncherMenuViewController alloc] init];
-    menu.onMenuItemSelected = ^(NSInteger index, NSString *title) {
-        NSLog(@"[AmeFluentPreview] menu index=%ld title=%@", (long)index, title);
-    };
-    [root addChildViewController:menu];
-    [sidebarHost addSubview:menu.view];
-    // 7.0-UI-7：子 VC 编程视图默认 translates=YES，autoresizing 恒等约束会与
-    // 下方四边钉冲突被拆（首跑截图侧栏整体缺失根因），必须显式关
-    menu.view.translatesAutoresizingMaskIntoConstraints = NO;
-    [menu didMoveToParentViewController:root];
-
-    // ── 右：组件陈列面板 ──
-    AmeDemoPanelViewController *demo = [[AmeDemoPanelViewController alloc] init];
-    [root addChildViewController:demo];
-    [root.view addSubview:demo.view];
-    demo.view.translatesAutoresizingMaskIntoConstraints = NO;   // 同上
-
-    [NSLayoutConstraint activateConstraints:@[
-        [sidebarHost.leadingAnchor constraintEqualToAnchor:root.view.leadingAnchor constant:8],
-        [sidebarHost.widthAnchor constraintEqualToConstant:56],
-        [sidebarHost.topAnchor constraintEqualToAnchor:root.view.topAnchor constant:8],
-        [sidebarHost.bottomAnchor constraintEqualToAnchor:root.view.bottomAnchor constant:-8],
-        [menu.view.leadingAnchor constraintEqualToAnchor:sidebarHost.leadingAnchor],
-        [menu.view.trailingAnchor constraintEqualToAnchor:sidebarHost.trailingAnchor],
-        [menu.view.topAnchor constraintEqualToAnchor:sidebarHost.topAnchor],
-        [menu.view.bottomAnchor constraintEqualToAnchor:sidebarHost.bottomAnchor],
-        [demo.view.leadingAnchor constraintEqualToAnchor:sidebarHost.trailingAnchor constant:8],
-        [demo.view.trailingAnchor constraintEqualToAnchor:root.view.trailingAnchor constant:-8],
-        [demo.view.topAnchor constraintEqualToAnchor:root.view.topAnchor constant:8],
-        [demo.view.bottomAnchor constraintEqualToAnchor:root.view.bottomAnchor constant:-8]
-    ]];
+    // 7.0-UI-8：根 = ZL2 壳视觉 1:1（M3 NavigationRail + ZL2Home 原样嵌入）；
+    // Fluent 旧栏与 8 件套陈列收进第 6 项"组件"（双栏对比页）
+    UIViewController *root = [[AmePreviewShellController alloc] init];
 
     self.window.rootViewController = root;
     [self.window makeKeyAndVisible];

@@ -11,6 +11,7 @@
 #import "TerracottaManager.h"
 #import "TerracottaBridge.h"
 #import "AmeTheme.h"   // ★ 7.0-UI-5b：Fluent 设计令牌（颜色/字体单一事实源）
+#import "ZL2ShellViewController.h" // ★ 7.0-UI-8：ZL2 对标新壳（Material 3 NavigationRail）
 
 extern __weak UIWindow *mainWindow;
 
@@ -100,15 +101,11 @@ extern BOOL Amethyst_EnforceSDL3Presentation(void);
     self.window.backgroundColor = [AmeTheme bgPrimary];
     mainWindow = self.window;
 
-    // 根据设置选择布局：Task180 用户定稿默认 = 卡片式便当盒布局；显式选择
-    // 过 "vs"（写盘）的设备保持三栏布局（未写盘 = 从未选择 → 走新默认 card）
-    NSString *layout = getPrefObject(@"general.ui_layout");
-    UIViewController *rootVC;
-    if ([layout isEqualToString:@"vs"]) {
-        rootVC = [[LauncherRootViewController alloc] init];
-    } else {
-        rootVC = [[LauncherCardLayoutViewController alloc] init];
-    }
+    // 7.0-UI-8：全面对标 ZL2（用户定调"抛弃旧代码"）——根壳一律 ZL2Shell
+    // （Material 3 NavigationRail + ZL2 主页）。旧 card/vs 布局入口退役：
+    // general.ui_layout 偏好不再参与根选择；两个旧壳类保留编译（游戏域
+    // 桥接/欢迎向导锚点仍引用其符号），仅运行时不再进入。
+    UIViewController *rootVC = [[ZL2ShellViewController alloc] init];
     self.window.rootViewController = rootVC;
 
     // Task218：首次使用欢迎向导（general.welcome_completed 哨兵，默认 NO）。
