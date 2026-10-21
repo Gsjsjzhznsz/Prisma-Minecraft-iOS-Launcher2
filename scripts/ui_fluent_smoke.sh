@@ -226,6 +226,17 @@ PLIST
         echo "── 崩溃报告(最近): $f"
         grep -aoE '"exception"[^}]{0,260}|"asi":\{[^}]{0,600}|Application Specific Information[^}]{0,400}|unrecognized selector[^"]{0,140}|dyld[^"]{0,200}|"terminationDetails":"[^"]{0,300}' "$f" | head -15
       done
+      # console-pty 直捕（取证期临时）：app 的 stdout/stderr 原样落日志，崩溃
+      # 栈/NSException reason/dyld 报错直接可见；后台+超时自杀防阻塞
+      xcrun simctl launch --console-pty "$device" com.prisma-devs.ame-fluent-preview -zl2page "$p" > "$OUT/console-$p.log" 2>&1 &
+      local conpid=$!
+      sleep 6
+      kill "$conpid" 2>/dev/null || true
+      wait "$conpid" 2>/dev/null || true
+      echo "── console-pty 直捕[$p]（首 80 行）:"
+      head -80 "$OUT/console-$p.log" 2>/dev/null || echo "  （无输出）"
+      echo "── 模拟器统一日志（ame-fluent 相关，近 4 分钟）:"
+      xcrun simctl spawn "$device" log show --last 4m --style compact --predicate 'eventMessage CONTAINS[c] "ame-fluent" OR processImagePath CONTAINS[c] "ame-fluent"' 2>/dev/null | grep -aiE "exit|kill|crash|terminat|launch|bootstrapp|runningboard" | head -30
       FAIL=1
       return
     fi
