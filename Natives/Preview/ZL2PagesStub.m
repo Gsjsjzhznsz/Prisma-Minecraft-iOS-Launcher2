@@ -458,21 +458,21 @@ void customNSLog(const char *file, int lineNumber, const char *functionName, NSS
 - (void)searchModWithFilters:(NSDictionary *)filters
                   completion:(void (^)(NSArray * _Nullable results, NSError * _Nullable error))completion {
     if (!completion) return;
-    dispatch_async(dispatch_get_main_queue(), ^{ completion(@[]); });
+    dispatch_async(dispatch_get_main_queue(), ^{ completion(@[], nil); });
 }
 
 // 依赖确认单名称 enrichment：回调 nil → 消费方回退 projectId（守卫已核对）
 - (void)ame227_fetchProjectTitle:(NSString *)projectID
                       completion:(void (^)(NSString * _Nullable title, NSError * _Nullable error))completion {
     if (!completion) return;
-    dispatch_async(dispatch_get_main_queue(), ^{ completion(nil); });
+    dispatch_async(dispatch_get_main_queue(), ^{ completion(nil, nil); });
 }
 
 // 依赖挑选链：回调 nil → 消费方记 failure 后 nextStep 收口（守卫已核对）
 - (void)getVersionsForModWithID:(NSString *)modID
                      completion:(void (^)(NSArray<ModVersion *> * _Nullable versions, NSError * _Nullable error))completion {
     if (!completion) return;
-    dispatch_async(dispatch_get_main_queue(), ^{ completion(nil); });
+    dispatch_async(dispatch_get_main_queue(), ^{ completion(nil, nil); });
 }
 
 @end
@@ -507,19 +507,19 @@ void customNSLog(const char *file, int lineNumber, const char *functionName, NSS
 - (void)searchModWithFilters:(NSDictionary *)filters
                   completion:(void (^)(NSArray * _Nullable results, NSError * _Nullable error))completion {
     if (!completion) return;
-    dispatch_async(dispatch_get_main_queue(), ^{ completion(@[]); });
+    dispatch_async(dispatch_get_main_queue(), ^{ completion(@[], nil); });
 }
 
 - (void)ame227_fetchModTitle:(NSString *)modID
                   completion:(void (^)(NSString * _Nullable title, NSError * _Nullable error))completion {
     if (!completion) return;
-    dispatch_async(dispatch_get_main_queue(), ^{ completion(nil); });
+    dispatch_async(dispatch_get_main_queue(), ^{ completion(nil, nil); });
 }
 
 - (void)getVersionsForModWithID:(NSString *)modID
                      completion:(void (^)(NSArray<ModVersion *> * _Nullable versions, NSError * _Nullable error))completion {
     if (!completion) return;
-    dispatch_async(dispatch_get_main_queue(), ^{ completion(nil); });
+    dispatch_async(dispatch_get_main_queue(), ^{ completion(nil, nil); });
 }
 
 @end
@@ -712,7 +712,7 @@ typedef NS_ENUM(NSInteger, AssetVersionType) {
            progress:(nullable void (^)(NSProgress *downloadProgress))progress
          completion:(void (^)(NSError * _Nullable error))completion {
     if (!completion) return;
-    dispatch_async(dispatch_get_main_queue(), ^{ completion(nil); });
+    dispatch_async(dispatch_get_main_queue(), ^{ completion(nil, nil); });
 }
 
 @end
@@ -741,7 +741,7 @@ typedef NS_ENUM(NSInteger, AssetVersionType) {
               progress:(nullable void (^)(NSProgress *downloadProgress))progress
             completion:(void (^)(NSError * _Nullable error))completion {
     if (!completion) return;
-    dispatch_async(dispatch_get_main_queue(), ^{ completion(nil); });
+    dispatch_async(dispatch_get_main_queue(), ^{ completion(nil, nil); });
 }
 
 @end
@@ -985,7 +985,7 @@ typedef NS_ENUM(NSInteger, AssetVersionType) {
                   completion:(nullable void (^)(UIImage * _Nullable image))completion {
     if (imageView) imageView.image = placeholder ?: fallback;
     if (!completion) return;
-    dispatch_async(dispatch_get_main_queue(), ^{ completion(nil); });
+    dispatch_async(dispatch_get_main_queue(), ^{ completion(nil, nil); });
 }
 
 + (void)prefetchIconWithURL:(NSString *)url targetSize:(CGSize)targetSize {
