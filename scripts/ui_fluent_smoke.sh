@@ -28,42 +28,7 @@ fi
 
 SDK_SIM="$(xcrun --sdk iphonesimulator --show-sdk-path)"
 ARCH="$(uname -m)"   # arm64（Apple Silicon runner）/ x86_64
-COMMON=(-fobjc-arc -I"$NATIVES" -I"$ROOT/external/AFNetworking/AFNetworking" -isysroot "$SDK_SIM" -target "${ARCH}-apple-ios14.0-simulator")
-
-# ─────────────────────────────────────────────────────────────────
-# AFNetworking 头链兑底（7.0-UI-9-e，7.0-UI-9 集成轮提升到顶层）
-# ZL2AccountsViewController.m #import "AFNetworking.h"（消费错误响应体
-# 键 AFNetworkingOperationFailingURLResponseDataErrorKey）。本仓 AFNetworking
-# 是 git submodule（Natives/external/AFNetworking），ui-smoke checkout 不含
-# submodule，而 COMMON 的头搜索路径 $ROOT/external/AFNetworking/AFNetworking
-# 恒空 → 账户页编译必炸。此处在该既有搜索路径下物化最小声明 shim（仅账户页
-# 实际消费的 extern 常量声明，符号定义在 ZL2PagesStub.m 桩 TU）：
-#   - 真实出包链路走 CMake include 路径 Natives/external/...（submodule），
-#     不经过本目录，shim 零影响；
-#   - 本地已初始化 submodule 时优先复制真头，保证声明与真实一致；
-#   - 幂等：已存在则不重写；顶层物化 → syntax 与 preview 两模式均受益
-#     （否则语法门禁遇 AFNetworking.h 缺失只能记 SKIP，账户页零门禁）。
-# ─────────────────────────────────────────────────────────────────
-af_shim_dir="$ROOT/external/AFNetworking/AFNetworking"
-af_real_dir="$NATIVES/external/AFNetworking/AFNetworking"
-if [[ ! -f "$af_shim_dir/AFNetworking.h" ]]; then
-  mkdir -p "$af_shim_dir"
-  if [[ -f "$af_real_dir/AFNetworking.h" ]]; then
-    cp -R "$af_real_dir/." "$af_shim_dir/"
-    echo "⚠ AFNetworking 头链兑底 → 复用 submodule 真头 $af_real_dir"
-  else
-    cat > "$af_shim_dir/AFNetworking.h" <<'AFSHIM'
-// ui-smoke 最小 shim（ui_fluent_smoke.sh 顶层物化）：
-// 仅 ZL2AccountsViewController.m 实际消费的 extern 常量声明；符号定义在
-// Natives/Preview/ZL2PagesStub.m。真实 AFNetworking.h 由
-// Natives/external/AFNetworking submodule 提供（CMake include 路径），
-// 不经过本目录。
-extern NSString * const AFNetworkingOperationFailingURLResponseDataErrorKey;
-AFSHIM
-    echo "⚠ AFNetworking 头链兑底 → 最小声明 shim $af_shim_dir/AFNetworking.h（submodule 未初始化）"
-  fi
-fi
-
+COMMON=(-fobjc-arc -I"$NATIVES" -isysroot "$SDK_SIM" -target "${ARCH}-apple-ios14.0-simulator")
 mkdir -p "$OUT"
 
 # ─────────────────────────────────────────────────────────────

@@ -52,7 +52,10 @@
 #import "ThirdPartyLoginViewController.h"
 #import "NMToast.h"
 #import "LauncherPreferences.h"   // getPrefObject/setPrefObject/getPrefBool/setPrefBool
-#import "AFNetworking.h"          // AFNetworkingOperationFailingURLResponseDataErrorKey（旧错误弹窗响应体 1:1）
+// AFNetworking 错误响应体键：仅消费一个 extern 常量（旧错误弹窗响应体 1:1），
+// 不需要引入 AFNetworking.h 全量类声明（submodule 在 ui-smoke 检出中缺席，
+// 引头链会让账户页/门禁无谓依赖 shim；定义由真实构建的 libAFNetworking 提供）
+extern NSString * const AFNetworkingOperationFailingURLResponseDataErrorKey;
 #import "utils.h"                 // localize() / parseJSONFromFile()
 
 #import <AuthenticationServices/AuthenticationServices.h>
@@ -179,7 +182,7 @@ static UIImage *ZL2AccountsSystemImage(NSString *name, NSString *fallback) {
 
     // —— 右列：刷新钮（离线禁用 outlineVariant）+ 更多钮 ——
     _refreshButton = [UIButton buttonWithType:UIButtonTypeSystem];
-    UIImage *refreshImage = [ZL2AccountsSystemImage(@"arrow.clockwise", @"arrow.clockwise.circle")];
+    UIImage *refreshImage = ZL2AccountsSystemImage(@"arrow.clockwise", @"arrow.clockwise.circle");
     [_refreshButton setImage:refreshImage forState:UIControlStateNormal];
     _refreshButton.translatesAutoresizingMaskIntoConstraints = NO;
     _refreshButton.accessibilityLabel = @"刷新账号";
@@ -188,7 +191,7 @@ static UIImage *ZL2AccountsSystemImage(NSString *name, NSString *fallback) {
     [self addSubview:_refreshButton];
 
     _moreButton = [UIButton buttonWithType:UIButtonTypeSystem];
-    UIImage *moreImage = [ZL2AccountsSystemImage(@"ellipsis", @"ellipsis.circle")];
+    UIImage *moreImage = ZL2AccountsSystemImage(@"ellipsis", @"ellipsis.circle");
     [_moreButton setImage:moreImage forState:UIControlStateNormal];
     _moreButton.tintColor = [ZL2Theme onSurfaceVariant];
     _moreButton.translatesAutoresizingMaskIntoConstraints = NO;
@@ -462,7 +465,7 @@ static UIImage *ZL2AccountsSystemImage(NSString *name, NSString *fallback) {
     [_identityStack addArrangedSubview:_identityNameLabel];
     [_identityStack addArrangedSubview:_identityTypeLabel];
     // 名字与类型之间的次级间距（头像/名字之间保持 12）
-    [_identityStack setCustomSpacing:2 after:_identityNameLabel];
+    [_identityStack setCustomSpacing:2 afterView:_identityNameLabel];
 
     [_identityCard addSubview:_identityStack];
     [_contentStack addArrangedSubview:_identityCard];
