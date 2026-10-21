@@ -30,6 +30,40 @@ SDK_SIM="$(xcrun --sdk iphonesimulator --show-sdk-path)"
 ARCH="$(uname -m)"   # arm64（Apple Silicon runner）/ x86_64
 COMMON=(-fobjc-arc -I"$NATIVES" -I"$ROOT/external/AFNetworking/AFNetworking" -isysroot "$SDK_SIM" -target "${ARCH}-apple-ios14.0-simulator")
 
+# ─────────────────────────────────────────────────────────────────
+# AFNetworking 头链兑底（7.0-UI-9-e，7.0-UI-9 集成轮提升到顶层）
+# ZL2AccountsViewController.m #import "AFNetworking.h"（消费错误响应体
+# 键 AFNetworkingOperationFailingURLResponseDataErrorKey）。本仓 AFNetworking
+# 是 git submodule（Natives/external/AFNetworking），ui-smoke checkout 不含
+# submodule，而 COMMON 的头搜索路径 $ROOT/external/AFNetworking/AFNetworking
+# 恒空 → 账户页编译必炸。此处在该既有搜索路径下物化最小声明 shim（仅账户页
+# 实际消费的 extern 常量声明，符号定义在 ZL2PagesStub.m 桩 TU）：
+#   - 真实出包链路走 CMake include 路径 Natives/external/...（submodule），
+#     不经过本目录，shim 零影响；
+#   - 本地已初始化 submodule 时优先复制真头，保证声明与真实一致；
+#   - 幂等：已存在则不重写；顶层物化 → syntax 与 preview 两模式均受益
+#     （否则语法门禁遇 AFNetworking.h 缺失只能记 SKIP，账户页零门禁）。
+# ─────────────────────────────────────────────────────────────────
+af_shim_dir="$ROOT/external/AFNetworking/AFNetworking"
+af_real_dir="$NATIVES/external/AFNetworking/AFNetworking"
+if [[ ! -f "$af_shim_dir/AFNetworking.h" ]]; then
+  mkdir -p "$af_shim_dir"
+  if [[ -f "$af_real_dir/AFNetworking.h" ]]; then
+    cp -R "$af_real_dir/." "$af_shim_dir/"
+    echo "⚠ AFNetworking 头链兑底 → 复用 submodule 真头 $af_real_dir"
+  else
+    cat > "$af_shim_dir/AFNetworking.h" <<'AFSHIM'
+// ui-smoke 最小 shim（ui_fluent_smoke.sh 顶层物化）：
+// 仅 ZL2AccountsViewController.m 实际消费的 extern 常量声明；符号定义在
+// Natives/Preview/ZL2PagesStub.m。真实 AFNetworking.h 由
+// Natives/external/AFNetworking submodule 提供（CMake include 路径），
+// 不经过本目录。
+extern NSString * const AFNetworkingOperationFailingURLResponseDataErrorKey;
+AFSHIM
+    echo "⚠ AFNetworking 头链兑底 → 最小声明 shim $af_shim_dir/AFNetworking.h（submodule 未初始化）"
+  fi
+fi
+
 mkdir -p "$OUT"
 
 # ─────────────────────────────────────────────────────────────
@@ -65,12 +99,12 @@ syntax_mode() {
       rm -f "$log"
     elif grep -q "fatal error: '.*' file not found" "$log" 2>/dev/null; then
       # 迁移面外的头链缺失（如游戏域 C 头）——记 SKIP 不算失败：
-      # 本门禁只管 AmeTheme/Fluent 迁移面自身的编译错误
+      # 本门禁只管 AmeTheme/Fluent/ZL2 迁移面自身的编译错误
       echo "  ⚠ SKIP ${base}（迁移面外头依赖，正式构建覆盖）"
       rm -f "$log"
     else
       echo "  ✗ $base"
-      sed -n '1,12p' "$log" || true
+      cat "$log" || true
       bad=$((bad + 1))
       FAIL=1
     fi
@@ -89,37 +123,6 @@ syntax_mode() {
 preview_mode() {
   echo "== UI Fluent 预览（模拟器渲染冒烟）=="
 
-  # ── AFNetworking 头链兑底（7.0-UI-9-e）──
-  # ZL2AccountsViewController.m #import "AFNetworking.h"（消费错误响应体
-  # 键 AFNetworkingOperationFailingURLResponseDataErrorKey）。本仓 AFNetworking
-  # 是 git submodule（Natives/external/AFNetworking），ui-smoke checkout 不含
-  # submodule，而下方 COMMON 的头搜索路径 $ROOT/external/AFNetworking/AFNetworking
-  # 恒空 → 预览编译必炸。此处在该既有搜索路径下物化最小声明 shim（仅账户页
-  # 实际消费的 extern 常量声明，符号定义在 ZL2PagesStub.m 桩 TU）：
-  #   - 真实出包链路走 CMake include 路径 Natives/external/...（submodule），
-  #     不经过本目录，shim 零影响；
-  #   - 本地已初始化 submodule 时优先复制真头，保证声明与真实一致；
-  #   - 幂等：已存在则不重写。syntax_mode 不受影响（all 模式 syntax 先于 preview）。
-  local af_shim_dir="$ROOT/external/AFNetworking/AFNetworking"
-  local af_real_dir="$NATIVES/external/AFNetworking/AFNetworking"
-  if [[ ! -f "$af_shim_dir/AFNetworking.h" ]]; then
-    mkdir -p "$af_shim_dir"
-    if [[ -f "$af_real_dir/AFNetworking.h" ]]; then
-      cp -R "$af_real_dir/." "$af_shim_dir/"
-      echo "  ⚠ AFNetworking 头链兑底 → 复用 submodule 真头 $af_real_dir"
-    else
-      cat > "$af_shim_dir/AFNetworking.h" <<'AFSHIM'
-// ui-smoke preview 最小 shim（ui_fluent_smoke.sh preview_mode 物化）：
-// 仅 ZL2AccountsViewController.m 实际消费的 extern 常量声明；符号定义在
-// Natives/Preview/ZL2PagesStub.m。真实 AFNetworking.h 由
-// Natives/external/AFNetworking submodule 提供（CMake include 路径），
-// 不经过本目录。
-extern NSString * const AFNetworkingOperationFailingURLResponseDataErrorKey;
-AFSHIM
-      echo "  ⚠ AFNetworking 头链兑底 → 最小声明 shim $af_shim_dir/AFNetworking.h（submodule 未初始化）"
-    fi
-  fi
-
   local sources=(
     AmeTheme FluentButton FluentCard FluentListCell FluentTextField
     FluentToast FluentSegmentedControl FluentProgress FluentBanner
@@ -133,7 +136,7 @@ AFSHIM
     echo "  编译 $s.m"
     if ! xcrun clang -c "${COMMON[@]}" "$NATIVES/$s.m" -o "$OUT/$s.o" 2>"$OUT/compile-$s.log"; then
       echo "  ✗ $s.m 编译失败:"
-      sed -n '1,15p' "$OUT/compile-$s.log" || true
+      cat "$OUT/compile-$s.log" || true
       FAIL=1
       return
     fi
@@ -143,7 +146,7 @@ AFSHIM
   echo "  编译 Preview/AmeFluentPreviewMain.m"
   if ! xcrun clang -c "${COMMON[@]}" "$NATIVES/Preview/AmeFluentPreviewMain.m" -o "$OUT/AmeFluentPreviewMain.o" 2>"$OUT/compile-main.log"; then
     echo "  ✗ harness 编译失败:"
-    sed -n '1,15p' "$OUT/compile-main.log" || true
+    cat "$OUT/compile-main.log" || true
     FAIL=1
     return
   fi
@@ -151,7 +154,7 @@ AFSHIM
   echo "  编译 Preview/ZL2PagesStub.m（ZL2 四页桩 TU，不进 CMakeLists）"
   if ! xcrun clang -c "${COMMON[@]}" "$NATIVES/Preview/ZL2PagesStub.m" -o "$OUT/ZL2PagesStub.o" 2>"$OUT/compile-stub.log"; then
     echo "  ✗ ZL2 桩 TU 编译失败:"
-    sed -n '1,15p' "$OUT/compile-stub.log" || true
+    cat "$OUT/compile-stub.log" || true
     FAIL=1
     return
   fi
@@ -168,7 +171,7 @@ AFSHIM
       -o "$OUT/AmeFluentPreview" \
       "${objs[@]}" "$OUT/AmeFluentPreviewMain.o" "$OUT/ZL2PagesStub.o" 2>"$OUT/link.log"; then
     echo "  ✗ 链接失败:"
-    sed -n '1,15p' "$OUT/link.log" || true
+    head -80 "$OUT/link.log" || true
     FAIL=1
     return
   fi
