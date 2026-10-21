@@ -1,0 +1,50 @@
+name: UI Fluent smoke (7.0 test repo - frontend preview)
+
+# 7.0-UI-7：前端专用冒烟——AmeTheme 令牌层 + Fluent 组件库 + 已迁移 VC 的
+# 语法门禁（-fsyntax-only）与模拟器渲染预览（侧栏 Navigation Rail + 8 件套
+# 浅/深两态截图）。
+# 红线：本仓库仅出测试验证，不上传发行版——本 workflow 只有 workflow_dispatch
+# 手动触发，无任何 release 步骤；完整出包仍走 development.yml（同样仅手动）。
+
+on:
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: "smoke mode: syntax / preview / all"
+        required: false
+        default: "all"
+
+# 与 development.yml 分组隔离：前端冒烟不取消完整构建，反之亦然
+concurrency:
+  group: ui-smoke-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  smoke:
+    name: UI Fluent smoke
+    runs-on: macos-15
+    timeout-minutes: 25
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Toolchain info
+        run: |
+          xcodebuild -version
+          echo "simulator SDK: $(xcrun --sdk iphonesimulator --show-sdk-version)"
+          xcrun simctl list runtimes available | head -8
+          xcrun simctl list devices available | grep -m3 iPhone || true
+
+      - name: Run UI Fluent smoke
+        run: bash scripts/ui_fluent_smoke.sh "${{ github.event.inputs.mode || 'all' }}"
+
+      - name: Upload preview artifacts (screenshots + failure logs)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ame-fluent-preview
+          path: |
+            build/ame-preview/*.png
+            build/ame-preview/*.log
+          if-no-files-found: ignore
