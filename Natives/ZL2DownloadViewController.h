@@ -1,5 +1,7 @@
 //
-// ZL2DownloadViewController.h — ZL2 风格下载页（7.0-UI-9-a：下载页分类 M3 重写）
+// ZL2DownloadViewController.h — ZL2 风格下载页（7.0-UI-9-a 分类 M3 重写；
+// 7.0-UI-10-a 六类语义纠错：ZL2 下载页六类全部为远程搜索下载，本地管理器
+// 在 ZL2 属版本管理域，错配已撤除）
 //
 // 对标 ZalithLauncher2 DownloadScreen.kt（左类别轨+内容区，本页适配为
 // 「大标题 + 横向类别 chips + 内容容器」，chips 为主页 TextRailItem 同款
@@ -14,10 +16,12 @@
 //   ③ 内容容器（占满余下空间；目标 VC 按类别懒建缓存，四边钉入 +
 //     hidden 切换 0.18s crossDissolve，与 ZL2ShellViewController 同款手法）
 //
-// 六类目标 VC（存量页原样嵌入，本页只负责 ZL2 结构壳）：
-//   游戏 DownloadViewController / 整合包 ModpackImportViewController /
-//   模组 ModsManagerViewController / 资源包 ResourcePacksManagerViewController /
-//   存档 WorldsManagerViewController / 光影包 ShadersManagerViewController
+// 六类目标 VC（7.0-UI-10-a 真语义）：
+//   游戏 DownloadViewController（旧远程游戏版本页，M3 化留下一轮）/
+//   整合包·模组·资源包·存档·光影包 → ZL2AssetSearchViewController
+//   （通用 M3 远程搜索列表，五型参数化；版本/安装流 1:1 复用旧
+//   DownloadViewController 远程下载链：ModVersion/ShaderVersion/
+//   AssetVersion 三版本页 + 五 Item 在线数据模型）
 //
 // 导航：本页由壳包在 UINavigationController 里，根页 viewWillAppear 隐藏
 // 系统栏、viewWillDisappear 恢复（push 出去的旧子页才有返回栏，pop 回自动隐藏）。

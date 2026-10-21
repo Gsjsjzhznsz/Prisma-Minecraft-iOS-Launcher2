@@ -1,15 +1,34 @@
 //
-// AmeFluentPreviewMain.m — Fluent 2 / ZL2 前端预览/冒烟 harness（7.0-UI-7/8/9）
+// AmeFluentPreviewMain.m — ZL2 前端预览/冒烟 harness（7.0-UI-7/8/9/10）
 //
 // 用途：scripts/ui_fluent_smoke.sh preview 的宿主 App——在 iOS 模拟器里
-//   1:1 渲染 ZL2 新壳视觉（M3 NavigationRail；7.0-UI-9-e 起 rail 槽位
-//   0=ZL2Home、1-4=四功能页真实 VC（ZL2Download/Versions/Accounts/Settings，
-//   各包 UINavigationController 作为根 VC，四页 viewWillAppear 自隐藏
-//   系统栏、版本/账户页 reload 由 viewWillAppear 自动触发）、5=组件双栏
-//   对比页）+ Fluent 8 件套全陈列，供浅/深两态截图冒烟。
-//   启动参数选页：-zl2page <home|download|versions|accounts|settings|
-//   components> 预选 rail 项（CI 逐页冷启动截图；缺省 home）。
-//
+//   1:1 渲染 ZL2 新壳视觉。7.0-UI-10-c 起壳形态 = 40pt 顶栏镜像（ZL2 真形态
+//   本轮实证：40dp 顶栏 + 内容区，无 rail）+ 横屏（模拟器截图恒横置）：
+//     顶栏：左簇 chevron.left / house.fill 32×32（onSurfaceVariant template，
+//       主页时整簇隐藏）→ 16pt → 页名标题（fontTitleMedium/onSurface；主页 =
+//       CFBundleDisplayName 兜底 @"Prisma Launcher"，其余 = 页名）；右簇
+//       （右缘 12、间距 8）= 任务胶囊（surfaceContainerHigh/radiusXL/高 28/
+//       宽 120：UIProgressView track=outlineVariant bar=primary +
+//       doc.plaintext + 任务数 fontLabelMedium——桩态有活动任务才显示，与
+//       下载页胶囊同口径，当前空桩恒隐藏）+ 4 枚 RailItem（版本
+//       square.grid.2x2.fill / 下载 arrow.down.circle.fill / 账户
+//       person.crop.circle.fill / 设置 gearshape.fill，22pt template，当前页
+//       primary + 12pt 文字标签，其余 onSurfaceVariant）。顶栏纯视觉无交互，
+//       页面切换仅由 -zl2page 启动参数决定。
+//     五槽内容：0=ZL2Home（直接嵌）；1-4=四功能页真实 VC（ZL2Download/
+//       Versions/Accounts/Settings，各包 UINavigationController 作为根 VC，
+//       四页 viewWillAppear 自隐藏系统栏、版本/账户页 reload 由 viewWillAppear
+//       自动触发；nav 隐藏后内容直接顶到顶栏下缘不留空隙）。
+//   启动参数选页：-zl2page <home|download|versions|accounts|settings>
+//   （CI 逐页冷启动截图 × 浅/深两态 = 10 张；缺省 home。"组件" Fluent 陈列页
+//   退役：components 槽位与 AmeDemoPanelViewController /
+//   AmeFluentLegacyPageViewController 已从本 TU 移除——Fluent 组件源文件
+//   保留，仅预览壳不再陈列。）
+//   横屏：AppDelegate supportedInterfaceOrientationsForWindow =
+//   UIInterfaceOrientationMaskLandscapeButUpsideDown；呈现首选方向挂根 VC
+//   （UIKit 只向 root VC 查询 preferredInterfaceOrientationForPresentation，
+//   AppDelegate 无此回调）= UIInterfaceOrientationLandscapeRight。仅 harness
+//   生效，正式 app 的 AppDelegate 不在本文件，零影响。
 //
 // ★ 正式构建不含本文件：Natives/CMakeLists.txt 为显式源列表（唯一的
 //   file(GLOB) 仅涉 ModLoaderIcons/*.png），本文件不会被编入 App。
@@ -24,18 +43,8 @@
 //
 
 #import <UIKit/UIKit.h>
-#import "AmeTheme.h"
-#import "FluentButton.h"
-#import "FluentCard.h"
-#import "FluentListCell.h"
-#import "FluentTextField.h"
-#import "FluentToast.h"
-#import "FluentSegmentedControl.h"
-#import "FluentProgress.h"
-#import "FluentBanner.h"
-#import "LauncherMenuViewController.h"
+#import "AmeTheme.h"   // accentColor 桩消费（main TU 唯一残留 AmeTheme 引用）
 #import "ZL2Theme.h"
-#import "ZL2RailView.h"
 #import "ZL2HomeViewController.h"
 #import "ZL2DownloadViewController.h"
 #import "ZL2VersionsViewController.h"
@@ -238,337 +247,68 @@ NSString *localize(NSString *key, NSString *comment) {
 }
 @end
 
-#pragma mark - 组件陈列面板（右侧）
-
-@interface AmeDemoPanelViewController : UIViewController <UITableViewDelegate, UITableViewDataSource>
-@property(nonatomic, strong) FluentProgress *progressBar;
-@property(nonatomic, strong) UIButton *appearanceToggle;
-@end
-
-@implementation AmeDemoPanelViewController
-
-- (void)viewDidLoad {
-    [super viewDidLoad];
-    self.view.backgroundColor = [AmeTheme bgPrimary];
-
-    UIScrollView *scroll = [[UIScrollView alloc] init];
-    scroll.translatesAutoresizingMaskIntoConstraints = NO;
-    scroll.alwaysBounceVertical = YES;
-    [self.view addSubview:scroll];
-
-    UIStackView *stack = [[UIStackView alloc] init];
-    stack.axis = UILayoutConstraintAxisVertical;
-    stack.spacing = 14;
-    stack.translatesAutoresizingMaskIntoConstraints = NO;
-    [scroll addSubview:stack];
-
-    [NSLayoutConstraint activateConstraints:@[
-        [scroll.leadingAnchor constraintEqualToAnchor:self.view.leadingAnchor],
-        [scroll.trailingAnchor constraintEqualToAnchor:self.view.trailingAnchor],
-        [scroll.topAnchor constraintEqualToAnchor:self.view.topAnchor],
-        [scroll.bottomAnchor constraintEqualToAnchor:self.view.bottomAnchor],
-        [stack.leadingAnchor constraintEqualToAnchor:scroll.contentLayoutGuide.leadingAnchor constant:16],
-        [stack.trailingAnchor constraintEqualToAnchor:scroll.contentLayoutGuide.trailingAnchor constant:-16],
-        [stack.topAnchor constraintEqualToAnchor:scroll.contentLayoutGuide.topAnchor constant:16],
-        [stack.bottomAnchor constraintEqualToAnchor:scroll.contentLayoutGuide.bottomAnchor constant:-24],
-        [stack.widthAnchor constraintEqualToAnchor:scroll.frameLayoutGuide.widthAnchor constant:-32]
-    ]];
-
-    // ── 标题区 ──
-    UILabel *title = [[UILabel alloc] init];
-    title.text = @"AmeTheme × Fluent 组件预览";
-    title.font = [AmeTheme fontTitle];
-    title.textColor = [AmeTheme textPrimary];
-    UILabel *sub = [[UILabel alloc] init];
-    sub.text = @"fluent2_kit 规格 ObjC 重建 · 令牌真源 AmeTheme · 浅/深动态适配";
-    sub.font = [AmeTheme fontBody2];
-    sub.textColor = [AmeTheme textSecondary];
-    sub.numberOfLines = 0;
-    [stack addArrangedSubview:title];
-    [stack addArrangedSubview:sub];
-
-    // ── 1. FluentButton 四变体（Regular 40）──
-    [stack addArrangedSubview:[self sectionHeader:@"FluentButton 四变体"]];
-    UIStackView *btnRow = [self rowStack];
-    [btnRow addArrangedSubview:[FluentButton buttonWithStyle:FluentButtonStyleAccent title:@"启动" target:nil action:NULL]];
-    [btnRow addArrangedSubview:[FluentButton buttonWithStyle:FluentButtonStyleOutline title:@"选择版本" target:nil action:NULL]];
-    [btnRow addArrangedSubview:[FluentButton buttonWithStyle:FluentButtonStyleSubtle title:@"官方文档" target:nil action:NULL]];
-    [btnRow addArrangedSubview:[FluentButton buttonWithStyle:FluentButtonStyleDefault title:@"清理缓存" target:nil action:NULL]];
-    [stack addArrangedSubview:btnRow];
-
-    // ── 2. Compact 32 + IconButton 图标档（侧栏同款组件）──
-    [stack addArrangedSubview:[self sectionHeader:@"Compact 32 + IconButton（侧栏同款）"]];
-    UIStackView *compactRow = [self rowStack];
-    [compactRow addArrangedSubview:[FluentButton compactButtonWithStyle:FluentButtonStyleAccent title:@"下载" target:nil action:NULL]];
-    [compactRow addArrangedSubview:[FluentButton compactButtonWithStyle:FluentButtonStyleOutline title:@"导入" target:nil action:NULL]];
-    [compactRow addArrangedSubview:[FluentButton iconButtonWithStyle:FluentButtonStyleSubtle size:40
-                                                               image:[UIImage systemImageNamed:@"gearshape.fill"]
-                                                              target:nil action:NULL]];
-    [compactRow addArrangedSubview:[FluentButton iconButtonWithStyle:FluentButtonStyleOutline size:40
-                                                               image:[UIImage systemImageNamed:@"square.and.arrow.down"]
-                                                              target:nil action:NULL]];
-    [compactRow addArrangedSubview:[FluentButton iconButtonWithStyle:FluentButtonStyleDefault size:40
-                                                               image:[UIImage systemImageNamed:@"trash"]
-                                                              target:nil action:NULL]];
-    [stack addArrangedSubview:compactRow];
-
-    // ── 3. FluentSegmentedControl（滑块分段）──
-    [stack addArrangedSubview:[self sectionHeader:@"FluentSegmentedControl"]];
-    FluentSegmentedControl *seg = [[FluentSegmentedControl alloc] initWithItems:@[@"主界面", @"下载", @"联机", @"设置"]];
-    [seg setSelectedIndex:1 animated:NO];
-    seg.onChange = ^(NSUInteger index) {
-        [FluentToast showWithTitle:[NSString stringWithFormat:@"已切换到段 %lu", (unsigned long)index]
-                            detail:nil
-                          variant:FluentToastVariantNeutral];
-    };
-    [stack addArrangedSubview:seg];
-
-    // ── 4. FluentProgress（Bar + Ring）──
-    [stack addArrangedSubview:[self sectionHeader:@"FluentProgress"]];
-    UIStackView *progressRow = [self rowStack];
-    self.progressBar = [[FluentProgress alloc] initWithStyle:FluentProgressStyleBar];
-    [self.progressBar.widthAnchor constraintEqualToConstant:180].active = YES;
-    [self.progressBar setProgress:0.35 animated:NO];
-    FluentProgress *ring = [[FluentProgress alloc] initWithStyle:FluentProgressStyleRing];
-    ring.running = YES;
-    [progressRow addArrangedSubview:self.progressBar];
-    [progressRow addArrangedSubview:ring];
-    [stack addArrangedSubview:progressRow];
-
-    // ── 5. FluentBanner（warning 信息条，可直接关闭）──
-    [stack addArrangedSubview:[self sectionHeader:@"FluentBanner"]];
-    FluentBanner *banner = [[FluentBanner alloc] initWithTitle:@"Java 17 运行时可用"
-                                                        message:@"建议为 1.20.5+ 版本启用新运行时"
-                                                       severity:FluentBannerSeverityWarning];
-    banner.closeHandler = ^{
-        [FluentToast showWithTitle:@"信息条已关闭" detail:nil variant:FluentToastVariantNeutral];
-    };
-    [stack addArrangedSubview:banner];
-
-    // ── 6. FluentCard + FluentTextField ──
-    [stack addArrangedSubview:[self sectionHeader:@"FluentCard + FluentTextField"]];
-    FluentCard *card = [[FluentCard alloc] init];
-    UIStackView *cardStack = [[UIStackView alloc] init];
-    cardStack.axis = UILayoutConstraintAxisVertical;
-    cardStack.spacing = 10;
-    cardStack.translatesAutoresizingMaskIntoConstraints = NO;
-    [card.contentView addSubview:cardStack];
-    [NSLayoutConstraint activateConstraints:@[
-        [cardStack.topAnchor constraintEqualToAnchor:card.contentView.topAnchor],
-        [cardStack.bottomAnchor constraintEqualToAnchor:card.contentView.bottomAnchor],
-        [cardStack.leadingAnchor constraintEqualToAnchor:card.contentView.leadingAnchor],
-        [cardStack.trailingAnchor constraintEqualToAnchor:card.contentView.trailingAnchor]
-    ]];
-    UILabel *cardTitle = [[UILabel alloc] init];
-    cardTitle.text = @"玩家档案";
-    cardTitle.font = [AmeTheme fontSubtitle];
-    cardTitle.textColor = [AmeTheme textPrimary];
-    FluentTextField *nameField = [[FluentTextField alloc] initWithFieldLabel:@"玩家名"
-                                                                 placeholder:@"输入离线玩家名"
-                                                                  isRequired:YES];
-    [cardStack addArrangedSubview:cardTitle];
-    [cardStack addArrangedSubview:nameField];
-    [stack addArrangedSubview:card];
-
-    // ── 7. FluentListCell（one-line ×2 + multi-line ×1）──
-    [stack addArrangedSubview:[self sectionHeader:@"FluentListCell"]];
-    UITableView *list = [[UITableView alloc] initWithFrame:CGRectZero style:UITableViewStylePlain];
-    list.translatesAutoresizingMaskIntoConstraints = NO;
-    list.backgroundColor = [UIColor clearColor];
-    list.separatorInset = UIEdgeInsetsMake(0, 44, 0, 0);
-    list.scrollEnabled = NO;
-    list.delegate = self;
-    list.dataSource = self;
-    [list registerClass:[FluentListCell class] forCellReuseIdentifier:@"one"];
-    [list registerClass:[FluentListCell class] forCellReuseIdentifier:@"multi"];
-    [list.heightAnchor constraintEqualToConstant:156].active = YES;
-    [stack addArrangedSubview:list];
-
-    // ── 8. FluentToast 触发器（四变体）──
-    [stack addArrangedSubview:[self sectionHeader:@"FluentToast"]];
-    UIStackView *toastRow = [self rowStack];
-    [toastRow addArrangedSubview:[self toastButton:@"常规" variant:FluentToastVariantNeutral]];
-    [toastRow addArrangedSubview:[self toastButton:@"成功" variant:FluentToastVariantSuccess]];
-    [toastRow addArrangedSubview:[self toastButton:@"警告" variant:FluentToastVariantWarning]];
-    [toastRow addArrangedSubview:[self toastButton:@"危险" variant:FluentToastVariantDanger]];
-    [stack addArrangedSubview:toastRow];
-
-    // ── 9. 深浅切换 + 进度动画演示 ──
-    UIStackView *demoRow = [self rowStack];
-    self.appearanceToggle = [FluentButton buttonWithStyle:FluentButtonStyleAccent
-                                                    title:@"切换深浅模式"
-                                                   target:self
-                                                   action:@selector(toggleAppearance)];
-    UIButton *animateBar = [FluentButton buttonWithStyle:FluentButtonStyleOutline
-                                                   title:@"随机进度"
-                                                  target:self
-                                                  action:@selector(randomizeProgress)];
-    [demoRow addArrangedSubview:self.appearanceToggle];
-    [demoRow addArrangedSubview:animateBar];
-    [stack addArrangedSubview:demoRow];
-}
-
-#pragma mark - demo actions
-
-- (void)toggleAppearance {
-    UIWindow *window = self.view.window;
-    if (!window) return;
-    BOOL toDark = (window.overrideUserInterfaceStyle != UIUserInterfaceStyleDark);
-    window.overrideUserInterfaceStyle = toDark ? UIUserInterfaceStyleDark : UIUserInterfaceStyleLight;
-}
-
-- (void)randomizeProgress {
-    [self.progressBar setProgress:((arc4random_uniform(90) + 5) / 100.0) animated:YES];
-}
-
-- (UIButton *)toastButton:(NSString *)title variant:(FluentToastVariant)variant {
-    // 变体参数由 fireToast: 按 title 重解析（按钮只带标题；variant 形参保留
-    // API 对称性并抑制"四变体枚举被遗忘"的维护盲区）
-    return [FluentButton compactButtonWithStyle:FluentButtonStyleDefault
-                                          title:title
-                                         target:self
-                                         action:@selector(fireToast:)];
-}
-
-- (void)fireToast:(UIButton *)sender {
-    NSString *title = [sender titleForState:UIControlStateNormal];
-    FluentToastVariant variant = FluentToastVariantNeutral;
-    if ([title isEqualToString:@"成功"]) variant = FluentToastVariantSuccess;
-    else if ([title isEqualToString:@"警告"]) variant = FluentToastVariantWarning;
-    else if ([title isEqualToString:@"危险"]) variant = FluentToastVariantDanger;
-    [FluentToast showWithTitle:[NSString stringWithFormat:@"%@通知", title]
-                        detail:@"FluentToast 底部浮出 · 同屏单例"
-                      variant:variant];
-}
-
-#pragma mark - helpers
-
-- (UILabel *)sectionHeader:(NSString *)text {
-    UILabel *label = [[UILabel alloc] init];
-    label.text = text;
-    label.font = [AmeTheme fontCaption];
-    label.textColor = [AmeTheme textTertiary];
-    return label;
-}
-
-- (UIStackView *)rowStack {
-    UIStackView *row = [[UIStackView alloc] init];
-    row.axis = UILayoutConstraintAxisHorizontal;
-    row.spacing = 10;
-    row.alignment = UIStackViewAlignmentCenter;
-    return row;
-}
-
-#pragma mark - UITableView (FluentListCell)
-
-- (NSInteger)tableView:(UITableView *)tableView numberOfRowsInSection:(NSInteger)section {
-    return 3;
-}
-
-- (CGFloat)tableView:(UITableView *)tableView heightForRowAtIndexPath:(NSIndexPath *)indexPath {
-    return (indexPath.row == 2) ? 64.0 : 44.0;
-}
-
-- (UITableViewCell *)tableView:(UITableView *)tableView cellForRowAtIndexPath:(NSIndexPath *)indexPath {
-    BOOL multi = (indexPath.row == 2);
-    NSString *identifier = multi ? @"multi" : @"one";
-    FluentListCell *cell = [tableView dequeueReusableCellWithIdentifier:identifier];
-    if (!cell) {
-        cell = multi ? [FluentListCell multiLineCellWithReuseIdentifier:identifier]
-                     : [FluentListCell oneLineCellWithReuseIdentifier:identifier];
-    }
-    NSArray<NSString *> *icons = @[@"house.fill", @"arrow.down.circle.fill", @"gearshape.fill"];
-    cell.leadingIcon.image = [UIImage systemImageNamed:icons[indexPath.row]];
-    if (multi) {
-        cell.titleLabel.text = @"当前版本 1.0.0";
-        cell.subtitleLabel.text = @"Fluent 2 · iOS 14+ 纯 ObjC";
-    } else {
-        cell.titleLabel.text = (indexPath.row == 0) ? @"主界面" : @"下载中心";
-    }
-    return cell;
-}
-
-@end
-
-#pragma mark - Fluent 旧栏陈列页（双栏对比：真实旧侧栏 + 8 件套）
-
-// 原 7.0-UI-7 根组装平移至此：左侧真实 LauncherMenuViewController（56pt
-// Fluent 栏宿主）+ 右侧组件陈列面板，挂 ZL2 壳 rail 第 6 项"组件"
-@interface AmeFluentLegacyPageViewController : UIViewController
-@end
-
-@implementation AmeFluentLegacyPageViewController
-
-- (void)viewDidLoad {
-    [super viewDidLoad];
-    self.view.backgroundColor = [AmeTheme bgPrimary];
-
-    UIView *sidebarHost = [[UIView alloc] init];
-    sidebarHost.backgroundColor = [AmeTheme bgSecondary];
-    sidebarHost.layer.cornerRadius = [AmeTheme radiusXL];
-    sidebarHost.layer.cornerCurve = kCACornerCurveContinuous;
-    sidebarHost.layer.maskedCorners = kCALayerMinXMinYCorner | kCALayerMinXMaxYCorner;
-    sidebarHost.layer.masksToBounds = YES;
-    sidebarHost.translatesAutoresizingMaskIntoConstraints = NO;
-    [self.view addSubview:sidebarHost];
-
-    LauncherMenuViewController *menu = [[LauncherMenuViewController alloc] init];
-    menu.onMenuItemSelected = ^(NSInteger index, NSString *title) {
-        NSLog(@"[AmeFluentPreview] menu index=%ld title=%@", (long)index, title);
-    };
-    [self addChildViewController:menu];
-    [sidebarHost addSubview:menu.view];
-    // 7.0-UI-7：子 VC 编程视图默认 translates=YES，autoresizing 恒等约束会与
-    // 四边钉冲突被拆（首跑截图侧栏整体缺失根因），必须显式关
-    menu.view.translatesAutoresizingMaskIntoConstraints = NO;
-    [menu didMoveToParentViewController:self];
-
-    AmeDemoPanelViewController *demo = [[AmeDemoPanelViewController alloc] init];
-    [self addChildViewController:demo];
-    [self.view addSubview:demo.view];
-    demo.view.translatesAutoresizingMaskIntoConstraints = NO;
-
-    [NSLayoutConstraint activateConstraints:@[
-        [sidebarHost.leadingAnchor constraintEqualToAnchor:self.view.leadingAnchor constant:8],
-        [sidebarHost.widthAnchor constraintEqualToConstant:56],
-        [sidebarHost.topAnchor constraintEqualToAnchor:self.view.topAnchor constant:8],
-        [sidebarHost.bottomAnchor constraintEqualToAnchor:self.view.bottomAnchor constant:-8],
-        [menu.view.leadingAnchor constraintEqualToAnchor:sidebarHost.leadingAnchor],
-        [menu.view.trailingAnchor constraintEqualToAnchor:sidebarHost.trailingAnchor],
-        [menu.view.topAnchor constraintEqualToAnchor:sidebarHost.topAnchor],
-        [menu.view.bottomAnchor constraintEqualToAnchor:sidebarHost.bottomAnchor],
-        [demo.view.leadingAnchor constraintEqualToAnchor:sidebarHost.trailingAnchor constant:8],
-        [demo.view.trailingAnchor constraintEqualToAnchor:self.view.trailingAnchor constant:-8],
-        [demo.view.topAnchor constraintEqualToAnchor:self.view.topAnchor constant:8],
-        [demo.view.bottomAnchor constraintEqualToAnchor:self.view.bottomAnchor constant:-8]
-    ]];
-}
-
-@end
-
-#pragma mark - 启动参数选页（7.0-UI-9-e：CI 逐页冷启动截图）
+#pragma mark - 启动参数选页（7.0-UI-9-e：CI 逐页冷启动截图；7.0-UI-10-c 五页）
 
 // scripts/ui_fluent_smoke.sh preview 逐页启动：simctl launch … -zl2page <p>；
-// 合法值 home/download/versions/accounts/settings/components（对应 rail 槽位
-// 0-5），缺省/非法值回落 home。simctl launch 把 bundle id 之后的参数原样
-// 追加到进程 argv，NSProcessInfo.arguments 直接可读
+// 合法值 home/download/versions/accounts/settings（对应槽位 0-4；"组件"
+// Fluent 陈列页已退役），缺省/非法值回落 home。simctl launch 把 bundle id
+// 之后的参数原样追加到进程 argv，NSProcessInfo.arguments 直接可读
 static NSInteger AmePreviewPageIndexFromLaunchArguments(void) {
     NSArray<NSString *> *args = [[NSProcessInfo processInfo] arguments];
     NSUInteger flagIndex = [args indexOfObject:@"-zl2page"];
     if (flagIndex == NSNotFound || flagIndex + 1 >= args.count) return 0;
     NSString *page = args[flagIndex + 1];
-    if ([page isEqualToString:@"download"])   return 1;
-    if ([page isEqualToString:@"versions"])   return 2;
-    if ([page isEqualToString:@"accounts"])   return 3;
-    if ([page isEqualToString:@"settings"])   return 4;
-    if ([page isEqualToString:@"components"]) return 5;
+    if ([page isEqualToString:@"download"]) return 1;
+    if ([page isEqualToString:@"versions"]) return 2;
+    if ([page isEqualToString:@"accounts"]) return 3;
+    if ([page isEqualToString:@"settings"]) return 4;
     return 0;
 }
 
-#pragma mark - ZL2 壳预览控制器（rail 6 项 + 容器切换，1:1 壳视觉）
+// 顶栏页名（下标 0-4 与槽位一致；0 = 主页 = CFBundleDisplayName 兜底
+// @"Prisma Launcher"——预览 Info.plist 无 CFBundleDisplayName 键必走兜底）
+static NSString *AmePreviewPageTitle(NSInteger index) {
+    static NSArray<NSString *> *titles = nil;
+    static dispatch_once_t onceToken;
+    dispatch_once(&onceToken, ^{
+        NSString *bundleName = [[NSBundle mainBundle] objectForInfoDictionaryKey:@"CFBundleDisplayName"];
+        titles = @[(bundleName ?: @"Prisma Launcher"), @"下载", @"版本", @"账户", @"设置"];
+    });
+    if (index < 0 || index >= (NSInteger)titles.count) index = 0;
+    return titles[index];
+}
 
-@interface AmePreviewShellController : UIViewController <ZL2RailViewDelegate>
-@property(nonatomic, strong) ZL2RailView *rail;
+// 顶栏 RailItem 视觉顺序（版本/下载/账户/设置，按 ZL2 TopBar 右簇规格）到
+// 页面槽位的映射：版本→2 / 下载→1 / 账户→3 / 设置→4（home=0 无 RailItem，
+// 由左簇 house 镜像承担）
+static NSInteger AmePreviewRailSlotForItem(NSUInteger itemIndex) {
+    static const NSInteger slots[4] = {2, 1, 3, 4};
+    if (itemIndex >= 4) return -1;
+    return slots[itemIndex];
+}
+
+#pragma mark - ZL2 壳预览控制器（7.0-UI-10-c：40pt 顶栏镜像 + 五槽容器切换）
+
+// 壳真形态镜像（对照并行重写中的 ZL2ShellViewController / ZL2 MainScreen.kt
+// TopBar；纯视觉 1:1、零交互——页面切换仅由 -zl2page 启动参数决定）：
+//   顶栏高 40（背景自 y=0 延伸过顶部 safeArea；ZL2 TopBar height(40.dp)）：
+//     左簇 = [chevron.left][house.fill] 32×32（onSurfaceVariant template；
+//       ZL2 backCenter Row：start 12dp 起步），主页时整簇隐藏；
+//     标题 = fontTitleMedium/onSurface，跟左簇后 16pt（ZL2 title margin 16dp）；
+//     右簇（右缘 12、间距 8，ZL2 endButtons end margin 12dp spacedBy 8dp）=
+//       任务胶囊 + 4 枚 RailItem（构建处逐项注明）。
+//   内容区 = 顶栏下缘起占满剩余空间（五槽：0=ZL2Home 直接嵌；1-4=四功能页
+//   各包 UINavigationController，与壳侧同构；四页 viewWillAppear 自隐藏系统
+//   栏，nav 隐藏后内容直接顶到顶栏下缘不留空隙）。
+@interface AmePreviewShellController : UIViewController
+@property(nonatomic, strong) UIView *barBackground;
+@property(nonatomic, strong) UIStackView *leadingCluster;   // [左簇图标组, 标题]
+@property(nonatomic, strong) UIStackView *leftCluster;      // chevron + house（主页隐藏→折叠）
+@property(nonatomic, strong) UILabel *topBarTitle;
+@property(nonatomic, strong) UIView *taskPill;
+@property(nonatomic, strong) UIProgressView *pillProgress;
+@property(nonatomic, strong) UILabel *pillCount;
+@property(nonatomic, strong) NSArray<UIStackView *> *railItems;
 @property(nonatomic, strong) UIView *container;
 @property(nonatomic, strong) NSMutableDictionary<NSNumber *, UIViewController *> *cache;
 @property(nonatomic, assign) NSInteger currentIndex;
@@ -576,41 +316,220 @@ static NSInteger AmePreviewPageIndexFromLaunchArguments(void) {
 
 @implementation AmePreviewShellController
 
+// 横屏（7.0-UI-10-c）：有效支持方向 = 本值 ∩ AppDelegate
+// supportedInterfaceOrientationsForWindow（两侧同给 LandscapeButUpsideDown，
+// 双保险收敛）；呈现首选方向 UIKit 只向 root VC 查询——AppDelegate 无此
+// 回调，故挂在根 VC 上（LandscapeRight：设备竖放时 app 强制横置渲染）
+- (UIInterfaceOrientationMask)supportedInterfaceOrientations {
+    return UIInterfaceOrientationMaskLandscapeButUpsideDown;
+}
+
+- (UIInterfaceOrientation)preferredInterfaceOrientationForPresentation {
+    return UIInterfaceOrientationLandscapeRight;
+}
+
 - (void)viewDidLoad {
     [super viewDidLoad];
     self.view.backgroundColor = [ZL2Theme surface];
     self.cache = [NSMutableDictionary dictionary];
     self.currentIndex = -1;
 
-    CGFloat railW = [ZL2RailView widthForIdiom:[[UIDevice currentDevice] userInterfaceIdiom]];
-    self.rail = [[ZL2RailView alloc] initWithItems:@[@"主页", @"下载", @"版本", @"账户", @"设置", @"组件"]
-                                           symbols:@[@"house.fill",
-                                                     @"arrow.down.circle.fill",
-                                                     @"folder.fill",
-                                                     @"person.fill",
-                                                     @"gearshape.fill",
-                                                     @"square.grid.2x2.fill"]];
-    self.rail.translatesAutoresizingMaskIntoConstraints = NO;
-    self.rail.delegate = self;
-    [self.view addSubview:self.rail];
+    UILayoutGuide *safe = self.view.safeAreaLayoutGuide;
 
+    // ── 顶栏背景：自 y=0 延伸过顶部 safeArea，下缘 = safeTop + 40 ──
+    self.barBackground = [[UIView alloc] init];
+    self.barBackground.backgroundColor = [ZL2Theme surface];
+    self.barBackground.translatesAutoresizingMaskIntoConstraints = NO;
+    [self.view addSubview:self.barBackground];
+
+    // ── 左簇（ZL2 backCenter 镜像，纯视觉）：chevron.left + house.fill ──
+    self.leftCluster = [[UIStackView alloc] init];
+    self.leftCluster.axis = UILayoutConstraintAxisHorizontal;
+    self.leftCluster.spacing = 8;
+    self.leftCluster.alignment = UIStackViewAlignmentCenter;
+    self.leftCluster.translatesAutoresizingMaskIntoConstraints = NO;
+    [self.leftCluster addArrangedSubview:[self ame_barIcon:@"chevron.left"]];
+    [self.leftCluster addArrangedSubview:[self ame_barIcon:@"house.fill"]];
+
+    // ── 页名标题 ──
+    self.topBarTitle = [[UILabel alloc] init];
+    self.topBarTitle.font = [ZL2Theme fontTitleMedium];
+    self.topBarTitle.textColor = [ZL2Theme onSurface];
+    self.topBarTitle.translatesAutoresizingMaskIntoConstraints = NO;
+
+    // 前导簇打包（间距 16 = ZL2 标题 margin）：主页时 leftCluster 整簇隐藏，
+    // stack 折叠 → 标题自然滑到簇起点，零约束切换
+    self.leadingCluster = [[UIStackView alloc] init];
+    self.leadingCluster.axis = UILayoutConstraintAxisHorizontal;
+    self.leadingCluster.spacing = 16;
+    self.leadingCluster.alignment = UIStackViewAlignmentCenter;
+    self.leadingCluster.translatesAutoresizingMaskIntoConstraints = NO;
+    [self.leadingCluster addArrangedSubview:self.leftCluster];
+    [self.leadingCluster addArrangedSubview:self.topBarTitle];
+    [self.view addSubview:self.leadingCluster];
+
+    // ── 右簇：任务胶囊 + 4 枚 RailItem（end margin 12 / spacedBy 8）──
+    [self ame_buildTaskPill];
+
+    UIStackView *rightCluster = [[UIStackView alloc] init];
+    rightCluster.axis = UILayoutConstraintAxisHorizontal;
+    rightCluster.spacing = 8;
+    rightCluster.alignment = UIStackViewAlignmentCenter;
+    rightCluster.translatesAutoresizingMaskIntoConstraints = NO;
+    [rightCluster addArrangedSubview:self.taskPill];
+    NSArray<NSString *> *railSymbols = @[@"square.grid.2x2.fill",    // 版本
+                                         @"arrow.down.circle.fill",  // 下载
+                                         @"person.crop.circle.fill", // 账户
+                                         @"gearshape.fill"];         // 设置
+    NSArray<NSString *> *railTitles = @[@"版本", @"下载", @"账户", @"设置"];
+    NSMutableArray<UIStackView *> *items = [NSMutableArray array];
+    for (NSUInteger i = 0; i < railSymbols.count; i++) {
+        UIStackView *item = [self ame_railItemWithSymbol:railSymbols[i]
+                                                   title:railTitles[i]];
+        [items addObject:item];
+        [rightCluster addArrangedSubview:item];
+    }
+    self.railItems = items;
+    [self.view addSubview:rightCluster];
+
+    // ── 五槽内容容器：顶栏下缘起占满剩余 ──
     self.container = [[UIView alloc] init];
     self.container.translatesAutoresizingMaskIntoConstraints = NO;
     [self.view addSubview:self.container];
 
     [NSLayoutConstraint activateConstraints:@[
-        [self.rail.leadingAnchor constraintEqualToAnchor:self.view.leadingAnchor],
-        [self.rail.topAnchor constraintEqualToAnchor:self.view.topAnchor],
-        [self.rail.bottomAnchor constraintEqualToAnchor:self.view.bottomAnchor],
-        [self.rail.widthAnchor constraintEqualToConstant:railW],
-        [self.container.leadingAnchor constraintEqualToAnchor:self.rail.trailingAnchor],
+        [self.barBackground.leadingAnchor constraintEqualToAnchor:self.view.leadingAnchor],
+        [self.barBackground.trailingAnchor constraintEqualToAnchor:self.view.trailingAnchor],
+        [self.barBackground.topAnchor constraintEqualToAnchor:self.view.topAnchor],
+        [self.barBackground.bottomAnchor constraintEqualToAnchor:safe.topAnchor constant:40],
+        [self.leadingCluster.leadingAnchor constraintEqualToAnchor:safe.leadingAnchor constant:12],
+        [self.leadingCluster.centerYAnchor constraintEqualToAnchor:safe.topAnchor constant:20],
+        [rightCluster.trailingAnchor constraintEqualToAnchor:safe.trailingAnchor constant:-12],
+        [rightCluster.centerYAnchor constraintEqualToAnchor:safe.topAnchor constant:20],
+        [self.container.leadingAnchor constraintEqualToAnchor:self.view.leadingAnchor],
         [self.container.trailingAnchor constraintEqualToAnchor:self.view.trailingAnchor],
-        [self.container.topAnchor constraintEqualToAnchor:self.view.topAnchor],
+        [self.container.topAnchor constraintEqualToAnchor:self.barBackground.bottomAnchor],
         [self.container.bottomAnchor constraintEqualToAnchor:self.view.bottomAnchor],
     ]];
 
-    // 7.0-UI-9-e：-zl2page 启动参数预选 rail 项（CI 逐页截图；缺省 home）
+    // -zl2page 启动参数预选页面（CI 逐页截图；缺省 home）
     [self ame_showIndex:AmePreviewPageIndexFromLaunchArguments()];
+}
+
+// 任务胶囊（ZL2 endButtons 任务条镜像）：surfaceContainerHigh / radiusXL /
+// 高 28 / 宽 120，内含 progress（track=outlineVariant bar=primary）+
+// doc.plaintext + 任务数（fontLabelMedium）。可见性与下载页胶囊同口径 =
+// hasActiveTasks——桩态 manager 无活动任务恒隐藏（主代理集成补活动任务桩后
+// 顶栏与下载页两处同步显现）
+- (void)ame_buildTaskPill {
+    DownloadTaskManager *mgr = [DownloadTaskManager sharedManager];
+    BOOL hasTasks = [mgr hasActiveTasks];
+
+    self.taskPill = [[UIView alloc] init];
+    self.taskPill.backgroundColor = [ZL2Theme surfaceContainerHigh];
+    self.taskPill.layer.cornerRadius = [ZL2Theme radiusXL];
+    self.taskPill.layer.masksToBounds = YES;
+    self.taskPill.hidden = !hasTasks;
+    self.taskPill.translatesAutoresizingMaskIntoConstraints = NO;
+
+    UIImage *docImage = [UIImage systemImageNamed:@"doc.plaintext"]
+                            ?: [UIImage systemImageNamed:@"doc.text.fill"];
+    UIImageView *docIcon =
+        [[UIImageView alloc] initWithImage:[docImage imageWithRenderingMode:UIImageRenderingModeAlwaysTemplate]];
+    docIcon.tintColor = [ZL2Theme onSurfaceVariant];
+    docIcon.translatesAutoresizingMaskIntoConstraints = NO;
+    [self.taskPill addSubview:docIcon];
+
+    self.pillProgress = [[UIProgressView alloc] initWithProgressViewStyle:UIProgressViewStyleDefault];
+    self.pillProgress.trackTintColor = [ZL2Theme outlineVariant];
+    self.pillProgress.progressTintColor = [ZL2Theme primary];
+    self.pillProgress.translatesAutoresizingMaskIntoConstraints = NO;
+    [self.taskPill addSubview:self.pillProgress];
+
+    self.pillCount = [[UILabel alloc] init];
+    self.pillCount.font = [ZL2Theme fontLabelMedium];
+    self.pillCount.textColor = [ZL2Theme onSurface];
+    self.pillCount.text = [NSString stringWithFormat:@"%lu", (unsigned long)[mgr allTasks].count];
+    self.pillCount.translatesAutoresizingMaskIntoConstraints = NO;
+    [self.taskPill addSubview:self.pillCount];
+
+    [NSLayoutConstraint activateConstraints:@[
+        [self.taskPill.widthAnchor constraintEqualToConstant:120],
+        [self.taskPill.heightAnchor constraintEqualToConstant:28],
+        [docIcon.leadingAnchor constraintEqualToAnchor:self.taskPill.leadingAnchor constant:10],
+        [docIcon.centerYAnchor constraintEqualToAnchor:self.taskPill.centerYAnchor],
+        [self.pillProgress.leadingAnchor constraintEqualToAnchor:docIcon.trailingAnchor constant:6],
+        [self.pillProgress.trailingAnchor constraintEqualToAnchor:self.pillCount.leadingAnchor constant:-6],
+        [self.pillProgress.centerYAnchor constraintEqualToAnchor:self.taskPill.centerYAnchor],
+        [self.pillProgress.heightAnchor constraintEqualToConstant:3],
+        [self.pillCount.trailingAnchor constraintEqualToAnchor:self.taskPill.trailingAnchor constant:-10],
+        [self.pillCount.centerYAnchor constraintEqualToAnchor:self.taskPill.centerYAnchor],
+    ]];
+
+    if (hasTasks) {
+        double first = [mgr allTasks].firstObject.progress;
+        if (first < 0) first = 0;
+        if (first > 1) first = 1;
+        [self.pillProgress setProgress:(float)first animated:NO];
+    }
+}
+
+// 左簇图标：32×32 视觉框（ZL2 TopBar IconButton 镜像；纯视觉无交互，非按钮），
+// 字形 22pt template onSurfaceVariant
+- (UIImageView *)ame_barIcon:(NSString *)symbol {
+    UIImageSymbolConfiguration *config = [UIImageSymbolConfiguration configurationWithPointSize:22];
+    UIImage *image = [UIImage systemImageNamed:symbol withConfiguration:config];
+    UIImageView *iconView = [[UIImageView alloc] initWithImage:[image imageWithRenderingMode:UIImageRenderingModeAlwaysTemplate]];
+    iconView.tintColor = [ZL2Theme onSurfaceVariant];
+    iconView.contentMode = UIViewContentModeCenter;
+    iconView.translatesAutoresizingMaskIntoConstraints = NO;
+    [NSLayoutConstraint activateConstraints:@[
+        [iconView.widthAnchor constraintEqualToConstant:32],
+        [iconView.heightAnchor constraintEqualToConstant:32],
+    ]];
+    return iconView;
+}
+
+// 顶栏 RailItem（ZL2 TopBarRailItem 镜像，先建未选态；选中态由
+// ame_refreshTopBarForIndex: 套用）：图标 22pt template + 12pt 文字标签
+// （间距 6 = ZL2 TextRailItem 选中标签 spacer；未选中隐藏 → stack 折叠）
+- (UIStackView *)ame_railItemWithSymbol:(NSString *)symbol title:(NSString *)title {
+    UIImageSymbolConfiguration *config = [UIImageSymbolConfiguration configurationWithPointSize:22];
+    UIImage *image = [UIImage systemImageNamed:symbol withConfiguration:config];
+    UIImageView *iconView = [[UIImageView alloc] initWithImage:[image imageWithRenderingMode:UIImageRenderingModeAlwaysTemplate]];
+    iconView.tintColor = [ZL2Theme onSurfaceVariant];
+    iconView.translatesAutoresizingMaskIntoConstraints = NO;
+
+    UILabel *label = [[UILabel alloc] init];
+    label.text = title;
+    label.font = [ZL2Theme fontLabelMedium];
+    label.textColor = [ZL2Theme onSurfaceVariant];
+    label.hidden = YES;
+    label.translatesAutoresizingMaskIntoConstraints = NO;
+
+    UIStackView *item = [[UIStackView alloc] init];
+    item.axis = UILayoutConstraintAxisHorizontal;
+    item.spacing = 6;
+    item.alignment = UIStackViewAlignmentCenter;
+    item.translatesAutoresizingMaskIntoConstraints = NO;
+    [item addArrangedSubview:iconView];
+    [item addArrangedSubview:label];
+    return item;
+}
+
+// 顶栏静态镜像刷新：左簇显隐 + 标题文案 + RailItem 选中态（当前页 primary +
+// 12pt 标签，其余 onSurfaceVariant）。选页仅由启动参数解析后触发一次
+- (void)ame_refreshTopBarForIndex:(NSInteger)index {
+    self.leftCluster.hidden = (index == 0);
+    self.topBarTitle.text = AmePreviewPageTitle(index);
+    [self.railItems enumerateObjectsUsingBlock:^(UIStackView *item, NSUInteger i, BOOL *stop) {
+        BOOL selected = (AmePreviewRailSlotForItem(i) == index);
+        UIImageView *icon = item.arrangedSubviews.firstObject;
+        UILabel *label = (item.arrangedSubviews.count > 1 ? item.arrangedSubviews[1] : nil);
+        icon.tintColor = selected ? [ZL2Theme primary] : [ZL2Theme onSurfaceVariant];
+        label.textColor = icon.tintColor;
+        label.hidden = !selected;
+    }];
 }
 
 - (void)ame_showIndex:(NSInteger)index {
@@ -619,10 +538,10 @@ static NSInteger AmePreviewPageIndexFromLaunchArguments(void) {
     if (!next) {
         switch (index) {
             case 0: next = [[ZL2HomeViewController alloc] init]; break;
-            // 7.0-UI-9-e：槽位 1-4 换装四功能页真实 VC（与 ZL2ShellViewController
-            // 壳侧同构：各包 UINavigationController 作根，根页 viewWillAppear
-            // 隐藏系统栏，版本/账户页 reload 由 viewWillAppear 自动触发）；
-            // 槽位 1-4 的链接期缺失符号由 Preview/ZL2PagesStub.m 桩 TU 补齐
+            // 槽位 1-4：四功能页真实 VC（与 ZL2ShellViewController 壳侧同构：
+            // 各包 UINavigationController 作根，根页 viewWillAppear 隐藏系统栏，
+            // 版本/账户页 reload 由 viewWillAppear 自动触发）；链接期缺失符号
+            // 由 Preview/ZL2PagesStub.m 桩 TU 补齐
             case 1: next = [[UINavigationController alloc]
                                initWithRootViewController:[[ZL2DownloadViewController alloc] init]]; break;
             case 2: next = [[UINavigationController alloc]
@@ -631,7 +550,6 @@ static NSInteger AmePreviewPageIndexFromLaunchArguments(void) {
                                initWithRootViewController:[[ZL2AccountsViewController alloc] init]]; break;
             case 4: next = [[UINavigationController alloc]
                                initWithRootViewController:[[ZL2SettingsViewController alloc] init]]; break;
-            case 5: next = [[AmeFluentLegacyPageViewController alloc] init]; break;
             default: return;
         }
         self.cache[@(index)] = next;
@@ -658,11 +576,7 @@ static NSInteger AmePreviewPageIndexFromLaunchArguments(void) {
     } completion:nil];
 
     self.currentIndex = index;
-    self.rail.selectedIndex = index;
-}
-
-- (void)railView:(ZL2RailView *)rail didSelectIndex:(NSInteger)index {
-    [self ame_showIndex:index];
+    [self ame_refreshTopBarForIndex:index];
 }
 
 @end
@@ -675,12 +589,22 @@ static NSInteger AmePreviewPageIndexFromLaunchArguments(void) {
 
 @implementation AmePreviewAppDelegate
 
+// 横屏（7.0-UI-10-c）：模拟器截图恒为横屏——supportedInterfaceOrientationsForWindow
+// 收敛为双横屏（与根 VC supportedInterfaceOrientations 交集生效）；呈现首选
+// 方向由根 VC 的 preferredInterfaceOrientationForPresentation 给出
+// （LandscapeRight，设备竖放时 app 强制横置渲染）。仅 harness 生效：正式 app
+// 的 AppDelegate 不在本文件，零影响。
+- (UIInterfaceOrientationMask)application:(UIApplication *)application
+        supportedInterfaceOrientationsForWindow:(UIWindow *)window {
+    return UIInterfaceOrientationMaskLandscapeButUpsideDown;
+}
+
 - (BOOL)application:(UIApplication *)application didFinishLaunchingWithOptions:(NSDictionary *)launchOptions {
     self.window = [[UIWindow alloc] initWithFrame:[UIScreen mainScreen].bounds];
     self.window.backgroundColor = [ZL2Theme surface];
 
-    // 7.0-UI-8：根 = ZL2 壳视觉 1:1（M3 NavigationRail；槽位 0=ZL2Home、
-    // 1-4=四功能页真实 VC、5=组件对比页）+ 7.0-UI-9-e 起 -zl2page 选页
+    // 7.0-UI-10-c：根 = ZL2 壳真形态镜像（40pt 顶栏 + 五槽内容区，无 rail；
+    // -zl2page 选页 home/download/versions/accounts/settings）
     UIViewController *root = [[AmePreviewShellController alloc] init];
 
     self.window.rootViewController = root;

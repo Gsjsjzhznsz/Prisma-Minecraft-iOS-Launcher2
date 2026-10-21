@@ -7,6 +7,11 @@
 #   scripts/ui_fluent_smoke.sh preview   # 编译预览 harness → 模拟器安装启动 → 浅/深两态截图
 #   scripts/ui_fluent_smoke.sh all       # 两者依次（CI 默认）
 #
+# 7.0-UI-10-c：preview 壳为 ZL2 40pt 顶栏镜像 + 横屏（模拟器截图恒横置），
+#   逐页冷启动截图 5 页 × 浅/深两态 = 10 张：
+#   ame-zl2-{home,download,versions,accounts,settings}-{light,dark}.png
+#   （组件页退役，不再产出 components 组图）
+#
 # 范围红线：本脚本只做"前端迁移面"的快速验证（AmeTheme 令牌层 + Fluent 组件库 +
 #   已迁移 VC 的语法与可运行性）；完整出包仍走 gmake package（development.yml）。
 # 红线：仅测试验证，不产生任何 release。
@@ -82,8 +87,9 @@ syntax_mode() {
 #   harness = AmeTheme + Fluent 组件 8 件 + LauncherMenuViewController
 #   + Preview/AmeFluentPreviewMain.m（服务桩内嵌，见该文件头注释）
 #   + Preview/ZL2PagesStub.m（7.0-UI-9 四页桩 TU）。
-#   7.0-UI-9-e 起 rail 槽位 1-4 换装 ZL2 四功能页真实 VC，逐页冷启动
-#   （-zl2page）各截浅/深两态共 12 张。
+#   7.0-UI-9-e 起槽位 1-4 换装 ZL2 四功能页真实 VC；7.0-UI-10-c 起壳为
+#   40pt 顶栏镜像 + 横屏（组件陈列页退役），逐页冷启动（-zl2page）五页
+#   各截浅/深两态共 10 张。
 # ─────────────────────────────────────────────────────────────
 preview_mode() {
   echo "== UI Fluent 预览（模拟器渲染冒烟）=="
@@ -95,6 +101,7 @@ preview_mode() {
     ZL2Theme ZL2RailView ZL2HomeViewController
     ZL2DownloadViewController ZL2VersionsViewController
     ZL2AccountsViewController ZL2SettingsViewController
+    ZL2AssetSearchViewController   # 7.0-UI-10：下载页资产搜索组件（.h+.m，与下载页同轮落地）
   )
   local objs=()
   for s in "${sources[@]}"; do
@@ -186,11 +193,14 @@ PLIST
   xcrun simctl bootstatus "$device" -b >/dev/null 2>&1 || true
   xcrun simctl install "$device" "$app" || { echo "✗ 安装失败"; FAIL=1; return; }
 
-  # ── 逐页截图（7.0-UI-9-e）：每页冷启动（-zl2page 预选 rail 项）→ 浅色截 →
-  #    深色截 → 还原浅色；6 页 × 2 态共 12 张，命名 ame-zl2-<page>-<mode>.png。
-  #    harness 桩链路：下载/版本页空注册表空任务（胶囊隐藏/空态），账户页空
-  #    沙盒（未登录空列表），设置页静态组卡——均为可验收的初始视觉。
-  local pages=(home download versions accounts settings components)
+  # ── 逐页截图（7.0-UI-9-e；7.0-UI-10-c 去组件页收敛五页）：每页冷启动
+  #    （-zl2page 预选顶栏镜像页）→ 浅色截 → 深色截 → 还原浅色；
+  #    5 页 × 2 态共 10 张，命名 ame-zl2-<page>-<mode>.png。harness 恒横屏
+  #    （AppDelegate supportedInterfaceOrientationsForWindow 强制，截图尺寸
+  #    随设备/横置方向而定）。桩链路：下载/版本页空注册表空任务（胶囊隐藏/
+  #    空态），账户页空沙盒（未登录空列表），设置页静态组卡——均为可验收
+  #    的初始视觉。
+  local pages=(home download versions accounts settings)
   local p page_launch_out
   for p in "${pages[@]}"; do
     xcrun simctl terminate "$device" com.prisma-devs.ame-fluent-preview >/dev/null 2>&1 || true
@@ -214,7 +224,7 @@ PLIST
   done
 
   xcrun simctl terminate "$device" com.prisma-devs.ame-fluent-preview >/dev/null 2>&1 || true
-  echo "== 预览冒烟完成（6 页 × 浅/深 12 张截图即视觉验收：ZL2Home 大启动按钮/下载 chips/版本空态/账户未登录/设置组卡/Fluent 双栏对比）=="
+  echo "== 预览冒烟完成（5 页 × 浅/深 10 张截图即视觉验收：横屏 40pt 顶栏镜像壳 + ZL2Home 大启动按钮/下载 chips/版本空态/账户未登录/设置组卡）=="
 }
 
 case "$MODE" in

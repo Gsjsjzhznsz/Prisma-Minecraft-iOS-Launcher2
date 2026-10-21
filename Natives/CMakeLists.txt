@@ -515,6 +515,8 @@ add_executable(AngelAuraAmethyst
   ZL2ShellViewController.m
   # 7.0-UI-9：ZL2 四功能页 M3 重写（下载/版本/账户/设置）
   ZL2DownloadViewController.m
+  # 7.0-UI-10-a：下载页六类真语义（ZL2 远程搜索列表，替换本地管理器错配）
+  ZL2AssetSearchViewController.m
   ZL2VersionsViewController.m
   ZL2AccountsViewController.m
   ZL2SettingsViewController.m

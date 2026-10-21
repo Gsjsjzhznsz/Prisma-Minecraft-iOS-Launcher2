@@ -1,5 +1,6 @@
 //
-// ZL2DownloadViewController.m — ZL2 风格下载页实现（7.0-UI-9-a：下载页分类 M3 重写）
+// ZL2DownloadViewController.m — ZL2 风格下载页实现（7.0-UI-9-a：下载页分类 M3 重写；
+//                               7.0-UI-10-a：六类别语义纠错——全远程搜索下载）
 //
 // 移植对象：ZalithLauncher2 DownloadScreen.kt（GNU GPL 参考副本，只读）。
 // ZL2 原布局为「左类别轨 + 内容区」双栏；本页按移动端信息架构适配为
@@ -8,24 +9,29 @@
 // fontLabelMedium 文字、选中 primaryContainer / 未选 surfaceContainer），
 // iPhone 窄屏横向滚动 / iPad 宽屏单行铺开，双 idiome 同一套代码。
 //
+// 【7.0-UI-10-a 语义纠错】ZL2 下载页六类全部是远程搜索下载
+// （ZalithLauncher2 的 DownloadModPack/Mod/ResourcePack/Saves/ShadersScreen.kt
+// 均 route 到 assets/search/SearchXXXScreen.kt）；本地管理器（模组/存档/
+// 资源包/光影管理）在 ZL2 属版本管理域，绝不属于下载页。上轮（7.0-UI-9-a）
+// 误把五类挂到本地管理器 VC，本轮纠错重接：
+//
 // 六类目标 VC（顺序对标 ZL2 DownloadScreen TabMenu）：
-//   0 游戏   DownloadViewController              [[alloc] init]
-//   1 整合包 ModpackImportViewController         [[alloc] init]
-//   2 模组   ModsManagerViewController           [[alloc] init]
-//       —— spec 原文为基类 ResourceListViewController；经 .h/.m 取证：
-//         基类自身未实现 reloadResourceList（仅子类实现），而其
-//         viewWillAppear 无条件调用 [self reloadResourceList]
-//         （ResourceListViewController.m L133），裸基类实例首显必崩
-//         unrecognized selector，故替换为同族具体子类 ModsManagerViewController
-//         （真正的 Mod 管理页，init 转调基类 initWithTitle 注入模组图标）。
-//         偏差已记 worklog，待编排侧确认。
-//   3 资源包 ResourcePacksManagerViewController  [[alloc] init]
-//   4 存档   WorldsManagerViewController         [[alloc] init]
-//   5 光影包 ShadersManagerViewController        [[alloc] init]
-//   各管理页 init 均自带「兼容既有调用方」转发（转调 ResourceListViewController
-//   基类 initWithTitle:resourceTypeIcon:iconColor: 注入默认标题/图标），plain init
-//   为 .h 取证确认的可用签名；spec 中「initWithStyle:UITableViewStyleInsetGrouped」
-//   属壳侧 AccountListViewController 的签名，六类目标 VC 均不适用。
+//   0 游戏   DownloadViewController                [[alloc] init]
+//            —— 旧远程游戏版本页（Minecraft 版本/加载器/OptiFine 安装流），
+//              M3 化留下一轮；本轮仅它保留旧页嵌入。
+//   1 整合包 ZL2AssetSearchViewController(modpack)
+//   2 模组   ZL2AssetSearchViewController(mod)
+//   3 资源包 ZL2AssetSearchViewController(resourcepack)
+//   4 存档   ZL2AssetSearchViewController(world)
+//   5 光影包 ZL2AssetSearchViewController(shader)
+//   —— 五类全部接入新建的通用 M3 远程搜索列表页（M3 胶囊搜索框 + ZL2
+//   PlatformSortField 排序 chips + 结果卡 + 滚到底分页 + 空态；点击结果卡
+//   1:1 复刻旧 DownloadViewController.m 各类型版本页配置与下载/安装流，
+//   类型→端点→版本页锚点行号映射表见 ZL2AssetSearchViewController.m 文件头）。
+//   上轮的 ModpackImport/ModsManager/ResourcePacksManager/WorldsManager/
+//   ShadersManager 五个本地管理器 VC 自此退出下载页（存量页，版本管理域
+//   后续轮次归位）；上轮模组类「裸基类 ResourceListViewController 首显必崩」
+//   判例随本地管理器整体退出而失效。
 //
 // 任务胶囊（页头行右侧）：仅 [DownloadTaskManager sharedManager].hasActiveTasks
 // 时显示；surfaceContainerHigh 底 / radiusXL（高 32 渲染为全圆胶囊）/ 高 32，
@@ -34,10 +40,10 @@
 // fontLabelMedium；点按第一个活动任务调 [PLTaskProgressViewController
 // presentForTaskId:]（ZL2HomeViewController 同款用法）。
 //
-// 嵌入的旧 VC 保持原样（存量页，后续轮次退役），本页职责是 ZL2 结构壳：
-// 懒建 NSMutableDictionary 缓存 + addChildViewController + 四边钉进容器 +
-// didMoveToParentViewController；切换时旧的 hidden=YES 新的 hidden=NO，
-// 0.18s crossDissolve（与壳同款手法）。
+// 嵌入子页职责边界：本页是 ZL2 结构壳（懒建 NSMutableDictionary 缓存 +
+// addChildViewController + 四边钉进容器 + didMoveToParentViewController；
+// 切换时旧的 hidden=YES 新的 hidden=NO，0.18s crossDissolve 与壳同款手法）；
+// 搜索/下载/安装流全部在子页内闭环。
 //
 // 导航栏约定：本页由壳包在 UINavigationController 里（根页），viewWillAppear
 // 隐藏系统栏、viewWillDisappear 恢复——子页经父链 navigationController push 出
@@ -58,11 +64,7 @@
 #import "ZL2DownloadViewController.h"
 #import "ZL2Theme.h"
 #import "DownloadViewController.h"
-#import "ModpackImportViewController.h"
-#import "ModsManagerViewController.h"
-#import "ResourcePacksManagerViewController.h"
-#import "WorldsManagerViewController.h"
-#import "ShadersManagerViewController.h"
+#import "ZL2AssetSearchViewController.h"
 #import "DownloadTaskManager.h"
 #import "DownloadTaskItem.h"
 #import "PLTaskProgressViewController.h"
@@ -118,6 +120,9 @@ static UIImage *ZL2DownloadSystemImage(NSString *name, NSString *fallback) {
         _childCache = [NSMutableDictionary dictionary];
         _selectedIndex = -1;
         _categoryTitles = @[@"游戏", @"整合包", @"模组", @"资源包", @"存档", @"光影包"];
+        // 7.0-UI-10-a 复核：五类改远程搜索语义后逐枚评估，六枚符号语义均成立
+        // （存档=world 检索，globe 保留；ZL2 端 earth 为 iOS16+ 档，chip 的
+        // 一级 .fill fallback 链在 iOS14 会落空，故不换）；全表 iOS13/14 档
         _categorySymbols = @[@"gamecontroller", @"archivebox", @"puzzlepiece",
                              @"paintbrush", @"globe", @"lightbulb"];
     }
@@ -403,30 +408,35 @@ static UIImage *ZL2DownloadSystemImage(NSString *name, NSString *fallback) {
     UIViewController *vc = nil;
     switch (index) {
         case 0: {
+            // 游戏：旧远程游戏版本页（M3 化留下一轮，文件头注记）
             vc = [[DownloadViewController alloc] init];
             break;
         }
         case 1: {
-            vc = [[ModpackImportViewController alloc] init];
+            // 7.0-UI-10-a 语义纠错：整合包 = 远程搜索下载（ZL2 SearchModPackScreen
+            // 语义），点击结果卡走 ModVersionViewController + 整合包安装流
+            vc = [[ZL2AssetSearchViewController alloc] initWithType:ZL2AssetSearchTypeModpack
+                                                              title:self.categoryTitles[index]];
             break;
         }
         case 2: {
-            // 模组：spec 原文 ResourceListViewController（裸基类缺
-            // reloadResourceList 实现，首显必崩），替换为同族具体子类，
-            // 详见文件头说明
-            vc = [[ModsManagerViewController alloc] init];
+            vc = [[ZL2AssetSearchViewController alloc] initWithType:ZL2AssetSearchTypeMod
+                                                              title:self.categoryTitles[index]];
             break;
         }
         case 3: {
-            vc = [[ResourcePacksManagerViewController alloc] init];
+            vc = [[ZL2AssetSearchViewController alloc] initWithType:ZL2AssetSearchTypeResourcePack
+                                                              title:self.categoryTitles[index]];
             break;
         }
         case 4: {
-            vc = [[WorldsManagerViewController alloc] init];
+            vc = [[ZL2AssetSearchViewController alloc] initWithType:ZL2AssetSearchTypeWorld
+                                                              title:self.categoryTitles[index]];
             break;
         }
         case 5: {
-            vc = [[ShadersManagerViewController alloc] init];
+            vc = [[ZL2AssetSearchViewController alloc] initWithType:ZL2AssetSearchTypeShader
+                                                              title:self.categoryTitles[index]];
             break;
         }
         default:
