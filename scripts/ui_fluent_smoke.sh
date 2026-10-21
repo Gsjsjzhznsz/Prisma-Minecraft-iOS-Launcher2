@@ -213,10 +213,15 @@ PLIST
     fi
 
     sleep 4
-    # 崩溃哨兵（7.0-UI-10-r6）：launch 成功≠进程存活——7.0-UI-10 首两轮截图全为
-    # SpringBoard（app 启动即崩，run 39645342866/39646927775 实证），fail-fast 并
-    # 把宿主 DiagnosticReports 崩溃报告关键行打进 stdout（artifact glob 仅 *.png）。
-    if ! xcrun simctl spawn "$device" launchctl list 2>/dev/null | grep -q ame-fluent; then
+    # 崩溃哨兵（r11 重写）：宿主级 pgrep（模拟器 app=宿主进程，比 simctl spawn
+    # launchctl list 稳定——run 39654817069 实证 launchctl 存在漏报 app 的竞态假
+    # 阴性：同一 PID 在 console-pty 重挂时仍存活）+ 3 次重试防抖。
+    local alive=0 li
+    for li in 1 2 3; do
+      if pgrep -f "AmeFluentPreview.app" >/dev/null 2>&1; then alive=1; break; fi
+      sleep 1
+    done
+    if [ "$alive" -ne 1 ]; then
       echo "✗ 存活检查失败[see-log]：launch 成功但进程已亡（启动即崩）"
       echo "── launchctl list 原始输出（前 15 行，验证命令可用性）:"
       xcrun simctl spawn "$device" launchctl list 2>&1 | head -15
