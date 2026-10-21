@@ -109,8 +109,12 @@ preview_mode() {
   fi
 
   echo "  链接 AmeFluentPreview"
+  # CoreGraphics/QuartzCore 必须显式链接：CGAffineTransform（Toast/Banner/侧栏弹跳）
+  # 与 CALayer/CABasicAnimation（Progress/Card 阴影）符号不在 UIKit 内；
+  # 本脚本不用 -fmodules，无自动链接
   if ! xcrun clang -isysroot "$SDK_SIM" -target "${ARCH}-apple-ios14.0-simulator" \
-      -framework UIKit -framework Foundation -o "$OUT/AmeFluentPreview" \
+      -framework UIKit -framework Foundation -framework CoreGraphics -framework QuartzCore \
+      -o "$OUT/AmeFluentPreview" \
       "${objs[@]}" "$OUT/AmeFluentPreviewMain.o" 2>"$OUT/link.log"; then
     echo "  ✗ 链接失败:"
     sed -n '1,15p' "$OUT/link.log" || true

@@ -63,7 +63,7 @@ id getPrefObject(NSString *key) {
 
 #pragma mark - 组件陈列面板（右侧）
 
-@interface AmeDemoPanelViewController : UIViewController
+@interface AmeDemoPanelViewController : UIViewController <UITableViewDelegate, UITableViewDataSource>
 @property(nonatomic, strong) FluentProgress *progressBar;
 @property(nonatomic, strong) UIButton *appearanceToggle;
 @end
