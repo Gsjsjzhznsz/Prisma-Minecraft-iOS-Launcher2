@@ -520,6 +520,8 @@ add_executable(AngelAuraAmethyst
   ZL2VersionsViewController.m
   ZL2AccountsViewController.m
   ZL2SettingsViewController.m
+  # 7.0-UI-11：启动链版本索引服务（FindVersionInRemoteList 契约迁出旧壳）
+  ZL2VersionIndex.m
   InlineMessageView.m
   DownloadTaskItem.m
   DownloadTaskManager.m

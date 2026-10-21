@@ -4,6 +4,7 @@
 #import "LauncherNavigationController.h"
 #import "LauncherPreferences.h"
 #import "LauncherSplitViewController.h"
+#import "ZL2ShellViewController.h"   // 7.0-UI-11：回壳判定与新壳兜底
 #import "PLLogOutputView.h"
 #import "PLProfiles.h"
 #import "SurfaceViewController.h"
@@ -325,7 +326,12 @@ void UIKit_returnToSplitView() {
         UIWindow *window = UIWindow.mainWindow;
 
         // Return from JavaGUIViewController
-        if ([window.rootViewController isKindOfClass:LauncherSplitViewController.class]) {
+        // 7.0-UI-11：根壳判定双轨——旧壳 LauncherSplit（历史语义保留）与
+        // ZL2 新壳同属"模态挂在壳上"形态，都是 dismiss 回壳；旧实现只认
+        // 旧壳类，ZL2 壳下执行 Jar 的返回会坠入下方 Surface 分支，tmpRootVC
+        // 为 nil 时被新建旧壳 = "执行 Jar 退出后整个界面变旧版"病灶。
+        if ([window.rootViewController isKindOfClass:LauncherSplitViewController.class] ||
+            [window.rootViewController isKindOfClass:ZL2ShellViewController.class]) {
             [currentVC() dismissViewControllerAnimated:YES completion:nil];
             return;
         }
@@ -338,7 +344,10 @@ void UIKit_returnToSplitView() {
             window.rootViewController = tmpRootVC;
             tmpRootVC = nil;
         } else {
-            window.rootViewController = [[LauncherSplitViewController alloc] initWithStyle:UISplitViewControllerStyleDoubleColumn];
+            // 7.0-UI-11：兜底换根同样一律新壳（旧壳已退役，旧实现这里新建
+            // LauncherSplitViewController = "退游戏回旧界面"病灶，tmpRootVC
+            // 失效场景（JVM 崩后异常链 / 分代换根丢失）即触达）
+            window.rootViewController = [[ZL2ShellViewController alloc] init];
         }
         [window makeKeyAndVisible];
         window.alpha = 0;
@@ -349,7 +358,8 @@ void UIKit_returnToSplitView() {
 }
 
 void launchInitialViewController(UIWindow *window) {
-    window.rootViewController = [[LauncherSplitViewController alloc] initWithStyle:UISplitViewControllerStyleDoubleColumn];
+    // 7.0-UI-11：无调用方（SceneDelegate 直建根壳），仅保符号一致性——指向新壳
+    window.rootViewController = [[ZL2ShellViewController alloc] init];
 #if 0
     if (getPrefBool(@"internal.internal_launch_on_boot")) {
         window.rootViewController = [[SurfaceViewController alloc] init];

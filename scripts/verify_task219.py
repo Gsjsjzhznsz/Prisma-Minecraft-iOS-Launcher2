@@ -99,9 +99,9 @@ check("C5 步骤构建器 8/8 与 switch 对齐（run621 事故类防线；Task2
       set(re.findall(r"\[self (ame\d+_build\w+Step):", wv)) ==
       set(re.findall(r"^- \(void\)(ame\d+_build\w+Step):", wv, re.M)) and
       len(set(re.findall(r"^- \(void\)(ame\d+_build\w+Step):", wv, re.M))) == 8)
-check("C6 iPadOS 视觉（systemBackground / labelColor / secondarySystemGroupedBackground 卡片）",
-      "systemBackgroundColor" in wv and "labelColor" in wv
-      and "secondarySystemGroupedBackgroundColor" in wv)
+check("C6 iPadOS 视觉（7.0-UI-3d 迁 AmeTheme 令牌后重锚：textPrimary / surfaceCard / statusWarning 语义色）",
+      "AmeTheme textPrimary" in wv and "AmeTheme surfaceCard" in wv
+      and "AmeTheme statusWarning" in wv)
 check("C7 App 图标多候选加载（bundle 根 PNG 实名，根治“没有图标装饰”）",
       "ame219_loadAppIcon" in wv and "AppIcon-Light60x60" in wv)
 check("C8 选择器完备性（@selector 全部有实现——run621 事故类防线）",

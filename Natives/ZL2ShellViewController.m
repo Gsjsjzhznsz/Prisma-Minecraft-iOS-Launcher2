@@ -72,6 +72,7 @@
 
 #import "ZL2ShellViewController.h"
 #import "ZL2Theme.h"
+#import "ZL2VersionIndex.h"          // 7.0-UI-11：启动链版本索引服务（warmUp）
 #import "ZL2HomeViewController.h"
 #import "ZL2DownloadViewController.h"
 #import "ZL2VersionsViewController.h"
@@ -375,6 +376,9 @@ static UIImage *ZL2ShellSystemImage(NSString *name, NSString *fallback) {
     [super viewDidLoad];
     self.view.backgroundColor = [ZL2Theme surface];
 
+    // 7.0-UI-11：版本索引服务预热（远程清单在途拉取，启动链查找免竞态等待）
+    [[ZL2VersionIndex sharedIndex] warmUp];
+
     [self ame_buildTopBar];
     [self ame_buildContainer];
 
@@ -479,6 +483,7 @@ static UIImage *ZL2ShellSystemImage(NSString *name, NSString *fallback) {
     self.rightCluster.alignment = UIStackViewAlignmentCenter;
     self.rightCluster.spacing = 8.0;
     self.rightCluster.translatesAutoresizingMaskIntoConstraints = NO;
+    self.rightCluster.accessibilityIdentifier = @"zl2_shell_topbar_rail";   // 7.0-UI-11：向导引导锚点探测
     [self.barRow addArrangedSubview:self.rightCluster];
 
     // a) 任务胶囊（AnimatedVisibility：任务运行且未展开时——iOS 无任务菜单

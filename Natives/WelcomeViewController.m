@@ -723,6 +723,93 @@ static const NSInteger ame218_welcomeStepCount = 8;  // Task246：+1 界面风�
     NSLog(@"[Welcome] Task233 anchor discovery: menu=%d content=%d right=%d (children=%lu)",
           ame233_menuVC != nil, ame233_contentVC != nil, ame233_rightVC != nil,
           (unsigned long)children.count);
+    // ---- 7.0-UI-11：ZL2 新壳锚点先行（旧壳三区探测在 ZL2 壳下天然全空，
+    //      仅剩"主内容区"一条幸存锚点且语义不完整——ZL2 的启动按钮在主页
+    //      网格区、导航枢纽在顶栏右簇）。ZL2 壳下走专用锚点集：全部真实
+    //      视图 frame 派生（Task233 铁律），探测不到自动剔除，全空直接进
+    //      关于页（Task225 语义：引导是增强，绝不阻塞）。
+    //      探测用 NSClassFromString（不引壳头文件依赖；类不在链接集时
+    //      isKindOfClass:nil 恒 NO，安全回退旧探测路径）。
+    if ([root isKindOfClass:NSClassFromString(@"ZL2ShellViewController")]) {
+        UIView *(^ame111_findById)(UIView *, NSString *) = ^(UIView *tree, NSString *aid) {
+            if (tree == nil || aid.length == 0) return (UIView *)nil;
+            NSMutableArray<UIView *> *stack = [NSMutableArray arrayWithObject:tree];
+            int visited = 0;
+            while (stack.count > 0 && visited < 800) {
+                UIView *v = stack.lastObject;
+                [stack removeLastObject];
+                visited++;
+                if (v.hidden || v.alpha <= 0.01) continue;
+                if (v.window != nil && [v.accessibilityIdentifier isEqualToString:aid]) return v;
+                for (UIView *sub in v.subviews) [stack addObject:sub];
+            }
+            return (UIView *)nil;
+        };
+
+        UIViewController *ame111_home = root.childViewControllers.firstObject;
+        CGRect ame111_sb = window.bounds;
+        if (CGRectIsEmpty(ame111_sb)) ame111_sb = UIScreen.mainScreen.bounds;
+
+        // 锚 A：顶栏右簇 = 导航枢纽（版本/下载/账户/设置 RailItem 所在）
+        UIView *ame111_rail = ame111_findById(root.view, @"zl2_shell_topbar_rail");
+        if (ame111_rail != nil) {
+            CGRect r = [Ame223CoachMarksView screenRectForView:ame111_rail];
+            if (!CGRectIsNull(r)) {
+                r = CGRectIntersection(r, ame111_sb);
+                if (!CGRectIsNull(r) && !CGRectIsEmpty(r)) {
+                    [items addObject:@{
+                        @"rect": [NSValue valueWithCGRect:r],
+                        @"title": localize(@"coachmarks.nav.title", nil),
+                        @"body": localize(@"coachmarks.nav.body", nil),
+                        @"round": @NO,
+                    }];
+                }
+            }
+        }
+
+        // 锚 B：主内容区 = 主页（版本卡/启动状态/网格磁贴）
+        if (ame111_home != nil && ame111_home.isViewLoaded && ame111_home.view.window != nil) {
+            CGRect r = [Ame223CoachMarksView screenRectForView:ame111_home.view];
+            if (!CGRectIsNull(r)) {
+                r = CGRectIntersection(r, ame111_sb);
+                if (!CGRectIsNull(r) && !CGRectIsEmpty(r)) {
+                    [items addObject:@{
+                        @"rect": [NSValue valueWithCGRect:r],
+                        @"title": localize(@"coachmarks.content.title", nil),
+                        @"body": localize(@"coachmarks.content.body", nil),
+                        @"round": @NO,
+                    }];
+                }
+            }
+        }
+
+        // 锚 C：启动按钮（主页网格区 CTA，圆圈高亮）
+        UIView *ame111_launch = ame111_findById(ame111_home.view, @"zl2_home_launch");
+        if (ame111_launch != nil) {
+            CGRect r = [Ame223CoachMarksView screenRectForView:ame111_launch];
+            if (!CGRectIsNull(r)) {
+                r = CGRectInset(CGRectIntersection(r, ame111_sb), -14, -14);
+                if (!CGRectIsNull(r) && !CGRectIsEmpty(r)) {
+                    [items addObject:@{
+                        @"rect": [NSValue valueWithCGRect:r],
+                        @"title": localize(@"coachmarks.launch.title", nil),
+                        @"body": localize(@"coachmarks.launch.body", nil),
+                        @"round": @YES,
+                    }];
+                }
+            }
+        }
+
+        NSLog(@"[Welcome] 7.0-UI-11 ZL2 shell anchors: rail=%d home=%d launch=%d",
+              ame111_rail != nil, ame111_home.view.window != nil, ame111_launch != nil);
+        if (items.count == 0) {
+            presentAbout();
+            return;
+        }
+        [Ame223CoachMarksView showSequence:items completion:presentAbout];
+        return;
+    }
+
 
     // ---- 锚点 1：侧边导航（菜单 VC 的真实视图）----
     if (ame233_menuVC != nil && ame233_menuVC.isViewLoaded && ame233_menuVC.view.window != nil) {

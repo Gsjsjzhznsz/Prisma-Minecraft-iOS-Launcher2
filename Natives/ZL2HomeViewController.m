@@ -352,6 +352,7 @@ static UIImage *ZL2HomeSystemImage(NSString *name, NSString *fallback) {
     [_switchControl addSubview:_switchLabel];
 
     _launchButton = [[UIControl alloc] init];
+    _launchButton.accessibilityIdentifier = @"zl2_home_launch";   // 7.0-UI-11：向导引导锚点探测
     _launchButton.translatesAutoresizingMaskIntoConstraints = NO;
     // 64×64 圆形（cornerRadius 32 = 直径一半；旧 92pt 圆钮语义缩小进卡）
     _launchButton.layer.cornerRadius = 32;

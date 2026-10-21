@@ -1,8 +1,6 @@
 #import "SceneDelegate.h"
 #import "ios_uikit_bridge.h"
 #import "utils.h"
-#import "LauncherRootViewController.h"
-#import "LauncherCardLayoutViewController.h"
 #import "LauncherPreferences.h"
 #import "BackgroundManager.h"
 #import "BingWallpaperManager.h" // Task151
@@ -272,13 +270,10 @@ extern BOOL Amethyst_EnforceSDL3Presentation(void);
 
 - (void)applyLanguageChange:(NSNotification *)notification {
     // 语言切换后重建根视图控制器以应用新语言
-    NSString *layout = getPrefObject(@"general.ui_layout");
-    UIViewController *rootVC;
-    if ([layout isEqualToString:@"card"]) {
-        rootVC = [[LauncherCardLayoutViewController alloc] init];
-    } else {
-        rootVC = [[LauncherRootViewController alloc] init];
-    }
+    // 7.0-UI-11：与 willConnect 同口径——根壳一律 ZL2Shell（旧壳退役后，
+    // 这里重建 LauncherRoot/CardLayout 是"切语言整个界面退回旧版"病灶，
+    // 用户连报两轮的旧页面残留来源之一）。
+    UIViewController *rootVC = [[ZL2ShellViewController alloc] init];
     [UIView transitionWithView:self.window duration:0.3 options:UIViewAnimationOptionTransitionCrossDissolve animations:^{
         self.window.rootViewController = rootVC;
     } completion:nil];
