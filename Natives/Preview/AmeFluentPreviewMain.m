@@ -25,7 +25,7 @@
 //   AmeFluentLegacyPageViewController 已从本 TU 移除——Fluent 组件源文件
 //   保留，仅预览壳不再陈列。）
 //   横屏：AppDelegate supportedInterfaceOrientationsForWindow =
-//   UIInterfaceOrientationMaskLandscapeButUpsideDown；呈现首选方向挂根 VC
+//   UIInterfaceOrientationMaskLandscape；呈现首选方向挂根 VC
 //   （UIKit 只向 root VC 查询 preferredInterfaceOrientationForPresentation，
 //   AppDelegate 无此回调）= UIInterfaceOrientationLandscapeRight。仅 harness
 //   生效，正式 app 的 AppDelegate 不在本文件，零影响。
