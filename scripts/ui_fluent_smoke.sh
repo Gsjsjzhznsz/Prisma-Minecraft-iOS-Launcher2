@@ -240,12 +240,16 @@ PLIST
       FAIL=1
       return
     fi
+    # 截图归正：app 横置渲染于竖屏 framebuffer（LandscapeRight 内容顶边=设备右缘），
+    # simctl 抓原生竖屏缓冲 → sips 逆时针 90°（-r 270）归正为真横屏交付图
     xcrun simctl io "$device" screenshot "$OUT/ame-zl2-$p-light.png" >/dev/null 2>&1 \
+      && sips -r 270 "$OUT/ame-zl2-$p-light.png" >/dev/null 2>&1 \
       && echo "  ✓ 截图[$p/浅色]: $OUT/ame-zl2-$p-light.png"
 
     xcrun simctl ui "$device" appearance dark >/dev/null 2>&1 || true
     sleep 2
     xcrun simctl io "$device" screenshot "$OUT/ame-zl2-$p-dark.png" >/dev/null 2>&1 \
+      && sips -r 270 "$OUT/ame-zl2-$p-dark.png" >/dev/null 2>&1 \
       && echo "  ✓ 截图[$p/深色]: $OUT/ame-zl2-$p-dark.png"
     xcrun simctl ui "$device" appearance light >/dev/null 2>&1 || true
   done
