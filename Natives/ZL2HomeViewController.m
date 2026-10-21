@@ -161,6 +161,9 @@ static UIImage *ZL2HomeSystemImage(NSString *name, NSString *fallback) {
     // 卡片顺序恢复：持久化读取（缺省/脏数据回退默认序，版本卡恒首张）
     self.cardKeys = [self ame_restoreCardOrder];
     [self buildViews];
+    // 复用注册（CI 实证：新 UIKit 数据源返回非 dequeue cell 直接崩溃）
+    [self.gridView registerClass:[UICollectionViewCell class]
+      forCellWithReuseIdentifier:@"ame_home_card_cell"];
     [self refreshLaunchState];
 
     // 通知监听：账号信息变化 / 壳切回主页 → 刷新三态；dealloc 统一移除
@@ -590,12 +593,17 @@ static UIImage *ZL2HomeSystemImage(NSString *name, NSString *fallback) {
     return self.cardKeys.count;
 }
 
-// 卡片持久视图挂进 cell：直接构造 cell（五卡恒定，无复用需求；重挂载时
-// 旧约束随旧 contentView 卸载，逐次重钉四边）
+// 卡片持久视图挂进 cell：dequeue 空白 cell 后挂载（五卡恒定，无复用收益；
+// 重挂载时先清 contentView 旧卡，旧约束随旧 contentView 卸载，逐次重钉四边）
 - (UICollectionViewCell *)collectionView:(UICollectionView *)collectionView
                   cellForItemAtIndexPath:(NSIndexPath *)indexPath {
-    UICollectionViewCell *cell = [[UICollectionViewCell alloc] initWithFrame:CGRectZero];
+    UICollectionViewCell *cell = [collectionView dequeueReusableCellWithReuseIdentifier:@"ame_home_card_cell"
+                                                                           forIndexPath:indexPath];
     cell.contentView.backgroundColor = [UIColor clearColor];
+    // 复用残留防护：清掉旧卡（卡为 VC 属性单例，addSubview 自动换父）
+    for (UIView *stale in cell.contentView.subviews) {
+        [stale removeFromSuperview];
+    }
 
     NSString *key = self.cardKeys[indexPath.item];
     UIView *card = [self ame_cardViewForKey:key];
