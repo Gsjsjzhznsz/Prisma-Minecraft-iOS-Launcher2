@@ -370,3 +370,9 @@ NSString * const DownloadTaskManagerAggregateStateDidChangeNotification = @"com.
 // AFNetworking.h 声明（AFURLResponseSerialization.m 原值照抄）。预览无网络层，
 // 该键仅出现在登录失败弹窗的 userInfo 取值路径（nil 字典 → nil，空安全）
 NSString * const AFNetworkingOperationFailingURLResponseDataErrorKey = @"com.alamofire.error.serialization.response.data.response";
+
+// utils.h 的 customNSLog（utils.h L20 把 NSLog 宏重定向到它，L358 声明）。
+// 版本/账户页的日志调用经宏落到此符号；预览环境静音实现（CI 截图不读日志）
+void customNSLog(const char *file, int lineNumber, const char *functionName, NSString *format, ...) {
+    (void)file; (void)lineNumber; (void)functionName; (void)format;
+}
