@@ -345,12 +345,16 @@ id getPrefObject(NSString *key) {
     };
     [root addChildViewController:menu];
     [sidebarHost addSubview:menu.view];
+    // 7.0-UI-7：子 VC 编程视图默认 translates=YES，autoresizing 恒等约束会与
+    // 下方四边钉冲突被拆（首跑截图侧栏整体缺失根因），必须显式关
+    menu.view.translatesAutoresizingMaskIntoConstraints = NO;
     [menu didMoveToParentViewController:root];
 
     // ── 右：组件陈列面板 ──
     AmeDemoPanelViewController *demo = [[AmeDemoPanelViewController alloc] init];
     [root addChildViewController:demo];
     [root.view addSubview:demo.view];
+    demo.view.translatesAutoresizingMaskIntoConstraints = NO;   // 同上
 
     [NSLayoutConstraint activateConstraints:@[
         [sidebarHost.leadingAnchor constraintEqualToAnchor:root.view.leadingAnchor constant:8],

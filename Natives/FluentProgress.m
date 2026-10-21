@@ -47,6 +47,14 @@ static const CGFloat FluentProgressRingLine    = 2.0;
             _ringArc.lineCap = kCALineCapRound;
             _ringArc.strokeColor = [AmeTheme brandPrimary].CGColor;
             [self.layer addSublayer:_ringArc];
+
+            // 7.0-UI-7 冒烟（run 39592623337）实锤：StackView FILL 分布会把
+            // 环横向拉伸（280×20），而弧线半径旧实现取宽/2、圆心在 20pt 高
+            // 视图中心，CAShapeLayer 不裁剪 → 巨大圆弧外溢成全屏蓝圈。
+            // 双保险：①固定尺寸环抗拉伸/抗压缩 REQUIRED；②ame_layoutRing
+            // 半径改取短边（非方 bounds 退化安全，见下方）。
+            self.contentHuggingPriority = UILayoutPriorityRequired;
+            self.contentCompressionResistancePriority = UILayoutPriorityRequired;
         }
     }
     return self;
@@ -113,12 +121,18 @@ static const CGFloat FluentProgressRingLine    = 2.0;
     CGRect bounds = self.bounds;
     if (CGRectIsEmpty(bounds)) return;
     CGFloat inset = FluentProgressRingLine / 2.0 + 0.5;
-    CGRect circleRect = CGRectInset(bounds, inset, inset);
+    // 7.0-UI-7：非方 bounds（被外部拉伸）时按短边取正方圆，杜绝溢出；
+    // 环常态由 REQUIRED 抗拉伸保证 20×20，此处为防御性兑现
+    CGFloat diameter = MIN(CGRectGetWidth(bounds), CGRectGetHeight(bounds)) - inset * 2.0;
+    if (diameter <= 0) return;
+    CGRect circleRect = CGRectMake(CGRectGetMidX(bounds) - diameter / 2.0,
+                                   CGRectGetMidY(bounds) - diameter / 2.0,
+                                   diameter, diameter);
     _ringTrack.path = [UIBezierPath bezierPathWithOvalInRect:circleRect].CGPath;
     // 270° 圆弧：12 点钟起顺时针至 9 点钟，缺口留在左上象限
     UIBezierPath *arc = [UIBezierPath
         bezierPathWithArcCenter:CGPointMake(CGRectGetMidX(bounds), CGRectGetMidY(bounds))
-                         radius:CGRectGetWidth(circleRect) / 2.0
+                         radius:diameter / 2.0
                      startAngle:-M_PI_2
                        endAngle:M_PI
                       clockwise:YES];
