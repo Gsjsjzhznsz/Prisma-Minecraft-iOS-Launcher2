@@ -712,7 +712,7 @@ typedef NS_ENUM(NSInteger, AssetVersionType) {
            progress:(nullable void (^)(NSProgress *downloadProgress))progress
          completion:(void (^)(NSError * _Nullable error))completion {
     if (!completion) return;
-    dispatch_async(dispatch_get_main_queue(), ^{ completion(nil, nil); });
+    dispatch_async(dispatch_get_main_queue(), ^{ completion(nil); });
 }
 
 @end
@@ -741,7 +741,7 @@ typedef NS_ENUM(NSInteger, AssetVersionType) {
               progress:(nullable void (^)(NSProgress *downloadProgress))progress
             completion:(void (^)(NSError * _Nullable error))completion {
     if (!completion) return;
-    dispatch_async(dispatch_get_main_queue(), ^{ completion(nil, nil); });
+    dispatch_async(dispatch_get_main_queue(), ^{ completion(nil); });
 }
 
 @end
@@ -985,7 +985,7 @@ typedef NS_ENUM(NSInteger, AssetVersionType) {
                   completion:(nullable void (^)(UIImage * _Nullable image))completion {
     if (imageView) imageView.image = placeholder ?: fallback;
     if (!completion) return;
-    dispatch_async(dispatch_get_main_queue(), ^{ completion(nil, nil); });
+    dispatch_async(dispatch_get_main_queue(), ^{ completion(nil); });
 }
 
 + (void)prefetchIconWithURL:(NSString *)url targetSize:(CGSize)targetSize {
