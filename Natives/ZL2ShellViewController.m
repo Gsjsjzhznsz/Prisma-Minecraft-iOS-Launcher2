@@ -3,21 +3,21 @@
 //
 // 结构：左 M3 NavigationRail（ZL2RailView 组件）+ 右内容区（child VC 切换，
 // 懒建缓存 + 首显 attach + crossDissolve 0.18s 过渡）。
-// 页面序：0 主页(ZL2Home) / 1 下载(Download) / 2 版本管理(VersionManager)
-//         / 3 账户(AccountList) / 4 设置(LauncherPreferences)。
-// 功能页复用现有 VC（7.0-UI-1~7 迁移成果继续有效），仅壳与主页为 ZL2 新写；
-// 旧 LauncherCardLayoutViewController / LauncherRootViewController 自本轮起
-// 不再作为默认根（SceneDelegate 直连本壳），类文件保留至游戏域桥接退役。
+// 页面序：0 主页(ZL2Home) / 1 下载(ZL2Download) / 2 版本管理(ZL2Versions)
+//         / 3 账户(ZL2Accounts) / 4 设置(ZL2Settings)。
+// 7.0-UI-9：四功能页全面 M3 重写（对标 ZL2 DownloadScreen / VersionsManageScreen /
+// AccountManageScreen / SettingsScreen），壳接线全部换装 ZL2 系页面；旧 VC
+// 由 ZL2DownloadViewController 按类别懒建嵌入（存量页增量退役第一步）。
 //
 
 #import "ZL2ShellViewController.h"
 #import "ZL2Theme.h"
 #import "ZL2RailView.h"
 #import "ZL2HomeViewController.h"
-#import "DownloadViewController.h"
-#import "VersionManagerViewController.h"
-#import "AccountListViewController.h"
-#import "LauncherPreferencesViewController.h"
+#import "ZL2DownloadViewController.h"
+#import "ZL2VersionsViewController.h"
+#import "ZL2AccountsViewController.h"
+#import "ZL2SettingsViewController.h"
 
 NSString * const ZL2ShellNavigateNotification = @"ZL2ShellNavigate";
 
@@ -178,24 +178,23 @@ NSString * const ZL2ShellNavigateNotification = @"ZL2ShellNavigate";
             break;
         }
         case 1: {
-            DownloadViewController *download = [[DownloadViewController alloc] init];
+            ZL2DownloadViewController *download = [[ZL2DownloadViewController alloc] init];
             vc = [[UINavigationController alloc] initWithRootViewController:download];
             break;
         }
         case 2: {
-            VersionManagerViewController *versions = [[VersionManagerViewController alloc] init];
+            ZL2VersionsViewController *versions = [[ZL2VersionsViewController alloc] init];
             vc = [[UINavigationController alloc] initWithRootViewController:versions];
             break;
         }
         case 3: {
-            AccountListViewController *accounts =
-                [[AccountListViewController alloc] initWithStyle:UITableViewStyleInsetGrouped];
+            ZL2AccountsViewController *accounts = [[ZL2AccountsViewController alloc] init];
             vc = [[UINavigationController alloc] initWithRootViewController:accounts];
             break;
         }
         case 4: {
-            LauncherPreferencesViewController *prefs = [[LauncherPreferencesViewController alloc] init];
-            vc = [[UINavigationController alloc] initWithRootViewController:prefs];
+            ZL2SettingsViewController *settings = [[ZL2SettingsViewController alloc] init];
+            vc = [[UINavigationController alloc] initWithRootViewController:settings];
             break;
         }
         default:

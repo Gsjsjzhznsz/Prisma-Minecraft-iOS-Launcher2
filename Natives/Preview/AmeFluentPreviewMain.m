@@ -1,17 +1,26 @@
 //
-// AmeFluentPreviewMain.m — Fluent 2 / ZL2 前端预览/冒烟 harness（7.0-UI-7/8）
+// AmeFluentPreviewMain.m — Fluent 2 / ZL2 前端预览/冒烟 harness（7.0-UI-7/8/9）
 //
 // 用途：scripts/ui_fluent_smoke.sh preview 的宿主 App——在 iOS 模拟器里
-//   1:1 渲染 ZL2 新壳视觉（M3 NavigationRail + ZL2HomeViewController 原样
-//   嵌入，7.0-UI-8）+ Fluent 8 件套全陈列（含真实 LauncherMenuViewController
-//   侧栏，双栏对比），供浅/深两态截图冒烟。
+//   1:1 渲染 ZL2 新壳视觉（M3 NavigationRail；7.0-UI-9-e 起 rail 槽位
+//   0=ZL2Home、1-4=四功能页真实 VC（ZL2Download/Versions/Accounts/Settings，
+//   各包 UINavigationController 作为根 VC，四页 viewWillAppear 自隐藏
+//   系统栏、版本/账户页 reload 由 viewWillAppear 自动触发）、5=组件双栏
+//   对比页）+ Fluent 8 件套全陈列，供浅/深两态截图冒烟。
+//   启动参数选页：-zl2page <home|download|versions|accounts|settings|
+//   components> 预选 rail 项（CI 逐页冷启动截图；缺省 home）。
 //
 //
 // ★ 正式构建不含本文件：Natives/CMakeLists.txt 为显式源列表（唯一的
 //   file(GLOB) 仅涉 ModLoaderIcons/*.png），本文件不会被编入 App。
-// ★ 服务桩：本 TU 提供 accentColor()/getPrefObject()/BackgroundManager
-//   最小桩实现（仅满足预览链路链接；正式构建用真实现，互不冲突——
-//   桩与真实现从不在同一二进制）。
+// ★ 服务桩：本 TU 提供 accentColor()/getPrefObject()/localize()/
+//   BackgroundManager/BaseAuthenticator/PLProfiles/
+//   MinecraftResourceDownloadTask/DownloadTaskManager/PLTaskProgress-
+//   ViewController 最小桩实现（仅满足预览链路链接；正式构建用真实现，
+//   互不冲突——桩与真实现从不在同一二进制）。7.0-UI-9 四页其余缺失符号
+//   在 Preview/ZL2PagesStub.m 桩 TU（目标 VC 空类/管理器/C 函数/extern
+//   常量），既有桩缺口方法（PLProfiles.updateCurrent、
+//   DownloadTaskManager.tasksWithStates: 等）在本 TU 原桩上补齐。
 //
 
 #import <UIKit/UIKit.h>
@@ -28,6 +37,10 @@
 #import "ZL2Theme.h"
 #import "ZL2RailView.h"
 #import "ZL2HomeViewController.h"
+#import "ZL2DownloadViewController.h"
+#import "ZL2VersionsViewController.h"
+#import "ZL2AccountsViewController.h"
+#import "ZL2SettingsViewController.h"
 
 #pragma mark - 服务桩（预览链路专用）
 
@@ -84,13 +97,28 @@ NSString *localize(NSString *key, NSString *comment) {
     return hit ?: key;
 }
 
-// BaseAuthenticator 最小桩：预览恒未登录态（launchReady = 登录并启动文案）
+// BaseAuthenticator 最小桩：预览恒未登录态（launchReady = 登录并启动文案）。
+// 7.0-UI-9-e 补齐账户页消费的缺口方法（setCurrent:/loadSavedName: 类方法 +
+// initWithInput:/loginWithCallback:/refreshTokenWithCallback: 实例方法，
+// 签名对 authenticator/BaseAuthenticator.h；LocalAuthenticator /
+// MicrosoftAuthenticator / ThirdPartyAuthenticator 桩在 ZL2PagesStub.m
+// 以本类为超类锚点子类化，超类方法零重复）
 @interface BaseAuthenticator : NSObject
 + (id)current;
++ (void)setCurrent:(id)auth;
++ (id)loadSavedName:(NSString *)accountId;
+- (id)initWithInput:(NSString *)string;
+- (void)loginWithCallback:(void (^)(id status, BOOL success))callback;
+- (void)refreshTokenWithCallback:(void (^)(id status, BOOL success))callback;
 @end
 
 @implementation BaseAuthenticator
 + (id)current { return nil; }
++ (void)setCurrent:(id)auth {}
++ (id)loadSavedName:(NSString *)accountId { return nil; }
+- (id)initWithInput:(NSString *)string { return self; }
+- (void)loginWithCallback:(void (^)(id status, BOOL success))callback {}
+- (void)refreshTokenWithCallback:(void (^)(id status, BOOL success))callback {}
 @end
 
 // PLProfiles 最小桩：无 profile（版本卡显示"未选择实例"）
@@ -113,6 +141,11 @@ NSString *localize(NSString *key, NSString *comment) {
 - (NSString *)selectedProfileName { return nil; }
 - (NSMutableDictionary *)profiles { return [NSMutableDictionary dictionary]; }
 - (void)save {}
+
+// 7.0-UI-9-e：版本页缺口方法补齐（viewWillAppear 先 updateCurrent 重拉
+// 注册表；选用链写 selectedProfileName——预览恒空表，写入落空即安全）
++ (void)updateCurrent {}
+- (void)setSelectedProfileName:(NSString *)name {}
 
 @end
 
@@ -162,6 +195,10 @@ NSString *localize(NSString *key, NSString *comment) {
 @interface DownloadTaskItem : NSObject
 @property(nonatomic, copy) NSString *taskId;
 @property(nonatomic, weak) id rawTask;
+// 7.0-UI-9-e：下载页任务胶囊消费的缺口属性（state 恒 0=Pending 且 manager
+// 空桩 allTasks 恒空数组，胶囊 hidden 派生不变）
+@property(nonatomic, assign) NSInteger state;
+@property(nonatomic, assign) double progress;
 @end
 
 @implementation DownloadTaskItem
@@ -184,6 +221,8 @@ NSString *localize(NSString *key, NSString *comment) {
 
 - (NSArray<DownloadTaskItem *> *)allTasks { return @[]; }
 - (BOOL)hasActiveTasks { return NO; }
+// 7.0-UI-9-e：下载页活动任务计数消费（空数组恒 0，胶囊保持隐藏）
+- (NSArray<DownloadTaskItem *> *)tasksWithStates:(NSArray<NSNumber *> *)states { return @[]; }
 
 @end
 
@@ -506,63 +545,24 @@ NSString *localize(NSString *key, NSString *comment) {
 
 @end
 
-#pragma mark - ZL2 占位页（rail 1-4：功能页复用现有 VC，正式构建壳内托管）
+#pragma mark - 启动参数选页（7.0-UI-9-e：CI 逐页冷启动截图）
 
-@interface ZL2PlaceholderPageViewController : UIViewController
-- (instancetype)initWithTitle:(NSString *)title note:(NSString *)note;
-@end
-
-@implementation ZL2PlaceholderPageViewController {
-    NSString *_pageTitle;
-    NSString *_note;
+// scripts/ui_fluent_smoke.sh preview 逐页启动：simctl launch … -zl2page <p>；
+// 合法值 home/download/versions/accounts/settings/components（对应 rail 槽位
+// 0-5），缺省/非法值回落 home。simctl launch 把 bundle id 之后的参数原样
+// 追加到进程 argv，NSProcessInfo.arguments 直接可读
+static NSInteger AmePreviewPageIndexFromLaunchArguments(void) {
+    NSArray<NSString *> *args = [[NSProcessInfo processInfo] arguments];
+    NSUInteger flagIndex = [args indexOfObject:@"-zl2page"];
+    if (flagIndex == NSNotFound || flagIndex + 1 >= args.count) return 0;
+    NSString *page = args[flagIndex + 1];
+    if ([page isEqualToString:@"download"])   return 1;
+    if ([page isEqualToString:@"versions"])   return 2;
+    if ([page isEqualToString:@"accounts"])   return 3;
+    if ([page isEqualToString:@"settings"])   return 4;
+    if ([page isEqualToString:@"components"]) return 5;
+    return 0;
 }
-
-- (instancetype)initWithTitle:(NSString *)title note:(NSString *)note {
-    self = [super init];
-    if (self) { _pageTitle = title; _note = note; }
-    return self;
-}
-
-- (void)viewDidLoad {
-    [super viewDidLoad];
-    self.view.backgroundColor = [ZL2Theme surface];
-
-    UIView *card = [[UIView alloc] init];
-    card.translatesAutoresizingMaskIntoConstraints = NO;
-    card.backgroundColor = [ZL2Theme surfaceContainer];
-    card.layer.cornerRadius = [ZL2Theme radiusM];
-    [self.view addSubview:card];
-
-    UILabel *title = [[UILabel alloc] init];
-    title.translatesAutoresizingMaskIntoConstraints = NO;
-    title.text = _pageTitle;
-    title.font = [ZL2Theme fontTitleMedium];
-    title.textColor = [ZL2Theme onSurface];
-    [card addSubview:title];
-
-    UILabel *noteLabel = [[UILabel alloc] init];
-    noteLabel.translatesAutoresizingMaskIntoConstraints = NO;
-    noteLabel.text = _note;
-    noteLabel.font = [ZL2Theme fontBodyMedium];
-    noteLabel.textColor = [ZL2Theme onSurfaceVariant];
-    noteLabel.numberOfLines = 0;
-    [card addSubview:noteLabel];
-
-    [NSLayoutConstraint activateConstraints:@[
-        [card.centerXAnchor constraintEqualToAnchor:self.view.centerXAnchor],
-        [card.centerYAnchor constraintEqualToAnchor:self.view.centerYAnchor],
-        [card.widthAnchor constraintLessThanOrEqualToConstant:420],
-        [title.topAnchor constraintEqualToAnchor:card.topAnchor constant:20],
-        [title.leadingAnchor constraintEqualToAnchor:card.leadingAnchor constant:20],
-        [title.trailingAnchor constraintLessThanOrEqualToAnchor:card.trailingAnchor constant:-20],
-        [noteLabel.topAnchor constraintEqualToAnchor:title.bottomAnchor constant:8],
-        [noteLabel.leadingAnchor constraintEqualToAnchor:card.leadingAnchor constant:20],
-        [noteLabel.trailingAnchor constraintEqualToAnchor:card.trailingAnchor constant:-20],
-        [noteLabel.bottomAnchor constraintEqualToAnchor:card.bottomAnchor constant:-20],
-    ]];
-}
-
-@end
 
 #pragma mark - ZL2 壳预览控制器（rail 6 项 + 容器切换，1:1 壳视觉）
 
@@ -608,7 +608,8 @@ NSString *localize(NSString *key, NSString *comment) {
         [self.container.bottomAnchor constraintEqualToAnchor:self.view.bottomAnchor],
     ]];
 
-    [self ame_showIndex:0];
+    // 7.0-UI-9-e：-zl2page 启动参数预选 rail 项（CI 逐页截图；缺省 home）
+    [self ame_showIndex:AmePreviewPageIndexFromLaunchArguments()];
 }
 
 - (void)ame_showIndex:(NSInteger)index {
@@ -617,14 +618,18 @@ NSString *localize(NSString *key, NSString *comment) {
     if (!next) {
         switch (index) {
             case 0: next = [[ZL2HomeViewController alloc] init]; break;
-            case 1: next = [[ZL2PlaceholderPageViewController alloc] initWithTitle:@"下载中心"
-                                                                        note:@"复用 DownloadViewController（7.0-UI 迁移成果），正式构建由 ZL2ShellViewController 壳内托管。"]; break;
-            case 2: next = [[ZL2PlaceholderPageViewController alloc] initWithTitle:@"版本管理"
-                                                                        note:@"复用 VersionManagerViewController，正式构建由 ZL2ShellViewController 壳内托管。"]; break;
-            case 3: next = [[ZL2PlaceholderPageViewController alloc] initWithTitle:@"账户"
-                                                                        note:@"复用 AccountListViewController，正式构建由 ZL2ShellViewController 壳内托管。"]; break;
-            case 4: next = [[ZL2PlaceholderPageViewController alloc] initWithTitle:@"设置"
-                                                                        note:@"复用 LauncherPreferencesViewController，正式构建由 ZL2ShellViewController 壳内托管。"]; break;
+            // 7.0-UI-9-e：槽位 1-4 换装四功能页真实 VC（与 ZL2ShellViewController
+            // 壳侧同构：各包 UINavigationController 作根，根页 viewWillAppear
+            // 隐藏系统栏，版本/账户页 reload 由 viewWillAppear 自动触发）；
+            // 槽位 1-4 的链接期缺失符号由 Preview/ZL2PagesStub.m 桩 TU 补齐
+            case 1: next = [[UINavigationController alloc]
+                               initWithRootViewController:[[ZL2DownloadViewController alloc] init]]; break;
+            case 2: next = [[UINavigationController alloc]
+                               initWithRootViewController:[[ZL2VersionsViewController alloc] init]]; break;
+            case 3: next = [[UINavigationController alloc]
+                               initWithRootViewController:[[ZL2AccountsViewController alloc] init]]; break;
+            case 4: next = [[UINavigationController alloc]
+                               initWithRootViewController:[[ZL2SettingsViewController alloc] init]]; break;
             case 5: next = [[AmeFluentLegacyPageViewController alloc] init]; break;
             default: return;
         }
@@ -673,8 +678,8 @@ NSString *localize(NSString *key, NSString *comment) {
     self.window = [[UIWindow alloc] initWithFrame:[UIScreen mainScreen].bounds];
     self.window.backgroundColor = [ZL2Theme surface];
 
-    // 7.0-UI-8：根 = ZL2 壳视觉 1:1（M3 NavigationRail + ZL2Home 原样嵌入）；
-    // Fluent 旧栏与 8 件套陈列收进第 6 项"组件"（双栏对比页）
+    // 7.0-UI-8：根 = ZL2 壳视觉 1:1（M3 NavigationRail；槽位 0=ZL2Home、
+    // 1-4=四功能页真实 VC、5=组件对比页）+ 7.0-UI-9-e 起 -zl2page 选页
     UIViewController *root = [[AmePreviewShellController alloc] init];
 
     self.window.rootViewController = root;

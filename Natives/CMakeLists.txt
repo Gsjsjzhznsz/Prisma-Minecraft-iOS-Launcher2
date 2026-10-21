@@ -513,6 +513,11 @@ add_executable(AngelAuraAmethyst
   ZL2RailView.m
   ZL2HomeViewController.m
   ZL2ShellViewController.m
+  # 7.0-UI-9：ZL2 四功能页 M3 重写（下载/版本/账户/设置）
+  ZL2DownloadViewController.m
+  ZL2VersionsViewController.m
+  ZL2AccountsViewController.m
+  ZL2SettingsViewController.m
   InlineMessageView.m
   DownloadTaskItem.m
   DownloadTaskManager.m
