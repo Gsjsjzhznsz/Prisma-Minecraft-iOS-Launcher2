@@ -7,6 +7,7 @@
 #import "BackgroundManager.h"
 #import "utils.h"
 #import "AmeTheme.h"   // ★ 7.0-UI-5b：Fluent 设计令牌（颜色/字体单一事实源；仅令牌替换，结构不动）
+#import "FluentButton.h"  // ★ 7.0-UI-6：Fluent 组件库（侧栏重建为 Navigation Rail 语义）
 
 @interface LauncherMenuViewController ()
 
@@ -16,6 +17,9 @@
 @property(nonatomic, assign) NSInteger selectedIndex;
 // Task102：主界面图标首启自愈重试定时器（全部图标就绪或达上限即停）
 @property(nonatomic, strong) NSTimer *menuIconSelfHealTimer;
+// 7.0-UI-6：选中态前缘指示 pill（Fluent 2 NavigationRail 指示条），
+// 与 menuStackView.arrangedSubviews 同序（index 对齐，不用 viewWithTag 防未来菜单项 tag 碰撞）
+@property(nonatomic, strong) NSMutableArray<UIView *> *selectionIndicators;
 
 @end
 
@@ -53,15 +57,15 @@
     // case 6 为"使用问题"（Task 82：FAQ 标签页，收录渲染/输入/安装/故障排除常见问题）
     // 键位调整界面已移到设置页面中
     self.menuItems = @[
-        @{@"icon": @"house.fill", @"title": @" ", @"index": @0},
-        @{@"icon": @"arrow.down.circle.fill", @"title": @" ", @"index": @1},
-        @{@"icon": @"sparkles", @"title": @" ", @"index": @2},
-        @{@"icon": @"puzzlepiece.fill", @"title": @" ", @"index": @3},
+        @{@"icon": @"house.fill", @"title": @" ", @"label": @"主界面", @"index": @0},
+        @{@"icon": @"arrow.down.circle.fill", @"title": @" ", @"label": @"下载", @"index": @1},
+        @{@"icon": @"sparkles", @"title": @" ", @"label": @"AI 助手", @"index": @2},
+        @{@"icon": @"puzzlepiece.fill", @"title": @" ", @"label": @"版本管理", @"index": @3},
         // 暂时移除两个联机图标，恢复时取消下方两行注释并将设置项 index 顺延
-        // @{@"icon": @"antenna.radiowaves.left.and.right", @"title": @" ", @"index": @4},
-        // @{@"icon": @"network", @"title": @" ", @"index": @5},
-        @{@"icon": @"gearshape.fill", @"title": @" ", @"index": @4},
-        @{@"icon": @"questionmark.circle.fill", @"title": @" ", @"index": @5}
+        // @{@"icon": @"antenna.radiowaves.left.and.right", @"title": @" ", @"label": @"陶瓦联机", @"index": @4},
+        // @{@"icon": @"network", @"title": @" ", @"label": @"ZeroTier 联机", @"index": @5},
+        @{@"icon": @"gearshape.fill", @"title": @" ", @"label": @"设置", @"index": @4},
+        @{@"icon": @"questionmark.circle.fill", @"title": @" ", @"label": @"使用问题", @"index": @5}
     ];
     
     self.selectedIndex = 0;
@@ -98,16 +102,17 @@
     self.menuStackView.spacing = 8;
     [self.sidebarView addSubview:self.menuStackView];
 
-    CGFloat buttonSize = 50;
+    // 7.0-UI-6：Fluent IconButton 44×44（56pt iPhone 窄轨两侧各留 6pt 空隙，
+    // 前缘指示 pill 落在其中；iPad 70pt 留白更富余）；尺寸约束由组件自持，
+    // 宿主不再重复补。
+    self.selectionIndicators = [NSMutableArray array];
     for (NSInteger i = 0; i < self.menuItems.count; i++) {
         NSDictionary *item = self.menuItems[i];
         UIButton *btn = [self createMenuButtonWithItem:item index:i];
         [self.menuStackView addArrangedSubview:btn];
-        [NSLayoutConstraint activateConstraints:@[
-            [btn.widthAnchor constraintEqualToConstant:buttonSize],
-            [btn.heightAnchor constraintEqualToConstant:buttonSize]
-        ]];
     }
+    // 初始选中态着色（原在 create 内联，7.0-UI-6 收敛到 updateButtonColors 单一入口）
+    [self updateButtonColors];
 
     [NSLayoutConstraint activateConstraints:@[
         [self.menuStackView.leadingAnchor constraintEqualToAnchor:self.sidebarView.leadingAnchor],
@@ -119,55 +124,50 @@
 }
 
 - (UIButton *)createMenuButtonWithItem:(NSDictionary *)item index:(NSInteger)index {
-    UIButton *btn = [UIButton buttonWithType:UIButtonTypeSystem];
-    btn.translatesAutoresizingMaskIntoConstraints = NO;
-    btn.tag = index;
-
-    // 设置图标（Task101：仅图标按钮，无文字；图标在 50×50 按钮内居中，
-    // 与新拟物高亮面板几何中心对齐）
+    // 7.0-UI-6：侧栏重建为 Fluent 2 Navigation Rail 语义——菜单项改用组件库
+    // FluentButton 图标档（IconButton 44×44，subtle=无底品牌色图标，圆角 medium(4)），
+    // 替代裸 UIButton。选中/未选中着色统一由 updateButtonColors 维护
+    // （用户 accent/text_color 偏好优先级不变），本方法只负责几何/图标/无障碍。
+    //
     // Task111：冷启动首次 systemImageNamed: 偶发 nil（CoreUI 符号注册竞态），
     // 创建时立即二次补拉（首次调用本身会完成注册，第二次同刻拿到非 nil），
-    // 与后续重试自愈双保险。
+    // 与后续重试自愈双保险。icon 可能为 nil——iconButtonWithStyle: 允许可空，
+    // 缺口由 beginMenuIconSelfHeal 强制式补拉。
     NSString *iconName = item[@"icon"];
     UIImage *icon = [UIImage systemImageNamed:iconName];
     if (!icon) {
         icon = [UIImage systemImageNamed:iconName];
     }
-    [btn setImage:icon forState:UIControlStateNormal];
+    FluentButton *btn = [FluentButton iconButtonWithStyle:FluentButtonStyleSubtle
+                                                     size:44
+                                                    image:icon
+                                                   target:self
+                                                   action:@selector(menuButtonTapped:)];
+    btn.tag = index;
 
-    // 设置颜色 - 选中项高亮
-    // 支持自定义字体颜色：用户在设置中配置 general.text_color 后，
-    // 未选中项使用自定义颜色，选中项保持高亮蓝色
-    UIColor *normalColor = [self menuNormalColor];
-    UIColor *accent = accentColor();
-    if (index == self.selectedIndex) {
-        btn.tintColor = accent;
-    } else {
-        btn.tintColor = normalColor;
-    }
-
-    // 图标居中（Task101：原 imageEdgeInsets(-10,0,0,0)+空白标题的
-    // 图标在上文字在下布局退役——菜单项标题本就是空格 " "，
-    // 原偏移让图标偏离高亮面板中心，用户实测"高亮和图标有点偏差"）
-    btn.contentHorizontalAlignment = UIControlContentHorizontalAlignmentCenter;
-    btn.contentVerticalAlignment = UIControlContentVerticalAlignmentCenter;
+    // 选中指示 pill（Fluent 2 NavigationRail 前缘指示条）：3×22 全圆角，
+    // 贴按钮前缘 -3pt——56pt 窄轨下按钮 44 宽两侧各余 6pt，pill 恰落在空隙内。
+    // 显隐与颜色由 ame138_applyButtonColors 维护（随选中 accent 联动）。
+    UIView *indicator = [[UIView alloc] initWithFrame:CGRectMake(-3.0, (44.0 - 22.0) / 2.0, 3.0, 22.0)];
+    indicator.layer.cornerRadius = 1.5;   // 3pt 宽全圆角（亚档位几何微元，非令牌域）
+    indicator.backgroundColor = [UIColor clearColor];
+    indicator.hidden = YES;
+    indicator.userInteractionEnabled = NO;
+    indicator.autoresizingMask = UIViewAutoresizingFlexibleTopMargin | UIViewAutoresizingFlexibleBottomMargin;
+    [btn addSubview:indicator];
+    [self.selectionIndicators addObject:indicator];
 
     // Task111：z 序保险——图标子视图存在时显式提到最前，两种绘制路径下
-    // 都保证可见。幂等、无副作用（Task137 保留：高亮背景回归后无害）。
+    // 都保证可见。幂等、无副作用（pill 在按钮 bounds 外不重叠图标）。
     UIView *iconView = btn.imageView;
     if (iconView && iconView.superview == btn) {
         [btn bringSubviewToFront:iconView];
     }
-    
-    [btn addTarget:self action:@selector(menuButtonTapped:) forControlEvents:UIControlEventTouchUpInside];
 
-    // 统一圆角：防御性设置（7.0-UI-5b：10→Fluent 按钮档 radiusL），避免后续给选中态加背景高亮时出现直角方块
-    btn.layer.cornerRadius = [AmeTheme radiusL];
-    // Task137：新拟态退役——初始选中项直接应用原生 accent 半透明高亮
-    // （选中态在 updateButtonColors 维护）
-    if (index == self.selectedIndex) {
-        btn.backgroundColor = [accent colorWithAlphaComponent:0.15];
-    }
+    // 无障碍：VoiceOver 读项名（原 title 为空格不可读；label 键仅供无障碍，
+    // onMenuItemSelected 回调的 title 参数仍传原 @" "，不影响消费方）
+    btn.accessibilityLabel = item[@"label"];
+    btn.accessibilityTraits = UIAccessibilityTraitButton;
 
     return btn;
 }
@@ -199,7 +199,9 @@
         UIImage *icon = [UIImage systemImageNamed:iconName];
         if (!icon) continue;
         if (forced || !current) {
-            [btn setImage:icon forState:UIControlStateNormal];
+            // 7.0-UI-6：重设图标统一模板渲染（IconButton tintColor 着色路径依赖）
+            [btn setImage:[icon imageWithRenderingMode:UIImageRenderingModeAlwaysTemplate]
+                 forState:UIControlStateNormal];
             // 重设后保证图标子视图在最前（同 createMenuButton 的 z 序保险）
             UIView *iconView = btn.imageView;
             if (iconView && iconView.superview == btn) {
@@ -323,6 +325,14 @@
                 // Task137：新拟态退役——选中项回归原生 accent 半透明高亮
                 // （Task89 之前的样式）；幂等重刷（重复调用安全）
                 btn.backgroundColor = [accent colorWithAlphaComponent:0.15];
+                // 7.0-UI-6：前缘指示 pill 显形（颜色随选中 accent 联动）+
+                // VoiceOver 选中态；数组与 arrangedSubviews 同序，防御性越界判断
+                if (index < (NSInteger)self.selectionIndicators.count) {
+                    UIView *indicator = self.selectionIndicators[index];
+                    indicator.backgroundColor = accent;
+                    indicator.hidden = NO;
+                }
+                btn.accessibilityTraits = UIAccessibilityTraitButton | UIAccessibilityTraitSelected;
                 // Task111：z 序保险——把图标子视图提回最前（幂等保留）
                 UIView *iconView = btn.imageView;
                 if (iconView && iconView.superview == btn) {
@@ -332,6 +342,10 @@
                 btn.tintColor = normalColor;
                 // 未选中项恢复无底色
                 btn.backgroundColor = [UIColor clearColor];
+                if (index < (NSInteger)self.selectionIndicators.count) {
+                    self.selectionIndicators[index].hidden = YES;
+                }
+                btn.accessibilityTraits = UIAccessibilityTraitButton;
             }
         }
     }

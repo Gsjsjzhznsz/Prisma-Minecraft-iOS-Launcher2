@@ -35,6 +35,18 @@ typedef NS_ENUM(NSInteger, FluentButtonStyle) {
                                 target:(nullable id)target
                                 action:(nullable SEL)action;
 
+/// 图标档（IconButton，正方形 size×size，圆角 medium(4)）——窄轨导航/工具条
+/// 场景（7.0-UI-6 新增，对齐 Microsoft Fluent IconButton 家族）：
+/// 图标恒以模板渲染（UIImageRenderingModeAlwaysTemplate），着色走 tintColor：
+/// subtle=无底品牌色图标 / default=bg5 实底 fg1 图标 / accent=品牌实底
+/// textOnBrand 图标 / outline=描边品牌色图标。
+/// 宿主可在构造后覆写 tintColor/backgroundColor 实现选中态（组件不会回写）。
++ (instancetype)iconButtonWithStyle:(FluentButtonStyle)style
+                               size:(CGFloat)size
+                              image:(nullable UIImage *)image
+                             target:(nullable id)target
+                             action:(nullable SEL)action;
+
 @property (nonatomic, readonly) FluentButtonStyle fluentStyle;
 
 /// 重新应用变体配色（主题切换后调用；动态色场景通常无需手动）
