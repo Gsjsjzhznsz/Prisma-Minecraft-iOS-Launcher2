@@ -3131,3 +3131,21 @@ Work Log:
 Stage Summary:
 - 提交 7783679 推送 main；装机锚点：①整合包再复现→日志 [LaunchWatchdog] entrypoint-phase sample #1/#2（t+6s/t+12s 必达主线程 24 帧栈，直接给出卡死 mod 与调用点）②游戏内轻点/按住右SHIFT→按钮 tint 高亮（alpha 0.30 可见级）且锁存态持续高亮，再点还原③触摸被抢不再潜行卡死
 - 待 CI 出包后 v6.5.0 资产静默替换（第四轮）
+
+## 7.0-UI-11——ZL2 壳启动链修复 + 旧壳残留三处根除（入口功能配错/旧页面残留清零轮）
+
+日期：2026-10-22　构建：9d446b1（ui-smoke + development 双 workflow_dispatch 已触发）
+
+Work Log:
+- 用户连报"还是入口功能配错，仍然有旧页面残留"全量审计定谳，四实锤：
+  ①启动按钮坏死——@"FindVersionInRemoteList" 监听者只在旧壳 LauncherRootViewController，7.0-UI-8 根壳换 ZL2Shell 后通知进虚空，回调永不触发 = 点启动零响应（入口功能配错直接来源）
+  ②切语言回旧壳——SceneDelegate applyLanguageChange 仍按 general.ui_layout 重建 LauncherRoot/CardLayout
+  ③退游戏/执行 Jar 回旧壳——UIKit_returnToSplitView：JavaGUI 分支只认旧壳类（ZL2 壳下坠入 Surface 分支，tmpRootVC nil 即新建 LauncherSplit）；Surface 分支兜底同为旧壳
+  ④向导引导空转——coach marks 锚点探测旧壳三区（菜单/内容/右面板），ZL2 壳下全空仅剩内容区半正确锚
+- 修复：①新 ZL2VersionIndex 单例（Natives/ZL2VersionIndex.h/.m + CMakeLists 注册）1:1 抽取旧壳三段（Task218 PLMirrorCenter 候选链 / 本地 versions/ 即时扫描双目录口径 / Task72 磁盘兜底）+ warmUp 预热 + 查找期在途等待 10s + callback 主线程；NSCondition 并发模型（v1 串行队列 sleep 自锁死教训入注）②③回壳三路径一律 ZL2Shell + SceneDelegate 旧壳 import 摘除 ④coach marks 加 ZL2 专用分支（rail/内容/启动三锚真实 frame 派生 + NSClassFromString 安全回退 + 锚点全空优雅降级）；ZL2Home.launchButton 与 ZL2Shell.rightCluster 打 accessibilityIdentifier 探测锚
+- verify_task219 C6 重锚（7.0-UI-3d 欢迎页迁 AmeTheme 后 systemBackgroundColor 锚点失效，HEAD 既有非本轮引入）
+- 门禁：task139/240 配平 + import sweep + task248 缺键0/硬编码0/动态键0 + task250 裸键名0 + verify219 81/81 + verify255 全绿
+
+Stage Summary:
+- 提交 9d446b1 推送 main（9 文件 +488/-15，新文件 ZL2VersionIndex.h/.m）；ZL2 壳下启动/切语言/退游戏/向导引导四链路全部指向新壳；旧壳自此零运行时可达路径（LauncherRoot/CardLayout/Split 保留编译供历史符号，无实例化入口）
+- 待 CI：ui-smoke（语法 + 横屏预览截图）→ development（可装 ipa）；装机锚点：①点启动正常出下载/启动流 ②切语言不再变旧界面 ③退游戏/执行 Jar 退出回 ZL2 新壳 ④首启向导完成出现 ZL2 锚点引导
