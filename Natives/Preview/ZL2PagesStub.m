@@ -475,6 +475,21 @@ void customNSLog(const char *file, int lineNumber, const char *functionName, NSS
     dispatch_async(dispatch_get_main_queue(), ^{ completion(nil, nil); });
 }
 
+// 7.0-UI-14：按ID搜索页单项目直查（同步端点；预览返回单条 demo 项目卡数据）
+- (id)getEndpoint:(NSString *)endpoint params:(NSDictionary *)params {
+    return @{
+        @"project_id": @"demo-project",
+        @"slug": @"demo-project",
+        @"title": @"Demo Project",
+        @"description": @"预览环境演示项目（ID 直查桩数据）",
+        @"icon_url": @"",
+        @"author": @"DemoAuthor",
+        @"downloads": @(@12345),
+        @"project_type": @"mod",
+        @"categories": @[@"adventure", @"utility"],
+    };
+}
+
 @end
 
 @interface CurseForgeAPI : NSObject
@@ -486,6 +501,7 @@ void customNSLog(const char *file, int lineNumber, const char *functionName, NSS
                   completion:(void (^)(NSString * _Nullable title, NSError * _Nullable error))completion;
 - (void)getVersionsForModWithID:(NSString *)modID
                      completion:(void (^)(NSArray<ModVersion *> * _Nullable versions, NSError * _Nullable error))completion;
+- (id)getEndpoint:(NSString *)endpoint params:(NSDictionary *)params;
 @end
 
 @implementation CurseForgeAPI
@@ -520,6 +536,22 @@ void customNSLog(const char *file, int lineNumber, const char *functionName, NSS
                      completion:(void (^)(NSArray<ModVersion *> * _Nullable versions, NSError * _Nullable error))completion {
     if (!completion) return;
     dispatch_async(dispatch_get_main_queue(), ^{ completion(nil, nil); });
+}
+
+// 7.0-UI-14：按ID搜索页单项目直查（同步端点；CurseForge 返回 data 包裹形态）
+- (id)getEndpoint:(NSString *)endpoint params:(NSDictionary *)params {
+    return @{
+        @"data": @{
+            @"id": @"12345",
+            @"slug": @"demo-project",
+            @"name": @"Demo Project (CurseForge)",
+            @"summary": @"预览环境演示项目（ID 直查桩数据）",
+            @"downloadCount": @(@67890),
+            @"authors": @[@{ @"name": @"DemoAuthor" }],
+            @"logo": @{ @"url": @"" },
+            @"categories": @[],
+        },
+    };
 }
 
 @end
@@ -917,6 +949,28 @@ typedef NS_ENUM(NSInteger, AssetVersionType) {
 
 #pragma mark Forge 直装器（installer/ForgeDirectInstaller.h；整合包原版预装门）
 
+// 7.0-UI-14：Addons 屏安装分发目标 VC 桩（消费方 TU 自含声明，此处供实现）
+@interface ForgeInstallViewController : UIViewController
+@property (nonatomic, copy) NSString *gameVersion;
+@property (nonatomic, assign) BOOL isNeoForge;
+@property (nonatomic, assign) NSInteger selectedScheme;
+@property (nonatomic, copy) void (^completionHandler)(BOOL success, NSString *profileName, id resultOrError);
+@property (nonatomic, copy) NSString *presetVersionString;
+@end
+
+@implementation ForgeInstallViewController
+@end
+
+@interface FabricInstallViewController : UIViewController
+@property (nonatomic, copy) NSString *gameVersion;
+@property (nonatomic, assign) BOOL shouldInstallAPI;
+@property (nonatomic, copy) void (^completionHandler)(BOOL success, NSString *profileName, NSError *error);
+@end
+
+@implementation FabricInstallViewController
+@end
+
+
 @interface ForgeDirectInstaller : NSObject
 + (BOOL)ensureParentVersionExists:(NSString *)minecraftVersion error:(NSError **)error;
 @end
@@ -1137,6 +1191,13 @@ typedef NS_ENUM(NSInteger, InlineMessageType) {
 
 - (void)updateTaskWithId:(NSString *)taskId
        currentStageIndex:(NSInteger)currentStageIndex {
+}
+
+// 7.0-UI-14：OptiFine 补丁流总进度变体（Addons 屏消费）
+- (void)updateTaskWithId:(NSString *)taskId
+                progress:(double)progress
+              totalBytes:(int64_t)totalBytes
+         downloadedBytes:(int64_t)downloadedBytes {
 }
 
 @end

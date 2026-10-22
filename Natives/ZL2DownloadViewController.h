@@ -1,32 +1,22 @@
 //
-// ZL2DownloadViewController.h — ZL2 风格下载页（7.0-UI-9-a 分类 M3 重写；
-// 7.0-UI-10-a 六类语义纠错：ZL2 下载页六类全部为远程搜索下载，本地管理器
-// 在 ZL2 属版本管理域，错配已撤除）
+// ZL2DownloadViewController.h — ZL2 下载页（7.0-UI-14：左轨 8 项真机对齐版）
 //
-// 对标 ZalithLauncher2 DownloadScreen.kt（左类别轨+内容区，本页适配为
-// 「大标题 + 横向类别 chips + 内容容器」，chips 为主页 TextRailItem 同款
-// 模式的横排变体，iPhone/iPad 双 idiome 通用）。
+// 对标 ZalithLauncher2 DownloadScreen.kt TabMenu（GNU GPL 参考副本，只读；
+// 真机截图 4-12 交叉验证）：左竖轨 + 右内容区双栏。
 //
-// 结构（自上而下）：
-//   ① 页头行 —— 大标题「下载」（fontTitleLarge / onSurface）居左；右侧
-//     任务胶囊（仅 DownloadTaskManager.hasActiveTasks 时显示：高 32 胶囊内含
-//     60×3 进度条 + assignment 类 SF 图标 + 任务数；点按第一个活动任务调
-//     [PLTaskProgressViewController presentForTaskId:]）
-//   ② 类别 chips 横向滚动行（高 40，六类，默认选中第 0 项）
-//   ③ 内容容器（占满余下空间；目标 VC 按类别懒建缓存，四边钉入 +
-//     hidden 切换 0.18s crossDissolve，与 ZL2ShellViewController 同款手法）
+// 结构：
+//   ① 左竖轨 8 项 2 分隔线（ZL2 TabMenu downloadsList 顺序 1:1）：
+//     游戏 / 整合包 ── 模组 / 资源包 / 存档 / 光影包 ── 按ID搜索 / 收藏
+//     （M3 NavigationRailItem 语义：图标 22 + label 11；选中 = primaryContainer
+//     圆角胶囊 + onPrimaryContainer；分隔线 = onSurface 0.4 alpha 宽 40%）
+//   ② 内容容器（懒建缓存 + addChild + 四边钉入 + 0.18s crossDissolve）：
+//     0 游戏 ZL2GameDownloadViewController（7.0-UI-14 截图对齐重写）
+//     1-5 ZL2AssetSearchViewController（整合包/模组/资源包/存档/光影包）
+//     6 ZL2SearchIdViewController（按项目 ID 直查）
+//     7 ZL2AssetSearchViewController initWithFavorites（收藏仓库直出）
 //
-// 六类目标 VC（7.0-UI-10-a 真语义）：
-//   游戏 DownloadViewController（旧远程游戏版本页，M3 化留下一轮）/
-//   整合包·模组·资源包·存档·光影包 → ZL2AssetSearchViewController
-//   （通用 M3 远程搜索列表，五型参数化；版本/安装流 1:1 复用旧
-//   DownloadViewController 远程下载链：ModVersion/ShaderVersion/
-//   AssetVersion 三版本页 + 五 Item 在线数据模型）
-//
-// 导航：本页由壳包在 UINavigationController 里，根页 viewWillAppear 隐藏
-// 系统栏、viewWillDisappear 恢复（push 出去的旧子页才有返回栏，pop 回自动隐藏）。
-//
-// 通知面：只监听（DownloadTaskManager 两枚通知刷新任务胶囊），零发送。
+// 任务胶囊删除（壳顶栏已有同款 taskPill）；导航栏约定与红线遵守同 7.0-UI-9
+// 契约不变（颜色/字体/圆角一律 ZL2Theme、iOS 14 API 上限、SF 符号 SF1.0 级）。
 //
 
 #import <UIKit/UIKit.h>
@@ -34,11 +24,6 @@
 NS_ASSUME_NONNULL_BEGIN
 
 @interface ZL2DownloadViewController : UIViewController
-
-// 指定初始化器（默认选中类别 0 = 游戏；任务胶囊态随 viewWillAppear 与
-// DownloadTaskManager 通知自动刷新）
-- (instancetype)init;
-
 @end
 
 NS_ASSUME_NONNULL_END

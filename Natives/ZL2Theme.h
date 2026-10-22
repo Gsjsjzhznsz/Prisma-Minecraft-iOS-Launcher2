@@ -1,22 +1,20 @@
 //
-// ZL2Theme.h — Material 3 令牌层（7.0-UI-8：全面对标 ZalithLauncher 2）
+// ZL2Theme.h — Material 3 令牌层（7.0-UI-14：embermire 色板 1:1 真机对齐版）
 //
-// 背景：7.0-UI-1~7 的 Fluent 2 迁移只换了令牌没换骨架，用户判定"没区别"，
-//   定调全面对标 ZL2 启动器并抛弃旧 UI 壳。ZL2（ZalithLauncher2）使用
-//   Jetpack Compose + Material Design 3；本层将其 M3 设计语言静态移植到
-//   ObjC（iOS 14+，零依赖），作为 ZL2 系新壳/新页面的唯一令牌源。
+// 背景：7.0-UI-8 初版取 M3 baseline 紫色种子，与 ZL2 真机截图（用户 12 张
+//   实机取证）全面不符——ZL2 出厂默认色板为 **Embermire 暖棕系**（Android 12+
+//   默认动态取色、12 以下默认 EMBERMIRE；iOS 无 Material You，取 EMBERMIRE
+//   静态板为唯一正确对齐源）。本轮把 34 枚 M3 角色全部按 ZL2 Theme.kt
+//   embermireLight/embermireDark 逐枚 1:1 移植（浅/深两态，dynamicProvider
+//   跟随系统）。
 //
-// 色板取值：Material 3 官方 baseline（紫色种子 = ZL2 默认动态取色的出厂
-//   视觉），浅/深两态完整 1:1 移植，经 UIColor dynamicProvider 跟随系统
-//   深浅切换（系统正统路径，不手写 traitCollection 分支刷 UI）。
-// 形状：M3 shape scale（extraSmall 4 / small 8 / medium 12 / large 16 /
-//   extraLarge 28）。
-// 字体：M3 type scale（titleLarge 22 / titleMedium 16 / bodyLarge 16 /
-//   bodyMedium 14 / labelLarge 14 / labelSmall 11），systemFont 权重映射。
+// 色值来源：ZalithLauncher2 ui/theme/Color.kt 第一列（embermire 位）+ Theme.kt
+//   embermireLight/embermireDark 组装；形状/字体阶不变（M3 官方刻度）。
 //
-// 消费面：ZL2ShellViewController / ZL2HomeViewController 及后续 ZL2 系
-//   新页面。旧 AmeTheme/Fluent 组件保留服务存量页面（增量退役，不做
-//   破坏性删除——游戏域桥接仍引用旧类）。
+// 消费面：全部 ZL2 系页面。新增角色：secondary/secondaryContainer/
+//   tertiary/tertiaryContainer 系（下载页类型 chip=tertiary、顶栏选中
+//   pill=secondaryContainer 均为截图实证语义）+ surfaceBright（ZL2
+//   cardColor() 的真实卡底）+ surfaceContainerHighest。
 //
 
 #import <UIKit/UIKit.h>
@@ -25,22 +23,37 @@ NS_ASSUME_NONNULL_BEGIN
 
 @interface ZL2Theme : NSObject
 
-#pragma mark - M3 角色 色（浅/深跟随系统）
+#pragma mark - M3 角色 色（embermire 浅/深跟随系统）
 
 // 主色系
-+ (UIColor *)primary;              // M3 primary
-+ (UIColor *)onPrimary;            // 主色上的文字/图标
-+ (UIColor *)primaryContainer;     // 主色容器（选中态底）
-+ (UIColor *)onPrimaryContainer;   // 主色容器上的文字
++ (UIColor *)primary;              // M3 primary（深色态 = 桃色 0xFFB59F）
++ (UIColor *)onPrimary;
++ (UIColor *)primaryContainer;
++ (UIColor *)onPrimaryContainer;
+
+// 次色系（顶栏选中 pill 底 = secondaryContainer）
++ (UIColor *)secondary;
++ (UIColor *)onSecondary;
++ (UIColor *)secondaryContainer;
++ (UIColor *)onSecondaryContainer;
+
+// 三色系（下载页版本类型 chip = LittleTextLabel tertiary 档）
++ (UIColor *)tertiary;
++ (UIColor *)onTertiary;
++ (UIColor *)tertiaryContainer;
++ (UIColor *)onTertiaryContainer;
 
 // 表面系（页面底 → 卡片底逐级抬升）
 + (UIColor *)surface;              // 页面底
 + (UIColor *)onSurface;            // 表面上的正文
 + (UIColor *)onSurfaceVariant;     // 表面上的次级文字
 + (UIColor *)surfaceVariant;       // 变体表面（输入框/分隔底）
-+ (UIColor *)surfaceContainerLow;  // 容器低（大卡片）
-+ (UIColor *)surfaceContainer;     // 容器中（标准卡片）
++ (UIColor *)surfaceContainerLowest;
++ (UIColor *)surfaceContainerLow;  // 容器低
++ (UIColor *)surfaceContainer;     // 容器中
 + (UIColor *)surfaceContainerHigh; // 容器高（浮层/菜单）
++ (UIColor *)surfaceContainerHighest;
++ (UIColor *)surfaceBright;        // ZL2 cardColor() 真实卡底（对齐源）
 
 // 描边系
 + (UIColor *)outline;              // 强描边
@@ -48,7 +61,7 @@ NS_ASSUME_NONNULL_BEGIN
 
 // 状态系
 + (UIColor *)error;                // 错误
-+ (UIColor *)errorContainer;       // 错误容器
++ (UIColor *)errorContainer;
 + (UIColor *)success;              // 成功（M3 无标准 success，取绿档判例）
 + (UIColor *)warning;              // 警告（橙档判例）
 

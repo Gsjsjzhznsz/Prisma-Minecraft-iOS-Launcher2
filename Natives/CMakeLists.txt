@@ -531,6 +531,11 @@ add_executable(AngelAuraAmethyst
   ZL2VersionNBT.m
   ZL2VersionPages.m
   ZL2VersionDetailViewController.m
+  # 7.0-UI-14：全页面全逻辑移植第三轮（真机截图对齐：下载左轨 8 项 / Addons
+  # 加载器屏 / 按ID搜索 / 收藏仓库 / embermire 色板 / 顶栏 4 项 / 主页单卡）
+  ZL2GameAddonsViewController.m
+  ZL2SearchIdViewController.m
+  ZL2FavoritesStore.m
   InlineMessageView.m
   DownloadTaskItem.m
   DownloadTaskManager.m
@@ -802,6 +807,24 @@ if(EXISTS "${MODLOADER_ICONS_DIR}")
   endif()
 else()
   message(STATUS "ModLoaderIcons directory not found: ${MODLOADER_ICONS_DIR}")
+endif()
+
+# ★ 7.0-UI-14：ZL2 版本类型图标（草方块/命令方块/钻石块/圆石/老草方块，ZL2
+#   drawable 1:1 移植）打包进 bundle Resources/ZL2Assets，运行时
+#   resourcePath/ZL2Assets/<name>.png 直读（下载页版本卡 + 主页版本行）。
+set(ZL2_ASSETS_DIR "${CMAKE_CURRENT_LIST_DIR}/ZL2Assets")
+if(EXISTS "${ZL2_ASSETS_DIR}")
+  file(GLOB ZL2_ASSET_FILES "${ZL2_ASSETS_DIR}/*.png")
+  if(ZL2_ASSET_FILES)
+    foreach(_asset ${ZL2_ASSET_FILES})
+      get_filename_component(_aname ${_asset} NAME)
+      message(STATUS "Including ZL2 asset in bundle: ${_aname}")
+      set_source_files_properties(${_asset} PROPERTIES MACOSX_PACKAGE_LOCATION "Resources/ZL2Assets")
+    endforeach()
+    target_sources(AngelAuraAmethyst PRIVATE ${ZL2_ASSET_FILES})
+  endif()
+else()
+  message(STATUS "ZL2Assets directory not found: ${ZL2_ASSETS_DIR}")
 endif()
 
 if("${CMAKE_HOST_SYSTEM_NAME}" MATCHES "Linux|^GNU$|Android")

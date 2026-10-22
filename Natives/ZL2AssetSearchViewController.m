@@ -103,6 +103,7 @@
 #import "ModpackExportService.h"
 #import "PLProfiles.h"
 #import "IconLoader.h"
+#import "ZL2FavoritesStore.h"
 #import "InlineMessageView.h"
 #import "DownloadTaskManager.h"
 #import "DownloadTaskItem.h"
@@ -194,7 +195,9 @@ static NSInteger const ZL2AssetSearchPageSize = 30;
 @property (nonatomic, strong) UIImageView *likesIconView;
 @property (nonatomic, strong) UILabel *likesLabel;
 @property (nonatomic, strong) UIButton *downloadButton;
+@property (nonatomic, strong) UIButton *favoriteButton;   // 7.0-UI-14：收藏心形（ZL2 FavoriteToggleLabel 语义）
 @property (nonatomic, copy) void (^onDownload)(void);
+@property (nonatomic, copy) void (^onFavorite)(void);
 
 - (void)ame_configureWithData:(NSDictionary *)data
               placeholderName:(NSString *)symbolName
@@ -278,6 +281,15 @@ static NSInteger const ZL2AssetSearchPageSize = 30;
                   forControlEvents:UIControlEventTouchUpInside];
         [_cardView addSubview:_downloadButton];
 
+        // 收藏心形（ZL2 FavoriteToggleLabel：已收藏 tertiary 实心 / 未收藏 描边）
+        _favoriteButton = [UIButton buttonWithType:UIButtonTypeCustom];
+        _favoriteButton.translatesAutoresizingMaskIntoConstraints = NO;
+        _favoriteButton.accessibilityLabel = @"收藏";
+        [_favoriteButton addTarget:self
+                            action:@selector(ame_favoriteTapped)
+                  forControlEvents:UIControlEventTouchUpInside];
+        [_cardView addSubview:_favoriteButton];
+
         [NSLayoutConstraint activateConstraints:@[
             [_cardView.leadingAnchor constraintEqualToAnchor:self.contentView.leadingAnchor constant:12],
             [_cardView.trailingAnchor constraintEqualToAnchor:self.contentView.trailingAnchor constant:-12],
@@ -294,8 +306,13 @@ static NSInteger const ZL2AssetSearchPageSize = 30;
             [_downloadButton.widthAnchor constraintEqualToConstant:32],
             [_downloadButton.heightAnchor constraintEqualToConstant:32],
 
+            [_favoriteButton.trailingAnchor constraintEqualToAnchor:_downloadButton.leadingAnchor constant:-4],
+            [_favoriteButton.centerYAnchor constraintEqualToAnchor:_cardView.centerYAnchor],
+            [_favoriteButton.widthAnchor constraintEqualToConstant:32],
+            [_favoriteButton.heightAnchor constraintEqualToConstant:32],
+
             [column.leadingAnchor constraintEqualToAnchor:_iconView.trailingAnchor constant:12],
-            [column.trailingAnchor constraintEqualToAnchor:_downloadButton.leadingAnchor constant:-8],
+            [column.trailingAnchor constraintEqualToAnchor:_favoriteButton.leadingAnchor constant:-8],
             [column.centerYAnchor constraintEqualToAnchor:_cardView.centerYAnchor],
             [column.topAnchor constraintGreaterThanOrEqualToAnchor:_cardView.topAnchor constant:12],
             [column.bottomAnchor constraintLessThanOrEqualToAnchor:_cardView.bottomAnchor constant:-12],
@@ -313,6 +330,17 @@ static NSInteger const ZL2AssetSearchPageSize = 30;
     if (self.onDownload) self.onDownload();
 }
 
+- (void)ame_favoriteTapped {
+    if (self.onFavorite) self.onFavorite();
+}
+
+- (void)ame_setFavorite:(BOOL)favorite {
+    UIImage *heart = [UIImage systemImageNamed:(favorite ? @"heart.fill" : @"heart")];
+    [self.favoriteButton setImage:heart forState:UIControlStateNormal];
+    self.favoriteButton.tintColor = favorite ? [ZL2Theme tertiary] : [ZL2Theme onSurfaceVariant];
+    self.favoriteButton.accessibilityLabel = favorite ? @"取消收藏" : @"收藏";
+}
+
 // 旧页 cell 同款：高亮态压暗卡片（ZL2 Compose 的 ripple 等价物）
 - (void)setHighlighted:(BOOL)highlighted animated:(BOOL)animated {
     [super setHighlighted:highlighted animated:animated];
@@ -322,6 +350,8 @@ static NSInteger const ZL2AssetSearchPageSize = 30;
 - (void)prepareForReuse {
     [super prepareForReuse];
     self.onDownload = nil;
+    self.onFavorite = nil;
+    [self ame_setFavorite:NO];
     self.nameLabel.text = nil;
     self.authorLabel.text = nil;
     self.authorLabel.hidden = NO;
@@ -465,6 +495,9 @@ static NSInteger const ZL2AssetSearchPageSize = 30;
 // 目标实例快照（旧页 targetProfileName 语义：打开页面时锁定，防操作期间切实例错写目录）
 @property (nonatomic, copy) NSString *lockedProfileName;
 
+// 收藏模式（7.0-UI-14）：数据源 = ZL2FavoritesStore，其余全链同构复用
+@property (nonatomic, assign) BOOL favoritesMode;
+
 // 整合包安装流的原版预装任务句柄（旧页 vanillaPreinstallTask 语义）
 @property (nonatomic, strong) MinecraftResourceDownloadTask *vanillaPreinstallTask;
 
@@ -497,6 +530,28 @@ static NSInteger const ZL2AssetSearchPageSize = 30;
     return self;
 }
 
+- (instancetype)initWithFavorites {
+    self = [super initWithNibName:nil bundle:nil];
+    if (self) {
+        _assetType = ZL2AssetSearchTypeMod;   // 占位（收藏模式按项内 projectType 分流）
+        _pageTitle = @"收藏";
+        _favoritesMode = YES;
+        _results = [NSMutableArray array];
+        _chipControls = [NSMutableArray array];
+        _chipLabels = [NSMutableArray array];
+        _searchQuery = @"";
+        _sortField = @"relevance";
+        _hasMore = NO;
+        _hasSearched = YES;   // 收藏直出，不走网络搜索态
+        _currentOffset = 0;
+        _requestGeneration = 0;
+        _inputGeneration = 0;
+        _sortValues = @[];
+        _sortTitleKeys = @[];
+    }
+    return self;
+}
+
 - (void)viewDidLoad {
     [super viewDidLoad];
     self.view.backgroundColor = [ZL2Theme surface];
@@ -508,10 +563,21 @@ static NSInteger const ZL2AssetSearchPageSize = 30;
     [self buildViews];
     [self ame_applyChipAppearance];
     [self ame_refreshEmptyAndLoading];
+
+    if (self.favoritesMode) {
+        [self ame_reloadFavorites];
+        [[NSNotificationCenter defaultCenter] addObserver:self
+                                                 selector:@selector(ame_favoritesDidChange:)
+                                                     name:ZL2FavoritesDidChangeNotification
+                                                   object:nil];
+    }
 }
 
 - (void)dealloc {
-    // 无通知观察者/无 timer（防抖走 dispatch_after + 代际号自失效）；
+    if (self.favoritesMode) {
+        [[NSNotificationCenter defaultCenter] removeObserver:self];
+    }
+    // 无 timer（防抖走 dispatch_after + 代际号自失效）；
     // IconLoader 对 imageView 弱引用，无需手动取消
 }
 
@@ -827,6 +893,34 @@ static NSInteger const ZL2AssetSearchPageSize = 30;
     }
 }
 
+#pragma mark - 收藏模式（7.0-UI-14：收藏仓库直出 + 全链同构复用）
+
+- (void)ame_reloadFavorites {
+    [self.results removeAllObjects];
+    for (NSDictionary *snapshot in [[ZL2FavoritesStore sharedStore] allFavorites]) {
+        // 快照 → 搜索结果同形字典（openResult 全链直接消费）
+        NSMutableDictionary *item = [NSMutableDictionary dictionary];
+        item[@"apiSource"] = snapshot[@"platform"] ?: @(1);
+        item[@"id"] = snapshot[@"projectId"] ?: @"";
+        item[@"title"] = snapshot[@"title"] ?: @"";
+        item[@"description"] = snapshot[@"description"] ?: @"";
+        item[@"imageUrl"] = snapshot[@"imageUrl"] ?: @"";
+        item[@"author"] = snapshot[@"author"] ?: @"";
+        item[@"downloads"] = snapshot[@"downloads"] ?: @0;
+        item[@"projectType"] = snapshot[@"projectType"] ?: @"mod";
+        item[@"isModpack"] = @([item[@"projectType"] isEqualToString:@"modpack"]);
+        [self.results addObject:item];
+    }
+    [self.tableView reloadData];
+    [self ame_refreshEmptyAndLoading];
+}
+
+- (void)ame_favoritesDidChange:(NSNotification *)notification {
+    dispatch_async(dispatch_get_main_queue(), ^{
+        [self ame_reloadFavorites];
+    });
+}
+
 #pragma mark - 搜索触发（return 键 + 0.5s 防抖文本变化）
 
 - (BOOL)textFieldShouldReturn:(UITextField *)textField {
@@ -993,12 +1087,32 @@ static NSInteger const ZL2AssetSearchPageSize = 30;
                     placeholderName:symbol
                      fallbackSymbol:[symbol stringByAppendingString:@".fill"]];
     }
+    // 收藏心形（7.0-UI-14：搜索卡与收藏页共用 toggle，写入 ZL2FavoritesStore）
+    {
+        NSString *pid = item[@"id"] ?: @"";
+        NSInteger source = [item[@"apiSource"] isKindOfClass:NSNumber.class]
+            ? [item[@"apiSource"] integerValue] : [self ame_apiSourceForType];
+        BOOL fav = [[ZL2FavoritesStore sharedStore] isFavoritePlatform:source projectId:pid];
+        [cell ame_setFavorite:fav];
+    }
     __weak typeof(self) weakSelf = self;
     NSInteger row = indexPath.row;
     cell.onDownload = ^{
         __strong typeof(weakSelf) strongSelf = weakSelf;
         if (!strongSelf) return;
         [strongSelf ame_openResultAtIndex:row];
+    };
+    cell.onFavorite = ^{
+        __strong typeof(weakSelf) strongSelf = weakSelf;
+        if (!strongSelf) return;
+        NSDictionary *entry = strongSelf.results[row];
+        if (![entry isKindOfClass:[NSDictionary class]]) return;
+        NSMutableDictionary *snapshot = [entry mutableCopy];
+        NSInteger source = [entry[@"apiSource"] isKindOfClass:NSNumber.class]
+            ? [entry[@"apiSource"] integerValue] : [strongSelf ame_apiSourceForType];
+        snapshot[@"platform"] = @(source);
+        snapshot[@"projectId"] = entry[@"id"] ?: @"";
+        [[ZL2FavoritesStore sharedStore] toggleFavoriteWithProject:snapshot];
     };
     return cell;
 }
@@ -1032,6 +1146,10 @@ static NSInteger const ZL2AssetSearchPageSize = 30;
     if (index < 0 || index >= (NSInteger)self.results.count) return;
     NSDictionary *dict = self.results[index];
 
+    // 项内 apiSource 优先（收藏模式按快照平台分流；搜索模式两平台同源）
+    NSInteger itemSource = [dict[@"apiSource"] isKindOfClass:NSNumber.class]
+        ? [dict[@"apiSource"] integerValue] : [self ame_apiSourceForType];
+
     switch (self.assetType) {
         case ZL2AssetSearchTypeMod: {
             // 旧页 downloadModAtIndexPath:（L5274-5292）1:1
@@ -1040,7 +1158,7 @@ static NSInteger const ZL2AssetSearchPageSize = 30;
             versionVC.modItem = modItem;
             versionVC.delegate = self;
             versionVC.title = modItem.displayName;
-            versionVC.apiSource = [self ame_apiSourceForType];
+            versionVC.apiSource = itemSource;
             versionVC.preferredGameVersion = [self ame_profileMinecraftVersion];
             versionVC.preferredLoader = [self ame_profileLoader];
             [self ame_pushViewController:versionVC];
@@ -1054,7 +1172,7 @@ static NSInteger const ZL2AssetSearchPageSize = 30;
             versionVC.modItem = modItem;
             versionVC.delegate = self;
             versionVC.title = modItem.displayName;
-            versionVC.apiSource = [self ame_apiSourceForType];
+            versionVC.apiSource = itemSource;
             versionVC.preferredGameVersion = [self ame_profileMinecraftVersion];
             versionVC.preferredLoader = [self ame_profileLoader];
             self.pendingDownloadType = @"modpack";
@@ -1070,7 +1188,7 @@ static NSInteger const ZL2AssetSearchPageSize = 30;
             AssetVersionViewController *versionVC = [[AssetVersionViewController alloc] init];
             versionVC.assetType = AssetVersionTypeResourcePack;
             versionVC.projectID = item.onlineID;
-            versionVC.apiSource = [self ame_apiSourceForType];
+            versionVC.apiSource = itemSource;
             versionVC.projectDisplayName = item.displayName;
             versionVC.delegate = self;
             versionVC.title = item.displayName;
@@ -1115,7 +1233,7 @@ static NSInteger const ZL2AssetSearchPageSize = 30;
             versionVC.shaderItem = shaderItem;
             versionVC.delegate = self;
             versionVC.title = shaderItem.displayName;
-            versionVC.apiSource = [self ame_apiSourceForType];
+            versionVC.apiSource = itemSource;
             versionVC.preferredGameVersion = [self ame_profileMinecraftVersion];
             versionVC.preferredLoader = [self ame_profileLoader];
             [self ame_pushViewController:versionVC];

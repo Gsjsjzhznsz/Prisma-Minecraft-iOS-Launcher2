@@ -47,6 +47,10 @@ typedef NS_ENUM(NSInteger, ZL2AssetSearchType) {
 - (instancetype)initWithType:(ZL2AssetSearchType)type
                        title:(NSString *)title NS_DESIGNATED_INITIALIZER;
 
+// 收藏模式（7.0-UI-14 下载域第 7 项）：数据源切换 ZL2FavoritesStore，
+// 结果/详情/安装全链与搜索模式同构复用（点击行为/openResult 1:1）
+- (instancetype)initWithFavorites;
+
 - (instancetype)init NS_UNAVAILABLE;
 - (instancetype)initWithCoder:(NSCoder *)coder NS_UNAVAILABLE;
 - (instancetype)initWithNibName:(NSString *)nibNameOrNil bundle:(NSBundle *)nibBundleOrNil NS_UNAVAILABLE;

@@ -494,22 +494,26 @@ static UIImage *ZL2HomeSizedImage(NSString *name, NSString *fallback, CGFloat po
 /// ActionMenu 竖排：账号卡 → 版本选择卡 → 弹性占位 → 下载状态行 →
 /// 大启动钮 → 停靠边提示（长按切换）。停靠边只决定整列贴左/贴右。
 - (void)ame_buildActionMenu {
+    // 7.0-UI-14 真机对齐：ZL2 ActionMenuCardContent = 单张 BackgroundCard
+    //（extraLarge 圆角，cardColor = surfaceBright），内部账号区居中贴顶、
+    //  版本行+启动钮贴底；旧三张分离小卡废弃
     _actionMenu = [[UIView alloc] init];
-    _actionMenu.backgroundColor = [UIColor clearColor];
+    _actionMenu.backgroundColor = [ZL2Theme surfaceBright];
+    _actionMenu.layer.cornerRadius = [ZL2Theme radiusXL];
+    _actionMenu.layer.masksToBounds = YES;
     _actionMenu.translatesAutoresizingMaskIntoConstraints = NO;
     [self.view addSubview:_actionMenu];
 
     _menuStack = [[UIStackView alloc] init];
     _menuStack.axis = UILayoutConstraintAxisVertical;
     _menuStack.alignment = UIStackViewAlignmentFill;
-    _menuStack.spacing = 10;
+    _menuStack.spacing = 8;
     _menuStack.translatesAutoresizingMaskIntoConstraints = NO;
     [_actionMenu addSubview:_menuStack];
 
-    // —— ① 账号卡（BackgroundCard 风格：surfaceContainer / radiusXL 28）——
+    // —— ① 账号区（单卡内贴顶：头像居中 + 名字/类型居中竖排；点击→账号管理）——
     _accountCard = [[ZL2HomeTapControl alloc] init];
-    _accountCard.backgroundColor = [ZL2Theme surfaceContainer];
-    _accountCard.layer.cornerRadius = [ZL2Theme radiusXL];
+    _accountCard.backgroundColor = [UIColor clearColor];
     _accountCard.translatesAutoresizingMaskIntoConstraints = NO;
     _accountCard.isAccessibilityElement = YES;
     _accountCard.accessibilityTraits = UIAccessibilityTraitButton;
@@ -519,9 +523,9 @@ static UIImage *ZL2HomeSizedImage(NSString *name, NSString *fallback, CGFloat po
            forControlEvents:UIControlEventTouchUpInside];
     [_menuStack addArrangedSubview:_accountCard];
 
-    // 头像 48 圆（登录 = AvatarManager ame185 三层回退链；未登录 = 加号占位）
+    // 头像 64 圆（ZL2 PlayerFace 64.dp；未登录 = 加号占位）
     _accountAvatarBg = [[UIView alloc] init];
-    _accountAvatarBg.layer.cornerRadius = 24;   // 48 直径半圆
+    _accountAvatarBg.layer.cornerRadius = 32;
     _accountAvatarBg.layer.masksToBounds = YES;
     _accountAvatarBg.translatesAutoresizingMaskIntoConstraints = NO;
     _accountAvatarBg.userInteractionEnabled = NO;
@@ -538,6 +542,7 @@ static UIImage *ZL2HomeSizedImage(NSString *name, NSString *fallback, CGFloat po
     _accountNameLabel.textColor = [ZL2Theme onSurface];
     _accountNameLabel.numberOfLines = 1;
     _accountNameLabel.lineBreakMode = NSLineBreakByTruncatingTail;
+    _accountNameLabel.textAlignment = NSTextAlignmentCenter;
     _accountNameLabel.translatesAutoresizingMaskIntoConstraints = NO;
     _accountNameLabel.userInteractionEnabled = NO;
     [_accountCard addSubview:_accountNameLabel];
@@ -547,14 +552,14 @@ static UIImage *ZL2HomeSizedImage(NSString *name, NSString *fallback, CGFloat po
     _accountTypeLabel.textColor = [ZL2Theme onSurfaceVariant];
     _accountTypeLabel.numberOfLines = 1;
     _accountTypeLabel.lineBreakMode = NSLineBreakByTruncatingTail;
+    _accountTypeLabel.textAlignment = NSTextAlignmentCenter;
     _accountTypeLabel.translatesAutoresizingMaskIntoConstraints = NO;
     _accountTypeLabel.userInteractionEnabled = NO;
     [_accountCard addSubview:_accountTypeLabel];
 
-    // —— ② 版本选择卡（BackgroundCard：surfaceContainer / radiusXL 28）——
+    // —— ② 版本行（单卡内贴底：ZL2 VersionsContent = 版本行 + 齿轮钮 + 启动钮）——
     _versionCard = [[ZL2HomeTapControl alloc] init];
-    _versionCard.backgroundColor = [ZL2Theme surfaceContainer];
-    _versionCard.layer.cornerRadius = [ZL2Theme radiusXL];
+    _versionCard.backgroundColor = [UIColor clearColor];
     _versionCard.translatesAutoresizingMaskIntoConstraints = NO;
     _versionCard.isAccessibilityElement = YES;
     _versionCard.accessibilityTraits = UIAccessibilityTraitButton;
@@ -680,23 +685,25 @@ static UIImage *ZL2HomeSizedImage(NSString *name, NSString *fallback, CGFloat po
     _menuHintLabel.translatesAutoresizingMaskIntoConstraints = NO;
     [_menuStack addArrangedSubview:_menuHintLabel];
 
-    // 账号卡内布局（48 头像 + 名字/类型双行，卡高 76）
+    // 账号区布局（7.0-UI-14 单卡贴顶竖排：64 头像居中 + 名字/类型居中下方）
     [NSLayoutConstraint activateConstraints:@[
-        [_accountCard.heightAnchor constraintEqualToConstant:ZL2HomeAccountCardHeight],
-        [_accountAvatarBg.leadingAnchor constraintEqualToAnchor:_accountCard.leadingAnchor constant:14],
-        [_accountAvatarBg.centerYAnchor constraintEqualToAnchor:_accountCard.centerYAnchor],
-        [_accountAvatarBg.widthAnchor constraintEqualToConstant:48],
-        [_accountAvatarBg.heightAnchor constraintEqualToConstant:48],
+        [_accountCard.heightAnchor constraintEqualToConstant:148],
+        [_accountAvatarBg.centerXAnchor constraintEqualToAnchor:_accountCard.centerXAnchor],
+        [_accountAvatarBg.topAnchor constraintEqualToAnchor:_accountCard.topAnchor constant:14],
+        [_accountAvatarBg.widthAnchor constraintEqualToConstant:64],
+        [_accountAvatarBg.heightAnchor constraintEqualToConstant:64],
         [_accountAvatarView.centerXAnchor constraintEqualToAnchor:_accountAvatarBg.centerXAnchor],
         [_accountAvatarView.centerYAnchor constraintEqualToAnchor:_accountAvatarBg.centerYAnchor],
-        [_accountAvatarView.widthAnchor constraintEqualToConstant:44],
-        [_accountAvatarView.heightAnchor constraintEqualToConstant:44],
-        [_accountNameLabel.leadingAnchor constraintEqualToAnchor:_accountAvatarBg.trailingAnchor constant:12],
-        [_accountNameLabel.centerYAnchor constraintEqualToAnchor:_accountCard.centerYAnchor constant:-9],
-        [_accountNameLabel.trailingAnchor constraintLessThanOrEqualToAnchor:_accountCard.trailingAnchor constant:-14],
-        [_accountTypeLabel.leadingAnchor constraintEqualToAnchor:_accountAvatarBg.trailingAnchor constant:12],
-        [_accountTypeLabel.centerYAnchor constraintEqualToAnchor:_accountCard.centerYAnchor constant:9],
-        [_accountTypeLabel.trailingAnchor constraintLessThanOrEqualToAnchor:_accountCard.trailingAnchor constant:-14],
+        [_accountAvatarView.widthAnchor constraintEqualToConstant:58],
+        [_accountAvatarView.heightAnchor constraintEqualToConstant:58],
+        [_accountNameLabel.topAnchor constraintEqualToAnchor:_accountAvatarBg.bottomAnchor constant:6],
+        [_accountNameLabel.centerXAnchor constraintEqualToAnchor:_accountCard.centerXAnchor],
+        [_accountNameLabel.leadingAnchor constraintGreaterThanOrEqualToAnchor:_accountCard.leadingAnchor constant:8],
+        [_accountNameLabel.trailingAnchor constraintLessThanOrEqualToAnchor:_accountCard.trailingAnchor constant:-8],
+        [_accountTypeLabel.topAnchor constraintEqualToAnchor:_accountNameLabel.bottomAnchor constant:1],
+        [_accountTypeLabel.centerXAnchor constraintEqualToAnchor:_accountCard.centerXAnchor],
+        [_accountTypeLabel.leadingAnchor constraintGreaterThanOrEqualToAnchor:_accountCard.leadingAnchor constant:8],
+        [_accountTypeLabel.trailingAnchor constraintLessThanOrEqualToAnchor:_accountCard.trailingAnchor constant:-8],
 
         // 版本选择卡内布局（40 图标 + 名字/加载器双行，卡高 68）
         [_versionCard.heightAnchor constraintEqualToConstant:ZL2HomeVersionCardHeight],

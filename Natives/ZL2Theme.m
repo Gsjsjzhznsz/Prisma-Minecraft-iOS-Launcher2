@@ -1,132 +1,153 @@
 //
-// ZL2Theme.m — Material 3 令牌层实现（7.0-UI-8）
+// ZL2Theme.m — Material 3 令牌层（7.0-UI-14：embermire 色板 1:1）
 //
-// 浅/深两态经 +[UIColor colorWithDynamicProvider:] 跟随 traitCollection
-// 切换（系统正统路径）；所有取值为 M3 官方 baseline 静态移植。
+// 色值来源（ZalithLauncher2 GNU GPL 参考副本，只读）：
+//   ui/theme/Color.kt 各 ColorTheme(...) 第一列 = embermire；
+//   ui/theme/Theme.kt embermireLight/embermireDark。
+// 全部经 UIColor dynamicProvider 跟随系统深浅（系统正统路径，不手写
+// traitCollection 分支）。
 //
 
 #import "ZL2Theme.h"
 
-#pragma mark - 私有：浅/深双态构造
-
-static UIColor *ZL2ColorLightDark(UIColor *light, UIColor *dark) {
-    return [UIColor colorWithDynamicProvider:^UIColor *(UITraitCollection *traits) {
-        if (@available(iOS 13.0, *)) {
-            if (traits.userInterfaceStyle == UIUserInterfaceStyleDark) return dark;
-        }
-        return light;
+static UIColor *ZL2ColorLightDark(int light, int dark) {
+    return [UIColor colorWithDynamicProvider:^UIColor *_Nonnull(UITraitCollection *traits) {
+        int value = (traits.userInterfaceStyle == UIUserInterfaceStyleDark) ? dark : light;
+        return [UIColor colorWithRed:((value >> 16) & 0xFF) / 255.0
+                               green:((value >> 8) & 0xFF) / 255.0
+                                blue:(value & 0xFF) / 255.0
+                               alpha:1.0];
     }];
 }
 
 @implementation ZL2Theme
 
-#pragma mark - M3 角色 色
+#pragma mark - 主色系
 
 + (UIColor *)primary {
-    // M3 baseline primary：浅 #6750A4 / 深 #D0BCFF
-    return ZL2ColorLightDark([UIColor colorWithRed:0x67/255.0 green:0x50/255.0 blue:0xA4/255.0 alpha:1.0],
-                             [UIColor colorWithRed:0xD0/255.0 green:0xBC/255.0 blue:0xFF/255.0 alpha:1.0]);
+    // embermire：浅 = 锈橙 0xA63A17；深 = 桃色 0xFFB59F（截图"启动游戏"钮）
+    return ZL2ColorLightDark(0xA63A17, 0xFFB59F);
 }
-
 + (UIColor *)onPrimary {
-    return ZL2ColorLightDark([UIColor whiteColor],
-                             [UIColor colorWithRed:0x38/255.0 green:0x1E/255.0 blue:0x72/255.0 alpha:1.0]);
+    return ZL2ColorLightDark(0xFFFFFF, 0x5F1600);
 }
-
 + (UIColor *)primaryContainer {
-    return ZL2ColorLightDark([UIColor colorWithRed:0xEA/255.0 green:0xDD/255.0 blue:0xFF/255.0 alpha:1.0],
-                             [UIColor colorWithRed:0x4F/255.0 green:0x37/255.0 blue:0x8B/255.0 alpha:1.0]);
+    return ZL2ColorLightDark(0xFE7A52, 0xC4502B);
+}
++ (UIColor *)onPrimaryContainer {
+    return ZL2ColorLightDark(0x2F0700, 0xFFFFFF);
 }
 
-+ (UIColor *)onPrimaryContainer {
-    return ZL2ColorLightDark([UIColor colorWithRed:0x21/255.0 green:0x00/255.0 blue:0x5D/255.0 alpha:1.0],
-                             [UIColor colorWithRed:0xEA/255.0 green:0xDD/255.0 blue:0xFF/255.0 alpha:1.0]);
+#pragma mark - 次色系
+
++ (UIColor *)secondary {
+    return ZL2ColorLightDark(0x894F3D, 0xFFB59F);
 }
++ (UIColor *)onSecondary {
+    return ZL2ColorLightDark(0xFFFFFF, 0x512214);
+}
++ (UIColor *)secondaryContainer {
+    // 深 = 0x643122（截图顶栏"下载"选中 pill 底）
+    return ZL2ColorLightDark(0xFFBBA7, 0x643122);
+}
++ (UIColor *)onSecondaryContainer {
+    return ZL2ColorLightDark(0x5C2B1C, 0xFFC8B9);
+}
+
+#pragma mark - 三色系
+
++ (UIColor *)tertiary {
+    // 深 = 0xF0D44C（截图版本类型 chip 橄榄黄字色，LittleTextLabel tertiary 档）
+    return ZL2ColorLightDark(0x6E5E00, 0xF0D44C);
+}
++ (UIColor *)onTertiary {
+    return ZL2ColorLightDark(0xFFFFFF, 0x393000);
+}
++ (UIColor *)tertiaryContainer {
+    return ZL2ColorLightDark(0xBAA015, 0xC4AA22);
+}
++ (UIColor *)onTertiaryContainer {
+    return ZL2ColorLightDark(0x1A1500, 0x272000);
+}
+
+#pragma mark - 表面系
 
 + (UIColor *)surface {
-    return ZL2ColorLightDark([UIColor colorWithRed:0xFE/255.0 green:0xF7/255.0 blue:0xFF/255.0 alpha:1.0],
-                             [UIColor colorWithRed:0x14/255.0 green:0x12/255.0 blue:0x18/255.0 alpha:1.0]);
+    // 深 = 0x1C110E（截图页面底暖深棕）
+    return ZL2ColorLightDark(0xFFF8F6, 0x1C110E);
 }
-
 + (UIColor *)onSurface {
-    return ZL2ColorLightDark([UIColor colorWithRed:0x1D/255.0 green:0x1B/255.0 blue:0x20/255.0 alpha:1.0],
-                             [UIColor colorWithRed:0xE6/255.0 green:0xE0/255.0 blue:0xE9/255.0 alpha:1.0]);
+    return ZL2ColorLightDark(0x241916, 0xF4DED8);
 }
-
 + (UIColor *)onSurfaceVariant {
-    return ZL2ColorLightDark([UIColor colorWithRed:0x49/255.0 green:0x45/255.0 blue:0x4F/255.0 alpha:1.0],
-                             [UIColor colorWithRed:0xCA/255.0 green:0xC4/255.0 blue:0xD0/255.0 alpha:1.0]);
+    return ZL2ColorLightDark(0x58423B, 0xDFC0B7);
 }
-
 + (UIColor *)surfaceVariant {
-    return ZL2ColorLightDark([UIColor colorWithRed:0xE7/255.0 green:0xE0/255.0 blue:0xEC/255.0 alpha:1.0],
-                             [UIColor colorWithRed:0x49/255.0 green:0x45/255.0 blue:0x4F/255.0 alpha:1.0]);
+    return ZL2ColorLightDark(0xFCDBD3, 0x58423B);
 }
-
++ (UIColor *)surfaceContainerLowest {
+    return ZL2ColorLightDark(0xFFFFFF, 0x160C09);
+}
 + (UIColor *)surfaceContainerLow {
-    return ZL2ColorLightDark([UIColor colorWithRed:0xF7/255.0 green:0xF2/255.0 blue:0xFA/255.0 alpha:1.0],
-                             [UIColor colorWithRed:0x1D/255.0 green:0x1B/255.0 blue:0x20/255.0 alpha:1.0]);
+    return ZL2ColorLightDark(0xFFF1ED, 0x241916);
 }
-
 + (UIColor *)surfaceContainer {
-    return ZL2ColorLightDark([UIColor colorWithRed:0xF3/255.0 green:0xED/255.0 blue:0xF7/255.0 alpha:1.0],
-                             [UIColor colorWithRed:0x21/255.0 green:0x1F/255.0 blue:0x26/255.0 alpha:1.0]);
+    return ZL2ColorLightDark(0xFFE9E4, 0x291D19);
+}
++ (UIColor *)surfaceContainerHigh {
+    return ZL2ColorLightDark(0xFAE3DD, 0x342723);
+}
++ (UIColor *)surfaceContainerHighest {
+    return ZL2ColorLightDark(0xF4DED8, 0x3B2C27);
+}
++ (UIColor *)surfaceBright {
+    // ZL2 cardColor() 真实卡底：深 = 0x443632（截图文件/版本卡底色）
+    return ZL2ColorLightDark(0xFFF8F6, 0x443632);
 }
 
-+ (UIColor *)surfaceContainerHigh {
-    return ZL2ColorLightDark([UIColor colorWithRed:0xEC/255.0 green:0xE6/255.0 blue:0xF0/255.0 alpha:1.0],
-                             [UIColor colorWithRed:0x2B/255.0 green:0x29/255.0 blue:0x30/255.0 alpha:1.0]);
-}
+#pragma mark - 描边系
 
 + (UIColor *)outline {
-    return ZL2ColorLightDark([UIColor colorWithRed:0x79/255.0 green:0x74/255.0 blue:0x7E/255.0 alpha:1.0],
-                             [UIColor colorWithRed:0x93/255.0 green:0x8F/255.0 blue:0x99/255.0 alpha:1.0]);
+    return ZL2ColorLightDark(0x8B716A, 0xA68B83);
+}
++ (UIColor *)outlineVariant {
+    return ZL2ColorLightDark(0xDFC0B7, 0x58423B);
 }
 
-+ (UIColor *)outlineVariant {
-    return ZL2ColorLightDark([UIColor colorWithRed:0xCA/255.0 green:0xC4/255.0 blue:0xD0/255.0 alpha:1.0],
-                             [UIColor colorWithRed:0x49/255.0 green:0x45/255.0 blue:0x4F/255.0 alpha:1.0]);
-}
+#pragma mark - 状态系
 
 + (UIColor *)error {
-    return ZL2ColorLightDark([UIColor colorWithRed:0xB3/255.0 green:0x26/255.0 blue:0x1E/255.0 alpha:1.0],
-                             [UIColor colorWithRed:0xF2/255.0 green:0xB8/255.0 blue:0xB5/255.0 alpha:1.0]);
+    return ZL2ColorLightDark(0xBA1A1A, 0xFFB4AB);
 }
-
 + (UIColor *)errorContainer {
-    return ZL2ColorLightDark([UIColor colorWithRed:0xF9/255.0 green:0xDE/255.0 blue:0xDC/255.0 alpha:1.0],
-                             [UIColor colorWithRed:0x8C/255.0 green:0x1D/255.0 blue:0x18/255.0 alpha:1.0]);
+    return ZL2ColorLightDark(0xFFDAD6, 0x93000A);
 }
-
 + (UIColor *)success {
-    // M3 无标准 success：沿用项目绿档判例（Fluent 107C10/54B054 与 M3 兼容）
-    return ZL2ColorLightDark([UIColor colorWithRed:0x10/255.0 green:0x7C/255.0 blue:0x10/255.0 alpha:1.0],
-                             [UIColor colorWithRed:0x54/255.0 green:0xB0/255.0 blue:0x54/255.0 alpha:1.0]);
+    // M3 无标准 success：embermire 无绿档，取 M3 官方 baseline 绿（历史判例沿用）
+    return ZL2ColorLightDark(0x146C2E, 0x6DD58C);
 }
-
 + (UIColor *)warning {
-    // M3 无标准 warning：沿用项目橙档判例（Fluent BC4B09/FAA06B）
-    return ZL2ColorLightDark([UIColor colorWithRed:0xBC/255.0 green:0x4B/255.0 blue:0x09/255.0 alpha:1.0],
-                             [UIColor colorWithRed:0xFA/255.0 green:0xA0/255.0 blue:0x6B/255.0 alpha:1.0]);
+    // 橙档判例沿用（embermire primaryContainer 案）
+    return ZL2ColorLightDark(0x8F4C38, 0xFFB693);
 }
 
-#pragma mark - M3 形状
+#pragma mark - 形状阶
 
-+ (CGFloat)radiusXS   { return 4.0;  }
-+ (CGFloat)radiusS    { return 8.0;  }
-+ (CGFloat)radiusM    { return 12.0; }
-+ (CGFloat)radiusL    { return 16.0; }
-+ (CGFloat)radiusXL   { return 28.0; }
++ (CGFloat)radiusXS { return 4.0; }
++ (CGFloat)radiusS  { return 8.0; }
++ (CGFloat)radiusM  { return 12.0; }
++ (CGFloat)radiusL  { return 16.0; }
++ (CGFloat)radiusXL { return 28.0; }
 
-#pragma mark - M3 字体阶
+#pragma mark - 字体阶
 
 + (UIFont *)fontHeadline    { return [UIFont systemFontOfSize:28.0 weight:UIFontWeightSemibold]; }
-+ (UIFont *)fontTitleLarge  { return [UIFont systemFontOfSize:22.0 weight:UIFontWeightRegular];  }
-+ (UIFont *)fontTitleMedium { return [UIFont systemFontOfSize:16.0 weight:UIFontWeightMedium];   }
-+ (UIFont *)fontBodyLarge   { return [UIFont systemFontOfSize:16.0 weight:UIFontWeightRegular];  }
-+ (UIFont *)fontBodyMedium  { return [UIFont systemFontOfSize:14.0 weight:UIFontWeightRegular];  }
-+ (UIFont *)fontLabelLarge  { return [UIFont systemFontOfSize:14.0 weight:UIFontWeightMedium];   }
-+ (UIFont *)fontLabelMedium { return [UIFont systemFontOfSize:12.0 weight:UIFontWeightMedium];   }
++ (UIFont *)fontTitleLarge  { return [UIFont systemFontOfSize:22.0 weight:UIFontWeightRegular]; }
++ (UIFont *)fontTitleMedium { return [UIFont systemFontOfSize:16.0 weight:UIFontWeightMedium]; }
++ (UIFont *)fontBodyLarge   { return [UIFont systemFontOfSize:16.0 weight:UIFontWeightRegular]; }
++ (UIFont *)fontBodyMedium  { return [UIFont systemFontOfSize:14.0 weight:UIFontWeightRegular]; }
++ (UIFont *)fontLabelLarge  { return [UIFont systemFontOfSize:14.0 weight:UIFontWeightMedium]; }
++ (UIFont *)fontLabelMedium { return [UIFont systemFontOfSize:12.0 weight:UIFontWeightMedium]; }
 
 #pragma mark - 语义
 

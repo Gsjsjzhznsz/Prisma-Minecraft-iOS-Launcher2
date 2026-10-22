@@ -79,8 +79,12 @@
 #import "ZL2AccountsViewController.h"
 #import "ZL2SettingsViewController.h"
 #import "ZL2VersionDetailViewController.h"  // 7.0-UI-13：版本详情容器（主页卡/版本列表设置钮 push 目标）
+#import "MultiplayerViewController.h"      // 7.0-UI-14：多人联机页（顶栏联机项，页面 5）
+#import "FolderBrowserViewController.h"    // 7.0-UI-14：文件浏览器（顶栏文件夹项 PageSheet）
 #import "DownloadTaskManager.h"           // manager 单例 + DownloadTaskItem + 更新通知常量
 #import "PLTaskProgressViewController.h"  // 统一进度页（胶囊点开）
+
+#include <stdlib.h>
 
 NSString * const ZL2ShellNavigateNotification = @"ZL2ShellNavigate";
 
@@ -252,7 +256,12 @@ static UIImage *ZL2ShellSystemImage(NSString *name, NSString *fallback) {
 }
 
 - (void)ame_setSelected:(BOOL)selected {
-    UIColor *tint = selected ? [ZL2Theme primary] : [ZL2Theme onSurfaceVariant];
+    // ZL2 TextRailItem 选中态：secondaryContainer 胶囊底 + onSecondaryContainer
+    // 内容（7.0-UI-14 真机对齐；旧 primary 着色无背景废弃）
+    self.backgroundColor = selected ? [ZL2Theme secondaryContainer] : [UIColor clearColor];
+    self.layer.cornerRadius = self.bounds.size.height > 0 ? self.bounds.size.height / 2.0 : [ZL2Theme radiusXL];
+    self.layer.masksToBounds = YES;
+    UIColor *tint = selected ? [ZL2Theme onSecondaryContainer] : [ZL2Theme onSurfaceVariant];
     self.labelWidthConstraint.constant = selected ? self.textWidth : 0.0;
     self.itemWidthConstraint.constant = selected ? self.expandedWidth : self.collapsedWidth;
     self.label.alpha = selected ? 1.0 : 0.0;
@@ -502,15 +511,16 @@ static UIImage *ZL2ShellSystemImage(NSString *name, NSString *fallback) {
     };
     [self.rightCluster addArrangedSubview:self.taskPill];
 
-    // b) RailItem×4（版本/下载/账户/设置，ZL2 右侧组序；📁文件与联机 RailItem
-    //    待文件管理器/联机功能域落地后补位）
-    NSArray<NSString *> *titles = @[@"版本", @"下载", @"账户", @"设置"];
-    NSArray<NSString *> *symbols = @[@"square.grid.2x2.fill",
+    // b) RailItem×4（7.0-UI-14 真机对齐：文件/多人联机/下载/设置，ZL2 MainScreen
+    //    endButtons 顺序；版本/账户入口收进主页 ActionMenu，非顶栏项）
+    //    pageIndex = -1 表示瞬时动作（文件夹 = 打开文件浏览器，非页面）
+    NSArray<NSString *> *titles = @[@"文件", @"多人联机", @"下载", @"设置"];
+    NSArray<NSString *> *symbols = @[@"folder.fill",
+                                     @"person.2.fill",
                                      @"arrow.down.circle.fill",
-                                     @"person.crop.circle.fill",
                                      @"gearshape.fill"];
-    NSArray<NSString *> *fallbacks = @[@"square.grid.2x2", @"arrow.down", @"", @"gear"];
-    NSArray<NSNumber *> *pageIndexNumbers = @[@2, @1, @3, @4];
+    NSArray<NSString *> *fallbacks = @[@"folder", @"person.2", @"arrow.down", @"gear"];
+    NSArray<NSNumber *> *pageIndexNumbers = @[@(-1), @5, @1, @4];
     NSMutableArray<ZL2ShellRailItem *> *items = [NSMutableArray array];
     [titles enumerateObjectsUsingBlock:^(NSString *itemTitle, NSUInteger idx, BOOL *stop) {
         NSString *fallback = fallbacks[idx];
@@ -521,6 +531,12 @@ static UIImage *ZL2ShellSystemImage(NSString *name, NSString *fallback) {
                                          pageIndex:pageIndexNumbers[idx].integerValue];
         NSInteger target = pageIndexNumbers[idx].integerValue;
         item.ame_action = ^{
+            if (target < 0) {
+                // ZL2 文件夹钮 = OpenFileManager 事件（独立文件管理器）；iOS 对应
+                // FolderBrowserViewController（PageSheet，游戏根目录）
+                [weakSelf ame_openFileManagerSheet];
+                return;
+            }
             [weakSelf showPageAtIndex:target];
         };
         [self.rightCluster addArrangedSubview:item];
@@ -597,10 +613,21 @@ static UIImage *ZL2ShellSystemImage(NSString *name, NSString *fallback) {
     [self ame_refreshTopBarStateAnimated:animated];
 }
 
+#pragma mark - 文件浏览器（顶栏文件夹钮 = ZL2 OpenFileManager 对应）
+
+- (void)ame_openFileManagerSheet {
+    const char *env = getenv("POJAV_GAME_DIR");
+    NSString *gameDir = env ? [NSString stringWithUTF8String:env] : NSHomeDirectory();
+    UINavigationController *nav = [FolderBrowserViewController wrappedControllerForPath:gameDir];
+    nav.modalPresentationStyle = UIModalPresentationPageSheet;
+    UIViewController *presenter = self.presentedViewController ?: self;
+    [presenter presentViewController:nav animated:YES completion:nil];
+}
+
 #pragma mark - 页面切换
 
 - (void)showPageAtIndex:(NSInteger)index {
-    if (index < 0 || index > 4) return;
+    if (index < 0 || index > 5) return;
     if (index == self.currentIndex) {
         [self ame_refreshTopBarStateAnimated:NO];  // 幂等自愈
         return;
@@ -633,17 +660,16 @@ static UIImage *ZL2ShellSystemImage(NSString *name, NSString *fallback) {
 
 - (NSString *)ame_titleForIndex:(NSInteger)index {
     if (index == 0) {
-        // 主页标题 = CFBundleDisplayName（兜底 @"Prisma Launcher"，对应 ZL2
-        // LAUNCHER_IDENTIFIER 位）
-        NSString *name = (NSString *)[[NSBundle mainBundle] objectForInfoDictionaryKey:@"CFBundleDisplayName"];
-        return name.length > 0 ? name : @"Prisma Launcher";
+        // 主页标题 = ZL2 LAUNCHER_IDENTIFIER（"ZalithLauncher"，真机截图实证）
+        return @"ZalithLauncher";
     }
-    // 功能页文案 = ZL2RailView 同款中文（主页/下载/版本/账户/设置）
+    // 功能页文案（ZL2 顶栏标题映射表，7.0-UI-14 对齐）
     switch (index) {
         case 1: return @"下载";
         case 2: return @"版本";
         case 3: return @"账户";
         case 4: return @"设置";
+        case 5: return @"Terracotta | 陶瓦联机";
         default: return @"";
     }
 }
@@ -685,7 +711,8 @@ static UIImage *ZL2ShellSystemImage(NSString *name, NSString *fallback) {
     // 单一动画上下文统一 0.18s
     void (^apply)(void) = ^{
         [self.railItems enumerateObjectsUsingBlock:^(ZL2ShellRailItem *item, NSUInteger idx, BOOL *stop) {
-            [item ame_setSelected:(item.pageIndex == index)];
+            // 文件项（pageIndex -1）永不选中（瞬时动作，非页面）
+            [item ame_setSelected:(item.pageIndex >= 0 && item.pageIndex == index)];
         }];
         self.leftCluster.alpha = clusterVisible ? 1.0 : 0.0;
         self.leftCluster.hidden = !clusterVisible;
@@ -829,6 +856,13 @@ static UIImage *ZL2ShellSystemImage(NSString *name, NSString *fallback) {
         case 4: {
             ZL2SettingsViewController *settings = [[ZL2SettingsViewController alloc] init];
             vc = [[UINavigationController alloc] initWithRootViewController:settings];
+            break;
+        }
+        case 5: {
+            // 多人联机（ZL2 Multiplayer 入口；legacy FCL 式联机域承接）
+            MultiplayerViewController *multiplayer =
+                [[MultiplayerViewController alloc] initWithMode:MultiplayerVCModeLauncher];
+            vc = [[UINavigationController alloc] initWithRootViewController:multiplayer];
             break;
         }
         default:
