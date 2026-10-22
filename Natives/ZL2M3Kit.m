@@ -71,8 +71,9 @@ static UIViewController *ZL2M3TopmostViewController(void) {
 - (instancetype)init {
     self = [super init];
     if (self) {
-        _modalPresentationStyle = UIModalPresentationOverFullScreen;
-        _modalTransitionStyle = UIModalTransitionStyleCoverVertical;
+        // 继承属性一律 self. 访问（UIKit 属性 ivar 不对子类可见，_ivar 写法编译错）
+        self.modalPresentationStyle = UIModalPresentationOverFullScreen;
+        self.modalTransitionStyle = UIModalTransitionStyleCoverVertical;
     }
     return self;
 }
@@ -122,11 +123,11 @@ static UIViewController *ZL2M3TopmostViewController(void) {
 - (instancetype)initWithFrame:(CGRect)frame {
     self = [super initWithFrame:frame];
     if (self) {
-        _backgroundColor = [ZL2Theme surfaceContainerHigh];
-        _layer.cornerRadius = [ZL2Theme radiusXL];
-        _translatesAutoresizingMaskIntoConstraints = NO;
-        _isAccessibilityElement = YES;
-        _accessibilityTraits = UIAccessibilityTraitSearchField;
+        self.backgroundColor = [ZL2Theme surfaceContainerHigh];
+        self.layer.cornerRadius = [ZL2Theme radiusXL];
+        self.translatesAutoresizingMaskIntoConstraints = NO;
+        self.isAccessibilityElement = YES;
+        self.accessibilityTraits = UIAccessibilityTraitSearchField;
 
         _iconView = [[UIImageView alloc]
             initWithImage:[ZL2M3SystemImage(@"magnifyingglass", @"search")
@@ -212,13 +213,13 @@ static UIViewController *ZL2M3TopmostViewController(void) {
 - (instancetype)initWithText:(NSString *)text {
     self = [super initWithFrame:CGRectZero];
     if (self) {
-        _layer.cornerRadius = [ZL2Theme radiusS];
-        _layer.borderWidth = 1.0;
-        _layer.borderColor = [ZL2Theme outlineVariant].CGColor;
-        _translatesAutoresizingMaskIntoConstraints = NO;
-        _isAccessibilityElement = YES;
-        _accessibilityTraits = UIAccessibilityTraitButton;
-        _accessibilityLabel = text;
+        self.layer.cornerRadius = [ZL2Theme radiusS];
+        self.layer.borderWidth = 1.0;
+        self.layer.borderColor = [ZL2Theme outlineVariant].CGColor;
+        self.translatesAutoresizingMaskIntoConstraints = NO;
+        self.isAccessibilityElement = YES;
+        self.accessibilityTraits = UIAccessibilityTraitButton;
+        self.accessibilityLabel = text;
 
         _checkView = [[UIImageView alloc]
             initWithImage:[ZL2M3SystemImage(@"checkmark", nil)
@@ -253,12 +254,13 @@ static UIViewController *ZL2M3TopmostViewController(void) {
 }
 
 - (void)setSelected:(BOOL)selected {
-    _selected = selected;
+    // selected 属性承自 UIControl（super 存储，无子类 ivar；覆写仅刷外观）
+    [super setSelected:selected];
     [self ame_applyAppearance];
 }
 
 - (void)ame_applyAppearance {
-    if (_selected) {
+    if (self.isSelected) {
         self.backgroundColor = [ZL2Theme primaryContainer];
         self.layer.borderWidth = 0.0;
         self.titleLabel.textColor = [ZL2Theme onPrimaryContainer];
@@ -271,8 +273,9 @@ static UIViewController *ZL2M3TopmostViewController(void) {
         self.accessibilityTraits = UIAccessibilityTraitButton;
     }
     // 对勾宽度 0↔16 动画过渡（MD3 chip 两态规格位移）
+    BOOL checked = self.isSelected;
     [UIView animateWithDuration:0.15 animations:^{
-        self.checkWidthConstraint.constant = _selected ? 16 : 0;
+        self.checkWidthConstraint.constant = checked ? 16 : 0;
         [self layoutIfNeeded];
     }];
 }
@@ -296,9 +299,9 @@ static UIViewController *ZL2M3TopmostViewController(void) {
 - (instancetype)initWithFrame:(CGRect)frame {
     self = [super initWithFrame:CGRectZero];
     if (self) {
-        _translatesAutoresizingMaskIntoConstraints = NO;
-        _isAccessibilityElement = YES;
-        _accessibilityTraits = UIAccessibilityTraitButton;
+        self.translatesAutoresizingMaskIntoConstraints = NO;
+        self.isAccessibilityElement = YES;
+        self.accessibilityTraits = UIAccessibilityTraitButton;
 
         _trackView = [[UIView alloc] init];
         _trackView.translatesAutoresizingMaskIntoConstraints = NO;

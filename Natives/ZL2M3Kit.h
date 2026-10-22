@@ -54,8 +54,7 @@ NS_ASSUME_NONNULL_BEGIN
 
 @interface ZL2M3FilterChip : UIControl
 
-/// 选中态 setter：刷新着色与对勾显隐（MD3 两态：描边↔容器底+对勾）
-@property (nonatomic, assign, getter=isSelected) BOOL selected;
+// 选中态：承自 UIControl（getter=isSelected），覆写 setSelected: 刷新两态外观
 
 - (instancetype)initWithText:(NSString *)text;
 

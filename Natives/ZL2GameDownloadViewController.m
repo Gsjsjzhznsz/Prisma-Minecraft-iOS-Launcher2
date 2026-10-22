@@ -292,7 +292,7 @@ static const NSUInteger ZL2GamePageSizeMore = 40;    // 滚动续载条数
     _tableView.rowHeight = 64.0;
     _tableView.delegate = self;
     _tableView.dataSource = self;
-    _tableView.keyboardDismissMode = UIScrollViewKeyboardDismissOnDrag;
+    _tableView.keyboardDismissMode = UIScrollViewKeyboardDismissModeOnDrag;
     _tableView.translatesAutoresizingMaskIntoConstraints = NO;
     [_tableView registerClass:[ZL2GameVersionCell class]
        forCellReuseIdentifier:@"ZL2GameVersionCell"];
