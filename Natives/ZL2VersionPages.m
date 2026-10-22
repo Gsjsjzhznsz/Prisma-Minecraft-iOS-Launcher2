@@ -1754,8 +1754,8 @@ static UIImage *ZL2V13ThumbnailAtPath(NSString *path, CGFloat maxPixel) {
 
 @end
 
-@interface ZL2VersionResourcePacksPage : ZL2VersionPacksPageBase
-@end
+// ZL2VersionResourcePacksPage / ZL2VersionShadersPage 主体已在 ZL2VersionPages.h
+//（7.0-UI-13-r2：.m 内重复 @interface 根除——空体重声明即 duplicate interface 错误）
 
 @implementation ZL2VersionResourcePacksPage
 - (NSString *)ameV13_pageTitle { return @"资源包"; }
@@ -1765,9 +1765,6 @@ static UIImage *ZL2V13ThumbnailAtPath(NSString *path, CGFloat maxPixel) {
 - (NSString *)ameV13_importA11y { return localize(@"resman.resourcepacks.import", nil); }
 - (NSString *)ameV13_emptySymbol { return @"paintbrush"; }
 - (NSString *)ameV13_emptyFallback { return @"photo"; }
-@end
-
-@interface ZL2VersionShadersPage : ZL2VersionPacksPageBase
 @end
 
 @implementation ZL2VersionShadersPage

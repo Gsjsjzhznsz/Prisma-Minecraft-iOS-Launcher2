@@ -234,8 +234,8 @@ static UIImage *ame_hubSystemImage(NSString *name, NSString *fallback) {
         [_railScrollView.topAnchor constraintEqualToAnchor:self.view.topAnchor],
         [_railScrollView.bottomAnchor constraintEqualToAnchor:self.view.bottomAnchor],
         [_railScrollView.leadingAnchor constraintEqualToAnchor:self.view.leadingAnchor],
-        // 7.0-UI-13-r2：赋值提出数组字面量（@[] 元素不允许赋值表达式，clang expected identifier）
-        [_railWidthConstraint],
+        // 7.0-UI-13-r2：裸 ivar 入数组不需括号（[ivar] = 空消息表达式语法错）
+        _railWidthConstraint,
 
         [railEdge.trailingAnchor constraintEqualToAnchor:_railScrollView.trailingAnchor],
         [railEdge.topAnchor constraintEqualToAnchor:self.view.topAnchor],
