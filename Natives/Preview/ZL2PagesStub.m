@@ -1202,7 +1202,9 @@ NSString * const DownloadTaskResourceTypeModpack = @"modpack";
     (void (^)(NSArray<NSDictionary<NSString *, id> *> *versions, BOOL loaded))completion;
 @end
 
-@implementation ZL2VersionIndex (PreviewGameDownloadStub)
+@implementation ZL2VersionIndex
+// 7.0-UI-12-r4 判例：桩类必须主实现（category 只挂方法不产 OBJC_CLASS_$_
+// 符号，链接期 Undefined symbols；本桩以主实现承载四方法）
 
 + (instancetype)sharedIndex {
     static ZL2VersionIndex *instance = nil;
