@@ -227,11 +227,15 @@ static UIImage *ame_hubSystemImage(NSString *name, NSString *fallback) {
     _railStack.translatesAutoresizingMaskIntoConstraints = NO;
     [_railScrollView addSubview:_railStack];
 
+    // 7.0-UI-13-r2：宽度约束先建后入数组（赋值提出数组字面量）
+    _railWidthConstraint =
+        [_railScrollView.widthAnchor constraintEqualToConstant:[self ame_railWidth]];
     [NSLayoutConstraint activateConstraints:@[
         [_railScrollView.topAnchor constraintEqualToAnchor:self.view.topAnchor],
         [_railScrollView.bottomAnchor constraintEqualToAnchor:self.view.bottomAnchor],
         [_railScrollView.leadingAnchor constraintEqualToAnchor:self.view.leadingAnchor],
-        [_railWidthConstraint = [_railScrollView.widthAnchor constraintEqualToConstant:[self ame_railWidth]]],
+        // 7.0-UI-13-r2：赋值提出数组字面量（@[] 元素不允许赋值表达式，clang expected identifier）
+        [_railWidthConstraint],
 
         [railEdge.trailingAnchor constraintEqualToAnchor:_railScrollView.trailingAnchor],
         [railEdge.topAnchor constraintEqualToAnchor:self.view.topAnchor],

@@ -856,7 +856,7 @@ static UIImage *ZL2HomeSizedImage(NSString *name, NSString *fallback, CGFloat po
     stack.alignment = UIStackViewAlignmentCenter;
     stack.spacing = 14;
     stack.translatesAutoresizingMaskIntoConstraints = NO;
-    stack.isUserInteractionEnabled = YES;
+    stack.userInteractionEnabled = YES;
     [_emptyStateView addSubview:stack];
 
     [NSLayoutConstraint activateConstraints:@[

@@ -1165,7 +1165,7 @@ static UIImage *ZL2V13ThumbnailAtPath(NSString *path, CGFloat maxPixel) {
 - (void)ameV13_showImportPicker {
     UTType *jarType = [UTType typeWithFilenameExtension:@"jar"];
     if (!jarType) jarType = UTTypeData;
-    UIDocumentPickerViewController *picker = [[UIDocumentPickerViewController alloc] initForOpeningContentTypes:@[UTTypeZip, jarType] asCopy:YES];
+    UIDocumentPickerViewController *picker = [[UIDocumentPickerViewController alloc] initForOpeningContentTypes:@[UTTypeZIP, jarType] asCopy:YES];
     picker.allowsMultipleSelection = YES;
     picker.delegate = self;
     [self presentViewController:picker animated:YES completion:nil];
@@ -1412,7 +1412,7 @@ static UIImage *ZL2V13ThumbnailAtPath(NSString *path, CGFloat maxPixel) {
 }
 
 - (void)ameV13_showImportPicker {
-    UIDocumentPickerViewController *picker = [[UIDocumentPickerViewController alloc] initForOpeningContentTypes:@[UTTypeZip] asCopy:YES];
+    UIDocumentPickerViewController *picker = [[UIDocumentPickerViewController alloc] initForOpeningContentTypes:@[UTTypeZIP] asCopy:YES];
     picker.allowsMultipleSelection = YES;
     picker.delegate = self;
     [self presentViewController:picker animated:YES completion:nil];
@@ -1543,7 +1543,7 @@ static UIImage *ZL2V13ThumbnailAtPath(NSString *path, CGFloat maxPixel) {
 #pragma mark - ④ 资源包 / ⑤ 光影（共用行卡逻辑）
 
 /// 资源包/光影共用的本地包列表页：目录枚举口径与导入内容类型由子类给参。
-@interface ZL2VersionPacksPageBase : ZL2VersionPageBase <UIDocumentPickerDelegate>
+@interface ZL2VersionPacksPageBase () <UIDocumentPickerDelegate>   // 类扩展（主体已在 ZL2VersionPages.h；7.0-UI-13-r2 重复接口定义根除）
 @property (nonatomic, strong) UIStackView *ameV13_contentStack;
 @property (nonatomic, strong) UIStackView *ameV13_cardsStack;
 @property (nonatomic, strong) UILabel *ameV13_countLabel;
@@ -1718,7 +1718,7 @@ static UIImage *ZL2V13ThumbnailAtPath(NSString *path, CGFloat maxPixel) {
 }
 
 - (void)ameV13_showImportPicker {
-    UIDocumentPickerViewController *picker = [[UIDocumentPickerViewController alloc] initForOpeningContentTypes:@[UTTypeZip] asCopy:YES];
+    UIDocumentPickerViewController *picker = [[UIDocumentPickerViewController alloc] initForOpeningContentTypes:@[UTTypeZIP] asCopy:YES];
     picker.allowsMultipleSelection = YES;
     [self ameV13_configureImportPicker:picker];
     picker.delegate = self;
