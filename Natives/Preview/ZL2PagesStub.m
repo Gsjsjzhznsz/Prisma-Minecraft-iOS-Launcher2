@@ -1240,3 +1240,67 @@ NSString * const DownloadTaskResourceTypeModpack = @"modpack";
 }
 
 @end
+
+#pragma mark - 7.0-UI-13 预览桩（设置八页 + 版本详情容器，链接期符号桩）
+
+// 分账纪律（7.0-UI-8/10-f 同款）：不 import 真实类头，手写同名类声明 + 空实现；
+// 正式构建用真实现（CMakeLists 侧），桩与真实现从不同一二进制。
+// 依据：ZL2SettingsViewController.m（hub）引用八子页类符号；
+//   ZL2VersionsViewController.m 引用 ZL2VersionDetailViewController（7.0-UI-13
+//   设置钮新目标）。截图流程不点轨项、不 push 子页——桩仅满足链接期类符号。
+
+@interface ZL2SettingPageStubBase : UIViewController
+@end
+@implementation ZL2SettingPageStubBase
+- (void)ame_refreshState { }
+@end
+
+@interface ZL2RendererSettingsPage : ZL2SettingPageStubBase
+@end
+@implementation ZL2RendererSettingsPage
+@end
+
+@interface ZL2GameSettingsPage : ZL2SettingPageStubBase
+@end
+@implementation ZL2GameSettingsPage
+@end
+
+@interface ZL2ControlSettingsPage : ZL2SettingPageStubBase
+@end
+@implementation ZL2ControlSettingsPage
+@end
+
+@interface ZL2GamepadSettingsPage : ZL2SettingPageStubBase
+@end
+@implementation ZL2GamepadSettingsPage
+@end
+
+@interface ZL2LauncherSettingsPage : ZL2SettingPageStubBase
+@end
+@implementation ZL2LauncherSettingsPage
+@end
+
+@interface ZL2JavaManagerSettingsPage : ZL2SettingPageStubBase
+@end
+@implementation ZL2JavaManagerSettingsPage
+@end
+
+@interface ZL2ControlManagerSettingsPage : ZL2SettingPageStubBase
+@end
+@implementation ZL2ControlManagerSettingsPage
+@end
+
+@interface ZL2AboutSettingsPage : ZL2SettingPageStubBase
+@end
+@implementation ZL2AboutSettingsPage
+@end
+
+@interface ZL2VersionDetailViewController : UIViewController
+- (instancetype)initWithProfileName:(NSString *)profileName;
+@end
+@implementation ZL2VersionDetailViewController
+- (instancetype)initWithProfileName:(NSString *)profileName {
+    self = [super init];
+    return self;
+}
+@end
