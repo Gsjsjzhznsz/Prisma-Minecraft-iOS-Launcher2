@@ -367,6 +367,11 @@
                                   : (id)[CurseForgeAPI sharedInstance];
     dispatch_async(dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_DEFAULT, 0), ^{
         id response = [api getEndpoint:endpoint params:nil];
+        // CurseForge 响应带 data 包裹（响应字段解包在外层 block 完成，
+        // 避免嵌套 block 对局部变量的 __block 要求）
+        if (self.platform == 2 && [response isKindOfClass:[NSDictionary class]]) {
+            response = response[@"data"] ?: response;
+        }
         dispatch_async(dispatch_get_main_queue(), ^{
             __strong typeof(weakSelf) s = weakSelf;
             if (!s) return;
@@ -376,7 +381,6 @@
                 s.statusLabel.hidden = NO;
                 return;
             }
-            if (s.platform == 2) response = response[@"data"] ?: response;
             [s ame_applyResult:response];
         });
     });

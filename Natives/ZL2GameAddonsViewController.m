@@ -44,6 +44,8 @@
 
 @protocol ZL2AddonCardDelegate <NSObject>
 - (void)addonCardDidChangeSelection:(ZL2AddonCard *)card;
+@optional
+- (void)addonCardDidRequestReload:(ZL2AddonCard *)card;
 @end
 
 /// 单张加载器卡：头部（图标+标题+选中值+清除+刷新+箭头）+ 可展开版本列表
@@ -476,7 +478,7 @@
     };
     __block NSData *result = nil;
     dispatch_semaphore_t sem = dispatch_semaphore_create(0);
-    [[NSURLSession sessionWithConfiguration:cfg]
+    [[[NSURLSession sessionWithConfiguration:cfg]
         dataTaskWithURL:url
       completionHandler:^(NSData *data, NSURLResponse *response, NSError *error) {
         if (!error && data) result = data;

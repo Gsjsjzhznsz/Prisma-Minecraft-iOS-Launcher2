@@ -238,7 +238,7 @@ static const NSUInteger ZL2GamePageSizeMore = 40;
 
 #pragma mark - 页面本体
 
-@interface ZL2GameDownloadViewController () <UITableViewDelegate, UITableViewDataSource, UIScrollViewDelegate>
+@interface ZL2GameDownloadViewController () <UITableViewDelegate, UITableViewDataSource, UIScrollViewDelegate, UITextFieldDelegate>
 
 // ZL2 VersionHeader：chips 行 + 搜索 + 刷新（单行）
 @property (nonatomic, strong) UIScrollView *chipsScroll;
