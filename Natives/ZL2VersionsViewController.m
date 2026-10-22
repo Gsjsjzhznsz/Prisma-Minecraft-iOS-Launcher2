@@ -55,6 +55,7 @@
 #import "ModLoaderIconHelper.h"
 #import "ModpackExportService.h"   // +parseVersionId:（lastVersionId 反解 MC 版本）
 #import "ProfileSettingsViewController.h"
+#import "ZL2VersionDetailViewController.h"   // 7.0-UI-13-V：设置钮新目标（ZL2 VersionSettings 容器）
 #import "utils.h"   // localize()
 
 // 内容列最大宽（与 ZL2HomeViewController 同款 999 等式宽度方案）
@@ -796,11 +797,13 @@ static UIImage *ZL2VersionsSystemImage(NSString *name, NSString *fallback) {
     [self ame_rebuildList];
 }
 
-/// 版本设置：旧 VC editProfile: 同款目标与 init（ProfileSettingsViewController
-/// + profileName 属性），push 后由本页 viewWillDisappear 恢复导航栏
+/// 版本设置：7.0-UI-13-V 起进 ZL2 版本详情容器（NestedNavKey.VersionSettings
+/// 对标：概览/模组/存档/资源包/光影/截图/服务器/配置 八子页；实例级长尾
+/// 设置由容器配置页「完整实例设置」兜底 push ProfileSettingsViewController）。
+/// push 后由本页 viewWillDisappear 恢复导航栏。
 - (void)ame_openSettingsForProfile:(NSString *)profileName {
-    ProfileSettingsViewController *vc = [[ProfileSettingsViewController alloc] init];
-    vc.profileName = profileName;
+    ZL2VersionDetailViewController *vc =
+        [[ZL2VersionDetailViewController alloc] initWithProfileName:profileName];
     // 旧 VC 同款：依赖宿主 UINavigationController（壳 index=2 包 nav）
     [self.navigationController pushViewController:vc animated:YES];
 }

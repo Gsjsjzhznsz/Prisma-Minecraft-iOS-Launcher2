@@ -1,141 +1,163 @@
 //
-// ZL2SettingsViewController.m — ZL2 风格设置枢纽页实现（7.0-UI-9-d）
+// ZL2SettingsViewController.m — ZL2 设置「左轨八屏 + 右内容」枢纽（7.0-UI-13-S）
 //
-// 对标：ZalithLauncher2 ui/screens/content/SettingsScreen.kt——左轨 8 类
-// （Renderer/Game/Control/Gamepad/Launcher/JavaManager/ControlManager/
-// AboutInfo）+ 右侧 SettingsCardColumn 拼接圆角组卡。本仓设置子页未按 ZL2
-// 八类拆分，禁止造假轨道——本页做成 ZL2 视觉的「分组枢纽列表」：M3 组卡
-// （surfaceContainer 底 + radiusM 圆角 + 行连续拼圆角 + 0.5pt outlineVariant
-// 分隔线左右 inset 16），行高 52（图标 20pt + fontBodyLarge 标题 + 14pt
-// chevron），组名不显示文本（组本身无标题，纯拼卡），组间 8pt 间距。
+// 对标：ZalithLauncher2 ui/screens/content/SettingsScreen.kt——左轨 8 项分
+// 3 组（组间分隔线）+ 右侧内容区（子页切换非 push）。8 个子页 VC 全部
+// 落在 ZL2SettingPages（ZL2SettingPage 基类 + 八个子类），行卡组件落在
+// ZL2SettingCards（SettingsCard 连体拼接组）。
 //
-// 分组-行-目标 VC 全表（init 签名逐一对过真实 .h / 既有调用点）：
-//   组「启动器」
-//     完整设置       → LauncherPreferencesViewController（init，ZL2Shell 同款）
-//     背景设置       → BackgroundSettingsViewController（init）
-//     壁纸画廊       → BingWallpaperGalleryViewController（+galleryController
-//                     工厂，按设备宽度预配置网格——此类无公开裸 init 用法）
-//   组「游戏与控制」
-//     控制配置       → LauncherPrefContCfgViewController（init）
-//     触控设置       → TouchControllerPreferencesViewController（init）
-//     游戏目录       → LauncherPrefGameDirViewController（init）
-//   组「Java 与运行」
-//     Java 管理      → LauncherPrefManageJREViewController（init）
-//     执行 Jar 文件   → 文档选择器 → 守卫链 → 全屏模态 JavaGUIViewController
-//                     （filepath 必填且页内 dismiss 走 presentingViewController
-//                     ——模态专用页，裸 push/无路径必崩或黑屏，故本行是全页
-//                     唯一非 push 行，交互与旧右面板 executeJar 入口一致）
-//   组「数据与维护」
-//     数据导出       → DataExportViewController（init；Task223 头注即"push 进本页"）
-//     清理游戏文件    → CleanupViewController（init + ame255_versionScanner 注入
-//                     [VersionManagerViewController ame256_scanVersionsForCleanup]
-//                     ——单一扫描口径，与版本管理页/主页清理磁贴共用）
-//     CurseForge API Key → CurseForgeAPIKeyViewController（init）
-//   组「关于」
-//     关于           → AboutViewController（init）
-//   （检查更新行省略——spec 可选项：AboutViewController 已内置"检查更新 +
-//   启动时自动检查"（Task217 迁移入关于页），UpdateChecker 完成回调 UI 需
-//   复刻 About 整条流程，重复入口且超出低成本行装配范畴，故不纳入。）
+// 左轨规格（spec）：
+//   · 宽 200pt（iPad）/ 160pt（iPhone 横屏）；
+//   · 8 项：渲染器(Renderer)/游戏(Game)/控制(Control)/手柄(Gamepad)/
+//     启动器(Launcher)｜分隔线｜Java 管理/控制管理｜分隔线｜关于；
+//   · 轨项 = 32pt 图标胶囊（选中 primaryContainer 底 + onPrimaryContainer
+//     图标）+ 12pt 标签——ZL2RailView.m 同款视觉（绘制模式平移）；
+//   · 分组分隔线 = 0.4 alpha onSurface 细线，宽 60%。
+// 右侧内容区：子 VC 切换（addChildViewController + 四边钉入 + 0.18s
+//   crossDissolve）——ZL2ShellViewController.m 的页面切换手法平移
+//   （ame_attachChildIfNeeded / showPageAtIndex 同构）。
 //
-// 执行 Jar 守卫链（1:1 对齐 LauncherRightPanelViewController
-// enterModInstallerWithPath: L1321-1369 的精简安全子集）：
-//   ①requiredJavaVersion 解析失败 → 提示（getter 内部已自带错误弹窗）；
-//   ②getSelectedJavaHome(@"execute_jar", ver) 为空 → 提示（防 present 黑屏）；
-//   ③二次 JVM 崩溃守卫由 JavaGUIViewController.viewDidLoad 自带兜底（其注释
-//   明言"未来新增直接 alloc 本 VC 的调用方"即本类这类入口，不重复实现）；
-//   ④JIT 引导链（invokeAfterJITEnabled，宿主 VC 私有 ~250 行复杂引导）本轮
-//   不复制——未启用 JIT 的环境执行 Jar 可能降速/异常，待 JIT 引导抽成公共
-//   服务后接入（见 worklog 7.0-UI-9-d 风险注记）。
+// 壳契约不变：本页仍由 ZL2Shell 包 UINavigationController 后做 page 4
+//（ZL2ShellViewController ame_childForIndex case 4，零改动）；根页
+// viewWillAppear 隐藏系统栏 / viewWillDisappear 恢复（7.0-UI-9-d 原样
+// 保留——push 旧子页时系统栏显示，返回本页再隐藏）。
 //
-// 通知面：无监听、无发送（纯静态枢纽，无动态状态，dealloc 无需清理）。
+// 通知面：无监听（子页各自管理写键后的刷新通知；枢纽纯容器，dealloc
+// 无需清理）。
 //
-// 红线遵守：iOS 14.0+（initForOpeningContentTypes:asCopy: 恰为 iOS 14 API，
-// 无更高；SF 符号全带旧名 fallback——gearshape.fill 为 iOS 14 的 SF2 符号，
-// 兜底 SF1.0 的 gear）；颜色/字体/圆角一律 ZL2Theme 动态令牌（无
-// traitCollection 分支）；全部新建视图 translatesAutoresizingMaskIntoConstraints
-// = NO；行身份 = flatRows 数组下标（UIControl.tag 仅作下标载荷，不经
-// viewWithTag: 查找——ZL2Home 同判例）；文案硬编码中文与 ZL2HomeViewController
-// 同判例（7.0-UI-8 待办③：待 i18n 轮次收编）。
+// 红线遵守：iOS 14.0+；SF 符号全带旧名 fallback；颜色/字体/圆角一律
+// ZL2Theme 动态令牌（无 traitCollection 分支）；全部新建视图
+// translatesAutoresizingMaskIntoConstraints = NO；轨项身份 = 数组
+// 下标（UIControl.tag 仅作下标载荷，不经 viewWithTag: 查找）；轨文案
+// 硬编码中文与 ZL2HomeViewController 同判例（7.0-UI-8 待办③）。
 //
 
 #import "ZL2SettingsViewController.h"
 #import "ZL2Theme.h"
-#import "LauncherPreferencesViewController.h"
-#import "BackgroundSettingsViewController.h"
-#import "BingWallpaperGalleryViewController.h"
-#import "LauncherPrefContCfgViewController.h"
-#import "TouchControllerPreferencesViewController.h"
-#import "LauncherPrefGameDirViewController.h"
-#import "LauncherPrefManageJREViewController.h"
-#import "JavaGUIViewController.h"
-#import "DataExportViewController.h"
-#import "CleanupViewController.h"
-#import "CurseForgeAPIKeyViewController.h"
-#import "AboutViewController.h"
-#import "VersionManagerViewController.h"   // +ame256_scanVersionsForCleanup（清理扫描注入）
-#import "LauncherPreferences.h"            // getSelectedJavaHome（执行 Jar 的 JRE 预检）
-#import <UniformTypeIdentifiers/UniformTypeIdentifiers.h>
-#import "utils.h"                          // localize()
+#import "ZL2SettingPages.h"
 
-// 内容列最大宽（照抄 ZL2HomeViewController：iPad 横屏居中，iPhone 占满减边距）
-static const CGFloat ame_settingsContentMaxWidth = 520;
+#pragma mark - 常量
 
-// 组卡行高与分隔线规格（spec：行高 52；分隔线 0.5pt，左右 inset 16）
-static const CGFloat ame_settingsRowHeight = 52;
-static const CGFloat ame_settingsSeparatorHeight = 0.5;
+// 左轨宽（spec：iPad 200 / iPhone 横屏 160）；轨项高与图标胶囊沿用
+// ZL2RailView 规格（56 项高 / 32 胶囊 / 24 图标 / 12 标签）
+static const CGFloat ame_hubRailWidthPad = 200.0;
+static const CGFloat ame_hubRailWidthPhone = 160.0;
+static const CGFloat ame_hubRailItemHeight = 56.0;
+static const CGFloat ame_hubAnimateDuration = 0.18;
 
-// SF Symbols 取图兜底（ZL2Home 同款判例：符号名异常时降级旧名而非空白）
-static UIImage *ame_settingsSystemImage(NSString *name, NSString *fallback) {
+// SF 符号取图兜底（ZL2Home/ZL2Rail 同款判例：符号名异常时降级旧名而非空白）
+static UIImage *ame_hubSystemImage(NSString *name, NSString *fallback) {
     UIImage *image = [UIImage systemImageNamed:name];
     if (!image && fallback) image = [UIImage systemImageNamed:fallback];
     return image;
 }
 
-#pragma mark - 行模型（.m 私有，harness 无需感知）
+#pragma mark - 轨项（ZL2RailItem 视觉平移：胶囊 + 标签，选中态换色）
 
-// 行 = 标题 + 图标（主名/兜底名）+ 动作块。动作块以 page 入参回传本页
-//（块内不捕获 self），flatRows→row→block 零保留环。
-@interface ZL2SettingsRow : NSObject
-@property (nonatomic, copy) NSString *title;
-@property (nonatomic, copy) NSString *iconName;
-@property (nonatomic, copy, nullable) NSString *iconFallback;
-@property (nonatomic, copy) void (^perform)(ZL2SettingsViewController *page);
-+ (instancetype)rowWithTitle:(NSString *)title
-                        icon:(NSString *)iconName
-                    fallback:(nullable NSString *)iconFallback
-                     perform:(void (^)(ZL2SettingsViewController *page))perform;
+@interface ZL2SettingsRailItem : UIControl
+- (instancetype)initWithTitle:(NSString *)title
+                       symbol:(NSString *)symbolName
+                     fallback:(nullable NSString *)fallbackName;
+- (void)ame_setSelected:(BOOL)selected;
 @end
 
-@implementation ZL2SettingsRow
+@interface ZL2SettingsRailItem ()
+@property (nonatomic, strong) UIView *iconBg;      // 32×32 图标胶囊
+@property (nonatomic, strong) UIImageView *icon;   // 24×24 模板
+@property (nonatomic, strong) UILabel *label;      // 12pt（fontLabelMedium 档）
+@property (nonatomic, strong) NSLayoutConstraint *itemWidth;
+@end
 
-+ (instancetype)rowWithTitle:(NSString *)title
-                        icon:(NSString *)iconName
-                    fallback:(nullable NSString *)iconFallback
-                     perform:(void (^)(ZL2SettingsViewController *page))perform {
-    ZL2SettingsRow *row = [[ZL2SettingsRow alloc] init];
-    row.title = title;
-    row.iconName = iconName;
-    row.iconFallback = iconFallback;
-    row.perform = perform;
-    return row;
+@implementation ZL2SettingsRailItem
+
+- (instancetype)initWithTitle:(NSString *)title
+                       symbol:(NSString *)symbolName
+                     fallback:(NSString *)fallbackName {
+    self = [super initWithFrame:CGRectZero];
+    if (!self) return self;
+
+    _iconBg = [[UIView alloc] init];
+    _iconBg.translatesAutoresizingMaskIntoConstraints = NO;
+    _iconBg.layer.cornerRadius = 16.0;   // 32/2 = M3 full pill
+    _iconBg.userInteractionEnabled = NO;
+    [self addSubview:_iconBg];
+
+    UIImage *image = ame_hubSystemImage(symbolName, fallbackName);
+    _icon = [[UIImageView alloc] initWithImage:
+        [image imageWithRenderingMode:UIImageRenderingModeAlwaysTemplate]];
+    _icon.tintColor = [ZL2Theme onSurfaceVariant];
+    _icon.contentMode = UIViewContentModeScaleAspectFit;
+    _icon.userInteractionEnabled = NO;
+    _icon.translatesAutoresizingMaskIntoConstraints = NO;
+    [_iconBg addSubview:_icon];
+
+    _label = [[UILabel alloc] init];
+    _label.text = title;
+    _label.font = [UIFont systemFontOfSize:12.0 weight:UIFontWeightMedium];
+    _label.textAlignment = NSTextAlignmentCenter;
+    _label.userInteractionEnabled = NO;
+    _label.translatesAutoresizingMaskIntoConstraints = NO;
+    [self addSubview:_label];
+
+    self.translatesAutoresizingMaskIntoConstraints = NO;
+    self.isAccessibilityElement = YES;
+    self.accessibilityLabel = title;
+    self.accessibilityTraits = UIAccessibilityTraitButton;
+
+    [NSLayoutConstraint activateConstraints:@[
+        [_iconBg.centerXAnchor constraintEqualToAnchor:self.centerXAnchor],
+        [_iconBg.topAnchor constraintEqualToAnchor:self.topAnchor constant:4.0],
+        [_iconBg.widthAnchor constraintEqualToConstant:32.0],
+        [_iconBg.heightAnchor constraintEqualToConstant:32.0],
+
+        [_icon.centerXAnchor constraintEqualToAnchor:_iconBg.centerXAnchor],
+        [_icon.centerYAnchor constraintEqualToAnchor:_iconBg.centerYAnchor],
+        [_icon.widthAnchor constraintEqualToConstant:24.0],
+        [_icon.heightAnchor constraintEqualToConstant:24.0],
+
+        [_label.topAnchor constraintEqualToAnchor:_iconBg.bottomAnchor constant:2.0],
+        [_label.centerXAnchor constraintEqualToAnchor:self.centerXAnchor],
+        [_label.leadingAnchor constraintGreaterThanOrEqualToAnchor:self.leadingAnchor constant:2.0],
+        [_label.trailingAnchor constraintLessThanOrEqualToAnchor:self.trailingAnchor constant:-2.0],
+        [_label.bottomAnchor constraintLessThanOrEqualToAnchor:self.bottomAnchor constant:-2.0],
+    ]];
+    [self.heightAnchor constraintEqualToConstant:ame_hubRailItemHeight].active = YES;
+    _itemWidth = [self.widthAnchor constraintEqualToConstant:ame_hubRailWidthPhone - 12.0];
+    _itemWidth.active = YES;
+    return self;
+}
+
+// ZL2RailItem ame_setSelected 同款两态换色（dynamicProvider 已随深浅，
+// 此处仅按选中态重涂）
+- (void)ame_setSelected:(BOOL)selected {
+    UIColor *bg = selected ? [ZL2Theme primaryContainer] : [UIColor clearColor];
+    UIColor *iconTint = selected ? [ZL2Theme onPrimaryContainer] : [ZL2Theme onSurfaceVariant];
+    UIColor *labelTint = selected ? [ZL2Theme primary] : [ZL2Theme onSurfaceVariant];
+    self.iconBg.backgroundColor = bg;
+    self.icon.tintColor = iconTint;
+    self.label.textColor = labelTint;
+    self.accessibilityTraits = selected
+        ? (UIAccessibilityTraitButton | UIAccessibilityTraitSelected)
+        : UIAccessibilityTraitButton;
 }
 
 @end
 
-#pragma mark - 私有扩展
+#pragma mark - 枢纽本体
 
-@interface ZL2SettingsViewController () <UIDocumentPickerDelegate>
-
-// 布局
-@property (nonatomic, strong) UIScrollView *scrollView;
-@property (nonatomic, strong) UIStackView *contentStack;
-@property (nonatomic, strong) UILabel *pageTitleLabel;
-@property (nonatomic, strong) UIStackView *groupsStack;
-
-// 行注册表：组卡顺序展开的扁平数组；行 UIControl.tag = 扁平下标（仅载荷，
-// 不经 viewWithTag: 查找身份）
-@property (nonatomic, copy) NSArray<ZL2SettingsRow *> *flatRows;
-
+@interface ZL2SettingsViewController ()
+// 左轨
+@property (nonatomic, strong) UIScrollView *railScrollView;
+@property (nonatomic, strong) UIStackView *railStack;
+@property (nonatomic, strong) NSMutableArray<ZL2SettingsRailItem *> *railItems;
+@property (nonatomic, strong) NSMutableArray<UIView *> *railSeparators;
+@property (nonatomic, strong) NSLayoutConstraint *railWidthConstraint;
+@property (nonatomic, strong) NSMutableArray<NSLayoutConstraint *> *separatorWidthConstraints;
+// 右内容区
+@property (nonatomic, strong) UIView *contentContainer;
+// 子页状态
+@property (nonatomic, assign) NSInteger currentIndex;
+@property (nonatomic, strong) NSMutableDictionary<NSNumber *, UIViewController *> *childCache;
 @end
 
 @implementation ZL2SettingsViewController
@@ -146,7 +168,14 @@ static UIImage *ame_settingsSystemImage(NSString *name, NSString *fallback) {
     [super viewDidLoad];
 
     self.view.backgroundColor = [ZL2Theme surface];
+    self.childCache = [NSMutableDictionary dictionary];
+    self.railItems = [NSMutableArray array];
+    self.railSeparators = [NSMutableArray array];
+    self.separatorWidthConstraints = [NSMutableArray array];
+    self.currentIndex = -1;
+
     [self buildViews];
+    [self ame_showPageAtIndex:0];   // 首屏：渲染器（无过渡，首显直挂）
 }
 
 // 根页导航栏约定：本页隐藏系统栏；push 子页 / present 全屏页时由
@@ -164,383 +193,233 @@ static UIImage *ame_settingsSystemImage(NSString *name, NSString *fallback) {
 
 // 通知/KVO 均未注册，无需 dealloc 清理
 
+// 旋转：左轨宽度随 idiom 口径刷新（iPad 200 / iPhone 160），分隔线宽随轨宽
+- (void)viewWillTransitionToSize:(CGSize)size
+       withTransitionCoordinator:(id<UIViewControllerTransitionCoordinator>)coordinator {
+    [super viewWillTransitionToSize:size withTransitionCoordinator:coordinator];
+    [coordinator animateAlongsideTransition:^(id<UIViewControllerTransitionCoordinatorContext> context) {
+        [self ame_applyRailMetrics];
+    } completion:nil];
+}
+
 #pragma mark - Layout
 
 - (void)buildViews {
-    _scrollView = [[UIScrollView alloc] init];
-    _scrollView.backgroundColor = [ZL2Theme surface];
-    _scrollView.alwaysBounceVertical = YES;
-    _scrollView.translatesAutoresizingMaskIntoConstraints = NO;
-    [self.view addSubview:_scrollView];
+    // —— 左轨（竖向可滚：小屏 iPhone 横放时 8 项 + 分隔线 ≈ 460pt 可能超视口）——
+    _railScrollView = [[UIScrollView alloc] init];
+    _railScrollView.backgroundColor = [ZL2Theme surface];
+    _railScrollView.alwaysBounceVertical = YES;
+    _railScrollView.showsVerticalScrollIndicator = NO;
+    _railScrollView.translatesAutoresizingMaskIntoConstraints = NO;
+    [self.view addSubview:_railScrollView];
+
+    // 右缘 1pt 分隔线（outlineVariant——与主壳 NavigationRail 同语言）
+    UIView *railEdge = [[UIView alloc] init];
+    railEdge.backgroundColor = [ZL2Theme outlineVariant];
+    railEdge.userInteractionEnabled = NO;
+    railEdge.translatesAutoresizingMaskIntoConstraints = NO;
+    [self.view addSubview:railEdge];
+
+    _railStack = [[UIStackView alloc] init];
+    _railStack.axis = UILayoutConstraintAxisVertical;
+    _railStack.alignment = UIStackViewAlignmentCenter;
+    _railStack.spacing = 0.0;
+    _railStack.translatesAutoresizingMaskIntoConstraints = NO;
+    [_railScrollView addSubview:_railStack];
+
     [NSLayoutConstraint activateConstraints:@[
-        [_scrollView.topAnchor constraintEqualToAnchor:self.view.topAnchor],
-        [_scrollView.bottomAnchor constraintEqualToAnchor:self.view.bottomAnchor],
-        [_scrollView.leadingAnchor constraintEqualToAnchor:self.view.leadingAnchor],
-        [_scrollView.trailingAnchor constraintEqualToAnchor:self.view.trailingAnchor],
+        [_railScrollView.topAnchor constraintEqualToAnchor:self.view.topAnchor],
+        [_railScrollView.bottomAnchor constraintEqualToAnchor:self.view.bottomAnchor],
+        [_railScrollView.leadingAnchor constraintEqualToAnchor:self.view.leadingAnchor],
+        [_railWidthConstraint = [_railScrollView.widthAnchor constraintEqualToConstant:[self ame_railWidth]]],
+
+        [railEdge.trailingAnchor constraintEqualToAnchor:_railScrollView.trailingAnchor],
+        [railEdge.topAnchor constraintEqualToAnchor:self.view.topAnchor],
+        [railEdge.bottomAnchor constraintEqualToAnchor:self.view.bottomAnchor],
+        [railEdge.leadingAnchor constraintEqualToAnchor:_railScrollView.trailingAnchor],
+        [railEdge.widthAnchor constraintEqualToConstant:1.0],
+
+        [_railStack.topAnchor constraintEqualToAnchor:_railScrollView.contentLayoutGuide.topAnchor constant:8.0],
+        [_railStack.bottomAnchor constraintEqualToAnchor:_railScrollView.contentLayoutGuide.bottomAnchor constant:8.0],
+        [_railStack.centerXAnchor constraintEqualToAnchor:_railScrollView.contentLayoutGuide.centerXAnchor],
+        [_railStack.leadingAnchor constraintGreaterThanOrEqualToAnchor:_railScrollView.contentLayoutGuide.leadingAnchor constant:4.0],
+        [_railStack.trailingAnchor constraintLessThanOrEqualToAnchor:_railScrollView.contentLayoutGuide.trailingAnchor constant:-4.0],
     ]];
 
-    _contentStack = [[UIStackView alloc] init];
-    _contentStack.axis = UILayoutConstraintAxisVertical;
-    _contentStack.alignment = UIStackViewAlignmentFill;
-    _contentStack.spacing = 16;
-    _contentStack.translatesAutoresizingMaskIntoConstraints = NO;
-    [_scrollView addSubview:_contentStack];
+    // —— 轨项装配（8 项 + 2 条组分隔线；组间 custom spacing 6 呼吸）——
+    //   0 渲染器 / 1 游戏 / 2 控制 / 3 手柄 / 4 启动器 ｜ 5 Java 管理 /
+    //   6 控制管理 ｜ 7 关于
+    NSArray<NSArray<NSString *> *> *defs = @[
+        @[@"渲染器",   @"cpu",                       @"gearshape"],
+        @[@"游戏",     @"gamecontroller",            nil],
+        @[@"控制",     @"hand.tap",                  @"hand.point.up.left"],
+        @[@"手柄",     @"gamecontroller.fill",       @"gamecontroller"],
+        @[@"启动器",   @"gearshape.fill",            @"gear"],
+        @[@"Java 管理", @"wrench.and.screwdriver",   @"wrench"],
+        @[@"控制管理", @"square.on.square",          @"square.split.2x1"],
+        @[@"关于",     @"info.circle",               nil],
+    ];
+    for (NSUInteger i = 0; i < defs.count; i++) {
+        ZL2SettingsRailItem *item = [[ZL2SettingsRailItem alloc]
+            initWithTitle:defs[i][0] symbol:defs[i][1] fallback:defs[i][2]];
+        item.tag = (NSInteger)i;   // 下标载荷（不经 viewWithTag: 查找身份）
+        [item addTarget:self
+                 action:@selector(ame_railItemTapped:)
+       forControlEvents:UIControlEventTouchUpInside];
+        [_railStack addArrangedSubview:item];
+        [_railItems addObject:item];
 
-    // ① 页头：大标题「设置」（M3 顶栏位，左对齐）
-    _pageTitleLabel = [[UILabel alloc] init];
-    _pageTitleLabel.text = @"设置";
-    _pageTitleLabel.font = [ZL2Theme fontTitleLarge];
-    _pageTitleLabel.textColor = [ZL2Theme onSurface];
-    _pageTitleLabel.numberOfLines = 1;
-    _pageTitleLabel.translatesAutoresizingMaskIntoConstraints = NO;
-    _pageTitleLabel.isAccessibilityElement = YES;
-    _pageTitleLabel.accessibilityLabel = @"设置";
-    [_contentStack addArrangedSubview:_pageTitleLabel];
-
-    // ② 分组枢纽卡（组间 8pt：与内容列 16pt 垂直节奏不同，独立子栈承载）
-    _groupsStack = [[UIStackView alloc] init];
-    _groupsStack.axis = UILayoutConstraintAxisVertical;
-    _groupsStack.alignment = UIStackViewAlignmentFill;
-    _groupsStack.spacing = 8;
-    _groupsStack.translatesAutoresizingMaskIntoConstraints = NO;
-    [_contentStack addArrangedSubview:_groupsStack];
-
-    // 组卡顺序落栈，同时把行展开为扁平下标注册表
-    NSArray<NSArray<ZL2SettingsRow *> *> *groups = [self ame_rowGroups];
-    NSMutableArray<ZL2SettingsRow *> *flat = [NSMutableArray array];
-    for (NSArray<ZL2SettingsRow *> *rows in groups) {
-        NSUInteger base = flat.count;
-        [flat addObjectsFromArray:rows];
-        [self ame_addGroupCardWithRows:rows flatBase:base];
-    }
-    self.flatRows = flat;
-
-    // 宽度方案照抄 ZL2HomeViewController.buildViews（999 等式正定项）：
-    // iPhone 占满可用宽（frame-40）；与 <=520 上限联立后宽屏由求解器收敛到
-    // 520（999 误差最小解），centerX 居中；两侧 inequality 保底 >=20
-    UILayoutGuide *contentLG = _scrollView.contentLayoutGuide;
-    UILayoutGuide *frameLG = _scrollView.frameLayoutGuide;
-    [NSLayoutConstraint activateConstraints:@[
-        [_contentStack.topAnchor constraintEqualToAnchor:contentLG.topAnchor constant:24],
-        [contentLG.bottomAnchor constraintGreaterThanOrEqualToAnchor:_contentStack.bottomAnchor constant:24],
-        [_contentStack.leadingAnchor constraintGreaterThanOrEqualToAnchor:contentLG.leadingAnchor constant:20],
-        [contentLG.trailingAnchor constraintGreaterThanOrEqualToAnchor:_contentStack.trailingAnchor constant:20],
-        [_contentStack.centerXAnchor constraintEqualToAnchor:frameLG.centerXAnchor],
-        [_contentStack.widthAnchor constraintLessThanOrEqualToConstant:ame_settingsContentMaxWidth],
-    ]];
-    NSLayoutConstraint *fillWidth = [_contentStack.widthAnchor constraintEqualToAnchor:frameLG.widthAnchor
-                                                                              constant:-40];
-    fillWidth.priority = 999;
-    fillWidth.active = YES;
-}
-
-#pragma mark - 组卡装配
-
-// 组卡 = surfaceContainer 底 + radiusM 圆角；行连续拼圆角（无行间缝），
-// 行间 0.5pt outlineVariant 分隔线左右 inset 16；行高 52，卡高 = 行数×52。
-// 分隔线直接以卡顶为基准定位（i*52 - 0.25 跨行界 hairline），不链式依赖。
-- (void)ame_addGroupCardWithRows:(NSArray<ZL2SettingsRow *> *)rows
-                        flatBase:(NSUInteger)base {
-    UIView *card = [[UIView alloc] init];
-    card.backgroundColor = [ZL2Theme surfaceContainer];
-    card.layer.cornerRadius = [ZL2Theme radiusM];
-    card.layer.masksToBounds = YES;
-    card.translatesAutoresizingMaskIntoConstraints = NO;
-    [self.groupsStack addArrangedSubview:card];
-
-    NSUInteger count = rows.count;
-    for (NSUInteger i = 0; i < count; i++) {
-        UIControl *rowControl = [self ame_rowControlForRow:rows[i]
-                                                 flatIndex:base + i];
-        [card addSubview:rowControl];
-        [NSLayoutConstraint activateConstraints:@[
-            [rowControl.topAnchor constraintEqualToAnchor:card.topAnchor
-                                                 constant:i * ame_settingsRowHeight],
-            [rowControl.leadingAnchor constraintEqualToAnchor:card.leadingAnchor],
-            [rowControl.trailingAnchor constraintEqualToAnchor:card.trailingAnchor],
-            [rowControl.heightAnchor constraintEqualToConstant:ame_settingsRowHeight],
-        ]];
-
-        if (i > 0) {
+        // 组分隔线：4→5（启动器｜Java管理/控制管理）与 6→7（控制管理｜关于）；
+        // 分隔线两侧 custom spacing 6 呼吸（组间距语义）
+        if (i == 4 || i == 6) {
+            [_railStack setCustomSpacing:6.0 afterView:item];
             UIView *separator = [[UIView alloc] init];
-            separator.backgroundColor = [ZL2Theme outlineVariant];
-            separator.translatesAutoresizingMaskIntoConstraints = NO;
+            separator.backgroundColor =
+                [[ZL2Theme onSurface] colorWithAlphaComponent:0.4];
             separator.userInteractionEnabled = NO;
-            [card addSubview:separator];
-            [NSLayoutConstraint activateConstraints:@[
-                [separator.topAnchor constraintEqualToAnchor:card.topAnchor
-                                                    constant:i * ame_settingsRowHeight
-                                                             - ame_settingsSeparatorHeight / 2],
-                [separator.leadingAnchor constraintEqualToAnchor:card.leadingAnchor constant:16],
-                [separator.trailingAnchor constraintEqualToAnchor:card.trailingAnchor constant:-16],
-                [separator.heightAnchor constraintEqualToConstant:ame_settingsSeparatorHeight],
-            ]];
+            separator.translatesAutoresizingMaskIntoConstraints = NO;
+            [_railStack addArrangedSubview:separator];
+            [_railStack setCustomSpacing:6.0 afterView:separator];
+            [_railSeparators addObject:separator];
+            NSLayoutConstraint *sepWidth =
+                [separator.widthAnchor constraintEqualToConstant:0.0];
+            sepWidth.active = YES;
+            [self.separatorWidthConstraints addObject:sepWidth];
         }
     }
+    [self ame_applyRailMetrics];
 
-    [card.heightAnchor constraintEqualToConstant:count * ame_settingsRowHeight].active = YES;
-}
-
-// 行 = 图标 20pt onSurfaceVariant + 标题 fontBodyLarge onSurface + 尾部
-// chevron.right 14pt onSurfaceVariant，左右内边距 16；UIControl 点击回调
-//（子视图 UILabel/UIImageView 默认不拦截触摸）
-- (UIControl *)ame_rowControlForRow:(ZL2SettingsRow *)row
-                          flatIndex:(NSUInteger)index {
-    UIControl *control = [[UIControl alloc] init];
-    control.translatesAutoresizingMaskIntoConstraints = NO;
-    control.tag = index;   // 扁平下标载荷（不经 viewWithTag: 查找身份）
-    control.isAccessibilityElement = YES;
-    control.accessibilityLabel = row.title;
-    control.accessibilityTraits = UIAccessibilityTraitButton;
-
-    UIImage *iconImage = ame_settingsSystemImage(row.iconName, row.iconFallback);
-    UIImageView *iconView = [[UIImageView alloc]
-        initWithImage:[iconImage imageWithRenderingMode:UIImageRenderingModeAlwaysTemplate]];
-    iconView.tintColor = [ZL2Theme onSurfaceVariant];
-    iconView.contentMode = UIViewContentModeScaleAspectFit;
-    iconView.translatesAutoresizingMaskIntoConstraints = NO;
-    [control addSubview:iconView];
-
-    UILabel *titleLabel = [[UILabel alloc] init];
-    titleLabel.text = row.title;
-    titleLabel.font = [ZL2Theme fontBodyLarge];
-    titleLabel.textColor = [ZL2Theme onSurface];
-    titleLabel.numberOfLines = 1;
-    titleLabel.translatesAutoresizingMaskIntoConstraints = NO;
-    [control addSubview:titleLabel];
-
-    UIImage *chevronImage = ame_settingsSystemImage(@"chevron.right", @"chevron.forward");
-    UIImageView *chevronView = [[UIImageView alloc]
-        initWithImage:[chevronImage imageWithRenderingMode:UIImageRenderingModeAlwaysTemplate]];
-    chevronView.tintColor = [ZL2Theme onSurfaceVariant];
-    chevronView.contentMode = UIViewContentModeScaleAspectFit;
-    chevronView.translatesAutoresizingMaskIntoConstraints = NO;
-    [control addSubview:chevronView];
-
-    [control addTarget:self
-                action:@selector(ame_rowTapped:)
-      forControlEvents:UIControlEventTouchUpInside];
-
+    // —— 右内容区 ——
+    _contentContainer = [[UIView alloc] init];
+    _contentContainer.backgroundColor = [ZL2Theme surface];
+    _contentContainer.translatesAutoresizingMaskIntoConstraints = NO;
+    [self.view addSubview:_contentContainer];
     [NSLayoutConstraint activateConstraints:@[
-        [iconView.leadingAnchor constraintEqualToAnchor:control.leadingAnchor constant:16],
-        [iconView.centerYAnchor constraintEqualToAnchor:control.centerYAnchor],
-        [iconView.widthAnchor constraintEqualToConstant:20],
-        [iconView.heightAnchor constraintEqualToConstant:20],
-
-        [titleLabel.leadingAnchor constraintEqualToAnchor:iconView.trailingAnchor constant:12],
-        [titleLabel.centerYAnchor constraintEqualToAnchor:control.centerYAnchor],
-        [titleLabel.trailingAnchor constraintLessThanOrEqualToAnchor:chevronView.leadingAnchor constant:-8],
-
-        [chevronView.trailingAnchor constraintEqualToAnchor:control.trailingAnchor constant:-16],
-        [chevronView.centerYAnchor constraintEqualToAnchor:control.centerYAnchor],
-        [chevronView.widthAnchor constraintEqualToConstant:14],
-        [chevronView.heightAnchor constraintEqualToConstant:14],
+        [_contentContainer.leadingAnchor constraintEqualToAnchor:railEdge.trailingAnchor],
+        [_contentContainer.trailingAnchor constraintEqualToAnchor:self.view.trailingAnchor],
+        [_contentContainer.topAnchor constraintEqualToAnchor:self.view.topAnchor],
+        [_contentContainer.bottomAnchor constraintEqualToAnchor:self.view.bottomAnchor],
     ]];
-    return control;
 }
 
-#pragma mark - 行注册表（组名不落 UI，仅注释分界——对齐 ZL2：组本身无标题）
-
-- (NSArray<NSArray<ZL2SettingsRow *> *> *)ame_rowGroups {
-    // —— 组「启动器」——
-    ZL2SettingsRow *fullSettings =
-        [ZL2SettingsRow rowWithTitle:@"完整设置"
-                                icon:@"gearshape.fill"
-                            fallback:@"gear"
-                             perform:^(ZL2SettingsViewController *page) {
-        LauncherPreferencesViewController *vc = [[LauncherPreferencesViewController alloc] init];
-        [page ame_pushChild:vc titled:@"完整设置"];
-    }];
-    ZL2SettingsRow *background =
-        [ZL2SettingsRow rowWithTitle:@"背景设置"
-                                icon:@"photo.on.rectangle"
-                            fallback:@"photo"
-                             perform:^(ZL2SettingsViewController *page) {
-        BackgroundSettingsViewController *vc = [[BackgroundSettingsViewController alloc] init];
-        [page ame_pushChild:vc titled:@"背景设置"];
-    }];
-    ZL2SettingsRow *wallpapers =
-        [ZL2SettingsRow rowWithTitle:@"壁纸画廊"
-                                icon:@"photo.stack"
-                            fallback:@"photo.on.rectangle"
-                             perform:^(ZL2SettingsViewController *page) {
-        // 工厂方法返回按设备宽度预配置网格布局的 UICollectionViewController
-        UIViewController *vc = [BingWallpaperGalleryViewController galleryController];
-        [page ame_pushChild:vc titled:@"壁纸画廊"];
-    }];
-
-    // —— 组「游戏与控制」——
-    ZL2SettingsRow *controlCfg =
-        [ZL2SettingsRow rowWithTitle:@"控制配置"
-                                icon:@"gamecontroller"
-                            fallback:nil
-                             perform:^(ZL2SettingsViewController *page) {
-        LauncherPrefContCfgViewController *vc = [[LauncherPrefContCfgViewController alloc] init];
-        [page ame_pushChild:vc titled:@"控制配置"];
-    }];
-    ZL2SettingsRow *touchPrefs =
-        [ZL2SettingsRow rowWithTitle:@"触控设置"
-                                icon:@"hand.tap"
-                            fallback:@"hand.point.up.left"
-                             perform:^(ZL2SettingsViewController *page) {
-        TouchControllerPreferencesViewController *vc = [[TouchControllerPreferencesViewController alloc] init];
-        [page ame_pushChild:vc titled:@"触控设置"];
-    }];
-    ZL2SettingsRow *gameDir =
-        [ZL2SettingsRow rowWithTitle:@"游戏目录"
-                                icon:@"folder"
-                            fallback:nil
-                             perform:^(ZL2SettingsViewController *page) {
-        LauncherPrefGameDirViewController *vc = [[LauncherPrefGameDirViewController alloc] init];
-        [page ame_pushChild:vc titled:@"游戏目录"];
-    }];
-
-    // —— 组「Java 与运行」——
-    ZL2SettingsRow *javaManage =
-        [ZL2SettingsRow rowWithTitle:@"Java 管理"
-                                icon:@"wrench.and.screwdriver"
-                            fallback:@"wrench"
-                             perform:^(ZL2SettingsViewController *page) {
-        LauncherPrefManageJREViewController *vc = [[LauncherPrefManageJREViewController alloc] init];
-        [page ame_pushChild:vc titled:@"Java 管理"];
-    }];
-    // 执行 Jar 文件：JavaGUIViewController 为模态专用页（filepath 必填），走
-    // 文档选择器特殊流而非 push——见文件头说明与本类 ame_pickJarFile/ame_runJarAtPath:
-    ZL2SettingsRow *runJar =
-        [ZL2SettingsRow rowWithTitle:@"执行 Jar 文件"
-                                icon:@"play.circle"
-                            fallback:@"play"
-                             perform:^(ZL2SettingsViewController *page) {
-        [page ame_pickJarFile];
-    }];
-
-    // —— 组「数据与维护」——
-    ZL2SettingsRow *dataExport =
-        [ZL2SettingsRow rowWithTitle:@"数据导出"
-                                icon:@"square.and.arrow.up"
-                            fallback:nil
-                             perform:^(ZL2SettingsViewController *page) {
-        DataExportViewController *vc = [[DataExportViewController alloc] init];
-        [page ame_pushChild:vc titled:@"数据导出"];
-    }];
-    ZL2SettingsRow *cleanup =
-        [ZL2SettingsRow rowWithTitle:@"清理游戏文件"
-                                icon:@"trash"
-                            fallback:nil
-                             perform:^(ZL2SettingsViewController *page) {
-        CleanupViewController *vc = [[CleanupViewController alloc] init];
-        // 扫描器注入（CleanupViewController.h 契约）：单一扫描口径 =
-        // VersionManager 类方法（.h 公开声明），版本管理页/主页磁贴同源
-        vc.ame255_versionScanner = ^NSArray<NSDictionary *> *(void) {
-            return [VersionManagerViewController ame256_scanVersionsForCleanup];
-        };
-        [page ame_pushChild:vc titled:@"清理游戏文件"];
-    }];
-    ZL2SettingsRow *curseForgeKey =
-        [ZL2SettingsRow rowWithTitle:@"CurseForge API Key"
-                                icon:@"key"
-                            fallback:@"key.fill"
-                             perform:^(ZL2SettingsViewController *page) {
-        CurseForgeAPIKeyViewController *vc = [[CurseForgeAPIKeyViewController alloc] init];
-        [page ame_pushChild:vc titled:@"CurseForge API Key"];
-    }];
-
-    // —— 组「关于」——（检查更新行省略，理由见文件头）
-    ZL2SettingsRow *about =
-        [ZL2SettingsRow rowWithTitle:@"关于"
-                                icon:@"info.circle"
-                            fallback:nil
-                             perform:^(ZL2SettingsViewController *page) {
-        AboutViewController *vc = [[AboutViewController alloc] init];
-        [page ame_pushChild:vc titled:@"关于"];
-    }];
-
-    return @[ @[fullSettings, background, wallpapers],
-              @[controlCfg, touchPrefs, gameDir],
-              @[javaManage, runJar],
-              @[dataExport, cleanup, curseForgeKey],
-              @[about] ];
+// 轨宽度量刷新：轨宽、轨项宽（轨宽-12，ZL2RailView 同款内缩）、分隔线宽（60%）
+- (void)ame_applyRailMetrics {
+    CGFloat railWidth = [self ame_railWidth];
+    self.railWidthConstraint.constant = railWidth;
+    for (ZL2SettingsRailItem *item in self.railItems) {
+        item.itemWidth.constant = railWidth - 12.0;
+    }
+    for (NSUInteger i = 0; i < self.railSeparators.count && i < self.separatorWidthConstraints.count; i++) {
+        self.separatorWidthConstraints[i].constant = railWidth * 0.6;   // spec：宽 60%
+    }
 }
 
-#pragma mark - 行点击
-
-- (void)ame_rowTapped:(UIControl *)sender {
-    NSUInteger index = (NSUInteger)sender.tag;   // 下标载荷 → flatRows 查行
-    if (index >= self.flatRows.count) return;
-    ZL2SettingsRow *row = self.flatRows[index];
-    if (row.perform) row.perform(self);
+- (CGFloat)ame_railWidth {
+    return ([[UIDevice currentDevice] userInterfaceIdiom] == UIUserInterfaceIdiomPad)
+        ? ame_hubRailWidthPad : ame_hubRailWidthPhone;
 }
 
-// push 统一入口：子页大多在自身 viewDidLoad 设 self.title（后于本赋值执行，
-// 自动覆盖兜底值）；未设标题的子页（游戏目录/控制配置/Java 管理等）沿用行名，
-// 避免导航栏空白
-- (void)ame_pushChild:(UIViewController *)vc titled:(NSString *)fallbackTitle {
-    if (!vc.title) vc.title = fallbackTitle;
-    [self.navigationController pushViewController:vc animated:YES];
+#pragma mark - 子页管理（懒建缓存 + 首显 attach + 0.18s crossDissolve，
+//               ZL2ShellViewController 手法平移）
+
+- (UIViewController *)ame_currentPage {
+    if (self.currentIndex < 0) return nil;
+    return self.childCache[@(self.currentIndex)];
 }
 
-#pragma mark - 执行 Jar 文件（特殊流：文档选择器 → 守卫链 → 全屏模态）
+- (UIViewController *)ame_pageForIndex:(NSInteger)index {
+    UIViewController *cached = self.childCache[@(index)];
+    if (cached) return cached;
 
-// JavaGUIViewController filepath 必填且页内 dismiss 走 presentingViewController
-//（模态专用页），裸 push/无路径会崩或黑屏——本行交互与旧右面板 executeJar
-//（设置入口 → 文档选择器 → enterModInstallerWithPath:）一致
-- (void)ame_pickJarFile {
-    // asCopy:YES 保证文件复制进沙盒，避免安全作用域 URL 导致 UZKArchive 读取失败
-    UIDocumentPickerViewController *picker = [[UIDocumentPickerViewController alloc]
-        initForOpeningContentTypes:@[[UTType typeWithMIMEType:@"application/java-archive"]]
-        asCopy:YES];
-    picker.delegate = self;
-    picker.allowsMultipleSelection = NO;
-    picker.modalPresentationStyle = UIModalPresentationFormSheet;
-    [self presentViewController:picker animated:YES completion:nil];
+    UIViewController *page;
+    switch (index) {
+        case 0: page = [[ZL2RendererSettingsPage alloc] init];        break;
+        case 1: page = [[ZL2GameSettingsPage alloc] init];            break;
+        case 2: page = [[ZL2ControlSettingsPage alloc] init];         break;
+        case 3: page = [[ZL2GamepadSettingsPage alloc] init];         break;
+        case 4: page = [[ZL2LauncherSettingsPage alloc] init];        break;
+        case 5: page = [[ZL2JavaManagerSettingsPage alloc] init];     break;
+        case 6: page = [[ZL2ControlManagerSettingsPage alloc] init];  break;
+        case 7: page = [[ZL2AboutSettingsPage alloc] init];           break;
+        default: return nil;
+    }
+    // 页首大标题（ZL2SettingPage.viewDidLoad 消费）
+    page.title = [self ame_titleForIndex:index];
+    self.childCache[@(index)] = page;
+    return page;
 }
 
-- (void)documentPicker:(UIDocumentPickerViewController *)controller
-    didPickDocumentsAtURLs:(NSArray<NSURL *> *)urls {
-    if (urls.count == 0) return;
-    [self ame_runJarAtPath:urls.firstObject.path];
+- (NSString *)ame_titleForIndex:(NSInteger)index {
+    switch (index) {
+        case 0: return @"渲染器";
+        case 1: return @"游戏";
+        case 2: return @"控制";
+        case 3: return @"手柄";
+        case 4: return @"启动器";
+        case 5: return @"Java 管理";
+        case 6: return @"控制管理";
+        case 7: return @"关于";
+        default: return @"";
+    }
 }
 
-- (void)ame_runJarAtPath:(NSString *)path {
-    // 守卫链对齐 LauncherRightPanelViewController.enterModInstallerWithPath:
-    //（精简安全子集：JVM 二次崩溃守卫由 JavaGUI 页自兜底、JIT 引导链不复制，
-    // 见文件头说明）
-    JavaGUIViewController *vc = [[JavaGUIViewController alloc] init];
-    vc.filepath = path;
-    vc.hitEnterAfterWindowShown = NO;   // 设置页入口：手动执行（右面板同款）
+// 四边钉入（ZL2Shell ame_attachChildIfNeeded 同构）
+- (void)ame_attachPageIfNeeded:(UIViewController *)page {
+    if (page.parentViewController == self) return;
+    [self addChildViewController:page];
+    page.view.translatesAutoresizingMaskIntoConstraints = NO;
+    [self.contentContainer addSubview:page.view];
+    [NSLayoutConstraint activateConstraints:@[
+        [page.view.leadingAnchor constraintEqualToAnchor:self.contentContainer.leadingAnchor],
+        [page.view.trailingAnchor constraintEqualToAnchor:self.contentContainer.trailingAnchor],
+        [page.view.topAnchor constraintEqualToAnchor:self.contentContainer.topAnchor],
+        [page.view.bottomAnchor constraintEqualToAnchor:self.contentContainer.bottomAnchor],
+    ]];
+    [page didMoveToParentViewController:self];
+}
 
-    // requiredJavaVersion getter 同步解析 MANIFEST；失败路径 getter 已自带错误弹窗
-    int requiredJavaVersion = vc.requiredJavaVersion;
-    if (!requiredJavaVersion) {
-        [self ame_showAlert:localize(@"i18n_str_427", nil)
-                    message:[NSString stringWithFormat:localize(@"i18n_str_428", nil),
-                                path.lastPathComponent ?: @""]];
-        return;
+// 子页切换：attach + 显隐 + 0.18s crossDissolve（同壳 showPageAtIndex）
+- (void)ame_showPageAtIndex:(NSInteger)index {
+    if (index < 0 || index > 7) return;
+    if (index == self.currentIndex) return;
+
+    UIViewController *next = [self ame_pageForIndex:index];
+    UIViewController *prev = [self ame_currentPage];
+    if (!next) return;
+
+    [self ame_attachPageIfNeeded:next];
+
+    void (^apply)(void) = ^{
+        prev.view.hidden = YES;
+        next.view.hidden = NO;
+    };
+    if (prev && prev.view.superview) {
+        [UIView transitionWithView:self.contentContainer
+                          duration:ame_hubAnimateDuration
+                           options:UIViewAnimationOptionTransitionCrossDissolve
+                        animations:apply
+                        completion:nil];
+    } else {
+        apply();
     }
 
-    // JRE 预检：execute_jar 标签未配置所需 JRE 时 present 必黑屏（旧链注释同款）
-    NSString *javaHome = getSelectedJavaHome(@"execute_jar", requiredJavaVersion);
-    if (!javaHome) {
-        [self ame_showAlert:localize(@"i18n_str_429", nil)
-                    message:[NSString stringWithFormat:localize(@"i18n_str_222", nil),
-                                requiredJavaVersion, requiredJavaVersion]];
-        return;
-    }
+    self.currentIndex = index;
+    [self ame_refreshRailSelection];
 
-    vc.modalPresentationStyle = UIModalPresentationFullScreen;
-    [self presentViewController:vc animated:YES completion:nil];
+    // 切轨即刷新：子页重读偏好/文件状态（Java 运行时、控制布局等可在外部变化）
+    if ([next respondsToSelector:@selector(ame_refreshState)]) {
+        [(ZL2SettingPage *)next ame_refreshState];
+    }
 }
 
-#pragma mark - Alerts
+- (void)ame_refreshRailSelection {
+    [self.railItems enumerateObjectsUsingBlock:^(ZL2SettingsRailItem *item, NSUInteger idx, BOOL *stop) {
+        [item ame_setSelected:((NSInteger)idx == self.currentIndex)];
+    }];
+}
 
-- (void)ame_showAlert:(NSString *)title message:(NSString *)message {
-    UIAlertController *alert = [UIAlertController alertControllerWithTitle:title
-                                                                   message:message
-                                                            preferredStyle:UIAlertControllerStyleAlert];
-    [alert addAction:[UIAlertAction actionWithTitle:localize(@"i18n_str_44", nil)
-                                              style:UIAlertActionStyleDefault
-                                            handler:nil]];
-    [self presentViewController:alert animated:YES completion:nil];
+- (void)ame_railItemTapped:(ZL2SettingsRailItem *)sender {
+    [self ame_showPageAtIndex:(NSInteger)sender.tag];
 }
 
 @end

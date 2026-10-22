@@ -525,6 +525,12 @@ add_executable(AngelAuraAmethyst
   # 7.0-UI-12：MD3 功能组件库 + 游戏签脱旧（旧 DownloadViewController 退出 ZL2 壳）
   ZL2M3Kit.m
   ZL2GameDownloadViewController.m
+  # 7.0-UI-13：全页面全逻辑移植第二轮（设置八屏 / 版本详情域 NBT / 详情容器与子页）
+  ZL2SettingCards.m
+  ZL2SettingPages.m
+  ZL2VersionNBT.m
+  ZL2VersionPages.m
+  ZL2VersionDetailViewController.m
   InlineMessageView.m
   DownloadTaskItem.m
   DownloadTaskManager.m

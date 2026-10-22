@@ -78,6 +78,7 @@
 #import "ZL2VersionsViewController.h"
 #import "ZL2AccountsViewController.h"
 #import "ZL2SettingsViewController.h"
+#import "ZL2VersionDetailViewController.h"  // 7.0-UI-13：版本详情容器（主页卡/版本列表设置钮 push 目标）
 #import "DownloadTaskManager.h"           // manager 单例 + DownloadTaskItem + 更新通知常量
 #import "PLTaskProgressViewController.h"  // 统一进度页（胶囊点开）
 
@@ -396,6 +397,12 @@ static UIImage *ZL2ShellSystemImage(NSString *name, NSString *fallback) {
                                              selector:@selector(ame_onNavigate:)
                                                  name:ZL2ShellNavigateNotification
                                                object:nil];
+    // 7.0-UI-13：版本详情打开契约（主页版本卡长按 / 版本列表页设置钮经壳统一接线，
+    // 页面间零直连——ZL2 壳导航总线同口径）
+    [[NSNotificationCenter defaultCenter] addObserver:self
+                                             selector:@selector(ame_openVersionDetail:)
+                                                 name:@"ZL2OpenVersionDetail"
+                                               object:nil];
     [[NSNotificationCenter defaultCenter] addObserver:self
                                              selector:@selector(ame_taskManagerDidChange:)
                                                  name:DownloadTaskManagerDidUpdateTaskNotification
@@ -555,6 +562,17 @@ static UIImage *ZL2ShellSystemImage(NSString *name, NSString *fallback) {
 
 - (void)ame_showHome {
     [self showPageAtIndex:0];
+}
+
+// 7.0-UI-13：版本详情打开（userInfo[@"profile"] = 实例名；当前活动 nav 上 push）
+- (void)ame_openVersionDetail:(NSNotification *)note {
+    NSString *profile = [[note userInfo] objectForKey:@"profile"];
+    if (![profile isKindOfClass:[NSString class]] || profile.length == 0) return;
+    UINavigationController *nav = [self ame_currentNav];
+    if (!nav) return;
+    ZL2VersionDetailViewController *vc =
+        [[ZL2VersionDetailViewController alloc] initWithProfileName:profile];
+    [nav pushViewController:vc animated:YES];
 }
 
 - (void)ame_showAccount {
