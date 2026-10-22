@@ -3217,3 +3217,15 @@ Work Log:
 Stage Summary:
 - 模组搜索空结果双根因（递归块失效卡死 + MCIM 503 无互备）根修；镜像源闪退风险（getEndpoint 永久 park）拆除；查询层官方↔MCIM 互备架构补齐（对齐下载侧既有候选链语义）；MCIM 故障期间用户可正常搜索下载（自动回退官方）
 - 改动 5 文件：ModrinthAPI.m（+281/-126 主体）/ ModpackAPI.m / ModVersionViewController.m / verify_task217.py（A6 重锚）/ verify_task263.py（新）
+
+## 7.0-UI-16 Task264（用户上传 ZL2 真机截图 com.movtery.zalithlauncher.v2："我要这个样子"；上轮"模组什么都不显示"定性闭环）
+
+Work Log:
+- 取证：用户 10-22 装机日志（构建 8d68cccc=UI-14-r2）实锤 "[ModrinthAPI] Task217: JSON parse failure"——该根因 UI-15 已修（ame263 候选链+HTTP 状态码检查，run 39812797134 终绿）且 MCIM 镜像实测已恢复 200；本轮用户上传 ZL2 Android 真机截图（整合包页：进门即 1/500 浏览列表+右栏五件筛选+ZL2 卡片形态）定性"我要这个样子"=旧实现"搜索你感兴趣的X"引导空态进门即见+无右栏+无页码=用户视角"什么都不显示"
+- 重排五件：①进门即搜（viewDidLoad 空 query+relevance 拉第 1 页，引导态 ame_guideText 退役）②右栏筛选面板（搜索名称 M3SearchBar 0.5s 防抖/游戏版本→M3BottomSheet 版本弹层（remoteVersions 内筛+latest-* 滤除+不限版本）/导入整合包（modpack 独有，1:1 旧页 push ModpackImportViewController）/目标平台下拉（双源切换+偏好持久化+存档锁 CF）/排序方式下拉（五档 PlatformSortField）；≥560pt 宽态展示、窄屏/收藏页让位）③页码控制器（"N / M"整页替换翻页；total 未知退化"第 N 页"）④卡片 ZL2 形态（72dp 卡图/标题|作者同排/描述 2 行/标签行/来源徽标 CF 橙 vs Modrinth 绿/万量级下载量/♡收藏；独立下载钮退役）⑤双源 total 透传（CF pagination.totalCount + Modrinth total_hits → lastSearchTotalCount；CF 字典补 author）
+- i18n：dl.asset.* 七键×54 表（task264_i18n.py）；既有键复用 161/188/155/2080；task248 硬编码 4→0
+- 门禁：verify_task264 新 43 锚全绿（含级联 verify_task263）+task139/240 all balanced+task248 缺键0硬编码0动态键0+verify_task217 失败集较基线 17→15 零新增
+- 教训：①显示层吞字第 5/6 例（`return @[m, o]` 显示为 `return @, o]`、`![hits` 显示为 `!its`）——本轮以"CI 编译终绿+进程内括号平衡"双证伪显示读数，未误开补救 ②splice 脚本零宽插入 span 撞 while 循环 OOM（137）——span 消费须 pop ③CRLF 文件 MultiEdit 多行锚必失配（判例重演），python 字节级按行重写保形
+
+Stage Summary:
+- 资产搜索五类页（整合包/模组/资源包/存档/光影包）与 ZL2 真机截图逐元素对齐：进门即出浏览列表、右栏筛选五件、页码翻页、卡片形态/来源徽标/万量级——装机锚点：①下载页五类别进门 1s 内出第 1 页结果卡（不再要求先输入搜索词）②右栏搜名称/选游戏版本/切平台/换排序均即点即搜 ③整合包页见"导入整合包"钮 ④卡片见来源徽标（CF 橙/Modrinth 绿）与"1.9万"式下载量 ⑤页码条"1 / N"可翻页
