@@ -3189,3 +3189,14 @@ Stage Summary:
 - 提交 9dfe9cf 推送 main（23 文件 +2947/-985；新文件：ZL2GameAddonsViewController/ZL2SearchIdViewController/ZL2FavoritesStore + 5 PNG 资产）；用户点名下载界面+色板根因+顶栏入口+主页结构四域全量对齐真机截图
 - 遗留下轮：①资产搜索页 7:3 双栏+右筛选栏（搜索名称/游戏版本/目标平台/排序/类别下拉）+分页器 '1 / 500' 悬浮+平台品牌 chip（CF #F16436/MR #1BD96A）——数据层 mcVersion/loader/sort 已就绪仅 UI 未换装 ②联机页=legacy FCL 式（ZL2 Terracotta EasyTier 页未重建）③文件页=FolderBrowser（ZL2 FM 全功能管理器未重建）④服务器卡/搜索 ID 应用内下载详情链
 - 待 CI：ui-smoke（语法+横屏预览截图）→ development（可装 ipa）
+
+## 7.0-UI-14 CI 闭环补记（r1/r2/r3 四雷三修复；双 workflow 终绿）
+
+Work Log:
+- r1 8c9c3a1（三雷同轮）：①ame_syncFetch 链式消息 [[[NSURLSession…]] 少一个开括号（三重嵌套写两个）→ clang 479 missing '['——本地无 ObjC 编译器，括号配平 python 扫描器（先对 ZL2M3Kit/Theme/RailView 三已知绿文件校准）复扫定位；②ZL2AddonCardDelegate 补 @optional addonCardDidRequestReload:；③SearchId 响应解包移出嵌套 block 消 __block
+- r2 8d68ccc：桩 TU @(@12345) 双重装箱 → @12345（boxed expression 非法嵌套两处）
+- r3 8322529：桩 TU 补 DownloadTaskResourceTypeModloader 常量定义（链接期 Undefined；值照抄 DownloadTaskItem.m L4）
+- 终局：ui-smoke run 39807913743（8322529）success——语法门全绿 + 横屏预览截图；development run 39806695543（8d68ccc）success——ipa 221.0MB + tipa 221.0MB + dSYM 6.9MB 三产物在位（r2→r3 仅桩文件增量，主构建不受影响）
+
+Stage Summary:
+- 7.0-UI-14 全链闭环（提交链 9dfe9cf→f42fd04→8c9c3a1→8d68ccc→8322529）；新 IPA 可装，装机锚点：①下载页左轨 8 项+游戏页 4 chips 多选/三行版本卡（草方块图标+tertiary chip+日期中文格式+Wiki 钮）②点版本卡进 Addons 加载器屏（五卡选择+互斥+版本名）③顶栏右簇=文件/多人联机/下载/设置（当前项胶囊化）④主页 ActionMenu 单卡（账号竖排居中）⑤全局 embermire 暖棕色板（与 ZL2 真机同色）
