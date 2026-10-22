@@ -251,13 +251,13 @@ static UIImage *ame_hubSystemImage(NSString *name, NSString *fallback) {
     //   6 控制管理 ｜ 7 关于
     NSArray<NSArray<NSString *> *> *defs = @[
         @[@"渲染器",   @"cpu",                       @"gearshape"],
-        @[@"游戏",     @"gamecontroller",            nil],
+        @[@"游戏",     @"gamecontroller",            @""],
         @[@"控制",     @"hand.tap",                  @"hand.point.up.left"],
         @[@"手柄",     @"gamecontroller.fill",       @"gamecontroller"],
         @[@"启动器",   @"gearshape.fill",            @"gear"],
         @[@"Java 管理", @"wrench.and.screwdriver",   @"wrench"],
         @[@"控制管理", @"square.on.square",          @"square.split.2x1"],
-        @[@"关于",     @"info.circle",               nil],
+        @[@"关于",     @"info.circle",               @""],
     ];
     for (NSUInteger i = 0; i < defs.count; i++) {
         ZL2SettingsRailItem *item = [[ZL2SettingsRailItem alloc]

@@ -524,7 +524,7 @@ static UIImage *ZL2HomeSizedImage(NSString *name, NSString *fallback, CGFloat po
     _accountAvatarBg.layer.cornerRadius = 24;   // 48 直径半圆
     _accountAvatarBg.layer.masksToBounds = YES;
     _accountAvatarBg.translatesAutoresizingMaskIntoConstraints = NO;
-    _accountAvatarBg.isUserInteractionEnabled = NO;
+    _accountAvatarBg.userInteractionEnabled = NO;
     [_accountCard addSubview:_accountAvatarBg];
 
     _accountAvatarView = [[UIImageView alloc] init];
@@ -667,7 +667,7 @@ static UIImage *ZL2HomeSizedImage(NSString *name, NSString *fallback, CGFloat po
     launchContent.alignment = UIStackViewAlignmentCenter;
     launchContent.spacing = 8;
     launchContent.translatesAutoresizingMaskIntoConstraints = NO;
-    launchContent.isUserInteractionEnabled = NO;
+    launchContent.userInteractionEnabled = NO;
     [_launchButton addSubview:launchContent];
 
     // —— ④ 停靠边提示（ActionMenuDrag 简化语义的可见性说明）——
@@ -817,7 +817,7 @@ static UIImage *ZL2HomeSizedImage(NSString *name, NSString *fallback, CGFloat po
     iconView.tintColor = [ZL2Theme onSurfaceVariant];
     iconView.contentMode = UIViewContentModeScaleAspectFit;
     iconView.translatesAutoresizingMaskIntoConstraints = NO;
-    iconView.isUserInteractionEnabled = NO;
+    iconView.userInteractionEnabled = NO;
 
     UILabel *label = [[UILabel alloc] init];
     label.text = @"没有安装版本";
@@ -1193,7 +1193,7 @@ static UIImage *ZL2HomeSizedImage(NSString *name, NSString *fallback, CGFloat po
     iconView.tintColor = destructive ? [ZL2Theme error] : [ZL2Theme onSurfaceVariant];
     iconView.contentMode = UIViewContentModeScaleAspectFit;
     iconView.translatesAutoresizingMaskIntoConstraints = NO;
-    iconView.isUserInteractionEnabled = NO;
+    iconView.userInteractionEnabled = NO;
     [rowControl addSubview:iconView];
 
     UILabel *label = [[UILabel alloc] init];
@@ -1202,7 +1202,7 @@ static UIImage *ZL2HomeSizedImage(NSString *name, NSString *fallback, CGFloat po
     label.textColor = destructive ? [ZL2Theme error] : [ZL2Theme onSurface];
     label.numberOfLines = 1;
     label.translatesAutoresizingMaskIntoConstraints = NO;
-    label.isUserInteractionEnabled = NO;
+    label.userInteractionEnabled = NO;
     [rowControl addSubview:label];
 
     rowControl.ame_action = action;

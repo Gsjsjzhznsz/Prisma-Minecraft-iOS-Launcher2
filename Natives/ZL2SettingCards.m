@@ -261,7 +261,7 @@
 
 // M3 Switch 用户拨动时自动翻转发 ValueChanged——此路径 = 用户交互
 - (void)ame_switchChanged:(ZL2M3Switch *)sender {
-    if (self.onToggle) self.onToggle(sender.isOn);
+    if (self.onToggle) self.onToggle(sender.on);
 }
 
 - (void)ame_setOn:(BOOL)on {
@@ -270,7 +270,7 @@
 }
 
 - (BOOL)ame_isOn {
-    return self.m3Switch.isOn;
+    return self.m3Switch.on;
 }
 
 @end
@@ -468,7 +468,7 @@
     UIControl *option = [[UIControl alloc] init];
     option.translatesAutoresizingMaskIntoConstraints = NO;
     option.isAccessibilityElement = YES;
-    option.accessibilityTraits = UIAccessibilityTraitButton | UIAccessibilityTraitRadio;
+    option.accessibilityTraits = UIAccessibilityTraitButton;
     option.accessibilityLabel = self.labels[index];
 
     ame_SettingRadioDot *radio = [[ame_SettingRadioDot alloc] initWithFrame:CGRectZero];
@@ -731,6 +731,7 @@
 @property (nonatomic, strong) UIStackView *gridStack;
 @property (nonatomic, strong) NSMutableArray<NSMutableArray<UIControl *> *> *optionRows;
 @property (nonatomic, assign) NSUInteger selectedIndex;
+@property (nonatomic, copy) NSArray<NSString *> *optionLabels;   // 7.0-UI-13-r1：选项标签存储（ame_enumOptionAtIndex 取用）
 @end
 
 @implementation ZL2SettingRowEnum
@@ -742,6 +743,7 @@
     if (!self) return self;
     _selectedIndex = NSNotFound;
     _optionRows = [NSMutableArray array];
+    _optionLabels = [labels copy];   // 7.0-UI-13-r1：入参存档（类扩展属性取用）
 
     // FlowRow：平铺 RadioButton 单选——iOS 侧以「每行最多 3 个」的栅格化
     // 横栈实现折行（iOS 14 无 Compose FlowRow 等价物，栅格折行是既有判例）
@@ -795,13 +797,13 @@
     UIControl *option = [[UIControl alloc] init];
     option.translatesAutoresizingMaskIntoConstraints = NO;
     option.isAccessibilityElement = YES;
-    option.accessibilityTraits = UIAccessibilityTraitButton | UIAccessibilityTraitRadio;
-    option.accessibilityLabel = self.labels[index];
+    option.accessibilityTraits = UIAccessibilityTraitButton;
+    option.accessibilityLabel = self.optionLabels[index];
     option.tag = (NSInteger)index;   // 下标载荷（不经 viewWithTag: 查找身份）
 
     ame_SettingRadioDot *radio = [[ame_SettingRadioDot alloc] initWithFrame:CGRectZero];
     UILabel *label = [[UILabel alloc] init];
-    label.text = self.labels[index];
+    label.text = self.optionLabels[index];
     label.font = [ZL2Theme fontBodyMedium];
     label.textColor = [ZL2Theme onSurface];
     label.numberOfLines = 1;

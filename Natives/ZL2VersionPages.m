@@ -63,6 +63,8 @@
 #import "ZL2Theme.h"
 #import "ZL2M3Kit.h"
 #import "ZL2VersionNBT.h"
+#import "ModLoaderIconHelper.h"      // 7.0-UI-13-r1：加载器识别（详情头图标口径）
+#import "ModpackExportService.h"     // 7.0-UI-13-r1：版本 id 反解（MC 版本口径）
 #import "ZL2VersionDetailViewController.h"   // +ameV13_resolvedGameDirForProfileName:（gameDir 重解析兜底）
 #import "PLProfiles.h"
 #import "ProfileSettingsViewController.h"    // 「完整实例设置」长尾入口（旧链 1:1）
