@@ -68,10 +68,12 @@ check("A5 Fabric API 无匹配明确报错（不再 firstObject 静默猜版）"
       "component.fabricapi.no_match" in psv
       and re.search(r'FabricAPI" code:6[^}]*component\.fabricapi\.no_match', psv, re.S) is not None
       and 'matchingVersion = versions.firstObject' not in psv)
-check("A6 ModrinthAPI 抖动单次重试（搜索 + 版本列表共享 ame217 取数器；Task228 重锚：Task227 依赖解析增至 5 个调用点，全部复用同一取数器）",
-      "ame217_fetchJSONWithURL" in mma
-      and mma.count("ame217_fetchJSONWithURL:url completion:") == 5
-      and "one retry in 1.5s" in mma)
+check("A6 ame263 候选链取数器（Task263 重锚：官方↔MCIM 互备状态机 + HTTP 状态码检查；搜索/版本列表/依赖解析/整合包详情/shader/server 九调用点全部复用同一取数器）",
+      "ame263_fetchCandidate" in mma
+      and mma.count("ame217_fetchJSONWithURL:url completion:") == 9
+      and "ame263_candidateChainForURL" in mma
+      and "http %ld" in mma
+      and "ame217_attempt" not in mma)
 check("A7 Mod 管理页检查更新同源 parseVersionId（fabric 前缀式修复）",
       "[ModpackExportService parseVersionId:lastVersionId]" in mmg)
 

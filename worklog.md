@@ -3200,3 +3200,20 @@ Work Log:
 
 Stage Summary:
 - 7.0-UI-14 全链闭环（提交链 9dfe9cf→f42fd04→8c9c3a1→8d68ccc→8322529）；新 IPA 可装，装机锚点：①下载页左轨 8 项+游戏页 4 chips 多选/三行版本卡（草方块图标+tertiary chip+日期中文格式+Wiki 钮）②点版本卡进 Addons 加载器屏（五卡选择+互斥+版本名）③顶栏右簇=文件/多人联机/下载/设置（当前项胶囊化）④主页 ActionMenu 单卡（账号竖排居中）⑤全局 embermire 暖棕色板（与 ZL2 真机同色）
+
+## 7.0-UI-15 Task263（用户："怎么没有模组，还有使用模组镜像源闪退"；装机日志 + curl 双源取证）
+
+Work Log:
+- 取证①：用户装机日志实锤 "[ModrinthAPI] Task217: JSON parse failure (未能读取数据，因为它的格式不正确。)"；取证②：本机 curl 实测 MCIM 镜像 https://mod.mcimirror.top/modrinth/v2/search 返回 HTTP 503 + text/html 错误页（openresty/EdgeOne），官方 api.modrinth.com 同刻 200 JSON——503 HTML 喂进 NSJSONSerialization 即日志中的 parse failure
+- 根因①（"没有模组"主凶）：ame217 递归块 `void (^ame217_attempt)(NSInteger) = nil;` 缺 __block，ARC 下块字面量按值捕获创建时刻的 nil，dispatch_after 里重试调用 = 向 nil 发消息（静默 no-op）→ 重试从不发生、completion 永不回调 → ZL2AssetSearchViewController.inFlight 永久卡死（防重入拦截后续全部搜索）→ 列表永远空白/转圈
+- 根因②：API 查询层无官方↔镜像互备（下载侧 PLDownloadClient 一直有 candidateURLs 候选链，查询侧只有同端点重试——端点挂掉时同端点重试毫无意义）；根因③：ModpackAPI.getEndpoint 用 AFNetworking（completion 默认主队列）+ dispatch_group_wait(FOREVER) 永久 park——主线程调用方即 20s watchdog 强杀（闪退风险，现状两调用方在后台队列但架构雷仍在）
+- 修复①：ModrinthAPI 新增 ame263_candidateChainForURL:（官方 api.modrinth.com ↔ MCIM /modrinth/ 双向换算 + 按 AssetSearch 策略排序，mirrorPreferredForType 口径：official_first→[官方,镜像] / mirror_first→[镜像,官方] / speed_first→测速赢家序）+ ame263_fetchCandidate:tryIndex:chain:failures:completion: 实例方法递归状态机（对齐 CurseForgeAPI ame169 判例）：每候选重试 1 次（1.2s）→切下一候选（0.3s 交错）→全链耗尽以 i18n_str_1192（"官方源与镜像源均失败"）+ underlyingErrors 汇总回调恰好一次
+- 修复②：HTTP 状态码检查（非 2xx 不进解析器，503/403 HTML 直接判失败），失败日志带 host+状态码（"candidate 1/2 (mod.mcimirror.top) failed (http 503) -- switching candidate"），"没有模组"类故障从此一眼可辨
+- 修复③：ame217 兼容壳签名不变，九调用点零改动全部受益（搜索/版本列表/依赖反查 ame226/项目名 ame227/整合包详情 loadDetailsOfModAsync/shader 版本/server 搜索/server 详情——后四个原内联取数段全部换装候选链）；MCIM 503 时搜索自动回退官方出结果，官方被墙时自动回退 MCIM，镜像源不再是单点
+- 修复④：ModpackAPI.getEndpoint DISPATCH_TIME_FOREVER → 20s 限时 + 超时返回 nil + lastError 落账（迟到回调仅写无人读的 result，无害）；AFNetworking 请求超时收紧 15s
+- 修复⑤：ModVersionViewController 依赖详情 ame232 + 依赖 footer ame236 两处硬编码 https://api.modrinth.com/v2/project 全部换 [PLMirrorCenter modrinthAPIBaseURL]（镜像模式下详情不再静默空白）
+- 验证：新 verify_task263.py 18 锚全绿（含代码级反锚点：无块自引用/无永久等待/无硬编码官方域名 + 括号平衡）；verify_task217 A6 重锚（调用点 5→9 + 状态机锚），K1 括号平衡绿；本地 python 括号扫描器拦下一起 [[[ 链式消息少开括号（7.0-UI-14 r1 同款雷，未进 CI）
+
+Stage Summary:
+- 模组搜索空结果双根因（递归块失效卡死 + MCIM 503 无互备）根修；镜像源闪退风险（getEndpoint 永久 park）拆除；查询层官方↔MCIM 互备架构补齐（对齐下载侧既有候选链语义）；MCIM 故障期间用户可正常搜索下载（自动回退官方）
+- 改动 5 文件：ModrinthAPI.m（+281/-126 主体）/ ModpackAPI.m / ModVersionViewController.m / verify_task217.py（A6 重锚）/ verify_task263.py（新）

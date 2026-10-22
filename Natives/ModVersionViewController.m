@@ -15,6 +15,7 @@
 #import "PLProfiles.h"
 #import "NMToast.h"
 #import "AmeTheme.h" // 7.0-UI-3e：Fluent 设计令牌层（Mod 版本页颜色语义化迁移）
+#import "PLMirrorCenter.h" // Task263：依赖详情拉取感知镜像源（旧实现硬编码官方域名）
 
 // ============================================================================
 // 下载源常量（与 ModVersion.apiSource 字段保持一致：1=Modrinth, 2=CurseForge）
@@ -907,8 +908,10 @@ static NSArray<NSDictionary *> *SortOptionItems(void) {
             NSString *ame236_desc = @"";
             NSString *ame236_icon = @"";
             if (ame236_dep.apiSource == kSourceModrinth && ame236_dep.projectId.length > 0) {
+                // Task263：依赖详情 URL 感知镜像源（与 ame232 详情页同口径）
                 NSURL *ame236_url = [NSURL URLWithString:
-                    [NSString stringWithFormat:@"https://api.modrinth.com/v2/project/%@", ame236_dep.projectId]];
+                    [NSString stringWithFormat:@"%@/project/%@",
+                     [PLMirrorCenter modrinthAPIBaseURL], ame236_dep.projectId]];
                 NSData *ame236_data = ame236_url != nil ? [NSData dataWithContentsOfURL:ame236_url] : nil;
                 if (ame236_data != nil) {
                     id ame236_obj = [NSJSONSerialization JSONObjectWithData:ame236_data options:0 error:nil];
@@ -1542,7 +1545,11 @@ static NSArray<NSDictionary *> *SortOptionItems(void) {
         NSString *ame232_icon = nil;
         NSString *ame232_stats = nil;
         if (self->_source == kSourceModrinth && self->_pid.length > 0) {
-            NSURL *url = [NSURL URLWithString:[NSString stringWithFormat:@"https://api.modrinth.com/v2/project/%@", self->_pid]];
+            // Task263：详情 URL 感知镜像源（旧实现硬编码官方域名，镜像模式下
+            // 官方不可达时详情静默空白）。modrinthAPIBaseURL 按 AssetSearch
+            // 策略返回官方或 MCIM 镜像基址，与搜索/版本列表同源。
+            NSURL *url = [NSURL URLWithString:[NSString stringWithFormat:@"%@/project/%@",
+                                               [PLMirrorCenter modrinthAPIBaseURL], self->_pid]];
             NSData *data = [NSData dataWithContentsOfURL:url];
             if (data != nil) {
                 id obj = [NSJSONSerialization JSONObjectWithData:data options:0 error:nil];
