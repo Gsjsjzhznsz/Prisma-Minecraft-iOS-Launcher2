@@ -3229,3 +3229,13 @@ Work Log:
 
 Stage Summary:
 - 资产搜索五类页（整合包/模组/资源包/存档/光影包）与 ZL2 真机截图逐元素对齐：进门即出浏览列表、右栏筛选五件、页码翻页、卡片形态/来源徽标/万量级——装机锚点：①下载页五类别进门 1s 内出第 1 页结果卡（不再要求先输入搜索词）②右栏搜名称/选游戏版本/切平台/换排序均即点即搜 ③整合包页见"导入整合包"钮 ④卡片见来源徽标（CF 橙/Modrinth 绿）与"1.9万"式下载量 ⑤页码条"1 / N"可翻页
+
+### 7.0-UI-16 CI 闭环补记（r1 双雷 → 双 workflow 终绿）
+
+Work Log:
+- r0 run 39825773661/39825776739 双 failure：①CurseForgeAPI 类扩展非法 readwrite 重声明（.h 已 readwrite + 扩展再声明 = illegal redeclaration of property；判例：类扩展仅可 readonly→readwrite 升级）②ZL2AssetSearchPageSize 常量被 region A splice 区间边界误吞（原 L175-176 夹于旧 formatter 与卡片 pragma 之间）——smoke 8 处 undeclared identifier 全收敛此一因
+- r1 4adb3677：扩展重声明摘除（按行定位保 CRLF 主体）+ 常量复位 30；verify_task264 E1 锚改判（.h 声明+.m 写侧+反锚扩展重声明）43/43
+- r1 run 39827359052（Development build）+ 39827362651（UI Fluent smoke）双 success；新 IPA 就绪待装机验证
+
+Stage Summary:
+- 7.0-UI-16 全链闭环（f7c647a0→4adb3677）；装机锚点 5 条见上条目 Stage Summary
