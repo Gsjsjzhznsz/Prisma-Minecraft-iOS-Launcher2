@@ -484,7 +484,7 @@ void customNSLog(const char *file, int lineNumber, const char *functionName, NSS
         @"description": @"预览环境演示项目（ID 直查桩数据）",
         @"icon_url": @"",
         @"author": @"DemoAuthor",
-        @"downloads": @(@12345),
+        @"downloads": @12345,
         @"project_type": @"mod",
         @"categories": @[@"adventure", @"utility"],
     };
@@ -546,7 +546,7 @@ void customNSLog(const char *file, int lineNumber, const char *functionName, NSS
             @"slug": @"demo-project",
             @"name": @"Demo Project (CurseForge)",
             @"summary": @"预览环境演示项目（ID 直查桩数据）",
-            @"downloadCount": @(@67890),
+            @"downloadCount": @67890,
             @"authors": @[@{ @"name": @"DemoAuthor" }],
             @"logo": @{ @"url": @"" },
             @"categories": @[],
