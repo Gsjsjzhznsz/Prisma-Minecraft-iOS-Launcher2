@@ -70,8 +70,6 @@ static BOOL CFAIsGarbageAPIKey(NSString *key) {
 }
 
 @interface CurseForgeAPI ()
-// 7.0-UI-16：搜索响应总页数透传（.h 声明，此处写侧；页码控制器 "N / M" 源）
-@property (nonatomic, assign, readwrite) NSUInteger lastSearchTotalCount;
 @property (nonatomic, strong) NSURLSession *session;   // 用于异步请求
 // 错误诊断辅助方法：将 HTTP 响应信息封装进 NSError userInfo
 - (NSError *)errorWithResponse:(NSURLResponse *)response

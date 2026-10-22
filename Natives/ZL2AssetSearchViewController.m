@@ -189,6 +189,10 @@ static NSString *ZL2AssetFormatDownloadCount(NSNumber *downloads) {
     return [NSString stringWithFormat:@"%ld", (long)dl];
 }
 
+// 搜索结果分页页大小（旧页六类 loadXxxList 统一 @30；7.0-UI-16 页码控制器沿用，
+// 整页替换语义下仍以"满页 30 条"判定 hasNext）
+static NSInteger const ZL2AssetSearchPageSize = 30;
+
 #pragma mark - 结果卡 Cell（7.0-UI-16：ZL2 _Search.Result 真机截图逐元素对齐）
 
 // 卡片结构（用户上传 ZL2 真机截图 2026-10-22 像素级对齐）：

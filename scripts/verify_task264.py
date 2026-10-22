@@ -68,7 +68,8 @@ check("D3 CurseForge gameVersion 参数（既有）", "gameVersion=%@" in cf_m)
 
 # ── E. 双源 total 透传（"N / M" 数据源） ──
 check("E1 CurseForgeAPI.h/.m lastSearchTotalCount",
-      "lastSearchTotalCount" in cf_h and cf_m.count("lastSearchTotalCount") >= 2)
+      "lastSearchTotalCount" in cf_h and "self.lastSearchTotalCount = total;" in cf_m
+      and "@property (nonatomic, assign, readwrite)" not in cf_m)
 check("E2 CF 解析块写 total", "self.lastSearchTotalCount = total;" in cf_m)
 check("E3 ModrinthAPI.h/.m lastSearchTotalCount",
       "lastSearchTotalCount" in mr_h and "total_hits" in mr_m)
