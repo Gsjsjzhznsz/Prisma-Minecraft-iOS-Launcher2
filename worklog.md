@@ -3149,3 +3149,21 @@ Work Log:
 Stage Summary:
 - 提交 9d446b1 推送 main（9 文件 +488/-15，新文件 ZL2VersionIndex.h/.m）；ZL2 壳下启动/切语言/退游戏/向导引导四链路全部指向新壳；旧壳自此零运行时可达路径（LauncherRoot/CardLayout/Split 保留编译供历史符号，无实例化入口）
 - 待 CI：ui-smoke（语法 + 横屏预览截图）→ development（可装 ipa）；装机锚点：①点启动正常出下载/启动流 ②切语言不再变旧界面 ③退游戏/执行 Jar 退出回 ZL2 新壳 ④首启向导完成出现 ZL2 锚点引导
+
+## 7.0-UI-13——全页面全逻辑移植第二轮（设置八屏 / 版本详情域 / 主页 7:3；+8143 行）
+
+日期：2026-10-22　构建：3fecd9e（development + ui-smoke 双绿，ipa/tipa 220.9MB + dSYM 6.8MB）
+
+Work Log:
+- 用户指令"全页面，全逻辑移植"。ZL2 实证调研先行：浅克隆 ZalithLauncher/ZalithLauncher2（main），四并行调研代理产出主页/账号、版本管理、设置八屏、下载资源四份移植规格（页面结构/M3 token/数据层键名/API 端点全量档案，ZL2-ref 目录留档本机）
+- ①设置八屏：ZL2SettingsViewController 重写左轨 8 项 3 组（0.4 alpha 分隔线）+ 右内容切换（addChild + 0.18s crossDissolve）；新 ZL2SettingCards（连体拼接组：组顶/底外圆角 28 内 4、组间距 2 + Switch/Slider/List/Input/Action/Enum 六型行卡）+ ZL2SettingPages 八子页。键名全实证：video.renderer / video.resolution / video.fullscreen_airplay / control.mod_touch_* 族 / control.controller_type / java.jvm_preset 族 / java.java_args / java.java_homes / java.env_variables / general.app_language / general.ui_theme(_explicit) / general.auto_update_check / download.* 源族；版本隔离=实例 plist internal.isolated 直写 + toggleIsolatedPref(NO) 重应用（PLPreferences toggleIsolationForced 读取源同口径）；手柄无键族=诚实空态卡不造假控件；每屏「更多设置」Action 行 push 对应旧页（长尾全可达契约）
+- ②版本详情域：新 ZL2VersionDetailViewController（版本头卡 + 左子导航轨 + 右内容八子页）+ ZL2VersionPages（概览：重命名/摘要/删除/打开目录；模组：mods/ 枚举 + ZL2M3Switch .disabled 后缀启停 1:1 ZL2 语义 + 导入 + 删除；存档：saves/ 目录 + level.dat 解析；资源包/光影共用基类（目录枚举/导入类型子类给参）；截图 UICollectionView 网格 + 全屏查看器；服务器列表 servers.dat NBT 读写；配置：内存/JVM/预设/渲染器覆写 + 「完整实例设置」兜底 push ProfileSettings）+ ZL2VersionNBT 极简 NBT（zlib gzip 解压 + Compound/List/String/Int 只读 + 最小写回）
+- ③主页 7:3：ZL2Home 重写左 7 版本卡网格（iPhone 2 列/iPad 3 列，选中卡 primaryContainer 2pt 描边，右下播放小钮=选实例即启动，长按 ZL2M3BottomSheet：设为当前/打开版本详情/删除）+ 右 3 ActionMenu（账号卡→ShowAccountManager / 版本选择卡+设置钮→index=2 / 大启动钮三态）+ 停靠左右长按换边持久化 zl2.home.actionMenuSide；启动链三态/通知链/zl2_home_launch 锚点逐行照抄保留
+- ④接线：壳新增 @"ZL2OpenVersionDetail" 通知→ame_openVersionDetail push 详情容器（页面间零直连）；ZL2Versions 设置钮改 push ZL2VersionDetailViewController（ProfileSettings 由容器配置页兜底）；CMakeLists 注册 5 新文件；预览桩 9 类落 ZL2PagesStub.m
+- CI 修复四轮（python 门禁盲区 = 真编译器语义雷家族）：r1 81811ba（isUserInteractionEnabled 属性名×7 / ZL2M3Switch on 非 isOn / UIAccessibilityTraitRadio 不存在 / Enum 行 labels 无存储 / @[] 字面量 nil 元素 / 漏 import×2）→ r2 34823e8（duplicate interface 家族根因：.m 内 @interface Class : Base 与 .h 同类声明致属性合成全废——基类改类扩展 ()、UTTypeZIP、Home =YES 变体、@[] 内赋值表达式）→ r3 5e501fc（子类空体重声明×2 删除 + [ivar] 空消息笔误自纠）→ r4 3fecd9e（预览桩 9 类：设置八页 + 详情容器链接期符号桩，分账纪律同 7.0-UI-8/10-f）
+- 门禁：task139/240 all balanced；import sweep 无新雷；task248 缺键 0 硬编码 0 动态键 0；task250 0；verify219 81/81 ALL GREEN；ui-smoke 语法门 95/0 + 横屏预览截图全过
+
+Stage Summary:
+- ZL2 三大差距域全量移植：设置域枢纽列表→真八屏结构；版本管理列表→详情容器八子页（模组/存档/资源包/光影/截图/服务器/配置 NBT 级数据层落地）；主页单列→7:3 真布局。全页面移植完成度：壳/主页/下载(游戏+资产搜索)/版本(列表+详情)/账户/设置(八屏) 全 ZL2 域，旧页长尾经兜底入口全可达
+- 装机锚点：①设置页左轨八项切换+行卡改键 game.log 见偏好写入 ②版本列表设置钮进详情容器八子页、模组开关改 .disabled ③主页 7:3 网格+右菜单卡长按换边 ④版本卡长按「打开版本详情」直达容器 ⑤主页卡播放小钮直启
+- 遗留下轮：Addons 加载器选择屏（游戏下载选版本后装 Forge/Fabric 等加载器流程）、收藏页 Favorites、ActionMenu 拖拽换边增强、设置八页与旧页键族合并去兜底
