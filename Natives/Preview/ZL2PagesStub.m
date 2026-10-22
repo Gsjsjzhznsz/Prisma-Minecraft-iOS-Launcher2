@@ -1187,3 +1187,54 @@ typedef NS_ENUM(NSInteger, InlineMessageType) {
 // DownloadTaskItem.h 声明（DownloadTaskItem.m L9 原值照抄）。整合包注册任务
 // 时消费；manager 桩不读值，仅保真。已 grep 本 TU 与 main TU 确认无重复定义
 NSString * const DownloadTaskResourceTypeModpack = @"modpack";
+
+#pragma mark - ZL2VersionIndex 桩（7.0-UI-12：游戏下载页清单数据源）
+
+// 预览不编真实 ZL2VersionIndex.m（其依赖 PLMirrorCenter/LauncherPreferences
+// 会级联拖入真实域）；本桩回一份确定性演示清单（混类型/日期齐全），游戏页
+// 截图即可验收 M3 版本卡列表视觉。网络零依赖，CI 环境稳定。
+
+@interface ZL2VersionIndex : NSObject
++ (instancetype)sharedIndex;
+- (void)warmUp;
+- (void)refresh;
+- (void)remoteVersionsWithCompletion:
+    (void (^)(NSArray<NSDictionary<NSString *, id> *> *versions, BOOL loaded))completion;
+@end
+
+@implementation ZL2VersionIndex (PreviewGameDownloadStub)
+
++ (instancetype)sharedIndex {
+    static ZL2VersionIndex *instance = nil;
+    static dispatch_once_t onceToken;
+    dispatch_once(&onceToken, ^{ instance = [[ZL2VersionIndex alloc] init]; });
+    return instance;
+}
+
+- (void)warmUp {}
+- (void)refresh {}
+
+- (void)remoteVersionsWithCompletion:
+        (void (^)(NSArray<NSDictionary<NSString *, id> *> *versions, BOOL loaded))completion {
+    NSArray<NSDictionary *> *demo = @[
+        @{@"id": @"1.21.4",  @"type": @"release",  @"url": @"https://demo/1.21.4.json",
+          @"releaseTime": @"2025-03-04T12:00:00+00:00"},
+        @{@"id": @"1.21.5-pre2", @"type": @"snapshot", @"url": @"https://demo/1.21.5-pre2.json",
+          @"releaseTime": @"2025-03-11T12:00:00+00:00"},
+        @{@"id": @"1.20.1",  @"type": @"release",  @"url": @"https://demo/1.20.1.json",
+          @"releaseTime": @"2023-06-12T12:00:00+00:00"},
+        @{@"id": @"24w14a",  @"type": @"snapshot", @"url": @"https://demo/24w14a.json",
+          @"releaseTime": @"2024-04-03T12:00:00+00:00"},
+        @{@"id": @"b1.7.3",  @"type": @"old_beta", @"url": @"https://demo/b1.7.3.json",
+          @"releaseTime": @"2011-07-07T12:00:00+00:00"},
+        @{@"id": @"a1.2.6",  @"type": @"old_alpha", @"url": @"https://demo/a1.2.6.json",
+          @"releaseTime": @"2010-10-30T12:00:00+00:00"},
+    ];
+    // 0.8s 延迟回主线程（模拟网络节奏，让加载态可见）
+    dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.8 * NSEC_PER_SEC)),
+                   dispatch_get_main_queue(), ^{
+        if (completion) completion(demo, YES);
+    });
+}
+
+@end

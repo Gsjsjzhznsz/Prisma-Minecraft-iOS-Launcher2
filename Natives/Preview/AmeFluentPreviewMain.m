@@ -157,6 +157,9 @@ NSString *localize(NSString *key, NSString *comment) {
 + (void)updateCurrent {}
 - (void)setSelectedProfileName:(NSString *)name {}
 
+// 7.0-UI-12：游戏下载页安装流建 profile（预览落空即安全，无写盘）
+- (void)saveProfile:(NSDictionary *)profile withName:(NSString *)name {}
+
 @end
 
 // MinecraftResourceDownloadTask 最小桩：预览演示态——downloadVersion: 后
@@ -195,6 +198,17 @@ NSString *localize(NSString *key, NSString *comment) {
             [s2.progress becomeCurrentWithPendingUnitCount:92];
             s2.progress.completedUnitCount += 55;
             [s2.progress resignCurrent];
+            // 7.0-UI-12：演示进度收尾到 finished（游戏页安装流轮询
+            // progress.finished 判定，永不 finished → 后台空转 30 分钟，
+            // ForgeDirectInstaller 恒 NO 同款预览防呆判例）
+            dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.5 * NSEC_PER_SEC)),
+                           dispatch_get_main_queue(), ^{
+                __strong MinecraftResourceDownloadTask *s3 = weakSelf;
+                if (!s3) return;
+                [s3.progress becomeCurrentWithPendingUnitCount:37];
+                s3.progress.completedUnitCount += 37;
+                [s3.progress resignCurrent];
+            });
         });
     });
 }

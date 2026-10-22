@@ -45,6 +45,17 @@ NS_ASSUME_NONNULL_BEGIN
 /// 启动预热：幂等触发远程版本清单拉取（ZL2ShellViewController viewDidLoad 调）。
 - (void)warmUp;
 
+/// 远程清单快照读取（7.0-UI-12：ZL2GameDownloadViewController 游戏列表用）。
+/// 未落定时限时等待（复用查找期预算），回调一律主线程；
+/// versions 为清单条目数组（含 latest-* 种子条目——无 url 字段，消费方自滤）；
+/// loaded=YES 仅代表候选链已落定（失败也算落定），消费方以"含 url 条目数"
+/// 判定成败。
+- (void)remoteVersionsWithCompletion:
+    (void (^)(NSArray<NSDictionary<NSString *, id> *> *versions, BOOL loaded))completion;
+
+/// 强制重取远程清单（幂等去重在途；重试按钮用）。
+- (void)refresh;
+
 @end
 
 NS_ASSUME_NONNULL_END

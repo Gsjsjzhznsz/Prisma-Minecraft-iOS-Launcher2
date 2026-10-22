@@ -522,6 +522,9 @@ add_executable(AngelAuraAmethyst
   ZL2SettingsViewController.m
   # 7.0-UI-11：启动链版本索引服务（FindVersionInRemoteList 契约迁出旧壳）
   ZL2VersionIndex.m
+  # 7.0-UI-12：MD3 功能组件库 + 游戏签脱旧（旧 DownloadViewController 退出 ZL2 壳）
+  ZL2M3Kit.m
+  ZL2GameDownloadViewController.m
   InlineMessageView.m
   DownloadTaskItem.m
   DownloadTaskManager.m

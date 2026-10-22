@@ -1,6 +1,8 @@
 //
 // ZL2DownloadViewController.m — ZL2 风格下载页实现（7.0-UI-9-a：下载页分类 M3 重写；
-//                               7.0-UI-10-a：六类别语义纠错——全远程搜索下载）
+//                               7.0-UI-10-a：六类别语义纠错——全远程搜索下载；
+//                               7.0-UI-12："游戏"签脱旧——旧 DownloadViewController
+//                               退场，换装 ZL2GameDownloadViewController）
 //
 // 移植对象：ZalithLauncher2 DownloadScreen.kt（GNU GPL 参考副本，只读）。
 // ZL2 原布局为「左类别轨 + 内容区」双栏；本页按移动端信息架构适配为
@@ -9,29 +11,18 @@
 // fontLabelMedium 文字、选中 primaryContainer / 未选 surfaceContainer），
 // iPhone 窄屏横向滚动 / iPad 宽屏单行铺开，双 idiome 同一套代码。
 //
-// 【7.0-UI-10-a 语义纠错】ZL2 下载页六类全部是远程搜索下载
-// （ZalithLauncher2 的 DownloadModPack/Mod/ResourcePack/Saves/ShadersScreen.kt
-// 均 route 到 assets/search/SearchXXXScreen.kt）；本地管理器（模组/存档/
-// 资源包/光影管理）在 ZL2 属版本管理域，绝不属于下载页。上轮（7.0-UI-9-a）
-// 误把五类挂到本地管理器 VC，本轮纠错重接：
+// 【7.0-UI-12 游戏签脱旧】ZL2 下载页六类至此全部无旧页：
 //
 // 六类目标 VC（顺序对标 ZL2 DownloadScreen TabMenu）：
-//   0 游戏   DownloadViewController                [[alloc] init]
-//            —— 旧远程游戏版本页（Minecraft 版本/加载器/OptiFine 安装流），
-//              M3 化留下一轮；本轮仅它保留旧页嵌入。
+//   0 游戏   ZL2GameDownloadViewController（7.0-UI-12 新建：M3 搜索/筛选/
+//            版本卡列表/分页；安装流 1:1 复刻旧 downloadVanillaVersion——
+//            PLProfiles 版本隔离 profile + MRDT downloadVersion: 六阶段统一
+//            进度页；旧 DownloadViewController 自此退出下载页）
 //   1 整合包 ZL2AssetSearchViewController(modpack)
 //   2 模组   ZL2AssetSearchViewController(mod)
 //   3 资源包 ZL2AssetSearchViewController(resourcepack)
 //   4 存档   ZL2AssetSearchViewController(world)
 //   5 光影包 ZL2AssetSearchViewController(shader)
-//   —— 五类全部接入新建的通用 M3 远程搜索列表页（M3 胶囊搜索框 + ZL2
-//   PlatformSortField 排序 chips + 结果卡 + 滚到底分页 + 空态；点击结果卡
-//   1:1 复刻旧 DownloadViewController.m 各类型版本页配置与下载/安装流，
-//   类型→端点→版本页锚点行号映射表见 ZL2AssetSearchViewController.m 文件头）。
-//   上轮的 ModpackImport/ModsManager/ResourcePacksManager/WorldsManager/
-//   ShadersManager 五个本地管理器 VC 自此退出下载页（存量页，版本管理域
-//   后续轮次归位）；上轮模组类「裸基类 ResourceListViewController 首显必崩」
-//   判例随本地管理器整体退出而失效。
 //
 // 任务胶囊（页头行右侧）：仅 [DownloadTaskManager sharedManager].hasActiveTasks
 // 时显示；surfaceContainerHigh 底 / radiusXL（高 32 渲染为全圆胶囊）/ 高 32，
@@ -63,7 +54,7 @@
 
 #import "ZL2DownloadViewController.h"
 #import "ZL2Theme.h"
-#import "DownloadViewController.h"
+#import "ZL2GameDownloadViewController.h"
 #import "ZL2AssetSearchViewController.h"
 #import "DownloadTaskManager.h"
 #import "DownloadTaskItem.h"
@@ -408,8 +399,9 @@ static UIImage *ZL2DownloadSystemImage(NSString *name, NSString *fallback) {
     UIViewController *vc = nil;
     switch (index) {
         case 0: {
-            // 游戏：旧远程游戏版本页（M3 化留下一轮，文件头注记）
-            vc = [[DownloadViewController alloc] init];
+            // 7.0-UI-12 游戏：ZL2GameDownloadViewController（M3 全新页；
+            // 旧 DownloadViewController 6080 行下载中心自此退出 ZL2 壳）
+            vc = [[ZL2GameDownloadViewController alloc] init];
             break;
         }
         case 1: {

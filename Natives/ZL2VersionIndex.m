@@ -81,6 +81,45 @@ NSString * const ZL2VersionIndexLogTag = @"[ZL2VersionIndex]";
     });
 }
 
+#pragma mark - 远程清单快照读取（7.0-UI-12：游戏下载列表）
+
+- (void)remoteVersionsWithCompletion:
+        (void (^)(NSArray<NSDictionary<NSString *, id> *> *versions, BOOL loaded))completion {
+    if (!completion) return;
+    void (^copied)(NSArray<NSDictionary<NSString *, id> *> *, BOOL) = [completion copy];
+
+    dispatch_async(_ame_lookupQueue, ^{
+        // 未落定 → 限时等待（ame_waitForRemoteList 内部会先发起拉取；
+        // 落定后立即返回，不阻塞串行队列睡眠——v1 自锁死判例）
+        [_ame_cond lock];
+        BOOL loaded = _ame_remoteLoaded;
+        [_ame_cond unlock];
+        if (!loaded) {
+            [self ame_waitForRemoteList];
+        }
+
+        // 锁内快照（杜绝并发落袋期间的枚举变异）
+        [_ame_cond lock];
+        NSArray<NSDictionary *> *snapshot = [_ame_remoteList copy];
+        BOOL finalLoaded = _ame_remoteLoaded;
+        [_ame_cond unlock];
+
+        dispatch_async(dispatch_get_main_queue(), ^{
+            copied(snapshot, finalLoaded);
+        });
+    });
+}
+
+- (void)refresh {
+    dispatch_async(_ame_lookupQueue, ^{
+        [_ame_cond lock];
+        _ame_remoteLoaded = NO;
+        [_ame_cond unlock];
+        NSLog(@"%@ refresh() -- re-fetching remote manifest", ZL2VersionIndexLogTag);
+        [self ame_fetchRemoteListIfNeeded];
+    });
+}
+
 #pragma mark - 通知入口
 
 - (void)ame_onFindVersion:(NSNotification *)notification {
