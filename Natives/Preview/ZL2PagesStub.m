@@ -392,6 +392,10 @@ NSMutableDictionary* parseJSONFromFile(NSString *path) {
 NSString * const DownloadTaskManagerDidUpdateTaskNotification = @"com.amethyst.DownloadTaskManager.DidUpdateTask";
 NSString * const DownloadTaskManagerAggregateStateDidChangeNotification = @"com.amethyst.DownloadTaskManager.AggregateStateDidChange";
 
+// 7.0-UI-14：资源类型常量（DownloadTaskItem.h 声明，Addons 屏 OptiFine 补丁流
+// registerTaskWithResourceType 消费；值照抄真实 .m 口径的 token 字符串）
+NSString * const DownloadTaskResourceTypeModloader = @"modloader";
+
 // AFNetworking.h 声明（AFURLResponseSerialization.m 原值照抄）。预览无网络层，
 // 该键仅出现在登录失败弹窗的 userInfo 取值路径（nil 字典 → nil，空安全）
 NSString * const AFNetworkingOperationFailingURLResponseDataErrorKey = @"com.alamofire.error.serialization.response.data.response";
