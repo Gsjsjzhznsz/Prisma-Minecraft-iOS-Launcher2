@@ -408,9 +408,10 @@ static __weak ZL2M3OverlayViewController *_ame_currentDialog = nil;
 - (void)viewDidLoad {
     [super viewDidLoad];
 
-    // scrim 点按 = 取消语义（MD3 基础对话框缺省行为）
+    // scrim 点按 = 取消语义（MD3 基础对话框缺省行为）；
+    // onScrimTapped 块属性在 VC 本体（ame_scrimTapped 转发），非 UIControl 上
     __weak typeof(self) weakSelf = self;
-    self.scrimControl.onScrimTapped = ^{ [weakSelf ame_finishWithConfirm:NO]; };
+    self.onScrimTapped = ^{ [weakSelf ame_finishWithConfirm:NO]; };
 
     _cardView = [[UIView alloc] init];
     _cardView.backgroundColor = [ZL2Theme surfaceContainerHigh];
@@ -564,7 +565,7 @@ static __weak ZL2M3OverlayViewController *_ame_currentSheet = nil;
     [super viewDidLoad];
 
     __weak typeof(self) weakSelf = self;
-    self.scrimControl.onScrimTapped = ^{ [weakSelf ame_closeAndNotify]; };
+    self.onScrimTapped = ^{ [weakSelf ame_closeAndNotify]; };
 
     _sheetView = [[UIView alloc] init];
     _sheetView.backgroundColor = [ZL2Theme surfaceContainerLow];
