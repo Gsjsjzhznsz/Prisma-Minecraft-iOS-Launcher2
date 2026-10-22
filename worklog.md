@@ -3167,3 +3167,25 @@ Stage Summary:
 - ZL2 三大差距域全量移植：设置域枢纽列表→真八屏结构；版本管理列表→详情容器八子页（模组/存档/资源包/光影/截图/服务器/配置 NBT 级数据层落地）；主页单列→7:3 真布局。全页面移植完成度：壳/主页/下载(游戏+资产搜索)/版本(列表+详情)/账户/设置(八屏) 全 ZL2 域，旧页长尾经兜底入口全可达
 - 装机锚点：①设置页左轨八项切换+行卡改键 game.log 见偏好写入 ②版本列表设置钮进详情容器八子页、模组开关改 .disabled ③主页 7:3 网格+右菜单卡长按换边 ④版本卡长按「打开版本详情」直达容器 ⑤主页卡播放小钮直启
 - 遗留下轮：Addons 加载器选择屏（游戏下载选版本后装 Forge/Fabric 等加载器流程）、收藏页 Favorites、ActionMenu 拖拽换边增强、设置八页与旧页键族合并去兜底
+
+## 7.0-UI-14——全页面全逻辑移植第三轮（真机截图对齐：下载域全量重写/embermire 色板/顶栏 4 项/主页单卡/Addons 加载器屏；+2947/-985）
+
+日期：2026-10-22　构建：9dfe9cf（development + ui-smoke 双 workflow_dispatch 已触发）
+
+Work Log:
+- 用户上传 ZL2 真机 12 张截图（com.movtery.zalithlauncher.v2）为地面真相，指出"许多地方不对，比如下载界面"。逐张判读产出规格：主页/文件/Terracotta/下载×5/设置×2，全页 UI 令牌+结构实证
+- 色板根修（"许多地方不对"的第一根源）：当前 ZL2Theme 用 M3 紫色基线，真机是 ZL2 出厂 embermire 暖棕系——ZL2 Color.kt 第一列 + Theme.kt embermireLight/Dark 34 角色 1:1 移植（深 primary=0xFFB59F 桃色启动钮/背景 0x1C110E/卡底 surfaceBright 0x443632 全部截图吻合）；新增 secondary/tertiary/secondaryContainer/onTertiaryContainer/surfaceBright/surfaceContainerHighest 等 12 角色
+- 下载域①：ZL2DownloadViewController 横向 chips 容器废弃 → 左竖轨 8 项 2 分隔线（ZL2 TabMenu downloadsList 1:1：游戏/整合包|模组/资源包/存档/光影|按ID搜索/收藏；M3 NavigationRailItem 语义选中 primaryContainer 胶囊）；任务胶囊删除（壳已有）
+- 下载域②（用户点名的下载界面）：ZL2GameDownloadViewController 全重写=SelectGameVersion 规格——单行头 4 枚多选 toggle chips（正式版默认开/快照版/愚人节版/远古版）+搜索+刷新+onSurface0.3 分隔线；版本卡三行（ZL2 drawable 五枚类型图标 PNG 直移 Resources/ZL2Assets[草方块/命令方块/钻石块/圆石/老草方块]+名称+LittleTextLabel tertiary chip+愚人节摘要 13 项内置表 1:1+日期'yyyy 年 MM 月 dd 日 HH:mm:ss'+Wiki 链接钮 zh.minecraft.wiki）；旧单行卡/单选 chips/底部弹层直装全废
+- 下载域③（UI-13 遗留清账）：新 ZL2GameAddonsViewController=DownloadGameWithAddonScreen——游戏版本头+版本名输入+OptiFine/Forge/NeoForge/Fabric/FabricAPI 五张可展开选择卡（清单按需拉取：BMCLAPI forge/optifine+neoforged maven+fabric meta 双源+modrinth fabric-api）+互斥（forge↔fabric/neoforge、optifine 仅容 forge、API 依赖 fabric 自动跟随最新）+安装分发 legacy 链（MRDT 原版五键隔离 profile/ForgeInstallViewController preset 直入/FabricInstallViewController/OptiFine 补丁流 183 行 1:1）
+- 下载域④：ZL2AssetSearchViewController 收藏心形（FavoriteToggleLabel 语义 tertiary 实心）+新 ZL2FavoritesStore（plist 快照 platform:projectId 键）+收藏模式 initWithFavorites（结果/详情/依赖解析/安装全链同构复用零重复，apiSource 逐项分流）+新 ZL2SearchIdViewController 按ID直查（Modrinth/CurseForge getEndpoint 同步端点+信息卡+收藏+浏览器打开）
+- 壳顶栏：右簇 版本/下载/账户/设置 → 文件/多人联机/下载/设置（ZL2 MainScreen endButtons 真机顺序；文件=FolderBrowserViewController PageSheet 游戏根目录、联机=新页面 5 MultiplayerViewController launcher 模式；版本/账户入口归 ActionMenu）；RailItem 选中态=secondaryContainer 胶囊底+onSecondaryContainer（真机 pill 实证）；主页标题=ZalithLauncher（LAUNCHER_IDENTIFIER 实证）
+- 主页 ActionMenu 单卡化：三张分离小卡 → ZL2 ActionMenuCardContent 单张 surfaceBright extraLarge 卡（账号区贴顶竖排 64 头像+名字+类型居中；版本行+齿轮+全宽启动钮贴底）
+- 预览链路：新 3 文件入 ui_fluent_smoke.sh 链接清单；ZL2PagesStub 补 Forge/Fabric 安装 VC 桩+ModrinthAPI/CurseForgeAPI getEndpoint 桩+任务四参 progress 变体；import 手术判例沿用（安装 VC/API 双源消费方 TU 自含最小声明）
+- 门禁：task139/240 all balanced；task248 缺键0/硬编码0/动态键0；task250 0；task219 六项失败=本轮未触及的既有锚点漂移（Makefile TAB 662/bundle id/l10n 2873 vs 2606——本仓锚点与主仓 Task262 后未同步，非本轮引入）
+- 事故两件：①MultiEdit 对 title 函数 old_str 手误"兑底"vs"兜底"两次原子失败（部分应用状态错乱→grep 逐点核查后单点 Edit 收敛，教训：中文注释 old_str 必须先 sed -n 精确取证）②ZL2SearchId 首版直 import installer/modpack 真头——预览 TU 与桩实现撞符号风险（7.0-UI-10-f import 手术判例应第一时间套用）
+
+Stage Summary:
+- 提交 9dfe9cf 推送 main（23 文件 +2947/-985；新文件：ZL2GameAddonsViewController/ZL2SearchIdViewController/ZL2FavoritesStore + 5 PNG 资产）；用户点名下载界面+色板根因+顶栏入口+主页结构四域全量对齐真机截图
+- 遗留下轮：①资产搜索页 7:3 双栏+右筛选栏（搜索名称/游戏版本/目标平台/排序/类别下拉）+分页器 '1 / 500' 悬浮+平台品牌 chip（CF #F16436/MR #1BD96A）——数据层 mcVersion/loader/sort 已就绪仅 UI 未换装 ②联机页=legacy FCL 式（ZL2 Terracotta EasyTier 页未重建）③文件页=FolderBrowser（ZL2 FM 全功能管理器未重建）④服务器卡/搜索 ID 应用内下载详情链
+- 待 CI：ui-smoke（语法+横屏预览截图）→ development（可装 ipa）
