@@ -70,6 +70,8 @@ static BOOL CFAIsGarbageAPIKey(NSString *key) {
 }
 
 @interface CurseForgeAPI ()
+// 7.0-UI-16：搜索响应总页数透传（.h 声明，此处写侧；页码控制器 "N / M" 源）
+@property (nonatomic, assign, readwrite) NSUInteger lastSearchTotalCount;
 @property (nonatomic, strong) NSURLSession *session;   // 用于异步请求
 // 错误诊断辅助方法：将 HTTP 响应信息封装进 NSError userInfo
 - (NSError *)errorWithResponse:(NSURLResponse *)response
@@ -579,6 +581,18 @@ static NSString *CFA169NormalizeGameVersion(NSString *v) {
 - (NSMutableDictionary *)projectFromCurseForgeProject:(NSDictionary *)project projectType:(NSString *)projectType {
     NSString *title = project[@"name"];
     NSString *description = project[@"summary"];
+    // 7.0-UI-16：作者透传（ZL2 结果卡 "标题 | 作者: X" 同排；CF 响应 authors
+    // 数组取首个非空 name；缺失时空串，UI 卡作者段隐藏自收）
+    NSString *ame316_author = @"";
+    NSArray *ame316_authors = [project[@"authors"] isKindOfClass:NSArray.class] ? project[@"authors"] : @[];
+    for (NSDictionary *ame316_authorEntry in ame316_authors) {
+        if (![ame316_authorEntry isKindOfClass:NSDictionary.class]) continue;
+        NSString *ame316_name = ame316_authorEntry[@"name"];
+        if ([ame316_name isKindOfClass:NSString.class] && ame316_name.length > 0) {
+            ame316_author = ame316_name;
+            break;
+        }
+    }
     return @{
         @"apiSource": @(2),
         @"isModpack": @([projectType isEqualToString:@"modpack"]),
@@ -591,6 +605,7 @@ static NSString *CFA169NormalizeGameVersion(NSString *v) {
         // ååé®ï¼formatDownloadCount:ï¼ââæ§è½¬æ¢æè¯¥å­æ®µæ´ä¸ªä¸¢äºï¼ææ CF
         // æ¡ç®ææ¾ "0 æ¬¡ä¸è½½"ãéåå®æµï¼mod.mcimirror.top è£æºæ¥å¿ + æ¬å°
         // curl åè¯ï¼downloadCount ä¸ç´å¨ååºéï¼çº¯å±å­æ®µåæ­å±ã
+        @"author": ame316_author,
         @"downloads": [project[@"downloadCount"] isKindOfClass:NSNumber.class]
             ? project[@"downloadCount"] : @0,
         @"imageUrl": [self imageURLForProject:project]
@@ -1056,6 +1071,8 @@ static NSString *CFA169NormalizeGameVersion(NSString *v) {
         NSUInteger idx = [pagination[@"index"] unsignedIntegerValue];
         NSUInteger count = [pagination[@"resultCount"] unsignedIntegerValue];
         self.reachedLastPage = total == 0 || idx + count >= total;
+        // 7.0-UI-16：总页数透传（ZL2 资产搜索页码控制器 "N / M" 源）
+        self.lastSearchTotalCount = total;
 
         NSLog(@"[CurseForgeAPI] searchModWithFilters success: returned %lu items (total=%lu)",
               (unsigned long)results.count, (unsigned long)total);

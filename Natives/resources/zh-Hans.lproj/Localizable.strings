@@ -3091,3 +3091,17 @@
 "preference.title.done.session_list" = "会话列表已打开";
 "preference.title.done.system_prompt" = "系统提示词已打开";
 "preference.title.done.data_sibling_import" = "已打开导入入口";
+
+"dl.asset.filter.name" = "搜索名称";
+
+"dl.asset.filter.version" = "游戏版本";
+
+"dl.asset.filter.platform" = "目标平台";
+
+"dl.asset.version.any" = "不限版本";
+
+"dl.asset.import" = "导入整合包";
+
+"dl.asset.favorites.empty" = "暂无收藏";
+
+"dl.asset.page" = "第 %ld 页";

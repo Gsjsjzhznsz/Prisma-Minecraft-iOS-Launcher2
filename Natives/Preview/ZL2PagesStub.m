@@ -441,6 +441,7 @@ void customNSLog(const char *file, int lineNumber, const char *functionName, NSS
 
 @interface ModrinthAPI : NSObject
 + (instancetype)sharedInstance;
+@property (nonatomic, assign) NSUInteger lastSearchTotalCount;
 - (void)searchModWithFilters:(NSDictionary *)filters
                   completion:(void (^)(NSArray * _Nullable results, NSError * _Nullable error))completion;
 - (void)ame227_fetchProjectTitle:(NSString *)projectID
@@ -458,11 +459,28 @@ void customNSLog(const char *file, int lineNumber, const char *functionName, NSS
     return api;
 }
 
-// 预览无网络层：异步空结果（results.count >= 30 判定 → hasMore=NO，空态收口）
+// 预览无网络层：7.0-UI-16 起进门即搜，桩改回 3 条演示项（页码 "1 / 359"、
+// 徽标/万量级/作者/描述/标签全链可见）；空结果回退空态收口
 - (void)searchModWithFilters:(NSDictionary *)filters
                   completion:(void (^)(NSArray * _Nullable results, NSError * _Nullable error))completion {
     if (!completion) return;
-    dispatch_async(dispatch_get_main_queue(), ^{ completion(@[], nil); });
+    self.lastSearchTotalCount = 359;
+    NSMutableArray *demo = [NSMutableArray array];
+    NSArray *titles = @[@"Sodium", @"Fabric API", @"Iris Shaders"];
+    NSArray *authors = @[@"jellysquid3", @"modmuss50", @"coderbot"];
+    NSArray *downloads = @[@5120000, @189000, @2300000];
+    NSArray *descs = @[@"A modern rendering engine for Minecraft which greatly improves frame rates.",
+                       @"Essential hooks for modding with Fabric — the compat layer every modpack needs.",
+                       @"Shaders pack loader that pairs with Sodium for shaderpack support."];
+    for (NSUInteger i = 0; i < 3; i++) {
+        [demo addObject:@{ @"apiSource": @1, @"isModpack": @NO, @"projectType": @"mod",
+            @"id": [NSString stringWithFormat:@"demo-mod-%lu", (unsigned long)i],
+            @"title": titles[i], @"description": descs[i], @"author": authors[i],
+            @"downloads": downloads[i], @"likes": @1200,
+            @"imageUrl": @"", @"categories": @[@"utility", @"optimization"],
+            @"lastUpdated": @"" }.mutableCopy];
+    }
+    dispatch_async(dispatch_get_main_queue(), ^{ completion(demo, nil); });
 }
 
 // 依赖确认单名称 enrichment：回调 nil → 消费方回退 projectId（守卫已核对）
@@ -499,6 +517,7 @@ void customNSLog(const char *file, int lineNumber, const char *functionName, NSS
 @interface CurseForgeAPI : NSObject
 + (instancetype)sharedInstance;
 + (BOOL)isSourceAvailable;
+@property (nonatomic, assign) NSUInteger lastSearchTotalCount;
 - (void)searchModWithFilters:(NSDictionary *)filters
                   completion:(void (^)(NSArray * _Nullable results, NSError * _Nullable error))completion;
 - (void)ame227_fetchModTitle:(NSString *)modID
@@ -527,7 +546,23 @@ void customNSLog(const char *file, int lineNumber, const char *functionName, NSS
 - (void)searchModWithFilters:(NSDictionary *)filters
                   completion:(void (^)(NSArray * _Nullable results, NSError * _Nullable error))completion {
     if (!completion) return;
-    dispatch_async(dispatch_get_main_queue(), ^{ completion(@[], nil); });
+    self.lastSearchTotalCount = 4210;
+    NSMutableArray *demo = [NSMutableArray array];
+    NSArray *titles = @[@"Just Enough Items (JEI)", @"AppleSkin", @"Mouse Tweaks"];
+    NSArray *authors = @[@"mezz", @"squeek502", @"YaLTeR"];
+    NSArray *downloads = @[@11200000, @19000, @56000];
+    NSArray *descs = @[@"Item and recipe viewing for Forge & Fabric — the backbone of every modpack.",
+                       @"Food/hunger-related usability enhancements with apple skin overlays.",
+                       @"Enhances inventory management by allowing the mouse to drag items."];
+    for (NSUInteger i = 0; i < 3; i++) {
+        [demo addObject:@{ @"apiSource": @2, @"isModpack": @NO, @"projectType": @"mod",
+            @"id": [NSString stringWithFormat:@"demo-cf-%lu", (unsigned long)i],
+            @"title": titles[i], @"description": descs[i], @"author": authors[i],
+            @"downloads": downloads[i], @"likes": @0,
+            @"imageUrl": @"", @"categories": @[],
+            @"lastUpdated": @"" }.mutableCopy];
+    }
+    dispatch_async(dispatch_get_main_queue(), ^{ completion(demo, nil); });
 }
 
 - (void)ame227_fetchModTitle:(NSString *)modID

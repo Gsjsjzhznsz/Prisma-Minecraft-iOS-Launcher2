@@ -3093,3 +3093,17 @@
 "preference.title.done.session_list" = "Session list opened";
 "preference.title.done.system_prompt" = "System prompt editor opened";
 "preference.title.done.data_sibling_import" = "Import entry opened";
+
+"dl.asset.filter.name" = "Search name";
+
+"dl.asset.filter.version" = "Game version";
+
+"dl.asset.filter.platform" = "Platform";
+
+"dl.asset.version.any" = "Any version";
+
+"dl.asset.import" = "Import modpack";
+
+"dl.asset.favorites.empty" = "No favorites yet";
+
+"dl.asset.page" = "Page %ld";

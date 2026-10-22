@@ -3088,3 +3088,17 @@
 "preference.title.done.session_list" = "會話清單已開啟";
 "preference.title.done.system_prompt" = "系統提示詞已開啟";
 "preference.title.done.data_sibling_import" = "已開啟匯入入口";
+
+"dl.asset.filter.name" = "搜尋名稱";
+
+"dl.asset.filter.version" = "遊戲版本";
+
+"dl.asset.filter.platform" = "目標平台";
+
+"dl.asset.version.any" = "不限版本";
+
+"dl.asset.import" = "匯入整合包";
+
+"dl.asset.favorites.empty" = "暫無收藏";
+
+"dl.asset.page" = "第 %ld 頁";

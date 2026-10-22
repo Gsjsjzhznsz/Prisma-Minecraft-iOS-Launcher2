@@ -8,6 +8,10 @@ NS_ASSUME_NONNULL_BEGIN
 @interface ModrinthAPI : ModpackAPI
 + (instancetype)sharedInstance;
 
+/// 7.0-UI-16：最近一次异步搜索响应的 total_hits（0 = 未知/未搜/失败）。
+/// ZL2 资产搜索页码控制器 "N / M" 总页数来源；读侧在搜索完成回调后消费。
+@property (nonatomic, assign) NSUInteger lastSearchTotalCount;
+
 // 同步方法
 - (NSMutableArray *)searchModWithFilters:(NSDictionary<NSString *, NSString *> *)searchFilters 
                       previousPageResult:(NSMutableArray *)modrinthSearchResult;

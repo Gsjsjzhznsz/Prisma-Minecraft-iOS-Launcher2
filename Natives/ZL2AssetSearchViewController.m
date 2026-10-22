@@ -61,13 +61,13 @@
 //   AssetVersionViewControllerDelegate → ResourcePackService / WorldService
 //   按 pendingDownloadType 分流（L5564-5602）。
 //
-// 【ZL2 视觉来源】SearchAssetsScreen.kt（搜索过滤栏语义）、_Search.Result.kt
-//   （结果卡：card 底 shape large + 72dp 图标 radius10 + 标题/作者/描述/
-//   下载量 + 标签行；本页按任务规格适配为 56×56 图标 + 名称/作者/下载点赞
-//   三行）、_Search.Filter.kt + PlatformSortField.kt（排序五档真实值域：
-//   relevance/downloads/follows/newest/updated；文案复用旧页既有 i18n 键）。
-//   ZL2 分页为页码控制器（PageController），本页按任务规格改为滚到底自动
-//   加载（旧页 hasMoreXxx/loadXxxList 语义，L5225-5264 同款判定）。
+// 【ZL2 视觉来源】SearchAssetsScreen.kt（右栏筛选语义）、_Search.Result.kt
+//   （结果卡：card 底 shape large + 72dp 图标 + 标题|作者 / 描述 / 标签行 /
+//   下载量 / 收藏）、_Search.Filter.kt + PlatformSortField.kt（排序五档真实
+//   值域：relevance/downloads/follows/newest/updated；文案复用旧页既有 i18n
+//   键）。7.0-UI-16 真机截图对齐重排：进门即搜（空关键词第 1 页浏览态）+
+//   右栏筛选面板（搜索名称/游戏版本/导入整合包/目标平台/排序方式）+ 页码
+//   控制器（PageController "N / M" 整页替换，两平台搜索响应 total 驱动）。
 //
 // 【红线】颜色/字体/圆角一律 ZL2Theme；iOS 14 API 上限；SF1.0 档符号 +
 //   fallback；新建视图 translatesAutoresizingMaskIntoConstraints=NO；
@@ -112,6 +112,9 @@
 #import "installer/ForgeDirectInstaller.h"
 #import "MinecraftResourceDownloadTask.h"
 #import "ModpackImportService.h"
+#import "ZL2M3Kit.h"
+#import "ZL2VersionIndex.h"
+#import "ModpackImportViewController.h"
 
 // ── 7.0-UI-10-f #import 手术配套：API 双源本地最小声明（仅声明，无实现——类
 //    符号 OBJC_CLASS_$_ModrinthAPI / OBJC_CLASS_$_CurseForgeAPI 由预览 harness
@@ -124,6 +127,7 @@
 + (instancetype)sharedInstance;
 - (void)searchModWithFilters:(NSDictionary *)filters
                   completion:(void (^)(NSArray * _Nullable results, NSError * _Nullable error))completion;
+@property (nonatomic, assign) NSUInteger lastSearchTotalCount;
 - (void)ame227_fetchProjectTitle:(NSString *)projectID
                       completion:(void (^)(NSString * _Nullable title, NSError * _Nullable error))completion;
 - (void)getVersionsForModWithID:(NSString *)modID
@@ -135,6 +139,7 @@
 + (BOOL)isSourceAvailable;
 - (void)searchModWithFilters:(NSDictionary *)filters
                   completion:(void (^)(NSArray * _Nullable results, NSError * _Nullable error))completion;
+@property (nonatomic, assign) NSUInteger lastSearchTotalCount;
 - (void)ame227_fetchModTitle:(NSString *)modID
                   completion:(void (^)(NSString * _Nullable title, NSError * _Nullable error))completion;
 - (void)getVersionsForModWithID:(NSString *)modID
@@ -161,42 +166,57 @@ static NSString *ZL2AssetSha1FromPrimaryFile(NSDictionary *primaryFile) {
 }
 
 // 格式化下载量数字（旧页 formatDownloadCount 同款：1234 → 1.2K / 1234567 → 1.2M）
+// 格式化下载量数字（7.0-UI-16：ZL2 中文量级对齐——真机截图 1.9万/112万/137万；
+// 旧 K/M 为英文社区口径，与 ZL2 上游不符）
+static NSString *ZL2AssetFormatTrimZero(NSString *text) {
+    if ([text hasSuffix:@".0"]) {
+        return [text substringToIndex:text.length - 2];
+    }
+    return text;
+}
+
 static NSString *ZL2AssetFormatDownloadCount(NSNumber *downloads) {
     if (!downloads) return @"0";
     NSInteger dl = [downloads integerValue];
-    if (dl >= 1000000) {
-        return [NSString stringWithFormat:@"%.1fM", dl / 1000000.0];
-    } else if (dl >= 1000) {
-        return [NSString stringWithFormat:@"%.1fK", dl / 1000.0];
+    if (dl >= 100000000) {
+        NSString *raw = [NSString stringWithFormat:@"%.1f亿", dl / 100000000.0];
+        return ZL2AssetFormatTrimZero(raw);
+    }
+    if (dl >= 10000) {
+        NSString *raw = [NSString stringWithFormat:@"%.1f万", dl / 10000.0];
+        return ZL2AssetFormatTrimZero(raw);
     }
     return [NSString stringWithFormat:@"%ld", (long)dl];
 }
 
-// 搜索结果分页页大小（旧页六类 loadXxxList 统一 @30 + results.count >= 30 判定）
-static NSInteger const ZL2AssetSearchPageSize = 30;
+#pragma mark - 结果卡 Cell（7.0-UI-16：ZL2 _Search.Result 真机截图逐元素对齐）
 
-#pragma mark - 结果卡 Cell（ZL2 _Search.Result ResultProjectLayout 适配）
-
-// 卡片结构（任务规格 + ZL2 视觉综合）：
-//   UIControl 卡（surfaceContainer / radiusL / 内边距 12）
-//   ├ 左图标 56×56 radiusM（IconLoader：占位 SF 符号 → 异步真实图标）
-//   ├ 中列（行间距 8）：名称 fontLabelLarge / 作者 fontBodyMedium /
-//   │                   下载点赞行 fontLabelMedium（arrow.down.circle 12pt）
-//   └ 右下载图标钮 32×32（arrow.down.circle.fill，与卡片同动作）
+// 卡片结构（用户上传 ZL2 真机截图 2026-10-22 像素级对齐）：
+//   卡（surfaceContainer / radiusL / 内边距 12）
+//   ├ 左图标 72×72 radiusM（ZL2 72dp 卡图；IconLoader 占位 → 异步真实图标）
+//   ├ 标题行：名称（fontTitleMedium）+ " | 作者: X"（fontBodyMedium 次级色，
+//   │  ZL2 "标题 | 作者: X" 单行同排；HorizontalStack 语义隐藏自收）
+//   ├ 描述 2 行（fontBodyMedium / onSurfaceVariant）
+//   ├ 标签行（categories 空格连接 / fontLabelMedium / onSurfaceVariant）
+//   ├ 右上来源徽标（CurseForge 橙 / Modrinth 绿——平台品牌身份色，ZL2 上游
+//   │  PlatformBadge 同口径；主题令牌体系外的例外，语义=平台识别非主题化 UI）
+//   └ 右列：⬇ 下载量（万/亿中文量级）+ ♡ 收藏（FavoriteToggleLabel 语义）
+//   旧版 56×56 图标 + 名称/作者/下载点赞三行形态由本形态取代（真机截图口径）。
 @interface ZL2AssetResultCell : UITableViewCell
 
 @property (nonatomic, strong) UIView *cardView;
 @property (nonatomic, strong) UIImageView *iconView;
 @property (nonatomic, strong) UILabel *nameLabel;
 @property (nonatomic, strong) UILabel *authorLabel;
-@property (nonatomic, strong) UIStackView *metaStack;
+@property (nonatomic, strong) UILabel *descLabel;
+@property (nonatomic, strong) UILabel *tagsLabel;
+@property (nonatomic, strong) UIView *sourceBadgeView;
+@property (nonatomic, strong) UILabel *sourceBadgeLabel;
 @property (nonatomic, strong) UIImageView *downloadsIconView;
 @property (nonatomic, strong) UILabel *downloadsLabel;
-@property (nonatomic, strong) UIImageView *likesIconView;
-@property (nonatomic, strong) UILabel *likesLabel;
-@property (nonatomic, strong) UIButton *downloadButton;
-@property (nonatomic, strong) UIButton *favoriteButton;   // 7.0-UI-14：收藏心形（ZL2 FavoriteToggleLabel 语义）
-@property (nonatomic, copy) void (^onDownload)(void);
+@property (nonatomic, strong) UIControl *favoriteControl;
+@property (nonatomic, strong) UIImageView *favoriteIconView;
+@property (nonatomic, strong) UILabel *favoriteLabel;
 @property (nonatomic, copy) void (^onFavorite)(void);
 
 - (void)ame_configureWithData:(NSDictionary *)data
@@ -204,6 +224,15 @@ static NSInteger const ZL2AssetSearchPageSize = 30;
                fallbackSymbol:(NSString *)fallbackName;
 
 @end
+
+// 平台品牌徽标色（ZL2 上游 CurseForge #F16436 / Modrinth #02AF7C 对齐；
+// 非主题令牌例外的依据见卡头注释）
+static UIColor *ZL2AssetSourceBadgeColor(NSInteger apiSource) {
+    if (apiSource == 2) {
+        return [UIColor colorWithRed:0.945 green:0.392 blue:0.212 alpha:1.0];
+    }
+    return [UIColor colorWithRed:0.008 green:0.686 blue:0.486 alpha:1.0];
+}
 
 @implementation ZL2AssetResultCell
 
@@ -227,68 +256,95 @@ static NSInteger const ZL2AssetSearchPageSize = 30;
         _iconView.translatesAutoresizingMaskIntoConstraints = NO;
         [_cardView addSubview:_iconView];
 
+        // 标题行（HorizontalStack：名称压缩截断优先，作者行隐藏自收）
+        UIStackView *titleStack = [[UIStackView alloc] init];
+        titleStack.axis = UILayoutConstraintAxisHorizontal;
+        titleStack.alignment = UIStackViewAlignmentCenter;
+        titleStack.spacing = 6;
+        titleStack.translatesAutoresizingMaskIntoConstraints = NO;
+        [_cardView addSubview:titleStack];
+
         _nameLabel = [[UILabel alloc] init];
-        _nameLabel.font = [ZL2Theme fontLabelLarge];
+        _nameLabel.font = [ZL2Theme fontTitleMedium];
         _nameLabel.textColor = [ZL2Theme onSurface];
         _nameLabel.numberOfLines = 1;
         _nameLabel.translatesAutoresizingMaskIntoConstraints = NO;
+        [titleStack addArrangedSubview:_nameLabel];
 
         _authorLabel = [[UILabel alloc] init];
         _authorLabel.font = [ZL2Theme fontBodyMedium];
         _authorLabel.textColor = [ZL2Theme onSurfaceVariant];
         _authorLabel.numberOfLines = 1;
         _authorLabel.translatesAutoresizingMaskIntoConstraints = NO;
+        [titleStack addArrangedSubview:_authorLabel];
+        [_nameLabel setContentCompressionResistancePriority:749 forAxis:UILayoutConstraintAxisHorizontal];
+        [_authorLabel setContentCompressionResistancePriority:750 forAxis:UILayoutConstraintAxisHorizontal];
+        [_authorLabel setContentHuggingPriority:251 forAxis:UILayoutConstraintAxisHorizontal];
 
+        _sourceBadgeView = [[UIView alloc] init];
+        _sourceBadgeView.layer.cornerRadius = 10;
+        _sourceBadgeView.layer.masksToBounds = YES;
+        _sourceBadgeView.translatesAutoresizingMaskIntoConstraints = NO;
+        [_cardView addSubview:_sourceBadgeView];
+
+        _sourceBadgeLabel = [[UILabel alloc] init];
+        _sourceBadgeLabel.font = [ZL2Theme fontLabelMedium];
+        _sourceBadgeLabel.textColor = [UIColor whiteColor];
+        _sourceBadgeLabel.numberOfLines = 1;
+        _sourceBadgeLabel.translatesAutoresizingMaskIntoConstraints = NO;
+        [_sourceBadgeView addSubview:_sourceBadgeLabel];
+
+        _descLabel = [[UILabel alloc] init];
+        _descLabel.font = [ZL2Theme fontBodyMedium];
+        _descLabel.textColor = [ZL2Theme onSurfaceVariant];
+        _descLabel.numberOfLines = 2;
+        _descLabel.translatesAutoresizingMaskIntoConstraints = NO;
+        [_cardView addSubview:_descLabel];
+
+        _tagsLabel = [[UILabel alloc] init];
+        _tagsLabel.font = [ZL2Theme fontLabelMedium];
+        _tagsLabel.textColor = [ZL2Theme onSurfaceVariant];
+        _tagsLabel.numberOfLines = 1;
+        _tagsLabel.translatesAutoresizingMaskIntoConstraints = NO;
+        [_cardView addSubview:_tagsLabel];
+
+        // 右列（下载量 + 收藏，ZL2 卡右侧上下两行）
         _downloadsIconView = [[UIImageView alloc] init];
         _downloadsIconView.contentMode = UIViewContentModeScaleAspectFit;
         _downloadsIconView.translatesAutoresizingMaskIntoConstraints = NO;
+        _downloadsIconView.userInteractionEnabled = NO;
+        [_cardView addSubview:_downloadsIconView];
 
         _downloadsLabel = [[UILabel alloc] init];
-        _downloadsLabel.font = [ZL2Theme fontLabelMedium];
-        _downloadsLabel.textColor = [ZL2Theme onSurfaceVariant];
+        _downloadsLabel.font = [ZL2Theme fontLabelLarge];
+        _downloadsLabel.textColor = [ZL2Theme onSurface];
         _downloadsLabel.numberOfLines = 1;
         _downloadsLabel.translatesAutoresizingMaskIntoConstraints = NO;
+        [_cardView addSubview:_downloadsLabel];
 
-        _likesIconView = [[UIImageView alloc] init];
-        _likesIconView.contentMode = UIViewContentModeScaleAspectFit;
-        _likesIconView.translatesAutoresizingMaskIntoConstraints = NO;
+        _favoriteControl = [[UIControl alloc] init];
+        _favoriteControl.translatesAutoresizingMaskIntoConstraints = NO;
+        _favoriteControl.isAccessibilityElement = YES;
+        _favoriteControl.accessibilityLabel = @"收藏";
+        _favoriteControl.accessibilityTraits = UIAccessibilityTraitButton;
+        [_favoriteControl addTarget:self
+                             action:@selector(ame_favoriteTapped)
+                   forControlEvents:UIControlEventTouchUpInside];
+        [_cardView addSubview:_favoriteControl];
 
-        _likesLabel = [[UILabel alloc] init];
-        _likesLabel.font = [ZL2Theme fontLabelMedium];
-        _likesLabel.textColor = [ZL2Theme onSurfaceVariant];
-        _likesLabel.numberOfLines = 1;
-        _likesLabel.translatesAutoresizingMaskIntoConstraints = NO;
+        _favoriteIconView = [[UIImageView alloc] init];
+        _favoriteIconView.contentMode = UIViewContentModeScaleAspectFit;
+        _favoriteIconView.translatesAutoresizingMaskIntoConstraints = NO;
+        _favoriteIconView.userInteractionEnabled = NO;
+        [_favoriteControl addSubview:_favoriteIconView];
 
-        _metaStack = [[UIStackView alloc] initWithArrangedSubviews:@[_downloadsIconView, _downloadsLabel,
-                                                                     _likesIconView, _likesLabel]];
-        _metaStack.axis = UILayoutConstraintAxisHorizontal;
-        _metaStack.alignment = UIStackViewAlignmentCenter;
-        _metaStack.spacing = 4;
-        _metaStack.translatesAutoresizingMaskIntoConstraints = NO;
-
-        UIStackView *column = [[UIStackView alloc] initWithArrangedSubviews:@[_nameLabel, _authorLabel, _metaStack]];
-        column.axis = UILayoutConstraintAxisVertical;
-        column.alignment = UIStackViewAlignmentLeading;
-        column.spacing = 8;
-        column.translatesAutoresizingMaskIntoConstraints = NO;
-        [_cardView addSubview:column];
-
-        _downloadButton = [UIButton buttonWithType:UIButtonTypeCustom];
-        _downloadButton.translatesAutoresizingMaskIntoConstraints = NO;
-        _downloadButton.accessibilityLabel = @"下载";
-        [_downloadButton addTarget:self
-                            action:@selector(ame_downloadTapped)
-                  forControlEvents:UIControlEventTouchUpInside];
-        [_cardView addSubview:_downloadButton];
-
-        // 收藏心形（ZL2 FavoriteToggleLabel：已收藏 tertiary 实心 / 未收藏 描边）
-        _favoriteButton = [UIButton buttonWithType:UIButtonTypeCustom];
-        _favoriteButton.translatesAutoresizingMaskIntoConstraints = NO;
-        _favoriteButton.accessibilityLabel = @"收藏";
-        [_favoriteButton addTarget:self
-                            action:@selector(ame_favoriteTapped)
-                  forControlEvents:UIControlEventTouchUpInside];
-        [_cardView addSubview:_favoriteButton];
+        _favoriteLabel = [[UILabel alloc] init];
+        _favoriteLabel.font = [ZL2Theme fontLabelMedium];
+        _favoriteLabel.textColor = [ZL2Theme onSurfaceVariant];
+        _favoriteLabel.numberOfLines = 1;
+        _favoriteLabel.translatesAutoresizingMaskIntoConstraints = NO;
+        _favoriteLabel.userInteractionEnabled = NO;
+        [_favoriteControl addSubview:_favoriteLabel];
 
         [NSLayoutConstraint activateConstraints:@[
             [_cardView.leadingAnchor constraintEqualToAnchor:self.contentView.leadingAnchor constant:12],
@@ -298,36 +354,51 @@ static NSInteger const ZL2AssetSearchPageSize = 30;
 
             [_iconView.leadingAnchor constraintEqualToAnchor:_cardView.leadingAnchor constant:12],
             [_iconView.centerYAnchor constraintEqualToAnchor:_cardView.centerYAnchor],
-            [_iconView.widthAnchor constraintEqualToConstant:56],
-            [_iconView.heightAnchor constraintEqualToConstant:56],
+            [_iconView.widthAnchor constraintEqualToConstant:72],
+            [_iconView.heightAnchor constraintEqualToConstant:72],
 
-            [_downloadButton.trailingAnchor constraintEqualToAnchor:_cardView.trailingAnchor constant:-12],
-            [_downloadButton.centerYAnchor constraintEqualToAnchor:_cardView.centerYAnchor],
-            [_downloadButton.widthAnchor constraintEqualToConstant:32],
-            [_downloadButton.heightAnchor constraintEqualToConstant:32],
+            [_sourceBadgeView.topAnchor constraintEqualToAnchor:_cardView.topAnchor constant:10],
+            [_sourceBadgeView.trailingAnchor constraintEqualToAnchor:_cardView.trailingAnchor constant:-12],
+            [_sourceBadgeView.heightAnchor constraintEqualToConstant:20],
 
-            [_favoriteButton.trailingAnchor constraintEqualToAnchor:_downloadButton.leadingAnchor constant:-4],
-            [_favoriteButton.centerYAnchor constraintEqualToAnchor:_cardView.centerYAnchor],
-            [_favoriteButton.widthAnchor constraintEqualToConstant:32],
-            [_favoriteButton.heightAnchor constraintEqualToConstant:32],
+            [_sourceBadgeLabel.leadingAnchor constraintEqualToAnchor:_sourceBadgeView.leadingAnchor constant:8],
+            [_sourceBadgeLabel.trailingAnchor constraintEqualToAnchor:_sourceBadgeView.trailingAnchor constant:-8],
+            [_sourceBadgeLabel.centerYAnchor constraintEqualToAnchor:_sourceBadgeView.centerYAnchor],
 
-            [column.leadingAnchor constraintEqualToAnchor:_iconView.trailingAnchor constant:12],
-            [column.trailingAnchor constraintEqualToAnchor:_favoriteButton.leadingAnchor constant:-8],
-            [column.centerYAnchor constraintEqualToAnchor:_cardView.centerYAnchor],
-            [column.topAnchor constraintGreaterThanOrEqualToAnchor:_cardView.topAnchor constant:12],
-            [column.bottomAnchor constraintLessThanOrEqualToAnchor:_cardView.bottomAnchor constant:-12],
+            [titleStack.topAnchor constraintEqualToAnchor:_cardView.topAnchor constant:12],
+            [titleStack.leadingAnchor constraintEqualToAnchor:_iconView.trailingAnchor constant:12],
+            [titleStack.trailingAnchor constraintLessThanOrEqualToAnchor:_downloadsLabel.leadingAnchor constant:-10],
 
-            [_downloadsIconView.widthAnchor constraintEqualToConstant:12],
-            [_downloadsIconView.heightAnchor constraintEqualToConstant:12],
-            [_likesIconView.widthAnchor constraintEqualToConstant:12],
-            [_likesIconView.heightAnchor constraintEqualToConstant:12],
+            [_downloadsIconView.centerYAnchor constraintEqualToAnchor:_downloadsLabel.centerYAnchor],
+            [_downloadsIconView.trailingAnchor constraintEqualToAnchor:_downloadsLabel.leadingAnchor constant:-4],
+            [_downloadsIconView.widthAnchor constraintEqualToConstant:13],
+            [_downloadsIconView.heightAnchor constraintEqualToConstant:13],
+            [_downloadsLabel.topAnchor constraintEqualToAnchor:_cardView.topAnchor constant:14],
+            [_downloadsLabel.trailingAnchor constraintEqualToAnchor:_cardView.trailingAnchor constant:-12],
+
+            [_favoriteControl.topAnchor constraintEqualToAnchor:_downloadsLabel.bottomAnchor constant:12],
+            [_favoriteControl.trailingAnchor constraintEqualToAnchor:_cardView.trailingAnchor constant:-12],
+
+            [_favoriteIconView.leadingAnchor constraintEqualToAnchor:_favoriteControl.leadingAnchor],
+            [_favoriteIconView.centerYAnchor constraintEqualToAnchor:_favoriteControl.centerYAnchor],
+            [_favoriteIconView.widthAnchor constraintEqualToConstant:14],
+            [_favoriteIconView.heightAnchor constraintEqualToConstant:14],
+
+            [_favoriteLabel.leadingAnchor constraintEqualToAnchor:_favoriteIconView.trailingAnchor constant:3],
+            [_favoriteLabel.trailingAnchor constraintEqualToAnchor:_favoriteControl.trailingAnchor],
+            [_favoriteLabel.centerYAnchor constraintEqualToAnchor:_favoriteControl.centerYAnchor],
+
+            [_descLabel.topAnchor constraintEqualToAnchor:titleStack.bottomAnchor constant:5],
+            [_descLabel.leadingAnchor constraintEqualToAnchor:_iconView.trailingAnchor constant:12],
+            [_descLabel.trailingAnchor constraintLessThanOrEqualToAnchor:_downloadsLabel.leadingAnchor constant:-12],
+
+            [_tagsLabel.topAnchor constraintEqualToAnchor:_descLabel.bottomAnchor constant:5],
+            [_tagsLabel.leadingAnchor constraintEqualToAnchor:_iconView.trailingAnchor constant:12],
+            [_tagsLabel.trailingAnchor constraintLessThanOrEqualToAnchor:_downloadsLabel.leadingAnchor constant:-12],
+            [_tagsLabel.bottomAnchor constraintLessThanOrEqualToAnchor:_cardView.bottomAnchor constant:-10],
         ]];
     }
     return self;
-}
-
-- (void)ame_downloadTapped {
-    if (self.onDownload) self.onDownload();
 }
 
 - (void)ame_favoriteTapped {
@@ -336,9 +407,11 @@ static NSInteger const ZL2AssetSearchPageSize = 30;
 
 - (void)ame_setFavorite:(BOOL)favorite {
     UIImage *heart = [UIImage systemImageNamed:(favorite ? @"heart.fill" : @"heart")];
-    [self.favoriteButton setImage:heart forState:UIControlStateNormal];
-    self.favoriteButton.tintColor = favorite ? [ZL2Theme tertiary] : [ZL2Theme onSurfaceVariant];
-    self.favoriteButton.accessibilityLabel = favorite ? @"取消收藏" : @"收藏";
+    self.favoriteIconView.image = [heart imageWithRenderingMode:UIImageRenderingModeAlwaysTemplate];
+    self.favoriteIconView.tintColor = favorite ? [ZL2Theme tertiary] : [ZL2Theme onSurfaceVariant];
+    self.favoriteLabel.text = @"收藏";
+    self.favoriteLabel.textColor = favorite ? [ZL2Theme tertiary] : [ZL2Theme onSurfaceVariant];
+    self.favoriteControl.accessibilityLabel = favorite ? @"取消收藏" : @"收藏";
 }
 
 // 旧页 cell 同款：高亮态压暗卡片（ZL2 Compose 的 ripple 等价物）
@@ -349,14 +422,16 @@ static NSInteger const ZL2AssetSearchPageSize = 30;
 
 - (void)prepareForReuse {
     [super prepareForReuse];
-    self.onDownload = nil;
     self.onFavorite = nil;
     [self ame_setFavorite:NO];
     self.nameLabel.text = nil;
     self.authorLabel.text = nil;
     self.authorLabel.hidden = NO;
-    self.likesLabel.text = nil;
-    self.likesIconView.hidden = NO;
+    self.descLabel.text = nil;
+    self.descLabel.hidden = NO;
+    self.tagsLabel.text = nil;
+    self.tagsLabel.hidden = NO;
+    self.sourceBadgeLabel.text = nil;
     // 图标复位为占位形态（IconLoader 加载时会重设占位图，这里复位形态属性）
     self.iconView.contentMode = UIViewContentModeScaleAspectFit;
     self.iconView.tintColor = [ZL2Theme onSurfaceVariant];
@@ -378,45 +453,49 @@ static NSInteger const ZL2AssetSearchPageSize = 30;
     if (![title isKindOfClass:[NSString class]] || title.length == 0) title = @"Unknown";
     self.nameLabel.text = title;
 
-    // 作者（CF 搜索结果无 author 键 → 隐藏该行，StackView 自动收起）
+    // 作者（ZL2 "标题 | 作者: X" 同排语义；CF/Modrinth 均补齐 author 键）
     NSString *author = data[@"author"];
     if ([author isKindOfClass:[NSString class]] && author.length > 0) {
-        self.authorLabel.text = author;
+        self.authorLabel.text = [NSString stringWithFormat:@"| 作者: %@", author];
         self.authorLabel.hidden = NO;
     } else {
         self.authorLabel.text = nil;
         self.authorLabel.hidden = YES;
     }
 
-    // 下载量行（arrow.down.circle 12pt + 数字）+ 点赞（有数据才显示，CF 无此键）
-    // 注：C 辅助函数结果先落局部变量再套消息方括号（编译三真雷判例：
-    // 禁 [func(...) selector:] 形态的 C 函数接收者写法）
-    UIImage *downloadsSymbol = ZL2AssetSystemImage(@"arrow.down.circle", @"arrow.down");
+    // 描述（2 行截断，ZL2 卡描述行）
+    NSString *desc = data[@"description"];
+    if (![desc isKindOfClass:[NSString class]]) desc = @"";
+    self.descLabel.text = desc;
+    self.descLabel.hidden = (desc.length == 0);
+
+    // 标签行（categories 空格连接；CF 侧暂无 id→名映射表，空数组整行隐藏）
+    NSMutableString *tags = [NSMutableString string];
+    NSArray *categories = data[@"categories"];
+    if ([categories isKindOfClass:[NSArray class]]) {
+        for (NSString *category in categories) {
+            if (![category isKindOfClass:[NSString class]] || category.length == 0) continue;
+            if (tags.length > 0) [tags appendString:@" "];
+            [tags appendString:category];
+        }
+    }
+    self.tagsLabel.text = tags;
+    self.tagsLabel.hidden = (tags.length == 0);
+
+    // 来源徽标（apiSource 项内优先：收藏快照/双源混排都能正确显示平台身份）
+    NSInteger source = [data[@"apiSource"] isKindOfClass:[NSNumber class]]
+        ? [data[@"apiSource"] integerValue] : 1;
+    self.sourceBadgeView.backgroundColor = ZL2AssetSourceBadgeColor(source);
+    self.sourceBadgeLabel.text = (source == 2) ? @"CurseForge" : @"Modrinth";
+
+    // 下载量（ZL2 中文量级：⬇ 1.9万）
+    UIImage *downloadsSymbol = ZL2AssetSystemImage(@"arrow.down", @"arrow.down");
     self.downloadsIconView.image = [downloadsSymbol imageWithRenderingMode:UIImageRenderingModeAlwaysTemplate];
     self.downloadsIconView.tintColor = [ZL2Theme onSurfaceVariant];
     self.downloadsLabel.text = ZL2AssetFormatDownloadCount(data[@"downloads"]);
 
-    NSNumber *likes = data[@"likes"];
-    if ([likes isKindOfClass:[NSNumber class]] && [likes integerValue] > 0) {
-        UIImage *likesSymbol = ZL2AssetSystemImage(@"heart.fill", @"heart");
-        self.likesIconView.image = [likesSymbol imageWithRenderingMode:UIImageRenderingModeAlwaysTemplate];
-        self.likesIconView.tintColor = [ZL2Theme onSurfaceVariant];
-        self.likesLabel.text = ZL2AssetFormatDownloadCount(likes);
-        self.likesIconView.hidden = NO;
-        self.likesLabel.hidden = NO;
-    } else {
-        self.likesIconView.hidden = YES;
-        self.likesLabel.hidden = YES;
-    }
-
-    // 下载钮（32×32，arrow.down.circle.fill，primary 着色）
-    UIImage *downloadIcon = ZL2AssetSystemImage(@"arrow.down.circle.fill", @"arrow.down.circle");
-    [self.downloadButton setImage:[downloadIcon imageWithRenderingMode:UIImageRenderingModeAlwaysTemplate]
-                         forState:UIControlStateNormal];
-    self.downloadButton.tintColor = [ZL2Theme primary];
-
-    // 图标异步加载（IconLoader：取消旧请求 → 占位 → 双层缓存 → 降采样 → CDN 镜像 → 兜底；
-    // 旧页 cell loadIconFromURL 同款二次校验与 AspectFill 切换）
+    // 图标异步加载（IconLoader 72pt 对齐 ZL2 72dp 卡图；取消旧请求 → 占位 →
+    // 双层缓存 → 降采样 → CDN 镜像 → 兜底；旧页 cell loadIconFromURL 同款二次校验）
     NSString *iconUrl = data[@"imageUrl"];
     if (![iconUrl isKindOfClass:[NSString class]] || iconUrl.length == 0) iconUrl = data[@"icon_url"];
     __weak typeof(self) weakSelf = self;
@@ -424,7 +503,7 @@ static NSInteger const ZL2AssetSearchPageSize = 30;
                                  URL:iconUrl
                          placeholder:placeholder
                             fallback:placeholder
-                          targetSize:CGSizeMake(56, 56)
+                          targetSize:CGSizeMake(72, 72)
                              options:IconLoaderOptionsDefault
                           completion:^(UIImage *image) {
         __strong typeof(weakSelf) strongSelf = weakSelf;
@@ -439,28 +518,77 @@ static NSInteger const ZL2AssetSearchPageSize = 30;
 
 @end
 
+// 游戏版本选择弹层的数据源/委托（独立小类：主页面已是结果列表的
+// dataSource/delegate，二表共存时按指针分流会让每个回调都长出 if 分叉，
+// 内聚到 handler 更贴近 ZL2 版本筛选对话框的独立语义）
+@interface ZL2VersionSheetHandler : NSObject <UITableViewDataSource, UITableViewDelegate>
+@property (nonatomic, strong) NSArray<NSString *> *allVersions;   // 全量版本号（去重去 latest-*）
+@property (nonatomic, copy) NSString *filterText;                 // 弹层内搜索词
+@property (nonatomic, weak) UITableView *table;
+@property (nonatomic, copy) void (^onPick)(NSString *versionId);
+- (void)reloadFilterWithText:(NSString *)text;
+@end
+
+@implementation ZL2VersionSheetHandler
+
+- (NSArray<NSString *> *)ame_visibleVersions {
+    NSString *needle = [self.filterText stringByReplacingOccurrencesOfString:@" " withString:@""];
+    if (needle.length == 0) return self.allVersions;
+    NSMutableArray<NSString *> *visible = [NSMutableArray array];
+    for (NSString *version in self.allVersions) {
+        if (!version) continue;
+        if ([version localizedCaseInsensitiveContainsString:needle]) {
+            [visible addObject:version];
+        }
+    }
+    return visible;
+}
+
+- (void)reloadFilterWithText:(NSString *)text {
+    self.filterText = text;
+    [self.table reloadData];
+}
+
+- (NSInteger)tableView:(UITableView *)tableView numberOfRowsInSection:(NSInteger)section {
+    return (NSInteger)[self ame_visibleVersions].count;
+}
+
+- (UITableViewCell *)tableView:(UITableView *)tableView cellForRowAtIndexPath:(NSIndexPath *)indexPath {
+    UITableViewCell *cell = [tableView dequeueReusableCellWithIdentifier:@"ZL2VersionSheetCell"];
+    if (!cell) {
+        cell = [[UITableViewCell alloc] initWithStyle:UITableViewCellStyleDefault
+                                      reuseIdentifier:@"ZL2VersionSheetCell"];
+        cell.backgroundColor = [UIColor clearColor];
+        cell.selectionStyle = UITableViewCellSelectionStyleDefault;
+        cell.textLabel.font = [ZL2Theme fontBodyLarge];
+        cell.textLabel.textColor = [ZL2Theme onSurface];
+    }
+    NSArray<NSString *> *visible = [self ame_visibleVersions];
+    if (indexPath.row < (NSInteger)visible.count) {
+        cell.textLabel.text = visible[indexPath.row];
+    }
+    return cell;
+}
+
+- (void)tableView:(UITableView *)tableView didSelectRowAtIndexPath:(NSIndexPath *)indexPath {
+    [tableView deselectRowAtIndexPath:indexPath animated:NO];
+    NSArray<NSString *> *visible = [self ame_visibleVersions];
+    if (indexPath.row >= (NSInteger)visible.count) return;
+    if (self.onPick) self.onPick(visible[indexPath.row]);
+}
+
+@end
+
 #pragma mark - 主页面
 
 @interface ZL2AssetSearchViewController () <
-    UITextFieldDelegate, UITableViewDataSource, UITableViewDelegate,
+    UITableViewDataSource, UITableViewDelegate,
     ModVersionViewControllerDelegate, ShaderVersionViewControllerDelegate,
     AssetVersionViewControllerDelegate>
 
 // 构造入参（init 注入后只读）
 @property (nonatomic, assign, readwrite) ZL2AssetSearchType assetType;
 @property (nonatomic, copy, readwrite) NSString *pageTitle;
-
-// 顶部搜索行
-@property (nonatomic, strong) UIView *searchCapsule;
-@property (nonatomic, strong) UITextField *searchField;
-@property (nonatomic, strong) UIControl *sortToggleControl;
-
-// 排序 chips 横排行（ZL2DownloadViewController 同款 chip 工厂变体）
-@property (nonatomic, strong) UIScrollView *chipsScroll;
-@property (nonatomic, strong) UIStackView *chipsStack;
-@property (nonatomic, strong) NSMutableArray<UIControl *> *chipControls;
-@property (nonatomic, strong) NSMutableArray<UILabel *> *chipLabels;
-@property (nonatomic, strong) NSLayoutConstraint *chipsHeightConstraint;
 
 // 结果列表与空态
 @property (nonatomic, strong) UITableView *tableView;
@@ -469,10 +597,31 @@ static NSInteger const ZL2AssetSearchPageSize = 30;
 @property (nonatomic, strong) UILabel *emptyLabel;
 @property (nonatomic, strong) UIActivityIndicatorView *loadingIndicator;
 
+// 右侧筛选面板（7.0-UI-16：ZL2 SearchAssetsScreen 右栏真机对齐——
+// 搜索名称 / 游戏版本 / 导入整合包 / 目标平台 / 排序方式）
+@property (nonatomic, strong) UIView *filterPanel;
+@property (nonatomic, strong) NSLayoutConstraint *panelWidthConstraint;   // 宽态 300
+@property (nonatomic, strong) NSLayoutConstraint *tableToPanelConstraint; // 列表随面板收窄
+@property (nonatomic, strong) ZL2M3SearchBar *nameSearchBar;
+@property (nonatomic, strong) UIControl *versionFieldControl;
+@property (nonatomic, strong) UILabel *versionFieldValueLabel;
+@property (nonatomic, strong) UIButton *importButton;      // 整合包类型独有
+@property (nonatomic, strong) UIControl *platformControl;
+@property (nonatomic, strong) UIView *platformChipView;
+@property (nonatomic, strong) UILabel *platformChipLabel;
+@property (nonatomic, strong) UIControl *sortControl;
+@property (nonatomic, strong) UIView *sortChipView;
+@property (nonatomic, strong) UILabel *sortChipLabel;
+
+// 页码控制器（ZL2 PageController：1 / 500 + 前后翻页，真机截图口径）
+@property (nonatomic, strong) UIView *paginationBar;
+@property (nonatomic, strong) UIButton *prevPageButton;
+@property (nonatomic, strong) UIButton *nextPageButton;
+@property (nonatomic, strong) UILabel *pageInfoLabel;
+
 // 搜索状态
 @property (nonatomic, copy) NSString *searchQuery;
 @property (nonatomic, copy) NSString *sortField;
-@property (nonatomic, assign) BOOL chipsExpanded;
 @property (nonatomic, strong) NSMutableArray<NSDictionary *> *results;
 @property (nonatomic, assign) NSInteger currentOffset;
 @property (nonatomic, assign) BOOL hasMore;
@@ -482,7 +631,15 @@ static NSInteger const ZL2AssetSearchPageSize = 30;
 @property (nonatomic, assign) NSInteger inputGeneration;     // 0.5s 防抖代际
 @property (nonatomic, assign) BOOL pendingSearchAfterFlight; // 请求期间到达的新搜索（latest-wins）
 
-// 排序 chips 平行数组（ZL2 PlatformSortField 真实值域 + 旧页既有 i18n 文案键）
+// 页码与筛选状态（7.0-UI-16）
+@property (nonatomic, assign) NSInteger currentPage;         // 1-based 页码
+@property (nonatomic, assign) NSUInteger knownTotalCount;    // 搜索响应 total；0 = 总数未知
+@property (nonatomic, copy) NSString *gameVersionFilter;     // nil/空 = 不限版本
+@property (nonatomic, assign) NSInteger platformOverride;    // 0=按下载源偏好 1=Modrinth 2=CurseForge
+@property (nonatomic, strong) UIView *versionSheetContent;   // 版本选择弹层内容（展示期持有）
+@property (nonatomic, strong) NSObject *sheetHandler;        // ZL2VersionSheetHandler（弹层期持有）
+
+// 排序值域（ZL2 PlatformSortField 真实值域 + 旧页既有 i18n 文案键）
 @property (nonatomic, copy) NSArray<NSString *> *sortValues;
 @property (nonatomic, copy) NSArray<NSString *> *sortTitleKeys;
 
@@ -513,8 +670,6 @@ static NSInteger const ZL2AssetSearchPageSize = 30;
         _assetType = type;
         _pageTitle = [title copy] ?: @"";
         _results = [NSMutableArray array];
-        _chipControls = [NSMutableArray array];
-        _chipLabels = [NSMutableArray array];
         _searchQuery = @"";
         _sortField = @"relevance";   // ZL2 PlatformSearchFilter 缺省 RELEVANCE
         _hasMore = YES;
@@ -522,6 +677,10 @@ static NSInteger const ZL2AssetSearchPageSize = 30;
         _currentOffset = 0;
         _requestGeneration = 0;
         _inputGeneration = 0;
+        _currentPage = 1;
+        _knownTotalCount = 0;
+        _platformOverride = 0;
+        _gameVersionFilter = nil;
         _sortValues = @[@"relevance", @"downloads", @"follows", @"newest", @"updated"];
         // ZL2 PlatformSortField 语义（相关度/下载量/人气=关注/新创建/最近更新），
         // 文案复用旧页排序菜单既有 i18n 键（零新键）
@@ -537,8 +696,6 @@ static NSInteger const ZL2AssetSearchPageSize = 30;
         _pageTitle = @"收藏";
         _favoritesMode = YES;
         _results = [NSMutableArray array];
-        _chipControls = [NSMutableArray array];
-        _chipLabels = [NSMutableArray array];
         _searchQuery = @"";
         _sortField = @"relevance";
         _hasMore = NO;
@@ -546,6 +703,10 @@ static NSInteger const ZL2AssetSearchPageSize = 30;
         _currentOffset = 0;
         _requestGeneration = 0;
         _inputGeneration = 0;
+        _currentPage = 1;
+        _knownTotalCount = 0;
+        _platformOverride = 0;
+        _gameVersionFilter = nil;
         _sortValues = @[];
         _sortTitleKeys = @[];
     }
@@ -561,7 +722,7 @@ static NSInteger const ZL2AssetSearchPageSize = 30;
     self.lockedProfileName = PLProfiles.current.selectedProfileName;
 
     [self buildViews];
-    [self ame_applyChipAppearance];
+    [self ame_applyFilterPanelAppearance];
     [self ame_refreshEmptyAndLoading];
 
     if (self.favoritesMode) {
@@ -570,7 +731,13 @@ static NSInteger const ZL2AssetSearchPageSize = 30;
                                                  selector:@selector(ame_favoritesDidChange:)
                                                      name:ZL2FavoritesDidChangeNotification
                                                    object:nil];
+        return;
     }
+
+    // 7.0-UI-16 进门即搜（ZL2 语义：SearchXXXScreen 初始即拉第 1 页浏览列表，
+    // 无需先输入关键词——空关键词 + relevance 排序 = 热门浏览态；旧实现的
+    // "搜索你感兴趣的X" 引导空态即用户实测"模组什么都不显示"的直接来源）
+    [self ame_triggerSearchWithQuery:@""];
 }
 
 - (void)dealloc {
@@ -608,18 +775,6 @@ static NSInteger const ZL2AssetSearchPageSize = 30;
 }
 
 // 引导空态文案（初始未搜索时，ZL2 式引导）
-- (NSString *)ame_guideText {
-    switch (self.assetType) {
-        case ZL2AssetSearchTypeMod:          return @"搜索你感兴趣的模组";
-        case ZL2AssetSearchTypeModpack:      return @"搜索你感兴趣的整合包";
-        case ZL2AssetSearchTypeResourcePack: return @"搜索你感兴趣的资源包";
-        case ZL2AssetSearchTypeWorld:        return @"搜索你感兴趣的存档";
-        case ZL2AssetSearchTypeShader:       return @"搜索你感兴趣的光影包";
-    }
-    return @"输入关键词开始搜索";
-}
-
-// 类型符号（与 ZL2DownloadViewController categorySymbols 同表，SF1.0 档）
 - (NSString *)ame_guideSymbol {
     switch (self.assetType) {
         case ZL2AssetSearchTypeMod:          return @"puzzlepiece";
@@ -636,6 +791,7 @@ static NSInteger const ZL2AssetSearchPageSize = 30;
 // 其余按 PLPreferences 下载源偏好；1=Modrinth 2=CurseForge）
 - (NSInteger)ame_apiSourceForType {
     if (self.assetType == ZL2AssetSearchTypeWorld) return 2;
+    if (self.platformOverride != 0) return self.platformOverride;
     NSString *source = [PLPreferences currentDownloadSourceForType:[self ame_typeToken]];
     return [source isEqualToString:@"curseforge"] ? 2 : 1;
 }
@@ -668,84 +824,152 @@ static NSInteger const ZL2AssetSearchPageSize = 30;
 
 - (void)buildViews {
     UILayoutGuide *safe = self.view.safeAreaLayoutGuide;
+    BOOL isSearchMode = !self.favoritesMode;
 
-    // ① M3 胶囊搜索框（surfaceContainerHigh 底 / radiusXL / 高 44；高 44 +
-    //    圆角 28 渲染为全圆胶囊，任务规格）+ 右侧 40×40 排序入口钮
-    _searchCapsule = [[UIView alloc] init];
-    _searchCapsule.backgroundColor = [ZL2Theme surfaceContainerHigh];
-    _searchCapsule.layer.cornerRadius = [ZL2Theme radiusXL];
-    _searchCapsule.layer.masksToBounds = YES;
-    _searchCapsule.translatesAutoresizingMaskIntoConstraints = NO;
-    [self.view addSubview:_searchCapsule];
+    // ① 右侧筛选面板（ZL2 SearchAssetsScreen 右栏真机对齐：搜索名称 /
+    //    游戏版本 / 导入整合包 / 目标平台 / 排序方式；收藏页与窄屏整体隐藏）
+    _filterPanel = [[UIView alloc] init];
+    _filterPanel.backgroundColor = [UIColor clearColor];
+    _filterPanel.translatesAutoresizingMaskIntoConstraints = NO;
+    [self.view addSubview:_filterPanel];
 
-    UIImage *searchIcon = ZL2AssetSystemImage(@"magnifyingglass", @"search");
-    UIImageView *searchIconView = [[UIImageView alloc] initWithImage:[searchIcon imageWithRenderingMode:UIImageRenderingModeAlwaysTemplate]];
-    searchIconView.tintColor = [ZL2Theme onSurfaceVariant];
-    searchIconView.contentMode = UIViewContentModeScaleAspectFit;
-    searchIconView.translatesAutoresizingMaskIntoConstraints = NO;
-    [_searchCapsule addSubview:searchIconView];
+    UIStackView *panelStack = [[UIStackView alloc] init];
+    panelStack.axis = UILayoutConstraintAxisVertical;
+    panelStack.alignment = UIStackViewAlignmentFill;
+    panelStack.spacing = 10;
+    panelStack.translatesAutoresizingMaskIntoConstraints = NO;
+    [_filterPanel addSubview:panelStack];
 
-    _searchField = [[UITextField alloc] init];
-    _searchField.placeholder = [self ame_placeholderText];
-    _searchField.font = [ZL2Theme fontBodyLarge];
-    _searchField.textColor = [ZL2Theme onSurface];
-    _searchField.returnKeyType = UIReturnKeySearch;
-    _searchField.clearButtonMode = UITextFieldViewModeWhileEditing;
-    _searchField.autocorrectionType = UITextAutocorrectionTypeNo;
-    _searchField.delegate = self;
-    _searchField.translatesAutoresizingMaskIntoConstraints = NO;
-    _searchField.accessibilityLabel = [self ame_placeholderText];
-    [_searchField addTarget:self
-                     action:@selector(ame_searchTextChanged:)
-           forControlEvents:UIControlEventEditingChanged];
-    [_searchCapsule addSubview:_searchField];
+    // 搜索名称（ZL2M3SearchBar 组件复用：0.5s 防抖 + return 立即搜）
+    _nameSearchBar = [[ZL2M3SearchBar alloc] init];
+    _nameSearchBar.placeholder = localize(@"dl.asset.filter.name", nil);
+    _nameSearchBar.accessibilityLabel = localize(@"dl.asset.filter.name", nil);
+    [panelStack addArrangedSubview:_nameSearchBar];
 
-    // 排序/过滤入口（40×40 surfaceContainer radiusS；点击展开/收起排序 chips 行）
-    _sortToggleControl = [[UIControl alloc] init];
-    _sortToggleControl.backgroundColor = [ZL2Theme surfaceContainer];
-    _sortToggleControl.layer.cornerRadius = [ZL2Theme radiusS];
-    _sortToggleControl.translatesAutoresizingMaskIntoConstraints = NO;
-    _sortToggleControl.isAccessibilityElement = YES;
-    _sortToggleControl.accessibilityLabel = @"排序方式";
-    _sortToggleControl.accessibilityTraits = UIAccessibilityTraitButton;
-    [_sortToggleControl addTarget:self
-                           action:@selector(ame_sortToggleTapped)
-                 forControlEvents:UIControlEventTouchUpInside];
-    [self.view addSubview:_sortToggleControl];
+    // 游戏版本字段（点开版本选择弹层；筛选生效时显示已选版本号）
+    UIImage *magnifier = ZL2AssetSystemImage(@"magnifyingglass", @"search");
+    UILabel *versionValueLabel = nil;
+    _versionFieldControl = [self ame_panelFieldControlWithIcon:magnifier
+                                                    valueLabel:&versionValueLabel];
+    _versionFieldValueLabel = versionValueLabel;
+    _versionFieldControl.isAccessibilityElement = YES;
+    _versionFieldControl.accessibilityLabel = localize(@"dl.asset.filter.version", nil);
+    _versionFieldControl.accessibilityTraits = UIAccessibilityTraitButton;
+    [_versionFieldControl addTarget:self
+                             action:@selector(ame_versionFieldTapped)
+                   forControlEvents:UIControlEventTouchUpInside];
+    [panelStack addArrangedSubview:_versionFieldControl];
 
-    UIImage *sortIcon = ZL2AssetSystemImage(@"arrow.up.arrow.down", @"line.3.horizontal");
-    UIImageView *sortIconView = [[UIImageView alloc] initWithImage:[sortIcon imageWithRenderingMode:UIImageRenderingModeAlwaysTemplate]];
-    sortIconView.tintColor = [ZL2Theme onSurfaceVariant];
-    sortIconView.contentMode = UIViewContentModeScaleAspectFit;
-    sortIconView.translatesAutoresizingMaskIntoConstraints = NO;
-    sortIconView.userInteractionEnabled = NO;
-    [_sortToggleControl addSubview:sortIconView];
-
-    // ② 排序 chips 横排行（默认收起；结构照抄 ZL2DownloadViewController chips 行）
-    _chipsScroll = [[UIScrollView alloc] init];
-    _chipsScroll.showsHorizontalScrollIndicator = NO;
-    _chipsScroll.translatesAutoresizingMaskIntoConstraints = NO;
-    _chipsScroll.hidden = YES;
-    [self.view addSubview:_chipsScroll];
-
-    _chipsStack = [[UIStackView alloc] init];
-    _chipsStack.axis = UILayoutConstraintAxisHorizontal;
-    _chipsStack.alignment = UIStackViewAlignmentCenter;
-    _chipsStack.spacing = 8;
-    _chipsStack.translatesAutoresizingMaskIntoConstraints = NO;
-    [_chipsScroll addSubview:_chipsStack];
-
-    for (NSUInteger i = 0; i < self.sortValues.count; i++) {
-        [_chipsStack addArrangedSubview:[self ame_sortChipAtIndex:i]];
+    // 导入整合包（仅整合包类别展示，ZL2 SearchModPackScreen 同位按钮；
+    // 1:1 复用旧页导入流：push ModpackImportViewController → 自带文件选择）
+    if (self.assetType == ZL2AssetSearchTypeModpack) {
+        _importButton = [UIButton buttonWithType:UIButtonTypeCustom];
+        _importButton.backgroundColor = [ZL2Theme surfaceContainer];
+        _importButton.layer.cornerRadius = [ZL2Theme radiusM];
+        _importButton.layer.masksToBounds = YES;
+        _importButton.titleLabel.font = [ZL2Theme fontLabelLarge];
+        [_importButton setTitle:localize(@"dl.asset.import", nil) forState:UIControlStateNormal];
+        [_importButton setTitleColor:[ZL2Theme onSurface] forState:UIControlStateNormal];
+        _importButton.translatesAutoresizingMaskIntoConstraints = NO;
+        _importButton.accessibilityLabel = localize(@"dl.asset.import", nil);
+        [_importButton addTarget:self
+                          action:@selector(ame_importTapped)
+                forControlEvents:UIControlEventTouchUpInside];
+        [panelStack addArrangedSubview:_importButton];
     }
 
-    // ③ 结果列表（UITableView + 自绘 M3 卡 cell，支持滚到底自动分页）
+    // 目标平台双行下拉（label + 平台品牌色 chip + chevron；存档强制 CurseForge 禁用）
+    UIView *platformChipView = nil;
+    UILabel *platformChipLabel = nil;
+    _platformControl = [self ame_panelDropdownControlWithLabelText:localize(@"dl.asset.filter.platform", nil)
+                                                          chipView:&platformChipView
+                                                         chipLabel:&platformChipLabel];
+    _platformChipView = platformChipView;
+    _platformChipLabel = platformChipLabel;
+    _platformControl.accessibilityLabel = localize(@"dl.asset.filter.platform", nil);
+    [_platformControl addTarget:self
+                         action:@selector(ame_platformTapped)
+               forControlEvents:UIControlEventTouchUpInside];
+    [panelStack addArrangedSubview:_platformControl];
+    if (self.assetType == ZL2AssetSearchTypeWorld) {
+        _platformControl.userInteractionEnabled = NO;   // Modrinth 无 world facet（旧页口径）
+        _platformControl.alpha = 0.5;
+    }
+
+    // 排序方式双行下拉（五档 PlatformSortField 与旧 chips 同值域）
+    UIView *sortChipView = nil;
+    UILabel *sortChipLabel = nil;
+    _sortControl = [self ame_panelDropdownControlWithLabelText:localize(@"i18n_str_161", nil)
+                                                      chipView:&sortChipView
+                                                     chipLabel:&sortChipLabel];
+    _sortChipView = sortChipView;
+    _sortChipLabel = sortChipLabel;
+    _sortControl.accessibilityLabel = localize(@"i18n_str_161", nil);
+    [_sortControl addTarget:self
+                     action:@selector(ame_sortTapped)
+           forControlEvents:UIControlEventTouchUpInside];
+    [panelStack addArrangedSubview:_sortControl];
+
+    // ② 页码控制器（ZL2 PageController："1 / 500" + 前后翻页；列表列顶部居中）
+    _paginationBar = [[UIView alloc] init];
+    _paginationBar.backgroundColor = [ZL2Theme surfaceContainer];
+    _paginationBar.layer.cornerRadius = [ZL2Theme radiusS];
+    _paginationBar.layer.masksToBounds = YES;
+    _paginationBar.translatesAutoresizingMaskIntoConstraints = NO;
+    _paginationBar.hidden = !isSearchMode;
+    [self.view addSubview:_paginationBar];
+
+    UIStackView *pageStack = [[UIStackView alloc] init];
+    pageStack.axis = UILayoutConstraintAxisHorizontal;
+    pageStack.alignment = UIStackViewAlignmentCenter;
+    pageStack.spacing = 10;
+    pageStack.translatesAutoresizingMaskIntoConstraints = NO;
+    [_paginationBar addSubview:pageStack];
+
+    _prevPageButton = [UIButton buttonWithType:UIButtonTypeCustom];
+    UIImage *prevIcon = ZL2AssetSystemImage(@"chevron.left", @"chevron.left");
+    [_prevPageButton setImage:[prevIcon imageWithRenderingMode:UIImageRenderingModeAlwaysTemplate]
+                     forState:UIControlStateNormal];
+    _prevPageButton.tintColor = [ZL2Theme onSurface];
+    _prevPageButton.translatesAutoresizingMaskIntoConstraints = NO;
+    _prevPageButton.accessibilityLabel = @"上一页";
+    [_prevPageButton addTarget:self
+                        action:@selector(ame_prevPageTapped)
+              forControlEvents:UIControlEventTouchUpInside];
+    [pageStack addArrangedSubview:_prevPageButton];
+    [_prevPageButton.widthAnchor constraintEqualToConstant:32].active = YES;
+    [_prevPageButton.heightAnchor constraintEqualToConstant:32].active = YES;
+
+    _pageInfoLabel = [[UILabel alloc] init];
+    _pageInfoLabel.font = [ZL2Theme fontLabelLarge];
+    _pageInfoLabel.textColor = [ZL2Theme onSurface];
+    _pageInfoLabel.numberOfLines = 1;
+    _pageInfoLabel.textAlignment = NSTextAlignmentCenter;
+    _pageInfoLabel.translatesAutoresizingMaskIntoConstraints = NO;
+    _pageInfoLabel.text = @"第 1 页";
+    [pageStack addArrangedSubview:_pageInfoLabel];
+
+    _nextPageButton = [UIButton buttonWithType:UIButtonTypeCustom];
+    UIImage *nextIcon = ZL2AssetSystemImage(@"chevron.right", @"chevron.right");
+    [_nextPageButton setImage:[nextIcon imageWithRenderingMode:UIImageRenderingModeAlwaysTemplate]
+                     forState:UIControlStateNormal];
+    _nextPageButton.tintColor = [ZL2Theme onSurface];
+    _nextPageButton.translatesAutoresizingMaskIntoConstraints = NO;
+    _nextPageButton.accessibilityLabel = @"下一页";
+    [_nextPageButton addTarget:self
+                        action:@selector(ame_nextPageTapped)
+              forControlEvents:UIControlEventTouchUpInside];
+    [pageStack addArrangedSubview:_nextPageButton];
+    [_nextPageButton.widthAnchor constraintEqualToConstant:32].active = YES;
+    [_nextPageButton.heightAnchor constraintEqualToConstant:32].active = YES;
+
+    // ③ 结果列表（UITableView + ZL2 真机卡 cell；页码语义整页替换，无滚动续载）
     _tableView = [[UITableView alloc] initWithFrame:CGRectZero style:UITableViewStylePlain];
     _tableView.backgroundColor = [UIColor clearColor];
     _tableView.separatorStyle = UITableViewCellSeparatorStyleNone;
     _tableView.dataSource = self;
     _tableView.delegate = self;
-    _tableView.rowHeight = 100;
+    _tableView.rowHeight = 128;
     _tableView.estimatedRowHeight = 0;
     _tableView.keyboardDismissMode = UIScrollViewKeyboardDismissModeOnDrag;
     _tableView.translatesAutoresizingMaskIntoConstraints = NO;
@@ -753,7 +977,7 @@ static NSInteger const ZL2AssetSearchPageSize = 30;
     [self.view addSubview:_tableView];
     [_tableView registerClass:[ZL2AssetResultCell class] forCellReuseIdentifier:@"ZL2AssetResultCell"];
 
-    // ④ 空态（初始引导 / 无结果；ZL2Versions 空态同款手法：图标 68pt + 文案）
+    // ④ 空态（无结果 / 源不可用；进门即搜后不再有引导态）
     _emptyContainer = [[UIView alloc] init];
     _emptyContainer.translatesAutoresizingMaskIntoConstraints = NO;
     _emptyContainer.hidden = YES;
@@ -773,45 +997,48 @@ static NSInteger const ZL2AssetSearchPageSize = 30;
     _emptyLabel.translatesAutoresizingMaskIntoConstraints = NO;
     [_emptyContainer addSubview:_emptyLabel];
 
-    // ⑤ 加载指示（ZL2 Searching 态 LinearWavyProgressIndicator 的 iOS14 等价物）
+    // ⑤ 加载指示（首页拉取期列表中心 spinner）
     _loadingIndicator = [[UIActivityIndicatorView alloc] initWithActivityIndicatorStyle:UIActivityIndicatorViewStyleMedium];
     _loadingIndicator.color = [ZL2Theme primary];
     _loadingIndicator.hidesWhenStopped = YES;
     _loadingIndicator.translatesAutoresizingMaskIntoConstraints = NO;
     [self.view addSubview:_loadingIndicator];
 
-    NSLayoutConstraint *chipsHeight = [_chipsScroll.heightAnchor constraintEqualToConstant:0];
-    self.chipsHeightConstraint = chipsHeight;
+    // ⑥ 约束：列表列（左）+ 筛选面板（右 300pt，窄屏/收藏页整体让位）
+    _panelWidthConstraint = [_filterPanel.widthAnchor constraintEqualToConstant:300];
+    _tableToPanelConstraint = [_tableView.trailingAnchor constraintEqualToAnchor:_filterPanel.leadingAnchor constant:-4];
+    _panelWidthConstraint.active = NO;
+    _tableToPanelConstraint.active = NO;
+    // 窄屏/收藏页的等宽兑底（面板隐藏时列表仍需确定 trailing；与
+    // tableToPanel 不同时满足，低优先级自动让位不冲突）
+    NSLayoutConstraint *tableTrailingFallback =
+        [_tableView.trailingAnchor constraintEqualToAnchor:self.view.trailingAnchor constant:-8];
+    tableTrailingFallback.priority = 500;
 
+    UILayoutGuide *panelLG = _filterPanel.layoutMarginsGuide;
     [NSLayoutConstraint activateConstraints:@[
-        [_searchCapsule.topAnchor constraintEqualToAnchor:safe.topAnchor constant:8],
-        [_searchCapsule.leadingAnchor constraintEqualToAnchor:safe.leadingAnchor constant:16],
-        [_searchCapsule.heightAnchor constraintEqualToConstant:44],
+        [_filterPanel.topAnchor constraintEqualToAnchor:safe.topAnchor constant:8],
+        [_filterPanel.trailingAnchor constraintEqualToAnchor:self.view.trailingAnchor constant:-8],
+        [_filterPanel.bottomAnchor constraintLessThanOrEqualToAnchor:self.view.bottomAnchor],
 
-        [_sortToggleControl.leadingAnchor constraintEqualToAnchor:_searchCapsule.trailingAnchor constant:8],
-        [_sortToggleControl.centerYAnchor constraintEqualToAnchor:_searchCapsule.centerYAnchor],
-        [_sortToggleControl.widthAnchor constraintEqualToConstant:40],
-        [_sortToggleControl.heightAnchor constraintEqualToConstant:40],
-        [_sortToggleControl.trailingAnchor constraintEqualToAnchor:safe.trailingAnchor constant:-16],
+        [panelStack.topAnchor constraintEqualToAnchor:_filterPanel.topAnchor constant:4],
+        [panelStack.leadingAnchor constraintEqualToAnchor:_filterPanel.leadingAnchor constant:6],
+        [_filterPanel.trailingAnchor constraintEqualToAnchor:panelStack.trailingAnchor constant:6],
+        [panelStack.bottomAnchor constraintLessThanOrEqualToAnchor:_filterPanel.bottomAnchor constant:-4],
 
-        [searchIconView.leadingAnchor constraintEqualToAnchor:_searchCapsule.leadingAnchor constant:16],
-        [searchIconView.centerYAnchor constraintEqualToAnchor:_searchCapsule.centerYAnchor],
-        [searchIconView.widthAnchor constraintEqualToConstant:18],
-        [searchIconView.heightAnchor constraintEqualToConstant:18],
+        [_paginationBar.topAnchor constraintEqualToAnchor:safe.topAnchor constant:8],
+        [_paginationBar.centerXAnchor constraintEqualToAnchor:_tableView.centerXAnchor],
+        [_paginationBar.heightAnchor constraintEqualToConstant:40],
 
-        [_searchField.leadingAnchor constraintEqualToAnchor:searchIconView.trailingAnchor constant:10],
-        [_searchField.trailingAnchor constraintEqualToAnchor:_searchCapsule.trailingAnchor constant:-12],
-        [_searchField.topAnchor constraintEqualToAnchor:_searchCapsule.topAnchor],
-        [_searchField.bottomAnchor constraintEqualToAnchor:_searchCapsule.bottomAnchor],
+        [pageStack.topAnchor constraintEqualToAnchor:_paginationBar.topAnchor],
+        [pageStack.bottomAnchor constraintEqualToAnchor:_paginationBar.bottomAnchor],
+        [pageStack.leadingAnchor constraintEqualToAnchor:_paginationBar.leadingAnchor constant:12],
+        [_paginationBar.trailingAnchor constraintEqualToAnchor:pageStack.trailingAnchor constant:12],
 
-        [_chipsScroll.topAnchor constraintEqualToAnchor:_searchCapsule.bottomAnchor constant:4],
-        [_chipsScroll.leadingAnchor constraintEqualToAnchor:safe.leadingAnchor],
-        [_chipsScroll.trailingAnchor constraintEqualToAnchor:safe.trailingAnchor],
-        chipsHeight,
-
-        [_tableView.topAnchor constraintEqualToAnchor:_chipsScroll.bottomAnchor],
+        [_tableView.topAnchor constraintEqualToAnchor:_paginationBar.bottomAnchor constant:6],
         [_tableView.leadingAnchor constraintEqualToAnchor:self.view.leadingAnchor],
-        [_tableView.trailingAnchor constraintEqualToAnchor:self.view.trailingAnchor],
+        _tableToPanelConstraint,
+        tableTrailingFallback,
         [_tableView.bottomAnchor constraintEqualToAnchor:self.view.bottomAnchor],
 
         [_emptyContainer.centerXAnchor constraintEqualToAnchor:_tableView.centerXAnchor],
@@ -832,65 +1059,180 @@ static NSInteger const ZL2AssetSearchPageSize = 30;
         [_loadingIndicator.centerYAnchor constraintEqualToAnchor:_tableView.centerYAnchor],
     ]];
 
-    // chips 行内容四边钉定（首尾 +16 内边距，与搜索行对齐）
-    UILayoutGuide *chipsLG = _chipsScroll.contentLayoutGuide;
-    [NSLayoutConstraint activateConstraints:@[
-        [_chipsStack.leadingAnchor constraintEqualToAnchor:chipsLG.leadingAnchor constant:16],
-        [chipsLG.trailingAnchor constraintEqualToAnchor:_chipsStack.trailingAnchor constant:16],
-        [_chipsStack.topAnchor constraintEqualToAnchor:chipsLG.topAnchor constant:4],
-        [chipsLG.bottomAnchor constraintEqualToAnchor:_chipsStack.bottomAnchor constant:4],
-    ]];
+    // panelLG 未消费（字段内边距由 panelStack 四边钉定承担）；声明防未用告警
+    (void)panelLG;
+
+    // 面板可见性随容器宽度收敛（收藏页恒隐藏；窄屏让位全宽列表）
+    [self ame_setFilterPanelVisible:(isSearchMode && self.view.bounds.size.width >= 560.0)];
+
+    // 搜索名称回调（0.5s 防抖 + return 立即）
+    __weak typeof(self) weakSelf = self;
+    self.nameSearchBar.onTextChanged = ^(NSString *text) {
+        __strong typeof(weakSelf) strongSelf = weakSelf;
+        [strongSelf ame_debouncedSearchText:(text ?: @"")];
+    };
+    self.nameSearchBar.onReturn = ^(NSString *text) {
+        __strong typeof(weakSelf) strongSelf = weakSelf;
+        if (!strongSelf) return;
+        [strongSelf ame_triggerSearchWithQuery:(text ?: @"")];
+    };
 }
 
-// 单枚排序 chip（ZL2DownloadViewController ame_chipAtIndex 同款规格：
-// 高 32 / 水平内边距 16 / radiusS / fontLabelMedium；无图标纯文字）
-- (UIControl *)ame_sortChipAtIndex:(NSUInteger)index {
-    UIControl *chip = [[UIControl alloc] init];
-    chip.backgroundColor = [ZL2Theme surfaceContainer];
-    chip.layer.cornerRadius = [ZL2Theme radiusS];
-    chip.translatesAutoresizingMaskIntoConstraints = NO;
-    // tag 仅作 ame_sortChipTapped: 的排序下标载荷（不做 viewWithTag: 身份查找）
-    chip.tag = (NSInteger)index;
-    chip.isAccessibilityElement = YES;
-    chip.accessibilityLabel = localize(self.sortTitleKeys[index], nil);
-    chip.accessibilityTraits = UIAccessibilityTraitButton;
+// 通用面板单行字段（图标右置 + 值文本，ZL2 右栏字段形态；高度 48）
+- (UIControl *)ame_panelFieldControlWithIcon:(UIImage *)icon
+                                  valueLabel:(UILabel **)outValue {
+    UIControl *control = [[UIControl alloc] init];
+    control.backgroundColor = [ZL2Theme surfaceContainerHigh];
+    control.layer.cornerRadius = [ZL2Theme radiusM];
+    control.layer.masksToBounds = YES;
+    control.translatesAutoresizingMaskIntoConstraints = NO;
+
+    UIImageView *iconView = [[UIImageView alloc] initWithImage:[icon imageWithRenderingMode:UIImageRenderingModeAlwaysTemplate]];
+    iconView.tintColor = [ZL2Theme onSurfaceVariant];
+    iconView.contentMode = UIViewContentModeScaleAspectFit;
+    iconView.translatesAutoresizingMaskIntoConstraints = NO;
+    iconView.userInteractionEnabled = NO;
+    [control addSubview:iconView];
+
+    UILabel *valueLabel = [[UILabel alloc] init];
+    valueLabel.font = [ZL2Theme fontBodyLarge];
+    valueLabel.textColor = [ZL2Theme onSurfaceVariant];
+    valueLabel.numberOfLines = 1;
+    valueLabel.translatesAutoresizingMaskIntoConstraints = NO;
+    valueLabel.userInteractionEnabled = NO;
+    [control addSubview:valueLabel];
+
+    [NSLayoutConstraint activateConstraints:@[
+        [control.heightAnchor constraintEqualToConstant:48],
+        [iconView.trailingAnchor constraintEqualToAnchor:control.trailingAnchor constant:-14],
+        [iconView.centerYAnchor constraintEqualToAnchor:control.centerYAnchor],
+        [iconView.widthAnchor constraintEqualToConstant:18],
+        [iconView.heightAnchor constraintEqualToConstant:18],
+        [valueLabel.leadingAnchor constraintEqualToAnchor:control.leadingAnchor constant:14],
+        [valueLabel.centerYAnchor constraintEqualToAnchor:control.centerYAnchor],
+        [valueLabel.trailingAnchor constraintLessThanOrEqualToAnchor:iconView.leadingAnchor constant:-8],
+    ]];
+    if (outValue) *outValue = valueLabel;
+    return control;
+}
+
+// 双行下拉字段（上行小标签 + 下行当前值 chip + 右缘 chevron，ZL2 目标平台/
+// 排序方式字段真机形态；高度 64）
+- (UIControl *)ame_panelDropdownControlWithLabelText:(NSString *)labelText
+                                            chipView:(UIView **)outChipView
+                                           chipLabel:(UILabel **)outChipLabel {
+    UIControl *control = [[UIControl alloc] init];
+    control.backgroundColor = [ZL2Theme surfaceContainerHigh];
+    control.layer.cornerRadius = [ZL2Theme radiusM];
+    control.layer.masksToBounds = YES;
+    control.translatesAutoresizingMaskIntoConstraints = NO;
 
     UILabel *label = [[UILabel alloc] init];
-    label.text = localize(self.sortTitleKeys[index], nil);
+    label.text = labelText;
     label.font = [ZL2Theme fontLabelMedium];
     label.textColor = [ZL2Theme onSurfaceVariant];
     label.numberOfLines = 1;
     label.translatesAutoresizingMaskIntoConstraints = NO;
-    [chip addSubview:label];
+    label.userInteractionEnabled = NO;
+    [control addSubview:label];
+
+    UIView *chipView = [[UIView alloc] init];
+    chipView.layer.cornerRadius = 8;
+    chipView.layer.masksToBounds = YES;
+    chipView.translatesAutoresizingMaskIntoConstraints = NO;
+    chipView.userInteractionEnabled = NO;
+    [control addSubview:chipView];
+
+    UILabel *chipLabel = [[UILabel alloc] init];
+    chipLabel.font = [ZL2Theme fontLabelMedium];
+    chipLabel.numberOfLines = 1;
+    chipLabel.translatesAutoresizingMaskIntoConstraints = NO;
+    chipLabel.userInteractionEnabled = NO;
+    [chipView addSubview:chipLabel];
+
+    UIImage *chevron = ZL2AssetSystemImage(@"chevron.down", @"chevron.down");
+    UIImageView *chevronView = [[UIImageView alloc] initWithImage:[chevron imageWithRenderingMode:UIImageRenderingModeAlwaysTemplate]];
+    chevronView.tintColor = [ZL2Theme onSurfaceVariant];
+    chevronView.contentMode = UIViewContentModeScaleAspectFit;
+    chevronView.translatesAutoresizingMaskIntoConstraints = NO;
+    chevronView.userInteractionEnabled = NO;
+    [control addSubview:chevronView];
 
     [NSLayoutConstraint activateConstraints:@[
-        [chip.heightAnchor constraintEqualToConstant:32],
-        [label.leadingAnchor constraintEqualToAnchor:chip.leadingAnchor constant:16],
-        [label.centerYAnchor constraintEqualToAnchor:chip.centerYAnchor],
-        [label.trailingAnchor constraintEqualToAnchor:chip.trailingAnchor constant:-16],
+        [control.heightAnchor constraintEqualToConstant:64],
+        [label.topAnchor constraintEqualToAnchor:control.topAnchor constant:9],
+        [label.leadingAnchor constraintEqualToAnchor:control.leadingAnchor constant:14],
+        [label.trailingAnchor constraintLessThanOrEqualToAnchor:chevronView.leadingAnchor constant:-8],
+
+        [chipView.topAnchor constraintEqualToAnchor:label.bottomAnchor constant:6],
+        [chipView.leadingAnchor constraintEqualToAnchor:control.leadingAnchor constant:14],
+        [chipView.heightAnchor constraintEqualToConstant:22],
+        [chipView.bottomAnchor constraintEqualToAnchor:control.bottomAnchor constant:-9],
+
+        [chipLabel.leadingAnchor constraintEqualToAnchor:chipView.leadingAnchor constant:8],
+        [chipLabel.trailingAnchor constraintEqualToAnchor:chipView.trailingAnchor constant:-8],
+        [chipLabel.centerYAnchor constraintEqualToAnchor:chipView.centerYAnchor],
+
+        [chevronView.trailingAnchor constraintEqualToAnchor:control.trailingAnchor constant:-14],
+        [chevronView.centerYAnchor constraintEqualToAnchor:control.centerYAnchor],
+        [chevronView.widthAnchor constraintEqualToConstant:14],
+        [chevronView.heightAnchor constraintEqualToConstant:14],
     ]];
-
-    [chip addTarget:self
-             action:@selector(ame_sortChipTapped:)
-   forControlEvents:UIControlEventTouchUpInside];
-
-    [_chipControls addObject:chip];
-    [_chipLabels addObject:label];
-    return chip;
+    if (outChipView) *outChipView = chipView;
+    if (outChipLabel) *outChipLabel = chipLabel;
+    return control;
 }
 
-- (void)ame_applyChipAppearance {
-    NSInteger selected = [self.sortValues indexOfObject:self.sortField ?: @""];
-    for (NSUInteger i = 0; i < self.chipControls.count; i++) {
-        BOOL isSelected = ((NSInteger)i == selected);
-        UIControl *chip = self.chipControls[i];
-        chip.backgroundColor = isSelected ? [ZL2Theme primaryContainer]
-                                          : [ZL2Theme surfaceContainer];
-        self.chipLabels[i].textColor = isSelected ? [ZL2Theme onPrimaryContainer]
-                                                  : [ZL2Theme onSurfaceVariant];
-        chip.accessibilityTraits = UIAccessibilityTraitButton |
-                                   (isSelected ? UIAccessibilityTraitSelected : 0);
+// 面板值外观同步（平台品牌色 chip / 排序当前值 / 已选版本号）
+- (void)ame_applyFilterPanelAppearance {
+    if (!self.platformChipLabel) return;   // buildViews 前/收藏页无面板
+    NSInteger source = [self ame_apiSourceForType];
+    self.platformChipLabel.text = (source == 2) ? @"CurseForge" : @"Modrinth";
+    self.platformChipView.backgroundColor = ZL2AssetSourceBadgeColor(source);
+    self.platformChipLabel.textColor = [UIColor whiteColor];
+
+    NSInteger sortIndex = [self.sortValues indexOfObject:(self.sortField ?: @"")];
+    NSString *sortTitle = @"相关性";
+    if (sortIndex >= 0 && sortIndex < (NSInteger)self.sortTitleKeys.count) {
+        NSString *localized = localize(self.sortTitleKeys[sortIndex], nil);
+        if (localized.length > 0) sortTitle = localized;
     }
+    self.sortChipLabel.text = sortTitle;
+    self.sortChipView.backgroundColor = [ZL2Theme surfaceBright];
+    self.sortChipLabel.textColor = [ZL2Theme onSurface];
+
+    NSString *versionText = self.gameVersionFilter;
+    if (![versionText isKindOfClass:[NSString class]]) versionText = @"";
+    if (versionText.length > 0) {
+        self.versionFieldValueLabel.text = versionText;
+        self.versionFieldValueLabel.textColor = [ZL2Theme onSurface];
+    } else {
+        self.versionFieldValueLabel.text = localize(@"dl.asset.filter.version", nil);
+        self.versionFieldValueLabel.textColor = [ZL2Theme onSurfaceVariant];
+    }
+}
+
+// 面板显隐收敛（宽态 ≥560pt 展示右栏；窄屏/收藏页列表全宽，ZL2 横屏语义）
+- (void)ame_setFilterPanelVisible:(BOOL)visible {
+    if (self.filterPanel.hidden != !visible) {
+        self.filterPanel.hidden = !visible;
+    }
+    if (self.panelWidthConstraint.isActive != visible) {
+        self.panelWidthConstraint.active = visible;
+    }
+    if (self.tableToPanelConstraint.isActive != visible) {
+        self.tableToPanelConstraint.active = visible;
+    }
+}
+
+- (void)viewDidLayoutSubviews {
+    [super viewDidLayoutSubviews];
+    if (self.favoritesMode) {
+        [self ame_setFilterPanelVisible:NO];
+        return;
+    }
+    BOOL wide = (self.view.bounds.size.width >= 560.0);
+    [self ame_setFilterPanelVisible:wide];
 }
 
 #pragma mark - 收藏模式（7.0-UI-14：收藏仓库直出 + 全链同构复用）
@@ -921,66 +1263,108 @@ static NSInteger const ZL2AssetSearchPageSize = 30;
     });
 }
 
-#pragma mark - 搜索触发（return 键 + 0.5s 防抖文本变化）
+#pragma mark - 搜索触发（0.5s 防抖文本变化 / 平台 / 排序）
 
-- (BOOL)textFieldShouldReturn:(UITextField *)textField {
-    [textField resignFirstResponder];
-    [self ame_triggerSearchWithQuery:(textField.text ?: @"")];
-    return YES;
-}
-
-- (void)ame_searchTextChanged:(UITextField *)textField {
+- (void)ame_debouncedSearchText:(NSString *)text {
     // 0.5s 防抖（任务规格）：代际号失效旧回调，停止输入 0.5s 后自动触发
-    NSString *text = textField.text ?: @"";
+    NSString *value = text ?: @"";
     self.inputGeneration += 1;
     NSInteger gen = self.inputGeneration;
     dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.5 * NSEC_PER_SEC)),
                    dispatch_get_main_queue(), ^{
         if (gen != self.inputGeneration) return;   // 0.5s 内又有输入
-        if ([text isEqualToString:self.searchQuery ?: @""]) return;   // 内容未变不重搜
-        [self ame_triggerSearchWithQuery:text];
+        if ([value isEqualToString:self.searchQuery ?: @""]) return;   // 内容未变不重搜
+        [self ame_triggerSearchWithQuery:value];
     });
 }
 
-- (void)ame_sortToggleTapped {
-    // 展开/收起排序 chips 行（高度 0 ↔ 40 平滑收展）
-    self.chipsExpanded = !self.chipsExpanded;
-    self.chipsScroll.hidden = NO;   // 收起态高度 0，无视觉占位
-    self.chipsHeightConstraint.constant = self.chipsExpanded ? 40 : 0;
-    [UIView animateWithDuration:0.18 animations:^{
-        [self.view layoutIfNeeded];
-    }];
+// 目标平台下拉（Modrinth / CurseForge；选择持久化进下载源偏好并整页重搜；
+// 存档类别 Modrinth 无 world facet，入口已禁用不达此处）
+- (void)ame_platformTapped {
+    __weak typeof(self) weakSelf = self;
+    UIAlertController *sheet = [UIAlertController alertControllerWithTitle:localize(@"dl.asset.filter.platform", nil)
+                                                                  message:nil
+                                                           preferredStyle:UIAlertControllerStyleActionSheet];
+    [sheet addAction:[UIAlertAction actionWithTitle:@"Modrinth"
+                                              style:UIAlertActionStyleDefault
+                                            handler:^(UIAlertAction *action) {
+        __strong typeof(weakSelf) strongSelf = weakSelf;
+        [strongSelf ame_applyPlatform:1];
+    }]];
+    [sheet addAction:[UIAlertAction actionWithTitle:@"CurseForge"
+                                              style:UIAlertActionStyleDefault
+                                            handler:^(UIAlertAction *action) {
+        __strong typeof(weakSelf) strongSelf = weakSelf;
+        [strongSelf ame_applyPlatform:2];
+    }]];
+    [sheet addAction:[UIAlertAction actionWithTitle:localize(@"i18n_str_84", nil)
+                                              style:UIAlertActionStyleCancel
+                                            handler:nil]];
+    sheet.popoverPresentationController.sourceView = self.platformControl;
+    sheet.popoverPresentationController.sourceRect = self.platformControl.bounds;
+    [self presentViewController:sheet animated:YES completion:nil];
 }
 
-- (void)ame_sortChipTapped:(UIControl *)sender {
-    NSInteger index = sender.tag;
-    if (index < 0 || index >= (NSInteger)self.sortValues.count) return;
-    NSString *next = self.sortValues[index];
-    if ([next isEqualToString:self.sortField ?: @""]) return;
-    self.sortField = next;
-    [self ame_applyChipAppearance];
-    // 已有搜索词时立即按新排序重搜；引导态仅记住选择
-    if (self.hasSearched) {
-        [self ame_triggerSearchWithQuery:(self.searchQuery ?: @"")];
+- (void)ame_applyPlatform:(NSInteger)platform {
+    if (platform != 1 && platform != 2) return;
+    if (platform == self.platformOverride) return;
+    self.platformOverride = platform;
+    [PLPreferences setDownloadSource:(platform == 2 ? @"curseforge" : @"modrinth")
+                            forType:[self ame_typeToken]];
+    [self ame_applyFilterPanelAppearance];
+    [self ame_triggerSearchWithQuery:(self.searchQuery ?: @"")];
+}
+
+// 排序方式下拉（五档 PlatformSortField；ZL2 下拉菜单语义的 iOS 等价物）
+- (void)ame_sortTapped {
+    __weak typeof(self) weakSelf = self;
+    UIAlertController *sheet = [UIAlertController alertControllerWithTitle:localize(@"i18n_str_161", nil)
+                                                                  message:nil
+                                                           preferredStyle:UIAlertControllerStyleActionSheet];
+    for (NSUInteger i = 0; i < self.sortValues.count; i++) {
+        NSString *value = self.sortValues[i];
+        NSString *title = localize(self.sortTitleKeys[i], nil);
+        if (title.length == 0) title = value;
+        [sheet addAction:[UIAlertAction actionWithTitle:title
+                                                  style:UIAlertActionStyleDefault
+                                                handler:^(UIAlertAction *action) {
+            __strong typeof(weakSelf) strongSelf = weakSelf;
+            if (!strongSelf) return;
+            if ([value isEqualToString:strongSelf.sortField ?: @""]) return;
+            strongSelf.sortField = value;
+            [strongSelf ame_applyFilterPanelAppearance];
+            [strongSelf ame_triggerSearchWithQuery:(strongSelf.searchQuery ?: @"")];
+        }]];
     }
+    [sheet addAction:[UIAlertAction actionWithTitle:localize(@"i18n_str_84", nil)
+                                              style:UIAlertActionStyleCancel
+                                            handler:nil]];
+    sheet.popoverPresentationController.sourceView = self.sortControl;
+    sheet.popoverPresentationController.sourceRect = self.sortControl.bounds;
+    [self presentViewController:sheet animated:YES completion:nil];
 }
 
 - (void)ame_triggerSearchWithQuery:(NSString *)query {
     self.searchQuery = query ?: @"";
     self.hasSearched = YES;
+    self.currentPage = 1;
+    self.knownTotalCount = 0;
     self.requestGeneration += 1;   // 新搜索使在途响应过期
     [self ame_loadListWithReset:YES];
 }
 
 #pragma mark - 数据加载（旧页 loadXxxList 语义等价移植）
 
+#pragma mark - 数据加载（7.0-UI-16：ZL2 PageController 页码语义整页替换）
+
 - (void)ame_loadListWithReset:(BOOL)reset {
     if (reset) {
-        self.currentOffset = 0;
+        self.currentOffset = (self.currentPage - 1) * ZL2AssetSearchPageSize;
         self.hasMore = YES;
         [self.results removeAllObjects];
         [self.tableView reloadData];
         [self ame_refreshEmptyAndLoading];
+        [self ame_updatePaginationUI];
     }
     if (self.inFlight) {
         // 请求期间防重入（任务规格）：记住 latest-wins，当前请求收尾后自动补发
@@ -1029,6 +1413,11 @@ static NSInteger const ZL2AssetSearchPageSize = 30;
     if (self.sortField.length > 0) {
         filters[@"sort"] = self.sortField;
     }
+    // 游戏版本筛选（右栏版本选择弹层；两平台 API 均消费 mcVersion 键：
+    // Modrinth facets versions:X / CurseForge gameVersion 参数）
+    if (self.gameVersionFilter.length > 0) {
+        filters[@"mcVersion"] = self.gameVersionFilter;
+    }
 
     NSInteger gen = self.requestGeneration;
     __weak typeof(self) weakSelf = self;
@@ -1040,7 +1429,7 @@ static NSInteger const ZL2AssetSearchPageSize = 30;
             if (!strongSelf) return;
             strongSelf.inFlight = NO;
 
-            // 过期响应防护：发起后搜索词/排序已变更（generation 已递增）直接丢弃；
+            // 过期响应防护：发起后搜索词/排序/页码已变更（generation 已递增）直接丢弃；
             // 若期间有新搜索排队（latest-wins）则补发
             if (gen != strongSelf.requestGeneration) {
                 if (strongSelf.pendingSearchAfterFlight) {
@@ -1051,17 +1440,23 @@ static NSInteger const ZL2AssetSearchPageSize = 30;
             }
 
             if (results) {
-                if (strongSelf.currentOffset == 0) {
-                    [strongSelf.results removeAllObjects];
-                }
+                // 页码语义：整页替换（ZL2 PageController 翻页口径，非滚动追加）
+                [strongSelf.results removeAllObjects];
                 [strongSelf.results addObjectsFromArray:results];
                 strongSelf.hasMore = ((NSInteger)results.count >= ZL2AssetSearchPageSize);
-                strongSelf.currentOffset += (NSInteger)results.count;
+                // 总页数来源：两平台搜索响应 total（桩/异常路径 0 = 未知，页码
+                // 退化为"第 N 页"；CurseForge pagination.totalCount / Modrinth total_hits）
+                if ([api isKindOfClass:[CurseForgeAPI class]]) {
+                    strongSelf.knownTotalCount = [(CurseForgeAPI *)api lastSearchTotalCount];
+                } else if ([api isKindOfClass:[ModrinthAPI class]]) {
+                    strongSelf.knownTotalCount = [(ModrinthAPI *)api lastSearchTotalCount];
+                }
                 [strongSelf.tableView reloadData];
             } else if (error) {
                 [strongSelf ame_showError:error.localizedDescription];
             }
             [strongSelf ame_refreshEmptyAndLoading];
+            [strongSelf ame_updatePaginationUI];
 
             if (strongSelf.pendingSearchAfterFlight) {
                 strongSelf.pendingSearchAfterFlight = NO;
@@ -1069,6 +1464,231 @@ static NSInteger const ZL2AssetSearchPageSize = 30;
             }
         });
     }];
+}
+
+#pragma mark - 页码控制器（ZL2 PageController）
+
+- (void)ame_updatePaginationUI {
+    if (self.favoritesMode) {
+        self.paginationBar.hidden = YES;
+        return;
+    }
+    self.paginationBar.hidden = NO;
+    BOOL hasTotal = (self.knownTotalCount > 0);
+    NSInteger totalPages = 0;
+    if (hasTotal) {
+        totalPages = (NSInteger)((self.knownTotalCount + (NSUInteger)ZL2AssetSearchPageSize - 1)
+                                 / (NSUInteger)ZL2AssetSearchPageSize);
+        if (totalPages < 1) totalPages = 1;
+    }
+    if (hasTotal) {
+        self.pageInfoLabel.text = [NSString stringWithFormat:@"%ld / %ld",
+                                   (long)self.currentPage, (long)totalPages];
+    } else {
+        self.pageInfoLabel.text = [NSString stringWithFormat:localize(@"dl.asset.page", nil), (long)self.currentPage];
+    }
+    BOOL prevEnabled = (self.currentPage > 1);
+    BOOL nextEnabled = hasTotal ? (self.currentPage < totalPages) : self.hasMore;
+    self.prevPageButton.enabled = prevEnabled;
+    self.nextPageButton.enabled = nextEnabled;
+    self.prevPageButton.alpha = prevEnabled ? 1.0 : 0.35;
+    self.nextPageButton.alpha = nextEnabled ? 1.0 : 0.35;
+}
+
+- (void)ame_prevPageTapped {
+    if (self.inFlight || self.currentPage <= 1) return;
+    self.currentPage -= 1;
+    self.requestGeneration += 1;
+    [self ame_loadListWithReset:YES];
+}
+
+- (void)ame_nextPageTapped {
+    if (self.inFlight) return;
+    if (self.knownTotalCount > 0) {
+        NSInteger totalPages = (NSInteger)((self.knownTotalCount + (NSUInteger)ZL2AssetSearchPageSize - 1)
+                                           / (NSUInteger)ZL2AssetSearchPageSize);
+        if (self.currentPage >= totalPages) return;
+    } else if (!self.hasMore) {
+        return;
+    }
+    self.currentPage += 1;
+    self.requestGeneration += 1;
+    [self ame_loadListWithReset:YES];
+}
+
+#pragma mark - 游戏版本选择弹层（ZL2 版本筛选对话框语义，M3 底部弹层承载）
+
+- (void)ame_versionFieldTapped {
+    if (self.versionSheetContent) return;   // 弹层已在展示中
+
+    CGFloat contentWidth = MIN(560.0, self.view.bounds.size.width - 48.0);
+    if (contentWidth < 280.0) contentWidth = 280.0;
+
+    UIView *content = [[UIView alloc] init];
+    content.backgroundColor = [ZL2Theme surfaceContainerLow];
+    content.translatesAutoresizingMaskIntoConstraints = NO;
+    content.layer.cornerRadius = [ZL2Theme radiusXL];
+    content.layer.masksToBounds = YES;
+    self.versionSheetContent = content;
+
+    UILabel *titleLabel = [[UILabel alloc] init];
+    titleLabel.text = localize(@"i18n_str_188", nil);
+    titleLabel.font = [ZL2Theme fontTitleMedium];
+    titleLabel.textColor = [ZL2Theme onSurface];
+    titleLabel.numberOfLines = 1;
+    titleLabel.translatesAutoresizingMaskIntoConstraints = NO;
+    [content addSubview:titleLabel];
+
+    UIButton *clearButton = [UIButton buttonWithType:UIButtonTypeCustom];
+    clearButton.titleLabel.font = [ZL2Theme fontLabelLarge];
+    [clearButton setTitle:localize(@"dl.asset.version.any", nil) forState:UIControlStateNormal];
+    [clearButton setTitleColor:[ZL2Theme primary] forState:UIControlStateNormal];
+    clearButton.translatesAutoresizingMaskIntoConstraints = NO;
+    clearButton.accessibilityLabel = localize(@"dl.asset.version.any", nil);
+    [clearButton addTarget:self
+                    action:@selector(ame_versionCleared)
+          forControlEvents:UIControlEventTouchUpInside];
+    [content addSubview:clearButton];
+
+    // 弹层内搜索（版本清单 900+ 条，内筛快速定位）
+    UIView *sheetSearchCapsule = [[UIView alloc] init];
+    sheetSearchCapsule.backgroundColor = [ZL2Theme surfaceContainerHigh];
+    sheetSearchCapsule.layer.cornerRadius = [ZL2Theme radiusS];
+    sheetSearchCapsule.layer.masksToBounds = YES;
+    sheetSearchCapsule.translatesAutoresizingMaskIntoConstraints = NO;
+    [content addSubview:sheetSearchCapsule];
+
+    UIImageView *sheetSearchIcon = [[UIImageView alloc] initWithImage:[ZL2AssetSystemImage(@"magnifyingglass", @"search") imageWithRenderingMode:UIImageRenderingModeAlwaysTemplate]];
+    sheetSearchIcon.tintColor = [ZL2Theme onSurfaceVariant];
+    sheetSearchIcon.contentMode = UIViewContentModeScaleAspectFit;
+    sheetSearchIcon.translatesAutoresizingMaskIntoConstraints = NO;
+    sheetSearchIcon.userInteractionEnabled = NO;
+    [sheetSearchCapsule addSubview:sheetSearchIcon];
+
+    UITextField *sheetSearchField = [[UITextField alloc] init];
+    sheetSearchField.placeholder = localize(@"i18n_str_155", nil);
+    sheetSearchField.font = [ZL2Theme fontBodyLarge];
+    sheetSearchField.textColor = [ZL2Theme onSurface];
+    sheetSearchField.autocorrectionType = UITextAutocorrectionTypeNo;
+    sheetSearchField.autocapitalizationType = UITextAutocapitalizationTypeNone;
+    sheetSearchField.clearButtonMode = UITextFieldViewModeWhileEditing;
+    sheetSearchField.returnKeyType = UIReturnKeySearch;
+    sheetSearchField.translatesAutoresizingMaskIntoConstraints = NO;
+    sheetSearchField.accessibilityLabel = localize(@"i18n_str_155", nil);
+    [sheetSearchCapsule addSubview:sheetSearchField];
+    [sheetSearchField addTarget:self
+                         action:@selector(ame_sheetSearchChanged:)
+               forControlEvents:UIControlEventEditingChanged];
+
+    UITableView *sheetTable = [[UITableView alloc] initWithFrame:CGRectZero style:UITableViewStylePlain];
+    sheetTable.backgroundColor = [UIColor clearColor];
+    sheetTable.separatorStyle = UITableViewCellSeparatorStyleNone;
+    sheetTable.keyboardDismissMode = UIScrollViewKeyboardDismissModeOnDrag;
+    sheetTable.translatesAutoresizingMaskIntoConstraints = NO;
+    sheetTable.accessibilityLabel = @"版本列表";
+    [content addSubview:sheetTable];
+    [sheetTable registerClass:[UITableViewCell class] forCellReuseIdentifier:@"ZL2VersionSheetCell"];
+
+    ZL2VersionSheetHandler *handler = [[ZL2VersionSheetHandler alloc] init];
+    handler.table = sheetTable;
+    self.sheetHandler = handler;
+    sheetTable.dataSource = handler;
+    sheetTable.delegate = handler;
+
+    __weak typeof(self) weakSelf = self;
+    __weak typeof(content) weakContent = content;
+    handler.onPick = ^(NSString *versionId) {
+        __strong typeof(weakSelf) strongSelf = weakSelf;
+        if (!strongSelf) return;
+        [ZL2M3BottomSheet dismissWithContentView:content];
+        strongSelf.gameVersionFilter = versionId;
+        [strongSelf ame_applyFilterPanelAppearance];
+        [strongSelf ame_triggerSearchWithQuery:(strongSelf.searchQuery ?: @"")];
+    };
+
+    [NSLayoutConstraint activateConstraints:@[
+        [content.widthAnchor constraintEqualToConstant:contentWidth],
+        [content.heightAnchor constraintEqualToConstant:480],
+
+        [titleLabel.topAnchor constraintEqualToAnchor:content.topAnchor constant:18],
+        [titleLabel.leadingAnchor constraintEqualToAnchor:content.leadingAnchor constant:20],
+
+        [clearButton.centerYAnchor constraintEqualToAnchor:titleLabel.centerYAnchor],
+        [clearButton.trailingAnchor constraintEqualToAnchor:content.trailingAnchor constant:-20],
+
+        [sheetSearchCapsule.topAnchor constraintEqualToAnchor:titleLabel.bottomAnchor constant:12],
+        [sheetSearchCapsule.leadingAnchor constraintEqualToAnchor:content.leadingAnchor constant:20],
+        [sheetSearchCapsule.trailingAnchor constraintEqualToAnchor:content.trailingAnchor constant:-20],
+        [sheetSearchCapsule.heightAnchor constraintEqualToConstant:40],
+
+        [sheetSearchIcon.leadingAnchor constraintEqualToAnchor:sheetSearchCapsule.leadingAnchor constant:12],
+        [sheetSearchIcon.centerYAnchor constraintEqualToAnchor:sheetSearchCapsule.centerYAnchor],
+        [sheetSearchIcon.widthAnchor constraintEqualToConstant:16],
+        [sheetSearchIcon.heightAnchor constraintEqualToConstant:16],
+
+        [sheetSearchField.leadingAnchor constraintEqualToAnchor:sheetSearchIcon.trailingAnchor constant:8],
+        [sheetSearchField.trailingAnchor constraintEqualToAnchor:sheetSearchCapsule.trailingAnchor constant:-10],
+        [sheetSearchField.topAnchor constraintEqualToAnchor:sheetSearchCapsule.topAnchor],
+        [sheetSearchField.bottomAnchor constraintEqualToAnchor:sheetSearchCapsule.bottomAnchor],
+
+        [sheetTable.topAnchor constraintEqualToAnchor:sheetSearchCapsule.bottomAnchor constant:8],
+        [sheetTable.leadingAnchor constraintEqualToAnchor:content.leadingAnchor constant:8],
+        [sheetTable.trailingAnchor constraintEqualToAnchor:content.trailingAnchor constant:-8],
+        [sheetTable.bottomAnchor constraintEqualToAnchor:content.bottomAnchor constant:-12],
+    ]];
+
+    // 版本清单加载（ZL2VersionIndex 单例：未落定时限时等待，回调恒主线程；
+    // latest-* 种子别名不是真实版本号，滤除；弹层已收时静默丢弃）
+    [ZL2VersionIndex.sharedIndex remoteVersionsWithCompletion:^(NSArray<NSDictionary<NSString *, id> *> *versions, BOOL loaded) {
+        dispatch_async(dispatch_get_main_queue(), ^{
+            __strong typeof(weakSelf) strongSelf = weakSelf;
+            if (!strongSelf || strongSelf.versionSheetContent != weakContent) return;
+            NSMutableOrderedSet<NSString *> *ids = [NSMutableOrderedSet orderedSet];
+            for (NSDictionary *entry in versions) {
+                if (![entry isKindOfClass:[NSDictionary class]]) continue;
+                NSString *versionId = entry[@"id"];
+                if (![versionId isKindOfClass:[NSString class]] || versionId.length == 0) continue;
+                if ([versionId hasPrefix:@"latest-"]) continue;
+                [ids addObject:versionId];
+            }
+            ZL2VersionSheetHandler *sheetHandler = (ZL2VersionSheetHandler *)strongSelf.sheetHandler;
+            sheetHandler.allVersions = [ids array];
+            [sheetHandler reloadFilterWithText:sheetSearchField.text ?: @""];
+        });
+    }];
+
+    [ZL2M3BottomSheet presentWithContentView:content
+                                  onDismiss:^{
+        __strong typeof(weakSelf) strongSelf = weakSelf;
+        if (!strongSelf) return;
+        strongSelf.versionSheetContent = nil;
+        strongSelf.sheetHandler = nil;
+    }];
+}
+
+- (void)ame_sheetSearchChanged:(UITextField *)field {
+    ZL2VersionSheetHandler *handler = (ZL2VersionSheetHandler *)self.sheetHandler;
+    if (!handler) return;
+    [handler reloadFilterWithText:(field.text ?: @"")];
+}
+
+- (void)ame_versionCleared {
+    UIView *content = self.versionSheetContent;
+    if (content) {
+        [ZL2M3BottomSheet dismissWithContentView:content];
+    }
+    self.gameVersionFilter = nil;
+    [self ame_applyFilterPanelAppearance];
+    [self ame_triggerSearchWithQuery:(self.searchQuery ?: @"")];
+}
+
+#pragma mark - 导入整合包（ZL2 SearchModPackScreen 右栏同位按钮；旧页导入流 1:1）
+
+- (void)ame_importTapped {
+    // 旧页 openImportModpackView（DownloadViewController.m L4701-4705）同款：
+    // push ModpackImportViewController，文件选择/解析/导入全链由该页承载
+    ModpackImportViewController *importVC = [[ModpackImportViewController alloc] init];
+    [self ame_pushViewController:importVC];
 }
 
 #pragma mark - UITableView DataSource / Delegate
@@ -1097,11 +1717,8 @@ static NSInteger const ZL2AssetSearchPageSize = 30;
     }
     __weak typeof(self) weakSelf = self;
     NSInteger row = indexPath.row;
-    cell.onDownload = ^{
-        __strong typeof(weakSelf) strongSelf = weakSelf;
-        if (!strongSelf) return;
-        [strongSelf ame_openResultAtIndex:row];
-    };
+    // 7.0-UI-16：卡面独立下载钮退役（ZL2 真机卡无此件），点卡进版本页由
+    // didSelectRow 承担；收藏心形保留（搜索卡与收藏页共用 toggle）
     cell.onFavorite = ^{
         __strong typeof(weakSelf) strongSelf = weakSelf;
         if (!strongSelf) return;
@@ -1123,19 +1740,15 @@ static NSInteger const ZL2AssetSearchPageSize = 30;
 }
 
 - (void)tableView:(UITableView *)tableView willDisplayCell:(UITableViewCell *)cell forRowAtIndexPath:(NSIndexPath *)indexPath {
-    // 滚到底自动加载下一页（旧页 hasMoreXxx/loadXxxList 语义，临近底部 3 行预触发）
-    if (self.hasMore && !self.inFlight && self.results.count > 0 &&
-        indexPath.row >= (NSInteger)self.results.count - 3) {
-        [self ame_loadListWithReset:NO];
-    }
-    // 图标预取（旧页 prefetchIconsForTableView 同款：后续 5 个 cell 图标进缓存）
+    // 图标预取（旧页 prefetchIconsForTableView 同款：后续 5 个 cell 图标进缓存；
+    // 7.0-UI-16 起分页走页码控制器，滚动续载判定移除，预取保留）
     for (NSInteger row = indexPath.row + 1; row <= indexPath.row + 5; row++) {
         if (row >= (NSInteger)self.results.count) break;
         NSDictionary *item = self.results[row];
         NSString *iconUrl = item[@"imageUrl"];
         if (![iconUrl isKindOfClass:[NSString class]] || iconUrl.length == 0) iconUrl = item[@"icon_url"];
         if ([iconUrl isKindOfClass:[NSString class]] && iconUrl.length > 0) {
-            [IconLoader prefetchIconWithURL:iconUrl targetSize:CGSizeMake(56, 56)];
+            [IconLoader prefetchIconWithURL:iconUrl targetSize:CGSizeMake(72, 72)];
         }
     }
 }
@@ -2017,14 +2630,15 @@ static NSInteger const ZL2AssetSearchPageSize = 30;
 // 结果非空 → 隐藏。加载指示仅在"加载中且无结果"时显示（分页追加不打断列表）
 - (void)ame_refreshEmptyAndLoading {
     BOOL hasResults = (self.results.count > 0);
+    self.emptyContainer.hidden = hasResults;
     if (!hasResults) {
-        if (!self.hasSearched) {
-            NSString *symbol = [self ame_guideSymbol];
-            [self ame_showEmptyStateWithIcon:symbol
-                                    fallback:[symbol stringByAppendingString:@".fill"]
-                                        text:[self ame_guideText]];
+        // 进门即搜后 hasSearched 恒 YES（收藏模式构造即 YES）；
+        // 空态只剩"暂无 X"（含收藏页空仓库）
+        NSString *key = nil;
+        if (self.favoritesMode) {
+            [self ame_showEmptyStateWithIcon:@"heart" fallback:@"heart.fill"
+                                        text:localize(@"dl.asset.favorites.empty", nil)];
         } else {
-            NSString *key = nil;
             switch (self.assetType) {
                 case ZL2AssetSearchTypeMod:          key = @"i18n_str_180"; break;   // 暂无模组
                 case ZL2AssetSearchTypeModpack:      key = @"i18n_str_182"; break;   // 暂无整合包
@@ -2033,10 +2647,8 @@ static NSInteger const ZL2AssetSearchPageSize = 30;
                 case ZL2AssetSearchTypeShader:       key = @"i18n_str_181"; break;   // 暂无光影
             }
             [self ame_showEmptyStateWithIcon:@"magnifyingglass" fallback:@"search"
-                                        text:localize(key, nil)];
+                                        text:localize(key ?: @"i18n_str_180", nil)];
         }
-    } else {
-        self.emptyContainer.hidden = YES;
     }
 
     if (self.inFlight && !hasResults) {
@@ -2073,3 +2685,4 @@ static NSInteger const ZL2AssetSearchPageSize = 30;
 }
 
 @end
+

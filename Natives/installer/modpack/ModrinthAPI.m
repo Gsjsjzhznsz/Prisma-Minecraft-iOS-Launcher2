@@ -348,6 +348,10 @@ static NSString *MRAMirrorResolvedURL(NSString *urlString) {
             modData[@"lastUpdated"] = item[@"date_modified"] ?: @"";
             [results addObject:modData];
         }
+        // 7.0-UI-16：总页数透传（ZL2 资产搜索页码控制器 "N / M" 源；
+        // total_hits 缺失/非数时归零，读侧退化为"第 N 页"）
+        self.lastSearchTotalCount = [json[@"total_hits"] isKindOfClass:[NSNumber class]]
+            ? [json[@"total_hits"] unsignedIntegerValue] : 0;
         if (completion) completion(results, nil);
     }];
 }

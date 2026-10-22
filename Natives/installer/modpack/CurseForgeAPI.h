@@ -13,6 +13,11 @@ extern NSString *const CurseForgeResponseSnippetKey;
 
 + (instancetype)sharedInstance;
 
+/// 7.0-UI-16：最近一次异步搜索响应的 pagination.totalCount（0 = 未知/未搜/
+/// 失败）。ZL2 资产搜索页码控制器 "N / M" 总页数来源；读侧在搜索完成回调
+/// 后消费，写侧在 ame169_issueSearchRequest 解析块内赋值。
+@property (nonatomic, assign) NSUInteger lastSearchTotalCount;
+
 /// 判断 CurseForge API Key 是否已配置（运行时偏好 + 编译时宏 + Info.plist 三层 fallback）
 /// 用于 UI 门控判断，与实际请求时的 apiKey getter 保持一致
 + (BOOL)isAPIKeyConfigured;
