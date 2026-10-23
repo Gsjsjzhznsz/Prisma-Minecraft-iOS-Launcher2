@@ -9,7 +9,9 @@
 #import "UnzipKit.h"
 #import "ios_uikit_bridge.h"
 #import "BackgroundManager.h"
-#import "AmeTheme.h"   // ★ 7.0-UI-5d：Fluent 设计令牌（颜色/字体单一事实源）
+#import "AmeTheme.h"   // ★ 7.0-UI-5d
+#import "AmePluginRuntime.h"   // Task317：Fluent 设计令牌（颜色/字体单一事实源）
+#import "AmePluginRuntime.h"   // Task317：插件事件接线（game.starting / game.exited）
 #include "glfw_keycodes.h"
 #include "utils.h"
 
@@ -383,7 +385,10 @@ dispatch_async(dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_DEFAULT, 0), ^{
         });
         return;
     }
-    launchJVM(nil, strongSelf.filepath, windowWidth, windowHeight, javaVer);
+    // Task317: game.starting / game.exited (same contract as SurfaceViewController main chain)
+    [AmePluginRuntime notifyGameStarting];
+    int ame317Result = launchJVM(nil, strongSelf.filepath, windowWidth, windowHeight, javaVer);
+    [AmePluginRuntime notifyGameExited:ame317Result];
     strongSelf->_requiredJavaVersion = 0;
 });
 

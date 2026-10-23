@@ -1,0 +1,355 @@
+#import "AmePluginRuntime.h"
+#import "AmePluginKit.h"
+
+#import <UIKit/UIKit.h>
+#import <JavaScriptCore/JavaScriptCore.h>
+
+// ═══════════════════════════════════════════════════════════════════
+// AmePlugin 运行时实现（Task 317）
+// 口径注释：
+//  · 每插件独立 JSContext；上下文仅主队列访问（bootstrap/事件/回调同队
+//    列串行，无锁口径）；teardown 与 load 亦主队列
+//  · context.exceptionHandler 兜底：插件未捕获异常只记录不崩进程
+//  · 主题令牌还原本地记账：_themeTokensByPlugin 保存每插件上次覆盖，
+//    停用时 setPluginThemeTokens:nil 精确回收自己的令牌
+//  · 前后台/实例事件经 NSNotificationCenter 订阅一次（单例生命周期）
+// ═══════════════════════════════════════════════════════════════════
+
+@interface AmePluginRuntime ()
+@property (nonatomic, strong) NSMutableDictionary<NSString *, JSContext *> *contexts;
+@property (nonatomic, strong) NSMutableDictionary<NSString *, AmePluginBridge *> *bridges;
+@property (nonatomic, strong) NSMutableDictionary<NSString *, NSDictionary<NSString *, NSString *> *> *themeTokensByPlugin;
+@property (nonatomic, assign) BOOL booted;
+@end
+
+@implementation AmePluginRuntime
+
++ (instancetype)sharedRuntime {
+    static AmePluginRuntime *rt = nil;
+    static dispatch_once_t once;
+    dispatch_once(&once, ^{
+        rt = [[AmePluginRuntime alloc] init];
+    });
+    return rt;
+}
+
+- (instancetype)init {
+    self = [super init];
+    if (self) {
+        _contexts = [NSMutableDictionary dictionary];
+        _bridges = [NSMutableDictionary dictionary];
+        _themeTokensByPlugin = [NSMutableDictionary dictionary];
+    }
+    return self;
+}
+
+#pragma mark - 门面（友好 JS API 名）
+
+// JSC 桥方法名规则 = 选择器去冒号拼接（on:handler: → onHandler），
+// 门面把外部 API 整形成 ame.on/dialog/storage.* 等惯用形态。
+static NSString *ame317_facadeSource(void) {
+    return @"(function(raw){"
+    "var ame={};"
+    "ame.log=function(m){return raw.log(String(m));};"
+    "ame.toast=function(t){return raw.toast(String(t));};"
+    "ame.dialog=function(spec,cb){return raw.dialogCallback(spec||{},cb||function(){});};"
+    "ame.on=function(ev,fn){return raw.onHandler(String(ev),fn||function(){});};"
+    "ame.off=function(ev){return raw.off(ev===undefined?'':String(ev));};"
+    "ame.addLauncherRow=function(spec,cb){return raw.addLauncherRowHandler(spec||{},cb||function(){});};"
+    "ame.setThemeToken=function(tokens){return raw.setThemeToken(tokens||{});};"
+    "ame.getPref=function(k){return raw.getPref(String(k));};"
+    "ame.setPref=function(k,v){return raw.setPrefValue(String(k),v);};"
+    "ame.getRenderer=function(){return raw.getRenderer();};"
+    "ame.setRenderer=function(cfg){return raw.setRenderer(cfg||{});};"
+    "ame.getProfiles=function(){return raw.getProfiles();};"
+    "ame.storage={"
+    "get:function(k){return raw.storageGet(String(k));},"
+    "set:function(k,v){return raw.storageSet(String(k),v);},"
+    "remove:function(k){return raw.storageRemove(String(k));},"
+    "keys:function(){return raw.storageKeys();}};"
+    "ame.fetch=function(url,opts,cb){"
+    "if(typeof opts==='function'){cb=opts;opts={};}"
+    "return raw.fetchOptionsCallback(String(url),opts||{},cb||function(){});};"
+    "return ame;"
+    "})(ameRaw);";
+}
+
+#pragma mark - 装载 / 卸载
+
++ (void)bootIfNeeded {
+    if (![NSThread isMainThread]) {
+        dispatch_async(dispatch_get_main_queue(), ^{ [self bootIfNeeded]; });
+        return;
+    }
+    AmePluginRuntime *rt = [self sharedRuntime];
+    if (rt.booted) return;
+    rt.booted = YES;
+    [rt ame317_observeSystemEvents];
+
+    for (NSString *pid in [AmePluginManager installedPluginIds]) {
+        AmePluginManifest *m = [AmePluginManager manifestForPlugin:pid];
+        if (!m) {
+            NSLog(@"[AmePlugin] 跳过损坏插件目录: %@", pid);
+            continue;
+        }
+        if (![AmePluginPermissions pluginEnabled:pid]) continue;
+        [rt ame317_loadPlugin:pid manifest:m dispatchLaunchEvent:YES];
+    }
+}
+
++ (void)setPluginEnabled:(NSString *)pluginId enabled:(BOOL)enabled {
+    if (pluginId.length == 0) return;
+    if (![NSThread isMainThread]) {
+        dispatch_async(dispatch_get_main_queue(), ^{
+            [self setPluginEnabled:pluginId enabled:enabled];
+        });
+        return;
+    }
+    AmePluginRuntime *rt = [self sharedRuntime];
+    if (enabled) {
+        AmePluginManifest *m = [AmePluginManager manifestForPlugin:pluginId];
+        if (!m) return;
+        if (rt.contexts[pluginId]) return; // 已在跑
+        [rt ame317_loadPlugin:pluginId manifest:m dispatchLaunchEvent:YES];
+    } else {
+        [rt ame317_unloadPlugin:pluginId];
+    }
+    [AmePluginPermissions setPluginEnabled:enabled pluginId:pluginId];
+}
+
++ (BOOL)isRunning:(NSString *)pluginId {
+    return [self sharedRuntime].contexts[pluginId] != nil;
+}
+
+- (void)ame317_loadPlugin:(NSString *)pluginId
+                 manifest:(AmePluginManifest *)m
+      dispatchLaunchEvent:(BOOL)dispatchLaunchEvent {
+    NSAssert([NSThread isMainThread], @"AmePlugin 装载必须主线程");
+    if (self.contexts[pluginId]) return;
+
+    NSString *entryPath = [AmePluginManager entryPathForPlugin:pluginId];
+    if (!entryPath) {
+        NSLog(@"[AmePlugin:%@] 入口脚本缺失，跳过", pluginId);
+        return;
+    }
+    NSString *source = [NSString stringWithContentsOfFile:entryPath
+                                                 encoding:NSUTF8StringEncoding
+                                                    error:nil];
+    if (source.length == 0) {
+        NSLog(@"[AmePlugin:%@] 入口脚本为空或不可读", pluginId);
+        return;
+    }
+
+    JSContext *ctx = [[JSContext alloc] init];
+    __weak JSContext *weakCtx = ctx;
+    ctx.name = [NSString stringWithFormat:@"AmePlugin:%@", pluginId];
+    ctx.exceptionHandler = ^(JSContext *exceptionCtx, JSValue *exception) {
+        NSLog(@"[AmePlugin:%@] 未捕获 JS 异常: %@", pluginId,
+              exception ?: (weakCtx ? weakCtx.exception : nil));
+    };
+
+    AmePluginBridge *bridge = [[AmePluginBridge alloc]
+                               initWithPluginId:pluginId
+                               declaredPermissions:m.permissions];
+    self.bridges[pluginId] = bridge;
+    self.contexts[pluginId] = ctx;
+
+    // 原始桥对象 + 友好门面
+    [ctx setObject:bridge forKeyedSubscript:@"ameRaw"];
+    [ctx evaluateScript:ame317_facadeSource()];
+    // 极简运行环境补齐（JSC 无 console；ameLogFn 先赋值再入对象字面量，
+    // 避免 console.log 自引用求值时 console 尚未赋值的 undefined 雷）
+    [ctx evaluateScript:
+     @"var ameLogFn=function(){var a=[].slice.call(arguments).join(' ');"
+     "ame.log(a);};"
+     "this.console={log:ameLogFn,warn:ameLogFn,error:ameLogFn,info:ameLogFn};"];
+
+    @try {
+        [ctx evaluateScript:source];
+    } @catch (NSException *ex) {
+        NSLog(@"[AmePlugin:%@] 装载异常: %@", pluginId, ex);
+    }
+    JSValue *topException = ctx.exception;
+    if (topException && !topException.isUndefined) {
+        NSLog(@"[AmePlugin:%@] 装载期 JS 异常: %@", pluginId, topException);
+        ctx.exception = nil;
+    }
+
+    // 主题令牌：storage 里若有 __theme 且仍有授权 → 开机重放
+    AmePluginBridge *b = self.bridges[pluginId];
+    id savedTheme = [b storageGet:@"__theme"];
+    if ([savedTheme isKindOfClass:[NSDictionary class]] &&
+        [AmePluginPermissions pluginHasGrant:pluginId permission:@"ui.theme"]) {
+        [self ame317_applyThemeTokens:pluginId tokens:savedTheme];
+    }
+
+    if (dispatchLaunchEvent) {
+        [self ame317_dispatchEvent:@"app.launch" payload:pluginId toPlugin:pluginId];
+    }
+    NSLog(@"[AmePlugin:%@] 已装载（v%@，%@ 项权限）", pluginId, m.version,
+          @(m.permissions.count));
+}
+
+- (void)ame317_unloadPlugin:(NSString *)pluginId {
+    NSAssert([NSThread isMainThread], @"AmePlugin 卸载必须主线程");
+    // 主题令牌还原本插件贡献
+    [self ame317_applyThemeTokens:pluginId tokens:nil];
+    AmePluginBridge *bridge = self.bridges[pluginId];
+    [bridge teardown];
+    JSContext *ctx = self.contexts[pluginId];
+    if (ctx) {
+        [ctx setName:@"AmePlugin:dead"];
+        // JSC 无显式销毁 API；置空引用由 ARC 回收（回调表已清，不再有入流）
+        ctx.exception = nil;
+    }
+    [self.bridges removeObjectForKey:pluginId];
+    [self.contexts removeObjectForKey:pluginId];
+    NSLog(@"[AmePlugin:%@] 已卸载", pluginId);
+}
+
+#pragma mark - 主题令牌（覆盖与还原）
+
+- (void)ame317_applyThemeTokens:(NSString *)pluginId
+                         tokens:(NSDictionary<NSString *, NSString *> *)tokens {
+    NSDictionary *previous = self.themeTokensByPlugin[pluginId];
+    if (previous) {
+        // 先精确还原上一次本插件的令牌，再应用新集合（防残留）
+        [ZL2Theme ame317_setPluginThemeTokens:pluginId tokens:nil];
+    }
+    if (tokens.count > 0) {
+        BOOL ok = [ZL2Theme ame317_setPluginThemeTokens:pluginId tokens:tokens];
+        if (ok) {
+            self.themeTokensByPlugin[pluginId] = tokens;
+        } else {
+            self.themeTokensByPlugin[pluginId] = @{};
+        }
+    } else {
+        [self.themeTokensByPlugin removeObjectForKey:pluginId];
+    }
+}
+
+#pragma mark - 事件派发
+
++ (void)emitEvent:(NSString *)event payload:(id)payload {
+    if (event.length == 0) return;
+    AmePluginRuntime *rt = [self sharedRuntime];
+    if (!rt.booted) return;
+    for (NSString *pid in [rt.contexts allKeys]) {
+        [rt ame317_dispatchEvent:event payload:payload toPlugin:pid];
+    }
+}
+
+- (void)ame317_dispatchEvent:(NSString *)event payload:(id)payload toPlugin:(NSString *)pluginId {
+    if (![NSThread isMainThread]) {
+        // 快照 payload（调用方容器可能在派发前被改）；类型只按 id 语义使用
+        id snapshot = [payload copy] ?: [NSNull null];
+        AmePluginRuntime *rt = self;
+        dispatch_async(dispatch_get_main_queue(), ^{
+            [rt ame317_dispatchEvent:event payload:snapshot toPlugin:pluginId];
+        });
+        return;
+    }
+    AmePluginBridge *bridge = self.bridges[pluginId];
+    if (!bridge) return;
+    NSArray<JSValue *> *handlers = [bridge handlersForEvent:event];
+    if (handlers.count == 0) return;
+    id jsPayload = payload ?: [NSNull null];
+    for (JSValue *handler in handlers) {
+        @try {
+            [handler callWithArguments:@[event, jsPayload]];
+            JSContext *ctx = handler.context;
+            if (ctx.exception && !ctx.exception.isUndefined) {
+                NSLog(@"[AmePlugin:%@] 事件 %@ 处理异常: %@", pluginId, event, ctx.exception);
+                ctx.exception = nil;
+            }
+        } @catch (NSException *ex) {
+            NSLog(@"[AmePlugin:%@] 事件 %@ 回调崩溃防护: %@", pluginId, event, ex);
+        }
+    }
+}
+
+#pragma mark - 贡献行
+
++ (NSArray<NSDictionary *> *)allContributedRows {
+    AmePluginRuntime *rt = [self sharedRuntime];
+    NSMutableArray *rows = [NSMutableArray array];
+    for (NSString *pid in [rt.contexts allKeys]) {
+        AmePluginBridge *b = rt.bridges[pid];
+        [rows addObjectsFromArray:[b contributedRows]];
+    }
+    return rows;
+}
+
++ (void)invokeRowTap:(NSString *)rowId {
+    if (rowId.length == 0) return;
+    // 行 id = "<pluginId>.<rowId>"；插件 id 本身可含点（manifest 规范
+    // ^[a-z0-9][a-z0-9._-]{2,63}$），禁用首个点切分——遍历桥对象按
+    // "pluginId." 前缀找唯一归属（前缀重叠时最长者赢）。
+    AmePluginRuntime *rt = [self sharedRuntime];
+    AmePluginBridge *owner = nil;
+    NSUInteger best = 0;
+    for (NSString *pid in rt.bridges) {
+        NSString *prefix = [pid stringByAppendingString:@"."];
+        if ([rowId hasPrefix:prefix] && prefix.length >= best) {
+            best = prefix.length;
+            owner = rt.bridges[pid];
+        }
+    }
+    [owner invokeRowTap:rowId];
+}
+
+#pragma mark - 游戏启停 / 前后台接线
+
++ (void)notifyGameStarting {
+    [self emitEvent:@"game.starting" payload:nil];
+}
+
++ (void)notifyGameExited:(NSInteger)exitCode {
+    [self emitEvent:@"game.exited" payload:@(exitCode)];
+}
+
++ (void)notifyAppEnteringForeground {
+    [self emitEvent:@"app.foreground" payload:nil];
+}
+
++ (void)notifyAppEnteringBackground {
+    [self emitEvent:@"app.background" payload:nil];
+}
+
+#pragma mark - 系统事件订阅（单例一次性）
+
+- (void)ame317_observeSystemEvents {
+    NSNotificationCenter *nc = [NSNotificationCenter defaultCenter];
+    __weak typeof(self) wself = self;
+
+    [nc addObserverForName:UIApplicationWillEnterForegroundNotification
+                    object:nil queue:[NSOperationQueue mainQueue]
+                usingBlock:^(NSNotification *_) {
+        [wself ame317_dispatchAll:@"app.foreground" payload:nil];
+    }];
+    [nc addObserverForName:UIApplicationDidEnterBackgroundNotification
+                    object:nil queue:[NSOperationQueue mainQueue]
+                usingBlock:^(NSNotification *_) {
+        [wself ame317_dispatchAll:@"app.background" payload:nil];
+    }];
+    // 实例域：既有通知直通（Task 既有事件面，零新增接线）
+    [nc addObserverForName:@"SelectedProfileChanged"
+                    object:nil queue:[NSOperationQueue mainQueue]
+                usingBlock:^(NSNotification *note) {
+        [wself ame317_dispatchAll:@"profile.changed" payload:note.object];
+    }];
+    [nc addObserverForName:@"ReloadProfileList"
+                    object:nil queue:[NSOperationQueue mainQueue]
+                usingBlock:^(NSNotification *_) {
+        [wself ame317_dispatchAll:@"profile.listChanged" payload:nil];
+    }];
+}
+
+- (void)ame317_dispatchAll:(NSString *)event payload:(id)payload {
+    if (!self.booted) return;
+    for (NSString *pid in [self.contexts allKeys]) {
+        [self ame317_dispatchEvent:event payload:payload toPlugin:pid];
+    }
+}
+
+@end

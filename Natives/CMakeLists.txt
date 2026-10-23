@@ -557,6 +557,13 @@ add_executable(AngelAuraAmethyst
   WelcomeViewController.m
   # Task312：服务地区门（明面不对大陆开放，多角度检测 + 3 次提示后放行）
   RegionGate.m
+  # Task317：插件系统（JSContext 沙箱 + 桥接 API 面 + 权限中心 + 管理页）
+  AmePluginPermissions.m
+  AmePluginManager.m
+  AmePluginBridge.m
+  AmePluginRuntime.m
+  ZL2PluginListViewController.m
+  ZL2PluginDetailViewController.m
   AppDelegate.m
   CustomControlsViewController.m
   CustomControlsViewController+UndoManager.m

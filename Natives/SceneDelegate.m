@@ -13,6 +13,7 @@
 #import "ZL2ShellViewController.h" // ★ 7.0-UI-8：ZL2 对标新壳（Material 3 NavigationRail）
 #import "ModpackImportService.h" // Task269：升级自动迁移（一实例多文件夹历史遗留合并）
 #import "ModService.h"           // ★ Task271：启动自愈 ame271_selfHealStrandedIsolation
+#import "AmePluginRuntime.h"    // Task317：插件运行时（boot/前后台事件）
 
 extern __weak UIWindow *mainWindow;
 
@@ -51,6 +52,9 @@ extern BOOL Amethyst_EnforceSDL3Presentation(void);
         //   versions/<id>/ 下已有真实隔离数据的 profile，注册表落定为隔离
         //   （幂等保守：已显式配置绝不碰，无数据零 IO 空转）。
         [ModService ame271_selfHealStrandedIsolation];
+        // Task317：插件运行时引导（扫描已装插件→建 JSContext→执行 main.js→app.launch；
+        // 内部幂等，场景重建时自动跳过）。
+        [AmePluginRuntime bootIfNeeded];
         // Task192：定时复挂（LC 覆盖战争的终局方案）。
         // 病历（956ea9b latestlog.1）：willConnect 点的 re-arm 日志在场，
         // 但 insertObject nil 崩溃仍走系统默认裸地址输出——证明 LC 在
@@ -405,12 +409,15 @@ static void AmeFGLogSwapStats(NSString *phase) {
     // Task223：双保险释放（didEnterBackground 后的恢复路径里
     // willEnterForeground 先于 didBecomeActive，早放早恢复）。
     ame223_bg_park_end();
+    // Task317：前后台事件由 AmePluginRuntime 内部订阅
+    // UIApplicationWillEnterForeground/DidEnterBackgroundNotification 统一派发（此处不直调，防双发）。
 }
 
 - (void)sceneDidEnterBackground:(UIScene *)scene {
     // ★ [FG] 幂等：已经停在暂停菜单时再发一次 ESC 无副作用。
     AmeFGLogSwapStats(@"didEnterBackground");
     CallbackBridge_pauseGameIfNeed();
+    // Task317：同上，前后台事件由 Runtime 通知订阅统一派发，此处不直调。
 }
 
 #pragma mark - Orientation Support (iOS 16+)

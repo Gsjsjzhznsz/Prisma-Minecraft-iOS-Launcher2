@@ -1,0 +1,214 @@
+#import "AmePluginPermissions.h"
+
+#import <UIKit/UIKit.h>
+#include <stdlib.h>
+
+// ═══════════════════════════════════════════════════════════════════
+// AmePlugin 权限中心实现（Task 317）
+// 口径注释：
+//  · 进程内单份内存态（_state），所有 API 主线程调用（桥接/页面均主线程）
+//  · state.json 原子写：writeToFile:atomically:YES（tmp+rename 语义）
+//  · 损坏兜底：JSON 解析失败→空表重建，绝不因授权文件损坏阻塞启动器
+//  · 本文件不 import 任何 JSContext/插件运行时——权限中心零依赖，可被
+//    Bridge/Runtime/页面三方独立引用
+// ═══════════════════════════════════════════════════════════════════
+
+NSString *ame317_pluginsRootDir(void) {
+    NSString *home = @(getenv("POJAV_HOME") ?: "");
+    if (home.length == 0) {
+        home = [NSSearchPathForDirectoriesInDomains(NSDocumentDirectory,
+                                                    NSUserDomainMask, YES) firstObject] ?: NSTemporaryDirectory();
+    }
+    return [home stringByAppendingPathComponent:@"plugins"];
+}
+
+@implementation AmePluginPermissionItem
+- (instancetype)initWithId:(NSString *)pid danger:(BOOL)danger {
+    self = [super init];
+    if (self) {
+        _permissionId = [pid copy];
+        _danger = danger;
+        _nameKey = [NSString stringWithFormat:@"ame317.perm.%@.name", pid];
+        _descKey = [NSString stringWithFormat:@"ame317.perm.%@.desc", pid];
+    }
+    return self;
+}
+@end
+
+@implementation AmePluginPermissions
+
+// 私有方法前向声明（ObjC 方法需先声明后使用）
++ (AmePluginPermissionItem *)itemForId:(NSString *)permissionId;
+
++ (NSArray<AmePluginPermissionItem *> *)allPermissions {
+    static NSArray<AmePluginPermissionItem *> *perms = nil;
+    static dispatch_once_t once;
+    dispatch_once(&once, ^{
+        perms = @[
+            [[AmePluginPermissionItem alloc] initWithId:@"events"        danger:NO],
+            [[AmePluginPermissionItem alloc] initWithId:@"ui.dialog"     danger:NO],
+            [[AmePluginPermissionItem alloc] initWithId:@"ui.rows"       danger:NO],
+            [[AmePluginPermissionItem alloc] initWithId:@"ui.theme"      danger:YES],
+            [[AmePluginPermissionItem alloc] initWithId:@"settings.read" danger:NO],
+            [[AmePluginPermissionItem alloc] initWithId:@"settings.write" danger:YES],
+            [[AmePluginPermissionItem alloc] initWithId:@"renderer.read" danger:NO],
+            [[AmePluginPermissionItem alloc] initWithId:@"renderer.write" danger:YES],
+            [[AmePluginPermissionItem alloc] initWithId:@"profile.read"  danger:NO],
+            [[AmePluginPermissionItem alloc] initWithId:@"storage"       danger:NO],
+            [[AmePluginPermissionItem alloc] initWithId:@"net"           danger:YES],
+        ];
+    });
+    return perms;
+}
+
++ (BOOL)isValidPermissionId:(NSString *)permissionId {
+    for (AmePluginPermissionItem *item in [self allPermissions]) {
+        if ([item.permissionId isEqualToString:permissionId]) return YES;
+    }
+    return NO;
+}
+
++ (BOOL)isDangerous:(NSString *)permissionId {
+    return [self isValidPermissionId:permissionId]
+        ? [self itemForId:permissionId].danger
+        : YES; // 未知权限按高危处理（fail-closed）
+}
+
++ (AmePluginPermissionItem *)itemForId:(NSString *)permissionId {
+    for (AmePluginPermissionItem *item in [self allPermissions]) {
+        if ([item.permissionId isEqualToString:permissionId]) return item;
+    }
+    return nil;
+}
+
+#pragma mark - 状态存取
+
++ (NSURL *)stateFileURL {
+    return [NSURL fileURLWithPath:
+        [ame317_pluginsRootDir() stringByAppendingPathComponent:@"state.json"]];
+}
+
+// 内存态：
+// { "grants":  { "<pid>": { "<perm>": 0/1 } },
+//   "enabled": { "<pid>": 0/1 } }
+static NSMutableDictionary<NSString *, NSDictionary *> *ame317_state = nil;
+
++ (void)initialize {
+    if (self != [AmePluginPermissions class]) return;
+    ame317_state = [[NSMutableDictionary alloc] init];
+    [self loadStateFromDisk];
+}
+
++ (void)loadStateFromDisk {
+    NSData *data = [NSData dataWithContentsOfURL:[self stateFileURL]];
+    if (!data) return;
+    NSError *err = nil;
+    id json = [NSJSONSerialization JSONObjectWithData:data options:0 error:&err];
+    if (err || ![json isKindOfClass:[NSDictionary class]]) {
+        NSLog(@"[AmePlugin] state.json 损坏，重建空授权表（不阻塞启动）");
+        return;
+    }
+    NSDictionary *dict = (NSDictionary *)json;
+    id grants = dict[@"grants"];
+    id enabled = dict[@"enabled"];
+    if ([grants isKindOfClass:[NSDictionary class]]) {
+        ame317_state[@"grants"] = [grants mutableCopy] ?: [NSMutableDictionary dictionary];
+    }
+    if ([enabled isKindOfClass:[NSDictionary class]]) {
+        ame317_state[@"enabled"] = [enabled mutableCopy] ?: [NSMutableDictionary dictionary];
+    }
+}
+
++ (NSMutableDictionary *)grantsTable {
+    NSMutableDictionary *t = ame317_state[@"grants"];
+    if (!t) {
+        t = [[NSMutableDictionary alloc] init];
+        ame317_state[@"grants"] = t;
+    }
+    return t;
+}
+
++ (NSMutableDictionary *)enabledTable {
+    NSMutableDictionary *t = ame317_state[@"enabled"];
+    if (!t) {
+        t = [[NSMutableDictionary alloc] init];
+        ame317_state[@"enabled"] = t;
+    }
+    return t;
+}
+
++ (BOOL)pluginHasGrant:(NSString *)pluginId permission:(NSString *)permissionId {
+    if (pluginId.length == 0 || permissionId.length == 0) return NO;
+    NSDictionary *g = [self grantsTable][pluginId];
+    if (![g isKindOfClass:[NSDictionary class]]) return NO;
+    NSNumber *v = g[permissionId];
+    return [v boolValue];
+}
+
++ (void)setGrant:(BOOL)granted forPlugin:(NSString *)pluginId permission:(NSString *)permissionId {
+    if (pluginId.length == 0 || permissionId.length == 0) return;
+    NSMutableDictionary *g = [self grantsTable][pluginId];
+    if (![g isKindOfClass:[NSMutableDictionary class]]) {
+        g = [[NSMutableDictionary alloc] init];
+        [self grantsTable][pluginId] = g;
+    }
+    g[permissionId] = @(granted ? 1 : 0);
+    [self flushState];
+}
+
++ (NSDictionary<NSString *, NSNumber *> *)grantsForPlugin:(NSString *)pluginId {
+    NSDictionary *g = [self grantsTable][pluginId];
+    return [g isKindOfClass:[NSDictionary class]] ? g : @{};
+}
+
++ (void)replaceGrants:(NSDictionary<NSString *, NSNumber *> *)grants
+             forPlugin:(NSString *)pluginId {
+    if (pluginId.length == 0) return;
+    [self grantsTable][pluginId] = [grants mutableCopy] ?: [NSMutableDictionary dictionary];
+    [self flushState];
+}
+
++ (void)purgePluginState:(NSString *)pluginId {
+    if (pluginId.length == 0) return;
+    [[self grantsTable] removeObjectForKey:pluginId];
+    [[self enabledTable] removeObjectForKey:pluginId];
+    [self flushState];
+}
+
++ (BOOL)pluginEnabled:(NSString *)pluginId {
+    if (pluginId.length == 0) return NO;
+    NSNumber *v = [self enabledTable][pluginId];
+    return [v boolValue];
+}
+
++ (void)setPluginEnabled:(BOOL)enabled pluginId:(NSString *)pluginId {
+    if (pluginId.length == 0) return;
+    [self enabledTable][pluginId] = @(enabled ? 1 : 0);
+    [self flushState];
+}
+
++ (BOOL)flushState {
+    NSDictionary *snapshot = @{
+        @"grants": [self grantsTable] ?: @{},
+        @"enabled": [self enabledTable] ?: @{},
+    };
+    NSError *err = nil;
+    NSData *data = [NSJSONSerialization dataWithJSONObject:snapshot
+                                                   options:NSJSONWritingPrettyPrinted
+                                                     error:&err];
+    if (err || !data) {
+        NSLog(@"[AmePlugin] state.json 序列化失败: %@", err);
+        return NO;
+    }
+    // 目录兜底（安装流已建，此处幂等防呆）
+    NSFileManager *fm = [NSFileManager defaultManager];
+    NSString *root = ame317_pluginsRootDir();
+    if (![fm fileExistsAtPath:root]) {
+        [fm createDirectoryAtPath:root withIntermediateDirectories:YES attributes:nil error:nil];
+    }
+    BOOL ok = [data writeToURL:[self stateFileURL] atomically:YES];
+    if (!ok) NSLog(@"[AmePlugin] state.json 写盘失败");
+    return ok;
+}
+
+@end

@@ -89,6 +89,15 @@ NS_ASSUME_NONNULL_BEGIN
 + (UIColor *)launchReadyTint;
 + (UIColor *)launchDisabledTint;
 
+#pragma mark - Task317 插件主题令牌覆盖（高危权限 ui.theme）
+
+// tokens: {@"primary": @"#RRGGBB[AA]", ...}；未知令牌忽略（白名单见 .m），
+// tokens 空/nil = 清除该插件全部覆盖（停用/卸载还原用）。后写者胜。
+// 覆盖表自包含于 ZL2Theme.m（smoke 目标零新增依赖）；getter 侧 28 个
+// 色值令牌经 AME317_PLUGIN_COLOR 宏先行检查覆盖。
++ (BOOL)ame317_setPluginThemeTokens:(NSString *)pluginId
+                             tokens:(nullable NSDictionary<NSString *, NSString *> *)tokens;
+
 @end
 
 NS_ASSUME_NONNULL_END

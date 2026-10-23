@@ -101,6 +101,7 @@
 #import "ZL2SettingCards.h"
 #import "ZL2Theme.h"
 #import "ZL2M3Kit.h"
+// localize 在 utils.h
 #import "LauncherPreferences.h"
 #import "PLProfiles.h"
 #import "PLMirrorCenter.h"
@@ -111,6 +112,7 @@
 #import "LauncherPreferencesViewController.h"
 #import "LauncherPrefGameDirViewController.h"  // Task316：游戏目录/实例选择器
 #import "FileLayoutService.h"                 // Task316：跨启动器导入
+#import "ZL2PluginListViewController.h"        // Task317：插件管理入口
 #import <UniformTypeIdentifiers/UniformTypeIdentifiers.h>
 #import "BackgroundSettingsViewController.h"
 #import "BingWallpaperGalleryViewController.h"
@@ -1012,7 +1014,16 @@ didPickDocumentsAtURLs:(NSArray<NSURL *> *)urls {
     importRow.onTap = ^{
         [weakSelf ame316_pickExternalFolder];
     };
-    [group3 ame_addRows:@[backgroundRow, galleryRow, gameDirRow, importRow, moreRow]];
+    // Task317：插件管理入口（列表/安装/权限授权/启停）
+    ZL2SettingRowAction *pluginRow =
+        [[ZL2SettingRowAction alloc] initWithTitle:@"" subtitle:nil];
+    pluginRow.title = localize(@"ame317.list.title", nil);
+    pluginRow.subtitle = localize(@"ame317.settings.entry_subtitle", nil);
+    pluginRow.onTap = ^{
+        [weakSelf ame_push:[[ZL2PluginListViewController alloc] init]
+                   titled:localize(@"ame317.list.title", nil)];
+    };
+    [group3 ame_addRows:@[backgroundRow, galleryRow, gameDirRow, importRow, pluginRow, moreRow]];
     [self ame_addGroup:group3];
 }
 

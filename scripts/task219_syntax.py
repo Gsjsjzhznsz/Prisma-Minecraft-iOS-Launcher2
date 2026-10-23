@@ -73,6 +73,18 @@ changed = [
     "Natives/ModService.m",
     "Natives/ModsManagerViewController.m",
     "Natives/external/MobileGlues/MobileGlues-cpp/version.h",
+    # Task317：插件系统六件套 + 接线点
+    "Natives/AmePluginBridge.m",
+    "Natives/AmePluginManager.m",
+    "Natives/AmePluginPermissions.m",
+    "Natives/AmePluginRuntime.m",
+    "Natives/ZL2PluginListViewController.m",
+    "Natives/ZL2PluginDetailViewController.m",
+    "Natives/ZL2Theme.m",
+    "Natives/ZL2SettingPages.m",
+    "Natives/SurfaceViewController.m",
+    "Natives/JavaGUIViewController.m",
+    "Natives/SceneDelegate.m",
 ]
 for p in changed:
     ok, detail = balance(os.path.join(REPO, p))
@@ -81,8 +93,8 @@ for p in changed:
 # Makefile TAB baseline must be untouched this round (no Makefile edit)
 with open(os.path.join(REPO, "Makefile"), "rb") as f:
     mk = f.read()
-check("Makefile TAB baseline 662",
-      sum(1 for line in mk.split(b"\n") if line.startswith(b"\t")) == 662)
+check("Makefile TAB baseline 808",
+      sum(1 for line in mk.split(b"\n") if line.startswith(b"\t")) == 808)
 
 # workflow CRLF baseline untouched
 with open(os.path.join(REPO, ".github/workflows/development.yml"), "rb") as f:
@@ -92,15 +104,15 @@ check("workflow CRLF intact", yml.count(b"\r\n") == yml.count(b"\n"))
 # Info.plist identity unchanged this round
 with open(os.path.join(REPO, "Natives/Info.plist"), "r", encoding="utf-8") as f:
     plist = f.read()
-check("bundle id stays com.air-devs.air (no identity change this round)",
-      "<string>com.air-devs.air</string>" in plist)
+check("bundle id stays com.prisma-devs.prisma (Task259 rename, no identity change this round)",
+      "<string>com.prisma-devs.prisma</string>" in plist)
 
 # l10n 4-language unique key parity
 for lang in ["en", "zh-Hans", "zh-Hant", "zh-CN"]:
     with open(os.path.join(REPO, f"Natives/resources/{lang}.lproj/Localizable.strings"),
               "r", encoding="utf-8") as f:
         keys = set(re.findall(r'^"([^"]+)"\s*=', f.read(), re.M))
-    check(f"l10n {lang} unique keys 2606 (Task223 +41)", len(keys) == 2606, f"got {len(keys)}")
+    check(f"l10n {lang} unique keys 3260 (Task317 +54)", len(keys) == 3260, f"got {len(keys)}")
 
 # strings files parse: every added key must appear exactly once per language
 NEED = ["welcome.back", "welcome.env.title", "welcome.env.lc.mismatch.title",

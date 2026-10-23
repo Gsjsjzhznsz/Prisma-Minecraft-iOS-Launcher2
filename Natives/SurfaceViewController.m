@@ -28,6 +28,7 @@
 #import "AmeNativeMenu.h"   // Task247（T9）：伪玻璃档 ⚙ 按钮菜单走磨砂面板路由
 #import "LiquidGlassCompat.h"   // Task247（T9）：LGCIsPseudoGlassStyleActive 风格分档判定
 #import "AmeTheme.h"   // ★ 7.0-UI-3f：Fluent 设计令牌（仅启动器铬件色；游戏画布/HUD/控制按钮色一律不动）
+#import "AmePluginRuntime.h"   // Task317：插件事件接线（game.starting / game.exited）
 // Task 166：MobileGL DirectVulkan 的 Metal 层 FSR1（updateSavedResolution 钩子）。
 #import "ctxbridges/mgl_metal_fsr.h"
 // ZeroTier/Terracotta 联机暂时移除（排查启动崩溃）
@@ -2617,7 +2618,11 @@ static BOOL ame87_mcVersionRequiresTextureBuffer(NSString *mcVersionId) {
               accountId, minVersion, windowWidth, windowHeight);
 
         // Launch JVM（args[0] 传 accountId，Java 端 MinecraftAccount.load(accountId) 据此加载账户）
+        // Task317：game.starting 事件（launchJVM 阻塞至游戏退出，事件必须在调用前派发）
+        [AmePluginRuntime notifyGameStarting];
         int launchResult = launchJVM(accountId, self.metadata, windowWidth, windowHeight, minVersion);
+        // Task317：game.exited 事件（正常退出与启动失败都算生命周期终点）
+        [AmePluginRuntime notifyGameExited:launchResult];
 
         // JVM 启动失败（返回非 0）：移除启动遮罩层，让用户看到错误对话框
         // launchJVM 内部失败时会调用 showDialog 显示错误，此处仅负责清理遮罩层
