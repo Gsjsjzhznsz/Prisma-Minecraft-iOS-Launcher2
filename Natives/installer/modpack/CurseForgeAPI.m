@@ -546,8 +546,10 @@ static NSString *CFA169NormalizeGameVersion(NSString *v) {
     };
     for (NSDictionary *category in categories) {
         if (![category isKindOfClass:NSDictionary.class]) continue;
-        NSString *candidateSlug = [category[@"slug"] isKindOfClass:NSString.class] ? category[@"slug"].lowercaseString : @"";
-        NSString *candidateName = [category[@"name"] isKindOfClass:NSString.class] ? category[@"name"].lowercaseString : @"";
+        // Task316-r1（CI 判例同族 Task260/310：id 点语法属性域本地门禁盲区）——
+        // 三元分支内 id 取 lowercaseString 编译器无法解析属性，显式转型 NSString*。
+        NSString *candidateSlug = [category[@"slug"] isKindOfClass:NSString.class] ? ((NSString *)category[@"slug"]).lowercaseString : @"";
+        NSString *candidateName = [category[@"name"] isKindOfClass:NSString.class] ? ((NSString *)category[@"name"]).lowercaseString : @"";
         if ([candidateSlug isEqualToString:needle] || [candidateName isEqualToString:needle]) {
             return [category[@"id"] isKindOfClass:NSNumber.class] ? category[@"id"] : nil;
         }
