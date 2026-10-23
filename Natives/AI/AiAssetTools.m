@@ -1534,6 +1534,8 @@ static BOOL aiIsLatestAlias(NSString *s) {
             // 3. MinecraftResourceDownloadTask 完整安装（版本 JSON/库/资源）。
             //    downloadVersion: 内部自动注册 DownloadTaskManager 任务（6 阶段 + autoPresentDetail），
             //    下载中心/统一进度页实时展示进度；对已存在且 SHA1 正确的文件自动跳过。
+            //    ★ Task318：预装语义键——本链是 AI 自动安装（上方 ensureVersionJSONExists
+            //    刚落盘 json），ame300_preinstall 门禁放行禁弹改名窗。
             dispatch_async(dispatch_get_main_queue(), ^{
                 __block BOOL errored = NO;
                 MinecraftResourceDownloadTask *task = [MinecraftResourceDownloadTask new];
@@ -1543,7 +1545,10 @@ static BOOL aiIsLatestAlias(NSString *s) {
                 };
 
                 dispatch_async(dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_DEFAULT, 0), ^{
-                    [task downloadVersion:entry];
+                    NSMutableDictionary *ame318_preinstallEntry =
+                        [entry isKindOfClass:[NSDictionary class]] ? [entry mutableCopy] : [NSMutableDictionary dictionary];
+                    ame318_preinstallEntry[@"ame300_preinstall"] = @YES;
+                    [task downloadVersion:ame318_preinstallEntry];
 
                     // 轮询等待完成（最长 30 分钟，与 ensureVanillaInstalled 一致）。
                     // prepareForDownload 会重建 progress，故每轮重新取值，避免 KVO 悬空。

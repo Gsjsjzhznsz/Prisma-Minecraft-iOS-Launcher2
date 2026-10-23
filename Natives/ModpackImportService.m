@@ -2785,7 +2785,11 @@ if (hasRealFileName) {
     };
 
     // 启动下载（downloadVersion: 是异步的，内部会 prepareForDownload 重建 progress）
-    NSDictionary *versionArg = @{@"id": versionId};
+    // ★ Task318：预装语义键——导入链是自动补装（ensureParentVersionExists 刚写出
+    //   json-only 半成品），同版本复用续传禁弹改名窗（ame300_preinstall 门禁放行）
+    NSMutableDictionary *versionArg = [NSMutableDictionary dictionary];
+    versionArg[@"id"] = versionId;
+    versionArg[@"ame300_preinstall"] = @YES;
     [downloader downloadVersion:versionArg];
 
     // 轮询等待完成（每 0.5s 检查一次，最长 30 分钟）

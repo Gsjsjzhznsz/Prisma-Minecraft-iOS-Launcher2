@@ -1566,6 +1566,15 @@ static UIImage *ZL2HomeSizedImage(NSString *name, NSString *fallback, CGFloat po
 - (void)startDownloadWithVersion:(NSDictionary *)versionObject profileName:(NSString *)profileName {
     self.task = [MinecraftResourceDownloadTask new];
 
+    // ★ Task318：Task304 launchcheck 键补移植——本页是 1:1 旧链移植
+    //  （LauncherRightPanelViewController L1403-1550 同语义），但旧链带
+    //   ame300_launchcheck=YES 而本页漏带：已装实例（目录+json 完整）点启动
+    //   会撞 Task300 改名窗"实例已存在"每次必弹。补键对齐 = 校验链语义，
+    //   verify-and-continue 零弹窗；目录不存在时正常下载流程不受影响。
+    NSMutableDictionary *ame318_launchVersion =
+        [versionObject isKindOfClass:[NSDictionary class]] ? [versionObject mutableCopy] : [NSMutableDictionary dictionary];
+    ame318_launchVersion[@"ame300_launchcheck"] = @YES;
+
     __weak ZL2HomeViewController *weakSelf = self;
 
     dispatch_async(dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_DEFAULT, 0), ^{
@@ -1584,7 +1593,7 @@ static UIImage *ZL2HomeSizedImage(NSString *name, NSString *fallback, CGFloat po
             });
         };
 
-        [weakSelf.task downloadVersion:versionObject];
+        [weakSelf.task downloadVersion:ame318_launchVersion];
 
         dispatch_async(dispatch_get_main_queue(), ^{
             // KVO 观察下载进度（OptionInitial：挂上即回调一次，状态行立即进百分比态）

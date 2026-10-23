@@ -39,21 +39,23 @@
 //        展开/收起，未选宽 0 裁剪；选中 primary / 未选 onSurfaceVariant）。
 //        📁文件按钮与联机 RailItem iOS 侧本轮省略（文件管理器/联机页尚未有
 //        可嵌页面），待功能域落地后补位。
-//   · iOS 侧 RailItem×4（ZL2 顶栏无版本/账户直达，iOS 保留五页全量导航）：
-//     版本(2) / 下载(1) / 账户(3) / 设置(4)，与 ZL2 右侧组同序排列。
+//   · iOS 侧 RailItem×5（ZL2 顶栏无版本/账户直达；Task318 起新增第 5 项 AI）：
+//     文件夹(瞬时) / 多人联机(5) / 下载(1) / 设置(4) / AI 助手(6)，与 ZL2 右侧组同序排列。
 //
-// 五页 index 映射（.h 契约零改动）：
+// 页面 index 映射（.h 契约：0...6，越界忽略）：
 //   0 主页 ZL2HomeViewController（不包 nav；顶栏标题 = CFBundleDisplayName）
 //   1 下载 ZL2DownloadViewController（UINavigationController 包）
 //   2 版本 ZL2VersionsViewController（UINavigationController 包）
 //   3 账户 ZL2AccountsViewController（UINavigationController 包）
 //   4 设置 ZL2SettingsViewController（UINavigationController 包）
+//   5 多人联机 MultiplayerViewController（7.0-UI-14；UINavigationController 包）
+//   6 AI 助手 AIViewController（Task318 入口恢复；UINavigationController 包）
 //
 // 通知契约（消费方，7.0-UI-8 三件原样保留 + 顶栏新增两件）：
 //   @"ShowHomePage"                              → 切主页（旧启动链）
 //   @"ShowAccountManager"                        → 切账户页（FCL 风格）
-//   ZL2ShellNavigateNotification                 → userInfo[@"index"] 切页（0...4
-//                                                  越界忽略）
+//   ZL2ShellNavigateNotification                 → userInfo[@"index"] 切页（0...6
+//                                                  越界忽略；Task318 起新增 6=AI 助手）
 //   DownloadTaskManagerDidUpdateTaskNotification → 任务胶囊刷新（manager 全部
 //     变更均经 postUpdateForTask 派发；防御性回主线程后刷 UI）+ viewWillAppear
 //     补刷
@@ -83,6 +85,9 @@
 #import "FolderBrowserViewController.h"    // 7.0-UI-14：文件浏览器（顶栏文件夹项 PageSheet）
 #import "DownloadTaskManager.h"           // manager 单例 + DownloadTaskItem + 更新通知常量
 #import "PLTaskProgressViewController.h"  // 统一进度页（胶囊点开）
+#import "AI/AIViewController.h"          // Task318：AI 助手入口恢复（7.0-UI-8 旧壳退役后
+#import "AI/AiSessionStore.h"           //   顶栏 RailItem 第 5 项重挂；旧壳 showAIPage 同参）
+#import "utils.h"                       // Task318：localize（AI 顶栏项文案四表键，缺头=隐式声明雷）
 
 #include <stdlib.h>
 
@@ -511,16 +516,20 @@ static UIImage *ZL2ShellSystemImage(NSString *name, NSString *fallback) {
     };
     [self.rightCluster addArrangedSubview:self.taskPill];
 
-    // b) RailItem×4（7.0-UI-14 真机对齐：文件/多人联机/下载/设置，ZL2 MainScreen
-    //    endButtons 顺序；版本/账户入口收进主页 ActionMenu，非顶栏项）
+    // b) RailItem×5（7.0-UI-14 真机对齐：文件/多人联机/下载/设置，ZL2 MainScreen
+    //    endButtons 顺序；版本/账户入口收进主页 ActionMenu，非顶栏项。
+    //    Task318：第 5 项 = AI 助手（7.0-UI-8 旧壳退役后入口恢复，页面 6））
     //    pageIndex = -1 表示瞬时动作（文件夹 = 打开文件浏览器，非页面）
-    NSArray<NSString *> *titles = @[@"文件", @"多人联机", @"下载", @"设置"];
+    NSArray<NSString *> *titles = @[@"文件", @"多人联机", @"下载", @"设置",
+                                    localize(@"ame192.ai.title", nil)];
     NSArray<NSString *> *symbols = @[@"folder.fill",
                                      @"person.2.fill",
                                      @"arrow.down.circle.fill",
-                                     @"gearshape.fill"];
-    NSArray<NSString *> *fallbacks = @[@"folder", @"person.2", @"arrow.down", @"gear"];
-    NSArray<NSNumber *> *pageIndexNumbers = @[@(-1), @5, @1, @4];
+                                     @"gearshape.fill",
+                                     @"sparkles"];
+    NSArray<NSString *> *fallbacks = @[@"folder", @"person.2", @"arrow.down", @"gear",
+                                       @"sparkles"];
+    NSArray<NSNumber *> *pageIndexNumbers = @[@(-1), @5, @1, @4, @6];
     NSMutableArray<ZL2ShellRailItem *> *items = [NSMutableArray array];
     [titles enumerateObjectsUsingBlock:^(NSString *itemTitle, NSUInteger idx, BOOL *stop) {
         NSString *fallback = fallbacks[idx];
@@ -627,7 +636,7 @@ static UIImage *ZL2ShellSystemImage(NSString *name, NSString *fallback) {
 #pragma mark - 页面切换
 
 - (void)showPageAtIndex:(NSInteger)index {
-    if (index < 0 || index > 5) return;
+    if (index < 0 || index > 6) return; // Task318：6 = AI 助手（顶栏第 5 项）
     if (index == self.currentIndex) {
         [self ame_refreshTopBarStateAnimated:NO];  // 幂等自愈
         return;
@@ -863,6 +872,18 @@ static UIImage *ZL2ShellSystemImage(NSString *name, NSString *fallback) {
             MultiplayerViewController *multiplayer =
                 [[MultiplayerViewController alloc] initWithMode:MultiplayerVCModeLauncher];
             vc = [[UINavigationController alloc] initWithRootViewController:multiplayer];
+            break;
+        }
+        case 6: {
+            // AI 助手（Task318：7.0-UI-8 旧壳退役后入口恢复；1:1 旧壳 showAIPage
+            //   判例 LauncherRootViewController L648-655：lastActiveSession + 包
+            //   nav + prefersLargeTitles=NO；未配 Provider 时空态自带「去配置」引导）
+            AIViewController *ai = [[AIViewController alloc]
+                initWithSession:[[AiSessionStore sharedStore] lastActiveSession]];
+            UINavigationController *aiNav =
+                [[UINavigationController alloc] initWithRootViewController:ai];
+            aiNav.navigationBar.prefersLargeTitles = NO;
+            vc = aiNav;
             break;
         }
         default:

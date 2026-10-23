@@ -1,0 +1,10 @@
+{
+  "id": "theme-sunset",
+  "name": "日落主题包",
+  "version": "1.0.0",
+  "author": "Prisma",
+  "description": "四套精选配色（日落/森林/海洋/玫瑰）一键换肤，支持循环切换与恢复默认。主题令牌属高危权限，首次使用请在插件详情页授权。",
+  "entry": "main.js",
+  "permissions": ["ui.theme", "ui.rows", "storage"],
+  "minApi": 1
+}

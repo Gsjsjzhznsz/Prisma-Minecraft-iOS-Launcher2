@@ -3467,3 +3467,22 @@
 "ame317.perm.storage.desc" = "外掛專屬的鍵值儲存（與其他外掛隔離）";
 "ame317.perm.net.name" = "網路存取";
 "ame317.perm.net.desc" = "允許外掛向任意位址傳送網路請求——高風險";
+/* Task318 內建外掛倉庫（ZL2PluginRepoViewController） */
+"ame318.repo.title" = "外掛倉庫";
+"ame318.repo.nav" = "倉庫";
+"ame318.repo.entry_subtitle" = "瀏覽並一鍵安裝內建預置外掛";
+"ame318.repo.section_title" = "內建外掛";
+"ame318.repo.empty" = "未找到內建外掛。";
+"ame318.repo.install" = "安裝";
+"ame318.repo.installing" = "安裝中…";
+"ame318.repo.reinstall_body" = "該外掛已安裝——此次安裝為覆蓋更新，外掛私有儲存會被清空。";
+"ame318.repo.zip_failed" = "打包內建外掛失敗（zip 寫入錯誤）。";
+/* Task318 內建外掛顯示名/簡介（manifest 兜底） */
+"ame318.builtin.theme-sunset.name" = "日落主題包";
+"ame318.builtin.theme-sunset.desc" = "四套精選配色一鍵換膚，支援循環切換與恢復預設。主題覆寫屬高風險權限：請在外掛詳情頁授權。";
+"ame318.builtin.renderer-quickswitch.name" = "渲染器快切";
+"ame318.builtin.renderer-quickswitch.desc" = "在已安裝渲染器間循環切換並查看目前後端。";
+"ame318.builtin.launch-counter.name" = "啟動統計";
+"ame318.builtin.launch-counter.desc" = "統計遊戲啟動次數與最近結束代碼，資料僅存本外掛私有儲存。";
+"ame318.builtin.modrinth-hot.name" = "Modrinth 熱門榜";
+"ame318.builtin.modrinth-hot.desc" = "連網抓取 Modrinth 下載量前五的模組（需網路權限）。";

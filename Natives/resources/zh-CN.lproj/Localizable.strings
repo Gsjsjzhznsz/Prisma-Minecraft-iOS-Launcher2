@@ -3467,3 +3467,22 @@
 "ame317.perm.storage.desc" = "插件专属的键值存储（与其他插件隔离）";
 "ame317.perm.net.name" = "网络访问";
 "ame317.perm.net.desc" = "允许插件向任意地址发送网络请求——高危";
+/* Task318 内置插件仓库（ZL2PluginRepoViewController） */
+"ame318.repo.title" = "插件仓库";
+"ame318.repo.nav" = "仓库";
+"ame318.repo.entry_subtitle" = "浏览并一键安装内置预置插件";
+"ame318.repo.section_title" = "内置插件";
+"ame318.repo.empty" = "未找到内置插件。";
+"ame318.repo.install" = "安装";
+"ame318.repo.installing" = "安装中…";
+"ame318.repo.reinstall_body" = "该插件已安装——此次安装为覆盖更新，插件私有存储会被清空。";
+"ame318.repo.zip_failed" = "打包内置插件失败（zip 写入错误）。";
+/* Task318 内置插件展示名/简介（manifest 兜底） */
+"ame318.builtin.theme-sunset.name" = "日落主题包";
+"ame318.builtin.theme-sunset.desc" = "四套精选配色一键换肤，支持循环切换与恢复默认。主题覆盖属高危权限：请在插件详情页授权。";
+"ame318.builtin.renderer-quickswitch.name" = "渲染器快切";
+"ame318.builtin.renderer-quickswitch.desc" = "在已安装渲染器间循环切换并查看当前后端。";
+"ame318.builtin.launch-counter.name" = "启动统计";
+"ame318.builtin.launch-counter.desc" = "统计游戏启动次数与最近退出码，数据仅存本插件私有存储。";
+"ame318.builtin.modrinth-hot.name" = "Modrinth 热门榜";
+"ame318.builtin.modrinth-hot.desc" = "联网拉取 Modrinth 下载量前五的模组（需联网权限）。";

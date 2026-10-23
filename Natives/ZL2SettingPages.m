@@ -113,6 +113,7 @@
 #import "LauncherPrefGameDirViewController.h"  // Task316：游戏目录/实例选择器
 #import "FileLayoutService.h"                 // Task316：跨启动器导入
 #import "ZL2PluginListViewController.h"        // Task317：插件管理入口
+#import "ZL2PluginRepoViewController.h"       // Task318：内置插件仓库入口
 #import <UniformTypeIdentifiers/UniformTypeIdentifiers.h>
 #import "BackgroundSettingsViewController.h"
 #import "BingWallpaperGalleryViewController.h"
@@ -1023,7 +1024,16 @@ didPickDocumentsAtURLs:(NSArray<NSURL *> *)urls {
         [weakSelf ame_push:[[ZL2PluginListViewController alloc] init]
                    titled:localize(@"ame317.list.title", nil)];
     };
-    [group3 ame_addRows:@[backgroundRow, galleryRow, gameDirRow, importRow, pluginRow, moreRow]];
+    // Task318：内置插件仓库（随包预置插件浏览/一键安装）
+    ZL2SettingRowAction *repoRow =
+        [[ZL2SettingRowAction alloc] initWithTitle:@"" subtitle:nil];
+    repoRow.title = localize(@"ame318.repo.title", nil);
+    repoRow.subtitle = localize(@"ame318.repo.entry_subtitle", nil);
+    repoRow.onTap = ^{
+        [weakSelf ame_push:[[ZL2PluginRepoViewController alloc] init]
+                   titled:localize(@"ame318.repo.title", nil)];
+    };
+    [group3 ame_addRows:@[backgroundRow, galleryRow, gameDirRow, importRow, pluginRow, repoRow, moreRow]];
     [self ame_addGroup:group3];
 }
 

@@ -8,7 +8,8 @@
 """
 import re, os, glob, subprocess
 
-REPO = "/home/z/my-project/Amethyst-iOS-MyRemastered"
+# Task318 修复：原硬编码 /home/z/my-project/Amethyst-iOS-MyRemastered（改名前旧路径）。
+REPO = os.path.abspath(os.path.join(os.path.dirname(os.path.abspath(__file__)), '..'))
 os.chdir(REPO)
 NAT = "Natives"
 BASE = "36ca4b25a"   # pre-Task223 baseline

@@ -9,7 +9,9 @@ O. settings restructure + stroke font  P. mod dependencies  Q. i18n parity.
 """
 import subprocess, io, os, sys, zipfile, struct
 
-os.chdir('/home/z/my-project/Amethyst-iOS-MyRemastered')
+# Task318 修复：原硬编码 /home/z/my-project/Amethyst-iOS-MyRemastered（改名前旧路径），
+# 改为随脚本位置自定位（scripts/ 的父目录即仓库根）。
+os.chdir(os.path.abspath(os.path.join(os.path.dirname(os.path.abspath(__file__)), '..')))
 P, F = 0, 0
 def check(name, cond, detail=""):
     global P, F

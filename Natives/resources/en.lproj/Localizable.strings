@@ -3472,3 +3472,22 @@
 "ame317.perm.storage.desc" = "Private key-value storage scoped to this plugin";
 "ame317.perm.net.name" = "Network access";
 "ame317.perm.net.desc" = "Send network requests to arbitrary URLs — high risk";
+/* Task318 builtin plugin store (ZL2PluginRepoViewController) */
+"ame318.repo.title" = "Plugin Store";
+"ame318.repo.nav" = "Store";
+"ame318.repo.entry_subtitle" = "Browse and one-tap install bundled plugins";
+"ame318.repo.section_title" = "Bundled plugins";
+"ame318.repo.empty" = "No bundled plugins found.";
+"ame318.repo.install" = "Install";
+"ame318.repo.installing" = "Installing…";
+"ame318.repo.reinstall_body" = "This plugin is already installed — reinstalling overwrites it and clears the plugin's private storage.";
+"ame318.repo.zip_failed" = "Failed to package the bundled plugin (zip error).";
+/* Task318 bundled plugin display names/descriptions (manifest fallback) */
+"ame318.builtin.theme-sunset.name" = "Sunset Themes";
+"ame318.builtin.theme-sunset.desc" = "Four curated palettes with one-tap apply, cycling and reset. Theme override is high-risk: grant it on the plugin detail page.";
+"ame318.builtin.renderer-quickswitch.name" = "Renderer Quick Switch";
+"ame318.builtin.renderer-quickswitch.desc" = "Cycle installed renderers and inspect the current backend.";
+"ame318.builtin.launch-counter.name" = "Launch Stats";
+"ame318.builtin.launch-counter.desc" = "Count game launches and the last exit code (stored privately).";
+"ame318.builtin.modrinth-hot.name" = "Modrinth Trending";
+"ame318.builtin.modrinth-hot.desc" = "Fetch Modrinth's top five mods by downloads (requires network).";

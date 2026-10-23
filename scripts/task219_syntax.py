@@ -85,6 +85,16 @@ changed = [
     "Natives/SurfaceViewController.m",
     "Natives/JavaGUIViewController.m",
     "Natives/SceneDelegate.m",
+    # Task318：插件仓库 + AI 入口 + 实例冲突根修触碰面
+    "Natives/ZL2PluginRepoViewController.m",
+    "Natives/ZL2ShellViewController.m",
+    "Natives/MinecraftResourceDownloadTask.m",
+    "Natives/DownloadViewController.m",
+    "Natives/ModpackImportService.m",
+    "Natives/ZL2AssetSearchViewController.m",
+    "Natives/ZL2HomeViewController.m",
+    "Natives/AI/AiAssetTools.m",
+    "Natives/main.m",
 ]
 for p in changed:
     ok, detail = balance(os.path.join(REPO, p))
@@ -112,7 +122,7 @@ for lang in ["en", "zh-Hans", "zh-Hant", "zh-CN"]:
     with open(os.path.join(REPO, f"Natives/resources/{lang}.lproj/Localizable.strings"),
               "r", encoding="utf-8") as f:
         keys = set(re.findall(r'^"([^"]+)"\s*=', f.read(), re.M))
-    check(f"l10n {lang} unique keys 3260 (Task317 +54)", len(keys) == 3260, f"got {len(keys)}")
+    check(f"l10n {lang} unique keys 3277 (Task318 +17)", len(keys) == 3277, f"got {len(keys)}")
 
 # strings files parse: every added key must appear exactly once per language
 NEED = ["welcome.back", "welcome.env.title", "welcome.env.lc.mismatch.title",

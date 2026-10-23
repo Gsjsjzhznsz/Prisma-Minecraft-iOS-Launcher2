@@ -5,7 +5,9 @@
 # 3) "key shown as value" check: any table row whose VALUE equals its KEY
 import re, os, sys, collections
 
-ROOT = "/home/z/my-project/repo-prisma/Natives"
+# Task318 修复：ROOT 原硬编码指向一代仓克隆 repo-prisma（本机遗留目录），
+# 在本仓跑等于审错树——改为随脚本位置自定位（scripts/ 的兄弟目录 Natives）。
+ROOT = os.path.abspath(os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "Natives"))
 RES = os.path.join(ROOT, "resources")
 FOUR = ["en", "zh-CN", "zh-Hans", "zh-Hant"]
 

@@ -589,6 +589,38 @@ void init_setupMultiDir() {
         [fm removeItemAtPath:lasmPath error:nil];
         [fm createSymbolicLinkAtPath:lasmPath withDestinationPath:multidirPath error:nil];
     }
+    // ★ Task318（PCL 观感折中）：Documents 顶层放一条可见符号链接 minecraft →
+    //   Task226 游戏目录链接（随实例切换自动跟随）。PCL 的 .minecraft 是游戏
+    //   目录本体；我们游戏目录在 Library/Application Support/minecraft（深层
+    //   路径），「文件」App 里不好找——顶层别名给用户一个直达入口（saves/
+    //   mods/options.txt 一眼可见）。三态保护：
+    //   ① 已是符号链接 → 幂等重指到现役游戏目录；
+    //   ② 真实目录/文件（用户自建同名目录）→ 不动不删（绝不覆盖用户数据）；
+    //   ③ 缺失 → 创建。数据导出链对符号链接跳过（DataTransferService 导出
+    //   skip symlink），不会双份打包；Java 侧全走 POJAV_GAME_DIR 环境变量，零感知。
+    {
+        NSString *aliasLink = [NSString stringWithFormat:@"%s/minecraft", home];
+        NSDictionary *aliasAttrs = [fm attributesOfItemAtPath:aliasLink error:nil];
+        if (aliasAttrs) {
+            if ([aliasAttrs fileType] == NSFileTypeSymbolicLink) {
+                NSString *curTarget = [fm destinationOfSymbolicLinkAtPath:aliasLink error:nil];
+                NSString *resolvedCur = curTarget.length
+                    ? [[aliasLink.stringByDeletingLastPathComponent
+                        stringByAppendingPathComponent:curTarget]
+                        stringByResolvingSymlinksInPath] : @"";
+                BOOL sameTarget = [resolvedCur isEqualToString:lasmPath.stringByResolvingSymlinksInPath];
+                if (!sameTarget) {
+                    [fm removeItemAtPath:aliasLink error:nil];
+                    [fm createSymbolicLinkAtPath:aliasLink withDestinationPath:lasmPath error:nil];
+                    NSLog(@"[Pre-init] Task318 minecraft alias re-pointed");
+                }
+            }
+            // 真实目录/文件：绝不覆盖用户数据
+        } else {
+            [fm createSymbolicLinkAtPath:aliasLink withDestinationPath:lasmPath error:nil];
+            NSLog(@"[Pre-init] Task318 minecraft alias created -> Library/Application Support/minecraft");
+        }
+    }
     [fm changeCurrentDirectoryPath:lasmPath];
     setenv("POJAV_GAME_DIR", lasmPath.UTF8String, 1);
 }

@@ -3781,7 +3781,13 @@ static const NSTimeInterval kAme291MergeWindowSeconds = 7.0 * 24.0 * 3600.0;
                 __strong typeof(weakSelf) ss = weakSelf;
                 if (!ss) return;
                 MinecraftResourceDownloadTask *waitTask = ss.vanillaPreinstallTask;
-                [waitTask downloadVersion:version];
+                // ★ Task318：预装语义键——本链是自动预装（ensureVanillaInstalled 刚
+                //   ensure 出 versions/<id>/<id>.json json-only 半成品），复用续传禁弹
+                //   改名窗（MCDL downloadVersion: 门禁放行，见 ame300_preinstall）
+                NSMutableDictionary *ame318_preinstallVersion =
+                    [version isKindOfClass:[NSDictionary class]] ? [version mutableCopy] : [NSMutableDictionary dictionary];
+                ame318_preinstallVersion[@"ame300_preinstall"] = @YES;
+                [waitTask downloadVersion:ame318_preinstallVersion];
 
                 // 轮询等待完成（最长 30 分钟；与 ensureCompleteVersionInstalled 一致）
                 NSDate *deadline = [NSDate dateWithTimeIntervalSinceNow:30 * 60];

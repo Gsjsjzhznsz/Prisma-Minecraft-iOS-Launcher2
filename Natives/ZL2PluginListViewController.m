@@ -33,7 +33,12 @@
     UIBarButtonItem *add = [[UIBarButtonItem alloc]
         initWithBarButtonSystemItem:UIBarButtonSystemItemAdd
                              target:self action:@selector(ame317_pickPluginZip)];
-    self.navigationItem.rightBarButtonItem = add;
+    // Task318：内置插件仓库入口（随包预置插件一键安装）
+    UIBarButtonItem *repo = [[UIBarButtonItem alloc]
+        initWithTitle:localize(@"ame318.repo.nav", nil)
+                 style:UIBarButtonItemStylePlain
+                target:self action:@selector(ame318_openRepo)];
+    self.navigationItem.rightBarButtonItems = @[add, repo];
 
     self.table = [[UITableView alloc] initWithFrame:CGRectZero style:UITableViewStyleInsetGrouped];
     self.table.translatesAutoresizingMaskIntoConstraints = NO;
@@ -42,7 +47,8 @@
     self.table.delegate = self;
     self.table.dataSource = self;
     self.table.keyboardDismissMode = UIScrollViewKeyboardDismissModeOnDrag;
-    [self.table registerClass:[UITableViewCell class] forCellReuseIdentifier:@"cell"];
+    // Task318：不 registerClass——注册类实例化的 UITableViewCell 是 Default 风格，
+    // detailTextLabel 恒 nil；Subtitle 风格 cell 在 cellForRow 手建（见下）
     [self.view addSubview:self.table];
 
     [NSLayoutConstraint activateConstraints:@[
@@ -76,6 +82,11 @@
 }
 
 #pragma mark - 安装链
+
+- (void)ame318_openRepo {
+    ZL2PluginRepoViewController *repo = [[ZL2PluginRepoViewController alloc] init];
+    [self.navigationController pushViewController:repo animated:YES];
+}
 
 - (void)ame317_pickPluginZip {
     UIDocumentPickerViewController *picker =
@@ -170,7 +181,12 @@ didPickDocumentsAtURLs:(NSArray<NSURL *> *)urls {
 
 - (UITableViewCell *)tableView:(UITableView *)tableView cellForRowAtIndexPath:(NSIndexPath *)indexPath {
     static NSString *kId = @"cell";
-    UITableViewCell *cell = [tableView dequeueReusableCellWithIdentifier:kId forIndexPath:indexPath];
+    // Task318 修复：registerClass 体系实例化的 UITableViewCell 是 Default 风格，
+    // detailTextLabel 恒 nil → Task317 上线以来副标题（版本/作者/简介）从未显示过。
+    // 改为手建 Subtitle 风格 cell（不 registerClass，老 API dequeue 可回池）。
+    UITableViewCell *cell = [tableView dequeueReusableCellWithIdentifier:kId];
+    if (!cell) cell = [[UITableViewCell alloc] initWithStyle:UITableViewCellStyleSubtitle
+                                              reuseIdentifier:kId];
     cell.backgroundColor = [ZL2Theme surfaceBright];
     cell.selectionStyle = UITableViewCellSelectionStyleNone;
     cell.accessoryView = nil;

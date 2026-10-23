@@ -13,8 +13,8 @@ AngelAuraAmethyst（Amethyst-iOS 重制版，fork **Gsjsjzhznsz/Air-Minecraft-iO
 ### 当前状态（收尾时更新）
 | 项 | 值 |
 |---|---|
-| 远端 HEAD | Task 234 提交 8eddb7fd + worklog（CI run 37959645228 一次绿）：圈错按钮三级锚定 / coach body 标签约束冲突根修（文字第五轮）/ 描边拷贝 textRectForBounds 对齐 / MobileGL 上游无更新 / 分享 GitHub 零查询参数 |
-| 最新 Task 号 | **234**（多会话并行开发，开新任务前先 fetch 避让编号） |
+| 远端 HEAD | Task 318 提交 + worklog（本地门禁十项全绿后推送，CI 轮询见本条目）：内置插件仓库页+4 预置插件 / 实例冲突根修移植（ame300_preinstall 六点）/ AI 入口恢复（顶栏第 5 项）/ PCL 目录观感折中（minecraft 别名链接） |
+| 最新 Task 号 | **318**（多会话并行开发，开新任务前先 fetch 避让编号） |
 | 待用户装机验证 | Task 183（四线锚点见文末）+ Task 182（三锚点）+ Task 181（六锚点）+ Task 180（双滑条透明度）+ Task 179（八连修）+ Task 178/177（新拟态定稿）+ 更早轮次 |
 | 已知历史遗留 | v6.0.0-release-notes.md 是工作区工件不在 git（发布时从 announcements.json 重导出）；部分 verify 级联失败为沙箱环境性（会话本地脚本被清 + task132/135/149/158 路径依赖 + task140 G2/G3 日志轮换），与基线对拍判读 |
 
@@ -3360,3 +3360,25 @@ Work Log:
 Stage Summary:
 - 插件系统全链 CI 终审通过：head=c2c92c26（r1-r4 四连热修）
 - 更新指引：run 39942187812 产物 tipa 装机（设置→启动器→插件；示例包 manifest.json+main.js 打 zip 改后缀 .ameplugin 导入）
+
+---
+Task ID: 318 号段（聊天任务 318 续·二代仓重定向轮；ame318 代码号段=插件仓库+实例冲突+AI入口+目录折中）
+Agent: main (Super Z)
+Task: ①内置插件仓库页 + 4 预置示例插件（用户：能不能加插件仓库，预先写几个插件）②实例冲突根修（用户：安装游戏一直弹实例冲突）③AI 功能入口恢复（用户：原来的 AI 功能怎么不见了）④PCL 目录布局答复与折中落地（用户：为什么目录和 PCL 不一样，能不能照搬）
+
+Work Log:
+- 仓库身份澄清：用户指正本地 repo-prisma 是【一代仓】；本会话克隆二代仓 Prisma-Minecraft-iOS-Launcher2（7.0 Fluent UI 测试线，main=b668fd44 Task317-ci 补记）为唯一工作树
+- ①插件仓库：新 TU ZL2PluginRepoViewController（Natives 根目录，自动进 ui-smoke 语法门）——包内 builtin-plugins/ 子目录扫描 + validateManifestDictionary 预校验（非法目录静默跳过）+ 后台 UZK writeData 打临时 zip → installFromZip 全量校验链（零旁路：manifest schema/entry 防逃逸/首装授权普通授高危拒）→ 权限 ⚠/· 预览 M3 弹窗（复用 ame317.install.* 文案）→ enabled 即装载；已装项直接 push 详情页；覆盖重装补 ame318.repo.reinstall_body 提示（私有存储清空）；入口两处=插件列表页顶栏「仓库」钮 + 设置→启动器 group3 行（ZL2SettingRowAction 模板）
+- ①预置插件 ×4（Natives/resources/builtin-plugins/<id>/{manifest.json,main.js}，Makefile:920 盲拷零登记）：theme-sunset（四套 28 令牌配色循环+恢复默认，ui.theme 高危默认拒→catch 引导授权演示）/ renderer-quickswitch（getRenderer available 循环 setRenderer + 信息弹窗）/ launch-counter（game.starting/exited 计数，storage 私有）/ modrinth-hot（fetch Modrinth top5 弹窗展示）；全部 typeof ame 守卫 + try/catch 引导授权
+- ②实例冲突根修（一代 origin/main 2743e7f4 同源移植，二代 Task315 只并到 v6.5.5 未含）：MCDL downloadVersion: 门禁加 ame300_preinstall OR 分支（日志 Task318 auto path (preinstall|launchcheck)）+ 四条自动预装链置键（DVC ensureVanillaInstalled / ModpackImportService ensureCompleteVersionInstalled / ZL2AssetSearch ame_ensureVanillaInstalled / AiAssetTools installVanillaVersionId）；二代独有补口=ZL2Home startDownloadWithVersion 补 ame300_launchcheck 键（1:1 旧链移植漏带→已装实例点启动恒弹"实例已存在"根除）；手动链（Addons:650/DVC:3880）Task300 弹窗语义保留
+- ③AI 入口恢复：定性=AI 编译在（CMakeLists:749-784）、入口随 7.0-UI-8（b7dce014）旧壳退役失踪；ZL2Shell 顶栏 RailItem×4→×5（titles 用 localize(ame192.ai.title) 其余硬编码现状保留/symbols sparkles/pageIndex @6）+ ame_childForIndex case 6（AIViewController lastActiveSession 包 nav prefersLargeTitles=NO，1:1 旧壳 showAIPage 判例）+ showPageAtIndex bounds 0...5→0...6 + .h/.m 契约注释同步 + utils.h 显式 import（localize 首入 Shell，隐式声明雷预防）
+- ④PCL 目录：结论=结构已等价（Task316-D 共享核心=桌面 .minecraft 语义 + instances 扁平化=MultiMC 同构；PCL 的 PCL/ 数据目录=launcher_preferences_v2+plugins+log 家族），照搬改名爆炸半径 40+ 处硬编码+一次高风险设备迁移，不adopt；落地折中=main.m init_setupMultiDir 顶层可见 minecraft 别名符号链接（→Task226 游戏目录链接，随实例切换自动跟随；三态保护：符号链接幂等重指/真实目录绝不覆盖/缺失创建；导出链 skip symlink 无双份风险）
+- 存量 bug 顺手修：ZL2PluginListViewController registerClass 体系 detailTextLabel 恒 nil（Task317 上线以来副标题从未显示）→ 两页改 Subtitle 风格手建 cell（不 registerClass）
+- i18n：scripts/ame318_i18n.py 幂等注册 17 键四表（9 UI + 4×2 builtin 展示名；键名含连字符→existing_keys 正则扩 '-'）；键数 3260→3277 重锚 task219_syntax:124 + verify_task219:212（stale 3206 顺修）；task250/task240/verify226/task223 四脚本旧仓硬编码路径（repo-prisma/Amethyst-iOS-MyRemastered）改脚本位置自定位
+- 门禁：task191/task248/task250/task219_syntax/ame317_selfcheck/ame318_selfcheck（新写：资源完备性+键集+import 闭环+CMake 登记）/verify_task219/verify_task264/verify_task269/verify_task316 十项全绿；task219 changed[] 新增 8 文件 balance
+
+Stage Summary:
+- 四线全交付：插件仓库（浏览+一键装+4 预置插件）/ 整合包安装零弹窗（预装复用续传）+ ZL2 主页启动零弹窗 / AI 助手顶栏恒可见 / Documents 顶层 minecraft 直达入口
+- 装机验证锚点：①设置→启动器→插件仓库→装"启动统计"→列表页出现贡献行→启动游戏退出后行内计数+1 ②装"日落主题包"→切配色弹"需要主题权限"→详情页授 ui.theme→切配色即时换肤 ③装任一含 26.3 的整合包零"实例已存在"弹窗、无 "26.3 2" 幽灵（日志 [MCDL] Task318 auto path (preinstall)）④ZL2 主页点启动已装实例零弹窗（(launchcheck)）⑤顶栏第 5 项 AI 助手 → 聊天页/空态去配置引导 ⑥「文件」App Documents 顶层见 minecraft 入口
+- 更新指引：CI 终绿 run 产物 tipa 装机（development.yml 仅 workflow_dispatch，测试线不出 release）
+- 遗留（不阻塞）：help-faq.json:124 备份指引未含 instances/shared_core 语义（文档漂移，改动会级联 FAQ 同步脚本重锚，留专门轮次）；repo 内联 worklog 顶部状态表此前停在 Task 234 本轮已校直

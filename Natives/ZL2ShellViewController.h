@@ -9,11 +9,12 @@
 // primaryContainer + 12pt 标签）+ 右侧内容区（child VC 切换）。
 // 页面序：0 主页(ZL2Home) / 1 下载(Download) / 2 版本管理(VersionManager)
 //         / 3 账户(AccountList) / 4 设置(LauncherPreferences)
+//         / 5 多人联机(Multiplayer，7.0-UI-14) / 6 AI 助手(AIViewController，Task318)
 //
 // 通知契约（消费方）：
 //   @"ShowHomePage"        → 切主页（旧启动链既有通知，直接兼容）
 //   @"ShowAccountManager"  → 切账户页（旧 FCL 风格契约，直接兼容）
-//   @"ZL2ShellNavigate"    → 切页（userInfo[@"index"] = @(0...4)）
+//   @"ZL2ShellNavigate"    → 切页（userInfo[@"index"] = @(0...6)，越界忽略）
 //
 
 #import <UIKit/UIKit.h>
@@ -24,7 +25,7 @@ extern NSString * const ZL2ShellNavigateNotification;
 
 @interface ZL2ShellViewController : UIViewController
 
-// 程序化切页（0...4，越界忽略）
+// 程序化切页（0...6，越界忽略）
 - (void)showPageAtIndex:(NSInteger)index;
 
 // NavigationRail 宽度（iPhone 88 / iPad 104，供 harness/测试断言）

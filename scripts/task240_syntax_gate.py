@@ -4,7 +4,8 @@
 # 是 ()/[]/{} 三对平衡。输出 "all balanced" 即通过。
 import os, sys
 
-REPO = "/home/z/my-project/repo-prisma"
+# Task318 修复：REPO 原硬编码指向一代仓克隆 repo-prisma——改为随脚本位置自定位。
+REPO = os.path.abspath(os.path.join(os.path.dirname(os.path.abspath(__file__)), ".."))
 
 FILES = [
     "Natives/AmeNativeMenu.m",

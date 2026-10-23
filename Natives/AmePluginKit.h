@@ -17,3 +17,4 @@
 #import "AmePluginRuntime.h"
 #import "ZL2PluginListViewController.h"
 #import "ZL2PluginDetailViewController.h"
+#import "ZL2PluginRepoViewController.h"   // Task318：内置插件仓库页

@@ -1,0 +1,10 @@
+{
+  "id": "renderer-quickswitch",
+  "name": "渲染器快切",
+  "version": "1.0.0",
+  "author": "Prisma",
+  "description": "在已安装渲染器之间循环切换并随时查看当前后端。渲染器写入属高危权限，首次切换请在插件详情页授权。",
+  "entry": "main.js",
+  "permissions": ["renderer.read", "renderer.write", "ui.rows", "ui.dialog", "storage"],
+  "minApi": 1
+}

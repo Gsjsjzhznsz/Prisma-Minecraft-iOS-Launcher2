@@ -2734,6 +2734,12 @@ static UIColor *ZL2AssetSourceBadgeColor(NSInteger apiSource) {
         if (completion) completion(NO);
         return;
     }
+    // ★ Task318：预装语义键——本链是整合包触发的自动预装（下方 ensureParentVersionExists
+    //   刚写出 versions/<id>/<id>.json json-only 半成品），同版本复用续传禁弹改名窗
+    //   （ame300_preinstall 门禁放行，见 MinecraftResourceDownloadTask downloadVersion:）
+    NSMutableDictionary *ame318_preinstallVersion = [version mutableCopy];
+    ame318_preinstallVersion[@"ame300_preinstall"] = @YES;
+    version = ame318_preinstallVersion;
     NSString *versionId = version[@"id"];
     if (![versionId isKindOfClass:[NSString class]] || versionId.length == 0) {
         if (completion) completion(NO);
