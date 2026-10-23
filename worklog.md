@@ -3257,3 +3257,17 @@ Work Log:
 Stage Summary:
 - 6.5.5 全功能面并入：手柄全链（断连 releaseAllHeld/连接 toast/Switch 任天堂布局/控件三分类/键鼠 scroll_speed/手柄下载分类+gamepad_default+gamepad_switch）、服务地区门 RegionGate（五信号+3 次放行，从 ZL2 壳根弹出）、下载吞吐量见证换源 ame312、JIT 链 Task294-306 全套（StikDebug/stikjit appex/ame300-306）、MoltenVK 1.4.3+mg_vsync_hook 退役、ame307 崩溃一键切 GLES、README/README_EN 服务地区声明、Task265-293 修复链、Task291 聚合搜索、showdown agent
 - 提交 66b8e0295（merge）+ worklog 条目；待 CI 全量编译取证（本地无 ObjC 全量编译门禁，CI 为最终裁判——Task260/261/310 同族判例在案）
+
+---
+Task ID: 315-ci（闭环补记）
+Agent: main (Super Z)
+Task: Task 315 CI 闭环 + website 部署杂音根除
+
+Work Log:
+- 合并提交 66b8e0295（补 worklog 后推送 fbe683624）触发 Deploy website 失败——定性双因子：①本仓未启用 GitHub Pages（GET /pages 404），deploy-pages@v4 必败 ②website.yml 保留 push 触发（6.5.5 随入），合并触碰 website/** 自动拉起；期间"branches: ain] 损坏"判定被字节级 ord 终审证伪（0x5b 0x6d 在位=[m 完好]）——工具显示层吞字第 7 例入档（cat -A/repr/调试标签三度同显吞 [m，in 判断与 char codes 才是真相）
+- 修正：website.yml push 触发拆除（对齐 development/ui-smoke 测试仓红线惯例），仅留 workflow_dispatch（5005ed751）；上游 repo-prisma 网站触发完好无需处置
+- 手动 dispatch 双 workflow（本仓 7.0 红线无 push 自动构建）：UI Fluent smoke + Development build 均 head=5005ed751
+- 双绿闭环：UI Fluent smoke success（run 39876526750，语法门禁+模拟器渲染）；Development build success（run 39876519332，合并树全量编译——stikjit Swift appex/RegionGate/StikDebug/手柄全链/6.5.5 新源全部通过，Task260/261/310 同族"本地门禁盲区"本轮零暴露）
+
+Stage Summary:
+- 6.5.5 同步经 CI 全量编译终审通过；ipa/tipa 产物挂 run 39876519332 artifacts；装机验证锚点：手柄连接 toast+断连全量释放/设置-控件下载-手柄分类/Switch 布局交换/服务地区门首启弹窗/README 双语声明
