@@ -41,6 +41,8 @@ NS_ASSUME_NONNULL_BEGIN
 - (void)invokeRowTap:(NSString *)rowId;
 /// 插件停用/卸载：清事件表/贡献行（主题令牌还原由 Runtime 统一调）
 - (void)teardown;
+/// 读插件私有存储（Runtime 装载期主题重放用；内部含 storage 权限门）
+- (nullable id)storageGet:(NSString *)key;
 
 @end
 

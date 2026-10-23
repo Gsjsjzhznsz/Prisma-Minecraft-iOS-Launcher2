@@ -1,5 +1,6 @@
 #import "AmePluginRuntime.h"
 #import "AmePluginKit.h"
+#import "ZL2Theme.h"   // Task317：主题令牌覆盖钩子（ame317_setPluginThemeTokens）
 
 #import <UIKit/UIKit.h>
 #import <JavaScriptCore/JavaScriptCore.h>

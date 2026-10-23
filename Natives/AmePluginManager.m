@@ -104,10 +104,11 @@
     // 预声明于此（goto 前），供两处校验循环共用
     NSCharacterSet *ame317_idChars = [NSCharacterSet characterSetWithCharactersInString:
                           @"abcdefghijklmnopqrstuvwxyz0123456789._-"];
+    NSString *pid = nil;
 
     if (![dict isKindOfClass:[NSDictionary class]]) { fail = AmePluginInstallErrBadJSON; goto out; }
 
-    NSString *pid = [self trimmedString:dict[@"id"]];
+    pid = [self trimmedString:dict[@"id"]];
     if (pid.length < 3 || pid.length > 64) goto out;
     // id 白名单：首字符字母数字，整体 [a-z0-9._-]（字符集已在 goto 前预声明）
     {
