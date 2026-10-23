@@ -3342,3 +3342,21 @@ Stage Summary:
 - 插件系统全链交付：JS 沙箱+桥接 API 面（渲染器切换/设置读写/UI 注入/主题覆盖/事件订阅/网络/私有存储）+ 11 组权限中心（清单声明+逐项授权+运行时执法+实时生效）+ 管理 UI（列表/详情/安装/启停/授权/卸载）
 - 插件开发者视角：ame.setThemeToken({primary:"#FF0000"}) 一行换肤（高危授权后）；ame.on("game.starting",...) 订阅；ame.setRenderer({renderer:"libMobileGL.dylib"}) 切渲染器
 - commit f3c6c16c 推送 main；CI 双 workflow（development+ui-smoke）轮询中
+
+---
+Task ID: 317 号段（插件系统）· CI 闭环补记
+Agent: main (Super Z)
+Task: development/ui-smoke 双 workflow 全绿收口
+
+Work Log:
+- CI 五进宫全实录（smoke 门禁只拾取 ZL2Theme.h 面文件，插件 TU 首过全量编译暴露连环雷）：
+  r1 run 39935609645：ZL2Theme ame317_setPluginThemeTokens 游离 @implementation 外（missing context）→ 方法块搬入
+  r2 run 39936651092：①Permissions @implementation 内伪前向声明（expected method body+duplicate）②ame317_pluginsRootDir C 函数缺头声明（隐式声明 ARC 三连报）③goto 跳入后置 __strong 顶层作用域（ok 字符集）④singleDir 缺 __block ⑤performOnFilesInArchive: 缺 error:（双参唯一签名；ModService '} error:nil];' 跨行双参甄别）
+  r3 run 39938612182：①Runtime 缺 import ZL2Theme.h ②Bridge.h 公开 storageGet:（Runtime 主题重放跨文件调用私有方法）③pid 顶层声明同款 goto 雷
+  r4 run 39939926249：编译全绿→链接期 Undefined symbols JSContext/JSValue → CMakeLists 补 -framework JavaScriptCore
+  r5 run 39942187812：SUCCESS（c2c92c26）
+- 判例沉淀：ARC goto 禁跳入 __strong 顶层变量作用域（同函数多次连环）；ObjC @implementation 内方法定义顺序无关、声明伪语法必炸；smoke 语法门禁覆盖面缺口（新子系统需手动入列 balance 检查）
+
+Stage Summary:
+- 插件系统全链 CI 终审通过：head=c2c92c26（r1-r4 四连热修）
+- 更新指引：run 39942187812 产物 tipa 装机（设置→启动器→插件；示例包 manifest.json+main.js 打 zip 改后缀 .ameplugin 导入）
