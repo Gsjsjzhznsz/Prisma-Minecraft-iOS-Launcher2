@@ -3382,3 +3382,18 @@ Stage Summary:
 - 装机验证锚点：①设置→启动器→插件仓库→装"启动统计"→列表页出现贡献行→启动游戏退出后行内计数+1 ②装"日落主题包"→切配色弹"需要主题权限"→详情页授 ui.theme→切配色即时换肤 ③装任一含 26.3 的整合包零"实例已存在"弹窗、无 "26.3 2" 幽灵（日志 [MCDL] Task318 auto path (preinstall)）④ZL2 主页点启动已装实例零弹窗（(launchcheck)）⑤顶栏第 5 项 AI 助手 → 聊天页/空态去配置引导 ⑥「文件」App Documents 顶层见 minecraft 入口
 - 更新指引：CI 终绿 run 产物 tipa 装机（development.yml 仅 workflow_dispatch，测试线不出 release）
 - 遗留（不阻塞）：help-faq.json:124 备份指引未含 instances/shared_core 语义（文档漂移，改动会级联 FAQ 同步脚本重锚，留专门轮次）；repo 内联 worklog 顶部状态表此前停在 Task 234 本轮已校直
+
+---
+Task ID: 318 号段 · CI 闭环补记
+Agent: main (Super Z)
+Task: development/ui-smoke 双 workflow 一轮终绿收口
+
+Work Log:
+- commit c226143b 推送 main（b668fd44..c226143b）；dispatch 双 workflow（development.yml/ui-smoke.yml 均 204）
+- smoke run 39995258219：completed success（t+9min；语法门禁+preview 编译+模拟器渲染全过——ZL2PluginRepoViewController 根目录 import ZL2Theme.h 自动入列生效）
+- development run 39995254895：completed success（t+16min；【零热修一轮绿】，Task317 五进宫判例预防全部命中：utils.h 显式 import 消隐式声明、balance 清单入列、CMake 登记即时）
+- 产物取证：com.prisma-devs.prisma-ios.ipa 222.3MB + ios-trollstore.tipa 222.3MB + dSYM 7.3MB（expire 2027-01-21，挂 run 39995254895 artifacts）
+
+Stage Summary:
+- Task 318 四线（插件仓库+4 预置插件/实例冲突根修/AI 入口恢复/PCL 目录折中）CI 终审通过
+- 更新指引：run 39995254895 产物 tipa 装机；装机锚点六条见上条 Task 318 条目
