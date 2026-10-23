@@ -3317,3 +3317,28 @@ Work Log:
 
 Stage Summary:
 - 结论：闪退=7.0-UI-12 窗口期旧构建孤儿视图约束（installButton 忘 addSubview 即参与跨树约束）；HEAD 经 7.0-ui-14 流程重写结构性根除，全仓扫描零同族真雷，无需改码；行动=用户更新至 run 39904637661 产物；判例入档：activateConstraints 前必须保证两锚点视图已同树（新 UI 代码评审项）
+
+---
+Task ID: 317 号段（聊天任务号 318·插件系统；ame317 代码号段=插件系统，与 worklog 历史条目 Task317 闪退排查无号段冲突——闪退排查未占代码号段）
+Agent: main (Super Z)
+Task: 启动器插件系统 + 权限中心（用户：插件要能加渲染器/改功能/改界面，配强大权限管理）
+
+Work Log:
+- 设计定型：JavaScriptCore 系统框架（iOS 14 纯 ObjC 零依赖）/每插件独立 JSContext 天然隔离/全部 JS 执行收主队列/桥边界=权限唯一执法点（未声明+未授权双门 fail-closed）
+- 六新 TU：AmePluginRuntime（boot/事件派发/门面注入/主题重放）+ AmePluginManager（zip 安装链/manifest 校验/防逃逸）+ AmePluginPermissions（11 组注册表/state.json 原子持久化）+ AmePluginBridge（API 面：log/toast/dialog/on/off/addLauncherRow/setThemeToken/get+setPref/get+setRenderer/getProfiles/storage/fetch）+ 两 UI 页（列表/详情）
+- 插件包 .ameplugin（zip：manifest.json+main.js）；设备布局 POJAV_HOME/plugins/<id>/；apiVersion=1
+- 权限组 11 项（ui.theme/settings.write/renderer.write/net 高危=安装默认拒+详情页红标）；高危 4 组覆盖主题令牌/改设置/切渲染器/联网
+- 主题钩子：ZL2Theme 28 色值 getter 挂 AME317_PLUGIN_COLOR 宏（GNU 语句表达式，自包含覆盖表 smoke 零依赖）；ame317_setPluginThemeTokens 白名单 28 令牌+后写者胜+停用精确还原
+- 渲染器桥：读=PLProfiles resolveKey+ame_effective_renderer+getRendererKeys(NO) 候选全集；写=渲染器层白名单校验+Task275 applyChanges 锁内批量变更（禁裸写活字典），后端层 utils.h 宏编译期白名单（mg 家族三 dylib）
+- 接线点：SceneDelegate willConnect bootIfNeeded；SurfaceViewController/JavaGUIViewController launchJVM 前后 game.starting/exited；前后台+profile.changed/listChanged 走 Runtime 内部通知订阅（SelectedProfileChanged/ReloadProfileList 直通，SceneDelegate 不直调防双发）
+- UI 挂载：设置页 Launcher 子页 group3 插件入口行；列表页三区（已装卡启停/贡献行/API 说明）；详情页四区（信息/启用/权限组实时开关/卸载确认）
+- i18n：ame317.* 54 键（32 静态+22 动态 perm）注册 en/zh-Hans/zh-CN/zh-Hant 四表（scripts/ame317_i18n.py 幂等）；其余 50 表走 en 回退链
+- CMakeLists 登记 6 新 TU（RegionGate 后）；smoke 语法门禁自动拾取（import ZL2Theme.h 面）
+- 终审修复 9 处：①UZK info.name→filename（属性不存在=编译雷，预编译 framework 头核实）②单层包裹探测 segs[1]→segs[0]（filename=相对路径）③invokeRowTap 插件 id 含点时首点切分失效→最长前缀匹配④__theme 持久化断层（Runtime 读但没人写→Bridge.setThemeToken 读改写落盘）⑤SceneDelegate 前后台直调拆除（Runtime 通知订阅已覆盖，防双发）⑥dispatchEvent payload 快照类型⑦安装后自动装载（bootIfNeeded 已过）⑧⑨⑩ZL2M3Switch 自动翻转契约三处 toggle 反逻辑（ame_toggle 已翻转 _on 再发 ValueChanged，handler 再取反=把用户点击写回去；对齐 ZL2SettingCards/ZL2VersionPages 既有样板）⑪SceneDelegate 拆直调时吃掉方法闭合括号（括号平衡门禁抓获）
+- 判例：显示层吞字第 8 例（ZL2Theme ![h 显示为 !ex，repr 输出亦被吞，python 逐字符 ord 码点序列还原真相=文件从未损坏，所有"修复"尝试被 assert 拦截未落盘）；诊断武器=码点序列 hex dump
+- 门禁：task191_validate_strings 全表 OK（四表 3260）；task219_syntax ALL GREEN（重锚 Makefile TAB 808/包名 prisma-devs/键数 3260 + 新增 11 文件 balance 检查）；ame317_selfcheck 0 失败（perm 键对齐/占位符参数/import 闭环/CMake 登记/四表键集一致）
+
+Stage Summary:
+- 插件系统全链交付：JS 沙箱+桥接 API 面（渲染器切换/设置读写/UI 注入/主题覆盖/事件订阅/网络/私有存储）+ 11 组权限中心（清单声明+逐项授权+运行时执法+实时生效）+ 管理 UI（列表/详情/安装/启停/授权/卸载）
+- 插件开发者视角：ame.setThemeToken({primary:"#FF0000"}) 一行换肤（高危授权后）；ame.on("game.starting",...) 订阅；ame.setRenderer({renderer:"libMobileGL.dylib"}) 切渲染器
+- commit f3c6c16c 推送 main；CI 双 workflow（development+ui-smoke）轮询中
