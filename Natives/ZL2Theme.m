@@ -57,6 +57,14 @@ static UIColor *AmePluginColorOverride(NSString *token) {
     return nil;
 }
 
+// 宏：getter 一行式覆盖检查（GNU 语句表达式，clang 默认支持）
+#define AME317_PLUGIN_COLOR(token, light, dark) \
+    ({ UIColor *ame317_ov = AmePluginColorOverride(@#token); \
+       ame317_ov ? ame317_ov : ZL2ColorLightDark(light, dark); })
+
+
+@implementation ZL2Theme
+
 + (BOOL)ame317_setPluginThemeTokens:(NSString *)pluginId
                              tokens:(NSDictionary<NSString *, NSString *> *)tokens {
     if (pluginId.length == 0) return NO;
@@ -99,14 +107,6 @@ static UIColor *AmePluginColorOverride(NSString *token) {
           (unsigned long)applied, (unsigned long)tokens.count);
     return YES;
 }
-
-// 宏：getter 一行式覆盖检查（GNU 语句表达式，clang 默认支持）
-#define AME317_PLUGIN_COLOR(token, light, dark) \
-    ({ UIColor *ame317_ov = AmePluginColorOverride(@#token); \
-       ame317_ov ? ame317_ov : ZL2ColorLightDark(light, dark); })
-
-
-@implementation ZL2Theme
 
 #pragma mark - 主色系
 
