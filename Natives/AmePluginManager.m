@@ -100,14 +100,16 @@
                                          errCode:(AmePluginInstallResult *)errCode {
     AmePluginInstallResult fail = AmePluginInstallErrBadSchema;
     AmePluginManifest *m = nil;
+    // ARC：goto 不得跳入后置 __strong 顶层变量作用域——id 白名单字符集
+    // 预声明于此（goto 前），供两处校验循环共用
+    NSCharacterSet *ame317_idChars = [NSCharacterSet characterSetWithCharactersInString:
+                          @"abcdefghijklmnopqrstuvwxyz0123456789._-"];
 
     if (![dict isKindOfClass:[NSDictionary class]]) { fail = AmePluginInstallErrBadJSON; goto out; }
 
     NSString *pid = [self trimmedString:dict[@"id"]];
     if (pid.length < 3 || pid.length > 64) goto out;
-    // id 白名单：首字符字母数字，整体 [a-z0-9._-]
-    NSCharacterSet *ok = [NSCharacterSet characterSetWithCharactersInString:
-                          @"abcdefghijklmnopqrstuvwxyz0123456789._-"];
+    // id 白名单：首字符字母数字，整体 [a-z0-9._-]（字符集已在 goto 前预声明）
     {
         unichar c0 = [pid characterAtIndex:0];
         if (![[NSCharacterSet characterSetWithCharactersInString:
@@ -115,7 +117,7 @@
     }
     for (NSUInteger i = 0; i < pid.length; i++) {
         unichar c = [pid characterAtIndex:i];
-        if (![ok characterIsMember:c]) goto out;
+        if (![ame317_idChars characterIsMember:c]) goto out;
     }
 
     m = [[AmePluginManifest alloc] init];
@@ -189,7 +191,7 @@ out:
     NSString *stripPrefix = @"";
     if (!manifestData) {
         // 探测唯一顶层目录
-        NSString *singleDir = nil;
+        __block NSString *singleDir = nil;
         __block BOOL ambiguous = NO;
         [archive performOnFilesInArchive:^(UZKFileInfo *info, BOOL *stop) {
             NSString *name = info.filename; // 相对路径（UZKFileInfo.filename）
@@ -200,7 +202,7 @@ out:
             if ([top hasPrefix:@"."]) return;
             if (singleDir == nil) { singleDir = top; }
             else if (![singleDir isEqualToString:top]) { ambiguous = YES; *stop = YES; }
-        }];
+        } error:nil];
         if (singleDir && !ambiguous) {
             stripPrefix = [singleDir stringByAppendingString:@"/"];
             manifestData = [archive extractDataFromFile:

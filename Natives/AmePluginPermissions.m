@@ -37,9 +37,8 @@ NSString *ame317_pluginsRootDir(void) {
 
 @implementation AmePluginPermissions
 
-// 私有方法前向声明（ObjC 方法需先声明后使用）
-+ (AmePluginPermissionItem *)itemForId:(NSString *)permissionId;
-
+// ObjC @implementation 内方法定义顺序无关（clang 全 implementation 查找），
+// itemForId: 定义于下方，无需前向声明。
 + (NSArray<AmePluginPermissionItem *> *)allPermissions {
     static NSArray<AmePluginPermissionItem *> *perms = nil;
     static dispatch_once_t once;

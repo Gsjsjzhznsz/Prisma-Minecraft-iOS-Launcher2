@@ -15,6 +15,9 @@ NS_ASSUME_NONNULL_BEGIN
 // ═══════════════════════════════════════════════════════════════════
 
 /// 权限组条目
+/// 插件根目录（POJAV_HOME/plugins；C 函数，Manager/Runtime 共用）
+NSString *ame317_pluginsRootDir(void);
+
 @interface AmePluginPermissionItem : NSObject
 /// 权限 id（桥接命名空间对齐，如 @"net" / @"ui.theme"）
 @property (nonatomic, copy, readonly) NSString *permissionId;
