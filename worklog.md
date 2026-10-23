@@ -3301,3 +3301,19 @@ Work Log:
 
 Stage Summary:
 - Task 316 四线经 CI 全量编译终审通过；装机验证锚点六条见 Task 316 条目 Stage Summary
+
+---
+Task ID: 317
+Agent: main (Super Z)
+Task: 装机闪退排查——ame_presentVersionSheet 约束无公共祖先崩溃（用户报 UIControl.top ↔ UILabel.bottom no common ancestor）
+
+Work Log:
+- 崩溃定位：栈帧 4/5 = ZL2GameDownloadViewController ame_presentVersionSheet: ← tableView:didSelectRowAtIndexPath:；pickaxe -S 实锤该方法仅在 8284740b（7.0-UI-12）..9dfe9cfc（7.0-ui-14）窗口存活，HEAD（08389879）全仓零匹配——用户二进制是该窗口期 CI 产物（LiveContainer 装机），非 HEAD 缺陷
+- 旧实现根因（8284740b L604-649）：installButton 创建后从未 [content addSubview:installButton]，却在 activateConstraints 里 [installButton.topAnchor ↔ meta.bottomAnchor]（meta 在 content 树内）——孤儿视图跨层约束，与崩溃日志两锚点类名逐位吻合（UIControl.top/UILabel.bottom）；同段 content.bottom ↔ installButton.bottom 同罪
+- HEAD 现状：7.0-ui-14 重写后点版本卡=push ZL2GameAddonsViewController（旧弹层安装流整条退役，注释"旧底部弹层安装流退役"L773）；同名方法不存在，同类崩溃结构性不可能
+- 同族雷全仓扫描：自研孤儿约束启发式（scripts/sweep_orphan_constraint.py，文件级父子树+self./ivar 归一+布局指南剥离+孤儿侧标记）263 个 .m 全扫，原始 359→72→47（三轮降噪），47 条逐条人工核验全部误报（同名局部变量跨 helper 串扰/container.subviews.lastObject 动态取视图/数组字面量 arranged 子视图/cell 内部层级），真雷 0
+- 四处 ZL2M3BottomSheet 调用点（ZL2Home L1177 sheetStack=UIStackView 天然安全/ZL2AssetSearch L1704+L1866 约束前全 addSubview）+ZL2M3Kit 内部（Dialog L421-460/BottomSheet L576-590 addSubview 全部先于 activateConstraints）手工审计通过
+- 更新指引实锤：最近终绿 Development build run 39904637661（head=ae645dbab，7.0-ui-14 之后）产物 ipa 222.3MB + trollstore.tipa 222.3MB + dSYM，2027-01-21 过期；用户装此版即根治
+
+Stage Summary:
+- 结论：闪退=7.0-UI-12 窗口期旧构建孤儿视图约束（installButton 忘 addSubview 即参与跨树约束）；HEAD 经 7.0-ui-14 流程重写结构性根除，全仓扫描零同族真雷，无需改码；行动=用户更新至 run 39904637661 产物；判例入档：activateConstraints 前必须保证两锚点视图已同树（新 UI 代码评审项）
