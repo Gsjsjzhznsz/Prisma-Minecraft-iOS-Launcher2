@@ -3239,3 +3239,21 @@ Work Log:
 
 Stage Summary:
 - 7.0-UI-16 全链闭环（f7c647a0→4adb3677）；装机锚点 5 条见上条目 Stage Summary
+
+---
+Task ID: 315
+Agent: main (Super Z)
+Task: 6.5.5 全量同步（用户指令"与另一个仓库的6.5.5差了好多东西没修，比如手柄和readme等等，同步一下"）——repo-prisma v6.5.5(211f7476) git merge 进 Launcher2
+
+Work Log:
+- 拓扑实证：两仓共享历史，merge-base=f13bfe6（Task262 闭环点）；Launcher2 此前从未收过 6.5.5 线的 141 个提交（Task263-313 全系）；本会话先前"缺失 0 提交"结论系 prisma/main 误解析到本地旧 ref 所致，重新 fetch origin/main 后定性
+- 策略：git merge 211f7476 全量并入（141 提交/322 文件/66912+22191-），Task314（PrismaUI 7.0 线）明确不入——与 ZL2 线平行冲突
+- 冲突 63 处解毕：i18n 54 表尾部追加键并集（零重复键，task191 全表 OK）+ Makefile/Info.plist 版本行保 1.0.0 测试线身份 + SceneDelegate（import 并集+根壳保 ZL2Shell，RegionGate 改从 ZL2 壳根弹出）+ DownloadViewController 两块取 6.5.5（sidebarAggregateButton/ame293 helper 符号全在位实证）+ RightPanel/PLCrashView/AmeFloatingMenu import 并集 + verify_task263 撞号双版本共存（prisma 侧改名 _prisma）+ worklog 保 Launcher2 线
+- 语义验证（文本并入≠语义正确的防线）：双侧锚点共存检查 23 文件全过（ame300_launchcheck 三入口在 RightPanel/NavCtrl/MRDT、ame304 在 JavaLauncher、releaseAllHeld/nintendo_layout 在 input/ControllerInput.m、PRISMA_JIT_HELPER_CHILD 在 main.m、ZL2 路由在 ZL2DownloadViewController——6 个初报 miss 全为锚点预期错位非丢失）；Natives 源拾取走 CMakeLists 显式清单（RegionGate/StikDebug/ModpackImportService L559-659 在位+39 处 ZL2 共存）
+- 基线重校准三件（双线漂移非损伤）：verify_task219（键数 3165→3204/公告 6→7/TAB 812→808，81/81 全绿）+ verify_task255（gamepad 条目走 Task311 独立管线 file 键无 id 需跳过+公告 7 条，exit 0）+ verify_task263_prisma（D2 TAB 654→808，43/43 全绿）
+- 专项实锤：MoltenVK libMoltenVK.dylib=4904816B（Task309 恢复 1.4.3 逐字节吻合）；mg_vsync_hook 全树零残留（CMakeLists 仅 Task309 注释）；Makefile TAB 808=6.5.5 终态逐行等数、零空格缩进损伤；gamepads 走 GitHub 远端目录无需打包；全树零冲突标记
+- 门禁电池全绿：task139/240 all balanced + task240 retired 0 + task248 缺键0硬编码0动态键0 + task250 0 + task191 全表 OK(zh-Hans 3204) + verify219 81/81 + verify255 exit0 + verify263 18/18 + verify263_prisma 43/43 + verify264 43/43 + task307 PASS
+
+Stage Summary:
+- 6.5.5 全功能面并入：手柄全链（断连 releaseAllHeld/连接 toast/Switch 任天堂布局/控件三分类/键鼠 scroll_speed/手柄下载分类+gamepad_default+gamepad_switch）、服务地区门 RegionGate（五信号+3 次放行，从 ZL2 壳根弹出）、下载吞吐量见证换源 ame312、JIT 链 Task294-306 全套（StikDebug/stikjit appex/ame300-306）、MoltenVK 1.4.3+mg_vsync_hook 退役、ame307 崩溃一键切 GLES、README/README_EN 服务地区声明、Task265-293 修复链、Task291 聚合搜索、showdown agent
+- 提交 66b8e0295（merge）+ worklog 条目；待 CI 全量编译取证（本地无 ObjC 全量编译门禁，CI 为最终裁判——Task260/261/310 同族判例在案）
