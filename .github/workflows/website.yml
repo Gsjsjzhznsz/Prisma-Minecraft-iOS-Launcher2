@@ -3,10 +3,11 @@
 # 与仓库 main 的 announcements.json 单一事实源同步。
 name: Deploy website (GitHub Pages)
 
+# Task315（6.5.5 同步随入修正）：本仓库为 7.0 测试专用，与 development.yml
+# /ui-smoke.yml 同红线——push 自动触发拆除。合并触碰 website/** 曾自动拉起
+# deploy，而本仓未启用 GitHub Pages（GET /pages 404），deploy-pages@v4 必败；
+# 仅保留手动 dispatch 供需要时取证预览，网站正发布仍走主仓。
 on:
-  push:
-    branches: [main]
-    paths: ['website/**', 'announcements.json', '.github/workflows/website.yml']
   workflow_dispatch:
   # Task291: daily rebuild keeps the build-time latest-release tag and
   # announcements fresh even when main is quiet.
