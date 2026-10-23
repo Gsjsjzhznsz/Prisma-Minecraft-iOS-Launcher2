@@ -3287,3 +3287,17 @@ Work Log:
 
 Stage Summary:
 - 四线全交付：玻璃 24pt 不再锋利/手柄三类型+滚速+手柄仓库直达/下载页分类筛选双平台落 API/文件层共享核心+实例扁平+跨启动器导入；装机锚点：①长按浮窗看圆角 ②设置-手柄=手柄类型含任天堂+滚轮速度 ③控制管理=手柄映射组 ④下载页右栏分类行筛 Modrinth 标签 ⑤启动器设置=导入外部启动器数据（选 .minecraft 文件夹）⑥重启后 instances 体积减半以上（核心去重）
+
+---
+Task ID: 316-ci（闭环补记）
+Agent: main (Super Z)
+Task: Task 316 CI 闭环（run 39903564445 红一轮 + r1 热修 + redispatch 终绿）
+
+Work Log:
+- run 39903564445 首轮红：CurseForgeAPI.m:549/550 ame316 分类解析 id 点语法 lowercaseString 属性域不可解析（三元 isKindOfClass 分支内 id 取属性=编译器静态盲区，Task260/261/310 同族第四进宫；本地 task139/240 括号与 import 门禁不查属性声明域，CI 全量编译才暴露——判例家族再入档）
+- r1 热修 ae645dba：真分支显式转型 (NSString *) 后取属性；run 日志全量扫描实锤仅此两处 error（其余全是 deprecation warning 噪音）
+- redispatch 终绿：Development build success（head=ae645dbab）；UI Fluent smoke success（head=6500232d，语法门禁+模拟器渲染）
+- ipa/tipa 产物挂终绿 run artifacts
+
+Stage Summary:
+- Task 316 四线经 CI 全量编译终审通过；装机验证锚点六条见 Task 316 条目 Stage Summary
