@@ -226,6 +226,11 @@ BOOL isTrollStoreInstall(void);
 // while (!isJITEnabled) 死循环——stikjit:// 偶发没开成 JIT 时旧循环
 // 永不退出（装机实测"启动卡在启动器界面"，只能杀进程）。
 BOOL ame169_waitForJITCondition(BOOL (^condition)(void), NSTimeInterval timeout, NSString *label);
+
+// ★ Task302：LiveContainer guest 判定（exec 路径含 /Documents/Applications/）。
+// YES 时 builtin JIT 三条派生轨（ExtensionKit/posix_spawn/fork）结构性不可用，
+// 调用方应快速如实报错或直通外部开启工具深链。
+BOOL ame302_isLiveContainerGuest(void);
 // Task185：JIT 等待成功后的自愈式主队列派发。病历（11e4b63 装机 latestlog.2）：
 // condition satisfied（后台态 3.8s，traced=1 exn=1）之后 dispatch_async(main)
 // 的续接块【从未执行】——Task183 锚点 "wait-completed block entered" 缺失，
@@ -352,6 +357,22 @@ void handle_fatal_exit(int code);
 // O_APPEND 直写 $POJAV_HOME/fatal_trace.txt（绕过 latestlog 管道，防丢尾）
 void ame_write_fatal_trace(const char *reason);
 
+// ★ Task273（main_hook.m 实现）：PCL CE 式崩溃分析让路协议握手信号。
+// PLCrashView 呈现成功/被用户关闭时回调——Ame251 看门狗据此决定让路
+// 时长（非零退出 = 崩溃：≤8s 等呈现 + 呈现后 ≤120s 等读完；挂死场景
+// 旗标未置位 = 立即 _exit(0) 语义不变）。
+void ame273_crashViewDidPresent(void);
+void ame273_crashViewDidDismiss(void);
+
+// ★ Task306（main_hook.m 实现）：SIGKILL 级游戏会话死亡感知。
+// begin = 先感知残留 marker（铸 SIGKILL 疑似报告）再立本会话 marker；
+// end   = 退出钩子路径收尾清除；consume = app 冷启动时感知残留（不立新）。
+// SIGKILL（StikDebug 断连/看门狗/jetsam）不经过任何退出钩子，ame273 报告
+// 链覆盖不到 —— marker 残留即"进程未走钩子即消失"的唯一定性依据。
+void ame306_beginGameSessionMarker(const char *versionTag);
+void ame306_endGameSessionMarker(void);
+void ame306_consumeStaleGameSessionMarker(void);
+
 NSString* localize(NSString* key, NSString* comment);
 NSMutableDictionary* parseJSONFromFile(NSString *path);
 NSError* saveJSONToFile(NSDictionary *dict, NSString *path);
@@ -445,6 +466,10 @@ void CallbackBridge_nativeSendScreenSizeForced(int width, int height);
 // ★ Task250：应用前台/后台旗标（SurfaceVC WillResignActive/DidBecomeActive
 //   维护）——后台期常规窗口推送被门控（过窗值不再污染 MC 窗口信念）。
 extern BOOL g_ame250_appActive;
+// ★ Task278：freeform scale-mode 旗标（SurfaceVC 定义/维护）——YES 期间
+//   CallbackBridge_nativeSendScreenSize 拦截 Java 侧窗口尺寸回报（真实
+//   小窗尺寸会污染冻结的全帧 MC 窗口信念 = 小窗触点漂移根因②）。
+extern BOOL g_ame267_freeformScaled;
 void CallbackBridge_nativeSendScroll(CGFloat xoffset, CGFloat yoffset);
 void CallbackBridge_sendKeycode(int keycode, jchar keychar, int scancode, int modifiers, BOOL isDown);
 void CallbackBridge_pauseGameIfNeed();
@@ -523,6 +548,14 @@ double ame187_iphoneNotchInset(UIView *view, BOOL isLeading);
 // 建目录点替换调用（含下载与解压落盘路径）。
 // ============================================================================
 BOOL ame188_ensureDirectoryHealed(NSString *path);
+NSString *AMEIconCachePathForURL(NSString *urlString, NSString *subfolder);
+
+// ★ Task275 F4：整合包内相对路径单点净化（zip-slip/绝对路径逃逸）。
+// 返回 nil = 不安全（".." 段 / 绝对路径 / 反斜杠分隔 / 清洗后为空），
+// 调用方跳过该条目或回退安全名。iOS 沙盒挡不住容器内写，恶意 zip 条目
+// 可借 stringByAppendingPathComponent 的绝对路径替换语义跨实例覆写 mods/config。
+NSString *AME275SafeRelativePath(NSString *rel);
+
 
 #ifdef __cplusplus
 }

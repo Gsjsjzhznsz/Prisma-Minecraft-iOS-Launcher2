@@ -13,6 +13,7 @@
 #import <CommonCrypto/CommonCrypto.h>
 #import <UIKit/UIKit.h>
 #import "PLProfiles.h"
+#import "ModService.h"   // Task274-h S11: Task225 isolation sniff (ame225_sniffedIsolationGameDirForProfile)
 #import "WorldItem.h"
 #import "UZKArchive.h"
 #import "DownloadTaskManager.h"
@@ -33,6 +34,10 @@
 @property (nonatomic, strong) NSMutableDictionary<NSURLSessionTask *, NSMutableDictionary *> *downloadProgressSnapshots;
 // 导入任务专用字典（不通过 NSURLSession 下载，但同样需要进度上报）
 @property (nonatomic, strong) NSMutableDictionary<NSString *, WorldDownloadCompletionHandler> *importCompletionHandlers;
+// ★ Task270 P1：六字典无锁跨线程读写（主线程登记 vs delegate 串行队列读写）
+//   = NSMutableDictionary 并发消息崩溃面；对齐 Mod/RP/DP/Shader 服务的
+//   downloadStateLock 同款锁纪律。
+@property (nonatomic, strong) NSLock *downloadStateLock;
 @end
 
 @implementation WorldService
@@ -63,6 +68,7 @@
         _downloadTaskItems = [NSMutableDictionary dictionary];
         _downloadProgressSnapshots = [NSMutableDictionary dictionary];
         _importCompletionHandlers = [NSMutableDictionary dictionary];
+        _downloadStateLock = [NSLock new];
     }
     return self;
 }
@@ -71,14 +77,40 @@
 
 // 解析 profile 的 gameDir，返回 gameDir 或 nil
 - (nullable NSString *)gameDirForProfile:(NSString *)profileName {
-    NSString *profile = profileName.length ? profileName : @"default";
+    // Task270 M1 服务层语义对齐：nil 入参不再落 @"default" 字面量（真实默认键
+    // 是 "(Default)"，profiles[@"default"] 恒 miss）——跟随当前选中实例，
+    // 无选中时回落 "(Default)"（ame267 跟随语义的服务层版本）。
+    if (!profileName.length) profileName = PLProfiles.current.selectedProfileName ?: @"(Default)";
+    NSString *profile = profileName;
     @try {
         NSDictionary *profiles = PLProfiles.current.profiles;
         NSDictionary *prof = profiles[profile];
         if ([prof isKindOfClass:[NSDictionary class]]) {
             NSString *gameDir = prof[@"gameDir"];
-            if ([gameDir isKindOfClass:[NSString class]] && gameDir.length > 0) {
-                return gameDir;
+            // Task269-r3：相对路径（如 ./custom_gamedir/<id>）统一相对 POJAV_GAME_DIR
+            // 解析成绝对路径——裸相对依赖进程 CWD，而 CWD 会被启动链 chdir 永久切走，
+            // 玩过一局后存档/资源包/数据包全部错位（review-c H1；与 ModService 同口径）。
+            if ([gameDir isKindOfClass:[NSString class]] && gameDir.length > 0 && ![gameDir isEqualToString:@"."]) {
+                if ([gameDir isAbsolutePath]) return gameDir;
+                NSString *clean = [gameDir hasPrefix:@"./"] ? [gameDir substringFromIndex:2] : gameDir;
+                const char *baseC = getenv("POJAV_GAME_DIR");
+                return baseC ? [[NSString stringWithUTF8String:baseC] stringByAppendingPathComponent:clean] : gameDir;
+            }
+            // ★ Task274-h S11（Task225 嗅探平移·双保险）：gameDir 缺失/空/"." 时先按
+            //   目录形状嗅探 versions/<lastVersionId>/game 隔离（与 ModService resolve
+            //   逐行同口径）——此前 World 缺嗅探，'.' 实例（AiInstanceCreator 仍写 '.'、
+            //   A3 sweep 仅启动期收敛）的世界下载落共享根，与 mods 落点短暂分居。
+            {
+                NSString *ame225_sniffed = [ModService ame225_sniffedIsolationGameDirForProfile:prof];
+                if (ame225_sniffed.length > 0) {
+                    NSLog(@"[WorldService] Task225 auto-sniffed isolation for profile %@ -> %@ (mods/saves present)",
+                          profile, ame225_sniffed.lastPathComponent);
+                    return ame225_sniffed;
+                }
+            }
+            if ([gameDir isKindOfClass:[NSString class]] && [gameDir isEqualToString:@"."]) {
+                const char *baseC = getenv("POJAV_GAME_DIR");
+                if (baseC) return [NSString stringWithUTF8String:baseC];
             }
         }
     } @catch (NSException *ex) { }
@@ -94,20 +126,19 @@
 
 // 查找指定 profile 的 saves 目录（已存在时返回路径，否则返回 nil）
 - (nullable NSString *)existingWorldsFolderForProfile:(NSString *)profileName {
-    NSString *profile = profileName.length ? profileName : @"default";
     NSFileManager *fm = [NSFileManager defaultManager];
 
     @try {
-        NSDictionary *profiles = PLProfiles.current.profiles;
-        NSDictionary *prof = profiles[profile];
-        if ([prof isKindOfClass:[NSDictionary class]]) {
-            NSString *gameDir = prof[@"gameDir"];
-            if ([gameDir isKindOfClass:[NSString class]] && gameDir.length > 0) {
-                NSString *savesPath = [gameDir stringByAppendingPathComponent:@"saves"];
-                BOOL isDir = NO;
-                if ([fm fileExistsAtPath:savesPath isDirectory:&isDir] && isDir) {
-                    return savesPath;
-                }
+        // Task270 P1：主分支改经 gameDirForProfile 解析（相对路径统一相对
+        // POJAV_GAME_DIR 绝对化）——原裸拼 prof[@"gameDir"] 在 ame97 chdir 后
+        // 扫描/下载/导入全部错位（Task269-r3 修复落点错位：gameDirForProfile
+        // 修好后全仓零调用；对齐 ResourcePackService r3 模式）。
+        NSString *gameDir = [self gameDirForProfile:profileName];
+        if (gameDir.length > 0) {
+            NSString *savesPath = [gameDir stringByAppendingPathComponent:@"saves"];
+            BOOL isDir = NO;
+            if ([fm fileExistsAtPath:savesPath isDirectory:&isDir] && isDir) {
+                return savesPath;
             }
         }
     } @catch (NSException *ex) { }
@@ -127,18 +158,14 @@
 
 /// 获取当前 profile 的 saves 目录，不存在时自动创建
 - (nullable NSString *)ensureWorldsFolderForProfile:(NSString *)profileName error:(NSError **)error {
-    NSString *profile = profileName.length ? profileName : @"default";
     NSFileManager *fm = [NSFileManager defaultManager];
     NSString *savesPath = nil;
 
     @try {
-        NSDictionary *profiles = PLProfiles.current.profiles;
-        NSDictionary *prof = profiles[profile];
-        if ([prof isKindOfClass:[NSDictionary class]]) {
-            NSString *gameDir = prof[@"gameDir"];
-            if ([gameDir isKindOfClass:[NSString class]] && gameDir.length > 0) {
-                savesPath = [gameDir stringByAppendingPathComponent:@"saves"];
-            }
+        // Task270 P1：同 existing——主分支改经 gameDirForProfile 绝对化解析。
+        NSString *gameDir = [self gameDirForProfile:profileName];
+        if (gameDir.length > 0) {
+            savesPath = [gameDir stringByAppendingPathComponent:@"saves"];
         }
     } @catch (NSException *ex) { }
 
@@ -177,7 +204,13 @@
 
 - (void)scanWorldsForProfile:(NSString *)profileName completion:(WorldListHandler)completion {
     dispatch_async(dispatch_get_global_queue(QOS_CLASS_USER_INITIATED, 0), ^{
-        NSString *savesFolder = [self existingWorldsFolderForProfile:profileName];
+        // ★ Task275 F1（P0·ame219 隔离优先语义平移）：扫描不再走"隔离目录缺失→共享根
+        //   兑底"——新隔离实例列表必须为空而非显示共享根/隔壁实例列表（跨实例串目录）。
+        NSError *ame275DirError = nil;
+        NSString *savesFolder = [self ensureWorldsFolderForProfile:profileName error:&ame275DirError];
+        if (!savesFolder) {
+            savesFolder = [self existingWorldsFolderForProfile:profileName];
+        }
         NSMutableArray<WorldItem *> *items = [NSMutableArray array];
 
         if (!savesFolder) {
@@ -347,6 +380,14 @@
             toProfile:(NSString *)profileName
              progress:(WorldDownloadProgressHandler _Nullable)progress
            completion:(WorldDownloadCompletionHandler _Nullable)completion {
+    // ★ Task275 F7（Task269 末梢自愈平移）：目标实例不存在→回落当前选中实例
+    //   （ModService.m:734 同款，杜绝死名 resolve 兑底静默落共享根）。
+    if (profileName.length > 0 && !PLProfiles.current.profiles[profileName]) {
+        NSString *ame275_fallback = PLProfiles.current.selectedProfileName;
+        NSLog(@"[WorldService] Task275: target profile \"%@\" gone -> fallback to selected \"%@\"",
+              profileName, ame275_fallback ?: @"(nil)");
+        profileName = ame275_fallback;
+    }
     // 确保 saves 目录存在
     NSError *ensureError = nil;
     NSString *savesFolder = [self ensureWorldsFolderForProfile:profileName error:&ensureError];
@@ -380,6 +421,8 @@
 
     // 创建下载任务（默认会话配置，无后台限速）
     NSURLSessionDownloadTask *task = [self.downloadSession downloadTaskWithURL:url];
+    // ★ Task270 P1：登记区跨线程（主线程写 vs delegate 队列读）加锁
+    [self.downloadStateLock lock];
     self.downloadCompletionHandlers[task] = completion;
     self.downloadDestinationPaths[task] = destinationPath;
     // 用 taskDescription 暂存世界名和 saves 目录（用于解压阶段）
@@ -391,6 +434,7 @@
         self.downloadProgresses[task] = progressObj;
         self.downloadProgressHandlers[task] = progress;
     }
+    [self.downloadStateLock unlock];
 
     // 注册到统一下载任务管理器（悬浮球已移除，始终注册以便下载任务列表跟踪）
     NSString *resourceName = item.worldName.length > 0 ? item.worldName : (item.displayName.length > 0 ? item.displayName : @"world");
@@ -406,7 +450,12 @@
                       supportsResume:YES
                              iconURL:item.iconURL];
     taskItem.downloadURL = item.selectedVersionDownloadURL;
+    // ★ Task270 M2：下载任务标注目标实例（Task266/267 中央落点此前仅 mods
+    //   享有——跨实例对账/死名回落需 targetProfileName 全服务一致）。
+    taskItem.targetProfileName = profileName;
+    [self.downloadStateLock lock];
     self.downloadTaskItems[task] = taskItem;
+    [self.downloadStateLock unlock];
     [[DownloadTaskManager sharedManager] setTaskWithId:taskItem.taskId state:DownloadTaskStateDownloading];
 
     // 设置 retryHandler：FCL 风格重新下载
@@ -414,18 +463,32 @@
     NSString *capturedDestPath = destinationPath;
     WorldDownloadCompletionHandler capturedCompletion = completion;
     void (^capturedProgress)(NSProgress *) = progress;
+    // ★ Task274-h S1：重试重建需要同样的 taskDescription 原料（世界名 + saves 目录）
+    NSString *capturedWorldName = worldNameForExtract;
+    NSString *capturedSavesFolder = savesFolder;
     taskItem.retryHandler = ^id(DownloadTaskItem *taskItemRef) {
         __strong typeof(weakSelf) strongSelf = weakSelf;
         if (!strongSelf) return nil;
         NSURL *retryURL = [NSURL URLWithString:taskItemRef.downloadURL] ?: url;
         if (!retryURL) return nil;
         NSURLSessionDownloadTask *newTask = [strongSelf.downloadSession downloadTaskWithURL:retryURL];
+        [strongSelf.downloadStateLock lock];
         strongSelf.downloadCompletionHandlers[newTask] = capturedCompletion;
         strongSelf.downloadDestinationPaths[newTask] = capturedDestPath;
+        // ★ Task274-h S1：重建任务必须补写 taskDescription（"worldName\nsavesFolder"）——
+        //   漏写则 didFinishDownloadingToURL 解析 savesFolder=nil → 删临时包 + 报
+        //   "无 saves 目录"（重试必败；暂停→恢复撞 rawTask=Completed 回退 retry 同路径）。
+        newTask.taskDescription = [NSString stringWithFormat:@"%@\n%@", capturedWorldName, capturedSavesFolder];
         if (capturedProgress) {
             strongSelf.downloadProgressHandlers[newTask] = capturedProgress;
+            // ★ Task274-h S1：进度对象同样补登记——didWriteData 读
+            //   downloadProgresses[task]，漏登记 = 重试后 NSProgress 缺失，进度回调静默。
+            NSProgress *ame274_retryProgress = [NSProgress progressWithTotalUnitCount:-1];
+            ame274_retryProgress.kind = NSProgressKindFile;
+            strongSelf.downloadProgresses[newTask] = ame274_retryProgress;
         }
         strongSelf.downloadTaskItems[newTask] = taskItemRef;
+        [strongSelf.downloadStateLock unlock];
         [[DownloadTaskManager sharedManager] setTaskWithId:taskItemRef.taskId state:DownloadTaskStateDownloading];
         [newTask resume];
         return newTask;
@@ -537,9 +600,20 @@
       didWriteData:(int64_t)bytesWritten
  totalBytesWritten:(int64_t)totalBytesWritten
 totalBytesExpectedToWrite:(int64_t)totalBytesExpectedToWrite {
+    // ★ Task270 P1：delegate 读区跨线程（主线程写）加锁
+    [self.downloadStateLock lock];
     NSProgress *progressObj = self.downloadProgresses[downloadTask];
     WorldDownloadProgressHandler progressHandler = self.downloadProgressHandlers[downloadTask];
     DownloadTaskItem *taskItem = self.downloadTaskItems[downloadTask];
+    NSMutableDictionary *snapshot = nil;
+    if (taskItem && taskItem.rawTask == downloadTask) {
+        snapshot = self.downloadProgressSnapshots[downloadTask];
+        if (!snapshot) {
+            snapshot = [NSMutableDictionary dictionary];
+            self.downloadProgressSnapshots[downloadTask] = snapshot;
+        }
+    }
+    [self.downloadStateLock unlock];
 
     // 关键修复（旧任务覆盖新任务）：暂停→继续→重试会重建底层 downloadTask（newTask），
     // 被取消的旧 downloadTask 仍会派发滞后回调。taskItem.rawTask 指向当前活动任务，
@@ -551,7 +625,6 @@ totalBytesExpectedToWrite:(int64_t)totalBytesExpectedToWrite {
     if (taskItem) {
         double fraction = totalBytesExpectedToWrite > 0 ? (double)totalBytesWritten / (double)totalBytesExpectedToWrite : -1.0;
         NSTimeInterval now = [NSDate date].timeIntervalSince1970;
-        NSMutableDictionary *snapshot = self.downloadProgressSnapshots[downloadTask];
         double speed = 0.0;
         NSTimeInterval eta = 0.0;
         if (snapshot) {
@@ -563,10 +636,8 @@ totalBytesExpectedToWrite:(int64_t)totalBytesExpectedToWrite {
                     eta = (double)(totalBytesExpectedToWrite - totalBytesWritten) / speed;
                 }
             }
-        } else {
-            snapshot = [NSMutableDictionary dictionary];
-            self.downloadProgressSnapshots[downloadTask] = snapshot;
         }
+        // ★ Task270：快照首建已上移到锁内（原 else 分支在此处，防字典结构竞态）
         snapshot[@"lastTime"] = @(now);
         snapshot[@"lastBytes"] = @(totalBytesWritten);
 
@@ -594,10 +665,13 @@ totalBytesExpectedToWrite:(int64_t)totalBytesExpectedToWrite {
 }
 
 - (void)URLSession:(NSURLSession *)session downloadTask:(NSURLSessionDownloadTask *)downloadTask didFinishDownloadingToURL:(NSURL *)location {
+    // ★ Task270 P1：读+清区跨线程加锁
+    [self.downloadStateLock lock];
     WorldDownloadCompletionHandler handler = self.downloadCompletionHandlers[downloadTask];
     NSString *destinationPath = self.downloadDestinationPaths[downloadTask];
     NSString *taskDescription = downloadTask.taskDescription;
     DownloadTaskItem *taskItem = self.downloadTaskItems[downloadTask];
+    [self.downloadStateLock unlock];
 
     // 关键修复（旧任务覆盖新任务）：暂停→继续→重试重建任务后，被取消的旧 downloadTask
     // 的 didFinish 回调不得操作新任务。taskItem.rawTask 指向当前活动任务，不一致即丢弃。
@@ -605,12 +679,14 @@ totalBytesExpectedToWrite:(int64_t)totalBytesExpectedToWrite {
         return;
     }
 
+    [self.downloadStateLock lock];
     [self.downloadCompletionHandlers removeObjectForKey:downloadTask];
     [self.downloadDestinationPaths removeObjectForKey:downloadTask];
     [self.downloadProgresses removeObjectForKey:downloadTask];
     [self.downloadProgressHandlers removeObjectForKey:downloadTask];
     [self.downloadTaskItems removeObjectForKey:downloadTask];
     [self.downloadProgressSnapshots removeObjectForKey:downloadTask];
+    [self.downloadStateLock unlock];
 
     if (!handler || !destinationPath) {
         return;
@@ -693,34 +769,45 @@ totalBytesExpectedToWrite:(int64_t)totalBytesExpectedToWrite {
 
 - (void)URLSession:(NSURLSession *)session task:(NSURLSessionTask *)task didCompleteWithError:(NSError *)error {
     if (error) {
+        // ★ Task270 P1：读区跨线程加锁
+        [self.downloadStateLock lock];
         WorldDownloadCompletionHandler handler = self.downloadCompletionHandlers[task];
         DownloadTaskItem *taskItem = self.downloadTaskItems[task];
+        [self.downloadStateLock unlock];
 
         // 关键修复（旧任务覆盖新任务）：暂停→继续→重试重建任务后，被取消/替换的旧
         // downloadTask 的取消回调不得把新任务打成 Failed。taskItem.rawTask 指向当前
         // 活动任务，不一致即旧任务残留：仅清理字典，不更新 DownloadTaskManager 状态。
         if (taskItem && taskItem.rawTask != task) {
+            [self.downloadStateLock lock];
             [self.downloadCompletionHandlers removeObjectForKey:task];
             [self.downloadDestinationPaths removeObjectForKey:task];
             [self.downloadProgresses removeObjectForKey:task];
             [self.downloadProgressHandlers removeObjectForKey:task];
             [self.downloadTaskItems removeObjectForKey:task];
             [self.downloadProgressSnapshots removeObjectForKey:task];
+            [self.downloadStateLock unlock];
             return;
         }
 
         if (taskItem) {
             [[DownloadTaskManager sharedManager] updateTaskWithId:taskItem.taskId error:error];
             [[DownloadTaskManager sharedManager] setTaskWithId:taskItem.taskId state:DownloadTaskStateFailed];
+            [self.downloadStateLock lock];
             [self.downloadTaskItems removeObjectForKey:task];
             [self.downloadProgressSnapshots removeObjectForKey:task];
+            [self.downloadStateLock unlock];
         }
         if (handler) {
-            handler(NO, error);
+            // ★ Task270 P2：失败回调派主线程（原直跑 delegate 队列 = UI 越线程；
+            //   成功/解压路径 643/663/682/690 均已派主线程，此处补齐）。
+            dispatch_async(dispatch_get_main_queue(), ^{ handler(NO, error); });
+            [self.downloadStateLock lock];
             [self.downloadCompletionHandlers removeObjectForKey:task];
             [self.downloadDestinationPaths removeObjectForKey:task];
             [self.downloadProgresses removeObjectForKey:task];
             [self.downloadProgressHandlers removeObjectForKey:task];
+            [self.downloadStateLock unlock];
         }
     }
 }

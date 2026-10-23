@@ -29,6 +29,12 @@ NSString *const PREF_MOD_MIRROR = @"general.mod_mirror";
             @"debug_logging": @(!CONFIG_RELEASE),
             // Task 125：启动时自动检测更新（默认开；关闭后仅保留手动检查入口）
             @"auto_update_check": @YES,
+            // ★ Task286（PocketJ 对标）：经典/远古版本（rd-/c0./inf-/indev-/
+            //   a1./b1.）独立内存兼容轨总开关——ON=192MB 堆帽 + 64M Xms +
+            //   16M CodeCache，防 iOS 虚拟地址空间受限设备上远古版启动
+            //   失败（Java 8 默认 128MB 编译堆连续预留对远古版纯属浪费）；
+            //   OFF=与现役版本同参。
+            @"legacy_compatibility": @YES,
             // Task 130：公告源改为本仓库托管的 announcements.json（旧上游
             // air-api.vercel.app 已 404；AnnouncementService 的 raw + jsDelivr
             // 源级联见同文件常量，此默认值同时是"未自定义"识别基准之一）
@@ -69,6 +75,20 @@ NSString *const PREF_MOD_MIRROR = @"general.mod_mirror";
             // 时置 YES；未置 = 首次启动，SceneDelegate 在根视图就绪后全屏
             // 弹出向导：语言 / 下载源 / 数据导入三步引导 + 动效）。
             @"welcome_completed": @NO,
+        }.mutableCopy,
+        // ★ Task313：服务地区门计数（RegionGate.m）——键注册即修复。
+        //   病历（装机 6.5.5 截图 + 用户报告"点击之后一直卡 2/3"）：
+        //   Task312 引入 regiongate.* 两键时未在本表注册，而 setObject:
+        //   value: 是"只写已注册键"设计（Task142/143 家族，键不存在静默
+        //   return NO）→ confirm_count 每次写入都静默失败、读恒 0 →
+        //   "我不是大陆用户"每次点击都从 0 重计（0+1=1 < 3）→ 下一弹
+        //   恒为 index=2（"提示 2/3"）→ 死循环，用户永远过不了门。
+        //   修复：此处注册后，新装直接播种；存量受影响设备经
+        //   setDefaultsForPref 的 fill-only 补种在下次启动自动治愈。
+        //   双保险见 RegionGate.m 的 ame312_fallbackCount 内存兜底。
+        @"regiongate": @{
+            @"confirm_count": @(0),
+            @"passed": @NO,
         }.mutableCopy,
         // 分类镜像策略（值 official_first / mirror_first / speed_first，
         // 由 PLMirrorCenter 统一读取，未迁移时回退旧键 general.download_source）。
@@ -117,16 +137,28 @@ NSString *const PREF_MOD_MIRROR = @"general.mod_mirror";
             @"control_safe_area": UIApplication.sharedApplication ? NSStringFromUIEdgeInsets(getDefaultSafeArea()) : @"",
             @"default_gamepad_ctrl": @"default.json",
             @"controller_type": @"xbox",
+            // ★ Task310（Switch 手柄）：任天堂布局交换——Switch/Pro/Joy-Con
+            //   键面标签与 GCController 位置语义（Xbox 位）相反，开启后
+            //   面键 A↔B、X↔Y 交换后再查映射（ControllerInput ame310）。
+            @"nintendo_layout": @NO,
             @"hardware_hide": @YES,
             @"recording_hide": @YES,
             @"gesture_mouse": @YES,
             @"gesture_hotbar": @YES,
             @"disable_haptics": @NO,
+            // ★ Task287（PocketJ 对标移植）：Fluid 八方向 WASD 移动垫总开关
+            //   （SurfaceViewController ame287_* 消费；默认 OFF 与上游一致，
+            //   开启后 W/A/S/D 四键中心构成八方向连续滑动垫）
+            @"fluid_button_slide": @NO,
             @"slideable_hotbar": @NO,
             @"press_duration": @(400),
             @"button_scale": @(100),
             @"mouse_scale": @(100),
             @"mouse_speed": @(100),
+            // ★ Task310（键鼠优化）：模拟滚轮速度（%）——作用面 = 触屏布局
+            //   滚动按钮 + 手柄滚动键的固定 ±1 步进；GCMouse 真滚轮与惯性
+            //   甩动不走此系数。默认 100 = 与旧版完全一致。
+            @"scroll_speed": @(100),
             @"virtmouse_enable": @NO,
             // ★ Task230（反馈 #10：自动打开输入法（SDL）开关无效）：Task229
             // 加开关时漏注册默认值——PLPreferences 只能读写已注册的键

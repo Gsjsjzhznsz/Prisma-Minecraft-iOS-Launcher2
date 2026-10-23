@@ -282,7 +282,9 @@ static NSString * const kShaderCardCellIdentifier = @"ShaderCardCell";
 
 - (void)importShaderTapped {
     NSError *dirError = nil;
-    NSString *shadersDir = [[ShaderService sharedService] ensureShadersFolderForProfile:nil error:&dirError];
+    // ★ Task270 P2/M1：导入落点改传本页绑定实例（原传 nil 恒解析默认实例，
+    //   隔离实例导入的光影落错目录，与 :370/:415 同口径）。
+    NSString *shadersDir = [[ShaderService sharedService] ensureShadersFolderForProfile:self.profileName error:&dirError];
     if (!shadersDir) {
         [self showSimpleAlertWithTitle:localize(@"resman.common.cannot_import", nil) message:dirError.localizedDescription ?: localize(@"resman.shaders.dir_not_found", nil)];
         return;
@@ -300,7 +302,8 @@ static NSString * const kShaderCardCellIdentifier = @"ShaderCardCell";
     if (urls.count == 0) return;
 
     NSError *dirError = nil;
-    NSString *shadersDir = [[ShaderService sharedService] ensureShadersFolderForProfile:nil error:&dirError];
+    // ★ Task270 P2/M1：同 importShaderTapped——导入落点改传本页绑定实例。
+    NSString *shadersDir = [[ShaderService sharedService] ensureShadersFolderForProfile:self.profileName error:&dirError];
     if (!shadersDir) {
         [self showSimpleAlertWithTitle:localize(@"resman.common.import_failed", nil) message:dirError.localizedDescription ?: localize(@"resman.shaders.dir_not_found", nil)];
         return;
@@ -368,7 +371,10 @@ static NSString * const kShaderCardCellIdentifier = @"ShaderCardCell";
 
 - (void)refreshLocalShadersList {
     [self setLoading:YES];
-    NSString *profile = self.profileName ?: @"default";
+    // ★ Task274-g（G1）：nil 直传服务层——Task270 M1 已内置跟随选中实例语义
+    //   （resolveAbsoluteGameDirForProfile: nil→selectedProfileName→"(Default)"）。旧
+    //   ?: @"default" 是恒 miss 字面量（真实默认键 "(Default)"）=选中实例却恒扫共享根。
+    NSString *profile = self.profileName;
     [[ShaderService sharedService] scanShadersForProfile:profile completion:^(NSArray<ShaderItem *> *shaders) {
         dispatch_async(dispatch_get_main_queue(), ^{
             [self.localShaders removeAllObjects];
@@ -385,6 +391,12 @@ static NSString * const kShaderCardCellIdentifier = @"ShaderCardCell";
             }
         });
     }];
+}
+
+/// Task275（P2-b7）：选中实例变化实时跟随（钉定态除外）
+- (void)ame275_selectedProfileDidChange {
+    if (self.profileName.length > 0) return;   // 钉定：不跟随选中变化
+    [self refreshLocalShadersList];
 }
 
 - (void)updateEmptyState {

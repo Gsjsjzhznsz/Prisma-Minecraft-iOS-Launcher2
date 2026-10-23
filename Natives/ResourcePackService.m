@@ -14,6 +14,7 @@
 #import <CommonCrypto/CommonCrypto.h>
 #import <UIKit/UIKit.h>
 #import "PLProfiles.h"
+#import "ModService.h"   // Task274-h S11: Task225 isolation sniff (ame225_sniffedIsolationGameDirForProfile)
 #import "ResourcePackItem.h"
 #import "UZKArchive.h"
 #import "DownloadTaskManager.h"
@@ -76,21 +77,9 @@
 #pragma mark - 工具方法
 
 // 计算 URL 字符串的 SHA1，用作图标缓存文件名
+// ★ Task270（屎山 A1）：逐字节克隆收敛 utils.m 单点 AMEIconCachePathForURL（行为零变更）。
 - (NSString *)iconCachePathForURL:(NSString *)urlString {
-    if (!urlString) return nil;
-    NSString *cacheDir = [NSSearchPathForDirectoriesInDomains(NSCachesDirectory, NSUserDomainMask, YES) firstObject];
-    NSString *folder = [cacheDir stringByAppendingPathComponent:@"resourcepack_icons"];
-    if (![[NSFileManager defaultManager] fileExistsAtPath:folder]) {
-        [[NSFileManager defaultManager] createDirectoryAtPath:folder withIntermediateDirectories:YES attributes:nil error:nil];
-    }
-    const char *cstr = [urlString UTF8String];
-    unsigned char digest[CC_SHA1_DIGEST_LENGTH];
-    CC_SHA1(cstr, (CC_LONG)strlen(cstr), digest);
-    NSMutableString *hex = [NSMutableString stringWithCapacity:CC_SHA1_DIGEST_LENGTH * 2];
-    for (int i = 0; i < CC_SHA1_DIGEST_LENGTH; i++) {
-        [hex appendFormat:@"%02x", digest[i]];
-    }
-    return [folder stringByAppendingPathComponent:hex];
+    return AMEIconCachePathForURL(urlString, @"resourcepack_icons");
 }
 
 // 从 zip 中读取指定条目的数据
@@ -132,7 +121,10 @@
 
 // 查找指定 profile 的 resourcepacks 目录（已存在时返回路径，否则返回 nil）
 - (nullable NSString *)existingResourcePacksFolderForProfile:(NSString *)profileName {
-    NSString *profile = profileName.length ? profileName : @"default";
+    // ★ Task274-h S7：nil 入参跟随当前选中实例（ame267 语义），不再落恒 miss 的
+    // @"default" 字面量（真实默认键 "(Default)"；对齐 Task270 M1 gameDirForProfile 口径）。
+    if (!profileName.length) profileName = PLProfiles.current.selectedProfileName ?: @"(Default)";
+    NSString *profile = profileName;
     NSFileManager *fm = [NSFileManager defaultManager];
 
     @try {
@@ -140,7 +132,30 @@
         NSDictionary *prof = profiles[profile];
         if ([prof isKindOfClass:[NSDictionary class]]) {
             NSString *gameDir = prof[@"gameDir"];
-            if ([gameDir isKindOfClass:[NSString class]] && gameDir.length > 0) {
+            // ★ Task274-h S11（Task225 嗅探平移）：gameDir 缺失/空/"." 时先嗅探
+            //   versions/<lastVersionId>/game 隔离形状（ModService 同口径）——命中且
+            //   其 resourcepacks 已存在才重定向（本方法"存在即用"契约不变）。
+            if (![gameDir isKindOfClass:[NSString class]] || gameDir.length == 0 || [gameDir isEqualToString:@"."]) {
+                NSString *ame225_sniffed = [ModService ame225_sniffedIsolationGameDirForProfile:prof];
+                if (ame225_sniffed.length > 0) {
+                    NSString *ame225_rp = [ame225_sniffed stringByAppendingPathComponent:@"resourcepacks"];
+                    BOOL ame225_isDir = NO;
+                    if ([fm fileExistsAtPath:ame225_rp isDirectory:&ame225_isDir] && ame225_isDir) {
+                        NSLog(@"[ResourcePackService] Task225 auto-sniffed isolation for profile %@ -> %@",
+                              profile, ame225_sniffed.lastPathComponent);
+                        return ame225_rp;
+                    }
+                }
+            }
+            // Task269-r3：相对路径（如 ./custom_gamedir/<id>）统一相对 POJAV_GAME_DIR
+            // 解析成绝对路径——裸相对依赖进程 CWD，CWD 会被启动链 chdir 永久切走
+            // （review-c H1；与 ModService 同口径）。
+            if ([gameDir isKindOfClass:[NSString class]] && gameDir.length > 0 && ![gameDir isEqualToString:@"."]) {
+                if (![gameDir isAbsolutePath]) {
+                    NSString *clean = [gameDir hasPrefix:@"./"] ? [gameDir substringFromIndex:2] : gameDir;
+                    const char *baseC = getenv("POJAV_GAME_DIR");
+                    gameDir = baseC ? [[NSString stringWithUTF8String:baseC] stringByAppendingPathComponent:clean] : gameDir;
+                }
                 NSString *resourcePacksPath = [gameDir stringByAppendingPathComponent:@"resourcepacks"];
                 BOOL isDir = NO;
                 if ([fm fileExistsAtPath:resourcePacksPath isDirectory:&isDir] && isDir) {
@@ -165,7 +180,9 @@
 
 /// 获取当前 profile 的 resourcepacks 目录，不存在时自动创建
 - (nullable NSString *)ensureResourcePacksFolderForProfile:(NSString *)profileName error:(NSError **)error {
-    NSString *profile = profileName.length ? profileName : @"default";
+    // ★ Task274-h S7：nil 入参跟随当前选中实例（同 existing 口径）。
+    if (!profileName.length) profileName = PLProfiles.current.selectedProfileName ?: @"(Default)";
+    NSString *profile = profileName;
     NSFileManager *fm = [NSFileManager defaultManager];
     NSString *resourcePacksPath = nil;
 
@@ -174,8 +191,33 @@
         NSDictionary *prof = profiles[profile];
         if ([prof isKindOfClass:[NSDictionary class]]) {
             NSString *gameDir = prof[@"gameDir"];
-            if ([gameDir isKindOfClass:[NSString class]] && gameDir.length > 0) {
+            // ★ Task274-h S11（Task225 嗅探平移）：gameDir 缺失/空/"." 时先嗅探——命中
+            //   即落嗅探目录（ensure 语义=惰性建目录，与 ModService ensure 同口径）。
+            if (![gameDir isKindOfClass:[NSString class]] || gameDir.length == 0 || [gameDir isEqualToString:@"."]) {
+                NSString *ame225_sniffed = [ModService ame225_sniffedIsolationGameDirForProfile:prof];
+                if (ame225_sniffed.length > 0) {
+                    NSLog(@"[ResourcePackService] Task225 auto-sniffed isolation for profile %@ -> %@ (ensure)",
+                          profile, ame225_sniffed.lastPathComponent);
+                    resourcePacksPath = [ame225_sniffed stringByAppendingPathComponent:@"resourcepacks"];
+                }
+            }
+            // Task269-r3：同 existing——相对路径统一相对 POJAV_GAME_DIR 解析（review-c H1）
+            if ([gameDir isKindOfClass:[NSString class]] && gameDir.length > 0 && ![gameDir isEqualToString:@"."]) {
+                if (![gameDir isAbsolutePath]) {
+                    NSString *clean = [gameDir hasPrefix:@"./"] ? [gameDir substringFromIndex:2] : gameDir;
+                    const char *baseC = getenv("POJAV_GAME_DIR");
+                    gameDir = baseC ? [[NSString stringWithUTF8String:baseC] stringByAppendingPathComponent:clean] : gameDir;
+                }
                 resourcePacksPath = [gameDir stringByAppendingPathComponent:@"resourcepacks"];
+            } else if ([gameDir isKindOfClass:[NSString class]] && [gameDir isEqualToString:@"."]) {
+                // ★ Task274-h S11：S11 嗅探命中时 resourcePacksPath 已落嗅探目录，
+                //   此处共享根兜底仅在未命中时覆盖（原实现无条件覆盖 = 嗅探被冲掉）。
+                if (!resourcePacksPath) {
+                    const char *baseC = getenv("POJAV_GAME_DIR");
+                    if (baseC) {
+                        resourcePacksPath = [[NSString stringWithUTF8String:baseC] stringByAppendingPathComponent:@"resourcepacks"];
+                    }
+                }
             }
         }
     } @catch (NSException *ex) { }
@@ -215,7 +257,13 @@
 
 - (void)scanResourcePacksForProfile:(NSString *)profileName completion:(ResourcePackListHandler)completion {
     dispatch_async(dispatch_get_global_queue(QOS_CLASS_USER_INITIATED, 0), ^{
-        NSString *resourcePacksFolder = [self existingResourcePacksFolderForProfile:profileName];
+        // ★ Task275 F1（P0·ame219 隔离优先语义平移）：扫描不再走"隔离目录缺失→共享根
+        //   兑底"——新隔离实例列表必须为空而非显示共享根/隔壁实例列表（跨实例串目录）。
+        NSError *ame275DirError = nil;
+        NSString *resourcePacksFolder = [self ensureResourcePacksFolderForProfile:profileName error:&ame275DirError];
+        if (!resourcePacksFolder) {
+            resourcePacksFolder = [self existingResourcePacksFolderForProfile:profileName];
+        }
         NSMutableArray<ResourcePackItem *> *items = [NSMutableArray array];
 
         if (!resourcePacksFolder) {
@@ -319,55 +367,28 @@
                 expectedSHA1:(nullable NSString *)expectedSHA1
                     progress:(ResourcePackDownloadProgressHandler _Nullable)progress
                   completion:(ResourcePackDownloadCompletionHandler _Nullable)completion {
-    // 确保 resourcepacks 目录存在
-    NSString *resourcePacksFolder = [self existingResourcePacksFolderForProfile:profileName];
-    NSFileManager *fm = [NSFileManager defaultManager];
-
+    // ★ Task275 F7（Task269 末梢自愈平移）：目标实例不存在→回落当前选中实例
+    //   （ModService.m:734 同款，杜绝死名 resolve 兑底静默落共享根）。
+    if (profileName.length > 0 && !PLProfiles.current.profiles[profileName]) {
+        NSString *ame275_fallback = PLProfiles.current.selectedProfileName;
+        NSLog(@"[ResourcePackService] Task275: target profile \"%@\" gone -> fallback to selected \"%@\"",
+              profileName, ame275_fallback ?: @"(nil)");
+        profileName = ame275_fallback;
+    }
+    // ★ Task270（ame219 隔离优先对齐 + P1-3 内联回退根修）：下载落点
+    //   ensure-first——原 existing→"裸拼 prof[@"gameDir"]"内联回退不解析相对
+    //   路径（CWD 被 ame97 chdir 永久切走后落嵌套孤儿树），且隔离实例首下载
+    //   落共享目录游戏内不可见（与 ModService.m:311 同款语义）。
+    NSError *ame270DirError = nil;
+    NSString *resourcePacksFolder = [self ensureResourcePacksFolderForProfile:profileName error:&ame270DirError];
     if (!resourcePacksFolder) {
-        // 目录不存在时尝试创建
-        NSString *profile = profileName.length ? profileName : @"default";
-        NSString *gameDir = nil;
-
-        @try {
-            NSDictionary *profiles = PLProfiles.current.profiles;
-            NSDictionary *prof = profiles[profile];
-            if ([prof isKindOfClass:[NSDictionary class]]) {
-                gameDir = prof[@"gameDir"];
-            }
-        } @catch (NSException *ex) { }
-
-        if (!gameDir) {
-            const char *gameDirC = getenv("POJAV_GAME_DIR");
-            if (gameDirC) {
-                gameDir = [NSString stringWithUTF8String:gameDirC];
-            }
+        if (completion) {
+            NSError *error = [NSError errorWithDomain:@"ResourcePackServiceError"
+                                                 code:1
+            userInfo:@{NSLocalizedDescriptionKey: ame270DirError.localizedDescription ?: localize(@"i18n_str_951", nil)}];
+            dispatch_async(dispatch_get_main_queue(), ^{ completion(NO, error); });
         }
-
-        if (gameDir) {
-            resourcePacksFolder = [gameDir stringByAppendingPathComponent:@"resourcepacks"];
-            NSError *dirError = nil;
-            BOOL created = [fm createDirectoryAtPath:resourcePacksFolder
-                         withIntermediateDirectories:YES
-                                          attributes:nil
-                                               error:&dirError];
-            if (!created || dirError) {
-                if (completion) {
-                    NSError *error = [NSError errorWithDomain:@"ResourcePackServiceError"
-                                                         code:1
-                                                     userInfo:@{NSLocalizedDescriptionKey: localize(@"i18n_str_951", nil)}];
-                    dispatch_async(dispatch_get_main_queue(), ^{ completion(NO, error); });
-                }
-                return;
-            }
-        } else {
-            if (completion) {
-                NSError *error = [NSError errorWithDomain:@"ResourcePackServiceError"
-                                                     code:1
-                                                 userInfo:@{NSLocalizedDescriptionKey: localize(@"i18n_str_106", nil)}];
-                dispatch_async(dispatch_get_main_queue(), ^{ completion(NO, error); });
-            }
-            return;
-        }
+        return;
     }
 
     // 校验下载链接
@@ -409,6 +430,9 @@
                       supportsResume:YES
                              iconURL:item.iconURL];
     taskItem.downloadURL = item.selectedVersionDownloadURL;
+    // ★ Task270 M2：下载目标实例随任务标注（对齐 ModService Task266 中央落点
+    // ——跨实例对账/死名回落此前仅 mods 享有，四服务统一）。
+    taskItem.targetProfileName = profileName;
     // redesign-download-ui Phase 3：单文件下载接入统一进度页——
     // PLTaskStagesSingleFile 单阶段 + autoPresentDetail 自动弹出 PLTaskProgressViewController
     [[DownloadTaskManager sharedManager] setTaskWithId:taskItem.taskId stages:PLTaskStagesSingleFile()];
@@ -589,7 +613,21 @@
         return;
     }
     ResourcePackDownloadCompletionHandler completion = self.downloadCompletionHandlers[taskId];
-    [self cleanupPLDownloadStateForTaskId:taskId];
+    // ★ Task270（scan-d #1 修法平移，同 ModService.m:914-927）：失败/取消保留
+    //   request+taskItem——retryHandler→restartPLDownloadForTaskId 靠
+    //   downloadRequests 命中，旧版一律清空 = "重试"恒 nil → 任务永久卡
+    //   "等待中"。成功路径才全量清理。
+    if (success) {
+        [self cleanupPLDownloadStateForTaskId:taskId];
+    } else {
+        [self.downloadOperations removeObjectForKey:taskId];
+        [self.downloadGenerations removeObjectForKey:taskId];
+        [self.downloadAccumulatedBytes removeObjectForKey:taskId];
+        [self.downloadTotalBytes removeObjectForKey:taskId];
+        [self.downloadLastSpeeds removeObjectForKey:taskId];
+        [self.downloadProgressHandlers removeObjectForKey:taskId];
+        [self.downloadCompletionHandlers removeObjectForKey:taskId];
+    }
     [self.downloadStateLock unlock];
 
     DownloadTaskManager *manager = [DownloadTaskManager sharedManager];
@@ -598,6 +636,9 @@
         [manager setTaskWithId:taskId state:DownloadTaskStateCompleted];
     } else if ([error.domain isEqualToString:NSURLErrorDomain] && error.code == NSURLErrorCancelled) {
         // 用户取消（DownloadTaskManager 已置 Cancelled，这里幂等对齐）
+        // ★ Task270（scan-d #8 平移）：阶段行同步置 Skipped——旧版停在 Running，
+        //   统一进度页显示"进行中"直到页面关闭。
+        [manager updateTaskWithId:taskId stageAtIndex:0 status:PLTaskStageStatusSkipped];
         [manager setTaskWithId:taskId state:DownloadTaskStateCancelled];
     } else {
         [manager updateTaskWithId:taskId stageAtIndex:0 status:PLTaskStageStatusFailed];

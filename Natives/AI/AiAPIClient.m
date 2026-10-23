@@ -1,9 +1,10 @@
 //
 //  AiAPIClient.m
-//  Amethyst
+//  Prisma
 //
 
 #import "AiAPIClient.h"
+#import "../utils.h"   // Task271-e：错误/提示文案 i18n 接线需要 localize()
 
 /// 节流阈值：流式回调最多每 200ms 触发一次，避免主队列/UI 过载
 static const NSTimeInterval kChunkThrottleInterval = 0.2;
@@ -22,6 +23,7 @@ static const NSTimeInterval kChunkThrottleInterval = 0.2;
 @property (nonatomic, assign) NSTimeInterval lastChunkFlushTime;
 @property (nonatomic, assign) BOOL streamDone;
 @property (nonatomic, assign) NSInteger statusCode;
+@property (nonatomic, strong) NSMutableString *rawErrorBody; // ★ Task275：非 200 响应原始正文（SSE 管线会丢弃的错误体）
 @end
 
 @implementation AiAPIClient
@@ -50,7 +52,7 @@ static const NSTimeInterval kChunkThrottleInterval = 0.2;
                     onComplete:(void (^)(NSDictionary * _Nullable fullResponse, NSError * _Nullable error))onComplete {
     if (!provider || provider.baseURL.length == 0 || provider.model.length == 0) {
         NSError *err = [NSError errorWithDomain:@"AiAPIClient" code:100
-                                        userInfo:@{NSLocalizedDescriptionKey: @"AI 提供商配置不完整（缺少 baseURL 或 model）"}];
+                                        userInfo:@{NSLocalizedDescriptionKey: localize(@"ai.api.provider_incomplete", nil)}];
         if (onComplete) {
             dispatch_async(dispatch_get_main_queue(), ^{ onComplete(nil, err); });
         }
@@ -75,7 +77,7 @@ static const NSTimeInterval kChunkThrottleInterval = 0.2;
     NSURL *url = [NSURL URLWithString:urlString];
     if (!url) {
         NSError *err = [NSError errorWithDomain:@"AiAPIClient" code:101
-                                        userInfo:@{NSLocalizedDescriptionKey: @"无效的 API 地址"}];
+                                        userInfo:@{NSLocalizedDescriptionKey: localize(@"ai.api.invalid_url", nil)}];
         if (onComplete) {
             dispatch_async(dispatch_get_main_queue(), ^{ onComplete(nil, err); });
         }
@@ -183,7 +185,7 @@ static const NSTimeInterval kChunkThrottleInterval = 0.2;
                         completion:(void (^)(NSString * _Nullable successMessage, NSError * _Nullable error))completion {
     if (!provider || provider.baseURL.length == 0 || provider.model.length == 0) {
         NSError *err = [NSError errorWithDomain:@"AiAPIClient" code:100
-                                        userInfo:@{NSLocalizedDescriptionKey: @"AI 提供商配置不完整（缺少 baseURL 或 model）"}];
+                                        userInfo:@{NSLocalizedDescriptionKey: localize(@"ai.api.provider_incomplete", nil)}];
         if (completion) {
             dispatch_async(dispatch_get_main_queue(), ^{ completion(nil, err); });
         }
@@ -201,7 +203,7 @@ static const NSTimeInterval kChunkThrottleInterval = 0.2;
             if (error) {
                 completion(nil, error);
             } else {
-                completion(@"连接成功", nil);
+                completion(localize(@"ai.api.connection_ok", nil), nil);
             }
         }
     }];
@@ -327,8 +329,9 @@ static const NSTimeInterval kChunkThrottleInterval = 0.2;
 #pragma mark - 错误构造
 
 - (NSError *)errorFromResponseBody {
-    NSString *body = self.fullResponseText.length > 0 ? self.fullResponseText : @"";
-    NSString *message = [NSString stringWithFormat:@"请求失败（HTTP %ld）", (long)self.statusCode];
+    // ★ Task275（E-P2-6）：优先用非 200 原始正文解析服务端 error.message。
+    NSString *body = self.rawErrorBody.length > 0 ? self.rawErrorBody : (self.fullResponseText ?: @"");
+    NSString *message = [NSString stringWithFormat:localize(@"ai.net.http_error_fmt", nil), (long)self.statusCode];
     NSError *jsonError = nil;
     NSDictionary *json = [NSJSONSerialization JSONObjectWithData:[body dataUsingEncoding:NSUTF8StringEncoding]
                                                          options:0 error:&jsonError];
@@ -358,6 +361,14 @@ static const NSTimeInterval kChunkThrottleInterval = 0.2;
 - (void)URLSession:(NSURLSession *)session dataTask:(NSURLSessionDataTask *)dataTask didReceiveData:(NSData *)data {
     if (self.streamDone) return;
     if (data.length == 0) return;
+    // ★ Task275（E-P2-6）：非 200 响应原始正文另行累积——错误响应是非 SSE 普通
+    //   JSON，走流式管线被“无 choices”守卫丢弃，fullResponseText 恒空 = 401 限流/
+    //   密钥错误/模型名错误等真实原因全部丢失，用户只见“HTTP %ld 错误”。
+    if (self.statusCode >= 400) {
+        if (self.rawErrorBody == nil) self.rawErrorBody = [NSMutableString string];
+        NSString *ame275_chunk = [[NSString alloc] initWithData:data encoding:NSUTF8StringEncoding];
+        if (ame275_chunk) [self.rawErrorBody appendString:ame275_chunk];
+    }
     // 关键修复（AI 说话说不全/好话说一半）：不能把每块 data 直接按 UTF8 解码成字符串，
     // 否则中文/emoji 等多字节字符恰落在两块 data 切分边界时，前一块解码损坏，
     // 导致该 SSE 行 JSON 解析失败被整行丢弃，输出表现为被截断/少字/空白。
@@ -377,7 +388,7 @@ static const NSTimeInterval kChunkThrottleInterval = 0.2;
         NSError *outError = error;
         if (error.code == NSURLErrorCancelled) {
             outError = [NSError errorWithDomain:@"AiAPIClient" code:NSURLErrorCancelled
-                                       userInfo:@{NSLocalizedDescriptionKey: @"已停止生成"}];
+                                       userInfo:@{NSLocalizedDescriptionKey: localize(@"ai.api.stopped", nil)}];
         }
         [self flushPendingDelta];
         if (complete) {

@@ -16,13 +16,13 @@ public class MCOptionUtils
             mLineList.clear();
         }
         
-        try {
-            BufferedReader reader = new BufferedReader(new FileReader(Tools.DIR_GAME_PROFILE + "/options.txt"));
+        // ame274：reader 收进 try-with-resources——readLine 中途 IOException
+        // 时旧实现永远到不了 close()，启动链每次调用泄漏一个 fd。
+        try (BufferedReader reader = new BufferedReader(new FileReader(Tools.DIR_GAME_PROFILE + "/options.txt"))) {
             String line;
             while ((line = reader.readLine()) != null) {
                 mLineList.add(line);
             }
-            reader.close();
         } catch (IOException e) {
             System.err.println("Could not load options.txt");
             e.printStackTrace();
@@ -30,6 +30,11 @@ public class MCOptionUtils
     }
     
     public static void set(String key, String value) {
+        // ★ Task275 J-P3-10：save() 置 null 后调 set/setDefault 恒 NPE——与 remove
+        //   的防御口径、get() 的懒加载口径统一（当前调用序安全，纯属埋雷）。
+        if (mLineList == null) {
+            load();
+        }
         // Task 104：去重写入。MC 的 Options.load 逐行 putString —— 同 key
         // 多行时【后出现的行覆盖先前的行】。旧实现对重复行只改第一处，
         // 残留的后续旧行会在 MC 侧覆盖我们的值（例：历史遗留的
@@ -55,6 +60,9 @@ public class MCOptionUtils
     }
 
     public static void setDefault(String key, String value) {
+        if (mLineList == null) {
+            load();   // ★ Task275 J-P3-10：懒加载口径统一
+        }
         if (get(key) == null) {
             mLineList.add(key + ":" + value);
         }
@@ -67,11 +75,13 @@ public class MCOptionUtils
      */
     public static void remove(String key) {
         if (mLineList == null) return;
+        // ame270：与 set() 的去重语义对齐——MC 侧 last-wins，只删首行时
+        // 残留的后续重复行仍会在 MC 侧生效。倒序遍历删除所有匹配行，
+        // 避免正序 remove(i) 后索引漂移漏删。
         String prefix = key + ":";
-        for (int i = 0; i < mLineList.size(); i++) {
+        for (int i = mLineList.size() - 1; i >= 0; i--) {
             if (mLineList.get(i).startsWith(prefix)) {
                 mLineList.remove(i);
-                return;
             }
         }
     }
@@ -115,8 +125,8 @@ public class MCOptionUtils
      * 内存态与磁盘态分叉，26.3 的 30fps 限帧正是这种分叉的实锤现场）。
      */
     public static String getFromFile(String key) {
-        try {
-            BufferedReader reader = new BufferedReader(new FileReader(Tools.DIR_GAME_PROFILE + "/options.txt"));
+        // ame274：同 load()——reader 收进 try-with-resources，异常路径不再泄漏 fd。
+        try (BufferedReader reader = new BufferedReader(new FileReader(Tools.DIR_GAME_PROFILE + "/options.txt"))) {
             String line;
             String last = null;
             int occurrences = 0;
@@ -126,7 +136,6 @@ public class MCOptionUtils
                     occurrences++;
                 }
             }
-            reader.close();
             if (occurrences > 1) {
                 System.out.println("[MCOptionUtils] Task104 WARNING: '" + key + "' appears " + occurrences
                     + " times in options.txt (last-wins at MC side): " + last);

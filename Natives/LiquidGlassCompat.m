@@ -38,6 +38,10 @@ NSNotificationName const LGCInterfaceStyleChangedNotification = @"LGCInterfaceSt
 NSNotificationName const LGCUIScaleChangedNotification = @"LGCUIScaleChanged";
 NSNotificationName const LGCTextScaleChangedNotification = @"LGCTextScaleChanged";
 NSNotificationName const LGCTextContrastChangedNotification = @"LGCTextContrastChanged";
+/// ★ Task276（用户反馈："伪液态玻璃的透明度滑块无效"）：伪玻璃透明度变化
+///   广播——在屏伪玻璃面板（TG 玻璃填充/快照磨砂 tint）监听后即时重铺，
+///   滑条拖动无需关开面板即可见效果（iOS 27 式即时反馈）。
+NSNotificationName const LGCPseudoGlassTransparencyChangedNotification = @"LGCPseudoGlassTransparencyChanged";
 
 /// 玻璃效果层 tag（安装于宿主视图的 UIVisualEffectView）
 static NSInteger const kLGCGlassEffectTag = 888901;
@@ -106,6 +110,38 @@ BOOL LGCIsGlassStyleActive(void) {
 
 BOOL LGCIsPseudoGlassStyleActive(void) {
     return LGCResolvedInterfaceStyle() == LGCInterfaceStylePseudoGlass;
+}
+
+#pragma mark - Task263 伪液态玻璃透明度
+
+/// 伪液态玻璃透明度存储键（0-100 整数；缺省 = 50，即既有观感锚点）
+static NSString * const kLGCPrefPseudoGlassTransparencyKey = @"prisma.pseudo_glass_transparency";
+
+CGFloat LGCPseudoGlassTransparency(void) {
+    // 缺省/越界回默认 0.5（objectForKey 判缺省——integerForKey 对未设键返 0，
+    // 而 0 是合法档位"最闷"，不能作缺省哨兵）
+    NSNumber *raw = [[NSUserDefaults standardUserDefaults] objectForKey:kLGCPrefPseudoGlassTransparencyKey];
+    if (![raw isKindOfClass:[NSNumber class]]) return 0.5;
+    NSInteger v = raw.integerValue;
+    if (v < 0 || v > 100) return 0.5;
+    return (CGFloat)v / 100.0;
+}
+
+void LGCSetPseudoGlassTransparency(CGFloat transparency) {
+    NSInteger ame263_v = (NSInteger)round(transparency * 100.0);
+    if (ame263_v < 0) ame263_v = 0;
+    if (ame263_v > 100) ame263_v = 100;
+    NSUserDefaults *ame263_defs = [NSUserDefaults standardUserDefaults];
+    NSInteger ame263_old = [ame263_defs objectForKey:kLGCPrefPseudoGlassTransparencyKey]
+        ? [(NSNumber *)[ame263_defs objectForKey:kLGCPrefPseudoGlassTransparencyKey] integerValue] : 50;
+    [ame263_defs setInteger:ame263_v forKey:kLGCPrefPseudoGlassTransparencyKey];
+    NSLog(@"[LGC] Task263: pseudo glass transparency -> %ld%%", (long)ame263_v);
+    // ★ Task276：值真实变化才广播——在屏面板重铺监听消费（滑条每 tick
+    //   连发，同值去重防无效重铺风暴）。
+    if (ame263_old != ame263_v) {
+        [[NSNotificationCenter defaultCenter]
+            postNotificationName:LGCPseudoGlassTransparencyChangedNotification object:nil];
+    }
 }
 
 // ★ Task260（清单 2）：游戏会话玻璃安全闸（契约见 .h）。

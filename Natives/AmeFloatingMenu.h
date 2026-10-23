@@ -36,6 +36,16 @@
 
 NS_ASSUME_NONNULL_BEGIN
 
+/// ★ Task271（271-b D1 P0 根修）：行滚动区专用 UIScrollView——
+///   菜单行是 UIControl 且铺满滚动区，基类 touchesShouldCancelInContentView:
+///   对 UIControl 恒 NO + delaysContentTouches=NO = 拖动手势永远起不来：
+///   伪玻璃档"选择太多被隐藏无法滑动"的直接根因（行区铺满 UIControl，
+///   没有任何空白处可以起拖）。子类统一放行取消（行的高亮即时性由
+///   delaysContentTouches=NO 保留，拖动时行被取消跟踪进入滚动）。
+@interface Ame237Scroll : UIScrollView
+@end
+
+
 /// 悬浮菜单行控件（图标 + 标题 + 自带按压反馈；AmeFloatingMenu 与游戏内
 /// 菜单面板共用同一套行语言）。
 @interface Ame237MenuRow : UIControl
@@ -96,6 +106,12 @@ NS_ASSUME_NONNULL_BEGIN
 /// 图标名 → 按 19pt/medium 渲染的符号图（带回退链）。
 + (nullable UIImage *)symbolImageForName:(NSString *)name;
 
+/// ★ Task277（伪玻璃玻璃感·磨砂材质化）：0.18x 抓帧成品 → 材质滤镜链
+///   （CIGaussianBlur + CIColorControls 提鲜）——Apple 材质观感的单一
+///   事实源，AmeFloatingMenu 与游戏内菜单（+Navigation）共用；CoreImage
+///   链失败回退纯降采样路径，绝不返回 nil（入参非 nil 时）。
++ (nullable UIImage *)ame277_materializeSnapshot:(nullable UIImage *)snapshot;
+
 @end
 
 /// 中央路由钩子（安装点：UIKit+hook.m 的 init_hookUIKitConstructor，
@@ -107,6 +123,12 @@ NS_ASSUME_NONNULL_BEGIN
 - (void)ame237_hook_presentViewController:(UIViewController *)viewControllerToPresent
                                  animated:(BOOL)flag
                                completion:(nullable void (^)(void))completion;
+
+/// Task275（P1-b1）：dismiss 侧镜像改道钩子（与 present 配对，安装于
+/// UIKit+hook.m）——玻璃档下源 alert 上的 dismiss 打在从未上屏的对象上，
+/// 命中在屏镜像时改道 ame247_dismissMirroredAlert，其余零开销直透。
+- (BOOL)ame237_hook_dismissViewControllerAnimated:(BOOL)flag
+                                        completion:(nullable void (^)(void))completion;
 
 @end
 

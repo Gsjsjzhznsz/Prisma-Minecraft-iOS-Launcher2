@@ -209,16 +209,17 @@ print("== J. l10n + 公告 ==")
 for lang in ["en", "zh-Hans", "zh-Hant", "zh-CN"]:
     keys = set(re.findall(r'^"([^"]+)"\s*=',
                           rd(f"Natives/resources/{lang}.lproj/Localizable.strings"), re.M))
-    check(f"J-{lang} 唯一键 2873（Task262 重锚实测）", len(keys) == 2873, f"got {len(keys)}")
-check("J-公告 6 条（Task255 清单 13 精简：pin 2 + 版本史 3 + 最新总攻 1）",
-      len(ann) == 6
-      and ann[0]["id"] == "server-recommend-2026-09-24"
-      and ann[1]["id"] == "task217-download-fixes-about-isolation-2026-10-03"
+    check(f"J-{lang} 唯一键 3204（Task315 同步重锚：Task301 3165 + Launcher2 dl.asset 七键并集 + 6.5.5 Task310-313 键并集 = 3204）", len(keys) == 3204, f"got {len(keys)}")
+check("J-公告 7 条（Task315 同步重锚：6.5.5 侧 region-notice+download-speed 并入，pin 语义保持）",
+      len(ann) == 7
+      and any(a["id"] == "region-notice-and-download-speed-2026-10-20" for a in ann)
+      and any(a["id"] == "server-recommend-2026-09-24" for a in ann)
       and any(a["id"] == "v6-0-0-release-2026-09-21" for a in ann))
-check("J-公告内容覆盖本轮主题（推荐服务器/6.5.0 修复/版本发布）",
-      len(ann) >= 5 and "mysv.dpdns.org" in ann[0]["content"]
-      and "6.5.0" in ann[1]["title"]
-      and any("v6.0.0" in a["title"] for a in ann))
+check("J-公告内容覆盖本轮主题（Task315：地区声明/推荐服务器/6.5.0 修复/版本发布）",
+      len(ann) >= 5 and any("mysv.dpdns.org" in a["content"] for a in ann)
+      and any("6.5.0" in a["title"] for a in ann)
+      and any("v6.0.0" in a["title"] for a in ann)
+      and any("服务地区" in a.get("title", "") for a in ann))
 check("J-JSON 可解析 + id 唯一",
       len(set(a["id"] for a in ann)) == len(ann))
 
@@ -229,8 +230,8 @@ check("K1 身份已迁移（Task259 com.prisma-devs.prisma——262 重锚）",
 check("K2 REVISION 保持 22 + Task219 附录在位（无 identity 变更不 bump）",
       "#define REVISION 22" in vh and "Task 219, no bump" in vh)
 mk = open("Makefile", "rb").read()
-check("K3 Makefile TAB 基线 671（Task258 dep_virgl 单行 guard 重构）",
-      sum(1 for line in mk.split(b"\n") if line.startswith(b"\t")) == 671)
+check("K3 Makefile TAB 基线 808（Task315 同步重锚：6.5.5 终态实测 808——Task300 jit_helper/Task309 退役后净变化，字节级无损已验）",
+      sum(1 for line in mk.split(b"\n") if line.startswith(b"\t")) == 808)
 yml = open(".github/workflows/development.yml", "rb").read()
 check("K4 工作流 CRLF 完整", yml.count(b"\r\n") == yml.count(b"\n"))
 

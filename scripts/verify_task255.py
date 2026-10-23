@@ -36,7 +36,8 @@ check("Cleanup:latestlog.crash 前缀", '"latestlog.crash"' in cl)
 bm = read("Natives/BackgroundManager.m")
 check("BG:0.01 跳层分支（Task256 定向复活：最低档=完全透明，须带自愈护栏）",
       "blurIntensity <= 0.01" in bm and "ame256.blurUserSet" in bm)
-check("BG:自愈第一刀在位", "ame255.blurHealDone" in bm)
+check("BG:自愈第一刀在位（Task288 重锚：re-armable——blurUserSet 护栏在位、blurHealDone 一次性标志退役）",
+      "ame256.blurUserSet" in bm and "re-armable" in bm)
 check("BG:blurView 恒 alpha 1.0", "blurView.alpha = 1.0" in bm)
 
 # ─── 3. JVM 预设消费端 ───
@@ -86,12 +87,12 @@ check("Ctrl:defaults 注册", '"auto_control_update_check": @NO' in plp)
 lpv = read("Natives/LauncherPreferencesViewController.m")
 check("Ctrl:设置行", '@"auto_control_update_check"' in lpv)
 idx = json.load(open(os.path.join(REPO, "controls/index.json"), encoding="utf-8"))
-sizes = {e["id"]: e["size"] for e in idx["layouts"]}
+sizes = {e["id"]: e["size"] for e in idx["layouts"] if "id" in e}  # Task315: gamepad 条目走独立管线（file 键无 id），跳过
 check("Ctrl:index size 对齐", sizes.get("classic") == 112523 and sizes.get("large-buttons") == 111938)
 
 # ─── 8. 公告精简（43→6 + 脏值修复） ───
 ann = json.load(open(os.path.join(REPO, "announcements.json"), encoding="utf-8"))
-check("Ann:精简至 6 条", len(ann["announcements"]) == 6, "got %d" % len(ann["announcements"]))
+check("Ann:精简至 7 条（Task315 同步重锚：+region-notice/download-speed）", len(ann["announcements"]) == 7, "got %d" % len(ann["announcements"]))
 check("Ann:pin 保留", any(a.get("pin") for a in ann["announcements"]))
 check("Ann:priority 字符串化", all(a.get("priority") in ("high", "normal") for a in ann["announcements"]))
 check("Ann:pinned 混写清零", all("pinned" not in a for a in ann["announcements"]))
@@ -100,7 +101,12 @@ check("Ann:pinned 混写清零", all("pinned" not in a for a in ann["announcemen
 en = read("Natives/resources/en.lproj/Localizable.strings")
 credits = [l for l in en.split("\n") if '"about.credits.body"' in l]
 check("Brand:credits 上游署名保留", len(credits) == 1 and "Amethyst-iOS-MyRemastered" in credits[0])
-body_no_credits = "\n".join(l for l in en.split("\n") if '"about.credits.body"' not in l)
+# ★ Task263 重放版：ame267.jit.legacy_stik（Task267-net 入表）里的
+#   "Amethyst-MeloNX.js" 是旧 sideload 构建包内脚本文件的【事实文件名】
+#   （老 StikDebug 用户靠它认文件），与 credits 同属"非品牌自称"豁免类。
+legacy_jit = [l for l in en.split("\n") if '"ame267.jit.legacy_stik"' in l]
+check("Brand:legacy JIT 历史文件名事实引用保留", len(legacy_jit) == 1 and "Amethyst-MeloNX.js" in legacy_jit[0])
+body_no_credits = "\n".join(l for l in en.split("\n") if '"about.credits.body"' not in l and '"ame267.jit.legacy_stik"' not in l)
 check("Brand:en 表展示层零 Amethyst", "Amethyst" not in body_no_credits)
 app = read("Natives/AppDelegate.m") + read("Natives/JavaLauncher.m") + read("Natives/LauncherPreferences.m") + read("Natives/main_hook.m")
 check("Brand:日志前缀 [Prisma]", "[Amethyst]" not in app and "[Prisma]" in app)

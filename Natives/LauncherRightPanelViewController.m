@@ -20,6 +20,7 @@
 #import "AmeNativeMenu.h"       // ★ Task240：菜单全面系统原生 UIMenu 化
 #import "AboutViewController.h"   // Task217：启动器版本卡 about 路由
 #import "AmeTheme.h"              // 7.0-UI-3e：Fluent 设计令牌层（右栏侧边颜色语义化迁移）
+#import "StikDebugViewController.h" // Task294：内置 JIT 轨（jit_enabler=builtin / auto 优先）
 #import "ios_uikit_bridge.h"
 #import "utils.h"
 #import "AvatarManager.h"
@@ -1512,6 +1513,14 @@ static const CGFloat AmePanelVerticalEdgeInset = 12;
 }
 
 - (void)startDownloadWithVersion:(NSDictionary *)versionObject profileName:(NSString *)profileName {
+    // ★ Task304：本函数仅由启动前完整性校验链调用（launch 按钮 → findVersion
+    //   回调）。带 ame300_launchcheck 键后 downloadVersion: 对本地完整实例
+    //   （目录+json 都在）直接放行 SHA 校验补全——不再弹 Task300 命名窗
+    //   （用户实测"点启动弹改名窗"根因之一），残根（json 缺）仍弹 Task301。
+    NSMutableDictionary *ame304_vo = [versionObject mutableCopy];
+    ame304_vo[@"ame300_launchcheck"] = @YES;
+    versionObject = ame304_vo;
+
     self.task = [MinecraftResourceDownloadTask new];
 
     __weak LauncherRightPanelViewController *weakSelf = self;
@@ -1756,6 +1765,15 @@ static const CGFloat AmePanelVerticalEdgeInset = 12;
 - (void)invokeAfterJITEnabled:(void(^)(void))handler {
     [[UIApplication sharedApplication] sendAction:@selector(resignFirstResponder) to:nil from:nil forEvent:nil];
 
+    // ★ Task297-ci（run#914 编译热修）：等待环取消语义双通道的两个 __block 位
+    //   （ame267_cancelled / ame267_builtinDialogShowing）必须活在方法作用域
+    //   ——Task134 分发 else 分支内的 ame294_builtinFailure 闭包置位，下方
+    //   方法层级的等待弹窗 cancel handler / 等待条件 / 弃启判定同读同写。
+    //   Task295 首版把声明放进 else 块内，等待闭包在其外 = undeclared
+    //   identifier ×4 + block 签名级联错（run#914 实锤），本版上移方法顶端。
+    __block BOOL ame267_cancelled = NO;
+    __block BOOL ame267_builtinDialogShowing = NO;
+
     // Task91：entitlement AND 磁盘标记双确认（同 LauncherNavigationController，
     // 防止普通侧载包里的预写标记把流程导入 apple-magnifier:// 死路）
     BOOL hasTrollStoreJIT = getEntitlementValue(@"jb.pmap_cs.custom_trust") && isTrollStoreInstall();
@@ -1789,6 +1807,10 @@ static const CGFloat AmePanelVerticalEdgeInset = 12;
         // reports the persistent CS_DEBUGGED state, not debugger liveness.
         if (DeviceHasJITFlags(JIT_FLAG_FORCE_MIRRORED | JIT_FLAG_HAS_TXM) &&
             !JIT26IsLikelyDebuggerKeepAttached() &&
+            // Task294：本会话内置轨已完成 universal 祝福（祝福完即脱）无需
+            // 再附；仅 stikjit:// 中断式半附加才需重挂。内置轨被误重挂会
+            // 把用户拖回外部 StikDebug（用户点名问题：逻辑仍大多 StikDebug）。
+            ![StikDebugViewController ame294_scriptCompletedThisSession] &&
             !getPrefBool(@"debug.jit26_script_disable")) {
             NSLog(@"[JIT] [RightPanel] CS_DEBUGGED set but no live JIT26 debugger (ppid=%d traced=%d exn=%d) — re-attaching script via stikjit://",
                   getppid(), JIT26DebuggerAttachedViaPtrace(), JIT26DebuggerViaExceptionPorts());
@@ -1826,17 +1848,84 @@ static const CGFloat AmePanelVerticalEdgeInset = 12;
         // → apple-magnifier；iOS>=17.4 → stikjit；16.7-17.3.1 → sidestore）。
         // debug.jit26_script_disable（用户点名）：关闭后 stikjit:// 请求不再
         // 附带 UniversalJIT26.js 的 script-data（纯调试器附加式 JIT）。
+        // ★ Task294：选项新增 builtin（启动器自带）——iOS 26+
+        // AppExtensionProcess 独立进程轨（PocketJ 上游同构）；auto 在非巨魔
+        // 环境下内置轨可用时优先（失败显式弹窗征求同意再降级，不静默切
+        // 后台深链）。显式 builtin 失败同口径弹窗，绝不擅自跳第三方工具。
         NSString *ame134_enabler = getPrefObject(@"debug.jit_enabler");
         if (![ame134_enabler isKindOfClass:NSString.class] || ame134_enabler.length == 0) {
             ame134_enabler = @"auto";
         }
         BOOL ame134_noScript = getPrefBool(@"debug.jit26_script_disable");
         NSString *ame134_bundleId = NSBundle.mainBundle.bundleIdentifier;
-        NSLog(@"[JIT] [RightPanel] Task134 enabler=%@ noScript=%d", ame134_enabler, ame134_noScript);
+        BOOL ame294_builtinAvail = [StikDebugViewController ame294_builtinTrackAvailable];
+        BOOL ame134_isTrollStore = getEntitlementValue(@"jb.pmap_cs.custom_trust") && isTrollStoreInstall();
+        BOOL ame294_useBuiltin = NO;
+        if ([ame134_enabler isEqualToString:@"builtin"]) {
+            ame294_useBuiltin = YES;
+        } else if ([ame134_enabler isEqualToString:@"auto"] && !ame134_isTrollStore) {
+            ame294_useBuiltin = ame294_builtinAvail;
+        }
+        NSLog(@"[JIT] [RightPanel] Task134 enabler=%@ noScript=%d builtin=%d (avail=%d ts=%d)",
+              ame134_enabler, ame134_noScript, ame294_useBuiltin, ame294_builtinAvail, ame134_isTrollStore);
 
-        if ([ame134_enabler isEqualToString:@"manual"]) {
+        // ★ Task295（装机 latestlog 实锤）：等待环取消语义双通道。旧版只有
+        //   ame267_cancelled 一位，且失败弹窗（level-1000 独立 window）呈现
+        //   时会级联 dismiss 掉等待弹窗——UIKit 对程序性 dismiss 同样回调
+        //   cancel action → 用户未点取消却被置位（装机日志：失败弹窗出现的
+        //   同一毫秒打出 "user cancelled JIT wait"，3.7s 后等待环被
+        //   cancelled 满足 → "abandoning launch"）。现在：
+        //   ① ame267_builtinDialogShowing 在失败弹窗发出前置位，等待弹窗
+        //     cancel handler 见位即忽略（程序性级联非用户意图）；
+        //   ② 失败弹窗真取消（cancelBlock）→ 置 ame267_cancelled 终止等待；
+        //     点"交给 StikDebug"→ 只发深链、不置取消位，等待环继续等 JIT
+        //     经 StikJIT 到位（旧版此路径被①误杀 = 交给后必弃启）。
+        void (^ame294_fireStikjitFallback)(void) = ^{
+            if (@available(iOS 17.4, *)) {
+                NSString *scriptPart = @"";
+                if (!ame134_noScript) {
+                    NSData *script = [NSData dataWithContentsOfFile:
+                        [NSBundle.mainBundle.bundlePath stringByAppendingPathComponent:@"UniversalJIT26.js"]];
+                    if (script) {
+                        scriptPart = [@"&script-data=" stringByAppendingString:[script base64EncodedStringWithOptions:0]];
+                    }
+                }
+                NSURL *fallbackURL = [NSURL URLWithString:[NSString stringWithFormat:
+                    @"stikjit://enable-jit?bundle-id=%@&pid=%d%@", ame134_bundleId, getpid(), scriptPart]];
+                [UIApplication.sharedApplication openURL:fallbackURL options:@{} completionHandler:^(BOOL ok) {
+                    NSLog(@"[JIT] [RightPanel] Task294 fallback openURL stikjit:// -> %d", ok);
+                }];
+            }
+        };
+        void (^ame294_builtinFailure)(NSString *) = ^(NSString *failureMessage) {
+            NSString *detail = failureMessage.length ? failureMessage
+                : localize(@"ame293.jit.builtin_fail_title", nil);
+            if ([detail localizedCaseInsensitiveContainsString:@"Timed out connecting"] ||
+                [detail localizedCaseInsensitiveContainsString:@"not ready for JIT"]) {
+                detail = [detail stringByAppendingFormat:@"\n\n%@", localize(@"ame294.jit.localdevvpn_hint", nil)];
+            }
+            // ★ Task295：置位必须同步在弹窗 dispatch 之前（Ex 内部才 async）——
+            //   级联 dismiss 引发的 cancel 回调晚于本行到达，见位即忽略。
+            ame267_builtinDialogShowing = YES;
+            ame294_showJITActionDialogEx(localize(@"ame293.jit.builtin_fail_title", nil), detail,
+                localize(@"ame293.jit.fallback_ok", nil), ame294_fireStikjitFallback,
+                ^{ ame267_cancelled = YES; });
+        };
+
+        if (ame294_useBuiltin) {
+            [StikDebugViewController ame294_enableBuiltinJITWithCompletion:^(BOOL success, NSString *message) {
+                if (success || isJITEnabled(YES)) {
+                    NSLog(@"[JIT] [RightPanel] Task294 builtin track OK -- wait loop will proceed");
+                    return;
+                }
+                NSLog(@"[JIT] [RightPanel] Task294 builtin track failed: %@", message);
+                ame294_builtinFailure(message);
+            }];
+            // 不 return——继续走下方 isJITEnabled 等待环（内置轨成功即启动）
+        } else if ([ame134_enabler isEqualToString:@"manual"]) {
             // 手动：不跳任何工具，等用户自己附加调试器（显示等待弹窗）
-        } else if ([ame134_enabler isEqualToString:@"trollstore"]) {
+        } else if ([ame134_enabler isEqualToString:@"trollstore"]
+                   || ([ame134_enabler isEqualToString:@"auto"] && ame134_isTrollStore)) {
             [self ame185_openJITEnablerURL:[NSURL URLWithString:
                 [NSString stringWithFormat:@"apple-magnifier://enable-jit?bundle-id=%@", ame134_bundleId]]
                 toolLabel:@"apple-magnifier://"];
@@ -1864,7 +1953,7 @@ static const CGFloat AmePanelVerticalEdgeInset = 12;
                 [NSString stringWithFormat:@"http://[fd00::]:9172/launch_app/%@", ame134_bundleId]]
                 toolLabel:@"jitstreamer"];
         } else if (@available(iOS 17.4, *)) {
-            // auto / stikjit 共用 stikjit://（显式选择时无视系统版本）
+            // auto（内置轨不可用/巨魔） / stikjit 共用 stikjit://（显式选择时无视系统版本）
             NSString *scriptDataString = @"";
             if (!ame134_noScript &&
                 ([ame134_enabler isEqualToString:@"stikjit"] ||
@@ -1878,7 +1967,8 @@ static const CGFloat AmePanelVerticalEdgeInset = 12;
                 NSLog(@"[JIT] [RightPanel] Task176 openURL stikjit:// -> %d", ame176_ok);
                 if (!ame176_ok) {
                     dispatch_async(dispatch_get_main_queue(), ^{
-                        showDialog(localize(@"Error", nil), @"stikjit:// 无响应（未安装 StikDebug？）。请在设置的 JIT 开启工具改用 SideStore/StosDebug/JITStreamer，或安装 StikDebug 后重试。");
+                        // ★ Task267：与 DownloadVC 同键收敛（stikjit 未接管指引）。
+                        showDialog(localize(@"Error", nil), localize(@"launcher.jit.stikjit_unhandled", nil));
                     });
                 }
             }];
@@ -1891,13 +1981,33 @@ static const CGFloat AmePanelVerticalEdgeInset = 12;
     
     self.progressLabel.text = localize(@"i18n_str_436", nil);
     
+    // Task267：等待期可取消——旧版 120s（Task226 自动重试后最长 240s）弹窗
+    //   零 action，想退出只能杀进程 = 「JIT 未响应」观感的直接来源。
+    //   （ame267_cancelled/builtinDialogShowing 声明在方法顶端——取消语义
+    //   双通道两闭包共享；Task295 首版误放 else 块内，run#914 热修上移。）
     UIAlertController *alert = [UIAlertController alertControllerWithTitle:localize(@"i18n_str_437", nil)
                                                                    message:hasTrollStoreJIT ? localize(@"i18n_str_2054", nil) : localize(@"i18n_str_439", nil)
                                                             preferredStyle:UIAlertControllerStyleAlert];
+    [alert addAction:[UIAlertAction actionWithTitle:localize(@"resman.common.cancel", nil)
+                                              style:UIAlertActionStyleCancel
+                                            handler:^(UIAlertAction * _Nonnull action) {
+        // ★ Task295：失败弹窗呈现引发的本弹窗程序性 dismiss 也会回调这里
+        //   （UIKit 对程序性 dismiss 同样触发 cancel action）——弹窗在场期间
+        //   见位即忽略，非用户意图（装机 latestlog 实锤误置位弃启链）。
+        if (ame267_builtinDialogShowing) {
+            NSLog(@"[JIT] [RightPanel] Task295: waiting-alert cancel fired by builtin-dialog cascade -- ignored");
+            return;
+        }
+        ame267_cancelled = YES;
+        NSLog(@"[JIT] [RightPanel] Task267: user cancelled JIT wait (main)");
+    }]];
     // ★ Task223（“版本设置启动游戏，JIT 有概率卡死”根修层 1/2）：进度型弹窗
     //   无动画呈现——stikjit:// 切后台转场瞬间的 animated present 是主线程
     //   楔死头号嫌疑类（同 NavCtrl 病历注释）。
-    [self presentViewController:alert animated:NO completion:nil];
+    // ★ Task281：玻璃档（真液态玻璃 + 伪玻璃）改走磨砂玻璃面板镜像接管
+    //   （等待 JIT 不再裸奔旧式原生；Task275 dismiss 镜像保证后续
+    //   dismissViewControllerAnimated 仍能收掉面板），镜像拒收回退原生。
+    [AmeNativeMenu ame281_presentSystemAlert:alert fromHost:self];
     
     // Task172：后台任务断言。stikjit:// 必然把 App 切到后台（切去 StikJIT），
     // 无断言时 iOS 立即挂起本进程——760c07c 装机日志实锤等待循环被冻结
@@ -1924,7 +2034,7 @@ static const CGFloat AmePanelVerticalEdgeInset = 12;
         // Task169：有界等待（120s）+每 10s 心跳日志。旧裸循环在 stikjit://
         // 偶发没开成 JIT 时永不退出（装机 485b18c：冷启动首次启动卡在
         // 启动器界面，只能杀进程）。超时后撤弹窗并给出重试/取消。
-        BOOL ok = ame169_waitForJITCondition(^{ return isJITEnabled(false); }, 120.0, @"isJITEnabled");
+        BOOL ok = ame169_waitForJITCondition(^{ return (BOOL)(ame267_cancelled || isJITEnabled(false)); }, 120.0, @"isJITEnabled");
         // Task185：自愈式派发（11e4b63 装机 latestlog.2 病历：condition
         // satisfied 后旧 dispatch_async(main) 续接块在后台被楔死的主队列上
         // 永不执行，Task183 锚点缺失即卡死——见 utils.h
@@ -1938,6 +2048,14 @@ static const CGFloat AmePanelVerticalEdgeInset = 12;
             if (ame172_bgt != UIBackgroundTaskInvalid) {
                 [UIApplication.sharedApplication endBackgroundTask:ame172_bgt];
                 ame172_bgt = UIBackgroundTaskInvalid;
+            }
+            if (ame267_cancelled) {
+                // Task267：用户主动取消——不启动游戏，恢复启动器交互态
+                NSLog(@"[JIT] [RightPanel] Task267: JIT wait cancelled -- abandoning launch");
+                self.task = nil;
+                [self setInteractionEnabled:YES];
+                [[NSNotificationCenter defaultCenter] postNotificationName:@"ReloadProfileList" object:nil];
+                return;
             }
             if (ok) {
                 // Task182：成功路径不再依赖 dismiss 的 completion。病历
@@ -1956,8 +2074,11 @@ static const CGFloat AmePanelVerticalEdgeInset = 12;
                 // 服务 brk #0x69 —— 旧代码直接跑 handler 即用户实测的
                 // "二级菜单启动卡 JIT 等待 120s 后闪退"。与入口
                 // CS_DEBUGGED 分支同款存活性复查：需要重挂就重挂。
+                // ★ Task294：本会话内置轨已完成 universal 祝福（祝福完即脱）
+                // 则跳过重挂——祝福页/启动期内置轨成功后不再拖用户去 StikDebug。
                 if (DeviceHasJITFlags(JIT_FLAG_FORCE_MIRRORED | JIT_FLAG_HAS_TXM) &&
                     !JIT26IsLikelyDebuggerKeepAttached() &&
+                    ![StikDebugViewController ame294_scriptCompletedThisSession] &&
                     !getPrefBool(@"debug.jit26_script_disable")) {
                     NSLog(@"[JIT] [RightPanel] Task172 wait satisfied but JIT26 debugger is gone — re-attaching before launch");
                     [self ame172_reattachJIT26ThenLaunch:handler];
@@ -2022,7 +2143,7 @@ static const CGFloat AmePanelVerticalEdgeInset = 12;
         retry.popoverPresentationController.sourceView = self.view;
         retry.popoverPresentationController.sourceRect = CGRectMake(CGRectGetMidX(self.view.bounds), CGRectGetMidY(self.view.bounds), 0, 0);
     }
-    [self presentViewController:retry animated:YES completion:nil];
+    [AmeNativeMenu ame281_presentSystemAlert:retry fromHost:self];   // ★ Task281：玻璃档镜像接管（原 animated:YES 直呈退役）
 }
 
 // Task172：JIT26 调试器重挂统一助手（stikjit:// + 有界等待 + 前台等待 +
@@ -2037,10 +2158,18 @@ static const CGFloat AmePanelVerticalEdgeInset = 12;
 // ③断言防挂起冻结 + 有界等调试器存活，超时走重试弹窗。
 - (void)ame172_reattachJIT26ThenLaunch:(void(^)(void))handler {
     self.progressLabel.text = localize(@"i18n_str_436", nil);
+    // Task267：重挂等待同样可取消（同主等待语义）。
+    __block BOOL ame267_cancelled = NO;
     UIAlertController *alert = [UIAlertController alertControllerWithTitle:localize(@"i18n_str_437", nil)
                                                                    message:localize(@"i18n_str_439", nil)
                                                             preferredStyle:UIAlertControllerStyleAlert];
-    [self presentViewController:alert animated:NO  /* Task223: JIT progress alert presented un-animated (background-transition present is the main-thread wedge suspect) */ completion:nil];
+    [alert addAction:[UIAlertAction actionWithTitle:localize(@"resman.common.cancel", nil)
+                                              style:UIAlertActionStyleCancel
+                                            handler:^(UIAlertAction * _Nonnull action) {
+        ame267_cancelled = YES;
+        NSLog(@"[JIT] [RightPanel] Task267: user cancelled JIT wait (reattach)");
+    }]];
+    [AmeNativeMenu ame281_presentSystemAlert:alert fromHost:self];   // ★ Task281：玻璃档镜像接管（Task223 无动画契约在助手内保留）
     
     __block UIBackgroundTaskIdentifier ame172_bgt = [UIApplication.sharedApplication beginBackgroundTaskWithName:@"ame172-jit26-reattach" expirationHandler:^{
         // 同上：宽限期到由系统挂起，恢复后继续。
@@ -2085,12 +2214,20 @@ static const CGFloat AmePanelVerticalEdgeInset = 12;
         // exception ports / spawned-by-debugger), not for CS_DEBUGGED
         // -- that flag is already set and would race the first brk.
         // Task169：有界等待（120s）+心跳日志，超时走重试弹窗。
-        BOOL ok = ame169_waitForJITCondition(^{ return JIT26IsLikelyDebuggerKeepAttached(); }, 120.0, @"JIT26 debugger attach");
+        BOOL ok = ame169_waitForJITCondition(^{ return (BOOL)(ame267_cancelled || JIT26IsLikelyDebuggerKeepAttached()); }, 120.0, @"JIT26 debugger attach");
         // Task185：自愈式派发（同主等待路径，病历见 utils.h）。
         ame185_dispatchToMainSelfHealing(^{
             if (ame172_bgt != UIBackgroundTaskInvalid) {
                 [UIApplication.sharedApplication endBackgroundTask:ame172_bgt];
                 ame172_bgt = UIBackgroundTaskInvalid;
+            }
+            if (ame267_cancelled) {
+                // Task267：用户主动取消——不启动游戏，恢复启动器交互态
+                NSLog(@"[JIT] [RightPanel] Task267: JIT wait cancelled -- abandoning launch");
+                self.task = nil;
+                [self setInteractionEnabled:YES];
+                [[NSNotificationCenter defaultCenter] postNotificationName:@"ReloadProfileList" object:nil];
+                return;
             }
             if (ok) {
                 // Task182：同主等待路径——后台态 dismiss completion 悬空风险，

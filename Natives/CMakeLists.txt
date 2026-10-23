@@ -433,6 +433,8 @@ add_executable(AngelAuraAmethyst
   # 主窗口复用、EGL 兼容重试、Vulkan 加载器句柄共享。iOS 无 bytehook，
   # 由 main_hook.m 的 hooked_dlsym 驱动。
   sdl3_hook.m
+  # Task309：mg_vsync_hook.m（帧率解锁钩子）整体回退退役——装机定性
+  # vkCreateSwapchainKHR GOT 改绑为 WINDOW_IN_USE 双崩元凶，源文件已删除。
   JavaLauncher.m
   external/fishhook/fishhook.c
   UIKit+hook.m
@@ -553,6 +555,8 @@ add_executable(AngelAuraAmethyst
   CrashAnalyzer.m
   # Task218：首次使用欢迎向导（语言/下载源/数据导入三步引导）
   WelcomeViewController.m
+  # Task312：服务地区门（明面不对大陆开放，多角度检测 + 3 次提示后放行）
+  RegionGate.m
   AppDelegate.m
   CustomControlsViewController.m
   CustomControlsViewController+UndoManager.m
@@ -582,6 +586,9 @@ add_executable(AngelAuraAmethyst
   VersionManagerViewController.m
   ProfileSettingsViewController.m
   DownloadViewController.m
+  # Task291: built-in JIT (PocketJ port phase 1)
+  StikDebugEngine.m
+  StikDebugViewController.m
   LauncherPreferences.m
   LauncherPreferencesViewController.m
   LauncherPrefContCfgViewController.m
@@ -881,6 +888,8 @@ target_link_libraries(AngelAuraAmethyst
   "-framework UnzipKit"
   "-framework WebKit"
   "-weak_framework SafariServices"
+  # Task312：服务地区门运营商角度（CTCarrier MCC=460；weak 容错，类缺失/异常一律降级为无此信号）
+  "-weak_framework CoreTelephony"
   ${TOUCHCONTROLLER_LIB}
   # ★ [MP-RESTORE] Task222：Terracotta multiplayer —— libterracotta 是 Rust 静态库，需要 libc++/resolv
   ${TERRACOTTA_LIB}

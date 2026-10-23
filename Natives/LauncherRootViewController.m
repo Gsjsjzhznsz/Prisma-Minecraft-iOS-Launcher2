@@ -706,6 +706,9 @@ static CGFloat LauncherRootLayoutRightPanelWidth(UITraitCollection *trait) {
     UINavigationController *nav = [[UINavigationController alloc] initWithRootViewController:vm];
     nav.navigationBar.prefersLargeTitles = NO;
     ModsManagerViewController *m = [[ModsManagerViewController alloc] init];
+    // ★ Task267：抽屉入口不再快照绑定 selectedProfileName（快照在页面存续期
+    //   永不过期 = 装机 3b97d2d 实锤的绑定旧实例根因）——默认跟随模式，
+    //   SelectedProfileChanged 实时换绑重扫（ModsManagerVC ame267 语义）。
     [nav pushViewController:m animated:NO];
     [self setContentViewController:nav animated:YES];
 }

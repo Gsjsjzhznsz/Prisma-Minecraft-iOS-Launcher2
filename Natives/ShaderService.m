@@ -9,7 +9,9 @@
 //
 
 #import "ShaderService.h"
-#import <CommonCrypto/CommonCrypto.h>
+#import "ModService.h"   // Task275 F2: Task225 isolation sniff (ame225_sniffedIsolationGameDirForProfile)
+// ★ Task274-h S14：CommonCrypto import 随零调用 sha1ForFileAtPath 删除（全文件 CC_ 族
+//   仅该方法使用，rg 亲证）
 #import <UIKit/UIKit.h>
 #import "PLProfiles.h"
 #import "ShaderItem.h"
@@ -72,33 +74,12 @@
 
 #pragma mark - Helpers
 
-- (nullable NSString *)sha1ForFileAtPath:(NSString *)path {
-    NSData *d = [NSData dataWithContentsOfFile:path];
-    if (!d) return nil;
-    unsigned char digest[CC_SHA1_DIGEST_LENGTH];
-    CC_SHA1(d.bytes, (CC_LONG)d.length, digest);
-    NSMutableString *hex = [NSMutableString stringWithCapacity:CC_SHA1_DIGEST_LENGTH * 2];
-    for (int i = 0; i < CC_SHA1_DIGEST_LENGTH; i++) {
-        [hex appendFormat:@"%02x", digest[i]];
-    }
-    return [hex copy];
-}
+// ★ Task274-h S14：sha1ForFileAtPath 零调用副本已删除（rg 亲证全文件仅此 1 处定义
+//   零调用；活副本在 ModpackExportService:939 有分块实现）。
 
+// ★ Task270（屎山 A1）：逐字节克隆收敛 utils.m 单点 AMEIconCachePathForURL（行为零变更）。
 - (NSString *)iconCachePathForURL:(NSString *)urlString {
-    if (!urlString) return nil;
-    NSString *cacheDir = [NSSearchPathForDirectoriesInDomains(NSCachesDirectory, NSUserDomainMask, YES) firstObject];
-    NSString *folder = [cacheDir stringByAppendingPathComponent:@"shader_icons"];
-    if (![[NSFileManager defaultManager] fileExistsAtPath:folder]) {
-        [[NSFileManager defaultManager] createDirectoryAtPath:folder withIntermediateDirectories:YES attributes:nil error:nil];
-    }
-    const char *cstr = [urlString UTF8String];
-    unsigned char digest[CC_SHA1_DIGEST_LENGTH];
-    CC_SHA1(cstr, (CC_LONG)strlen(cstr), digest);
-    NSMutableString *hex = [NSMutableString stringWithCapacity:CC_SHA1_DIGEST_LENGTH * 2];
-    for (int i = 0; i < CC_SHA1_DIGEST_LENGTH; i++) {
-        [hex appendFormat:@"%02x", digest[i]];
-    }
-    return [folder stringByAppendingPathComponent:hex];
+    return AMEIconCachePathForURL(urlString, @"shader_icons");
 }
 
 #pragma mark - Shaders folder detection & scan
@@ -110,12 +91,27 @@
 /// 用户点击下载光影按钮后没反应（实际是 ensureShadersFolderForProfile 创建目录到错误位置，
 /// 下载完成后 moveItem 失败但 handler 已切主线程报错，用户感知"无反应"）。
 - (nullable NSString *)resolveAbsoluteGameDirForProfile:(NSString *)profileName {
-    NSString *profile = profileName.length ? profileName : @"default";
+    // Task270 M1/M8：nil 入参跟随当前选中实例（ame267 语义），不再落恒 miss 的
+    // @"default" 字面量（真实默认键 "(Default)"）——抽屉入口/导入传 nil 时
+    // 光影不再错位到共享目录。
+    if (!profileName.length) profileName = PLProfiles.current.selectedProfileName ?: @"(Default)";
+    NSString *profile = profileName;
     @try {
         NSDictionary *profiles = PLProfiles.current.profiles;
         NSDictionary *prof = profiles[profile];
         if (![prof isKindOfClass:[NSDictionary class]]) return nil;
         NSString *gameDir = prof[@"gameDir"];
+        // ★ Task275 F2（Task274-h S11 补漏）：gameDir 缺失/空/"." 时先按目录形状嗅探
+        //   versions/<lastVersionId>/game 隔离——'.' 实例的 mods 已走嗅探隔离而光影
+        //   仍落共享根（Shader 是五服务唯一漏平移嗅探的一家，同会话落点分居）。
+        if (![gameDir isKindOfClass:[NSString class]] || gameDir.length == 0 || [gameDir isEqualToString:@"."]) {
+            NSString *ame225_sniffed = [ModService ame225_sniffedIsolationGameDirForProfile:prof];
+            if (ame225_sniffed.length > 0) {
+                NSLog(@"[ShaderService] Task275: auto-sniffed isolation for profile %@ -> %@ (mods/saves present)",
+                      profile, ame225_sniffed.lastPathComponent);
+                return ame225_sniffed;
+            }
+        }
         if (![gameDir isKindOfClass:[NSString class]] || gameDir.length == 0) return nil;
         if ([gameDir isEqualToString:@"."]) {
             const char *env = getenv("POJAV_GAME_DIR");
@@ -134,11 +130,10 @@
 }
 
 - (nullable NSString *)existingShadersFolderForProfile:(NSString *)profileName {
-    NSString *profile = profileName.length ? profileName : @"default";
     NSFileManager *fm = [NSFileManager defaultManager];
 
-    // 优先用 profile gameDir（已解析为绝对路径）
-    NSString *resolvedGameDir = [self resolveAbsoluteGameDirForProfile:profile];
+    // 优先用 profile gameDir（已解析为绝对路径；nil 跟随语义在 resolve 内）
+    NSString *resolvedGameDir = [self resolveAbsoluteGameDirForProfile:profileName];
     if (resolvedGameDir.length > 0) {
         NSString *shadersPath = [resolvedGameDir stringByAppendingPathComponent:@"shaderpacks"];
         BOOL isDir = NO;
@@ -162,12 +157,11 @@
 
 /// 获取当前 profile 的 shaderpacks 目录，不存在时自动创建
 - (nullable NSString *)ensureShadersFolderForProfile:(NSString *)profileName error:(NSError **)error {
-    NSString *profile = profileName.length ? profileName : @"default";
     NSFileManager *fm = [NSFileManager defaultManager];
     NSString *shadersPath = nil;
 
-    // 优先用 profile gameDir（已解析为绝对路径）
-    NSString *resolvedGameDir = [self resolveAbsoluteGameDirForProfile:profile];
+    // 优先用 profile gameDir（已解析为绝对路径；nil 跟随语义在 resolve 内）
+    NSString *resolvedGameDir = [self resolveAbsoluteGameDirForProfile:profileName];
     if (resolvedGameDir.length > 0) {
         shadersPath = [resolvedGameDir stringByAppendingPathComponent:@"shaderpacks"];
     }
@@ -207,12 +201,24 @@
 
 - (void)scanShadersForProfile:(NSString *)profileName completion:(ShaderListHandler)completion {
     dispatch_async(dispatch_get_global_queue(QOS_CLASS_USER_INITIATED, 0), ^{
-        NSString *shadersFolder = [self existingShadersFolderForProfile:profileName];
+        // ★ Task275 F1（P0·ame219 隔离优先语义平移）：扫描不再走"隔离目录缺失→共享根
+        //   兑底"——新隔离实例的 shaderpacks 尚未创建时列表必须为空（本实例确实没有），
+        //   而不是显示共享根/隔壁实例列表（跨实例串目录病史同构，mods 已修四类漏网）。
+        //   ensure-first：缺目录即建；创建受限再退"存在即用"。
+        NSError *ame275DirError = nil;
+        NSString *shadersFolder = [self ensureShadersFolderForProfile:profileName error:&ame275DirError];
+        if (!shadersFolder) {
+            shadersFolder = [self existingShadersFolderForProfile:profileName];
+        }
         NSMutableArray<ShaderItem *> *items = [NSMutableArray array];
 
         if (!shadersFolder) {
             if (completion) {
-                completion(items);
+                // ★ Task270 P2：早退分支补派主线程（正常路径 246 经 dispatch_group_notify
+                //   主线程，此处原在 global 队列直呼 = 回调越线程，管理页刷新越线程风险）。
+                dispatch_async(dispatch_get_main_queue(), ^{
+                    completion(items);
+                });
             }
             return;
         }
@@ -310,25 +316,33 @@
           expectedSHA1:(nullable NSString *)expectedSHA1
               progress:(nullable void (^)(NSProgress *downloadProgress))progress
             completion:(ShaderDownloadHandler)completion {
+    // ★ Task275 F7（Task269 末梢自愈平移）：目标实例不存在（ame269 迁移合并/
+    //   改名后残留的旧实例名引用）→ 回落当前选中实例，杜绝下载进死名后被
+    //   resolve 兑底静默落共享根（ModService.m:734 同款）。
+    if (profileName.length > 0 && !PLProfiles.current.profiles[profileName]) {
+        NSString *ame275_fallback = PLProfiles.current.selectedProfileName;
+        NSLog(@"[ShaderService] Task275: target profile \"%@\" gone -> fallback to selected \"%@\"",
+              profileName, ame275_fallback ?: @"(nil)");
+        profileName = ame275_fallback;
+    }
     // Ensure shaderpacks folder exists
-    NSString *shadersFolder = [self existingShadersFolderForProfile:profileName];
-
+    // ★ Task270（ame219 隔离优先对齐）：下载落点 ensure-first——profile 配置了
+    //   gameDir（隔离/自定义）时只认隔离目录缺目录即建，绝不回退共享目录
+    //   （旧 existing-first：隔离实例首下载落全局 shaderpacks 游戏内不可见，
+    //   与 ModService.m:311 同款语义；ensure 失败再退 existing 保旧下限）。
+    NSError *ame270DirError = nil;
+    NSString *shadersFolder = [self ensureShadersFolderForProfile:profileName error:&ame270DirError];
     if (!shadersFolder) {
-        // 回退到 ensureShadersFolderForProfile:error:，复用绝对路径解析逻辑
-        // （之前直接读 prof[@"gameDir"] 不做相对路径解析，会导致目录创建到错误位置）
-        NSString *profile = profileName.length ? profileName : @"default";
-        NSError *dirError = nil;
-        NSString *created = [self ensureShadersFolderForProfile:profile error:&dirError];
-        if (!created) {
-            if (completion) {
-                NSError *error = [NSError errorWithDomain:@"ShaderServiceError"
-                                                     code:1
-                                                 userInfo:@{NSLocalizedDescriptionKey: dirError.localizedDescription ?: @"Failed to create shaderpacks folder, please check storage permissions."}];
-                dispatch_async(dispatch_get_main_queue(), ^{ completion(error); });
-            }
-            return;
+        shadersFolder = [self existingShadersFolderForProfile:profileName];   // 兜底：创建受限时退"存在即用"
+    }
+    if (!shadersFolder) {
+        if (completion) {
+            NSError *error = [NSError errorWithDomain:@"ShaderServiceError"
+                                                 code:1
+            userInfo:@{NSLocalizedDescriptionKey: ame270DirError.localizedDescription ?: @"Failed to create shaderpacks folder, please check storage permissions."}];
+            dispatch_async(dispatch_get_main_queue(), ^{ completion(error); });
         }
-        shadersFolder = created;
+        return;
     }
 
     // Validate URL
@@ -371,6 +385,9 @@
                       supportsResume:YES
                              iconURL:shader.iconURL];
     taskItem.downloadURL = shader.selectedVersionDownloadURL;
+    // ★ Task270 M2：下载目标实例随任务标注（对齐 ModService Task266 中央落点
+    // ——跨实例对账/死名回落此前仅 mods 享有，四服务统一）。
+    taskItem.targetProfileName = profileName;
     // redesign-download-ui Phase 4：单文件下载接入统一进度页——
     // PLTaskStagesSingleFile 单阶段 + autoPresentDetail 自动弹出 PLTaskProgressViewController
     [[DownloadTaskManager sharedManager] setTaskWithId:taskItem.taskId stages:PLTaskStagesSingleFile()];
@@ -549,7 +566,21 @@
         return;
     }
     ShaderDownloadHandler completion = self.downloadCompletionHandlers[taskId];
-    [self cleanupPLDownloadStateForTaskId:taskId];
+    // ★ Task270（scan-d #1 修法平移，同 ModService.m:914-927）：失败/取消保留
+    //   request+taskItem——retryHandler→restartPLDownloadForTaskId 靠
+    //   downloadRequests 命中，旧版一律清空 = "重试"恒 nil → 任务永久卡
+    //   "等待中"。成功路径才全量清理。
+    if (success) {
+        [self cleanupPLDownloadStateForTaskId:taskId];
+    } else {
+        [self.downloadOperations removeObjectForKey:taskId];
+        [self.downloadGenerations removeObjectForKey:taskId];
+        [self.downloadAccumulatedBytes removeObjectForKey:taskId];
+        [self.downloadTotalBytes removeObjectForKey:taskId];
+        [self.downloadLastSpeeds removeObjectForKey:taskId];
+        [self.downloadProgressHandlers removeObjectForKey:taskId];
+        [self.downloadCompletionHandlers removeObjectForKey:taskId];
+    }
     [self.downloadStateLock unlock];
 
     DownloadTaskManager *manager = [DownloadTaskManager sharedManager];
@@ -558,6 +589,9 @@
         [manager setTaskWithId:taskId state:DownloadTaskStateCompleted];
     } else if ([error.domain isEqualToString:NSURLErrorDomain] && error.code == NSURLErrorCancelled) {
         // 用户取消（DownloadTaskManager 已置 Cancelled，这里幂等对齐）
+        // ★ Task270（scan-d #8 平移）：阶段行同步置 Skipped——旧版停在 Running，
+        //   统一进度页显示"进行中"直到页面关闭。
+        [manager updateTaskWithId:taskId stageAtIndex:0 status:PLTaskStageStatusSkipped];
         [manager setTaskWithId:taskId state:DownloadTaskStateCancelled];
     } else {
         [manager updateTaskWithId:taskId stageAtIndex:0 status:PLTaskStageStatusFailed];

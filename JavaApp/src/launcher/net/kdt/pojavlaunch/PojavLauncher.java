@@ -14,7 +14,6 @@ import net.kdt.pojavlaunch.utils.*;
 import net.kdt.pojavlaunch.value.*;
 
 public class PojavLauncher {
-    private static float currProgress, maxProgress;
 
     public static void main(String[] args) throws Throwable {
         // Skip calling to com.apple.eawt.Application.nativeInitializeApplicationDelegate()
@@ -185,12 +184,38 @@ public class PojavLauncher {
         // 装机日志即可一锤定音"写入是否真的落到了 MC 读的文件"。
         // 已知异常现场：26.3 运行期以 AFK 模式跑（SHORT_AFK=30fps 实锤），
         // 而启动器明明写了 minimized —— 分叉点就在这层。
-        if ("1".equals(System.getenv("POJAV_DISABLE_VSYNC"))) {
-            System.out.println("[PojavLauncher] Task104 on-disk verification: "
-                + "inactivityFpsLimit=" + MCOptionUtils.getFromFile("inactivityFpsLimit")
-                + " maxFps=" + MCOptionUtils.getFromFile("maxFps")
-                + " enableVsync=" + MCOptionUtils.getFromFile("enableVsync"));
+        // ★ Task280（kw"锁30"归因收口——fps-cap posture 无条件化+verdict）：
+        //   原块只在 POJAV_DISABLE_VSYNC=1 时打印——而用户关掉解锁偏好时恰是
+        //   maxFps=30 存活的场景（解锁链不跑，整合包自带的 maxFps:30 原样生
+        //   效），日志反而静默。kw 1.8.9 会话 RenderDiag build=33ms/pres=0 的
+        //   两个候选根因（MC 内部 maxFps 上限 vs 逐 draw 转译税）从此行一锤
+        //   定音：maxFps<260 → MC 内部上限在玩（fps≤maxFps 是游戏内 Max
+        //   Framerate 设置的预期行为，非 bug）；maxFps≥260 → 上限不在 MC 设
+        //   置，转渲染器 CPU/GPU 侧（配合 [RenderDiag] phase= 判读）。1.8 的
+        //   视频设置本就有 Max Framerate（滑条 10-260，260=Unlimited），旧注释
+        //   "1.8-1.15 无此键"不成立，随本块无条件化一并修正。
+        String ame280MaxFps = MCOptionUtils.getFromFile("maxFps");
+        String ame280Verdict;
+        if (ame280MaxFps == null) {
+            ame280Verdict = "no-maxFps-key(MC-internal-default) -- cap NOT from options.txt";
+        } else {
+            try {
+                int ame280Fps = Integer.parseInt(ame280MaxFps.trim());
+                ame280Verdict = (ame280Fps >= 260)
+                    ? "unlimited-no-MC-cap -- fps ceiling is CPU/GPU side (see RenderDiag phase=)"
+                    : "MC-INTERNAL-CAP-ACTIVE fps<=" + ame280Fps
+                        + " (in-game Max Framerate setting; raise in-game to unlock)";
+            } catch (NumberFormatException ame280Nfe) {
+                ame280Verdict = "unparsable-maxFps(" + ame280MaxFps + ")";
+            }
         }
+        System.out.println("[PojavLauncher] Task280 fps-cap posture: renderer="
+            + System.getenv("AMETHYST_RENDERER")
+            + " vsyncEnv=" + System.getenv("POJAV_DISABLE_VSYNC")
+            + " maxFps=" + ame280MaxFps
+            + " enableVsync=" + MCOptionUtils.getFromFile("enableVsync")
+            + " inactivityFpsLimit=" + MCOptionUtils.getFromFile("inactivityFpsLimit")
+            + " verdict=" + ame280Verdict);
         // Task 196：落盘校验（必须在 save() 之后 —— getFromFile 直读磁盘，
         // save 前读到的是旧盘值）。装机日志锚点：useVbo=true。
         if (ame196Renderer != null && ame196Renderer.contains("vgpu")) {
@@ -208,7 +233,9 @@ public class PojavLauncher {
         if (System.getProperty("pojav.internal.keepForgeSplash") == null) {
             forgeSplashFile.getParentFile().mkdir();
             if (forgeSplashFile.exists()) {
-                Tools.write(forgeSplashFile.getAbsolutePath(), Tools.read(forgeSplashFile.getAbsolutePath().replace("enabled=true", "enabled=false")));
+                // replace 必须作用在 read() 读出的文件内容上，而非路径字符串（原写法恒 no-op，
+                // 存量 enabled=true 永远关不掉，Forge 二次启动 splash 复活）。
+                Tools.write(forgeSplashFile.getAbsolutePath(), Tools.read(forgeSplashFile.getAbsolutePath()).replace("enabled=true", "enabled=false"));
             } else {
                 Tools.write(forgeSplashFile.getAbsolutePath(), "enabled=false");
             }
@@ -283,6 +310,13 @@ public class PojavLauncher {
 
         MinecraftAccount account = MinecraftAccount.load(args[0]);
         JMinecraftVersionList.Version version = Tools.getVersionInfo(args[1]);
+        // ame274：判空前移——下一行即首次解引用 version.id，原 Task202 块内
+        // 的 version!=null 迟到判空毫无防护价值。null 只会来自 getVersionInfo
+        // 对空/畸形 JSON 返回 null，此处立即给出可定位的错误而非裸 NPE。
+        if (version == null) {
+            throw new RuntimeException("Version JSON for '" + args[1]
+                    + "' parsed to null (malformed or empty file)");
+        }
         System.out.println("Launching Minecraft " + version.id);
 
         // Task94: LWJGL 版本上报链路诊断（原位置的检查被错误地嵌在 vulkan-only 的
@@ -314,15 +348,22 @@ public class PojavLauncher {
         // For Minecraft 1.1 to 1.5: zh_CN (uppercase, lowercase crashes)
         MCOptionUtils.load();
         String minecraftVersion = version.id;
-        if (minecraftVersion.compareTo("1.11") >= 0) {
+        // ame270：数值化版本比较——原 String.compareTo 字典序会把 "1.9"~"1.9.5"
+        // 判成 > "1.11"（老版本误写 zh_cn 小写 → 启动崩溃）。
+        if (Tools.ame270McVersionAtLeast(minecraftVersion, 1, 11)) {
             MCOptionUtils.setDefault("lang", "zh_cn");
-        } else if (minecraftVersion.compareTo("1.1") >= 0) {
+        } else if (Tools.ame270McVersionAtLeast(minecraftVersion, 1, 1)) {
             MCOptionUtils.setDefault("lang", "zh_CN");
         }
         // For Minecraft 1.0 and earlier, no language option
         MCOptionUtils.save();
         String configPath = null;
-        if (version.logging != null) {
+        // ★ Task275 J-P2-4：logging.client.file 两级解引用无判空——畸形 version JSON
+        //   （第三方工具产物，Task173/ame270 有前科）"logging": {} 即裸 NPE 崩启动链。
+        //   任一缺失落下方既有 log4j fallback（本就是为此兜底，只是没接上）。
+        if (version.logging != null && version.logging.client != null
+                && version.logging.client.file != null
+                && version.logging.client.file.id != null) {
             if (version.logging.client.file.id.equals("client-1.12.xml")) {
                 configPath = Tools.DIR_BUNDLE + "/log4j-rce-patch-1.12.xml";
             } else if (version.logging.client.file.id.equals("client-1.7.xml")) {
@@ -358,7 +399,7 @@ public class PojavLauncher {
         //   并打出吓人的不兼容警告。加 .jar 后缀门：只有【活跃】的
         //   OptiFine（mods/*.jar）才告警，禁用副本（.jar.disabled / .disabled
         //   / .txt 等一切非 .jar 形态）不再触发。
-        if (version != null && version.id != null
+        if (version.id != null
                 && version.id.toLowerCase(java.util.Locale.ROOT).contains("forge")) {
             java.io.File ame202ModsDir = new java.io.File(Tools.DIR_GAME_NEW, "mods");
             String[] ame202ModsList = ame202ModsDir.isDirectory() ? ame202ModsDir.list() : null;

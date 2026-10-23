@@ -266,9 +266,18 @@
     [self refreshLocalList];
 }
 
+/// Task275（P2-b7）：选中实例变化实时跟随（钉定态除外）
+- (void)ame275_selectedProfileDidChange {
+    if (self.profileName.length > 0) return;   // 钉定：不跟随选中变化
+    [self refreshLocalList];
+}
+
 - (void)refreshLocalList {
     [self setLoading:YES];
-    NSString *profile = self.profileName ?: @"default";
+    // ★ Task274-g（G1）：nil 直传服务层——DataPackService 已内置跟随选中实例语义
+    //   （Task270 M1 gameDirForProfile: nil→selectedProfileName→"(Default)"）。旧
+    //   ?: @"default" 是恒 miss 字面量（真实默认键 "(Default)"）=选中实例却恒扫共享根。
+    NSString *profile = self.profileName;
     [[DataPackService sharedService] scanDataPacksForProfile:profile completion:^(NSArray<DataPackItem *> *items) {
         dispatch_async(dispatch_get_main_queue(), ^{
             [self.localItems removeAllObjects];

@@ -9,10 +9,11 @@
 //
 
 #import "ModService.h"
-#import <CommonCrypto/CommonCrypto.h>
+// ★ Task274-h S14：CommonCrypto import 随零调用 sha1ForFileAtPath 删除（全文件 CC_ 族
+//   仅该方法使用，rg 亲证）
 #import <UIKit/UIKit.h>
 #import "PLProfiles.h"
-#import "ModItem.h"
+#import "ModpackImportService.h"  // Task275 F6: ame269_isImportBusy 让路守卫
 #import "UnzipKit.h"
 #import "DownloadTaskManager.h"
 #import "DownloadTaskItem.h"
@@ -161,33 +162,11 @@
 }
 
 // ---------- 辅助方法 ----------
-- (nullable NSString *)sha1ForFileAtPath:(NSString *)path {
-    NSData *d = [NSData dataWithContentsOfFile:path];
-    if (!d) return nil;
-    unsigned char digest[CC_SHA1_DIGEST_LENGTH];
-    CC_SHA1(d.bytes, (CC_LONG)d.length, digest);
-    NSMutableString *hex = [NSMutableString stringWithCapacity:CC_SHA1_DIGEST_LENGTH * 2];
-    for (int i = 0; i < CC_SHA1_DIGEST_LENGTH; i++) {
-        [hex appendFormat:@"%02x", digest[i]];
-    }
-    return [hex copy];
-}
-
+// ★ Task274-h S14：sha1ForFileAtPath 零调用副本已删除（rg 亲证全文件仅此 1 处定义
+//   零调用；活副本在 ModpackExportService:939 有分块实现）。
+// ★ Task270（屎山 A1）：逐字节克隆收敛 utils.m 单点 AMEIconCachePathForURL（行为零变更）。
 - (NSString *)iconCachePathForURL:(NSString *)urlString {
-    if (!urlString) return nil;
-    NSString *cacheDir = [NSSearchPathForDirectoriesInDomains(NSCachesDirectory, NSUserDomainMask, YES) firstObject];
-    NSString *folder = [cacheDir stringByAppendingPathComponent:@"mod_icons"];
-    if (![[NSFileManager defaultManager] fileExistsAtPath:folder]) {
-        [[NSFileManager defaultManager] createDirectoryAtPath:folder withIntermediateDirectories:YES attributes:nil error:nil];
-    }
-    const char *cstr = [urlString UTF8String];
-    unsigned char digest[CC_SHA1_DIGEST_LENGTH];
-    CC_SHA1(cstr, (CC_LONG)strlen(cstr), digest);
-    NSMutableString *hex = [NSMutableString stringWithCapacity:CC_SHA1_DIGEST_LENGTH * 2];
-    for (int i = 0; i < CC_SHA1_DIGEST_LENGTH; i++) {
-        [hex appendFormat:@"%02x", digest[i]];
-    }
-    return [folder stringByAppendingPathComponent:hex];
+    return AMEIconCachePathForURL(urlString, @"mod_icons");
 }
 
 - (nullable NSData *)readFileFromJar:(NSString *)jarPath entryName:(NSString *)entryName {
@@ -210,7 +189,10 @@
 ///   第 2 步（ShouldBeIndie 启发式）同源：目录形状说明用户已把该版本当
 ///   隔离实例用，mod 安装/扫描只认隔离目录，不再落到共享根。
 - (nullable NSString *)resolveAbsoluteGameDirForProfile:(NSString *)profileName {
-    NSString *profile = profileName.length ? profileName : @"default";
+    // ★ Task274-h S7：nil 入参跟随当前选中实例（ame267 语义），不再落恒 miss 的
+    // @"default" 字面量（真实默认键 "(Default)"；对齐 Task270 M1 服务层口径）。
+    if (!profileName.length) profileName = PLProfiles.current.selectedProfileName ?: @"(Default)";
+    NSString *profile = profileName;
     @try {
         NSDictionary *profiles = PLProfiles.current.profiles;
         NSDictionary *prof = profiles[profile];
@@ -274,8 +256,102 @@
     return nil;
 }
 
+/// ★ Task271（271-a F2 自适应恢复·用户铁律"写个自适应恢复"）：启动自愈——
+///   注册表与运行时行为对齐。运行时嗅探（ame225/JavaLauncher 同口径）早已
+///   把 versions/<vid>/game|/ 视作隔离目录，但 profile 条目 gameDir 缺失/
+///   "." 时（历史安装器写入 gameDir="."、旧版整条替换 saveProfile 抹键等，
+///   装机实锤：fabric-loader-* 实例模组列表变共享目录），模组管理页与下载
+///   落点仍走共享。启动时把【实际存在隔离数据】的 profile 落定为隔离：
+///   幂等（已显式配置的条目绝不碰）、保守（只认非空 mods/saves）、单键覆写
+///   （其余字段原样存活）。
++ (void)ame271_selfHealStrandedIsolation {
+    // ★ Task275 F6：导入/迁移进行中让路（幂等，下轮启动再愈）——原自愈写与
+    //   后台导入写者无锁竞跑（iPad 多窗口 willConnect 可重入放大触发面）。
+    if ([ModpackImportService ame269_isImportBusy]) {
+        NSLog(@"[Ame271] self-heal skipped: import busy");
+        return;
+    }
+    const char *ame271_env = getenv("POJAV_GAME_DIR");
+    if (!ame271_env || !*ame271_env) return;
+    NSString *ame271_base = [NSString stringWithUTF8String:ame271_env];
+    if (ame271_base.length == 0) return;
+    NSDictionary *ame271_profiles = PLProfiles.current.profiles;
+    if (![ame271_profiles isKindOfClass:[NSDictionary class]] || ame271_profiles.count == 0) return;
+    NSInteger ame271_healed = 0;
+    for (NSString *ame271_key in [ame271_profiles allKeys]) {
+        NSDictionary *ame271_prof = ame271_profiles[ame271_key];
+        if (![ame271_prof isKindOfClass:[NSDictionary class]]) continue;
+        NSString *ame271_gd = ame271_prof[@"gameDir"];
+        BOOL ame271_unset = (![ame271_gd isKindOfClass:[NSString class]] || ame271_gd.length == 0
+            || [ame271_gd isEqualToString:@"."] || [ame271_gd isEqualToString:@"./"]);
+        if (!ame271_unset) continue;                       // 已显式配置：绝不碰
+        NSString *ame271_hit = [self ame225_sniffedIsolationGameDirForProfile:ame271_prof];
+        if (ame271_hit.length == 0) continue;              // 无隔离数据：空转零 IO
+        // 嗅探命中 → 反推注册表相对路径（优先新口径 versions/<vid>/game）
+        NSString *ame271_vid = ame271_prof[@"lastVersionId"];
+        if (![ame271_vid isKindOfClass:[NSString class]] || ame271_vid.length == 0) continue;
+        NSString *ame271_rel = [NSString stringWithFormat:@"versions/%@/game", ame271_vid];
+        if (![ame271_hit isEqualToString:[ame271_base stringByAppendingPathComponent:ame271_rel]]) {
+            ame271_rel = [NSString stringWithFormat:@"versions/%@", ame271_vid];
+        }
+        NSMutableDictionary *ame271_updated = [ame271_prof mutableCopy];
+        ame271_updated[@"gameDir"] = ame271_rel;
+        [PLProfiles.current applyChanges:^(NSMutableDictionary<NSString *, id> *ame275_profiles) {
+            ame275_profiles[ame271_key] = ame271_updated;
+        }];
+        ame271_healed++;
+        NSLog(@"[Ame271] self-heal: profile \"%@\" gameDir '%@' -> %@ (stranded isolation data)",
+              ame271_key, ame271_gd ?: @"(nil)", ame271_rel);
+    }
+    // ★ Task272（默认隔离收敛清扫·用户铁律"自适应恢复"第二阶段）：F2 只治
+    //   "有滞留隔离数据"的条目；隔离目录为空/不存在的旧条目（gameDir='.' 且
+    //   从未显式选择）永远滞留共享根 = 跨实例串目录（装机实锤：26.2 实例模组
+    //   列表显示的是隔壁 26.1.2 的模组）。本清扫把从未被用户显式配置过的 '.'
+    //   条目收敛到 versions/<vid>/game（与 Task242 新实例默认隔离语义对齐）：
+    //   - gameDirExplicit 标记（三态选择器/自定义路径写入）= 用户显式选择，绝不碰
+    //   - default 主实例不参与（它就是共享根本体）
+    //   - 整合包实例 gameDir 为 ./custom_gamedir/... 非 '.'，天然不在范围
+    //   - 幂等：跑过一次后 gameDir 已非 '.'；隔离目录由 ensureModsFolder 惰性创建
+    NSInteger ame272_swept = 0;
+    for (NSString *ame272_key in [ame271_profiles allKeys]) {
+        // Task274: 真实默认键是 "(Default)"（旧守卫 @"default" 恒不匹配 =
+        // (Default) 主实例会被误 sweep 进隔离，共享模组从列表"消失"）；
+        // 两个键名都排除，宁可漏扫不可误扫。
+        if ([ame272_key isEqualToString:@"(Default)"] || [ame272_key isEqualToString:@"default"]) continue;
+        NSDictionary *ame272_prof = ame271_profiles[ame272_key];
+        if (![ame272_prof isKindOfClass:[NSDictionary class]]) continue;
+        if (ame272_prof[@"gameDirExplicit"] != nil) continue;   // 显式选择过：尊重用户
+        NSString *ame272_gd = ame272_prof[@"gameDir"];
+        BOOL ame272_unset = (![ame272_gd isKindOfClass:[NSString class]] || ame272_gd.length == 0
+            || [ame272_gd isEqualToString:@"."] || [ame272_gd isEqualToString:@"./"]);
+        if (!ame272_unset) continue;
+        NSString *ame272_vid = ame272_prof[@"lastVersionId"];
+        if (![ame272_vid isKindOfClass:[NSString class]] || ame272_vid.length == 0) continue;
+        NSMutableDictionary *ame272_updated = [ame272_prof mutableCopy];
+        ame272_updated[@"gameDir"] = [NSString stringWithFormat:@"versions/%@/game", ame272_vid];
+        [PLProfiles.current applyChanges:^(NSMutableDictionary<NSString *, id> *ame275_profiles) {
+            ame275_profiles[ame272_key] = ame272_updated;
+        }];
+        ame272_swept++;
+        NSLog(@"[Ame271] default-isolation sweep: profile \"%@\" gameDir '%@' -> versions/%@/game (never explicitly configured)",
+              ame272_key, ame272_gd ?: @"(nil)", ame272_vid);
+    }
+    if (ame272_swept > 0) {
+        ame271_healed += ame272_swept;
+        NSLog(@"[Ame271] default-isolation sweep: %ld profile(s) converged to versions/<id>/game",
+              (long)ame272_swept);
+    }
+    if (ame271_healed > 0) {
+        [PLProfiles.current save];
+        NSLog(@"[Ame271] self-heal done: %ld profile(s) re-isolated", (long)ame271_healed);
+    }
+}
+
 - (nullable NSString *)existingModsFolderForProfile:(NSString *)profileName {
-    NSString *profile = profileName.length ? profileName : @"default";
+    // ★ Task274-h S7：nil 入参跟随当前选中实例（ame267 语义），不再落恒 miss 的
+    // @"default" 字面量（真实默认键 "(Default)"；对齐 Task270 M1 服务层口径）。
+    if (!profileName.length) profileName = PLProfiles.current.selectedProfileName ?: @"(Default)";
+    NSString *profile = profileName;
     NSFileManager *fm = [NSFileManager defaultManager];
 
     // 优先用 profile gameDir（已解析为绝对路径）
@@ -318,12 +394,23 @@
     return [self existingModsFolderForProfile:profileName];
 }
 
+/// Task264：当前 profile 实际生效的 mods 目录（与 scanModsForProfile 同源同目录，
+/// Task219 隔离优先语义）。模组管理页展示"扫描目录"提示行 + 文件 App 定点打开。
+/// 用户中途放入该目录的 .jar 重扫后必然可见；此前导入按钮走 ensureModsFolderForProfile(nil)
+/// 恒解析到 default 主目录，整合包实例的隔离目录永远收不到文件——中途加 mod 不显示根因。
+- (nullable NSString *)ame264_effectiveModsFolderForProfile:(NSString *)profileName {
+    return [self ame219_isolationFirstModsFolderForProfile:profileName];
+}
+
 /// Task219：当前 profile 的隔离态对外暴露（ModsManager 徽标用）。
 /// 0 = 不隔离（gameDir 缺失或 "." 且嗅探未命中）；1 = 显式隔离
 /// （gameDir 为 versions/<id>/... 或自定义目录）；2 = 嗅探隔离（Task225：
 /// gameDir 为 "." 但 versions/<vid>/ 下已有 mods/saves——上游 auto 语义）。
 + (NSInteger)ame219_isolationStateForProfile:(NSString *)profileName {
-    NSString *profile = profileName.length ? profileName : @"default";
+    // ★ Task274-h S7：nil 入参跟随当前选中实例（ame267 语义），不再落恒 miss 的
+    // @"default" 字面量（真实默认键 "(Default)"；对齐 Task270 M1 服务层口径）。
+    if (!profileName.length) profileName = PLProfiles.current.selectedProfileName ?: @"(Default)";
+    NSString *profile = profileName;
     @try {
         NSDictionary *profiles = PLProfiles.current.profiles;
         NSDictionary *prof = profiles[profile];
@@ -344,7 +431,10 @@
 
 /// 获取当前 profile 的 mods 目录，不存在时自动创建
 - (nullable NSString *)ensureModsFolderForProfile:(NSString *)profileName error:(NSError **)error {
-    NSString *profile = profileName.length ? profileName : @"default";
+    // ★ Task274-h S7：nil 入参跟随当前选中实例（ame267 语义），不再落恒 miss 的
+    // @"default" 字面量（真实默认键 "(Default)"；对齐 Task270 M1 服务层口径）。
+    if (!profileName.length) profileName = PLProfiles.current.selectedProfileName ?: @"(Default)";
+    NSString *profile = profileName;
     NSFileManager *fm = [NSFileManager defaultManager];
     NSString *modsPath = nil;
 
@@ -438,6 +528,7 @@
         NSMutableArray<ModItem *> *items = [NSMutableArray array];
 
         if (!modsFolder) {
+            NSLog(@"[ModService] Task265 scan: profile=%@ folder=(nil) jars=0", profileName ?: @"(nil)");
             if (completion) {
                 dispatch_async(dispatch_get_main_queue(), ^{ completion(items); });
             }
@@ -475,6 +566,9 @@
         }
 
         dispatch_group_notify(group, dispatch_get_main_queue(), ^{
+            // ★ Task265：扫描结果锚——与 download dest 锚成对，目录错位一轮日志定音
+            NSLog(@"[ModService] Task265 scan: profile=%@ folder=%@ jars=%ld",
+                  profileName ?: @"(nil)", modsFolder, (long)items.count);
             [items sortUsingComparator:^NSComparisonResult(ModItem *obj1, ModItem *obj2) {
                 NSString *name1 = obj1.displayName ?: obj1.fileName;
                 NSString *name2 = obj2.displayName ?: obj2.fileName;
@@ -645,7 +739,18 @@
        expectedSHA1:(nullable NSString *)expectedSHA1
            progress:(nullable void (^)(NSProgress *downloadProgress))progress
          completion:(ModDownloadHandler)completion {
+    // Task269 末梢自愈：目标实例不存在（升级迁移合并后残留的旧实例名引用）→
+    // 回落当前选中实例，杜绝"下载进不存在的实例"再次制造错位。
+    if (profileName.length > 0 && !PLProfiles.current.profiles[profileName]) {
+        NSString *ame269_fallback = PLProfiles.current.selectedProfileName;
+        NSLog(@"[ModService] Task269: target profile \"%@\" gone -> fallback to selected \"%@\"",
+              profileName, ame269_fallback ?: @"(nil)");
+        profileName = ame269_fallback;
+    }
     NSString *modsFolder = [self ame219_isolationFirstModsFolderForProfile:profileName];
+    // ★ Task265：下载目标锚——今后任何"下载了但游戏/管理页看不到"直接看这行
+    NSLog(@"[ModService] Task265 download dest: profile=%@ folder=%@ file=%@",
+          profileName ?: @"(nil)", modsFolder, mod.fileName ?: @"(nil)");
     if (!modsFolder) {
         if (completion) {
             NSError *error = [NSError errorWithDomain:@"ModServiceError" code:1 userInfo:@{NSLocalizedDescriptionKey:localize(@"i18n_str_453", nil)}];
@@ -668,7 +773,10 @@
     // 注册到统一下载任务管理器（rawTask 稍后赋值为 PLDownloadOperation；悬浮球已移除，始终注册以便下载任务列表跟踪）
     NSString *resourceName = mod.fileName.length > 0 ? mod.fileName : (mod.displayName.length > 0 ? mod.displayName : @"mod");
     NSString *displayName = mod.displayName.length > 0 ? mod.displayName : resourceName;
-    NSString *downloadSource = getPrefObject(@"general.download_source") ?: @"official";
+    // ★ Task274-h S8：退役键 general.download_source（Task218 声明无写入方，恒 nil
+    //   → @"official" 来源标签失真）→ PLMirrorCenter legacySourceTokenForType
+    //   （Task218 收敛口径，对齐 World/DP/RP/Shader 四服务）。
+    NSString *downloadSource = [PLMirrorCenter legacySourceTokenForType:PLMirrorResourceTypeAssetDownload];
     DownloadTaskItem *taskItem = [[DownloadTaskManager sharedManager]
         registerTaskWithResourceType:DownloadTaskResourceTypeMod
                         resourceName:resourceName
@@ -678,6 +786,10 @@
                       supportsResume:YES
                              iconURL:mod.iconURL];
     taskItem.downloadURL = mod.selectedVersionDownloadURL;
+    // ★ Task266：下载目标实例随任务标注——资源管理页据 targetProfileName
+    //   与本页生效实例比对，跨实例下载展示横幅+一键切换（"游戏加载了、
+    //   管理页不显示"的实例错位自解释修复；同锚 Task265 download dest）。
+    taskItem.targetProfileName = profileName;
     // redesign-download-ui Phase 4：单文件下载接入统一进度页——
     // PLTaskStagesSingleFile 单阶段 + autoPresentDetail 自动弹出 PLTaskProgressViewController
     [[DownloadTaskManager sharedManager] setTaskWithId:taskItem.taskId stages:PLTaskStagesSingleFile()];
@@ -708,6 +820,33 @@
     request.allowZipFallbackCheck = YES;
 
     [self startPLDownloadWithRequest:request taskItem:taskItem progress:progress completion:completion];
+}
+
+#pragma mark - Task267 最近 mod 下载落点记录（模组管理页对账数据源）
+
+// 下载先于开页场景：Task266 横幅靠实时通知，页面不在场时通知够不着。
+// 本记录持久于进程生命周期，模组管理页每次 viewWillAppear 对账补挂横幅。
+// 回调线程为 PLDownloadClient 完成队列（非主线程），@synchronized 护账。
+static NSString *_ame267_lastDLProfile = nil;
+static NSString *_ame267_lastDLFile = nil;
+static double _ame267_lastDLTs = 0.0;
+
++ (void)ame267_noteLastModDownloadToProfile:(NSString *)profileName file:(NSString *)fileName {
+    @synchronized ([ModService class]) {
+        _ame267_lastDLProfile = [profileName copy];
+        _ame267_lastDLFile = [fileName copy];
+        _ame267_lastDLTs = [[NSDate date] timeIntervalSince1970];
+    }
+    NSLog(@"[ModService] Task267 last-download record: profile=%@ file=%@", profileName ?: @"(nil)", fileName ?: @"(nil)");
+}
+
++ (nullable NSDictionary<NSString *, id> *)ame267_lastModDownload {
+    @synchronized ([ModService class]) {
+        if (_ame267_lastDLTs <= 0.0) return nil;
+        return @{ @"profile": _ame267_lastDLProfile ?: @"",
+                  @"file":    _ame267_lastDLFile ?: @"",
+                  @"ts":      @(_ame267_lastDLTs) };
+    }
 }
 
 #pragma mark - PLDownloadClient 封装（进度 delta 累计 / 速率采样 / 完成分发）
@@ -855,15 +994,38 @@
         return;
     }
     ModDownloadHandler completion = self.downloadCompletionHandlers[taskId];
-    [self cleanupPLDownloadStateForTaskId:taskId];
+    // Task267：taskItem 在 cleanup 中被移除，落点记录需在清理前捕获
+    DownloadTaskItem *ame267_item = self.downloadTaskItems[taskId];
+    // ★ Task268（scan-d #1）：失败/取消保留 request+taskItem——retryHandler
+    //   →restartPLDownloadForTaskId 靠 downloadRequests 命中，旧版一律清空
+    //   = "重试"恒 nil → 任务永久卡"等待中"。成功路径才全量清理。
+    if (success) {
+        [self cleanupPLDownloadStateForTaskId:taskId];
+    } else {
+        [self.downloadOperations removeObjectForKey:taskId];
+        [self.downloadGenerations removeObjectForKey:taskId];
+        [self.downloadAccumulatedBytes removeObjectForKey:taskId];
+        [self.downloadTotalBytes removeObjectForKey:taskId];
+        [self.downloadLastSpeeds removeObjectForKey:taskId];
+        [self.downloadProgressHandlers removeObjectForKey:taskId];
+        [self.downloadCompletionHandlers removeObjectForKey:taskId];
+    }
     [self.downloadStateLock unlock];
 
     DownloadTaskManager *manager = [DownloadTaskManager sharedManager];
     if (success) {
         [manager updateTaskWithId:taskId stageAtIndex:0 status:PLTaskStageStatusCompleted];
         [manager setTaskWithId:taskId state:DownloadTaskStateCompleted];
+        // Task267：成功落盘才记入“最近 mod 下载落点”（模组管理页对账数据源）
+        if ([ame267_item.resourceType isEqualToString:DownloadTaskResourceTypeMod]) {
+            [ModService ame267_noteLastModDownloadToProfile:ame267_item.targetProfileName
+                                                       file:(ame267_item.resourceName.length > 0 ? ame267_item.resourceName : ame267_item.displayName)]; // Task268：记实际落盘文件名（scan-d #7）
+        }
     } else if ([error.domain isEqualToString:NSURLErrorDomain] && error.code == NSURLErrorCancelled) {
         // 用户取消（DownloadTaskManager 已置 Cancelled，这里幂等对齐）
+        // ★ Task268（scan-d #8）：阶段行同步置 Skipped——旧版停在 Running，
+        //   统一进度页显示"进行中"直到页面关闭。
+        [manager updateTaskWithId:taskId stageAtIndex:0 status:PLTaskStageStatusSkipped];
         [manager setTaskWithId:taskId state:DownloadTaskStateCancelled];
     } else {
         [manager updateTaskWithId:taskId stageAtIndex:0 status:PLTaskStageStatusFailed];

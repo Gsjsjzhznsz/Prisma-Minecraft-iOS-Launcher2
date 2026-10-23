@@ -7,6 +7,7 @@
 #import "ZL2ShellViewController.h"   // 7.0-UI-11：回壳判定与新壳兜底
 #import "PLLogOutputView.h"
 #import "PLProfiles.h"
+#import "ModService.h"   // Task268：profile 生效 mods 目录实况核对
 #import "SurfaceViewController.h"
 
 #include <objc/runtime.h>
@@ -24,9 +25,14 @@ void internal_showDialog(NSString* title, NSString* message) {
     // 但 level-1000 的新 window 泄漏在场并占着 key window，用户被迫"手动删
     // 系统弹窗"（5.1.0 实测反馈：正版登录提示弹窗关不掉）。修复：记下原
     // key window，OK 时隐藏弹窗 window 并把 key 交还原窗口。
+    // ★ Task267（屎山优化·保留环）：action→handler 强引用 alert 构成
+    //   alert→action→block→alert 环，每次弹窗泄漏一个 alert + 关联
+    //   level-1000 window（Task126 只修了 key 归还，环未断）。改 weak：
+    //   handler 触发时 alert 必然存活（alert 持有 action），取关联对象无悬空风险。
     UIWindow *previousKeyWindow = UIWindow.mainWindow;
+    __weak UIAlertController *ame267_weakAlert = alert;
     UIAlertAction* okAction = [UIAlertAction actionWithTitle:localize(@"OK", nil) style:UIAlertActionStyleDefault handler:^(UIAlertAction * action) {
-        UIWindow *w = objc_getAssociatedObject(alert, @selector(alertWindow));
+        UIWindow *w = objc_getAssociatedObject(ame267_weakAlert, @selector(alertWindow));
         if (w) {
             w.hidden = YES;
             if (previousKeyWindow && previousKeyWindow != w) {
@@ -67,6 +73,8 @@ void ame187_showAccountRepairDialog(NSString *username, NSString *accountId, NSS
                 username ?: @"?", username ?: @"?"]
                       preferredStyle:UIAlertControllerStyleAlert];
         UIWindow *previousKeyWindow = UIWindow.mainWindow;
+        // ★ Task267：同 internal_showDialog——两处 handler 改 weak 断保留环。
+        __weak UIAlertController *ame267_weakAlert = alert;
         [alert addAction:[UIAlertAction actionWithTitle:localize(@"i18n_str_2071", nil)
                                                   style:UIAlertActionStyleDefault
                                                 handler:^(UIAlertAction *action) {
@@ -93,7 +101,7 @@ void ame187_showAccountRepairDialog(NSString *username, NSString *accountId, NSS
                 [BaseAuthenticator setCurrent:nil];
             }
             // 关闭承载 window 并还原 key window
-            UIWindow *w = objc_getAssociatedObject(alert, @selector(alertWindow));
+            UIWindow *w = objc_getAssociatedObject(ame267_weakAlert, @selector(alertWindow));
             if (w) {
                 w.hidden = YES;
                 if (previousKeyWindow && previousKeyWindow != w) {
@@ -107,7 +115,7 @@ void ame187_showAccountRepairDialog(NSString *username, NSString *accountId, NSS
         [alert addAction:[UIAlertAction actionWithTitle:localize(@"Cancel", nil)
                                                   style:UIAlertActionStyleCancel
                                                 handler:^(UIAlertAction *action) {
-            UIWindow *w = objc_getAssociatedObject(alert, @selector(alertWindow));
+            UIWindow *w = objc_getAssociatedObject(ame267_weakAlert, @selector(alertWindow));
             if (w) {
                 w.hidden = YES;
                 if (previousKeyWindow && previousKeyWindow != w) {
@@ -143,11 +151,13 @@ void ame173_showJvmUsedRestartDialog(NSString *profileName) {
             preferredStyle:UIAlertControllerStyleAlert];
         // Task173 CI 修复：previousKeyWindow 必须在 action 捕获之前声明
         //（旧顺序：Cancel handler 引用后才声明 = undeclared identifier）。
+        // ★ Task267：同 internal_showDialog——Cancel handler 改 weak 断保留环。
         UIWindow *previousKeyWindow = UIWindow.mainWindow;
+        __weak UIAlertController *ame267_weakAlert = alert;
         [alert addAction:[UIAlertAction actionWithTitle:localize(@"resman.common.cancel", nil)
                                                   style:UIAlertActionStyleCancel
                                                 handler:^(UIAlertAction *action) {
-            UIWindow *w = objc_getAssociatedObject(alert, @selector(alertWindow));
+            UIWindow *w = objc_getAssociatedObject(ame267_weakAlert, @selector(alertWindow));
             if (w) {
                 w.hidden = YES;
                 if (previousKeyWindow && previousKeyWindow != w) {
@@ -167,6 +177,180 @@ void ame173_showJvmUsedRestartDialog(NSString *profileName) {
                 exit(0);
             });
         }]];
+        UIWindow *alertWindow = [[UIWindow alloc] initWithWindowScene:UIWindow.mainWindow.windowScene];
+        alertWindow.frame = UIScreen.mainScreen.bounds;
+        alertWindow.rootViewController = [UIViewController new];
+        alertWindow.windowLevel = 1000;
+        [alertWindow makeKeyAndVisible];
+        objc_setAssociatedObject(alert, @selector(alertWindow), alertWindow, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+        [alertWindow.rootViewController presentViewController:alert animated:YES completion:nil];
+    });
+}
+
+// Task294：内置 JIT 失败双选弹窗（声明见 ios_uikit_bridge.h）。专用
+// level-1000 window 承载——JIT 等待环的系统弹窗（Task281 玻璃镜像）在场时
+// 也能弹出；降级 action 交给 caller（如 fire stikjit:// 深链），本函数不硬
+// 编码任何工具语义。Cancel/降级两条 handler 均按 Task267 家法 weak 断环。
+void ame294_showJITActionDialog(NSString *title, NSString *message,
+                                NSString *fallbackTitle, void (^fallbackBlock)(void)) {
+    // Task295：旧四参变体转发（取消语义缺省为空）。
+    ame294_showJITActionDialogEx(title, message, fallbackTitle, fallbackBlock, nil);
+}
+
+void ame294_showJITActionDialogEx(NSString *title, NSString *message,
+                                  NSString *fallbackTitle, void (^fallbackBlock)(void),
+                                  void (^cancelBlock)(void)) {
+    dispatch_async(dispatch_get_main_queue(), ^{
+        UIAlertController *alert = [UIAlertController alertControllerWithTitle:title
+            message:message preferredStyle:UIAlertControllerStyleAlert];
+        UIWindow *previousKeyWindow = UIWindow.mainWindow;
+        __weak UIAlertController *ame267_weakAlert = alert;
+        void (^dismissWindow)(void) = ^{
+            UIWindow *w = objc_getAssociatedObject(ame267_weakAlert, @selector(alertWindow));
+            if (w) {
+                w.hidden = YES;
+                if (previousKeyWindow && previousKeyWindow != w) {
+                    [previousKeyWindow makeKeyAndVisible];
+                }
+            }
+        };
+        if (fallbackTitle.length > 0 && fallbackBlock) {
+            [alert addAction:[UIAlertAction actionWithTitle:fallbackTitle
+                style:UIAlertActionStyleDefault
+                handler:^(UIAlertAction *action) {
+                    dismissWindow();
+                    fallbackBlock();
+                }]];
+        }
+        [alert addAction:[UIAlertAction actionWithTitle:localize(@"resman.common.cancel", nil)
+            style:UIAlertActionStyleCancel
+            handler:^(UIAlertAction *action) {
+                dismissWindow();
+                // Task295：取消语义出线（JIT 等待环终止由调用方决断）。
+                if (cancelBlock) cancelBlock();
+            }]];
+        UIWindow *alertWindow = [[UIWindow alloc] initWithWindowScene:UIWindow.mainWindow.windowScene];
+        alertWindow.frame = UIScreen.mainScreen.bounds;
+        alertWindow.rootViewController = [UIViewController new];
+        alertWindow.windowLevel = 1000;
+        [alertWindow makeKeyAndVisible];
+        objc_setAssociatedObject(alert, @selector(alertWindow), alertWindow, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+        [alertWindow.rootViewController presentViewController:alert animated:YES completion:nil];
+    });
+}
+
+// ===== Task300：重复实例命名弹窗（重复实例被吞根修的用户交互面）=====
+// 家法同 ame294（level-1000 window 承载，不依赖当前 VC 栈；PLTaskProgress
+// 等进度页覆盖时也可弹出）。与 ame294 的差异：带文本输入 + completion 出线
+// （取消=nil，确认=输入框内容）。completion 固定 main 队列回调，调用方在
+// 回调里做唯一性校验，不唯一可循环重弹。
+void ame300_promptRenameInstance(NSString *title, NSString *message, NSString *prefill,
+                                 void (^completion)(NSString *chosenName)) {
+    dispatch_async(dispatch_get_main_queue(), ^{
+        UIAlertController *alert = [UIAlertController alertControllerWithTitle:title
+            message:message preferredStyle:UIAlertControllerStyleAlert];
+        [alert addTextFieldWithConfigurationHandler:^(UITextField *textField) {
+            textField.text = prefill ?: @"";
+            textField.autocapitalizationType = UITextAutocapitalizationTypeNone;
+            textField.autocorrectionType = UITextAutocorrectionTypeNo;
+            textField.clearButtonMode = UITextFieldViewModeWhileEditing;
+        }];
+        // ★ Task302：关键流弹窗禁玻璃镜像（用户"重复实例重命名没有出现过"
+        //   装机实锤：Task300 改名窗被 AmeMenu Task237 镜像接管后动作链
+        //   不可达——弹窗上屏后 40s+ 零 [MCDL] 动作日志，用户只能退后台）。
+        //   no-mirror 标记位 + 钩子侧豁免（AmeFloatingMenu 同名 sel）= 本窗
+        //   恒原生上屏；level-1000 window 家法本身可独立承载，视觉降级
+        //   可接受，可用性优先。
+        objc_setAssociatedObject(alert, sel_registerName("ame302NoMirror"), @YES,
+                                 OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+        UIWindow *previousKeyWindow = UIWindow.mainWindow;
+        __weak UIAlertController *ame300_weakAlert = alert;
+        void (^dismissWindow)(void) = ^{
+            UIWindow *w = objc_getAssociatedObject(ame300_weakAlert, @selector(alertWindow));
+            if (w) {
+                w.hidden = YES;
+                if (previousKeyWindow && previousKeyWindow != w) {
+                    [previousKeyWindow makeKeyAndVisible];
+                }
+            }
+        };
+        [alert addAction:[UIAlertAction actionWithTitle:localize(@"ame300.dup.confirm", nil)
+            style:UIAlertActionStyleDefault
+            handler:^(UIAlertAction *action) {
+                dismissWindow();
+                NSString *ame300_chosen = ame300_weakAlert.textFields.firstObject.text;
+                completion(ame300_chosen.length > 0 ? ame300_chosen : nil);
+            }]];
+        [alert addAction:[UIAlertAction actionWithTitle:localize(@"resman.common.cancel", nil)
+            style:UIAlertActionStyleCancel
+            handler:^(UIAlertAction *action) {
+                dismissWindow();
+                completion(nil);
+            }]];
+        UIWindow *alertWindow = [[UIWindow alloc] initWithWindowScene:UIWindow.mainWindow.windowScene];
+        alertWindow.frame = UIScreen.mainScreen.bounds;
+        alertWindow.rootViewController = [UIViewController new];
+        alertWindow.windowLevel = 1000;
+        [alertWindow makeKeyAndVisible];
+        objc_setAssociatedObject(alert, @selector(alertWindow), alertWindow, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+        [alertWindow.rootViewController presentViewController:alert animated:YES completion:nil];
+    });
+}
+
+// ===== Task301：残根目录三选弹窗（清理并重装 / 重命名继续 / 取消）=====
+// 家法同 ame300（level-1000 window 承载 + associated object dismiss）；三个
+// 回调一律 main 队列，任意线程可调。重命名按钮消费预填文本框，清理/取消
+// 不消费。取消按钮风格 Cancel——level-1000 window 下系统不自动联动键盘，
+// 行为与 ame300 取消一致。
+void ame301_promptResidualInstance(NSString *title, NSString *message,
+                                   NSString *cleanTitle, NSString *renameTitle,
+                                   NSString *prefill,
+                                   void (^onClean)(void),
+                                   void (^onRename)(NSString *chosenName),
+                                   void (^onCancel)(void)) {
+    dispatch_async(dispatch_get_main_queue(), ^{
+        UIAlertController *alert = [UIAlertController alertControllerWithTitle:title
+            message:message preferredStyle:UIAlertControllerStyleAlert];
+        [alert addTextFieldWithConfigurationHandler:^(UITextField *textField) {
+            textField.text = prefill ?: @"";
+            textField.autocapitalizationType = UITextAutocapitalizationTypeNone;
+            textField.autocorrectionType = UITextAutocorrectionTypeNo;
+            textField.clearButtonMode = UITextFieldViewModeWhileEditing;
+        }];
+        // ★ Task302：残根三选窗同标 no-mirror（ame300 同款病历/同款豁免，
+        //   三选窗承担清理残根自愈入口，可用性必须最高）。
+        objc_setAssociatedObject(alert, sel_registerName("ame302NoMirror"), @YES,
+                                 OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+        UIWindow *previousKeyWindow = UIWindow.mainWindow;
+        __weak UIAlertController *ame301_weakAlert = alert;
+        void (^dismissWindow)(void) = ^{
+            UIWindow *w = objc_getAssociatedObject(ame301_weakAlert, @selector(alertWindow));
+            if (w) {
+                w.hidden = YES;
+                if (previousKeyWindow && previousKeyWindow != w) {
+                    [previousKeyWindow makeKeyAndVisible];
+                }
+            }
+        };
+        [alert addAction:[UIAlertAction actionWithTitle:cleanTitle
+            style:UIAlertActionStyleDestructive
+            handler:^(UIAlertAction *action) {
+                dismissWindow();
+                onClean();
+            }]];
+        [alert addAction:[UIAlertAction actionWithTitle:renameTitle
+            style:UIAlertActionStyleDefault
+            handler:^(UIAlertAction *action) {
+                dismissWindow();
+                NSString *ame301_chosen = ame301_weakAlert.textFields.firstObject.text;
+                onRename(ame301_chosen.length > 0 ? ame301_chosen : nil);
+            }]];
+        [alert addAction:[UIAlertAction actionWithTitle:localize(@"resman.common.cancel", nil)
+            style:UIAlertActionStyleCancel
+            handler:^(UIAlertAction *action) {
+                dismissWindow();
+                onCancel();
+            }]];
         UIWindow *alertWindow = [[UIWindow alloc] initWithWindowScene:UIWindow.mainWindow.windowScene];
         alertWindow.frame = UIScreen.mainScreen.bounds;
         alertWindow.rootViewController = [UIViewController new];
@@ -260,12 +444,34 @@ static void ame172_applyProfileTouchController(void) {
     @autoreleasepool {
         NSString *profName = PLProfiles.current.selectedProfileName;
         NSDictionary *prof = profName ? PLProfiles.current.profiles[profName] : nil;
-        BOOL on = [prof isKindOfClass:NSDictionary.class] && [prof[@"touchController"] boolValue];
-        if (on) {
-            // ★ Task223（用户报“手动关闭后又被强制开启”）：全局 TouchController
-            //   页手动关闭过的会话（哨兵 control.mod_touch_user_off=YES）不再
-            //   被启动时自动配置顶回 ON——那是用户明确的意图，profile 开关
-            //   只在用户没有全局表态时才生效（手动重新开启会撤哨兵）。
+        id rawKey = [prof isKindOfClass:NSDictionary.class] ? prof[@"touchController"] : nil;
+        BOOL profOn = [rawKey boolValue];
+        // ★ Task268（用户报"装 touch 模组后关不掉 touch 协议/屏蔽控件，关了开游戏又恢复"）：
+        //   旧语义两个洞——a) profile 键 YES 但 mods 已无 TouchController jar（模组管理
+        //   删了 mod，键残留）时只认键不看实况，启动照样自动配置 UDP+屏蔽控件；
+        //   b) 版本设置"关闭"= 删键（无键），启动链对无键不碰全局——全局残留 ON =
+        //   关闭形同虚设。修法：YES 键先核对 mods 实况（jar 不在=本会话禁用）；
+        //   显式 NO 键（Task268 保存语义）= 本会话禁用；无键维持"不碰全局"。
+        BOOL profExplicitOff = [rawKey isKindOfClass:NSNumber.class] && !profOn;
+        if (profOn) {
+            NSString *modsFolder = [[ModService sharedService] ame264_effectiveModsFolderForProfile:profName];
+            BOOL jarPresent = NO;
+            if (modsFolder.length > 0) {
+                NSArray *files = [[NSFileManager defaultManager] contentsOfDirectoryAtPath:modsFolder error:nil];
+                for (NSString *f in files) {
+                    if ([f.pathExtension caseInsensitiveCompare:@"jar"] == NSOrderedSame &&
+                        [f localizedCaseInsensitiveContainsString:@"touch"]) {
+                        jarPresent = YES;
+                        break;
+                    }
+                }
+            }
+            if (!jarPresent) {
+                NSLog(@"[TouchController] Task268 profile '%@' flag=YES but no TouchController jar in mods -- treating as off for this launch", profName);
+                setPrefBool(@"control.mod_touch_enable", NO);
+                setPrefBool(@"control.mod_touch_hide_controls", NO);
+                return;
+            }
             if (getPrefBool(@"control.mod_touch_user_off")) {
                 NSLog(@"[TouchController] Task172 profile '%@' auto-config SKIPPED (user turned TouchController off globally -- not re-enabling)",
                       profName);
@@ -276,6 +482,12 @@ static void ame172_applyProfileTouchController(void) {
             setPrefBool(@"control.mod_touch_hide_controls", YES);
             NSLog(@"[TouchController] Task172 profile auto-config applied for '%@' (enable=1 mode=UDP hideControls=1)",
                   profName);
+        } else if (profExplicitOff) {
+            // Task268：显式关闭 = 本会话禁用（按当前 profile 每次启动重落，跨版本
+            // 不漂移：YES profile 启动会重走上方自动配置）。
+            setPrefBool(@"control.mod_touch_enable", NO);
+            setPrefBool(@"control.mod_touch_hide_controls", NO);
+            NSLog(@"[TouchController] Task268 profile '%@' explicitly disabled -- touch protocol off for this launch", profName);
         } else {
             NSLog(@"[TouchController] Task172 profile '%@' TouchController off -- global settings untouched",
                   profName);

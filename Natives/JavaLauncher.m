@@ -20,6 +20,7 @@
 // 鬼知道为什么copilot要把这玩意加里头……
 
 #import "ios_uikit_bridge.h"
+#import "StikDebugViewController.h" // Task294：内置 JIT 轨（jit_enabler=builtin / auto 优先）
 #import "JavaLauncher.h"
 #import "LauncherPreferences.h"
 #import "PLLogOutputView.h"
@@ -127,9 +128,9 @@ void init_loadDefaultEnv() {
     //    Mesa 21.0 的 zink 不会动态重建 swapchain，导致帧率锁死在屏幕刷新率。
     //
     // 关于 MoltenVK 配置与 Vulkan 帧率解锁研究：
-    //   实际运行的 MoltenVK 版本为 1.4.3（Task246：上游 main @ 2c28e0c8
-    //   2026-10-09 CI 构建，从 libMoltenVK.dylib 二进制 strings 确认；
-    //   历史链 1.2.9 → 1.4.2 → 1.4.3，本次领先 v1.4.2 release 54 提交）。
+    //   实际运行的 MoltenVK 版本为 1.4.3（Task309 恢复：用户实测 1.4.3 正常，
+    //   WINDOW_IN_USE 双崩元凶实为帧率解锁钩子已整体回退退役；
+    //   历史链 1.2.9 → 1.4.2 → 1.4.3（Task246 起，Task309 驳回 308 误伤回退））。
     //   设备是否支持 IMMEDIATE present mode 由 MVKPhysicalDeviceMetalFeatures.presentModeImmediate
     //   自动检测（大多数 iOS 设备支持）。
     //
@@ -151,10 +152,17 @@ void init_loadDefaultEnv() {
     setenv("POJAV_DISABLE_VSYNC", getPrefBool(@"video.disable_game_vsync") ? "1" : "0", 1);
 
     // 帧率解锁诊断日志：记录关键环境变量和偏好设置
+    // Task300-r2 勘误：maximumFramesPerSecond 在 iPhoneOS26.2 SDK 是只读属性
+    // （CI run 39225659390 "assignment to readonly property" 实锤）——它报告的是
+    // 面板能力上限（本机 60Hz，iPad Air M4 非 ProMotion），不可赋值也不可突破。
+    // 帧率解锁的完整能力面=渲染侧 presentMode=IMMEDIATE（ame298/300 双层钩子
+    // 已 Task309 整体回退退役，装机定性为 WINDOW_IN_USE 双崩元凶；zink 路径
+    // 不受影响），MC 侧 maxFps=260 与 EGL interval(0) 已在位；显示层无锁可解，
+    // 此处仅落诊断值供装机日志对单。
     NSLog(@"[JavaLauncher] Framerate unlock configuration:");
     NSLog(@"[JavaLauncher]   video.disable_game_vsync=%d", getPrefBool(@"video.disable_game_vsync"));
     NSLog(@"[JavaLauncher]   POJAV_DISABLE_VSYNC=%s", getenv("POJAV_DISABLE_VSYNC"));
-    NSLog(@"[JavaLauncher]   UIScreen.maximumFramesPerSecond=%d", (int)UIScreen.mainScreen.maximumFramesPerSecond);
+    NSLog(@"[JavaLauncher]   UIScreen.maximumFramesPerSecond=%d (readonly panel capability)", (int)UIScreen.mainScreen.maximumFramesPerSecond);
 }
 
 void init_loadCustomEnv() {
@@ -439,17 +447,45 @@ void init_loadMobileGluesConfig() {
 ///   设置页"JVM 预设"行，实例级覆写）→ java.jvm_preset（全局设置页）→
 ///   @"normal"。init_loadCustomJvmFlags 的 custom 参数注入与 launchJVM 的
 ///   GC 段注入两处共用，解析永不漂移。
+///   ★ Task285（用户定案"肯定是版本设置的jvm预设优先"）：Task284 的
+///   performance 升格【撤销】——global=performance 不再盖过实例非定制
+///   值，恢复 profile → global → normal 原序（custom 任一层声明仍最高）。
+///   病历复盘：Task284 误判"用户全局选了性能优先被实例压制"，装机日志
+///   (a94669c) 实锤全局 java.jvm_preset 根本不存在（"Getter could not
+///   find preference java.jvm_preset"）——用户是在版本设置里选了 memory，
+///   版本设置优先本就是既定设计；要性能优先应在 版本设置 → 高级 → JVM
+///   预设 选"性能优先"（Task256 已提供该档，选中即生效）。本轮另加
+///   来源日志：生效预设 + 来源层 + 双层冲突提示，下轮日志一眼定音。
 static NSString *ame256_effectiveJvmPreset(void) {
     NSString *ame256_profile = [PLProfiles resolveKeyForCurrentProfile:@"jvm_preset"];
-    if ([ame256_profile isKindOfClass:[NSString class]] && ame256_profile.length > 0) {
+    NSString *ame256_global = getPrefObject(@"java.jvm_preset");
+    BOOL ame284_profileValid = [ame256_profile isKindOfClass:[NSString class]] && ame256_profile.length > 0;
+    BOOL ame284_globalValid = [ame256_global isKindOfClass:[NSString class]] && ame256_global.length > 0;
+    // custom 档 = 用户显式自管参数，保持最高优先（任一层声明即生效）
+    if ([ame256_profile isEqualToString:@"custom"] || [ame256_global isEqualToString:@"custom"]) {
+        return @"custom";
+    }
+    // ★ Task285：恢复 profile（版本设置）优先原序——Task284 performance
+    //   升格撤销（用户定案"版本设置的jvm预设优先"）。
+    if (ame284_profileValid) {
         static dispatch_once_t ame256_once;
         dispatch_once(&ame256_once, ^{
-            NSLog(@"[JavaLauncher] Task256: profile-level jvm_preset override active: %@", ame256_profile);
+            NSLog(@"[JavaLauncher] Task285: JVM preset='%@' (source=profile/版本设置; global=%@%@" ,
+                  ame256_profile,
+                  ame284_globalValid ? ame256_global : @"<unset>",
+                  ame284_globalValid ? @", unused -- 版本设置优先)" : @")");
+            if (ame284_globalValid && ![ame256_global isEqualToString:ame256_profile]) {
+                NSLog(@"[JavaLauncher] Task285: preset conflict profile='%@' vs global='%@' -- profile wins (版本设置优先); switch in 版本设置→高级→JVM 预设 if intended",
+                      ame256_profile, ame256_global);
+            }
         });
         return ame256_profile;
     }
-    NSString *ame256_global = getPrefObject(@"java.jvm_preset");
-    if ([ame256_global isKindOfClass:[NSString class]] && ame256_global.length > 0) {
+    if (ame284_globalValid) {
+        static dispatch_once_t ame285_once;
+        dispatch_once(&ame285_once, ^{
+            NSLog(@"[JavaLauncher] Task285: JVM preset='%@' (source=global/全局设置)", ame256_global);
+        });
         return ame256_global;
     }
     return @"normal";
@@ -823,6 +859,123 @@ static int ame87_disableDesktopDialogMods(NSString *gameDir) {
         }
     }
     return disabled;
+}
+
+// ★ Task287（PocketJ 对标移植）：IMBlocker / InputMethodBlocker 桌面输入法
+//   阻断类 mod 自动禁用——此类 mod 携带 macOS 桌面 JNA 输入监听库，iOS
+//   App 内 ffi closure 非可执行（Task138 controlify 同域结论），Java 17+
+//   会话加载即 UnsatisfiedLinkError/NoClassDef 打崩启动。改名 .jar.disabled
+//   保留可恢复（改名回即还原）。上游 PocketJ 同款门（Java>=17，其 8 会话
+//   存量路径不触碰）。
+static int ame287_disableUnsupportedInputMods(NSString *gameDir) {
+    if (gameDir.length == 0) {
+        return 0;
+    }
+    NSString *modsDir = [gameDir stringByAppendingPathComponent:@"mods"];
+    BOOL isDir = NO;
+    NSFileManager *fileMgr = [NSFileManager defaultManager];
+    if (![fileMgr fileExistsAtPath:modsDir isDirectory:&isDir] || !isDir) {
+        return 0;
+    }
+    NSArray<NSString *> *files = [fileMgr contentsOfDirectoryAtPath:modsDir error:nil];
+    if (files.count == 0) {
+        return 0;
+    }
+    int disabled = 0;
+    for (NSString *file in files) {
+        NSString *lower = file.lowercaseString;
+        if (![lower hasSuffix:@".jar"]) {
+            continue; // 已是 .disabled / 非 jar 一律跳过
+        }
+        if (![lower containsString:@"imblocker"] &&
+            ![lower containsString:@"inputmethodblocker"]) {
+            continue;
+        }
+        NSString *srcPath = [modsDir stringByAppendingPathComponent:file];
+        NSString *dstPath = [srcPath stringByAppendingString:@".disabled"];
+        NSUInteger duplicateIndex = 2;
+        while ([fileMgr fileExistsAtPath:dstPath]) {
+            dstPath = [srcPath stringByAppendingFormat:@".%lu.disabled",
+                (unsigned long)duplicateIndex++];
+        }
+        NSError *error = nil;
+        if ([fileMgr moveItemAtPath:srcPath toPath:dstPath error:&error]) {
+            disabled++;
+            NSLog(@"[ModCompat] Task287: disabled desktop input-method mod \"%@\" (renamed to .disabled) -- its macOS JNA library cannot run inside an iOS app (PocketJ 同款防御)", file);
+        } else {
+            NSLog(@"[ModCompat] Task287: FAILED to disable \"%@\": %@", file, error.localizedDescription);
+        }
+    }
+    return disabled;
+}
+
+// ★ Task287（PocketJ 对标移植）：Forge URI-safe 游戏根——版本 id 含
+//   "forge" 且游戏目录路径含空格时，把启动 gameDir/POJAV_GAME_DIR 重指到
+//   POJAV_HOME 下无空格符号链接别名；Forge 工具链（processor/安装器）对
+//   空格路径的 URL/引号处理存在炸面（上游 PocketJ 同款防御，其 alias 命名
+//   .pocketj-loader-runtime 同构）。非命中条件时执行还原（env 回真实根），
+//   幂等可重入。iOS 常规容器路径无空格 = 本防御平时零行为变化。
+//
+// ★ Task288-r1（装机实锤："版本隔离出现异常，打开模组管理都没有这几个
+//   fabric 模组"；gamelog 双锚：ModsManager Task265 扫描隔离目录
+//   versions/NeoForge-26.1.2.122/game/mods jars=2，而 Task287 日志
+//   "real: .../Library/Application Support/minecraft"＝共享根）：
+//   旧实现 realRoot 优先取 getenv("POJAV_GAME_DIR")——该 env 是 main.m
+//   启动期设定的【全局共享根】（含空格 "Application Support"），而启动链
+//   传入的 gameDir 才是本次启动的生效目录（Task275/Task225 已解析出隔离
+//   实例目录）。对隔离实例的 forge 启动：env(共享根,含空格) 命中 forge+
+//   空格双条件 → 别名重指共享根 → chdir/POJAV_GAME_DIR 全部落共享根 →
+//   游戏读共享 mods/（管理页扫隔离 mods/）＝ 两张皮，隔离静默失效。
+//   修复：realRoot 一律取入参 gameDir（生效目录）；env 仅用于识别
+//   "上次 forge 命中遗留的别名指针"以做还原。隔离目录无空格时本函数
+//   自然零行为（ forge 版本装在默认共享布局才需要别名）。
+static NSString *ame287_configureForgeUriSafeRoot(NSString *versionId, NSString *gameDir) {
+    if (gameDir.length == 0) {
+        return gameDir;
+    }
+    const char *ame287_envC = getenv("POJAV_GAME_DIR");
+    BOOL ame287_envIsAlias = (ame287_envC && strstr(ame287_envC, "ame287_forge") != NULL);
+    BOOL ame287_forge = [versionId.lowercaseString containsString:@"forge"];
+    if (!ame287_forge || ![gameDir containsString:@" "]) {
+        // 未命中：若 env 还指着别名（上次 forge 命中遗留），还原到别名目标
+        //（= 当时的真实根，通常为共享根）；否则 env 不动（全局语义由
+        //  main.m 维护，禁止把本次生效目录写回全局 env——隔离启动会毒化
+        //  ModService 等以 env 为共享根基准的解析）。
+        if (ame287_envIsAlias) {
+            NSString *ame287_prev = [NSFileManager.defaultManager
+                destinationOfSymbolicLinkAtPath:@(ame287_envC) error:nil];
+            if (ame287_prev.length > 0) {
+                setenv("POJAV_GAME_DIR", ame287_prev.UTF8String, 1);
+                NSLog(@"[JavaLauncher] Task288: POJAV_GAME_DIR alias residue restored -> %@", ame287_prev);
+            }
+        }
+        return gameDir;
+    }
+    NSString *ame287_realRoot = gameDir;
+    const char *ame287_homeC = getenv("POJAV_HOME");
+    if (!ame287_homeC) {
+        return gameDir;
+    }
+    NSFileManager *ame287_fm = NSFileManager.defaultManager;
+    NSString *ame287_alias = [@(ame287_homeC) stringByAppendingPathComponent:@".ame287_forge_root"];
+    NSString *ame287_target = [ame287_fm destinationOfSymbolicLinkAtPath:ame287_alias error:nil];
+    if (![ame287_target isEqualToString:ame287_realRoot]) {
+        if ([[ame287_fm attributesOfItemAtPath:ame287_alias error:nil][NSFileType]
+                isEqualToString:NSFileTypeSymbolicLink]) {
+            [ame287_fm removeItemAtPath:ame287_alias error:nil];
+        }
+        if (![ame287_fm fileExistsAtPath:ame287_alias]) {
+            [ame287_fm createSymbolicLinkAtPath:ame287_alias
+                          withDestinationPath:ame287_realRoot error:nil];
+        }
+    }
+    if ([[ame287_fm destinationOfSymbolicLinkAtPath:ame287_alias error:nil]
+            isEqualToString:ame287_realRoot]) {
+        setenv("POJAV_GAME_DIR", ame287_alias.UTF8String, 1);
+        NSLog(@"[JavaLauncher] Task287: Forge URI-safe game root -> %@ (real: %@)", ame287_alias, ame287_realRoot);
+        return ame287_alias;
+    }
+    return gameDir;
 }
 
 // Task 95：整合包完整性提醒门 ----------------------------------------------
@@ -1970,6 +2123,304 @@ static NSString *ame217_autoRendererDecide(NSInteger minVersion) {
 
 // ==================== Task 217 结束 ====================
 
+// ★ Task286（PocketJ 对标移植）：新实例 options.txt 首启性能播种——
+//   MC 首启生成的默认档（mipmap 4 / 粒子全量 / 视距 12 / 模拟距离 12）
+//   对移动端过重，首启即"掉帧+烫"的差评窗口。JVM 启动前、MC
+//   Options.load 之前写入一份均衡档（仅 options.txt 不存在时 = 新实例
+//   首启；已有实例的玩家选择零触碰）。取值与上游 PocketJ
+//   MinecraftOptionUtils 同思路但视距放宽（其 2 为超低端定标，本仓取 8
+//   作 iOS 均衡默认；游戏内均可再调）。
+static void ame286_seedFirstLaunchPerformanceOptions(NSString *gameDir) {
+    if (gameDir.length == 0) return;
+    NSString *ame286_optPath = [gameDir stringByAppendingPathComponent:@"options.txt"];
+    if ([[NSFileManager defaultManager] fileExistsAtPath:ame286_optPath]) return;
+    NSString *ame286_seed = @"mipmapLevels:0\n"
+                            @"particleStatus:1\n"
+                            @"renderDistance:8\n"
+                            @"simulationDistance:6\n"
+                            @"fullscreen:false\n";
+    if ([ame286_seed writeToFile:ame286_optPath atomically:YES encoding:NSUTF8StringEncoding error:nil]) {
+        NSLog(@"[JavaLauncher] Task286: first-launch options.txt performance seed written (%@)",
+              gameDir.lastPathComponent);
+    } else {
+        NSLog(@"[JavaLauncher] Task286: first-launch options.txt seed write failed, MC defaults will apply");
+    }
+}
+
+// ★ Task302：死调试器残留异常端口清除（"游戏卡在准备"根修）。
+// 病历（Task301 看门狗只能兜底报错，救不了启动）：StikDebug 会话中途被杀
+// （用户上滑 StikDebug）后，debugserver 曾在本任务登记的 task/thread 级
+// 断点/软件异常端口变成死名——后续 JIT26CreateRegionLegacy 的 brk #0x69
+// 异常投递进死端口 mach_msg 永久等待，SIGTRAP 安全网（JIT26TrapCatch）
+// 永远收不到信号，启动界面停在"正在准备运行环境…"（装机日志 2026-10-19
+// "游戏依旧卡在准备"）。修法：区域创建前扫描本任务与全部线程的
+// EXC_BREAKPOINT/EXC_SOFTWARE 端口，mach_port_kobject 命中死名
+// （KERN_INVALID_RIGHT/KERN_INVALID_NAME）即 set_exception_ports 置空
+// 回收——brk 随即回落 BSD 层 SIGTRAP → 安全网接管建区 → 无调试器
+// （jitless）也能继续启动。活调试器端口（kobject 命中）绝不触碰，
+// StikDebug 附加中的会话不受影响。
+static void ame302_clearStaleDebuggerPorts(void) {
+    mach_port_t ame302_task = mach_task_self();
+    exception_mask_t ame302_want = EXC_MASK_BREAKPOINT | EXC_MASK_SOFTWARE;
+    exception_mask_t ame302_masks[EXC_TYPES_COUNT];
+    mach_port_t ame302_ports[EXC_TYPES_COUNT];
+    exception_behavior_t ame302_behaviors[EXC_TYPES_COUNT];
+    thread_state_flavor_t ame302_flavors[EXC_TYPES_COUNT];
+    mach_msg_type_number_t ame302_count = EXC_TYPES_COUNT;
+    if (task_get_exception_ports(ame302_task, ame302_want, ame302_masks,
+                                 &ame302_count, ame302_ports,
+                                 ame302_behaviors, ame302_flavors) == KERN_SUCCESS) {
+        for (mach_msg_type_number_t ame302_i = 0; ame302_i < ame302_count; ame302_i++) {
+            if (ame302_ports[ame302_i] == MACH_PORT_NULL) continue;
+            mach_port_type_t ame302_ptype = 0;
+            kern_return_t ame302_kr = mach_port_type(ame302_task, ame302_ports[ame302_i], &ame302_ptype);
+            if (ame302_kr == KERN_SUCCESS && (ame302_ptype & MACH_PORT_TYPE_DEAD_NAME)) {
+                task_set_exception_ports(ame302_task, ame302_masks[ame302_i], MACH_PORT_NULL,
+                                         ame302_behaviors[ame302_i], ame302_flavors[ame302_i]);
+                NSLog(@"[JIT] [JavaLauncher] Task302 stale TASK exception port cleared (mask=0x%x ptype=0x%x) -- brk falls back to SIGTRAP net",
+                      ame302_masks[ame302_i], ame302_ptype);
+            } else if (ame302_kr == KERN_SUCCESS) {
+                NSLog(@"[JIT] [JavaLauncher] Task302 live debugger TASK port present (ptype=0x%x) -- untouched", ame302_ptype);
+            }
+        }
+    }
+    // 线程级清扫（debugserver 部分路径挂 thread 端口）
+    thread_act_array_t ame302_threads = NULL;
+    mach_msg_type_number_t ame302_tcount = 0;
+    if (task_threads(ame302_task, &ame302_threads, &ame302_tcount) == KERN_SUCCESS) {
+        for (mach_msg_type_number_t ame302_t = 0; ame302_t < ame302_tcount; ame302_t++) {
+            mach_msg_type_number_t ame302_tn = EXC_TYPES_COUNT;
+            exception_mask_t ame302_tm[EXC_TYPES_COUNT];
+            mach_port_t ame302_tp[EXC_TYPES_COUNT];
+            exception_behavior_t ame302_tb[EXC_TYPES_COUNT];
+            thread_state_flavor_t ame302_tf[EXC_TYPES_COUNT];
+            if (thread_get_exception_ports(ame302_threads[ame302_t], ame302_want,
+                                           ame302_tm, &ame302_tn, ame302_tp,
+                                           ame302_tb, ame302_tf) == KERN_SUCCESS) {
+                for (mach_msg_type_number_t ame302_j = 0; ame302_j < ame302_tn; ame302_j++) {
+                    if (ame302_tp[ame302_j] == MACH_PORT_NULL) continue;
+                    mach_port_type_t ame302_tptype = 0;
+                    kern_return_t ame302_tkr = mach_port_type(ame302_task, ame302_tp[ame302_j], &ame302_tptype);
+                    if (ame302_tkr == KERN_SUCCESS && (ame302_tptype & MACH_PORT_TYPE_DEAD_NAME)) {
+                        thread_set_exception_ports(ame302_threads[ame302_t], ame302_tm[ame302_j], MACH_PORT_NULL,
+                                                   ame302_tb[ame302_j], ame302_tf[ame302_j]);
+                        NSLog(@"[JIT] [JavaLauncher] Task302 stale THREAD exception port cleared (thread=%u mask=0x%x)",
+                              ame302_threads[ame302_t], ame302_tm[ame302_j]);
+                    }
+                }
+            }
+        }
+        if (ame302_threads) {
+            vm_deallocate(ame302_task, (vm_address_t)ame302_threads,
+                          ame302_tcount * sizeof(thread_act_t));
+        }
+    }
+}
+
+// ★ Task301：JIT26 brk 握手有界看门狗（launchJVM / launchHeadlessJVM 共用）。
+// 病历（用户 2026-10-19"启动不了游戏呢，卡住了"）：isJITEnabled=CS_DEBUGGED
+// 是进程级持久态——早前 StikDebug 会话成功附加过后，即使调试器已被用户杀掉，
+// CS_DEBUGGED 仍为 1，启动门秒过；而死调试器残留的任务级断点异常端口让
+// brk #0x69 进 mach_msg 永久等待，SIGTRAP 安全网（JIT26TrapCatch）根本收
+// 不到信号 = heap ceiling/mods 扫描后零后续日志零弹窗的"永久卡住"。
+// 修法：区域创建放后台线程 + 20s 有界等待；超时自动跑内置 JIT 轨（其
+// debugserver 接管后应答挂起的 brk），再给 brk 线程 90s 收尾窗口；仍无果
+// 返回 NULL 走既有优雅失败弹窗。泄漏一条阻塞线程优于整机永久卡死。
+static void* ame301_createRegionWithWatchdog(void) {
+    // ★ Task302：区域创建前先清死调试器残留端口（根修见函数注释）——
+    //   brk #0x69 从此回落 SIGTRAP 安全网，jitless 也能建区继续启动。
+    ame302_clearStaleDebuggerPorts();
+    dispatch_semaphore_t ame301_done = dispatch_semaphore_create(0);
+    __block void *ame301_region = NULL;
+    dispatch_async(dispatch_get_global_queue(QOS_CLASS_USER_INITIATED, 0), ^{
+        ame301_region = JIT26CreateRegionLegacySafe(getpagesize());
+        dispatch_semaphore_signal(ame301_done);
+    });
+    // 第一轮 20s：活调试器在场的正常握手毫秒级完成
+    if (dispatch_semaphore_wait(ame301_done, dispatch_time(DISPATCH_TIME_NOW, (int64_t)20 * NSEC_PER_SEC)) == 0) {
+        return ame301_region;
+    }
+    NSLog(@"[JIT] [JavaLauncher] Task301 brk handshake stalled >20s (dead debugger exception port?) -- auto-running builtin JIT track to service it");
+    BOOL ame301_builtinAvail = [StikDebugViewController ame294_builtinTrackAvailable];
+    if (ame301_builtinAvail) {
+        dispatch_semaphore_t ame301_builtinSem = dispatch_semaphore_create(0);
+        dispatch_async(dispatch_get_main_queue(), ^{
+            [StikDebugViewController ame294_enableBuiltinJITWithCompletion:^(BOOL success, NSString *message) {
+                NSLog(@"[JIT] [JavaLauncher] Task301 watchdog builtin track: success=%d msg=%@", success, message);
+                dispatch_semaphore_signal(ame301_builtinSem);
+            }];
+        });
+        // 内置轨首跑含 DDI 下载可达数分钟（600s 上限）；期间 brk 线程若先完成
+        // （新调试器接管应答了挂起的 brk）则提前出线
+        for (int ame301_i = 0; ame301_i < 600; ame301_i++) {
+            if (dispatch_semaphore_wait(ame301_builtinSem, dispatch_time(DISPATCH_TIME_NOW, (int64_t)1 * NSEC_PER_SEC)) == 0) break;
+            if (dispatch_semaphore_wait(ame301_done, DISPATCH_TIME_NOW) == 0) {
+                NSLog(@"[JIT] [JavaLauncher] Task301 stalled brk thread got serviced mid-builtin -- resuming launch");
+                return ame301_region;
+            }
+        }
+        NSLog(@"[JIT] [JavaLauncher] Task301 builtin track done -- 90s grace for the stalled brk thread");
+    } else {
+        NSLog(@"[JIT] [JavaLauncher] Task301 builtin track unavailable -- 60s grace for the stalled brk thread");
+        if (dispatch_semaphore_wait(ame301_done, dispatch_time(DISPATCH_TIME_NOW, (int64_t)60 * NSEC_PER_SEC)) == 0) {
+            return ame301_region;
+        }
+        return NULL;
+    }
+    if (dispatch_semaphore_wait(ame301_done, dispatch_time(DISPATCH_TIME_NOW, (int64_t)90 * NSEC_PER_SEC)) == 0) {
+        return ame301_region;
+    }
+    NSLog(@"[JIT] [JavaLauncher] Task301 brk handshake never serviced -- failing launch gracefully (JIT dialog follows)");
+    return NULL;
+}
+
+// ★ Task304：主启动链 JIT 自动申请（用户 2026-10-19"启动重命名之后显示启动
+//   画面了，但是没有依据用户选择的jit启动器申请权限，比如我的是stikdebug"）。
+//   病历：RightPanel/NavigationController/DownloadVC 三条启动入口都有
+//   Task134/139/267 式申请+等待链（ame169_waitForJITCondition），唯
+//   SurfaceViewController 主链（点启动 → 启动画面 → launchJVM）零 JIT 申请
+//   ——用户按 debug.jit_enabler 偏好选了 StikDebug，启动时却从未被带去申请，
+//   区域创建在无调试器下看门狗空转后优雅失败（体感"没申请权限"）。
+//   语义（launchHeadlessJVM Task139 段同构，主链场景去掉了"正在开启 JIT"
+//   等待提示弹窗——启动画面本身就是反馈；builtin 显式失败的如实报错保留；
+//   manual 模式保留提示弹窗否则零反馈）：
+//   - isJITEnabled=YES → 立即返回 YES（零开销）；
+//   - debug_skip_wait_jit=YES → 返回 YES（旧语义直接放行）；
+//   - 否则按 debug.jit_enabler 偏好发起申请（stikjit:// / trollstore /
+//     sidestore / stosdebug / jitstreamer / builtin；LC guest 下 Task302
+//     builtinTrackAvailable=NO → auto 自动降级深链），ame169 等待环 120s
+//     有界轮询。
+//   返回 YES = 已开启/无需申请/等待成功；NO = 超时（调用方继续走既有区域
+//   创建看门狗，jitless 优雅失败路径不受影响——不新增 return 路径）。
+//   线程约定：launchJVM 运行线程（后台）；openURL 必须主线程——非主线程
+//   dispatch_sync(main) 派发申请体（headless 同款模式），主线程上下文直接
+//   执行；等待环纯轮询无主队列依赖（utils.m ame169 实现），两态皆安全。
+static BOOL ame304_requestAndAwaitJITIfNeeded(NSString *tag) {
+    if (isJITEnabled(NO)) {
+        return YES;
+    }
+    if (getPrefBool(@"debug.debug_skip_wait_jit")) {
+        NSLog(@"[JIT] [%@] Task304: debug_skip_wait_jit set -- proceeding without JIT", tag);
+        return YES;
+    }
+    NSLog(@"[JIT] [%@] Task304: JIT not enabled -- auto-requesting via configured enabler", tag);
+
+    __block BOOL ame304_requested = NO;
+    void (^ame304_request)(void) = ^{
+        NSString *ame304_enabler = getPrefObject(@"debug.jit_enabler");
+        if (![ame304_enabler isKindOfClass:NSString.class] || ame304_enabler.length == 0) {
+            ame304_enabler = @"auto";
+        }
+        BOOL ame304_noScript = getPrefBool(@"debug.jit26_script_disable");
+        NSString *ame304_bundleId = NSBundle.mainBundle.bundleIdentifier;
+        // Task294/302 同口径：builtin 显式 + auto 非 TS 环境按可用性
+        BOOL ame304_isTrollStore = getEntitlementValue(@"jb.pmap_cs.custom_trust") && isTrollStoreInstall();
+        BOOL ame304_builtinAvail = [StikDebugViewController ame294_builtinTrackAvailable];
+        BOOL ame304_useBuiltin = NO;
+        if ([ame304_enabler isEqualToString:@"builtin"]) {
+            ame304_useBuiltin = YES;
+        } else if ([ame304_enabler isEqualToString:@"auto"] && !ame304_isTrollStore) {
+            ame304_useBuiltin = ame304_builtinAvail;
+        }
+        NSLog(@"[JIT] [%@] Task304 enabler=%@ noScript=%d builtin=%d (avail=%d ts=%d)",
+              tag, ame304_enabler, ame304_noScript, ame304_useBuiltin, ame304_builtinAvail, ame304_isTrollStore);
+        NSURL *ame304_url = nil;
+        if (ame304_useBuiltin) {
+            ame304_requested = YES;
+            [StikDebugViewController ame294_enableBuiltinJITWithCompletion:^(BOOL success, NSString *message) {
+                if (success || isJITEnabled(YES)) {
+                    NSLog(@"[JIT] [%@] Task304 builtin track OK", tag);
+                    return;
+                }
+                NSLog(@"[JIT] [%@] Task304 builtin track failed: %@", tag, message);
+                if ([ame304_enabler isEqualToString:@"builtin"]) {
+                    // 显式 builtin：如实报错，不擅自跳第三方（Task294 语义）
+                    NSString *detail = message.length ? message : localize(@"ame293.jit.builtin_fail_title", nil);
+                    if ([detail localizedCaseInsensitiveContainsString:@"Timed out connecting"] ||
+                        [detail localizedCaseInsensitiveContainsString:@"not ready for JIT"]) {
+                        detail = [detail stringByAppendingFormat:@"\n\n%@", localize(@"ame294.jit.localdevvpn_hint", nil)];
+                    }
+                    showDialog(localize(@"ame293.jit.builtin_fail_title", nil), detail);
+                } else if (@available(iOS 17.4, *)) {
+                    // auto：降级 stikjit:// 深链（等待环继续轮询）
+                    NSString *sd = @"";
+                    if (!ame304_noScript) {
+                        NSData *s = [NSData dataWithContentsOfFile:
+                            [NSBundle.mainBundle.bundlePath stringByAppendingPathComponent:@"UniversalJIT26.js"]];
+                        if (s) sd = [@"&script-data=" stringByAppendingString:[s base64EncodedStringWithOptions:0]];
+                    }
+                    [UIApplication.sharedApplication openURL:[NSURL URLWithString:
+                        [NSString stringWithFormat:@"stikjit://enable-jit?bundle-id=%@&pid=%d%@", ame304_bundleId, getpid(), sd]]
+                        options:@{} completionHandler:nil];
+                }
+            }];
+            return;
+        }
+        if ([ame304_enabler isEqualToString:@"trollstore"]) {
+            ame304_url = [NSURL URLWithString:[NSString stringWithFormat:
+                @"apple-magnifier://enable-jit?bundle-id=%@", ame304_bundleId]];
+        } else if ([ame304_enabler isEqualToString:@"sidestore"]) {
+            ame304_url = [NSURL URLWithString:[NSString stringWithFormat:
+                @"sidestore://enable-jit?bundle-id=%@", ame304_bundleId]];
+        } else if ([ame304_enabler isEqualToString:@"stosdebug"]) {
+            NSString *ame304_appName = [NSBundle.mainBundle objectForInfoDictionaryKey:@"CFBundleDisplayName"] ?: @"Amethyst";
+            NSMutableString *ame304_u = [NSMutableString stringWithFormat:
+                @"stosdebug://enableJIT?bundleId=%@&appName=%@", ame304_bundleId, ame304_appName];
+            if (!ame304_noScript) {
+                NSData *ame304_script = [NSData dataWithContentsOfFile:
+                    [NSBundle.mainBundle.bundlePath stringByAppendingPathComponent:@"UniversalJIT26.js"]];
+                if (ame304_script) {
+                    [ame304_u appendFormat:@"&script=%@", [ame304_script base64EncodedStringWithOptions:0]];
+                }
+            }
+            ame304_url = [NSURL URLWithString:ame304_u];
+        } else if ([ame304_enabler isEqualToString:@"jitstreamer"]) {
+            ame304_url = [NSURL URLWithString:[NSString stringWithFormat:
+                @"http://[fd00::]:9172/launch_app/%@", ame304_bundleId]];
+        } else if ([ame304_enabler isEqualToString:@"manual"]) {
+            // 手动模式：不跳转（维持旧语义），仅提示弹窗（主链无此弹窗则零反馈）
+            showDialog(localize(@"i18n_str_437", nil), localize(@"i18n_str_439", nil));
+        } else if (@available(iOS 17.4, *)) {
+            // auto / stikjit 共用 stikjit://
+            NSString *ame304_scriptData = @"";
+            if (!ame304_noScript) {
+                NSData *ame304_script = [NSData dataWithContentsOfFile:
+                    [NSBundle.mainBundle.bundlePath stringByAppendingPathComponent:@"UniversalJIT26.js"]];
+                if (ame304_script) {
+                    ame304_scriptData = [@"&script-data=" stringByAppendingString:[ame304_script base64EncodedStringWithOptions:0]];
+                }
+            }
+            ame304_url = [NSURL URLWithString:[NSString stringWithFormat:
+                @"stikjit://enable-jit?bundle-id=%@&pid=%d%@", ame304_bundleId, getpid(), ame304_scriptData]];
+        } else {
+            ame304_url = [NSURL URLWithString:[NSString stringWithFormat:
+                @"sidestore://sidejit-enable?pid=%d", getpid()]];
+        }
+        if (ame304_url) {
+            [UIApplication.sharedApplication openURL:ame304_url options:@{} completionHandler:nil];
+        }
+        ame304_requested = YES;
+    };
+    if ([NSThread isMainThread]) {
+        ame304_request();
+    } else {
+        dispatch_sync(dispatch_get_main_queue(), ame304_request);
+    }
+    if (!ame304_requested) {
+        // 申请体未跑成（防御：manual 且无弹窗路径等），按放行处理交看门狗兜底
+        NSLog(@"[JIT] [%@] Task304: no request issued (enabler config?) -- proceeding", tag);
+        return YES;
+    }
+    BOOL ame304_ok = ame169_waitForJITCondition(^{ return isJITEnabled(NO); }, 120.0,
+        [NSString stringWithFormat:@"%@-JIT", tag] ?: @"Launch-JIT");
+    if (!ame304_ok) {
+        NSLog(@"[JIT] [%@] Task304 JIT wait timed out (120s) -- continuing (region watchdog will fail gracefully without JIT)", tag);
+    } else {
+        NSLog(@"[JIT] [%@] Task304 JIT became enabled, continuing launch", tag);
+    }
+    return ame304_ok;
+}
+
 int launchJVM(NSString *accountId, id launchTarget, int width, int height, int minVersion) {
     NSLog(@"[JavaLauncher] Beginning JVM launch");
 
@@ -2052,10 +2503,20 @@ int launchJVM(NSString *accountId, id launchTarget, int width, int height, int m
         jit26AlwaysAttached = YES;
     }
     if (requiresTXMWorkaround) {
+        // ★ Task304：主启动链 JIT 自动申请（SurfaceViewController 链此前零
+        //   JIT 申请，见 ame304 函数头病历）——按 debug.jit_enabler 偏好
+        //   （用户实测选 StikDebug）发起 stikjit:// 等深链并 120s 有界等待；
+        //   超时/失败不 return，继续走下方区域创建看门狗的既有优雅失败。
+        if (!ame304_requestAndAwaitJITIfNeeded(@"Launch")) {
+            NSLog(@"[JIT] [JavaLauncher] Task304 JIT request/wait did not succeed -- proceeding to region watchdog (graceful failure path intact)");
+        }
         static void *result;
         // Task91：SIGTRAP 安全网——brk 无应答（JIT26 调试器未就绪/脚本未挂载）
         // 时原裸函数直接 SIGTRAP 致死（用户实测"开启 JIT 后闪退"），改走优雅报错
-        if(!result) result = JIT26CreateRegionLegacySafe(getpagesize());
+        // ★ Task301：SIGTRAP 安全网只救得了"无异常端口"场景；死调试器残留
+        // 端口下 brk 进 mach_msg 永久阻塞（用户实测"启动卡住"）——改走有界
+        // 看门狗：超时自动跑内置 JIT 轨服务挂起的 brk，仍无果才优雅失败。
+        if(!result) result = ame301_createRegionWithWatchdog();
         if (!result) {
             NSLog(@"[JIT26] JIT26CreateRegionLegacy returned NULL — JIT26 debugger not servicing brk; aborting launch gracefully");
             showDialog(localize(@"Error", nil), localize(@"i18n_str_jit26_not_ready", nil));
@@ -2072,13 +2533,13 @@ int launchJVM(NSString *accountId, id launchTarget, int width, int height, int m
                 // LiveContainer 内：自动分配 script 并提示用户重启
                 lcAppInfo[@"jitLaunchScriptJs"] = [[NSData dataWithContentsOfFile:inBundleScriptPath] base64EncodedStringWithOptions:0];
                 if([lcAppInfo writeToFile:lcAppInfoPath atomically:YES]) {
-                    showDialog(localize(@"Error", nil), @"Amethyst was launched with a legacy script. We have updated the script to Universal, please restart LiveContainer to continue.");
+                    showDialog(localize(@"Error", nil), localize(@"ame267.jit.legacy_lc", @"Prisma was launched with a legacy JIT script. It has been updated to the Universal script automatically, please restart LiveContainer to continue."));
                     [PLLogOutputView handleExitCode:1];
                     return 1;
                 }
             }
             [NSFileManager.defaultManager copyItemAtPath:inBundleScriptPath toPath:[NSString stringWithFormat:@"%s/UniversalJIT26.js", getenv("POJAV_HOME")] error:nil];
-            showDialog(localize(@"Error", nil), @"Support for legacy script has been removed. Please switch to the Universal JIT script. On current StikDebug builds it is auto-assigned to Amethyst by app name (older sideloaded builds bundled the same script as Amethyst-MeloNX.js), so updating StikDebug is the easiest fix. To assign it manually: long-press on Amethyst when enabling JIT in StikDebug, tap \"Assign Script\", then pick UniversalJIT26.js from Amethyst's Documents directory (exported automatically at every startup).");
+            showDialog(localize(@"Error", nil), localize(@"ame267.jit.legacy_stik", @"Support for legacy JIT scripts has been removed, please switch to the Universal JIT script. Current StikDebug builds auto-assign the script by app name (older sideloaded builds bundled the same script as Amethyst-MeloNX.js), so updating StikDebug is the easiest fix. To assign manually: long-press on the launcher app when enabling JIT in StikDebug, tap \"Assign Script\", then pick UniversalJIT26.js from the launcher's Documents directory (exported automatically at every startup)."));
             [PLLogOutputView handleExitCode:1];
             return 1;
         }
@@ -2307,7 +2768,19 @@ int launchJVM(NSString *accountId, id launchTarget, int width, int height, int m
         // shader 等），仅禁用 MoltenVK 支持不佳的 Transform Feedback，不影响 Iris/OptiFine。
         // Task 215：libOSMesaVirgl.dylib（virgl guest）同样命中 libOSMesa 前缀——排除。
         if ([renderer hasPrefix:@"libOSMesa"] && ![renderer isEqualToString:@ RENDERER_NAME_VIRGL]) {
-            [ZinkConfig applyZinkEnvironmentFromPreferences];
+            // ★ Task283（GitHub 议题 #15）：MC 版本感知 GL 下限——26.x 光照
+            //   引擎需要 GL 4.4+/SSBO，旧默认 4.1 封顶 = 能进世界但光照异常
+            //   全黑（A12/Zink+MoltenVK 装机日志实锤 "4.1 (Compatibility
+            //   Profile)"）。MC major 由 launchTarget 版本 id 提取（ame98
+            //   同源提取器），传给 ZinkConfig 做 4.5 自动抬升（显式钉
+            //   zink.gl_override 永远优先）。1.x 谱系行为零变化。
+            NSString *ame283_verId = nil;
+            if ([launchTarget isKindOfClass:NSDictionary.class]) {
+                ame283_verId = [launchTarget[@"id"] description];
+            } else if ([launchTarget isKindOfClass:NSString.class]) {
+                ame283_verId = (NSString *)launchTarget;
+            }
+            [ZinkConfig applyZinkEnvironmentFromPreferencesWithMCMajor:ame98_mcMajorFromVersionId(ame283_verId)];
             NSString *configSummary = [ZinkConfig activeConfigSummary];
             NSLog(@"[ZinkConfig] ========== Zink Renderer Active (Mesa 25) ==========");
             NSLog(@"[ZinkConfig] %@", configSummary);
@@ -2347,6 +2820,20 @@ int launchJVM(NSString *accountId, id launchTarget, int width, int height, int m
             }
             NSLog(@"[JavaLauncher] Task206: NG-GL4ES renderer active (NGG_DIR_PATH=%s)",
                   getenv("NGG_DIR_PATH") ?: "<unset>");
+            // ★ Task280（kw"锁30"缓解杠杆——可选小 draw 批量转译）：Task279 装
+            //   机归因 BUILD-bound（NG-GL4ES 逐 draw CPU 转译税；1/4 分辨率仍
+            //   30fps 已排除像素瓶颈）。LIBGL_BATCH=30 = gl4es 官方合并杠杆
+            //   （相邻 glDraw* 首个 ≤3000 顶点即入批，GL state 变化/超限断批
+            //   ——ZL2 USAGE.md §LIBGL_BATCH）——MC1.8.x 实体/粒子级小 draw
+            //   密集场景的标准减税路径。默认关：Task279 的 BUILD-bound 归因
+            //   未排除 MC 内部 maxFps 上限（build 相位含游戏侧 fps limiter 睡
+            //   眠，两边在 pres/build 计量里同貌），归因终审看 Task280 fps-cap
+            //   posture 行；确认 BUILD-bound 的机器打开本偏好验证帧率抬升后
+            //   再评估转默认。plist-only（ame259_quic_guard 同款，无 UI 行）。
+            if (getPrefBool(@"debug.ame280_kw_batch")) {
+                setenv("LIBGL_BATCH", "30", 1);
+                NSLog(@"[JavaLauncher] Task280: LIBGL_BATCH=30 (debug.ame280_kw_batch=ON) -- NG-GL4ES small-draw batching engaged");
+            }
         }
 
         // Apply MobileGL-specific environment variables
@@ -2420,10 +2907,20 @@ int launchJVM(NSString *accountId, id launchTarget, int width, int height, int m
         NSLog(@"[JavaLauncher] GRAPHICS_API is set to %@\n", graphicsApi);
 
         // Setup gameDir
-        gameDir = [NSString stringWithFormat:@"%s/instances/%@/%@",
-            getenv("POJAV_HOME"), getPrefObject(@"general.game_directory"),
-            [PLProfiles resolveKeyForCurrentProfile:@"gameDir"]]
-            .stringByStandardizingPath;
+        // ★ Task275 F5：绝对路径自定义隔离目录原样使用——原实现无条件嵌套拼接
+        //   instances/<gd>/<绝对路径>，stringByStandardizingPath 收拢双斜杠后变为
+        //   instances/<gd>/var/...：启动 chdir 落进嵌套孤儿树，与服务层五处 resolve
+        //   （isAbsolutePath 原样返回）分叉成两套口径（管理页/下载落点在真实目录）。
+        {
+            NSString *ame275_gd = [PLProfiles resolveKeyForCurrentProfile:@"gameDir"];
+            if ([ame275_gd isAbsolutePath]) {
+                gameDir = ame275_gd;
+            } else {
+                gameDir = [NSString stringWithFormat:@"%s/instances/%@/%@",
+                    getenv("POJAV_HOME"), getPrefObject(@"general.game_directory"), ame275_gd]
+                    .stringByStandardizingPath;
+            }
+        }
 
         // ★ Task225（反馈 #5：与 ModService 同源的隔离嗅探）：profile 的
         // gameDir 为 "."/缺失时，若 versions/<vid>/game（或旧口径
@@ -2445,11 +2942,30 @@ int launchJVM(NSString *accountId, id launchTarget, int width, int height, int m
             }
         }
 
+        // ★ Task287（PocketJ 对标移植）：Forge URI-safe 游戏根——先于全部
+        //   mods 目录扫描与 chdir（Task97 CwdAlign 消费本 gameDir），命中
+        //   时同步重指 POJAV_GAME_DIR（headless/JVM 侧消费者同口径）。
+        {
+            NSString *ame287_vid = [launchTarget isKindOfClass:[NSDictionary class]]
+                ? launchTarget[@"id"] : @"";
+            gameDir = ame287_configureForgeUriSafeRoot(ame287_vid, gameDir);
+        }
+
         // Task 87：桌面弹窗类 mod 预检（病历见 ame87_disableDesktopDialogMods 函数头）
         // ——实证案犯自动禁用（改名 .jar.disabled），Fabric 忽略非 .jar 文件。
         int ame87_disabledDialogMods = ame87_disableDesktopDialogMods(gameDir);
         if (ame87_disabledDialogMods > 0) {
             NSLog(@"[ModDialogGuard] Task87: %d desktop dialog mod(s) auto-disabled in %@/mods (rename .disabled -> .jar to restore)", ame87_disabledDialogMods, gameDir.lastPathComponent);
+        }
+
+        // ★ Task287：IMBlocker/InputMethodBlocker 自动禁用（Java 17+ 会话门，
+        //   PocketJ 同款；8 会话存量路径不触碰）
+        if (minVersion >= 17) {
+            int ame287_disabledInputMods = ame287_disableUnsupportedInputMods(gameDir);
+            if (ame287_disabledInputMods > 0) {
+                NSLog(@"[ModCompat] Task287: %d input-method mod(s) auto-disabled in %@/mods (rename .disabled -> .jar to restore)",
+                      ame287_disabledInputMods, gameDir.lastPathComponent);
+            }
         }
 
         // Task225（#2）：资源完整性预检 + 自动补齐（assets 缺个体文件 = MC
@@ -2515,6 +3031,10 @@ int launchJVM(NSString *accountId, id launchTarget, int width, int height, int m
         // ★ Task261（右 Shift"又出问题了"根修——新实例默认键位家族）：
         // 活动布局含右SHIFT(344) 按钮而当前实例 options.txt 的 sneak 仍是
         // 原版默认（左 Shift）时，启动前改绑 right.shift（详见函数头病历）。
+        // ★ Task286：新实例首启性能播种（仅 options.txt 缺席时写均衡档，
+        //   已有实例零触碰；置于 ame261 之前——其 sneak 修复读该文件，
+        //   播种档无 sneak 行时其"默认态"判定与文件缺席同语义）。
+        ame286_seedFirstLaunchPerformanceOptions(gameDir);
         ame261_repairSneakBindingForRightShiftLayout(gameDir);
 
         // Task181：老 Forge（1.x）SplashProgress 线程禁用——splash 线程与主线程
@@ -2572,6 +3092,31 @@ int launchJVM(NSString *accountId, id launchTarget, int width, int height, int m
     // （Task68 教训：Jetsam 上限与 Xmx 错位 = 启动期 SIGKILL，从结构上消除漂移）。
     int allocmem = ame141_currentLaunchAllocMem();
     NSLog(@"[JavaLauncher] Max RAM allocation is set to %d MB", allocmem);
+    // ★ Task286（PocketJ 对标移植）：经典/远古版本独立内存兼容轨——
+    //   rd-*/c0.*/inf-*/indev-*/a1.*/b1.*（Classic/Indev/Infdev/Alpha/Beta）
+    //   世代按现代大堆跑极易在 iOS 虚拟地址空间受限设备上直接启动失败
+    //   （Java 8 默认连续预留 128MB 编译堆，远古版只需几 MB，预留过大
+    //   在 iOS 上直接失败——上游 PocketJ legacy path 同款结论）。
+    //   general.legacy_compatibility 默认 ON，设置页可关。堆帽 192MB
+    //   （PocketJ compatibilityLimit 同值）。
+    BOOL ame286_legacyVersion = NO;
+    if (!launchJar && getPrefBool(@"general.legacy_compatibility")
+        && [launchTarget isKindOfClass:NSDictionary.class]) {
+        NSString *ame286_vid = [launchTarget[@"id"] isKindOfClass:NSString.class]
+            ? [launchTarget[@"id"] lowercaseString] : @"";
+        NSString *ame286_vtype = [launchTarget[@"type"] isKindOfClass:NSString.class]
+            ? [launchTarget[@"type"] lowercaseString] : @"";
+        ame286_legacyVersion =
+            [ame286_vid hasPrefix:@"rd-"] || [ame286_vid hasPrefix:@"c0."]
+            || [ame286_vid hasPrefix:@"inf-"] || [ame286_vid hasPrefix:@"indev-"] || [ame286_vid hasPrefix:@"in-"]
+            || [ame286_vid hasPrefix:@"a1."] || [ame286_vid hasPrefix:@"b1."]
+            || [ame286_vtype isEqualToString:@"old_alpha"] || [ame286_vtype isEqualToString:@"old_beta"];
+        if (ame286_legacyVersion) {
+            if (allocmem > 192) allocmem = 192;
+            NSLog(@"[JavaLauncher] Task286: legacy version '%@' (type=%@) -- heap clamped to %d MB + slim CodeCache",
+                  launchTarget[@"id"], launchTarget[@"type"], allocmem);
+        }
+    }
     if (!validateVirtualMemorySpace(allocmem)) {
         UIKit_returnToSplitView();
         if (getEntitlementValue(@"com.apple.developer.kernel.increased-memory-limit")) {
@@ -2634,7 +3179,13 @@ int launchJVM(NSString *accountId, id launchTarget, int width, int height, int m
     if (!launchJar) {
         PUSH_MARGV_LITERAL("-Djava.system.class.loader=net.kdt.pojavlaunch.PojavClassLoader");
     }
-    PUSH_MARGV_LITERAL("-Xms128M");
+    if (ame286_legacyVersion) {
+        // ★ Task286：远古版 Xms 收小——启动即触发全堆 GC 扫描，大 Xms
+        //   徒增启动停顿（PocketJ legacy path 同值 64M）。
+        PUSH_MARGV_LITERAL("-Xms64M");
+    } else {
+        PUSH_MARGV_LITERAL("-Xms128M");
+    }
     PUSH_MARGV_FORMAT(@"-Xmx%dM", allocmem);
     // ============================================================================
     // Task68: GC / safepoint 停顿观测（「加载区块卡顿」归因层）
@@ -3129,6 +3680,32 @@ int launchJVM(NSString *accountId, id launchTarget, int width, int height, int m
     //   headless JVM 不带此属性 = 安装器流程零回归）。
     PUSH_MARGV_LITERAL("-Dame.game.session=1");
 
+    // ★ Task263（⑧大型整合包 Cobblemon showdown 卡死根修）：路径绝对化 agent。
+    //   病历（261/262/263 四轮装机 gamelog，挂死签名逐字一致）：Cobblemon 的
+    //   GraalShowdownService 用 java.io File("showdown") 相对路径解压 showdown.zip
+    //   （系统调用按进程真实 CWD 落盘），而 GraalJS 校验 js.commonjs-require-cwd=
+    //   "showdown" 时 TruffleFile.exists() 经自定义 FileSystem checkAccess 走 NIO
+    //   UnixPath.toRealPath（相对路径预绝对化到 -Duser.dir 属性基准）。JDK21 桌面
+    //   实证：两个基准不同时（java.io=真实 CWD / NIO=属性），解压产物对校验不可见
+    //   -> guest Error "Invalid CommonJS root folder: showdown" -> ShowdownThread
+    //   未捕获死亡，latch.countDown() 永不执行 -> ShowdownThread.launch() 的
+    //   latch.await() 永久驻停 Render thread -> fps=0、SDL 窗口永不创建 -> 黑屏
+    //   "无输出"。showdown_agent（premain + ClassFileTransformer，按类名门控两个
+    //   Cobblemon 类）把 4 个相对路径 LDC 常量改写为 ame.showdown.home 锚定的绝对
+    //   拼接，彻底绕开相对解析基准（本地真 jar 端到端实证：全分歧场景
+    //   openConnection 完整成功，106MB 真实 showdown 解压到锚定目录零泄漏）。
+    //   agent class 文件为 javac 默认 target（Java 8 兼容），全会话无条件注入
+    //   （同 Task251 patchsvc 先例）；无 Cobblemon 会话 transformer 按类名零匹配。
+    //   -Dame.showdown.home=<gameDir> 与 -Duser.dir 同源同值（ame97 chdir 同参）。
+    if ([[NSFileManager defaultManager] fileExistsAtPath:
+            [librariesPath stringByAppendingPathComponent:@"showdown_agent.jar"]]) {
+        PUSH_MARGV_FORMAT(@"-javaagent:%@/showdown_agent.jar", librariesPath);
+        PUSH_MARGV_FORMAT(@"-Dame.showdown.home=%@", gameDir);
+        NSLog(@"[JavaLauncher] Task263: showdown agent enabled (ame.showdown.home=%@)", gameDir);
+    } else {
+        NSLog(@"[JavaLauncher] Task263: showdown_agent.jar not found in libs, path fix unavailable (Cobblemon modpacks may hang at showdown init)");
+    }
+
     // ★ Task259（清单 10）：FO 整合包 26.3 局域网游戏闪退根修。
     //   病历（456d65e hs_err_pid28441.log，21:08:24，elapsed 35.9s + fatal_trace
     //   21:02:56 三连 abort()）：FO 自带 e4mc 模组，"对局域网开放"时其
@@ -3193,9 +3770,34 @@ int launchJVM(NSString *accountId, id launchTarget, int width, int height, int m
     //   Repro: iOS 27 + A15 (no TXM) + StikDebug + Java 21 (MC 1.21.1).
     //   Java 25 (MC 26.2+) is unaffected - its JIT handles mirror mapping
     //   more robustly and doesn't trigger the crash even with 256m.
-    PUSH_MARGV_LITERAL("-XX:ReservedCodeCacheSize=64m");
-    PUSH_MARGV_LITERAL("-XX:InitialCodeCacheSize=16m");
-    PUSH_MARGV_LITERAL("-XX:CodeCacheExpansionSize=4m");
+    // ★ Task284（"把 CodeCache 调大"）：分轨放大——镜像映射路径（iOS 26+）
+    //   维持 64m：上文 SIGBUS 病历的硬边界，StikDebug 授予的 RX 映射恒
+    //   64MB（装机日志 "Requesting 64 MB for JIT mapping" 为外部工具定值，
+    //   本仓库不可调），预留超出 = 镜像越界到不可靠页，间歇 SIGBUS 复发；
+    //   非镜像路径（iOS < 26：TrollStore/越狱/direct JIT）无此约束放大到
+    //   256m——大整合包（Forge 1.12.2 + 17 coremods 装机会话）JIT 体量
+    //   余量，杜绝 "CodeCache is full. Compiler has been disabled." 退化
+    //   解释执行。
+    //   ★ Task285（"性能优先扩大CodeCache"装机追平）：镜像轨 64m 预算内
+    //   Initial 16m→48m / Expansion 4m→8m 一次到位——Forge 17+ coremods
+    //   类加载 JIT 编译高峰期不再经历多次堆扩张（每次扩张 = RX 映射内
+    //   mprotect 页翻转 + 锁窗口），commit 是虚拟预留、物理页按需分配，
+    //   驻留零增加；总预算仍锁死 64m 外部硬边界。
+    if (ame286_legacyVersion) {
+        // ★ Task286：远古版 JIT 体量极小（PocketJ legacy path 同值
+        //   2M/16M）——小预留降低 iOS 虚拟地址空间压力，Classic/Alpha
+        //   无大 CodeCache 需求；镜像轨 64m 硬边界内富余。
+        PUSH_MARGV_LITERAL("-XX:ReservedCodeCacheSize=16m");
+        PUSH_MARGV_LITERAL("-XX:InitialCodeCacheSize=2m");
+    } else if (@available(iOS 26.0, *)) {
+        PUSH_MARGV_LITERAL("-XX:ReservedCodeCacheSize=64m");
+        PUSH_MARGV_LITERAL("-XX:InitialCodeCacheSize=48m");
+        PUSH_MARGV_LITERAL("-XX:CodeCacheExpansionSize=8m");
+    } else {
+        PUSH_MARGV_LITERAL("-XX:ReservedCodeCacheSize=256m");
+        PUSH_MARGV_LITERAL("-XX:InitialCodeCacheSize=32m");
+        PUSH_MARGV_LITERAL("-XX:CodeCacheExpansionSize=8m");
+    }
 
     // On iOS 26, use mirror mapped JIT by default
     if (@available(iOS 26.0, *)) {
@@ -3460,7 +4062,14 @@ int launchJVM(NSString *accountId, id launchTarget, int width, int height, int m
     // stub-surface-manager.jar 已删除（见上方注释）。不再使用 --patch-module。
     // CTCPreloadClassLoader.<clinit> 抛出的 ClassNotFoundException 被吞掉，不影响启动。
 
-    if (!getEntitlementValue(@"com.apple.developer.kernel.extended-virtual-addressing")) {
+    // ★ Task286（PocketJ 对标移植）：iOS 27 拒绝 HotSpot 默认 1GiB
+    //   compressed class space 预留——即使持有 extended-virtual-addressing
+    //   entitlement 也可能在 Metaspace 初始化期失败（上游 PocketJ
+    //   JavaLauncher.m 同款 workaround：majorVersion >= 27 无条件降级）。
+    //   代价：klass 指针 64 位、Metaspace 略增，换 iOS 27 上 Java 17+ 的
+    //   确定性可启动。
+    BOOL ame286_ios27Plus = NSProcessInfo.processInfo.operatingSystemVersion.majorVersion >= 27;
+    if (!getEntitlementValue(@"com.apple.developer.kernel.extended-virtual-addressing") || ame286_ios27Plus) {
         // In jailed environment, where extended virtual addressing entitlement isn't
         // present (for free dev account), allocating compressed space fails.
         // FIXME: does extended VA allow allocating compressed class space?
@@ -3633,6 +4242,12 @@ int launchJVM(NSString *accountId, id launchTarget, int width, int height, int m
     // Task229: 1.20.1 loadIcon 路径的 NSImage/NSData 桩同批安装（详见 Task229 注释块）。
     ame229_installIconPathStubs();
 
+    // ★ Task306：SIGKILL 级闪退感知——会话 marker 立桩（先感知残留：
+    //   上次会话未走退出钩子即消失 = SIGKILL 级死亡，现场铸待读报告，
+    //   下次冷启动 SceneDelegate 补弹链呈现；本次会话若同样被强杀，
+    //   marker 残留即下次感知依据）。
+    ame306_beginGameSessionMarker(NULL);
+
     NSLog(@"[Init] Calling JLI_Launch");
 
     // Cr4shed known issue: exit after crash dump,
@@ -3722,9 +4337,51 @@ int launchHeadlessJVM(NSString *mainClass, NSArray<NSString *> *args, int minJav
                 }
                 BOOL ame139_noScript = getPrefBool(@"debug.jit26_script_disable");
                 NSString *ame139_bundleId = NSBundle.mainBundle.bundleIdentifier;
-                NSLog(@"[JIT] [Headless] Task139 enabler=%@ noScript=%d", ame139_enabler, ame139_noScript);
+                // Task294：与 RightPanel Task134 同口径——builtin 显式选项 +
+                // auto 非巨魔环境内置轨可用时优先；显式 builtin 失败不擅自跳
+                // 第三方工具（仅报错），auto 失败降级 stikjit:// 深链继续等。
+                BOOL ame294_isTrollStore = getEntitlementValue(@"jb.pmap_cs.custom_trust") && isTrollStoreInstall();
+                BOOL ame294_builtinAvail = [StikDebugViewController ame294_builtinTrackAvailable];
+                BOOL ame294_useBuiltin = NO;
+                if ([ame139_enabler isEqualToString:@"builtin"]) {
+                    ame294_useBuiltin = YES;
+                } else if ([ame139_enabler isEqualToString:@"auto"] && !ame294_isTrollStore) {
+                    ame294_useBuiltin = ame294_builtinAvail;
+                }
+                NSLog(@"[JIT] [Headless] Task139 enabler=%@ noScript=%d builtin=%d (avail=%d ts=%d)",
+                      ame139_enabler, ame139_noScript, ame294_useBuiltin, ame294_builtinAvail, ame294_isTrollStore);
                 NSURL *ame139_url = nil;
-                if ([ame139_enabler isEqualToString:@"trollstore"]) {
+                if (ame294_useBuiltin) {
+                    // Task294：内置轨（PocketJ +enableEmbeddedJIT 同构）。等待环
+                    // 不变——内置轨成功后 isJITEnabled 轮询即继续主流程。
+                    [StikDebugViewController ame294_enableBuiltinJITWithCompletion:^(BOOL success, NSString *message) {
+                        if (success || isJITEnabled(YES)) {
+                            NSLog(@"[JIT] [Headless] Task294 builtin track OK");
+                            return;
+                        }
+                        NSLog(@"[JIT] [Headless] Task294 builtin track failed: %@", message);
+                        NSString *detail = message.length ? message : localize(@"ame293.jit.builtin_fail_title", nil);
+                        if ([detail localizedCaseInsensitiveContainsString:@"Timed out connecting"] ||
+                            [detail localizedCaseInsensitiveContainsString:@"not ready for JIT"]) {
+                            detail = [detail stringByAppendingFormat:@"\n\n%@", localize(@"ame294.jit.localdevvpn_hint", nil)];
+                        }
+                        if ([ame139_enabler isEqualToString:@"builtin"]) {
+                            // 显式 builtin：报错不跳第三方（等环可取消/超时）
+                            showDialog(localize(@"ame293.jit.builtin_fail_title", nil), detail);
+                        } else if (@available(iOS 17.4, *)) {
+                            // auto：降级 stikjit:// 深链，等待环继续轮询
+                            NSString *sd = @"";
+                            if (!ame139_noScript) {
+                                NSData *s = [NSData dataWithContentsOfFile:
+                                    [NSBundle.mainBundle.bundlePath stringByAppendingPathComponent:@"UniversalJIT26.js"]];
+                                if (s) sd = [@"&script-data=" stringByAppendingString:[s base64EncodedStringWithOptions:0]];
+                            }
+                            [UIApplication.sharedApplication openURL:[NSURL URLWithString:
+                                [NSString stringWithFormat:@"stikjit://enable-jit?bundle-id=%@&pid=%d%@", ame139_bundleId, getpid(), sd]]
+                                options:@{} completionHandler:nil];
+                        }
+                    }];
+                } else if ([ame139_enabler isEqualToString:@"trollstore"]) {
                     ame139_url = [NSURL URLWithString:[NSString stringWithFormat:
                         @"apple-magnifier://enable-jit?bundle-id=%@", ame139_bundleId]];
                 } else if ([ame139_enabler isEqualToString:@"sidestore"]) {
@@ -3770,8 +4427,13 @@ int launchHeadlessJVM(NSString *mainClass, NSArray<NSString *> *args, int minJav
             });
             // 后台轮询等待 JIT 生效（与 RightPanel 同款节奏；manual 模式下
             // 用户手动附加后同样能继续）
-            while (!isJITEnabled(NO)) {
-                usleep(1000 * 200);
+            // ★ Task275（P2-a3）：无界裸循环改有界等待（Task169/267 修的另外三处，
+            //   此处漏网）——stikjit 未驻留时 Forge/NeoForge 安装线程永久空转，
+            //   "正在开启 JIT"弹窗永远挂着且 cancel 点了也退不出。120s 超时
+            //   走下方既有失败口径（优雅 -1 返回）。
+            if (!ame169_waitForJITCondition(^{ return isJITEnabled(NO); }, 120.0, @"Headless-JIT")) {
+                NSLog(@"[JavaLauncher] launchHeadlessJVM: Task275 JIT wait timed out (120s) -- failing gracefully");
+                return -1;
             }
             NSLog(@"[JavaLauncher] launchHeadlessJVM: Task139 JIT became enabled, continuing");
         }
@@ -3797,6 +4459,9 @@ int launchHeadlessJVM(NSString *mainClass, NSArray<NSString *> *args, int minJav
     // 再附并等待（用户诉求：">26 系统不管有没有开启都自动申请 JIT"）。
     if (requiresTXMWorkaround &&
         !JIT26IsLikelyDebuggerKeepAttached() &&
+        // Task294：本会话内置轨祝福完成（祝福完即脱）不再附——headless 与
+        // RightPanel 同口径，不把用户拖回外部 StikDebug。
+        ![StikDebugViewController ame294_scriptCompletedThisSession] &&
         !getPrefBool(@"debug.jit26_script_disable")) {
         NSLog(@"[JIT] [Headless] Task139: CS_DEBUGGED set but no live JIT26 debugger (ppid=%d) — re-attaching script via stikjit://",
               getppid());
@@ -3813,15 +4478,19 @@ int launchHeadlessJVM(NSString *mainClass, NSArray<NSString *> *args, int minJav
                 options:@{} completionHandler:nil];
             showDialog(localize(@"i18n_str_437", nil), localize(@"i18n_str_439", nil));
         });
-        while (!JIT26IsLikelyDebuggerKeepAttached()) {
-            usleep(1000 * 200);
+        // ★ Task275（P2-a3）：同上，有界等待替代无界裸循环。
+        if (!ame169_waitForJITCondition(^{ return JIT26IsLikelyDebuggerKeepAttached(); }, 120.0, @"Headless-JIT26")) {
+            NSLog(@"[JavaLauncher] launchHeadlessJVM: Task275 JIT26 attach wait timed out (120s) -- failing gracefully");
+            return -1;
         }
         NSLog(@"[JIT] [Headless] Task139: JIT26 debugger re-attached, continuing");
     }
     if (requiresTXMWorkaround) {
         static void *result;
         // Task91：同 launchJVM，SIGTRAP 安全网——无应答时优雅报错而非闪退
-        if (!result) result = JIT26CreateRegionLegacySafe(getpagesize());
+        // ★ Task301：同 launchJVM 换有界看门狗（死调试器端口下 brk 永久
+        // mach_msg 阻塞，SIGTRAP 安全网收不到；超时自动跑内置轨后收尾）。
+        if (!result) result = ame301_createRegionWithWatchdog();
         if (!result) {
             NSLog(@"[JIT26] [Headless] JIT26CreateRegionLegacy returned NULL — JIT26 debugger not servicing brk; aborting gracefully");
             showDialog(localize(@"Error", nil), localize(@"i18n_str_jit26_not_ready", nil));
@@ -3834,12 +4503,12 @@ int launchHeadlessJVM(NSString *mainClass, NSArray<NSString *> *args, int minJav
             if (lcAppInfo) {
                 lcAppInfo[@"jitLaunchScriptJs"] = [[NSData dataWithContentsOfFile:inBundleScriptPath] base64EncodedStringWithOptions:0];
                 if ([lcAppInfo writeToFile:lcAppInfoPath atomically:YES]) {
-                    showDialog(localize(@"Error", nil), @"Amethyst was launched with a legacy script. We have updated the script to Universal, please restart LiveContainer to continue.");
+                    showDialog(localize(@"Error", nil), localize(@"ame267.jit.legacy_lc", @"Prisma was launched with a legacy JIT script. It has been updated to the Universal script automatically, please restart LiveContainer to continue."));
                     return -1;
                 }
             }
             [NSFileManager.defaultManager copyItemAtPath:inBundleScriptPath toPath:[NSString stringWithFormat:@"%s/UniversalJIT26.js", getenv("POJAV_HOME")] error:nil];
-            showDialog(localize(@"Error", nil), @"Support for legacy script has been removed. Please switch to the Universal JIT script. On current StikDebug builds it is auto-assigned to Amethyst by app name (older sideloaded builds bundled the same script as Amethyst-MeloNX.js), so updating StikDebug is the easiest fix. To assign it manually: long-press on Amethyst when enabling JIT in StikDebug, tap \"Assign Script\", then pick UniversalJIT26.js from Amethyst's Documents directory (exported automatically at every startup).");
+            showDialog(localize(@"Error", nil), localize(@"ame267.jit.legacy_stik", @"Support for legacy JIT scripts has been removed, please switch to the Universal JIT script. Current StikDebug builds auto-assign the script by app name (older sideloaded builds bundled the same script as Amethyst-MeloNX.js), so updating StikDebug is the easiest fix. To assign manually: long-press on the launcher app when enabling JIT in StikDebug, tap \"Assign Script\", then pick UniversalJIT26.js from the launcher's Documents directory (exported automatically at every startup)."));
             return -1;
         }
         // 关键修复（N5）：同 launchJVM，防止 nil 脚本崩溃
@@ -3942,15 +4611,25 @@ int launchHeadlessJVM(NSString *mainClass, NSArray<NSString *> *args, int minJav
     // Workaround random stack guard allocation crashes（对齐 launchJVM）
     PUSH_HARGV_LITERAL("-XX:+UnlockExperimentalVMOptions");
     PUSH_HARGV_LITERAL("-XX:+DisablePrimordialThreadGuardPages");
-    // CodeCache 参数（对齐 launchJVM：避免 CodeCache 满导致 SIGILL；
-    // iOS 26+ mirror mapped JIT 需要 64m 以内避免 SIGBUS）
-    PUSH_HARGV_LITERAL("-XX:ReservedCodeCacheSize=64m");
-    PUSH_HARGV_LITERAL("-XX:InitialCodeCacheSize=16m");
-    PUSH_HARGV_LITERAL("-XX:CodeCacheExpansionSize=4m");
+    // CodeCache 参数（对齐 launchJVM Task284 分轨 + Task285 镜像轨 Initial
+    // 一次到位：iOS 26+ 镜像映射 64m 硬边界防 SIGBUS；iOS < 26 非镜像路
+    // 径 256m 防 CodeCache 满退化）
+    if (@available(iOS 26.0, *)) {
+        PUSH_HARGV_LITERAL("-XX:ReservedCodeCacheSize=64m");
+        PUSH_HARGV_LITERAL("-XX:InitialCodeCacheSize=48m");
+        PUSH_HARGV_LITERAL("-XX:CodeCacheExpansionSize=8m");
+    } else {
+        PUSH_HARGV_LITERAL("-XX:ReservedCodeCacheSize=256m");
+        PUSH_HARGV_LITERAL("-XX:InitialCodeCacheSize=32m");
+        PUSH_HARGV_LITERAL("-XX:CodeCacheExpansionSize=8m");
+    }
     if (@available(iOS 26.0, *)) {
         PUSH_HARGV_LITERAL("-XX:+MirrorMappedCodeCache");
     }
-    if (!getEntitlementValue(@"com.apple.developer.kernel.extended-virtual-addressing")) {
+    // ★ Task286：iOS 27 compressed class space 兼容（launchJVM 同款，见彼处
+    //   注释）——装机 processors 会话同受 iOS 27 1GiB 类空间预留拒绝影响。
+    if (!getEntitlementValue(@"com.apple.developer.kernel.extended-virtual-addressing")
+        || NSProcessInfo.processInfo.operatingSystemVersion.majorVersion >= 27) {
         PUSH_HARGV_LITERAL("-XX:-UseCompressedClassPointers");
     }
 

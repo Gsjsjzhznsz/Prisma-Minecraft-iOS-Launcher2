@@ -1102,6 +1102,39 @@ public class GLFW
     public static void glfwShowWindow(long window) {
         nglfwSetShowingWindow(window);
     }
+
+    // ★ Task289：Neolectrum (wgpu_mc) EarlyWindow.takeOverForGame 调
+    //   GLFW.glfwHideWindow —— 装机实锤 NoSuchMethodError 崩溃
+    //   （crash report db8fcbcf：EarlyWindow.kt:150，MC 26.1.2 + NeoForge
+    //   26.1.2.122 + wgpu_mc 2612.0.8-android.36）。本 overlay 类整体替换
+    //   真 LWJGL 的 GLFW 绑定（JavaApp/Makefile 双版本 jar 合成链），缺一个
+    //   方法 = 运行期 NoSuchMethodError。iOS 单窗口语义下"隐藏窗口"无安全
+    //   实现（游戏面 = 主窗口内容层，真隐藏 = 黑屏），且 iOS 侧 early
+    //   loading screen 由启动器自身管理——按记日志 no-op 处理（glfwShow-
+    //   Window 原生桥语义不受影响，游戏窗口照常接管前台）。
+    //   同族窗口管理 API（focus/maximize/iconify/restore）一并补齐，防
+    //   wgpu/vanilla 后续调用点连环 NoSuchMethodError（均为单窗口语义下
+    //   无意义或由系统接管的操作，no-op 无副作用）。
+    public static void glfwHideWindow(long window) {
+        System.out.println("[GLFWBridge] Task289: glfwHideWindow(" + window + ") no-op (iOS single-window semantics)");
+    }
+
+    public static void glfwFocusWindow(@NativeType("GLFWwindow *") long window) {
+        // iOS 单窗口恒聚焦，no-op
+    }
+
+    public static void glfwMaximizeWindow(@NativeType("GLFWwindow *") long window) {
+        // iOS 单窗口无最大化概念，no-op
+    }
+
+    public static void glfwIconifyWindow(@NativeType("GLFWwindow *") long window) {
+        // iOS 单窗口不支持最小化，no-op
+    }
+
+    public static void glfwRestoreWindow(@NativeType("GLFWwindow *") long window) {
+        // iOS 单窗口无还原语义，no-op
+    }
+
     public static void glfwWindowHint(int hint, int value) {
         long __functionAddress = Functions.SetWindowHint;
         invokeV(hint, value, __functionAddress);
@@ -1137,7 +1170,12 @@ public class GLFW
             // called and all input is silently dropped.
             callJV(0L, Functions.PumpEvents);
         } else {
-            for (Long ptr : mGLFWWindowMap.keySet()) callJV(ptr, Functions.PumpEvents);
+            // ★ Task275 J-P3-8：每帧 keySet 增强 for 分配 ArrayIterator（ArrayMap
+            //   集合视图按低频访问设计）= 120fps 约 7200 临时对象/分钟。改 keyAt
+            //   直取零分配（GLFW.java:1075 同款口径）。
+            for (int ame275_i = 0; ame275_i < mGLFWWindowMap.size(); ame275_i++) {
+                callJV(mGLFWWindowMap.keyAt(ame275_i), Functions.PumpEvents);
+            }
         }
         callV(Functions.RewindEvents);
     }
@@ -1215,7 +1253,10 @@ public class GLFW
     }
 
     public static int glfwGetKey(@NativeType("GLFWwindow *") long window, int key) {
-        return keyDownBuffer.get(Math.max(0, key-31));
+        // 上界守卫：key 最大可达 GLFW_KEY_LAST(348)，减 31 后为 317，越出 keyDownBuffer 容量（合法下标 0..316）。
+        // 与 native 写侧守卫（input_bridge_v3.m kidx<317）对称。
+        int idx = Math.max(0, key - 31);
+        return idx < keyDownBuffer.capacity() ? keyDownBuffer.get(idx) : 0;
     }
 
     public static int glfwGetMouseButton(@NativeType("GLFWwindow *") long window, int button) {
@@ -1456,7 +1497,13 @@ public class GLFW
     @NativeType("int")
     public static boolean glfwExtensionSupported(@NativeType("char const *") CharSequence ext) {
         //return Arrays.stream(glGetString(GL_EXTENSIONS).split(" ")).anyMatch(ext::equals);
-        // Fast path, but will return true if one has the same prefix
-        return glGetString(GL_EXTENSIONS).contains(ext);
+        // ★ Task275 J-P3-6：contains 子串匹配对同前缀扩展名假阳性（mod 拿到假 true
+        //   调不存在的入口 = GL 错误/黑块，上游遗留）。空白分词精确匹配。
+        String ame275_exts = glGetString(GL_EXTENSIONS);
+        if (ame275_exts == null || ext == null) return false;
+        for (String ame275_tok : ame275_exts.split(" ")) {
+            if (ame275_tok.contentEquals(ext)) return true;
+        }
+        return false;
     }
 }

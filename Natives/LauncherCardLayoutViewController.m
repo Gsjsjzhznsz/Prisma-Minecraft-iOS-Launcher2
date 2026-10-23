@@ -768,6 +768,8 @@ static CGFloat LauncherCardLayoutRightPanelWidth(UITraitCollection *trait) {
     UINavigationController *nav = [[UINavigationController alloc] initWithRootViewController:vm];
     nav.navigationBar.prefersLargeTitles = NO;
     ModsManagerViewController *m = [[ModsManagerViewController alloc] init];
+    // ★ Task267：抽屉入口不再快照绑定（快照永不过期 = 绑定旧实例根因）——
+    //   默认跟随模式，实时跟随选中实例（详见 LauncherRootViewController 同款注释）。
     [nav pushViewController:m animated:NO];
     [self setContentViewController:nav animated:YES];
 }

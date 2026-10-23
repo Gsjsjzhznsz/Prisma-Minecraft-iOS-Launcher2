@@ -13,12 +13,15 @@
 #import "ModItem.h"
 #import "ModUpdateService.h"
 #import "ModpackExportService.h" // Task217: parseVersionId（26.x 版本解析）
+#import "ModpackImportService.h" // Task269：启动迁移兑底（升级自动合并重复实例）
 #import "ModVersion.h"
 #import "PLDownloadClient.h"
 #import "PLMirrorCenter.h"
 #import "PLProfiles.h"
 #import "LauncherPreferences.h"
 #import "DownloadViewController.h"
+#import "DownloadTaskManager.h"
+#import "DownloadTaskItem.h"
 #import "ProfileSettingsViewController.h"   // Task225：隔离徽标 → 版本设置入口
 #import "AmeTheme.h"   // ★ 7.0-UI-5a：Fluent 设计令牌（颜色/字体单一事实源）
 #import "utils.h"
@@ -103,6 +106,7 @@ static NSString *ModsManagerSHA1ForFile(NSString *path) {
 @property (nonatomic, strong) UIStackView *chipsStack;         // chips 排列
 @property (nonatomic, strong) NSArray<UIButton *> *filterChips;
 @property (nonatomic, strong) UIButton *sortChipButton;
+@property (nonatomic, strong) UIButton *ame219_isoChip;   // ★ Task271：隔离徽标引用（实时刷新用）
 
 // ===== 导航按钮 =====
 @property (nonatomic, strong) UIBarButtonItem *closeButtonItem;
@@ -130,9 +134,84 @@ static NSString *ModsManagerSHA1ForFile(NSString *path) {
 // ===== 其他 =====
 @property (nonatomic, assign) BOOL hasPlayedInitialAnimation; // 首次加载连锁动画只播一次
 
+// ★ Task266：跨实例下载横幅（"游戏加载了、管理页不显示"实例错位自解释）
+@property (nonatomic, copy) NSString *ame265_crossProfileDest;   // 待切换目标实例
+@property (nonatomic, strong) UIView *ame265_crossProfileBanner; // 当前横幅视图（tableHeaderView）
+
+// ★ Task267：实例切换器 + 下载落点对账（终局修复：下载进别的实例但列表不显示）
+@property (nonatomic, strong) UIButton *ame267_profileChip;      // 导航栏 titleView：当前生效实例，点击弹切换器
+@property (nonatomic, assign) double ame267_lastReconciledDLTs;  // 已对账的最近下载时间戳（去重）
+
 @end
 
 @implementation ModsManagerViewController
+
+#pragma mark - Task265：profile 自适应解析
+
+/// Task265（"新安装的 mod 在模组管理不显示"第三轮根修）：本页所有 profile
+/// 消费点（扫描/徽标/表尾/导入/跳转下载）统一走本解析——显式绑定优先；
+/// 抽屉等未绑定入口（LauncherRoot/LauncherCardLayout 走 alloc]init] 且从
+/// 未设置 profileName）自适应跟随【当前选中实例】，而非退化到 "default"
+/// 主目录。此前 nil → "default" 与下载/游戏侧（selectedProfile 的隔离目录）
+/// 永世错位 = 用户反复反馈的"游戏里加载了、模组管理不显示"（装机
+/// a5e8e1e latestlog：下载 TouchController 落隔离目录且游戏已加载，
+/// 而管理页扫描 default 主目录）。自适应语义：不管哪个入口进来，页面
+/// 编辑的都是用户当前选中的实例——与下载目标/启动目标天然同源。
+- (NSString *)ame265_effectiveProfileName {
+    // Task267 终局语义（装机 3b97d2d latestlog 双锚实锤：下载落 (2) 号实例
+    // BB10129F、管理页钉在旧实例 CA336076——快照式绑定永不过期）：
+    //   钉定模式（语义入口/用户切换）→ 锁定 profileName；
+    //   跟随模式（默认，抽屉入口）→ 实时跟随 selectedProfileName，
+    //   SelectedProfileChanged 即重扫（viewDidLoad 观察者），页面永不过期。
+    if (self.ame267_pinProfile && self.profileName.length > 0) {
+        // Task269 自愈：钉定实例若已被升级自动迁移合并删除（条目不在 profile 表）→
+        // 回落跟随模式，杜绝钉在尸体实例上扫出空列表。
+        if ([[[PLProfiles current] profiles] objectForKey:self.profileName]) return self.profileName;
+        NSLog(@"[ModsManager] Task269: pinned profile \"%@\" no longer exists (migrated) -> follow mode", self.profileName);
+        self.ame267_pinProfile = NO;
+        self.profileName = nil;
+    }
+    NSString *ame265_sel = PLProfiles.current.selectedProfileName;
+    if (ame265_sel.length > 0) return ame265_sel;
+    return self.profileName.length > 0 ? self.profileName : @"default";
+}
+
+#pragma mark - Task288：实例加载器错配标记（PocketJ 对标移植）
+
+/// ★ Task288（PocketJ 移植·实例级模组管理第三件）：从生效实例的
+///   lastVersionId 推断实例加载器族（NeoForge/Forge/Fabric/Quilt；
+///   vanilla/未知返回 nil 不标记）。PocketJ 的 loader 来自显式选择器，
+///   本仓 profile 表无 loader 字段，版本 id 启发式同源推断（实例名
+///   "NeoForge-26.1.2.122"/"fabric-loader-*" 形态覆盖全部加载器实例）。
+- (nullable NSString *)ame288_profileLoaderForDisplay {
+    NSString *ame288_profName = [self ame265_effectiveProfileName];
+    NSDictionary *ame288_prof = [[PLProfiles current] profiles][ame288_profName];
+    NSString *ame288_vid = [ame288_prof isKindOfClass:[NSDictionary class]]
+        ? ame288_prof[@"lastVersionId"] : nil;
+    if (![ame288_vid isKindOfClass:[NSString class]] || ame288_vid.length == 0) return nil;
+    NSString *ame288_lower = ame288_vid.lowercaseString;
+    if ([ame288_lower containsString:@"neoforge"]) return @"NeoForge";
+    if ([ame288_lower containsString:@"forge"]) return @"Forge";
+    if ([ame288_lower containsString:@"quilt"]) return @"Quilt";
+    if ([ame288_lower containsString:@"fabric"]) return @"Fabric";
+    return nil;
+}
+
+/// mod 加载器族 vs 实例加载器错配判定（本地列表标记用；装机实锤：
+/// NeoForge 实例共享目录里的 fabric-api/beryl/VulkanMod 被 FML
+/// "Skipping jar ... is a Fabric mod" 整包跳过 = 装了等于没装）。
+- (BOOL)ame288_mod:(ModItem *)mod mismatchesProfileLoader:(NSString *)loader {
+    if (loader.length == 0) return NO;
+    NSString *ame288_l = loader.lowercaseString;
+    BOOL ame288_forgFamily = mod.isForge || mod.isNeoForge;
+    if ([ame288_l isEqualToString:@"fabric"] || [ame288_l isEqualToString:@"quilt"]) {
+        return ame288_forgFamily;   // Fabric/Quilt 实例不装 Forge 系 mod
+    }
+    if ([ame288_l isEqualToString:@"forge"] || [ame288_l isEqualToString:@"neoforge"]) {
+        return mod.isFabric;        // Forge/NeoForge 实例不装 Fabric mod
+    }
+    return NO;
+}
 
 #pragma mark - Init
 
@@ -161,6 +240,22 @@ static NSString *ModsManagerSHA1ForFile(NSString *path) {
     [self setupNavigationButtons];
     [self setupChipsRow];
     [self setupTableViewExtras];
+
+    // Task269 兑底：打开管理页也触发一次迁移检查（幂等空转；启动钩子已覆盖主路径，
+    // 此处覆盖"后台迁移收口前用户抢先开页"窗口，重复触发由忙标自拒绝）。
+    [ModpackImportService ame269_migrateDuplicateModpackInstancesIfNeeded];
+
+    // ★ Task267：导航栏实例切换器（当前生效实例常驻可见，点击弹选择器）
+    [self ame267_setupProfileChip];
+    // ★ Task267：跟随模式实时性——选中实例变化即重扫（页面不过期；
+    //   钉定模式下收到通知仅刷新切换器，不改绑定）。
+    [[NSNotificationCenter defaultCenter] addObserver:self
+                                             selector:@selector(ame267_selectedProfileChanged:)
+                                                 name:@"SelectedProfileChanged"
+                                               object:nil];
+    // ★ Task267：下载先于开页场景对账——页面打开时若最近一次 mod 下载
+    //   落在别的实例，横幅自解释（Task266 实时通知只覆盖页面在场场景）。
+    [self ame267_reconcileLastDownloadIfNeeded];
 
     [self loadMods];
 }
@@ -254,6 +349,7 @@ static NSString *ModsManagerSHA1ForFile(NSString *path) {
         [self setSelectMode:NO];
     }
     [self loadMods];
+    [self ame271_refreshIsolationBadge];   // ★ Task271：手动刷新同步徽标/表尾
 }
 
 #pragma mark - 筛选 chips 行（搜索栏下方）
@@ -307,7 +403,7 @@ static NSString *ModsManagerSHA1ForFile(NSString *path) {
     // Task219（⑪ 版本隔离自动识别）：行尾信息徽标——按当前 profile 的
     // gameDir 自动判定隔离态（隔离 = 蓝底“隔离”，共享 = 灰底“共享目录”），
     // 点击弹说明（下载/扫描只作用于该目录，与 ModService ame219 同口径）。
-    NSInteger ame219_iso = [ModService ame219_isolationStateForProfile:(self.profileName ?: @"default")];
+    NSInteger ame219_iso = [ModService ame219_isolationStateForProfile:[self ame265_effectiveProfileName]]; // Task265：自适应跟随选中实例
     // Task225（#5）：三态徽标（显式隔离 / 嗅探隔离 / 共享），可点——弹
     // 快捷说明 + 前往版本设置的隔离入口（用户反馈"安装模组端依旧默认
     // 共享目录"：多数是没开隔离或开在了别的 profile，这里给一条明路）。
@@ -329,9 +425,11 @@ static NSString *ModsManagerSHA1ForFile(NSString *path) {
     }
     ame219_isoChip.semanticContentAttribute = UISemanticContentAttributeForceLeftToRight;
     [self.chipsStack addArrangedSubview:ame219_isoChip];
-    NSLog(@"[ModsManager] Task219/225: isolation badge for profile %@ -> %@",
-          self.profileName ?: @"default",
-          (ame219_iso == 1) ? @"isolated" : ((ame219_iso == 2) ? @"sniffed-isolated" : @"shared"));
+    self.ame219_isoChip = ame219_isoChip;   // ★ Task271：持有引用供实时刷新
+    NSLog(@"[ModsManager] Task219/225: isolation badge for profile %@ -> %@ (bound=%@)",
+          [self ame265_effectiveProfileName],
+          (ame219_iso == 1) ? @"isolated" : ((ame219_iso == 2) ? @"sniffed-isolated" : @"shared"),
+          self.profileName ?: @"(nil→follow selected)"); // Task265：绑定来源一并留痕
 
     [NSLayoutConstraint activateConstraints:@[
         // chips 行：紧贴搜索栏下方，tableView 改为锚到 chips 行底部
@@ -404,7 +502,7 @@ static NSString *ModsManagerSHA1ForFile(NSString *path) {
 /// Task225（#5）：隔离徽标点击——说明当前 mod 安装/扫描的目标目录语义，
 /// 并提供「前往版本设置」入口（隔离开关在版本设置页）。
 - (void)ame225_isolationChipTapped {
-    NSInteger ame225_iso = [ModService ame219_isolationStateForProfile:(self.profileName ?: @"default")];
+    NSInteger ame225_iso = [ModService ame219_isolationStateForProfile:[self ame265_effectiveProfileName]]; // Task265
     NSString *ame225_msg = nil;
     if (ame225_iso == 1) {
         ame225_msg = localize(@"ame225.mods.isolated_note", nil);
@@ -423,7 +521,7 @@ static NSString *ModsManagerSHA1ForFile(NSString *path) {
                 handler:^(UIAlertAction * _Nonnull action) {
         // 前往版本设置页（隔离开关在那里）
         ProfileSettingsViewController *ame225_ps = [[ProfileSettingsViewController alloc] init];
-        ame225_ps.profileName = self.profileName ?: @"default";
+        ame225_ps.profileName = [self ame265_effectiveProfileName]; // Task265：自适应跟随
         UINavigationController *ame225_nav = [[UINavigationController alloc] initWithRootViewController:ame225_ps];
         ame225_nav.modalPresentationStyle = UIModalPresentationPageSheet;
         [self presentViewController:ame225_nav animated:YES completion:nil];
@@ -446,6 +544,195 @@ static NSString *ModsManagerSHA1ForFile(NSString *path) {
     self.tableView.delegate = self;
     [self.tableView registerClass:[ModTableViewCell class] forCellReuseIdentifier:@"ModCell"];
     self.tableView.rowHeight = 68.0;
+    [self ame264_setupScanFolderFooter];
+}
+
+#pragma mark - Task264 扫描目录提示行（中途加 mod 不显示的自解释修复）
+
+/// 表尾提示行：展示当前 profile 实际生效的 mods 目录（与扫描同源），
+/// 并提供"在文件中打开"——文件 App 定点打开该目录，用户拷入的 .jar
+/// 重扫后必然出现在本页。不展示会话式提示（随时可见，随 profile 联动）。
+- (void)ame264_setupScanFolderFooter {
+    // ★ Task266：跟随生效实例（ame265_effectiveProfileName）而非裸绑定——
+    //   nil 绑定入口（抽屉）此前表尾展示 default 主目录而扫描跟随选中实例，
+    //   目录提示行与实际扫描目录不一致（Task265 自适应链上的遗留错位点）。
+    NSString *folder = [[ModService sharedService] ame264_effectiveModsFolderForProfile:[self ame265_effectiveProfileName]];
+    if (folder.length == 0) {
+        self.tableView.tableFooterView = nil;
+        return;
+    }
+    CGFloat width = self.tableView.bounds.size.width;
+    CGFloat footerH = 58.0;
+    UIView *footer = [[UIView alloc] initWithFrame:CGRectMake(0, 0, width, footerH)];
+    footer.autoresizingMask = UIViewAutoresizingFlexibleWidth;
+
+    UIView *card = [[UIView alloc] initWithFrame:CGRectMake(12, 8, width - 24, footerH - 16)];
+    card.autoresizingMask = UIViewAutoresizingFlexibleWidth | UIViewAutoresizingFlexibleHeight;
+    card.backgroundColor = [UIColor secondarySystemGroupedBackgroundColor];
+    card.layer.cornerRadius = 12.0;
+    card.clipsToBounds = YES;
+    [footer addSubview:card];
+
+    UILabel *caption = [[UILabel alloc] initWithFrame:CGRectMake(12, 8, card.bounds.size.width - 60, 16)];
+    caption.autoresizingMask = UIViewAutoresizingFlexibleWidth;
+    caption.text = localize(@"resman.mods.folder.caption", nil);
+    caption.font = [UIFont systemFontOfSize:12.0 weight:UIFontWeightSemibold];
+    caption.textColor = [UIColor secondaryLabelColor];
+    [card addSubview:caption];
+
+    UILabel *pathLabel = [[UILabel alloc] initWithFrame:CGRectMake(12, 26, card.bounds.size.width - 60, 16)];
+    pathLabel.autoresizingMask = UIViewAutoresizingFlexibleWidth;
+    pathLabel.text = [self ame264_friendlyFolderPath:folder];
+    pathLabel.font = [UIFont monospacedDigitSystemFontOfSize:11.0 weight:UIFontWeightRegular];
+    pathLabel.textColor = [UIColor tertiaryLabelColor];
+    pathLabel.lineBreakMode = NSLineBreakByTruncatingMiddle;
+    [card addSubview:pathLabel];
+
+    UIButton *openButton = [UIButton buttonWithType:UIButtonTypeSystem];
+    openButton.frame = CGRectMake(card.bounds.size.width - 48, 5, 40, 32);
+    openButton.autoresizingMask = UIViewAutoresizingFlexibleLeftMargin | UIViewAutoresizingFlexibleTopMargin | UIViewAutoresizingFlexibleBottomMargin;
+    [openButton setImage:[UIImage systemImageNamed:@"square.and.arrow.down"] ?: [UIImage systemImageNamed:@"folder"] forState:UIControlStateNormal];
+    openButton.accessibilityLabel = localize(@"resman.mods.folder.import", nil);
+    openButton.tintColor = [UIColor systemOrangeColor];
+    [openButton addTarget:self action:@selector(ame264_openScannedFolder) forControlEvents:UIControlEventTouchUpInside];
+    [card addSubview:openButton];
+
+    self.tableView.tableFooterView = footer;
+}
+
+/// 目录友好显示：优先相对 POJAV_GAME_DIR（整合包实例即 custom_gamedir/<id>/mods），
+/// 不在基准下则回退末两级路径。
+- (NSString *)ame264_friendlyFolderPath:(NSString *)folder {
+    const char *g = getenv("POJAV_GAME_DIR");
+    NSString *base = g ? [NSString stringWithUTF8String:g] : NSHomeDirectory();
+    if ([folder hasPrefix:base]) {
+        NSString *rel = [folder substringFromIndex:base.length];
+        if ([rel hasPrefix:@"/"]) rel = [rel substringFromIndex:1];
+        if (rel.length > 0) return rel;
+    }
+    NSArray<NSString *> *parts = folder.pathComponents;
+    if (parts.count >= 2) {
+        return [NSString stringWithFormat:@"…/%@/%@", parts[parts.count - 2], parts.lastObject];
+    }
+    return folder;
+}
+
+/// "导入到此目录"：直接复用既有导入流（importModTapped 已随 Task264 改走
+/// self.profileName 解析——文件必然落入与本页扫描同源的隔离目录，重扫即见）。
+/// 不采用 forOpeningContentAt 定点开目录：该 API 家族在本仓库部署目标/SDK
+/// 组合下不可用（CI iPhoneOS26.2 实测 no visible @interface），仓库既有
+/// picker 先例全部为 initForOpeningContentTypes 家族。
+- (void)ame264_openScannedFolder {
+    [self importModTapped];
+}
+
+#pragma mark - Task266 跨实例下载横幅（实例错位自解释 + 一键切换）
+
+/// 下载完成通知（重写基类 ResourceListViewController 同名方法——基类实现未
+/// 在 .h 暴露，此处复制其行为后扩展 Task266 比对逻辑）。
+/// 基类行为：mod/shader/rp/dp/world 资源任务完成 → 主线程重载列表。
+/// Task266 扩展：mod 任务携带 targetProfileName（ModService 中央站点标注）
+/// 时与本页生效实例比对：不一致 = 跨实例下载（文件落在别的实例）→ 展示
+/// 横幅 + 一键切换查看目标实例；一致 = 本实例下载，撤除历史横幅。
+- (void)handleDownloadTaskCompletedNotification:(NSNotification *)notification {
+    DownloadTaskItem *task = notification.userInfo[DownloadTaskManagerTaskKey];
+    NSString *type = task.resourceType;
+    // ★ Task268（scan-d #2）：恢复基类同款资源类型过滤——重写时丢失，
+    //   MC 本体/JRE 等任意任务完成也触发 mods 全量重扫（无谓 IO + 日志刷屏）。
+    static NSSet<NSString *> *ame268_resTypes = nil;
+    static dispatch_once_t ame268_onceToken;
+    dispatch_once(&ame268_onceToken, ^{
+        ame268_resTypes = [NSSet setWithObjects:
+            DownloadTaskResourceTypeMod,
+            DownloadTaskResourceTypeShader,
+            DownloadTaskResourceTypeResourcePack,
+            DownloadTaskResourceTypeDataPack,
+            DownloadTaskResourceTypeWorld,
+            nil];
+    });
+    if (![type isKindOfClass:[NSString class]] || type.length == 0 ||
+        ![ame268_resTypes containsObject:type]) return;
+    if ([type isEqualToString:DownloadTaskResourceTypeMod]) {
+        NSString *ame265_dest = task.targetProfileName;
+        NSString *ame265_effective = [self ame265_effectiveProfileName];
+        if (ame265_dest.length > 0 && ![ame265_dest isEqualToString:ame265_effective]) {
+            NSLog(@"[ModsManager] Task266: cross-profile download (dest=%@ viewing=%@ file=%@)",
+                  ame265_dest, ame265_effective, task.displayName ?: task.resourceName ?: @"(nil)");
+            [self ame265_showCrossProfileBannerForProfile:ame265_dest
+                                                    file:(task.displayName.length > 0 ? task.displayName : task.resourceName)];
+        } else if (self.ame265_crossProfileBanner != nil) {
+            [self ame265_hideCrossProfileBanner]; // 本实例下载命中：横幅使命完成即撤
+        }
+    }
+    // 基类行为复制：主线程延迟一帧重载（文件系统状态刷新后列表立即可见）
+    __weak typeof(self) weakSelf = self;
+    dispatch_async(dispatch_get_main_queue(), ^{
+        [weakSelf reloadResourceList];
+    });
+}
+
+/// 跨实例横幅（tableHeaderView 卡片，风格对齐 Task264 表尾提示行）。
+/// 双语键：resman.mods.cross_profile.text（文件名/目标实例/当前实例三参）、
+/// resman.mods.cross_profile.switch（切换按钮）。
+- (void)ame265_showCrossProfileBannerForProfile:(NSString *)destProfile file:(NSString *)fileName {
+    self.ame265_crossProfileDest = destProfile;
+    CGFloat ame265_width = self.tableView.bounds.size.width;
+    if (ame265_width <= 0) ame265_width = 320.0; // 首帧 bounds 未定兜底
+    // ★ Task275（P3-b8）：横幅定高截断根修——三参长文件名/长实例名在 96pt/2 行
+    //   下溢出即截尾。先测文本实际高度，横幅/卡片/按钮全部随动。
+    NSString *ame265_text = [NSString stringWithFormat:localize(@"resman.mods.cross_profile.text", NULL),
+                             fileName ?: @"", destProfile ?: @"", [self ame265_effectiveProfileName] ?: @""];
+    CGFloat ame265_textH = [ame265_text boundingRectWithSize:CGSizeMake(ame265_width - 48.0, CGFLOAT_MAX)
+                                                     options:NSStringDrawingUsesLineFragmentOrigin
+                                                  attributes:@{NSFontAttributeName: [UIFont systemFontOfSize:12.5]}
+                                                     context:nil].size.height;
+    ame265_textH = MAX(36.0, MIN(ceil(ame265_textH) + 4.0, 78.0));   // 2~4 行自适应封顶
+    CGFloat ame265_bannerH = 10.0 + ame265_textH + 6.0 + 26.0 + 12.0 + 8.0;
+    UIView *ame265_banner = [[UIView alloc] initWithFrame:CGRectMake(0, 0, ame265_width, ame265_bannerH)];
+    ame265_banner.autoresizingMask = UIViewAutoresizingFlexibleWidth;
+    UIView *ame265_card = [[UIView alloc] initWithFrame:CGRectMake(12, 8, ame265_width - 24, ame265_bannerH - 16)];
+    ame265_card.autoresizingMask = UIViewAutoresizingFlexibleWidth | UIViewAutoresizingFlexibleHeight;
+    ame265_card.backgroundColor = [UIColor secondarySystemGroupedBackgroundColor];
+    ame265_card.layer.cornerRadius = 12.0;
+    ame265_card.clipsToBounds = YES;
+    [ame265_banner addSubview:ame265_card];
+
+    UILabel *ame265_label = [[UILabel alloc] initWithFrame:CGRectMake(12, 10, ame265_card.bounds.size.width - 24, ame265_textH)];
+    ame265_label.autoresizingMask = UIViewAutoresizingFlexibleWidth;
+    ame265_label.numberOfLines = 0;
+    ame265_label.font = [UIFont systemFontOfSize:12.5];
+    ame265_label.textColor = [UIColor labelColor];
+    ame265_label.text = ame265_text;
+    [ame265_card addSubview:ame265_label];
+
+    UIButton *ame265_switch = [UIButton buttonWithType:UIButtonTypeSystem];
+    ame265_switch.frame = CGRectMake(12, 10 + ame265_textH + 6.0, ame265_card.bounds.size.width - 24, 26);
+    ame265_switch.autoresizingMask = UIViewAutoresizingFlexibleWidth;
+    [ame265_switch setTitle:localize(@"resman.mods.cross_profile.switch", NULL) forState:UIControlStateNormal];
+    [ame265_switch setTitleColor:[UIColor systemOrangeColor] forState:UIControlStateNormal];
+    ame265_switch.contentHorizontalAlignment = UIControlContentHorizontalAlignmentLeft;
+    ame265_switch.titleLabel.font = [UIFont systemFontOfSize:13.0 weight:UIFontWeightSemibold];
+    [ame265_switch addTarget:self action:@selector(ame265_switchToCrossProfileTarget) forControlEvents:UIControlEventTouchUpInside];
+    [ame265_card addSubview:ame265_switch];
+
+    self.ame265_crossProfileBanner = ame265_banner;
+    self.tableView.tableHeaderView = ame265_banner;
+}
+
+/// 一键切换：本页改绑目标实例 → 撤横幅 → 表尾目录行联动 → 重扫。
+/// 切换后列表展示目标实例 mods 目录（用户下载的文件立即可见）。
+- (void)ame265_switchToCrossProfileTarget {
+    NSString *ame265_dest = self.ame265_crossProfileDest;
+    if (ame265_dest.length == 0) return;
+    NSLog(@"[ModsManager] Task266: switch manager binding to cross-profile target %@", ame265_dest);
+    [self ame267_pinToProfile:ame265_dest]; // Task267：一键切换 = 用户显式钉定（同款刷新链）
+}
+
+- (void)ame265_hideCrossProfileBanner {
+    if (self.tableView.tableHeaderView == self.ame265_crossProfileBanner) {
+        self.tableView.tableHeaderView = nil;
+    }
+    self.ame265_crossProfileBanner = nil;
 }
 
 #pragma mark - Data Loading
@@ -456,9 +743,160 @@ static NSString *ModsManagerSHA1ForFile(NSString *path) {
     [self loadMods];
 }
 
+#pragma mark - Task267 实例切换器 + 跟随/钉定 + 下载落点对账
+
+/// ★ Task271（271-a RC2 根修）：隔离徽标实时刷新——旧实现 setupChipsRow 一次性
+///   计算后永不更新（viewWillAppear/钉定/跟随/重扫全不刷新徽标）：用户在版本
+///   设置切完隔离回页，列表已扫新目录而徽标仍显示"共享目录"（"切了还是共享"
+///   的直接来源）。按当前生效实例重算三态 + 同步表尾扫描目录行。
+- (void)ame271_refreshIsolationBadge {
+    if (!self.ame219_isoChip) return;
+    NSInteger ame271_iso = [ModService ame219_isolationStateForProfile:[self ame265_effectiveProfileName]];
+    NSString *ame271_chipKey = (ame271_iso == 1) ? @"ame219.mods.isolated_chip"
+        : (ame271_iso == 2) ? @"ame225.mods.sniffed_chip" : @"ame219.mods.shared_chip";
+    [self.ame219_isoChip setTitle:localize(ame271_chipKey, nil) forState:UIControlStateNormal];
+    UIImage *ame271_icon = (ame271_iso == 1) ? [UIImage systemImageNamed:@"lock.shield"]
+        : (ame271_iso == 2) ? [UIImage systemImageNamed:@"sparkle.magnifyingglass"]
+        : [UIImage systemImageNamed:@"externaldrive"];
+    [self.ame219_isoChip setImage:ame271_icon forState:UIControlStateNormal];
+    [self ame264_setupScanFolderFooter];
+    NSLog(@"[ModsManager] Task271: isolation badge refresh for profile %@ -> %@ (bound=%@)",
+          [self ame265_effectiveProfileName],
+          (ame271_iso == 1) ? @"isolated" : ((ame271_iso == 2) ? @"sniffed-isolated" : @"shared"),
+          self.profileName ?: @"(nil→follow selected)");
+}
+
+- (void)viewWillAppear:(BOOL)animated {
+    [super viewWillAppear:animated];
+    // Task267：每次回页都对账一次（用户可能在下载页新下过 mod）。
+    [self ame267_reconcileLastDownloadIfNeeded];
+    [self ame267_updateProfileChip];
+    // ★ Task271：回页即刷新隔离徽标/表尾（版本设置切隔离后回页立见新态）。
+    [self ame271_refreshIsolationBadge];
+}
+
+- (void)dealloc {
+    [[NSNotificationCenter defaultCenter] removeObserver:self name:@"SelectedProfileChanged" object:nil];
+}
+
+/// 导航栏实例切换器：titleView 常驻展示当前生效实例名 + 下拉箭头。
+- (void)ame267_setupProfileChip {
+    UIButton *chip = [UIButton buttonWithType:UIButtonTypeSystem];
+    chip.font = [UIFont systemFontOfSize:15.0 weight:UIFontWeightSemibold];
+    chip.tintColor = [UIColor systemOrangeColor];
+    chip.contentEdgeInsets = UIEdgeInsetsMake(4, 10, 4, 10);
+    [chip addTarget:self action:@selector(ame267_profileChipTapped) forControlEvents:UIControlEventTouchUpInside];
+    self.ame267_profileChip = chip;
+    [self ame267_updateProfileChip];
+    self.navigationItem.titleView = chip;
+}
+
+- (void)ame267_updateProfileChip {
+    if (!self.ame267_profileChip) return;
+    NSString *effective = [self ame265_effectiveProfileName] ?: @"default";
+    NSString *title = [NSString stringWithFormat:localize(@"resman.mods.profile_chip", NULL), effective];
+    [self.ame267_profileChip setTitle:title forState:UIControlStateNormal];
+    [self.ame267_profileChip sizeToFit];
+}
+
+/// 选中实例变化：跟随模式下换绑重扫（页面永不过期）；钉定模式仅刷新切换器。
+- (void)ame267_selectedProfileChanged:(NSNotification *)note {
+    NSLog(@"[ModsManager] Task267: SelectedProfileChanged -> %@ (pin=%d bound=%@)",
+          note.object ?: @"(nil)", (int)self.ame267_pinProfile, self.profileName ?: @"(nil)");
+    if (self.ame267_pinProfile) {
+        [self ame267_updateProfileChip];
+        [self ame271_refreshIsolationBadge];   // ★ Task271：钉定态也随选中变化刷新
+        return;
+    }
+    self.ame265_crossProfileDest = nil;
+    [self ame265_hideCrossProfileBanner];
+    [self ame264_setupScanFolderFooter];
+    [self ame267_updateProfileChip];
+    [self ame271_refreshIsolationBadge];   // ★ Task271：钉定换绑同步徽标
+    [self reloadResourceList];
+}
+
+/// 切换器点击：列出全部实例（勾选当前生效项）+ 跟随当前选中实例。
+- (void)ame267_profileChipTapped {
+    NSString *effective = [self ame265_effectiveProfileName] ?: @"default";
+    UIAlertController *picker = [UIAlertController alertControllerWithTitle:localize(@"resman.mods.profile_picker.title", NULL)
+                                                                    message:nil
+                                                             preferredStyle:UIAlertControllerStyleAlert];
+    __weak typeof(self) weakSelf = self;
+    // 跟随当前选中实例（跟随模式下勾选态由 title 前缀表达；钉定模式下可选回跟随）
+    NSString *followTitle = [NSString stringWithFormat:@"%@%@",
+        self.ame267_pinProfile ? @"" : @"✓ ",
+        localize(@"resman.mods.profile_follow", NULL)];
+    [picker addAction:[UIAlertAction actionWithTitle:followTitle
+                                               style:UIAlertActionStyleDefault
+                                             handler:^(UIAlertAction *action) {
+        [weakSelf ame267_followSelection];
+    }]];
+    // 全部实例（字典键名排序；PLProfiles profiles 键即实例名）
+    NSDictionary *profiles = [[PLProfiles current] profiles];
+    NSArray *names = [profiles.allKeys sortedArrayUsingSelector:@selector(compare:)];
+    for (NSString *name in names) {
+        NSString *row = [name isEqualToString:effective]
+            ? [NSString stringWithFormat:@"✓ %@", name] : name;
+        [picker addAction:[UIAlertAction actionWithTitle:row
+                                                   style:UIAlertActionStyleDefault
+                                                 handler:^(UIAlertAction *action) {
+            [weakSelf ame267_pinToProfile:name];
+        }]];
+    }
+    [picker addAction:[UIAlertAction actionWithTitle:localize(@"resman.common.cancel", NULL)
+                                               style:UIAlertActionStyleCancel
+                                             handler:nil]];
+    [self presentViewController:picker animated:YES completion:nil];
+}
+
+/// 钉定到指定实例（语义入口与切换器共用）：换绑 + 撤历史横幅 + 表尾联动 + 重扫。
+- (void)ame267_pinToProfile:(NSString *)profileName {
+    NSLog(@"[ModsManager] Task267: pin to profile %@", profileName ?: @"(nil)");
+    self.ame267_pinProfile = YES;
+    self.profileName = profileName;
+    self.ame265_crossProfileDest = nil;
+    [self ame265_hideCrossProfileBanner];
+    [self ame264_setupScanFolderFooter];
+    [self ame267_updateProfileChip];
+    [self ame271_refreshIsolationBadge];   // ★ Task271：跟随换绑同步徽标
+    [self reloadResourceList];
+}
+
+/// 回到跟随模式：清钉定与旧绑定，重扫即落在当前选中实例。
+- (void)ame267_followSelection {
+    NSLog(@"[ModsManager] Task267: follow selected profile (pin cleared)");
+    self.ame267_pinProfile = NO;
+    self.profileName = nil;
+    self.ame265_crossProfileDest = nil;
+    [self ame265_hideCrossProfileBanner];
+    [self ame264_setupScanFolderFooter];
+    [self ame267_updateProfileChip];
+    [self ame271_refreshIsolationBadge];   // ★ Task271：回跟随时同步徽标
+    [self reloadResourceList];
+}
+
+/// 下载落点对账：最近一次成功落盘的 mod 下载若落在别的实例且尚未对过账，
+/// 横幅自解释（复用 Task266 横幅视图与一键切换）。
+- (void)ame267_reconcileLastDownloadIfNeeded {
+    NSDictionary *record = [ModService ame267_lastModDownload];
+    if (!record) return;
+    double ts = [record[@"ts"] doubleValue];
+    if (ts <= 0.0 || ts <= self.ame267_lastReconciledDLTs) return;
+    NSString *dest = record[@"profile"];
+    NSString *file = record[@"file"];
+    if (dest.length == 0) return;
+    NSString *effective = [self ame265_effectiveProfileName];
+    self.ame267_lastReconciledDLTs = ts; // 无论是否跨实例，看过即对过账
+    if ([dest isEqualToString:effective]) return;
+    NSLog(@"[ModsManager] Task267: reconcile mismatch (lastDL=%@ viewing=%@ file=%@) -- showing banner", dest, effective, file);
+    [self ame265_showCrossProfileBannerForProfile:dest file:file];
+}
+
 - (void)loadMods {
     [self setLoading:YES];
-    NSString *profile = self.profileName ?: @"default";
+    NSString *profile = [self ame265_effectiveProfileName]; // Task265：nil 不再退化 default，跟随选中实例（与下载/启动同源）
+    NSLog(@"[ModsManager] Task265 scan profile=%@ (bound=%@)", profile, self.profileName ?: @"(nil→follow selected)");
     __weak typeof(self) weakSelf = self;
     [[ModService sharedService] scanModsForProfile:profile completion:^(NSArray<ModItem *> *mods) {
         dispatch_async(dispatch_get_main_queue(), ^{
@@ -559,9 +997,9 @@ static NSString *ModsManagerSHA1ForFile(NSString *path) {
 /// 空状态"去下载"：跳转统一下载页（无参数化资源类型入口，进入默认页）
 - (void)openDownloadPage {
     DownloadViewController *vc = [[DownloadViewController alloc] init];
-    // 关键修复（目标实例不一致）：传入本管理页绑定的 profileName，
-    // 保证下载写入的实例与当前打开的实例一致
-    vc.targetProfileName = self.profileName;
+    // 关键修复（目标实例不一致）：传入本管理页生效的 profileName（Task265：
+    // 含 nil 绑定时的自适应跟随），保证下载写入的实例与当前打开的实例一致
+    vc.targetProfileName = [self ame265_effectiveProfileName];
     if (self.navigationController) {
         [self.navigationController pushViewController:vc animated:YES];
     } else {
@@ -600,6 +1038,16 @@ static NSString *ModsManagerSHA1ForFile(NSString *path) {
 
     // 更新徽章：检测命中（可更新）的 Mod 显示 arrow.up.circle.fill
     [cell setUpdateAvailable:(self.updateResultsByPath[mod.filePath] != nil)];
+
+    // ★ Task288（PocketJ 移植）：实例加载器错配标记——错配时橙色警告徽章
+    //   + 元信息行尾说明；不错配传 nil 清除复用残留。
+    NSString *ame288_loader = [self ame288_profileLoaderForDisplay];
+    if (ame288_loader.length > 0 && [self ame288_mod:mod mismatchesProfileLoader:ame288_loader]) {
+        [cell setLoaderIncompatibleDetail:
+            [NSString stringWithFormat:localize(@"resman.mods.badge.loader_mismatch", nil), ame288_loader]];
+    } else {
+        [cell setLoaderIncompatibleDetail:nil];
+    }
 
     // 选择模式下隐藏启用开关（避免与勾选视觉冲突），普通模式恢复
     cell.toggleSwitch.hidden = self.selectModeEnabled;
@@ -818,7 +1266,7 @@ static NSString *ModsManagerSHA1ForFile(NSString *path) {
 
 - (void)importModTapped {
     NSError *dirError = nil;
-    NSString *modsDir = [[ModService sharedService] ensureModsFolderForProfile:nil error:&dirError];
+    NSString *modsDir = [[ModService sharedService] ensureModsFolderForProfile:[self ame265_effectiveProfileName] error:&dirError]; // Task264+265：跟随生效 profile（nil 绑定自适应跟随选中实例），不再恒写 default 主目录
     if (!modsDir) {
         [self showDialogWithTitle:localize(@"resman.common.cannot_import", nil) message:dirError.localizedDescription ?: localize(@"resman.mods.dir_not_found", nil)];
         return;
@@ -836,7 +1284,7 @@ static NSString *ModsManagerSHA1ForFile(NSString *path) {
     if (urls.count == 0) return;
 
     NSError *dirError = nil;
-    NSString *modsDir = [[ModService sharedService] ensureModsFolderForProfile:nil error:&dirError];
+    NSString *modsDir = [[ModService sharedService] ensureModsFolderForProfile:[self ame265_effectiveProfileName] error:&dirError]; // Task264+265：跟随生效 profile
     if (!modsDir) {
         [self showDialogWithTitle:localize(@"resman.common.import_failed", nil) message:dirError.localizedDescription ?: localize(@"resman.mods.dir_not_found", nil)];
         return;
@@ -847,15 +1295,26 @@ static NSString *ModsManagerSHA1ForFile(NSString *path) {
     NSMutableArray<NSString *> *failedFiles = [NSMutableArray array];
 
     for (NSURL *url in urls) {
+        if ([url hasDirectoryPath]) continue; // Task264：目录 URL（文件 App 定点打开回调）不参与拷贝
         BOOL accessing = [url startAccessingSecurityScopedResource];
         @try {
             NSString *fileName = url.lastPathComponent;
             NSString *destPath = [modsDir stringByAppendingPathComponent:fileName];
             // 同名文件处理
+            // 同名文件处理（★ Task268 scan-d #6：循环探测 _copy/_copy_N——
+            // 旧版只试一次，_copy 也被占时 copyItemAtPath 直接失败）。
             if ([fm fileExistsAtPath:destPath]) {
                 NSString *baseName = [fileName stringByDeletingPathExtension];
                 NSString *ext = [fileName pathExtension];
-                destPath = [modsDir stringByAppendingPathComponent:[NSString stringWithFormat:@"%@_copy.%@", baseName, ext]];
+                NSString *ame268_cand = nil;
+                for (NSInteger ame268_n = 1; ame268_n < 1000; ame268_n++) {
+                    NSString *ame268_name = (ame268_n == 1)
+                        ? [NSString stringWithFormat:@"%@_copy.%@", baseName, ext]
+                        : [NSString stringWithFormat:@"%@_copy_%ld.%@", baseName, (long)(ame268_n - 1), ext];
+                    NSString *ame268_path = [modsDir stringByAppendingPathComponent:ame268_name];
+                    if (![fm fileExistsAtPath:ame268_path]) { ame268_cand = ame268_path; break; }
+                }
+                if (ame268_cand) destPath = ame268_cand;
             }
             NSError *copyError = nil;
             [fm copyItemAtPath:url.path toPath:destPath error:&copyError];
@@ -897,7 +1356,7 @@ static NSString *ModsManagerSHA1ForFile(NSString *path) {
         // 额外触发自愈重扫，幽灵条目即刻从列表消失。
         NSLog(@"[ModsManager] Task217: toggle failed for %@ -- %@", mod.filePath, error);
         [self showDialogWithTitle:localize(@"mods.toggle.failed", nil)
-                          message:error.localizedDescription ?: @"unknown error"];
+                          message:error.localizedDescription ?: localize(@"common.unknown_error", nil)];   // ★ Task275（i18n）
         if ([error.domain isEqualToString:@"ModServiceError"] && error.code == 201) {
             [self loadMods];
         }

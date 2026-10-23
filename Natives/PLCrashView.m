@@ -5,6 +5,7 @@
 #import "utils.h"
 #import "BackgroundManager.h"
 #import "AmeTheme.h" // 7.0-UI-3e：Fluent 设计令牌层（崩溃视图颜色语义化迁移）
+#import "CrashAnalyzer.h"
 
 @interface PLCrashView ()
 // 数据
@@ -25,14 +26,24 @@ typedef NS_ENUM(NSInteger, CrashType) {
     CrashTypeJavaVersionMismatch,// Java 版本不匹配
     CrashTypeRendererError,      // 渲染器错误
     CrashTypeModLoadingFailure,  // Mod 加载失败
+    CrashTypeModIncompatible,    // ★ Task263：Mod 版本不兼容（Fabric FormattedException 实证块）
     CrashTypeJavaException,      // Java 异常
     CrashTypeUnknown             // 未知错误
 };
 @property (nonatomic, assign) CrashType crashType;
 @property (nonatomic, strong, nullable) NSString *crashDetail; // 崩溃详情（从日志提取的关键行）
+// ★ Task267：Prisma 自研 CrashAnalyzer 的 hs_err 结构化分型接入
+//   （analyzeHsErrFile: 的返回字典：signal/isOOM/blamedRenderer/
+//   problematicFrame/nativeFrames）。此前本页只把 hs_err 头 4KB 当
+//   文本证据展示，丢掉了分型结果——"没有我们项目的详细错误分析器"
+//   的核心缺口。analyzeCrashType 末尾融合（详见 ame267_refineWithHsErr）。
+@property (nonatomic, strong, nullable) NSDictionary *ame267_hsErr;
 // Task 95：缺失 mod 崩溃的解析产物（供建议卡片精确点名）
 @property (nonatomic, strong, nullable) NSArray<NSString *> *ame95_missingModNames; // 推断的缺失 mod/库名单
 @property (nonatomic, copy, nullable) NSString *ame95_overriddenEvidence;           // "Dependencies overridden for ..." 证据行（可为空）
+// ★ Task263：Fabric 不兼容解析产物（FormattedException 的用户向方案行，
+//   例：" - Replace mod 'Sodium' (sodium) 0.9.3-alpha.1+mc26.3 with version 0.9.2+mc26.3."）
+@property (nonatomic, copy, nullable) NSString *ame263_incompatSummary;
 
 // UI 组件
 @property (nonatomic, strong) UIScrollView *mainScrollView;
@@ -62,13 +73,59 @@ typedef NS_ENUM(NSInteger, CrashType) {
 @property (nonatomic, strong) CAGradientLayer *suggestionAccentLayer;
 // 日志卡片高度约束（根据屏幕高度动态调整）
 @property (nonatomic, strong) NSLayoutConstraint *logCardHeightConstraint;
+// ★ Task263：日志卡展开态（查看日志详情 ↔ 收起日志；展开时高度控制权
+//   从 viewDidLayoutSubviews 移交给 ame263_applyLogExpansion）
+@property (nonatomic, assign) BOOL ame263_logExpanded;
 @end
 
 @implementation PLCrashView
 
 // 当前正在显示的崩溃 VC 实例（单例）
 static PLCrashView *currentCrashVC = nil;
-static NSString *const kGitHubIssuesURL = @"https://github.com/herbrine8403/Amethyst-iOS-MyRemastered/issues";
+// ★ Task267（用户："崩溃界面还是上游的分析"）：反馈出口从上游 Amethyst
+//   仓库改指本仓库——用户点"前往 GitHub Issues"应到 Prisma 的 issue 区。
+static NSString *const kGitHubIssuesURL = @"https://github.com/Gsjsjzhznsz/Prisma-Minecraft-iOS-Launcher/issues";
+
+/// ★ Task274-g（G5）：L2 崩溃界面呈现成功即消费 ame273_crash_report.txt（改名
+/// 归档 seen-<epoch>.txt）——否则下次启动 L3 会补弹同一崩溃（L2 已把原因展示过）。
+/// NSFileManager 自包含实现，不动 main_hook/utils（归并行代理）。仅在 L2 呈现
+/// 成功路径调用；L2 未呈现（keyWindow 缺失/提前被杀）不调用，报告保持原文件名
+/// 在盘，下次启动由 SceneDelegate L3 补弹（Task273 旗标协议语义不变）。
+static void ame274_archiveCrashReportAfterL2Present(void) {
+    @try {
+        NSString *home = [NSProcessInfo processInfo].environment[@"POJAV_HOME"];
+        if (home.length == 0) return;
+        NSFileManager *fm = [NSFileManager defaultManager];
+        NSString *path = [home stringByAppendingPathComponent:@"ame273_crash_report.txt"];
+        if (![fm fileExistsAtPath:path]) return;
+        NSString *archive = [home stringByAppendingPathComponent:
+            [NSString stringWithFormat:@"ame273_crash_report.seen-%.0f.txt",
+             [NSDate date].timeIntervalSince1970]];
+        [fm removeItemAtPath:archive error:nil];
+        NSError *moveError = nil;
+        if ([fm moveItemAtPath:path toPath:archive error:&moveError]) {
+            NSLog(@"[PLCrashView] Task274: L2 presented -> crash report archived as %@ (next-launch L3 will not re-pop)", archive.lastPathComponent);
+        } else {
+            NSLog(@"[PLCrashView] Task274: crash report archive failed (%@) -- kept on disk for next-launch L3", moveError.localizedDescription);
+        }
+        // ★ Task275（P3-b9）：归档保留最近 5 份——每次 L2 呈现都新增
+        // seen-<epoch>.txt 且无清理方，无限累积（Cleanup 不覆盖该前缀）。
+        NSArray *ame275_seen = [fm contentsOfDirectoryAtPath:home error:nil];
+        NSMutableArray<NSString *> *ame275_archives = [NSMutableArray array];
+        for (NSString *ame275_n in ame275_seen) {
+            if ([ame275_n hasPrefix:@"ame273_crash_report.seen-"]) [ame275_archives addObject:ame275_n];
+        }
+        if (ame275_archives.count > 5) {
+            [ame275_archives sortUsingSelector:@selector(localizedStandardCompare:)];
+            for (NSUInteger ame275_i = 0; ame275_i < ame275_archives.count - 5; ame275_i++) {
+                [fm removeItemAtPath:[home stringByAppendingPathComponent:ame275_archives[ame275_i]] error:nil];
+            }
+            NSLog(@"[PLCrashView] Task275: crash report archives trimmed to newest 5 (was %lu)", (unsigned long)ame275_archives.count);
+        }
+    } @catch (NSException *ame274_e) {
+        NSLog(@"[PLCrashView] Task274: crash report archive exception: %@", ame274_e);
+    }
+}
 
 #pragma mark - Public Methods
 
@@ -120,6 +177,14 @@ static NSString *const kGitHubIssuesURL = @"https://github.com/herbrine8403/Amet
 
         currentCrashVC = crashVC;
         [rootVC presentViewController:crashVC animated:NO completion:nil];
+        // ★ Task273：呈现成功握手 —— Ame251 看门狗据此从"150ms 抢杀"切换到
+        //   让路窗口（≤8s 等本呈现 + 呈现后 ≤120s 等用户读完），HMCL 式崩溃
+        //   分析首次真正有机会展示（装机 f71c88b：看门狗 150ms _exit 抢杀 =
+        //   "启动器直接闪退"病灶）。
+        ame273_crashViewDidPresent();
+        // ★ Task274-g（G5）：呈现成功即消费报告文件（归档改名）——L2 已把崩溃
+        //   原因展示给用户，报告留盘会让下次启动 L3 补弹同一崩溃。
+        ame274_archiveCrashReportAfterL2Present();
     });
 }
 
@@ -148,7 +213,11 @@ static NSString *const kGitHubIssuesURL = @"https://github.com/herbrine8403/Amet
 - (void)viewDidLayoutSubviews {
     [super viewDidLayoutSubviews];
     // 根据屏幕高度动态调整日志卡片高度，避免小屏挤压按钮或大屏浪费空间
-    [self adjustLogCardHeight];
+    // ★ Task263：展开态由 ame263_applyLogExpansion 独占高度控制权，
+    //   布局回写不再覆盖（否则一布局展开态就被打回定高）。
+    if (!self.ame263_logExpanded) {
+        [self adjustLogCardHeight];
+    }
     // 更新错误卡片顶部红色 accent 条的 frame
     if (_accentGradientLayer) {
         _accentGradientLayer.frame = CGRectMake(0, 0, _errorCardView.bounds.size.width, 2);
@@ -559,8 +628,8 @@ static NSString *const kGitHubIssuesURL = @"https://github.com/herbrine8403/Amet
             [result addObject:@{@"icon": @"arrow.clockwise", @"text": localize(@"crash.suggestion.oom_restart", @"重启启动器后重试（释放内存碎片）")}];
             break;
         case CrashTypeSegfault:
-            [result addObject:@{@"icon": @"cpu", @"text": localize(@"crash.suggestion.segfault_renderer", @"尝试切换渲染器（gl4es / MetalGlues / virgil）")}];
-            [result addObject:@{@"icon": @"shield", @"text": localize(@"crash.suggestion.segfault_jit", @"确保 JIT 已启用（TrollStore/SideStore + JIT 权限）")}];
+            [result addObject:@{@"icon": @"cpu", @"text": localize(@"crash.suggestion.segfault_renderer", @"尝试切换渲染器（MobileGlues / Zink / MoltenVK / ANGLE / VirGL）")}];
+            [result addObject:@{@"icon": @"shield", @"text": localize(@"crash.suggestion.segfault_jit", @"确保 JIT 已启用（设置→调试：自动/StikDebug/SideStore/StosDebug/JitStreamer-EB/TrollStore/手动）")}];
             [result addObject:@{@"icon": @"arrow.clockwise", @"text": localize(@"crash.suggestion.segfault_restart", @"重启启动器后重试")}];
             break;
         case CrashTypeAbort:
@@ -579,7 +648,7 @@ static NSString *const kGitHubIssuesURL = @"https://github.com/herbrine8403/Amet
             [result addObject:@{@"icon": @"wifi", @"text": localize(@"crash.suggestion.missinglib_network", @"检查网络连接，确保下载源可访问")}];
             break;
         case CrashTypeMissingMods:
-            [result addObject:@{@"icon": @"arrow.clockwise.circle", @"text": [NSString stringWithFormat:localize(@"ame193.crash.1", @"删除该实例并重新导入整合包（建议换个下载源重试）%@"), self.ame95_missingModNames.count > 0 ? [NSString stringWithFormat:@"——重点确认：%@", [self.ame95_missingModNames componentsJoinedByString:@"、"]] : @""]}];
+            [result addObject:@{@"icon": @"arrow.clockwise.circle", @"text": [NSString stringWithFormat:localize(@"ame193.crash.1", @"删除该实例并重新导入整合包（建议换个下载源重试）%@"), self.ame95_missingModNames.count > 0 ? [NSString stringWithFormat:localize(@"ame193.crash.2", @"——重点确认：%@"), [self.ame95_missingModNames componentsJoinedByString:@"、"]] : @""]}];
             [result addObject:@{@"icon": @"square.and.pencil", @"text": localize(@"crash.suggestion.missingmods_manual", @"或在 Mod 管理器中手动补齐缺失的 mod（版本需与整合包要求一致）")}];
             if (self.ame95_overriddenEvidence.length > 0) {
                 [result addObject:@{@"icon": @"eye.slash", @"text": localize(@"crash.suggestion.missingmods_override", @"日志显示依赖检查被覆盖（Dependencies overridden），它会让缺失 mod 逃避报错直到运行时崩溃；修复后可删掉 config/fabric-loader.json 里的 dependencyOverrides 条目")}];
@@ -591,7 +660,7 @@ static NSString *const kGitHubIssuesURL = @"https://github.com/herbrine8403/Amet
             [result addObject:@{@"icon": @"info.circle", @"text": localize(@"crash.suggestion.javaver_check", @"检查游戏版本要求的 Java 版本")}];
             break;
         case CrashTypeRendererError:
-            [result addObject:@{@"icon": @"cpu", @"text": localize(@"crash.suggestion.renderer_switch", @"尝试切换渲染器：gl4es / MetalGlues / virgil")}];
+            [result addObject:@{@"icon": @"cpu", @"text": localize(@"crash.suggestion.renderer_switch", @"尝试切换渲染器：MobileGlues / Zink / MoltenVK / ANGLE / VirGL")}];
             [result addObject:@{@"icon": @"eye.slash", @"text": localize(@"crash.suggestion.renderer_shader", @"禁用光影包后重试")}];
             [result addObject:@{@"icon": @"arrow.down.circle", @"text": localize(@"crash.suggestion.renderer_resolution", @"降低游戏分辨率缩放比例")}];
             break;
@@ -599,6 +668,14 @@ static NSString *const kGitHubIssuesURL = @"https://github.com/herbrine8403/Amet
             [result addObject:@{@"icon": @"trash", @"text": localize(@"crash.suggestion.modload_remove", @"移除问题 Mod（查看日志中的错误行）")}];
             [result addObject:@{@"icon": @"arrow.clockwise.circle", @"text": localize(@"crash.suggestion.modload_update", @"更新 Mod 加载器（Forge/Fabric/OptiFine）")}];
             [result addObject:@{@"icon": @"info.circle", @"text": localize(@"crash.suggestion.modload_version", @"检查 Mod 是否支持当前 MC 版本")}];
+            break;
+        case CrashTypeModIncompatible:
+            // ★ Task263：Fabric 自带的人话方案行直接作为首条建议（若解析到）
+            if (self.ame263_incompatSummary.length > 0) {
+                [result addObject:@{@"icon": @"wand.and.stars", @"text": [NSString stringWithFormat:localize(@"crash.suggestion.incompat_fabric_plan", @"按 Fabric 给出的方案：%@"), self.ame263_incompatSummary]}];
+            }
+            [result addObject:@{@"icon": @"puzzlepiece", @"text": localize(@"crash.suggestion.incompat_align", @"在 Mod 管理中把报告点名的 mod 更新/降级到匹配版本，或移除多余一方")}];
+            [result addObject:@{@"icon": @"clock.arrow.circlepath", @"text": localize(@"crash.suggestion.incompat_pack_update", @"整合包更新后新旧 mod 混装常见此崩：以报告列出的版本对为准")}];
             break;
         case CrashTypeJavaException:
             [result addObject:@{@"icon": @"doc.text", @"text": localize(@"crash.suggestion.java_log", @"查看完整日志定位异常堆栈")}];
@@ -730,6 +807,118 @@ static NSString *const kGitHubIssuesURL = @"https://github.com/herbrine8403/Amet
     return YES;
 }
 
+/// ★ Task263：Fabric mod 不兼容检测（装机日志 1015 23:36:58 实证：
+/// reeses-sodium-options 2.2.5 要求 sodium 0.9.2，实装 0.9.3-alpha.1 →
+/// FormattedException → exit(1)，旧分析链只给"Mod 加载失败"一句泛话 =
+/// 用户投诉的"上游的简略问题分析"。Fabric 自己已给出人话方案行，本解析
+/// 把它原样搬上错误卡片。）
+///
+/// 触发词（任一）："Some of your mods are incompatible with the game or
+/// each other!"（FormattedException 头）/ "Incompatible mods found!"（日志
+/// 行）。采集范围：触发行到堆栈首行（"\tat "）或空 20 行窗口内，凡
+/// " - " 开头的方案/细节行 + "A potential solution"/"More details:" 导语。
+/// 产物：
+///   * ame263_incompatSummary —— 第一条 " - Replace mod ..." 方案行
+///   * crashDetail —— 导语 + 方案行 + 细节行（封顶 10 行，防错误卡爆版）
+/// 返回 YES 表示已识别并定型（analyzeCrashType 直接返回）。
+- (BOOL)ame263_detectFabricIncompatibleFromLog:(NSString *)logContent lowerLog:(NSString *)lowerLog {
+    if (logContent.length == 0) return NO;
+    NSArray<NSString *> *lines = [logContent componentsSeparatedByCharactersInSet:[NSCharacterSet newlineCharacterSet]];
+    NSInteger triggerIdx = -1;
+    for (NSInteger i = 0; i < (NSInteger)lines.count; i++) {
+        NSString *l = lines[i];
+        if ([l containsString:@"Some of your mods are incompatible with the game or each other"] ||
+            [l containsString:@"Incompatible mods found!"]) {
+            triggerIdx = i;
+            break;
+        }
+    }
+    if (triggerIdx < 0) return NO;
+
+    NSMutableArray<NSString *> *collected = [NSMutableArray array];
+    NSString *summary = nil;
+    for (NSInteger i = triggerIdx; i < (NSInteger)lines.count && collected.count < 10; i++) {
+        NSString *raw = lines[i];
+        NSString *l = [raw stringByTrimmingCharactersInSet:[NSCharacterSet whitespaceAndNewlineCharacterSet]];
+        if (l.length == 0) break;
+        if ([l hasPrefix:@"\tat "] || [raw hasPrefix:@"\tat "]) break;   // Java 堆栈开始
+        BOOL keep = [l hasPrefix:@"- "] || [l hasPrefix:@" - "] ||
+                    [l containsString:@"A potential solution"] ||
+                    [l containsString:@"More details:"] ||
+                    [l containsString:@"Some of your mods are incompatible"];
+        if (!keep) continue;
+        // 堆栈行形态的异常头（"net.fabricmc.loader.impl.FormattedException: ..."）只取冒号后人话段
+        if ([l containsString:@"FormattedException:"]) {
+            NSRange c = [l rangeOfString:@":"];
+            if (c.location != NSNotFound && c.location + 1 < l.length) {
+                l = [[l substringFromIndex:c.location + 1] stringByTrimmingCharactersInSet:[NSCharacterSet whitespaceCharacterSet]];
+            }
+        }
+        if (l.length == 0 || l.length > 300) continue;
+        if (![collected containsObject:l]) [collected addObject:l];
+        // 方案行 = Fabric 给出的人话修复建议（" - Replace mod 'X' ... with version Y."）
+        if (summary == nil && [l containsString:@"Replace mod '"]) summary = l;
+    }
+    if (collected.count == 0) return NO;
+
+    self.crashType = CrashTypeModIncompatible;
+    self.ame263_incompatSummary = summary;
+    self.crashDetail = [collected componentsJoinedByString:@"\n"];
+    return YES;
+}
+
+/// ★ Task263：Minecraft 原生崩溃报告解析（"---- Minecraft Crash Report ----"
+/// 块——游戏内崩溃（mod 冲突/世界加载/渲染异常）MC 自带人话报告，旧链
+/// 只做关键词分型丢掉了 Description 与 Caused by 链）。采集 Description
+/// 行 + 首个异常行 + 前 2 条 "Caused by" + 头部注释（"// " 开头的诊断语）。
+- (BOOL)ame263_extractMinecraftCrashReportFromLog:(NSString *)logContent {
+    if (logContent.length == 0) return NO;
+    NSRange report = [logContent rangeOfString:@"---- Minecraft Crash Report ----"];
+    if (report.location == NSNotFound) return NO;
+    NSArray<NSString *> *lines = [logContent componentsSeparatedByCharactersInSet:[NSCharacterSet newlineCharacterSet]];
+    // 定位报告头所在行
+    NSInteger start = -1;
+    NSUInteger consumed = 0;
+    for (NSInteger i = 0; i < (NSInteger)lines.count; i++) {
+        consumed += lines[i].length + 1;
+        if (consumed >= report.location + report.length) { start = i; break; }
+    }
+    if (start < 0) return NO;
+
+    NSString *description = nil;
+    NSMutableArray<NSString *> *exceptions = [NSMutableArray array];
+    NSString *comment = nil;
+    for (NSInteger i = start + 1; i < (NSInteger)lines.count && (description == nil || exceptions.count < 3 || comment == nil); i++) {
+        NSString *l = [lines[i] stringByTrimmingCharactersInSet:[NSCharacterSet whitespaceCharacterSet]];
+        if ([l hasPrefix:@"-- Head --"]) break;   // 进入堆栈细节区，收手
+        if (description == nil && [l hasPrefix:@"Description:"]) description = l;
+        if (comment == nil && [l hasPrefix:@"// "]) comment = l;
+        if (exceptions.count < 3 && l.length > 0 &&
+            ([l containsString:@"Exception"] || [l containsString:@"Error"]) &&
+            ![l hasPrefix:@"#"] && ![l hasPrefix:@"//"] &&
+            [l rangeOfString:@":"].location != NSNotFound && l.length < 260) {
+            BOOL dup = NO;
+            for (NSString *e in exceptions) if ([e isEqualToString:l]) { dup = YES; break; }
+            if (!dup) [exceptions addObject:l];
+        }
+        if ([l hasPrefix:@"Description:"] || description != nil) {
+            // Description 后紧跟异常块；异常收满 3 条且 Description 已得即可停
+            if (description != nil && exceptions.count >= 3) break;
+        }
+    }
+    if (description == nil && exceptions.count == 0) return NO;
+
+    NSMutableString *detail = [NSMutableString string];
+    if (description.length > 0) [detail appendFormat:@"%@\n", description];
+    for (NSString *e in exceptions) [detail appendFormat:@"  %@\n", e];
+    if (comment.length > 0) [detail appendFormat:@"%@", comment];
+    if (detail.length == 0) return NO;
+
+    self.crashType = CrashTypeJavaException;
+    self.crashDetail = [detail copy];
+    return YES;
+}
+
 /// 分析崩溃类型（基于 exitCode 和日志关键词）
 ///
 /// 参照 HMCL 的崩溃分析器，通过 exitCode 和日志中的异常关键词，
@@ -752,6 +941,13 @@ static NSString *const kGitHubIssuesURL = @"https://github.com/herbrine8403/Amet
     if ([self isOOMCrash]) {
         self.crashType = CrashTypeOOM;
         self.crashDetail = [self extractLineContaining:@"outofmemory" fromLog:lowerLog] ?: [self extractLineContaining:@"cannot allocate" fromLog:lowerLog];
+        return;
+    }
+
+    // ★ Task263 2.5：Fabric mod 不兼容（FormattedException 人话方案块）——
+    //   必须先于一切泛化关键词：本块自带权威修复方案，被泛化分支抢先
+    //   定型为"Mod 加载失败"就丢掉了方案行（装机日志 1015 实证路径）。
+    if ([self ame263_detectFabricIncompatibleFromLog:logContent lowerLog:lowerLog]) {
         return;
     }
 
@@ -806,6 +1002,13 @@ static NSString *const kGitHubIssuesURL = @"https://github.com/herbrine8403/Amet
         return;
     }
 
+    // ★ Task263 5.5：MC 原生崩溃报告（"---- Minecraft Crash Report ----"）
+    //   ——Description + 异常链原样上卡（游戏内崩溃的人话报告，优先于
+    //   泛化关键词，避免被 "fabric+error" 之类误抢定型）。
+    if ([self ame263_extractMinecraftCrashReportFromLog:logContent]) {
+        return;
+    }
+
     // 缺失库
     if ([lowerLog containsString:@"unsatisfiedlinkerror"] || [lowerLog containsString:@"noclassdeffounderror"] ||
         [lowerLog containsString:@"filenotfoundexception"] && [lowerLog containsString:@"library"]) {
@@ -850,6 +1053,89 @@ static NSString *const kGitHubIssuesURL = @"https://github.com/herbrine8403/Amet
     // 兜底：未知
     self.crashType = CrashTypeUnknown;
     self.crashDetail = nil;
+
+    // ★ Task267：Prisma 详细错误分析器（CrashAnalyzer）hs_err 分型融合。
+    //   退出码语义弱（JVM fatal 常以 exit(1) 出现、Task208 直死不落码），
+    //   而 hs_err 是 JVM 自落的信号级铁证——分类完统一拉一次对账。
+    [self ame267_refineWithHsErr];
+}
+
+/// ★ Task267：hs_err_pid*.log 结构化分型融合（自研 CrashAnalyzer，
+///   Task217/218 渲染器自学的同一引擎；此前本页只把 hs_err 头 4KB 当
+///   文本证据，丢掉了分型结果 = "没有我们项目的详细错误分析器"的缺口）。
+///   融合策略（保守精化，不推翻已有分类）：
+///   - hs_err 命中 isOOM → OOM 优先（JVM OOM 常以 exit(1) 呈现，退出码
+///     路径漏判；OOM 不记渲染器的锅，与 Task217/218 口径一致）；
+///   - 信号级死亡且命中渲染器家族库 → RendererError，detail 带
+///     Problematic frame / 归因库 / native 帧摘要（详细分析直接可见）；
+///   - 无归因的信号 → 仅当原分类为 Unknown/Segfault/Abort 时按信号精化；
+///   - 无 hs_err（FastQuit/SIGKILL）零动作，维持原分类。
+- (void)ame267_refineWithHsErr {
+    if (_exitCode == 0) return;
+    const char *ame267_homeC = getenv("POJAV_HOME");
+    NSString *ame267_home = ame267_homeC ? [NSString stringWithUTF8String:ame267_homeC] : nil;
+    if (ame267_home.length == 0) return;
+    // 扫 mtime 最新的 hs_err_pid*.log（JavaLauncher ame217 同款口径；
+    // Task27 已把 -XX:ErrorFile 定向到 POJAV_HOME 根，浅扫描即可）。
+    NSFileManager *ame267_fm = [NSFileManager defaultManager];
+    NSArray *ame267_files = [ame267_fm contentsOfDirectoryAtPath:ame267_home error:nil];
+    NSString *ame267_best = nil;
+    NSDate *ame267_bestDate = nil;
+    for (NSString *ame267_f in ame267_files) {
+        if (![ame267_f hasPrefix:@"hs_err_pid"] || ![ame267_f hasSuffix:@".log"]) continue;
+        NSString *ame267_path = [ame267_home stringByAppendingPathComponent:ame267_f];
+        NSDate *ame267_d = [[ame267_fm attributesOfItemAtPath:ame267_path error:nil]
+            fileModificationDate];
+        if (ame267_d && (!ame267_bestDate || [ame267_d compare:ame267_bestDate] == NSOrderedDescending)) {
+            ame267_bestDate = ame267_d;
+            ame267_best = ame267_path;
+        }
+    }
+    if (ame267_best.length == 0) return;
+    NSDictionary *ame267_r = [CrashAnalyzer analyzeHsErrFile:ame267_best];
+    if (ame267_r.count == 0) return;
+    self.ame267_hsErr = ame267_r;
+
+    BOOL ame267_oom = [ame267_r[@"isOOM"] boolValue];
+    NSString *ame267_signal = ame267_r[@"signal"] ?: @"";
+    NSString *ame267_blamed = ame267_r[@"blamedRenderer"] ?: @"";
+    NSString *ame267_pf = ame267_r[@"problematicFrame"] ?: @"";
+    NSString *ame267_nf = ame267_r[@"nativeFrames"] ?: @"";
+    BOOL ame267_isSignalDeath = [ame267_signal hasPrefix:@"SIG"] &&
+                                ![ame267_signal isEqualToString:@"(unknown)"];
+
+    // 结构化诊断摘要（走 crashDetail 槽位，与 extractLine 产物同位展示）。
+    NSMutableString *ame267_diag = [NSMutableString string];
+    if (ame267_pf.length > 0) [ame267_diag appendFormat:@"Problematic frame: %@", ame267_pf];
+    if (ame267_blamed.length > 0) {
+        if (ame267_diag.length > 0) [ame267_diag appendString:@"\n"];
+        [ame267_diag appendFormat:@"CrashAnalyzer 归因：%@（渲染器层库）", ame267_blamed];
+    }
+    if (ame267_nf.length > 0) {
+        if (ame267_diag.length > 0) [ame267_diag appendString:@"\n"];
+        [ame267_diag appendFormat:@"native 帧：%@", ame267_nf];
+    }
+    if (ame267_diag.length == 0) return;   // hs_err 无可融合结论，维持原分类
+
+    if (ame267_oom) {
+        self.crashType = CrashTypeOOM;
+        if (self.crashDetail.length == 0) self.crashDetail = [ame267_diag copy];
+        NSLog(@"[PLCrashView] Task267: hs_err refined -> OOM (CrashAnalyzer)");
+        return;
+    }
+    if (ame267_isSignalDeath && ame267_blamed.length > 0) {
+        self.crashType = CrashTypeRendererError;
+        if (self.crashDetail.length == 0) self.crashDetail = [ame267_diag copy];
+        NSLog(@"[PLCrashView] Task267: hs_err refined -> RendererError (blamed %@)", ame267_blamed);
+        return;
+    }
+    if (ame267_isSignalDeath &&
+        (self.crashType == CrashTypeUnknown || self.crashType == CrashTypeSegfault ||
+         self.crashType == CrashTypeAbort)) {
+        self.crashType = [ame267_signal containsString:@"ABRT"] ? CrashTypeAbort : CrashTypeSegfault;
+        if (self.crashDetail.length == 0) self.crashDetail = [ame267_diag copy];
+        NSLog(@"[PLCrashView] Task267: hs_err refined -> %ld (%@)", (long)self.crashType, ame267_signal);
+    }
 }
 
 /// 从日志中提取包含指定关键词的第一行（用于崩溃详情展示）
@@ -1023,6 +1309,12 @@ static NSString *const kGitHubIssuesURL = @"https://github.com/herbrine8403/Amet
 }
 
 - (void)adjustLogCardHeight {
+    self.logCardHeightConstraint.constant = [self ame263_baseLogCardHeight];
+}
+
+/// ★ Task263：收起态基准高度（原 adjustLogCardHeight 的屏幕分档逻辑，
+///   展开/收起切换共用）。
+- (CGFloat)ame263_baseLogCardHeight {
     CGFloat screenHeight = self.view.bounds.size.height;
     // 根据屏幕高度调整日志卡片高度：
     //   小屏幕（iPhone SE）日志区较矮，给按钮留空间
@@ -1035,54 +1327,97 @@ static NSString *const kGitHubIssuesURL = @"https://github.com/herbrine8403/Amet
     } else {
         logHeight = 300;
     }
-    self.logCardHeightConstraint.constant = logHeight;
+    return logHeight;
 }
 
 #pragma mark - Log Content
 
+/// Task274-g（G8）：只读文件尾部 maxBytes 字节（文件不足则整读），失败/空返回 nil。
+/// 供崩溃界面日志卡展示——崩溃时 latestlog 可达数 MB，主线程整读会拖住
+/// PLCrashView 呈现 8s 让路窗口（Task273 看门狗让路协议）。
+static NSString *ame274_readFileTail(NSString *path, NSUInteger maxBytes) {
+    if (path.length == 0) return nil;
+    NSFileManager *fm = [NSFileManager defaultManager];
+    NSDictionary *attrs = [fm attributesOfItemAtPath:path error:nil];
+    unsigned long long size = attrs ? [attrs fileSize] : 0;
+    if (size == 0) return nil;
+    NSFileHandle *fh = [NSFileHandle fileHandleForReadingAtPath:path];
+    if (!fh) return nil;
+    @try {
+        if (size > maxBytes) [fh seekToFileOffset:size - maxBytes];
+        NSData *logData = [fh readDataToEndOfFile];
+        [fh closeFile];
+        if (logData.length == 0) return nil;
+        NSString *s = [[NSString alloc] initWithData:logData encoding:NSUTF8StringEncoding];
+        // Task274-r1: NSString 无 initWithData:encoding:allowLossyConversion:（CI 实编译抓出）；
+        // 恒不失败的换码回退用 NSISOLatin1StringEncoding（单字节全映射，永不返回 nil）。
+        if (!s) s = [[NSString alloc] initWithData:logData encoding:NSISOLatin1StringEncoding];
+        return s;
+    } @catch (NSException *ame274_e) {
+        [fh closeFile];
+        return nil;
+    }
+}
+
 - (void)loadLogContent {
+    // ★ Task274-g（G8）：主线程同步整读 latestlog.txt（崩溃时数 MB）拖住崩溃呈现
+    //   8s 让路窗口——改后台队列只读尾部 4KB 回主线程塞 textView；
+    //   空文件/读失败回落现状占位行为（fatal_trace 尾窗同法）。
     NSString *latestlogPath = [NSString stringWithFormat:@"%s/latestlog.txt", getenv("POJAV_HOME")];
-    NSString *logContent = [NSString stringWithContentsOfFile:latestlogPath encoding:NSUTF8StringEncoding error:nil];
-
-    if (!logContent || logContent.length == 0) {
-        _logTextView.text = nil;
-        _logPlaceholderLabel.hidden = NO;
-        return;
-    }
-
-    // 获取最后150行
-    NSArray *lines = [logContent componentsSeparatedByCharactersInSet:[NSCharacterSet newlineCharacterSet]];
-    NSInteger startIndex = MAX(0, (NSInteger)lines.count - 150);
-    NSMutableArray *lastLines = [NSMutableArray array];
-    for (NSInteger i = startIndex; i < (NSInteger)lines.count; i++) {
-        NSString *line = lines[i];
-        if (line.length > 0) {
-            [lastLines addObject:line];
-        }
-    }
-
-    _logTextView.text = [lastLines componentsJoinedByString:@"\n"];
-
-    // Task 27：日志尾部可能在死亡竞争中丢失（Task 26 教训），把 fatal_trace.txt
-    // 尾部追加显示（若存在）——这是错误界面上唯一直接可见的死亡现场
     NSString *tracePath = [NSString stringWithFormat:@"%s/fatal_trace.txt", getenv("POJAV_HOME")];
-    NSString *trace = [NSString stringWithContentsOfFile:tracePath encoding:NSUTF8StringEncoding error:nil];
-    if (trace.length > 0) {
-        NSArray *traceLines = [trace componentsSeparatedByCharactersInSet:[NSCharacterSet newlineCharacterSet]];
-        NSInteger tStart = MAX(0, (NSInteger)traceLines.count - 40);
-        NSMutableArray *traceTail = [NSMutableArray arrayWithObject:@"----- fatal_trace.txt (tail) -----"];
-        for (NSInteger i = tStart; i < (NSInteger)traceLines.count; i++) {
-            NSString *tl = traceLines[i];
-            if (tl.length > 0) [traceTail addObject:tl];
+    __weak typeof(self) weakSelf = self;
+    dispatch_async(dispatch_get_global_queue(QOS_CLASS_USER_INITIATED, 0), ^{
+        NSString *logContent = ame274_readFileTail(latestlogPath, 4096);
+        if (logContent.length == 0) {
+            // 空文件/读失败：回落现状行为（占位提示；不追加 fatal_trace，同旧口径）
+            dispatch_async(dispatch_get_main_queue(), ^{
+                __strong typeof(self) strongSelf = weakSelf;
+                if (!strongSelf) return;
+                strongSelf.logTextView.text = nil;
+                strongSelf.logPlaceholderLabel.hidden = NO;
+            });
+            return;
         }
-        _logTextView.text = [_logTextView.text stringByAppendingFormat:@"\n%@", [traceTail componentsJoinedByString:@"\n"]];
-    }
 
-    _logPlaceholderLabel.hidden = _logTextView.text.length > 0;
+        // 尾窗首行可能是截断残行（仅尾读时）：裁掉后取最后 150 行（同旧语义）
+        NSArray *lines = [logContent componentsSeparatedByCharactersInSet:[NSCharacterSet newlineCharacterSet]];
+        NSDictionary *attrs = [[NSFileManager defaultManager] attributesOfItemAtPath:latestlogPath error:nil];
+        NSUInteger firstIdx = (attrs && [attrs fileSize] > 4096) ? 1 : 0;
+        NSInteger startIndex = MAX((NSInteger)firstIdx, (NSInteger)lines.count - 150);
+        NSMutableArray *lastLines = [NSMutableArray array];
+        for (NSInteger i = startIndex; i < (NSInteger)lines.count; i++) {
+            NSString *line = lines[i];
+            if (line.length > 0) {
+                [lastLines addObject:line];
+            }
+        }
+        NSMutableString *logText =
+            [NSMutableString stringWithString:[lastLines componentsJoinedByString:@"\n"]];
 
-    // 滚动到底部
-    dispatch_async(dispatch_get_main_queue(), ^{
-        [self.logTextView scrollRangeToVisible:NSMakeRange(self.logTextView.text.length, 0)];
+        // Task 27：日志尾部可能在死亡竞争中丢失（Task 26 教训），把 fatal_trace.txt
+        // 尾部追加显示（若存在）——这是错误界面上唯一直接可见的死亡现场
+        NSString *trace = ame274_readFileTail(tracePath, 4096);
+        if (trace.length > 0) {
+            NSArray *traceLines = [trace componentsSeparatedByCharactersInSet:[NSCharacterSet newlineCharacterSet]];
+            NSDictionary *tAttrs = [[NSFileManager defaultManager] attributesOfItemAtPath:tracePath error:nil];
+            NSUInteger tFirst = (tAttrs && [tAttrs fileSize] > 4096) ? 1 : 0;
+            NSInteger tStart = MAX((NSInteger)tFirst, (NSInteger)traceLines.count - 40);
+            NSMutableArray *traceTail = [NSMutableArray arrayWithObject:@"----- fatal_trace.txt (tail) -----"];
+            for (NSInteger i = tStart; i < (NSInteger)traceLines.count; i++) {
+                NSString *tl = traceLines[i];
+                if (tl.length > 0) [traceTail addObject:tl];
+            }
+            [logText appendFormat:@"\n%@", [traceTail componentsJoinedByString:@"\n"]];
+        }
+
+        dispatch_async(dispatch_get_main_queue(), ^{
+            __strong typeof(self) strongSelf = weakSelf;
+            if (!strongSelf) return;
+            strongSelf.logTextView.text = logText;
+            strongSelf.logPlaceholderLabel.hidden = strongSelf.logTextView.text.length > 0;
+            // 滚动到底部
+            [strongSelf.logTextView scrollRangeToVisible:NSMakeRange(strongSelf.logTextView.text.length, 0)];
+        });
     });
 }
 
@@ -1096,7 +1431,11 @@ static NSString *const kGitHubIssuesURL = @"https://github.com/herbrine8403/Amet
     static dispatch_once_t onceToken;
     dispatch_once(&onceToken, ^{
         NSString *latestlogPath = [NSString stringWithFormat:@"%s/latestlog.txt", getenv("POJAV_HOME")];
-        cachedLog = [NSString stringWithContentsOfFile:latestlogPath encoding:NSUTF8StringEncoding error:nil] ?: @"";
+        // ★ Task275（P1-b2）：分析读改 256KB 尾窗（ame273_writeCrashReport 同口径）——
+        //   原主线程整读数 MB 日志，后续 containsString/全文 split O(n)×N 次，大日志卡
+        //   主线程数秒即可击穿 Task273 的 8s 让路窗（最重崩溃时崩溃界面反而出不来，
+        //   只剩 L3 补弹）。崩溃归因关键证据（异常链/at exit）集中于日志尾部。
+        cachedLog = ame274_readFileTail(latestlogPath, 256 * 1024) ?: @"";
         NSString *extra = [PLCrashView fatalEvidenceText];
         if (extra.length > 0) {
             cachedLog = [cachedLog stringByAppendingFormat:@"\n%@", extra];
@@ -1206,10 +1545,21 @@ static NSString *const kGitHubIssuesURL = @"https://github.com/herbrine8403/Amet
             reason = localize(@"crash.reason.java_version", @"Java 版本不匹配（UnsupportedClassVersionError）");
             break;
         case CrashTypeRendererError:
-            reason = localize(@"crash.reason.renderer", @"渲染器错误（OpenGL/Metal/EGL 初始化失败）");
+            reason = localize(@"crash.reason.renderer", @"渲染器错误（OpenGL/Vulkan/EGL 初始化失败）");
+            // ★ Task267：hs_err 归因到具体渲染器库时点名展示。
+            if (self.ame267_hsErr[@"blamedRenderer"] &&
+                [self.ame267_hsErr[@"blamedRenderer"] isKindOfClass:NSString.class] &&
+                [(NSString *)self.ame267_hsErr[@"blamedRenderer"] length] > 0) {
+                reason = [NSString stringWithFormat:@"%@（CrashAnalyzer 归因：%@）",
+                          reason, self.ame267_hsErr[@"blamedRenderer"]];
+            }
             break;
         case CrashTypeModLoadingFailure:
             reason = localize(@"crash.reason.mod_loading", @"Mod 加载失败（Forge/Fabric/OptiFine 加载错误）");
+            break;
+        case CrashTypeModIncompatible:
+            // ★ Task263：不兼容类型的原因行只报事实，细节与方案在 crashDetail
+            reason = localize(@"crash.reason.mod_incompatible", @"Mod 版本不兼容（多个 mod 对同一依赖的版本要求冲突，或 mod 与 MC/加载器版本不匹配）");
             break;
         case CrashTypeJavaException:
             reason = localize(@"crash.reason.java_exception", nil);
@@ -1262,10 +1612,77 @@ static NSString *const kGitHubIssuesURL = @"https://github.com/herbrine8403/Amet
 }
 
 - (void)showFullLog {
-    // 显示完整的 PLLogOutputView
-    if ([SurfaceViewController currentInstance]) {
-        [[SurfaceViewController currentInstance].logOutputView actionToggleLogOutput];
+    // ★ Task263（反馈 2 装机实证："点击查看日志详细按钮会退出到桌面，
+    //   打开 app 发现在等待 mc 启动画面"）：旧实现转调 PLLogOutputView
+    //   actionToggleLogOutput —— 该方法带上游 fatal 语义（fatalErrorOccurred
+    //   时 [UIApplication suspend] + dispatch_group_leave）：suspend 把 app
+    //   送回桌面，leave 唤醒 handle_fatal_exit 的 park 线程继续 orig_exit
+    //   终结进程 = 点"查看日志详情"得到退到桌面；重开时残留会话停在
+    //   启动等待画面。Task275 的先 dismiss 再 toggle 修了"点了没反应"，
+    //   但 fatal suspend 死路仍在。根修：不再触碰 PLLogOutputView，改为
+    //   崩溃页内自展开（日志卡定高 → 近全屏 + 完整日志尾部，按钮变
+    //   "收起日志"），两个问题一起根除。
+    self.ame263_logExpanded = !self.ame263_logExpanded;
+    [self ame263_applyLogExpansion];
+}
+
+/// ★ Task263：日志卡展开/收起（高度动画 + 完整日志装载 + 按钮文案切换）。
+///   展开态由本方法独占 logCardHeightConstraint 控制权（viewDidLayoutSubviews
+///   已加守卫），高度不再被布局回写打回定高。
+- (void)ame263_applyLogExpansion {
+    BOOL expand = self.ame263_logExpanded;
+    CGFloat target = expand
+        ? MAX(self.view.bounds.size.height * 0.72, 420.0)
+        : [self ame263_baseLogCardHeight];
+    self.logCardHeightConstraint.constant = target;
+    // ★ Task263 ⑥：双 localize 直调（不写三元内联——三元式调用曾逃过
+    //   task248 闸1 静态扫描，crash.collapse_log 一度从未入表）。
+    NSString *ame263_buttonTitle = expand
+        ? localize(@"crash.collapse_log", @"收起日志")
+        : localize(@"crash.view_log", @"查看日志详情");
+    [_fullLogButton setTitle:ame263_buttonTitle forState:UIControlStateNormal];
+    if (expand) {
+        [self ame263_loadFullLogContent];
+    } else {
+        [self loadLogContent];   // 收起恢复摘要（尾读 150 行 + fatal_trace 尾）
     }
+    [UIView animateWithDuration:0.25 delay:0
+                        options:UIViewAnimationOptionBeginFromCurrentState | UIViewAnimationOptionCurveEaseInOut
+                     animations:^{ [self.view layoutIfNeeded]; } completion:nil];
+    // 展开后滚到底部（最新日志在尾部）
+    if (expand && self.logTextView.text.length > 0) {
+        dispatch_async(dispatch_get_main_queue(), ^{
+            [self.logTextView scrollRangeToVisible:NSMakeRange(self.logTextView.text.length, 0)];
+        });
+    }
+    NSLog(@"[PLCrashView] Task263: full log %s (in-place, no suspend path)", expand ? "expanded" : "collapsed");
+}
+
+/// ★ Task263：完整日志装载（展开态）：latestlog 尾窗 256KB + fatal_trace
+///   全量 + hs_err 头 4KB（复用 Task274 ame274_readFileTail 尾读与
+///   +fatalEvidenceText 同源证据链——主线程点按钮不做数 MB 整读）。
+- (void)ame263_loadFullLogContent {
+    NSMutableString *out = [NSMutableString string];
+    NSString *latestlogPath = [NSString stringWithFormat:@"%s/latestlog.txt", getenv("POJAV_HOME")];
+    NSString *logContent = ame274_readFileTail(latestlogPath, 256 * 1024);
+    if (logContent.length > 0) {
+        NSArray *lines = [logContent componentsSeparatedByCharactersInSet:[NSCharacterSet newlineCharacterSet]];
+        NSDictionary *attrs = [[NSFileManager defaultManager] attributesOfItemAtPath:latestlogPath error:nil];
+        NSUInteger firstIdx = (attrs && [attrs fileSize] > 256 * 1024) ? 1 : 0;   // 尾窗首行截断残行裁掉
+        [out appendString:@"----- latestlog.txt (tail) -----\n"];
+        for (NSUInteger i = firstIdx; i < lines.count; i++) {
+            [out appendFormat:@"%@\n", lines[i]];
+        }
+    } else {
+        [out appendString:@"(latestlog.txt 为空或不可读)\n"];   // task250 口径：不裸上键名
+    }
+    // fatal_trace.txt 全量 + 最新 hs_err 头 4KB（与 readLatestLogForAnalysis 同源）
+    NSString *extra = [PLCrashView fatalEvidenceText];
+    if (extra.length > 0) {
+        [out appendString:extra];
+    }
+    self.logTextView.text = out;
+    _logPlaceholderLabel.hidden = out.length > 0;
 }
 
 - (void)openGitHubIssues {
@@ -1309,6 +1726,8 @@ static NSString *const kGitHubIssuesURL = @"https://github.com/herbrine8403/Amet
 
     [self dismissViewControllerAnimated:YES completion:^{
         currentCrashVC = nil;
+        // ★ Task273：用户主动关闭崩溃界面握手 —— 看门狗读后即刻 _exit。
+        ame273_crashViewDidDismiss();
     }];
 }
 

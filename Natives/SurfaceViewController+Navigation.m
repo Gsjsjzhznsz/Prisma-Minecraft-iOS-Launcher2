@@ -49,6 +49,14 @@ static const void *kAme247RefreshLinkKey = &kAme247RefreshLinkKey;
 /// ★ Task252：TG LegacyGlassView 配方玻璃面板（玻璃家族档 + 支持时接管
 ///   快照磨砂/材质层/描边；快照供料模式由既有 8Hz 机制持续供料）。
 static const void *kAme252GlassKey = &kAme252GlassKey;
+/// ★ Task277（齿轮连点竞态根修）：菜单逻辑态与动画世代令牌。
+///   旧 toggleMenu 读 menuView.hidden 决策，而 dismissMenu 的 hidden=YES
+///   延迟到 0.25s 动画 completion——关闭动画窗口内 hidden 恒 NO，连点每
+///   一拍都再触发一次 dismiss（永远开不出来）；关闭 completion 与新一次
+///   showMenu 赛跑时还会把刚打开的面板隐藏（闪没）。逻辑态同步翻转 +
+///   世代令牌让"最后一拍定状态"成为确定性语义。
+static const void *kAme277MenuOpenKey = &kAme277MenuOpenKey;
+static const void *kAme277MenuGenKey = &kAme277MenuGenKey;
 
 @interface SurfaceViewController(Navigation)
 // FCL 风格菜单的背景遮罩（半透明黑色，点击关闭菜单）
@@ -169,11 +177,20 @@ static BOOL ame244_snapshotLooksValid(UIImage *ame244_img) {
 
 /// ★ Task244：快照磨砂上的可读性 tint（快照不透明，menuView 底色被盖住
 ///   无法压暗）。深色 = 黑 0.40（暗玻璃）；浅色 = 白 0.42（奶白玻璃）。
+///   ★ Task263（反馈 5）：alpha 随伪玻璃透明度设置映射，0.5 = 既有锚点；
+///   1.0 最透 / 0.0 最闷（与 AmeFloatingMenu 同款映射）。
+///   ★ Task276（"滑块无效"三连根修之二）：梯度拉宽 ±0.25/±0.275（0.0 =
+///   深 0.65/浅 0.70；1.0 = 深 0.15/浅 0.15），provider 内延迟求值。本面板
+///   为重建型瞬时视图（每次点开新建）→ 呈现时即取最新值，无需监听。
 static UIColor *ame244_snapshotTint(void) {
     return [UIColor colorWithDynamicProvider:^UIColor * _Nonnull(UITraitCollection * _Nonnull tc) {
+        CGFloat ame263_t = LGCPseudoGlassTransparency();
+        CGFloat ame263_a = (tc.userInterfaceStyle == UIUserInterfaceStyleDark)
+            ? 0.40 - 0.50 * (ame263_t - 0.5)    // 0.65(最闷)..0.15(最透)，0.5→0.40
+            : 0.42 - 0.55 * (ame263_t - 0.5);   // 0.70..0.15，0.5→0.42
         return (tc.userInterfaceStyle == UIUserInterfaceStyleDark)
-            ? [UIColor colorWithWhite:0.0 alpha:0.40]
-            : [UIColor colorWithWhite:1.0 alpha:0.42];
+            ? [UIColor colorWithWhite:0.0 alpha:ame263_a]
+            : [UIColor colorWithWhite:1.0 alpha:ame263_a];
     }];
 }
 
@@ -204,12 +221,32 @@ static UIColor *ame244_snapshotTint(void) {
     //   保证）。玻璃风格 = 24pt 圆角磨砂面板 + 发丝描边 + SF Symbol 图标行；
     //   原生风格 = 旧版深色 FCL 面板纯文本行。底部弹层/侧滑把手两形态、
     //   全部 11 项动作与遮罩关闭行为全部保留。
-    CGFloat screenWidth = [ScreenUtils screenSize].width;
-    CGFloat screenHeight = [ScreenUtils screenSize].height;
+    // ★ Task282：菜单几何源从 [ScreenUtils screenSize]（UIScreen 全屏口径
+    //   ——自由窗口模式界面方向被系统接管后返回竖屏 820x1180，与窗口实
+    //   况 551x486 完全脱钩，装机日志 panel={{420,0},{400,1180}} 实锤）
+    //   改为 self.view.bounds（menuView 的宿主坐标系本源）：全屏时与旧值
+    //   完全一致（window==screen），窗口模式菜单按窗口实况铺排不再溢出。
+    // ★ Task285（"菜单设置不会跟随方向"根修）：菜单转置容器——menuView/
+    //   menuDimView 的宿主从 self.view 改为 menuCanvas：⊥ 旋转态由 rescale
+    //   与 overlay 同参跟转（同角 transform + 转置逻辑 bounds），面板在容
+    //   器内按逻辑口径铺排 = 与游戏内容同向；非 ⊥ 容器恒等铺满 self.view，
+    //   面板几何与直挂 self.view 逐字节一致（零回归）。全屏时容器与宿主
+    //   同尺寸同向，行为完全不变。
+    //   交互策略：容器 userInteractionEnabled 跟随菜单开闭——开启时 YES
+    //   （面板/遮罩可交互），关闭时 NO（空容器不拦截触摸，悬浮球/游戏
+    //   触摸照常穿透；否则 hitTest 命中容器自身会把 overlay 挡死）。
+    CGFloat screenWidth = self.view.bounds.size.width;
+    CGFloat screenHeight = self.view.bounds.size.height;
     CGFloat menuWidth = MIN(screenWidth * 0.7, 400);
     CGFloat menuMaxHeight = screenHeight * 0.6;
     CGFloat menuEstimatedHeight = self.menuArray.count * 48 + 20;
     CGFloat menuHeight = MIN(menuEstimatedHeight, menuMaxHeight);
+
+    self.menuCanvas = [[UIView alloc] initWithFrame:self.view.bounds];
+    self.menuCanvas.autoresizingMask = UIViewAutoresizingFlexibleWidth | UIViewAutoresizingFlexibleHeight;
+    self.menuCanvas.userInteractionEnabled = NO;   // 关闭态穿透（showMenu 开启）
+    self.menuCanvas.backgroundColor = [UIColor clearColor];
+    [self.view addSubview:self.menuCanvas];
 
     self.menuView = [[UIView alloc] initWithFrame:CGRectMake(
         (screenWidth - menuWidth) / 2.0,
@@ -223,7 +260,7 @@ static UIColor *ame244_snapshotTint(void) {
     self.menuView.layer.shadowOffset = CGSizeMake(0, -2);
     self.menuView.layer.shadowRadius = 12;
     self.menuView.layer.shadowOpacity = 0.4;
-    [self.view addSubview:self.menuView];
+    [self.menuCanvas addSubview:self.menuView];
 
     // ★ Task238（用户：“修复字体与选项文本重叠问题”）：菜单面板行文字住在
     //   自控的磨砂/深色面板上（行自带软投影，Task232 #11），不再叠加全局
@@ -231,7 +268,9 @@ static UIColor *ame244_snapshotTint(void) {
     ame230_setViewTreeStrokeExempt(self.menuView, YES);
 
     // 行滚动区（唯一内容层；玻璃层永远在其下）
-    UIScrollView *ame237_rowsScroll = [[UIScrollView alloc] init];
+    // ★ Task271（271-b D1）：Ame237Scroll 放行取消跟踪——UIControl 行铺满
+    //   滚动区时拖动也能起滚（游戏内 ⚙ 菜单 11 行 × 48pt 超 60% 帽同病）。
+    UIScrollView *ame237_rowsScroll = [[Ame237Scroll alloc] init];
     ame237_rowsScroll.showsVerticalScrollIndicator = NO;
     ame237_rowsScroll.delaysContentTouches = NO;
     ame237_rowsScroll.autoresizingMask = UIViewAutoresizingFlexibleWidth | UIViewAutoresizingFlexibleHeight;
@@ -286,16 +325,17 @@ static UIColor *ame244_snapshotTint(void) {
                              OBJC_ASSOCIATION_RETAIN_NONATOMIC);
 
     // FCL 风格：半透明背景遮罩（点击关闭菜单）
-    self.menuDimView = [[UIView alloc] initWithFrame:self.view.bounds];
+    self.menuDimView = [[UIView alloc] initWithFrame:self.menuCanvas.bounds];
+    self.menuDimView.autoresizingMask = UIViewAutoresizingFlexibleWidth | UIViewAutoresizingFlexibleHeight;
     self.menuDimView.backgroundColor = [UIColor colorWithRed:0 green:0 blue:0 alpha:0.4];
     self.menuDimView.alpha = 0;
     self.menuDimView.hidden = YES;
     UITapGestureRecognizer *dimTap = [[UITapGestureRecognizer alloc] initWithTarget:self action:@selector(dismissMenu)];
     dimTap.cancelsTouchesInView = YES;
     [self.menuDimView addGestureRecognizer:dimTap];
-    [self.view addSubview:self.menuDimView];
+    [self.menuCanvas addSubview:self.menuDimView];
     // 确保菜单在遮罩之上
-    [self.view bringSubviewToFront:self.menuView];
+    [self.menuCanvas bringSubviewToFront:self.menuView];
 
     // 面板风格（玻璃/原生）与行区布局
     [self ame237_applyMenuStyle];
@@ -405,6 +445,29 @@ static UIColor *ame244_snapshotTint(void) {
         }
         ame244_tint.frame = self.menuView.bounds;
         ame244_tint.autoresizingMask = UIViewAutoresizingFlexibleWidth | UIViewAutoresizingFlexibleHeight;
+        // ★ Task277（玻璃感三件之二·顶部光泽线，游戏菜单侧）：嵌进 tint 层
+        //   —— tint 显隐/退场（TG 接管/原生档）时光泽自动跟随，零额外
+        //   同步状态。tag 277 供幂等重建识别。
+        {
+            UIView *ame277_oldSheen = [ame244_tint viewWithTag:277];
+            [ame277_oldSheen removeFromSuperview];
+            UIView *ame277_sheenHost = [[UIView alloc] initWithFrame:
+                CGRectMake(0.0, 0.0, self.menuView.bounds.size.width,
+                           self.menuView.bounds.size.height * 0.32)];
+            ame277_sheenHost.userInteractionEnabled = NO;
+            ame277_sheenHost.autoresizingMask = UIViewAutoresizingFlexibleWidth;
+            ame277_sheenHost.tag = 277;
+            CAGradientLayer *ame277_sheen = [CAGradientLayer layer];
+            ame277_sheen.frame = ame277_sheenHost.bounds;
+            ame277_sheen.name = @"ame277_sheen";
+            ame277_sheen.colors = @[(id)[UIColor colorWithWhite:1.0 alpha:0.10].CGColor,
+                                    (id)[UIColor colorWithWhite:1.0 alpha:0.0].CGColor];
+            ame277_sheen.locations = @[@0.0, @1.0];
+            ame277_sheen.startPoint = CGPointMake(0.5, 0.0);
+            ame277_sheen.endPoint = CGPointMake(0.5, 1.0);
+            [ame277_sheenHost.layer addSublayer:ame277_sheen];
+            [ame244_tint addSubview:ame277_sheenHost];
+        }
         [self.menuView insertSubview:ame244_tint aboveSubview:ame243_snap];
         ame244_tint.hidden = (ame243_snap.image == nil);
         ame237_blur.hidden = (ame243_snap.image != nil);
@@ -454,8 +517,12 @@ static UIColor *ame244_snapshotTint(void) {
             ame237_row.showsIcon = YES;
             [ame237_row setNeedsLayout];
         }
-        NSLog(@"[GameMenu] Task237 glass panel applied (frosted + defensive dark base + hairline; rows above blur; icon rows) [Task239 material: %@]",
-              LGCNativeGlassEngaged() ? @"native UIGlassEffect" : @"SystemMaterialDark fallback");
+        // ★ Task288：材质名不再误导——TG 玻璃接管（ame252）后旧文案仍打
+        //   "SystemMaterialDark fallback"，装机日志判档会被带偏。如实三态。
+        NSLog(@"[GameMenu] Task237 glass panel applied (frosted + defensive dark base + hairline; rows above blur; icon rows) [material: %@]",
+              LGCNativeGlassEngaged() ? @"native UIGlassEffect"
+              : ([AmeLiquidGlassView ame252_isSupported] ? @"TG pseudo-liquid-glass (ame252 takeover)"
+                                                         : @"SystemMaterialDark fallback"));
     } else {
         // 原生 = 旧版 FCL 面板（深色半透明、纯文本行）
         // ★ Task243：风格切回原生时同步隐藏快照磨砂层（幂等清理）。
@@ -520,12 +587,17 @@ static UIColor *ame244_snapshotTint(void) {
     }
     ame237_scroll.contentSize = CGSizeMake(ame237_w, ame237_y);
     ame237_scroll.scrollEnabled = (ame237_y > ame237_scroll.bounds.size.height + 0.5);
+    ame237_scroll.showsVerticalScrollIndicator = ame237_scroll.isScrollEnabled; // ★ Task271（D5）：可滚时给暗示
     // ★ Task248（⑨）：行区重排（旋转/形态切换）后快照对位几何同步刷新
     [self ame248_alignMenuFrost];
 }
 
 /// Task237：菜单行点击（与旧 tableView:didSelectRowAtIndexPath: 同一动作链）。
 - (void)ame237_gmRowTouched:(Ame237MenuRow *)sender {
+    // ★ Task277（连点锁存）：行点击只在逻辑态开时生效——首拍触发动作链
+    //   （dismissMenu 置态关）后，淡出动画期的残留点击不再二连发（双弹窗
+    //   /双动作根源；与 Ame237 面板 ame237_dismissing 同族锁存语义）。
+    if (!self.ame277_menuOpenState) return;
     [self didSelectMenuItem:(int)sender.tag];
 }
 
@@ -540,24 +612,47 @@ static UIColor *ame244_snapshotTint(void) {
 ///   遮罩本身 userInteractionEnabled=NO（设计意图就是启动期间可拖悬浮球、
 ///   查 FPS）。menuDimView 是本分类的关联对象属性——方法必须住在本分类
 ///   里才可见（SurfaceViewController.m 经 performSelector 调用）。
+///   ★ Task285：dim/menu 已迁宿主 menuCanvas——bringSubviewToFront 只作
+///   用于直接子视图，整组改以 canvas 为单位提升（canvas 内相对次序不变：
+///   dim < menu），overlay 最后置顶不变。
 - (void)ame238_raiseGameMenuAboveLaunchMask {
-    if ([self.menuDimView isKindOfClass:[UIView class]]) {
-        [self.view bringSubviewToFront:self.menuDimView];
-    }
-    if ([self.menuView isKindOfClass:[UIView class]]) {
-        [self.view bringSubviewToFront:self.menuView];
+    if ([self.menuCanvas isKindOfClass:[UIView class]]) {
+        [self.view bringSubviewToFront:self.menuCanvas];
     }
     if ([self.gameMenuOverlay isKindOfClass:[UIView class]]) {
         [self.view bringSubviewToFront:self.gameMenuOverlay];
     }
 }
 
+/// ★ Task277：菜单逻辑态读写（关联对象；分类无 ivar）。
+- (BOOL)ame277_menuOpenState {
+    return [objc_getAssociatedObject(self, kAme277MenuOpenKey) boolValue];
+}
+
+- (void)ame277_setMenuOpenState:(BOOL)open {
+    objc_setAssociatedObject(self, kAme277MenuOpenKey, @(open), OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+}
+
+- (NSInteger)ame277_bumpMenuGeneration {
+    NSInteger ame277_gen = [objc_getAssociatedObject(self, kAme277MenuGenKey) integerValue] + 1;
+    objc_setAssociatedObject(self, kAme277MenuGenKey, @(ame277_gen), OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+    return ame277_gen;
+}
+
+- (NSInteger)ame277_currentMenuGeneration {
+    return [objc_getAssociatedObject(self, kAme277MenuGenKey) integerValue];
+}
+
 /// 切换菜单显示状态（悬浮按钮点击触发）
+/// ★ Task277：决策源从 menuView.hidden（延迟到关闭动画 completion 才归位
+///   = 关闭窗口内连点永远 dismiss 再 dismiss，开不出来）改为同步翻转的
+///   逻辑态——连点语义变为确定性的"最后一拍定状态"：关动画中点一下立
+///   即重新展开，开动画中点一下立即收起。
 - (void)toggleMenu {
-    if (self.menuView.hidden) {
-        [self showMenu];
-    } else {
+    if (self.ame277_menuOpenState) {
         [self dismissMenu];
+    } else {
+        [self showMenu];
     }
 }
 
@@ -602,6 +697,11 @@ static UIColor *ame244_snapshotTint(void) {
 
 - (void)ame247_menuSnapshotTick:(CADisplayLink *)ame247_sender {
     if (self.menuView == nil || self.menuView.hidden ||
+        // ★ Task270 P2：VC 已离开窗口（退游戏/被替换）→ 供料链自停。原停止
+        //   条件依赖 dealloc 复位会话闸（P0 前 dealloc 不可达，P0 后也晚于
+        //   离窗）——菜单开着退游戏后死 VC 会以 8Hz 永久快照 dead surface
+        //   空耗 CPU/电池；对齐 ame250_frostTick 的 view.window==nil 同族护栏。
+        self.surfaceView.window == nil ||
         !LGCIsGlassStyleActive() ||
         // ★ Task260（清单 2）：<26 会话闸内供料链整体自停（面板已回退原生）
         !LGCGameSessionGlassAllowed()) {
@@ -631,7 +731,8 @@ static UIColor *ame244_snapshotTint(void) {
         return;
     }
     if (ame247_fresh != nil) {
-        ame247_snap.image = ame247_fresh;
+        // ★ Task277：8Hz 重抓成品同步材质化（与首帧同配方，零观感跳变）。
+        ame247_snap.image = [AmeFloatingMenu ame277_materializeSnapshot:ame247_fresh];
         // ★ Task248（⑨）：每 tick 同步对位几何（面板挪位/旋转后不脱钩）
         [self ame248_alignMenuFrost];
         if (ame247_snap.hidden) {
@@ -661,6 +762,10 @@ static UIColor *ame244_snapshotTint(void) {
 /// ★ Task227（反馈 #8）：齿轮吸边成把手时，菜单改从吸边侧滑出（侧边栏
 /// 形态）；悬浮球形态保持原底部弹层。
 - (void)showMenu {
+    // ★ Task277：逻辑态置开 + 世代令牌推进（作废在飞的关闭 completion）——
+    //   连点场景下旧关闭动画的 completion 不得把刚重新打开的面板藏掉。
+    [self ame277_setMenuOpenState:YES];
+    __block NSInteger ame277_gen = [self ame277_bumpMenuGeneration];
     BOOL ame227_sideDrawer = NO;
     BOOL ame227_fromLeft = NO;
     if ([self.gameMenuOverlay isKindOfClass:[GameMenuOverlayView class]]) {
@@ -695,7 +800,9 @@ static UIColor *ame244_snapshotTint(void) {
             ame243_img = nil;
         }
         if (ame243_img != nil) {
-            ame243_snap.image = ame243_img;
+            // ★ Task277：磨砂成品统一走材质链（高斯+饱和度，与 AmeFloatingMenu
+            //   弹窗同配方；旧纯降采样的"糊"升级为 Apple 材质观感）。
+            ame243_snap.image = [AmeFloatingMenu ame277_materializeSnapshot:ame243_img];
             [self ame248_alignMenuFrost];   // ★ Task248（⑨）：首帧即对位
             ame243_snap.hidden = NO;
             // ★ Task244：快照成品磨砂到位——系统材质层退场、tint 上岗
@@ -745,8 +852,13 @@ static UIColor *ame244_snapshotTint(void) {
               (int)LGCIsGlassStyleActive());
     });
 
-    CGFloat screenWidth = [ScreenUtils screenSize].width;
-    CGFloat screenHeight = [ScreenUtils screenSize].height;
+    // ★ Task282：几何源同创建处改宿主实况口径，抽屉/悬浮两形态均不再引
+    //   用全屏口径尺寸。★ Task285：几何源再随宿主迁移改 menuCanvas.bounds
+    //   （⊥ 时容器已是转置逻辑口径 = 面板与游戏内容同向铺排）；同时开启
+    //   容器交互（面板/遮罩可点）。
+    CGFloat screenWidth = self.menuCanvas.bounds.size.width;
+    CGFloat screenHeight = self.menuCanvas.bounds.size.height;
+    self.menuCanvas.userInteractionEnabled = YES;
     self.menuView.transform = CGAffineTransformIdentity;
 
     if (ame227_sideDrawer) {
@@ -837,8 +949,14 @@ static UIColor *ame244_snapshotTint(void) {
 
 /// FCL 风格：菜单下滑消失（游戏画面不缩小）
 - (void)dismissMenu {
-    CGFloat screenWidth = [ScreenUtils screenSize].width;
-    CGFloat screenHeight = [ScreenUtils screenSize].height;
+    // ★ Task277：逻辑态置关 + 世代令牌推进——completion 仅在世代仍现任时
+    //   才落 hidden=YES（否则 = 关闭期间被重新打开，面板交回 showMenu 管）。
+    [self ame277_setMenuOpenState:NO];
+    __block NSInteger ame277_gen = [self ame277_bumpMenuGeneration];
+    // ★ Task282：同 showMenu——几何源改宿主实况口径。★ Task285：随宿主
+    //   迁移改 menuCanvas.bounds（⊥ 转置逻辑口径）。
+    CGFloat screenWidth = self.menuCanvas.bounds.size.width;
+    CGFloat screenHeight = self.menuCanvas.bounds.size.height;
 
     // ★ Task250（反馈 10：恢复关闭动画）：摘掉 Task249 的“起步即摘快照”——
     //   快照瞬间消失 = 面板内容跳变（用户感知“动画没了”）。改为：磨砂快照
@@ -885,12 +1003,20 @@ static UIColor *ame244_snapshotTint(void) {
         // 背景遮罩淡出
         self.menuDimView.alpha = 0.0;
     } completion:^(BOOL finished) {
+        if ([self ame277_currentMenuGeneration] != ame277_gen) {
+            NSLog(@"[GameMenu] Task277: dismiss completion stale (gen %ld != %ld) -- panel re-shown, skip hide",
+                  (long)ame277_gen, (long)[self ame277_currentMenuGeneration]);
+            return;   // 关闭动画期被重新打开：面板归 showMenu 管，不得藏
+        }
         self.menuView.hidden = YES;
         self.menuDimView.hidden = YES;
         self.menuView.alpha = 1.0;   // ★ Task250：复位透明度（下次 showMenu 零残留）
         // ★ Task252：复位收缩变换（frame 复位靠 showMenu 重设 frame +
         //  transform 必须归零，否则下次出现时几何被 0.96 缩放污染）。
         self.menuView.transform = CGAffineTransformIdentity;
+        // ★ Task285：关闭完成 → 容器交互关闭（空容器不拦截触摸，悬浮球/
+        //   游戏触摸穿透；连点重开时 showMenu 会重新置 YES）。
+        self.menuCanvas.userInteractionEnabled = NO;
         [self setNeedsUpdateOfHomeIndicatorAutoHidden];
         [self setNeedsUpdateOfScreenEdgesDeferringSystemGestures];
         [self setNeedsStatusBarAppearanceUpdate];
@@ -1003,6 +1129,11 @@ static UIColor *ame244_snapshotTint(void) {
     // 二级页的推入依赖 navigationController，裸呈现时全部静默失效）；
     // PageSheet 呈现保持系统动画（侧栏到目标页的标准模态语言）。
     LauncherPreferencesViewController *vc = [[LauncherPreferencesViewController alloc] init];
+    // ★ Task286：游戏内标记——设置页 viewWillDisappear 据此回调 presenter
+    //   的 applyInGamePreferenceChanges（UI 安全面热应用；分辨率/FSR 保持
+    //   "下次启动"语义）。旧刷新桥以 navigationController == nil 为前提，
+    //   而本入口 Task224 起恒包 Navigation = 刷新桥在游戏内死路案发现场。
+    vc.presentedInGame = YES;
     UINavigationController *nav = [[UINavigationController alloc] initWithRootViewController:vc];
     nav.modalPresentationStyle = UIModalPresentationPageSheet;
     [self presentViewController:nav animated:YES completion:nil];
@@ -1199,8 +1330,11 @@ static UIColor *ame244_snapshotTint(void) {
 
 - (void)viewWillTransitionToSize_Navigation:(CGRect)frame {
     // FCL 风格：菜单从底部弹出，旋转时重新计算 frame
-    CGFloat screenWidth = frame.size.width;
-    CGFloat screenHeight = frame.size.height;
+    // ★ Task285：几何源随宿主迁移改 menuCanvas.bounds——⊥ 态容器已是转
+    //   置逻辑口径，菜单按逻辑口径重排 = 与游戏内容同向；外层传入的
+    //   frame（物理口径）不再直接消费。
+    CGFloat screenWidth = self.menuCanvas.bounds.size.width;
+    CGFloat screenHeight = self.menuCanvas.bounds.size.height;
     CGFloat menuWidth = MIN(screenWidth * 0.7, 400);
     CGFloat menuMaxHeight = screenHeight * 0.6;
     CGFloat menuEstimatedHeight = self.menuArray.count * 48 + 20;

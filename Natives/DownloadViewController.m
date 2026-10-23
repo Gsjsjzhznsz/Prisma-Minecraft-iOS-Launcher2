@@ -22,6 +22,7 @@
 #import "ResourcePackService.h"
 #import "DataPackService.h"
 #import "PLProfiles.h"
+#import "NMToast.h"   // Task267：目标实例偏差提醒
 #import "LauncherPreferences.h"
 #import "VersionCardCell.h"
 #import "MinecraftResourceDownloadTask.h"
@@ -427,7 +428,7 @@ typedef NS_ENUM(NSInteger, ModernAssetType) {
 /// 6 类资源共用的配置逻辑：标题/描述/元信息/图标/标签
 /// FCL 风格：标题 14sp + 第二行（下载次数 + 描述），元信息（作者/日期）合并到 descLabel
 - (void)configureCommonWithData:(NSDictionary *)data type:(ModernAssetType)type {
-    self.titleLabel.text = data[@"title"] ?: data[@"slug"] ?: @"Unknown";
+    self.titleLabel.text = data[@"title"] ?: data[@"slug"] ?: localize(@"ame189.common.unknown", nil);   // ★ Task275（i18n：复用既有键）
 
     // 第二行：下载次数 + 描述（FCL download_count + description 同行）
     NSString *downloadsStr = [self formatDownloadCount:data[@"downloads"]];
@@ -469,6 +470,8 @@ typedef NS_ENUM(NSInteger, ModernAssetType) {
 // versionFilterSegment 高度约束：版本 tab 显示（约 32pt），其他 tab 设为 0，
 // 避免 hidden=YES 时仍占空间导致 tabSegment 与 searchBar 之间出现"大白条"。
 @property (nonatomic, strong) NSLayoutConstraint *versionFilterHeightConstraint;
+// ★ Task267：目标实例偏差提醒一次开关（viewWillAppear 对账用）
+@property (nonatomic, assign) BOOL ame267_profileMismatchToasted;
 @property (nonatomic, strong) UISearchBar *searchBar;
 // Task189：控件仓库 tab 折叠搜索框用（hidden 不释放约束空间，需高度归零）
 @property (nonatomic, strong) NSLayoutConstraint *searchBarHeightConstraint;
@@ -496,6 +499,11 @@ typedef NS_ENUM(NSInteger, ModernAssetType) {
 // return 拦截，或一个分类的旧响应把另一个分类的查询状态覆盖。参照 ZL2 按分类隔离状态。
 @property (nonatomic, assign) BOOL isLoadingMoreMods;
 @property (nonatomic, assign) BOOL isLoadingMoreShaders;
+// ★ Task293：请求代际号——reloadCurrentList 与各 load 入口自增；回包时代际
+//   不匹配即整包丢弃。修复"切换源会出现缺失"的双根因：①旧响应占着
+//   isLoadingMore 位令新源首翻页被整段跳过（列表清空后永不加载）；②迟到
+//   旧响应跨源/跨筛选写入新列表（写错内容+双 reload 竞态）
+@property (nonatomic, assign) NSInteger ame293_listEpoch;
 @property (nonatomic, assign) BOOL hasMoreMods;
 @property (nonatomic, assign) BOOL hasMoreShaders;
 @property (nonatomic, strong) NSString *modSearchQuery;
@@ -572,6 +580,9 @@ typedef NS_ENUM(NSInteger, ModernAssetType) {
 @property (nonatomic, strong) UIView *sidebarSourceContainer;
 @property (nonatomic, strong) UIButton *sidebarModrinthButton;
 @property (nonatomic, strong) UIButton *sidebarCurseforgeButton;
+// Task291: 聚合源三态选择器（聚合 | Modrinth | CurseForge）
+@property (nonatomic, strong) UIButton *sidebarAggregateButton;
+@property (nonatomic, strong) NSLayoutConstraint *sidebarSliderMiddleConstraint;
 @property (nonatomic, strong) NSLayoutConstraint *sidebarSliderLeftConstraint;
 @property (nonatomic, strong) NSLayoutConstraint *sidebarSliderRightConstraint;
 @property (nonatomic, strong) UIView *sidebarSourceTrack;
@@ -613,6 +624,12 @@ typedef NS_ENUM(NSInteger, ModernAssetType) {
 
 @end
 
+
+/// Task267（屎山优化）：下载页锁定目标单点化（原 6 处复制粘贴表达式收敛）。
+/// 语义与原式逐字节等价：锁定打开下载页时的 targetProfileName，缺省 default。
+static inline NSString *ame267_lockedDownloadTarget(NSString *ame267_target) {
+    return ame267_target ?: @"default";
+}
 @implementation DownloadViewController
 
 - (void)dealloc {
@@ -699,6 +716,10 @@ typedef NS_ENUM(NSInteger, ModernAssetType) {
     if (!self.targetProfileName.length) {
         self.targetProfileName = PLProfiles.current.selectedProfileName;
     }
+    // ★ Task267（目标实例可见性）：快照语义保留（防下载中途切实例误写
+    //   目录），但目标实例必须在 UI 上可见——页面标题带上实例名，消除
+    //   "资源到底装到哪个实例"的黑盒感。
+    self.title = [NSString stringWithFormat:localize(@"ame267.download.target_title", @"下载 · 实例：%@"), self.targetProfileName ?: @"default"];
 
     [self setupUI];
     // 初始 tab：默认 0（版本）；资源管理界面"去下载"引导跳转时会指定对应资源类型 tab
@@ -715,6 +736,25 @@ typedef NS_ENUM(NSInteger, ModernAssetType) {
 
 - (void)viewWillAppear:(BOOL)animated {
     [super viewWillAppear:animated];
+    // Task269 对账：锁定的目标实例若已被升级自动迁移合并删除（条目不在 profile 表）→
+    // 重新锁定当前选中实例，避免后续下载落在尸体实例引用上（ModService 末梢另有自愈兜底）。
+    if (self.targetProfileName.length > 0 && !PLProfiles.current.profiles[self.targetProfileName]) {
+        NSLog(@"[Download] Task269: latched target profile \"%@\" gone -> re-latch to selected \"%@\"",
+              self.targetProfileName, PLProfiles.current.selectedProfileName ?: @"(nil)");
+        self.targetProfileName = PLProfiles.current.selectedProfileName;
+    }
+    // ★ Task267：用户切实例后回到下载页——快照仍锁定旧实例，明示一次
+    //   （不阻断操作），防"以为装到新实例"。上一步 Task269 已消化迁移
+    //   合并的尸体重锁场景，此处只剩"切了实例但目标仍是旧实例"的提示。
+    NSString *ame267_current = PLProfiles.current.selectedProfileName;
+    if (self.targetProfileName.length > 0 && ame267_current.length > 0 &&
+        ![ame267_current isEqualToString:self.targetProfileName] &&
+        !self.ame267_profileMismatchToasted) {
+        self.ame267_profileMismatchToasted = YES;
+        dispatch_async(dispatch_get_main_queue(), ^{
+            [NMToast showMessage:[NSString stringWithFormat:localize(@"ame267.download.target_mismatch", @"注意：下载目标实例仍为「%@」（打开下载页时锁定），切换实例请重新进入下载页"), self.targetProfileName]];
+        });
+    }
     // 重新隐藏导航栏黑条（pop 回根页面时 topViewController == self）
     if (self.navigationController &&
         self.navigationController.viewControllers.firstObject == self &&
@@ -1277,12 +1317,27 @@ typedef NS_ENUM(NSInteger, ModernAssetType) {
     [self.sidebarCurseforgeButton setTitle:@"CF" forState:UIControlStateNormal];
     self.sidebarCurseforgeButton.titleLabel.font = [UIFont systemFontOfSize:12 weight:UIFontWeightSemibold];
     [self.sidebarCurseforgeButton addTarget:self action:@selector(sidebarCurseforgeClicked:) forControlEvents:UIControlEventTouchUpInside];
+    // Task291: 聚合源点击（内含 CF 可用性门）
+    [self.sidebarAggregateButton addTarget:self action:@selector(sidebarAggregateClicked:) forControlEvents:UIControlEventTouchUpInside];
     [self.sidebarSourceTrack addSubview:self.sidebarCurseforgeButton];
+
+    // 聚合源按钮（Task291：FCL 下载页聚合搜索同款三态源选择）
+    self.sidebarAggregateButton = [UIButton buttonWithType:UIButtonTypeSystem];
+    self.sidebarAggregateButton.translatesAutoresizingMaskIntoConstraints = NO;
+    [self.sidebarAggregateButton setTitle:localize(@"ame291.dl.source_aggregate", nil) forState:UIControlStateNormal];
+    self.sidebarAggregateButton.titleLabel.font = [UIFont systemFontOfSize:12 weight:UIFontWeightSemibold];
+    self.sidebarAggregateButton.titleLabel.adjustsFontSizeToFitWidth = YES;
+    self.sidebarAggregateButton.titleLabel.minimumScaleFactor = 0.75;
+    [self.sidebarAggregateButton addTarget:self action:@selector(sidebarAggregateClicked:) forControlEvents:UIControlEventTouchUpInside];
+    [self.sidebarSourceTrack addSubview:self.sidebarAggregateButton];
 
     // 下载源滑块位置约束
     self.sidebarSliderLeftConstraint = [self.sidebarSourceSlider.leadingAnchor constraintEqualToAnchor:self.sidebarSourceTrack.leadingAnchor constant:2];
     self.sidebarSliderRightConstraint = [self.sidebarSourceSlider.trailingAnchor constraintEqualToAnchor:self.sidebarSourceTrack.trailingAnchor constant:-2];
     self.sidebarSliderRightConstraint.active = NO;
+    // Task291: 聚合源滑块居中位
+    self.sidebarSliderMiddleConstraint = [self.sidebarSourceSlider.centerXAnchor constraintEqualToAnchor:self.sidebarSourceTrack.centerXAnchor];
+    self.sidebarSliderMiddleConstraint.active = NO;
 
     [NSLayoutConstraint activateConstraints:@[
         // 下载源标题
@@ -1305,19 +1360,25 @@ typedef NS_ENUM(NSInteger, ModernAssetType) {
         // 滑块
         [self.sidebarSourceSlider.topAnchor constraintEqualToAnchor:self.sidebarSourceTrack.topAnchor constant:2],
         [self.sidebarSourceSlider.bottomAnchor constraintEqualToAnchor:self.sidebarSourceTrack.bottomAnchor constant:-2],
-        [self.sidebarSourceSlider.widthAnchor constraintEqualToAnchor:self.sidebarSourceTrack.widthAnchor multiplier:0.5 constant:-2],
+        [self.sidebarSourceSlider.widthAnchor constraintEqualToAnchor:self.sidebarSourceTrack.widthAnchor multiplier:(1.0 / 3.0) constant:-2],
         self.sidebarSliderLeftConstraint,
 
         // 两个按钮各占一半
         [self.sidebarModrinthButton.topAnchor constraintEqualToAnchor:self.sidebarSourceTrack.topAnchor],
         [self.sidebarModrinthButton.bottomAnchor constraintEqualToAnchor:self.sidebarSourceTrack.bottomAnchor],
         [self.sidebarModrinthButton.leadingAnchor constraintEqualToAnchor:self.sidebarSourceTrack.leadingAnchor],
-        [self.sidebarModrinthButton.widthAnchor constraintEqualToAnchor:self.sidebarSourceTrack.widthAnchor multiplier:0.5],
+        [self.sidebarModrinthButton.widthAnchor constraintEqualToAnchor:self.sidebarSourceTrack.widthAnchor multiplier:(1.0 / 3.0)],
 
         [self.sidebarCurseforgeButton.topAnchor constraintEqualToAnchor:self.sidebarSourceTrack.topAnchor],
         [self.sidebarCurseforgeButton.bottomAnchor constraintEqualToAnchor:self.sidebarSourceTrack.bottomAnchor],
         [self.sidebarCurseforgeButton.trailingAnchor constraintEqualToAnchor:self.sidebarSourceTrack.trailingAnchor],
-        [self.sidebarCurseforgeButton.widthAnchor constraintEqualToAnchor:self.sidebarSourceTrack.widthAnchor multiplier:0.5]
+        [self.sidebarCurseforgeButton.widthAnchor constraintEqualToAnchor:self.sidebarSourceTrack.widthAnchor multiplier:(1.0 / 3.0)],
+
+        // 聚合源按钮居中三分之一（Task291）
+        [self.sidebarAggregateButton.topAnchor constraintEqualToAnchor:self.sidebarSourceTrack.topAnchor],
+        [self.sidebarAggregateButton.bottomAnchor constraintEqualToAnchor:self.sidebarSourceTrack.bottomAnchor],
+        [self.sidebarAggregateButton.centerXAnchor constraintEqualToAnchor:self.sidebarSourceTrack.centerXAnchor],
+        [self.sidebarAggregateButton.widthAnchor constraintEqualToAnchor:self.sidebarSourceTrack.widthAnchor multiplier:(1.0 / 3.0)]
     ]];
 
     // ===== 2. 游戏版本选择按钮 =====
@@ -1674,13 +1735,18 @@ typedef NS_ENUM(NSInteger, ModernAssetType) {
     self.modrinthSourceButton.tag = [self tagForType:type];
     self.curseforgeSourceButton.tag = [self tagForType:type];
 
-    // ===== 同步更新侧边栏的下载源选择器 =====
-    [self.sidebarModrinthButton setTitleColor:isModrinth ? [AmeTheme textOnBrand] : [AmeTheme textPrimary] forState:UIControlStateNormal];
-    [self.sidebarCurseforgeButton setTitleColor:isModrinth ? [AmeTheme textPrimary] : [AmeTheme textOnBrand] forState:UIControlStateNormal];
+    // ===== Task291: 侧边栏三态同步（聚合 | Modrinth | CurseForge）=====
+    BOOL isAggregate = [currentSource isEqualToString:@"aggregate"];
+    BOOL sidebarMr = !isAggregate && isModrinth;
+    [self.sidebarAggregateButton setTitleColor:isAggregate ? [UIColor whiteColor] : [UIColor labelColor] forState:UIControlStateNormal];
+    [self.sidebarModrinthButton setTitleColor:sidebarMr ? [UIColor whiteColor] : [UIColor labelColor] forState:UIControlStateNormal];
+    [self.sidebarCurseforgeButton setTitleColor:(!isAggregate && sidebarMr == NO) ? [UIColor whiteColor] : [UIColor labelColor] forState:UIControlStateNormal];
 
-    self.sidebarSliderLeftConstraint.active = isModrinth;
-    self.sidebarSliderRightConstraint.active = !isModrinth;
-    UIColor *sidebarSliderColor = isModrinth ? [AmeTheme statusSuccess] : [AmeTheme statusWarning];
+    self.sidebarSliderLeftConstraint.active = sidebarMr;
+    self.sidebarSliderMiddleConstraint.active = isAggregate;
+    self.sidebarSliderRightConstraint.active = (!isAggregate && sidebarMr == NO);
+    UIColor *sidebarSliderColor = isAggregate ? [UIColor systemBlueColor]
+                            : (sidebarMr ? [UIColor systemGreenColor] : [UIColor systemOrangeColor]);
 
     [UIView animateWithDuration:0.25 delay:0 options:UIViewAnimationOptionCurveEaseInOut animations:^{
         self.sidebarSourceSlider.backgroundColor = sidebarSliderColor;
@@ -1688,6 +1754,7 @@ typedef NS_ENUM(NSInteger, ModernAssetType) {
     } completion:nil];
 
     // 记录当前类型到侧边栏按钮的 tag，用于点击事件中获取类型
+    self.sidebarAggregateButton.tag = [self tagForType:type];
     self.sidebarModrinthButton.tag = [self tagForType:type];
     self.sidebarCurseforgeButton.tag = [self tagForType:type];
 }
@@ -1863,6 +1930,423 @@ typedef NS_ENUM(NSInteger, ModernAssetType) {
     }
 }
 
+#pragma mark - Task291 聚合搜索（参考 FCL DownloadPage.searchAggregated / PCL ResourceSearcher）
+
+/// 当前 tab 是否处于聚合源（world 强制 CurseForge，永不聚合——FCL 同语义）
+- (BOOL)ame291_isAggregateForType:(NSString *)type {
+    if ([type isEqualToString:@"world"]) return NO;
+    return [[PLPreferences currentDownloadSourceForType:type] isEqualToString:@"aggregate"];
+}
+
+/// 聚合模式逐条目来源标注（FCL getSourceLabel 同语义）；单源模式返回空串
+- (NSString *)ame291_sourceLabelForItem:(NSDictionary *)item tabType:(NSString *)type {
+    if (![self ame291_isAggregateForType:type]) return @"";
+    return ([item[@"apiSource"] integerValue] == 2)
+        ? localize(@"ame291.dl.source_curseforge", nil)
+        : localize(@"ame291.dl.source_modrinth", nil);
+}
+
+/// 条目唯一键：仅保留字母数字并转小写（FCL normalizeKey 同语义；空串返回 nil 不参与去重）
+- (NSString *)ame291_normalizeKey:(NSString *)value {
+    if (value.length == 0) return nil;
+    NSMutableString *normalized = [NSMutableString stringWithCapacity:value.length];
+    for (NSUInteger i = 0; i < value.length; i++) {
+        unichar c = [value characterAtIndex:i];
+        if ([[NSCharacterSet alphanumericCharacterSet] characterIsMember:c]) {
+            [normalized appendFormat:@"%C", c];
+        }
+    }
+    NSString *key = normalized.lowercaseString;
+    return key.length > 0 ? key : nil;
+}
+
+/// ISO8601 时间戳解析（Modrinth date_modified / CurseForge dateModified 同构；失败返回 0）
+- (NSTimeInterval)ame291_parseISO8601:(NSString *)value {
+    if (value.length == 0) return 0;
+    static NSDateFormatter *formatter = nil;
+    static dispatch_once_t onceToken;
+    dispatch_once(&onceToken, ^{
+        formatter = [[NSDateFormatter alloc] init];
+        formatter.locale = [[NSLocale alloc] initWithLocaleIdentifier:@"en_US_POSIX"];
+        formatter.timeZone = [NSTimeZone timeZoneForSecondsFromGMT:0];
+        formatter.dateFormat = @"yyyy-MM-dd'T'HH:mm:ss.SSSSSS'Z'";
+    });
+    NSDate *date = [formatter dateFromString:value];
+    if (!date) {
+        formatter.dateFormat = @"yyyy-MM-dd'T'HH:mm:ss'Z'";
+        date = [formatter dateFromString:value];
+        formatter.dateFormat = @"yyyy-MM-dd'T'HH:mm:ss.SSSSSS'Z'";
+    }
+    return date ? [date timeIntervalSince1970] : 0;
+}
+
+/// 跨平台保守合并窗口：最近更新时间相差 ≤7 天才视为同一工程的同步数据（PCL 策略，FCL 同值）
+static const NSTimeInterval kAme291MergeWindowSeconds = 7.0 * 24.0 * 3600.0;
+
+- (void)ame291_addIfDistinct:(NSDictionary *)item
+                   toMerged:(NSMutableArray<NSDictionary *> *)merged
+                       seen:(NSMutableDictionary<NSString *, NSNumber *> *)seen {
+    NSString *slugKey = [self ame291_normalizeKey:item[@"slug"]];
+    NSString *titleKey = [self ame291_normalizeKey:item[@"title"]];
+    NSString *hitKey = nil;
+    if (slugKey.length > 0 && seen[[@"slug:" stringByAppendingString:slugKey]] != nil) {
+        hitKey = [@"slug:" stringByAppendingString:slugKey];
+    } else if (titleKey.length > 0 && seen[[@"title:" stringByAppendingString:titleKey]] != nil) {
+        hitKey = [@"title:" stringByAppendingString:titleKey];
+    }
+    NSTimeInterval modified = [self ame291_parseISO8601:item[@"lastUpdated"]];
+    if (hitKey != nil) {
+        NSTimeInterval existing = [seen[hitKey] doubleValue];
+        // 时间不可得或差超窗口 → 两平台条目都显示（数据不同步时的保守策略）
+        NSTimeInterval delta = (existing > modified) ? (existing - modified) : (modified - existing);
+        if (existing <= 0 || modified <= 0 || delta > kAme291MergeWindowSeconds) {
+            [merged addObject:item];
+        }
+        return;
+    }
+    if (slugKey.length > 0) seen[[@"slug:" stringByAppendingString:slugKey]] = @(modified);
+    if (titleKey.length > 0) seen[[@"title:" stringByAppendingString:titleKey]] = @(modified);
+    [merged addObject:item];
+}
+
+/// 交错合并（同序号 CurseForge 前置，FCL 同语义）
+- (NSMutableArray<NSDictionary *> *)ame291_mergeCurse:(NSArray *)curse withModrinth:(NSArray *)modrinth {
+    NSMutableArray *merged = [NSMutableArray arrayWithCapacity:curse.count + modrinth.count];
+    NSMutableDictionary *seen = [NSMutableDictionary dictionary];
+    NSUInteger count = MAX(curse.count, modrinth.count);
+    for (NSUInteger i = 0; i < count; i++) {
+        if (i < curse.count) [self ame291_addIfDistinct:curse[i] toMerged:merged seen:seen];
+        if (i < modrinth.count) [self ame291_addIfDistinct:modrinth[i] toMerged:merged seen:seen];
+    }
+    return merged;
+}
+
+/// 单源降级提示（InlineMessageView 信息条，3s 自动消退）
+- (void)ame291_showPartialWarning:(NSString *)message {
+    if (message.length == 0) return;
+    InlineMessageView *notice = [InlineMessageView showInViewController:self
+                                                                 title:localize(@"ame291.dl.aggregate_partial_title", nil)
+                                                               message:message
+                                                                  type:InlineMessageTypeInfo];
+    dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(3.0 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
+        [notice dismiss];
+    });
+}
+
+/// 双源并行检索（同 filters 打 Modrinth + CurseForge 两路），交错合并 + 保守去重；
+/// 单源失败降级另一源（warning 带来源名），双源失败 error 返回。
+/// completion 主线程回调：merged（双源全失败时为 nil）、cfCount/mrCount（分页推进）、
+/// error、warning（单源降级提示，nil 表示无降级）。
+- (void)ame291_aggregateFetchWithFilters:(NSDictionary *)filters
+                              completion:(void (^)(NSArray *merged, NSInteger cfCount, NSInteger mrCount, NSError *error, NSString *warning))completion {
+    NSMutableDictionary *cfFilters = [filters mutableCopy];
+    NSMutableDictionary *mrFilters = [filters mutableCopy];
+    __block NSArray *cfResults = nil;
+    __block NSArray *mrResults = nil;
+    __block NSError *cfError = nil;
+    __block NSError *mrError = nil;
+    dispatch_group_t group = dispatch_group_create();
+    dispatch_queue_t queue = dispatch_get_global_queue(QOS_CLASS_USER_INITIATED, 0);
+
+    dispatch_group_enter(group);
+    dispatch_async(queue, ^{
+        [[CurseForgeAPI sharedInstance] searchModWithFilters:cfFilters completion:^(NSArray *results, NSError *error) {
+            cfResults = results;
+            cfError = error;
+            dispatch_group_leave(group);
+        }];
+    });
+    dispatch_group_enter(group);
+    dispatch_async(queue, ^{
+        [[ModrinthAPI sharedInstance] searchModWithFilters:mrFilters completion:^(NSArray *results, NSError *error) {
+            mrResults = results;
+            mrError = error;
+            dispatch_group_leave(group);
+        }];
+    });
+
+    dispatch_group_notify(group, dispatch_get_main_queue(), ^{
+        NSArray *cf = [cfResults isKindOfClass:NSArray.class] ? cfResults : nil;
+        NSArray *mr = [mrResults isKindOfClass:NSArray.class] ? mrResults : nil;
+        if (cf == nil && mr == nil) {
+            NSError *error = cfError ?: mrError
+                ?: [NSError errorWithDomain:@"DownloadVCError" code:-291
+                                   userInfo:@{NSLocalizedDescriptionKey: localize(@"ame291.dl.aggregate_failed", nil)}];
+            if (completion) completion(nil, 0, 0, error, nil);
+            return;
+        }
+        NSMutableArray *merged = [self ame291_mergeCurse:cf withModrinth:mr];
+        NSString *warning = nil;
+        if (cf == nil && mr != nil) {
+            warning = [NSString stringWithFormat:localize(@"ame291.dl.aggregate_partial", nil),
+                       localize(@"ame291.dl.source_curseforge", nil),
+                       localize(@"ame291.dl.source_modrinth", nil)];
+        } else if (mr == nil && cf != nil) {
+            warning = [NSString stringWithFormat:localize(@"ame291.dl.aggregate_partial", nil),
+                       localize(@"ame291.dl.source_modrinth", nil),
+                       localize(@"ame291.dl.source_curseforge", nil)];
+        }
+        if (completion) completion(merged, (NSInteger)cf.count, (NSInteger)mr.count, nil, warning);
+    });
+}
+
+- (void)sidebarAggregateClicked:(UIButton *)sender {
+    NSString *type = [self typeForTag:sender.tag];
+    NSString *currentSource = [PLPreferences currentDownloadSourceForType:type];
+    if ([currentSource isEqualToString:@"aggregate"]) return;
+
+    // 聚合含 CurseForge 分支：与 CF 单源点击同门槛（免 key 镜像回落放行）
+    if (![CurseForgeAPI isSourceAvailable]) {
+        InlineMessageView *msgView = [InlineMessageView showInViewController:self
+                                                                      title:localize(@"i18n_str_171", nil)
+                                                                   message:localize(@"i18n_str_172", nil)
+                                                                      type:InlineMessageTypeInfo];
+        dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(2.0 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
+            [msgView dismiss];
+            [self openCurseForgeAPIKeySettings];
+        });
+        return;
+    }
+
+    NSLog(@"[DownloadVC] Task291 source switch: type=%@ %@ -> aggregate", type, currentSource);
+    [PLPreferences setDownloadSource:@"aggregate" forType:type];
+    [self updateSourceSwitchButtonsForType:type];
+    [self reloadCurrentList];
+}
+
+
+#pragma mark - Task291 聚合模式各 tab 装配（filters 与单源路径逐键一致）
+
+- (void)ame291_loadModListAggregate {
+    if (self.isLoadingMoreMods) return;
+    self.isLoadingMoreMods = YES;
+    NSInteger ame293_epoch = ++self.ame293_listEpoch; // Task293：本代快照
+    NSString *requestedQuery = self.modSearchQuery ?: @"";
+    if (self.currentModOffset == 0) [self.loadingIndicator startAnimating];
+
+    NSMutableDictionary *filters = [NSMutableDictionary dictionary];
+    filters[@"limit"] = @30;
+    filters[@"offset"] = @(self.currentModOffset);
+    if (self.modSearchQuery.length > 0) filters[@"query"] = self.modSearchQuery;
+    if (self.currentGameVersion.length > 0) filters[@"version"] = self.currentGameVersion;
+    if (self.currentModLoader.length > 0) filters[@"loader"] = self.currentModLoader;
+    if (self.currentSortField.length > 0) filters[@"sort"] = self.currentSortField;
+
+    __weak typeof(self) weakSelf = self;
+    [self ame291_aggregateFetchWithFilters:filters completion:^(NSArray *merged, NSInteger cfCount, NSInteger mrCount, NSError *error, NSString *warning) {
+        __strong typeof(weakSelf) strongSelf = weakSelf;
+        if (!strongSelf) return;
+        if (![(strongSelf.modSearchQuery ?: @"") isEqualToString:requestedQuery]) {
+            strongSelf.isLoadingMoreMods = NO;
+            return;
+        }
+        // Task293：代际不匹配 = 源切换/重载后的迟到旧响应，整包丢弃
+        // （不动新代际的 isLoading 位，新代际自持状态）
+        if (ame293_epoch != strongSelf.ame293_listEpoch) return;
+        [strongSelf.loadingIndicator stopAnimating];
+        [strongSelf.modTableView.refreshControl endRefreshing];
+        strongSelf.isLoadingMoreMods = NO;
+        if (merged) {
+            if (strongSelf.currentModOffset == 0) [strongSelf.modList removeAllObjects];
+            [strongSelf.modList addObjectsFromArray:merged];
+            strongSelf.hasMoreMods = (cfCount >= 30 || mrCount >= 30);
+            strongSelf.currentModOffset += 30;
+            [strongSelf.modTableView reloadData];
+            strongSelf.emptyLabel.hidden = (strongSelf.modList.count > 0);
+            if (strongSelf.modList.count == 0) {
+                strongSelf.emptyLabel.text = localize(@"i18n_str_180", nil);
+                strongSelf.emptyLabel.hidden = NO;
+            }
+        } else if (error) {
+            [strongSelf showError:error.localizedDescription];
+        }
+        if (warning.length > 0) [strongSelf ame291_showPartialWarning:warning];
+    }];
+}
+
+- (void)ame291_loadShaderListAggregate {
+    if (self.isLoadingMoreShaders) return;
+    self.isLoadingMoreShaders = YES;
+    NSInteger ame293_epoch = ++self.ame293_listEpoch; // Task293：本代快照
+    NSString *requestedQuery = self.shaderSearchQuery ?: @"";
+    if (self.currentShaderOffset == 0) [self.loadingIndicator startAnimating];
+
+    NSMutableDictionary *filters = [NSMutableDictionary dictionary];
+    filters[@"limit"] = @30;
+    filters[@"offset"] = @(self.currentShaderOffset);
+    filters[@"projectType"] = @"shader";
+    if (self.shaderSearchQuery.length > 0) filters[@"query"] = self.shaderSearchQuery;
+    if (self.currentGameVersion.length > 0) filters[@"version"] = self.currentGameVersion;
+
+    __weak typeof(self) weakSelf = self;
+    [self ame291_aggregateFetchWithFilters:filters completion:^(NSArray *merged, NSInteger cfCount, NSInteger mrCount, NSError *error, NSString *warning) {
+        __strong typeof(weakSelf) strongSelf = weakSelf;
+        if (!strongSelf) return;
+        if (![(strongSelf.shaderSearchQuery ?: @"") isEqualToString:requestedQuery]) {
+            strongSelf.isLoadingMoreShaders = NO;
+            return;
+        }
+        // Task293：代际不匹配 = 迟到旧响应整包丢弃（不动新代际的 isLoading 位）
+        if (ame293_epoch != strongSelf.ame293_listEpoch) return;
+        [strongSelf.loadingIndicator stopAnimating];
+        [strongSelf.shaderTableView.refreshControl endRefreshing];
+        strongSelf.isLoadingMoreShaders = NO;
+        if (merged) {
+            if (strongSelf.currentShaderOffset == 0) [strongSelf.shaderList removeAllObjects];
+            [strongSelf.shaderList addObjectsFromArray:merged];
+            strongSelf.hasMoreShaders = (cfCount >= 30 || mrCount >= 30);
+            strongSelf.currentShaderOffset += 30;
+            [strongSelf.shaderTableView reloadData];
+            strongSelf.emptyLabel.hidden = (strongSelf.shaderList.count > 0);
+            if (strongSelf.shaderList.count == 0) {
+                strongSelf.emptyLabel.text = localize(@"i18n_str_181", nil);
+                strongSelf.emptyLabel.hidden = NO;
+            }
+        } else if (error) {
+            [strongSelf showError:error.localizedDescription];
+        }
+        if (warning.length > 0) [strongSelf ame291_showPartialWarning:warning];
+    }];
+}
+
+- (void)ame291_loadModpackListAggregate {
+    if (self.isLoadingModpacks) return;
+    self.isLoadingModpacks = YES;
+    NSInteger ame293_epoch = ++self.ame293_listEpoch; // Task293：本代快照
+    NSString *requestedQuery = self.modpackSearchQuery ?: @"";
+    if (self.currentModpackOffset == 0) [self.loadingIndicator startAnimating];
+
+    NSMutableDictionary *filters = [NSMutableDictionary dictionary];
+    filters[@"isModpack"] = @YES;
+    filters[@"projectType"] = @"modpack";
+    filters[@"limit"] = @30;
+    filters[@"offset"] = @(self.currentModpackOffset);
+    if (self.modpackSearchQuery.length > 0) filters[@"query"] = self.modpackSearchQuery;
+    if (self.currentGameVersion.length > 0) filters[@"version"] = self.currentGameVersion;
+    if (self.currentSortField.length > 0) filters[@"sort"] = self.currentSortField;
+    if (self.currentModLoader.length > 0) filters[@"loader"] = self.currentModLoader;
+
+    __weak typeof(self) weakSelf = self;
+    [self ame291_aggregateFetchWithFilters:filters completion:^(NSArray *merged, NSInteger cfCount, NSInteger mrCount, NSError *error, NSString *warning) {
+        __strong typeof(weakSelf) strongSelf = weakSelf;
+        if (!strongSelf) return;
+        if (![(strongSelf.modpackSearchQuery ?: @"") isEqualToString:requestedQuery]) {
+            strongSelf.isLoadingModpacks = NO;
+            return;
+        }
+        // Task293：代际不匹配 = 迟到旧响应整包丢弃（不动新代际的 isLoading 位）
+        if (ame293_epoch != strongSelf.ame293_listEpoch) return;
+        [strongSelf.loadingIndicator stopAnimating];
+        [strongSelf.modpackTableView.refreshControl endRefreshing];
+        strongSelf.isLoadingModpacks = NO;
+        if (merged) {
+            if (strongSelf.currentModpackOffset == 0) [strongSelf.modpackList removeAllObjects];
+            [strongSelf.modpackList addObjectsFromArray:merged];
+            strongSelf.hasMoreModpacks = (cfCount >= 30 || mrCount >= 30);
+            strongSelf.currentModpackOffset += 30;
+            [strongSelf.modpackTableView reloadData];
+            strongSelf.emptyLabel.hidden = (strongSelf.modpackList.count > 0);
+            if (strongSelf.modpackList.count == 0) {
+                strongSelf.emptyLabel.text = localize(@"i18n_str_182", nil);
+                strongSelf.emptyLabel.hidden = NO;
+            }
+        } else if (error) {
+            [strongSelf showError:error.localizedDescription];
+        }
+        if (warning.length > 0) [strongSelf ame291_showPartialWarning:warning];
+    }];
+}
+
+- (void)ame291_loadResourcepackListAggregate {
+    if (self.isLoadingResourcepacks) return;
+    self.isLoadingResourcepacks = YES;
+    NSInteger ame293_epoch = ++self.ame293_listEpoch; // Task293：本代快照
+    NSString *requestedQuery = self.resourcepackSearchQuery ?: @"";
+    if (self.currentResourcepackOffset == 0) [self.loadingIndicator startAnimating];
+
+    NSMutableDictionary *filters = [NSMutableDictionary dictionary];
+    filters[@"limit"] = @30;
+    filters[@"offset"] = @(self.currentResourcepackOffset);
+    filters[@"projectType"] = @"resourcepack";
+    if (self.resourcepackSearchQuery.length > 0) filters[@"query"] = self.resourcepackSearchQuery;
+    if (self.currentGameVersion.length > 0) filters[@"version"] = self.currentGameVersion;
+
+    __weak typeof(self) weakSelf = self;
+    [self ame291_aggregateFetchWithFilters:filters completion:^(NSArray *merged, NSInteger cfCount, NSInteger mrCount, NSError *error, NSString *warning) {
+        __strong typeof(weakSelf) strongSelf = weakSelf;
+        if (!strongSelf) return;
+        if (![(strongSelf.resourcepackSearchQuery ?: @"") isEqualToString:requestedQuery]) {
+            strongSelf.isLoadingResourcepacks = NO;
+            return;
+        }
+        // Task293：代际不匹配 = 迟到旧响应整包丢弃（不动新代际的 isLoading 位）
+        if (ame293_epoch != strongSelf.ame293_listEpoch) return;
+        [strongSelf.loadingIndicator stopAnimating];
+        [strongSelf.resourcepackTableView.refreshControl endRefreshing];
+        strongSelf.isLoadingResourcepacks = NO;
+        if (merged) {
+            if (strongSelf.currentResourcepackOffset == 0) [strongSelf.resourcepackList removeAllObjects];
+            [strongSelf.resourcepackList addObjectsFromArray:merged];
+            strongSelf.hasMoreResourcepacks = (cfCount >= 30 || mrCount >= 30);
+            strongSelf.currentResourcepackOffset += 30;
+            [strongSelf.resourcepackTableView reloadData];
+            strongSelf.emptyLabel.hidden = (strongSelf.resourcepackList.count > 0);
+            if (strongSelf.resourcepackList.count == 0) {
+                strongSelf.emptyLabel.text = localize(@"i18n_str_183", nil);
+                strongSelf.emptyLabel.hidden = NO;
+            }
+        } else if (error) {
+            [strongSelf showError:error.localizedDescription];
+        }
+        if (warning.length > 0) [strongSelf ame291_showPartialWarning:warning];
+    }];
+}
+
+- (void)ame291_loadDatapackListAggregate {
+    if (self.isLoadingDatapacks) return;
+    self.isLoadingDatapacks = YES;
+    NSInteger ame293_epoch = ++self.ame293_listEpoch; // Task293：本代快照
+    NSString *requestedQuery = self.datapackSearchQuery ?: @"";
+    if (self.currentDatapackOffset == 0) [self.loadingIndicator startAnimating];
+
+    NSMutableDictionary *filters = [NSMutableDictionary dictionary];
+    filters[@"limit"] = @30;
+    filters[@"offset"] = @(self.currentDatapackOffset);
+    filters[@"projectType"] = @"datapack";
+    if (self.datapackSearchQuery.length > 0) filters[@"query"] = self.datapackSearchQuery;
+    if (self.currentGameVersion.length > 0) filters[@"version"] = self.currentGameVersion;
+
+    __weak typeof(self) weakSelf = self;
+    [self ame291_aggregateFetchWithFilters:filters completion:^(NSArray *merged, NSInteger cfCount, NSInteger mrCount, NSError *error, NSString *warning) {
+        __strong typeof(weakSelf) strongSelf = weakSelf;
+        if (!strongSelf) return;
+        if (![(strongSelf.datapackSearchQuery ?: @"") isEqualToString:requestedQuery]) {
+            strongSelf.isLoadingDatapacks = NO;
+            return;
+        }
+        // Task293：代际不匹配 = 迟到旧响应整包丢弃（不动新代际的 isLoading 位）
+        if (ame293_epoch != strongSelf.ame293_listEpoch) return;
+        [strongSelf.loadingIndicator stopAnimating];
+        [strongSelf.datapackTableView.refreshControl endRefreshing];
+        strongSelf.isLoadingDatapacks = NO;
+        if (merged) {
+            if (strongSelf.currentDatapackOffset == 0) [strongSelf.datapackList removeAllObjects];
+            [strongSelf.datapackList addObjectsFromArray:merged];
+            strongSelf.hasMoreDatapacks = (cfCount >= 30 || mrCount >= 30);
+            strongSelf.currentDatapackOffset += 30;
+            [strongSelf.datapackTableView reloadData];
+            strongSelf.emptyLabel.hidden = (strongSelf.datapackList.count > 0);
+            if (strongSelf.datapackList.count == 0) {
+                strongSelf.emptyLabel.text = localize(@"i18n_str_184", nil);
+                strongSelf.emptyLabel.hidden = NO;
+            }
+        } else if (error) {
+            [strongSelf showError:error.localizedDescription];
+        }
+        if (warning.length > 0) [strongSelf ame291_showPartialWarning:warning];
+    }];
+}
+
 - (id)currentAPIForTabType:(NSString *)type {
     // Modrinth 不支持 project_type:world facet (其 project_type 仅 mod/modpack/shader/resourcepack/plugin)
     // 世界 tab 强制走 CurseForge (classID 17 = Worlds 真实存在)
@@ -2015,8 +2499,11 @@ typedef NS_ENUM(NSInteger, ModernAssetType) {
 }
 
 - (void)loadModList {
+    // Task291: 聚合源→ 双源并行合并检索
+    if ([self ame291_isAggregateForType:@"mod"]) { [self ame291_loadModListAggregate]; return; }
     if (self.isLoadingMoreMods) return;
     self.isLoadingMoreMods = YES;
+    NSInteger ame293_epoch = ++self.ame293_listEpoch; // Task293：本代快照
 
     // 快照发起时的搜索词：响应返回后若搜索词已变化（用户又搜了新词或切走），
     // 丢弃该旧响应，避免"旧响应覆盖新结果"（问题4 反馈点之一）
@@ -2055,6 +2542,8 @@ typedef NS_ENUM(NSInteger, ModernAssetType) {
                 strongSelf.isLoadingMoreMods = NO;
                 return;
             }
+            // Task293：代际不匹配 = 迟到旧响应整包丢弃（不动新代际的 isLoading 位）
+            if (ame293_epoch != strongSelf.ame293_listEpoch) return;
 
             [strongSelf.loadingIndicator stopAnimating];
             [strongSelf.modTableView.refreshControl endRefreshing];
@@ -2101,8 +2590,11 @@ typedef NS_ENUM(NSInteger, ModernAssetType) {
 }
 
 - (void)loadShaderList {
+    // Task291: 聚合源→ 双源并行合并检索
+    if ([self ame291_isAggregateForType:@"shader"]) { [self ame291_loadShaderListAggregate]; return; }
     if (self.isLoadingMoreShaders) return;
     self.isLoadingMoreShaders = YES;
+    NSInteger ame293_epoch = ++self.ame293_listEpoch; // Task293：本代快照
 
     // 快照发起时的搜索词：响应返回后若搜索词已变化，丢弃该旧响应（问题4 修复，同 loadModList）
     NSString *requestedQuery = self.shaderSearchQuery ?: @"";
@@ -2135,6 +2627,8 @@ typedef NS_ENUM(NSInteger, ModernAssetType) {
                 strongSelf.isLoadingMoreShaders = NO;
                 return;
             }
+            // Task293：代际不匹配 = 迟到旧响应整包丢弃（不动新代际的 isLoading 位）
+            if (ame293_epoch != strongSelf.ame293_listEpoch) return;
 
             [strongSelf.loadingIndicator stopAnimating];
             [strongSelf.shaderTableView.refreshControl endRefreshing];
@@ -2181,8 +2675,11 @@ typedef NS_ENUM(NSInteger, ModernAssetType) {
 }
 
 - (void)loadModpackList {
+    // Task291: 聚合源→ 双源并行合并检索
+    if ([self ame291_isAggregateForType:@"modpack"]) { [self ame291_loadModpackListAggregate]; return; }
     if (self.isLoadingModpacks) return;
     self.isLoadingModpacks = YES;
+    NSInteger ame293_epoch = ++self.ame293_listEpoch; // Task293：本代快照
     
     if (self.currentModpackOffset == 0) {
         [self.loadingIndicator startAnimating];
@@ -2218,6 +2715,8 @@ typedef NS_ENUM(NSInteger, ModernAssetType) {
         dispatch_async(dispatch_get_main_queue(), ^{
             __strong typeof(weakSelf) strongSelf = weakSelf;
             if (!strongSelf) return;
+            // Task293：代际不匹配 = 迟到旧响应整包丢弃（不动新代际的 isLoading 位）
+            if (ame293_epoch != strongSelf.ame293_listEpoch) return;
             [strongSelf.loadingIndicator stopAnimating];
             [strongSelf.modpackTableView.refreshControl endRefreshing];
             strongSelf.isLoadingModpacks = NO;
@@ -2263,8 +2762,11 @@ typedef NS_ENUM(NSInteger, ModernAssetType) {
 }
 
 - (void)loadResourcePackList {
+    // Task291: 聚合源→ 双源并行合并检索
+    if ([self ame291_isAggregateForType:@"resourcepack"]) { [self ame291_loadResourcepackListAggregate]; return; }
     if (self.isLoadingResourcepacks) return;
     self.isLoadingResourcepacks = YES;
+    NSInteger ame293_epoch = ++self.ame293_listEpoch; // Task293：本代快照
 
     if (self.currentResourcepackOffset == 0) {
         [self.loadingIndicator startAnimating];
@@ -2295,6 +2797,8 @@ typedef NS_ENUM(NSInteger, ModernAssetType) {
         dispatch_async(dispatch_get_main_queue(), ^{
             __strong typeof(weakSelf) strongSelf = weakSelf;
             if (!strongSelf) return;
+            // Task293：代际不匹配 = 迟到旧响应整包丢弃（不动新代际的 isLoading 位）
+            if (ame293_epoch != strongSelf.ame293_listEpoch) return;
             [strongSelf.loadingIndicator stopAnimating];
             [strongSelf.resourcepackTableView.refreshControl endRefreshing];
             strongSelf.isLoadingResourcepacks = NO;
@@ -2340,8 +2844,11 @@ typedef NS_ENUM(NSInteger, ModernAssetType) {
 }
 
 - (void)loadDataPackList {
+    // Task291: 聚合源→ 双源并行合并检索
+    if ([self ame291_isAggregateForType:@"datapack"]) { [self ame291_loadDatapackListAggregate]; return; }
     if (self.isLoadingDatapacks) return;
     self.isLoadingDatapacks = YES;
+    NSInteger ame293_epoch = ++self.ame293_listEpoch; // Task293：本代快照
 
     if (self.currentDatapackOffset == 0) {
         [self.loadingIndicator startAnimating];
@@ -2365,6 +2872,8 @@ typedef NS_ENUM(NSInteger, ModernAssetType) {
         dispatch_async(dispatch_get_main_queue(), ^{
             __strong typeof(weakSelf) strongSelf = weakSelf;
             if (!strongSelf) return;
+            // Task293：代际不匹配 = 迟到旧响应整包丢弃（不动新代际的 isLoading 位）
+            if (ame293_epoch != strongSelf.ame293_listEpoch) return;
             [strongSelf.loadingIndicator stopAnimating];
             [strongSelf.datapackTableView.refreshControl endRefreshing];
             strongSelf.isLoadingDatapacks = NO;
@@ -2412,6 +2921,7 @@ typedef NS_ENUM(NSInteger, ModernAssetType) {
 - (void)loadWorldList {
     if (self.isLoadingWorlds) return;
     self.isLoadingWorlds = YES;
+    NSInteger ame293_epoch = ++self.ame293_listEpoch; // Task293：本代快照
 
     if (self.currentWorldOffset == 0) {
         [self.loadingIndicator startAnimating];
@@ -2448,6 +2958,8 @@ typedef NS_ENUM(NSInteger, ModernAssetType) {
         dispatch_async(dispatch_get_main_queue(), ^{
             __strong typeof(weakSelf) strongSelf = weakSelf;
             if (!strongSelf) return;
+            // Task293：代际不匹配 = 迟到旧响应整包丢弃（不动新代际的 isLoading 位）
+            if (ame293_epoch != strongSelf.ame293_listEpoch) return;
             [strongSelf.loadingIndicator stopAnimating];
             [strongSelf.worldTableView.refreshControl endRefreshing];
             strongSelf.isLoadingWorlds = NO;
@@ -2770,6 +3282,16 @@ typedef NS_ENUM(NSInteger, ModernAssetType) {
 }
 
 - (void)reloadCurrentList {
+    // Task293：每次重载即新一代请求——清空在途标记（否则旧响应占位令新源
+    // 首翻页被 if (isLoadingMore) return 整段跳过 = "切换源后列表缺失"），
+    // 迟到旧响应由各 completion 的代际检查整包丢弃。
+    self.ame293_listEpoch++;
+    self.isLoadingMoreMods = NO;
+    self.isLoadingMoreShaders = NO;
+    self.isLoadingModpacks = NO;
+    self.isLoadingResourcepacks = NO;
+    self.isLoadingDatapacks = NO;
+    self.isLoadingWorlds = NO;
     NSInteger tabIndex = self.tabSegment.selectedSegmentIndex;
     // Task212：筛选链路锚点日志（用户报"CF 筛选功能无法使用"，99d8122e
     // 装机日志无下载页活动、无法直接取证）——每次列表重载时打印
@@ -3477,7 +3999,8 @@ typedef NS_ENUM(NSInteger, ModernAssetType) {
 
             // 解析 JSON（阶段0 收尾）
             NSError *jsonError;
-            NSDictionary *profileJson = [NSJSONSerialization JSONObjectWithData:data options:0 error:&jsonError];
+            // Task303：__block —— 重复实例改名时需在 ame303 回调内重赋值 id
+            __block NSDictionary *profileJson = [NSJSONSerialization JSONObjectWithData:data options:0 error:&jsonError];
             if (!profileJson || jsonError) {
                 [manager updateTaskWithId:fabricTaskId stageAtIndex:kFabricStageProfile status:PLTaskStageStatusFailed];
                 [manager updateTaskWithId:fabricTaskId stageAtIndex:kFabricStageProfile progress:0 message:jsonError.localizedDescription];
@@ -3492,7 +4015,33 @@ typedef NS_ENUM(NSInteger, ModernAssetType) {
             [manager updateTaskWithId:fabricTaskId stageAtIndex:kFabricStageWriteJSON status:PLTaskStageStatusRunning];
             [manager updateTaskWithId:fabricTaskId currentStageIndex:kFabricStageWriteJSON];
 
-            NSString *versionId = profileJson[@"id"];
+            // Task303：__block —— 改名后需在 ame303 回调内重赋值 id
+            __block NSString *versionId = profileJson[@"id"];
+            // ★ Task303：重复实例检测+命名窗（对齐原版 Task300 交互）。
+            // 病历（用户 2026-10-19"下载原版有改名提示，模组端依旧被吞"）：
+            // installFabricLikeLoader 写 versions/<id>/ 前零检测，同 id（如
+            // fabric-loader-<v>-<mc> 固定格式）重复安装静默覆盖旧实例。修法：
+            // 目录已存在 → 弹 Task300 同款命名窗；取消 → 任务置 Cancelled
+            // 干净终止；确认后以 finalId 落盘+注册。
+            __strong typeof(weakSelf) strongSelfDup = weakSelf;
+            if (!strongSelfDup) return;
+            [MinecraftResourceDownloadTask ame303_resolveDuplicateVersionId:versionId completion:^(NSString *finalId, BOOL cancelled) {
+                dispatch_async(dispatch_get_main_queue(), ^{
+                    __strong typeof(weakSelf) strongSelfDupInner = weakSelf;
+                    if (!strongSelfDupInner) return;
+                    if (cancelled || finalId.length == 0) {
+                        [manager updateTaskWithId:fabricTaskId stageAtIndex:kFabricStageWriteJSON status:PLTaskStageStatusFailed];
+                        [[DownloadTaskManager sharedManager] setTaskWithId:fabricTaskId completedWithError:nil];
+                        [[DownloadTaskManager sharedManager] setTaskWithId:fabricTaskId state:DownloadTaskStateCancelled];
+                        return;
+                    }
+                    if (![finalId isEqualToString:versionId]) {
+                        NSMutableDictionary *mutableProfile = [profileJson mutableCopy];
+                        mutableProfile[@"id"] = finalId;
+                        profileJson = mutableProfile;
+                        versionId = finalId;
+                    }
+
             NSString *jsonPath = [NSString stringWithFormat:@"%s/versions/%@/%@.json", getenv("POJAV_GAME_DIR"), versionId, versionId];
             [[NSFileManager defaultManager] createDirectoryAtPath:[jsonPath stringByDeletingLastPathComponent]
                                       withIntermediateDirectories:YES
@@ -3515,9 +4064,12 @@ typedef NS_ENUM(NSInteger, ModernAssetType) {
             NSMutableDictionary *profile = [NSMutableDictionary dictionary];
             profile[@"name"] = versionId;
             profile[@"lastVersionId"] = versionId;
-            // 改回原来的"游戏目录切换"机制：所有版本共享根目录（gameDir="."）
-            // 用户通过设置中的"游戏目录切换"功能手动切换不同的 gameDir
-            profile[@"gameDir"] = @".";
+                        // ★ Task271（271-a F3·Task242 补完）：下载页 Fabric/Quilt 对齐新下载原版/
+            //   Forge/NeoForge 的隔离口径 —— gameDir = versions/<id>/game。旧
+            //   gameDir="."（Task242 半迁移遗留+陈旧注释）让同名重装覆写既有隔离
+            //   条目、新装实例生而共享（装机实锤：fabric-loader-* 模组列表变共享）。
+            //   用户仍可在版本设置三态选择器改回。
+            profile[@"gameDir"] = [NSString stringWithFormat:@"versions/%@/game", versionId];
             profile[@"type"] = @"custom";
             profile[@"created"] = [NSDate date].description;
             [PLProfiles.current saveProfile:profile withName:versionId];
@@ -3551,6 +4103,8 @@ typedef NS_ENUM(NSInteger, ModernAssetType) {
                 [[DownloadTaskManager sharedManager] setTaskWithId:fabricTaskId completedWithError:nil];
                 [strongSelf finishInstallerProgressWithSuccess:[NSString stringWithFormat:localize(@"i18n_str_213", nil), displayName, loaderVersion]];
             }
+                });
+            }];
         });
     }];
     DownloadTaskItem *fabricTaskItem = [[DownloadTaskManager sharedManager] taskWithId:fabricTaskId];
@@ -3827,7 +4381,12 @@ typedef NS_ENUM(NSInteger, ModernAssetType) {
     } else if (hasTrollStoreJIT) {
         NSLog(@"[JIT] [DownloadVC] TrollStore entitlement present but isJITEnabled=false, opening apple-magnifier://");
         NSURL *jitURL = [NSURL URLWithString:[NSString stringWithFormat:@"apple-magnifier://enable-jit?bundle-id=%@", NSBundle.mainBundle.bundleIdentifier]];
-        [UIApplication.sharedApplication openURL:jitURL options:@{} completionHandler:nil];
+        // ★ Task270（★1 回执对齐）：补 openURL 回执取证（NavCtrl:749/RightPanel:1812
+        //   均有 ame185_ok 日志，DownloadVC 三处 completionHandler:nil = 回执丢失，
+        //   历次 JIT 排障时本文件 openURL 结果不可考）。
+        [UIApplication.sharedApplication openURL:jitURL options:@{} completionHandler:^(BOOL ame185_ok) {
+            NSLog(@"[JIT] [DownloadVC] Task185 openURL apple-magnifier:// -> %d", ame185_ok);
+        }];
     } else if (getPrefBool(@"debug.debug_skip_wait_jit")) {
         NSLog(@"Debug option skipped waiting for JIT. Java might not work.");
         handler();
@@ -3855,7 +4414,10 @@ typedef NS_ENUM(NSInteger, ModernAssetType) {
     } else {
         // Assuming 16.7-17.3.1. SideStore still lacks this URL scheme at the time of writing, so it only jumps to SideStore.
         NSLog(@"[JIT] [DownloadVC] Using sidestore:// for iOS < 17.4");
-        [UIApplication.sharedApplication openURL:[NSURL URLWithString:[NSString stringWithFormat:@"sidestore://sidejit-enable?pid=%d", getpid()]] options:@{} completionHandler:nil];
+        // ★ Task270（★1 回执对齐）：同上。
+        [UIApplication.sharedApplication openURL:[NSURL URLWithString:[NSString stringWithFormat:@"sidestore://sidejit-enable?pid=%d", getpid()]] options:@{} completionHandler:^(BOOL ame185_ok) {
+            NSLog(@"[JIT] [DownloadVC] Task185 openURL sidestore:// -> %d", ame185_ok);
+        }];
     }
     
     // 在内容区显示 JIT 等待提示，替代弹窗
@@ -3863,6 +4425,12 @@ typedef NS_ENUM(NSInteger, ModernAssetType) {
                                                                     title:localize(@"launcher.wait_jit.title", nil)
                                                                  message:hasTrollStoreJIT ? localize(@"launcher.wait_jit_trollstore.message", nil) : localize(@"launcher.wait_jit.message", nil)
                                                                     type:InlineMessageTypeLoading];
+    // ★ Task268（scan-a #2）：等待期可取消（InlineMessageView 关闭钮接
+    // ame267_cancelled，与 RightPanel/NavCtrl 同语义）+ 完成续接换
+    // ame185 自愈派发（Task185 病历族：主队列楔死时裸 dispatch_async 静默丢块）。
+    __block BOOL ame267_cancelled = NO;
+    jitAlert.showsCloseButton = YES;
+    jitAlert.onClose = ^{ ame267_cancelled = YES; };
 
     // Task172：后台任务断言（同 RightPanel，见其病历）：stikjit:// 切后台后
     // 防 iOS 立即挂起冻结等待循环。
@@ -3873,12 +4441,16 @@ typedef NS_ENUM(NSInteger, ModernAssetType) {
     dispatch_async(dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_DEFAULT, 0), ^{
         // Task169：有界等待（120s）+每 10s 心跳日志，超时走错误提示
         //（同 RightPanel/NavCtrl 两处，病历见 utils.m）。
-        BOOL ok = ame169_waitForJITCondition(^{ return isJITEnabled(false); }, 120.0, @"isJITEnabled");
-        dispatch_async(dispatch_get_main_queue(), ^{
+        BOOL ok = ame169_waitForJITCondition(^{ return (BOOL)(ame267_cancelled || isJITEnabled(false)); }, 120.0, @"isJITEnabled");
+        ame185_dispatchToMainSelfHealing(^{
             [jitAlert dismiss];
             if (ame172_bgt != UIBackgroundTaskInvalid) {
                 [UIApplication.sharedApplication endBackgroundTask:ame172_bgt];
                 ame172_bgt = UIBackgroundTaskInvalid;
+            }
+            if (ame267_cancelled) {
+                NSLog(@"[JIT] [DownloadVC] Task268: JIT wait cancelled by user -- abandoning launch");
+                return;
             }
             if (ok) {
                 // Task172：存活性复查（同 RightPanel）：CS_DEBUGGED 已置但
@@ -3893,7 +4465,7 @@ typedef NS_ENUM(NSInteger, ModernAssetType) {
             } else {
                 [self ame169_showJITTimeoutInlineWithRetry:handler];
             }
-        });
+        }, @"DownloadVC main wait");
     });
 }
 
@@ -3905,6 +4477,12 @@ typedef NS_ENUM(NSInteger, ModernAssetType) {
                                                                     title:localize(@"launcher.wait_jit.title", nil)
                                                                  message:localize(@"launcher.wait_jit.message", nil)
                                                                     type:InlineMessageTypeLoading];
+    // ★ Task268（scan-a #2）：等待期可取消（InlineMessageView 关闭钮接
+    // ame267_cancelled，与 RightPanel/NavCtrl 同语义）+ 完成续接换
+    // ame185 自愈派发（Task185 病历族：主队列楔死时裸 dispatch_async 静默丢块）。
+    __block BOOL ame267_cancelled = NO;
+    jitAlert.showsCloseButton = YES;
+    jitAlert.onClose = ^{ ame267_cancelled = YES; };
 
     __block UIBackgroundTaskIdentifier ame172_bgt = [UIApplication.sharedApplication beginBackgroundTaskWithName:@"ame172-jit26-reattach" expirationHandler:^{
         // 同上：宽限期到由系统挂起，恢复后继续。
@@ -3916,7 +4494,10 @@ typedef NS_ENUM(NSInteger, ModernAssetType) {
         if (scriptData) {
             scriptDataString = [@"&script-data=" stringByAppendingString:[scriptData base64EncodedStringWithOptions:0]];
         }
-        [UIApplication.sharedApplication openURL:[NSURL URLWithString:[NSString stringWithFormat:@"stikjit://enable-jit?bundle-id=%@&pid=%d%@", NSBundle.mainBundle.bundleIdentifier, getpid(), scriptDataString]] options:@{} completionHandler:nil];
+        // ★ Task270（★1 回执对齐）：ame172 重挂链的 stikjit:// 同补回执。
+        [UIApplication.sharedApplication openURL:[NSURL URLWithString:[NSString stringWithFormat:@"stikjit://enable-jit?bundle-id=%@&pid=%d%@", NSBundle.mainBundle.bundleIdentifier, getpid(), scriptDataString]] options:@{} completionHandler:^(BOOL ame172_ok) {
+            NSLog(@"[JIT] [DownloadVC] Task172 openURL stikjit:// -> %d", ame172_ok);
+        }];
         NSLog(@"[JIT] [DownloadVC] Task172 stikjit:// re-attach fired (script=%lu bytes)",
               (unsigned long)scriptData.length);
     };
@@ -3946,19 +4527,23 @@ typedef NS_ENUM(NSInteger, ModernAssetType) {
         // exception ports / spawned-by-debugger), not for CS_DEBUGGED
         // -- that flag is already set and would race the first brk.
         // Task169：有界等待（120s）+心跳日志，超时走错误提示（不无限转圈）。
-        BOOL ok = ame169_waitForJITCondition(^{ return JIT26IsLikelyDebuggerKeepAttached(); }, 120.0, @"JIT26 debugger attach");
-        dispatch_async(dispatch_get_main_queue(), ^{
+        BOOL ok = ame169_waitForJITCondition(^{ return (BOOL)(ame267_cancelled || JIT26IsLikelyDebuggerKeepAttached()); }, 120.0, @"JIT26 debugger attach");
+        ame185_dispatchToMainSelfHealing(^{
             [jitAlert dismiss];
             if (ame172_bgt != UIBackgroundTaskInvalid) {
                 [UIApplication.sharedApplication endBackgroundTask:ame172_bgt];
                 ame172_bgt = UIBackgroundTaskInvalid;
+            }
+            if (ame267_cancelled) {
+                NSLog(@"[JIT] [DownloadVC] Task268: JIT wait cancelled by user -- abandoning launch");
+                return;
             }
             if (ok) {
                 if (handler) handler();
             } else {
                 [self ame169_showJITTimeoutInlineWithRetry:handler];
             }
-        });
+        }, @"DownloadVC reattach wait");
     });
 }
 
@@ -4506,7 +5091,9 @@ typedef NS_ENUM(NSInteger, ModernAssetType) {
             NSMutableDictionary *profile = [NSMutableDictionary dictionary];
             profile[@"name"] = versionId;
             profile[@"lastVersionId"] = versionId;
-            profile[@"gameDir"] = @".";
+            // ★ Task271（271-a F3·Task242 补完）：下载页 OptiFine 同步隔离口径
+            //   versions/<id>/game（与 Fabric/原版同批半迁移遗留）。
+            profile[@"gameDir"] = [NSString stringWithFormat:@"versions/%@/game", versionId];
             profile[@"type"] = @"custom";
             profile[@"created"] = [NSDate date].description;
             [PLProfiles.current saveProfile:profile withName:versionId];
@@ -4721,10 +5308,13 @@ typedef NS_ENUM(NSInteger, ModernAssetType) {
     versionVC.delegate = self;
     versionVC.title = modItem.displayName;
     // 修复（来源丢失）：沿用 modpack 搜索时的 API 来源，避免拿 CurseForge 数字 ID 请求 Modrinth
-    versionVC.apiSource = [self apiSourceForType:@"modpack"];
+    // Task291: 逐条目来源路由（聚合模式条目混排，页面级来源会把 CF 条目错发给 Modrinth；单源下与页面级值恒等）
+    NSInteger ame291_itemSource_modpack = [modpack[@"apiSource"] integerValue];
+    versionVC.apiSource = (ame291_itemSource_modpack == 2) ? 2 : 1;
     // FCL 风格：传入当前 profile 的偏好版本和加载器，自动选中匹配 chip 并置顶
     versionVC.preferredGameVersion = [self currentProfileMinecraftVersion];
     versionVC.preferredLoader = [self currentProfileLoader];
+    versionVC.targetProfileName = self.targetProfileName ?: ([PLProfiles current].selectedProfileName ?: @"default"); // ★ Task265：目标实例随下载页锁定（整合包流程同规则）
 
     // 标记当前为整合包下载类型，版本选择回调时走整合包安装流程（而非 Mod 下载流程）
     self.pendingDownloadType = @"modpack";
@@ -4771,7 +5361,7 @@ typedef NS_ENUM(NSInteger, ModernAssetType) {
                 __strong typeof(weakSelf) strongSelf2 = weakSelf;
                 if (!strongSelf2) return;
                 if (error || !location) {
-                    downloadError = error ?: [NSError errorWithDomain:@"DownloadError" code:1 userInfo:@{NSLocalizedDescriptionKey: @"Download returned empty data"}];
+                    downloadError = error ?: [NSError errorWithDomain:@"DownloadError" code:1 userInfo:@{NSLocalizedDescriptionKey: localize(@"download.empty_data", nil)}];   // ★ Task275（i18n）
                     NSLog(@"[ModpackDownload] Attempt %ld failed: %@", (long)downloadAttempt, downloadError.localizedDescription);
                     if (downloadAttempt < 3) {
                         // 间隔 1.5s 后重试，避免连续请求触发限流
@@ -4783,7 +5373,7 @@ typedef NS_ENUM(NSInteger, ModernAssetType) {
                                                               stageAtIndex:0
                                                                   status:PLTaskStageStatusFailed];
                         [[DownloadTaskManager sharedManager] setTaskWithId:taskItem.taskId completedWithError:downloadError];
-                        [strongSelf2 showError:[NSString stringWithFormat:@"Modpack download failed (retried %ld times): %@", (long)downloadAttempt, downloadError.localizedDescription ?: @"Unknown error"]];
+                        [strongSelf2 showError:[NSString stringWithFormat:localize(@"download.modpack.retry_failed", nil), (long)downloadAttempt, downloadError.localizedDescription ?: localize(@"common.unknown_error", nil)]];   // ★ Task275（i18n）
                     }
                     return;
                 }
@@ -5039,6 +5629,28 @@ typedef NS_ENUM(NSInteger, ModernAssetType) {
 
 #pragma mark - UITableView DataSource
 
+/// Task293：「加载更多」行统一构造——分页请求进行中（isLoadingMore*）在该行
+/// 挂转圈动画；空闲时仅显示可点文案（点击行为由 didSelectRowAtIndexPath 保持）。
+/// 修"点击加载更多没有加载动画"：此前该行是纯静态文案，点击后到响应返回
+/// 之间无任何可视反馈，弱网下数秒无响应像死机。
+- (UITableViewCell *)ame293_loadingCellWithBusy:(BOOL)busy {
+    UITableViewCell *cell = [[UITableViewCell alloc] initWithStyle:UITableViewCellStyleDefault reuseIdentifier:@"LoadingCell"];
+    cell.backgroundColor = [UIColor clearColor];
+    cell.textLabel.text = localize(@"i18n_str_264", nil);
+    cell.textLabel.textAlignment = NSTextAlignmentCenter;
+    cell.textLabel.textColor = [UIColor secondaryLabelColor];
+
+    UIActivityIndicatorView *spinner = (UIActivityIndicatorView *)cell.accessoryView;
+    if (!spinner) {
+        spinner = [[UIActivityIndicatorView alloc] initWithActivityIndicatorStyle:UIActivityIndicatorViewStyleMedium];
+        spinner.color = [UIColor secondaryLabelColor];
+        spinner.hidesWhenStopped = YES;
+        cell.accessoryView = spinner;
+    }
+    if (busy) [spinner startAnimating]; else [spinner stopAnimating];
+    return cell;
+}
+
 - (NSInteger)tableView:(UITableView *)tableView numberOfRowsInSection:(NSInteger)section {
     if (tableView == self.modTableView) {
         return self.modList.count + (self.hasMoreMods ? 1 : 0);
@@ -5058,57 +5670,27 @@ typedef NS_ENUM(NSInteger, ModernAssetType) {
 
 - (UITableViewCell *)tableView:(UITableView *)tableView cellForRowAtIndexPath:(NSIndexPath *)indexPath {
     if (tableView == self.modTableView && indexPath.row == self.modList.count && self.hasMoreMods) {
-        UITableViewCell *cell = [[UITableViewCell alloc] initWithStyle:UITableViewCellStyleDefault reuseIdentifier:@"LoadingCell"];
-        cell.textLabel.text = localize(@"i18n_str_264", nil);
-        cell.textLabel.textAlignment = NSTextAlignmentCenter;
-        cell.textLabel.textColor = [AmeTheme textSecondary];
-        cell.backgroundColor = [UIColor clearColor];
-        return cell;
+        return [self ame293_loadingCellWithBusy:self.isLoadingMoreMods];
     }
 
     if (tableView == self.shaderTableView && indexPath.row == self.shaderList.count && self.hasMoreShaders) {
-        UITableViewCell *cell = [[UITableViewCell alloc] initWithStyle:UITableViewCellStyleDefault reuseIdentifier:@"LoadingCell"];
-        cell.textLabel.text = localize(@"i18n_str_264", nil);
-        cell.textLabel.textAlignment = NSTextAlignmentCenter;
-        cell.textLabel.textColor = [AmeTheme textSecondary];
-        cell.backgroundColor = [UIColor clearColor];
-        return cell;
+        return [self ame293_loadingCellWithBusy:self.isLoadingMoreShaders];
     }
 
     if (tableView == self.modpackTableView && indexPath.row == self.modpackList.count && self.hasMoreModpacks) {
-        UITableViewCell *cell = [[UITableViewCell alloc] initWithStyle:UITableViewCellStyleDefault reuseIdentifier:@"LoadingCell"];
-        cell.textLabel.text = localize(@"i18n_str_264", nil);
-        cell.textLabel.textAlignment = NSTextAlignmentCenter;
-        cell.textLabel.textColor = [AmeTheme textSecondary];
-        cell.backgroundColor = [UIColor clearColor];
-        return cell;
+        return [self ame293_loadingCellWithBusy:self.isLoadingModpacks];
     }
 
     if (tableView == self.resourcepackTableView && indexPath.row == self.resourcepackList.count && self.hasMoreResourcepacks) {
-        UITableViewCell *cell = [[UITableViewCell alloc] initWithStyle:UITableViewCellStyleDefault reuseIdentifier:@"LoadingCell"];
-        cell.textLabel.text = localize(@"i18n_str_264", nil);
-        cell.textLabel.textAlignment = NSTextAlignmentCenter;
-        cell.textLabel.textColor = [AmeTheme textSecondary];
-        cell.backgroundColor = [UIColor clearColor];
-        return cell;
+        return [self ame293_loadingCellWithBusy:self.isLoadingResourcepacks];
     }
 
     if (tableView == self.datapackTableView && indexPath.row == self.datapackList.count && self.hasMoreDatapacks) {
-        UITableViewCell *cell = [[UITableViewCell alloc] initWithStyle:UITableViewCellStyleDefault reuseIdentifier:@"LoadingCell"];
-        cell.textLabel.text = localize(@"i18n_str_264", nil);
-        cell.textLabel.textAlignment = NSTextAlignmentCenter;
-        cell.textLabel.textColor = [AmeTheme textSecondary];
-        cell.backgroundColor = [UIColor clearColor];
-        return cell;
+        return [self ame293_loadingCellWithBusy:self.isLoadingDatapacks];
     }
 
     if (tableView == self.worldTableView && indexPath.row == self.worldList.count && self.hasMoreWorlds) {
-        UITableViewCell *cell = [[UITableViewCell alloc] initWithStyle:UITableViewCellStyleDefault reuseIdentifier:@"LoadingCell"];
-        cell.textLabel.text = localize(@"i18n_str_264", nil);
-        cell.textLabel.textAlignment = NSTextAlignmentCenter;
-        cell.textLabel.textColor = [AmeTheme textSecondary];
-        cell.backgroundColor = [UIColor clearColor];
-        return cell;
+        return [self ame293_loadingCellWithBusy:self.isLoadingWorlds];
     }
 
     ModernAssetCell *cell;
@@ -5116,24 +5698,44 @@ typedef NS_ENUM(NSInteger, ModernAssetType) {
         cell = [tableView dequeueReusableCellWithIdentifier:@"ModCell" forIndexPath:indexPath];
         NSDictionary *mod = self.modList[indexPath.row];
         [cell configureWithMod:mod];
+        // Task291: 聚合模式逐条目标注来源平台（FCL getSourceLabel 同语义）
+        NSString *ame291_cellSrc_mod = [self ame291_sourceLabelForItem:mod tabType:@"mod"];
+        if (ame291_cellSrc_mod.length > 0) {
+            cell.descLabel.text = [cell.descLabel.text stringByAppendingFormat:@" · %@", ame291_cellSrc_mod];
+        }
         [cell.downloadButton addTarget:self action:@selector(downloadMod:) forControlEvents:UIControlEventTouchUpInside];
         cell.downloadButton.tag = indexPath.row;
     } else if (tableView == self.shaderTableView) {
         cell = [tableView dequeueReusableCellWithIdentifier:@"ShaderCell" forIndexPath:indexPath];
         NSDictionary *shader = self.shaderList[indexPath.row];
         [cell configureWithShader:shader];
+        // Task291: 聚合模式逐条目标注来源平台（FCL getSourceLabel 同语义）
+        NSString *ame291_cellSrc_shader = [self ame291_sourceLabelForItem:shader tabType:@"shader"];
+        if (ame291_cellSrc_shader.length > 0) {
+            cell.descLabel.text = [cell.descLabel.text stringByAppendingFormat:@" · %@", ame291_cellSrc_shader];
+        }
         [cell.downloadButton addTarget:self action:@selector(downloadShader:) forControlEvents:UIControlEventTouchUpInside];
         cell.downloadButton.tag = indexPath.row;
     } else if (tableView == self.resourcepackTableView) {
         cell = [tableView dequeueReusableCellWithIdentifier:@"ResourcepackCell" forIndexPath:indexPath];
         NSDictionary *resourcepack = self.resourcepackList[indexPath.row];
         [cell configureWithResourcepack:resourcepack];
+        // Task291: 聚合模式逐条目标注来源平台（FCL getSourceLabel 同语义）
+        NSString *ame291_cellSrc_resourcepack = [self ame291_sourceLabelForItem:resourcepack tabType:@"resourcepack"];
+        if (ame291_cellSrc_resourcepack.length > 0) {
+            cell.descLabel.text = [cell.descLabel.text stringByAppendingFormat:@" · %@", ame291_cellSrc_resourcepack];
+        }
         [cell.downloadButton addTarget:self action:@selector(downloadResourcepack:) forControlEvents:UIControlEventTouchUpInside];
         cell.downloadButton.tag = indexPath.row;
     } else if (tableView == self.datapackTableView) {
         cell = [tableView dequeueReusableCellWithIdentifier:@"DatapackCell" forIndexPath:indexPath];
         NSDictionary *datapack = self.datapackList[indexPath.row];
         [cell configureWithDatapack:datapack];
+        // Task291: 聚合模式逐条目标注来源平台（FCL getSourceLabel 同语义）
+        NSString *ame291_cellSrc_datapack = [self ame291_sourceLabelForItem:datapack tabType:@"datapack"];
+        if (ame291_cellSrc_datapack.length > 0) {
+            cell.descLabel.text = [cell.descLabel.text stringByAppendingFormat:@" · %@", ame291_cellSrc_datapack];
+        }
         [cell.downloadButton addTarget:self action:@selector(downloadDatapack:) forControlEvents:UIControlEventTouchUpInside];
         cell.downloadButton.tag = indexPath.row;
     } else if (tableView == self.worldTableView) {
@@ -5146,6 +5748,11 @@ typedef NS_ENUM(NSInteger, ModernAssetType) {
         cell = [tableView dequeueReusableCellWithIdentifier:@"ModpackCell" forIndexPath:indexPath];
         NSDictionary *modpack = self.modpackList[indexPath.row];
         [cell configureWithModpack:modpack];
+        // Task291: 聚合模式逐条目标注来源平台（FCL getSourceLabel 同语义）
+        NSString *ame291_cellSrc_modpack = [self ame291_sourceLabelForItem:modpack tabType:@"modpack"];
+        if (ame291_cellSrc_modpack.length > 0) {
+            cell.descLabel.text = [cell.descLabel.text stringByAppendingFormat:@" · %@", ame291_cellSrc_modpack];
+        }
         [cell.downloadButton addTarget:self action:@selector(installModpack:) forControlEvents:UIControlEventTouchUpInside];
         cell.downloadButton.tag = indexPath.row;
     }
@@ -5282,12 +5889,13 @@ typedef NS_ENUM(NSInteger, ModernAssetType) {
     versionVC.delegate = self;
     versionVC.title = modItem.displayName;
     // 修复（来源丢失）：沿用 mod 搜索时的 API 来源，避免拿 CurseForge 数字 ID 请求 Modrinth
-    versionVC.apiSource = [self apiSourceForType:@"mod"];
+    // Task291: 逐条目来源路由（聚合模式条目混排，页面级来源会把 CF 条目错发给 Modrinth；单源下与页面级值恒等）
+    NSInteger ame291_itemSource_mod = [mod[@"apiSource"] integerValue];
+    versionVC.apiSource = (ame291_itemSource_mod == 2) ? 2 : 1;
     // FCL 风格：传入当前 profile 的偏好版本和加载器，自动选中匹配 chip 并置顶
     versionVC.preferredGameVersion = [self currentProfileMinecraftVersion];
     versionVC.preferredLoader = [self currentProfileLoader];
-
-    // 在中间内容区 push 显示，而非弹窗盖在下载列表之上（与 FCL 安卓一致）
+    versionVC.targetProfileName = self.targetProfileName ?: ([PLProfiles current].selectedProfileName ?: @"default"); // ★ Task265：目标实例随下载页锁定（此前版本页无视来源绑定，与来源实例错位时文件落错目录）
     [self.navigationController pushViewController:versionVC animated:YES];
 }
 
@@ -5307,7 +5915,9 @@ typedef NS_ENUM(NSInteger, ModernAssetType) {
     versionVC.delegate = self;
     versionVC.title = shaderItem.displayName;
     // 修复（来源丢失）：沿用 shader 搜索时的 API 来源，避免拿 CurseForge 数字 ID 请求 Modrinth
-    versionVC.apiSource = [self apiSourceForType:@"shader"];
+    // Task291: 逐条目来源路由（聚合模式条目混排，页面级来源会把 CF 条目错发给 Modrinth；单源下与页面级值恒等）
+    NSInteger ame291_itemSource_shader = [shader[@"apiSource"] integerValue];
+    versionVC.apiSource = (ame291_itemSource_shader == 2) ? 2 : 1;
     // FCL 风格：传入当前 profile 的偏好版本和加载器，自动选中匹配 chip 并置顶匹配版本
     // 补齐与 ModVersionViewController 不对称的 preferred 传参（阶段3统一）
     versionVC.preferredGameVersion = [self currentProfileMinecraftVersion];
@@ -5334,7 +5944,9 @@ typedef NS_ENUM(NSInteger, ModernAssetType) {
     versionVC.assetType = AssetVersionTypeResourcePack;
     versionVC.projectID = item.onlineID;
     // 修复（来源丢失）：沿用 resourcepack 搜索时的 API 来源，避免拿 CurseForge 数字 ID 请求 Modrinth
-    versionVC.apiSource = [self apiSourceForType:@"resourcepack"];
+    // Task291: 逐条目来源路由（聚合模式条目混排，页面级来源会把 CF 条目错发给 Modrinth；单源下与页面级值恒等）
+    NSInteger ame291_itemSource_resourcepack = [resourcepack[@"apiSource"] integerValue];
+    versionVC.apiSource = (ame291_itemSource_resourcepack == 2) ? 2 : 1;
     versionVC.projectDisplayName = item.displayName;
     versionVC.delegate = self;
     versionVC.title = item.displayName;
@@ -5370,7 +5982,9 @@ typedef NS_ENUM(NSInteger, ModernAssetType) {
     versionVC.assetType = AssetVersionTypeDataPack;
     versionVC.projectID = item.onlineID;
     // 修复（来源丢失）：沿用 datapack 搜索时的 API 来源，避免拿 CurseForge 数字 ID 请求 Modrinth
-    versionVC.apiSource = [self apiSourceForType:@"datapack"];
+    // Task291: 逐条目来源路由（聚合模式条目混排，页面级来源会把 CF 条目错发给 Modrinth；单源下与页面级值恒等）
+    NSInteger ame291_itemSource_datapack = [datapack[@"apiSource"] integerValue];
+    versionVC.apiSource = (ame291_itemSource_datapack == 2) ? 2 : 1;
     versionVC.projectDisplayName = item.displayName;
     versionVC.delegate = self;
     versionVC.title = item.displayName;
@@ -5476,7 +6090,7 @@ static NSString *PLSha1FromPrimaryFile(NSDictionary *primaryFile) {
     //   ③ 选"一起安装" → 串行下载前置到同一 mods 目录，全部结束后再下
     //     主模组；单个前置失败不中断整条链，最后汇总失败清单。
     __weak typeof(self) weakSelf = self;
-    NSString *ame227_profileName = self.targetProfileName ?: @"default";
+    NSString *ame227_profileName = ame267_lockedDownloadTarget(self.targetProfileName);
     [[ModDependencyResolver sharedResolver] resolveDependenciesFromVersionDetail:version.rawDictionary
                                                                        apiSource:version.apiSource
                                                             installedProjectIds:nil
@@ -5606,7 +6220,7 @@ static NSString *PLSha1FromPrimaryFile(NSDictionary *primaryFile) {
 - (void)startDownloadForModItem:(ModItem *)item {
     // 关键修复（目标实例不一致）：统一使用打开下载页时锁定的 targetProfileName，
     // 而非实时读取 selectedProfileName，避免与资源管理页绑定的实例不一致导致写入另一游戏目录
-    NSString *profileName = self.targetProfileName ?: @"default";
+    NSString *profileName = ame267_lockedDownloadTarget(self.targetProfileName);
     // ★ Task226（issue #10，PCL2CE 式依赖自动下载）：主模组下载成功后解析
     // Modrinth 依赖并弹确认单（必需依赖一键全下）。apiSource 来自本次
     // 版本选择页（非 CurseForge = Modrinth）；版本/加载器取当前 profile。
@@ -5742,7 +6356,7 @@ static NSString *PLSha1FromPrimaryFile(NSDictionary *primaryFile) {
 - (void)startDownloadForResourcePackItem:(ResourcePackItem *)item {
     // 关键修复（目标实例不一致）：统一使用打开下载页时锁定的 targetProfileName，
     // 而非实时读取 selectedProfileName，避免与资源管理页绑定的实例不一致导致写入另一游戏目录
-    NSString *profileName = self.targetProfileName ?: @"default";
+    NSString *profileName = ame267_lockedDownloadTarget(self.targetProfileName);
     __weak typeof(self) weakSelf = self;
     [[ResourcePackService sharedService] downloadResourcePack:item
                                                     toProfile:profileName
@@ -5767,7 +6381,7 @@ static NSString *PLSha1FromPrimaryFile(NSDictionary *primaryFile) {
 - (void)startDownloadForDataPackItem:(DataPackItem *)item {
     // 关键修复（目标实例不一致）：统一使用打开下载页时锁定的 targetProfileName，
     // 而非实时读取 selectedProfileName，避免与资源管理页绑定的实例不一致导致写入另一游戏目录
-    NSString *profileName = self.targetProfileName ?: @"default";
+    NSString *profileName = ame267_lockedDownloadTarget(self.targetProfileName);
     __weak typeof(self) weakSelf = self;
     [[DataPackService sharedService] downloadDataPack:item
                                             toProfile:profileName
@@ -5793,7 +6407,7 @@ static NSString *PLSha1FromPrimaryFile(NSDictionary *primaryFile) {
 - (void)startDownloadForWorldItem:(WorldItem *)item {
     // 关键修复（目标实例不一致）：统一使用打开下载页时锁定的 targetProfileName，
     // 而非实时读取 selectedProfileName，避免与资源管理页绑定的实例不一致导致写入另一游戏目录
-    NSString *profileName = self.targetProfileName ?: @"default";
+    NSString *profileName = ame267_lockedDownloadTarget(self.targetProfileName);
     __weak typeof(self) weakSelf = self;
     [[WorldService sharedService] downloadWorld:item
                                         toProfile:profileName
@@ -5837,7 +6451,7 @@ static NSString *PLSha1FromPrimaryFile(NSDictionary *primaryFile) {
 - (void)startDownloadForShaderItem:(ShaderItem *)item {
     // 关键修复（目标实例不一致）：统一使用打开下载页时锁定的 targetProfileName，
     // 而非实时读取 selectedProfileName，避免与资源管理页绑定的实例不一致导致写入另一游戏目录
-    NSString *profileName = self.targetProfileName ?: @"default";
+    NSString *profileName = ame267_lockedDownloadTarget(self.targetProfileName);
     __weak typeof(self) weakSelf = self;
     [[ShaderService sharedService] downloadShader:item
                                          toProfile:profileName

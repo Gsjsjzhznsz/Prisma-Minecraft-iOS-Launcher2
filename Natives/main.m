@@ -1,4 +1,5 @@
 #import <mach-o/dyld.h>
+#import <dlfcn.h>
 #import <spawn.h>
 #import <sys/sysctl.h>
 #import <UIKit/UIKit.h>
@@ -104,9 +105,9 @@ bool init_checkForJailbreak() {
     }
 
     // Check if we have platform bit set
-    uint32_t flags;
-    csops(0, CS_OPS_STATUS, &flags, sizeof(flags));
-    if ((flags & CS_PLATFORM_BINARY) != 0) {
+    // ★ Task274-f r2（F5）：flags 清零 + csops 返回值并入条件——原实现未初始化即用（csops 失败时按栈垃圾判定 platform 位）。失败/未置位统一落既有的 /Applications 目录探测兜底。
+    uint32_t flags = 0;
+    if (csops(0, CS_OPS_STATUS, &flags, sizeof(flags)) == 0 && (flags & CS_PLATFORM_BINARY) != 0) {
         return true;
     }
 
@@ -121,7 +122,7 @@ void init_logDeviceAndVer(char *argument) {
     NSLog(@"[Pre-Init] Fork: https://github.com/Gsjsjzhznsz/Prisma-Minecraft-iOS-Launcher");
     NSLog(@"[Pre-Init] Upstream: https://github.com/herbrine8403/Amethyst-iOS-MyRemastered");
     NSLog(@"[Pre-Init] Please try not to post this log of the remastered launcher to the original GitHub Issues for help.");
-    NSLog(@"[Pre-Init] Version: %@", NSBundle.mainBundle.infoDictionary[@"CFBundleShortVersionString"], CONFIG_TYPE);
+    NSLog(@"[Pre-Init] Version: %@ (%s)", NSBundle.mainBundle.infoDictionary[@"CFBundleShortVersionString"], CONFIG_TYPE);
     NSLog(@"[Pre-Init] Commit: %s (%s)", CONFIG_COMMIT, CONFIG_BRANCH);
     
     NSString *tsPath = [NSString stringWithFormat:@"%@/../_TrollStore", NSBundle.mainBundle.bundlePath];
@@ -217,9 +218,14 @@ void init_redirectStdio() {
 
     /* create the pipe and redirect stdout and stderr */
     static int pfd[2];
-    pipe(pfd);
+    // ★ Task275（P3-a11）：pipe() 失败不再静默——原失败后 dup2(-1) 使整条日志链
+    //   瘫痪且无任何痕迹。
+    if (pipe(pfd) != 0) {
+        NSLog(@"[Pre-init] pipe() failed (errno=%d) -- stdout/stderr stay console-only", errno);
+    } else {
     dup2(pfd[1], fileno(stdout));
     dup2(pfd[1], fileno(stderr));
+    }
 
     /* create the logging thread */
     dispatch_async(dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_DEFAULT, 0), ^{
@@ -236,6 +242,11 @@ void init_redirectStdio() {
                 rsize = read(pfd[0], buf, sizeof(buf)-1);
             } while (rsize < 0 && errno == EINTR);
             if (rsize <= 0) break;
+            // ★ Task275（P1-a1）：每次迭代包 @autoreleasepool——原无限循环体跑在 GCD
+            //   为单个 block 建的唯一 pool 里，每条日志 chunk 的临时 ObjC 对象
+            //   （NSString/NSArray/NSData/userInfo 字典）全进程生命周期单调堆积永不
+            //   drain，MC 加载期日志速率高，长会话可泄漏数百 MB（Task 2-a 遗留）。
+            @autoreleasepool {
             @try {
             if (rsize < 2048) {
                 buf[rsize] = '\0';
@@ -290,12 +301,24 @@ void init_redirectStdio() {
                 }
             }
             [file writeData:[NSData dataWithBytes:buf length:rsize]];
-            [file synchronizeFile];
+            // ★ Task275（效率·fsync 风暴）：原每 ≤2KB chunk 一次 synchronizeFile（逐块
+            //   fsync 级刷盘），JVM 启动/shaderc 编译风暴期每秒数百次同步 I/O。改 8s
+            //   节流（closeFile 前补一次终刷，不丢尾）。
+            {
+                static CFAbsoluteTime ame275_lastSync = 0;
+                CFAbsoluteTime ame275_now = CFAbsoluteTimeGetCurrent();
+                if (ame275_now - ame275_lastSync > 8.0) {
+                    [file synchronizeFile];
+                    ame275_lastSync = ame275_now;
+                }
+            }
             } @catch (NSException *e) {
                 // 读取线程绝不能因单次异常死亡：死亡 = 后续日志全部丢失（Task 26 教训）
                 NSLog(@"[Pre-init] latestlog reader exception: %@", e);
             }
+            }
         }
+        [file synchronizeFile];
         [file closeFile];
     });
 
@@ -599,6 +622,47 @@ void init_setupHomeDirectory() {
 }
 
 int main(int argc, char *argv[]) {
+    // ★ Task301：内置 JIT 自重拉起子进程分支（第三轨）。必须在【一切】初始化
+    // 之前分支——含 shaderc 沙箱分支。装机 2c6458a latestlog 实锤：LC guest 内
+    // posix_spawn appex 内嵌二进制被 AMFI 拒（errno=2），而主二进制自身 exec
+    // 必合法（它正在跑）。协调器 posix_spawn 本体 + env PRISMA_JIT_HELPER_CHILD=1
+    // + PRISMA_JIT_COORDINATOR_DYLIB；此处 dlopen 协调器 dylib，调
+    // @_cdecl("prisma_jit_direct_main") 入口（StikJIT.enableJIT 全链：RSD 探测
+    // → DDI 下载/挂载 → debugserver vAttach 父 PID → universal 脚本协议），
+    // 返回码即进程退出码。dlopen/dlsym 失败也必须原子写回 RESULT_FILE（协调器
+    // 轮询以文件存在+内容为准），否则宿主只能等 600s 超时。
+    if (getenv("PRISMA_JIT_HELPER_CHILD") != NULL) {
+        const char *ame301_dylibPath = getenv("PRISMA_JIT_COORDINATOR_DYLIB");
+        const char *ame301_resultPath = getenv("PRISMA_JIT_RESULT_FILE");
+        const char *ame301_failMsg = NULL;
+        void *ame301_h = NULL;
+        int ame301_rc = 3;
+        if (ame301_dylibPath == NULL) {
+            ame301_failMsg = "PRISMA_JIT_COORDINATOR_DYLIB missing in child env";
+        } else {
+            ame301_h = dlopen(ame301_dylibPath, RTLD_NOW | RTLD_LOCAL);
+            if (ame301_h == NULL) {
+                NSLog(@"[JIT] Task301 child dlopen(%s) failed: %s", ame301_dylibPath, dlerror());
+                ame301_failMsg = "coordinator dylib dlopen failed in self-relaunch child";
+            }
+        }
+        if (ame301_h != NULL) {
+            typedef int (*ame301_entry_t)(void);
+            ame301_entry_t ame301_entry = (ame301_entry_t)dlsym(ame301_h, "prisma_jit_direct_main");
+            if (ame301_entry != NULL) {
+                ame301_rc = ame301_entry();
+                _exit(ame301_rc);
+            }
+            NSLog(@"[JIT] Task301 child dlsym(prisma_jit_direct_main) failed: %s", dlerror());
+            ame301_failMsg = "prisma_jit_direct_main symbol missing in coordinator dylib";
+        }
+        if (ame301_resultPath != NULL && ame301_failMsg != NULL) {
+            NSString *payload = [NSString stringWithFormat:@"0\t[self-relaunch] %s", ame301_failMsg];
+            [payload writeToFile:@(ame301_resultPath) atomically:YES encoding:NSUTF8StringEncoding error:nil];
+        }
+        _exit(3);
+    }
+
     // Task 42：shaderc 编译沙箱 helper 子进程分支。必须在【一切】launcher/JVM/
     // hook 初始化之前分支（pJLI_Launch、ptrace JIT 分支都在其后）。父进程的
     // shaderc shim 通过 posix_spawn 以 AME_SHADERC_SANDBOX=1 + AME_SB_FD=3

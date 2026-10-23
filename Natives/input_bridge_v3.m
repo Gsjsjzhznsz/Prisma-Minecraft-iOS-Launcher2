@@ -172,6 +172,10 @@ static SDL_SetModState_func   *pSDL_SetModState   = NULL;        // Task66
 static bool *ame66_kbState = NULL;   // Task66：SDL 内部键盘状态数组（SDL_GetKeyboardState 返回值，直接写入）
 static int    ame66_kbNumKeys = 0;   // Task66：数组长度（SDL3 = 512 = SDL_NUM_SCANCODES）
 static unsigned short ame66_virtualMods = 0;  // Task66：虚拟修饰键掩码（我们注入的 shift/ctrl/alt/gui）
+// ★ Task265：自适应潜行翻译状态（定义前置：ame229_inputResumeReassert 回前台重读在本文件更早处引用）
+static int g_ame265_sneakGlfwKey = -2;   // -2=未解析 -1=非 shift 绑定(不翻译) 340=左shift 344=右shift（★Task266 纠正历史误写 342——标准 GLFW 表 342=左ALT，见 glfw_keycodes.h；342 当右shift用正是历次"右Shift失效"的真凶）
+static CFAbsoluteTime s_ame265_sneakSyncedAt = 0;
+static void ame265_ensureSneakBindingSynced(void);  // 定义在 nativeSendKey 段
 static void *g_sdlWindow = NULL;  // The real SDL3 window pointer
 static void ame104_armAfkHeartbeat(void);  // Task104：AFK 心跳（前向声明，实现见 pushSDLMouseWheel 之后）
 // Task224：SDL 嵌入视图 z 序重钉的公开包装（sdl3_hook.m，自带主线程调度）
@@ -846,7 +850,12 @@ NSString* processPath(NSString* path) {
         prefix = @"santander";
     }
 
-    return [NSString stringWithFormat:@"%@://%@", prefix, path];
+    // ★ Task268（scan-c #2）：路径 percent-encode——含空格/非 URL 字符路径
+    //   裸拼 scheme 使 URLWithString 返回 nil → openURL:nil 主线程抛异常。
+    NSString *ame268_encoded = [path stringByAddingPercentEncodingWithAllowedCharacters:
+        [NSCharacterSet URLPathAllowedCharacterSet]];
+    if (!ame268_encoded) ame268_encoded = path;
+    return [NSString stringWithFormat:@"%@://%@", prefix, ame268_encoded];
 }
 
 void openURLGlobal(NSString *path) {
@@ -1259,7 +1268,10 @@ void pojavPumpEvents(void* window) {
                 break;
         }
     }
-    atomic_store_explicit(&eventCounter, counter, memory_order_release);
+    // ★ Task275（P1-a2）：陈旧 counter 回写退役——原“读 counter→处理 [0,counter)→
+    //   回写同一 counter”在泵处理期间生产者已 fetch_add 前进时，回写把新事件索
+    //   引回卷（重复投递/覆盖丢失）。队列清零唯一归 pojavRewindEvents（Java 侧每
+    //   帧 PumpEvents 后调用），泵只读不写。
 }
 void pojavRewindEvents() {
     atomic_store_explicit(&eventCounter, 0, memory_order_release);
@@ -1287,29 +1299,29 @@ Java_org_lwjgl_glfw_GLFW_glfwSetCursorPos(JNIEnv *env, jclass clazz, jlong windo
 }
 
 void sendData(short type, int i1, int i2, short i3, short i4) {
-    size_t counter = atomic_load_explicit(&eventCounter, memory_order_acquire);
-    if (counter < 7999) {
-        GLFWInputEvent *event = &events[counter++];
-        event->type = type;
-        event->i1 = i1;
-        event->i2 = i2;
-        event->i3 = i3;
-        event->i4 = i4;
-    }
-    atomic_store_explicit(&eventCounter, counter, memory_order_release);
+    // ★ Task275（P1-a2）：RMW 改原子 fetch_add——原 load→写槽→store 三步非原子，
+    //   双生产者（触摸/键盘线程）可写同一槽位，与泵的并发窗口丢事件。fetch_add
+    //   给每个事件独占槽位；超容量丢弃语义不变（rewind 每帧归零）。
+    size_t counter = atomic_fetch_add_explicit(&eventCounter, 1, memory_order_acq_rel);
+    if (counter >= 7999) return;
+    GLFWInputEvent *event = &events[counter];
+    event->type = type;
+    event->i1 = i1;
+    event->i2 = i2;
+    event->i3 = i3;
+    event->i4 = i4;
 }
 
 void sendDataFloat(short type, float i1, float i2, short i3, short i4) {
-    size_t counter = atomic_load_explicit(&eventCounter, memory_order_acquire);
-    if (counter < 7999) {
-        GLFWInputEvent *event = &events[counter++];
-        event->type = type;
-        event->f1 = i1;
-        event->f2 = i2;
-        event->i3 = i3;
-        event->i4 = i4;
-    }
-    atomic_store_explicit(&eventCounter, counter, memory_order_release);
+    // ★ Task275（P1-a2）：同 sendData，fetch_add 消除 RMW 竞态。
+    size_t counter = atomic_fetch_add_explicit(&eventCounter, 1, memory_order_acq_rel);
+    if (counter >= 7999) return;
+    GLFWInputEvent *event = &events[counter];
+    event->type = type;
+    event->f1 = i1;
+    event->f2 = i2;
+    event->i3 = i3;
+    event->i4 = i4;
 }
 
 void closeGLFWWindow() {
@@ -1730,7 +1742,10 @@ int callback_SurfaceViewController_touchHotbar(CGFloat x, CGFloat y) {
     // 每次命中测试最多重读一次（2 秒节流，文件 ~1KB，触摸线程零负担）。
     {
         static double s_ame175_lastScaleRefresh = 0.0;
-        double ame175_now = (double)clock() / (double)CLOCKS_PER_SEC;
+        // ★ Task275（P3-a9）：clock() 是进程 CPU 时间（多线程忙时 4 倍速于墙钟，
+        //   闲时几乎不走）——2s 节流失真。改墙钟 CFAbsoluteTimeGetCurrent
+        //   （ame265 同文件 2348 行同款正确示范）。
+        double ame175_now = CFAbsoluteTimeGetCurrent();
         if (ame175_now - s_ame175_lastScaleRefresh > 2.0) {
             s_ame175_lastScaleRefresh = ame175_now;
             refreshGuiScaleNatively();
@@ -2067,6 +2082,10 @@ void CallbackBridge_syncGrabStateFromSDL(BOOL relMode, const char *source) {
 //       each toggled modifier -- the same path a fresh button tap uses
 //       (keystate array + modstate + SDL event, all in one).
 void ame229_inputResumeReassert(void) {
+    // ★ Task265：回前台强制重读 key_key.sneak（绕过 5s 节流）——用户游戏内
+    // 改绑潜行键后切后台再回来，下一次右 SHIFT 事件即按新绑定翻译。
+    s_ame265_sneakSyncedAt = 0;
+    ame265_ensureSneakBindingSynced();
     cLastX = cursorX;
     cLastY = cursorY;
     // Re-drive every toggle-held virtual modifier: SDL clears its keyboard
@@ -2305,7 +2324,114 @@ BOOL ame161_inputPathIsGLFW(void) {
     return g_sdlWindow == NULL;
 }
 
+// ★ Task265（右 Shift 第 9 次复发终结：自适应恢复，一次性迁移全族退役）：
+// 病历族谱：Task181（洗涤器把用户绑在 right.shift 的潜行洗回默认）→
+// Task225 v3（隔离目录换代重洗 + 仅 v2 cohort 的一次性恢复）→ Task265（
+// 新装实例/新 gameDir 根本不在 v2 集合，sneak 保持 MC 默认 left.shift，
+// 而控件布局右 SHIFT 按钮发 GLFW 344 与绑定错位；再下一轮还会有新 cohort）。
+// 教训：一次性标记/恢复的 cohort 猜测永远追不上目录换代与新装实例。
+// 根改 = 【事件级自适应翻译】：右 SHIFT 事件发射前实时重读 options.txt 的
+// key_key.sneak（5s 节流），若 MC 潜行绑定 ≠ right.shift（默认 left.shift /
+// 42 / 键缺失），把本次发射的 GLFW 344 原地翻译成 MC 实际绑定（340/42 家族）
+// ——按钮永远命中潜行，【不改写用户任何文件】（Task181 教训永久生效），
+// 无 cohort、无标记、无一次性状态：新装实例 / 隔离换代 / 游戏内改绑，
+// 都在下一次事件或回前台（ame229_inputResumeReassert 触发重读）时自适应。
+// ★ Task266（第 10 次复发终局——键码表混淆纠正）：Task265 实现把
+//   "right.shift/54" 解析成了 342 当作右 SHIFT，但标准 GLFW 表 342=LEFT_ALT、
+//   RIGHT_SHIFT=344（glfw_keycodes.h 与 glfwKeyToSDLScancode 两处既有正确值）。
+//   后果：绑定=right.shift 时翻译器把按钮正确的 344 改写成 342 → SDL
+//   scancode 226=左ALT → MC 收到 ALT 按键，潜行永不触发（装机 d78dbfd
+//   latestlog：executebtn keycodes=[344] × sendKey key=342 × scancode=226
+//   九连实锤）。修正解析映射为 344/340 后：绑定=right.shift → 344 identity
+//   直通（SDL 229）；绑定=left.shift → 344→340（SDL 225）——两条绑定态均
+//   正确，自适应语义（重读节流 + 回前台 ame229 重读 + 不改用户文件）不变。
+// GLFW→SDL 两条路径都在本函数下游，单点翻译全路径覆盖；Task229 复驱按
+// ame66_virtualMods 位回放，位随翻译后的 DOWN 事件自然落在 LSHIFT，无需改动。
+// （状态变量 g_ame265_sneakGlfwKey / s_ame265_sneakSyncedAt 定义在文件头部
+//  Task66 掩码声明区，ame229 回前台重读需在其前引用。）
+
+static void ame265_ensureSneakBindingSynced(void) {
+    CFAbsoluteTime now = CFAbsoluteTimeGetCurrent();
+    if (s_ame265_sneakSyncedAt != 0 && now - s_ame265_sneakSyncedAt < 5.0) return;
+    s_ame265_sneakSyncedAt = now;
+    int parsed = -1;          // 默认：非 shift 绑定 → 不翻译（用户自定义键位尊重现状）
+    BOOL ame265_found = NO;
+    const char *ame265_paths[2] = { "options.txt", NULL };   // CWD=游戏目录（ame97 对齐）
+    char ame265_alt[PATH_MAX];
+    const char *ame265_gd = getenv("POJAV_GAME_DIR");
+    if (ame265_gd && snprintf(ame265_alt, sizeof(ame265_alt), "%s/options.txt", ame265_gd) < (int)sizeof(ame265_alt)) {
+        ame265_paths[1] = ame265_alt;
+    }
+    for (int i = 0; i < 2 && !ame265_found; i++) {
+        if (!ame265_paths[i]) break;
+        FILE *f = fopen(ame265_paths[i], "rb");
+        if (!f) continue;
+        char line[512];
+        while (fgets(line, sizeof(line), f)) {
+            if (strncmp(line, "key_key.sneak:", 14) == 0) {
+                char val[128] = {0};
+                char *p = line + 14, *w = val;
+                while (*p && *p != '\n' && *p != '\r' && (size_t)(w - val) < sizeof(val) - 1) *w++ = *p++;
+                *w = '\0';
+                // 双格式（Task225 v3 同款覆盖）：新 "key.keyboard.*" / 旧数字 LWJGL2
+                // ★ Task266 根修（历次"右 Shift 失效"终局）：此前把 right.shift/54
+                //   解析成 342——但标准 GLFW 表 342=LEFT_ALT、RIGHT_SHIFT=344
+                //   （本仓 glfw_keycodes.h L200-204 即标准值，Task64 的
+                //   glfwKeyToSDLScancode 342→226(LALT)/344→229(RSHIFT) 同样正确）。
+                //   旧映射使 Task265 翻译器在绑定=right.shift 时把按钮正确的
+                //   344 改写成 342 → MC 收到左 ALT（装机 d78dbfd latestlog
+                //   sendKey #1-9: key=342 scancode=226 九连实锤）→ 潜行永不触发
+                //   = "绑定正确却无反应"的完整因果链。
+                // ★ Task268（scan-c #1）：补 GLFW 数字形态（LWJGL3 340=LSHIFT/344=RSHIFT，
+                //   42/54 为 LWJGL2 数字；两族不冲突）——1.13-1.21.x 整合包主力
+                //   版本带若 options.txt 落数字形态，旧解析落 else=-1 → 344 直通
+                //   = 右 SHIFT 死键复活带。
+                if (strcmp(val, "key.keyboard.right.shift") == 0 || strcmp(val, "54") == 0 || strcmp(val, "344") == 0) parsed = 344;
+                else if (strcmp(val, "key.keyboard.left.shift") == 0 || strcmp(val, "42") == 0 || strcmp(val, "340") == 0) parsed = 340;
+                else parsed = -1;
+                ame265_found = YES;
+                break;
+            }
+        }
+        fclose(f);
+    }
+    if (!ame265_found) parsed = 340;  // options.txt 缺失/首启：MC 默认潜行 = left shift
+    if (parsed != g_ame265_sneakGlfwKey) {
+        g_ame265_sneakGlfwKey = parsed;
+        // ★ Task266：日志语义修正——发射方（右SHIFT按钮）恒为 GLFW 344
+        //   （布局 classic.json 键码 344 直通 nativeSendKey），翻译只发生在
+        //   绑定=left.shift 时（344→340）；绑定=right.shift = identity 直通。
+        NSLog(@"[Task266] adaptive sneak sync: key_key.sneak=%s -> right-shift button(344) emits %s",
+              ame265_found ? (parsed == 340 ? "left.shift" : (parsed == 344 ? "right.shift" : "non-shift"))
+                           : "ABSENT(default left.shift)",
+              parsed == 340 ? "GLFW 340 (TRANSLATE 344->340, SDL scancode 225 LSHIFT)"
+                            : (parsed == 344 ? "GLFW 344 identity (SDL scancode 229 RSHIFT)"
+                                             : "GLFW 344 passthrough (custom binding, no translation)"));
+    }
+}
+
+static int ame265_translateSneakKey(int key) {
+    if (key == GLFW_KEY_RIGHT_SHIFT) {
+        ame265_ensureSneakBindingSynced();
+        if (g_ame265_sneakGlfwKey > 0 && g_ame265_sneakGlfwKey != GLFW_KEY_RIGHT_SHIFT) {
+            // ★ Task266：翻译生效留痕（采样前 5 条 + 每 100 条）——下轮日志
+            //   可直接看到 344->目标键 的实际翻译流，不再静默。
+            static int s_ame266_translateCount = 0;
+            int c = ++s_ame266_translateCount;
+            if (c <= 5 || c % 100 == 0) {
+                NSLog(@"[Task266] sneak translate #%d: GLFW 344 -> %d (binding)", c, g_ame265_sneakGlfwKey);
+            }
+            return g_ame265_sneakGlfwKey;
+        }
+    }
+    return key;
+}
+
 void CallbackBridge_nativeSendKey(int key, int scancode, int action, int mods) {
+    // ★ Task265：右 SHIFT 按钮自适应潜行翻译（函数头 ame265 注释块）。
+    // 翻译在最顶端：下方 Task224 取证日志、GLFW/SDL 双路径、mods 计算、
+    // keyDownBuffer 全部消费翻译后的键码，事件流自洽（DOWN/UP 对称）。
+    key = ame265_translateSneakKey(key);
     static int keySendCount = 0;
     keySendCount++;
     if (keySendCount <= 10 || keySendCount % 50 == 0) {
@@ -2345,7 +2471,10 @@ void CallbackBridge_nativeSendKey(int key, int scancode, int action, int mods) {
 
     // Path A: GLFW callbacks (older MC versions)
     if (GLFW_invoke_Key && isInputReady) {
-        keyDownBuffer[MAX(0, key-31)]=(jbyte)action;
+        // ★ Task268（scan-c #5）：边界守卫——GLFW_KEY_LAST=348 时 key-31=317
+        //   恰越界（缓冲 317 字节），自定义布局绑 Menu 即 1 字节堆越界写。
+        int ame268_kidx = key - 31;
+        if (ame268_kidx >= 0 && ame268_kidx < 317) keyDownBuffer[ame268_kidx]=(jbyte)action;
         if (mods == 0) {
             mods = getKeyModifiers(key, action);
         }
@@ -2470,6 +2599,26 @@ void CallbackBridge_nativeSendScreenSizeForced(int width, int height) {
 }
 
 void CallbackBridge_nativeSendScreenSize(int width, int height) {
+    // ★ Task278（"小窗依旧漂移"第二根因·信念回写闸）：freeform scale-mode
+    //   期间本函数被 Java 侧屏幕尺寸回报调用（Task175 注释在案的既有通路）
+    //   时，携带的是真实小窗尺寸——无条件 windowWidth/Height 回写会把
+    //   Task267 冻结的全帧 MC 窗口信念改写成小窗口径，而 ObjC 触点仍按
+    //   全帧口径发送（adaptiveScale×belief）→ MC 以小窗信念归一化全帧
+    //   坐标 = 触点越靠右下偏得越远 = Task276/277 修完 ObjC 映射侧后用户
+    //   仍报"依旧漂移"的另一半根因（MC 侧归一化基准被污染）。旗标期内
+    //   拦截一切外来尺寸（ObjC 自身重申走 windowWidth 全局原值 = 恒同值
+    //   不受影响；强制通道 nativeSendScreenSizeForced 是自家冻结值通道
+    //   同样不设闸），日志限频取证。
+    if (g_ame267_freeformScaled &&
+        !(width == windowWidth && height == windowHeight)) {
+        static int s_ame278_swallowed = 0;
+        s_ame278_swallowed++;
+        if (s_ame278_swallowed <= 5 || s_ame278_swallowed % 50 == 0) {
+            NSLog(@"[InputDiag] Task278: freeform scale-mode swallowed foreign window report %dx%d (frozen belief stays %dx%d #%d)",
+                  width, height, windowWidth, windowHeight, s_ame278_swallowed);
+        }
+        return;
+    }
     windowWidth = width;
     windowHeight = height;
 

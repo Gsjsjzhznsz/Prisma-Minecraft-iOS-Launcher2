@@ -22,6 +22,7 @@
 #import "DownloadTaskItem.h"
 #import "PLTaskStages.h"
 #import "ModpackExportService.h" // for parseVersionId:
+#import "ModService.h"          // Task268：TouchController 卸载走生效 mods 目录
 
 @interface ProfileSettingsViewController () <UITextFieldDelegate, UIPickerViewDataSource, UIPickerViewDelegate>
 
@@ -63,6 +64,10 @@
 // “切换渲染器为其他都会自动切回自动”（渲染器/内存/分辨率/Java 全部丢写）。
 // 修复：加载时记录真实键，保存按键写；重命名按旧键删、新键建。
 @property (nonatomic, copy, nullable) NSString *profileDictKey;
+/// ★ Task272：gameDir 是否被本页显式改过（隔离三态/自定义路径）。saveSettings 取值
+///   优先级"本页改动 > 活字典 > 加载快照"，防止本页开着期间外部（自愈/安装流/清扫）
+///   写入活字典的隔离态被任意一次保存静默抹回快照值（"切了隔离又变共享"根因之一）。
+@property (nonatomic, assign) BOOL ame272_gameDirTouched;
 // Hero 卡片（顶部 Profile 信息卡片）
 @property (nonatomic, strong, nullable) UIView *heroCard;
 
@@ -73,6 +78,12 @@
 @property (nonatomic, strong, nullable) UITableView *rightTableView;
 // Hero 卡片容器（包含 heroCard，作为 leftTableView 的 tableHeaderView）
 @property (nonatomic, strong, nullable) UIView *heroContainer;
+
+// ★ Task267（用户："设置不应该全部展开"）：版本设置页 5 个 Bento 分组
+//   的折叠状态（全局 section 索引 → BOOL，YES = 折叠只显表头）。
+//   Task224 起本页恒平铺（一屏全部行），与主设置页的分组折叠形态不一致；
+//   改为：默认全收起（与主设置页同款可发现性语义），点分组表头展开/收起。
+@property (nonatomic, strong, nonnull) NSMutableArray<NSNumber *> *ame267_sectionCollapsed;
 
 @end
 
@@ -687,6 +698,27 @@ static NSString * localizeProfileTitle(NSString *title) {
         [advancedRows copy],
         @[localize(@"i18n_str_730", nil)]
     ];
+    // ★ Task267：折叠状态数组随 sections 同步重建（幂等；重建 = 重置为
+    //   全收起——与本页每次打开新建实例的生命周期一致）。
+    if (self.ame267_sectionCollapsed.count != self.sections.count) {
+        NSMutableArray<NSNumber *> *ame267_collapsed = [NSMutableArray array];
+        for (NSUInteger ame267_i = 0; ame267_i < self.sections.count; ame267_i++) {
+            [ame267_collapsed addObject:@NO];
+        }
+        self.ame267_sectionCollapsed = ame267_collapsed;
+    }
+}
+
+/// ★ Task267：分组表头点击 → 翻转折叠状态并重载该组所在 tableView。
+- (void)ame267_toggleSection:(UITapGestureRecognizer *)tap {
+    NSInteger ame267_global = (NSInteger)tap.view.tag;
+    if (ame267_global < 0 ||
+        ame267_global >= (NSInteger)self.ame267_sectionCollapsed.count) return;
+    BOOL ame267_now = self.ame267_sectionCollapsed[ame267_global].boolValue;
+    self.ame267_sectionCollapsed[ame267_global] = @(!ame267_now);
+    NSLog(@"[ProfileSettings] Task267: section %ld toggled -> %@",
+          (long)ame267_global, ame267_now ? @"expanded" : @"collapsed");
+    [self reloadAllTableViews];
 }
 
 #pragma mark - Dual Table View Helpers
@@ -808,13 +840,11 @@ static NSString * localizeProfileTitle(NSString *title) {
     } else {
         [existing removeObjectForKey:@"jvm_preset"];
     }
-    // Task172：版本级 TouchController——开启落 YES，关闭删键（无键 = 关闭，
-    // 启动链 ame172_applyProfileTouchController 同口径；关闭不碰全局设置）
-    if (self.touchControllerEnabled) {
-        existing[@"touchController"] = @YES;
-    } else {
-        [existing removeObjectForKey:@"touchController"];
-    }
+    // Task172：版本级 TouchController——开启落 YES。
+    // ★ Task268：关闭改写显式 @NO（原"删键"使显式关与从未配置不可分，启动链
+    //   对无键不碰全局——全局残留 ON = 用户感知"关了开游戏又恢复"）。启动链
+    //   ame172_applyProfileTouchController 对显式 NO 落本会话禁用（同口径）。
+    existing[@"touchController"] = self.touchControllerEnabled ? @YES : @NO;
     existing[@"javaVersion"] = self.selectedJavaVersion;
     // Task159：分辨率缩放落 profile 层（NSString，与 PLProfiles resolveKey 的
     // NSString 读取约定一致）；用户未设置时 loadSettings 已把全局回退值填进
@@ -837,8 +867,42 @@ static NSString * localizeProfileTitle(NSString *title) {
     } else {
         [existing removeObjectForKey:@"javaArgs"];
     }
-    // 保存游戏目录（版本隔离用）：gameDir 为 nil 时默认 "."，与 main 分支行为一致
-    existing[@"gameDir"] = self.profile[@"gameDir"] ?: @".";
+    // ★ Task272（隔离"切不回"根修 A1）：gameDir 取值三态——本页显式改动 > 活字典 >
+    //   加载快照。旧实现恒用 viewDidLoad 快照回写：本页开着期间，启动自愈/安装流/
+    //   默认隔离清扫对活字典的隔离化写入，会被任意一次 saveSettings（渲染器/内存/
+    //   JVM 等任何一行改动）静默抹回快照值 = 用户"切了隔离又变共享"的直接根因。
+    //   活字典才是跨页面的权威状态；本页改过（ame272_gameDirTouched）以本页为准；
+    //   全新条目（活字典无键）保留快照兜底（新建语义不变）。
+    {
+        NSString *ame272_gd = nil;
+        id ame272_liveMark = nil;
+        if (self.ame272_gameDirTouched) {
+            ame272_gd = self.profile[@"gameDir"];
+            ame272_liveMark = self.profile[@"gameDirExplicit"];
+        } else {
+            NSDictionary *ame272_live = PLProfiles.current.profiles[ame162_targetKey];
+            if ([ame272_live isKindOfClass:[NSDictionary class]]) {
+                NSString *ame272_liveGD = ame272_live[@"gameDir"];
+                if ([ame272_liveGD isKindOfClass:[NSString class]] && ame272_liveGD.length > 0) {
+                    ame272_gd = ame272_liveGD;
+                }
+                ame272_liveMark = ame272_live[@"gameDirExplicit"];
+                if (ame272_liveMark == nil) ame272_liveMark = self.profile[@"gameDirExplicit"];
+            } else {
+                ame272_gd = self.profile[@"gameDir"];
+                ame272_liveMark = self.profile[@"gameDirExplicit"];
+            }
+        }
+        if (![ame272_gd isKindOfClass:[NSString class]] || ame272_gd.length == 0) {
+            ame272_gd = self.profile[@"gameDir"] ?: @".";
+        }
+        existing[@"gameDir"] = ame272_gd;
+        if (ame272_liveMark != nil) {
+            existing[@"gameDirExplicit"] = ame272_liveMark;
+        }
+        NSLog(@"[ProfileSettings] Task272: save gameDir for '%@' -> %@ (touched=%d)",
+              ame162_targetKey, existing[@"gameDir"], (int)self.ame272_gameDirTouched);
+    }
     // existing 中的 name 和 lastVersionId 字段保持原始值不变
     PLProfiles.current.profiles[ame162_targetKey] = existing;
     [PLProfiles.current save];
@@ -863,11 +927,26 @@ static NSString * localizeProfileTitle(NSString *title) {
 - (NSInteger)tableView:(UITableView *)tableView numberOfRowsInSection:(NSInteger)section {
     NSInteger globalSection = [self globalSectionForTableView:tableView localSection:section];
     if (globalSection < 0 || globalSection >= (NSInteger)self.sections.count) return 0;
+    // ★ Task267：折叠分组只保留表头行（行数 0），点击表头展开。
+    if (globalSection < (NSInteger)self.ame267_sectionCollapsed.count &&
+        self.ame267_sectionCollapsed[globalSection].boolValue) {
+        return 0;
+    }
     return [self.sections[globalSection] count];
 }
 
-- (NSString *)tableView:(UITableView *)tableView titleForHeaderInSection:(NSInteger)section {
-    NSInteger globalSection = [self globalSectionForTableView:tableView localSection:section];
+// ★ Task287（“字体重叠自适应又坏了”根修）：分节标题改私有 helper，
+//   删除 UITableViewDataSource 的 tableView:titleForHeaderInSection:。
+//   病历（IMG_0434 装机截图实锤）：本页所有分节标题双写叠印（大字自定
+//   义 26701 标签 + 小字系统默认 content 并存）。iPadOS 27 的
+//   UITableView 在 tableView:viewForHeaderInSection: 与
+//   tableView:titleForHeaderInSection: 同时实现时，会把 title 再灌进
+//   dequeued UITableViewHeaderFooterView 的默认 content（经典契约
+//   “view 优先则 title 被忽略”失效）——自定义标签与系统 content 标签
+//   同时可见。根治 = 系统侧不再有标题可灌：数据源方法改名私有 helper，
+//   自定义 header 独占标题来源（footer 仍走系统 title 路径，无自建
+//   view，不受影响）。
+- (NSString *)ame267_sectionTitleForGlobalSection:(NSInteger)globalSection {
     switch (globalSection) {
         case 0: return localize(@"i18n_str_289", nil);
         case 1: return localize(@"i18n_str_877", nil);
@@ -878,8 +957,67 @@ static NSString * localizeProfileTitle(NSString *title) {
     }
 }
 
+// ★ Task267：可点击折叠分组表头（self-sizing 不可靠 → 固定 40pt）。
+//   ★ Task287：标题来源改 ame267_sectionTitleForGlobalSection:（原
+//   tableView:titleForHeaderInSection: 已删除，防 iPadOS 27 双灌）。
+//   右侧折叠指示：折叠 ▸ / 展开 ▾（系统性字符，无需图片资源）。
+- (CGFloat)tableView:(UITableView *)tableView heightForHeaderInSection:(NSInteger)section {
+    return 40.0;
+}
+
+- (UIView *)tableView:(UITableView *)tableView viewForHeaderInSection:(NSInteger)section {
+    NSInteger globalSection = [self globalSectionForTableView:tableView localSection:section];
+    NSString *ame267_title = [self ame267_sectionTitleForGlobalSection:globalSection] ?: @"";
+    BOOL ame267_collapsed = (globalSection >= 0 &&
+                             globalSection < (NSInteger)self.ame267_sectionCollapsed.count &&
+                             self.ame267_sectionCollapsed[globalSection].boolValue);
+
+    UITableViewHeaderFooterView *ame267_header =
+        [tableView dequeueReusableHeaderFooterViewWithIdentifier:@"ame267SectionHeader"];
+    if (!ame267_header) {
+        ame267_header = [[UITableViewHeaderFooterView alloc]
+            initWithReuseIdentifier:@"ame267SectionHeader"];
+        UILabel *ame267_label = [[UILabel alloc] initWithFrame:CGRectZero];
+        ame267_label.tag = 26701;
+        ame267_label.font = [UIFont systemFontOfSize:15.0 weight:UIFontWeightSemibold];
+        ame267_label.translatesAutoresizingMaskIntoConstraints = NO;
+        [ame267_header.contentView addSubview:ame267_label];
+        UILabel *ame267_arrow = [[UILabel alloc] initWithFrame:CGRectZero];
+        ame267_arrow.tag = 26702;
+        ame267_arrow.font = [UIFont systemFontOfSize:12.0 weight:UIFontWeightMedium];
+        ame267_arrow.textColor = [UIColor secondaryLabelColor];
+        ame267_arrow.textAlignment = NSTextAlignmentRight;
+        ame267_arrow.translatesAutoresizingMaskIntoConstraints = NO;
+        [ame267_header.contentView addSubview:ame267_arrow];
+        [NSLayoutConstraint activateConstraints:@[
+            [ame267_label.leadingAnchor constraintEqualToAnchor:ame267_header.contentView.layoutMarginsGuide.leadingAnchor],
+            [ame267_label.centerYAnchor constraintEqualToAnchor:ame267_header.contentView.centerYAnchor],
+            [ame267_arrow.trailingAnchor constraintEqualToAnchor:ame267_header.contentView.layoutMarginsGuide.trailingAnchor],
+            [ame267_arrow.leadingAnchor constraintGreaterThanOrEqualToAnchor:ame267_label.trailingAnchor constant:8],
+            [ame267_arrow.centerYAnchor constraintEqualToAnchor:ame267_header.contentView.centerYAnchor],
+            [ame267_arrow.widthAnchor constraintEqualToConstant:20],
+        ]];
+        UITapGestureRecognizer *ame267_tap = [[UITapGestureRecognizer alloc]
+            initWithTarget:self action:@selector(ame267_toggleSection:)];
+        [ame267_header.contentView addGestureRecognizer:ame267_tap];
+    }
+    UILabel *ame267_titleLabel = (UILabel *)[ame267_header.contentView viewWithTag:26701];
+    UILabel *ame267_arrowLabel = (UILabel *)[ame267_header.contentView viewWithTag:26702];
+    ame267_titleLabel.text = ame267_title;
+    ame267_arrowLabel.text = ame267_collapsed ? @"▸" : @"▾";
+    // tag 承载全局 section 索引（点击翻转用）。
+    ame267_header.contentView.tag = (NSInteger)globalSection;
+    return ame267_header;
+}
+
 - (NSString *)tableView:(UITableView *)tableView titleForFooterInSection:(NSInteger)section {
     NSInteger globalSection = [self globalSectionForTableView:tableView localSection:section];
+    // ★ Task267：折叠分组的 footer 一并隐藏（否则空组下悬一段说明文案）。
+    if (globalSection >= 0 &&
+        globalSection < (NSInteger)self.ame267_sectionCollapsed.count &&
+        self.ame267_sectionCollapsed[globalSection].boolValue) {
+        return nil;
+    }
     if (globalSection == 0) {
         return localize(@"i18n_str_881", nil);
     }
@@ -1467,7 +1605,11 @@ static NSString * localizeProfileTitle(NSString *title) {
 }
 
 - (NSString *)currentProfileName {
-    return self.profile[@"name"] ?: self.profileName;
+    // ★ Task271（271-a RC4）：身份统一回字典键——键≠名时（改过名的整合包
+    //   实例等）旧实现返回展示名，ModService 字典查找落空 → 隔离态/解析目
+    //   录全回落共享（隔离实例被误判共享的隐形路径）。profileDictKey 才是
+    //   与启动链/保存链同源的字典键。
+    return self.profileDictKey ?: self.profile[@"name"] ?: self.profileName;
 }
 
 #pragma mark - Table View Delegate
@@ -1604,6 +1746,8 @@ static NSString * localizeProfileTitle(NSString *title) {
 
     [alert addAction:[UIAlertAction actionWithTitle:localize(@"i18n_str_898", nil) style:UIAlertActionStyleDestructive handler:^(UIAlertAction * _Nonnull action) {
         self.profile[@"gameDir"] = @".";
+        self.profile[@"gameDirExplicit"] = @YES;   // ★ Task272（A2）：显式选择标记
+        self.ame272_gameDirTouched = YES;          // ★ Task272（A1）：本页主动改动
         [self saveSettings];
         [self reloadAllTableViews];
         [self updateHeroCard];
@@ -1618,6 +1762,8 @@ static NSString * localizeProfileTitle(NSString *title) {
             newGameDir = @".";
         }
         self.profile[@"gameDir"] = newGameDir;
+        self.profile[@"gameDirExplicit"] = @YES;   // ★ Task272（A2）：显式选择标记
+        self.ame272_gameDirTouched = YES;          // ★ Task272（A1）：本页主动改动
         [self saveSettings];
         [self reloadAllTableViews];
         [self updateHeroCard];
@@ -1628,7 +1774,8 @@ static NSString * localizeProfileTitle(NSString *title) {
 
 - (void)openModsManager {
     ModsManagerViewController *vc = [[ModsManagerViewController alloc] init];
-    vc.profileName = [self currentProfileName];
+    // Task267：语义入口（本 gameDir 实例的模组）= 钉定，选中实例变化不跟走
+    [vc ame267_pinToProfile:[self currentProfileName]];
     [self.navigationController pushViewController:vc animated:YES];
 }
 
@@ -1829,8 +1976,39 @@ static NSString * localizeProfileTitle(NSString *title) {
             }
         }
 
+        // ★ Task275 F8：未识别条目兑底清扫（Task226 leftovers 先例平移·自适应恢复）——
+        //   ame217_items 是闭集，根级 mod 数据目录（journeymap/XaeroWorldMap 等）
+        //   不随迁 = 两侧分居（开隔离后游戏从隔离目录新建空数据，旧数据滞留共享
+        //   根）。闭集外顶层条目补搬（目标已存在绝不覆盖）；共享层/实例容器/
+        //   隐藏目录绝不碰（custom_gamedir 里住着别的实例，搬走=灾难）。
+        if (migrate && !ame223_sameDir) {
+            NSArray<NSString *> *ame275_sweepDeny = @[
+                @"versions", @"libraries", @"assets", @"instances", @"custom_gamedir",
+                @"logs", @"crash-reports",
+                @"launcher_profiles.json", @"launcher_preferences.plist"
+            ];
+            NSInteger ame275_swept = 0;
+            for (NSString *ame275_name in [fm contentsOfDirectoryAtPath:migrateSource error:nil]) {
+                if ([ame275_name hasPrefix:@"."]) continue;                 // .ame269_backup/.stage/.DS_Store
+                if ([ame275_name hasPrefix:@"modrinth_"]) continue;         // 旧版实例文件夹（隔壁实例本体）
+                if ([ame275_name containsString:@"-backup-"] || [ame275_name containsString:@"-stage-"]) continue;
+                if ([ame275_sweepDeny containsObject:ame275_name]) continue;
+                NSString *ame275_src = [migrateSource stringByAppendingPathComponent:ame275_name];
+                NSString *ame275_dst = [isoDir stringByAppendingPathComponent:ame275_name];
+                if ([fm fileExistsAtPath:ame275_dst]) continue;             // 目标已有 → 绝不覆盖
+                if ([fm moveItemAtPath:ame275_src toPath:ame275_dst error:nil]) ame275_swept++;
+            }
+            if (ame275_swept > 0) {
+                NSLog(@"[ProfileSettings] Task275 F8: isolation migration leftover sweep moved %ld untracked item(s)", (long)ame275_swept);
+            }
+        }
+
         dispatch_async(dispatch_get_main_queue(), ^{
             self.profile[@"gameDir"] = relative;
+            // ★ Task272（A2）：显式选择标记——启动默认隔离清扫见此标记绝不回改（用户
+            //   意图至高）；同时标记本页主动改动（saveSettings 取本页值而非活字典）。
+            self.profile[@"gameDirExplicit"] = @YES;
+            self.ame272_gameDirTouched = YES;
             [self saveSettings];
             [self reloadAllTableViews];
             [self updateHeroCard];
@@ -1888,7 +2066,10 @@ static NSString * localizeProfileTitle(NSString *title) {
     }
 
     // 先切共享（立即生效）
+    // ★ Task272（A2）：显式选择标记——用户主动回共享，清扫永不强行再隔离。
     self.profile[@"gameDir"] = @".";
+    self.profile[@"gameDirExplicit"] = @YES;
+    self.ame272_gameDirTouched = YES;
     [self saveSettings];
     [self reloadAllTableViews];
     [self updateHeroCard];
@@ -1928,6 +2109,30 @@ static NSString * localizeProfileTitle(NSString *title) {
                         movedBack++;
                     } else {
                         skippedBack++;
+                    }
+                }
+                // ★ Task275 F8：搬回兑底清扫（同主迁移）——journeymap 等 mod 数据
+                //   目录闭集外条目随搬回，否则滞留隔离目录（对 Task226 leftovers 模式）。
+                {
+                    NSArray<NSString *> *ame275_sweepDeny = @[
+                        @"versions", @"libraries", @"assets", @"instances", @"custom_gamedir",
+                        @"logs", @"crash-reports",
+                        @"launcher_profiles.json", @"launcher_preferences.plist"
+                    ];
+                    NSInteger ame275_sweptBack = 0;
+                    for (NSString *ame275_name in [fm contentsOfDirectoryAtPath:isoSource error:nil]) {
+                        if ([ame275_name hasPrefix:@"."]) continue;
+                        if ([ame275_name hasPrefix:@"modrinth_"]) continue;
+                        if ([ame275_name containsString:@"-backup-"] || [ame275_name containsString:@"-stage-"]) continue;
+                        if ([ame275_sweepDeny containsObject:ame275_name]) continue;
+                        NSString *ame275_src = [isoSource stringByAppendingPathComponent:ame275_name];
+                        NSString *ame275_dst = [instanceRoot stringByAppendingPathComponent:ame275_name];
+                        if ([fm fileExistsAtPath:ame275_dst]) continue;
+                        if ([fm moveItemAtPath:ame275_src toPath:ame275_dst error:nil]) ame275_sweptBack++;
+                    }
+                    if (ame275_sweptBack > 0) {
+                        NSLog(@"[ProfileSettings] Task275 F8: move-back leftover sweep moved %ld untracked item(s)", (long)ame275_sweptBack);
+                        movedBack += ame275_sweptBack;
                     }
                 }
                 NSLog(@"[ProfileSettings] Task224 isolation move-back: moved=%ld skipped=%ld (from %@)",
@@ -2970,7 +3175,9 @@ static ModVersion *ame217_pickVersionForGameVersion(NSArray<ModVersion *> *versi
             NSMutableDictionary *profile = [NSMutableDictionary dictionary];
             profile[@"name"] = versionId;
             profile[@"lastVersionId"] = versionId;
-            profile[@"gameDir"] = @".";
+            // ★ Task271（271-a F3·Task242 补完）：实例页 OptiFine 同步隔离口径
+            //   versions/<id>/game（用户仍可在三态选择器改回）。
+            profile[@"gameDir"] = [NSString stringWithFormat:@"versions/%@/game", versionId];
             profile[@"type"] = @"custom";
             profile[@"created"] = [NSDate date].description;
             [PLProfiles.current saveProfile:profile withName:versionId];
@@ -3176,6 +3383,55 @@ static ModVersion *ame217_pickVersionForGameVersion(NSArray<ModVersion *> *versi
 /// 成功后写 profile touchController=YES（Task172 键沿用，启动链
 /// ame172_applyProfileTouchController 自动落 UDP 模式 + 屏蔽启动器控件）。
 - (void)installTouchControllerStandalone {
+    // ★ Task268：已安装态（profile 键 YES）先给管理手势——旧版行点击只会重复
+    //   走安装，装完没有任何关闭入口（模组管理删 jar 也关不掉：键残留 YES =
+    //   启动链照样自动配置 UDP+屏蔽控件）。
+    if (self.profile[@"touchController"] && [self.profile[@"touchController"] boolValue]) {
+        UIAlertController *ame268_manage = [UIAlertController alertControllerWithTitle:@"TouchController"
+                                                                               message:nil
+                                                                        preferredStyle:UIAlertControllerStyleAlert];
+        [ame268_manage addAction:[UIAlertAction actionWithTitle:localize(@"component.touch.uninstall_disable", NULL)
+                                                          style:UIAlertActionStyleDestructive
+                                                        handler:^(UIAlertAction *action) {
+            [self ame268_uninstallTouchController];
+        }]];
+        [ame268_manage addAction:[UIAlertAction actionWithTitle:localize(@"component.touch.reinstall", NULL)
+                                                          style:UIAlertActionStyleDefault
+                                                        handler:^(UIAlertAction *action) {
+            [self ame268_continueInstallTouchController];
+        }]];
+        [ame268_manage addAction:[UIAlertAction actionWithTitle:localize(@"resman.common.cancel", nil) style:UIAlertActionStyleCancel handler:nil]];
+        [self presentViewController:ame268_manage animated:YES completion:nil];
+        return;
+    }
+    [self ame268_continueInstallTouchController];
+}
+
+
+/// Task268：卸载 TouchController 模组 jar + profile 键显式 NO + 刷新。
+/// 关闭后下次启动 ame172_applyProfileTouchController 走显式 NO 分支 =
+/// 本会话无 touch 协议、控件不再屏蔽（用户实测 bug 的关闭入口）。
+- (void)ame268_uninstallTouchController {
+    NSString *ame268_prof = self.originalName ?: self.profile[@"name"];
+    NSString *modsFolder = ame268_prof ? [[ModService sharedService] ame264_effectiveModsFolderForProfile:ame268_prof] : nil;
+    NSInteger removed = 0;
+    if (modsFolder.length > 0) {
+        NSFileManager *ame268_fm = [NSFileManager defaultManager];
+        for (NSString *f in [ame268_fm contentsOfDirectoryAtPath:modsFolder error:nil]) {
+            if ([f.pathExtension caseInsensitiveCompare:@"jar"] == NSOrderedSame &&
+                [f localizedCaseInsensitiveContainsString:@"touch"]) {
+                if ([ame268_fm removeItemAtPath:[modsFolder stringByAppendingPathComponent:f] error:nil]) removed++;
+            }
+        }
+    }
+    self.touchControllerEnabled = NO;
+    [self saveSettings]; // Task268：显式 @NO 保存口径
+    NSLog(@"[ProfileSettings] Task268: TouchController uninstalled (%ld jar(s)) + profile key=NO for '%@'",
+          (long)removed, ame268_prof);
+    [self reloadAllTableViews];
+}
+
+- (void)ame268_continueInstallTouchController {
     if (![self isFabricProfile]) {
         [self showComponentAlert:localize(@"i18n_str_899", nil)
                           message:localize(@"component.touch.fabric_only", nil)];
@@ -3451,7 +3707,16 @@ static ModVersion *ame217_pickVersionForGameVersion(NSArray<ModVersion *> *versi
         if (ame162_oldKey.length > 0) {
             [PLProfiles.current.profiles removeObjectForKey:ame162_oldKey];
         }
-        PLProfiles.current.profiles[newName] = self.profile;
+        // ★ Task271（271-a RC3）：写入改【合并覆盖】——编辑器打开期间其它
+        //   写入方（下载完成/Ame269 收尾等）给活条目新增的键不再被陈旧工作
+        //   副本整条顶掉；编辑器管辖字段以本页为准。
+        NSMutableDictionary *ame271_liveNew = [PLProfiles.current.profiles[newName] isKindOfClass:[NSDictionary class]]
+            ? [NSMutableDictionary dictionaryWithDictionary:PLProfiles.current.profiles[newName]]
+            : [NSMutableDictionary dictionary];
+        for (NSString *ame271_k in self.profile) {
+            if (self.profile[ame271_k] != nil) ame271_liveNew[ame271_k] = self.profile[ame271_k];
+        }
+        PLProfiles.current.profiles[newName] = ame271_liveNew;
         self.profileDictKey = newName;
         // 如果原来选中的是被重命名的 profile，更新选中
         if ([PLProfiles.current.selectedProfileName isEqualToString:ame162_oldKey]) {
@@ -3460,9 +3725,44 @@ static ModVersion *ame217_pickVersionForGameVersion(NSArray<ModVersion *> *versi
     } else {
         // 名称没变，直接保存（Task162：按键落位，不写幻影）
         if (ame162_oldKey.length > 0) {
-            PLProfiles.current.profiles[ame162_oldKey] = self.profile;
+            // ★ Task271（271-a RC3）：合并覆盖（语义同上）——其它写入方的
+            //   新增键（gameDir/icon 等）存活，编辑器管辖字段以本页为准。
+            NSMutableDictionary *ame271_live = [PLProfiles.current.profiles[ame162_oldKey] isKindOfClass:[NSDictionary class]]
+                ? [NSMutableDictionary dictionaryWithDictionary:PLProfiles.current.profiles[ame162_oldKey]]
+                : [NSMutableDictionary dictionary];
+            for (NSString *ame271_k in self.profile) {
+                if (self.profile[ame271_k] != nil) ame271_live[ame271_k] = self.profile[ame271_k];
+            }
+            PLProfiles.current.profiles[ame162_oldKey] = ame271_live;
         } else {
-            PLProfiles.current.profiles[newName] = self.profile;
+            PLProfiles.current.profiles[newName] = [self.profile mutableCopy] ?: [NSMutableDictionary dictionary];
+        }
+    }
+
+    // Task270 (M5)：实例改名同步 ImportedModpacks 账本——整合包条目的 profileName
+    // 记录的是 profile 字典键（ModpackImportService createProfileForModpack 写入，
+    // 键名同其 kImportedModpacksKey），改名只动 PLProfiles 键时账本残留死名，
+    // 删除/重导入对账读不到。只精确匹配 profileName 字段，gameDirAbsolute 等不动。
+    if (![self.originalName isEqualToString:newName] && ame162_oldKey.length > 0) {
+        NSUserDefaults *ame270_defaults = [NSUserDefaults standardUserDefaults];
+        NSArray *ame270_modpacks = [ame270_defaults objectForKey:@"ImportedModpacks"];
+        if ([ame270_modpacks isKindOfClass:[NSArray class]]) {
+            NSMutableArray *ame270_updated = [NSMutableArray array];
+            BOOL ame270_changed = NO;
+            for (NSDictionary *ame270_entry in ame270_modpacks) {
+                if ([ame270_entry isKindOfClass:[NSDictionary class]] &&
+                    [ame270_entry[@"profileName"] isEqualToString:ame162_oldKey]) {
+                    NSMutableDictionary *ame270_fixed = [ame270_entry mutableCopy];
+                    ame270_fixed[@"profileName"] = newName;
+                    [ame270_updated addObject:ame270_fixed];
+                    ame270_changed = YES;
+                } else {
+                    [ame270_updated addObject:ame270_entry];
+                }
+            }
+            if (ame270_changed) {
+                [ame270_defaults setObject:ame270_updated forKey:@"ImportedModpacks"];
+            }
         }
     }
 

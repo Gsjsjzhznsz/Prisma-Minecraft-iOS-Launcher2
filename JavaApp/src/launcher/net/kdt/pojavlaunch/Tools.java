@@ -3,11 +3,11 @@ package net.kdt.pojavlaunch;
 import android.util.ArrayMap;
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
+import java.io.ByteArrayOutputStream;
 import java.io.BufferedInputStream;
 import java.io.BufferedOutputStream;
 import java.io.BufferedWriter;
 import java.io.File;
-import java.io.FileFilter;
 import java.io.FileInputStream;
 import java.io.FileNotFoundException;
 import java.io.FileOutputStream;
@@ -23,7 +23,7 @@ import java.lang.reflect.Method;
 import java.net.HttpURLConnection;
 import java.net.URL;
 import java.net.URLClassLoader;
-import java.nio.charset.Charset;
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
@@ -156,7 +156,28 @@ public final class Tools {
         //   仅记日志（PatchSVC shutdown hook 路径原样保留为兜底）；MC
         //   main 若异常退出（崩溃），invoke 直接抛异常不经过此处，原
         //   崩溃 → System.exit → hooks 兜底链零回归。
-        ame251_writeShutdownMarkerNow("mc-main-returned");
+        //
+        //   ★ Task287（装机 latestlog 2ff716d 取证："远古版本崩溃"根修）：
+        //   pre-classic rd-*（RubyDung，rd-132211/rd-131655 等）的 main()
+        //   是"spawn 游戏线程即返回"结构——本次装机日志三实锤：①异常栈
+        //   底帧 = java.lang.Thread.run（游戏循环在自建线程，非 main）；
+        //   ②"[Ame251/Task254] MC main returned"时间戳早于 GLFWBridge
+        //   窗口创建（stdout 同流保序 = main 秒退）；③native"(flag still
+        //   absent after 2s flag-wait window) -> _exit(0)"= 2s 后游戏被
+        //   看门狗杀掉（用户视角：渲染 58fps 正常 → 数秒后闪退）。本标记
+        //   语义（main 返回 = 客户端完全停止）仅对"main 阻塞到退游"的
+        //   现代谱系成立；rd-* 跳过标记，退出交回自然链：游戏线程结束 →
+        //   JVM halt → shutdown hooks（PatchSVC 已注册同标记写入）→
+        //   native _exit(0)。c0./a1./b1. 等其余远古谱系 main 均阻塞
+        //   （窗口循环在主线程），Task254 语义保留不动。
+        String ame287_vidLower = versionInfo.id == null ? "" : versionInfo.id.toLowerCase();
+        if (ame287_vidLower.startsWith("rd-")) {
+            System.out.println("[Ame287] pre-classic '" + versionInfo.id
+                    + "' main() is fire-and-forget (game thread spawned) -- skip"
+                    + " mc-main-returned marker; exit handled by shutdown-hook chain");
+        } else {
+            ame251_writeShutdownMarkerNow("mc-main-returned");
+        }
     }
 
     /**
@@ -200,7 +221,11 @@ public final class Tools {
      *   阶段 1（entrypoint 期，线程尚未改名为 "Render thread"）：每 15s 一次全量栈转储
      *           （前 24 帧），最多 10 分钟；连续阻塞时自动压缩为单行心跳避免刷屏。
      *   阶段 2（窗口建立后，即资源重载/标题屏/进世界期）：每 30s 采样，仅当栈顶 6 帧
-     *           连续 2 次完全一致（疑似冻结 >= 60s）才转储，最多 5 次。
+     *           连续 2 次完全一致（疑似冻结 >= 60s）才转储，最多 5 次。Task263 追加：
+     *           窗口创建前主线程首次驻停（WAITING/BLOCKED/TIMED_WAITING）即无条件
+     *           落栈一次（post-window-parked，仅一次）——初始化期无合法驻停点，
+     *           必达时间 t+14s，跑赢用户 13-40s 手杀分布（Task262 轮 t+30s 冻结
+     *           转储被 1-3s 抢跑第三次失考的根治）。
      * 健康启动的总开销为个位数行日志；线程终止或 JVM 关闭时静默退出。
      */
     private static void startLaunchWatchdog(final Thread gameThread) {
@@ -268,6 +293,8 @@ public final class Tools {
         String frozenSignature = null;
         int frozenCount = 0;
         int dumps = 0;
+        // Task263：窗口期主线程驻停栈只落一次（驻停点不变时无需重复刷屏）
+        boolean parkedDumped = false;
         try {
             // 20 次 x 30s = 10 分钟
             // ★ Task261（⑧大型整合包"无输出"取证）：前 3 个样本提速到 8s——
@@ -282,7 +309,8 @@ public final class Tools {
             // 变成必达证据（24 帧，健康启动仅此一份）。
             for (int i = 0; i <= 20 && dumps < 5; i++) {
                 if (i > 0) Thread.sleep(i <= 3 ? 8000L : 30000L);
-                if (gameThread.getState() == Thread.State.TERMINATED) {
+                Thread.State state = gameThread.getState();
+                if (state == Thread.State.TERMINATED) {
                     return;
                 }
                 StackTraceElement[] st = gameThread.getStackTrace();
@@ -292,6 +320,24 @@ public final class Tools {
                     // 仍可能抢在前头；无条件首样本把"窗口创建后 8s 游戏线程
                     // 在哪"变成每次启动必达的证据（24 帧，健康启动仅此一份）。
                     dumpStack("post-window-first", i + 1, gameThread.getState(), st);
+                }
+                // ★ Task263（⑧四轮复现判读，7783679 装机日志实锤）：改名瞬间
+                // 首样本（t+6s）抓到的是 RUNNABLE 类加载推进态，真正卡死发生在
+                // 其后 ~2s（Cobblemon Showdown 线程 PolyglotException 死亡 ->
+                // ShowdownThread.launch() 的 latch.await() 驻停主线程）；而冻结
+                // 转储要求连续 2 次同签名（8s 节奏下最早 t+30s），本次用户
+                // t+27~29s 手杀第三次以 1-3s 之差抢跑，卡点栈再次失考。根治：
+                // 窗口创建前的 Render thread 本应全程 RUNNABLE 推进（初始化期
+                // 无任何合法驻停点），首次观察为非 RUNNABLE（WAITING/BLOCKED/
+                // TIMED_WAITING）即无条件落栈一次——驻停判定零误报（RUNNABLE
+                // 忙等不受影响，类加载推进态不受影响），必达时间从 t+30s 提前到
+                // t+14s，彻底跑赢 13-40s 手杀分布（实测最快 13s）。
+                if (i > 0 && !parkedDumped
+                        && (state == Thread.State.WAITING
+                            || state == Thread.State.BLOCKED
+                            || state == Thread.State.TIMED_WAITING)) {
+                    dumpStack("post-window-parked", i + 1, state, st);
+                    parkedDumped = true;
                 }
                 String signature = stackSignature(st, 6);
                 if (signature != null && signature.equals(frozenSignature)) {
@@ -624,7 +670,9 @@ public final class Tools {
 
         List<String> argList = new ArrayList<String>(Arrays.asList(args));
         // 版本判定：MC < 1.20 用 --server/--port，MC >= 1.20 用 --quickPlayMultiplayer
-        if (versionId.compareTo("1.20") < 0) {
+        // ame270：数值化比较——原 String.compareTo 字典序会把 "1.9"~"1.9.4" 判成 >=1.20
+        // 而误加 --quickPlayMultiplayer（老版本无法识别，自动进服静默失效）。
+        if (!ame270McVersionAtLeast(versionId, 1, 20)) {
             argList.add("--server");
             argList.add(host);
             argList.add("--port");
@@ -636,6 +684,46 @@ public final class Tools {
             System.out.println("[Tools] Auto-join server (quickPlay): " + host + ":" + port);
         }
         return argList.toArray(new String[0]);
+    }
+
+    /**
+     * ame270：数值化 MC 版本比较（取代 String.compareTo 字典序陷阱：
+     * "1.9" 字典序 > "1.11"，老版本被误判为新版本）。
+     * 解析 versionId 前导 "major.minor" 段（截取到第二个 '.' 之前的数字，
+     * 如 "1.16.5" -> "1.16"），major 大于指定值，或 major 相等且 minor
+     * 不小于指定值时返回 true；null / 无前导 "major.minor" 数字段 /
+     * parseInt 失败一律返回 false（预发布 id 如 "1.20-pre6" 的 minor 段
+     * 含非数字后缀，亦按解析失败处理）。
+     */
+    public static boolean ame270McVersionAtLeast(String versionId, int major, int minor) {
+        if (versionId == null || versionId.isEmpty()) {
+            return false;
+        }
+        int firstDot = versionId.indexOf('.');
+        if (firstDot < 0) {
+            return false;
+        }
+        int secondDot = versionId.indexOf('.', firstDot + 1);
+        String prefix = (secondDot < 0) ? versionId : versionId.substring(0, secondDot);
+        String[] parts = prefix.split("\\.");
+        if (parts.length < 2) {
+            return false;
+        }
+        try {
+            int vMajor = Integer.parseInt(parts[0].trim());
+            // ★ Task275 J-P2-3：minor 带后缀（"26.4-snapshot-1"/"1.20-pre6"）原
+            // parseInt NFE → false → quickPlay/server-args 走错分支（同文件 ame171
+            // 正则版能正确吃掉后缀，本解析器是其字典序残余变体）。前导数字截取。
+            java.util.regex.Matcher ame275_m = java.util.regex.Pattern
+                .compile("^\\d+").matcher(parts[1].trim());
+            if (!ame275_m.find()) {
+                return false;
+            }
+            int vMinor = Integer.parseInt(ame275_m.group());
+            return vMajor > major || (vMajor == major && vMinor >= minor);
+        } catch (NumberFormatException e) {
+            return false;
+        }
     }
 
     public static String fromStringArray(String[] strArr) {
@@ -723,37 +811,21 @@ public final class Tools {
         return libStr.toString();
     }
     
-    public static void moveInside(String from, String to) {
-        File fromFile = new File(from);
-        for (File fromInside : fromFile.listFiles()) {
-            moveRecursive(fromInside.getAbsolutePath(), to);
-        }
-        fromFile.delete();
-    }
-
-    public static void moveRecursive(String from, String to) {
-        moveRecursive(new File(from), new File(to));
-    }
-
-    public static void moveRecursive(File from, File to) {
-        File toFrom = new File(to, from.getName());
-        try {
-            if (from.isDirectory()) {
-                for (File child : from.listFiles()) {
-                    moveRecursive(child, toFrom);
-                }
-            }
-        } finally {
-            from.getParentFile().mkdirs();
-            from.renameTo(toFrom);
-        }
-    }
-
     public static void preProcessLibraries(DependentLibrary[] libraries) {
         // Ignore some libraries since they are unsupported (jinput, text2speech) or unused (LWJGL)
         // Support for text2speech is not planned, so skip it for now.
         for (int i = 0; i < libraries.length; i++) {
             DependentLibrary libItem = libraries[i];
+            // ame270：畸形条目零防御修复——getVersionInfo 的库融合循环（其自身
+            // 已有 null 守卫）会把 null 元素 / name 为 null 的 library 原样传回
+            // 本方法；裸 startsWith/split 会直接 NPE 崩掉整个版本解析。
+            if (libItem == null) {
+                continue;
+            }
+            if (libItem.name == null) {
+                libItem._skip = true;
+                continue;
+            }
             if (libItem.name.startsWith("com.mojang:text2speech") ||
                 //libItem.name.startsWith("net.java.jinput") ||
                 libItem.name.startsWith("net.java.dev.jna:platform:") ||
@@ -779,14 +851,32 @@ public final class Tools {
                     continue;
             }
 
-            String[] version = libItem.name.split(":")[2].split("\\.");
+            // ame270：不足三段的畸形坐标（"a:b"）会让 [2] 直接 AIOOBE，
+            // 与 null name 同族——先存变量并守卫。
+            String[] nameSegments = libItem.name.split(":");
+            if (nameSegments.length < 3) {
+                libItem._skip = true;
+                continue;
+            }
+            String[] version = nameSegments[2].split("\\.");
             if (libItem.name.startsWith("net.java.dev.jna:jna:")) {
                 // 强制将 JNA 替换为 5.13.0 以保证 iOS 兼容性。
                 // MC 26.3+ 要求 JNA 5.17.0，但其 darwin-aarch64 libjnidispatch 在 iOS 上
                 // 加载 IOKit/CoreFoundation 后会导致 native crash/卡死（26.2 + JNA 5.13.0 正常）。
                 // MC 不直接使用 JNA API（通过 oshi 间接使用），5.13.0 的 API 完全兼容。
                 // PatchJNAAgent 会替换 Platform.class，与 JNA jar 版本无关。
-                if (Integer.parseInt(version[0]) == 5 && Integer.parseInt(version[1]) == 13 && Integer.parseInt(version[2]) == 0) continue;
+                // ame270：畸形版本段（不足三段 / 非数字）——无法判定是否需要替换，
+                // 保守跳过该条，避免 parseInt NFE / version[1] AIOOBE 崩掉启动链。
+                if (version.length < 3) {
+                    libItem._skip = true;
+                    continue;
+                }
+                try {
+                    if (Integer.parseInt(version[0]) == 5 && Integer.parseInt(version[1]) == 13 && Integer.parseInt(version[2]) == 0) continue;
+                } catch (NumberFormatException e) {
+                    libItem._skip = true;
+                    continue;
+                }
                 System.out.println("[Tools] Replacing JNA " + version[0] + "." + version[1] + "." + version[2] + " with 5.13.0 for iOS compatibility");
 
 createLibraryInfo(libItem);
@@ -794,7 +884,13 @@ createLibraryInfo(libItem);
                 libItem.downloads.artifact.path = "net/java/dev/jna/jna/5.13.0/jna-5.13.0.jar";
                 libItem.downloads.artifact.url = "https://libraries.minecraft.net/net/java/dev/jna/jna/5.13.0/jna-5.13.0.jar";
             } else if (libItem.name.startsWith("org.ow2.asm:asm-all:")) {
-                if(Integer.parseInt(version[0]) >= 5) continue;
+                // ame270：版本段非数字（如 "0-beta"）时跳过该条而非 NFE 崩溃
+                try {
+                    if (Integer.parseInt(version[0]) >= 5) continue;
+                } catch (NumberFormatException e) {
+                    libItem._skip = true;
+                    continue;
+                }
                 //System.out.println("Library " + libItem.name + " has been changed to version 5.0.4");
                 createLibraryInfo(libItem);
                 libItem.name = "org.ow2.asm:asm-all:5.0.4";
@@ -868,10 +964,22 @@ createLibraryInfo(libItem);
                     if (library == null || library.name == null) {
                         continue;
                     }
+                    // ame274：无冒号的畸形 name（如 "foo"）会让 lastIndexOf(":")
+                    // 返回 -1，substring(0,-1) 直接 SIOOBE 崩掉整个版本解析
+                    // （ame270 三防只护了其后的 preProcessLibraries，融合循环在
+                    // 其之前）。与上方 null 守卫同口径静默跳过：畸形名本就不可能
+                    // 匹配任何继承库名。
+                    if (library.name.indexOf(':') < 0) {
+                        continue;
+                    }
                     String libName = library.name.substring(0, library.name.lastIndexOf(":"));
 
                     for(DependentLibrary inheritLibrary : inheritLibraryList) {
                         if (inheritLibrary == null || inheritLibrary.name == null) {
+                            continue;
+                        }
+                        // ame274：同上——继承侧畸形 name 一样会 substring(0,-1)。
+                        if (inheritLibrary.name.indexOf(':') < 0) {
                             continue;
                         }
                         String inheritLibName = inheritLibrary.name.substring(0, inheritLibrary.name.lastIndexOf(":"));
@@ -910,7 +1018,14 @@ createLibraryInfo(libItem);
                             String perCustomArgStr = (String) perCustomArg;
                             // Check if there is a duplicate argument on combine
                             if (perCustomArgStr.startsWith("--") && totalArgList.contains(perCustomArgStr)) {
-                                perCustomArg = customVer.arguments.game[i + 1];
+                                // ame270：畸形 JSON 中 --flag 位于末尾无值时 i+1 越界（AIOOBE）。
+                                // 置 null 走下方 instanceof String 的 false 分支（不误跳下一元素），
+                                // 正常路径行为与原逻辑完全等价。
+                                if (i + 1 < customVer.arguments.game.length) {
+                                    perCustomArg = customVer.arguments.game[i + 1];
+                                } else {
+                                    perCustomArg = null;
+                                }
                                 if (perCustomArg instanceof String) {
                                     perCustomArgStr = (String) perCustomArg;
                                     // If the next is argument value, skip it
@@ -943,7 +1058,9 @@ createLibraryInfo(libItem);
             try {
                 Field fieldA = fromVer.getClass().getField(key);
                 value = fieldA.get(fromVer);
-                if (((value instanceof String) && !((String) value).isEmpty()) || value != null) {
+                // ★ Task268（scan-b #4）：原条件空串经 value!=null 恒真（死逻辑），
+                // 子版本 JSON 带空 mainClass 会覆盖父版本有效值（loadClass("") 崩）。
+                if (value != null && (!(value instanceof String) || !((String) value).isEmpty())) {
                     Field fieldB = targetVer.getClass().getField(key);
                     fieldB.set(targetVer, value);
                 }
@@ -954,20 +1071,6 @@ createLibraryInfo(libItem);
         }
     }
     
-    public static String convertStream(InputStream inputStream) throws IOException {
-        return convertStream(inputStream, Charset.forName("UTF-8"));
-    }
-    
-    public static String convertStream(InputStream inputStream, Charset charset) throws IOException {
-        String out = "";
-        int len;
-        byte[] buf = new byte[512];
-        while((len = inputStream.read(buf))!=-1) {
-            out += new String(buf,0,len,charset);
-        }
-        return out;
-    }
-
     public static void copy(final InputStream input, final OutputStream output) throws IOException {
         final byte[] buffer = new byte[8192];
         int n = 0;
@@ -976,53 +1079,53 @@ createLibraryInfo(libItem);
         }
     }
 
-    public static File lastFileModified(String dir) {
-        File fl = new File(dir);
-
-        File[] files = fl.listFiles(new FileFilter() {
-                public boolean accept(File file) {
-                    return file.isFile();
-                }
-            });
-
-        long lastMod = Long.MIN_VALUE;
-        File choice = null;
-        for (File file : files) {
-            if (file.lastModified() > lastMod) {
-                choice = file;
-                lastMod = file.lastModified();
-            }
-        }
-
-        return choice;
-    }
-
     public static String read(InputStream is) throws IOException {
-        String out = "";
+        // ame274（J10）：512B 缓冲 + 循环 String += 是 O(n²)（每次启动全量读
+        // 账户/launcher_profiles/版本 JSON），改 ByteArrayOutputStream 一次成串。
+        // ame274（J4）：原平台默认 charset 解码在非 UTF-8 默认字符集下会把
+        // 中文用户名读坏，钉 UTF-8（与 write 侧对应）。
+        ByteArrayOutputStream out = new ByteArrayOutputStream(8192);
         int len;
-        byte[] buf = new byte[512];
+        byte[] buf = new byte[8192];
         while((len = is.read(buf))!=-1) {
-            out += new String(buf,0,len);
+            out.write(buf, 0, len);
         }
-        return out;
+        // Task274-r1: ByteArrayOutputStream.toString(Charset) 是 Java 10+ API，
+        // CI 用 JDK8 构建会挂；改 new String(byte[], Charset)（Java 6+ 可用）。
+        return new String(out.toByteArray(), StandardCharsets.UTF_8);
     }
 
     public static String read(String path) throws IOException {
-        return read(new FileInputStream(path));
+        // ame270：原实现 FileInputStream 从不 close（每次读版本 JSON/账户/
+        // launcher_profiles 泄漏一个 fd），改 try-with-resources 确保释放。
+        try (InputStream is = new FileInputStream(path)) {
+            return read(is);
+        }
     }
 
     public static void write(String path, byte[] content) throws IOException
     {
         File outPath = new File(path);
         outPath.getParentFile().mkdirs();
-        outPath.createNewFile();
-
-        BufferedOutputStream fos = new BufferedOutputStream(new FileOutputStream(path));
-        fos.write(content, 0, content.length);
-        fos.close();
+        // ★ Task275 J-P1-2：原子覆盖写（tmp + rename，ForgeProcessorRunner.writeStatus
+        //   同款口径）——原直接 FileOutputStream 打开即截断，写出中断（iOS 手杀/
+        //   看门狗 _exit/JETSAM）= options.txt（3 次/启动高频写点）半写损坏。
+        File ame275_tmp = new File(path + ".tmp");
+        try (BufferedOutputStream fos = new BufferedOutputStream(new FileOutputStream(ame275_tmp))) {
+            fos.write(content, 0, content.length);
+        }
+        // 同目录 rename 原子换名；失败回退直接覆盖写（保持旧下限语义）
+        if (!ame275_tmp.renameTo(outPath)) {
+            try (BufferedOutputStream fos = new BufferedOutputStream(new FileOutputStream(path))) {
+                fos.write(content, 0, content.length);
+            }
+            ame275_tmp.delete();
+        }
     }
 
     public static void write(String path, String content) throws IOException {
-        write(path, content.getBytes());
+        // ame274（J4）：平台默认 charset 写出在非 UTF-8 默认字符集下会把中文
+        // 用户名写坏（账户 JSON/launcher_profiles.json/options.txt），钉 UTF-8。
+        write(path, content.getBytes(StandardCharsets.UTF_8));
     }
 }

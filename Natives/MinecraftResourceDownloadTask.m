@@ -14,6 +14,7 @@
 #import "DownloadTaskManager.h"
 #import "DownloadTaskItem.h"
 #import "PLTaskStages.h"
+#import "PLProfiles.h"   // ★ Task302：实例注册表预登记（吞实例根修）
 #import "ios_uikit_bridge.h"
 #import "utils.h"
 
@@ -29,6 +30,58 @@ static const NSUInteger kMCStageIndexDownloadClient = 2;
 static const NSUInteger kMCStageIndexLibraries = 3;
 static const NSUInteger kMCStageIndexAssets = 4;
 static const NSUInteger kMCStageIndexVerify = 5;
+
+// ===== Task312 ame312：批量下载吞吐量见证与低速换源（会话内生效，不落盘） =====
+// 病历（用户反馈 2026-10-20）：“6.5.5 下载速度比 6.5.0 慢多了”。双 tag 全链
+// 审计（v6.5.0→v6.5.5：MinecraftResourceDownloadTask/PLMirrorCenter/
+// DownloadTasksViewController/ForgeDirectInstaller/Tools.java 下载核心逐字节
+// 零改动）定性：非代码回归，是官方源路由劣化——现有候选轮换只在
+// 【彻底失败】后才切镜像，“慢而不断”的官方源永不轮换，用户只能爬。
+// 修复：会话内吞吐量见证——按源累计（样本≥512KB 且耗时≥0.5s 的完成任务），
+// 官方源平均吞吐 < 128KB/s 且样本≥2 → 本批后续文件换镜像候选在前；
+// 镜像自身也被证慢（< 32KB/s 且样本≥2）→ 回退官方，防双向误伤。不改
+// 用户偏好，不落盘，每次启动重新观测（网络状况会变，持久化反而粘错）。
+typedef struct {
+    double bytes;
+    double elapsed;
+    NSInteger samples;
+} ame312_SourceStats;
+
+// [0]=官方源 [1]=镜像源
+static ame312_SourceStats ame312_stats[2];
+static BOOL ame312_batchPreferMirror = NO;
+static BOOL ame312_mirrorProvenSlow = NO;
+
+static double ame312_avgKBps(NSInteger idx) {
+    if (ame312_stats[idx].elapsed <= 0) return -1.0;
+    return (ame312_stats[idx].bytes / ame312_stats[idx].elapsed) / 1024.0;
+}
+
+static void ame312_recordThroughput(NSInteger idx, double bytes, double elapsed) {
+    // 小文件/瞬时完成样本无统计意义，跳过（SHA 命中/秒下不计）
+    if (bytes < 512.0 * 1024.0 || elapsed < 0.5) return;
+    ame312_stats[idx].bytes += bytes;
+    ame312_stats[idx].elapsed += elapsed;
+    ame312_stats[idx].samples += 1;
+    double kbps = ame312_avgKBps(idx);
+    NSLog(@"[MCDL] ame312: source[%ld] throughput sample %ld -> avg %.0f KB/s",
+          (long)idx, (long)ame312_stats[idx].samples, kbps);
+    if (idx == 0 && !ame312_batchPreferMirror && !ame312_mirrorProvenSlow
+        && ame312_stats[0].samples >= 2 && kbps >= 0 && kbps < 128.0) {
+        ame312_batchPreferMirror = YES;
+        NSLog(@"[MCDL] ame312: official source SLOW (%.0f KB/s over %ld samples) -- "
+              @"switching remaining batch to mirror-first (session-scoped)",
+              kbps, (long)ame312_stats[0].samples);
+    }
+    if (idx == 1 && ame312_batchPreferMirror && !ame312_mirrorProvenSlow
+        && ame312_stats[1].samples >= 2 && kbps >= 0 && kbps < 32.0) {
+        ame312_mirrorProvenSlow = YES;
+        ame312_batchPreferMirror = NO;
+        NSLog(@"[MCDL] ame312: mirror also SLOW (%.0f KB/s over %ld samples) -- "
+              @"reverting to official candidates for remaining batch",
+              kbps, (long)ame312_stats[1].samples);
+    }
+}
 
 @interface MinecraftResourceDownloadTask ()
 @property AFURLSessionManager* manager;
@@ -190,6 +243,12 @@ static const NSUInteger kMCStageIndexVerify = 5;
         mirrorCandidates = fallbackURL ? @[fallbackURL] : @[];
     }
     NSInteger maxRetry = self.maxRetryCount > 0 ? self.maxRetryCount : 3;
+    // ame312：吞吐量见证判官方源低速时，本批后续文件镜像候选在前（会话内
+    // 生效，见文件头部 ame312 契约注释）。必须先交换候选序、再算 candidateIndex。
+    if (ame312_batchPreferMirror && mirrorCandidates.count == 2) {
+        mirrorCandidates = @[[mirrorCandidates.lastObject copy],
+                             [mirrorCandidates.firstObject copy]];
+    }
     // 总尝试次数 = 单候选重试预算 × 候选数（全部候选耗尽才最终失败）
     NSInteger attemptCount = MAX((NSInteger)mirrorCandidates.count, 1) * maxRetry;
     // 当前尝试对应的候选索引：第 0~(maxRetry-1) 次尝试用候选 0，耗尽后轮换下一候选
@@ -205,6 +264,9 @@ static const NSUInteger kMCStageIndexVerify = 5;
               (unsigned long)(candidateIndex + 1), (unsigned long)mirrorCandidates.count);
     }
     NSURLRequest *request = [NSURLRequest requestWithURL:[NSURL URLWithString:replacedURL]];
+    // ame312：本任务走的源（0=官方 1=镜像）与起始时刻，完成时回填吞吐量样本
+    BOOL ame312_isMirror = ![replacedURL isEqualToString:url];
+    CFTimeInterval ame312_startTs = CFAbsoluteTimeGetCurrent();
     __block NSProgress *progress;
     __weak MinecraftResourceDownloadTask *weakSelf = self;
     __block NSURLSessionDownloadTask *task = [self.manager downloadTaskWithRequest:request progress:nil
@@ -310,6 +372,13 @@ static const NSUInteger kMCStageIndexVerify = 5;
         } else {
             progress.totalUnitCount = progress.completedUnitCount;
             [self mc_recordStageFileFinishedAtPath:path];
+            // ame312：成功任务回填吞吐量样本（镜像/官方源择路依据，见文件头契约）
+            {
+                double ame312_bytes = (double)task.countOfBytesReceived;
+                double ame312_elapsed = CFAbsoluteTimeGetCurrent() - ame312_startTs;
+                if (ame312_bytes <= 0) ame312_bytes = (double)size;
+                ame312_recordThroughput(ame312_isMirror ? 1 : 0, ame312_bytes, ame312_elapsed);
+            }
             if (success) success();
         }
     }];
@@ -354,7 +423,13 @@ static const NSUInteger kMCStageIndexVerify = 5;
 
     NSString *path = [NSString stringWithFormat:@"%1$s/versions/%2$@/%2$@.json", getenv("POJAV_GAME_DIR"), versionStr];
     // Find it again to resolve latest-*
-    version = (id)[MinecraftResourceUtils findVersion:versionStr inList:remoteVersionList];
+    // Task300：重命名实例时清单查找必须用原始 id——新目录名不在远端清单里，
+    // 直接 findVersion 必失败 → 误入本地版本分支报"json 丢失"。ame300_origId
+    // 由 downloadVersion: 命名流写入，其余路径（latest-*/普通下载）不含该键。
+    NSString *ame300_lookupId = version[@"ame300_origId"];
+    BOOL ame300_renamed = [ame300_lookupId isKindOfClass:[NSString class]] && ame300_lookupId.length > 0;
+    if (!ame300_renamed) ame300_lookupId = versionStr;
+    version = (id)[MinecraftResourceUtils findVersion:ame300_lookupId inList:remoteVersionList];
 
     void(^completionBlock)(void) = ^{
         self.metadata = parseJSONFromFile(path);
@@ -394,6 +469,52 @@ static const NSUInteger kMCStageIndexVerify = 5;
         [MinecraftResourceUtils tweakVersionJson:self.metadata];
         success();
     };
+
+    // ★ Task303：改名流清单查找失败兜底（点启动弹改名窗的因果根）。
+    // 病历（装机 2026-10-19 实锤）：Task300 renamed 后 2s 即报 ParseJSON
+    // “26.1.2 2.json 不存在”——remoteVersionList 是被 LauncherRootVC/DownloadVC/
+    // CardLayout 三源 removeAllObjects 重建的非线程安全全局，改名确认瞬间正逢
+    // Task218 piston 重载进行中 → findVersion 返回 nil → 误入本地版本分支读
+    // 不存在的新路径。更糟的是 prepareForDownload 已建残根目录 → 用户点启动
+    // 该实例 → 补拉链撞残根弹残根/命名窗 = “点启动游戏出现重命名实例”。
+    // 兑底语义：改名流的前置就是原始 id 目录已存在 → 原始 json 在 → 直接复制
+    // json+jar 到新名目录（json 内部 id 重写为新名，Task71 同语义），库/资产
+    // 阶段按 SHA 自动跳过，零下载秒完成；原始 json 也不在才报清单错误。
+    if (!version && ame300_renamed) {
+        NSString *ame303_srcJson = [NSString stringWithFormat:@"%1$s/versions/%2$@/%2$@.json",
+                                    getenv("POJAV_GAME_DIR"), ame300_lookupId];
+        NSMutableDictionary *ame303_json = parseJSONFromFile(ame303_srcJson);
+        if (ame303_json && !ame303_json[@"NSErrorObject"]) {
+            [NSFileManager.defaultManager createDirectoryAtPath:path.stringByDeletingLastPathComponent
+                                    withIntermediateDirectories:YES attributes:nil error:nil];
+            ame303_json[@"id"] = versionStr;
+            NSError *ame303_writeErr = nil;
+            NSData *ame303_data = [NSJSONSerialization dataWithJSONObject:ame303_json
+                                                                  options:NSJSONWritingPrettyPrinted
+                                                                    error:&ame303_writeErr];
+            BOOL ame303_ok = ame303_data && [ame303_data writeToFile:path options:NSDataWritingAtomic error:&ame303_writeErr];
+            NSString *ame303_srcJar = [NSString stringWithFormat:@"%1$s/versions/%2$@/%2$@.jar",
+                                       getenv("POJAV_GAME_DIR"), ame300_lookupId];
+            NSString *ame303_dstJar = [NSString stringWithFormat:@"%1$s/versions/%2$@/%2$@.jar",
+                                       getenv("POJAV_GAME_DIR"), versionStr];
+            if ([NSFileManager.defaultManager fileExistsAtPath:ame303_srcJar]
+                && ![NSFileManager.defaultManager fileExistsAtPath:ame303_dstJar]) {
+                [NSFileManager.defaultManager copyItemAtPath:ame303_srcJar toPath:ame303_dstJar error:nil];
+            }
+            if (ame303_ok) {
+                NSLog(@"[MCDL] Task303 renamed local-copy fallback: %@ -> %@ (remote manifest race/absent)",
+                      ame300_lookupId, versionStr);
+                completionBlock();
+                return;
+            }
+            NSLog(@"[MCDL] Task303 local-copy write failed: %@", ame303_writeErr.localizedDescription ?: @"unknown");
+            [self finishDownloadWithErrorString:[NSString stringWithFormat:localize(@"ame303.copy_failed", nil), versionStr]];
+            return;
+        }
+        NSLog(@"[MCDL] Task303 renamed lookup miss + no local base json (%@)", ame300_lookupId);
+        [self finishDownloadWithErrorString:[NSString stringWithFormat:localize(@"ame303.manifest_missing", nil), ame300_lookupId]];
+        return;
+    }
 
     if (!version) {
         // This is likely local version, check if json exists and has inheritsFrom
@@ -491,7 +612,12 @@ static const NSUInteger kMCStageIndexVerify = 5;
         }
     }
 
-    versionStr = version[@"id"];
+    // Task300：重命名实例保持落盘目录用新名——远端清单对象的 id 是原始名，
+    // 此处重提取会吞掉新名（ame300_renamed 仅重命名流为 YES；latest-* 与普通
+    // 下载不受影响，仍走清单对象 id 重提取）。
+    if (!ame300_renamed) {
+        versionStr = version[@"id"];
+    }
     NSString *url = version[@"url"];
     NSString *sha = url.stringByDeletingLastPathComponent.lastPathComponent;
     NSUInteger size = [version[@"size"] unsignedLongLongValue];
@@ -595,10 +721,258 @@ static const NSUInteger kMCStageIndexVerify = 5;
 }
 
 - (void)downloadVersion:(NSDictionary *)version {
+    // ===== Task300：重复实例吞包根修（用户 2026-10-19"下载的新实例被吞了"）=====
+    // 根因链：downloadVersion: 直接以 version[@"id"] 落盘 versions/<id>/，目标
+    // 目录已存在时下载文件全部静默合并进旧实例（旧 json 被 SHA 通过的新 json
+    // 覆盖），版本列表观感="新实例被吞了"。
+    // 修法（对齐 HMCL/PCL 重复实例交互）：目标目录已存在 → 先弹命名窗（预填
+    // 自增唯一名），取消则干净终止；确认后以新名落盘。远端清单查找仍用原始
+    // id（ame300_origId 随 dict 透传，见 downloadVersionMetadata:），json 内部
+    // id 与目录名不一致由 Task71 自愈链兜底对齐。
+    NSString *ame300_origId = version[@"id"];
+    NSString *ame300_target = [NSString stringWithFormat:@"%s/versions/%@",
+                              getenv("POJAV_GAME_DIR"), ame300_origId];
+    BOOL ame300_isDir = NO;
+    if (ame300_origId.length > 0
+        && ![ame300_origId hasPrefix:@"latest-"]   // latest-* 由元数据阶段二次解析，此处不拦
+        && [NSFileManager.defaultManager fileExistsAtPath:ame300_target isDirectory:&ame300_isDir]
+        && ame300_isDir) {
+        // ★ Task301：残根目录分流——目录存在但 <id>.json 缺失 = 上次下载
+        //   被中断的残根（版本列表只认完整实例→列表不可见，重下永远撞名
+        //   = 用户实测"26.1.2 被吞"的死循环根）。弹清理确认而非命名窗。
+        NSString *ame301_jsonPath = [ame300_target stringByAppendingPathComponent:
+            [NSString stringWithFormat:@"%@.json", ame300_origId]];
+        if (![NSFileManager.defaultManager fileExistsAtPath:ame301_jsonPath]) {
+            NSLog(@"[MCDL] Task301 residual dir detected (json missing): %@ -- prompting cleanup/rename", ame300_target);
+            [self ame301_promptResidualForVersion:version originalId:ame300_origId];
+            return;
+        }
+        // ★ Task304：启动校验链语义分离（用户 2026-10-19"依旧点启动弹改名窗"
+        //   + 装机 ed7ae10 日志实锤模组端二次改名链）。病历：RightPanel/
+        //   NavigationController 的 launchMinecraft 启动前完整性校验（HMCL
+        //   风格"缺啥补啥"）也是调 downloadVersion: 实现的——本地完整实例
+        //   （目录+json 都在）启动时必然撞目录 → Task300 命名窗每次启动必弹；
+        //   模组端装完（installFabricLikeLoader 已写 json+注册 profile）顺手
+        //   点启动 → 校验链再撞刚写的目录 → 二次改名 " 2 2" + mods 目录错位。
+        //   修法：调用方带 ame300_launchcheck=YES（启动校验语义）时，目录+json
+        //   完整 = 正是本校验的目标实例，直接放行走 SHA 校验补全，零弹窗；
+        //   残根（json 缺）仍弹 Task301 三选窗保护 mods；下载安装链不带键
+        //   = Task300 重复实例检测语义原样保留。
+        if ([version[@"ame300_launchcheck"] boolValue]) {
+            NSLog(@"[MCDL] Task304 launch-check path: existing complete instance %@ -- verify-and-continue (no rename prompt)", ame300_origId);
+            [self ame300_downloadVersionChecked:version];
+            return;
+        }
+        [self ame300_promptRenameForVersion:version
+                                 originalId:ame300_origId
+                                 suggestion:[self ame300_uniqueSuggestionForId:ame300_origId]];
+        return;
+    }
+    [self ame300_downloadVersionChecked:version];
+}
+
+// Task300：预填唯一建议名 "<id> 2"、"<id> 3"...（目标目录不存在即采纳）
+- (NSString *)ame300_uniqueSuggestionForId:(NSString *)origId {
+    for (NSUInteger i = 2; i < 100; ++i) {
+        NSString *cand = [NSString stringWithFormat:@"%@ %lu", origId, (unsigned long)i];
+        NSString *candDir = [NSString stringWithFormat:@"%s/versions/%@",
+                             getenv("POJAV_GAME_DIR"), cand];
+        if (![NSFileManager.defaultManager fileExistsAtPath:candDir]) return cand;
+    }
+    return [NSString stringWithFormat:@"%@ %lu", origId,
+            (unsigned long)[NSDate date].timeIntervalSince1970];
+}
+
+// ★ Task303：类方法版唯一名建议（模组端安装链与原版命名窗共用，语义同上）
++ (NSString *)ame303_uniqueSuggestionForId:(NSString *)origId {
+    for (NSUInteger i = 2; i < 100; ++i) {
+        NSString *cand = [NSString stringWithFormat:@"%@ %lu", origId, (unsigned long)i];
+        NSString *candDir = [NSString stringWithFormat:@"%s/versions/%@",
+                             getenv("POJAV_GAME_DIR"), cand];
+        if (![NSFileManager.defaultManager fileExistsAtPath:candDir]) return cand;
+    }
+    return [NSString stringWithFormat:@"%@ %lu", origId,
+            (unsigned long)[NSDate date].timeIntervalSince1970];
+}
+
+// ★ Task303：模组端安装链重复实例检测入口（DVC.installFabricLikeLoader 等）。
+// 病历（用户 2026-10-19“下载原版有改名提示，模组端依旧被吞”）：原版下载链
+// 有 Task300/301 重复检测+命名窗，模组端（Fabric/Quilt）写 versions/<id>/
+// 前零检测——同 id 重复安装静默覆盖旧实例（“被吞”）。修法：目录已存在 →
+// 弹 Task300 同款命名窗；取消 → cancelled=YES 调用方干净终止；目录不存在
+// 直接回调原 id。completion 恒在主线程回调。
++ (void)ame303_resolveDuplicateVersionId:(NSString *)versionId
+                              completion:(void (^)(NSString *finalId, BOOL cancelled))completion {
+    NSString *target = [NSString stringWithFormat:@"%s/versions/%@",
+                        getenv("POJAV_GAME_DIR"), versionId];
+    BOOL isDir = NO;
+    if (versionId.length == 0
+        || ![NSFileManager.defaultManager fileExistsAtPath:target isDirectory:&isDir]
+        || !isDir) {
+        dispatch_async(dispatch_get_main_queue(), ^{ completion(versionId, NO); });
+        return;
+    }
+    NSString *suggestion = [self ame303_uniqueSuggestionForId:versionId];
+    NSString *message = [NSString stringWithFormat:localize(@"ame300.dup.message", nil), versionId];
+    ame300_promptRenameInstance(localize(@"ame300.dup.title", nil), message, suggestion,
+        ^(NSString *chosenName) {
+            if (chosenName.length == 0) {
+                NSLog(@"[MCDL] Task303 loader-install duplicate naming cancelled (id=%@)", versionId);
+                dispatch_async(dispatch_get_main_queue(), ^{ completion(nil, YES); });
+                return;
+            }
+            NSString *chosenDir = [NSString stringWithFormat:@"%s/versions/%@",
+                                   getenv("POJAV_GAME_DIR"), chosenName];
+            if ([NSFileManager.defaultManager fileExistsAtPath:chosenDir]) {
+                NSLog(@"[MCDL] Task303 chosen name still collides (%@) -- re-prompt", chosenName);
+                [self ame303_resolveDuplicateVersionId:chosenName completion:completion];
+                return;
+            }
+            NSLog(@"[MCDL] Task303 loader-install duplicate renamed: %@ -> %@", versionId, chosenName);
+            dispatch_async(dispatch_get_main_queue(), ^{ completion(chosenName, NO); });
+        });
+}
+
+// ★ Task301：残根目录三选窗（清理并重装 / 重命名继续 / 取消）。
+// 残根 = versions/<id>/ 在但 <id>.json 缺失（下载中断遗留，列表不可见）。
+// 清理 = 删除残根后按原始 id 正常下载；重命名 = 走 Task300 命名闭环；
+// 取消 = Task300 同款干净终止（prepareForDownload+cancel，防
+// vanillaPreinstall 30min 空转）。
+- (void)ame301_promptResidualForVersion:(NSDictionary *)version originalId:(NSString *)origId {
+    NSString *message = [NSString stringWithFormat:localize(@"ame301.residual.message", nil), origId];
+    ame301_promptResidualInstance(
+        localize(@"ame301.residual.title", nil),
+        message,
+        localize(@"ame301.residual.clean", nil),
+        localize(@"ame301.residual.rename", nil),
+        [self ame300_uniqueSuggestionForId:origId],
+        ^{
+            NSString *target = [NSString stringWithFormat:@"%s/versions/%@",
+                                getenv("POJAV_GAME_DIR"), origId];
+            NSError *ame301_err = nil;
+            BOOL ame301_ok = [NSFileManager.defaultManager removeItemAtPath:target error:&ame301_err];
+            NSLog(@"[MCDL] Task301 residual cleanup ok=%d target=%@ err=%@", ame301_ok, target, ame301_err);
+            [self ame300_downloadVersionChecked:version];
+        },
+        ^(NSString *chosenName) {
+            if (chosenName.length == 0) {
+                [self ame301_cancelBeforeStart:origId];
+                return;
+            }
+            NSString *chosenDir = [NSString stringWithFormat:@"%s/versions/%@",
+                                   getenv("POJAV_GAME_DIR"), chosenName];
+            if ([NSFileManager.defaultManager fileExistsAtPath:chosenDir]) {
+                NSLog(@"[MCDL] Task301 chosen name still collides (%@) -- fall through to rename loop", chosenName);
+                [self ame300_promptRenameForVersion:version originalId:origId
+                                         suggestion:[self ame300_uniqueSuggestionForId:chosenName]];
+                return;
+            }
+            NSMutableDictionary *renamed = [version mutableCopy];
+            renamed[@"ame300_origId"] = origId;
+            renamed[@"id"] = chosenName;
+            NSLog(@"[MCDL] Task301 residual renamed download: %@ -> %@ (manifest lookup keeps %@)",
+                  origId, chosenName, origId);
+            [self ame300_downloadVersionChecked:renamed];
+        },
+        ^{
+            [self ame301_cancelBeforeStart:origId];
+        });
+}
+
+// Task301：下载未启动前的干净终止（ame300 取消分支同款语义）
+- (void)ame301_cancelBeforeStart:(NSString *)origId {
+    [self prepareForDownload];
+    [self.progress cancel];
+    NSLog(@"[MCDL] Task301 residual dialog cancelled -- download aborted before start (id=%@)", origId);
+    if (self.currentDownloadTaskItem) {
+        [[DownloadTaskManager sharedManager] setTaskWithId:self.currentDownloadTaskItem.taskId
+                                                    state:DownloadTaskStateCancelled];
+    }
+}
+
+// Task300：命名窗循环（确认名仍重复 → 带自增建议重弹；取消 → 干净终止）
+- (void)ame300_promptRenameForVersion:(NSDictionary *)version
+                           originalId:(NSString *)origId
+                           suggestion:(NSString *)suggestion {
+    NSString *message = [NSString stringWithFormat:localize(@"ame300.dup.message", nil), origId];
+    ame300_promptRenameInstance(localize(@"ame300.dup.title", nil), message, suggestion,
+        ^(NSString *chosenName) {
+            if (chosenName.length == 0) {
+                // 取消：先走 prepareForDownload 建立进度对象再 cancel——整合包
+                // 预装轮询器（vanillaPreinstall）靠 progress.finished 退出，若不
+                // 建 progress 会空转 30 分钟；cancel 后 finished=YES 且
+                // succeeded=!p.cancelled=NO，调用方 completion(NO) 即刻出线。
+                [self prepareForDownload];
+                [self.progress cancel];
+                NSLog(@"[MCDL] Task300 duplicate-instance naming cancelled -- download aborted before start (id=%@)", origId);
+                if (self.currentDownloadTaskItem) {
+                    [[DownloadTaskManager sharedManager] setTaskWithId:self.currentDownloadTaskItem.taskId
+                                                                 state:DownloadTaskStateCancelled];
+                }
+                return;
+            }
+            NSString *chosenDir = [NSString stringWithFormat:@"%s/versions/%@",
+                                   getenv("POJAV_GAME_DIR"), chosenName];
+            if ([NSFileManager.defaultManager fileExistsAtPath:chosenDir]) {
+                NSLog(@"[MCDL] Task300 chosen name still collides (%@) -- re-prompt", chosenName);
+                [self ame300_promptRenameForVersion:version originalId:origId
+                                         suggestion:[self ame300_uniqueSuggestionForId:chosenName]];
+                return;
+            }
+            NSMutableDictionary *renamed = [version mutableCopy];
+            renamed[@"ame300_origId"] = origId;
+            renamed[@"id"] = chosenName;
+            NSLog(@"[MCDL] Task300 duplicate instance renamed: %@ -> %@ (manifest lookup keeps %@)",
+                  origId, chosenName, origId);
+            [self ame300_downloadVersionChecked:renamed];
+        });
+}
+
+- (void)ame300_downloadVersionChecked:(NSDictionary *)version {
     // Task187：验证阶段耗时锚点的时间零点（CFAbsoluteTime，CoreFoundation 恒可用）
     self.ame187_taskStartTs = CFAbsoluteTimeGetCurrent();
 
     self.currentVersionId = version[@"id"];
+
+    // ===== ★ Task302：实例注册表预登记（吞实例三催根修）=====
+    // 病历（用户 2026-10-19"依旧吞实例/重复实例重命名没有出现过"）：下载
+    // 入口有三条（DownloadVC / RightPanel 快捷 / NavigationController），
+    // 只有 DownloadVC.downloadVanillaVersion: 在下载前 saveProfile（3820
+    // 家法）；RightPanel startDownloadWithVersion 全链零注册——版本实体
+    // 落盘后实例注册表（launcher_profiles.json）无条目，实例列表按注册
+    // 表枚举永远看不见 = "被吞"。Task300/301 改名闭环只解决目录撞名，
+    // 解决不了注册缺失：改名下载照样隐身。
+    // 修法：任务层统一预登记（对齐 DVC 家法：下载前即登记，中断下载也
+    // 立即可见可删）。守卫：①latest-* 元数据二次解析阶段不登记（此刻
+    // id 尚未定型）②同名 profile 已存在不覆盖（防误写用户定制）③已有
+    // profile 引用该版本（lastVersionId 命中）不重复登记。
+    {
+        NSString *ame302_vid = version[@"id"];
+        if ([ame302_vid isKindOfClass:NSString.class] && ame302_vid.length > 0
+            && ![ame302_vid hasPrefix:@"latest-"]) {
+            BOOL ame302_needRegister = YES;
+            for (NSString *ame302_key in PLProfiles.current.profiles) {
+                NSDictionary *ame302_p = PLProfiles.current.profiles[ame302_key];
+                if (![ame302_p isKindOfClass:NSDictionary.class]) continue;
+                if ([ame302_key isEqualToString:ame302_vid] ||
+                    [ame302_p[@"lastVersionId"] isEqualToString:ame302_vid]) {
+                    ame302_needRegister = NO;
+                    break;
+                }
+            }
+            if (ame302_needRegister) {
+                NSMutableDictionary *ame302_profile = [NSMutableDictionary dictionary];
+                ame302_profile[@"name"] = ame302_vid;
+                ame302_profile[@"lastVersionId"] = ame302_vid;
+                ame302_profile[@"gameDir"] = [NSString stringWithFormat:@"versions/%@/game", ame302_vid];
+                ame302_profile[@"type"] = @"custom";
+                ame302_profile[@"created"] = [NSDate date].description;
+                [PLProfiles.current saveProfile:ame302_profile withName:ame302_vid];
+                NSLog(@"[MCDL] Task302 profile auto-registered upfront: %@ (RightPanel/Navigation paths were invisible)", ame302_vid);
+                [[NSNotificationCenter defaultCenter] postNotificationName:@"ReloadProfileList" object:nil];
+            }
+        }
+    }
     [self prepareForDownload];
 
     // ===== 阶段上报初始化（redesign-download-ui Phase 3 Task 3.1）=====

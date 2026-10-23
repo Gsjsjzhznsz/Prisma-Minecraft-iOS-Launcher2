@@ -24,6 +24,7 @@
 #import "UIKit+hook.h"
 #import "ios_uikit_bridge.h"
 #import "utils.h"
+#import "AmeNativeMenu.h"       // ★ Task281：JIT 等待族弹窗玻璃档镜像接管
 #import "installer/modpack/ModrinthAPI.h"
 #import "AmeTheme.h"   // ★ 7.0-UI-5b：Fluent 设计令牌（颜色/字体单一事实源）
 
@@ -562,6 +563,16 @@ static void *ProgressObserverContext = &ProgressObserverContext;
             @"type": @"custom"
         };
     }
+    // ★ Task304：launchMinecraft 的 downloadVersion: 调用是"启动前完整性
+    //   校验"（HMCL 风格缺啥补啥），不是重复安装——本地完整实例（目录+json
+    //   都在）必须直接放行 SHA 校验补全。旧语义撞目录即弹 Task300 命名窗 =
+    //   用户实测"点击启动游戏会出现重命名实例"根因；模组端装完点启动还会
+    //   二次改名 " 2 2" 致 mods 目录错位。带键后残根（json 缺）仍弹 Task301。
+    {
+        NSMutableDictionary *ame304_obj = [object mutableCopy];
+        ame304_obj[@"ame300_launchcheck"] = @YES;
+        object = ame304_obj;
+    }
 
     self.task = [MinecraftResourceDownloadTask new];
     dispatch_async(dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_DEFAULT, 0), ^{
@@ -751,7 +762,8 @@ static void *ProgressObserverContext = &ProgressObserverContext;
             NSLog(@"[JIT] [NavCtrl] Task185 openURL apple-magnifier:// -> %d", ame185_ok);
             if (!ame185_ok) {
                 dispatch_async(dispatch_get_main_queue(), ^{
-                    showDialog(localize(@"Error", nil), @"apple-magnifier:// 无响应（TrollStore JIT 助手未接管，常见于 TrollStore 版本过旧）。请更新 TrollStore，或在设置的 JIT 开启工具改用 stikjit / SideStore / StosDebug 后重试。\napple-magnifier:// not handled. Update TrollStore or switch the JIT enabler in Settings.");
+                    // ★ Task267：中英硬编码混排文案 → i18n 键（54 表注入）。
+                    showDialog(localize(@"Error", nil), localize(@"launcher.jit.trollstore_unhandled", nil));
                 });
             }
         }];
@@ -778,22 +790,27 @@ static void *ProgressObserverContext = &ProgressObserverContext;
             toolLabel:@"sidestore://sidejit-enable"];
     }
 
+    // Task267：等待期可取消（同 RightPanel 主等待语义，旧 TODO 落地）。
+    __block BOOL ame267_cancelled = NO;
     UIAlertController* alert = [UIAlertController alertControllerWithTitle:localize(@"launcher.wait_jit.title", nil)
         message:hasTrollStoreJIT ? localize(@"launcher.wait_jit_trollstore.message", nil) : localize(@"launcher.wait_jit.message", nil)
         preferredStyle:UIAlertControllerStyleAlert];
-/* TODO:
-    UIAlertAction *cancel = [UIAlertAction actionWithTitle:localize(@"Cancel", nil) style:UIAlertActionStyleCancel handler:^{
-        
-    }];
-    [alert addAction:cancel];
-*/
+    [alert addAction:[UIAlertAction actionWithTitle:localize(@"resman.common.cancel", nil)
+                                              style:UIAlertActionStyleCancel
+                                            handler:^(UIAlertAction * _Nonnull action) {
+        ame267_cancelled = YES;
+        NSLog(@"[JIT] [NavCtrl] Task267: user cancelled JIT wait (main)");
+    }]];
     // ★ Task223（用户报“版本设置启动游戏，JIT 有概率卡死”，2832c2b latestlog.8
     //   判读：condition satisfied 后 Task183 锚点缺失、主队列楔死，而
     //   Task192 的全局队列心跳照常——stikjit:// 把 App 切后台的转场瞬间
     //   presentViewController:animated:YES 正是主线程阻塞的头号嫌疑类；
     //   动画时钟冻结 + present 半途 = 主线程不再回 runloop）。进度型弹窗
     //   改无动画呈现/消失，后台态零风险，前台态视觉差异可忽略。
-    [self presentViewController:alert animated:NO completion:nil];
+    // ★ Task281：玻璃档（真液态玻璃 + 伪玻璃）改走磨砂玻璃面板镜像接管
+    //   （等待 JIT 不再裸奔旧式原生；Task275 dismiss 镜像保证后续收尾），
+    //   镜像拒收回退原生；无动画契约在助手内保留。
+    [AmeNativeMenu ame281_presentSystemAlert:alert fromHost:self];
 
     // Task172：后台任务断言（同 RightPanel，见其病历）：stikjit:// 切后台后
     // 防 iOS 立即挂起冻结等待循环。
@@ -804,7 +821,7 @@ static void *ProgressObserverContext = &ProgressObserverContext;
     dispatch_async(dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_DEFAULT, 0), ^{
         // Task169：有界等待（120s）+每 10s 心跳日志，超时走重试弹窗（同
         // RightPanel/DownloadVC 两处，群见 utils.m 病历）。
-        BOOL ok = ame169_waitForJITCondition(^{ return isJITEnabled(false); }, 120.0, @"isJITEnabled");
+        BOOL ok = ame169_waitForJITCondition(^{ return (BOOL)(ame267_cancelled || isJITEnabled(false)); }, 120.0, @"isJITEnabled");
         // Task185：自愈式派发（11e4b63 latestlog.2 病历：condition satisfied
         // 后旧 dispatch_async(main) 续接块在后台被楔死的主队列上永不执行——
         // 见 utils.h ame185_dispatchToMainSelfHealing）。
@@ -814,6 +831,14 @@ static void *ProgressObserverContext = &ProgressObserverContext;
             if (ame172_bgt != UIBackgroundTaskInvalid) {
                 [UIApplication.sharedApplication endBackgroundTask:ame172_bgt];
                 ame172_bgt = UIBackgroundTaskInvalid;
+            }
+            if (ame267_cancelled) {
+                // Task267：用户主动取消——不启动游戏，恢复启动器交互态
+                NSLog(@"[JIT] [NavCtrl] Task267: JIT wait cancelled -- abandoning launch");
+                self.task = nil;
+                [self setInteractionEnabled:YES forDownloading:YES];
+                [self reloadProfileList];
+                return;
             }
             if (ok) {
                 // Task182：后台态 dismiss completion 悬空风险（同 RightPanel
@@ -850,7 +875,8 @@ static void *ProgressObserverContext = &ProgressObserverContext;
         NSLog(@"[JIT] [NavCtrl] Task185 openURL %@ -> %d", tool, ok);
         if (!ok) {
             dispatch_async(dispatch_get_main_queue(), ^{
-                showDialog(localize(@"Error", nil), [NSString stringWithFormat:@"%@ 未接管启动请求（未安装或版本过旧？）。请在设置的 JIT 开启工具中换用其它工具后重试。\n%@ did not handle the request. Switch the JIT enabler in Settings and retry.", tool, tool]);
+                // ★ Task267：与 RightPanel/DownloadVC 同键收敛（此前三处三种写法漂移）。
+                showDialog(localize(@"Error", nil), [NSString stringWithFormat:localize(@"ame193.misc.jit_not_handled", nil), tool]);
             });
         }
     }];
@@ -860,11 +886,20 @@ static void *ProgressObserverContext = &ProgressObserverContext;
 /// 后台任务断言，同 RightPanel.ame172_reattachJIT26ThenLaunch，本文本
 /// alert 标题/文案用 NavCtrl 的本地化键）。
 - (void)ame172_reattachJIT26ThenLaunch:(void(^)(void))handler {
+    // Task267：重挂等待同样可取消（同主等待语义）。
+    __block BOOL ame267_cancelled = NO;
     UIAlertController* alert = [UIAlertController alertControllerWithTitle:localize(@"launcher.wait_jit.title", nil)
         message:localize(@"launcher.wait_jit.message", nil)
         preferredStyle:UIAlertControllerStyleAlert];
+    [alert addAction:[UIAlertAction actionWithTitle:localize(@"resman.common.cancel", nil)
+                                              style:UIAlertActionStyleCancel
+                                            handler:^(UIAlertAction * _Nonnull action) {
+        ame267_cancelled = YES;
+        NSLog(@"[JIT] [NavCtrl] Task267: user cancelled JIT wait (reattach)");
+    }]];
     // Task223：同主等待路径——重挂弹窗也无动画（后台态 present 安全）。
-    [self presentViewController:alert animated:NO completion:nil];
+    // ★ Task281：玻璃档镜像接管（同主等待路径）。
+    [AmeNativeMenu ame281_presentSystemAlert:alert fromHost:self];
 
     __block UIBackgroundTaskIdentifier ame172_bgt = [UIApplication.sharedApplication beginBackgroundTaskWithName:@"ame172-jit26-reattach" expirationHandler:^{
         // 同上：宽限期到由系统挂起，恢复后继续。
@@ -909,12 +944,20 @@ static void *ProgressObserverContext = &ProgressObserverContext;
         // exception ports / spawned-by-debugger), not for CS_DEBUGGED
         // -- that flag is already set and would race the first brk.
         // Task169：有界等待（120s）+心跳日志，超时走重试弹窗。
-        BOOL ok = ame169_waitForJITCondition(^{ return JIT26IsLikelyDebuggerKeepAttached(); }, 120.0, @"JIT26 debugger attach");
+        BOOL ok = ame169_waitForJITCondition(^{ return (BOOL)(ame267_cancelled || JIT26IsLikelyDebuggerKeepAttached()); }, 120.0, @"JIT26 debugger attach");
         // Task185：自愈式派发（同主等待路径，病历见 utils.h）。
         ame185_dispatchToMainSelfHealing(^{
             if (ame172_bgt != UIBackgroundTaskInvalid) {
                 [UIApplication.sharedApplication endBackgroundTask:ame172_bgt];
                 ame172_bgt = UIBackgroundTaskInvalid;
+            }
+            if (ame267_cancelled) {
+                // Task267：用户主动取消——不启动游戏，恢复启动器交互态
+                NSLog(@"[JIT] [NavCtrl] Task267: JIT wait cancelled -- abandoning launch");
+                self.task = nil;
+                [self setInteractionEnabled:YES forDownloading:YES];
+                [self reloadProfileList];
+                return;
             }
             if (ok) {
                 // Task182：同主等待路径——completion:nil + 直接执行。
@@ -944,7 +987,7 @@ static void *ProgressObserverContext = &ProgressObserverContext;
         retry.popoverPresentationController.sourceView = self.view;
         retry.popoverPresentationController.sourceRect = CGRectMake(CGRectGetMidX(self.view.bounds), CGRectGetMidY(self.view.bounds), 0, 0);
     }
-    [self presentViewController:retry animated:YES completion:nil];
+    [AmeNativeMenu ame281_presentSystemAlert:retry fromHost:self];   // ★ Task281：玻璃档镜像接管（原 animated:YES 直呈退役）
 }
 
 #pragma mark - UIPopoverPresentationControllerDelegate

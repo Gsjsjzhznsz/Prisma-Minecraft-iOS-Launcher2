@@ -646,6 +646,11 @@ static int pojavInitOpenGLInternal(BOOL setLwjglProperty) {
         dlopen([NSString stringWithFormat:@"@rpath/%s", ame131_load].UTF8String, RTLD_GLOBAL);
     }
 
+    // ★ Task309：帧率解锁钩子（mg_vsync_hook.m）按用户指令整体回退退役——
+    //   装机定性其 vkCreateSwapchainKHR GOT 改绑是 WINDOW_IN_USE 双崩
+    //   （hs_err_pid47069/47275）的元凶；本第二安装点（Task299）随之摘除。
+    //   MoltenVK 1.4.3 经用户实测确认正常，保留不动。
+
     // Task227 第二道防线：即便出现新的未覆盖分支，也只报错返回不崩溃。
     if (br_init == NULL) {
         NSLog(@"[egl_bridge] Task227 FATAL guard: br_init still NULL after fallback -- refusing to call");

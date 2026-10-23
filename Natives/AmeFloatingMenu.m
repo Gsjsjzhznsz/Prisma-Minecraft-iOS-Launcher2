@@ -29,6 +29,8 @@
 #import "AmeLiquidGlassView.h"  // ★ Task252：TG LegacyGlassView 配方接管面板玻璃
 #import "SurfaceViewController.h" // ★ Task252：+surface 判定游戏域（快照供料 vs 实况采样）
 #import "AmeTheme.h" // ★ 7.0-UI-3e：Fluent 设计令牌层（浮层底/描边/填充/文字语义化迁移）
+#import <CoreImage/CoreImage.h>   // ★ Task277：快照磨砂材质化（高斯+饱和度，Apple 材质观感）
+#import <objc/runtime.h>          // ★ Task302：no-mirror 豁免标记（实例流弹窗恒原生）
 
 #pragma mark - 前向声明与工具
 
@@ -132,10 +134,71 @@ static UIImage *Ame246PresenterViewSnapshot(UIView *hostView) {
     }
 }
 
+static UIImage *Ame245SoftenSnapshot(UIImage *ame245_img);
+
+/// ★ Task277（"优化伪液态玻璃的玻璃感"·磨砂材质化）：0.18x 抓帧成品再过
+///   【材质滤镜链】——CIGaussianBlur（r≈6 @0.18x ≈ 33pt 有效半径，标准磨砂
+///   观感）+ CIColorControls（saturation 1.5、brightness +0.02，Apple 材质
+///   的"提鲜"特征：玻璃不只是糊，还把背景色彩饱和度抬起来）。旧纯两次降
+///   采样的"糊"没有饱和度与光感 = 用户口中的"伪"。
+///   CIContext 复用（单例，创建成本高）；CoreImage 链任何异常/失败回退旧
+///   两次降采样路径，绝不阻断观感。IMG_0380 的"透视见底"另一半修复位不动。
+static CIContext *Ame277SharedCIContext(void) {
+    static CIContext *ame277_ctx = nil;
+    static dispatch_once_t ame277_once;
+    dispatch_once(&ame277_once, ^{
+        ame277_ctx = [CIContext contextWithOptions:@{kCIContextUseSoftwareRenderer: @NO}];
+    });
+    return ame277_ctx;
+}
+
+static UIImage *Ame277MaterializeSnapshot(UIImage *ame277_img) {
+    if (ame277_img == nil) return nil;
+    @try {
+        CIImage *ame277_ci = [CIImage imageWithCGImage:ame277_img.CGImage];
+        if (ame277_ci == nil) return Ame245SoftenSnapshot(ame277_img);
+        CIFilter *ame277_blur = [CIFilter filterWithName:@"CIGaussianBlur"];
+        [ame277_blur setValue:ame277_ci forKey:kCIInputImageKey];
+        [ame277_blur setValue:@6.0 forKey:kCIInputRadiusKey];
+        CIImage *ame277_blurred = ame277_blur.outputImage;
+        if (ame277_blurred != nil) {
+            CIFilter *ame277_color = [CIFilter filterWithName:@"CIColorControls"];
+            [ame277_color setValue:ame277_blurred forKey:kCIInputImageKey];
+            // ★ Task278：提鲜再抬一档（saturation 1.5→1.6、brightness
+            //   +0.02→+0.03）——装机复核“玻璃感不是很好”：饱和度是玻璃材质
+            //   “透光感”的主载，1.5 在低饱和壁纸上仍偏灰；0.03 亮度抬升补
+            //   足白色填充对背底亮度的吃掉量。
+            [ame277_color setValue:@1.6 forKey:@"inputSaturation"];
+            [ame277_color setValue:@0.03 forKey:@"inputBrightness"];
+            [ame277_color setValue:@1.0 forKey:@"inputContrast"];
+            ame277_blurred = ame277_color.outputImage;
+        }
+        if (ame277_blurred != nil) {
+            // 高斯核边缘外扩：裁回原幅面（否则四周发白/整体位移）。
+            ame277_blurred = [ame277_blurred imageByCroppingToRect:ame277_ci.extent];
+            CGImageRef ame277_cg = [Ame277SharedCIContext()
+                createCGImage:ame277_blurred fromRect:ame277_blurred.extent];
+            if (ame277_cg != NULL) {
+                UIImage *ame277_out = [UIImage imageWithCGImage:ame277_cg
+                                                          scale:ame277_img.scale
+                                                    orientation:UIImageOrientationUp];
+                CGImageRelease(ame277_cg);
+                if (ame277_out != nil) return ame277_out;
+            }
+        }
+    } @catch (NSException *ame277_e) {
+        NSLog(@"[AmeMenu] Task277: materialize filter chain failed (%@) -- legacy soften fallback", ame277_e.name);
+    }
+    return Ame245SoftenSnapshot(ame277_img);
+}
+
 /// ★ Task245：二次柔化——0.18x 抓帧成品再半分辨率重渲染一次（位图像素
 ///   再减半），窗口对位 1:1 上采样后背景轮廓不可辨认 = 标准磨砂观感；
 ///   IMG_0380 的“透视见底”一半来自 AspectFill 裁剪几何错位，另一半就
 ///   是柔化不足。失败（理论不可达）退回原快照，不阻断观感。
+///   ★ Task277：本函数退役为 Task277 材质链的【异常回退层】——磨砂成品
+///   统一经 Ame277MaterializeSnapshot（高斯+饱和度材质观感），此处仅保留
+///   纯降采样实现供回退与无 CI 环境兜底。
 static UIImage *Ame245SoftenSnapshot(UIImage *ame245_img) {
     if (ame245_img == nil) return nil;
     @try {
@@ -181,15 +244,37 @@ static BOOL Ame244SnapshotLooksValid(UIImage *ame244_img) {
 /// ★ Task244：快照磨砂上的可读性 tint——快照不透明，panel 底色被它盖住
 ///   无法再压暗，压暗层必须浮在快照【之上】、内容之下。深色 = 黑 0.40
 ///   （暗玻璃）；浅色 = 白 0.42（奶白玻璃，labelColor 黑字可读）。
+///   ★ Task263（反馈 5）：tint alpha 随 LGCPseudoGlassTransparency() 映射，
+///   0.5 精确回既有锚点（深 0.40 / 浅 0.42）；1.0 最透 / 0.0 最闷。
+///   ★ Task276（"滑块无效"三连根修之二）：梯度拉宽到 ±0.25/±0.275
+///   （0.0 最闷 = 深 0.65/浅 0.70；1.0 最透 = 深 0.15/浅 0.15）——首轮
+///   ±0.15/±0.20 梯度装机实测不可分辨；provider 内延迟求值（每次深浅
+///   色切换读最新值），在屏面板重铺由通知监听驱动（viewDidLoad 注册）。
 static UIColor *Ame244SnapshotTint(void) {
     return [UIColor colorWithDynamicProvider:^UIColor * _Nonnull(UITraitCollection * _Nonnull tc) {
+        CGFloat ame263_t = LGCPseudoGlassTransparency();
+        CGFloat ame263_a = (tc.userInterfaceStyle == UIUserInterfaceStyleDark)
+            ? 0.40 - 0.50 * (ame263_t - 0.5)    // 0.65(最闷)..0.15(最透)，0.5→0.40
+            : 0.42 - 0.55 * (ame263_t - 0.5);   // 0.70..0.15，0.5→0.42
         return (tc.userInterfaceStyle == UIUserInterfaceStyleDark)
-            ? [UIColor colorWithWhite:0.0 alpha:0.40]
-            : [UIColor colorWithWhite:1.0 alpha:0.42];
+            ? [UIColor colorWithWhite:0.0 alpha:ame263_a]
+            : [UIColor colorWithWhite:1.0 alpha:ame263_a];
     }];
 }
 
 #pragma mark - 菜单行控件（图标 + 标题；自带按压反馈；头文件公开供游戏内菜单共用）
+
+#pragma mark - Task271 行滚动区专用 ScrollView（D1 根修）
+
+@implementation Ame237Scroll
+// 菜单行 UIControl 铺满滚动区：基类对 UIControl 拒绝取消跟踪 + 
+// delaysContentTouches=NO = 拖动永远在行上开始且永不转入滚动（伪玻璃档
+// “选择太多被隐藏无法滑动”根因）。统一放行：拖动即取消行跟踪进入滚动，
+// 轻点仍直发行高亮与 TouchUpInside（即时按压反馈保留）。
+- (BOOL)touchesShouldCancelInContentView:(UIView *)view {
+    return YES;
+}
+@end
 
 @implementation Ame237MenuRow
 
@@ -384,9 +469,14 @@ static UIColor *Ame244SnapshotTint(void) {
     //   启动器域 = 实况模式（CABackdropLayer 直采，零重抓开销）；游戏域 =
     //   快照供料（首帧沿用既有快照，8Hz 内升级 0.5x）。选项零改动：
     //   本分支只换面板渲染材质，呈现路由/命中/动画/动作链全不动。
+    // ★ Task277：会话闸入列（Task260 双闸语义对齐）——<26 会话（老绘制链）
+    //   上 TG backdrop 引擎 = Task260 病历崩溃面；镜像面板此前只查玻璃族
+    //   档不查会话 = 游戏菜单面板有闸、镜像面板没闸的双标。闸内回退
+    //   244/245 快照磨砂（前-252 世代配方，全版本安全）。
     GameSurfaceView *ame252_surface = [SurfaceViewController surface];
     BOOL ame252_overGame = (ame252_surface != nil && ame252_surface.window != nil);
     BOOL ame252_glassActive = LGCIsGlassStyleActive() &&
+                              LGCGameSessionGlassAllowed() &&
                               [AmeLiquidGlassView ame252_isSupported];
     if (ame252_glassActive) {
         BOOL ame252_dark = (self.traitCollection.userInterfaceStyle == UIUserInterfaceStyleDark);
@@ -429,11 +519,20 @@ static UIColor *Ame244SnapshotTint(void) {
         ame245_clip.layer.cornerCurve = kCACornerCurveContinuous;
         ame245_clip.layer.masksToBounds = YES;
         ame245_clip.userInteractionEnabled = NO;
+        // ★ Task277（玻璃感三件之三·发丝描边）：玻璃边缘的光学定义——
+        //   面板轮廓从"贴图感"变"玻璃片感"。0.75pt，深色白 0.16 / 浅色白
+        //   0.45（TG rim 同源浓度档；瞬时面板按构建时 trait 取值即可）。
+        {
+            BOOL ame277_dark = (self.traitCollection.userInterfaceStyle == UIUserInterfaceStyleDark);
+            ame245_clip.layer.borderWidth = 0.75;
+            ame245_clip.layer.borderColor =
+                [UIColor colorWithWhite:1.0 alpha:(ame277_dark ? 0.16 : 0.45)].CGColor;
+        }
 
         UIImageView *ame245_snap = [[UIImageView alloc] initWithFrame:
             CGRectMake(-self.panel.frame.origin.x, -self.panel.frame.origin.y,
                        self.view.bounds.size.width, self.view.bounds.size.height)];
-        ame245_snap.image = Ame245SoftenSnapshot(ame244_snapImg);
+        ame245_snap.image = Ame277MaterializeSnapshot(ame244_snapImg);
         ame245_snap.contentMode = UIViewContentModeScaleToFill;
         ame245_snap.userInteractionEnabled = NO;
         [ame245_clip addSubview:ame245_snap];
@@ -443,7 +542,57 @@ static UIColor *Ame244SnapshotTint(void) {
             UIViewAutoresizingFlexibleWidth | UIViewAutoresizingFlexibleHeight;
         ame244_tint.backgroundColor = Ame244SnapshotTint();
         ame244_tint.userInteractionEnabled = NO;
+        ame244_tint.tag = 244;   // ★ Task276：通知重铺定位锚（viewWithTag）
         [ame245_clip addSubview:ame244_tint];
+
+        // ★ Task277（玻璃感三件之二·顶部光泽线）：iOS 玻璃材质的顶缘受光
+        //   特征——白色线性渐变自顶部快速衰减，深色 0.10/浅色 0.16 起点，
+        //   32% 高度衰减到零。浮于 tint 之上、内容之下；梯度色随深浅色
+        //   动态提供（dynamic provider CGColor 首帧解析，深浅切换由
+        //   ame244 tint 同款重铺面覆盖；光泽层无状态，零维护成本）。
+        UIView *ame277_sheenHost = [[UIView alloc] initWithFrame:
+            CGRectMake(0.0, 0.0, self.panel.bounds.size.width,
+                       self.panel.bounds.size.height * 0.32)];
+        ame277_sheenHost.userInteractionEnabled = NO;
+        ame277_sheenHost.autoresizingMask = UIViewAutoresizingFlexibleWidth;
+        CAGradientLayer *ame277_sheen = [CAGradientLayer layer];
+        ame277_sheen.frame = ame277_sheenHost.bounds;
+        ame277_sheen.colors = @[(id)[UIColor colorWithDynamicProvider:
+                                     ^UIColor * (UITraitCollection *tc) {
+            return [UIColor colorWithWhite:1.0
+                                     alpha:(tc.userInterfaceStyle == UIUserInterfaceStyleDark) ? 0.10 : 0.16];
+        }].CGColor,
+            (id)[UIColor colorWithWhite:1.0 alpha:0.0].CGColor];
+        ame277_sheen.locations = @[@0.0, @1.0];
+        ame277_sheen.startPoint = CGPointMake(0.5, 0.0);
+        ame277_sheen.endPoint = CGPointMake(0.5, 1.0);
+        ame277_sheen.name = @"ame277_sheen";
+        [ame277_sheenHost.layer addSublayer:ame277_sheen];
+        [ame245_clip addSubview:ame277_sheenHost];
+
+        // ★ Task278（“玻璃感”快照路径同步·底部景深内影）：与 TG 玻璃面
+        //   同配方——黑色渐变自底缘向上 24% 内衰减到零（深 0.14 / 浅 0.08），
+        //   玻璃片厚度暗部线索；autoresizing 宽高随 clip，零维护。
+        {
+            BOOL ame278_dark = (self.traitCollection.userInterfaceStyle == UIUserInterfaceStyleDark);
+            UIView *ame278_depthHost = [[UIView alloc] initWithFrame:
+                CGRectMake(0.0, self.panel.bounds.size.height * 0.76,
+                           self.panel.bounds.size.width,
+                           self.panel.bounds.size.height * 0.24)];
+            ame278_depthHost.userInteractionEnabled = NO;
+            ame278_depthHost.autoresizingMask =
+                UIViewAutoresizingFlexibleWidth | UIViewAutoresizingFlexibleTopMargin;
+            CAGradientLayer *ame278_depth = [CAGradientLayer layer];
+            ame278_depth.frame = ame278_depthHost.bounds;
+            ame278_depth.name = @"ame278_depth";
+            ame278_depth.startPoint = CGPointMake(0.5, 0.0);
+            ame278_depth.endPoint = CGPointMake(0.5, 1.0);
+            ame278_depth.colors = @[(id)[UIColor colorWithWhite:0.0 alpha:0.0].CGColor,
+                (id)[UIColor colorWithWhite:0.0 alpha:(ame278_dark ? 0.14 : 0.08)].CGColor];
+            ame278_depth.locations = @[@0.0, @1.0];
+            [ame278_depthHost.layer addSublayer:ame278_depth];
+            [ame245_clip addSubview:ame278_depthHost];
+        }
 
         self.ame245_frostClip = ame245_clip;
         self.ame245_frostSnap = ame245_snap;
@@ -510,7 +659,9 @@ static UIColor *Ame244SnapshotTint(void) {
     }
 
     // 菜单行（唯一滚动区；高度足够时禁用滚动 = 平铺）
-    self.rowsScroll = [[UIScrollView alloc] init];
+    // ★ Task271（271-b D1）：Ame237Scroll = touchesShouldCancel 放行子类，
+    //   UIControl 行铺满滚动区时拖动也能起滚（否则行区无空白起拖点）。
+    self.rowsScroll = [[Ame237Scroll alloc] init];
     self.rowsScroll.showsVerticalScrollIndicator = NO;
     self.rowsScroll.delaysContentTouches = NO;
     self.rowsScroll.layer.cornerRadius = 16.0;
@@ -525,10 +676,14 @@ static UIColor *Ame244SnapshotTint(void) {
         BOOL checked = (m.title.length > 0 && [m.title hasPrefix:@"\u2713"]);
         NSString *norm = [AmeFloatingMenu iconNameForTitle:m.title];
         NSString *iconName = checked ? @"checkmark.circle.fill" : norm;
-        if (iconName == nil) {
+        // ★ Task295（装机 IMG_0440 实锤）：未命中关键词的 default 动作旧版
+        //   强塞 circle.dotted——蓝色点状圆环与"转圈加载"完全同观感，JIT 失败
+        //   弹窗"交给 StikDebug"被误读成"正在处理中"。改为无图标（行组件
+        //   对 nil 图标已有正确退化：隐藏图区、标题占满行宽）；destructive
+        //   /cancel 样式语义图标保留（未命中关键词时仍给）。
+        if (iconName == nil && m.style != 0) {
             iconName = (m.style == 2) ? @"exclamationmark.circle"
-                     : (m.style == 1) ? @"xmark.circle"
-                     : @"circle.dotted";
+                     : @"xmark.circle";
         }
         UIImage *icon = [AmeFloatingMenu symbolImageForName:iconName];
         UIColor *textColor = (m.style == 2) ? [AmeTheme statusDanger] : [AmeTheme textPrimary]; // 7.0-UI-3e：destructive 红/常规主文字
@@ -591,6 +746,18 @@ static UIColor *Ame244SnapshotTint(void) {
                                              selector:@selector(ame237_keyboardWillHide:)
                                                  name:UIKeyboardWillHideNotification
                                                object:nil];
+    // ★ Task276：伪玻璃透明度变化 → 在屏面板快照 tint 即时重铺
+    //（TG 玻璃填充层由 AmeLiquidGlassView 自监听重铺，两路同源通知）。
+    [[NSNotificationCenter defaultCenter] addObserver:self
+                                             selector:@selector(ame263TransparencyChanged:)
+                                                 name:LGCPseudoGlassTransparencyChangedNotification
+                                               object:nil];
+}
+
+/// ★ Task276：滑条拖动 → 在屏快照磨砂面板 tint 即时重铺（tag 244 定位）。
+- (void)ame263TransparencyChanged:(NSNotification *)note {
+    UIView *ame263_tint = [self.ame245_frostClip viewWithTag:244];
+    if (ame263_tint != nil) ame263_tint.backgroundColor = Ame244SnapshotTint();
 }
 
 - (void)dealloc {
@@ -676,7 +843,16 @@ static UIColor *Ame244SnapshotTint(void) {
 }
 
 - (void)ame246_refreshTick {
-    // ★ Task252：TG 玻璃分支——快照供料模式以 0.5x 原料持续喟 glass
+    // ★ Task275（P1-b3）：离窗自停——外部 dismiss（未走 ame237_dismissWithAction 的
+    //   路径，如被父链 dismiss/游戏退出链式收口）后 view.window==nil 仅 early-return
+    //   不停链 = displayLink target:self 强持 self，dealloc 永不可达，8Hz 快照空转
+    //   永久泄 VC+runloop 源（ame247/ame250 同款护栏平移）。
+    if (self.view.window == nil) {
+        NSLog(@"[AmeMenu] Task275: frost refresh link self-stopped (window detached)");
+        [self ame246_stopBackgroundRefresh];
+        return;
+    }
+    // ★ Task252：TG 玻璃分支——快照供料模式以 0.5x 原料持续喂 glass
     //   （滤镜栈自带微模糊+colorMatrix，原料保留真实细节供边缘折射）；
     //   实况模式无需重抓（链接在 start 处已短路，此为兑底）。
     if (self.ame252_glass != nil) {
@@ -702,7 +878,7 @@ static UIColor *Ame244SnapshotTint(void) {
     // 全黑帧护栏（Metal 游戏面 drawViewHierarchy 不渲染内容）：保留上一张
     // 有效图，绝不降级为黑磨砂（Task244 家族护栏同源）。
     if (!Ame244SnapshotLooksValid(ame246_fresh)) return;
-    self.ame245_frostSnap.image = Ame245SoftenSnapshot(ame246_fresh);
+    self.ame245_frostSnap.image = Ame277MaterializeSnapshot(ame246_fresh);
 }
 
 #pragma mark - 布局（纯 frame：无 Auto Layout 约束竞态）
@@ -744,8 +920,15 @@ static UIColor *Ame244SnapshotTint(void) {
     CGFloat contentH = rowsTop + rowsH + bottomInset;
     CGFloat maxH = floor(bh * 0.72);
     CGFloat panelH = MIN(contentH, maxH);
+    // ★ Task271（271-b D3）：标题/输入区过高时保证行区最小可用视口——
+    //   旧钳制 rowsAvail<50 时只补回 10pt inset，长标题+多输入框+小窗口
+    //   （iPad 分屏/窗口模式）会塌缩到 0：全部行隐藏且无法滚动。
     CGFloat rowsAvail = panelH - rowsTop - bottomInset;
-    if (rowsAvail < 50.0) rowsAvail = MAX(0.0, panelH - rowsTop);
+    if (rowsAvail < 100.0) {
+        CGFloat ame271_want = MIN(bh - 24.0, rowsTop + 110.0 + bottomInset);
+        panelH = MAX(panelH, MIN(ame271_want, contentH));
+        rowsAvail = MAX(0.0, panelH - rowsTop - bottomInset);
+    }
 
     self.panel.frame = CGRectMake((bw - W) / 2.0, (bh - panelH) / 2.0, W, panelH);
     if (self.ame237_kbShift > 0.0) {
@@ -775,6 +958,12 @@ static UIColor *Ame244SnapshotTint(void) {
     self.rowsScroll.frame = CGRectMake(0.0, rowsTop, W, rowsAvail);
     self.rowsScroll.contentSize = CGSizeMake(W, rowsH);
     self.rowsScroll.scrollEnabled = (rowsH > rowsAvail + 0.5);
+    // ★ Task271（271-b D5）：可滚时给出指示器/可达性暗示（旧版恒隐藏 =
+    //   用户无从得知折叠区外还有条目）。
+    self.rowsScroll.showsVerticalScrollIndicator = self.rowsScroll.isScrollEnabled;
+    if (self.rowsScroll.isScrollEnabled && self.rowsScroll.contentOffset.y > rowsH - rowsAvail) {
+        self.rowsScroll.contentOffset = CGPointMake(0.0, MAX(0.0, rowsH - rowsAvail));
+    }
 
     CGFloat ry = 0.0;
     for (NSUInteger i = 0; i < n; i++) {
@@ -925,6 +1114,12 @@ static UIColor *Ame244SnapshotTint(void) {
 
 @implementation AmeFloatingMenu
 
+/// ★ Task277：材质链跨文件导出（游戏内菜单 +Navigation 共用同一配方；
+///   Ame277MaterializeSnapshot 为本文件静态函数，见文件头部）。
++ (UIImage *)ame277_materializeSnapshot:(UIImage *)snapshot {
+    return Ame277MaterializeSnapshot(snapshot);
+}
+
 + (NSString *)iconNameForTitle:(NSString *)title {
     if (![title isKindOfClass:[NSString class]] || title.length == 0) return nil;
     // 归一化：剥 ✓ 与空白，小写
@@ -1030,6 +1225,15 @@ static UIColor *Ame244SnapshotTint(void) {
                         onDismiss:(nullable void (^)(void))onDismiss {
     if (![alert isKindOfClass:[UIAlertController class]]) return NO;
     if (presenter == nil) return NO;
+    // ★ Task277（"连点卡出伪玻璃"·busy 守卫）：呈现方顶端已有控制器在屏/
+    //    在收（连点双触发/重入窗口收尾期）时不再镜像——镜像叠镜像 = 面板
+    //    卡死/双面板；回 NO 走中央路由原生直通（UIKit 既有语义自行裁决）。
+    //    Task271 的 AmeNativeMenu（统一菜单呈现器）busy 重试护栏同族，此处是镜像侧对位。
+    if (presenter.presentedViewController != nil) {
+        NSLog(@"[AmeMenu] Task277: presenter busy (presented=%@) -- mirror skipped, native passthrough",
+              NSStringFromClass(presenter.presentedViewController.class));
+        return NO;
+    }
 
     // 镜像动作（UIAlertAction 无公有读取口，走 KVC；任何异常整体回退原生）
     NSMutableArray<Ame237MenuActionMirror *> *mirrors = [NSMutableArray array];
@@ -1143,6 +1347,31 @@ static UIColor *Ame244SnapshotTint(void) {
     return YES;
 }
 
+/// ★ Task263：呈现者是否处于游戏内渲染面（Metal）域——沿
+/// presentingViewController/parentViewController 双链上溯（呈现不改变
+/// parent，呈现链用 presenting；容器嵌入用 parent），命中
+/// SurfaceViewController/JavaGUIViewController 族即游戏域。
+/// 与 AmeNativeMenu.ame245_anchorInsideGameSurface（视图 responder 链）
+/// 同语义、不同入口：本钩子手里是呈现者 VC 而非锚点视图。
+/// （★ CI r1 修正：方法必须在 AmeFloatingMenu @implementation 内——远端
+///   文件结构里 '#pragma mark - 中央路由钩子' 在 @end 之后，照旧基线插在
+///   pragma 与 @implementation 之间会游离在任何 implementation 外 = 编译雷）
++ (BOOL)ame263_presenterInsideGameSurface:(UIViewController *)vc {
+    UIViewController *ame263_r = vc;
+    int ame263_hop = 0;
+    while (ame263_r != nil && ame263_hop++ < 8) {
+        NSString *ame263_cls = NSStringFromClass(ame263_r.class);
+        if ([ame263_cls hasPrefix:@"SurfaceViewController"] ||
+            [ame263_cls hasPrefix:@"JavaGUIViewController"]) {
+            return YES;
+        }
+        UIViewController *ame263_next = ame263_r.presentingViewController ?: ame263_r.parentViewController;
+        if (ame263_next == ame263_r) break;
+        ame263_r = ame263_next;
+    }
+    return NO;
+}
+
 @end
 
 #pragma mark - 中央路由钩子（安装于 UIKit+hook.m）
@@ -1153,8 +1382,42 @@ static UIColor *Ame244SnapshotTint(void) {
                                  animated:(BOOL)flag
                                completion:(nullable void (^)(void))completion {
     if ([viewControllerToPresent isKindOfClass:[UIAlertController class]] && LGCIsGlassStyleActive()) {
-        @try {
-            if ([AmeFloatingMenu presentGlassMenuForAlert:(UIAlertController *)viewControllerToPresent
+        // ★ Task302：关键流豁免——ame300/ame301 实例弹窗（改名/残根三选窗）
+        //   打 no-mirror 标记（ios_uikit_bridge 侧 sel_registerName 同名）时
+        //   恒原生直通。装机实锤：Task300 改名窗被镜像接管后动作链不可达
+        //   （弹窗后 40s+ 零 [MCDL] 动作日志），实例流弹窗必须保证原生
+        //   可见可点，视觉降级可接受。
+        if (objc_getAssociatedObject(viewControllerToPresent,
+                                     sel_registerName("ame302NoMirror")) != nil) {
+            NSLog(@"[AmeMenu] Task302: no-mirror alert (instance flow) -- native passthrough");
+        } else @try {
+            // ★ Task263/276/277（接管域收窄史，现役口径见下方 Task289 条）：
+            //   三轮收窄曾把真玻璃档接管域压到仅剩 Metal 游戏面（启动器域
+            //   弹窗原生直通），动因是当时镜像材质与页面材质不同源（页面
+            //   SystemThinMaterial vs 镜像 TG 磨砂 = "混杂出伪玻璃"）。
+            //   ★ Task288 把全部全局容器页面统一成 TG 磨砂后，该前提失效；
+            //   ★ Task289 据用户指令（"大部分菜单还是原生"）把接管域推广
+            //   回两档玻璃风格全域，收窄史保留作决策链存档。
+            UIAlertController *ame263_alert = (UIAlertController *)viewControllerToPresent;
+            // ★ Task277（会话闸，语义不变）：游戏域 <26 会话（老绘制链）一律
+            //   原生——TG backdrop 引擎在老绘制链上是 Task260 病历崩溃面。
+            // ★ Task289（装机三报"大部分菜单还是原生"）：接管域推广回
+            //   【两档玻璃风格全域接管】。Task263/276/277 收窄的历史前提
+            //   （真玻璃档页面 = "真玻璃"、TG 镜像 = "混杂出伪玻璃"）已被
+            //   Task288 推翻——全部全局容器页面已统一 TG 伪液态玻璃磨砂，
+            //   镜像面板材质（AmeLiquidGlassView，ame252 同源）与页面完全
+            //   一致，"混杂"前提消失；真玻璃档下启动器域弹窗从"原生直通"
+            //   改回镜像接管（伪玻璃档本就全域接管，行为不变）。会话闸只
+            //   约束游戏域：启动器域无活跃会话（ame260==0 恒放行），不受
+            //   残留会话计数误伤。
+            BOOL ame289_inGame = [AmeFloatingMenu ame263_presenterInsideGameSurface:self];
+            BOOL ame289_sessionGate = (!ame289_inGame) || LGCGameSessionGlassAllowed();
+            if (ame289_inGame && !ame289_sessionGate) {
+                NSLog(@"[AmeMenu] Task289: in-game alert replacement blocked by session gate (MC major <26) -- native passthrough");
+            }
+            BOOL ame263_shouldReplace = ame289_sessionGate;
+            if (ame263_shouldReplace &&
+                [AmeFloatingMenu presentGlassMenuForAlert:ame263_alert
                                             fromPresenter:self
                                                  animated:flag
                                                completion:completion]) {
@@ -1166,6 +1429,27 @@ static UIColor *Ame244SnapshotTint(void) {
     }
     // 原生直通（交换后 = 原实现）
     [self ame237_hook_presentViewController:viewControllerToPresent animated:flag completion:completion];
+}
+
+// ★ Task275（P1-b1）：玻璃镜像 dismiss 断链根修——Task237 只接管了 present，dismiss
+// 仍直透：玻璃档下 [alert dismissViewControllerAnimated:] 打在从未上屏的源 alert
+// 上（presented/presenting 全 nil = UIKit 静默 no-op），真正上屏的镜像面板永不关
+// 闭 + completion 内后续流程全部死亡（RightPanel JIT 等待四路/WorldsManager 导入
+// 队列/DataTransfer 进度框/BingWallpaper HUD 等 10 处实锤；仓内先例 =
+// MultiplayerViewController 1922 同病理注释）。命中“源 alert 且镜像在屏”时改道
+// ame247_dismissMirroredAlert（含字段回写/停链/完成双保险），其余零开销直透。
+- (BOOL)ame237_hook_dismissViewControllerAnimated:(BOOL)flag completion:(void (^)(void))completion {
+    if ([self isKindOfClass:[UIAlertController class]] && LGCIsGlassStyleActive()) {
+        UIAlertController *ame275_alert = (UIAlertController *)self;
+        UIViewController *ame275_mirror = [AmeFloatingMenu ame247_findMirrorForAlert:ame275_alert];
+        if (ame275_mirror != nil) {
+            NSLog(@"[AmeMenu] Task275: mirrored alert dismiss re-routed to glass mirror");
+            [AmeFloatingMenu ame247_dismissMirroredAlert:ame275_alert completion:completion];
+            return YES;
+        }
+    }
+    // 原生直通（交换后 = 原实现）
+    return [self ame237_hook_dismissViewControllerAnimated:flag completion:completion];
 }
 
 @end

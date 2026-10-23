@@ -109,14 +109,6 @@ MOLTENVK_LIBRARY      ?= $(SOURCEDIR)/Natives/resources/Frameworks/libMoltenVK.d
 # Function to use later for checking dependencies
 METHOD_DEPCHECK   = $(shell $(1) >/dev/null 2>&1 && echo 1)
 
-# Function to modify Info.plist files
-METHOD_INFOPLIST  =  \
-	if [ '$(4)' = '0' ]; then \
-		plutil -replace $(1) -string $(2) $(3); \
-	else \
-		plutil -value $(2) -key $(1) $(3); \
-	fi
-
 # Function to check directories
 METHOD_DIRCHECK   = \
 	if [ ! -d '$(1)' ]; then \
@@ -298,7 +290,7 @@ jre: native
 	$(call METHOD_JAVA_UNPACK,25,'https://assets.angelauramc.dev/openjdk/ios-arm64/jre25-ios-aarch64.zip'); \
 	if [ -f "$(ls jre*.tar.xz)" ]; then rm $(SOURCEDIR)/depends/jre*.tar.xz; fi; \
 	cd $(SOURCEDIR); \
-	rm -rf $(SOURCEDIR)/depends/java-{8,17,21,25}-openjdk/{ASSEMBLY_EXCEPTION,bin,include,jre,legal,LICENSE,man,THIRD_PARTY_README,lib/{ct.sym,jspawnhelper,libjsig.dylib,src.zip,tools.jar}}; \
+	rm -rf $(SOURCEDIR)/depends/java-{8,17,21,25}-openjdk/{ASSEMBLY_EXCEPTION,bin,include,jre,legal,LICENSE,man,THIRD_PARTY_README,lib/{ct.sym,jspawnhelper,libjsig.dylib,src.zip,tools.jar},jmods}; \
 	# Task 74: FFM upcall stub mirror translation fix. UpcallStub::create in the
 	# bundled JRE 21/25 forgets mirrored_find_rw() after CodeCache::allocate(),
 	# so the first CodeBlob header store writes the RX-only debugger JIT region
@@ -408,20 +400,6 @@ dep_mg:
 	echo "[shaderc-impl] glslang static libs OK (spirv=$$mg_spirv_a glslang=$$mg_glslang_a rl=$$mg_rl_a)"
 	cp $(WORKINGDIR)/mobileglues/libmobileglues*.dylib $(WORKINGDIR)/
 	echo '[Amethyst v$(VERSION)] dep_mg - end'
-dep_mobilegl:
-	# Task 113：MobileGL 重新集成（仅 DirectVulkan 后端）。
-	# - libMobileGL.dylib 为预编译产物（MobileGL-Dev，LGPL-3.0），随包携带于
-	#   Natives/resources/Frameworks/，payload 的 "cp -R resources/*" 自动打包。
-	# - 上游同款二进制（caf6822 会话实测 26.3 完全流畅：CAMetalLayer 直呈 +
-	#   IMMEDIATE 呈现模式 + 无 CPU 回读）。
-	# - 运行时入口 = 设置-视频-"MobileGL Vulkan 直呈渲染器"开关（mobilegl_vulkan），
-	#   不进主渲染器列表（用户要求）；GLES 变体（libMobileGL-gles.dylib）不引入
-	#   （上游实测其他后端有问题）。
-	# - 源码构建路径（BUILD_MOBILEGL=1，见上游 Makefile dep_mobilegl_build）未引入：
-	#   预编译产物已验证可用；需要重建时参照上游 55256e33 的 vendored source 流程。
-	# 保留空目标避免外部 make 调用报错（payload 依赖 resources/ 直拷，无需本目标做事）
-	@echo '[Amethyst v$(VERSION)] dep_mobilegl - using prebuilt libMobileGL.dylib in Natives/resources/Frameworks/ (Task113, Vulkan-only)'
-
 
 dep_openal_shim:
 	# Task 129：OpenAL ALC_SOFT_system_events 兼容垫片（26.1.2 整合包崩溃修复）。
@@ -760,7 +738,7 @@ dep_virgl_compile:
 		if [ ! -f mesa-$(VIRGL_MESA_VERSION)/src/gallium/targets/osmesa/.task215_patched ]; then \
 			wget_ok=0; \
 			for attempt in 1 2 3 4 5; do \
-				if wget "https://archive.mesa3d.org/mesa-$(VIRGL_MESA_VERSION).tar.xz" --timeout=90 --tries=2 --retry-connrefused -O mesa-$(VIRGL_MESA_VERSION).tar.xz; then wget_ok=1; break; fi; \
+				if wget "https://archive.mesa3d.org/mesa-$(VIRGL_MESA_VERSION).tar.xz" --timeout=90 --tries=2 --retry-connrefused -O mesa-$(VIRGL_MESA_VERSION).tar.xz || wget "https://ftp.debian.org/debian/pool/main/m/mesa/mesa_$(VIRGL_MESA_VERSION).orig.tar.xz" --timeout=90 --tries=2 --retry-connrefused -O mesa-$(VIRGL_MESA_VERSION).tar.xz; then wget_ok=1; break; fi; \
 				echo '[virgl] mesa download failed (attempt '$$attempt'/5), retry in 15s'; sleep 15; \
 			done; \
 			[ "$$wget_ok" = "1" ] || { echo '[virgl] FATAL: mesa download failed'; exit 1; }; \
@@ -815,7 +793,125 @@ dep_sdl3_guard:
 		$(SOURCEDIR)/Natives/resources/Frameworks/libSDL3.dylib || exit 1
 	echo '[Amethyst v$(VERSION)] dep_sdl3_guard - end'
 
-payload: native dep_mg java jre assets dep_shader_shims dep_openal_shim dep_mithril_glshim dep_nggl4es dep_gl4eszl2 dep_virgl dep_angle_freeze dep_sdl3_guard
+# ===== Task293：内置 JIT Helper（StikJIT appex 轨，第二阶段）=====
+# iOS 26 AppExtensionProcess 独立进程轨：①宿主侧协调器 libPrismaJITCoordinator.dylib
+# （min target 26.0，ObjC 侧 @available(26) 才 dlopen 弱接入）；②Helper appex
+# 可执行（StikJIT Swift 全源 + idevice FFI 静态库 force_load，上游 project.yml
+# 同法）。swiftc 直编不依赖 pbxproj；非 Darwin / 无 swiftc / 无 SDK 时跳过
+# （运行时自动回落 stikjit:// 深链轨，构建不阻塞）。产物嵌入在 payload 尾部。
+JIT_SDK       ?= $(shell xcrun --sdk iphoneos --show-sdk-path 2>/dev/null)
+JIT_SWIFTC    ?= $(shell command -v swiftc 2>/dev/null)
+JIT_STAGING    = $(WORKINGDIR)/jit-staging
+JIT_APP_SRC    = $(SOURCEDIR)/Natives/stikjit
+
+.PHONY: jit_helper
+jit_helper:
+	echo '[Prisma v$(VERSION)] jit_helper - start'
+ifneq ($(DETECTPLAT),Darwin)
+	echo '[Prisma v$(VERSION)] jit_helper - non-Darwin host, skipped (deep-link JIT fallback)'
+else ifeq ($(JIT_SWIFTC),)
+	echo '[Prisma v$(VERSION)] jit_helper - swiftc not found, skipped (deep-link JIT fallback)'
+else ifeq ($(JIT_SDK),)
+	echo '[Prisma v$(VERSION)] jit_helper - iphoneos SDK not found, skipped (deep-link JIT fallback)'
+else
+	rm -rf $(JIT_STAGING); mkdir -p $(JIT_STAGING)
+	# ① 宿主侧协调器 dylib（AppExtensionProcess + XPC 会话编排）
+	#   ★ Task301：加编 StikJIT 核心全源 + idevice FFI force_load + 自重拉起
+	#   入口 PrismaJITDirectEntry.swift（@_cdecl prisma_jit_direct_main）——
+	#   自重拉起子进程 dlopen 本 dylib 即可跑 enableJIT 全链，不再依赖
+	#   AMFI 拒绝 exec 的 appex 内嵌二进制（装机 2c6458a errno=2 实锤）。
+	$(JIT_SWIFTC) -parse-as-library -emit-library -O \
+		-sdk '$(JIT_SDK)' -target arm64-apple-ios26.0 \
+		-I $(JIT_APP_SRC)/idevice -I $(JIT_APP_SRC)/iokit \
+		-Xlinker -force_load -Xlinker $(JIT_APP_SRC)/idevice/libidevice_ffi.a \
+		-Xlinker -dead_strip \
+		-framework JavaScriptCore -framework Network -framework Security \
+		-framework CFNetwork -framework SystemConfiguration -framework IOKit \
+		-framework ExtensionFoundation \
+		-o $(JIT_STAGING)/libPrismaJITCoordinator.dylib \
+		$(JIT_APP_SRC)/Sources/BundledScript.swift \
+		$(JIT_APP_SRC)/Sources/DDISession.swift \
+		$(JIT_APP_SRC)/Sources/DeveloperDiskImageService.swift \
+		$(JIT_APP_SRC)/Sources/EndpointProbe.swift \
+		$(JIT_APP_SRC)/Sources/IdeviceFFI.swift \
+		$(JIT_APP_SRC)/Sources/JITSession.swift \
+		$(JIT_APP_SRC)/Sources/ProcessInfo+TXM.swift \
+		$(JIT_APP_SRC)/Sources/ScriptRunner.swift \
+		$(JIT_APP_SRC)/Sources/StikJIT.swift \
+		$(JIT_APP_SRC)/Sources/StikJITError.swift \
+		$(JIT_APP_SRC)/Sources/SynchronousDDIDownloader.swift \
+		$(JIT_APP_SRC)/integration/Shared/PrismaJITXPC.swift \
+		$(JIT_APP_SRC)/integration/Host/PrismaJITExtensionPoint.swift \
+		$(JIT_APP_SRC)/integration/Host/PrismaJITCoordinator.swift \
+		$(JIT_APP_SRC)/integration/Helper/PrismaJITDirectEntry.swift \
+		|| exit 1
+	# ② Helper appex 可执行（StikJIT.enableJIT 全链：RSD 探测/DDI 下载挂载/
+	#    debugserver vAttach/universal 脚本协议；idevice FFI force_load 对齐上游）
+	$(JIT_SWIFTC) -O \
+		-sdk '$(JIT_SDK)' -target arm64-apple-ios26.0 \
+		-I $(JIT_APP_SRC)/idevice -I $(JIT_APP_SRC)/iokit \
+		-Xlinker -force_load -Xlinker $(JIT_APP_SRC)/idevice/libidevice_ffi.a \
+		-Xlinker -dead_strip \
+		-framework JavaScriptCore -framework Network -framework Security \
+		-framework CFNetwork -framework SystemConfiguration -framework IOKit \
+		-framework ExtensionFoundation \
+		-o $(JIT_STAGING)/PrismaJITHelper \
+		$(JIT_APP_SRC)/Sources/BundledScript.swift \
+		$(JIT_APP_SRC)/Sources/DDISession.swift \
+		$(JIT_APP_SRC)/Sources/DeveloperDiskImageService.swift \
+		$(JIT_APP_SRC)/Sources/EndpointProbe.swift \
+		$(JIT_APP_SRC)/Sources/IdeviceFFI.swift \
+		$(JIT_APP_SRC)/Sources/JITSession.swift \
+		$(JIT_APP_SRC)/Sources/ProcessInfo+TXM.swift \
+		$(JIT_APP_SRC)/Sources/ScriptRunner.swift \
+		$(JIT_APP_SRC)/Sources/StikJIT.swift \
+		$(JIT_APP_SRC)/Sources/StikJITError.swift \
+		$(JIT_APP_SRC)/Sources/SynchronousDDIDownloader.swift \
+		$(JIT_APP_SRC)/integration/Shared/PrismaJITXPC.swift \
+		$(JIT_APP_SRC)/integration/Helper/PrismaJITHelper.swift \
+		|| exit 1
+		# Task299 直启兜底二进制：同旗标同源集，Helper main 换 Direct main
+		# （env 驱动绕过 ExtensionKit discovery，病历与设计见
+		# PrismaJITDirect.swift 头注；XPC 轨仍优先，本轨仅兜底）
+		$(JIT_SWIFTC) -O \
+			-sdk '$(JIT_SDK)' -target arm64-apple-ios26.0 \
+			-I $(JIT_APP_SRC)/idevice -I $(JIT_APP_SRC)/iokit \
+			-Xlinker -force_load -Xlinker $(JIT_APP_SRC)/idevice/libidevice_ffi.a \
+			-Xlinker -dead_strip \
+			-framework JavaScriptCore -framework Network -framework Security \
+			-framework CFNetwork -framework SystemConfiguration -framework IOKit \
+			-framework ExtensionFoundation \
+			-o $(JIT_STAGING)/PrismaJITDirect \
+			$(JIT_APP_SRC)/Sources/BundledScript.swift \
+			$(JIT_APP_SRC)/Sources/DDISession.swift \
+			$(JIT_APP_SRC)/Sources/DeveloperDiskImageService.swift \
+			$(JIT_APP_SRC)/Sources/EndpointProbe.swift \
+			$(JIT_APP_SRC)/Sources/IdeviceFFI.swift \
+			$(JIT_APP_SRC)/Sources/JITSession.swift \
+			$(JIT_APP_SRC)/Sources/ProcessInfo+TXM.swift \
+			$(JIT_APP_SRC)/Sources/ScriptRunner.swift \
+			$(JIT_APP_SRC)/Sources/StikJIT.swift \
+			$(JIT_APP_SRC)/Sources/StikJITError.swift \
+			$(JIT_APP_SRC)/Sources/SynchronousDDIDownloader.swift \
+			$(JIT_APP_SRC)/integration/Shared/PrismaJITXPC.swift \
+			$(JIT_APP_SRC)/integration/Helper/PrismaJITDirect.swift \
+			|| exit 1
+	mkdir -p $(JIT_STAGING)/Resources
+	cp $(JIT_APP_SRC)/Resources/universal.js $(JIT_APP_SRC)/Resources/legacy.js $(JIT_STAGING)/Resources/ || exit 1
+	echo '[Prisma v$(VERSION)] jit_helper - build ok'
+	# ③ 宿主扩展点定义（.appexpt）：ExtensionFoundation @Definition 展开在 Xcode 下由
+	#   Swift 编译器直写 wrapper 的 Extensions/ 目录；swiftc 直编不落盘——若本次
+	#   编译在 staging 自产了 .appexpt 则优先采用，否则用库内手作版（老
+	#   .appextensionpoint content-keyed 形态，与 appex 的
+	#   EXExtensionPointIdentifier 对齐）。缺此文件 extensionkitd 即报
+	#   "Failed to add observer"（PocketJ 上游 build_pocketj.sh 同款病历
+	#   定案；装机 run#909 产物 Code=19 实锤）。
+	appexpt_src=$$(find $(JIT_STAGING) $(SOURCEDIR) -maxdepth 1 -name '*.appexpt' 2>/dev/null | head -1); \
+	if [ -n "$$appexpt_src" ]; then cp -p "$$appexpt_src" $(JIT_STAGING)/PrismaJITHelper.appexpt; \
+	else cp $(JIT_APP_SRC)/integration/Host/PrismaJITHelper.appexpt $(JIT_STAGING)/PrismaJITHelper.appexpt; fi
+endif
+
+payload: native dep_mg java jre assets dep_shader_shims dep_openal_shim dep_mithril_glshim dep_nggl4es dep_gl4eszl2 dep_virgl dep_angle_freeze dep_sdl3_guard jit_helper
 	echo '[Amethyst v$(VERSION)] payload - start'
 	$(call METHOD_DIRCHECK,$(WORKINGDIR)/AngelAuraAmethyst.app/libs)
 	$(call METHOD_DIRCHECK,$(WORKINGDIR)/AngelAuraAmethyst.app/libs_caciocavallo)
@@ -839,8 +935,28 @@ payload: native dep_mg java jre assets dep_shader_shims dep_openal_shim dep_mith
 	if [ -f "$(WORKINGDIR)/AngelAuraAmethyst.app/Frameworks/libspirv-cross-c-shared.0.dylib" ] && [ ! -f "$(WORKINGDIR)/AngelAuraAmethyst.app/Frameworks/libspirv-cross.dylib" ]; then \
 		ln -sf libspirv-cross-c-shared.0.dylib $(WORKINGDIR)/AngelAuraAmethyst.app/Frameworks/libspirv-cross.dylib; \
 	fi
+	# ★ Task294（IPA 瘦身第二轮）：发行 dylib 剥本地符号（strip -x）。
+	# 实锤：libMobileGL.dylib __TEXT 24.5MB / __LINKEDIT 60.6MB（上游同步
+	# 未 post-strip，本地符号+strtab 占 70%），OSMesa/shaderc/openal 同病。
+	# strip -x 仅删非全局符号（导出符号/ObjC 类元数据全保留），运行时零
+	# 行为差异；预期 -50MB 级。无 strip 环境跳过不阻塞；单文件失败保持原样。
+	if command -v strip >/dev/null 2>&1; then \
+		strip_total_before=0; strip_total_after=0; \
+		for f in $(WORKINGDIR)/AngelAuraAmethyst.app/Frameworks/*.dylib \
+			$(WORKINGDIR)/AngelAuraAmethyst.app/Frameworks/*.framework/*; do \
+			if [ -f "$$f" ] && file "$$f" 2>/dev/null | grep -q 'Mach-O'; then \
+				sb=$$(stat -f%z "$$f" 2>/dev/null || stat -c%s "$$f" 2>/dev/null); \
+				strip -x "$$f" 2>/dev/null || true; \
+				sa=$$(stat -f%z "$$f" 2>/dev/null || stat -c%s "$$f" 2>/dev/null); \
+				strip_total_before=$$((strip_total_before + sb)); strip_total_after=$$((strip_total_after + sa)); \
+			fi; \
+		done; \
+		echo "[Prisma v$(VERSION)] payload - Task294 strip -x done (Frameworks $$((strip_total_before/1024))KB -> $$((strip_total_after/1024))KB)"; \
+	else \
+		echo '[Prisma v$(VERSION)] payload - strip not found, Task294 strip skipped'; \
+	fi
 		cp -R $(SOURCEDIR)/JavaApp/libs/others/* $(WORKINGDIR)/AngelAuraAmethyst.app/libs/ || exit 1
-	cp $(SOURCEDIR)/JavaApp/build/launcher.jar $(SOURCEDIR)/JavaApp/build/patchjna_agent.jar $(SOURCEDIR)/JavaApp/build/patchsvc.jar $(SOURCEDIR)/JavaApp/build/mojang-stubs.jar $(WORKINGDIR)/AngelAuraAmethyst.app/libs/ || exit 1
+	cp $(SOURCEDIR)/JavaApp/build/launcher.jar $(SOURCEDIR)/JavaApp/build/patchjna_agent.jar $(SOURCEDIR)/JavaApp/build/patchsvc.jar $(SOURCEDIR)/JavaApp/build/mojang-stubs.jar $(SOURCEDIR)/JavaApp/build/showdown_agent.jar $(WORKINGDIR)/AngelAuraAmethyst.app/libs/ || exit 1
 	# LWJGL 以双版本 jar 发布，由启动器按 MC 版本在运行时选择其一（26.x+ -> 341，其余 -> 333）。
 	# 必须放进各自的 libs/lwjgl-<ver>/ 子目录：若平铺进 libs/，会被 classpath 中的 libs/*
 	# 一并加载，使 3.3.3 与 3.4.1 的同名类同时进入 classpath 造成冲突。lwjgl.jar 是占位
@@ -850,18 +966,9 @@ payload: native dep_mg java jre assets dep_shader_shims dep_openal_shim dep_mith
 	cp $(SOURCEDIR)/JavaApp/build/lwjgl-341.jar $(WORKINGDIR)/AngelAuraAmethyst.app/libs/lwjgl-341/lwjgl.jar || exit 1
 	cp -R $(SOURCEDIR)/JavaApp/libs/caciocavallo/* $(WORKINGDIR)/AngelAuraAmethyst.app/libs_caciocavallo || exit 1
 	cp -R $(SOURCEDIR)/JavaApp/libs/caciocavallo17/* $(WORKINGDIR)/AngelAuraAmethyst.app/libs_caciocavallo17 || exit 1
-	# Copy TouchController static library if available
-	if [ -f "$(SOURCEDIR)/TouchController/libproxy_server_ios.a" ]; then \
-		mkdir -p $(WORKINGDIR)/AngelAuraAmethyst.app/Frameworks; \
-		cp $(SOURCEDIR)/TouchController/libproxy_server_ios.a $(WORKINGDIR)/AngelAuraAmethyst.app/Frameworks/ || exit 1; \
-		echo '[Amethyst v$(VERSION)] Copied TouchController device library'; \
-	elif [ -f "$(SOURCEDIR)/TouchController/libproxy_server_ios_simulator.a" ]; then \
-		mkdir -p $(WORKINGDIR)/AngelAuraAmethyst.app/Frameworks; \
-		cp $(SOURCEDIR)/TouchController/libproxy_server_ios_simulator.a $(WORKINGDIR)/AngelAuraAmethyst.app/Frameworks/ || exit 1; \
-		echo '[Amethyst v$(VERSION)] Copied TouchController simulator library'; \
-	else \
-		echo '[Amethyst v$(VERSION)] TouchController library not found, skipping'; \
-	fi
+	# Task294（IPA 瘦身第二轮）：移除 TouchController 静态库拷贝——.a 是
+	# 静态归档，运行时不可 dlopen/加载，拷进 .app/Frameworks 纯属上游遗留
+	# 死重（TouchController 源码已随 native 目标编译进主二进制）。
 	$(call METHOD_DIRCHECK,$(OUTPUTDIR)/Payload)
 	cp -R $(WORKINGDIR)/AngelAuraAmethyst.app $(OUTPUTDIR)/Payload
 	if [ '$(SLIMMED_ONLY)' != '1' ]; then \
@@ -883,6 +990,50 @@ payload: native dep_mg java jre assets dep_shader_shims dep_openal_shim dep_mith
 	# 这个假设在同步 Ynnyny 顶层 dylib 时被打破。
 	$(call METHOD_MACHO,$(OUTPUTDIR)/Payload/AngelAuraAmethyst.app,$(call METHOD_CHANGE_PLAT,$(PLATFORM),$$file)); \
 	$(call METHOD_MACHO,$(OUTPUTDIR)/java_runtimes,$(call METHOD_CHANGE_PLAT,$(PLATFORM),$$file));
+	# ★ Task293：内置 JIT 产物嵌入（jit_helper 产物在位才嵌；缺失=深链降级，
+	# 构建不失败）。appex 落 PlugIns/（脚本资源置 bundle 根，BundledScript
+	# 的 Bundle(for:) 命中 appex 主 bundle），协调器 dylib 落 Frameworks/。
+	# 此处单独 ldid -S——不走 METHOD_MACHO 的 vtool 重打标，保住 26.0 minos。
+	# ★ Task295：泛用 ExtensionFoundation appex 落 Extensions/（非 PlugIns/，
+	#   上游 build_pocketj.sh "Generic ExtensionFoundation extensions live
+	#   in Extensions/" 同款）+ 扩展点定义 .appexpt 同目嵌入。
+	# ★ Task298（装机 run#917 产物 Code=19 实锤后三源定案）：扩展点定义
+	#   文件名必须是【app 模块名】约定（Xcode exutil extract-extension-points
+	#   产出 $(PRODUCT_MODULE_NAME).appexpt；rxlab 实测 test_app_extension.appexpt、
+	#   torrent7 Packaging/TorrentApp.appexpt 同款）——旧名 PrismaJITHelper.appexpt
+	#   （扩展点名）错误；且内容必须含 EXVersion=2 + EXExtensionPointName +
+	#   _EXScopeRestriction=application（torrent7 提交的真实可用 .appexpt 全键），
+	#   缺键时 extensionkitd 解析不了扩展点 → AppExtensionPoint.Monitor 拒注册
+	#   → builtin 轨 Code=19 "Failed to add observer"。appex bundle 同时补
+	#   ldid -S 目录级密封（PocketJ 上游 codesign 重密封 .appex 同语义）。
+	#   ★ Task300：额外双嵌 PlugIns/ 标准位 —— 装机 dfc438f 实锤：appex 二进制
+	#   在 Extensions/ 存在（存在性检查过）但 posix_spawn rc=1 errno=2（内核
+	#   AMFI 拒绝执行）。主因：用户重签工具只递归处理 PlugIns/（canonical 扩展
+	#   目录，StikDebug/StikJIT 同族全部落在 PlugIns），Extensions/ 里的二进制
+	#   保留 CI 侧 ldid 伪签名 → 真机签名校验失败 → exec 被报 ENOENT。双嵌后
+	#   重签工具覆盖 PlugIns/ 副本（真签），Extensions/ 兜底 CI 原包直装场景。
+	#	★ Task304：Extensions/ 双副本退役（SideStore IMG_0447 实锤：重签工具把
+	#	  PlugIns/ 副本替换为 <原ID>.<随机后缀>，Extensions/ 副本不递归处理 →
+	#	  installd 扫到原 ID 与主 app 新 ID 前缀不符 → Mismatched bundle IDs 拒装）。
+	#	  单副本 PlugIns/ 标准位全链兼容；EXKit XPC 观察者轨装机三证判死（Code=19）
+	#	  appexpt 兜底价值归零；Coordinator 双路径解析 PlugIns 优先天然兼容。
+	if [ -f '$(JIT_STAGING)/PrismaJITHelper' ] && [ -f '$(JIT_STAGING)/PrismaJITDirect' ] && [ -f '$(JIT_STAGING)/libPrismaJITCoordinator.dylib' ]; then \
+		mkdir -p $(OUTPUTDIR)/Payload/AngelAuraAmethyst.app/PlugIns/PrismaJITHelper.appex $(OUTPUTDIR)/Payload/AngelAuraAmethyst.app/Frameworks; \
+		cp $(JIT_STAGING)/PrismaJITHelper $(OUTPUTDIR)/Payload/AngelAuraAmethyst.app/PlugIns/PrismaJITHelper.appex/PrismaJITHelper || exit 1; \
+		cp $(SOURCEDIR)/Natives/stikjit/integration/Helper/Info.plist $(OUTPUTDIR)/Payload/AngelAuraAmethyst.app/PlugIns/PrismaJITHelper.appex/Info.plist || exit 1; \
+		cp $(JIT_STAGING)/PrismaJITDirect $(OUTPUTDIR)/Payload/AngelAuraAmethyst.app/PlugIns/PrismaJITHelper.appex/PrismaJITDirect || exit 1; \
+		cp $(JIT_STAGING)/Resources/universal.js $(JIT_STAGING)/Resources/legacy.js $(OUTPUTDIR)/Payload/AngelAuraAmethyst.app/PlugIns/PrismaJITHelper.appex/ || exit 1; \
+		ldid -S $(OUTPUTDIR)/Payload/AngelAuraAmethyst.app/PlugIns/PrismaJITHelper.appex/PrismaJITHelper; \
+		ldid -S $(OUTPUTDIR)/Payload/AngelAuraAmethyst.app/PlugIns/PrismaJITHelper.appex/PrismaJITDirect; \
+		ldid -S $(OUTPUTDIR)/Payload/AngelAuraAmethyst.app/PlugIns/PrismaJITHelper.appex || echo '[Prisma v$(VERSION)] payload - WARN: PlugIns appex bundle seal failed (continuing)'; \
+		chmod 755 $(OUTPUTDIR)/Payload/AngelAuraAmethyst.app/PlugIns/PrismaJITHelper.appex/PrismaJITHelper $(OUTPUTDIR)/Payload/AngelAuraAmethyst.app/PlugIns/PrismaJITHelper.appex/PrismaJITDirect; \
+		cp $(JIT_STAGING)/libPrismaJITCoordinator.dylib $(OUTPUTDIR)/Payload/AngelAuraAmethyst.app/Frameworks/ || exit 1; \
+		ldid -S $(OUTPUTDIR)/Payload/AngelAuraAmethyst.app/Frameworks/libPrismaJITCoordinator.dylib; \
+		chmod 755 $(OUTPUTDIR)/Payload/AngelAuraAmethyst.app/Frameworks/libPrismaJITCoordinator.dylib; \
+		echo '[Prisma v$(VERSION)] payload - JIT helper embedded (PlugIns/ single copy -- Task304 SideStore bundle-id mismatch fix)'; \
+	else \
+		echo '[Prisma v$(VERSION)] payload - JIT helper staging missing, embedding skipped (deep-link fallback)'; \
+	fi
 	echo '[Amethyst v$(VERSION)] payload - end'
 
 deploy:
@@ -905,9 +1056,9 @@ deploy:
 		else \
 			$(call METHOD_PACKAGE); \
 			if [ '$(SLIMMED_ONLY)' = '0' ]; then \
-				open $(OUTPUTDIR)/com.air-devs.air-$(VERSION)-$(PLATFORM_NAME).ipa; \
+				open $(OUTPUTDIR)/com.prisma-devs.prisma-$(VERSION)-$(PLATFORM_NAME).ipa; \
 			else \
-				open $(OUTPUTDIR)/com.air-devs.air.slimmed-$(VERSION)-$(PLATFORM_NAME).ipa; \
+				open $(OUTPUTDIR)/com.prisma-devs.prisma.slimmed-$(VERSION)-$(PLATFORM_NAME).ipa; \
 			fi; \
 		fi; \
 	else \
@@ -950,4 +1101,4 @@ clean:
 	rm -rf $(OUTPUTDIR)
 	echo '[Amethyst v$(VERSION)] clean - end'
 
-.PHONY: all clean check native java jre package dsym deploy help dep_virgl
+.PHONY: all clean check native java jre package dsym deploy help dep_virgl dep_mg dep_openal_shim dep_mithril_glshim dep_shader_shims dep_nggl4es dep_gl4eszl2 dep_virgl_build dep_virgl_compile dep_angle_freeze dep_sdl3_guard

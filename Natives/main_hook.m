@@ -10,8 +10,10 @@
 #include <execinfo.h>
 #include <fcntl.h>
 #include <libgen.h>
+#include <os/lock.h>   // ★ Task274-f r2（F7 硬化）：os_unfair_lock/OS_UNFAIR_LOCK_INIT 声明头（前任 F7 改动依赖；utils.m 同款）
 #include <pthread.h>
 #include <stdatomic.h>
+#include <stdio.h>      // ★ Task273：ame273_writeCrashReport 的 fopen/fread/fprintf
 #include <stdlib.h>
 #include <string.h>
 #include <time.h>
@@ -215,9 +217,16 @@ void ame_write_fatal_trace(const char *reason) {
 
     char tname[64] = {0};
     pthread_getname_np(pthread_self(), tname, sizeof(tname));
+    // ★ Task275（P2-a5）：snprintf 返回“应有长度”而非实际写入——reason 无界（唯一
+    //   无界入口 = NSException reason，超 16KB 截断后返回值把 len 推过 sizeof，
+    //   下一条 sizeof(report)-len size_t 下溢 = 濒死路径越界写）。累加后钐制。
     len += (size_t)snprintf(report + len, sizeof(report) - len,
         "reason: %s\nthread: %s\n",
         reason ? reason : "(null)", tname[0] ? tname : "(unnamed)");
+    if (len >= sizeof(report)) {
+        report[sizeof(report) - 1] = '\0';
+        return;
+    }
 
     void *frames[64];
     int n = backtrace(frames, 64);
@@ -252,6 +261,420 @@ void ame_write_fatal_trace(const char *reason) {
     NSLog(@"%s", report);
 
     atomic_store(&busy, 0);
+}
+
+// MARK: - Task273：PCL CE 式崩溃原因落盘（启动器闪退根治第一层）
+//
+// 病历（装机 latestlog f71c88b，iPad Air M4 / iPadOS 27.0.1）：Fabric 依赖
+// 冲突（reeses-sodium-options 2.2.5 要求 sodium 0.9.2，装的是 0.9.3-alpha.1）
+// → FormattedException → System.exit(1) → JVM shutdown hook 写 ame251 标记
+// → 看门狗 150ms 内 _exit(0) 整个进程 —— 用户视角"启动器直接闪退"，而
+// PLCrashView 里现成的 HMCL 式崩溃分析器从未有机会呈现（dispatch_async(main)
+// 输给 150ms 轮询）。
+//
+// 本函数 = 确定性第一层：hooked_exit(code!=0) 入口同步执行（看门狗让路窗口
+// 的第一优先级，先于 handle_fatal_exit/park），直接解析 latestlog 尾部，
+// 把崩溃原因结构化落盘 $POJAV_HOME/ame273_crash_report.txt：
+//   ① 会话内：看门狗检测到 fatal in flight 后让路 ≤8s，PLCrashView（自带
+//     HMCL 式分析）得以呈现，用户当场看到原因；
+//   ② 下次启动：SceneDelegate willConnect 检出待读报告 → 玻璃弹窗给出
+//     "崩溃类别 + 关键原因行 + Fabric 修复建议 + 详情"（PCL CE 崩溃分析
+//     等价物），消费后归档不重复打扰。
+// 全程纯 C stdio（濒死线程上运行，不用 ObjC 运行时）。latestlog 尾部若因
+// 死亡竞态截断（Task 26 同族），自动回退扫描最新的 latestlog.selfexit-*.txt
+// 快照（PatchSVC shutdown hook 在 exit 前已落盘，装机实证内容完整）。
+//
+// 分类体系（与 PLCrashView CrashType 对齐的 C 侧精简版）：
+//   mod_incompatible / missing_dependency / oom / jvm_fatal / java_exception / unknown
+
+static const char *ame273_trim(const char *s) {
+    while (*s == ' ' || *s == '\t' || *s == '\r') s++;
+    return s;
+}
+
+/// 行结构：指向 buf 内部的指针数组（不拷贝字符串，写出时以 %.*s 截长度）。
+typedef struct {
+    const char *start;
+    int len;
+} ame273_line_t;
+
+static void ame273_write_report_file(const char *home, int code,
+                                     const char *category, const char *cat_cn,
+                                     const char *cat_en,
+                                     const char *headline, int headlineLen,
+                                     const char *fix, int fixLen,
+                                     const ame273_line_t *details, int detailCount) {
+    char path[1024];
+    snprintf(path, sizeof(path), "%s/ame273_crash_report.txt", home);
+    FILE *rf = fopen(path, "wb");
+    if (rf == NULL) {
+        NSLog(@"[Ame273] crash report write FAILED (path=%s)", path);
+        return;
+    }
+    time_t now = time(NULL);
+    struct tm tmv;
+    localtime_r(&now, &tmv);
+    fprintf(rf, "=== ame273 crash report ===\n");
+    fprintf(rf, "time: %04d-%02d-%02d %02d:%02d:%02d\n",
+            tmv.tm_year + 1900, tmv.tm_mon + 1, tmv.tm_mday,
+            tmv.tm_hour, tmv.tm_min, tmv.tm_sec);
+    fprintf(rf, "exit_code: %d\n", code);
+    fprintf(rf, "category: %s\n", category);
+    fprintf(rf, "category_cn: %s\n", cat_cn);
+    fprintf(rf, "category_en: %s\n", cat_en);
+    fprintf(rf, "headline: %.*s\n", headlineLen, headline);
+    fprintf(rf, "fix: %.*s\n", fixLen, fix);
+    fprintf(rf, "detail_begin\n");
+    for (int i = 0; i < detailCount; i++) {
+        fprintf(rf, "%.*s\n", details[i].len, details[i].start);
+    }
+    fprintf(rf, "detail_end\n");
+    fclose(rf);
+    NSLog(@"[Ame273] crash report written: %s (category=%s, details=%d) -- next launch will surface it", path, category, detailCount);
+}
+
+// ======================================================================
+// ★ Task306：SIGKILL 级游戏会话死亡感知（marker 生命周期 + 非钩子死亡回溯）
+// ----------------------------------------------------------------------
+// 病历（装机 579453c8 latestlog 2026-10-20）：游戏推进到 Mixin 阶段后闪退，
+// 用户视角"依旧闪退"且无崩溃分析画面——ame273 报告链覆盖 exit()/abort()
+// 路径，但 SIGKILL（StikDebug 断连被 TXM 回收 debug 会话 / 看门狗 / jetsam）
+// 不经过任何钩子，报告零落盘 = 死无对证。
+// 机制：游戏会话起点（JavaLauncher JLI_Launch 前）写
+//   $POJAV_HOME/ame306_session.marker（ts/pid/ver）；
+// 正常/异常退出路径（hooked_exit 两分支、hooked_abort JVM fatal 直通）调
+//   ame306_endGameSessionMarker 清除；
+// 下一次会话起点 / 下一次 app 冷启动若 marker 仍在场 = 上次进程未走任何
+//   退出钩子即消失 —— 且 ame273_crash_report.txt 不在（SIGKILL 无报告）——
+//   现场铸一份 SIGKILL 级待读报告（走既有 SceneDelegate 补弹链呈现）。
+// 全程纯 C stdio（与 ame273 同口径，启动早期/任意线程均可安全调用）。
+// ======================================================================
+
+static void ame306_sessionMarkerPath(char *ame306_out, size_t ame306_cap) {
+    const char *ame306_home = getenv("POJAV_HOME");
+    if (ame306_home == NULL || ame306_home[0] == '\0') {
+        ame306_out[0] = '\0';
+        return;
+    }
+    snprintf(ame306_out, ame306_cap, "%s/ame306_session.marker", ame306_home);
+}
+
+/// 感知上次会话是否未走钩子即死亡；是且无 ame273 报告则铸 SIGKILL 报告。
+/// 幂等：读后即清 marker（无论是否铸报告），不重复打扰。
+void ame306_consumeStaleGameSessionMarker(void) {
+    char ame306_path[1024];
+    ame306_sessionMarkerPath(ame306_path, sizeof(ame306_path));
+    if (ame306_path[0] == '\0') return;
+    FILE *ame306_f = fopen(ame306_path, "rb");
+    if (ame306_f == NULL) return; // 无残留 marker = 上次会话正常收尾
+    char ame306_tsLine[128] = {0}, ame306_verLine[128] = {0};
+    if (fgets(ame306_tsLine, sizeof(ame306_tsLine), ame306_f) != NULL) {
+        if (fgets(ame306_verLine, sizeof(ame306_verLine), ame306_f) == NULL) {
+            ame306_verLine[0] = '\0';
+        }
+    }
+    fclose(ame306_f);
+    unlink(ame306_path); // 读后即清：下次会话不再重复感知
+
+    // ame273 报告在 = 上次死亡已由正式报告链覆盖（abort/exit 路径），
+    // 不叠加 SIGKILL 疑似报告，避免双弹。
+    const char *ame306_home = getenv("POJAV_HOME");
+    if (ame306_home == NULL) return;
+    char ame306_rpt[1024];
+    snprintf(ame306_rpt, sizeof(ame306_rpt), "%s/ame273_crash_report.txt", ame306_home);
+    FILE *ame306_rf = fopen(ame306_rpt, "rb");
+    if (ame306_rf != NULL) {
+        fclose(ame306_rf);
+        NSLog(@"[Ame306] stale session marker found but ame273 report already pending -- kill-report suppressed");
+        return;
+    }
+
+    // 铸 SIGKILL 级报告（ame273 文件格式同族，SceneDelegate 补弹链原生消费）
+    ame273_line_t ame306_details[6];
+    char ame306_d0[160], ame306_d1[160], ame306_d2[160], ame306_d3[160];
+    snprintf(ame306_d0, sizeof(ame306_d0), "上次游戏会话标记: %.*s",
+             (int)(strlen(ame306_tsLine) > 0 && ame306_tsLine[strlen(ame306_tsLine)-1] == '\n'
+                   ? (int)strlen(ame306_tsLine) - 1 : (int)strlen(ame306_tsLine)), ame306_tsLine);
+    snprintf(ame306_d1, sizeof(ame306_d1), "进程未执行任何退出钩子即消失（SIGKILL 级）—— 崩溃报告机制无法在进程被杀时落盘");
+    snprintf(ame306_d2, sizeof(ame306_d2), "常见成因: StikDebug 断连（debug 会话被回收）/ 系统看门狗 / 内存压力（jetsam）");
+    snprintf(ame306_d3, sizeof(ame306_d3), "详情请查 latestlog.txt 尾部（最后停在哪一步即闪退点，如 Mixin 阶段=模组加载期）");
+    ame306_details[0].start = ame306_d0; ame306_details[0].len = (int)strlen(ame306_d0);
+    ame306_details[1].start = ame306_d1; ame306_details[1].len = (int)strlen(ame306_d1);
+    ame306_details[2].start = ame306_d2; ame306_details[2].len = (int)strlen(ame306_d2);
+    ame306_details[3].start = ame306_d3; ame306_details[3].len = (int)strlen(ame306_d3);
+    static const char ame306_headline[] =
+        "上次游戏会话被系统强制终止（无崩溃报告可落盘）";
+    static const char ame306_fix[] =
+        "保持 StikDebug 在前台或后台存活（勿从后台任务划掉它）后重试启动；若在加载后期死亡，尝试调低内存分配；复现时上传 latestlog.txt 供进一步定位";
+    ame273_write_report_file(ame306_home, 9,
+                             "sigkill_like",
+                             "进程异常终止（SIGKILL 级）",
+                             "Abnormal session death (SIGKILL-like)",
+                             ame306_headline, (int)sizeof(ame306_headline) - 1,
+                             ame306_fix, (int)sizeof(ame306_fix) - 1,
+                             ame306_details, 4);
+    NSLog(@"[Ame306] stale session marker minted SIGKILL-like report -- next launch will present it");
+}
+
+/// 游戏会话起点（JavaLauncher JLI_Launch 前）：先感知残留，再立新 marker。
+void ame306_beginGameSessionMarker(const char *ame306_versionTag) {
+    ame306_consumeStaleGameSessionMarker();
+    char ame306_path[1024];
+    ame306_sessionMarkerPath(ame306_path, sizeof(ame306_path));
+    if (ame306_path[0] == '\0') return;
+    FILE *ame306_f = fopen(ame306_path, "wb");
+    if (ame306_f == NULL) return;
+    fprintf(ame306_f, "ts=%lld\npid=%d\nver=%s\n",
+            (long long)time(NULL), getpid(),
+            ame306_versionTag ? ame306_versionTag : "-");
+    fclose(ame306_f);
+    NSLog(@"[Ame306] game session marker armed (%s)", ame306_path);
+}
+
+/// 退出钩子路径（hooked_exit 两分支 / hooked_abort JVM fatal 直通）调用：
+/// marker 在场说明本次会话有钩子收尾，清除后下次启动不再误报。
+void ame306_endGameSessionMarker(void) {
+    char ame306_path[1024];
+    ame306_sessionMarkerPath(ame306_path, sizeof(ame306_path));
+    if (ame306_path[0] == '\0') return;
+    unlink(ame306_path);
+}
+
+static void ame273_writeCrashReport(int code) {
+    // ★ Task274-f（F2）：一次性/防重入防护（参照本文件 ame_write_fatal_trace
+    //   的 CAS 语义）——两个线程同时 hooked_exit(≠0) 并发进入时，旧实现会
+    //   各自 fopen("wb") 同一报告文件互相截断。CAS 失败方直接返回：
+    //   赢家已确定性落盘一份完整报告（本进程正在死亡，一次性即正确；
+    //   与 L3 下次启动补弹完全兼容）。
+    static atomic_int ame274_reportBusy = 0;
+    int ame274_expected = 0;
+    if (!atomic_compare_exchange_strong(&ame274_reportBusy, &ame274_expected, 1)) {
+        NSLog(@"[Ame273] concurrent crash report write suppressed (one-shot guard, Task274-f F2)");
+        return;
+    }
+    const char *home = getenv("POJAV_HOME");
+    if (home == NULL) return;
+
+    // 濒死窗口留 250ms 给日志管道写线程冲尾（Task 26 死亡竞态同族防护；
+    // 看门狗让路窗口 8s，此等待零成本）。
+    usleep(250 * 1000);
+
+    static char buf[262145];   // 静态缓冲，防濒死堆分配
+    long len = 0;
+    char path[1024];
+    snprintf(path, sizeof(path), "%s/latestlog.txt", home);
+    FILE *f = fopen(path, "rb");
+    if (f != NULL) {
+        fseek(f, 0, SEEK_END);
+        long total = ftell(f);
+        long want = (total > 262144) ? 262144 : total;
+        fseek(f, total - want, SEEK_SET);
+        len = (long)fread(buf, 1, (size_t)want, f);
+        buf[len] = '\0';
+        fclose(f);
+    }
+
+    // 逐行切分（原地，不拷贝）
+    ame273_line_t lines[2048];
+    int lineCount = 0;
+    {
+        const char *p = buf;
+        const char *end = buf + len;
+        // 首行可能是截断的半行：跳到第一个换行
+        while (p < end && *p != '\n') p++;
+        if (p < end) p++;
+        while (p < end && lineCount < 2048) {
+            const char *nl = memchr(p, '\n', (size_t)(end - p));
+            int ll = (int)((nl ? nl : end) - p);
+            lines[lineCount].start = p;
+            lines[lineCount].len = ll;
+            lineCount++;
+            if (nl == NULL) break;
+            // ★ Task274-f（F2）：就地 NUL 截断本行——行指针只是 buf 内部切片，
+            //   原实现各行无终止符，下方 strstr 分类扫描会跨行连扫到后续行
+            //   （近似解析：分类/定位可归到错误行）。覆写 '\n' 为 '\0' 不影响
+            //   已记录的 start/len（%.*s 按长度输出），仅让 strstr 精确止于行尾。
+            *(char *)nl = '\0';
+            p = nl + 1;
+        }
+    }
+    if (lineCount == 0) {
+        // latestlog 缺失/空 → 试 selfexit 快照（PatchSVC 已在 exit 前落盘）
+        // 简化：直接放弃解析（报告仍写出 unknown 骨架，下次启动弹窗引导看日志）。
+        ame273_write_report_file(home, code, "unknown", "未知错误",
+                                 "Unknown error", "(log unavailable)", 17,
+                                 "", 0, NULL, 0);
+        return;
+    }
+
+    // ---- 分类扫描（尾部 500 行窗口） ----
+    int catModIncompat = 0, catMissingDep = 0, catOOM = 0, catJvmFatal = 0, catJavaExc = 0;
+    int idxImmediateReason = -1, idxFix = -1, idxIncompatHead = -1;
+    int idxLastCausedBy = -1, idxLastException = -1;
+    int idxProblematicFrame = -1;  // Task305：JVM fatal 锚点（下一行 = 真实问题帧）
+    int scanFrom = lineCount > 500 ? lineCount - 500 : 0;
+    for (int i = scanFrom; i < lineCount; i++) {
+        const char *s = ame273_trim(lines[i].start);
+        int ll = lines[i].len - (int)(s - lines[i].start);
+        if (ll <= 0) continue;
+        if (strstr(s, "Immediate reason: ")) idxImmediateReason = i;
+        if (strstr(s, "Fix: ")) idxFix = i;
+        if (strstr(s, "Incompatible mods found!")) idxIncompatHead = i;
+        if (strstr(s, "FormattedException") || strstr(s, "Some of your mods are incompatible") ||
+            strstr(s, "HARD_DEP") || strstr(s, "Mod resolution failed")) catModIncompat = 1;
+        if (strstr(s, "NO_CANDIDATE") || strstr(s, "Missing or unsupported mandatory dependencies") ||
+            strstr(s, "missing mod") || strstr(s, "could not be found")) catMissingDep = 1;
+        if (strstr(s, "OutOfMemoryError") || strstr(s, "Cannot reserve enough space") ||
+            strstr(s, "OutOfMemory")) catOOM = 1;
+        if (strstr(s, "SIGSEGV") || strstr(s, "EXCEPTION_ACCESS_VIOLATION") ||
+            strstr(s, "A fatal error has been detected") || strstr(s, "hs_err")) catJvmFatal = 1;
+        // Task305：JVM fatal 横幅的 "Problematic frame:" 行——更精准的分类锚点
+        // 与 headline 素材（下一行即真实问题帧，如
+        // "C  [AngelAuraAmethyst+0x28118]  ame298_patch_got_slots+0x194"）
+        if (strstr(s, "Problematic frame:") != NULL) {
+            catJvmFatal = 1;
+            idxProblematicFrame = i;
+        }
+        if (strstr(s, "Caused by: ")) idxLastCausedBy = i;
+        if (strstr(s, "Exception") || strstr(s, "Error")) {
+            catJavaExc = 1;
+            idxLastException = i;
+        }
+    }
+
+    // latestlog 尾部被死亡竞态截断（无任何已知标记）时不再重读——selfexit
+    // 快照带 MMdd-HHmmss 时间戳无法在濒死环境枚举，全量重读同文件也无增量；
+    // unknown 报告本身已引导用户下次启动从弹窗进入完整日志排查。
+
+    const char *category = "unknown";
+    const char *cat_cn = "未知错误";
+    const char *cat_en = "Unknown error";
+    if (catModIncompat) {
+        category = "mod_incompatible";
+        cat_cn = "模组不兼容/冲突";
+        cat_en = "Mod incompatibility";
+    } else if (catMissingDep) {
+        category = "missing_dependency";
+        cat_cn = "缺少依赖/模组";
+        cat_en = "Missing dependency";
+    } else if (catOOM) {
+        category = "oom";
+        cat_cn = "内存不足";
+        cat_en = "Out of memory";
+    } else if (catJvmFatal) {
+        category = "jvm_fatal";
+        cat_cn = "JVM/原生层致命错误";
+        cat_en = "JVM/native fatal error";
+    } else if (idxLastException >= 0) {
+        category = "java_exception";
+        cat_cn = "Java 异常";
+        cat_en = "Java exception";
+    }
+
+    // ---- headline / fix ----
+    const char *headline = "no reason line captured";
+    int headlineLen = (int)strlen(headline);
+    if (idxImmediateReason >= 0) {
+        headline = ame273_trim(lines[idxImmediateReason].start);
+        headlineLen = lines[idxImmediateReason].len - (int)(headline - lines[idxImmediateReason].start);
+    } else if (idxProblematicFrame >= 0 && idxProblematicFrame + 1 < lineCount) {
+        // Task305：Problematic frame 的下一行才是真实问题帧（函数名 + 偏移，直接定位）
+        headline = ame273_trim(lines[idxProblematicFrame + 1].start);
+        headlineLen = lines[idxProblematicFrame + 1].len - (int)(headline - lines[idxProblematicFrame + 1].start);
+    } else if (idxLastCausedBy >= 0) {
+        headline = ame273_trim(lines[idxLastCausedBy].start);
+        headlineLen = lines[idxLastCausedBy].len - (int)(headline - lines[idxLastCausedBy].start);
+    } else if (idxLastException >= 0) {
+        headline = ame273_trim(lines[idxLastException].start);
+        headlineLen = lines[idxLastException].len - (int)(headline - lines[idxLastException].start);
+    }
+    const char *fix = "";
+    int fixLen = 0;
+    if (idxFix >= 0) {
+        fix = ame273_trim(lines[idxFix].start);
+        fixLen = lines[idxFix].len - (int)(fix - lines[idxFix].start);
+    }
+    if (fixLen == 0 && catJvmFatal) {
+        // Task307：MoltenVK 定向诊断（装机 862ea2c hs_err_pid47069 实锤）——
+        // MobileGL(DirectVulkan) 会话在 MC GlDevice 创建（首次 GL 上下文
+        // make-current）期间，MoltenVK 内部着色器管线初始化空指针崩溃
+        // （SIGSEGV SEGV_ACCERR @null+0x40，problematic frame =
+        // libMoltenVK.dylib vkSetWorkgroupSizeMVK 附近，原生栈 libMobileGL
+        // eglMakeCurrent → MoltenVK SPIRVToMSL 区）。JIT 与游戏本体无关，
+        // 是 MobileGL Vulkan(MoltenVK) 后端在本机/LC guest 环境的兼容性雷。
+        // 特征 = "libMoltenVK.dylib+"（库名+偏移格式，避开命令行
+        // -Dorg.lwjgl.vulkan.libname=MoltenVK 弱引用误报）与
+        // libMobileGL.dylib 同场。唯一绕开 MoltenVK 的 MobileGL 档 =
+        // DirectGLES（Espryt/ANGLE 翻译）；Mithril 也是 Vulkan 后端
+        // （同样过 MoltenVK），切它无效。呈现层（SceneDelegate ame273
+        // 弹窗）按 headline 同特征追加"一键切 GLES 后端"动作（写
+        // mobileglues.mobilegl_backend=2，ame307）。
+        int ame307_molten = 0, ame307_mgl = 0;
+        for (int i = 0; i < lineCount; i++) {
+            if (!ame307_molten && strstr(lines[i].start, "libMoltenVK.dylib+") != NULL) ame307_molten = 1;
+            if (!ame307_mgl && strstr(lines[i].start, "libMobileGL.dylib") != NULL) ame307_mgl = 1;
+            if (ame307_molten && ame307_mgl) break;
+        }
+        if (ame307_molten && ame307_mgl) {
+            NSLog(@"[Ame307] MoltenVK crash signature detected (libMoltenVK+libMobileGL) -- targeted fix guidance attached");
+            fix = "MoltenVK（MobileGlues Vulkan 后端）在着色器管线初始化时崩溃（空指针）。缓解：设置-视频-渲染器-渲染后端(MobileGlues) 切到 GLES 档（不经 MoltenVK），或改用其他渲染器后重试。 EN: MoltenVK (MobileGlues Vulkan backend) crashed during shader pipeline init (null deref). Mitigation: switch the MobileGlues backend to GLES (bypasses MoltenVK), or pick another renderer.";
+        } else {
+            // Task305：JVM fatal 没有 Fabric 的 "Fix:" 行——给默认处置指引
+            fix = "完整原生回溯在 hs_err_pid*.log（启动器 Documents 根目录）；若问题帧指向渲染器/图形库，可在设置中切换渲染器后重试";
+        }
+        fixLen = (int)strlen(fix);
+    }
+
+    // ---- 详情块：headline 定位 → 连续取块（Fabric 崩溃块天然连续完整） ----
+    ame273_line_t details[20];
+    int detailCount = 0;
+    int blockIdx = -1;
+    if (idxIncompatHead >= 0) blockIdx = idxIncompatHead;
+    else if (idxImmediateReason >= 0 && idxImmediateReason > 0) blockIdx = idxImmediateReason - 1;
+    else if (idxProblematicFrame >= 0) blockIdx = (idxProblematicFrame > 0) ? idxProblematicFrame - 1 : idxProblematicFrame;
+    else if (idxLastCausedBy >= 0) blockIdx = idxLastCausedBy;
+    else if (idxLastException >= 0) blockIdx = idxLastException;
+    if (blockIdx >= 0) {
+        for (int i = blockIdx; i < lineCount && detailCount < 18; i++) {
+            const char *s = ame273_trim(lines[i].start);
+            int ll = lines[i].len - (int)(s - lines[i].start);
+            if (ll <= 0) continue;
+            details[detailCount].start = s;
+            details[detailCount].len = ll > 300 ? 300 : ll;
+            detailCount++;
+        }
+    }
+    if (detailCount == 0) {
+        // 兜底：最后 12 条非空行
+        for (int i = (lineCount > 12 ? lineCount - 12 : 0); i < lineCount && detailCount < 18; i++) {
+            const char *s = ame273_trim(lines[i].start);
+            int ll = lines[i].len - (int)(s - lines[i].start);
+            if (ll <= 0) continue;
+            details[detailCount].start = s;
+            details[detailCount].len = ll > 300 ? 300 : ll;
+            detailCount++;
+        }
+    }
+
+    ame273_write_report_file(home, code, category, cat_cn, cat_en,
+                             headline, headlineLen, fix, fixLen,
+                             details, detailCount);
+}
+
+// Task273：PLCrashView 生命周期旗标（看门狗让路协议的握手信号；
+// PLCrashView.m 经 utils.h 声明调用，链接期解析到本文件实现）。
+atomic_int g_ame273_fatalExitInFlight = 0;
+static atomic_int g_ame273_crashViewPresented = 0;
+static atomic_int g_ame273_crashViewDismissed = 0;
+
+void ame273_crashViewDidPresent(void) {
+    atomic_store(&g_ame273_crashViewPresented, 1);
+    NSLog(@"[Ame273] crash view presented -- watchdog grace window extended (user reading)");
+}
+
+void ame273_crashViewDidDismiss(void) {
+    atomic_store(&g_ame273_crashViewDismissed, 1);
+    NSLog(@"[Ame273] crash view dismissed -- watchdog will exit promptly");
 }
 
 void handle_fatal_exit(int code) {
@@ -291,7 +714,17 @@ void hooked_abort() {
             memset(&ame208_info, 0, sizeof(ame208_info));
             if (dladdr(ame208_frames[i], &ame208_info) && ame208_info.dli_fname != NULL &&
                 strstr(ame208_info.dli_fname, "libjvm.dylib") != NULL) {
-                NSLog(@"[main_hook] Task208: abort() originated inside libjvm (JVM fatal) -- terminating for real, no crash-view park");
+                // ★ Task305：JVM fatal 不再“死无对证”——直通终止前同步落盘
+                //   Task273 待读崩溃报告（latestlog 尾部此刻已含 JVM fatal 横幅
+                //   + Problematic frame + hs_err 路径，分类器原生识别
+                //   jvm_fatal），下次启动 SceneDelegate
+                //   ame273_presentPendingCrashReportFrom: 玻璃弹窗必达呈现。
+                //   进程内仍不 park（Task208 防僵尸语义原样保留；装机 4b9585c
+                //   实锤用户视角“闪退 + 零分析”根因 = 缺呈现层，非缺直通）。
+                atomic_store(&g_ame273_fatalExitInFlight, 1);
+                ame273_writeCrashReport(SIGABRT);
+                ame306_endGameSessionMarker(); // ★ Task306：有钩子收尾，marker 不留隐患
+                NSLog(@"[main_hook] Task305: JVM fatal -- ame273 pending crash report persisted, terminating for real (next launch presents analysis)");
                 orig_abort();
                 return;  // orig_abort 不返回；防御性 return
             }
@@ -375,9 +808,20 @@ void hooked_exit(int code) {
         //   fflush 兜底 stdio 缓冲。3s 看门狗随之退役（_exit 永不返回，
         //   无需兜底）。
         NSLog(@"[main_hook] Task248/250: exit(0) -> immediate _exit(0) (no libc teardown window)");
+        ame306_endGameSessionMarker(); // ★ Task306：正常退出收尾，防下次启动误报
         fflush(NULL);
         _exit(0);
     }
+    // ★ Task273（启动器闪退根治）：非零退出 = 游戏崩溃——先置 fatal-in-flight
+    //   旗标（看门狗让路协议握手），再同步落盘崩溃原因报告（PCL CE 式解析
+    //   第一层，濒死线程上确定性执行），之后才走 handle_fatal_exit/park
+    //   （PLCrashView 异步上主线程呈现）。看门狗检测到旗标后让路 ≤8s 等
+    //   崩溃界面上屏、呈现后最长 120s 等用户读完——彻底根修"看门狗 150ms
+    //   抢杀 = 启动器直接闪退、HMCL 式分析器从未有机会呈现"（f71c88b
+    //   装机实锤）；报告文件同时供下次启动补弹（双保险自适应恢复）。
+    atomic_store(&g_ame273_fatalExitInFlight, 1);
+    ame273_writeCrashReport(code);
+    ame306_endGameSessionMarker(); // ★ Task306：非零退出已有正式报告，marker 不叠加 SIGKILL 疑报
     handle_fatal_exit(code);
 
     orig_exit(code);
@@ -561,40 +1005,86 @@ void* hooked_dlopen(const char* path, int mode) {
 // 当 redirectFunctionHWBreakpoint 被选中时，dlopen 需要通过硬件断点 + Mach 异常
 // 来重定向 dyld 内的 mmap/fcntl 调用，因为此时无法直接修改 dyld 代码段。
 // ============================================================================
-void *exception_handler(void *unused) {
-    mach_msg_server(mach_exc_server, sizeof(union __RequestUnion__catch_mach_exc_subsystem), excPort, MACH_MSG_OPTION_NONE);
+void *exception_handler(void *portArg) {
+    // Task274-f（F7）：端口经线程参数传入——创建流程改为"全部就绪才发布
+    //   excPort"，异常服务线程不再依赖该全局的发布时序（旧序 pthread_create
+    //   与赋值之间存在读空窗口）。
+    mach_port_t ame274_excSrvPort = (mach_port_t)(uintptr_t)portArg;
+    mach_msg_server(mach_exc_server, sizeof(union __RequestUnion__catch_mach_exc_subsystem), ame274_excSrvPort, MACH_MSG_OPTION_NONE);
     abort();
 }
 
 void *hooked_dlopen_26_ppl(const char *path, int mode) {
+    // ★ Task274-f（F7）：excPort 惰性创建收口——旧实现无锁 if(!excPort)，
+    //   并发 dlopen 首调 = 双 receive 端口 + 双异常服务线程（后建者顶掉
+    //   先建者，异常端口指向已无人服务的端口）；mach_port_allocate/
+    //   pthread_create 返回值被忽略（分配失败时空端口仍被当异常端口硬闯）。
+    //   os_unfair_lock 收口单次创建 + 全链返回值检查：任一步失败回收
+    //   半成品端口，excPort 保持 NULL（下方 fallback 跳过调试状态手术，
+    //   dlopen 语义照常）。
+    static os_unfair_lock ame274_excLock = OS_UNFAIR_LOCK_INIT;
     if (!excPort) {
-        mach_port_allocate(mach_task_self(), MACH_PORT_RIGHT_RECEIVE, &excPort);
-        mach_port_insert_right(mach_task_self(), excPort, excPort, MACH_MSG_TYPE_MAKE_SEND);
-        pthread_t thread;
-        pthread_create(&thread, NULL, exception_handler, NULL);
+        os_unfair_lock_lock(&ame274_excLock);
+        if (!excPort) {
+            mach_port_t ame274_newPort = MACH_PORT_NULL;
+            kern_return_t ame274_kr = mach_port_allocate(mach_task_self(), MACH_PORT_RIGHT_RECEIVE, &ame274_newPort);
+            if (ame274_kr == KERN_SUCCESS) {
+                ame274_kr = mach_port_insert_right(mach_task_self(), ame274_newPort, ame274_newPort, MACH_MSG_TYPE_MAKE_SEND);
+                if (ame274_kr == KERN_SUCCESS) {
+                    pthread_t ame274_srvThread;
+                    int ame274_pthrRc = pthread_create(&ame274_srvThread, NULL, exception_handler, (void *)(uintptr_t)ame274_newPort);
+                    if (ame274_pthrRc == 0) {   // ★ Task274-f r2（F7 硬化）：返回值即错误码，日志直接用（原 errno 无 <errno.h> 头文件保障）
+                        pthread_detach(ame274_srvThread);
+                        excPort = ame274_newPort;   // 全部就绪才发布（double-checked 读侧免锁）
+                    } else {
+                        // 服务线程起不来：端口无用，整体销毁（一并释放发送权与接收权）
+                        mach_port_destroy(mach_task_self(), ame274_newPort);
+                        NSLog(@"main_hook: Task274-f pthread_create(exception_handler) failed (%d) -- HW breakpoint dlopen redirect disabled", ame274_pthrRc);   // ★ Task274-f r2（F7 硬化）
+                    }
+                } else {
+                    mach_port_destroy(mach_task_self(), ame274_newPort);
+                    NSLog(@"main_hook: Task274-f mach_port_insert_right failed (%d) -- HW breakpoint dlopen redirect disabled", ame274_kr);
+                }
+            } else {
+                NSLog(@"main_hook: Task274-f mach_port_allocate failed (%d) -- HW breakpoint dlopen redirect disabled", ame274_kr);
+            }
+        }
+        os_unfair_lock_unlock(&ame274_excLock);
     }
 
-    // save old thread states
-    exception_mask_t mask = EXC_MASK_BREAKPOINT;
-    mach_msg_type_number_t masksCnt = 1;
-    exception_handler_t handler = excPort;
-    exception_behavior_t behavior = EXCEPTION_STATE | MACH_EXCEPTION_CODES;
-    thread_state_flavor_t flavor = ARM_THREAD_STATE64;
+    // ★ Task274-f（F7）：fallback——excPort 未就绪（创建失败）时跳过调试状态
+    //   手术：旧行为会带着空异常端口设置硬件断点（breakpoint 触发无人接管
+    //   = SIGTRAP），并丢失旧端口状态。跳过后 dlopen 原语义照常（@loader_path
+    //   修正保留），仅缺 HW 断点重定向能力。
+    mach_port_t thread = MACH_PORT_NULL;
+    exception_mask_t origMask = 0;
+    mach_msg_type_number_t origCnt = 0;
+    exception_handler_t origHandler = MACH_PORT_NULL;
+    exception_behavior_t origBehavior = 0;
+    thread_state_flavor_t origFlavor = 0;
     arm_debug_state64_t origDebugState;
-    mach_port_t thread = mach_thread_self();
-    thread_get_state(thread, ARM_DEBUG_STATE64, (thread_state_t)&origDebugState, &(mach_msg_type_number_t){ARM_DEBUG_STATE64_COUNT});
-    thread_swap_exception_ports(thread, mask, handler, behavior, flavor, &mask, &masksCnt, &handler, &behavior, &flavor);
-    if (masksCnt != 1) {
-        NSLog(@"main_hook: Expected 1 exception port, got %d. HW breakpoint hook may fail.", masksCnt);
-    }
+    if (excPort) {
+        // save old thread states
+        exception_mask_t mask = EXC_MASK_BREAKPOINT;
+        mach_msg_type_number_t masksCnt = 1;
+        exception_handler_t handler = excPort;
+        exception_behavior_t behavior = EXCEPTION_STATE | MACH_EXCEPTION_CODES;
+        thread_state_flavor_t flavor = ARM_THREAD_STATE64;
+        thread = mach_thread_self();
+        thread_get_state(thread, ARM_DEBUG_STATE64, (thread_state_t)&origDebugState, &(mach_msg_type_number_t){ARM_DEBUG_STATE64_COUNT});
+        thread_swap_exception_ports(thread, mask, handler, behavior, flavor, &origMask, &origCnt, &origHandler, &origBehavior, &origFlavor);
+        if (origCnt != 1) {
+            NSLog(@"main_hook: Expected 1 exception port, got %d. HW breakpoint hook may fail.", origCnt);
+        }
 
-    // hook stuff. this will overwrite LiveContainer private container multitask's hook, we will load __TEXT using JIT inside
-    arm_debug_state64_t hookDebugState = {0};
-    for(int i = 0; i < 6 && hwRedirectOrig[i]; i++) {
-        hookDebugState.__bvr[i] = (uint64_t)hwRedirectOrig[i];
-        hookDebugState.__bcr[i] = 0x1e5;
+        // hook stuff. this will overwrite LiveContainer private container multitask's hook, we will load __TEXT using JIT inside
+        arm_debug_state64_t hookDebugState = {0};
+        for(int i = 0; i < 6 && hwRedirectOrig[i]; i++) {
+            hookDebugState.__bvr[i] = (uint64_t)hwRedirectOrig[i];
+            hookDebugState.__bcr[i] = 0x1e5;
+        }
+        thread_set_state(thread, ARM_DEBUG_STATE64, (thread_state_t)&hookDebugState, ARM_DEBUG_STATE64_COUNT);
     }
-    thread_set_state(thread, ARM_DEBUG_STATE64, (thread_state_t)&hookDebugState, ARM_DEBUG_STATE64_COUNT);
 
     // fixup @loader_path since we cannot use musttail here
     void *result;
@@ -609,8 +1099,13 @@ void *hooked_dlopen_26_ppl(const char *path, int mode) {
     }
 
     // restore old thread states
-    thread_set_state(thread, ARM_DEBUG_STATE64, (thread_state_t)&origDebugState, ARM_DEBUG_STATE64_COUNT);
-    thread_swap_exception_ports(thread, mask, handler, behavior, flavor, &mask, &masksCnt, &handler, &behavior, &flavor);
+    if (thread != MACH_PORT_NULL) {
+        thread_set_state(thread, ARM_DEBUG_STATE64, (thread_state_t)&origDebugState, ARM_DEBUG_STATE64_COUNT);
+        thread_swap_exception_ports(thread, origMask, origHandler, origBehavior, origFlavor, &origMask, &origCnt, &origHandler, &origBehavior, &origFlavor);
+        // ★ Task274-f（F7）：mach_thread_self() 返回的发送权用完即还（原实现
+        //   每次调用泄漏 +1 发送权；仅释放本调用持有的引用，不影响线程本身）。
+        mach_port_deallocate(mach_task_self(), thread);
+    }
 
     return result;
 }
@@ -949,6 +1444,18 @@ static VkZResult retryPipelineWithSIntFormats(
     VkZVertexInputBindingDescription** allocedBindings = calloc(createInfoCount, sizeof(VkZVertexInputBindingDescription*));
     VkZVertexInputAttributeDescription** allocedAttrs = calloc(createInfoCount, sizeof(VkZVertexInputAttributeDescription*));
 
+    // ★ Task274-f（F8）：OOM 根治——原实现 malloc/calloc 返回值未查，分配
+    //   失败时 memcpy 落 NULL = SIGSEGV。任一失败即释放已分配块，走与
+    //   "真实函数句柄缺失"同款的既有错误分支。
+    if (newCreateInfos == NULL || newVIS == NULL || allocedBindings == NULL || allocedAttrs == NULL) {
+        free(newCreateInfos);
+        free(newVIS);
+        free(allocedBindings);
+        free(allocedAttrs);
+        NSLog(@"[ZinkStrideFix] OOM preparing UINT->SINT retry copies -- returning initialization failure");
+        return VK_Z_ERROR_INITIALIZATION_FAILED;
+    }
+
     memcpy(newCreateInfos, pCreateInfos, sizeof(VkZGraphicsPipelineCreateInfo) * createInfoCount);
 
     for (uint32_t i = 0; i < createInfoCount; i++) {
@@ -961,6 +1468,20 @@ static VkZResult retryPipelineWithSIntFormats(
         if (vis->pVertexAttributeDescriptions && vis->vertexAttributeDescriptionCount > 0) {
             uint32_t attrCount = vis->vertexAttributeDescriptionCount;
             VkZVertexInputAttributeDescription* newAttrs = malloc(sizeof(VkZVertexInputAttributeDescription) * attrCount);
+            if (newAttrs == NULL) {
+                // ★ Task274-f（F8）：深拷贝中途 OOM——按槽位释放（calloc 清零，
+                //   未分配槽位为 NULL，free(NULL) 安全）后走既有错误分支。
+                for (uint32_t ame274_k = 0; ame274_k < createInfoCount; ame274_k++) {
+                    free(allocedBindings[ame274_k]);
+                    free(allocedAttrs[ame274_k]);
+                }
+                free(allocedAttrs);
+                free(allocedBindings);
+                free(newVIS);
+                free(newCreateInfos);
+                NSLog(@"[ZinkStrideFix] OOM copying vertex attribute descriptions -- returning initialization failure");
+                return VK_Z_ERROR_INITIALIZATION_FAILED;
+            }
             memcpy(newAttrs, vis->pVertexAttributeDescriptions, sizeof(VkZVertexInputAttributeDescription) * attrCount);
             for (uint32_t j = 0; j < attrCount; j++) {
                 if (isVkUIntFormat(newAttrs[j].format)) {
@@ -986,6 +1507,19 @@ static VkZResult retryPipelineWithSIntFormats(
             if (pipelineNeedsAlignment) {
                 uint32_t bindingCount = vis->vertexBindingDescriptionCount;
                 VkZVertexInputBindingDescription* newBindings = malloc(sizeof(VkZVertexInputBindingDescription) * bindingCount);
+                if (newBindings == NULL) {
+                    // ★ Task274-f（F8）：深拷贝中途 OOM（同 newAttrs 分支）。
+                    for (uint32_t ame274_k = 0; ame274_k < createInfoCount; ame274_k++) {
+                        free(allocedBindings[ame274_k]);
+                        free(allocedAttrs[ame274_k]);
+                    }
+                    free(allocedAttrs);
+                    free(allocedBindings);
+                    free(newVIS);
+                    free(newCreateInfos);
+                    NSLog(@"[ZinkStrideFix] OOM copying vertex binding descriptions -- returning initialization failure");
+                    return VK_Z_ERROR_INITIALIZATION_FAILED;
+                }
                 memcpy(newBindings, vis->pVertexBindingDescriptions, sizeof(VkZVertexInputBindingDescription) * bindingCount);
                 for (uint32_t j = 0; j < bindingCount; j++) {
                     uint32_t oldStride = newBindings[j].stride;
@@ -1035,6 +1569,16 @@ static VkZResult createPipelinesWithAlignedStrides(
     VkZPipelineVertexInputStateCreateInfo* newVIS = malloc(sizeof(VkZPipelineVertexInputStateCreateInfo) * createInfoCount);
     VkZVertexInputBindingDescription** allocedBindings = calloc(createInfoCount, sizeof(VkZVertexInputBindingDescription*));
 
+    // ★ Task274-f（F8）：OOM 根治（同 retryPipelineWithSIntFormats）——分配
+    //   失败即释放已分配块并走既有错误分支，memcpy 不再落 NULL。
+    if (newCreateInfos == NULL || newVIS == NULL || allocedBindings == NULL) {
+        free(newCreateInfos);
+        free(newVIS);
+        free(allocedBindings);
+        NSLog(@"[ZinkStrideFix] OOM preparing stride-alignment copies -- returning initialization failure");
+        return VK_Z_ERROR_INITIALIZATION_FAILED;
+    }
+
     memcpy(newCreateInfos, pCreateInfos, sizeof(VkZGraphicsPipelineCreateInfo) * createInfoCount);
 
     for (uint32_t i = 0; i < createInfoCount; i++) {
@@ -1052,6 +1596,17 @@ static VkZResult createPipelinesWithAlignedStrides(
 
         uint32_t bindingCount = vis->vertexBindingDescriptionCount;
         VkZVertexInputBindingDescription* newBindings = malloc(sizeof(VkZVertexInputBindingDescription) * bindingCount);
+        if (newBindings == NULL) {
+            // ★ Task274-f（F8）：深拷贝中途 OOM（同 retryPipeline 分支，无 allocedAttrs）。
+            for (uint32_t ame274_k = 0; ame274_k < createInfoCount; ame274_k++) {
+                free(allocedBindings[ame274_k]);
+            }
+            free(allocedBindings);
+            free(newVIS);
+            free(newCreateInfos);
+            NSLog(@"[ZinkStrideFix] OOM copying vertex binding descriptions -- returning initialization failure");
+            return VK_Z_ERROR_INITIALIZATION_FAILED;
+        }
         memcpy(newBindings, vis->pVertexBindingDescriptions, sizeof(VkZVertexInputBindingDescription) * bindingCount);
         for (uint32_t j = 0; j < bindingCount; j++) {
             uint32_t oldStride = newBindings[j].stride;
@@ -1213,81 +1768,79 @@ static VkZResult amethyst_vkCreateGraphicsPipelines(
     return VK_Z_SUCCESS;
 }
 
+// ★ Task274-f（F11）：两个 vk wrapper 的 10 符号×2 strcmp 复制块收敛为表驱动。
+// 表项语义与原 if-strcmp 链逐一对应：命中 name → 惰性解析 *real（若空且上游
+// resolver 可用）→ 返回 hook；未命中名落原有尾部（resolver 空时
+// amethyst_orig_dlsym 兜底）。(void*) 函数指针转换与 &g_real 槽位写法沿用
+// zinkStrideFixRebind 的 fishhook rebindings 先例；查表顺序 = 原链顺序，
+// 零行为变更。
+typedef struct {
+    const char *name;   // 被拦截的入口名
+    void *hook;         // 返回给调用方的我们的 hook
+    void **real;        // 惰性解析槽（&g_real_X）
+} ame274_vk_hook_entry_t;
+
+// 前向声明（hook 实现体在本表之后定义；static 函数需先声明方可入表）
+static void* amethyst_vkGetDeviceProcAddr(VkZDevice device, const char* pName);
+static void amethyst_vkCmdBindPipeline(VkZCommandBuffer cmd, VkZPipelineBindPoint bp, VkZPipeline pipeline);
+static void amethyst_vkCmdDraw(VkZCommandBuffer cmd, uint32_t vertexCount, uint32_t instanceCount, uint32_t firstVertex, uint32_t firstInstance);
+static void amethyst_vkCmdDrawIndexed(VkZCommandBuffer cmd, uint32_t indexCount, uint32_t instanceCount, uint32_t firstIndex, int32_t vertexOffset, uint32_t firstInstance);
+static void amethyst_vkCmdDrawIndirect(VkZCommandBuffer cmd, uint64_t buffer, uint64_t offset, uint32_t drawCount, uint32_t stride);
+static void amethyst_vkCmdDrawIndexedIndirect(VkZCommandBuffer cmd, uint64_t buffer, uint64_t offset, uint32_t drawCount, uint32_t stride);
+static void amethyst_vkCmdDrawIndirectCount(VkZCommandBuffer cmd, uint64_t buffer, uint64_t offset, uint64_t countBuffer, uint64_t countBufferOffset, uint32_t maxDrawCount, uint32_t stride);
+static void amethyst_vkCmdDrawIndexedIndirectCount(VkZCommandBuffer cmd, uint64_t buffer, uint64_t offset, uint64_t countBuffer, uint64_t countBufferOffset, uint32_t maxDrawCount, uint32_t stride);
+static void amethyst_vkDestroyPipeline(VkZDevice device, VkZPipeline pipeline, const void* pAllocator);
+
+// vkGetInstanceProcAddr 视角的可拦截入口（顺序 = 原 strcmp 链顺序）
+static const ame274_vk_hook_entry_t ame274_vkInstanceHookTable[] = {
+    {"vkGetDeviceProcAddr",           (void *)amethyst_vkGetDeviceProcAddr,           (void **)&g_real_vkGetDeviceProcAddr},
+    {"vkCreateGraphicsPipelines",     (void *)amethyst_vkCreateGraphicsPipelines,     (void **)&g_real_vkCreateGraphicsPipelines},
+    {"vkCmdBindPipeline",             (void *)amethyst_vkCmdBindPipeline,             (void **)&g_real_vkCmdBindPipeline},
+    {"vkCmdDraw",                     (void *)amethyst_vkCmdDraw,                     (void **)&g_real_vkCmdDraw},
+    {"vkCmdDrawIndexed",              (void *)amethyst_vkCmdDrawIndexed,              (void **)&g_real_vkCmdDrawIndexed},
+    {"vkCmdDrawIndirect",             (void *)amethyst_vkCmdDrawIndirect,             (void **)&g_real_vkCmdDrawIndirect},
+    {"vkCmdDrawIndexedIndirect",      (void *)amethyst_vkCmdDrawIndexedIndirect,      (void **)&g_real_vkCmdDrawIndexedIndirect},
+    {"vkCmdDrawIndirectCount",        (void *)amethyst_vkCmdDrawIndirectCount,        (void **)&g_real_vkCmdDrawIndirectCount},
+    {"vkCmdDrawIndexedIndirectCount", (void *)amethyst_vkCmdDrawIndexedIndirectCount, (void **)&g_real_vkCmdDrawIndexedIndirectCount},
+    {"vkDestroyPipeline",             (void *)amethyst_vkDestroyPipeline,             (void **)&g_real_vkDestroyPipeline},
+};
+
+// vkGetDeviceProcAddr 视角的可拦截入口（原链不含 vkGetDeviceProcAddr 自身）
+static const ame274_vk_hook_entry_t ame274_vkDeviceHookTable[] = {
+    {"vkCreateGraphicsPipelines",     (void *)amethyst_vkCreateGraphicsPipelines,     (void **)&g_real_vkCreateGraphicsPipelines},
+    {"vkCmdBindPipeline",             (void *)amethyst_vkCmdBindPipeline,             (void **)&g_real_vkCmdBindPipeline},
+    {"vkCmdDraw",                     (void *)amethyst_vkCmdDraw,                     (void **)&g_real_vkCmdDraw},
+    {"vkCmdDrawIndexed",              (void *)amethyst_vkCmdDrawIndexed,              (void **)&g_real_vkCmdDrawIndexed},
+    {"vkCmdDrawIndirect",             (void *)amethyst_vkCmdDrawIndirect,             (void **)&g_real_vkCmdDrawIndirect},
+    {"vkCmdDrawIndexedIndirect",      (void *)amethyst_vkCmdDrawIndexedIndirect,      (void **)&g_real_vkCmdDrawIndexedIndirect},
+    {"vkCmdDrawIndirectCount",        (void *)amethyst_vkCmdDrawIndirectCount,        (void **)&g_real_vkCmdDrawIndirectCount},
+    {"vkCmdDrawIndexedIndirectCount", (void *)amethyst_vkCmdDrawIndexedIndirectCount, (void **)&g_real_vkCmdDrawIndexedIndirectCount},
+    {"vkDestroyPipeline",             (void *)amethyst_vkDestroyPipeline,             (void **)&g_real_vkDestroyPipeline},
+};
+
+static const ame274_vk_hook_entry_t *ame274_vkFindHookEntry(
+    const ame274_vk_hook_entry_t *table, size_t tableCount, const char *pName) {
+    for (size_t ame274_i = 0; ame274_i < tableCount; ame274_i++) {
+        if (strcmp(pName, table[ame274_i].name) == 0) {
+            return &table[ame274_i];
+        }
+    }
+    return NULL;
+}
+
 /// vkGetInstanceProcAddr wrapper
 /// 拦截 vkGetDeviceProcAddr、vkCreateGraphicsPipelines、vkCmd* 请求，返回我们的 hook
 static void* amethyst_vkGetInstanceProcAddr(VkZInstance instance, const char* pName) {
     if (pName) {
-        if (strcmp(pName, "vkGetDeviceProcAddr") == 0) {
-            if (!g_real_vkGetDeviceProcAddr && g_real_vkGetInstanceProcAddr) {
-                g_real_vkGetDeviceProcAddr = (PFN_zkGetDeviceProcAddr)
-                    g_real_vkGetInstanceProcAddr(instance, pName);
+        const ame274_vk_hook_entry_t *ame274_e = ame274_vkFindHookEntry(
+            ame274_vkInstanceHookTable,
+            sizeof(ame274_vkInstanceHookTable) / sizeof(ame274_vkInstanceHookTable[0]),
+            pName);
+        if (ame274_e != NULL) {
+            if (!*ame274_e->real && g_real_vkGetInstanceProcAddr) {
+                *ame274_e->real = (void *)g_real_vkGetInstanceProcAddr(instance, pName);
             }
-            return (void*)amethyst_vkGetDeviceProcAddr;
-        }
-        if (strcmp(pName, "vkCreateGraphicsPipelines") == 0) {
-            if (!g_real_vkCreateGraphicsPipelines && g_real_vkGetInstanceProcAddr) {
-                g_real_vkCreateGraphicsPipelines = (PFN_zkCreateGraphicsPipelines)
-                    g_real_vkGetInstanceProcAddr(instance, pName);
-            }
-            return (void*)amethyst_vkCreateGraphicsPipelines;
-        }
-        // vkCmd* hooks（dummy pipeline skip draws）
-        if (strcmp(pName, "vkCmdBindPipeline") == 0) {
-            if (!g_real_vkCmdBindPipeline && g_real_vkGetInstanceProcAddr) {
-                g_real_vkCmdBindPipeline = (PFN_zkCmdBindPipeline)
-                    g_real_vkGetInstanceProcAddr(instance, pName);
-            }
-            return (void*)amethyst_vkCmdBindPipeline;
-        }
-        if (strcmp(pName, "vkCmdDraw") == 0) {
-            if (!g_real_vkCmdDraw && g_real_vkGetInstanceProcAddr) {
-                g_real_vkCmdDraw = (PFN_zkCmdDraw)
-                    g_real_vkGetInstanceProcAddr(instance, pName);
-            }
-            return (void*)amethyst_vkCmdDraw;
-        }
-        if (strcmp(pName, "vkCmdDrawIndexed") == 0) {
-            if (!g_real_vkCmdDrawIndexed && g_real_vkGetInstanceProcAddr) {
-                g_real_vkCmdDrawIndexed = (PFN_zkCmdDrawIndexed)
-                    g_real_vkGetInstanceProcAddr(instance, pName);
-            }
-            return (void*)amethyst_vkCmdDrawIndexed;
-        }
-        if (strcmp(pName, "vkCmdDrawIndirect") == 0) {
-            if (!g_real_vkCmdDrawIndirect && g_real_vkGetInstanceProcAddr) {
-                g_real_vkCmdDrawIndirect = (PFN_zkCmdDrawIndirect)
-                    g_real_vkGetInstanceProcAddr(instance, pName);
-            }
-            return (void*)amethyst_vkCmdDrawIndirect;
-        }
-        if (strcmp(pName, "vkCmdDrawIndexedIndirect") == 0) {
-            if (!g_real_vkCmdDrawIndexedIndirect && g_real_vkGetInstanceProcAddr) {
-                g_real_vkCmdDrawIndexedIndirect = (PFN_zkCmdDrawIndexedIndirect)
-                    g_real_vkGetInstanceProcAddr(instance, pName);
-            }
-            return (void*)amethyst_vkCmdDrawIndexedIndirect;
-        }
-        if (strcmp(pName, "vkCmdDrawIndirectCount") == 0) {
-            if (!g_real_vkCmdDrawIndirectCount && g_real_vkGetInstanceProcAddr) {
-                g_real_vkCmdDrawIndirectCount = (PFN_zkCmdDrawIndirectCount)
-                    g_real_vkGetInstanceProcAddr(instance, pName);
-            }
-            return (void*)amethyst_vkCmdDrawIndirectCount;
-        }
-        if (strcmp(pName, "vkCmdDrawIndexedIndirectCount") == 0) {
-            if (!g_real_vkCmdDrawIndexedIndirectCount && g_real_vkGetInstanceProcAddr) {
-                g_real_vkCmdDrawIndexedIndirectCount = (PFN_zkCmdDrawIndexedIndirectCount)
-                    g_real_vkGetInstanceProcAddr(instance, pName);
-            }
-            return (void*)amethyst_vkCmdDrawIndexedIndirectCount;
-        }
-        // vkDestroyPipeline hook：dummy pipeline 销毁时跳过，避免 MoltenVK 崩溃
-        if (strcmp(pName, "vkDestroyPipeline") == 0) {
-            if (!g_real_vkDestroyPipeline && g_real_vkGetInstanceProcAddr) {
-                g_real_vkDestroyPipeline = (PFN_zkDestroyPipeline)
-                    g_real_vkGetInstanceProcAddr(instance, pName);
-            }
-            return (void*)amethyst_vkDestroyPipeline;
+            return ame274_e->hook;
         }
     }
     if (!g_real_vkGetInstanceProcAddr) {
@@ -1302,70 +1855,15 @@ static void* amethyst_vkGetInstanceProcAddr(VkZInstance instance, const char* pN
 /// 拦截 vkCreateGraphicsPipelines、vkCmd* 请求，返回我们的 hook
 static void* amethyst_vkGetDeviceProcAddr(VkZDevice device, const char* pName) {
     if (pName) {
-        if (strcmp(pName, "vkCreateGraphicsPipelines") == 0) {
-            if (!g_real_vkCreateGraphicsPipelines && g_real_vkGetDeviceProcAddr) {
-                g_real_vkCreateGraphicsPipelines = (PFN_zkCreateGraphicsPipelines)
-                    g_real_vkGetDeviceProcAddr(device, pName);
+        const ame274_vk_hook_entry_t *ame274_e = ame274_vkFindHookEntry(
+            ame274_vkDeviceHookTable,
+            sizeof(ame274_vkDeviceHookTable) / sizeof(ame274_vkDeviceHookTable[0]),
+            pName);
+        if (ame274_e != NULL) {
+            if (!*ame274_e->real && g_real_vkGetDeviceProcAddr) {
+                *ame274_e->real = (void *)g_real_vkGetDeviceProcAddr(device, pName);
             }
-            return (void*)amethyst_vkCreateGraphicsPipelines;
-        }
-        // vkCmd* hooks（dummy pipeline skip draws）
-        if (strcmp(pName, "vkCmdBindPipeline") == 0) {
-            if (!g_real_vkCmdBindPipeline && g_real_vkGetDeviceProcAddr) {
-                g_real_vkCmdBindPipeline = (PFN_zkCmdBindPipeline)
-                    g_real_vkGetDeviceProcAddr(device, pName);
-            }
-            return (void*)amethyst_vkCmdBindPipeline;
-        }
-        if (strcmp(pName, "vkCmdDraw") == 0) {
-            if (!g_real_vkCmdDraw && g_real_vkGetDeviceProcAddr) {
-                g_real_vkCmdDraw = (PFN_zkCmdDraw)
-                    g_real_vkGetDeviceProcAddr(device, pName);
-            }
-            return (void*)amethyst_vkCmdDraw;
-        }
-        if (strcmp(pName, "vkCmdDrawIndexed") == 0) {
-            if (!g_real_vkCmdDrawIndexed && g_real_vkGetDeviceProcAddr) {
-                g_real_vkCmdDrawIndexed = (PFN_zkCmdDrawIndexed)
-                    g_real_vkGetDeviceProcAddr(device, pName);
-            }
-            return (void*)amethyst_vkCmdDrawIndexed;
-        }
-        if (strcmp(pName, "vkCmdDrawIndirect") == 0) {
-            if (!g_real_vkCmdDrawIndirect && g_real_vkGetDeviceProcAddr) {
-                g_real_vkCmdDrawIndirect = (PFN_zkCmdDrawIndirect)
-                    g_real_vkGetDeviceProcAddr(device, pName);
-            }
-            return (void*)amethyst_vkCmdDrawIndirect;
-        }
-        if (strcmp(pName, "vkCmdDrawIndexedIndirect") == 0) {
-            if (!g_real_vkCmdDrawIndexedIndirect && g_real_vkGetDeviceProcAddr) {
-                g_real_vkCmdDrawIndexedIndirect = (PFN_zkCmdDrawIndexedIndirect)
-                    g_real_vkGetDeviceProcAddr(device, pName);
-            }
-            return (void*)amethyst_vkCmdDrawIndexedIndirect;
-        }
-        if (strcmp(pName, "vkCmdDrawIndirectCount") == 0) {
-            if (!g_real_vkCmdDrawIndirectCount && g_real_vkGetDeviceProcAddr) {
-                g_real_vkCmdDrawIndirectCount = (PFN_zkCmdDrawIndirectCount)
-                    g_real_vkGetDeviceProcAddr(device, pName);
-            }
-            return (void*)amethyst_vkCmdDrawIndirectCount;
-        }
-        if (strcmp(pName, "vkCmdDrawIndexedIndirectCount") == 0) {
-            if (!g_real_vkCmdDrawIndexedIndirectCount && g_real_vkGetDeviceProcAddr) {
-                g_real_vkCmdDrawIndexedIndirectCount = (PFN_zkCmdDrawIndexedIndirectCount)
-                    g_real_vkGetDeviceProcAddr(device, pName);
-            }
-            return (void*)amethyst_vkCmdDrawIndexedIndirectCount;
-        }
-        // vkDestroyPipeline hook：dummy pipeline 销毁时跳过，避免 MoltenVK 崩溃
-        if (strcmp(pName, "vkDestroyPipeline") == 0) {
-            if (!g_real_vkDestroyPipeline && g_real_vkGetDeviceProcAddr) {
-                g_real_vkDestroyPipeline = (PFN_zkDestroyPipeline)
-                    g_real_vkGetDeviceProcAddr(device, pName);
-            }
-            return (void*)amethyst_vkDestroyPipeline;
+            return ame274_e->hook;
         }
     }
     if (!g_real_vkGetDeviceProcAddr) {
@@ -1838,12 +2336,39 @@ static BOOL ame202_metalSessionArmed(void) {
     return s_ame202_metal ? [SurfaceViewController isRunning] : NO;
 }
 
+// ★ Task267（用户："意外回退 Vulkan 之后需要手动点击取消启动才能看到游戏
+//   界面"）：SDL3-Vulkan 会话首帧信号补链。病历：MC 26.3+ 的 GL 后端探测
+//   失败时静默回落原生 Vulkan（MoltenVK），呈现面建在 SDL 自己的 view 上
+//   （SDL_uikitmetalview 的 CAMetalLayer，Task32 嵌入架构）——三个既有首帧
+//   信号源全部失联：①pojavSwapBuffers（GL-only）不被调；②Ame248FPSMetal
+//   Layer 门（pojavIsActualVulkanPath 以 clientAPI==NO_API 判定，SDL3 路径
+//   从不调 pojavSetWindowHint → 恒 GL 客户端 → 门恒关，且呈现面根本不是
+//   GameSurfaceView 的层）；③本文件的 Task202 swizzle 门（AMETHYST_METAL
+//   只在 Metal 会话导出）→ 启动遮罩的 PojavFirstFrameRendered 永远等不到，
+//   游戏其实在 SDL 视图里正常渲染，用户手点"取消启动"（只揭遮罩不杀进程）
+//   才看得到画面。修法：nextDrawable hook 增加 SDL_uikit 层分支——owner
+//   view 类名含 SDL_uikit 且游戏运行中 = 游戏真 present（启动器自身玻璃
+//   层的 Metal layer 天然排除；GL 会话的 SDL 视图无 CAMetalLayer 不重叠；
+//   26.2 GLFW-Vulkan 的呈现面在 GameSurfaceView 层由 ②门覆盖不重叠）。
+//   命中即 pojavIncrementFpsCounter()——egl_bridge 的 s_firstFrameRendered
+//   去重门自动完成首帧通知；附带收益：SDL3-Vulkan 会话 FPS 从 0 变真值。
+static BOOL ame267_isSDLVulkanLayer(CAMetalLayer *ame267_layer) {
+    if (ame267_layer == nil) return NO;
+    UIView *ame267_owner = (UIView *)ame267_layer.delegate;
+    if (ame267_owner == nil || ![ame267_owner isKindOfClass:[UIView class]]) return NO;
+    NSString *ame267_cls = NSStringFromClass([ame267_owner class]);
+    return [ame267_cls containsString:@"SDL_uikit"];
+}
+
 static IMP ame202_orig_nextDrawable = NULL;
 
 static id ame202_nextDrawable_hook(id self, SEL _cmd) {
     id ame202_drawable = ((id (*)(id, SEL))ame202_orig_nextDrawable)(self, _cmd);
-    if (ame202_drawable != nil && ame202_metalSessionArmed()) {
-        pojavIncrementFpsCounter();
+    if (ame202_drawable != nil && [SurfaceViewController isRunning]) {
+        if (ame202_metalSessionArmed() ||
+            ame267_isSDLVulkanLayer((CAMetalLayer *)self)) {
+            pojavIncrementFpsCounter();
+        }
     }
     return ame202_drawable;
 }
@@ -1884,11 +2409,15 @@ static void *ame202_tinyglHandle(void) {
 
 /// hooked_dlsym 的直接调用者是否 tinygl4angle 自身（其 ame182_resolve 的
 /// 兜底 dlsym(framework, gl*) 不能被钉扎截胡——会解析回自己）。
-/// noinline + 返回地址层级 1：level0 = hooked_dlsym 内的调用点，
-/// level1 = hooked_dlsym 的调用者（即真正的发起方）。
+/// noinline + 返回地址层级 2（Task274-f F6 修正）：调用链 = 真调用方 →
+/// hooked_dlsym → ame202_pinGLSymbol → 本函数，level0/1 分别落在
+/// pinGLSymbol / hooked_dlsym 内部（恒为启动器自身镜像），真正的发起方
+/// 在 level2——旧实现查 level1 恒不等于 tinygl4angle，钉扎对 tinygl4angle
+/// 自身 ame182_resolve 的兜底 dlsym(framework, gl*) 也生效（其注释警告的
+/// "解析回自己 = 无限递归"防护形同虚设）。
 __attribute__((noinline))
 static BOOL ame202_callerIsTinygl(void) {
-    void *ame202_ra = __builtin_return_address(1);
+    void *ame202_ra = __builtin_return_address(2);
     Dl_info ame202_info;
     if (ame202_ra == NULL || dladdr(ame202_ra, &ame202_info) == 0) return NO;
     return ame202_info.dli_fname != NULL && strstr(ame202_info.dli_fname, "tinygl4angle") != NULL;
@@ -1931,6 +2460,7 @@ static void *ame202_eglGPA_wrapper(const char *procname) {
 ///   "[tinygl4angle] Task182 gles pin" = 劫持铁证，旧会话为零）。
 ///   修法：钉扎只在 AMETHYST_RENDERER == libtinygl4angle 的会话生效
 ///   （JavaLauncher 在 JVM 启动前 setenv，游戏会话全程正确）。
+__attribute__((noinline))   // ★ Task274-f r2（F6 硬化）：钉住栈帧——ame202_callerIsTinygl 的 __builtin_return_address(2) 依赖本函数保有独立帧（单调用点 static 函数在 -O2 下可能被内联，层级随优化器漂移；冷路径，不内联无性能代价）
 static void *ame202_pinGLSymbol(void *handle, const char *name) {
     if (name == NULL) return NULL;
     if (!(name[0] == 'g' && name[1] == 'l') && strncmp(name, "egl", 3) != 0) return NULL;
@@ -2151,7 +2681,7 @@ void init_hookFunctions() {
 //   路甲（本函数）：Java shutdown hook 起跑即写标记文件
 //     $POJAV_HOME/ame251_shutdown.marker（PatchSVC premain 注册，仅游戏
 //     会话 -Dame.game.session=1；hook 线程与挂死 hook 并发运行，标记必达）
-//     → 本看门狗线程 150ms 轮询命中 → fflush + _exit(0) 当场终结。
+//     → 本看门狗线程 150ms 轮询命中 → 2s 旗标等待窗（Task274-f F1，窗口耗尽旗标未现即兜底）→ fflush + _exit(0) 当场终结。
 //     覆盖面：shutdown hooks 挂死、DestroyJavaVM 挂死、任何 post-main 滞留。
 //   路乙（ame251_rebindJvmExitOnce）：libjvm 是 init_hookFunctions 之后
 //     才 dlopen 的 image，启动期 fishhook 从未覆盖它（sdl3_hook.m:2106
@@ -2188,8 +2718,63 @@ void ame251_armShutdownForceExitWatchdog(void) {
                 [[NSThread currentThread] setName:@"Ame251-ShutdownWatchdog"];
                 while (YES) {
                     if (access(ame251_markerPath, F_OK) == 0) {
-                        NSLog(@"[main_hook] Task251: shutdown marker detected -> immediate _exit(0) (JVM shutdown phase entered; no libc teardown window)");
-                        ame_write_fatal_trace("Task251: shutdown marker -> _exit(0) (post-main hang guard)");
+                        // ★ Task273（启动器闪退根治）：非零退出路径让路。
+                        //   旧行为：marker 一到立即 _exit(0)——PLCrashView 的
+                        //   dispatch_async(main) 呈现永远输给 150ms 轮询，HMCL 式
+                        //   崩溃分析从未有机会展示 = 用户视角"启动器直接闪退"
+                        //   （f71c88b 装机实锤）。新协议：hooked_exit(code!=0)
+                        //   已置 fatal-in-flight 旗标且崩溃报告已同步落盘 →
+                        //   让路 ≤8s 等崩溃界面上屏；上屏后再等用户读完（≤120s，
+                        //   用户点重启/退出按钮自行 exit(0) 走 hooked_exit(0)
+                        //   快速通道）。挂死防护语义不变：旗标未置位（shutdown
+                        //   hooks 挂死、libc exit 从未发生）→ 2s 旗标等待窗耗尽后 _exit(0)（Task274-f F1）。
+                        if (!atomic_load(&g_ame273_fatalExitInFlight)) {
+                            // ★ Task274-f（F1）：让路协议结构性竞态根修——ame251 标记由
+                            //   Java shutdown hook【起跑时】写入（PatchSVC premain 注册的
+                            //   hook 线程），而 fatal-in-flight 旗标要等【全部 hooks 跑完】
+                            //   经 halt0 → ::exit → hooked_exit(≠0) 才置位。旧实现首轮命中
+                            //   "标记已在、旗标未置"窗口（150ms）即 _exit(0)，把仍在运行的
+                            //   shutdown hooks 连同其后的 ame273_writeCrashReport 与
+                            //   PLCrashView 呈现一并抢杀——Task273 要根治的正是这条路径
+                            //   （让路协议对 System.exit(≠0) 主场景结构性失明）。
+                            //   窗口理由：旗标未置时不再立即 _exit，改 2s 窗口（100ms 间隔）
+                            //   轮询旗标——旗标出现 → 落入下方既有 8s 呈现/120s 阅读让路
+                            //   协议（崩溃报告已由 hooked_exit 同步落盘）；窗口耗尽旗标仍
+                            //   未来（shutdown hooks 真挂死）→ 走下方原 _exit(0) 兜底，挂死
+                            //   防护语义不变，仅生效点从 150ms 推迟到 ~2.15s（为 hooked_exit
+                            //   留出 hooks 收尾窗口的对价）。exit(0)/headless 路径旗标永不
+                            //   置位：正常退出由 hooked_exit(0) 的 _exit 先行终结，仅 hooks
+                            //   挂死时才多等 2s 后兜底。
+                            int ame274_flagWaited = 0;
+                            while (ame274_flagWaited < 20 && !atomic_load(&g_ame273_fatalExitInFlight)) {
+                                usleep(100 * 1000);
+                                ame274_flagWaited++;
+                            }
+                            if (!atomic_load(&g_ame273_fatalExitInFlight)) {
+                                NSLog(@"[main_hook] Task251: shutdown marker -> _exit(0) (flag still absent after 2s flag-wait window; post-main hang guard)");
+                                ame_write_fatal_trace("Task251: shutdown marker -> _exit(0) (post-main hang guard)");
+                                fflush(NULL);
+                                _exit(0);
+                            }
+                            NSLog(@"[main_hook] Task274-f: fatal exit flag appeared after %dms flag-wait -- entering crash-view grace protocol", ame274_flagWaited * 100);
+                        }
+                        NSLog(@"[main_hook] Task273: marker + fatal exit in flight -- crash-view grace window (max 8s, report already on disk)");
+                        int ame273_waited = 0;
+                        while (ame273_waited < 80 && !atomic_load(&g_ame273_crashViewPresented)) {
+                            usleep(100 * 1000);
+                            ame273_waited++;
+                        }
+                        if (atomic_load(&g_ame273_crashViewPresented)) {
+                            NSLog(@"[main_hook] Task273: crash view presented -- waiting user dismissal (max 120s; launcher buttons exit via hooked_exit(0) fast path)");
+                            int ame273_read = 0;
+                            while (ame273_read < 1200 && !atomic_load(&g_ame273_crashViewDismissed)) {
+                                usleep(100 * 1000);
+                                ame273_read++;
+                            }
+                        } else {
+                            NSLog(@"[Ame273] crash view did not present within 8s (log view unavailable?) -- report file covers next-launch dialog");
+                        }
+                        ame_write_fatal_trace("Task273: crash-view grace window elapsed -> _exit(0)");
                         fflush(NULL);
                         _exit(0);
                     }

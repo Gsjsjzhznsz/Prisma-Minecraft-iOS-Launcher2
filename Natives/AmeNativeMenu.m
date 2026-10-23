@@ -40,11 +40,47 @@
 //      自绘不依赖 iOS 26 能力，低版本同样可用。真液态玻璃档路由不变
 //      （Task245：启动器内系统原生直出 / Metal 面磨砂面板）。欢迎向导
 //      新增风格选择步骤（WelcomeViewController Task246，真实预览菜单直出）。
+//    - ★ Task266（IMG_0399 iPhone XS Max iOS 18.7.10 装机崩溃根修）：
+//      NSInternalInconsistencyException "The presentation controller of an
+//      alert controller presenting as an alert must not have its delegate
+//      modified"——iOS 18+ 起 UIKit 对【以 alert 形态呈现】的
+//      UIAlertController 禁止修改 presentationController.delegate；iPhone
+//      竖屏 compact 宽度下 actionSheet 同样解析为 alert 形态（私有
+//      _UIAlertControlleriOSPresentationController 自持 delegate 驱动
+//      popover→alert 自适应），三处赋值点（原生档直通/玻璃镜像失败兜底/
+//      双私有入口缺失 fallback）在 iPhone 上必崩（堆栈：presentMenu →
+//      presentStyleRoutedWithMenu → presentViaNativeSheet，设置页
+//      general.interface_style / JRE 管理选择即触发）。iPad regular 宽度
+//      popover 形态不受限（装机 iPadOS 27 实证零崩溃）。
+//      【Task266 定案：delegate 赋值按呈现形态门控】
+//      ① popover 形态（regular 宽度且非 iPhone）→ 保留赋值（自适应
+//         didDismiss 取消语义不变）+ @try 双护栏（未来 iOS 再收紧时降级
+//         而非崩溃）；
+//      ② alert 形态（compact / iPhone 一律）→ 不赋值，取消语义改由
+//         cancel 承载：字典协议含 cancel 项时物化为
+//         UIAlertActionStyleCancel（iOS 9+ 点按外部即触发其 handler，
+//         同 onDismiss 口径；iPhone 上多一行可见取消钮，可及性反而更佳）；
+//         无 cancel 项且 onDismiss 非 nil 时按现状降级（外部点按无回调，
+//         下次呈现自然覆盖 fallbackDismiss，无悬挂状态）。
 //    - handler 唯一合法来源 = 字典协议（公开 API）：UIAction/
 //      UIAlertAction.handler 均非公开属性，从已构建 UIMenu 反取在
 //      iOS 26.2 SDK 为编译错误（Task241 CI r1 :79 双雷实证），KVC
 //      反取属 Task239 炸弹家族禁忌。字典快照经呈现链 dictsForFallback:
 //      下传（37 处调用点全部走字典便捷入口）。
+//    - ★ Task282（用户："连点多下出现伪液态玻璃弹窗"第三轮定案）：真玻
+//      璃档启动器内路由的沉降窗改道撤收为【仅会话真实存活】——装机日志
+//      00:14:41-45 实锤连点重开全部落沉降窗 = 恒出磨砂面板（伪玻璃乱入
+//      本体）；连点重开窗内 presentMenu 的真实失败形态是可捕获异常
+//      （Task267 装机实锤），ame245_presentViaSystemMenu 新增 0.32s 单次
+//      原生快速重试消化之，连点全程真液态玻璃，磨砂面板仅剩会话内改道
+//      （Task273 病历本体）与真实静默丢弃兜底两处。
+//    - ★ Task283（用户："依旧多次伪弹窗"，28a08ac 装机日志 01:22:15-18
+//      实锤：语言选择器连点 5 次全部落【会话存活】分支 = 每次重 tap 都
+//      出磨砂伪玻璃面板——Task282 收窄后的残余本体）：会话存活分支不再
+//      直出玻璃面板，改 iOS16+ 公开 API dismissMenu 收掉活会话 → 0.45s
+//      后经 ame245 原生重开新请求（内建 0.32s 单次重试消化收尾动画窗
+//      口），连点全程真液态玻璃；dismissMenu 不可用/抛异常时保留即时
+//      玻璃面板接管作末级保底（不回归静默丢弃）。
 //
 
 #import "AmeNativeMenu.h"
@@ -66,6 +102,14 @@
 // 静态/实例上下文引用时避免 "no known class method"（Task240 CI r1
 // 同款错误家族）。
 + (instancetype)ame240_shared;
+// ★ Task266：ame240_actionSheetFallback（@implementation 之外的 static C
+//   函数）需调用形态门控助手——同 Task240 家族，前向声明提升为本文件可见。
++ (void)ame266_assignPresentationDelegateSafely:(UIAlertController *)alert
+                                           host:(UIViewController *)host;
++ (void)ame266_addCancelCarrierIfNeeded:(UIAlertController *)alert
+                                  dicts:(NSArray<NSDictionary *> *)dicts
+                              onDismiss:(void (^)(void))onDismiss
+                                   host:(UIViewController *)host;
 @end
 
 /// 动作已选中标记（主线程串行访问，无竞态面）。presentationControllerDidDismiss
@@ -77,6 +121,77 @@ static void (^ame240_fallbackDismiss)(void);
 ///   每次呈现前刷新——同一锚点重复呈现永远拿到最新菜单）。
 static char ame240_menuSnapshotKey;
 static char ame240_dismissKey;
+
+// ★ Task273：系统菜单重入/静默丢弃自愈状态机（装机 latestlog f71c88b
+//   实锤：用户在"版本隔离"选择器（系统原生菜单）里点"隔离此版本"，
+//   handler 内再呈现"迁移并开启"子菜单——同锚点同交互实例的 context
+//   menu 会话正在收尾，UIKit 把新的 presentMenu 静默丢弃（不崩不报，
+//   面板永不出现）——用户连点 10 次 route 日志 10 连发零呈现 =
+//   "无法切换回隔离"病灶本体。两层自愈：
+//   甲（重入改道）：菜单动作刚触发/会话未收尾的窗口内，玻璃档改走
+//     磨砂面板（UIAlertController 家族呈现不受 context menu 收尾
+//     影响——同机 alert #2/#3 在 handler 内呈现成功实锤）；
+//   乙（静默丢弃看门狗）：系统路由后 1.1s 内 delegate 未被询问（Task274-g 宽限
+//     延长 + 兜底前再探呈现迹象，慢设备 delegate 晚到不再双 UI）
+//     （configurationForMenuAtLocation 未回调 = 系统根本没开菜单）
+//     自动转磨砂面板/actionSheet 兜底，任何未来 iOS 版本再出现新
+//     丢弃形态也自动兜住（自适应恢复，用户铁律）。
+static CFAbsoluteTime ame273_lastMenuActionAt = 0;   ///< UIAction/UIAlertAction handler 最近触发时刻
+static BOOL ame273_systemMenuSessionActive = NO;     ///< 系统 context menu 会话进行中（delegate 已询问未收尾；读取时需过 5s 自过期门，Task274-g G3）
+static CFAbsoluteTime ame273_sessionStartAt = 0;     ///< 会话起点（Task274-g G3：5s 自过期依据 / G4：呈现迹象判断）
+static CFAbsoluteTime ame273_lastSessionEndAt = 0;   ///< 上一会话收尾时刻
+static CFAbsoluteTime ame273_presentRequestAt = 0;   ///< 最近一次系统路由请求时刻（Task274-g G4：兜底前再探基准）
+static BOOL ame273_systemMenuOpenExpected = NO;      ///< 已请求系统开菜单但 delegate 尚未确认
+static int ame273_openGeneration = 0;                ///< 呈现代次（防陈旧定时器误兜底）
+/// ★ Task283：活会话交互实例（delegate 询问时登记/didEnd 注销，weak 防
+///   悬垂——视图释放后自动落 nil，dismissMenu 不可用自然落玻璃面板保底）。
+static __weak UIContextMenuInteraction *ame283_liveSessionInteraction = nil;
+
+/// ★ Task284（"优化连点悬浮菜单延迟"）：dismissMenu 收口后的重开请求块——
+///   didEnd 完成回调前触发（沉降后即重开）+ 0.45s 后备定时器双通道；块内
+///   捕获代次，ame284_representFiredGen 防双火（早触发后后备定时器空转）。
+static dispatch_block_t ame284_pendingRepresent = nil;
+static int ame284_representFiredGen = 0;
+/// ★ Task285（"连点菜单延迟太高"根修）：armed 窗内最新请求参数容器——
+///   Task284 的 gen 顶替语义在连点序列下自吞：每次点击都 gen++ 作废上一
+///   armed 块再重新 dismiss+armed，菜单在连点期间永不落地（装机日志
+///   a94669c 12:03:46-58 连 12 次 dismissed/re-present armed 无一落地）。
+///   修后 armed 窗内后续连点只【更新容器参数】，不顶替不作废；armed 块
+///   触发时读容器 = "最后一次点击的菜单"开一次即达。容器生命周期 =
+///   armed 窗（≤0.45s），strong 持有源视图防中途释放（menu 打开期间
+///   cell/按钮必然存活，窗内窗口极短，无悬垂风险）。
+static UIMenu *ame285_pendingMenu = nil;
+static UIView *ame285_pendingSrc = nil;
+static NSArray *ame285_pendingDicts = nil;
+static void (^ame285_pendingOnDismiss)(void) = nil;
+/// ★ Task281：Task278 重试代次退役——延迟重试链整体移除后不存在并发链
+///   （见 ame242_presentStyleRoutedWithMenu 分轨注释）。
+
+/// ★ Task282（用户："连点多下出现伪液态玻璃弹窗"第三轮定案）：会话
+///   活性判定收窄——只有【系统 context menu 会话真实存活】（delegate
+///   已询问未收尾，5s 自过期门内）才认定"系统直出必被静默丢弃"（Task273
+///   病历本体 = 动作 handler 内再呈现，此刻 didEnd 未回调）。沉降窗两个
+///   子窗（动作后 1.2s / didEnd 后 0.6s）不再改道磨砂面板：连点重开窗
+///   内 presentMenu 的实际失败形态是【可捕获异常】（Task267 装机实锤
+///   = dismiss 动画未完成），不是静默丢弃——改走原生路由 + Task282
+///   0.32s 单次快速重试（见 ame245_presentViaSystemMenu），连点全程
+///   真液态玻璃，伪玻璃面板仅在真实静默丢弃时兜底。
+///   纯 C 函数（本文件内部消费，无需 ObjC 派发）。
+static BOOL ame273_systemMenuSessionLive(void) {
+    if (!ame273_systemMenuSessionActive) return NO;
+    // ★ Task274-g（G3）：5s 自过期——didEndMenuForConfiguration 一次不达
+    //   （UIKit 偶发不回调）不再永久粘滞（粘滞 = 此后所有系统菜单恒
+    //   改道磨砂面板直至重启）。超窗后按"会话已收尾"处理。
+    if (ame273_sessionStartAt <= 0) return NO;
+    return (CFAbsoluteTimeGetCurrent() - ame273_sessionStartAt) < 5.0;
+}
+
+/// Task273：静默丢弃看门狗（系统路由 1.1s 无 delegate 询问且无呈现迹象 → 兜底；Task274-g 宽限+再探）。
+/// 声明前置：实现在 ame245_presentViaSystemMenu 内联 dispatch_after。
+static void ame240_actionSheetFallback(UIContextMenuInteraction *ix,
+                                       UIMenu *menu,
+                                       NSArray<NSDictionary *> *dicts,
+                                       void (^onDismiss)(void));
 
 #pragma mark - 字典协议 → UIAlertAction 拍平
 
@@ -113,6 +228,7 @@ static void ame240_addDictItemsToAlert(NSArray<NSDictionary *> *items,
                                                 : UIAlertActionStyleDefault)
                     handler:^(UIAlertAction *ame241_ignored) {
                 ame240_actionFired = YES;
+                ame273_lastMenuActionAt = CFAbsoluteTimeGetCurrent(); // ★ Task273：重入窗口起点
                 if (ame241_handler) ame241_handler();
             }];
         ame241_aa.enabled = !ame241_disabled;
@@ -133,7 +249,15 @@ static BOOL ame240_openInteractionMenu(UIContextMenuInteraction *ix) {
         @try {
             [ix presentMenu];
             return YES;
-        } @catch (NSException *ame240_e) {}
+        } @catch (NSException *ame240_e) {
+            // ★ Task267（用户："液态玻璃档多擑几次会弹出伪液态玻璃"）：
+            //   异常路径必须留痕——连续快速触发时上一次菜单 dismiss 动画
+            //   未完成，presentMenu 会抛 UIKit 内部异常被 @catch 吩掉，
+            //   下游 fallback 落到磨砂面板 = 伪玻璃乱入。装机日志凭这行
+            //   直接定谳竞争窗口。
+            NSLog(@"[AmeNativeMenu] Task267: presentMenu exception: %@ (%@)",
+                  ame240_e.name, ame240_e.reason);
+        }
     }
     if ([ix respondsToSelector:@selector(_presentMenuAtLocation:)]) {
         UIView *ame240_v = ix.view;
@@ -143,7 +267,10 @@ static BOOL ame240_openInteractionMenu(UIContextMenuInteraction *ix) {
             @try {
                 [ix _presentMenuAtLocation:ame240_p];
                 return YES;
-            } @catch (NSException *ame240_e) {}
+            } @catch (NSException *ame240_e) {
+                NSLog(@"[AmeNativeMenu] Task267: _presentMenuAtLocation: exception: %@ (%@)",
+                      ame240_e.name, ame240_e.reason);
+            }
         }
     }
     NSLog(@"[AmeNativeMenu] Task245: neither presentMenu nor _presentMenuAtLocation: responded");
@@ -188,7 +315,10 @@ static void ame240_actionSheetFallback(UIContextMenuInteraction *ix,
     }
     for (UIAlertAction *ame245_aa in ame245_items) [ame245_alert addAction:ame245_aa];
 
-    if (LGCIsGlassStyleActive()) {
+    // ★ Task267：磨砂面板兜底收窄到伪玻璃档专属。真液态玻璃档系统菜单
+    //   呈现失败（连续触发竞争）时不再落入磨砂面板（用户观感 = "伪液态
+    //   玻璃乱入"），改直通 stock actionSheet（系统原生弹窗，观感同族）。
+    if (LGCIsPseudoGlassStyleActive()) {
         BOOL ame245_ok = [AmeFloatingMenu presentGlassMenuForAlert:ame245_alert
                                                      fromPresenter:ame245_host
                                                           animated:YES
@@ -200,7 +330,11 @@ static void ame240_actionSheetFallback(UIContextMenuInteraction *ix,
         }
     }
     ame240_fallbackDismiss = onDismiss;
-    ame245_alert.presentationController.delegate = [AmeNativeMenu ame240_shared];
+    // ★ Task266：iPhone compact 宽度下本呈现解析为 alert 形态——delegate
+    //   赋值即崩（iOS 18+）。popover 形态（iPad regular）保留赋值。
+    //   本函数为 @implementation 之外的 static C 函数（无 self），类名直调。
+    [AmeNativeMenu ame266_assignPresentationDelegateSafely:ame245_alert host:ame245_host];
+    [AmeNativeMenu ame266_addCancelCarrierIfNeeded:ame245_alert dicts:dicts onDismiss:onDismiss host:ame245_host];
     ame245_alert.popoverPresentationController.sourceView = ame245_anchor;
     ame245_alert.popoverPresentationController.sourceRect = ame245_anchor.bounds;
     ame245_alert.popoverPresentationController.permittedArrowDirections =
@@ -208,6 +342,7 @@ static void ame240_actionSheetFallback(UIContextMenuInteraction *ix,
     [ame245_host presentViewController:ame245_alert animated:YES completion:nil];
     NSLog(@"[AmeNativeMenu] Task245: system menu unavailable, stock actionSheet fallback");
 }
+
 
 #pragma mark - 呈现装配（Task242/245）
 
@@ -222,6 +357,66 @@ static void ame240_actionSheetFallback(UIContextMenuInteraction *ix,
         ame240_shared = [[AmeNativeMenu alloc] init];
     });
     return ame240_shared;
+}
+
+#pragma mark - Task266 呈现形态门控（iPhone alert 形态 delegate 崩溃根修）
+
+/// Task266：本次呈现是否解析为 popover 形态（唯一允许修改 presentation
+/// controller.delegate 的形态）。alert 形态（compact 宽度或 iPhone 任意
+/// 形态）下 UIKit 自持 delegate，外部赋值即 NSInternalInconsistencyException
+/// （iOS 18+ 实证崩，IMG_0399 iOS 18.7.10）。iPhone 即便 regular 宽度
+/// （Plus/Max 横屏）也保守跳过——presentViaNativeSheet 路径的 onDismiss
+/// 消费方（设置页选择项）传 nil，降级零损。
++ (BOOL)ame266_popoverPresentationCapableForHost:(UIViewController *)host {
+    if (host == nil) return NO;
+    if ([UIDevice currentDevice].userInterfaceIdiom == UIUserInterfaceIdiomPhone) return NO;
+    UITraitCollection *ame266_tc = host.view.window.traitCollection ?: host.traitCollection;
+    return (ame266_tc.horizontalSizeClass == UIUserInterfaceSizeClassRegular);
+}
+
+/// Task266：delegate 安全赋值（popover 形态才赋 + @try 双护栏）。非 popover
+/// 形态静默跳过（取消语义由 ame266 cancel 承载或按现状降级）。
++ (void)ame266_assignPresentationDelegateSafely:(UIAlertController *)alert
+                                          host:(UIViewController *)host {
+    if (alert == nil || host == nil) return;
+    if (![self ame266_popoverPresentationCapableForHost:host]) {
+        NSLog(@"[AmeNativeMenu] Task266: alert-style presentation (compact/iPhone) -- presentationController.delegate assignment skipped (iOS 18+ NSInternalInconsistencyException guard)");
+        return;
+    }
+    @try {
+        alert.presentationController.delegate = [self ame240_shared];
+    } @catch (NSException *ame266_e) {
+        NSLog(@"[AmeNativeMenu] Task266: delegate assignment rejected by UIKit (%@) -- continuing without didDismiss callback", ame266_e.name);
+    }
+}
+
+/// Task266：alert 形态下的取消语义承载——字典协议中的 cancel 项物化为
+/// 真正的 UIAlertActionStyleCancel（iOS 9+ 点按 actionSheet 外部即触发
+/// cancel handler，与 presentationControllerDidDismiss 同口径回调
+/// onDismiss；选中动作路径仍由 ame240_actionFired 幂等短路）。仅 alert
+/// 形态调用（popover 形态继续走 delegate didDismiss，不新增可见取消钮）。
++ (void)ame266_addCancelCarrierIfNeeded:(UIAlertController *)alert
+                                 dicts:(NSArray<NSDictionary *> *)dicts
+                             onDismiss:(void (^)(void))onDismiss
+                                  host:(UIViewController *)host {
+    if (alert == nil || onDismiss == nil || dicts.count == 0) return;
+    if ([self ame266_popoverPresentationCapableForHost:host]) return; // popover 形态：delegate 语义保留，不加重
+    for (NSDictionary *ame266_it in dicts) {
+        if (![ame266_it isKindOfClass:[NSDictionary class]]) continue;
+        if (![ame266_it[@"cancel"] boolValue]) continue;
+        NSString *ame266_title = ame266_it[@"title"];
+        if (![ame266_title isKindOfClass:[NSString class]] || ame266_title.length == 0) continue;
+        UIAlertAction *ame266_aa = [UIAlertAction
+            actionWithTitle:ame266_title
+                      style:UIAlertActionStyleCancel
+                    handler:^(UIAlertAction *ame266_ignored) {
+                ame240_actionFired = YES; // 选中取消 = 同口径短路 didDismiss（popover 复用场景）
+                onDismiss();
+            }];
+        [alert addAction:ame266_aa];
+        NSLog(@"[AmeNativeMenu] Task266: alert-style cancel carrier added (title=%@)", ame266_title);
+        return; // 只取第一个 cancel 项
+    }
 }
 
 #pragma mark - 装配私有方法
@@ -264,6 +459,7 @@ static void ame240_actionSheetFallback(UIContextMenuInteraction *ix,
 /// 语义由 adaptive delegate 承接）。
 + (void)ame242_presentViaGlassMenu:(UIAlertController *)alert
                               host:(UIViewController *)host
+                             dicts:(NSArray<NSDictionary *> *)dicts
                          onDismiss:(void (^)(void))onDismiss {
     BOOL ame242_ok = [AmeFloatingMenu presentGlassMenuForAlert:alert
                                                  fromPresenter:host
@@ -276,7 +472,9 @@ static void ame240_actionSheetFallback(UIContextMenuInteraction *ix,
     }
     NSLog(@"[AmeNativeMenu] Task242: glass mirror failed, router passthrough");
     ame240_fallbackDismiss = onDismiss;
-    alert.presentationController.delegate = [self ame240_shared];
+    // ★ Task266：同 ame242_presentViaNativeSheet——形态门控 + cancel 承载。
+    [self ame266_assignPresentationDelegateSafely:alert host:host];
+    [self ame266_addCancelCarrierIfNeeded:alert dicts:dicts onDismiss:onDismiss host:host];
     [host presentViewController:alert animated:YES completion:nil];
 }
 
@@ -287,9 +485,16 @@ static void ame240_actionSheetFallback(UIContextMenuInteraction *ix,
 + (void)ame242_presentViaNativeSheet:(UIAlertController *)alert
                                 view:(UIView *)anchor
                                 host:(UIViewController *)host
+                               dicts:(NSArray<NSDictionary *> *)dicts
                            onDismiss:(void (^)(void))onDismiss {
     ame240_fallbackDismiss = onDismiss;
-    alert.presentationController.delegate = [self ame240_shared];
+    // ★ Task266（IMG_0399 崩溃点）：iPhone compact 宽度下 actionSheet 解析为
+    //   alert 形态——此处直赋 delegate 即 NSInternalInconsistencyException
+    //   （用户堆栈 presentMenu→presentStyleRoutedWithMenu→presentViaNativeSheet
+    //   正是本方法）。改为形态门控赋值（仅 iPad popover）+ alert 形态取消
+    //   语义由 cancel 项承载。
+    [self ame266_assignPresentationDelegateSafely:alert host:host];
+    [self ame266_addCancelCarrierIfNeeded:alert dicts:dicts onDismiss:onDismiss host:host];
     // iPad 必须 popover 锚定（不设 sourceView 直接崩）；iPhone 忽略。
     alert.popoverPresentationController.sourceView = anchor;
     alert.popoverPresentationController.sourceRect = anchor.bounds;
@@ -340,12 +545,65 @@ static void ame240_actionSheetFallback(UIContextMenuInteraction *ix,
     objc_setAssociatedObject(ame245_ix, &ame240_dismissKey, onDismiss,
                              OBJC_ASSOCIATION_RETAIN_NONATOMIC);
     NSLog(@"[AmeNativeMenu] Task245: system menu route (native liquid glass, IMG_0370)");
+    // ★ Task273：静默丢弃自愈看门狗——presentMenu 调用成功不代表菜单真的
+    //   开了（前一会话收尾窗口内 UIKit 静默丢弃，无异常无回调）。delegate
+    //   configurationForMenuAtLocation 被询问 = 菜单真开了（清除标记）；
+    //   1.1s 后仍悬挂且无呈现迹象 = 确认丢弃 → 自动转磨砂面板/actionSheet 兜底
+    //   （ame240_actionSheetFallback 内建玻璃档磨砂面板主路径 + popover
+    //   锚定直通兜底，自适应恢复零人工）。代次计数防陈旧定时器误兜底。
+    //   ★ Task274-g（G4）：宽限 0.7s→1.1s（慢设备 delegate 晚到留头寸）+
+    //   兜底前再探呈现迹象（sessionStartAt 晚于本次请求 = delegate
+    //   刚被询问 = 菜单在开）——context menu 不走 VC 呈现链
+    //   （presentedViewController 守卫拦不住），只能以 delegate 会话状态为准；
+    //   否则磨砂面板先出、系统菜单随后照开 = 双 UI。
+    ame273_openGeneration++;
+    int ame273_myGen = ame273_openGeneration;
+    ame273_systemMenuOpenExpected = YES;
+    ame273_presentRequestAt = CFAbsoluteTimeGetCurrent();
+    UIMenu *ame273_menu = menu;
+    dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(1.1 * NSEC_PER_SEC)),
+                   dispatch_get_main_queue(), ^{
+        BOOL ame273_menuDidStartOpening =
+            (ame273_sessionStartAt > ame273_presentRequestAt);
+        if (ame273_myGen == ame273_openGeneration && ame273_systemMenuOpenExpected &&
+            !ame273_menuDidStartOpening) {
+            ame273_systemMenuOpenExpected = NO;
+            ame273_lastSessionEndAt = CFAbsoluteTimeGetCurrent();
+            NSLog(@"[AmeNativeMenu] Task273: system menu silent-drop confirmed (1.1s no delegate query) -- glass panel fallback (self-heal)");
+            ame240_actionSheetFallback(ame245_ix, ame273_menu, dicts, onDismiss);
+        }
+    });
     if (!ame240_openInteractionMenu(ame245_ix)) {
-        ame240_actionSheetFallback(ame245_ix, menu, dicts, onDismiss);
+        // ★ Task282（"连点多下出现伪液态玻璃弹窗"根修）：openInteractionMenu
+        //   返回 NO 的主体形态是双入口【抛异常】（Task267 装机实锤：上一
+        //   次菜单 dismiss 动画未完成时 presentMenu 抛 UIKit 内部异常，可
+        //   捕获）——不等于双入口缺失。旧实现立即落 fallback（磨砂面板/
+        //   stock sheet）= 连点重开恒出伪玻璃乱入。改：单次 0.32s 原生
+        //   重试（dismiss 动画时长量级）后仍失败才落 fallback；重试期间
+        //   看门狗语义保留（presentRequestAt 刷新，不会提前误兜底）。代次
+        //   防陈旧重试与新请求互踩；双入口真缺失（理论路径）多付 0.32s
+        //   换连点真玻璃，可接受。
+        ame273_systemMenuOpenExpected = NO;
+        int ame282_gen = ame273_openGeneration;
+        NSLog(@"[AmeNativeMenu] Task282: presentMenu rejected (dismiss window?) -- single native retry in 0.32s");
+        dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.32 * NSEC_PER_SEC)),
+                       dispatch_get_main_queue(), ^{
+            if (ame282_gen != ame273_openGeneration) return; // 已被新请求取代
+            if (ame240_openInteractionMenu(ame245_ix)) {
+                ame273_systemMenuOpenExpected = YES; // 重试已上路，看门狗继续值守
+                ame273_presentRequestAt = CFAbsoluteTimeGetCurrent();
+                NSLog(@"[AmeNativeMenu] Task282: native retry accepted -- real liquid glass on rapid re-tap");
+                return;
+            }
+            NSLog(@"[AmeNativeMenu] Task282: native retry rejected -- fallback");
+            ame240_actionSheetFallback(ame245_ix, menu, dicts, onDismiss);
+        });
     }
 }
 
 /// Task242/245 分轨调度：host/alert 装配 → 按界面风格与锚点域选择呈现路径。
+/// ★ Task281：Task278 外壳/代次与 ame278_retries 重试变体退役——延迟重试
+///   链移除后不再存在并发重试链，单一入口直达分轨（历史病灶见分轨注释）。
 + (void)ame242_presentStyleRoutedWithMenu:(UIMenu *)menu
                                sourceView:(UIView *)sourceView
                                     dicts:(NSArray<NSDictionary *> *)dicts
@@ -353,11 +611,37 @@ static void ame240_actionSheetFallback(UIContextMenuInteraction *ix,
     UIViewController *ame242_host = [self ame242_hostViewControllerForView:sourceView];
     UIAlertController *ame242_alert = [self ame242_actionSheetFromDicts:dicts
                                                               menuTitle:menu.title];
-    if (ame242_host == nil || ame242_alert == nil ||
-        ame242_host.presentedViewController != nil) {
-        NSLog(@"[AmeNativeMenu] Task242: presentation unavailable (host=%@ alert=%@), treated as cancel",
+    // ★ Task271（271-b D4）：host 已有呈现时沿链上溯到顶端，而非静默取消——
+    //   旧实现 host.presentedViewController != nil 一律 "treated as cancel"：
+    //   页面上残留任何面板/弹层（上一次菜单收尾中、toast 呈现中）时用户点
+    //   选择器毫无反应（"无法切换回隔离"观感的另一来源）。上溯到呈现链顶端
+    //   呈现即可；顶端正在收尾（isBeingDismissed）→ 0.4s 后单次重试。
+    NSInteger ame271_walk = 0;
+    while (ame242_host.presentedViewController != nil &&
+           !ame242_host.presentedViewController.isBeingDismissed && ame271_walk < 8) {
+        ame242_host = ame242_host.presentedViewController;
+        ame271_walk++;
+    }
+    if (ame242_host == nil || ame242_alert == nil) {
+        NSLog(@"[AmeNativeMenu] Task271: presentation unavailable (host=%@ alert=%@), treated as cancel",
               ame242_host, ame242_alert);
         if (onDismiss) onDismiss();
+        return;
+    }
+    if (ame242_host.presentedViewController != nil) {
+        // 顶端正在收尾（walk=0 即首个子层就在收尾）：单次延迟重试（0.4s 后重走全流程）
+        NSLog(@"[AmeNativeMenu] Task271: top presenter dismissing, single retry in 0.4s");
+        void (^ame271_onDismiss)(void) = onDismiss;
+        UIView *ame271_src = sourceView;
+        UIMenu *ame271_menu = menu;
+        NSArray *ame271_dicts = dicts;
+        dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.4 * NSEC_PER_SEC)),
+                       dispatch_get_main_queue(), ^{
+            [self ame242_presentStyleRoutedWithMenu:ame271_menu
+                                         sourceView:ame271_src
+                                              dicts:ame271_dicts
+                                          onDismiss:ame271_onDismiss];
+        });
         return;
     }
     ame240_actionFired = NO; // 本轮会话开始，重新计数
@@ -368,12 +652,111 @@ static void ame240_actionSheetFallback(UIContextMenuInteraction *ix,
             //   菜单——用户指令把魔改玻璃升格为独立风格档）；真液态玻璃档下
             //   仅 Metal 游戏面保持磨砂面板（系统上下文菜单磨砂在 Metal 上
             //   不合成，Task228/230/236 三轮装机实锤同族）。
+            NSLog(@"[AmeNativeMenu] Task246/245: glass panel route (pseudo=%d inGame=%d)",
+                  (int)LGCIsPseudoGlassStyleActive(),
+                  (int)[self ame245_anchorInsideGameSurface:sourceView]);
             [self ame242_presentViaGlassMenu:ame242_alert
                                         host:ame242_host
+                                       dicts:dicts
                                    onDismiss:onDismiss];
+        } else if (ame273_systemMenuSessionLive()) {
+            // ★ Task281/282 历史：仅【系统菜单会话真实存活】（delegate 已
+            //   询问未收尾）→ 玻璃面板接管（Task281 引入；Task282 撤收沉降
+            //   窗全口径后仅剩本支）。
+            // ★ Task283（用户"依旧多次伪弹窗"根修，28a08ac 装机日志
+            //   01:22:15-18 实锤：语言选择器连点 5 次全部落本分支 = 会话存
+            //   活内每次重 tap 都新出一块磨砂伪玻璃面板——Task282 收窄后的
+            //   残余本体）：本支不再直出玻璃面板。改 iOS16+ 公开 API
+            //   dismissMenu 收掉活会话（didEnd 随 dismissal 回调复位会话态，
+            //   ame283_liveSessionInteraction 于 configurationForMenuAtLocation
+            //   登记/didEnd 注销）→ 0.45s（dismiss 动画量级）后经 ame245
+            //   原生重开新请求——ame245 内建 0.32s 单次重试消化收尾动画窗
+            //   口，Task273 看门狗继续兜底极端静默丢弃 → 连点全程真液态
+            //   玻璃。dismissMenu 不可用/抛异常（iOS<16/运行时缺失）→ 保
+            //   底即时玻璃面板接管（Task281 观感，不回归静默丢弃）。
+            //   代次先行推进：0.45s 等待窗内更晚请求会 gen++ 顶替本块（连
+            //   点不排队，只保最新一次重开）；ame273_presentRequestAt 同步
+            //   刷新保看门狗语义连续。
+            //   ★ Task284（延迟优化）：上述固定 0.45s 拆双通道——主通道 =
+            //   didEndMenuForConfiguration 收尾完成回调前触发（沉降后即重
+            //   开，较固定 0.45s 提前 ~0.2-0.3s，连点重开即点即达）；后备
+            //   定时器降级为 0.45s 极端兑底（didEnd 未达时才生效）；
+            //   ame284_representFiredGen 同代次只放行一次防双火。
+            //   ★ Task285（"连点菜单延迟太高"根修）：armed 窗内后续连点
+            //   【合并】而非【顶替】——下方入口先查 ame284_pendingRepresent
+            //   存活即更新容器参数直接 return（不 dismissMenu 不 gen++），
+            //   armed 块触发时读容器 = 最后一次点击的菜单开一次；连点序列
+            //   从"开 N-1 次×关 N-1 次"变"只开 1 次（最新）"，全程零吞并。
+            UIContextMenuInteraction *ame283_live = ame283_liveSessionInteraction;
+            BOOL ame283_dismissed = NO;
+            // ★ Task285：armed 窗内连点合并——已有待重开请求在飞时，本请求
+            //   只刷新容器参数与看门狗时点，不再 dismissMenu/gen++ 顶替
+            //   （连点不互相作废，菜单最终一次开最新内容）。
+            if (ame284_pendingRepresent != nil) {
+                ame285_pendingMenu = menu;
+                ame285_pendingSrc = sourceView;
+                ame285_pendingDicts = dicts;
+                ame285_pendingOnDismiss = onDismiss;
+                ame273_presentRequestAt = CFAbsoluteTimeGetCurrent();
+                NSLog(@"[AmeNativeMenu] Task285: rapid re-tap coalesced into armed request (no dismiss/re-arm)");
+                return;
+            }
+            if (ame283_live != nil && [ame283_live respondsToSelector:@selector(dismissMenu)]) {
+                @try {
+                    [ame283_live dismissMenu];
+                    ame283_dismissed = YES;
+                    NSLog(@"[AmeNativeMenu] Task283/284: live session dismissed via dismissMenu -- re-present armed (didEnd-early + 0.45s backstop)");
+                } @catch (NSException *ame283_e) {
+                    NSLog(@"[AmeNativeMenu] Task283: dismissMenu exception (%@) -- glass panel fallback", ame283_e.name);
+                }
+            }
+            if (ame283_dismissed) {
+                ame273_openGeneration++;
+                int ame283_gen = ame273_openGeneration;
+                ame273_presentRequestAt = CFAbsoluteTimeGetCurrent();
+                // ★ Task285：参数入容器（armed 块触发时读最新值）
+                ame285_pendingMenu = menu;
+                ame285_pendingSrc = sourceView;
+                ame285_pendingDicts = dicts;
+                ame285_pendingOnDismiss = onDismiss;
+                dispatch_block_t ame284_represent = ^{
+                    if (ame283_gen != ame273_openGeneration) return; // 已被更新请求取代
+                    if (ame284_representFiredGen == ame283_gen) return; // didEnd 早触发已完成
+                    ame284_representFiredGen = ame283_gen;
+                    ame284_pendingRepresent = nil;
+                    // ★ Task285：读容器最新参数（armed 窗内后续连点合并的终点）
+                    UIMenu *ame285_menu = ame285_pendingMenu ?: menu;
+                    UIView *ame285_src = ame285_pendingSrc ?: sourceView;
+                    NSArray *ame285_dicts = ame285_pendingDicts ?: dicts;
+                    void (^ame285_onDismiss)(void) = ame285_pendingOnDismiss ?: onDismiss;
+                    ame285_pendingMenu = nil;
+                    ame285_pendingSrc = nil;
+                    ame285_pendingDicts = nil;
+                    ame285_pendingOnDismiss = nil;
+                    NSLog(@"[AmeNativeMenu] Task285: armed re-present fired (gen=%d) -- opening latest coalesced menu", ame283_gen);
+                    [self ame245_presentViaSystemMenu:ame285_menu
+                                           sourceView:ame285_src
+                                                dicts:ame285_dicts
+                                           onDismiss:ame285_onDismiss];
+                };
+                ame284_pendingRepresent = [ame284_represent copy];
+                dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.45 * NSEC_PER_SEC)),
+                               dispatch_get_main_queue(), ame284_represent);
+            } else {
+                NSLog(@"[AmeNativeMenu] Task283: dismissMenu unavailable (live=%@) -- instant glass-panel takeover (legacy fallback)",
+                      ame283_live != nil ? @"nil" : @"no-sel");
+                [self ame242_presentViaGlassMenu:ame242_alert
+                                            host:ame242_host
+                                           dicts:dicts
+                                       onDismiss:onDismiss];
+            }
         } else {
             // ★ Task245（IMG_0380 用户定案）：真液态玻璃档启动器内选择菜单 =
             //   系统原生液态玻璃直出；磨砂面板退役到输入类弹窗专属。
+            //   ★ Task282：沉降窗两子窗（didEnd 后 0.6s / 动作后 1.2s）并
+            //   入本支——dismiss 动画窗口内的 presentMenu 异常由
+            //   ame245_presentViaSystemMenu 的 0.32s 单次原生重试消化，
+            //   连点重开零伪玻璃乱入（Task281 用户定案保序）。
             [self ame245_presentViaSystemMenu:menu
                                    sourceView:sourceView
                                         dicts:dicts
@@ -383,8 +766,37 @@ static void ame240_actionSheetFallback(UIContextMenuInteraction *ix,
         [self ame242_presentViaNativeSheet:ame242_alert
                                       view:sourceView
                                       host:ame242_host
+                                     dicts:dicts
                                  onDismiss:onDismiss];
     }
+}
+
+/// ★ Task281：玻璃档系统弹窗呈现路由——未经中央路由的直呈 UIAlertController
+///   （JIT 等待/重挂/超时重试族）在玻璃风格下此前恒为旧式原生外观（用户
+///   2026-10-17："等待 jit 变成了原生，而不是伪液态玻璃"——系统玻璃在不
+///   支持呈现的弹窗类/场景上不可用，而玻璃档此前没有伪玻璃兜底层，直接
+///   裸奔旧式原生）。本助手按界面风格分轨：玻璃档（真液态玻璃 + 伪玻璃）
+///   → 磨砂玻璃面板镜像接管（Task237 组件；Task275 dismiss 镜像保证后续
+///   代码对源 alert 的 dismissViewControllerAnimated 仍能收掉面板）；镜像
+///   拒收（原生档/host 忙/动作 KVC 镜像失败）→ 保持原生直呈零变化。
+///   animated:NO 契约保留（Task223：后台转场瞬间的动画 present 是主线程
+///   楔死头号嫌疑类——JIT 等待弹窗恰在该窗口内呈现）。
++ (void)ame281_presentSystemAlert:(UIAlertController *)alert
+                         fromHost:(UIViewController *)host {
+    if (alert == nil || host == nil) return;
+    if (LGCIsGlassStyleActive()) {
+        BOOL ok = [AmeFloatingMenu presentGlassMenuForAlert:alert
+                                              fromPresenter:host
+                                                   animated:NO
+                                                 completion:nil];
+        if (ok) {
+            NSLog(@"[AmeNativeMenu] Task281: system alert mirrored to glass panel (title=%@)",
+                  alert.title ?: @"");
+            return;
+        }
+        NSLog(@"[AmeNativeMenu] Task281: glass mirror declined -- native passthrough");
+    }
+    [host presentViewController:alert animated:NO completion:nil];
 }
 
 #pragma mark - Public
@@ -410,8 +822,12 @@ static void ame240_actionSheetFallback(UIContextMenuInteraction *ix,
                 sourceView:(UIView *)sourceView
                   onDismiss:(void (^)(void))onDismiss
           dictsForFallback:(NSArray<NSDictionary *> *)dicts {
-    if (menu == nil || sourceView == nil) return;
-    if (menu.children.count == 0) return; // 空菜单（全部项被丢弃）不呈现
+    // ★ Task268（scan-a #5）：早退分支统一取消语义——nil 锚点/空菜单静默
+    //   return 不回调 onDismiss，依赖 onDismiss 复位的调用方悬挂。
+    if (menu == nil || sourceView == nil || menu.children.count == 0) {
+        if (onDismiss) onDismiss();
+        return;
+    }
     if (@available(iOS 14.0, *)) {
         // 视图尚未进窗口时防御性回退一跑循环（同帧刚构建的锚点可能
         // 尚未 layout；下帧 responder 链与 window 均就绪）。
@@ -470,6 +886,7 @@ static void ame240_actionSheetFallback(UIContextMenuInteraction *ix,
                  identifier:nil
                     handler:^(__kindof UIAction *ame240_a) {
                 ame240_actionFired = YES;
+                ame273_lastMenuActionAt = CFAbsoluteTimeGetCurrent(); // ★ Task273：重入窗口起点
                 if (ame240_handler) ame240_handler();
             }];
         if ([ame240_it[@"destructive"] boolValue]) {
@@ -510,6 +927,11 @@ static void ame240_actionSheetFallback(UIContextMenuInteraction *ix,
     UIMenu *ame240_menu = objc_getAssociatedObject(interaction, &ame240_menuSnapshotKey);
     if (ame240_menu == nil) return nil;
     ame240_actionFired = NO; // 本轮会话开始，重新计数
+    // ★ Task273：delegate 被询问 = 系统真在开菜单——撤销静默丢弃看门狗。
+    ame273_systemMenuOpenExpected = NO;
+    ame273_systemMenuSessionActive = YES;
+    ame273_sessionStartAt = CFAbsoluteTimeGetCurrent(); // ★ Task274-g（G3/G4）：会话起点（5s 自过期 + 呈现迹象）
+    ame283_liveSessionInteraction = interaction;        // ★ Task283：活会话实例登记（dismissMenu 收口用）
     return [UIContextMenuConfiguration
         configurationWithIdentifier:nil
                      previewProvider:nil
@@ -525,6 +947,23 @@ static void ame240_actionSheetFallback(UIContextMenuInteraction *ix,
     didEndMenuForConfiguration:(UIContextMenuConfiguration *)configuration
                        animator:(nullable id<UIContextMenuInteractionAnimating>)animator {
     void (^ame240_onDismiss)(void) = objc_getAssociatedObject(interaction, &ame240_dismissKey);
+    // ★ Task273：会话收尾——重入窗口口径之一（0.6s 内再呈现系统菜单仍会
+    //   被丢，玻璃档改道；之后自然恢复系统原生路由）。
+    ame273_systemMenuSessionActive = NO;
+    ame273_lastSessionEndAt = CFAbsoluteTimeGetCurrent();
+    if (ame283_liveSessionInteraction == interaction) {
+        ame283_liveSessionInteraction = nil;            // ★ Task283：会话收尾注销
+    }
+    // ★ Task284：会话收尾 = dismissal 完成回调 → 待重开请求主通道前触发
+    //   （didEnd 本身即收尾动画完成后的回调，无需再沉降——★ Task285：
+    //   0.12s 沉降降到下一 runloop 即发，present 若撞收尾残帧由 ame245
+    //   的 0.32s 单次原生重试兜底，比白等 0.12s 更快且不劣化）；
+    //   无待重开请求（正常选中/外部点按收尾）零成本直落。
+    if (ame284_pendingRepresent != nil) {
+        dispatch_block_t ame284_early = ame284_pendingRepresent;
+        ame284_pendingRepresent = nil;
+        dispatch_async(dispatch_get_main_queue(), ame284_early);
+    }
     if (!ame240_actionFired && ame240_onDismiss) {
         ame240_onDismiss();
     }

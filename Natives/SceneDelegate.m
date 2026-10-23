@@ -5,11 +5,14 @@
 #import "BackgroundManager.h"
 #import "BingWallpaperManager.h" // Task151
 #import "WelcomeViewController.h" // Task218：首次使用欢迎向导
+#import "RegionGate.h" // Task312：服务地区门（明面不对大陆开放，3 次提示后放行）
 // ★ [MP-RESTORE] Task222：Terracotta 联机恢复（上游同日恢复）
 #import "TerracottaManager.h"
 #import "TerracottaBridge.h"
 #import "AmeTheme.h"   // ★ 7.0-UI-5b：Fluent 设计令牌（颜色/字体单一事实源）
 #import "ZL2ShellViewController.h" // ★ 7.0-UI-8：ZL2 对标新壳（Material 3 NavigationRail）
+#import "ModpackImportService.h" // Task269：升级自动迁移（一实例多文件夹历史遗留合并）
+#import "ModService.h"           // ★ Task271：启动自愈 ame271_selfHealStrandedIsolation
 
 extern __weak UIWindow *mainWindow;
 
@@ -40,6 +43,14 @@ extern BOOL Amethyst_EnforceSDL3Presentation(void);
         extern void uncaughtExceptionHandler(NSException *exception);
         NSSetUncaughtExceptionHandler(&uncaughtExceptionHandler);
         NSLog(@"[SceneDelegate] Task191: uncaught-exception handler re-armed at willConnect");
+        // Task269：升级自动迁移——"一实例多文件夹"历史遗留（重名序号实例家族）
+        // 启动即合并（幂等自愈：无重复实例时空转零 IO；导入进行中自动让路；
+        // 冲突文件一律进 .ame269_backup 备份绝不丢失；选中实例被合并自动切 canonical）。
+        [ModpackImportService ame269_migrateDuplicateModpackInstancesIfNeeded];
+        // ★ Task271（271-a F2 自适应恢复）：隔离自愈——gameDir 缺失/"." 但
+        //   versions/<id>/ 下已有真实隔离数据的 profile，注册表落定为隔离
+        //   （幂等保守：已显式配置绝不碰，无数据零 IO 空转）。
+        [ModService ame271_selfHealStrandedIsolation];
         // Task192：定时复挂（LC 覆盖战争的终局方案）。
         // 病历（956ea9b latestlog.1）：willConnect 点的 re-arm 日志在场，
         // 但 insertObject nil 崩溃仍走系统默认裸地址输出——证明 LC 在
@@ -109,9 +120,31 @@ extern BOOL Amethyst_EnforceSDL3Presentation(void);
     // Task218：首次使用欢迎向导（general.welcome_completed 哨兵，默认 NO）。
     // 延迟 0.8s 让主界面先完成首帧布局，再全屏淡入向导（语言 / 下载源 /
     // 数据导入三步引导 + 动效）。完成或跳过即置 YES，此后不再打扰。
+    // Task312：服务地区门前置——0.8s 到点先跑地区门（明面不对大陆开放，
+    // 多角度检测 + 3 次确认后放行），未命中/已放行同步直通 completion，
+    // 命中则弹窗链走完才放向导（门必须在向导之前，保证声明必达）。
     dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.8 * NSEC_PER_SEC)),
                    dispatch_get_main_queue(), ^{
-        [WelcomeViewController presentIfNeededFromViewController:rootVC];
+        [RegionGate runGateFromViewController:rootVC completion:^{
+            [WelcomeViewController presentIfNeededFromViewController:rootVC];
+        }];
+    });
+
+    // ★ Task273（PCL CE 式崩溃分析第二层）：上次会话非零退出的崩溃原因
+    //   报告补弹——ame273_writeCrashReport 在闪退前已同步落盘
+    //   ame273_crash_report.txt（确定性层），此处冷启动检出后玻璃弹窗
+    //   给出崩溃类别/关键原因/修复建议/详情（main_hook 会话内让路窗口
+    //   未能展示 PLCrashView 时的必达兜底；消费后归档不重复打扰）。
+    //   延迟 2.5s：避开欢迎向导 0.8s 呈现窗口 + 主界面首帧布局（方法内
+    //   另有沿链上溯，双保险）。
+    dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(2.5 * NSEC_PER_SEC)),
+                   dispatch_get_main_queue(), ^{
+        // ★ Task306：SIGKILL 级会话死亡感知——app 冷启动即感知上次会话
+        //   残留 marker（未走退出钩子即消失），无 ame273 正式报告时现场
+        //   铸 SIGKILL 疑似报告，随后既有补弹链一并呈现（点启动路径由
+        //   ame306_beginGameSessionMarker 内部先行感知，双入口全覆盖）。
+        ame306_consumeStaleGameSessionMarker();
+        [self ame273_presentPendingCrashReportFrom:rootVC];
     });
 
     // 外观模式（浅色/深色/跟随系统）：读 general.ui_theme 偏好。
@@ -421,6 +454,34 @@ static void AmeFGLogSwapStats(NSString *phase) {
     CGRect sb = scene.coordinateSpace.bounds;
     if (sb.size.width <= 0 || sb.size.height <= 0) return;
 
+    // ★ Task281（"小窗还是漂移"垫片侧 hazard 根除）：本垫片的全部数学以
+    //   "窗口 = 整个场景"为前提（window.frame=sb / bounds 换成整屏口径 /
+    //   center=屏心）。iPadOS 26+ 自由窗口模式下窗口只是场景的一个子矩
+    //   形——而窗口模式的界面方向由系统接管（Task188 geometry 请求被拒
+    //   正是该机制），scene.coordinateSpace.bounds 完全可以是竖向（设备
+    //   竖持/FaceUp 时）：此时 portraitWindow 判定按【场景】口径成立，垫
+    //   片给小窗执行 ±90° 旋转 + bounds 换整屏 + center 挪屏心 = 内容被
+    //   旋出窗口矩形并按整屏口径排版 = 用户看到的"小窗漂移"（前五轮全
+    //   部修在输入映射/信念侧，视觉侧的窗口 transform 从未被动过 = "完
+    //   全没有影响"）。窗口模式下系统自管方向呈现，垫片整体禁入；若
+    //   全屏期已挂 transform 后进窗，就地复位（bbox = 系统给的窗口矩形）。
+    CGSize ame281_wsz = self.window.frame.size;
+    BOOL ame281_windowed =
+        (fabs(ame281_wsz.width - sb.size.width) > 0.5) ||
+        (fabs(ame281_wsz.height - sb.size.height) > 0.5) ||
+        (fabs(self.window.frame.origin.x) > 0.5) ||
+        (fabs(self.window.frame.origin.y) > 0.5);
+    if (ame281_windowed) {
+        if (!CGAffineTransformIsIdentity(self.window.transform)) {
+            CGRect ame281_bbox = self.window.frame;   // 变换下 bbox = 系统窗口矩形
+            self.window.transform = CGAffineTransformIdentity;
+            self.window.frame = ame281_bbox;          // bounds/center 一并复位
+            NSLog(@"[SceneDelegate] Task281: windowed scene -- rotation shim disengaged, stale transform reset (frame=%@)",
+                  NSStringFromCGRect(ame281_bbox));
+        }
+        return;
+    }
+
     UIDeviceOrientation dev = [UIDevice currentDevice].orientation;
 
     // 仅在"明显竖向"的窗口旋转（1.02 死区：近方形窗口旋转无收益反而扰动）
@@ -502,6 +563,170 @@ static void AmeFGLogSwapStats(NSString *phase) {
     dispatch_async(dispatch_get_main_queue(), ^{
         [weakSelf ame189_applyLandscapeWindowTransform];
     });
+}
+
+#pragma mark - Task273：PCL CE 式崩溃分析下次启动补弹
+
+/// ★ Task274-g（G6）：等呈现链上"收尾中"层走完再呈现。alert 动作 handler
+/// 触发时本 alert 正在收尾——此刻直接 present 会撞
+/// presentation-in-progress（疑似首点无响应）。遍历时跳过
+/// 正在收尾（isBeingDismissed）的顶层；顶端仍在收尾→ 0.4s 单次重试
+/// （Task271 D4 同款口径）；ame274_depth 防重试递归失控。
+static void ame274_presentAfterSettling(UIViewController *presenter, UIViewController *target, int ame274_depth) {
+    UIViewController *ame274_host = presenter;
+    NSInteger ame274_walk = 0;
+    while (ame274_host.presentedViewController != nil &&
+           !ame274_host.presentedViewController.isBeingDismissed && ame274_walk < 8) {
+        ame274_host = ame274_host.presentedViewController;
+        ame274_walk++;
+    }
+    if (ame274_host.presentedViewController != nil) {
+        if (ame274_depth <= 0) {
+            NSLog(@"[SceneDelegate] Task274: presentation still settling after retry, give up (view-full-log)");
+            return;
+        }
+        dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.4 * NSEC_PER_SEC)),
+                       dispatch_get_main_queue(), ^{
+            ame274_presentAfterSettling(presenter, target, ame274_depth - 1);
+        });
+        return;
+    }
+    [ame274_host presentViewController:target animated:YES completion:nil];
+}
+
+/// 读取 $POJAV_HOME/ame273_crash_report.txt（上次会话非零退出的崩溃原因，
+/// 由 main_hook ame273_writeCrashReport 在 hooked_exit 内同步落盘）→ 弹窗
+/// 展示"崩溃类别 + 关键原因行 + Fabric 修复建议 + 详情摘要"，动作：
+/// 复制原因 / 查看完整日志 / 知道了。呈现前即归档（改名 .last.txt），
+/// 呈现失败不重弹（用户可从完整日志自查；防无限打扰）。
+- (void)ame273_presentPendingCrashReportFrom:(UIViewController *)presenter {
+    @try {
+        if (presenter == nil) return;
+        NSString *home = [NSProcessInfo processInfo].environment[@"POJAV_HOME"];
+        if (home.length == 0) return;
+        NSString *path = [home stringByAppendingPathComponent:@"ame273_crash_report.txt"];
+        NSString *content = [NSString stringWithContentsOfFile:path
+                                                      encoding:NSUTF8StringEncoding error:nil];
+        if (content.length == 0) return;
+
+        // ---- 解析 key: value + detail 块 ----
+        NSString *exitCode = nil, *catCn = nil, *catEn = nil, *headline = nil, *fix = nil;
+        NSMutableArray<NSString *> *details = [NSMutableArray array];
+        BOOL inDetail = NO;
+        for (NSString *raw in [content componentsSeparatedByString:@"\n"]) {
+            NSString *line = raw;
+            while (line.length > 0 && ([line hasSuffix:@"\r"] || [line hasSuffix:@" "])) {
+                line = [line substringToIndex:line.length - 1];
+            }
+            if ([line isEqualToString:@"detail_begin"]) { inDetail = YES; continue; }
+            if ([line isEqualToString:@"detail_end"]) { inDetail = NO; continue; }
+            if (inDetail) { if (line.length > 0) [details addObject:line]; continue; }
+            NSRange eq = [line rangeOfString:@": "];
+            if (eq.location == NSNotFound || eq.location == 0) continue;
+            NSString *k = [line substringToIndex:eq.location];
+            NSString *v = [line substringFromIndex:NSMaxRange(eq)];
+            if ([k isEqualToString:@"exit_code"]) exitCode = v;
+            else if ([k isEqualToString:@"category_cn"]) catCn = v;
+            else if ([k isEqualToString:@"category_en"]) catEn = v;
+            else if ([k isEqualToString:@"headline"]) headline = v;
+            else if ([k isEqualToString:@"fix"]) fix = v;
+        }
+
+
+        // ---- 组装弹窗文案 ----
+        BOOL ame273_isZh = [[NSLocale preferredLanguages].firstObject.lowercaseString hasPrefix:@"zh"];
+        NSString *ame273_cat = ame273_isZh ? (catCn ?: catEn) : (catEn ?: catCn);
+        NSMutableString *msg = [NSMutableString string];
+        [msg appendFormat:@"[%@] exit %@\n\n", ame273_cat ?: @"?", exitCode ?: @"?"];
+        if (headline.length > 0) [msg appendString:[headline stringByAppendingString:@"\n"]];
+        if (fix.length > 0) [msg appendFormat:@"\n%@\n", fix];
+        NSUInteger ame273_detailMax = 10;
+        if (details.count > 0) {
+            [msg appendString:@"\n"];
+            for (NSUInteger i = 0; i < details.count && i < ame273_detailMax; i++) {
+                NSString *d = details[i];
+                if (d.length > 160) d = [[d substringToIndex:160] stringByAppendingString:@"…"];
+                [msg appendFormat:@"%@\n", d];
+            }
+            if (details.count > ame273_detailMax) {
+                [msg appendFormat:@"… (+%lu)\n", (unsigned long)(details.count - ame273_detailMax)];
+            }
+        }
+
+        UIAlertController *ame273_alert = [UIAlertController
+            alertControllerWithTitle:localize(@"ame273.crash.title", nil)
+                             message:msg
+                      preferredStyle:UIAlertControllerStyleAlert];
+        // ★ Task307：MoltenVK 定向自愈入口——headline 指向 libMoltenVK.dylib
+        // （MobileGL Vulkan 后端着色器管线初始化空指针崩溃，生成端 main_hook
+        // ame307 定向 fix 同源判据）时，追加"切 GLES 后端"一键动作：写
+        // mobileglues.mobilegl_backend=2（DirectGLES，Espryt/ANGLE 翻译，
+        // 不经 MoltenVK）+ marker 落盘取证，下次启动生效。仅当前档位非
+        // GLES 时出现（已是 GLES 档仍崩则不重复设置，走常规排查）。
+        if (headline.length > 0 && [headline containsString:@"libMoltenVK.dylib"] &&
+            getPrefInt(@"mobileglues.mobilegl_backend") != 2) {
+            [ame273_alert addAction:[UIAlertAction actionWithTitle:localize(@"ame307.crash.switch_gles", nil)
+                style:UIAlertActionStyleDefault handler:^(UIAlertAction *action) {
+                setPrefInt(@"mobileglues.mobilegl_backend", 2);
+                NSString *ame307_home = [NSProcessInfo processInfo].environment[@"POJAV_HOME"];
+                if (ame307_home.length > 0) {
+                    NSString *ame307_marker = [ame307_home stringByAppendingPathComponent:@"ame307_gles_fallback.txt"];
+                    NSString *ame307_stamp = [NSString stringWithFormat:@"time=%@\nheadline=%@\n", [NSDate date], headline];
+                    [ame307_stamp writeToFile:ame307_marker atomically:YES encoding:NSUTF8StringEncoding error:nil];
+                }
+                NSLog(@"[Ame307] GLES fallback engaged from crash dialog (mobileglues.mobilegl_backend=2, marker written) -- next launch bypasses MoltenVK");
+            }]];
+        }
+        // ★ Task275（P2-b5）：宿主现取锚——2.5s 延迟期间语言切换等会重建根，
+        // 快照宿主脱窗后 present 静默失败且报告已归档 = 补弹永久丢失。
+        __block UIViewController *ame273_anchor = nil;
+        [ame273_alert addAction:[UIAlertAction actionWithTitle:localize(@"ame273.crash.copy_reason", nil)
+            style:UIAlertActionStyleDefault handler:^(UIAlertAction *action) {
+            [UIPasteboard generalPasteboard].string = content;
+            NSLog(@"[SceneDelegate] Task273: crash reason copied to pasteboard (%lu chars)", (unsigned long)content.length);
+        }]];
+        [ame273_alert addAction:[UIAlertAction actionWithTitle:localize(@"ame273.crash.view_full_log", nil)
+            style:UIAlertActionStyleDefault handler:^(UIAlertAction *action) {
+            NSString *logPath = [home stringByAppendingPathComponent:@"latestlog.txt"];
+            UIActivityViewController *ame273_share = [[UIActivityViewController alloc]
+                initWithActivityItems:@[logPath, [NSURL fileURLWithPath:logPath]]
+                                applicationActivities:nil];
+            ame273_share.popoverPresentationController.sourceView = ame273_anchor.view;
+            ame273_share.popoverPresentationController.sourceRect =
+                CGRectMake(presenter.view.bounds.size.width / 2.0,
+                           presenter.view.bounds.size.height / 2.0, 1, 1);
+            // ★ Task274-g（G6）：alert handler 触发时本 alert 正在收尾，直接
+            //   present 撞 presentation-in-progress（疑似首点无响应）——
+            //   等 0.5s 收尾动画走完，再从稳定顶端呈现（ame274_presentAfterSettling）。
+            dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.5 * NSEC_PER_SEC)),
+                           dispatch_get_main_queue(), ^{
+                ame274_presentAfterSettling(ame273_anchor, ame273_share, 1);
+            });
+        }]];
+        [ame273_alert addAction:[UIAlertAction actionWithTitle:localize(@"OK", nil)
+            style:UIAlertActionStyleCancel handler:nil]];
+
+        // ★ Task275（P2-b5）：宿主现取（window.root 起步，沿链上溯跳过收尾中顶层）
+        UIViewController *ame273_host = self.window.rootViewController ?: presenter;
+        while (ame273_host.presentedViewController != nil &&
+               !ame273_host.presentedViewController.isBeingDismissed) {
+            ame273_host = ame273_host.presentedViewController;
+        }
+        ame273_anchor = ame273_host;
+        [ame273_host presentViewController:ame273_alert animated:YES completion:nil];
+
+        // ★ Task275（P2-b5）：呈现成功后才归档——原"呈现前即归档"在宿主脱窗/
+        // 呈现失败时报告永久丢失；防重复打扰语义保留（失败下轮启动重试，
+        // 每轮至多一弹，非会话内无限打扰）。
+        NSString *ame275_archive = [[NSProcessInfo processInfo].environment[@"POJAV_HOME"]
+            stringByAppendingPathComponent:@"ame273_crash_report.last.txt"];
+        [[NSFileManager defaultManager] removeItemAtPath:ame275_archive error:nil];
+        [[NSFileManager defaultManager] moveItemAtPath:path toPath:ame275_archive error:nil];
+        NSLog(@"[SceneDelegate] Task273: pending crash report surfaced (category=%@ exit=%@ details=%lu) -- consumed+archived",
+              (catCn ?: catEn), exitCode, (unsigned long)details.count);
+    } @catch (NSException *ame273_e) {
+        NSLog(@"[SceneDelegate] Task273: pending crash report presentation failed: %@", ame273_e);
+    }
 }
 
 @end
