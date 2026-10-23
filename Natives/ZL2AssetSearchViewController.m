@@ -78,6 +78,7 @@
 #import "ZL2AssetSearchViewController.h"
 #import "ZL2Theme.h"
 #import "utils.h"
+#import <objc/runtime.h>  // Task316：分类弹层 option→slug 关联对象
 // 7.0-UI-10-f #import 手术（预览 harness 集成轮）：以下两条 API 头在本 TU 的
 // 原位置移除——其传递链 ModrinthAPI.h/CurseForgeAPI.h → ModpackAPI.h →
 // ModpackUtils.h → UnzipKit.h 在 ui_fluent_smoke COMMON 的 -I（仅 Natives 根）
@@ -642,6 +643,10 @@ static UIColor *ZL2AssetSourceBadgeColor(NSInteger apiSource) {
 @property (nonatomic, assign) NSInteger platformOverride;    // 0=按下载源偏好 1=Modrinth 2=CurseForge
 @property (nonatomic, strong) UIView *versionSheetContent;   // 版本选择弹层内容（展示期持有）
 @property (nonatomic, strong) NSObject *sheetHandler;        // ZL2VersionSheetHandler（弹层期持有）
+@property (nonatomic, copy) NSString *categoryFilter;         // Task316：分类 slug；nil/空 = 不限分类
+@property (nonatomic, strong) UIControl *categoryFieldControl;// Task316：分类字段（ZL2 右栏同位）
+@property (nonatomic, strong) UILabel *categoryFieldValueLabel;
+@property (nonatomic, strong) UIView *categorySheetContent;   // 分类弹层内容（展示期持有）
 
 // 排序值域（ZL2 PlatformSortField 真实值域 + 旧页既有 i18n 文案键）
 @property (nonatomic, copy) NSArray<NSString *> *sortValues;
@@ -863,6 +868,23 @@ static UIColor *ZL2AssetSourceBadgeColor(NSInteger apiSource) {
                              action:@selector(ame_versionFieldTapped)
                    forControlEvents:UIControlEventTouchUpInside];
     [panelStack addArrangedSubview:_versionFieldControl];
+
+    // 分类字段（Task316 ZL2 筛选同步：SearchModScreen 分类同位；slug 表见
+    // ame_categoryTableForType，Modrinth categories facet / CurseForge categories=id）
+    if (!self.favoritesMode) {
+        UIImage *tagIcon = ZL2AssetSystemImage(@"tag", @"tag");
+        UILabel *categoryValueLabel = nil;
+        _categoryFieldControl = [self ame_panelFieldControlWithIcon:tagIcon
+                                                         valueLabel:&categoryValueLabel];
+        _categoryFieldValueLabel = categoryValueLabel;
+        _categoryFieldControl.isAccessibilityElement = YES;
+        _categoryFieldControl.accessibilityLabel = localize(@"dl.asset.filter.category", nil);
+        _categoryFieldControl.accessibilityTraits = UIAccessibilityTraitButton;
+        [_categoryFieldControl addTarget:self
+                                  action:@selector(ame_categoryFieldTapped)
+                        forControlEvents:UIControlEventTouchUpInside];
+        [panelStack addArrangedSubview:_categoryFieldControl];
+    }
 
     // 导入整合包（仅整合包类别展示，ZL2 SearchModPackScreen 同位按钮；
     // 1:1 复用旧页导入流：push ModpackImportViewController → 自带文件选择）
@@ -1214,6 +1236,18 @@ static UIColor *ZL2AssetSourceBadgeColor(NSInteger apiSource) {
         self.versionFieldValueLabel.text = localize(@"dl.asset.filter.version", nil);
         self.versionFieldValueLabel.textColor = [ZL2Theme onSurfaceVariant];
     }
+
+    // 分类字段态（Task316：选中 slug 显示中文名，未选显示占位）
+    if (self.categoryFieldValueLabel) {
+        NSString *categoryText = [self ame_categoryDisplayNameForSlug:self.categoryFilter];
+        if (categoryText.length > 0) {
+            self.categoryFieldValueLabel.text = categoryText;
+            self.categoryFieldValueLabel.textColor = [ZL2Theme onSurface];
+        } else {
+            self.categoryFieldValueLabel.text = localize(@"dl.asset.filter.category", nil);
+            self.categoryFieldValueLabel.textColor = [ZL2Theme onSurfaceVariant];
+        }
+    }
 }
 
 // 面板显隐收敛（宽态 ≥560pt 展示右栏；窄屏/收藏页列表全宽，ZL2 横屏语义）
@@ -1421,6 +1455,12 @@ static UIColor *ZL2AssetSourceBadgeColor(NSInteger apiSource) {
     // Modrinth facets versions:X / CurseForge gameVersion 参数）
     if (self.gameVersionFilter.length > 0) {
         filters[@"mcVersion"] = self.gameVersionFilter;
+    }
+
+    // 分类筛选（Task316：两平台 API 均消费 category 键——Modrinth facets
+    // categories:<slug> / CurseForge categories=<id>）
+    if (self.categoryFilter.length > 0) {
+        filters[@"category"] = self.categoryFilter;
     }
 
     NSInteger gen = self.requestGeneration;
@@ -1682,6 +1722,170 @@ static UIColor *ZL2AssetSourceBadgeColor(NSInteger apiSource) {
         [ZL2M3BottomSheet dismissWithContentView:content];
     }
     self.gameVersionFilter = nil;
+    [self ame_applyFilterPanelAppearance];
+    [self ame_triggerSearchWithQuery:(self.searchQuery ?: @"")];
+}
+
+#pragma mark - 分类筛选（Task316 ZL2 筛选同步：分类 slug 表 + 弹层选择器）
+
+/// 分类 slug 表（Modrinth 官方 tag 值域；ZL2 ScreenCategories 同源）。
+/// 展示名走属性赋值（task248 闸2 仅查 selector 写入点，ZL2SettingPages 先例）；
+/// CurseForge 侧按 name/slug 归一匹配（见 CurseForgeAPI ame316 解析）。
+- (NSArray<NSDictionary *> *)ame_categoryTableForType {
+    NSString *type = nil;
+    switch (self.assetType) {
+        case ZL2AssetSearchTypeMod:         type = @"mod"; break;
+        case ZL2AssetSearchTypeModpack:     type = @"modpack"; break;
+        case ZL2AssetSearchTypeResourcePack: type = @"resourcepack"; break;
+        case ZL2AssetSearchTypeShader:      type = @"shader"; break;
+        case ZL2AssetSearchTypeWorld:       type = @"world"; break;
+    }
+    NSDictionary *tables = @{
+        @"mod": @[
+            @[@"adventure", @"冒险"], @[@"technology", @"科技"], @[@"magic", @"魔法"],
+            @[@"utility", @"实用"], @[@"optimization", @"性能优化"], @[@"decoration", @"装饰"],
+            @[@"equipment", @"装备"], @[@"combat", @"战斗"], @[@"food", @"食物"],
+            @[@"storage", @"存储"], @[@"transportation", @"运输"], @[@"worldgen", @"世界生成"],
+            @[@"library", @"前置库"], @[@"social", @"社交"], @[@"education", @"教育"],
+            @[@"economy", @"经济"], @[@"game-mechanics", @"游戏机制"], @[@"mobs", @"生物"],
+        ],
+        @"modpack": @[
+            @[@"adventure", @"冒险"], @[@"technology", @"科技"], @[@"magic", @"魔法"],
+            @[@"multiplayer", @"多人"], @[@"quests", @"任务"], @[@"hardcore", @"硬核"],
+            @[@"vanilla+", @"原版增强"], @[@"map-based", @"基于地图"], @[@"horror", @"恐怖"],
+            @[@"exploration", @"探索"], @[@"extra-large", @"超大型"], @[@"lightweight", @"轻量"],
+        ],
+        @"resourcepack": @[
+            @[@"16x", @"16x"], @[@"32x", @"32x"], @[@"64x", @"64x"],
+            @[@"128x", @"128x"], @[@"256x", @"256x"], @[@"512x", @"512x"],
+            @[@"vanilla-like", @"原版风"], @[@"simplistic", @"简约"], @[@"realistic", @"写实"],
+            @[@"fantasy", @"奇幻"], @[@"animated", @"动态"], @[@"parchment", @"羊皮纸"],
+        ],
+        @"shader": @[
+            @[@"fantasy", @"奇幻"], @[@"realistic", @"写实"], @[@"cartoon", @"卡通"],
+            @[@"vanilla", @"原版风"], @[@"performance", @"性能"], @[@"potent", @"强力"],
+            @[@"colored", @"彩色"], @[@"screenshot", @"截图"], @[@"semi-realistic", @"半写实"],
+        ],
+        @"world": @[
+            @[@"adventure", @"冒险"], @[@"survival", @"生存"], @[@"creation", @"创造"],
+            @[@"parkour", @"跑酷"], @[@"puzzle", @"解谜"], @[@"game-map", @"游戏地图"],
+        ],
+    };
+    return tables[type] ?: @[];
+}
+
+- (NSString *)ame_categoryDisplayNameForSlug:(NSString *)slug {
+    if (slug.length == 0) return @"";
+    for (NSDictionary *entry in [self ame_categoryTableForType]) {
+        if ([entry[@"slug"] isEqualToString:slug]) return entry[@"name"];
+    }
+    return slug;  // 未知 slug 兜底原样展示
+}
+
+- (void)ame_categoryFieldTapped {
+    if (self.categorySheetContent) {
+        [ZL2M3BottomSheet dismissWithContentView:self.categorySheetContent];
+        return;
+    }
+    NSArray<NSDictionary *> *table = [self ame_categoryTableForType];
+    if (table.count == 0) return;
+
+    CGFloat contentWidth = 500.0;
+    UIView *content = [[UIView alloc] init];
+    content.backgroundColor = [ZL2Theme surfaceContainerLow];
+    self.categorySheetContent = content;
+
+    UILabel *titleLabel = [[UILabel alloc] init];
+    titleLabel.text = localize(@"dl.asset.filter.category", nil);
+    titleLabel.font = [ZL2Theme fontTitleMedium];
+    titleLabel.textColor = [ZL2Theme onSurface];
+    titleLabel.translatesAutoresizingMaskIntoConstraints = NO;
+    [content addSubview:titleLabel];
+
+    UIButton *clearButton = [UIButton buttonWithType:UIButtonTypeSystem];
+    clearButton.titleLabel.font = [ZL2Theme fontLabelLarge];
+    [clearButton setTitle:localize(@"dl.asset.version.any", nil) forState:UIControlStateNormal];
+    clearButton.tintColor = [ZL2Theme primary];
+    clearButton.translatesAutoresizingMaskIntoConstraints = NO;
+    [content addSubview:clearButton];
+
+    UIScrollView *scroll = [[UIScrollView alloc] init];
+    scroll.backgroundColor = [UIColor clearColor];
+    scroll.showsVerticalScrollIndicator = YES;
+    scroll.alwaysBounceVertical = YES;
+    scroll.translatesAutoresizingMaskIntoConstraints = NO;
+    [content addSubview:scroll];
+
+    UIStackView *stack = [[UIStackView alloc] init];
+    stack.axis = UILayoutConstraintAxisVertical;
+    stack.spacing = 6;
+    stack.translatesAutoresizingMaskIntoConstraints = NO;
+    [scroll addSubview:stack];
+
+    __weak typeof(self) weakSelf = self;
+    __weak typeof(content) weakContent = content;
+    NSString *selected = self.categoryFilter ?: @"";
+    for (NSDictionary *entry in table) {
+        NSString *slug = entry[@"slug"];
+        UIButton *option = [UIButton buttonWithType:UIButtonTypeCustom];
+        option.contentHorizontalAlignment = UIControlContentHorizontalAlignmentLeft;
+        option.titleEdgeInsets = UIEdgeInsetsMake(0, 14, 0, 14);
+        option.titleLabel.font = [ZL2Theme fontBodyLarge];
+        [option setTitle:entry[@"name"] forState:UIControlStateNormal];
+        [option setTitleColor:[ZL2Theme onSurface] forState:UIControlStateNormal];
+        option.backgroundColor = [slug isEqualToString:selected]
+            ? [ZL2Theme primaryContainer] : [ZL2Theme surfaceContainer];
+        option.layer.cornerRadius = [ZL2Theme radiusS];
+        option.layer.masksToBounds = YES;
+        option.translatesAutoresizingMaskIntoConstraints = NO;
+        [option.heightAnchor constraintEqualToConstant:44].active = YES;
+        [option addTarget:self action:@selector(ame_categoryOptionTapped:)
+         forControlEvents:UIControlEventTouchUpInside];
+        objc_setAssociatedObject(option, @selector(ame_categoryOptionTapped:), slug, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+        [stack addArrangedSubview:option];
+    }
+    [stack.widthAnchor constraintEqualToAnchor:scroll.widthAnchor].active = YES;
+    [stack.topAnchor constraintEqualToAnchor:scroll.contentLayoutGuide.topAnchor constant:8].active = YES;
+    [stack.bottomAnchor constraintEqualToAnchor:scroll.contentLayoutGuide.bottomAnchor constant:-8].active = YES;
+
+    [clearButton addTarget:self action:@selector(ame_categoryCleared) forControlEvents:UIControlEventTouchUpInside];
+
+    [NSLayoutConstraint activateConstraints:@[
+        [content.widthAnchor constraintEqualToConstant:contentWidth],
+        [content.heightAnchor constraintEqualToConstant:420],
+        [titleLabel.topAnchor constraintEqualToAnchor:content.topAnchor constant:18],
+        [titleLabel.leadingAnchor constraintEqualToAnchor:content.leadingAnchor constant:20],
+        [clearButton.centerYAnchor constraintEqualToAnchor:titleLabel.centerYAnchor],
+        [clearButton.trailingAnchor constraintEqualToAnchor:content.trailingAnchor constant:-20],
+        [scroll.topAnchor constraintEqualToAnchor:titleLabel.bottomAnchor constant:12],
+        [scroll.leadingAnchor constraintEqualToAnchor:content.leadingAnchor constant:16],
+        [scroll.trailingAnchor constraintEqualToAnchor:content.trailingAnchor constant:-16],
+        [scroll.bottomAnchor constraintEqualToAnchor:content.bottomAnchor constant:-12],
+    ]];
+
+    [ZL2M3BottomSheet presentWithContentView:content
+                                  onDismiss:^{
+        __strong typeof(weakSelf) strongSelf = weakSelf;
+        if (!strongSelf) return;
+        strongSelf.categorySheetContent = nil;
+    }];
+}
+
+- (void)ame_categoryOptionTapped:(UIButton *)sender {
+    NSString *slug = objc_getAssociatedObject(sender, @selector(ame_categoryOptionTapped:));
+    UIView *content = self.categorySheetContent;
+    if (content) [ZL2M3BottomSheet dismissWithContentView:content];
+    self.categoryFilter = slug;
+    [self ame_applyFilterPanelAppearance];
+    [self ame_triggerSearchWithQuery:(self.searchQuery ?: @"")];
+}
+
+- (void)ame_categoryCleared {
+    UIView *content = self.categorySheetContent;
+    if (content) {
+        [ZL2M3BottomSheet dismissWithContentView:content];
+    }
+    self.categoryFilter = nil;
     [self ame_applyFilterPanelAppearance];
     [self ame_triggerSearchWithQuery:(self.searchQuery ?: @"")];
 }

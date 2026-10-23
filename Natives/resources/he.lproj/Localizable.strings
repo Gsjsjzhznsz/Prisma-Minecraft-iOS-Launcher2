@@ -380,3 +380,7 @@
 "regiongate.exit" = "יציאה";
 
 "controller_configurator.title.current" = "קובץ תצורת גיימפד";
+
+/* Task316 ZL2 filter sync: category filter (dl.asset.*) */
+"dl.asset.filter.category" = "Category";
+"dl.asset.category.any" = "All categories";

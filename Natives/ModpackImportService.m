@@ -68,10 +68,13 @@ static NSString * const kImportedModpacksKey = @"ImportedModpacks";
 - (instancetype)init {
     self = [super init];
     if (self) {
-        // 整合包目录直接用 POJAV_GAME_DIR 下的 custom_gamedir，gameDir 字段写相对路径
-        // 这样启动器读取 profile 时会拼成 <POJAV_GAME_DIR>/custom_gamedir/<id>
-        const char *gameDirEnv = getenv("POJAV_GAME_DIR");
-        self.customGameDir = [@(gameDirEnv ?: ".") stringByAppendingPathComponent:@"custom_gamedir"];
+        // ★ Task316（文件层桌面/安卓同构·扁平化）：整合包实例顶层化——
+        // 工作区根从 <POJAV_GAME_DIR>/custom_gamedir 改为 POJAV_HOME/instances
+        // （MultiMC 实例同构：instances/<id> 即实例目录，不再双层嵌套）；
+        // profile gameDir 写绝对路径（Task275 F5 全链绝对路径直通口径），
+        // 与当前所选实例彻底解耦。旧布局由 FileLayoutService ame316 迁移。
+        const char *gameDirEnv = getenv("POJAV_HOME");
+        self.customGameDir = [@(gameDirEnv ?: ".") stringByAppendingPathComponent:@"instances"];
         NSFileManager *fm = [NSFileManager defaultManager];
         if (![fm fileExistsAtPath:self.customGameDir]) {
             [fm createDirectoryAtPath:self.customGameDir withIntermediateDirectories:YES attributes:nil error:nil];
@@ -203,7 +206,11 @@ static NSString * const kImportedModpacksKey = @"ImportedModpacks";
 
 /// 给定 modpack id，返回 gameDir 的相对路径 (写入 profile 的 gameDir 字段)
 - (NSString *)relativeGameDirForModpackId:(NSString *)modpackId {
-    return [NSString stringWithFormat:@"./custom_gamedir/%@", modpackId];
+    // ★ Task316：profile gameDir 改写绝对路径（方法名保留兼容调用点）——
+    // instances/<id> 顶层实例目录，Task275 F5 绝对路径全链直通（JavaLauncher
+    // chdir/ModService 五处 resolve/DataPackService 均 isAbsolutePath 原样用）。
+    // 旧值 "./custom_gamedir/<id>" 依赖当前实例且双层嵌套，由 ame316 迁移重写。
+    return [self absoluteGameDirForModpackId:modpackId];
 }
 
 /// 把 Modrinth dependencies 解析成 loader 信息

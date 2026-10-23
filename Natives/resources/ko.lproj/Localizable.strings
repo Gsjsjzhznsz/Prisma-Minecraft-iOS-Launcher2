@@ -3190,3 +3190,7 @@
 "regiongate.ack3" = "최종 안내(3/3): 확인해 주셔서 감사합니다. 계속 진행합니다...";
 "regiongate.not_mainland" = "본토 사용자가 아닙니다";
 "regiongate.exit" = "종료";
+
+/* Task316 ZL2 filter sync: category filter (dl.asset.*) */
+"dl.asset.filter.category" = "카테고리";
+"dl.asset.category.any" = "모든 카테고리";

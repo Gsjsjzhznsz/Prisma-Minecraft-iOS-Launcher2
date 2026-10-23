@@ -657,6 +657,7 @@ add_executable(AngelAuraAmethyst
   # Modpack import/export sources
   ModpackImportViewController.m
   ModpackImportService.m
+  FileLayoutService.m        # Task316：文件层桌面/安卓同构（共享核心/扁平化/跨启动器导入）
   ModpackExportService.m
   ModpackExportViewController.m
 

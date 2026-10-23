@@ -609,3 +609,7 @@
 "regiongate.ack3" = "Thông báo cuối cùng (3/3): cảm ơn bạn đã xác nhận. Đang tiếp tục...";
 "regiongate.not_mainland" = "Tôi không phải người dùng đại lục";
 "regiongate.exit" = "Thoát";
+
+/* Task316 ZL2 filter sync: category filter (dl.asset.*) */
+"dl.asset.filter.category" = "Category";
+"dl.asset.category.any" = "All categories";

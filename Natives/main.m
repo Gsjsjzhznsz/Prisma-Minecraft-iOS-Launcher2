@@ -14,6 +14,7 @@
 #import "SurfaceViewController.h"
 #import "UIKit+hook.h"
 #import "config.h"
+#import "FileLayoutService.h"  // Task316：文件层桌面/安卓同构（共享核心/实例扁平化/跨启动器导入）
 
 #include <libgen.h>
 #include <pthread.h>
@@ -507,6 +508,11 @@ void init_setupMultiDir() {
     for (NSString *dir in dirsToCreate) {
         [fm createDirectoryAtPath:dir withIntermediateDirectories:YES attributes:nil error:nil];
     }
+    // ★ Task316（文件层桌面/安卓同构）：一次性布局迁移——共享核心去重
+    // （instances/*/{versions,libraries,assets} → shared_core 符号链接回指）
+    // + 整合包实例扁平化（custom_gamedir/<id> → 顶层 instances/<id>，
+    // profile gameDir 绝对路径锚定）。marker 幂等，先于 ame226 软链块执行。
+    [FileLayoutService ame316_migrateIfNeeded];
     // ★ Task226（反馈 #5：上游软件更新到本软件，数据要能正常识别）：
     // 旧代码无条件 removeItemAtPath:lasmPath——若这里是【真实目录】
     //（上游老版本 / 更新前残留的游戏数据：saves/mods/config 等全在里面），

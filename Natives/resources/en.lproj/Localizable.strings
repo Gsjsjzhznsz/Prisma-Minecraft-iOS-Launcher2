@@ -3412,3 +3412,7 @@
 "regiongate.ack3" = "Final notice (3/3): thank you for confirming. Continuing...";
 "regiongate.not_mainland" = "I am not a mainland user";
 "regiongate.exit" = "Exit";
+
+/* Task316 ZL2 filter sync: category filter (dl.asset.*) */
+"dl.asset.filter.category" = "Category";
+"dl.asset.category.any" = "All categories";

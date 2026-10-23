@@ -74,6 +74,7 @@ static UIColor *AmeDynamic(uint32_t light, uint32_t dark) {
 + (CGFloat)radiusM  { return 4.0; }
 + (CGFloat)radiusL  { return 8.0; }
 + (CGFloat)radiusXL { return 12.0; }
++ (CGFloat)radiusGlass { return 24.0; }  ///< Task316：玻璃面板专用（连续曲线由调用方 cornerCurve 承担）
 
 #pragma mark - Environment
 

@@ -609,3 +609,7 @@
 "regiongate.ack3" = "Poslední upozornění (3/3): děkujeme za potvrzení. Pokračuje se...";
 "regiongate.not_mainland" = "Nejsem uživatel z pevniny";
 "regiongate.exit" = "Ukončit";
+
+/* Task316 ZL2 filter sync: category filter (dl.asset.*) */
+"dl.asset.filter.category" = "Category";
+"dl.asset.category.any" = "All categories";

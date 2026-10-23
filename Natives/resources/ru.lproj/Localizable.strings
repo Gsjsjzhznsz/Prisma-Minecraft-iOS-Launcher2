@@ -3210,3 +3210,7 @@
 "regiongate.ack3" = "Финальное уведомление (3/3): спасибо за подтверждение. Продолжаем...";
 "regiongate.not_mainland" = "Я не пользователь материка";
 "regiongate.exit" = "Выход";
+
+/* Task316 ZL2 filter sync: category filter (dl.asset.*) */
+"dl.asset.filter.category" = "Category";
+"dl.asset.category.any" = "All categories";

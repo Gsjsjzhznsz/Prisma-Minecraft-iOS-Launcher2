@@ -609,3 +609,7 @@
 "regiongate.ack3" = "التنبيه الأخير (3/3): شكرًا لتأكيدك. جارٍ المتابعة...";
 "regiongate.not_mainland" = "لست مستخدمًا من القارة";
 "regiongate.exit" = "خروج";
+
+/* Task316 ZL2 filter sync: category filter (dl.asset.*) */
+"dl.asset.filter.category" = "Category";
+"dl.asset.category.any" = "All categories";

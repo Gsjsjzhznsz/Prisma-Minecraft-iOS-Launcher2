@@ -387,6 +387,10 @@ static NSArray<NSString *> *ame232_layoutSafetyIssues(NSData *raw, id jsonObj) {
                   forControlEvents:UIControlEventValueChanged];
     [ame310_hdr addSubview:self.categorySegment];
     self.tableView.tableHeaderView = ame310_hdr;
+    if (self.initialCategoryIndex > 0 && self.initialCategoryIndex <= 3) {
+        self.categorySegment.selectedSegmentIndex = self.initialCategoryIndex;
+        [self ame310_categoryChanged:self.categorySegment];  // Task316：预选分类走同一重载路径
+    }
     [self scanLocalVersions];
     [self fetchIndex];
 }

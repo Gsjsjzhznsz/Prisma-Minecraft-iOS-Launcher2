@@ -109,6 +109,9 @@
 #import "utils.h"
 
 #import "LauncherPreferencesViewController.h"
+#import "LauncherPrefGameDirViewController.h"  // Task316：游戏目录/实例选择器
+#import "FileLayoutService.h"                 // Task316：跨启动器导入
+#import <UniformTypeIdentifiers/UniformTypeIdentifiers.h>
 #import "BackgroundSettingsViewController.h"
 #import "BingWallpaperGalleryViewController.h"
 #import "TouchControllerPreferencesViewController.h"
@@ -648,6 +651,7 @@ static NSString *ame_pages_stringOr(id value, NSString *fallback) {
 @interface ZL2GamepadSettingsPage ()
 @property (nonatomic, strong) ZL2SettingRowEnum *typeRow;
 @property (nonatomic, strong) ZL2SettingRowAction *mappingRow;
+@property (nonatomic, strong) ZL2SettingRowSlider *scrollRow;
 @end
 
 @implementation ZL2GamepadSettingsPage
@@ -656,20 +660,26 @@ static NSString *ame_pages_stringOr(id value, NSString *fallback) {
     __weak typeof(self) weakSelf = self;
 
     // --- 组 1：手柄（iOS 真实键族：controller_type / default_gamepad_ctrl）---
-    NSArray<NSString *> *typeKeys = @[@"xbox", @"playstation"];
+    // Task316（6.5.5 新功能 UI 适配）：手柄类型三选对齐 Task311 语义——
+    // 任天堂选项即 Switch 键面交换（control.nintendo_layout=YES，
+    // ControllerInput ame310 消费点零改动）；旧壳手柄配置弹窗同口径。
+    NSArray<NSString *> *typeKeys = @[@"xbox", @"playstation", @"nintendo"];
     NSArray<NSString *> *typeNames = @[
         localize(@"controller_configurator.title.type.xbox", nil),
         localize(@"controller_configurator.title.type.playstation", nil),
+        localize(@"controller_configurator.title.type.nintendo", nil),
     ];
     ZL2SettingRowEnum *typeRow =
         [[ZL2SettingRowEnum alloc] initWithTitle:@"" subtitle:nil options:typeNames];
-    typeRow.title = @"控制器风格";
-    typeRow.subtitle = @"手柄按键映射的界面图标风格";
+    typeRow.title = @"手柄类型";
+    typeRow.subtitle = @"面键图标风格；选任天堂即交换 A/B、X/Y 键面（Switch 布局）";
     NSString *type = ame_pages_stringOr(getPrefObject(@"control.controller_type"), @"xbox");
     [typeRow ame_reloadSelectedIndex:(NSInteger)[typeKeys indexOfObject:type]];
     typeRow.onSelect = ^(NSInteger index) {
         if (index < 0 || (NSUInteger)index >= typeKeys.count) return;
-        setPrefString(@"control.controller_type", typeKeys[index]);
+        NSString *key = typeKeys[index];
+        setPrefString(@"control.controller_type", key);
+        setPrefBool(@"control.nintendo_layout", [key isEqualToString:@"nintendo"]);
     };
     self.typeRow = typeRow;
 
@@ -683,8 +693,20 @@ static NSString *ame_pages_stringOr(id value, NSString *fallback) {
     };
     self.mappingRow = mappingRow;
 
+    // Task316（6.5.5 新功能 UI 适配）：模拟滚轮速度（Task310 键鼠优化，
+    // 触屏滚动按钮/手柄滚动键统一系数口 scrollStep:；GCMouse 真滚轮不过此口）
+    ZL2SettingRowSlider *scrollRow =
+        [[ZL2SettingRowSlider alloc] initWithTitle:@"" subtitle:nil
+                                   minimum:25 maximum:300 suffix:@"%"];
+    scrollRow.title = @"模拟滚轮速度";
+    scrollRow.subtitle = @"滚动按钮/手柄滚轮键的滚动速度（真滚轮不受影响）";
+    scrollRow.onValueChanged = ^(NSInteger value) {
+        setPrefFloat(@"control.scroll_speed", (float)value);
+    };
+    self.scrollRow = scrollRow;
+
     ZL2SettingCardGroup *group1 = [[ZL2SettingCardGroup alloc] init];
-    [group1 ame_addRows:@[typeRow, mappingRow]];
+    [group1 ame_addRows:@[typeRow, mappingRow, scrollRow]];
     [self ame_addGroup:group1];
 
     // --- 组 2：更多设置 ---
@@ -704,9 +726,10 @@ static NSString *ame_pages_stringOr(id value, NSString *fallback) {
 
 - (void)ame_refreshState {
     NSString *type = ame_pages_stringOr(getPrefObject(@"control.controller_type"), @"xbox");
-    [self.typeRow ame_reloadSelectedIndex:(NSInteger)[@[@"xbox", @"playstation"] indexOfObject:type]];
+    [self.typeRow ame_reloadSelectedIndex:(NSInteger)[@[@"xbox", @"playstation", @"nintendo"] indexOfObject:type]];
     self.mappingRow.detailText =
         ame_pages_stringOr(getPrefObject(@"control.default_gamepad_ctrl"), nil);
+    [self.scrollRow ame_setValue:(NSInteger)getPrefFloat(@"control.scroll_speed")];  // Task316
 }
 
 @end
@@ -723,7 +746,52 @@ static NSString *ame_pages_stringOr(id value, NSString *fallback) {
 @property (nonatomic, strong) NSArray<NSString *> *sourceRowKeys;   // 与 sourceRows 对齐
 @end
 
+@interface ZL2LauncherSettingsPage () <UIDocumentPickerDelegate>
+@end
+
 @implementation ZL2LauncherSettingsPage
+
+#pragma mark - Task316 跨启动器数据导入（文档选择器 → FileLayoutService）
+
+- (void)ame316_pickExternalFolder {
+    __weak typeof(self) weakSelf = self;
+    if (@available(iOS 14.0, *)) {
+        UIDocumentPickerViewController *picker =
+            [[UIDocumentPickerViewController alloc] initForOpeningContentTypes:@[UTTypeFolder]];
+        picker.delegate = self;
+        [weakSelf ame_presentVC:picker];
+    } else {
+        UIDocumentPickerViewController *picker =
+            [[UIDocumentPickerViewController alloc] initWithDocumentTypes:@[@"public.folder"]
+                                                                  inMode:UIDocumentPickerModeOpen];
+        picker.delegate = self;
+        [weakSelf ame_presentVC:picker];
+    }
+}
+
+- (void)ame_presentVC:(UIViewController *)vc {
+    // 壳内宿主导航可达（设置页由 ZL2Shell 包 nav）；兜底顶栈 present
+    UIViewController *host = self.navigationController ?: self;
+    while (host.presentedViewController) host = host.presentedViewController;
+    [host presentViewController:vc animated:YES completion:nil];
+}
+
+- (void)documentPicker:(UIDocumentPickerViewController *)controller
+didPickDocumentsAtURLs:(NSArray<NSURL *> *)urls {
+    if (urls.count == 0) return;
+    dispatch_async(dispatch_get_global_queue(QOS_CLASS_USER_INITIATED, 0), ^{
+        NSString *report = [FileLayoutService ame316_importExternalLauncherFolder:urls[0] error:nil];
+        dispatch_async(dispatch_get_main_queue(), ^{
+            NSString *body = report ?: @"导入失败：无法读取所选文件夹（安全作用域被拒或路径无效）。";
+            [ZL2M3Dialog showTitle:@"导入结果"
+                              body:body
+                      confirmTitle:localize(@"OK", nil)
+                       destructive:NO
+                        onConfirm:nil
+                         onCancel:nil];
+        });
+    });
+}
 
 // bundle 内全部语言码（ame202_availableLanguageCodes 同口径：xx.lproj 枚举，
 // Base.lproj 除外，dispatch_once 缓存）
@@ -928,7 +996,23 @@ static NSString *ame_pages_stringOr(id value, NSString *fallback) {
     moreRow.onTap = ^{
         [weakSelf ame_push:[[LauncherPreferencesViewController alloc] init] titled:@"更多设置"];
     };
-    [group3 ame_addRows:@[backgroundRow, galleryRow, moreRow]];
+    // Task316（文件层桌面/安卓同构）：游戏目录/实例切换入口 + 跨启动器导入
+    ZL2SettingRowAction *gameDirRow =
+        [[ZL2SettingRowAction alloc] initWithTitle:@"" subtitle:nil];
+    gameDirRow.title = @"游戏目录与实例";
+    gameDirRow.subtitle = @"查看/切换实例目录（instances），切换后重启生效";
+    gameDirRow.onTap = ^{
+        [weakSelf ame_push:[[LauncherPrefGameDirViewController alloc] init]
+                   titled:localize(@"preference.title.game_directory", nil)];
+    };
+    ZL2SettingRowAction *importRow =
+        [[ZL2SettingRowAction alloc] initWithTitle:@"" subtitle:nil];
+    importRow.title = @"导入外部启动器数据";
+    importRow.subtitle = @"识别 .minecraft / HMCL·PCL / MultiMC·Prism / 安卓启动器目录，合入当前实例";
+    importRow.onTap = ^{
+        [weakSelf ame316_pickExternalFolder];
+    };
+    [group3 ame_addRows:@[backgroundRow, galleryRow, gameDirRow, importRow, moreRow]];
     [self ame_addGroup:group3];
 }
 
@@ -1240,6 +1324,49 @@ static NSString *ame_pages_stringOr(id value, NSString *fallback) {
     }
     [self ame_addGroup:group1];
 
+    // --- 组 1.5：手柄映射（Task316 6.5.5 新功能 UI 适配：Task310/311
+    //   手柄下载分类+本地 gamepads 清单进 ZL2 壳；落盘 controlmap/gamepads/
+    //   <id>.json，选任天堂交换见「手柄」设置页手柄类型）---
+    ZL2SettingCardGroup *gamepadGroup = [[ZL2SettingCardGroup alloc] init];
+    NSArray<NSString *> *gamepads = [self ame_scanGamepads];
+    if (gamepads.count == 0) {
+        ZL2SettingRowAction *gpEmptyRow =
+            [[ZL2SettingRowAction alloc] initWithTitle:@"" subtitle:nil];
+        gpEmptyRow.title = @"未找到手柄映射文件";
+        gpEmptyRow.subtitle = @"可从「手柄仓库」下载（内建默认同源备份）";
+        gpEmptyRow.onTap = ^{
+            ControlRepoViewController *repo = [[ControlRepoViewController alloc] init];
+            repo.initialCategoryIndex = 2;  // 直达手柄分类
+            [weakSelf ame_push:repo titled:localize(@"dl.controls.cat.gamepad", nil)];
+        };
+        [gamepadGroup ame_addRow:gpEmptyRow];
+    } else {
+        NSString *currentGp = ame_pages_stringOr(getPrefObject(@"control.default_gamepad_ctrl"), nil);
+        ZL2SettingRowList *gpRow =
+            [[ZL2SettingRowList alloc] initWithTitle:@"" subtitle:nil
+                                     options:gamepads optionKeys:gamepads];
+        gpRow.title = @"当前手柄映射";
+        gpRow.subtitle = @"手柄键码映射（controlmap/gamepads 目录）";
+        NSInteger gpIdx = currentGp ? (NSInteger)[gamepads indexOfObject:currentGp] : -1;
+        [gpRow ame_reloadSelectedIndex:(gpIdx >= 0 ? gpIdx : 0)];
+        gpRow.onSelect = ^(NSInteger index) {
+            if (index < 0 || (NSUInteger)index >= gamepads.count) return;
+            setPrefString(@"control.default_gamepad_ctrl", gamepads[index]);
+        };
+        [gamepadGroup ame_addRow:gpRow];
+    }
+    ZL2SettingRowAction *gpRepoRow =
+        [[ZL2SettingRowAction alloc] initWithTitle:@"" subtitle:nil];
+    gpRepoRow.title = @"手柄仓库";
+    gpRepoRow.subtitle = @"官方精选/社区手柄映射下载（装完即用）";
+    gpRepoRow.onTap = ^{
+        ControlRepoViewController *repo = [[ControlRepoViewController alloc] init];
+        repo.initialCategoryIndex = 2;  // 直达手柄分类
+        [weakSelf ame_push:repo titled:localize(@"dl.controls.cat.gamepad", nil)];
+    };
+    [gamepadGroup ame_addRow:gpRepoRow];
+    [self ame_addGroup:gamepadGroup];
+
     // --- 组 2：编辑与获取 ---
     ZL2SettingCardGroup *group2 = [[ZL2SettingCardGroup alloc] init];
     ZL2SettingRowAction *editorRow =
@@ -1310,6 +1437,19 @@ static NSString *ame_pages_stringOr(id value, NSString *fallback) {
         [layouts insertObject:@"custom.json" atIndex:0];
     }
     return layouts;
+}
+
+/// Task316：本地手柄映射清单（controlmap/gamepads/*.json，Task310/311 下载落盘处）
+- (NSArray<NSString *> *)ame_scanGamepads {
+    const char *home = getenv("POJAV_HOME");
+    if (!home) return @[];
+    NSString *dir = [NSString stringWithFormat:@"%s/controlmap/gamepads", home];
+    NSArray<NSString *> *files =
+        [[NSFileManager defaultManager] contentsOfDirectoryAtPath:dir error:nil];
+    NSMutableArray<NSString *> *pads =
+        [[files pathsMatchingExtensions:@[@"json"]] mutableCopy] ?: [NSMutableArray array];
+    [pads sortUsingSelector:@selector(compare:)];
+    return pads;
 }
 
 @end

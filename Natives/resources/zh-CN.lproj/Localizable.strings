@@ -3407,3 +3407,7 @@
 "regiongate.ack3" = "最终提示（3/3）：感谢您的确认，即将继续。";
 "regiongate.not_mainland" = "我不是大陆用户";
 "regiongate.exit" = "退出";
+
+/* Task316 ZL2 filter sync: category filter (dl.asset.*) */
+"dl.asset.filter.category" = "分类";
+"dl.asset.category.any" = "不限分类";

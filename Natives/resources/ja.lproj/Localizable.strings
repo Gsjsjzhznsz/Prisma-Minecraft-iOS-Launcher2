@@ -3275,3 +3275,7 @@
 "regiongate.ack3" = "最終のお知らせ（3/3）：ご確認ありがとうございます。続行します…";
 "regiongate.not_mainland" = "私は本土ユーザーではありません";
 "regiongate.exit" = "終了";
+
+/* Task316 ZL2 filter sync: category filter (dl.asset.*) */
+"dl.asset.filter.category" = "カテゴリ";
+"dl.asset.category.any" = "すべてのカテゴリ";

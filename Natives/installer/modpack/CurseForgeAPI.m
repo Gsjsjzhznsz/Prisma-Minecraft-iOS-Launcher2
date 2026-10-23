@@ -516,6 +516,50 @@ static NSString *CFA169NormalizeGameVersion(NSString *v) {
 
 #pragma mark - 项目类型映射
 
+/// Task316：分类 slug -> CF categoryId（/categories?gameId=432&classId=X
+/// 一次拉取按 classId 缓存；匹配规则 = CF slug 精确 == 输入，或 CF name 小写
+/// == 输入，或别名表命中；全不中返回 nil（调用方静默不筛））
+- (NSNumber *)ame316_categoryIdForSlug:(NSString *)slug classId:(NSInteger)classId {
+    static NSMutableDictionary<NSNumber *, NSArray<NSDictionary *> *> *ame316_cache = nil;
+    static dispatch_once_t ame316_once;
+    dispatch_once(&ame316_once, ^{
+        ame316_cache = [NSMutableDictionary dictionary];
+    });
+    NSNumber *cacheKey = @(classId);
+    NSArray<NSDictionary *> *categories = ame316_cache[cacheKey];
+    if (categories == nil) {
+        NSDictionary *response = [self getEndpoint:@"categories"
+                                            params:@{@"gameId": @(kCurseForgeGameIDMinecraft),
+                                                     @"classId": @(classId)}];
+        categories = [response isKindOfClass:NSArray.class] ? response : response[@"data"];
+        if (![categories isKindOfClass:NSArray.class]) categories = @[];
+        ame316_cache[cacheKey] = categories;
+    }
+    NSString *needle = slug.lowercaseString;
+    NSDictionary<NSString *, NSString *> *aliases = @{
+        @"vanilla+": @"vanilla-plus",
+        @"map-based": @"map-based",
+        @"game-mechanics": @"game-mechanics",
+        @"worldgen": @"world-gen",
+        @"16x": @"16x", @"32x": @"32x", @"64x": @"64x",
+        @"128x": @"128x", @"256x": @"256x", @"512x": @"512x",
+    };
+    for (NSDictionary *category in categories) {
+        if (![category isKindOfClass:NSDictionary.class]) continue;
+        NSString *candidateSlug = [category[@"slug"] isKindOfClass:NSString.class] ? category[@"slug"].lowercaseString : @"";
+        NSString *candidateName = [category[@"name"] isKindOfClass:NSString.class] ? category[@"name"].lowercaseString : @"";
+        if ([candidateSlug isEqualToString:needle] || [candidateName isEqualToString:needle]) {
+            return [category[@"id"] isKindOfClass:NSNumber.class] ? category[@"id"] : nil;
+        }
+    }
+    NSString *alias = aliases[needle];
+    if (alias.length > 0 && ![alias isEqualToString:needle]) {
+        return [self ame316_categoryIdForSlug:alias classId:classId];
+    }
+    NSLog(@"[CurseForgeAPI] Task316: category slug '%@' not matched under classId %ld -- filter skipped", slug, (long)classId);
+    return nil;
+}
+
 - (NSNumber *)classIDForProjectType:(NSString *)projectType {
     if ([projectType isEqualToString:@"modpack"]) {
         return @(kCurseForgeClassIDModpacks);
@@ -768,6 +812,17 @@ static NSString *CFA169NormalizeGameVersion(NSString *v) {
     if (searchFilters[@"mcVersion"].length > 0) {
         // Task169：剥 fabric 构建哈希后缀（"26.3-0a78cefc" -> "26.3"）
         params[@"gameVersion"] = CFA169NormalizeGameVersion(searchFilters[@"mcVersion"]);
+    }
+    // Task316：分类筛选（ZL2 筛选同步）——slug 归一匹配 CF 分类 id 后走
+    // /mods/search 的 categories 参数（逗号分隔数字 id，CF 官方值域）；
+    // 匹配失败（CF 分类命名与 Modrinth slug 有出入）静默不筛，防误伤空结果
+    NSString *ame316_slug = searchFilters[@"category"];
+    if ([ame316_slug isKindOfClass:NSString.class] && ame316_slug.length > 0) {
+        NSNumber *ame316_catId = [self ame316_categoryIdForSlug:ame316_slug
+                                                        classId:[[self classIDForProjectType:projectType] integerValue]];
+        if (ame316_catId != nil) {
+            params[@"categories"] = ame316_catId.stringValue;
+        }
     }
     // Task173：排序 + 加载器（同步路径同款适配）
     [CurseForgeAPI ame173_applySortAndLoaderParams:searchFilters params:params];

@@ -335,3 +335,7 @@
 "regiongate.exit" = "প্রস্থান";
 
 "controller_configurator.title.current" = "গেমপ্যাড কনফিগারেশন ফাইল";
+
+/* Task316 ZL2 filter sync: category filter (dl.asset.*) */
+"dl.asset.filter.category" = "Category";
+"dl.asset.category.any" = "All categories";

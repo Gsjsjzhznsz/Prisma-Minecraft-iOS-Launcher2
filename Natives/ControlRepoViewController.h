@@ -11,6 +11,8 @@
 /// 下载完成后的回调（文件名不含 .json 后缀，与 actionOpenFilePicker
 /// 的 whenItemSelected 语义一致）。
 @property (nonatomic, copy) void (^whenLayoutDownloaded)(NSString *fileName);
+/// Task316：进入页预选分类（0=官方精选 1=社区 2=手柄 3=本地；ZL2 控制管理页手柄入口直达手柄分类）
+@property (nonatomic, assign) NSInteger initialCategoryIndex;
 
 /// ★ Task230（反馈 #13：允许任何人上传控件）：上传流程入口（仓库页与
 /// 控件编辑器共用）。preselect 传 controlmap 下的文件名（如 custom.json）

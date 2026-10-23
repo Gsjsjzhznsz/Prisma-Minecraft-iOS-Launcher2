@@ -425,7 +425,7 @@ static UIColor *Ame244SnapshotTint(void) {
     //   TG 玻璃接管时底色置 nil（见下方分支）；磨砂/快照护栏仍由 blurView/
     //   快照层独立承载可读性，防御面不回退。
     self.panel.backgroundColor = [AmeTheme surfaceOverlay]; // ★ 7.0-UI-3e：浮层底色令牌（原 Task237/239 防御性半透明实底退役，磨砂/快照护栏仍由 blurView/快照层承载）
-    self.panel.layer.cornerRadius = [AmeTheme radiusL]; // ★ 7.0-UI-3e：浮层大圆角令牌（原 26pt 硬编码；blur/快照/描边/阴影路径六处同步换令牌保持裁剪一致）
+    self.panel.layer.cornerRadius = [AmeTheme radiusGlass]; // ★ 7.0-UI-3e：浮层大圆角令牌（原 26pt 硬编码；blur/快照/描边/阴影路径六处同步换令牌保持裁剪一致）
     self.panel.layer.cornerCurve = kCACornerCurveContinuous;
     self.panel.layer.shadowColor = [UIColor blackColor].CGColor;
     self.panel.layer.shadowOpacity = 0.32;
@@ -449,7 +449,7 @@ static UIColor *Ame244SnapshotTint(void) {
     }
     self.blurView = [[UIVisualEffectView alloc] initWithEffect:ame239_effect];
     self.blurView.userInteractionEnabled = NO;
-    self.blurView.layer.cornerRadius = [AmeTheme radiusL]; // 7.0-UI-3e
+    self.blurView.layer.cornerRadius = [AmeTheme radiusGlass]; // 7.0-UI-3e
     self.blurView.layer.cornerCurve = kCACornerCurveContinuous;
     self.blurView.layer.masksToBounds = YES;
     [self.panel addSubview:self.blurView];   // index 0：恒在全部内容之下
@@ -480,7 +480,7 @@ static UIColor *Ame244SnapshotTint(void) {
                               [AmeLiquidGlassView ame252_isSupported];
     if (ame252_glassActive) {
         BOOL ame252_dark = (self.traitCollection.userInterfaceStyle == UIUserInterfaceStyleDark);
-        self.ame252_glass = [AmeLiquidGlassView ame252_glassViewWithCornerRadius:[AmeTheme radiusL] // 7.0-UI-3e
+        self.ame252_glass = [AmeLiquidGlassView ame252_glassViewWithCornerRadius:[AmeTheme radiusGlass] // 7.0-UI-3e
                                                                           isDark:ame252_dark];
         if (self.ame252_glass != nil) {
             self.ame252_glass.frame = self.panel.bounds;
@@ -515,7 +515,7 @@ static UIColor *Ame244SnapshotTint(void) {
         UIView *ame245_clip = [[UIView alloc] initWithFrame:self.panel.bounds];
         ame245_clip.autoresizingMask =
             UIViewAutoresizingFlexibleWidth | UIViewAutoresizingFlexibleHeight;
-        ame245_clip.layer.cornerRadius = [AmeTheme radiusL]; // 7.0-UI-3e
+        ame245_clip.layer.cornerRadius = [AmeTheme radiusGlass]; // 7.0-UI-3e
         ame245_clip.layer.cornerCurve = kCACornerCurveContinuous;
         ame245_clip.layer.masksToBounds = YES;
         ame245_clip.userInteractionEnabled = NO;
@@ -719,7 +719,7 @@ static UIColor *Ame244SnapshotTint(void) {
     // 发丝描边覆盖环（最上层；空心底环不遮内容、不参与命中）
     self.borderOverlay = [[UIView alloc] init];
     self.borderOverlay.backgroundColor = [UIColor clearColor];
-    self.borderOverlay.layer.cornerRadius = [AmeTheme radiusL]; // 7.0-UI-3e
+    self.borderOverlay.layer.cornerRadius = [AmeTheme radiusGlass]; // 7.0-UI-3e
     self.borderOverlay.layer.cornerCurve = kCACornerCurveContinuous;
     self.borderOverlay.layer.borderWidth = 0.75;
     self.borderOverlay.layer.borderColor = [AmeTheme divider].CGColor; // 7.0-UI-3e：发丝描边环令牌（原黑白 alpha 0.30/0.10）
@@ -943,7 +943,7 @@ static UIColor *Ame244SnapshotTint(void) {
         }
         self.panel.layer.shadowPath =
             [UIBezierPath bezierPathWithRoundedRect:self.panel.bounds
-                                       cornerRadius:[AmeTheme radiusL]].CGPath; // 7.0-UI-3e：与面板圆角同令牌
+                                       cornerRadius:[AmeTheme radiusGlass]].CGPath; // 7.0-UI-3e：与面板圆角同令牌
     }
     self.blurView.frame = self.panel.bounds;
     // ★ Task245：窗口对位磨砂帧刷新（面板挪位/旋转/键盘避让后，快照与

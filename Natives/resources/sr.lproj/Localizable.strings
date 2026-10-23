@@ -374,3 +374,7 @@
 "regiongate.exit" = "Излаз";
 
 "controller_configurator.title.current" = "Фајл конфигурације гејмпада";
+
+/* Task316 ZL2 filter sync: category filter (dl.asset.*) */
+"dl.asset.filter.category" = "Category";
+"dl.asset.category.any" = "All categories";

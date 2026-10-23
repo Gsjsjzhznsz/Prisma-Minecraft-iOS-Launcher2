@@ -3271,3 +3271,19 @@ Work Log:
 
 Stage Summary:
 - 6.5.5 同步经 CI 全量编译终审通过；ipa/tipa 产物挂 run 39876519332 artifacts；装机验证锚点：手柄连接 toast+断连全量释放/设置-控件下载-手柄分类/Switch 布局交换/服务地区门首启弹窗/README 双语声明
+
+---
+Task ID: 316
+Agent: main (Super Z)
+Task: 四线（用户指令）：①6.5.5 新功能适配 ZL2 UI ②伪液态玻璃圆角"好锋利"根修 ③下载页筛选与 ZL2 同步 ④文件底层桌面/安卓同构（跨启动器直接文件迁移）
+
+Work Log:
+- ②玻璃圆角根修：病灶=7.0-UI-3e 令牌化时浮窗面板原 26pt 硬编码误绑 Fluent radiusL=8pt（六处同步变小）——新增 AmeTheme radiusGlass=24 专用令牌（iOS26 液态玻璃观感档），浮窗面板/blur/clip/描边/阴影路径/ame252 玻璃六处全换，与游戏内菜单 24 对齐；Fluent 小圆角体系其余消费点零扰动
+- ①新功能 UI 适配：ZL2 手柄页手柄类型两选扩三选（+任天堂，Task311 语义=选即写 control.nintendo_layout 键面交换）+模拟滚轮速度滑条行（Task310 键鼠优化 25-300%）；控制管理页新增手柄映射组（controlmap/gamepads 本地清单选择器+手柄仓库行直达手柄分类——ControlRepoViewController 新增 initialCategoryIndex 预选接口）
+- ③分类筛选同步：ZL2 资产搜索右栏新增分类字段（五类型 slug 表=Modrinth 官方 tag 值域/ZL2 ScreenCategories 同源：mod18 项/modpack12/资源包12/光影9/世界6）+ ZL2M3BottomSheet 选择器（不限分类清除）；Modrinth 侧 categories:<slug> facet（与 loader facet 可并存，singular @"category" 键避开 loader 的 plural 路径）；CurseForge 侧 /categories 端点按 classId 一次拉取缓存+slug/name 归一匹配+别名表，不中静默不筛防误伤空结果；dl.asset.filter.category/dl.asset.category.any 两键 54 表（主语言实译+EN 兜底）
+- ④文件层三件套（保 Task226 实例切换机制零破坏）：A 共享核心去重——instances/*/{versions,libraries,assets} 迁入 POJAV_HOME/shared_core 并符号链接回指（桌面 .minecraft 语义核心层全实例一份，GB 级重复清零；换名暂存→建链接→旧内容并入，链接失败自动回滚绝不丢数据）B 整合包实例扁平化——旧 instances/<inst>/custom_gamedir/<id> 双层嵌套迁顶层 instances/<id>（MultiMC 同构），全部实例的 launcher_profiles.json 里 custom_gamedir 引用重写绝对路径（Task275 F5 全链直通，与当前实例解耦；目录不存在不重写=宁不迁移不误伤；原文件留 .ame316 备份）C 跨启动器导入器——FileLayoutService 识别 .minecraft 全量根/HMCL·PCL 隔离目录/MultiMC·Prism 实例（mmc-pack.json·instance.cfg）/安卓启动器布局，核心层并轨（versions/libraries/assets 落 POJAV_GAME_DIR 经实例链接即共享）+内容层逐文件跳已存在合入（绝不覆盖既有数据、源目录只读）；ZL2 启动器设置页新增「游戏目录与实例」（push 旧选择器页）+「导入外部启动器数据」（UIDocumentPicker iOS14 UTTypeFolder）双入口行
+- 事故两件：①D9 校验误判——needle 少写 AppendingP 致 substring False，repr 显示"正确"实为显示层吞字第 9 例（连 repr/调试标签都被吞，字节级 b'stringByAppendingPathComponent:@"instances"' 实锤文件无损）②verify_task316 首版 E 平衡 naive 计数误报 ModpackImportService（存量注释 ASCII 括号失衡）——改判据=与 HEAD 差值不变，task139 注释感知扫描仍为权威
+- 门禁：verify_task316 37/37（A 玻璃/B 适配/C 分类链/D 文件层/E 平衡五组）+ task139/240 all balanced + task248 缺键0硬编码0动态键0 + task250 0 + task191 54 表 OK + verify219 81/81（键数 3204→3206 重锚）+ verify255 exit0 + verify263 18/18 + verify263_prisma 43/43 + verify264 43/43 + task307 PASS
+
+Stage Summary:
+- 四线全交付：玻璃 24pt 不再锋利/手柄三类型+滚速+手柄仓库直达/下载页分类筛选双平台落 API/文件层共享核心+实例扁平+跨启动器导入；装机锚点：①长按浮窗看圆角 ②设置-手柄=手柄类型含任天堂+滚轮速度 ③控制管理=手柄映射组 ④下载页右栏分类行筛 Modrinth 标签 ⑤启动器设置=导入外部启动器数据（选 .minecraft 文件夹）⑥重启后 instances 体积减半以上（核心去重）

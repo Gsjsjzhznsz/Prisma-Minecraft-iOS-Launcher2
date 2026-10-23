@@ -80,6 +80,7 @@ NS_ASSUME_NONNULL_BEGIN
 + (CGFloat)radiusM;    ///< medium 4
 + (CGFloat)radiusL;    ///< large 8
 + (CGFloat)radiusXL;   ///< xLarge 12
++ (CGFloat)radiusGlass; ///< 玻璃面板 24（连续曲线；iOS26 液态玻璃观感，浮窗/游戏内菜单同源——Task316 用户'伪玻璃r角太小好锋利'根修：原 26pt 在 7.0-UI-3e 令牌化时误绑 Fluent radiusL=8）
 
 #pragma mark - Environment
 /// 当前是否深色（无动态色能力 API 的逃生门，慎用）

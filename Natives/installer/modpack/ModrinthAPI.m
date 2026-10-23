@@ -63,6 +63,12 @@ static NSString *MRAMirrorResolvedURL(NSString *urlString) {
         [facetString appendFormat:@", [\"versions:%@\"]", searchFilters[@"mcVersion"]];
     }
     NSString *loader = searchFilters[@"loader"] ?: searchFilters[@"categories"];
+    // Task316：分类筛选 facet（categories:<slug>，与 loader facet 可并存；
+    // 键取 singular @"category" 避开上方 loader 的 plural @"categories" 路径）
+    NSString *ame316_category = searchFilters[@"category"];
+    if ([ame316_category isKindOfClass:NSString.class] && ame316_category.length > 0) {
+        [facetString appendFormat:@", [\"categories:%@\"]", ame316_category];
+    }
     if (loader.length > 0) {
         [facetString appendFormat:@", [\"categories:%@\"]", loader];
     }

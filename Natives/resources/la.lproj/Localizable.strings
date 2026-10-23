@@ -334,3 +334,7 @@
 "regiongate.exit" = "Exire";
 
 "controller_configurator.title.current" = "Documentum configurationis gamepad";
+
+/* Task316 ZL2 filter sync: category filter (dl.asset.*) */
+"dl.asset.filter.category" = "Category";
+"dl.asset.category.any" = "All categories";
