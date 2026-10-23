@@ -891,6 +891,8 @@ target_link_libraries(AngelAuraAmethyst
   # Task223：应用内文件夹浏览器的 QL 预览（FolderBrowserViewController）。
   "-framework QuickLook"
   "-framework QuartzCore"
+  # Task317：插件系统 JS 沙箱（AmePluginBridge/Runtime 的 JSContext/JSValue）
+  "-framework JavaScriptCore"
   "-framework UIKit"
   "-framework UniformTypeIdentifiers"
   "-framework UnzipKit"
