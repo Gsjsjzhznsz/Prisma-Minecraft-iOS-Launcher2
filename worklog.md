@@ -13,8 +13,8 @@ AngelAuraAmethyst（Amethyst-iOS 重制版，fork **Gsjsjzhznsz/Air-Minecraft-iO
 ### 当前状态（收尾时更新）
 | 项 | 值 |
 |---|---|
-| 远端 HEAD | Task 320 提交 + worklog（门禁十项全绿）：启动器数据目录改名 Prisma2/（PCL 风格三件套保留 + Task319 窗口期改名迁移 + 悬空链接重指） |
-| 最新 Task 号 | **320**（多会话并行开发，开新任务前先 fetch 避让编号） |
+| 远端 HEAD | Task 321 提交 + worklog（门禁十一项全绿）：旧版本升级自动迁移（一代 ≤6.5.5 原地升级指纹+快照落档 + AI 新者为准合并）+ 从 Air 自动迁移优化（智能合并/身份识别/档案状态机） |
+| 最新 Task 号 | **321**（多会话并行开发，开新任务前先 fetch 避让编号） |
 | 待用户装机验证 | Task 183（四线锚点见文末）+ Task 182（三锚点）+ Task 181（六锚点）+ Task 180（双滑条透明度）+ Task 179（八连修）+ Task 178/177（新拟态定稿）+ 更早轮次 |
 | 已知历史遗留 | v6.0.0-release-notes.md 是工作区工件不在 git（发布时从 announcements.json 重导出）；部分 verify 级联失败为沙箱环境性（会话本地脚本被清 + task132/135/149/158 路径依赖 + task140 G2/G3 日志轮换），与基线对拍判读 |
 
@@ -3458,3 +3458,37 @@ Work Log:
 Stage Summary:
 - Task 320（Prisma2/ 改名 + Task319 窗口期迁移 + 悬空链接重指）CI 终审通过，连续第二轮零热修一轮绿
 - 更新指引：run 40061859516 产物 tipa 装机；顶层观感 = .minecraft + Prisma2/ + minecraft
+
+---
+Task ID: 321
+Agent: main (Super Z)
+Task: 旧版本升级自动迁移 + 从 Air 自动迁移优化（用户指令："Prisma1 6.5.5 用户升级这个版本自动迁移上来"+"优化自动 air 迁移功能"）
+
+Work Log:
+- 勘察定案：两代包名一致（com.prisma-devs.prisma，Info.plist 对拍）→ 原地升级 = iOS 容器保留数据天然传承，布局代差由 Task316+Task319/320 链自动收编；一代 6.5.5 = Task262 代码态（一代仓 HEAD f13bfe6d），四 AI store 全住 Documents/AI（providers.json 在可读层）；「air」= com.air-devs.air（一代前身包名，DataTransferService.h:7-9 谱系 + Task259/262 判例互证）
+- ① main.m：init_migrateLegacyUpgrade()（pre-init 调用点先于 MultiDir/PCLLayout——二代痕迹落位后指纹即失效）：结构指纹（无 Prisma2/、无 ame316 marker、无快照，且 accounts/ 或 instances/ 任一在——全新安装二者到 init 链后半段才创建，天然不误报）+ 快照落档 .ame321_upgrade_record.plist（kind=prisma1-legacy/appVersion/detectedAt/instances/accounts/aiFiles 盘点，只 stat 顶层零深遍历，幂等）+ NSLog 横幅；只读+落档纪律不动用户数据
+- ② main.m init_setupPCLLayout step④ 扩 AI 新者为准合并：Prisma2/AI 已在且旧位 AI/ 仍为真实目录 → 文件级 mtime 新者胜（绝不回滚新会话）；providers.json 永不并入 Prisma2/AI（Task275 特护：路由 Application Support/AI 或清除外露副本）；旧位能删则删非空留待下轮幂等重试
+- ③ DataTransferService：ame321_migrateFromSiblingHome（Smart=增量跳过未变 size+mtime 双判 1s 容差 + 新者为准；Overwrite=Task260 原恢复语义；ame260 原入口委托 Overwrite 向后兼容）+ 扫描返回 @"kind" 身份标注（prisma2/prisma-plugins/prisma1/legacy；plugins 旧位符号链接 attributesOfItemAtPath 不跟随天然排除）+ 迁移档案 .ame321_sibling_migration.plist（uuid/date/mode/四计数）+ 迁移后自动跑收编全链（MultiDir→PCLLayout 无需等重启）+ 排除清单双侧补口（拷贝循环+zip 导出 sweep：两档案+ame316 marker 本侧状态不搬运）+ 完成消息带四计数
+- ④ Welcome 状态机（已迁移且源无更新→卡片收起根治永久弹卡；源 mtime 更新→「增量同步」变体；未迁移→原卡+来源标注）+ 设置页 ame261 同款；双语义确认框（智能合并（推荐）Default/全量覆盖 Destructive）
+- ⑤ i18n 12 键 × 四表（scripts/ame321_i18n.py 幂等注册，余表 en 回退链 Task318 同口径）；ame321_selfcheck 新门 47 项；task219_syntax+verify_task219 唯一键锚点重锚 3277→3289
+- 门禁：十一项全绿（task191/task240×2/task248/task250/task219_syntax/verify_task219/verify_task316/ame317/ame318/ame321）
+
+Stage Summary:
+- 6.5.5 升级用户三条路全覆盖：原地升级（指纹+快照+代差链自动收编）/ LC 兄弟目录（智能合并一键迁）/ 异容器 air 老包（zip 导出导入链不变+Keychain 回退链自迁）
+- CI 判例：r0 development run 40066773182 红——main.m:750 NSDictionary 点语法 modificationDate 在 main.m 编译单元不可见（该单元仅 fileType/fileSize/fileModificationDate 族可见；make 首个失败单元即中止故 DataTransferService.m 同款未及编译）→ r1 NSFileModificationDate 字典下标根修（12e9ca9c）
+- r1 双绿：dev run 40067417925 / smoke run 40067419170（head 12e9ca9c，一轮热修）
+- 装机锚点：①6.5.5 原地升级后 latestlog 搜 "Task321: legacy Prisma1"（含盘点计数）②AI 会话在 Prisma2/AI 无感延续 ③LC 场景欢迎卡标来源（如「Prisma 旧版（1.x）」），迁移完成消息带四计数 ④迁移后再进欢迎页卡片收起（源有更新转「增量同步」）⑤插件授权/AI providers 零重配（前摘链保 Task275）
+
+---
+Task ID: 321 号段 · CI 闭环补记
+Agent: main (Super Z)
+Task: development/ui-smoke 双 workflow 终绿收口（含 r1 热修一轮）
+
+Work Log:
+- commit dfda97d6 推送（247facc4..dfda97d6）；dispatch 双 workflow 均 204
+- r0：smoke 40066774883 绿（t+6min）/ development 40066773182 红（main.m:750 编译雷，见上）
+- commit 12e9ca9c 热修推送（dfda97d6..12e9ca9c）；再 dispatch 均 204
+- r1：dev 40067417925 绿 / smoke 40067419170 绿（head 12e9ca9c）
+
+Stage Summary:
+- Task 321 终审通过（一轮热修）；本轮起门禁电池默认含 ame321_selfcheck 新门（46→47 项）
