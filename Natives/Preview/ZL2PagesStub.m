@@ -1421,3 +1421,53 @@ NSString * const DownloadTaskResourceTypeModpack = @"modpack";
 @end
 @implementation ZL2PluginRepoViewController
 @end
+
+#pragma mark - Task323-r3 数据包桩（ZL2AssetSearch datapack case 链接期依赖）
+
+// DataPackItem.h 最小桩（真头被 ZL2AssetSearch.m 编译期消费；本 TU 补链接期
+// 类符号 + 常用属性运行时响应。预览恒游戏页，数据包 case 不执行——仅防
+// 链接期 undefined symbol；上一轮 r2 链接实锤缺这两个类符号）
+@interface DataPackItem : NSObject
+@property (nonatomic, copy) NSString *onlineID;
+@property (nonatomic, copy) NSString *displayName;
+@property (nonatomic, copy) NSString *dataPackDescription;
+@property (nonatomic, copy) NSString *iconURL;
+@property (nonatomic, copy) NSString *author;
+@property (nonatomic, strong) NSNumber *downloads;
+@property (nonatomic, strong) NSNumber *likes;
+@property (nonatomic, copy) NSString *lastUpdated;
+@property (nonatomic, strong) NSArray<NSString *> *categories;
+@property (nonatomic, copy) NSString *fileName;
+@property (nonatomic, copy) NSString *fileSHA1;
+@property (nonatomic, copy) NSString *selectedVersionDownloadURL;
+- (instancetype)initWithOnlineData:(NSDictionary *)data;
+@end
+@implementation DataPackItem
+@end
+
+// DataPackService.h 最小桩（同上仅防链接；expectedSHA1 全参签名照抄真头）
+@interface DataPackService : NSObject
++ (instancetype)sharedService;
+- (void)downloadDataPack:(DataPackItem *)item
+               toProfile:(NSString *)profileName
+               worldName:(NSString *)worldName
+            expectedSHA1:(NSString *)expectedSHA1
+                progress:(void (^)(NSProgress * _Nullable downloadProgress))progress
+              completion:(void (^)(BOOL success, NSError * _Nullable error))completion;
+@end
+@implementation DataPackService
++ (instancetype)sharedService {
+    static DataPackService *s = nil;
+    static dispatch_once_t onceToken;
+    dispatch_once(&onceToken, ^{ s = [[DataPackService alloc] init]; });
+    return s;
+}
+- (void)downloadDataPack:(DataPackItem *)item
+               toProfile:(NSString *)profileName
+               worldName:(NSString *)worldName
+            expectedSHA1:(NSString *)expectedSHA1
+                progress:(void (^)(NSProgress * _Nullable))progress
+              completion:(void (^)(BOOL, NSError * _Nullable))completion {
+    NSLog(@"[AmeFluentPreview] stub downloadDataPack:%@", item.displayName);
+}
+@end
