@@ -445,6 +445,7 @@
 "game.menu.resolution" = "Risoluzione";
 "game.menu.resolution.message" = "Seleziona la scala di risoluzione del gioco";
 "game.menu.resolution.next_launch" = "Salvato. Riavvia il gioco per applicare.";
+"game.menu.resolution.applied" = "Resolution saved and applied instantly";
 "Details" = "Dettagli";
 "Unstable" = "Instabile";
 "Always" = "Sempre";

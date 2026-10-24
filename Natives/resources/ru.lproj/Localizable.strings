@@ -706,6 +706,7 @@
 "game.menu.resolution" = "Разрешение";
 "game.menu.resolution.message" = "Выберите масштаб разрешения игры";
 "game.menu.resolution.next_launch" = "Сохранено. Применится после перезапуска игры.";
+"game.menu.resolution.applied" = "Resolution saved and applied instantly";
 "Details" = "Подробнее";
 "Unstable" = "Нестабильно";
 "Always" = "Всегда";

@@ -564,6 +564,7 @@
 "game.menu.resolution" = "Auflösung";
 "game.menu.resolution.message" = "Skalierung der Spielauflösung wählen";
 "game.menu.resolution.next_launch" = "Gespeichert. Wird nach Neustart des Spiels übernommen.";
+"game.menu.resolution.applied" = "Resolution saved and applied instantly";
 "Details" = "Details";
 "Unstable" = "Instabil";
 "Always" = "Immer";

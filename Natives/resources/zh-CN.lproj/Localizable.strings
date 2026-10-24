@@ -15,6 +15,7 @@
 "game.menu.resolution" = "分辨率调整";
 "game.menu.resolution.message" = "选择游戏分辨率缩放比例";
 "game.menu.resolution.next_launch" = "分辨率已保存，重启游戏后生效";
+"game.menu.resolution.applied" = "Resolution saved and applied instantly";
 
 "game.note.airplay" = "Minecraft 正在通过隔空播放（AirPlay）到其他设备显示";
 

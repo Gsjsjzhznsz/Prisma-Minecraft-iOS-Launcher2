@@ -371,3 +371,4 @@
 /* Task316 ZL2 filter sync: category filter (dl.asset.*) */
 "dl.asset.filter.category" = "Category";
 "dl.asset.category.any" = "All categories";
+"game.menu.resolution.applied" = "Resolution saved and applied instantly";

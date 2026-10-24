@@ -15,6 +15,7 @@
 "game.menu.resolution" = "解析度調整";
 "game.menu.resolution.message" = "選擇遊戲解析度縮放比例";
 "game.menu.resolution.next_launch" = "解析度已儲存，重啟遊戲後生效";
+"game.menu.resolution.applied" = "Resolution saved and applied instantly";
 
 "game.note.airplay" = "我的世界正在AirPlay鏡像顯示器中顯示";
 

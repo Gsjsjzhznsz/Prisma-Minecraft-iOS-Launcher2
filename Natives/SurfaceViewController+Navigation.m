@@ -1231,22 +1231,24 @@ static UIColor *ame244_snapshotTint(void) {
             // video.resolution（Task159 注释明确的保留设计），保持旧全局写入
             // 不回归其行为。
             setPrefFloat(@"video.resolution", value.floatValue);
-            // Task187（分辨率触摸错位根修）：不再【立即】调用 updateSavedResolution。
-            // 病历（8cca75a 用户反馈"分辨率调节触摸输入不正常"）：updateSavedResolution
-            // 是全量几何重算——运行中调用会同步改写 surface/drawableSize/contentsScale
-            // 与 windowWidth/Height 全局，但 MC 的窗口信念（launchJVM 启动时告知的
-            // 窗口尺寸）在本进程内【不可变】：
-            //   1) EGL 表面被缩到新尺寸而 MC 仍按旧尺寸渲染（拉伸/裁切）；
-            //   2) sendTouchPoint 的 Task175 公式按新 resolutionScale 换算触点，
-            //      MC 仍按旧窗口信念归一化 → 触点整体偏移 1/旧比例（实测病灶）。
-            // 修法：菜单只写偏好（键值已即时落盘），下一次 launchJVM 周期
-            // updateSavedResolution 自然以新值建表面/窗口/输入三口径一致的
-            // 会话。当前会话保持既有几何不动（触摸与渲染完全自洽）。
+            // Task187（分辨率触摸错位根修）→ ★ Task328 退役换装：Task187 当时
+            // 不立即动几何的根因 = "MC 窗口信念在本进程内不可变"（立即重算会让
+            // 表面缩放而 MC 仍按旧信念渲染，触点整体偏移 1/旧比例，装机实测
+            // 病灶）。Task327 沉降自适应重宣告已把信念变成可变（强制宣告 +
+            // 触点/热栏/光标三条换算链同源重算），本菜单恢复【会话内即时生效】：
+            // ame328_applyResolutionInSession 按全屏/自由窗两分支重算信念链并
+            // 强制宣告；会话未建立（启动前调节）回落"下次启动生效"旧语义。
             if (value.intValue != currentValue) {
-                [NMToast showMessage:localize(@"game.menu.resolution.next_launch", nil)];
+                BOOL ame328_applied = [self ame328_applyResolutionInSession:value.floatValue / 100.0];
+                [NMToast showMessage:localize(ame328_applied
+                    ? @"game.menu.resolution.applied"
+                    : @"game.menu.resolution.next_launch", nil)];
+                NSLog(@"[Task187/328] in-game resolution saved %ld%% -- %@",
+                      (long)value.intValue,
+                      ame328_applied
+                          ? @"applied in-session (belief chain recomputed + forced re-announce)"
+                          : @"saved, applies next launch (no live session)");
             }
-            NSLog(@"[Task187] in-game resolution saved %ld%% -- geometry applies next launch (in-session resize would desync MC window belief + touch mapping)",
-                  (long)value.intValue);
             },
         }];
     }

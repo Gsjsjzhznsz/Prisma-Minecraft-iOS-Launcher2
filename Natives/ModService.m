@@ -536,6 +536,87 @@
     }
 }
 
+/// ★ Task328：诱饵版本骨架清扫（"versions 空目录"第四轮复访根因收口；用户
+///   装机 777e82c 截图实锤：versions/<vid>/ 内 mods/saves/config/resourcepacks/
+///   shaderpacks/screenshots 六目录全部"0项"）。来源链 = Task271 默认隔离
+///   清扫给安装期自动建档的 profile 写入 gameDir=versions/<vid>（Task324
+///   判据①命中）→ 骨架建立 → 该版本随后被整合包实例（gameDir = 绝对路径
+///   instances/<id>，Task325 实例轴）接管启动 → 版本目录骨架成了永不生效
+///   的诱饵：用户在文件 App 打开版本目录只见一堆空文件夹（真实数据在实例
+///   目录），观感 = "versions 空目录"。
+///   口径：六目录【全部存在且全部为空】（非隐藏项计空）才构成诱饵形态，
+///   且无任何【仍然生效】的版本轴 claim——claim 判据 = 存在 gameDir 为
+///   versions/<vid>/（或旧 game 叶子）的 profile，且同 lastVersionId 下
+///   【无】绝对路径 gameDir 的 profile（实例轴/自定义目录接管 = 版本轴
+///   claim 失效，ghost 档不保骨架）。任一目录有真实内容 = 事实上隔离
+///   （Task324 判据②），整组绝不触碰。空目录零数据语义可无损再生：日后
+///   用户显式启用该版本隔离，ame324 骨架链一启动即重建。幂等零副作用。
++ (void)ame328_pruneDecoyVersionSkeletons {
+    const char *ame328_env = getenv("POJAV_GAME_DIR");
+    if (!ame328_env || !*ame328_env) return;
+    NSString *ame328_base = [NSString stringWithUTF8String:ame328_env];
+    if (ame328_base.length == 0) return;
+    NSFileManager *ame328_fm = [NSFileManager defaultManager];
+    NSString *ame328_versions = [ame328_base stringByAppendingPathComponent:@"versions"];
+    NSArray<NSString *> *ame328_vdirs = [ame328_fm contentsOfDirectoryAtPath:ame328_versions error:nil];
+    NSInteger ame328_pruned = 0;
+    for (NSString *ame328_vd in ame328_vdirs) {
+        if ([ame328_vd hasPrefix:@"."]) continue;
+        NSString *ame328_vdir = [ame328_versions stringByAppendingPathComponent:ame328_vd];
+        BOOL ame328_isDir = NO;
+        if (![ame328_fm fileExistsAtPath:ame328_vdir isDirectory:&ame328_isDir] || !ame328_isDir) continue;
+        // 诱饵形态①：六目录全部存在且全部为空（任一缺失 = 非骨架形态不碰；
+        // 任一有内容 = 事实上隔离，绝不触碰）
+        NSArray<NSString *> *ame328_six = @[@"mods", @"saves", @"config", @"resourcepacks", @"shaderpacks", @"screenshots"];
+        BOOL ame328_allEmpty = YES;
+        NSMutableArray<NSString *> *ame328_empty = [NSMutableArray array];
+        for (NSString *ame328_leaf in ame328_six) {
+            NSString *ame328_p = [ame328_vdir stringByAppendingPathComponent:ame328_leaf];
+            BOOL ame328_leafDir = NO;
+            if (![ame328_fm fileExistsAtPath:ame328_p isDirectory:&ame328_leafDir] || !ame328_leafDir) {
+                ame328_allEmpty = NO;
+                break;
+            }
+            NSArray<NSString *> *ame328_entries = [ame328_fm contentsOfDirectoryAtPath:ame328_p error:nil];
+            for (NSString *ame328_e in ame328_entries) {
+                if (![ame328_e hasPrefix:@"."]) { ame328_allEmpty = NO; break; }
+            }
+            if (!ame328_allEmpty) break;
+            [ame328_empty addObject:ame328_p];
+        }
+        if (!ame328_allEmpty || ame328_empty.count != ame328_six.count) continue;
+        // 诱饵形态②：无仍然生效的版本轴 claim（实例轴/自定义目录接管或
+        // ghost 档 = 摘除；显式隔离用户 = 保留）
+        BOOL ame328_claimed = NO;
+        BOOL ame328_instanceBound = NO;
+        NSString *ame328_flat = [NSString stringWithFormat:@"versions/%@", ame328_vd];
+        NSString *ame328_leafOld = [NSString stringWithFormat:@"versions/%@/game", ame328_vd];
+        for (NSDictionary *ame328_prof in PLProfiles.current.profiles.allValues) {
+            if (![ame328_prof isKindOfClass:[NSDictionary class]]) continue;
+            NSString *ame328_lvi = ame328_prof[@"lastVersionId"];
+            if (![ame328_lvi isKindOfClass:[NSString class]] || ![ame328_lvi isEqualToString:ame328_vd]) continue;
+            NSString *ame328_gd = ame328_prof[@"gameDir"];
+            if (![ame328_gd isKindOfClass:[NSString class]] || ame328_gd.length == 0) continue;
+            if (ame328_gd.isAbsolutePath) {
+                ame328_instanceBound = YES;   // 实例轴/自定义目录接管
+            } else if ([ame328_gd isEqualToString:ame328_flat] ||
+                       [ame328_gd isEqualToString:ame328_leafOld]) {
+                ame328_claimed = YES;         // 版本轴显式/清扫建档 claim
+            }
+        }
+        if (ame328_claimed && !ame328_instanceBound) continue;
+        for (NSString *ame328_p in ame328_empty) {
+            if ([ame328_fm removeItemAtPath:ame328_p error:nil]) ame328_pruned++;
+        }
+        NSLog(@"[Ame328] decoy skeleton pruned: versions/%@ (6 empty dir(s), instance-bound/orphaned, regenerable on demand)",
+              ame328_vd);
+    }
+    if (ame328_pruned > 0) {
+        NSLog(@"[Ame328] decoy skeleton prune done: %ld dir(s) removed -- instance-bound version dirs show json+jar only (FCL parity)",
+              (long)ame328_pruned);
+    }
+}
+
 /// ★ Task325：实例轴骨架 pass —— 整合包/AI 实例的隔离单元是 instances/<id>/
 /// （profile gameDir = 绝对路径，ModpackImportService Task316/269/275-F5 铸成），
 /// 与版本轴（versions/<id>/，Task322/324 铸成）零交集：Task324 的两条隔离判据
@@ -614,6 +695,9 @@
         [ModService ame324_ensureIsolationSkeletonForVersionId:ame324_vd];
     }
     [ModService ame325_ensureInstanceAxisSkeletons];
+    // ★ Task328：诱饵版本骨架清扫（六空目录诱饵形态摘除，见方法头注）——
+    //   跟随全量骨架 pass 同点运行（启动自愈链 + 安装成功分支），摘完即静默
+    [ModService ame328_pruneDecoyVersionSkeletons];
 }
 
 - (nullable NSString *)existingModsFolderForProfile:(NSString *)profileName {

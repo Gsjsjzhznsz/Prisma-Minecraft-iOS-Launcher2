@@ -15,6 +15,7 @@
 "game.menu.resolution" = "Resolution";
 "game.menu.resolution.message" = "Select game resolution scale";
 "game.menu.resolution.next_launch" = "Saved. Restart the game to apply.";
+"game.menu.resolution.applied" = "Resolution saved and applied instantly";
 
 "game.note.airplay" = "Minecraft is being displayed in AirPlay mirrored display";
 

@@ -176,6 +176,14 @@ static UIImage *ame_hubSystemImage(NSString *name, NSString *fallback) {
 
     [self buildViews];
     [self ame_showPageAtIndex:0];   // 首屏：渲染器（无过渡，首显直挂）
+
+    // ★ Task328：外部定点打开契约（主页插件 chip 两段通知的第二段）——本页
+    //   可能被壳懒建（attach 同步触发 viewDidLoad，观察者先于定点通知注册），
+    //   两段同步派发时序确定；dealloc 同步摘除
+    [[NSNotificationCenter defaultCenter] addObserver:self
+                                             selector:@selector(ame328_selectSubPage:)
+                                                 name:@"ZL2SettingsSelectPage"
+                                               object:nil];
 }
 
 // 根页导航栏约定：本页隐藏系统栏；push 子页 / present 全屏页时由
@@ -191,7 +199,11 @@ static UIImage *ame_hubSystemImage(NSString *name, NSString *fallback) {
     [self.navigationController setNavigationBarHidden:NO animated:NO];
 }
 
-// 通知/KVO 均未注册，无需 dealloc 清理
+// 通知：★Task328 起监听 ZL2SettingsSelectPage（主页插件 chip 定点子页），
+// dealloc 同步摘除；KVO 未注册
+- (void)dealloc {
+    [[NSNotificationCenter defaultCenter] removeObserver:self];
+}
 
 // 旋转：左轨宽度随 idiom 口径刷新（iPad 200 / iPhone 160），分隔线宽随轨宽
 - (void)viewWillTransitionToSize:(CGSize)size
@@ -424,6 +436,13 @@ static UIImage *ame_hubSystemImage(NSString *name, NSString *fallback) {
 
 - (void)ame_railItemTapped:(ZL2SettingsRailItem *)sender {
     [self ame_showPageAtIndex:(NSInteger)sender.tag];
+}
+
+// ★ Task328：外部定点子页（userInfo[@"index"]）；越界忽略
+- (void)ame328_selectSubPage:(NSNotification *)note {
+    NSInteger ame328_index = [note.userInfo[@"index"] integerValue];
+    if (ame328_index < 0 || ame328_index > 7) return;
+    [self ame_showPageAtIndex:ame328_index];
 }
 
 @end

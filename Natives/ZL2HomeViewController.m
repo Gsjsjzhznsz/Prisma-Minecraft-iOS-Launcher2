@@ -77,6 +77,7 @@
 void UIKit_launchMinecraftSurfaceVC(UIWindow *window, NSDictionary *metadata);
 #import "LauncherPreferences.h" // Task323：profile 覆盖 setPrefString/setPrefInt（旧链同款）
 #import "utils.h"   // localize()
+#import "AmePluginRuntime.h" // ★Task328：插件贡献行计数（主页直达 chip 可见性）
 
 // KVO 观察上下文（旧链 ProgressObserverContext 同款静态指针判别，防父类/他人混淆）
 static void *ZL2HomeProgressObserverContext = &ZL2HomeProgressObserverContext;
@@ -406,6 +407,10 @@ static UIImage *ZL2HomeSizedImage(NSString *name, NSString *fallback, CGFloat po
 @property (nonatomic, strong) UILabel *launchButtonLabel;
 @property (nonatomic, strong) UILabel *launchStatusLabel;  // KVO 百分比行（下载态可见）
 @property (nonatomic, strong) UILabel *menuHintLabel;
+// ★ Task328：插件功能直达 chip（无贡献行时塌缩隐藏，零回归）
+@property (nonatomic, strong) UIControl *pluginChipButton;
+@property (nonatomic, strong) UIImageView *pluginChipIconView;
+@property (nonatomic, strong) UILabel *pluginChipLabel;
 
 // 数据（实例行模型：name/versionId/loader/mcVersion/valid/isSelected）
 @property (nonatomic, copy) NSArray<NSDictionary *> *ame_rows;
@@ -474,6 +479,8 @@ static UIImage *ZL2HomeSizedImage(NSString *name, NSString *fallback, CGFloat po
 - (void)viewWillAppear:(BOOL)animated {
     [super viewWillAppear:animated];
     [self refreshLaunchState];
+    // ★ Task328：插件 chip 计数刷新（插件启停/装载变化回主页即刻反映）
+    [self ame328_refreshPluginChip];
 }
 
 - (void)viewDidLayoutSubviews {
@@ -687,6 +694,56 @@ static UIImage *ZL2HomeSizedImage(NSString *name, NSString *fallback, CGFloat po
     launchContent.translatesAutoresizingMaskIntoConstraints = NO;
     launchContent.userInteractionEnabled = NO;
     [_launchButton addSubview:launchContent];
+
+    // —— ⑤ 插件功能直达 chip（★ Task328：插件效果可见性第三刀——设置页组
+    //    上移/计数之外，主页一键直达 设置 → 启动器 → 插件功能区；无贡献行
+    //    时塌缩隐藏 = 零回归。puzzlepiece.extension 为 SF2.0/iOS14 符号，带
+    //    旧名 fallback，本仓 iOS14 上限内）——
+    _pluginChipButton = [[UIControl alloc] init];
+    _pluginChipButton.backgroundColor = [ZL2Theme surfaceContainerHigh];
+    _pluginChipButton.layer.cornerRadius = [ZL2Theme radiusS];
+    _pluginChipButton.translatesAutoresizingMaskIntoConstraints = NO;
+    _pluginChipButton.isAccessibilityElement = YES;
+    _pluginChipButton.accessibilityTraits = UIAccessibilityTraitButton;
+    _pluginChipButton.accessibilityIdentifier = @"zl2_home_plugin_chip";
+    _pluginChipButton.hidden = YES;   // 初始塌缩，viewWillAppear 计数刷新后放行（防首建闪现）
+    [_pluginChipButton addTarget:self
+                          action:@selector(ame328_pluginChipTapped)
+                forControlEvents:UIControlEventTouchUpInside];
+    [_menuStack addArrangedSubview:_pluginChipButton];
+
+    UIImage *pluginChipImage = ZL2HomeSizedImage(@"puzzlepiece.extension", @"gearshape", 14);
+    _pluginChipIconView = [[UIImageView alloc] initWithImage:[pluginChipImage imageWithRenderingMode:UIImageRenderingModeAlwaysTemplate]];
+    _pluginChipIconView.contentMode = UIViewContentModeScaleAspectFit;
+    _pluginChipIconView.tintColor = [ZL2Theme onSurfaceVariant];
+    _pluginChipIconView.translatesAutoresizingMaskIntoConstraints = NO;
+    _pluginChipIconView.userInteractionEnabled = NO;
+
+    _pluginChipLabel = [[UILabel alloc] init];
+    _pluginChipLabel.font = [ZL2Theme fontLabelMedium];
+    _pluginChipLabel.textColor = [ZL2Theme onSurface];
+    _pluginChipLabel.textAlignment = NSTextAlignmentCenter;
+    _pluginChipLabel.numberOfLines = 1;
+    _pluginChipLabel.lineBreakMode = NSLineBreakByTruncatingTail;
+    _pluginChipLabel.translatesAutoresizingMaskIntoConstraints = NO;
+    _pluginChipLabel.userInteractionEnabled = NO;
+
+    UIStackView *pluginChipContent =
+        [[UIStackView alloc] initWithArrangedSubviews:@[_pluginChipIconView, _pluginChipLabel]];
+    pluginChipContent.axis = UILayoutConstraintAxisHorizontal;
+    pluginChipContent.alignment = UIStackViewAlignmentCenter;
+    pluginChipContent.spacing = 6;
+    pluginChipContent.translatesAutoresizingMaskIntoConstraints = NO;
+    pluginChipContent.userInteractionEnabled = NO;
+    [_pluginChipButton addSubview:pluginChipContent];
+
+    [_pluginChipButton.heightAnchor constraintEqualToConstant:34].active = YES;
+    [NSLayoutConstraint activateConstraints:@[
+        [pluginChipContent.centerXAnchor constraintEqualToAnchor:_pluginChipButton.centerXAnchor],
+        [pluginChipContent.centerYAnchor constraintEqualToAnchor:_pluginChipButton.centerYAnchor],
+        [pluginChipContent.leadingAnchor constraintGreaterThanOrEqualToAnchor:_pluginChipButton.leadingAnchor constant:12],
+        [_pluginChipButton.trailingAnchor constraintGreaterThanOrEqualToAnchor:pluginChipContent.trailingAnchor constant:12],
+    ]];
 
     // —— ④ 停靠边提示（ActionMenuDrag 简化语义的可见性说明）——
     _menuHintLabel = [[UILabel alloc] init];
@@ -957,6 +1014,32 @@ static UIImage *ZL2HomeSizedImage(NSString *name, NSString *fallback, CGFloat po
         [UIView animateWithDuration:0.22
                           animations:^{ [self.view layoutIfNeeded]; }];
     }
+}
+
+// ★ Task328：插件 chip 计数刷新——贡献行数（四内置件 = 4）即“插件在跑”
+//   的可见信号；无贡献行时整枚 chip 塌缩隐藏（UIStackView arrangedSubview
+//   hidden 自带零高度塌缩，零回归）。
+- (void)ame328_refreshPluginChip {
+    NSInteger ame328_rows = (NSInteger)[[AmePluginRuntime allContributedRows] count];
+    self.pluginChipButton.hidden = (ame328_rows <= 0);
+    if (ame328_rows > 0) {
+        self.pluginChipLabel.text = [NSString stringWithFormat:@"%@ (%ld)",
+            localize(@"ame327.plugin.rows.title", nil), (long)ame328_rows];
+        self.pluginChipButton.accessibilityLabel = self.pluginChipLabel.text;
+    }
+}
+
+// ★ Task328：插件 chip → 壳切设置（index 4）→ 枢纽子页定点（启动器 = 4）。
+//   两段通知【同步】派发：第一段让壳 attach 设置枢纽（懒建路径子页 attach
+//   同步触发 viewDidLoad，观察者先注册）；第二段定点通知随即必达——先建
+//   后点的时序确定，枢纽已存在的重访路径同样命中。
+- (void)ame328_pluginChipTapped {
+    [[NSNotificationCenter defaultCenter] postNotificationName:@"ZL2ShellNavigate"
+                                                        object:nil
+                                                      userInfo:@{@"index": @4}];
+    [[NSNotificationCenter defaultCenter] postNotificationName:@"ZL2SettingsSelectPage"
+                                                        object:nil
+                                                      userInfo:@{@"index": @(4)}];
 }
 
 - (void)ame_handleMenuLongPress:(UILongPressGestureRecognizer *)gesture {

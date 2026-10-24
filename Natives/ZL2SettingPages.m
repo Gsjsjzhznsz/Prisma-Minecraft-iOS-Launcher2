@@ -938,6 +938,10 @@ didPickDocumentsAtURLs:(NSArray<NSURL *> *)urls {
     ZL2SettingCardGroup *group1 = [[ZL2SettingCardGroup alloc] init];
     [group1 ame_addRows:@[themeRow, languageRow, effectRow, opacityRow, blurRow]];
     [self ame_addGroup:group1];
+    // ★ Task328：插件贡献行动态组上移（Task327 挂页尾 = 用户不可达面重现——
+    //   四内置插件已装载而用户仍报"没看到任何功能"：组在第 3 屏外）。上移到
+    //   外观组之后第 2 位，进入首屏可视域。
+    [self ame327_rebuildPluginRowsGroup];
 
     // --- 组 2：下载源（download.* 四分类真键；值域 official/mirror/speed_first）---
     NSArray<NSString *> *sourceKeys = @[@"official_first", @"mirror_first", @"speed_first"];
@@ -1039,9 +1043,8 @@ didPickDocumentsAtURLs:(NSArray<NSURL *> *)urls {
     };
     [group3 ame_addRows:@[backgroundRow, galleryRow, gameDirRow, importRow, pluginRow, repoRow, moreRow]];
     [self ame_addGroup:group3];
-    // ★ Task327：插件贡献行动态组（Task318 ame.addLauncherRow 的消费端——
-    //   此前全仓库零渲染 = 插件效果整体不可见的直因）
-    [self ame327_rebuildPluginRowsGroup];
+    // ★ Task327：插件贡献行动态组（Task318 ame.addLauncherRow 的消费端）
+    //   ★ Task328：构建点已上移至外观组之后（首屏可视域），见彼处注释
 }
 
 /// ★ Task327：插件贡献行动态组。数据源 = [AmePluginRuntime allContributedRows]
@@ -1062,7 +1065,10 @@ didPickDocumentsAtURLs:(NSArray<NSURL *> *)urls {
     NSArray<NSDictionary *> *rows = [AmePluginRuntime allContributedRows];
     if (rows.count == 0) return;
     UILabel *header = [[UILabel alloc] init];
-    header.text = localize(@"ame327.plugin.rows.title", nil);
+    // ★ Task328：标题带贡献行计数（"(N)" = 插件确实在跑的可见信号；计数
+    //   经 ASCII 括号拼接而非格式化本地化串，避免译文含 % 的格式串雷）
+    header.text = [NSString stringWithFormat:@"%@ (%ld)",
+                   localize(@"ame327.plugin.rows.title", nil), (long)rows.count];
     header.font = [ZL2Theme fontLabelLarge];
     header.textColor = [ZL2Theme onSurfaceVariant];
     header.translatesAutoresizingMaskIntoConstraints = NO;

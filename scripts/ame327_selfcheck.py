@@ -58,11 +58,15 @@ check("重宣告含强制宣告（nativeSendScreenSizeForced）",
 check("快路径锚点复位（Task279 家法）",
       "g_ame267_lastRescaledSize = CGSizeMake(0.0, 0.0);" in sv)
 check("定时器 dealloc 清理", sv.count("[ame327_settleTimer invalidate]") == 2)  # schedule + dealloc
-check("信念链重算五件套（phys/surface/window/ratio/fsr）",
-      all(k in sv.split("- (void)ame327_settledReannounceForSize:")[1]
-          for k in ["physicalWidth = ame327_newPhysW", "ame_surfaceWidth = ame327_newSurfW",
-                    "windowWidth = ame327_newWinW", "ame_windowToPhysRatio",
+check("信念链重算五件套（phys/surface/window/ratio/fsr）-- ★Task328 重锚 ame328 核心",
+      all(k in sv.split("- (BOOL)ame328_recomputeBeliefChainFromTouchViewWithRes:")[1]
+          for k in ["physicalWidth = ame328_newPhysW", "ame_surfaceWidth = ame328_newSurfW",
+                    "windowWidth = ame328_newWinW", "ame_windowToPhysRatio",
                     "ame166_metal_fsr_update_size(windowWidth, windowHeight);"]))
+check("沉降重宣告委托 ame328 核心（单一事实源）",
+      "ame328_recomputeBeliefChainFromTouchViewWithRes:ame327_res" in
+      sv.split("- (void)ame327_settledReannounceForSize:")[1]
+         .split("- (BOOL)ame328_recomputeBeliefChainFromTouchViewWithRes:")[0])
 
 print("== ③ 插件效果可见 ==")
 sp = rd("Natives/ZL2SettingPages.m")
@@ -116,6 +120,52 @@ for lang in ["en", "zh-Hans", "zh-CN", "zh-Hant"]:
           all(k in t for k in ["ame317.perm.ui.nav.name", "ame317.perm.profile.write.name",
                                "ame317.perm.files.game.name", "ame327.plugin.rows.title",
                                "ame327.plugin.guide.title", "ame327.plugin.guide.body"]))
+
+print("== ⑦ Task328 四联 ==")
+# ⑦A versions 空目录：诱饵骨架清扫
+check("诱饵骨架清扫方法在位", "ame328_pruneDecoyVersionSkeletons" in ms)
+check("清扫接入全量骨架 pass 尾", "[ModService ame328_pruneDecoyVersionSkeletons];" in ms)
+check("清扫守卫：六目录全空才构成诱饵形态",
+      "ame328_empty.count != ame328_six.count" in ms)
+check("清扫守卫：版本轴 claim + 实例轴接管对冲",
+      "ame328_claimed && !ame328_instanceBound" in ms)
+# ⑦B SDL 小窗 + 分辨率即时应用
+check("小窗首入即时武装（布局路径跳过去抖）",
+      "ame261_runAdaptiveGeometryResync];" in sv and
+      "Task328：自由窗即时武装" in sv)
+check("分辨率会话内即时应用方法在位",
+      "ame328_applyResolutionInSession" in sv)
+check("应用方法双分支（自由窗核心 / 全屏全链）",
+      "ame267_isFullscreenWindow] || g_ame267_freeformScaled" in sv and
+      "[self updateSavedResolution];" in sv.split("- (BOOL)ame328_applyResolutionInSession:")[1].split("@end")[0])
+nav = rd("Natives/SurfaceViewController+Navigation.m")
+check("游戏内菜单接入即时应用 + applied 键",
+      "ame328_applyResolutionInSession:value.floatValue / 100.0" in nav and
+      'game.menu.resolution.applied' in nav)
+# ⑦C 插件效果直达
+check("设置页插件组上移至外观组后（新位点 + 组3 尾零残留）",
+      "[self ame_addGroup:group1];\n    // ★ Task328：插件贡献行动态组上移" in sp and
+      "[self ame327_rebuildPluginRowsGroup];" not in
+      sp.split("[group3 ame_addRows:@[backgroundRow", 1)[1]
+        .split("- (void)ame327_rebuildPluginRowsGroup", 1)[0])
+check("插件组标题带计数（ASCII 括号拼接）",
+      '%@ (%ld)"' in sp and "ame327.plugin.rows.title" in sp)
+hm = rd("Natives/ZL2HomeViewController.m")
+check("主页插件 chip 在位", "pluginChipButton" in hm and "ame328_pluginChipTapped" in hm)
+check("chip = 两段同步通知（壳切页 + 枢纽定点）",
+      'postNotificationName:@"ZL2ShellNavigate"' in hm and
+      'postNotificationName:@"ZL2SettingsSelectPage"' in hm)
+sh = rd("Natives/ZL2SettingsViewController.m")
+check("设置枢纽监听定点通知", "ame328_selectSubPage" in sh and
+      'name:@"ZL2SettingsSelectPage"' in sh)
+check("chip 计数 = allContributedRows", "[[AmePluginRuntime allContributedRows] count]" in hm)
+# ⑦D AI 提示词 v3
+ai = rd("Natives/AI/AiSettings.m")
+check("默认提示词含插件开发章", "【七、插件系统（AmePlugin）" in ai)
+check("v2 基线留档（迁移比对）", "ame328_v2DefaultSystemPrompt" in ai)
+check("迁移写版本号 3", "setInteger:3 forKey:kSystemPromptVersionKey" in ai)
+check("create_plugin 与提示词 API 同源（addLauncherRow 主通道）",
+      "addLauncherRow" in ai)
 
 print(f"\n== ame327 selfcheck: {passed} passed / {len(fails)} failed ==")
 if fails:

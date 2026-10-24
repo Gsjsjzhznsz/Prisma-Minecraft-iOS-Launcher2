@@ -1719,7 +1719,23 @@ static NSInteger ame283_lastLandscapeDev = 0;
     //   布局尺寸与上次重算锚点失配 → 合并去抖 0.3s 后全链重算+重宣告。
     CGSize ame261_now = self.view.bounds.size;
     if (ame261_now.width > 0 && !CGSizeEqualToSize(ame261_now, ame261_lastSyncedViewSize)) {
-        [self ame261_scheduleAdaptiveGeometryResync];
+        // ★ Task328：自由窗即时武装——0.3s 去抖窗是"首入小窗输入偏移"的
+        //   存活面：门未立（freeformScaled=NO）期间触点仍按全屏信念换算，
+        //   首入小窗的头 0.3s 触点整体偏移（用户"SDL 切小窗输入偏移"残余
+        //   面；Task279 已把武装前移进 updateSavedResolution，但那只覆盖
+        //   走 viewWillTransitionToSize 的 tick，iPadOS 26 布局路径仍过这里）。
+        //   非全屏 + 会话已建立 + 前台 = 跳过去抖下一 runloop 即时重排
+        //   （重排幂等：ame261 锚点同步后早退，拖拽高频 layout 不堆积）；
+        //   全屏路径（旋转/转场收口）保持 0.3s 合并去抖语义不变。
+        if (windowWidth > 0 && g_ame250_appActive &&
+            self.surfaceView.superview != nil &&
+            ![self ame267_isFullscreenWindow]) {
+            dispatch_async(dispatch_get_main_queue(), ^{
+                [self ame261_runAdaptiveGeometryResync];
+            });
+        } else {
+            [self ame261_scheduleAdaptiveGeometryResync];
+        }
     }
 }
 
@@ -2137,42 +2153,59 @@ static NSInteger ame283_lastLandscapeDev = 0;
     CGSize ame327_now = self.view.bounds.size;
     if (fabs(ame327_now.width - ame327_target.width) > 0.5 ||
         fabs(ame327_now.height - ame327_target.height) > 0.5) return;   // 未沉降
-    CGFloat ame327_lw = self.touchView.frame.size.width;
-    CGFloat ame327_lh = self.touchView.frame.size.height;
-    if (ame327_lw < 1.0 || ame327_lh < 1.0) return;
-    if (self.screenScale <= 0.0) self.screenScale = UIScreen.mainScreen.scale;
-    int ame327_newPhysW = (int)roundf(ame327_lw * self.screenScale);
-    int ame327_newPhysH = (int)roundf(ame327_lh * self.screenScale);
-    if (ame327_newPhysW <= 0 || ame327_newPhysH <= 0) return;
     CGFloat ame327_res = (resolutionScale > 0.01f) ? resolutionScale : 1.0f;
-    int ame327_newSurfW = (int)roundf(ame327_newPhysW * ame327_res);
-    int ame327_newSurfH = (int)roundf(ame327_newPhysH * ame327_res);
-    if ((ame327_newSurfW % 2) != 0) { --ame327_newSurfW; }
-    if ((ame327_newSurfH % 2) != 0) { --ame327_newSurfH; }
-    int ame327_newWinW = (mgFsrScale > 1.0f)
-        ? (int)roundf((float)ame327_newSurfW / mgFsrScale) : ame327_newSurfW;
-    int ame327_newWinH = (mgFsrScale > 1.0f)
-        ? (int)roundf((float)ame327_newSurfH / mgFsrScale) : ame327_newSurfH;
-    if ((ame327_newWinW % 2) != 0) { --ame327_newWinW; }
-    if ((ame327_newWinH % 2) != 0) { --ame327_newWinH; }
-    if (abs(ame327_newWinW - windowWidth) <= 1 && abs(ame327_newWinH - windowHeight) <= 1) {
-        return;   // 已 1:1（比例一致），幂等跳过
+    // ★ Task328：信念链重算核心抽离（ame328_recomputeBeliefChainFromTouchViewWithRes:，
+    //   幂等闸内置于核心）——本方法只保留沉降守卫语义；游戏内分辨率调节即时
+    //   生效（ame328_applyResolutionInSession）与沉降重宣告共用同一核心。
+    [self ame328_recomputeBeliefChainFromTouchViewWithRes:ame327_res];
+}
+
+/// ★ Task328：信念链单点重算核心（自 touchView 实况帧 × 给定 res）——
+///   Task327 沉降重宣告与"游戏内分辨率调节即时生效"共用。语义与全屏重算链
+///   （updateSavedResolution 全量段）同源：physical = touchView × screenScale、
+///   surface = physical × res、window = surface / mgFsrScale（偶数化），随后
+///   ame_windowToPhysRatio、Metal FSR 交换层、contentsScale、drawable 当帧
+///   钉回（Task326 同款）、内容矩形重排（快路径锚点复位 → 信箱溶解）、
+///   Task250 强制宣告（绕过同值去重）。
+///   返回 YES = 信念已改变并应用；NO = 无效几何，或幂等跳过（新信念与旧
+///   信念差 ≤1px，比例一致已 1:1）。
+- (BOOL)ame328_recomputeBeliefChainFromTouchViewWithRes:(CGFloat)ame328_res {
+    CGFloat ame328_lw = self.touchView.frame.size.width;
+    CGFloat ame328_lh = self.touchView.frame.size.height;
+    if (ame328_lw < 1.0 || ame328_lh < 1.0) return NO;
+    if (self.screenScale <= 0.0) self.screenScale = UIScreen.mainScreen.scale;
+    int ame328_newPhysW = (int)roundf(ame328_lw * self.screenScale);
+    int ame328_newPhysH = (int)roundf(ame328_lh * self.screenScale);
+    if (ame328_newPhysW <= 0 || ame328_newPhysH <= 0) return NO;
+    if (ame328_res <= 0.01f) ame328_res = 1.0f;
+    int ame328_newSurfW = (int)roundf(ame328_newPhysW * ame328_res);
+    int ame328_newSurfH = (int)roundf(ame328_newPhysH * ame328_res);
+    if ((ame328_newSurfW % 2) != 0) { --ame328_newSurfW; }
+    if ((ame328_newSurfH % 2) != 0) { --ame328_newSurfH; }
+    int ame328_newWinW = (mgFsrScale > 1.0f)
+        ? (int)roundf((float)ame328_newSurfW / mgFsrScale) : ame328_newSurfW;
+    int ame328_newWinH = (mgFsrScale > 1.0f)
+        ? (int)roundf((float)ame328_newSurfH / mgFsrScale) : ame328_newSurfH;
+    if ((ame328_newWinW % 2) != 0) { --ame328_newWinW; }
+    if ((ame328_newWinH % 2) != 0) { --ame328_newWinH; }
+    if (abs(ame328_newWinW - windowWidth) <= 1 && abs(ame328_newWinH - windowHeight) <= 1) {
+        return NO;   // 已 1:1（比例一致），幂等跳过
     }
-    int ame327_oldW = windowWidth, ame327_oldH = windowHeight;
+    int ame328_oldW = windowWidth, ame328_oldH = windowHeight;
 
     // 信念链单点重算（与全屏段同源口径）
-    resolutionScale = ame327_res;
-    physicalWidth = ame327_newPhysW;
-    physicalHeight = ame327_newPhysH;
-    ame_surfaceWidth = ame327_newSurfW;
-    ame_surfaceHeight = ame327_newSurfH;
-    windowWidth = ame327_newWinW;
-    windowHeight = ame327_newWinH;
+    resolutionScale = ame328_res;
+    physicalWidth = ame328_newPhysW;
+    physicalHeight = ame328_newPhysH;
+    ame_surfaceWidth = ame328_newSurfW;
+    ame_surfaceHeight = ame328_newSurfH;
+    windowWidth = ame328_newWinW;
+    windowHeight = ame328_newWinH;
     ame_windowToPhysRatio = 0.0f;
     if (windowHeight > 0 && physicalHeight > 0) {
-        float ame327_ratio = (float)physicalHeight / (float)windowHeight;
-        if (ame327_ratio >= 0.25f && ame327_ratio <= 8.0f) {
-            ame_windowToPhysRatio = ame327_ratio;
+        float ame328_ratio = (float)physicalHeight / (float)windowHeight;
+        if (ame328_ratio >= 0.25f && ame328_ratio <= 8.0f) {
+            ame_windowToPhysRatio = ame328_ratio;
         }
     }
     ame166_metal_fsr_update_size(windowWidth, windowHeight);
@@ -2180,12 +2213,12 @@ static NSInteger ame283_lastLandscapeDev = 0;
 
     // drawable 当帧钉回（Task326 同款；ANGLE resize 窗口杀同帧）
     if ([self.surfaceView.layer isKindOfClass:CAMetalLayer.class]) {
-        CAMetalLayer *ame327_ml = (CAMetalLayer *)self.surfaceView.layer;
-        CGSize ame327_tgt = CGSizeMake(round((CGFloat)physicalWidth * ame327_res),
-                                       round((CGFloat)physicalHeight * ame327_res));
-        if (fabs(ame327_ml.drawableSize.width - ame327_tgt.width) > 0.5 ||
-            fabs(ame327_ml.drawableSize.height - ame327_tgt.height) > 0.5) {
-            ame327_ml.drawableSize = ame327_tgt;
+        CAMetalLayer *ame328_ml = (CAMetalLayer *)self.surfaceView.layer;
+        CGSize ame328_tgt = CGSizeMake(round((CGFloat)physicalWidth * ame328_res),
+                                       round((CGFloat)physicalHeight * ame328_res));
+        if (fabs(ame328_ml.drawableSize.width - ame328_tgt.width) > 0.5 ||
+            fabs(ame328_ml.drawableSize.height - ame328_tgt.height) > 0.5) {
+            ame328_ml.drawableSize = ame328_tgt;
         }
     }
     // 内容矩形重排（比例一致 → 满窗溶解；快路径锚点先复位）
@@ -2195,9 +2228,42 @@ static NSInteger ame283_lastLandscapeDev = 0;
     // 强制重宣告（Task250 通道，绕过同值去重）+ 首触点兜底
     CallbackBridge_nativeSendScreenSizeForced(windowWidth, windowHeight);
     ame248_geoResyncPending = YES;
-    NSLog(@"[SurfaceVC] Task327: freeform settled adaptive re-announce (belief %dx%d -> %dx%d, view %.0fx%.0f, mailbox dissolved, input scale %.2f)",
-          ame327_oldW, ame327_oldH, (int)windowWidth, (int)windowHeight,
-          ame327_lw, ame327_lh, (double)ame267_adaptiveScaleX);
+    NSLog(@"[SurfaceVC] Task328: belief chain recomputed from touchView (belief %dx%d -> %dx%d, res %.2f, view %.0fx%.0f, input scale %.2f)",
+          ame328_oldW, ame328_oldH, (int)windowWidth, (int)windowHeight,
+          (double)ame328_res, ame328_lw, ame328_lh, (double)ame267_adaptiveScaleX);
+    return YES;
+}
+
+/// ★ Task328：游戏内分辨率调节即时生效（用户："既然可以随便调节分辨率了，
+///   那把游戏分辨率调节恢复一下"——Task187 的"只写偏好、重启后生效"退役）。
+///   Task187 当时不动几何的根因 = "MC 窗口信念在本进程内不可变"（立即重算
+///   会让 EGL 表面缩放而 MC 仍按旧信念渲染，触点整体偏移，装机实测病灶）；
+///   Task327 沉降自适应重宣告已把信念变成可变（强制宣告 + 触点比例/热栏/
+///   光标三条换算链同源重算），本方法把该能力接到游戏内分辨率调节上。
+///   调用前提 = 调用方已把 profile resolution 键与全局 video.resolution 落盘。
+///   分支：
+///   · 自由窗（信箱态）：ame328 核心按当前窗口 × 新 res 单点重算 + 信箱溶解；
+///   · 全屏：updateSavedResolution 全链重算（profile 键已更新 → 新 res 生效，
+///     内建宣告）+ Task250 强制通道兜底（与 ame261 同口径）。
+///   返回 YES = 会话内已应用；NO = 会话未建立/信念未建立/后台（下次
+///   launchJVM 自然生效，调用方回落"重启后生效"提示）。
+- (BOOL)ame328_applyResolutionInSession:(CGFloat)ame328_res {
+    if (self.surfaceView.superview == nil) return NO;        // 会话未启动
+    if (windowWidth <= 0 || windowHeight <= 0) return NO;    // 信念未建立
+    if (![self ame267_isFullscreenWindow] || g_ame267_freeformScaled) {
+        if (!g_ame250_appActive) return NO;
+        return [self ame328_recomputeBeliefChainFromTouchViewWithRes:ame328_res];
+    }
+    // 全屏：全链重算（Task159 profile 键 → resolutionScale → surface/drawable/
+    // 窗口信念 + 内建宣告），再走强制通道兜底
+    [self updateSavedResolution];
+    if (windowWidth > 0 && windowHeight > 0) {
+        CallbackBridge_nativeSendScreenSizeForced(windowWidth, windowHeight);
+    }
+    ame248_geoResyncPending = YES;
+    NSLog(@"[SurfaceVC] Task328: in-session resolution apply (fullscreen path, belief now %dx%d, res %.2f)",
+          (int)windowWidth, (int)windowHeight, (double)resolutionScale);
+    return YES;
 }
 
 /// ★ Task277（"小窗还是漂移"收尾·热栏四路径双乘根修）：视图 pt → 整帧
