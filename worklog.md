@@ -3510,3 +3510,16 @@ Work Log:
 Stage Summary:
 - 四报障全链交付：①LC 下 JIT 开启一条路直通（深链带宿主 id，StikDebug/StikJIT 可定位目标）②builtin 弹窗风暴三连灭 ③文件页 plugins 旧位链接退役（同页只剩 Prisma2/ 新元素）④版本隔离口径对齐 FCL/HMCL/PCL（saves/config 直住 versions/<id>/，存量 game/ 自动上提+profile 自动重指）
 - 装机验证锚点：①LC 内启动游戏→latestlog 搜 "Task322: JIT deep-link bundle-id -> host"（宿主 id 替换）+ StikDebug 移交不再转圈无果 ②JIT 页点开启→LC 下零弹窗直跳 StikDebug ③文件页 Documents 根不再见 plugins 旧位链接 ④启动一次后 .minecraft/versions/<id>/ 下 saves/config 与 jar/json 同层（latestlog 搜 "Task322: versions/.*game flattened"）+ "Ame271 Task322: .* repointed off retired game"
+
+---
+Task ID: 322 号段 · CI 闭环补记
+Agent: main (Super Z)
+Task: development/ui-smoke 双 workflow 终绿收口
+
+Work Log:
+- commit 203d22b 推送（775cdfb..203d22b）；dispatch 双 workflow 均 204
+- 一轮终绿零热修：dev run#35 40077611567 绿 / smoke run#51 40077613138 绿（head 203d22b）
+- worklog 文档轮 a01fe7a 推送
+
+Stage Summary:
+- Task 322 终审通过（零热修）；门禁电池十二项制（+ame322_selfcheck）；新 IPA 就绪待装机验证（锚点见 Task 322 条目 Stage Summary 4 条）
