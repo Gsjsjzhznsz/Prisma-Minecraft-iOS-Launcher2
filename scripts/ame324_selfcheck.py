@@ -50,13 +50,13 @@ def main():
           "stack.widthAnchor constraintEqualToAnchor:scroll.frameLayoutGuide.widthAnchor" in addons,
           "滚动内容必须锚定 frame 宽（挤左1/4+右侧死空间根修）")
     check("layout:field-preferred-220-yields",
-          "_nameField.widthAnchor constraintEqualToConstant:220].priority = 900" in addons,
-          "nameField 固定 220 必须降级为首选 220@900（窄宽让位）")
+          "ame324_fieldPref.priority = 900" in addons,
+          "nameField 固定 220 必须降级为首选 220@900（窄宽让位；须先落局部变量再入数组——数组字面量内 .priority 赋值非法）")
     check("layout:field-floor-120",
           "_nameField.widthAnchor constraintGreaterThanOrEqualToConstant:120" in addons,
           "nameField 必须有 120 必醒下限")
     check("layout:field-lead-inequality-yields",
-          ".priority = 999" in addons,
+          "ame324_fieldLead.priority = 999" in addons,
           "field 头部不等式必须降 999（让位钮最小宽）")
     check("layout:install-button-min-width",
           "_installButton.widthAnchor constraintGreaterThanOrEqualToConstant:96" in addons,

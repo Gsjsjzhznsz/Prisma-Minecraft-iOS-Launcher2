@@ -128,7 +128,8 @@ static UIImage *ZL2DownloadSystemImage(NSString *name, NSString *fallback) {
 // 内容容器与子页
 @property (nonatomic, strong) UIView *contentContainer;
 @property (nonatomic, strong) NSMutableDictionary<NSNumber *, UIViewController *> *childCache;
-@property (nonatomic, assign) NSInteger selectedIndex;   // -1 = 尚未选中
+// selectedIndex 已上移 .h 公开契约（Task324 管理器预选透传；-1 = 尚未选中，
+// init 置 -1，viewDidLoad 以 >=0 ? 预选 : 0 首选）
 
 @end
 

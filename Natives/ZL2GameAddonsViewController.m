@@ -217,6 +217,15 @@
         [card.trailingAnchor constraintEqualToAnchor:stack.trailingAnchor].active = YES;
     }
 
+    // Task324：头部弹性链两枚降优先级约束（视图建好后创建，先赋优先级再入激活数组）
+    NSLayoutConstraint *ame324_fieldLead =
+        [_nameField.leadingAnchor constraintGreaterThanOrEqualToAnchor:_gameVersionLabel.trailingAnchor
+                                                              constant:16];
+    ame324_fieldLead.priority = 999;   // 窄宽让位钮最小宽（必醒）
+    NSLayoutConstraint *ame324_fieldPref =
+        [_nameField.widthAnchor constraintEqualToConstant:220];
+    ame324_fieldPref.priority = 900;   // 首选宽，让位给 120 下限与钮最小宽
+
     [NSLayoutConstraint activateConstraints:@[
         [_gameVersionLabel.topAnchor constraintEqualToAnchor:safe.topAnchor constant:12],
         [_gameVersionLabel.leadingAnchor constraintEqualToAnchor:safe.leadingAnchor constant:16],
@@ -227,10 +236,11 @@
         //   分屏）下必炸：约束不可满足 → AL 破坏 → 钮被压缩到负空间（标签溢出
         //   截断）。改弹性链：field 首选 220@900 可压缩至 >=120；钮最小宽 96；
         //   标签四边内边距钳制永不溢出；field 头部不等式降 999 让位钮最小宽。
-        [_nameField.leadingAnchor constraintGreaterThanOrEqualToAnchor:_gameVersionLabel.trailingAnchor constant:16]
-            .priority = 999,
+        //   （优先级赋值须先落局部变量再入数组——r1 CI 实锤：数组字面量内
+        //   .priority 赋值表达式非对象元素非法）
+        ame324_fieldLead,
         [_nameField.widthAnchor constraintGreaterThanOrEqualToConstant:120],
-        [_nameField.widthAnchor constraintEqualToConstant:220].priority = 900,
+        ame324_fieldPref,
         [_nameField.heightAnchor constraintEqualToConstant:40],
 
         [_installButton.centerYAnchor constraintEqualToAnchor:_gameVersionLabel.centerYAnchor],
