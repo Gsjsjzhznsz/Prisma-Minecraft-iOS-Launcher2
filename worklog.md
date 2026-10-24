@@ -3745,3 +3745,37 @@ Work Log:
 Stage Summary:
 - 提交 8a107729（63 文件 +514/-73）+worklog 文档轮推送 main；CI dev+smoke 双 dispatch 待终绿
 - 装机锚点：①文件 App 打开 versions/fabric-loader-…/ 只见 json+jar（诱饵空目录摘除；日志 [Ame328] decoy skeleton pruned）②切小窗即刻触点正确（无 0.3s 偏移窗）③游戏内菜单→分辨率调整→切换档位即时生效（提示"分辨率已保存并即时应用"；无需重启）④设置→启动器 首屏见"插件功能 (4)"组点按即效果；主页侧栏"插件功能 (4)"chip 一键直达⑤AI 对话问"帮我写个插件"可直接 create_plugin；AI 提示词编辑页可见插件章
+
+---
+
+## Task 329
+
+**日期**：2026-10-25（UTC+8 会话）
+**触发**：用户装机反馈三联——①"ci错了"（d2c0b4e8 双红）②"versions 为什么是空目录，我版本隔离的一大堆文件去哪里了"（第五轮复访+数据担忧）③"（不是zl2风格吗）"（版本隔离形态追问）
+
+### CI r1 热修（d2c0b4e8 双红根因）
+
+- run 40121850634（dev）+ 40121852007（smoke）双红：`SurfaceViewController+Navigation.m:1242:45: error: no visible @interface for 'SurfaceViewController' declares the selector 'ame328_applyResolutionInSession'`
+- 定性：Task 328 会话内分辨率即时生效的跨文件 selector 声明盲区（实现 SurfaceViewController.m:2250、调用在同类 category 文件、.h 零声明）——本仓 CI 语义面盲区第七例（Task255 r2 block 签名 / Task256 r0 ame256_scanVersionsForCleanup 同族；本地括号/键数/自检三门对 ObjC 跨文件 selector 可见性全盲）
+- 修复：SurfaceViewController.h 主 interface 补 `- (BOOL)ame328_applyResolutionInSession:(CGFloat)ame328_res;` 声明+教训注记；盲区扫描脚本复核全文件族仅此一处
+
+### 版本轴统一（Task329 主体）：实例数据搬家进版本目录（真·ZL2 风格）
+
+**五轮病历终审**（Task324 骨架→Task326 链接→Task327 物化→Task328 清扫→本轮）：整合包导入走实例轴（profile gameDir=绝对 `instances/<id>`，Task275-F5 直通），游戏数据（saves/mods/config/options.txt 等）全在实例根；`versions/<vid>/` 内只有导入链创建的 jar/json+Task271/324 六目录骨架。用户顺 `.minecraft/versions/<vid>/` 找数据只见空目录——前三轮全在治"观感"，数据始终不在"家"。数据零丢失（清扫判据=六目录全空才摘+CI 挂了清扫根本没上机）。
+
+**全链实施**（3 文件 +179/-0 纯增量）：
+1. `ModService ame329_unifyInstanceDataIntoVersionAxis`（新 pass）：遍历 profiles——绝对 gameDir 恰为 `instances/<id>` 两层实例根+lastVersionId 版本目录真身（`versions/<vid>/<vid>.json` marker）→ 根级全部非隐藏、非共享层（versions/assets/libraries）、非导入元数据（import_report.json/.ame269_backup/custom_gamedir）条目搬进版本目录；递归并入助手 `ame329_moveEntry`（同名目录递归并入、同名文件冲突来件改名 `<name>.ame329-<ts>` 并置绝不覆盖、搬空摘壳）；profile gameDir 重指 `instances/<id>/versions/<vid>`（applyChanges 锁内落盘）；重指条件=实际搬移≥1 或 根净+版本目录有内容（重指失败残留修复）；幂等=已迁移深层形态被层数判据天然排除
+2. 接线 `ame324_ensureIsolationSkeletonsAll` 头部（统一先行，骨架/实例轴/清扫三 pass 以搬家后终态为准）；`ame327_materializeInstanceVersions` 头部补版本轴形态守卫（`instances/<x>/versions/` 之下绝不再物化——防版本目录内嵌套 versions 垃圾）
+3. `ModpackImportService absoluteGameDirForModpackId` profile 优先：归属判据=gameDir 位于 `instances/<modpackId>/` 之下（含根形态与已迁移深层形态）→ 返回 profile 现值（换装/重导入写进版本目录防静默脱同步）；无命中回落旧口径（全新导入不变，装完由 ame329 统一）
+
+**架构语义（勘察实锤）**：`.minecraft`=符号链接→现役实例根（Task226 链，VersionManager switchGameDirTo 重建）；POJAV_GAME_DIR=该链接；版本 json 启动期从 `POJAV_GAME_DIR/versions/<vid>/` 解析（ame225 healMissingAssets L707 实锤）——实例被选中时 `.minecraft/versions/<vid>/`=真实数据目录（PCL2/ZL2 版本隔离形态），Files App 直达
+
+**门禁电池**：ame329_selfcheck 25/25（新）+ame327 66/66+task240/139 all balanced+task191 54 表 3302 键+task248 缺键0/硬编码0/动态键0+task250 裸键名0+verify219 81/81+verify255 exit0+import sweep 干净；task158 既有损坏（stash HEAD 对照同 red，非本轮回归）；术后验尸：+179/-0 纯增量、新段括号/圆括号双零差、单实现单调用点
+
+### 装机锚点（预期日志/观感）
+
+1. latestlog 搜 `[Ame329] instance data unified into version axis: instances/<id> → versions/<vid> (N item(s) moved, gameDir …→…)`——整合包实例数据搬家+gameDir 重指各一次
+2. 文件 App 打开 `.minecraft/versions/<整合包版本>/`——saves/mods/config 全套实文件在位（不再空目录；多轮悬案终审落地）
+3. 整合包存档进游戏可玩（数据物理搬移同卷 rename 瞬时，冲突零覆盖）
+4. 换装/重导入同一整合包——新数据写进版本目录（不回实例根，无脱同步）
+5. 游戏内菜单分辨率调整不再 CI 挡路（r1 修复后正常出包）
