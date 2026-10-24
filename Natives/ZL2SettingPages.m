@@ -1074,8 +1074,9 @@ didPickDocumentsAtURLs:(NSArray<NSURL *> *)urls {
         if (![spec isKindOfClass:[NSDictionary class]]) continue;
         NSString *rowId = [spec[@"id"] isKindOfClass:[NSString class]] ? spec[@"id"] : nil;
         if (rowId.length == 0) continue;
-        NSString *title = [spec[@"title"] isKindOfClass:[NSString class]] && spec[@"title"].length
-            ? spec[@"title"] : rowId;
+        // CI r0 实锤：&& 链不做类型收窄，id 上取 .length 编译雷——先收窄再取值
+        NSString *rawTitle = [spec[@"title"] isKindOfClass:[NSString class]] ? spec[@"title"] : nil;
+        NSString *title = rawTitle.length ? rawTitle : rowId;
         NSString *sub = [spec[@"subtitle"] isKindOfClass:[NSString class]] ? spec[@"subtitle"] : nil;
         NSString *pluginName = [spec[@"pluginName"] isKindOfClass:[NSString class]] ? spec[@"pluginName"] : nil;
         if (pluginName.length) {
