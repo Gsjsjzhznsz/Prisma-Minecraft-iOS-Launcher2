@@ -577,8 +577,11 @@ BOOL g_ame267_freeformScaled = NO;   // YES = 非全屏窗口缩放态（信念�
 // ★ Task326：信箱式内容矩形（aspect-fit 信念宽高比）——小窗期游戏画面实际
 //   铺排区（surfaceView.frame，touchView 坐标系）；全屏态恒 origin=(0,0)
 //   size=全窗。光标视觉帧/触摸钳制以此为单一事实源。
-CGPoint g_ame267_contentOrigin = CGPointZero;
-CGSize g_ame267_contentSize = CGSizeZero;
+//   ★ 初值用 {0,0} 字面量（Task280 家法：CGPointZero/CGSizeZero 是 extern
+//   常量非编译期常量，文件作用域初始化器直接编译炸——本条教训就在下方
+//   Task280 注释里，本轮还是踩了，CI r0 实锤；同类雷已两进宫）。
+CGPoint g_ame267_contentOrigin = {0.0, 0.0};
+CGSize g_ame267_contentSize = {0.0, 0.0};
 // ★ Task279：rescale 幂等快路径锚点——上次完成视图栈重排时的 view 尺寸。
 //   iPadOS 27 拖拽每 tick 经 updateSavedResolution 闸走到 rescale，同尺寸
 //   重复重排既刷屏又写帧；同尺寸且已在缩放态 = 零工作早退。
