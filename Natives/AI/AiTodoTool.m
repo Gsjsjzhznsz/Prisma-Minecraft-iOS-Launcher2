@@ -63,8 +63,9 @@ static const NSInteger kAiTodoMaxItems = 200;
 
 + (NSString *)todosFilePath {
     NSString *docs = [NSSearchPathForDirectoriesInDomains(NSDocumentDirectory, NSUserDomainMask, YES) firstObject];
-    // ★ Task319（PCL 风格布局）：AI 数据住 PCL/AI（整体迁移由 main.m pre-init 完成）
-    return [[[docs stringByAppendingPathComponent:@"PCL"]
+    // ★ Task319/320（PCL 风格布局，数据目录定名 Prisma2）：AI 数据住 Prisma2/AI
+    //   （整体迁移由 main.m pre-init 完成）
+    return [[[docs stringByAppendingPathComponent:@"Prisma2"]
              stringByAppendingPathComponent:@"AI"] stringByAppendingPathComponent:kAiTodoFileName];
 }
 

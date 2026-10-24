@@ -35,7 +35,7 @@
         return @"拉取 Minecraft Java 版的真实版本列表（默认只返回正式版 release，避免快照等版本过多占用上下文）。"
                "\n参数：includeSnapshots（boolean，可选，默认 false；为 true 时额外附加最新一条快照版本）。"
                "\n说明：默认从 BMCLAPI 镜像获取版本清单，失败自动切换官方源重试；返回每个版本的 id（版本号）与 type（release/snapshot）。"
-               "\n内部有 30 分钟缓存（保存在 PCL/AI/game_versions.json，缓存完整清单）。"
+               "\n内部有 30 分钟缓存（保存在 Prisma2/AI/game_versions.json，缓存完整清单）。"
                "\n边界：若网络失败会返回错误信息，不会编造版本号。"
                "\n示例：调用后得到 [{'id':'1.21.1','type':'release'}, ...]";
     }
@@ -186,11 +186,11 @@
 
 #pragma mark - list_game_versions
 
-/// 版本清单缓存目录：PCL/AI/game_versions.json（30 分钟有效；Task319 PCL 风格
-/// 布局——AI 数据住 PCL/AI，整体迁移由 main.m pre-init 完成）
+/// 版本清单缓存目录：Prisma2/AI/game_versions.json（30 分钟有效；Task319/320
+/// PCL 风格布局，数据目录定名 Prisma2——AI 数据住 Prisma2/AI，整体迁移由 main.m pre-init 完成）
 - (NSString *)gameVersionsCachePath {
     NSString *aiDir = [[[NSSearchPathForDirectoriesInDomains(NSDocumentDirectory, NSUserDomainMask, YES) firstObject]
-                        stringByAppendingPathComponent:@"PCL"]
+                        stringByAppendingPathComponent:@"Prisma2"]
                        stringByAppendingPathComponent:@"AI"];
     [[NSFileManager defaultManager] createDirectoryAtPath:aiDir withIntermediateDirectories:YES attributes:nil error:nil];
     return [aiDir stringByAppendingPathComponent:@"game_versions.json"];

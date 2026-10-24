@@ -13,8 +13,8 @@ AngelAuraAmethyst（Amethyst-iOS 重制版，fork **Gsjsjzhznsz/Air-Minecraft-iO
 ### 当前状态（收尾时更新）
 | 项 | 值 |
 |---|---|
-| 远端 HEAD | Task 319 提交 + worklog（本地门禁十项全绿后推送，CI 轮询见本条目）：PCL 风格文件布局三件套（.minecraft 游戏目录 + PCL/ 启动器数据目录 plugins/AI + minecraft 可见别名）+ 数据迁移（providers.json 密钥前摘保 Task275 纪律） |
-| 最新 Task 号 | **319**（多会话并行开发，开新任务前先 fetch 避让编号） |
+| 远端 HEAD | Task 320 提交 + worklog（门禁十项全绿）：启动器数据目录改名 Prisma2/（PCL 风格三件套保留 + Task319 窗口期改名迁移 + 悬空链接重指） |
+| 最新 Task 号 | **320**（多会话并行开发，开新任务前先 fetch 避让编号） |
 | 待用户装机验证 | Task 183（四线锚点见文末）+ Task 182（三锚点）+ Task 181（六锚点）+ Task 180（双滑条透明度）+ Task 179（八连修）+ Task 178/177（新拟态定稿）+ 更早轮次 |
 | 已知历史遗留 | v6.0.0-release-notes.md 是工作区工件不在 git（发布时从 announcements.json 重导出）；部分 verify 级联失败为沙箱环境性（会话本地脚本被清 + task132/135/149/158 路径依赖 + task140 G2/G3 日志轮换），与基线对拍判读 |
 
@@ -3428,3 +3428,19 @@ Work Log:
 Stage Summary:
 - Task 319（PCL 风格文件布局三件套 + 数据迁移 + 密钥前摘）CI 终审通过，零热修一轮绿
 - 更新指引：run 40058110825 产物 tipa 装机；装机锚点四条见 Task 319 条目（PCL/ 与 minecraft 顶层可见 / 插件授权 AI 会话无感保留 / 新插件落 PCL/plugins / AI 助手会话正常）
+
+---
+Task ID: 320
+Agent: main (Super Z)
+Task: 启动器数据目录改名 PCL/ → Prisma2/（用户拍板「把 pcl 改成 Prisma2」——PCL 风格布局保留，仅目录命名对齐二代品牌）
+
+Work Log:
+- main.m init_setupPCLLayout：数据根变量 prismaDir = Prisma2/；新增步 0（Task319 窗口期设备改名迁移：PCL/ 真实目录整体 move → Prisma2/，幂等，Prisma2 已存在则不动 PCL 留查证）+ 新增 plugins 旧位符号链接悬空检测重指（→ Prisma2/plugins，延续防断链保险；真实目录/文件不动）；步 1-4 全部路径/日志/注释切 Prisma2；步 5-6（.minecraft/minecraft 链接）零改动
+- AmePluginPermissions ame317_pluginsRootDir() → Prisma2/plugins（唯一漏斗）+ .h 两处口径注释；AI 三 store（AiSessionStore/AiTodoTool/AiInstancesTool）路径+注释+LLM 工具描述串切 Prisma2/AI；AiProviderStore 依旧零改动（providers.json 继续住 Application Support/AI）
+- 零 i18n 新键/零新文件/零 CMake 变化；@"PCL" 残留仅 main.m 改名迁移源 legacyPCL（预期）；括号差核对 HEAD 基线（-11 → -12 纯注释步进标号 N) 风格，代码零失衡）
+- 门禁十项全绿：task191（3277×4 表）/ task240（all balanced）/ task248（缺键 0）/ task250（0）/ task219_syntax（ALL GREEN）/ ame317_selfcheck（0）/ ame318_selfcheck（0）/ verify_task219（81/81）/ verify_task316（37/37）/ import_sweep（仅存量 WARN 无关本轮）
+
+Stage Summary:
+- 「文件」App 顶层定稿：.minecraft（游戏目录）+ Prisma2/（plugins=插件根 + AI=会话/缓存）+ minecraft（可见别名）；PCL 风格三件套语义不变，命名对齐 Prisma 二代
+- 迁移矩阵全覆盖四代设备：无数据（直建 Prisma2）/ Task317 旧布局（plugins+AI 直迁 Prisma2）/ Task319 窗口期（PCL/ 改名 + 悬空链接重指）/ Task319 密钥未摘竞态（前摘保 Task275）
+- 装机锚点：①顶层见 Prisma2/（不再有 PCL/）②插件页列表/授权/仓库全部正常（Prisma2/plugins）③AI 会话与待办正常（Prisma2/AI）④日志锚 [Pre-init] Task320: PCL/ renamed to Prisma2/

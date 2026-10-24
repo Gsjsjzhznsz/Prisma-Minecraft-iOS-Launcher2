@@ -589,34 +589,70 @@ void init_setupMultiDir() {
         [fm removeItemAtPath:lasmPath error:nil];
         [fm createSymbolicLinkAtPath:lasmPath withDestinationPath:multidirPath error:nil];
     }
-    // ★ Task318 → Task319 升级：原「minecraft 可见别名折中」（单条链接）已
+    // ★ Task318 → Task319/320 升级：原「minecraft 可见别名折中」（单条链接）已
     //   升级为完整 PCL 风格顶层布局三件套 —— .minecraft（游戏目录，桌面生态
-    //   语义）+ PCL/（启动器数据：plugins/AI）+ minecraft（「文件」App 可见
-    //   别名，iOS 隐藏点前缀的兜底），全部移交 init_setupPCLLayout() 统一
-    //   管理（见下）。保留纪律：数据导出链对符号链接跳过（DataTransferService
-    //   skip symlink），不会双份打包；Java 侧全走 POJAV_GAME_DIR 环境变量，零感知。
+    //   语义）+ Prisma2/（启动器数据：plugins/AI；Task319 曾定名 PCL，Task320
+    //   用户拍板改名 Prisma2）+ minecraft（「文件」App 可见别名，iOS 隐藏点前缀
+    //   的兜底），全部移交 init_setupPCLLayout() 统一管理（见下）。保留纪律：
+    //   数据导出链对符号链接跳过（DataTransferService skip symlink），不会双份
+    //   打包；Java 侧全走 POJAV_GAME_DIR 环境变量，零感知。
     [fm changeCurrentDirectoryPath:lasmPath];
     setenv("POJAV_GAME_DIR", lasmPath.UTF8String, 1);
 }
 
-// ★ Task319（PCL 风格文件布局）：Plain Craft Launcher 顶层观感 = 启动器本体
-//   + PCL/（启动器数据）+ .minecraft/（游戏目录）。iOS 侧映射：
+// ★ Task319/320（PCL 风格文件布局）：Plain Craft Launcher 顶层观感 = 启动器本体
+//   + <启动器数据目录> + .minecraft/（游戏目录）。iOS 侧映射：
 //   · .minecraft → Task226 游戏目录链（随实例切换自动跟随，桌面工具链语义：
 //     saves/mods/options.txt/resourcepacks 一眼可见；导出/整合包链本就写
 //     .minecraft 前缀，命名对齐后内外一致）；
 //   · minecraft → 可见别名（「文件」App 隐藏点前缀目录，Task318 折中保留），
 //     重指 .minecraft 形成 minecraft → .minecraft → instances/<现役> 链；
-//   · PCL/ → 启动器数据目录：plugins（Task317 插件系统根）+ AI（会话/待办/
-//     版本缓存）。providers.json【绝不进 PCL/】——Task275 安全纪律（含 apiKey
-//     的文件不落「文件」App 可读层），继续住 Application Support/AI。
+//   · Prisma2/ → 启动器数据目录（Task319 曾定名 PCL，Task320 用户拍板改名
+//     Prisma2）：plugins（Task317 插件系统根）+ AI（会话/待办/版本缓存）。
+//     providers.json【绝不进 Prisma2/】——Task275 安全纪律（含 apiKey 的文件
+//     不落「文件」App 可读层），继续住 Application Support/AI。
 //   迁移纪律：真实目录整体 move 幂等（新位置已存在即跳过）；plugins 旧位留
-//   符号链接防外部引用断链；providers.json 先摘后迁，摘不动则整轮不迁（宁
-//   可保旧布局，不让密钥落可读层）；任何失败只打日志不阻塞启动。
+//   符号链接防外部引用断链（改名后悬空自动重指）；providers.json 先摘后迁，
+//   摘不动则整轮不迁（宁可保旧布局，不让密钥落可读层）；任何失败只打日志
+//   不阻塞启动。
 void init_setupPCLLayout() {
     NSString *home = @(getenv("POJAV_HOME") ?: "");
     if (home.length == 0) return;
-    NSString *pclDir = [home stringByAppendingPathComponent:@"PCL"];
+    // ★ Task320（用户拍板「把 pcl 改成 Prisma2」）：启动器数据目录定名 Prisma2/
+    //   （Task319 短暂窗口期曾名 PCL/）。
+    NSString *prismaDir = [home stringByAppendingPathComponent:@"Prisma2"];
     NSString *legacyAIDir = [home stringByAppendingPathComponent:@"AI"];
+
+    // —— 0) Task319 窗口期设备改名迁移：PCL/ → Prisma2/（真实目录整体 move
+    //        幂等；Prisma2 已存在则不动 PCL 留查证——绝不覆盖用户数据）
+    NSString *legacyPCL = [home stringByAppendingPathComponent:@"PCL"];
+    if (![fm fileExistsAtPath:prismaDir]) {
+        NSDictionary *pcAttrs = [fm attributesOfItemAtPath:legacyPCL error:nil];
+        if (pcAttrs && [pcAttrs fileType] == NSFileTypeDirectory) {
+            NSError *ame320_rErr = nil;
+            if ([fm moveItemAtPath:legacyPCL toPath:prismaDir error:&ame320_rErr]) {
+                NSLog(@"[Pre-init] Task320: PCL/ renamed to Prisma2/ (Task319 window-device migration)");
+            } else {
+                NSLog(@"[Pre-init] Task320: PCL->Prisma2 rename failed (%@) -- keeps Task319 layout this launch", ame320_rErr.localizedDescription);
+            }
+        }
+    }
+    // Task319 窗口期 plugins 旧位符号链接随改名悬空（→ $HOME/PCL/plugins 已
+    //   整体搬走）→ 重指 Prisma2/plugins 延续防断链保险；真实目录/文件不动。
+    {
+        NSString *legacyPluginsLink = [home stringByAppendingPathComponent:@"plugins"];
+        NSDictionary *lpAttrs = [fm attributesOfItemAtPath:legacyPluginsLink error:nil];
+        if (lpAttrs && [lpAttrs fileType] == NSFileTypeSymbolicLink) {
+            NSString *lpResolved = [legacyPluginsLink.stringByDeletingLastPathComponent
+                stringByAppendingPathComponent:([fm destinationOfSymbolicLinkAtPath:legacyPluginsLink error:nil] ?: @"")];
+            if (![fm fileExistsAtPath:lpResolved]) {
+                [fm removeItemAtPath:legacyPluginsLink error:nil];
+                [fm createSymbolicLinkAtPath:legacyPluginsLink
+                          withDestinationPath:[prismaDir stringByAppendingPathComponent:@"plugins"] error:nil];
+                NSLog(@"[Pre-init] Task320: dangling plugins symlink re-pointed to Prisma2/plugins");
+            }
+        }
+    }
 
     // —— 1) providers.json 安全前摘（老设备 Task275 迁移未跑完就遇整体搬迁
     //        的竞态堵口）：Documents/AI/providers.json → Application Support/AI/
@@ -630,9 +666,9 @@ void init_setupPCLLayout() {
         if (![fm fileExistsAtPath:modern]) {
             NSError *ame319_pErr = nil;
             if ([fm moveItemAtPath:legacyProviders toPath:modern error:&ame319_pErr]) {
-                NSLog(@"[Pre-init] Task319: providers.json routed to Application Support before PCL migration (Task275 hardening kept)");
+                NSLog(@"[Pre-init] Task319: providers.json routed to Application Support before Prisma2 migration (Task275 hardening kept)");
             } else {
-                NSLog(@"[Pre-init] Task319: providers.json move failed (%@) -- AI dir NOT migrated this launch (apiKey never lands in file-sharing-visible PCL/)", ame319_pErr.localizedDescription);
+                NSLog(@"[Pre-init] Task319: providers.json move failed (%@) -- AI dir NOT migrated this launch (apiKey never lands in file-sharing-visible Prisma2/)", ame319_pErr.localizedDescription);
                 return; // 密钥文件未摘出：宁可整轮不迁
             }
         } else {
@@ -640,33 +676,33 @@ void init_setupPCLLayout() {
         }
     }
 
-    // —— 2) PCL/ 建目录
-    [fm createDirectoryAtPath:pclDir withIntermediateDirectories:YES attributes:nil error:nil];
+    // —— 2) Prisma2/ 建目录
+    [fm createDirectoryAtPath:prismaDir withIntermediateDirectories:YES attributes:nil error:nil];
 
-    // —— 3) plugins → PCL/plugins（真实目录整体 move，旧位留符号链接防断链）
+    // —— 3) plugins → Prisma2/plugins（真实目录整体 move，旧位留符号链接防断链）
     NSString *legacyPlugins = [home stringByAppendingPathComponent:@"plugins"];
-    NSString *pclPlugins = [pclDir stringByAppendingPathComponent:@"plugins"];
-    if (![fm fileExistsAtPath:pclPlugins]) {
+    NSString *prismaPlugins = [prismaDir stringByAppendingPathComponent:@"plugins"];
+    if (![fm fileExistsAtPath:prismaPlugins]) {
         NSDictionary *pAttrs = [fm attributesOfItemAtPath:legacyPlugins error:nil];
         if (pAttrs && [pAttrs fileType] == NSFileTypeDirectory) {
             NSError *ame319_plErr = nil;
-            if ([fm moveItemAtPath:legacyPlugins toPath:pclPlugins error:&ame319_plErr]) {
-                [fm createSymbolicLinkAtPath:legacyPlugins withDestinationPath:pclPlugins error:nil];
-                NSLog(@"[Pre-init] Task319: plugins/ migrated into PCL/plugins (legacy symlink left in place)");
+            if ([fm moveItemAtPath:legacyPlugins toPath:prismaPlugins error:&ame319_plErr]) {
+                [fm createSymbolicLinkAtPath:legacyPlugins withDestinationPath:prismaPlugins error:nil];
+                NSLog(@"[Pre-init] Task319: plugins/ migrated into Prisma2/plugins (legacy symlink left in place)");
             } else {
                 NSLog(@"[Pre-init] Task319: plugins migration failed (%@) -- keeps legacy layout this launch", ame319_plErr.localizedDescription);
             }
         }
     }
 
-    // —— 4) AI → PCL/AI（真实目录整体 move；App 内路径已全量切 PCL/AI，旧位不留链接）
-    NSString *pclAI = [pclDir stringByAppendingPathComponent:@"AI"];
-    if (![fm fileExistsAtPath:pclAI]) {
+    // —— 4) AI → Prisma2/AI（真实目录整体 move；App 内路径已全量切 Prisma2/AI，旧位不留链接）
+    NSString *prismaAI = [prismaDir stringByAppendingPathComponent:@"AI"];
+    if (![fm fileExistsAtPath:prismaAI]) {
         NSDictionary *aAttrs = [fm attributesOfItemAtPath:legacyAIDir error:nil];
         if (aAttrs && [aAttrs fileType] == NSFileTypeDirectory) {
             NSError *ame319_aiErr = nil;
-            if ([fm moveItemAtPath:legacyAIDir toPath:pclAI error:&ame319_aiErr]) {
-                NSLog(@"[Pre-init] Task319: AI/ migrated into PCL/AI (sessions/todos/version cache)");
+            if ([fm moveItemAtPath:legacyAIDir toPath:prismaAI error:&ame319_aiErr]) {
+                NSLog(@"[Pre-init] Task319: AI/ migrated into Prisma2/AI (sessions/todos/version cache)");
             } else {
                 NSLog(@"[Pre-init] Task319: AI migration failed (%@) -- keeps legacy layout this launch", ame319_aiErr.localizedDescription);
             }
@@ -844,7 +880,7 @@ int main(int argc, char *argv[]) {
 
     init_setupResolvConf();
     init_setupMultiDir();
-    init_setupPCLLayout(); // Task319：PCL 风格顶层布局（.minecraft + PCL/）+ 数据迁移
+    init_setupPCLLayout(); // Task319/320：PCL 风格顶层布局（.minecraft + Prisma2/ 数据目录）+ 数据迁移
     toggleIsolatedPref(NO);
     // Task 167：MobileGlues DSA 黑屏反向迁移的【常跑】调用点。原挂载点
     // application:configurationForConnectingSceneSession: 只在新建场景会话时

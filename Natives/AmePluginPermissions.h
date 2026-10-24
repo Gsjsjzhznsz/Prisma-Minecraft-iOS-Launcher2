@@ -15,7 +15,7 @@ NS_ASSUME_NONNULL_BEGIN
 // ═══════════════════════════════════════════════════════════════════
 
 /// 权限组条目
-/// 插件根目录（POJAV_HOME/PCL/plugins，Task319 PCL 风格布局；C 函数，Manager/Runtime 共用）
+/// 插件根目录（POJAV_HOME/Prisma2/plugins，Task319/320 PCL 风格布局；C 函数，Manager/Runtime 共用）
 NSString *ame317_pluginsRootDir(void);
 
 @interface AmePluginPermissionItem : NSObject
@@ -38,7 +38,7 @@ NSString *ame317_pluginsRootDir(void);
 /// 是否高危
 + (BOOL)isDangerous:(NSString *)permissionId;
 
-/// 持久化根：POJAV_HOME/PCL/plugins/state.json（grants + enabled）
+/// 持久化根：POJAV_HOME/Prisma2/plugins/state.json（grants + enabled）
 + (NSURL *)stateFileURL;
 
 /// 查询某插件对某权限组的授权（默认 NO：未记录=未授权）
