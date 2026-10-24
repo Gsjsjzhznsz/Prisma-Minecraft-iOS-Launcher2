@@ -168,6 +168,9 @@ NSString *localize(NSString *key, NSString *comment) {
 @interface MinecraftResourceDownloadTask : NSObject
 @property(nonatomic, strong) NSProgress *progress;
 @property(nonatomic, copy) void (^handleError)(void);
+// Task323：启动续链读 task.metadata（真实头声明域）；预览桩回 nil →
+// KVO 100% 走无 metadata 收尾分支（task=nil+ReloadProfileList，安全空转）
+@property(nonatomic, copy) NSDictionary *metadata;
 - (void)downloadVersion:(NSDictionary *)version;
 @end
 
@@ -258,6 +261,43 @@ NSString *localize(NSString *key, NSString *comment) {
 @implementation PLTaskProgressViewController
 + (void)presentForTaskId:(NSString *)taskId {
     NSLog(@"[AmeFluentPreview] stub presentForTaskId:%@", taskId);
+}
+@end
+
+#pragma mark - Task323 启动续链预览桩（ZL2Home KVO 100% 续链链接期依赖）
+
+// 签名取自真实头（LauncherPreferences.h / ios_uikit_bridge.h / PLJITGate.h）；
+// 桩 TU 不 import 真头，手写同名声明 + 空实现（ZL2 预览桩同款先例）。
+
+// LauncherPreferences.h: void setPrefString(NSString *key, NSString *value);
+void setPrefString(NSString *key, NSString *value) {
+    NSLog(@"[AmeFluentPreview] stub setPrefString:%@", key);
+}
+
+// LauncherPreferences.h: void setPrefInt(NSString *key, NSInteger value);
+void setPrefInt(NSString *key, NSInteger value) {
+    NSLog(@"[AmeFluentPreview] stub setPrefInt:%@", key);
+}
+
+// ios_uikit_bridge.h: void UIKit_launchMinecraftSurfaceVC(UIWindow*, NSDictionary*);
+void UIKit_launchMinecraftSurfaceVC(UIWindow *window, NSDictionary *metadata) {
+    NSLog(@"[AmeFluentPreview] stub UIKit_launchMinecraftSurfaceVC (metadata=%@)", metadata);
+}
+
+// PLJITGate.h 最小桩：预览不真进门禁（metadata=nil 路径也不会到达）
+@interface PLJITGate : NSObject
++ (void)invokeAfterJITEnabledWithHandler:(void (^)(void))handler
+                                  hostVC:(UIViewController *)hostVC
+                               onAbandon:(void (^)(void))onAbandon
+                                 onStage:(void (^)(NSString *stageText))onStage;
+@end
+
+@implementation PLJITGate
++ (void)invokeAfterJITEnabledWithHandler:(void (^)(void))handler
+                                  hostVC:(UIViewController *)hostVC
+                               onAbandon:(void (^)(void))onAbandon
+                                 onStage:(void (^)(NSString *))onStage {
+    NSLog(@"[AmeFluentPreview] stub PLJITGate invokeAfterJITEnabled (no-op)");
 }
 @end
 

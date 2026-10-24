@@ -1404,3 +1404,20 @@ NSString * const DownloadTaskResourceTypeModpack = @"modpack";
     return self;
 }
 @end
+
+#pragma mark - Task323 仓库三件桩（ZL2DownloadViewController 左轨 9/10/11 链接期依赖）
+
+// ControlRepoViewController.h 最小桩（真头在 Natives 根，ZL2Download.m 编译期
+// 消费真头；本 TU 只补链接期类符号 + initialCategoryIndex 运行时响应）。
+// 预览恒选游戏页（index 0），仓库 case 不执行——仅防链接期 undefined symbol。
+@interface ControlRepoViewController : UIViewController
+@property (nonatomic, assign) NSInteger initialCategoryIndex;
+@end
+@implementation ControlRepoViewController
+@end
+
+// ZL2PluginRepoViewController.h 最小桩（Task318 内置插件仓库；同上仅防链接）
+@interface ZL2PluginRepoViewController : UIViewController
+@end
+@implementation ZL2PluginRepoViewController
+@end
