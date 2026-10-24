@@ -3585,3 +3585,17 @@ Stage Summary:
 - 三问全落：①安装页任意宽度布局稳定（内容恒满幅 + 安装钮永不截断）②下载 UI 无旧面（用户可达下载入口全 ZL2 风格，目标实例语义零回退）③versions/<id>/ 直接可见六隔离目录（FCL parity，放模组即生效）
 - 装机锚点：①"安装 - 26.3"页 iPhone/分屏宽度下头部一行齐整、按钮完整、卡片全宽 ②模组/资源包/存档管理页空态"去下载"→ ZL2 下载中心对应轨直达 ③启动一次后 latestlog 搜 "[Ame324] isolation skeleton ensured for versions/"（六目录出现）④安装任一加载器/原版后立即见 versions/<id>/mods 等六目录
 - 已知边界：非隔离实例（显式 gameDir='.' 共享用户）不建骨架（防"放了模组却不生效"误导，与 Prisma1 同口径）；LauncherRoot/LauncherCardLayout 死代码随旧壳退役计划后续清理
+
+---
+Task ID: 324 号段 · CI 闭环补记
+Agent: main (Super Z)
+Task: development/ui-smoke 双 workflow 终绿收口（r0/r1 热修链）
+
+Work Log:
+- r0 106666b0：smoke run#56 实锤双雷——①数组字面量内 .priority 赋值表达式非对象元素非法（UILayoutPriority float 不是 ObjC 对象；家法新例：约束降优先级必须先落局部变量再入激活数组）②selectedIndex 类扩展与 .h 重复声明非法（illegal redeclaration in class extension）；dev 同源不抱侥幸（同雷必炸）
+- r1 8bfb28b9：①两枚降优先级约束改局部变量（ame324_fieldLead=999/ame324_fieldPref=900，创建点移到视图构建后防 nil 约束运行时雷）②扩展内 selectedIndex 声明退役（.h 公开契约为唯一声明）→ **smoke run#57 + dev run#41 双一轮终绿**
+- 产物在位：ipa/tipa 各 222.4MB + dSYM 7.3MB（head=8bfb28b9）
+- worklog 文档轮随本补记推送
+
+Stage Summary:
+- Task 324 终审通过（dev+smoke 双绿）；门禁电池十四项制（+ame324_selfcheck 38 断言）；新 IPA 就绪待装机验证（锚点见 Task 324 条目 Stage Summary 4 条）
