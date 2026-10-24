@@ -3729,3 +3729,19 @@ Stage Summary:
   （锚点见 Task 327 条目 Stage Summary 6 条）
 - 门禁盲区备忘：三元/&& 复合表达式内对容器取值属性（.length/.count）必须先
   isKindOfClass 收窄——id 静态类型不随 && 左支收窄，编译期即炸
+
+---
+Task ID: 328
+Agent: main (Super Z)
+Task: 二代仓 Task328——用户装机 777e82c 四联复访+新需求（versions 空目录第四轮/SDL 小窗偏移+游戏内分辨率恢复/插件没效果+AI 提示词无插件内容）全链
+
+Work Log:
+- 装机取证：latestlog（777e82c 会话）四插件已装载零报错、Ame327 物化 9 file(s) 在位、游戏未起（swap=0）——四联均为 UI/几何/文案域非崩溃域；用户截图 IMG_0487 = versions/<vid>/ 六目录全"0项" + jar/json
+- 深勘察四域：①诱饵骨架谱系=Task271 清扫建档（gameDir=versions/<vid>）命中 Task324 判据①建骨架 → 版本被 modrinth 实例（绝对路径 gameDir）接管 → 版本目录骨架永不生效="空目录"观感本体②0.3s 去抖窗=freeform 门未立期间触点按全屏信念换算的首入偏移存活面（Task279 武装只覆盖 viewWillTransitionToSize tick 路径）③Task187"重启后生效"的根因（窗口信念不可变）已被 Task327 沉降链结构性推翻=恢复会话内即时生效的解锁点④插件组在设置页第 3 屏外+主页零入口+提示词 v2 零插件内容=三重不可达
+- 全链实施：ModService ame328_pruneDecoyVersionSkeletons（六空目录+无生效版本轴 claim 摘除，实例轴接管对冲，任一有内容绝不触碰）接入 ame324 全量骨架 pass 尾；SurfaceVC 信念链核心抽离 ame328_recomputeBeliefChainFromTouchViewWithRes:（五件套单点化）+ame328_applyResolutionInSession（全屏 updateSavedResolution 全链/自由窗核心重算+信箱溶解）+Navigation 菜单接入+applied 键；viewDidLayoutSubviews 非全屏即时武装跳过 0.3s 去抖；ZL2SettingPages 插件组上移外观组后+计数标题（ASCII 括号防格式串雷）；ZL2Home 插件 chip（计数+塌缩）两段同步通知直达（壳 ZL2ShellNavigate→枢纽 ZL2SettingsSelectPage 定点启动器子页，懒建 attach 同步 viewDidLoad=观察者先注册时序确定）；AiSettings 提示词 v2→v3【七、插件系统】章（ame API=create_plugin summary 同源）+v2 全文留档 ame328_v2DefaultSystemPrompt+存量未自定义自动升级
+- 门禁电池全绿：task240/139 all balanced+task158 exit0+import sweep+task191 54 表 3302 键+task248 缺键0硬编码0动态键0+task250 全零+ame327 selfcheck 扩容 47→66（五件套重锚 ame328 核心+Task328 四联新段）+verify219 重锚 3302 后 81/81+verify255 全 PASS
+- 手术脚本落盘：scripts/task328_ai_prompt.py（长文本逐字抽离防转录漂移）+scripts/task328_i18n.py（54 表新键同步+覆盖核验；42 表无 next_launch 锚点属既有缺口走尾追加，运行期 localize 降级链兜底）
+
+Stage Summary:
+- 提交 8a107729（63 文件 +514/-73）+worklog 文档轮推送 main；CI dev+smoke 双 dispatch 待终绿
+- 装机锚点：①文件 App 打开 versions/fabric-loader-…/ 只见 json+jar（诱饵空目录摘除；日志 [Ame328] decoy skeleton pruned）②切小窗即刻触点正确（无 0.3s 偏移窗）③游戏内菜单→分辨率调整→切换档位即时生效（提示"分辨率已保存并即时应用"；无需重启）④设置→启动器 首屏见"插件功能 (4)"组点按即效果；主页侧栏"插件功能 (4)"chip 一键直达⑤AI 对话问"帮我写个插件"可直接 create_plugin；AI 提示词编辑页可见插件章
