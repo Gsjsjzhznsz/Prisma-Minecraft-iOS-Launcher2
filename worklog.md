@@ -13,8 +13,8 @@ AngelAuraAmethyst（Amethyst-iOS 重制版，fork **Gsjsjzhznsz/Air-Minecraft-iO
 ### 当前状态（收尾时更新）
 | 项 | 值 |
 |---|---|
-| 远端 HEAD | Task 318 提交 + worklog（本地门禁十项全绿后推送，CI 轮询见本条目）：内置插件仓库页+4 预置插件 / 实例冲突根修移植（ame300_preinstall 六点）/ AI 入口恢复（顶栏第 5 项）/ PCL 目录观感折中（minecraft 别名链接） |
-| 最新 Task 号 | **318**（多会话并行开发，开新任务前先 fetch 避让编号） |
+| 远端 HEAD | Task 319 提交 + worklog（本地门禁十项全绿后推送，CI 轮询见本条目）：PCL 风格文件布局三件套（.minecraft 游戏目录 + PCL/ 启动器数据目录 plugins/AI + minecraft 可见别名）+ 数据迁移（providers.json 密钥前摘保 Task275 纪律） |
+| 最新 Task 号 | **319**（多会话并行开发，开新任务前先 fetch 避让编号） |
 | 待用户装机验证 | Task 183（四线锚点见文末）+ Task 182（三锚点）+ Task 181（六锚点）+ Task 180（双滑条透明度）+ Task 179（八连修）+ Task 178/177（新拟态定稿）+ 更早轮次 |
 | 已知历史遗留 | v6.0.0-release-notes.md 是工作区工件不在 git（发布时从 announcements.json 重导出）；部分 verify 级联失败为沙箱环境性（会话本地脚本被清 + task132/135/149/158 路径依赖 + task140 G2/G3 日志轮换），与基线对拍判读 |
 
@@ -3397,3 +3397,20 @@ Work Log:
 Stage Summary:
 - Task 318 四线（插件仓库+4 预置插件/实例冲突根修/AI 入口恢复/PCL 目录折中）CI 终审通过
 - 更新指引：run 39995254895 产物 tipa 装机；装机锚点六条见上条 Task 318 条目
+
+---
+Task ID: 319
+Agent: main (Super Z)
+Task: PCL 风格文件布局落地（用户拍板「我们就要 pcl 风格的文件风格」——Task318 单链接折中升级为真 PCL 三件套：.minecraft 游戏目录 + PCL/ 启动器数据目录 + minecraft 可见别名）
+
+Work Log:
+- main.m：init_setupMultiDir 内 Task318 单别名块上移收编，新增 init_setupPCLLayout()（main() 内 init_setupMultiDir 之后、任何 store/UI 初始化之前调用）六步全幂等：①providers.json 安全前摘（Documents/AI/providers.json → Application Support/AI/，目标已有则清外露副本——Task275 密钥纪律竞态堵口：老设备 Task275 未跑完就遇整体搬迁会把 apiKey 带进文件 App 可读层，摘出失败则整轮不迁）②PCL/ 建目录 ③plugins → PCL/plugins 真实目录整体 move + 旧位留符号链接防外部断链 ④AI → PCL/AI 整体 move（会话/待办/版本缓存；旧位不留链接，App 内路径全量切换）⑤.minecraft 顶层符号链接 → Task226 游戏目录链（三态保护：符号链接幂等重指/用户自建真实目录绝不覆盖/缺失创建）⑥minecraft 可见别名 → .minecraft（「文件」App 隐藏点前缀兜底；.minecraft 被用户真实目录占用时回退直指游戏目录链）
+- 插件根切换：AmePluginPermissions ame317_pluginsRootDir() → PCL/plugins（唯一漏斗：Manager/Runtime/Repo/state.json 全走此函数）+ 保底自愈建目录；AmePluginPermissions.h 两处口径注释同步
+- AI 路径切换三处：AiSessionStore.aiDirectoryPath / AiTodoTool.todosFilePath / AiInstancesTool.gameVersionsCachePath → Documents/PCL/AI；AiInstancesTool 面向 LLM 的工具描述串同步（「保存在 Documents/AI/...」→「保存在 PCL/AI/...」防 AI 汇报假路径）；AiProviderStore 零改动（providers.json 依 Task275 纪律继续住 Application Support/AI）
+- 零 i18n 新键/零新文件/零 CMake 变化（全部现有文件内容级修改）；DataTransferService 导出符号链接防御（:810 一律不导出）天然覆盖新增 .minecraft 链接不双份打包；Java 侧 POJAV_GAME_DIR 环境变量零感知
+- 门禁：task191（四表 3277 entries OK）/ task240（all balanced）/ task248（缺键 0 硬编码 0 动态键 0）/ task250（key-value 恒等行 0）/ task219_syntax（ALL GREEN）/ verify_task219（81/81）/ verify_task316（37/37）/ task240_import_sweep（仅存量 WARN 与本轮无关）/ ame317_selfcheck（FAILURES 0）/ ame318_selfcheck（FAILURES 0）十项全绿
+
+Stage Summary:
+- 「文件」App 顶层观感对齐 PCL：.minecraft（游戏目录，桌面工具链语义）+ PCL/（plugins=Task317/318 插件系统根 + AI=会话/待办/缓存）+ minecraft（iOS 点前缀隐藏的可见兜底），三链接随实例切换自动跟随
+- 迁移安全三红线：密钥永不落可读层（前摘失败整轮不迁）/ 用户自建同名目录绝不覆盖（.minecraft/minecraft/PCL 三处三态保护）/ 整体 move 失败保旧布局下次重试
+- 装机锚点：①「文件」App Documents 顶层见 PCL/ 与 minecraft（.minecraft 在 Filza 等显示点前缀的管理器中可见）②旧装机升级后插件/权限授权/AI 会话全量无感保留（[Pre-init] Task319: plugins/ migrated + AI/ migrated 日志）③装新插件落 PCL/plugins ④AI 助手对话正常（会话已迁移）

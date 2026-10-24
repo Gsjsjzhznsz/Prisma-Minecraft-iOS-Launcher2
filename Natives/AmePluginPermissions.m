@@ -19,7 +19,15 @@ NSString *ame317_pluginsRootDir(void) {
         home = [NSSearchPathForDirectoriesInDomains(NSDocumentDirectory,
                                                     NSUserDomainMask, YES) firstObject] ?: NSTemporaryDirectory();
     }
-    return [home stringByAppendingPathComponent:@"plugins"];
+    // ★ Task319（PCL 风格布局）：插件根迁入 PCL/plugins（PCL 启动器数据目录，
+    //   与 .minecraft 游戏目录并列的顶层观感）。整体迁移由 main.m
+    //   init_setupPCLLayout 在 pre-init 完成（旧位 plugins 留符号链接防断链）；
+    //   此处保底自愈建目录，保证安装/扫描/state.json 三链在任何时序下不断。
+    NSString *root = [[home stringByAppendingPathComponent:@"PCL"]
+                      stringByAppendingPathComponent:@"plugins"];
+    [NSFileManager.defaultManager createDirectoryAtPath:root
+                            withIntermediateDirectories:YES attributes:nil error:nil];
+    return root;
 }
 
 @implementation AmePluginPermissionItem

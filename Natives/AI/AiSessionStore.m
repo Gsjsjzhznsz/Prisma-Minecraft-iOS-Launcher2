@@ -37,7 +37,11 @@ static const NSUInteger kAutoTitleMaxLength = 20;
 - (NSString *)aiDirectoryPath {
     NSArray *paths = NSSearchPathForDirectoriesInDomains(NSDocumentDirectory, NSUserDomainMask, YES);
     NSString *docDir = [paths firstObject];
-    NSString *aiDir = [docDir stringByAppendingPathComponent:@"AI"];
+    // ★ Task319（PCL 风格布局）：AI 数据住 PCL/AI（会话/待办/缓存；providers.json
+    //   除外——Task275 密钥纪律，仍住 Application Support）。整体迁移由 main.m
+    //   init_setupPCLLayout 在 pre-init 完成，此处只保证目录存在。
+    NSString *aiDir = [[docDir stringByAppendingPathComponent:@"PCL"]
+                       stringByAppendingPathComponent:@"AI"];
     NSFileManager *fm = [NSFileManager defaultManager];
     if (![fm fileExistsAtPath:aiDir]) {
         [fm createDirectoryAtPath:aiDir withIntermediateDirectories:YES attributes:nil error:nil];

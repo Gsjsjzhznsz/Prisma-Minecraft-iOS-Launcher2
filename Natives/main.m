@@ -589,40 +589,129 @@ void init_setupMultiDir() {
         [fm removeItemAtPath:lasmPath error:nil];
         [fm createSymbolicLinkAtPath:lasmPath withDestinationPath:multidirPath error:nil];
     }
-    // ★ Task318（PCL 观感折中）：Documents 顶层放一条可见符号链接 minecraft →
-    //   Task226 游戏目录链接（随实例切换自动跟随）。PCL 的 .minecraft 是游戏
-    //   目录本体；我们游戏目录在 Library/Application Support/minecraft（深层
-    //   路径），「文件」App 里不好找——顶层别名给用户一个直达入口（saves/
-    //   mods/options.txt 一眼可见）。三态保护：
-    //   ① 已是符号链接 → 幂等重指到现役游戏目录；
-    //   ② 真实目录/文件（用户自建同名目录）→ 不动不删（绝不覆盖用户数据）；
-    //   ③ 缺失 → 创建。数据导出链对符号链接跳过（DataTransferService 导出
+    // ★ Task318 → Task319 升级：原「minecraft 可见别名折中」（单条链接）已
+    //   升级为完整 PCL 风格顶层布局三件套 —— .minecraft（游戏目录，桌面生态
+    //   语义）+ PCL/（启动器数据：plugins/AI）+ minecraft（「文件」App 可见
+    //   别名，iOS 隐藏点前缀的兜底），全部移交 init_setupPCLLayout() 统一
+    //   管理（见下）。保留纪律：数据导出链对符号链接跳过（DataTransferService
     //   skip symlink），不会双份打包；Java 侧全走 POJAV_GAME_DIR 环境变量，零感知。
-    {
-        NSString *aliasLink = [NSString stringWithFormat:@"%s/minecraft", home];
-        NSDictionary *aliasAttrs = [fm attributesOfItemAtPath:aliasLink error:nil];
-        if (aliasAttrs) {
-            if ([aliasAttrs fileType] == NSFileTypeSymbolicLink) {
-                NSString *curTarget = [fm destinationOfSymbolicLinkAtPath:aliasLink error:nil];
-                NSString *resolvedCur = curTarget.length
-                    ? [[aliasLink.stringByDeletingLastPathComponent
-                        stringByAppendingPathComponent:curTarget]
-                        stringByResolvingSymlinksInPath] : @"";
-                BOOL sameTarget = [resolvedCur isEqualToString:lasmPath.stringByResolvingSymlinksInPath];
-                if (!sameTarget) {
-                    [fm removeItemAtPath:aliasLink error:nil];
-                    [fm createSymbolicLinkAtPath:aliasLink withDestinationPath:lasmPath error:nil];
-                    NSLog(@"[Pre-init] Task318 minecraft alias re-pointed");
-                }
-            }
-            // 真实目录/文件：绝不覆盖用户数据
-        } else {
-            [fm createSymbolicLinkAtPath:aliasLink withDestinationPath:lasmPath error:nil];
-            NSLog(@"[Pre-init] Task318 minecraft alias created -> Library/Application Support/minecraft");
-        }
-    }
     [fm changeCurrentDirectoryPath:lasmPath];
     setenv("POJAV_GAME_DIR", lasmPath.UTF8String, 1);
+}
+
+// ★ Task319（PCL 风格文件布局）：Plain Craft Launcher 顶层观感 = 启动器本体
+//   + PCL/（启动器数据）+ .minecraft/（游戏目录）。iOS 侧映射：
+//   · .minecraft → Task226 游戏目录链（随实例切换自动跟随，桌面工具链语义：
+//     saves/mods/options.txt/resourcepacks 一眼可见；导出/整合包链本就写
+//     .minecraft 前缀，命名对齐后内外一致）；
+//   · minecraft → 可见别名（「文件」App 隐藏点前缀目录，Task318 折中保留），
+//     重指 .minecraft 形成 minecraft → .minecraft → instances/<现役> 链；
+//   · PCL/ → 启动器数据目录：plugins（Task317 插件系统根）+ AI（会话/待办/
+//     版本缓存）。providers.json【绝不进 PCL/】——Task275 安全纪律（含 apiKey
+//     的文件不落「文件」App 可读层），继续住 Application Support/AI。
+//   迁移纪律：真实目录整体 move 幂等（新位置已存在即跳过）；plugins 旧位留
+//   符号链接防外部引用断链；providers.json 先摘后迁，摘不动则整轮不迁（宁
+//   可保旧布局，不让密钥落可读层）；任何失败只打日志不阻塞启动。
+void init_setupPCLLayout() {
+    NSString *home = @(getenv("POJAV_HOME") ?: "");
+    if (home.length == 0) return;
+    NSString *pclDir = [home stringByAppendingPathComponent:@"PCL"];
+    NSString *legacyAIDir = [home stringByAppendingPathComponent:@"AI"];
+
+    // —— 1) providers.json 安全前摘（老设备 Task275 迁移未跑完就遇整体搬迁
+    //        的竞态堵口）：Documents/AI/providers.json → Application Support/AI/
+    NSString *legacyProviders = [legacyAIDir stringByAppendingPathComponent:@"providers.json"];
+    if ([fm fileExistsAtPath:legacyProviders]) {
+        NSString *asBase = [NSSearchPathForDirectoriesInDomains(NSApplicationSupportDirectory,
+                                                                NSUserDomainMask, YES) firstObject] ?: home;
+        NSString *asAI = [asBase stringByAppendingPathComponent:@"AI"];
+        [fm createDirectoryAtPath:asAI withIntermediateDirectories:YES attributes:nil error:nil];
+        NSString *modern = [asAI stringByAppendingPathComponent:@"providers.json"];
+        if (![fm fileExistsAtPath:modern]) {
+            NSError *ame319_pErr = nil;
+            if ([fm moveItemAtPath:legacyProviders toPath:modern error:&ame319_pErr]) {
+                NSLog(@"[Pre-init] Task319: providers.json routed to Application Support before PCL migration (Task275 hardening kept)");
+            } else {
+                NSLog(@"[Pre-init] Task319: providers.json move failed (%@) -- AI dir NOT migrated this launch (apiKey never lands in file-sharing-visible PCL/)", ame319_pErr.localizedDescription);
+                return; // 密钥文件未摘出：宁可整轮不迁
+            }
+        } else {
+            [fm removeItemAtPath:legacyProviders error:nil]; // 外露副本清除（Task275 同语义）
+        }
+    }
+
+    // —— 2) PCL/ 建目录
+    [fm createDirectoryAtPath:pclDir withIntermediateDirectories:YES attributes:nil error:nil];
+
+    // —— 3) plugins → PCL/plugins（真实目录整体 move，旧位留符号链接防断链）
+    NSString *legacyPlugins = [home stringByAppendingPathComponent:@"plugins"];
+    NSString *pclPlugins = [pclDir stringByAppendingPathComponent:@"plugins"];
+    if (![fm fileExistsAtPath:pclPlugins]) {
+        NSDictionary *pAttrs = [fm attributesOfItemAtPath:legacyPlugins error:nil];
+        if (pAttrs && [pAttrs fileType] == NSFileTypeDirectory) {
+            NSError *ame319_plErr = nil;
+            if ([fm moveItemAtPath:legacyPlugins toPath:pclPlugins error:&ame319_plErr]) {
+                [fm createSymbolicLinkAtPath:legacyPlugins withDestinationPath:pclPlugins error:nil];
+                NSLog(@"[Pre-init] Task319: plugins/ migrated into PCL/plugins (legacy symlink left in place)");
+            } else {
+                NSLog(@"[Pre-init] Task319: plugins migration failed (%@) -- keeps legacy layout this launch", ame319_plErr.localizedDescription);
+            }
+        }
+    }
+
+    // —— 4) AI → PCL/AI（真实目录整体 move；App 内路径已全量切 PCL/AI，旧位不留链接）
+    NSString *pclAI = [pclDir stringByAppendingPathComponent:@"AI"];
+    if (![fm fileExistsAtPath:pclAI]) {
+        NSDictionary *aAttrs = [fm attributesOfItemAtPath:legacyAIDir error:nil];
+        if (aAttrs && [aAttrs fileType] == NSFileTypeDirectory) {
+            NSError *ame319_aiErr = nil;
+            if ([fm moveItemAtPath:legacyAIDir toPath:pclAI error:&ame319_aiErr]) {
+                NSLog(@"[Pre-init] Task319: AI/ migrated into PCL/AI (sessions/todos/version cache)");
+            } else {
+                NSLog(@"[Pre-init] Task319: AI migration failed (%@) -- keeps legacy layout this launch", ame319_aiErr.localizedDescription);
+            }
+        }
+    }
+
+    // —— 5) .minecraft 顶层符号链接 → Task226 游戏目录链（三态保护：
+    //        ① 符号链接 → 幂等重指；② 真实目录/文件（用户自建）→ 不动不删；
+    //        ③ 缺失 → 创建）
+    NSString *lasmPath = [NSString stringWithFormat:@"%s/Library/Application Support/minecraft",
+                          getenv("POJAV_HOME") ?: ""];
+    NSString *dotMC = [home stringByAppendingPathComponent:@".minecraft"];
+    NSDictionary *dAttrs = [fm attributesOfItemAtPath:dotMC error:nil];
+    if (dAttrs) {
+        if ([dAttrs fileType] == NSFileTypeSymbolicLink) {
+            NSString *cur = [fm destinationOfSymbolicLinkAtPath:dotMC error:nil] ?: @"";
+            NSString *resolvedCur = cur.length
+                ? [[dotMC.stringByDeletingLastPathComponent stringByAppendingPathComponent:cur]
+                   stringByResolvingSymlinksInPath] : @"";
+            if (![resolvedCur isEqualToString:lasmPath.stringByResolvingSymlinksInPath]) {
+                [fm removeItemAtPath:dotMC error:nil];
+                [fm createSymbolicLinkAtPath:dotMC withDestinationPath:lasmPath error:nil];
+                NSLog(@"[Pre-init] Task319: .minecraft re-pointed to game dir");
+            }
+        }
+        // 真实目录/文件：绝不覆盖用户数据
+    } else {
+        [fm createSymbolicLinkAtPath:dotMC withDestinationPath:lasmPath error:nil];
+        NSLog(@"[Pre-init] Task319: .minecraft created -> game dir (PCL desktop semantics)");
+    }
+
+    // —— 6) minecraft 可见别名 → .minecraft（iOS「文件」App 隐藏点前缀的可见
+    //        兜底；.minecraft 因用户真实目录保护未能接管时回退指游戏目录链）
+    NSString *aliasLink = [home stringByAppendingPathComponent:@"minecraft"];
+    NSDictionary *aliasAttrs = [fm attributesOfItemAtPath:aliasLink error:nil];
+    if (aliasAttrs && [aliasAttrs fileType] != NSFileTypeSymbolicLink) return; // 用户自建：不动
+    BOOL dotMCUsable = dAttrs && [dAttrs fileType] == NSFileTypeSymbolicLink;
+    NSString *wantTarget = dotMCUsable ? @".minecraft" : lasmPath;
+    NSString *curAlias = aliasAttrs
+        ? ([fm destinationOfSymbolicLinkAtPath:aliasLink error:nil] ?: @"") : @"";
+    if (![curAlias isEqualToString:wantTarget]) {
+        if (aliasAttrs) [fm removeItemAtPath:aliasLink error:nil];
+        [fm createSymbolicLinkAtPath:aliasLink withDestinationPath:wantTarget error:nil];
+        NSLog(@"[Pre-init] Task319: minecraft alias -> %@ (Files-app visible entry)", wantTarget);
+    }
 }
 
 void init_setupResolvConf() {
@@ -755,6 +844,7 @@ int main(int argc, char *argv[]) {
 
     init_setupResolvConf();
     init_setupMultiDir();
+    init_setupPCLLayout(); // Task319：PCL 风格顶层布局（.minecraft + PCL/）+ 数据迁移
     toggleIsolatedPref(NO);
     // Task 167：MobileGlues DSA 黑屏反向迁移的【常跑】调用点。原挂载点
     // application:configurationForConnectingSceneSession: 只在新建场景会话时
