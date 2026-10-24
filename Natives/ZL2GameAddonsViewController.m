@@ -9,6 +9,7 @@
 //
 
 #import "ZL2GameAddonsViewController.h"
+#import "ModService.h"          // ★ Task324：安装成功后隔离骨架即时补齐（六目录 FCL parity）
 #import "ZL2Theme.h"
 #import "ZL2M3Kit.h"
 #import "PLProfiles.h"
@@ -221,14 +222,25 @@
         [_gameVersionLabel.leadingAnchor constraintEqualToAnchor:safe.leadingAnchor constant:16],
 
         [_nameField.centerYAnchor constraintEqualToAnchor:_gameVersionLabel.centerYAnchor],
-        [_nameField.leadingAnchor constraintGreaterThanOrEqualToAnchor:_gameVersionLabel.trailingAnchor constant:16],
-        [_nameField.widthAnchor constraintEqualToConstant:220],
+        // ★ Task324（IMG_0485 三病根根修·按钮截断）：旧版 nameField 固定 220 +
+        //   安装钮派生宽（leading 链定）+ 钮上标签无内边距锚，窄宽容器（iPhone/
+        //   分屏）下必炸：约束不可满足 → AL 破坏 → 钮被压缩到负空间（标签溢出
+        //   截断）。改弹性链：field 首选 220@900 可压缩至 >=120；钮最小宽 96；
+        //   标签四边内边距钳制永不溢出；field 头部不等式降 999 让位钮最小宽。
+        [_nameField.leadingAnchor constraintGreaterThanOrEqualToAnchor:_gameVersionLabel.trailingAnchor constant:16]
+            .priority = 999,
+        [_nameField.widthAnchor constraintGreaterThanOrEqualToConstant:120],
+        [_nameField.widthAnchor constraintEqualToConstant:220].priority = 900,
         [_nameField.heightAnchor constraintEqualToConstant:40],
 
         [_installButton.centerYAnchor constraintEqualToAnchor:_gameVersionLabel.centerYAnchor],
         [_installButton.trailingAnchor constraintEqualToAnchor:safe.trailingAnchor constant:-16],
         [_installButton.leadingAnchor constraintEqualToAnchor:_nameField.trailingAnchor constant:12],
         [_installButton.heightAnchor constraintEqualToConstant:40],
+        // Task324：钮最小宽（压缩下限）+ 标签内边距钳制（被压时省略号而非溢出截断）
+        [_installButton.widthAnchor constraintGreaterThanOrEqualToConstant:96],
+        [_installLabel.leadingAnchor constraintGreaterThanOrEqualToAnchor:_installButton.leadingAnchor constant:14],
+        [_installLabel.trailingAnchor constraintLessThanOrEqualToAnchor:_installButton.trailingAnchor constant:-14],
 
         [_installLabel.centerXAnchor constraintEqualToAnchor:_installButton.centerXAnchor],
         [_installLabel.centerYAnchor constraintEqualToAnchor:_installButton.centerYAnchor],
@@ -242,7 +254,17 @@
         [stack.bottomAnchor constraintEqualToAnchor:scroll.contentLayoutGuide.bottomAnchor constant:16],
         [stack.leadingAnchor constraintEqualToAnchor:scroll.contentLayoutGuide.leadingAnchor constant:16],
         [stack.trailingAnchor constraintEqualToAnchor:scroll.contentLayoutGuide.trailingAnchor constant:-16],
+        // ★ Task324（IMG_0485 三病根根修·挤左1/4+右侧死空间）：旧版滚动内容
+        //   宽度无锚定（只钉 contentLayoutGuide 四边不钉宽）= 经典歧义布局，
+        //   AL 取内容最小固有宽 → 卡片塌缩到左 1/4、右侧全死空间。补宽度锚
+        //   （frame 宽 -32 = 左右 16 边距）后内容恒满幅，与 ZL2GameDownload
+        //   全宽卡片同观感。
+        [stack.widthAnchor constraintEqualToAnchor:scroll.frameLayoutGuide.widthAnchor constant:-32],
     ]];
+    // Task324：标题压缩阻力 950 —— 窄宽让位次序 = field 缩宽(900) → 标题省略(950)
+    // → 钮最小宽(必醒)永不破，安装钮在任意宽度下不再截断
+    [_gameVersionLabel setContentCompressionResistancePriority:950
+                                                      forAxis:UILayoutConstraintAxisHorizontal];
 
     // NeoForge 支持门控：MC <1.20.1 系无 NeoForge（ZL2 rememberLoaderVerSupports
     // 同口径——NeoForge 自 1.20.1 起才有版本线）
@@ -541,6 +563,8 @@
                 if (success) {
                     [[NSNotificationCenter defaultCenter]
                         postNotificationName:@"ReloadProfileList" object:nil];
+                    // Task324：安装成功即时补齐隔离骨架（注册表已隔离 → 六目录可见可即用）
+                    [ModService ame324_ensureIsolationSkeletonsAll];
                     [ZL2M3Dialog showTitle:@"安装完成"
                                       body:profileName ?: versionId
                               confirmTitle:@"知道了"
@@ -583,6 +607,8 @@
                 }
                 [[NSNotificationCenter defaultCenter]
                     postNotificationName:@"ReloadProfileList" object:nil];
+                // Task324：forge/neoforge 安装成功即时补齐隔离骨架（版本 id 映射免查，全量扫描幂等）
+                [ModService ame324_ensureIsolationSkeletonsAll];
                 if (optiPayload.length > 0) {
                     // forge 完成后补装 OptiFine 补丁（继承链：optifine 继承 forge 版本）
                     s.pendingOptiFineAfterForge = optiPayload;
@@ -673,6 +699,8 @@
     [[NSNotificationCenter defaultCenter]
         postNotificationName:@"ReloadProfileList" object:nil];
     if (success) {
+        // Task324：原版安装成功即时补齐隔离骨架（上方 profile 已写 gameDir=versions/<id>）
+        [ModService ame324_ensureIsolationSkeletonsAll];
         [ZL2M3Dialog showTitle:@"安装完成"
                           body:self.gameVersion
                   confirmTitle:@"知道了"

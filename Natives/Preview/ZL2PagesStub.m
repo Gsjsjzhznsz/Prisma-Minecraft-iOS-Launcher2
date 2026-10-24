@@ -777,6 +777,10 @@ typedef NS_ENUM(NSInteger, AssetVersionType) {
     return service;
 }
 
+// ★ Task324：隔离骨架桩（ZL2GameAddons 安装成功分支消费；预览态空转）
++ (void)ame324_ensureIsolationSkeletonForVersionId:(NSString *)vid { (void)vid; }
++ (void)ame324_ensureIsolationSkeletonsAll { }
+
 - (void)downloadMod:(ModItem *)mod
           toProfile:(NSString *)profileName
        expectedSHA1:(nullable NSString *)expectedSHA1

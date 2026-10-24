@@ -150,14 +150,20 @@ static UIImage *ZL2DownloadSystemImage(NSString *name, NSString *fallback) {
     self.view.backgroundColor = [ZL2Theme surface];
 
     [self buildViews];
-    [self ame_showCategory:0];
+    // ★ Task324：管理器改道预选（selectedIndex 在 view 加载前置定 → 首选即用；
+    //   未预选保持 0 游戏页；ame_showCategory 内部会重写 selectedIndex 并刷左轨选中态）
+    [self ame_showCategory:(self.selectedIndex >= 0 ? self.selectedIndex : 0)];
 }
 
 - (void)viewWillAppear:(BOOL)animated {
     [super viewWillAppear:animated];
     // 根页隐藏系统栏：pop 回来自动隐藏（子页 push 出去时 viewWillDisappear
     // 已恢复系统栏，旧子页可见返回栏）
-    [self.navigationController setNavigationBarHidden:YES animated:NO];
+    // ★ Task324：管理器改道 push 场景（本页非 nav 根）保留系统栏——返回钮
+    //   可回管理页（旧 DVC 同语义）；壳内 nav 根用法照旧隐藏（壳顶栏接管）
+    BOOL ame324_isNavRoot =
+        (self.navigationController.viewControllers.firstObject == self);
+    [self.navigationController setNavigationBarHidden:ame324_isNavRoot animated:NO];
 }
 
 - (void)viewWillDisappear:(BOOL)animated {
@@ -382,6 +388,12 @@ static UIImage *ZL2DownloadSystemImage(NSString *name, NSString *fallback) {
         }
         default:
             return nil;
+    }
+    // ★ Task324：管理器改道透传——ZL2AssetSearch 子页（1-6/8）接收目标实例
+    //   （viewDidLoad 快照优先取透传值，Task265 语义保留：下载写入随调用方
+    //   绑定实例，非当前选中实例）
+    if (self.targetProfileName.length > 0 && [vc isKindOfClass:[ZL2AssetSearchViewController class]]) {
+        ((ZL2AssetSearchViewController *)vc).targetProfileName = self.targetProfileName;
     }
     self.childCache[@(index)] = vc;
     return vc;

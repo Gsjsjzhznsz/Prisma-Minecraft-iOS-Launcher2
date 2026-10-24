@@ -11,7 +11,7 @@
 #import "ResourcePackService.h"
 #import "ResourcePackItem.h"
 #import "ResourceCardTableViewCell.h"
-#import "DownloadViewController.h"
+#import "ZL2DownloadViewController.h"   // ★ Task324：下载 UI 全面 ZL2 风格（旧 DVC 入口退役）
 #import "AmeTheme.h"   // ★ 7.0-UI-5a：Fluent 设计令牌（颜色/字体单一事实源）
 #import "utils.h"
 
@@ -293,8 +293,10 @@
 #pragma mark - 跳转统一下载界面
 
 - (void)openDownloadPage {
-    // 在线下载入口已收敛到统一下载界面（未区分资源类型 Tab，进入默认页）
-    DownloadViewController *downloadVC = [[DownloadViewController alloc] init];
+    // ★ Task324：在线下载入口改道 ZL2 下载中心（旧 DownloadViewController 退役；
+    //   预选资源包轨 + 目标实例透传保留 Task265 语义）
+    ZL2DownloadViewController *downloadVC = [[ZL2DownloadViewController alloc] init];
+    downloadVC.selectedIndex = 3;   // 左轨 3 = 资源包
     // 关键修复（目标实例不一致）：传入本管理页绑定的 profileName
     downloadVC.targetProfileName = self.profileName;
     if (self.navigationController) {

@@ -372,6 +372,96 @@
         [PLProfiles.current save];
         NSLog(@"[Ame271] self-heal done: %ld profile(s) re-isolated", (long)ame271_healed);
     }
+    // ★ Task324（用户三问③：文件架构同步后 versions 下实例仍缺隔离文件）：
+    //   自愈/清扫/重指链收尾后全量补齐隔离骨架——注册表已隔离的版本目录
+    //   直接可见 mods 等六目录（FCL/HMCL/PCL/ZL2 同款观感），放模组即生效
+    [ModService ame324_ensureIsolationSkeletonsAll];
+}
+
+/// ★ Task324：隔离实例骨架补齐（用户指令："versions 下的实例还是没有其他
+/// 游戏隔离文件，比如模组"——Task322 拍平后实例目录里必须能直接看到 mods
+/// 等标准隔离目录，FCL/HMCL/PCL/ZL2 同款观感；Prisma1 ame323 同源移植）。
+/// 六目录 = mods/saves/config/resourcepacks/shaderpacks/screenshots。
+/// 仅隔离态创建：注册表存在指向该版本的隔离 profile（gameDir = 平铺新口径
+/// 或旧 game 叶子）或目录形状已有隔离数据（mods/saves 非空，ame225 同源）；
+/// 非隔离/默认实例绝不创建（防"放了模组却不生效"的误导）。幂等零副作用。
++ (void)ame324_ensureIsolationSkeletonForVersionId:(NSString *)vid {
+    if (![vid isKindOfClass:[NSString class]] || vid.length == 0) return;
+    const char *ame324_env = getenv("POJAV_GAME_DIR");
+    if (!ame324_env || !*ame324_env) return;
+    NSString *ame324_base = [NSString stringWithUTF8String:ame324_env];
+    if (ame324_base.length == 0) return;
+    // 默认实例（jar/json 与共享数据同根）不补骨架：它就是共享根本体，
+    // 建 mods/ 会跟共享 mods 撞名（Task274 "(Default)" 守卫同款口径）
+    if ([vid isEqualToString:@"(Default)"] || [vid isEqualToString:@"default"]) return;
+    NSFileManager *ame324_fm = [NSFileManager defaultManager];
+    NSString *ame324_flat = [ame324_base stringByAppendingPathComponent:
+        [NSString stringWithFormat:@"versions/%@", vid]];
+    BOOL ame324_isolated = NO;
+    // 隔离判据①：注册表里存在指向该版本的隔离 profile（gameDir = 平铺新口径
+    // 或旧 game 叶子；Task322 重指后新口径为主）
+    NSDictionary *ame324_profiles = PLProfiles.current.profiles;
+    for (NSDictionary *ame324_prof in ame324_profiles.allValues) {
+        if (![ame324_prof isKindOfClass:[NSDictionary class]]) continue;
+        if (![ame324_prof[@"lastVersionId"] isEqualToString:vid]) continue;
+        NSString *ame324_gd = ame324_prof[@"gameDir"];
+        if (![ame324_gd isKindOfClass:[NSString class]]) continue;
+        if ([ame324_gd isEqualToString:[NSString stringWithFormat:@"versions/%@", vid]] ||
+            [ame324_gd isEqualToString:[NSString stringWithFormat:@"versions/%@/game", vid]]) {
+            ame324_isolated = YES;
+            break;
+        }
+    }
+    // 隔离判据②：目录形状兑底——平铺目录已有 mods/saves 数据 = 事实上隔离
+    if (!ame324_isolated) {
+        for (NSString *ame324_leaf in @[@"mods", @"saves"]) {
+            NSString *ame324_probe = [ame324_flat stringByAppendingPathComponent:ame324_leaf];
+            NSArray<NSString *> *ame324_entries = [ame324_fm contentsOfDirectoryAtPath:ame324_probe error:nil];
+            for (NSString *ame324_e in ame324_entries) {
+                if (![ame324_e hasPrefix:@"."]) { ame324_isolated = YES; break; }
+            }
+            if (ame324_isolated) break;
+        }
+    }
+    if (!ame324_isolated) return;
+    NSInteger ame324_created = 0;
+    for (NSString *ame324_dir in @[@"mods", @"saves", @"config", @"resourcepacks", @"shaderpacks", @"screenshots"]) {
+        NSString *ame324_path = [ame324_flat stringByAppendingPathComponent:ame324_dir];
+        if (![ame324_fm fileExistsAtPath:ame324_path]) {
+            NSError *ame324_err = nil;
+            if ([ame324_fm createDirectoryAtPath:ame324_path withIntermediateDirectories:YES attributes:nil error:&ame324_err]) {
+                ame324_created++;
+            } else {
+                NSLog(@"[Ame324] skeleton mkdir failed for %@/%@: %@", vid, ame324_dir, ame324_err.localizedDescription);
+            }
+        }
+    }
+    // 旧 game 叶子若仍在（拍平前刻到达的调用），骨架建进平铺目录即可，
+    // 叶子由 main.m init_flattenIsolatedGameDirs 负责上提——不向叶子内建目录
+    if (ame324_created > 0) {
+        NSLog(@"[Ame324] isolation skeleton ensured for versions/%@ (%ld dir(s) created, FCL/HMCL/PCL parity)", vid, (long)ame324_created);
+    }
+}
+
+/// ★ Task324：全量骨架 pass——遍历 versions/<id>/<id>.json 真实版本实例，
+/// 逐个走 ame324_ensureIsolationSkeletonForVersionId（注册表/形状判据在内）。
+/// 调用点：ame271 自愈链收尾（SceneDelegate 启动段，Task322 重指后）+
+/// ZL2GameAddons 三个安装成功分支（装完即见，无需等下轮启动）。幂等零副作用。
++ (void)ame324_ensureIsolationSkeletonsAll {
+    const char *ame324_env = getenv("POJAV_GAME_DIR");
+    if (!ame324_env || !*ame324_env) return;
+    NSString *ame324_base = [NSString stringWithUTF8String:ame324_env];
+    if (ame324_base.length == 0) return;
+    NSFileManager *ame324_fm = [NSFileManager defaultManager];
+    NSString *ame324_versions = [ame324_base stringByAppendingPathComponent:@"versions"];
+    NSArray<NSString *> *ame324_vdirs = [ame324_fm contentsOfDirectoryAtPath:ame324_versions error:nil];
+    for (NSString *ame324_vd in ame324_vdirs) {
+        if ([ame324_vd hasPrefix:@"."]) continue;
+        NSString *ame324_marker = [[ame324_versions stringByAppendingPathComponent:ame324_vd]
+            stringByAppendingPathComponent:[NSString stringWithFormat:@"%@.json", ame324_vd]];
+        if (![ame324_fm fileExistsAtPath:ame324_marker]) continue;   // 非版本实例（残根/杂项）跳过
+        [ModService ame324_ensureIsolationSkeletonForVersionId:ame324_vd];
+    }
 }
 
 - (nullable NSString *)existingModsFolderForProfile:(NSString *)profileName {

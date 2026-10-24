@@ -84,6 +84,12 @@ typedef void(^ModDownloadHandler)(NSError * _Nullable error); // Added for downl
 /// 目录（幂等；已显式配置的条目绝不碰；SceneDelegate 启动钩子调用）。
 + (void)ame271_selfHealStrandedIsolation;
 
+// ★ Task324：隔离实例骨架补齐（FCL/HMCL/PCL parity；仅隔离态创建，幂等零副作用）
+// 六目录 = mods/saves/config/resourcepacks/shaderpacks/screenshots；
+// 默认实例与非隔离版本绝不创建（防"放了模组却不生效"误导）
++ (void)ame324_ensureIsolationSkeletonForVersionId:(NSString *)vid;
++ (void)ame324_ensureIsolationSkeletonsAll;
+
 @end
 
 NS_ASSUME_NONNULL_END

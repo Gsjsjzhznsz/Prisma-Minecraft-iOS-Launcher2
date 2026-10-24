@@ -19,7 +19,7 @@
 #import "PLMirrorCenter.h"
 #import "PLProfiles.h"
 #import "LauncherPreferences.h"
-#import "DownloadViewController.h"
+#import "ZL2DownloadViewController.h"   // ★ Task324：下载 UI 全面 ZL2 风格（旧 DVC 入口退役）
 #import "DownloadTaskManager.h"
 #import "DownloadTaskItem.h"
 #import "ProfileSettingsViewController.h"   // Task225：隔离徽标 → 版本设置入口
@@ -994,10 +994,12 @@ static NSString *ModsManagerSHA1ForFile(NSString *path) {
     [self.tableView reloadData];
 }
 
-/// 空状态"去下载"：跳转统一下载页（无参数化资源类型入口，进入默认页）
+/// 空状态"去下载"：跳转 ZL2 下载中心（★ Task324：旧 DownloadViewController 入口退役；
+/// 预选模组轨 + 目标实例透传保留 Task265 语义）
 - (void)openDownloadPage {
-    DownloadViewController *vc = [[DownloadViewController alloc] init];
-    // 关键修复（目标实例不一致）：传入本管理页生效的 profileName（Task265：
+    ZL2DownloadViewController *vc = [[ZL2DownloadViewController alloc] init];
+    vc.selectedIndex = 2;   // 左轨 2 = 模组
+    // 关键修复（目标实例不一致）语义保留：传入本管理页生效的 profileName（Task265：
     // 含 nil 绑定时的自适应跟随），保证下载写入的实例与当前打开的实例一致
     vc.targetProfileName = [self ame265_effectiveProfileName];
     if (self.navigationController) {

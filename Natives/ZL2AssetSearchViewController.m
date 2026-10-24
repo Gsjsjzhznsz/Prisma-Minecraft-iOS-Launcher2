@@ -755,7 +755,11 @@ static UIColor *ZL2AssetSourceBadgeColor(NSInteger apiSource) {
 
     // 旧页 targetProfileName 同款：打开页面瞬间快照当前选中实例
     // （DownloadViewController.m L695-701；下载完成回调统一用快照，防切实例错写）
-    self.lockedProfileName = PLProfiles.current.selectedProfileName;
+    // ★ Task324：管理器改道入口显式透传 targetProfileName 时优先取透传值
+    //   （Task265 目标实例语义保留：下载写入目标 = 调用方绑定实例，非当前选中）
+    self.lockedProfileName = self.targetProfileName.length > 0
+        ? self.targetProfileName
+        : PLProfiles.current.selectedProfileName;
 
     [self buildViews];
     [self ame_applyFilterPanelAppearance];

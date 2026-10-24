@@ -24,6 +24,16 @@
 NS_ASSUME_NONNULL_BEGIN
 
 @interface ZL2DownloadViewController : UIViewController
+
+// ★ Task324：管理器"去下载"改道入口（下载 UI 全面 ZL2 风格）。
+//   selectedIndex = 左轨预选项（0 游戏/1 整合包/2 模组/3 资源包/4 存档/
+//   5 光影包/6 数据包/7 按ID/8 收藏/9-11 仓库三件；必须在 view 加载前置定，
+//   viewDidLoad 首选即用；未设 = 0 游戏页）。
+//   targetProfileName = 下载目标实例透传（Task265 语义保留：管理页绑定实例
+//   ≠ 当前选中实例时，下载写入目标仍随管理页；nil = 沿当前选中快照）。
+@property (nonatomic, assign) NSInteger selectedIndex;
+@property (nonatomic, copy, nullable) NSString *targetProfileName;
+
 @end
 
 NS_ASSUME_NONNULL_END
