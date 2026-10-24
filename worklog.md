@@ -3567,3 +3567,21 @@ Work Log:
 Stage Summary:
 - Task 323 终审通过（dev+smoke 双绿）；门禁电池十三项制（+ame323_selfcheck
   31 断言）；新 IPA 就绪待装机验证（锚点见 Task 323 条目 Stage Summary 4 条）
+
+---
+Task ID: 324
+Agent: main (Super Z)
+Task: 用户指令四联——①二代 worklog 补跨仓库勘误镜像（203d22b/12e9ca9 归属定性）②原版安装页 IMG_0485 三病根根修 ③下载 UI 全面 ZL2 风格（管理器"去下载"改道）④versions 隔离骨架补齐（文件架构同步后实例仍缺 mods 等隔离文件）
+
+Work Log:
+- ①勘误镜像：一代仓库 Task323 曾把 203d22b/12e9ca9 误判为"一代平行会话未推送成果失传"并"等价重做"——用户澄清 + 本仓 git log 实锤：203d22b = 本仓 Task 322（四报障根修）、12e9ca9 = 本仓 Task 321-r1（CI 编译雷热修），从来就是二代提交；一代侧已就地撤除改写（fix 82ab9879 + docs 17abe645 推送 main，无 force push，v7.0.0-beta2 tag 链不动）。教训入库（防再犯）：①判定提交归属先核对应用版本谱系（一代 6.5.x/7.0.0-beta vs 二代 1.0.0，设备日志"Version 1.0.0 development"即二代身份铁证）②"哈希本仓库查不到"≠"成果失传"，先排除"来自另一仓库/另一应用"③两代任务号与 ame 前缀并行使用（本仓 Task323 与一代 Task323 同号不同物），跨仓库证据不得互为定性依据
+- ②原版安装页三病根根修（ZL2GameAddonsViewController = 用户截图"安装 - 26.3"页）：挤左 1/4+右侧死空间根 = 滚动内容宽度无锚定（stack 只钉 contentLayoutGuide 四边不钉宽 = 经典歧义布局，AL 取最小固有宽 → 卡片塌缩左侧）→ 补 stack.widthAnchor = frameLayoutGuide.width − 32（内容恒满幅）；安装（原版）按钮截断根 = 头部行过约束（nameField 固定 220 必醒 + 安装钮 leading 链定派生宽 + 钮上标签无内边距锚），窄宽容器（iPhone/分屏）下约束必炸 AL 破坏 → 弹性链五件：field 首选 220@900 可缩至 >=120 / field 头部不等式降 999 / 钮最小宽 96 必醒 / 标签四边 14pt 内边距钳制 / 标题压缩阻力 950——让位次序 field→标题→钮，任意宽度安装钮不再截断
+- ③下载 UI 全面 ZL2 风格：ModsManager/ResourcePacksManager/WorldsManager 三处"去下载"改道 ZL2DownloadViewController（旧 DownloadViewController 用户可达入口全部退役；LauncherRoot/LauncherCardLayout 内部 DVC 引用为死代码零外部实例化不另处理）——ZL2Download.h 暴露 selectedIndex（0-11 左轨全表）+ targetProfileName 契约；viewDidLoad 尊重预选轨（>=0 即用）；push 场景（非 nav 根）保留系统栏 = 返回钮可回管理页，壳内 nav 根照旧隐藏；ZL2AssetSearch 增 targetProfileName 接收（viewDidLoad 快照优先透传值，Task265 目标实例语义保留：模组=ame265_effectiveProfileName / 资源包、存档=绑定 profileName）；ame_childForIndex 对 ZL2AssetSearch 子页（1-6/8）统一透传。下载功能面（加载器筛选/数据包/仓库三件）本仓 Task323 已全量在码，本轮核对零缺口
+- ④versions 隔离骨架（Prisma1 ame323 同源移植 → 本仓 ame324 号段）：ModService +ame324_ensureIsolationSkeletonForVersionId（六目录 mods/saves/config/resourcepacks/shaderpacks/screenshots；仅隔离态创建：注册表 profile lastVersionId=vid 且 gameDir=versions/<id>｜versions/<id>/game，或目录形状 mods/saves 非空 ame225 同源兑底；(Default)/default 守卫防与共享 mods 撞名；幂等零副作用）+ +ame324_ensureIsolationSkeletonsAll（versions/<id>/<id>.json 真实实例全量扫）；挂点三处：ame271 自愈链收尾（自愈/清扫/Task322 重指之后，SceneDelegate 启动段既有调用零改动）+ ZL2GameAddons 三安装成功分支（原版 MRDT/Fabric+OptiFine/Forge+NeoForge，装完即见不等下轮启动）
+- ModService.h CRLF 文件 python 字节级手术（scripts/task324_modservice_h_decl.py，锚点唯一性校验 + CRLF 保持验尸）；smoke 桩 TU 同步 ame324 空桩（Task323 链接纪律：新消费符号必须同步补桩）
+- 门禁：ame324_selfcheck 新门 38 断言全绿 + 电池既有项全绿（ame322/ame323 selfcheck、task139 balanced、task191 54 表 3289 键、task248 缺键0/硬编码0/动态键0、task250 0、task240 balanced + import sweep 基线 WARN、verify219 81/81、verify255 全 PASS）；改动 10 文件括号平衡验尸全过
+
+Stage Summary:
+- 三问全落：①安装页任意宽度布局稳定（内容恒满幅 + 安装钮永不截断）②下载 UI 无旧面（用户可达下载入口全 ZL2 风格，目标实例语义零回退）③versions/<id>/ 直接可见六隔离目录（FCL parity，放模组即生效）
+- 装机锚点：①"安装 - 26.3"页 iPhone/分屏宽度下头部一行齐整、按钮完整、卡片全宽 ②模组/资源包/存档管理页空态"去下载"→ ZL2 下载中心对应轨直达 ③启动一次后 latestlog 搜 "[Ame324] isolation skeleton ensured for versions/"（六目录出现）④安装任一加载器/原版后立即见 versions/<id>/mods 等六目录
+- 已知边界：非隔离实例（显式 gameDir='.' 共享用户）不建骨架（防"放了模组却不生效"误导，与 Prisma1 同口径）；LauncherRoot/LauncherCardLayout 死代码随旧壳退役计划后续清理
