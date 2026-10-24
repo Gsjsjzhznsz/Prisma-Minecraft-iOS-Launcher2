@@ -3779,3 +3779,8 @@ Stage Summary:
 3. 整合包存档进游戏可玩（数据物理搬移同卷 rename 瞬时，冲突零覆盖）
 4. 换装/重导入同一整合包——新数据写进版本目录（不回实例根，无脱同步）
 5. 游戏内菜单分辨率调整不再 CI 挡路（r1 修复后正常出包）
+
+### 【闭环补记】CI r1 一轮双终绿
+
+- dev run 40123974299 + smoke run 40123975946 双一轮 success（dispatch 触发，本仓 push 触发器已拆）；SurfaceViewController.h 声明补齐即愈，零二次返工
+- 产物 ipa/tipa 222.4MB + dSYM 7.3MB 在位；装机验证锚点见 Task 329 条目 5 条（[Ame329] 日志 / versions/<vid>/ 实文件 / 存档可玩 / 换装不脱同步 / 分辨率菜单恢复出包）
