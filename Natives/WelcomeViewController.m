@@ -1913,6 +1913,17 @@ static const NSInteger ame218_welcomeStepCount = 8;  // Task246：+1 界面风�
     NSArray<NSDictionary *> *ame260_siblings = [DataTransferService ame260_scanSiblingLauncherHomes];
     if (ame260_siblings.count > 0) {
         NSDictionary *ame260_best = ame260_siblings.firstObject;
+        // ★ Task321：迁移档案状态机——①已迁移且源无更新 → 卡片收起（设置页
+        //   仍可手动增量，避免永久重复弹卡）；②已迁移但源 mtime 更新 → 「增量
+        //   同步」变体；③未迁移 → 原卡（附来源身份标注）。
+        NSDictionary *ame321_rec = [DataTransferService ame321_lastSiblingMigrationRecord];
+        BOOL ame321_done = [ame321_rec[@"uuid"] isKindOfClass:NSString.class]
+            && [(NSString *)ame321_rec[@"uuid"] isEqualToString:ame260_best[@"uuid"]];
+        BOOL ame321_stale = ame321_done
+            && [ame260_best[@"modified"] compare:ame321_rec[@"date"]] == NSOrderedDescending;
+        if (ame321_done && !ame321_stale) {
+            NSLog(@"[Welcome] Task321: sibling %@ already migrated -- card hidden (manual re-sync available in settings)", ame260_best[@"uuid"]);
+        } else {
         unsigned long long ame260_bytes = [ame260_best[@"bytes"] unsignedLongLongValue];
         NSString *ame260_sizeText = ame260_bytes >= (1ULL << 30)
             ? [NSString stringWithFormat:@"%.1f GB", (double)ame260_bytes / (double)(1ULL << 30)]
@@ -1931,14 +1942,19 @@ static const NSInteger ame218_welcomeStepCount = 8;  // Task246：+1 界面风�
         [ame260_row addSubview:ame260_tile];
 
         UILabel *ame260_t = [[UILabel alloc] init];
-        ame260_t.text = localize(@"welcome.data.sibling.title", nil);
+        // Task321：未迁移=原题；已迁移但源有更新=「增量同步」变体
+        ame260_t.text = localize(ame321_stale ? @"welcome.data.sibling.title.sync" : @"welcome.data.sibling.title", nil);
         ame260_t.font = [UIFont systemFontOfSize:15 weight:UIFontWeightSemibold];
         ame260_t.translatesAutoresizingMaskIntoConstraints = NO;
         [ame260_row addSubview:ame260_t];
 
         UILabel *ame260_s = [[UILabel alloc] init];
+        // Task321：来源身份标注（prisma1/prisma2/prisma-plugins/legacy）+ 数据量
+        NSString *ame260_kind = ame260_best[@"kind"] ?: @"legacy";
+        NSString *ame260_kindText = localize(
+            [@"welcome.data.sibling.kind." stringByAppendingString:ame260_kind], nil);
         ame260_s.text = [NSString stringWithFormat:
-            localize(@"welcome.data.sibling.desc", nil), ame260_sizeText];
+            localize(@"welcome.data.sibling.desc2", nil), ame260_kindText, ame260_sizeText];
         ame260_s.font = [UIFont systemFontOfSize:12.5];
         ame260_s.textColor = [AmeTheme textSecondary];
         ame260_s.numberOfLines = 2;
@@ -1946,7 +1962,7 @@ static const NSInteger ame218_welcomeStepCount = 8;  // Task246：+1 界面风�
         [ame260_row addSubview:ame260_s];
 
         UIButton *ame260_go = [UIButton buttonWithType:UIButtonTypeSystem];
-        [ame260_go setTitle:localize(@"welcome.data.sibling.action", nil)
+        [ame260_go setTitle:localize(ame321_stale ? @"welcome.data.sibling.action.sync" : @"welcome.data.sibling.action", nil)
                    forState:UIControlStateNormal];
         ame260_go.titleLabel.font = [UIFont systemFontOfSize:14 weight:UIFontWeightSemibold];
         ame260_go.layer.cornerRadius = 12;
@@ -1983,8 +1999,9 @@ static const NSInteger ame218_welcomeStepCount = 8;  // Task246：+1 界面风�
             [ame260_go.trailingAnchor constraintEqualToAnchor:ame260_row.trailingAnchor constant:-14],
         ]];
         ame219_anchor = ame260_row;
-        NSLog(@"[Welcome] Task260: sibling migration card shown (path=%@ bytes=%llu)",
-              ame260_srcPath, ame260_bytes);
+        NSLog(@"[Welcome] Task321: sibling migration card shown (path=%@ bytes=%llu kind=%@ syncVariant=%d)",
+              ame260_srcPath, ame260_bytes, ame260_best[@"kind"], ame321_stale);
+        }
     }
 
     // 主选项：从备份导入
@@ -2016,17 +2033,17 @@ static const void *kAme260SiblingPathKey = &kAme260SiblingPathKey;
 - (void)ame260_siblingMigrateTapped {
     NSString *ame260_src = objc_getAssociatedObject(self, &kAme260SiblingPathKey);
     if (![ame260_src isKindOfClass:[NSString class]] || ame260_src.length == 0) return;
-    NSLog(@"[Welcome] Task260: sibling migration requested (src=%@)", ame260_src);
-    // 确认框：同名覆盖语义要明说（新装默认为空，基本是纯拷贝；但用户可能
-    // 在新 App 里已经玩过一会儿——覆盖前必须知情）。
+    NSLog(@"[Welcome] Task321: sibling migration requested (src=%@)", ame260_src);
+    // 确认框（Task321 双语义）：智能合并=默认（增量跳过未变 + 新者为准，
+    // 新 App 里玩过的存档绝不回滚）；全量覆盖=恢复语义（回到旧版状态，
+    // 新版较新数据会被旧版覆盖）——两条路都明说，用户知情选择。
     UIAlertController *ame260_confirm = [UIAlertController
         alertControllerWithTitle:localize(@"welcome.data.sibling.title", nil)
                          message:localize(@"welcome.data.sibling.confirm", nil)
                   preferredStyle:UIAlertControllerStyleAlert];
-    [ame260_confirm addAction:[UIAlertAction actionWithTitle
-        :localize(@"welcome.data.sibling.action", nil) style:UIAlertActionStyleDefault handler:^(UIAlertAction *a) {
+    void (^ame321_run)(Ame321SiblingMigrationMode) = ^(Ame321SiblingMigrationMode ame321_mode) {
         [DataTransferService.sharedService
-            ame260_migrateFromSiblingHome:ame260_src presenter:self
+            ame321_migrateFromSiblingHome:ame260_src mode:ame321_mode presenter:self
                                completion:^(BOOL ok, NSString *message) {
             UIAlertController *ame260_done = [UIAlertController
                 alertControllerWithTitle:(ok ? localize(@"welcome.data.sibling.title", nil)
@@ -2037,6 +2054,14 @@ static const void *kAme260SiblingPathKey = &kAme260SiblingPathKey;
                 :localize(@"i18n_str_44", @"OK") style:UIAlertActionStyleCancel handler:nil]];
             [self presentViewController:ame260_done animated:YES completion:nil];
         }];
+    };
+    [ame260_confirm addAction:[UIAlertAction actionWithTitle
+        :localize(@"welcome.data.sibling.confirm.smart", nil) style:UIAlertActionStyleDefault handler:^(UIAlertAction *a) {
+        ame321_run(Ame321SiblingMigrationModeSmart);
+    }]];
+    [ame260_confirm addAction:[UIAlertAction actionWithTitle
+        :localize(@"welcome.data.sibling.confirm.overwrite", nil) style:UIAlertActionStyleDestructive handler:^(UIAlertAction *a) {
+        ame321_run(Ame321SiblingMigrationModeOverwrite);
     }]];
     [ame260_confirm addAction:[UIAlertAction actionWithTitle
         :localize(@"resman.common.cancel", @"Cancel") style:UIAlertActionStyleCancel handler:nil]];

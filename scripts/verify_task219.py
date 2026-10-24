@@ -209,7 +209,7 @@ print("== J. l10n + 公告 ==")
 for lang in ["en", "zh-Hans", "zh-Hant", "zh-CN"]:
     keys = set(re.findall(r'^"([^"]+)"\s*=',
                           rd(f"Natives/resources/{lang}.lproj/Localizable.strings"), re.M))
-    check(f"J-{lang} 唯一键 3277（Task318 重锚：Task317 3260 + ame318 仓库/内置插件 17 键 = 3277）", len(keys) == 3277, f"got {len(keys)}")
+    check(f"J-{lang} 唯一键 3289（Task321 重锚：Task318 3277 + ame321 升级迁移/兄弟优化 12 键 = 3289）", len(keys) == 3289, f"got {len(keys)}")
 check("J-公告 7 条（Task315 同步重锚：6.5.5 侧 region-notice+download-speed 并入，pin 语义保持）",
       len(ann) == 7
       and any(a["id"] == "region-notice-and-download-speed-2026-10-20" for a in ann)

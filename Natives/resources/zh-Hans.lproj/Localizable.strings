@@ -3489,3 +3489,16 @@
 "ame318.builtin.launch-counter.desc" = "统计游戏启动次数与最近退出码，数据仅存本插件私有存储。";
 "ame318.builtin.modrinth-hot.name" = "Modrinth 热门榜";
 "ame318.builtin.modrinth-hot.desc" = "联网拉取 Modrinth 下载量前五的模组（需联网权限）。";
+/* Task321 旧版升级自动迁移 + 兄弟迁移优化 */
+"welcome.data.sibling.desc2" = "来源 %1$@，数据量 %2$@，可一键迁移到本启动器（源数据保留不动）。";
+"welcome.data.sibling.kind.prisma1" = "Prisma 旧版（1.x）";
+"welcome.data.sibling.kind.prisma2" = "Prisma 2 早期布局";
+"welcome.data.sibling.kind.plugins" = "Prisma（插件期）";
+"welcome.data.sibling.kind.legacy" = "旧版启动器（Air/上游）";
+"welcome.data.sibling.title.sync" = "旧版数据有更新";
+"welcome.data.sibling.desc.sync" = "上次迁移后源目录又有变化——增量同步会保留较新的一侧。";
+"welcome.data.sibling.action.sync" = "增量同步";
+"welcome.data.sibling.confirm.smart" = "智能合并（推荐）";
+"welcome.data.sibling.confirm.overwrite" = "全量覆盖";
+"ame321.migrate.done" = "智能合并完成：新增 %ld · 更新 %ld · 未变 %ld · 保留较新 %ld。重启启动器后生效。";
+"ame321.migrate.done.overwrite" = "已迁移 %ld 个文件（全量覆盖）。重启启动器后生效。";

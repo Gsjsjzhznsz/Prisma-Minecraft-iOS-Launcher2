@@ -707,6 +707,56 @@ void init_setupPCLLayout() {
                 NSLog(@"[Pre-init] Task319: AI migration failed (%@) -- keeps legacy layout this launch", ame319_aiErr.localizedDescription);
             }
         }
+    } else {
+        // ★ Task321（旧版升级自动迁移·收尾加固）：Prisma2/AI 已在且旧位 AI/ 仍为
+        //   真实目录（升级中断后重装 / 兄弟迁移先落旧位 / 新旧交替使用）→ 文件级
+        //   新者为准合并：目标缺失直接 move；双方俱在时 mtime 新者胜（绝不把新
+        //   会话回滚成旧会话）。providers.json 永不并入 Prisma2/AI（Task275：
+        //   路由 Application Support/AI 或清除外露副本）。合并后旧位能删则删，
+        //   非空留待下轮重试（move 幂等，任何失败只打日志不阻塞启动）。
+        NSDictionary *ame321_aAttrs = [fm attributesOfItemAtPath:legacyAIDir error:nil];
+        if (ame321_aAttrs && [ame321_aAttrs fileType] == NSFileTypeDirectory) {
+            [fm createDirectoryAtPath:prismaAI withIntermediateDirectories:YES attributes:nil error:nil];
+            NSString *ame321_asBase = [NSSearchPathForDirectoriesInDomains(NSApplicationSupportDirectory,
+                                                                          NSUserDomainMask, YES) firstObject] ?: home;
+            NSString *ame321_asProviders = [[ame321_asBase stringByAppendingPathComponent:@"AI"]
+                                            stringByAppendingPathComponent:@"providers.json"];
+            NSMutableArray<NSString *> *ame321_rels = [NSMutableArray array];
+            {
+                NSDirectoryEnumerator *ame321_snap = [fm enumeratorAtPath:legacyAIDir];
+                NSString *ame321_rel;
+                while ((ame321_rel = [ame321_snap nextObject])) [ame321_rels addObject:ame321_rel];
+            }
+            NSInteger ame321_merged = 0;
+            for (NSString *ame321_rel in ame321_rels) {
+                NSString *ame321_src = [legacyAIDir stringByAppendingPathComponent:ame321_rel];
+                NSDictionary *ame321_sAttrs = [fm attributesOfItemAtPath:ame321_src error:nil];
+                if (!ame321_sAttrs || [ame321_sAttrs fileType] == NSFileTypeDirectory) continue;
+                if ([ame321_rel isEqualToString:@"providers.json"]) { // Task275 特护：密钥永不落可读层
+                    if (![fm fileExistsAtPath:ame321_asProviders]) {
+                        [fm createDirectoryAtPath:ame321_asProviders.stringByDeletingLastPathComponent
+                           withIntermediateDirectories:YES attributes:nil error:nil];
+                        if ([fm moveItemAtPath:ame321_src toPath:ame321_asProviders error:nil]) {
+                            NSLog(@"[Pre-init] Task321: legacy AI/providers.json routed to Application Support (Task275 kept)");
+                        }
+                    } else {
+                        [fm removeItemAtPath:ame321_src error:nil]; // 外露副本清除
+                    }
+                    continue;
+                }
+                NSString *ame321_dst = [prismaAI stringByAppendingPathComponent:ame321_rel];
+                NSDictionary *ame321_dAttrs = [fm attributesOfItemAtPath:ame321_dst error:nil];
+                BOOL ame321_take = (ame321_dAttrs == nil) ||
+                    ([ame321_sAttrs.modificationDate compare:ame321_dAttrs.modificationDate] == NSOrderedDescending);
+                if (!ame321_take) continue;
+                [fm createDirectoryAtPath:ame321_dst.stringByDeletingLastPathComponent
+                   withIntermediateDirectories:YES attributes:nil error:nil];
+                if (ame321_dAttrs) [fm removeItemAtPath:ame321_dst error:nil];
+                if ([fm moveItemAtPath:ame321_src toPath:ame321_dst error:nil]) ame321_merged++;
+            }
+            NSLog(@"[Pre-init] Task321: legacy AI/ merged into Prisma2/AI newer-wins (%ld files)", (long)ame321_merged);
+            [fm removeItemAtPath:legacyAIDir error:nil]; // 空则删；非空留待下轮（幂等重试）
+        }
     }
 
     // —— 5) .minecraft 顶层符号链接 → Task226 游戏目录链（三态保护：
@@ -747,6 +797,73 @@ void init_setupPCLLayout() {
         if (aliasAttrs) [fm removeItemAtPath:aliasLink error:nil];
         [fm createSymbolicLinkAtPath:aliasLink withDestinationPath:wantTarget error:nil];
         NSLog(@"[Pre-init] Task319: minecraft alias -> %@ (Files-app visible entry)", wantTarget);
+    }
+}
+
+// ★ Task321（旧版升级自动迁移）：Prisma1（≤6.5.5）原地升级识别 + 快照落档。
+//   前提：两代包名一致（com.prisma-devs.prisma）→ 原地升级 = iOS 容器保留，
+//   用户数据天然传承；真正需要"迁移"的是布局代差，由紧随其后的
+//   init_setupMultiDir（内含 Task316 共享核心去重/实例扁平化）与
+//   init_setupPCLLayout（AI 归位 Prisma2/AI、providers.json 前摘、
+//   .minecraft/minecraft 三件套）自动完成。本函数职责只有三件：
+//   ① 结构指纹认定一代形态：无 Prisma2/、无 ame316_filelayout.done、
+//      无本快照，且有 accounts/ 或 instances/（二者在一代装机上必居其一；
+//      全新安装时二者都要到 init 链后半段才创建 → 天然不误报）；
+//   ② 快照落档 POJAV_HOME/.ame321_upgrade_record.plist（来源形态/当前版本/
+//      盘点计数/时间戳）——支持排查的取证锚点，幂等（已存在即跳过）；
+//   ③ NSLog 横幅，latestlog 可查证升级链已挂挡。
+//   纪律：本函数【只读 + 落档】，不动任何用户数据（动数据的是后续两链）。
+//   快照在 zip 导出与兄弟迁移的排除清单里（本侧状态，永不随数据搬运）。
+void init_migrateLegacyUpgrade() {
+    NSString *home = @(getenv("POJAV_HOME") ?: "");
+    if (home.length == 0) return;
+    NSString *ame321_prisma2 = [home stringByAppendingPathComponent:@"Prisma2"];
+    NSString *ame321_marker316 = [home stringByAppendingPathComponent:@"ame316_filelayout.done"];
+    NSString *ame321_record = [home stringByAppendingPathComponent:@".ame321_upgrade_record.plist"];
+    // 幂等闸门：任一二代痕迹存在 → 布局已收编或已落档，零开销返回
+    if ([fm fileExistsAtPath:ame321_prisma2] ||
+        [fm fileExistsAtPath:ame321_marker316] ||
+        [fm fileExistsAtPath:ame321_record]) return;
+
+    // 一代形态认定：accounts/ 或 instances/ 任一存在（全新安装二者皆未创建）
+    NSString *ame321_accDir = [home stringByAppendingPathComponent:@"accounts"];
+    NSString *ame321_instDir = [home stringByAppendingPathComponent:@"instances"];
+    BOOL ame321_hasAcc = [fm fileExistsAtPath:ame321_accDir];
+    BOOL ame321_hasInst = [fm fileExistsAtPath:ame321_instDir];
+    if (!ame321_hasAcc && !ame321_hasInst) return; // 全新空容器，不写记录
+
+    // 盘点（只 stat 顶层，启动路径零深遍历）
+    NSUInteger ame321_nInst = 0, ame321_nAcc = 0, ame321_nAI = 0;
+    if (ame321_hasInst) {
+        ame321_nInst = [[fm contentsOfDirectoryAtPath:ame321_instDir error:nil]
+            filteredArrayUsingPredicate:[NSPredicate predicateWithFormat:@"NOT self LIKE '.%'"]].count;
+    }
+    if (ame321_hasAcc) {
+        ame321_nAcc = [[fm contentsOfDirectoryAtPath:ame321_accDir error:nil]
+            filteredArrayUsingPredicate:[NSPredicate predicateWithFormat:@"NOT self LIKE '.%'"]].count;
+    }
+    NSString *ame321_legacyAI = [home stringByAppendingPathComponent:@"AI"];
+    NSDictionary *ame321_aiAttrs = [fm attributesOfItemAtPath:ame321_legacyAI error:nil];
+    if (ame321_aiAttrs && [ame321_aiAttrs fileType] == NSFileTypeDirectory) {
+        ame321_nAI = [[fm contentsOfDirectoryAtPath:ame321_legacyAI error:nil]
+            filteredArrayUsingPredicate:[NSPredicate predicateWithFormat:@"NOT self LIKE '.%'"]].count;
+    }
+
+    NSDictionary *ame321_snap = @{
+        @"kind": @"prisma1-legacy", // 一代形态（≤6.5.5 结构指纹；具体小版本号旧版未落盘，不可考）
+        @"appVersion": ([NSBundle mainBundle].infoDictionary[@"CFBundleShortVersionString"] ?: @"?"),
+        @"detectedAt": [NSDate date],
+        @"instances": @(ame321_nInst),
+        @"accounts": @(ame321_nAcc),
+        @"aiFiles": @(ame321_nAI),
+    };
+    if ([ame321_snap writeToFile:ame321_record atomically:YES]) {
+        NSLog(@"[Pre-init] Task321: legacy Prisma1 (<=6.5.5 layout) upgrade detected -- adoption chain engaged "
+              "(instances=%lu accounts=%lu aiFiles=%lu, snapshot=.ame321_upgrade_record.plist)",
+              (unsigned long)ame321_nInst, (unsigned long)ame321_nAcc, (unsigned long)ame321_nAI);
+    } else {
+        // 落档失败只打日志：数据收编不受影响（后续两链照跑），下轮再补档
+        NSLog(@"[Pre-init] Task321: legacy upgrade snapshot write FAILED -- adoption chain still engaged");
     }
 }
 
@@ -879,8 +996,13 @@ int main(int argc, char *argv[]) {
     NSLog(@"[Debugging] Debug log enabled: %@", debugLogEnabled ? @"YES" : @"NO");
 
     init_setupResolvConf();
+    // ★ Task321（旧版升级自动迁移）：一代 Prisma1（≤6.5.5）原地升级识别 + 快照落档。
+    //   必须先于 init_setupMultiDir/init_setupPCLLayout——二代痕迹（Prisma2/、
+    //   ame316 marker）落位后指纹即失效。函数本体只读+落档，数据收编由后续两链
+    //   完成（装机锚点：latestlog 搜 "Task321: legacy Prisma1"）。
+    init_migrateLegacyUpgrade();
     init_setupMultiDir();
-    init_setupPCLLayout(); // Task319/320：PCL 风格顶层布局（.minecraft + Prisma2/ 数据目录）+ 数据迁移
+    init_setupPCLLayout(); // Task319/320：PCL 风格顶层布局（.minecraft + Prisma2/ 数据目录）+ 数据迁移（Task321 扩：AI 新者为准合并）
     toggleIsolatedPref(NO);
     // Task 167：MobileGlues DSA 黑屏反向迁移的【常跑】调用点。原挂载点
     // application:configurationForConnectingSceneSession: 只在新建场景会话时

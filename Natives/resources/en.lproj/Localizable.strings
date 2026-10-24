@@ -3491,3 +3491,16 @@
 "ame318.builtin.launch-counter.desc" = "Count game launches and the last exit code (stored privately).";
 "ame318.builtin.modrinth-hot.name" = "Modrinth Trending";
 "ame318.builtin.modrinth-hot.desc" = "Fetch Modrinth's top five mods by downloads (requires network).";
+/* Task321 legacy-upgrade auto migration + sibling migration optimization */
+"welcome.data.sibling.desc2" = "Source: %1$@ · Size %2$@. One-tap migration into this launcher (source data is kept untouched).";
+"welcome.data.sibling.kind.prisma1" = "Prisma 1.x (legacy)";
+"welcome.data.sibling.kind.prisma2" = "Prisma 2 early layout";
+"welcome.data.sibling.kind.plugins" = "Prisma (plugins era)";
+"welcome.data.sibling.kind.legacy" = "Previous launcher (Air/upstream)";
+"welcome.data.sibling.title.sync" = "Old data has updates";
+"welcome.data.sibling.desc.sync" = "The source changed since the last migration — incremental sync keeps the newer side.";
+"welcome.data.sibling.action.sync" = "Sync";
+"welcome.data.sibling.confirm.smart" = "Smart merge (recommended)";
+"welcome.data.sibling.confirm.overwrite" = "Full overwrite";
+"ame321.migrate.done" = "Smart merge done: %ld new · %ld updated · %ld unchanged · %ld kept-newer. Restart the launcher to apply.";
+"ame321.migrate.done.overwrite" = "Migrated %ld files (full overwrite). Restart the launcher to apply.";

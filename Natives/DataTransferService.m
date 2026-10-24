@@ -111,6 +111,11 @@ typedef NS_ENUM(NSInteger, Ame229PickerMode) {
     if ([fileName hasPrefix:@"latestlog"]) return YES;
     if ([fileName hasPrefix:@"hs_err_pid"]) return YES;
     if ([fileName isEqualToString:@".ame217_session"]) return YES;
+    // Task321：迁移档案 / 升级快照 / Task316 布局 marker——本侧状态，不随备份走
+    //（导入侧应自产自录：落地设备自己跑升级识别与扁平化，而非继承源设备状态）
+    if ([fileName isEqualToString:@".ame321_sibling_migration.plist"]) return YES;
+    if ([fileName isEqualToString:@".ame321_upgrade_record.plist"]) return YES;
+    if ([fileName isEqualToString:@"ame316_filelayout.done"]) return YES;
     return NO;
 }
 
@@ -1544,6 +1549,24 @@ static void ame224_dosDateTime(NSDate *date, uint16_t *dosTime, uint16_t *dosDat
             [fm fileExistsAtPath:[cand stringByAppendingPathComponent:@"accounts"]] ||
             [fm fileExistsAtPath:[cand stringByAppendingPathComponent:@"instances"]];
         if (!isLauncherHome) continue;
+        // ★ Task321：来源身份识别（展示层标注 + 迁移档案留痕）。
+        //   prisma2        = 二代 319+ 布局（含 Prisma2/ 数据目录）；
+        //   prisma-plugins = 二代 317 代（根位 plugins 真实目录；Task319 后旧位
+        //                    是符号链接，attributesOfItemAtPath 不跟随，天然排除）；
+        //   prisma1        = 一代形态（AI/ 目录在根位，≤6.5.5）；
+        //   legacy         = 上游 / air 时代（无上述任何标记）。
+        NSString *ame321_kind = @"legacy";
+        if ([fm fileExistsAtPath:[cand stringByAppendingPathComponent:@"Prisma2"]]) {
+            ame321_kind = @"prisma2";
+        } else {
+            NSDictionary *ame321_pl = [fm attributesOfItemAtPath:
+                [cand stringByAppendingPathComponent:@"plugins"] error:nil];
+            if (ame321_pl && [ame321_pl fileType] == NSFileTypeDirectory) {
+                ame321_kind = @"prisma-plugins";
+            } else if ([fm fileExistsAtPath:[cand stringByAppendingPathComponent:@"AI"]]) {
+                ame321_kind = @"prisma1";
+            }
+        }
         // 规模粗估（只 stat 顶层不做深遍历，扫描在启动路径上必须廉价）
         unsigned long long bytes = 0;
         for (NSString *top in [fm contentsOfDirectoryAtPath:cand error:nil]) {
@@ -1558,6 +1581,7 @@ static void ame224_dosDateTime(NSDate *date, uint16_t *dosTime, uint16_t *dosDat
             @"uuid": entry,
             @"bytes": @(bytes),
             @"modified": st.fileModificationDate ?: [NSDate date],
+            @"kind": ame321_kind,
         }];
     }
     // 修改时间新 → 旧
@@ -1578,6 +1602,25 @@ static void ame224_dosDateTime(NSDate *date, uint16_t *dosTime, uint16_t *dosDat
 - (void)ame260_migrateFromSiblingHome:(NSString *)srcPath
                               presenter:(UIViewController *)presenter
                              completion:(void(^)(BOOL ok, NSString *message))completion {
+    // Task321：旧入口保留为「全量覆盖」语义（与 Task260 恢复语义一致，签名
+    // 兼容存量调用方）；新调用方请走 ame321（智能合并为默认推荐）。
+    [self ame321_migrateFromSiblingHome:srcPath
+                                   mode:Ame321SiblingMigrationModeOverwrite
+                              presenter:presenter
+                             completion:completion];
+}
+
++ (nullable NSDictionary *)ame321_lastSiblingMigrationRecord {
+    NSString *home = @(getenv("POJAV_HOME") ?: "");
+    if (home.length == 0) return nil;
+    return [NSDictionary dictionaryWithContentsOfFile:
+        [home stringByAppendingPathComponent:@".ame321_sibling_migration.plist"]];
+}
+
+- (void)ame321_migrateFromSiblingHome:(NSString *)srcPath
+                                 mode:(Ame321SiblingMigrationMode)mode
+                            presenter:(UIViewController *)presenter
+                           completion:(void(^)(BOOL ok, NSString *message))completion {
     UIAlertController *progress = [self ame217_progressAlertWithTitle:
         localize(@"ame260.migrate.progress", @"Migrating data from previous install…")];
     [presenter presentViewController:progress animated:YES completion:nil];
@@ -1586,7 +1629,9 @@ static void ame224_dosDateTime(NSDate *date, uint16_t *dosTime, uint16_t *dosDat
         NSFileManager *fm = [NSFileManager defaultManager];
         NSString *home = @(getenv("POJAV_HOME"));
         NSString *failMsg = nil;
-        NSInteger migrated = 0;
+        // Task321 计数：copied=新增 / updated=以源覆盖（源较新或内容有差异）/
+        // unchanged=未变跳过（增量核心）/ newerKept=目标较新保留（新存档绝不回滚）。
+        NSInteger ame321_copied = 0, ame321_updated = 0, ame321_unchanged = 0, ame321_newerKept = 0;
 
         // 全量遍历源目录（剔除运行期垃圾 + Library 缓存树；与 zip 导出
         // 的剔除口径一致——迁移的是"数据"，不是缓存）。
@@ -1600,7 +1645,11 @@ static void ame224_dosDateTime(NSDate *date, uint16_t *dosTime, uint16_t *dosDat
             NSString *base = rel.lastPathComponent;
             if ([base hasPrefix:@"latestlog"] || [base hasPrefix:@"hs_err_pid"] ||
                 [base isEqualToString:@".ame217_session"] ||
-                [base isEqualToString:@"ame251_shutdown.marker"]) {
+                [base isEqualToString:@"ame251_shutdown.marker"] ||
+                // Task321：迁移档案 / 升级快照 / 布局 marker 属"本侧状态"，不随数据搬运
+                [base isEqualToString:@".ame321_sibling_migration.plist"] ||
+                [base isEqualToString:@".ame321_upgrade_record.plist"] ||
+                [base isEqualToString:@"ame316_filelayout.done"]) {
                 [enumerator skipDescendants];
                 continue;
             }
@@ -1618,45 +1667,91 @@ static void ame224_dosDateTime(NSDate *date, uint16_t *dosTime, uint16_t *dosDat
             if (![fm fileExistsAtPath:dstDir]) {
                 [fm createDirectoryAtPath:dstDir withIntermediateDirectories:YES attributes:nil error:nil];
             }
+            // ★ Task321：合并语义分流。Smart = 增量 + 新者为准（size+mtime 双判，
+            //   1 秒容差吸收文件系统时间戳粒度）；Overwrite = Task260 原恢复语义。
+            NSDictionary *ame321_srcAttrs = [fm attributesOfItemAtPath:srcAbs error:nil];
+            NSDictionary *ame321_dstAttrs = [fm attributesOfItemAtPath:dstAbs error:nil];
+            BOOL ame321_doCopy = YES;
+            if (ame321_dstAttrs && mode == Ame321SiblingMigrationModeSmart) {
+                unsigned long long ame321_ss = ame321_srcAttrs.fileSize;
+                unsigned long long ame321_ds = ame321_dstAttrs.fileSize;
+                NSTimeInterval ame321_dsec = [ame321_dstAttrs.modificationDate
+                    timeIntervalSinceDate:ame321_srcAttrs.modificationDate];
+                if (ame321_ss == ame321_ds && fabs(ame321_dsec) < 1.0) {
+                    ame321_unchanged++;   // 增量：内容未变，跳过
+                    ame321_doCopy = NO;
+                } else if (ame321_dsec > 1.0) {
+                    ame321_newerKept++;   // 新者为准：目标较新且内容有差异，保留目标
+                    ame321_doCopy = NO;
+                }
+            }
+            if (!ame321_doCopy) continue;
+            if (ame321_dstAttrs) ame321_updated++; else ame321_copied++;
             // 同名覆盖：先删后拷（copy 而非 move——源是旧 App 的数据，保底
             // 不破坏，迁移确认无误后由用户删除旧应用）。
             [fm removeItemAtPath:dstAbs error:nil];
             NSError *cpErr = nil;
             if (![fm copyItemAtPath:srcAbs toPath:dstAbs error:&cpErr]) {
                 // 单文件失败不中断迁移（符号链接/权限孤例），记日志继续
-                NSLog(@"[DataTransfer] Task260: copy failed for %@ (%@) -- skipped", rel, cpErr.localizedDescription);
+                NSLog(@"[DataTransfer] Task321: copy failed for %@ (%@) -- skipped", rel, cpErr.localizedDescription);
+                if (ame321_dstAttrs) ame321_updated--; else ame321_copied--;
                 continue;
             }
-            migrated++;
         }
-        NSLog(@"[DataTransfer] Task260: sibling migration copied %ld files%@",
-              (long)migrated, failMsg ? [NSString stringWithFormat:@" (FAILED: %@)", failMsg] : @" (ok)");
+        NSLog(@"[DataTransfer] Task321: sibling migration done (mode=%ld copied=%ld updated=%ld unchanged=%ld newerKept=%ld%@)",
+              (long)mode, (long)ame321_copied, (long)ame321_updated, (long)ame321_unchanged, (long)ame321_newerKept,
+              failMsg ? [NSString stringWithFormat:@" FAILED: %@", failMsg] : @"");
 
         if (failMsg == nil) {
-            // 收尾三件与 zip 导入同源（Task227/230 语义）
+            // 收尾与 zip 导入同源（Task227/230 语义）+ Task321 二代布局收编全链：
+            // MultiDir（实例合并 + ame316 共享核心/实例扁平化）→ PCL 布局
+            //（AI 归位 Prisma2/AI（含新者为准合并分支）、providers.json 前摘、
+            //  .minecraft/minecraft 三件套）——迁移完无需等重启即完成代差收编。
             @try {
                 extern void init_setupMultiDir(void);
                 init_setupMultiDir();
-                NSLog(@"[DataTransfer] Task260: post-migration instance merge executed");
+                extern void init_setupPCLLayout(void);
+                init_setupPCLLayout();
+                NSLog(@"[DataTransfer] Task321: post-migration adoption chain executed (MultiDir + PCL layout)");
             } @catch (NSException *ame260_e) {
-                NSLog(@"[DataTransfer] Task260: post-migration merge exception (%@)", ame260_e);
+                NSLog(@"[DataTransfer] Task321: post-migration adoption exception (%@)", ame260_e);
             }
             @try {
                 extern void loadPreferences(BOOL reset);
                 loadPreferences(NO);
-                NSLog(@"[DataTransfer] Task260: preferences reloaded after migration");
+                NSLog(@"[DataTransfer] Task321: preferences reloaded after migration");
             } @catch (NSException *ame260_e2) {
-                NSLog(@"[DataTransfer] Task260: preference reload exception (%@)", ame260_e2);
+                NSLog(@"[DataTransfer] Task321: preference reload exception (%@)", ame260_e2);
             }
             dispatch_async(dispatch_get_main_queue(), ^{
                 [[NSNotificationCenter defaultCenter] postNotificationName:@"AppLanguageChanged"
                                                                     object:[getPrefObject(@"general.app_language") isKindOfClass:NSString.class]
                                                                         ? (NSString *)getPrefObject(@"general.app_language") : @"system"];
             });
+            // Task321：迁移档案落档（欢迎页状态机据此收起/转「增量同步」；
+            // 也是支持排查的取证锚点）。档案文件在拷贝与导出两侧排除清单里。
+            NSString *ame321_uuid = srcPath.stringByDeletingLastPathComponent.lastPathComponent ?: @"";
+            NSDictionary *ame321_rec = @{
+                @"uuid": ame321_uuid,
+                @"path": srcPath ?: @"",
+                @"date": [NSDate date],
+                @"mode": @(mode),
+                @"copied": @(ame321_copied),
+                @"updated": @(ame321_updated),
+                @"unchanged": @(ame321_unchanged),
+                @"newerKept": @(ame321_newerKept),
+            };
+            [ame321_rec writeToFile:[home stringByAppendingPathComponent:@".ame321_sibling_migration.plist"]
+                          atomically:YES];
         }
 
-        NSString *doneMsg = failMsg ?: [NSString stringWithFormat:
-            localize(@"ame260.migrate.done", @"Migrated %ld files. Restart the launcher to apply."), (long)migrated];
+        NSString *doneMsg = failMsg ?: (mode == Ame321SiblingMigrationModeSmart
+            ? [NSString stringWithFormat:
+                localize(@"ame321.migrate.done", @"Smart merge done: %ld new, %ld updated, %ld unchanged, %ld kept-newer. Restart the launcher to apply."),
+                (long)ame321_copied, (long)ame321_updated, (long)ame321_unchanged, (long)ame321_newerKept]
+            : [NSString stringWithFormat:
+                localize(@"ame321.migrate.done.overwrite", @"Migrated %ld files (full overwrite). Restart the launcher to apply."),
+                (long)ame321_copied]);
         dispatch_async(dispatch_get_main_queue(), ^{
             [progress dismissViewControllerAnimated:YES completion:^{
                 completion(failMsg == nil, doneMsg);

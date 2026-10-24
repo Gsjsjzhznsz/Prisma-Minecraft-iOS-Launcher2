@@ -128,7 +128,9 @@ typedef void (^Ame224ExportProgressBlock)(NSUInteger phase,
 /// 以 launcher_preferences_v2.plist / instances/ / accounts/ 三者任一存在
 /// 认定为启动器数据。非 LiveContainer 布局（普通沙盒）返回空数组（功能
 /// 惰性，零副作用）。
-/// 返回元素：@{ @"path": 绝对路径, @"uuid": 目录 UUID, @"bytes": NSNumber }。
+/// 返回元素：@{ @"path": 绝对路径, @"uuid": 目录 UUID, @"bytes": NSNumber,
+/// @"modified": NSDate, @"kind": 身份标注（Task321：prisma1=一代 ≤6.5.5 /
+/// prisma2=二代 319+ 布局 / prisma-plugins=二代 317 代 / legacy=上游·air 时代） }。
 + (NSArray<NSDictionary *> *)ame260_scanSiblingLauncherHomes;
 
 /// 从兄弟数据目录一键迁移：后台线程把 srcPath 全量合并进 POJAV_HOME
@@ -139,6 +141,36 @@ typedef void (^Ame224ExportProgressBlock)(NSUInteger phase,
 - (void)ame260_migrateFromSiblingHome:(NSString *)srcPath
                               presenter:(UIViewController *)presenter
                              completion:(void(^)(BOOL ok, NSString *message))completion;
+
+#pragma mark - ★ Task321（清单 2）：兄弟迁移优化（智能合并/身份识别/迁移档案）
+
+/// 迁移合并语义（Task321）。
+typedef NS_ENUM(NSInteger, Ame321SiblingMigrationMode) {
+    /// 智能合并（默认）：增量跳过未变文件（size+mtime 双判）；目标较新且内容
+    /// 有差异时保留目标——新 App 里玩过的存档绝不回滚成旧档。
+    Ame321SiblingMigrationModeSmart = 0,
+    /// 全量覆盖：同名一律以源为准（Task260 原“恢复”语义；确认要回到旧版状态时用）。
+    Ame321SiblingMigrationModeOverwrite = 1,
+};
+
+/// Task321 优化版兄弟迁移（ame260 原入口保留为 Overwrite 语义委托）：
+///   · Smart 增量 + 新者为准（Overwrite = Task260 原语义）；
+///   · 成功后自动执行二代布局收编全链（init_setupMultiDir →
+///     init_setupPCLLayout：AI 归位 Prisma2/AI、providers.json 前摘、
+///     .minecraft/minecraft 三件套；ame316 共享核心/实例扁平化随 MultiDir 链）；
+///   · 迁移档案落 POJAV_HOME/.ame321_sibling_migration.plist（uuid/date/mode/
+///     copied/updated/unchanged/newerKept），欢迎页状态机据此收起或转「增量同步」；
+///   · 档案/快照/ame316 marker 在拷贝与导出两侧的排除清单里（本侧状态不搬运）。
+/// completion 主线程回调，ok=NO 时 message 为失败原因。
+- (void)ame321_migrateFromSiblingHome:(NSString *)srcPath
+                                 mode:(Ame321SiblingMigrationMode)mode
+                            presenter:(UIViewController *)presenter
+                           completion:(void(^)(BOOL ok, NSString *message))completion;
+
+/// 最近一次兄弟迁移档案（无档案/不可读返回 nil）。键：uuid/path/date/mode/
+/// copied/updated/unchanged/newerKept。欢迎页据此判定：已迁移且源无更新 →
+/// 收起卡片；源 mtime 较档案更新 → 「增量同步」变体。
++ (nullable NSDictionary *)ame321_lastSiblingMigrationRecord;
 
 @end
 

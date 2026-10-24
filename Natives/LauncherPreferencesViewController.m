@@ -321,10 +321,11 @@ static NSString* ame202_languageDisplayName(NSString *ame202_code) {
 }
 
 /// ★ Task261：设置页 air 旧数据（LC 兄弟目录）一键迁移入口——与欢迎向导
-/// Task260 卡同 API 同语义：扫描 → 无兄弟目录给提示 → 有则覆盖确认 →
-/// 迁移（进度/重启提示由 DataTransferService 自管）→ 结果弹窗。源选择与
-/// 向导一致（数组已按修改时间排序取首位）。文案复用 welcome.data.sibling
-/// 键族（54 表齐备），本页新增仅 none 提示一键。
+/// Task260 卡同 API 同语义：扫描 → 无兄弟目录给提示 → 有则双语义确认
+///（Task321：智能合并（增量+新者为准，默认）/全量覆盖）→ 迁移（进度/
+/// 重启提示由 DataTransferService 自管，迁移后自动跑二代布局收编链）→
+/// 结果弹窗。源选择与向导一致（数组已按修改时间排序取首位）。文案复用
+/// welcome.data.sibling 键族 + Task321 新键（四表，余表走 en 回退链）。
 - (void)ame261_siblingImportTapped {
     NSArray<NSDictionary *> *ame261_siblings = [DataTransferService ame260_scanSiblingLauncherHomes];
     if (ame261_siblings.count == 0) {
@@ -337,16 +338,19 @@ static NSString* ame202_languageDisplayName(NSString *ame202_code) {
     NSString *ame261_sizeText = ame261_bytes >= (1ULL << 30)
         ? [NSString stringWithFormat:@"%.1f GB", (double)ame261_bytes / (double)(1ULL << 30)]
         : [NSString stringWithFormat:@"%llu MB", ame261_bytes / (1ULL << 20)];
+    // Task321：来源身份标注（prisma1/prisma2/prisma-plugins/legacy）+ 数据量
+    NSString *ame261_kind = ame261_best[@"kind"] ?: @"legacy";
+    NSString *ame261_kindText = localize(
+        [@"welcome.data.sibling.kind." stringByAppendingString:ame261_kind], nil);
     NSString *ame261_msg = [NSString stringWithFormat:
-        localize(@"welcome.data.sibling.desc", nil), ame261_sizeText];
+        localize(@"welcome.data.sibling.desc2", nil), ame261_kindText, ame261_sizeText];
     UIAlertController *ame261_confirm = [UIAlertController
         alertControllerWithTitle:localize(@"welcome.data.sibling.title", nil)
                          message:ame261_msg
                   preferredStyle:UIAlertControllerStyleAlert];
-    [ame261_confirm addAction:[UIAlertAction actionWithTitle
-        :localize(@"welcome.data.sibling.action", nil) style:UIAlertActionStyleDefault handler:^(UIAlertAction *a) {
+    void (^ame321_run)(Ame321SiblingMigrationMode) = ^(Ame321SiblingMigrationMode ame321_mode) {
         [DataTransferService.sharedService
-            ame260_migrateFromSiblingHome:ame261_src presenter:self
+            ame321_migrateFromSiblingHome:ame261_src mode:ame321_mode presenter:self
                                completion:^(BOOL ok, NSString *message) {
             UIAlertController *ame261_done = [UIAlertController
                 alertControllerWithTitle:(ok ? localize(@"welcome.data.sibling.title", nil)
@@ -357,6 +361,14 @@ static NSString* ame202_languageDisplayName(NSString *ame202_code) {
                 :localize(@"i18n_str_44", @"OK") style:UIAlertActionStyleCancel handler:nil]];
             [self presentViewController:ame261_done animated:YES completion:nil];
         }];
+    };
+    [ame261_confirm addAction:[UIAlertAction actionWithTitle
+        :localize(@"welcome.data.sibling.confirm.smart", nil) style:UIAlertActionStyleDefault handler:^(UIAlertAction *a) {
+        ame321_run(Ame321SiblingMigrationModeSmart);
+    }]];
+    [ame261_confirm addAction:[UIAlertAction actionWithTitle
+        :localize(@"welcome.data.sibling.confirm.overwrite", nil) style:UIAlertActionStyleDestructive handler:^(UIAlertAction *a) {
+        ame321_run(Ame321SiblingMigrationModeOverwrite);
     }]];
     [ame261_confirm addAction:[UIAlertAction actionWithTitle
         :localize(@"resman.common.cancel", @"Cancel") style:UIAlertActionStyleCancel handler:nil]];
