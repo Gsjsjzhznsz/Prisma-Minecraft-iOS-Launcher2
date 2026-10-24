@@ -3618,3 +3618,23 @@ Work Log:
 Stage Summary:
 - 四报障全链交付：①SDL 会话小窗输入不再偏移（B 链补偿+A 链防重+embed 缺口对齐）②加载器清单“成功也 0 行”根修+单源炸弹拆解（候选链/死兜底/HTML 兜底）+失败态三死角 ③控件/插件仓库双页 ZL2 新 UI（芯片行/卡片/令牌化全量）④整合包实例目录打开即见六隔离目录（FCL parity，导入即建+启动自愈双挂点）
 - 装机验证锚点：①SDL 会话（26.3+）切自由窗口小窗→点击/准星与画面位置对齐，latestlog 搜 "[SDLHook] Task325 native-input scale-fix"（factor>1 时出现，全屏无）②安装页 OptiFine/Fabric 展开即见版本列表（Fabric 100+ 行可滚），断网镜像场景 latestlog 搜 "[ZL2Addons] forge bmclapi list failed -- falling back to official"③下载中心左轨“仓库”分区→控件/插件仓库页为 ZL2 卡片+芯片行④导入/启动后文件 App 实例目录（instances/modrinth_*）下直接可见 mods/saves/config 等六目录，latestlog 搜 "[Ame325] instance-axis isolation skeleton ensured"
+
+---
+Task ID: 325 号段 · CI 闭环补记
+Agent: main (Super Z)
+Task: development/ui-smoke 双 workflow 终绿收口（r0 双红 → r1 一轮终绿）
+
+Work Log:
+- r0 bddc726 双红：smoke run 40103760663 / dev run 40103759013 同源单雷——ZL2M3CardCell 实现区残
+  留 "- removed -" 哨兵行（合成移除 python -c 手术误写：replace 目标串替换为
+  "- removed -\n@implementation ..."，本地括号平衡门禁查不出 ObjC 上下文错乱）→ 676 起
+  "missing context for method declaration" 孤儿方法区连环（Task318 r1 同族第五进宫门禁盲区：
+  括号平衡 ≠ @implementation 归属）
+- r1 568628f：哨兵摘除（@implementation/@end 结构复原，@end 16 处对拍）→ 双 workflow 一轮终绿
+  （smoke run 40104581466 / dev run 40104579803，dev t+~19min 零热修）
+- 产物在位：ipa/tipa 各 222.4MB + dSYM 7.3MB（head=568628f4）
+- worklog 文档轮随本补记推送
+
+Stage Summary:
+- Task 325 终审通过（dev+smoke 双绿，r1 一轮热修）；ame324_selfcheck 52 断言制（+14 Task325）；新 IPA 就绪待装机验证（锚点见 Task 325 条目 Stage Summary 4 条）
+- 门禁盲区备忘：python 手术后必须 grep 手术哨兵词（'- removed -' 类）——括号平衡/键数/CRLF 三门对"上下文归属"类雷全盲
