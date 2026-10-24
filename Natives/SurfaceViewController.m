@@ -574,6 +574,11 @@ extern void ame_hook_realSDLGetWindowSize(int *w, int *h);
 //   CallbackBridge_nativeSendScreenSize 需在同一旗标下拦截 Java 侧窗口
 //   尺寸回报（小窗漂移根因②，见彼处注释）；extern 声明在 utils.h。
 BOOL g_ame267_freeformScaled = NO;   // YES = 非全屏窗口缩放态（信念冻结中）
+// ★ Task326：信箱式内容矩形（aspect-fit 信念宽高比）——小窗期游戏画面实际
+//   铺排区（surfaceView.frame，touchView 坐标系）；全屏态恒 origin=(0,0)
+//   size=全窗。光标视觉帧/触摸钳制以此为单一事实源。
+CGPoint g_ame267_contentOrigin = CGPointZero;
+CGSize g_ame267_contentSize = CGSizeZero;
 // ★ Task279：rescale 幂等快路径锚点——上次完成视图栈重排时的 view 尺寸。
 //   iPadOS 27 拖拽每 tick 经 updateSavedResolution 闸走到 rescale，同尺寸
 //   重复重排既刷屏又写帧；同尺寸且已在缩放态 = 零工作早退。
@@ -1960,28 +1965,74 @@ static NSInteger ame283_lastLandscapeDev = 0;
     self.inputTextField.frame = CGRectMake(0, -32.0, ame267_lw, 30.0);
     self.ctrlView.frame = getSafeArea(ame267_frame);
     [self.ctrlView.subviews makeObjectsPerformSelector:@selector(update)];
-    // surfaceView 铺满 touchView：drawableSize 保持整帧 → CA 等比缩放
-    if (self.surfaceView.superview != nil) {
-        self.surfaceView.frame = self.touchView.frame;
+    // ★ Task326：信箱式内容矩形（aspect-fit 信念宽高比）——此前 surfaceView
+    //   铺满 touchView，窗口宽高比 ≠ 信念宽高比（iPadOS 自由窗口任意形状，
+    //   装机实测 874x769/985x584 vs 信念 2360x1640=1.439）时 drawable→bounds
+    //   映射落在非均匀拉伸里（画面变形），且 CA 对 Metal drawable 的映射在
+    //   宽高比失配时不可证（拉伸/裁切二义）→ 触摸-画面分数一致性失去可证
+    //   性 = “SDL 小窗偏移”残余面（Task282/325 两轮只修了 origin 漂移与
+    //   B 链输入，映射语义本体未闭合；B 链实测零事件，输入全走 A 链）。
+    //   内容矩形按信念比例 aspect-fit 居中后：内容宽高比 == 信念宽高比
+    //   （恒等式），stretch==crop==等比缩放三种语义合一，映射唯一且分数
+    //   一致。信箱条内 touchView/控件层照旧全窗（虚拟控件握持区不挤压），
+    //   条内触摸由 sendTouchPoint 钳入内容边缘（桌面窗口语义）。
+    CGFloat ame326_cw = ame267_lw, ame326_ch = ame267_lh;
+    if (physicalWidth > 0 && physicalHeight > 0 && ame267_lw > 0.5 && ame267_lh > 0.5) {
+        CGFloat ame326_belief = (CGFloat)physicalWidth / (CGFloat)physicalHeight;
+        CGFloat ame326_view = ame267_lw / ame267_lh;
+        if (ame326_view > ame326_belief * 1.0005) {
+            ame326_cw = floor(ame267_lh * ame326_belief);   // 窗口更宽 → 左右条
+        } else if (ame326_view < ame326_belief * 0.9995) {
+            ame326_ch = floor(ame267_lw / ame326_belief);   // 窗口更窄 → 上下条
+        }
     }
-    // SDL 嵌入视图 frame re-assert（Task254 同款）
+    g_ame267_contentOrigin = CGPointMake(floor((ame267_lw - ame326_cw) / 2.0),
+                                         floor((ame267_lh - ame326_ch) / 2.0));
+    g_ame267_contentSize = CGSizeMake(ame326_cw, ame326_ch);
+    // surfaceView = 内容矩形（drawableSize 保持整帧 → 等比缩放进内容矩形）
+    if (self.surfaceView.superview != nil) {
+        self.surfaceView.frame = CGRectMake(g_ame267_contentOrigin.x, g_ame267_contentOrigin.y,
+                                            ame326_cw, ame326_ch);
+    }
+    // SDL 嵌入视图 frame re-assert（Task254 同款；保持全窗 = 触摸层全窗，
+    // B 链坐标语义与内容矩形解耦——B 链实测零事件，输入全走 A 链）
     UIView *ame267_sv = (__bridge UIView *)ame_hook_getEmbeddedSDLView();
     if (ame267_sv && ame267_sv.superview) {
         ame267_sv.frame = ame267_sv.superview.bounds;
     }
-    // 输入换算因子（逻辑视图 pt -> 整帧物理 px；⊥ 时按转置口径取值，
-    // 逻辑宽高与冻结信念同形 → 全屏横屏口径下与 Task282 版数值一致）
-    if (physicalWidth > 0 && ame267_lw > 0.5) {
-        ame267_adaptiveScaleX = (float)physicalWidth / (float)ame267_lw;
+    // 输入换算因子（内容矩形 pt -> 整帧物理 px；内容矩形与信念同比例 →
+    // X/Y 因子恒等 = 各向同性映射，Task277 光标口径/热栏口径自动受益）
+    if (physicalWidth > 0 && ame326_cw > 0.5) {
+        ame267_adaptiveScaleX = (float)physicalWidth / (float)ame326_cw;
     }
-    if (physicalHeight > 0 && ame267_lh > 0.5) {
-        ame267_adaptiveScaleY = (float)physicalHeight / (float)ame267_lh;
+    if (physicalHeight > 0 && ame326_ch > 0.5) {
+        ame267_adaptiveScaleY = (float)physicalHeight / (float)ame326_ch;
     }
-    virtualMouseFrame = self.mousePointerView.frame;   // 旋转路径同款收尾
-    NSLog(@"[SurfaceVC] Task267/283: scale-mode stack resync (view %.0fx%.0f rot=%+.0fdeg logical %.0fx%.0f, adaptive %.2fx%.2f, phys %dx%d, window stays %dx%d)",
+    // ★ Task326：drawableSize 当帧同步重申——ANGLE 在 layer bounds 变化时
+    //   把 drawable 重设为自然尺寸（bounds×contentsScale），Task52 守卫每
+    //   50 帧才拉回信念整帧（60fps 下 ≤0.8s 错尺寸窗口：MC 按信念视口渲染
+    //   进小 drawable = 右下裁切式偏移瞬态，装机日志 present-align 实锤）。
+    //   重排当帧主线程直接钉回信念整帧，守卫退化为纯兜底。
+    if (physicalWidth > 0 && physicalHeight > 0 &&
+        [self.surfaceView.layer isKindOfClass:CAMetalLayer.class]) {
+        CAMetalLayer *ame326_ml = (CAMetalLayer *)self.surfaceView.layer;
+        CGFloat ame326_res = (resolutionScale > 0.01f) ? resolutionScale : 1.0f;
+        CGSize ame326_target = CGSizeMake(round((CGFloat)physicalWidth * ame326_res),
+                                          round((CGFloat)physicalHeight * ame326_res));
+        CGSize ame326_old = ame326_ml.drawableSize;
+        if (fabs(ame326_old.width - ame326_target.width) > 0.5 ||
+            fabs(ame326_old.height - ame326_target.height) > 0.5) {
+            ame326_ml.drawableSize = ame326_target;
+            NSLog(@"[SurfaceVC] Task326: rescale drawableSize re-assert %.0fx%.0f -> %.0fx%.0f (ANGLE resize window killed same-frame)",
+                  ame326_old.width, ame326_old.height, ame326_target.width, ame326_target.height);
+        }
+    }
+    virtualMouseFrame = [self ame326_virtualFrameFromVisual:self.mousePointerView.frame];   // 旋转路径同款收尾（Task326 信箱偏移逆变换）
+    NSLog(@"[SurfaceVC] Task267/283: scale-mode stack resync (view %.0fx%.0f rot=%+.0fdeg logical %.0fx%.0f, adaptive %.2fx%.2f, phys %dx%d, window stays %dx%d, content %.0fx%.0f@(%.0f,%.0f))",
           ame267_w, ame267_h, (double)(ame283_angle * 180.0 / M_PI), ame267_lw, ame267_lh,
           ame267_adaptiveScaleX, ame267_adaptiveScaleY,
-          (int)physicalWidth, (int)physicalHeight, (int)windowWidth, (int)windowHeight);
+          (int)physicalWidth, (int)physicalHeight, (int)windowWidth, (int)windowHeight,
+          ame326_cw, ame326_ch, g_ame267_contentOrigin.x, g_ame267_contentOrigin.y);
 }
 
 /// ★ Task267：热栏/直发路径的 scale-mode 坐标适配——视图 pt 口径先乘
@@ -1992,6 +2043,30 @@ static NSInteger ame283_lastLandscapeDev = 0;
     pt.x *= ame267_adaptiveScaleX;
     pt.y *= ame267_adaptiveScaleY;
     return pt;
+}
+
+/// ★ Task326：虚拟光标视觉帧 ⇄ 逻辑帧（信箱偏移）。virtualMouseFrame 语义
+///   = 内容矩形（surfaceView）坐标系的逻辑位置；mousePointerView 宿主是
+///   touchView（全窗坐标系）→ 视觉帧 = 逻辑帧 + 内容矩形 origin。全屏态
+///   origin=(0,0)，两向恒等零变化。
+- (CGRect)ame326_cursorVisualFrameFromVirtual:(CGRect)ame326_vf {
+    if (!g_ame267_freeformScaled) return ame326_vf;
+    return CGRectOffset(ame326_vf, g_ame267_contentOrigin.x, g_ame267_contentOrigin.y);
+}
+
+- (CGRect)ame326_virtualFrameFromVisual:(CGRect)ame326_vis {
+    if (!g_ame267_freeformScaled) return ame326_vis;
+    return CGRectOffset(ame326_vis, -g_ame267_contentOrigin.x, -g_ame267_contentOrigin.y);
+}
+
+/// ★ Task326：光标居中基准尺寸——缩放态取内容矩形（居中到游戏画面中心），
+///   全屏态取 self.view（原语义零变化）。
+- (CGSize)ame326_cursorSpaceSize {
+    if (g_ame267_freeformScaled &&
+        g_ame267_contentSize.width > 0.5 && g_ame267_contentSize.height > 0.5) {
+        return g_ame267_contentSize;
+    }
+    return self.view.frame.size;
 }
 
 /// ★ Task277（"小窗还是漂移"收尾·热栏四路径双乘根修）：视图 pt → 整帧
@@ -2111,8 +2186,9 @@ static NSInteger ame283_lastLandscapeDev = 0;
     self.mousePointerView.hidden = isGrabbing || !virtualMouseEnabled;
 
     CGFloat mouseScale = getPrefFloat(@"control.mouse_scale") / 100.0;
-    virtualMouseFrame = CGRectMake(self.view.frame.size.width / 2, self.view.frame.size.height / 2, 18.0 * mouseScale, 27 * mouseScale);
-    self.mousePointerView.frame = virtualMouseFrame;
+    CGSize ame326_cursorSpace = [self ame326_cursorSpaceSize];
+    virtualMouseFrame = CGRectMake(ame326_cursorSpace.width / 2, ame326_cursorSpace.height / 2, 18.0 * mouseScale, 27 * mouseScale);
+    self.mousePointerView.frame = [self ame326_cursorVisualFrameFromVirtual:virtualMouseFrame];
 
     self.shouldHideControlsFromRecording = getPrefFloat(@"control.recording_hide");
     [self.ctrlView hideViewFromCapture:self.shouldHideControlsFromRecording];
@@ -2480,9 +2556,10 @@ static NSInteger ame283_lastLandscapeDev = 0;
         CallbackBridge_nativeSendCursorPos(ACTION_DOWN,
             lastVirtualMousePoint.x * ame277_out.x,
             lastVirtualMousePoint.y * ame277_out.y);
-        virtualMouseFrame.origin.x = self.view.frame.size.width / 2;
-        virtualMouseFrame.origin.y = self.view.frame.size.height / 2;
-        self.mousePointerView.frame = virtualMouseFrame;
+        CGSize ame326_cursorSpace = [self ame326_cursorSpaceSize];
+        virtualMouseFrame.origin.x = ame326_cursorSpace.width / 2;
+        virtualMouseFrame.origin.y = ame326_cursorSpace.height / 2;
+        self.mousePointerView.frame = [self ame326_cursorVisualFrameFromVirtual:virtualMouseFrame];
     }
     self.scrollPanGesture.enabled = !isGrabbing;
     self.mousePointerView.hidden = isGrabbing || !virtualMouseEnabled;
@@ -3360,7 +3437,7 @@ static BOOL ame87_mcVersionRequiresTextureBuffer(NSString *mcVersionId) {
         }
         [GyroInput updateOrientation];
     } completion:^(id<UIViewControllerTransitionCoordinatorContext>  _Nonnull context) {
-        virtualMouseFrame = self.mousePointerView.frame;
+        virtualMouseFrame = [self ame326_virtualFrameFromVisual:self.mousePointerView.frame];
     }];
     [super viewWillTransitionToSize:size withTransitionCoordinator:coordinator];
 }
@@ -3588,13 +3665,27 @@ static BOOL ame87_mcVersionRequiresTextureBuffer(NSString *mcVersionId) {
             virtualMouseFrame.origin.x = clamp(virtualMouseFrame.origin.x, 0, self.surfaceView.frame.size.width);
             virtualMouseFrame.origin.y = clamp(virtualMouseFrame.origin.y, 0, self.surfaceView.frame.size.height);
             lastVirtualMousePoint = location;
-            self.mousePointerView.frame = virtualMouseFrame;
+            self.mousePointerView.frame = [self ame326_cursorVisualFrameFromVirtual:virtualMouseFrame];
             CallbackBridge_nativeSendCursorPos(event,
                 virtualMouseFrame.origin.x * ame267_outX,
                 virtualMouseFrame.origin.y * ame267_outY);
             return;
         }
         lastVirtualMousePoint = location;
+    }
+    // ★ Task326：信箱条内触摸钳入内容矩形（绝对位置路径）——location 来自
+    //   locationInView:surfaceView，触摸落在信箱条（touchView 内内容矩形之外）
+    //   时给负值/超界值，直喂 adaptiveScale 会把光标打到信念空间外。钳入
+    //   内容边缘 = 桌面窗口语义（条内触摸 = 贴边）。grab 增量路径（MOVE_
+    //   MOTION 的 location 是 delta）与虚拟鼠标路径（已按 surfaceView 尺寸
+    //   钳过）不受本钳制影响。
+    if (!isGrabbing) {
+        CGFloat ame326_cw = self.surfaceView.frame.size.width;
+        CGFloat ame326_ch = self.surfaceView.frame.size.height;
+        if (location.x < 0.0) location.x = 0.0;
+        if (location.x > ame326_cw) location.x = ame326_cw;
+        if (location.y < 0.0) location.y = 0.0;
+        if (location.y > ame326_ch) location.y = ame326_ch;
     }
     CallbackBridge_nativeSendCursorPos(event, location.x * ame267_outX, location.y * ame267_outY);
 }

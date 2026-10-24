@@ -1402,7 +1402,16 @@ static bool ame_SDL_SetWindowFullscreen(void *window, bool fullscreen) {
 static void ame325_scaleFixSDLMouseEvent(void *event) {
     if (windowWidth <= 0 || windowHeight <= 0) return;
     UIView *v = ame_embeddedSDLView;
-    if (v == nil || v.superview == nil) return;
+    if (v == nil || v.superview == nil) {
+        // ★ Task326：装机 568628f 日志实锤本轮会话零条 scale-fix 日志且零条
+        //   B 链鼠标事件（Task59 计数全场 25 条且全在全屏期）——若 B 链活着
+        //   但本函数因视图缺失静默早退，将永远无法定音。一次性落证日志。
+        static _Atomic unsigned long s_ame326_noview = 0;
+        if (atomic_fetch_add(&s_ame326_noview, 1) == 0) {
+            NSLog(@"[SDLHook] Task326: scale-fix skipped -- embedded view nil (one-shot forensics; ame_embeddedSDLView not set at mouse event time)");
+        }
+        return;
+    }
     CGFloat vscale = v.contentScaleFactor;
     if (vscale <= 0.0) vscale = [UIScreen mainScreen].scale;   // SDL_uikitview 罕见未设时兑底
     CGFloat vw = v.bounds.size.width * vscale;
@@ -1505,6 +1514,16 @@ static bool ame_SDL_PollEvent(void *event) {
                     *(uint32_t *)((char *)event + 4) = 0;   // 复位（reserved 契约保持干净）
                 } else {
                     ame325_scaleFixSDLMouseEvent(event);
+                }
+            }
+            // ★ Task326：finger 事件观察哨（一次性）——SDL3 UIKit 触摸链产生
+            //   的是 FINGER(0x700-0x702) 而非鼠标事件；装机日志全场零 finger
+            //   零 B 链鼠标 = SDL 原生触摸通道死寂的旁证。若下一轮日志出现
+            //   本行，B 链通道存在但形状待补（0x700 未入 scale-fix 范围）。
+            if (type >= 0x700 && type <= 0x702) {
+                static _Atomic unsigned long s_ame326_finger = 0;
+                if (atomic_fetch_add(&s_ame326_finger, 1) == 0) {
+                    NSLog(@"[SDLHook] Task326: finger event observed type=0x%x (one-shot forensics; B-chain SDL native touch channel alive)", type);
                 }
             }
             if (type == 0x300 || type == 0x301) {

@@ -77,6 +77,69 @@ static NSString *ame317_facadeSource(void) {
 
 #pragma mark - 装载 / 卸载
 
+/// ★ Task326：内置插件首方信任自愈。病历（装机 568628f 日志实锤）：
+///   [AmePlugin:theme-sunset] 权限拒绝: storage —— 内置四插件里 launch-counter/
+///   renderer-quickswitch 的 storage 正常，theme-sunset 却被拒 = 存量安装的
+///   state.json 授权表与现行 manifest 脱节（旧代安装/迁移期写入的残缺表，
+///   installFromZip ⑥ 的"已有授权即跳过"口径让残缺永久化）。而三个高危权限
+///   （theme-sunset 的 ui.theme / modrinth-hot 的 net / renderer-quickswitch 的
+///   renderer.write）按 Task317 设计默认拒，用户不进详情页手动授权 = 插件
+///   功能整体不可用（用户报障"插件功能无法正常使用"）。
+///   修法 = 首方信任口径：包内 builtin-plugins 清单里的插件（应用签名随发、
+///   仓库方维护的四件演示件）视为可信第一方——每次启动把其全部【声明】权限
+///   同步为已授权（幂等全量覆盖）。第三方插件（用户 zip 导入/仓库外来源）
+///   完全不受影响：高危默认拒 + 详情页手动授权的 Task317 安全口径原样保留。
+///   代价（有意接受）：首方内置件的高危权限撤销不跨启动持久（下一轮启动
+///   自愈回授）——四件均为启动器自带演示内容，不存在"长期吊销"场景；
+///   详情页开关仍可即时生效（会话内撤销当次会话有效）。
++ (NSArray<NSString *> *)ame326_bundleBuiltinPluginIds {
+    NSString *root = [[NSBundle mainBundle].resourcePath
+                      stringByAppendingPathComponent:@"builtin-plugins"];
+    NSArray<NSString *> *dirs = [NSFileManager.defaultManager
+                                 contentsOfDirectoryAtPath:root error:nil];
+    NSMutableArray<NSString *> *ids = [NSMutableArray array];
+    for (NSString *dir in dirs) {
+        if ([dir hasPrefix:@"."]) continue;
+        NSData *data = [NSData dataWithContentsOfFile:
+            [[root stringByAppendingPathComponent:dir]
+             stringByAppendingPathComponent:@"manifest.json"]];
+        if (!data) continue;
+        id json = [NSJSONSerialization JSONObjectWithData:data options:0 error:nil];
+        if (![json isKindOfClass:[NSDictionary class]]) continue;
+        NSString *pid = json[@"id"];
+        if ([pid isKindOfClass:[NSString class]] && pid.length > 0) {
+            [ids addObject:pid];
+        }
+    }
+    return ids;
+}
+
++ (void)ame326_healFirstPartyGrants {
+    NSArray<NSString *> *builtin = [self ame326_bundleBuiltinPluginIds];
+    if (builtin.count == 0) return;
+    for (NSString *pid in [AmePluginManager installedPluginIds]) {
+        if (![builtin containsObject:pid]) continue;   // 仅首方内置件，第三方不碰
+        AmePluginManifest *m = [AmePluginManager manifestForPlugin:pid];
+        if (!m || m.permissions.count == 0) continue;
+        NSDictionary<NSString *, NSNumber *> *cur =
+            [AmePluginPermissions grantsForPlugin:pid];
+        BOOL needHeal = (cur.count != m.permissions.count);
+        if (!needHeal) {
+            for (NSString *p in m.permissions) {
+                if (![cur[p] boolValue]) { needHeal = YES; break; }
+            }
+        }
+        if (!needHeal) continue;
+        NSMutableDictionary<NSString *, NSNumber *> *g =
+            [NSMutableDictionary dictionary];
+        for (NSString *p in m.permissions) g[p] = @1;   // 首方信任：全量授
+        [AmePluginPermissions replaceGrants:g forPlugin:pid];
+        [AmePluginPermissions setPluginEnabled:YES pluginId:pid];
+        NSLog(@"[AmePlugin] Task326 first-party grant heal: %@ (%@ perms -> granted)",
+              pid, @(m.permissions.count));
+    }
+}
+
 + (void)bootIfNeeded {
     if (![NSThread isMainThread]) {
         dispatch_async(dispatch_get_main_queue(), ^{ [self bootIfNeeded]; });
@@ -86,6 +149,9 @@ static NSString *ame317_facadeSource(void) {
     if (rt.booted) return;
     rt.booted = YES;
     [rt ame317_observeSystemEvents];
+
+    // ★ Task326：首方授权自愈先于装载循环（本启动内装载即拿到完整授权）
+    [self ame326_healFirstPartyGrants];
 
     for (NSString *pid in [AmePluginManager installedPluginIds]) {
         AmePluginManifest *m = [AmePluginManager manifestForPlugin:pid];
@@ -177,8 +243,17 @@ static NSString *ame317_facadeSource(void) {
     }
 
     // 主题令牌：storage 里若有 __theme 且仍有授权 → 开机重放
+    // ★ Task326：重放读取前置 storage 授权守卫——storageGet 内部走桥边界
+    //   执法（ame317_requirePerm），未声明/未授权 storage 的插件在此必然
+    //   触发"权限拒绝: storage"假告警（装机日志实锤：modrinth-hot 根本不用
+    //   storage，其 JS 只调 fetch/dialog/rows，拒绝日志纯由本重放无守卫
+    //   调用产生）。无授权时静默跳过重放 = 语义本就正确（无 storage 即无
+    //   持久化主题可重放）。
     AmePluginBridge *b = self.bridges[pluginId];
-    id savedTheme = [b storageGet:@"__theme"];
+    id savedTheme = nil;
+    if ([AmePluginPermissions pluginHasGrant:pluginId permission:@"storage"]) {
+        savedTheme = [b storageGet:@"__theme"];
+    }
     if ([savedTheme isKindOfClass:[NSDictionary class]] &&
         [AmePluginPermissions pluginHasGrant:pluginId permission:@"ui.theme"]) {
         [self ame317_applyThemeTokens:pluginId tokens:savedTheme];

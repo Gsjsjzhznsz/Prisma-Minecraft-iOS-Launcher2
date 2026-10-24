@@ -443,6 +443,77 @@
     }
 }
 
+/// ★ Task326：实例 versions/ 空壳根治。病历（Task325 自留病历 + 装机 568628f
+///   复访实锤"versions 空目录依旧空目录"）：ModpackImportService Task316 在
+///   实例 gameDir 下创建 versions/ 实体空目录，而版本本体（json/jar）由安装
+///   链写入主 versions（Java 侧 Tools.java DIR_HOME_VERSION 固定指向
+///   POJAV_GAME_DIR/versions，不从 profile gameDir 读取；Plain ZIP/MMC 内嵌
+///   versions/ 同样提取到主目录）——实例的 versions/ 是【结构性永久空壳】，
+///   用户在文件 App 里看到的就是它。修法 = 空壳替换为指向共享 versions 的
+///   符号链接（与 main.m PCL 布局 .minecraft/minecraft 可见别名同语义同机制，
+///   iOS 文件 App 可见可点）——实例目录打开即见 26.3/、fabric-loader-* 等
+///   版本实例目录，FCL 观感对齐。纪律：
+///   · 仅动【空壳】（0 条目）与缺失位；真实非空目录 = 用户数据，绝不触碰；
+///   · 已是链接则目标一致幂等早退、漂移重指；
+///   · 自指守卫：gameDir 解析后与 POJAV_GAME_DIR 同址（default 实例=共享根
+///     本体）绝不自链（防 versions→自身 环）；
+///   · 共享 versions 缺失先建（标准层目录，恒安全）。
++ (void)ame326_ensureInstanceVersionsLink:(NSString *)gameDirAbsolute
+                                       fm:(NSFileManager *)fm {
+    const char *ame326_env = getenv("POJAV_GAME_DIR");
+    if (!ame326_env || !*ame326_env) return;
+    NSString *sharedVersions = [[NSString stringWithUTF8String:ame326_env]
+                                stringByAppendingPathComponent:@"versions"];
+    NSString *resolvedGame = [gameDirAbsolute stringByResolvingSymlinksInPath];
+    NSString *resolvedSharedRoot = [[sharedVersions stringByDeletingLastPathComponent]
+                                    stringByResolvingSymlinksInPath];
+    if ([resolvedGame isEqualToString:resolvedSharedRoot]) return;   // 自指守卫
+    NSString *shell = [gameDirAbsolute stringByAppendingPathComponent:@"versions"];
+    BOOL ame326_sharedIsDir = NO;
+    if (![fm fileExistsAtPath:sharedVersions isDirectory:&ame326_sharedIsDir]) {
+        [fm createDirectoryAtPath:sharedVersions
+          withIntermediateDirectories:YES attributes:nil error:nil];
+    }
+    NSString *sharedResolved = [sharedVersions stringByResolvingSymlinksInPath];
+    NSDictionary *ame326_attrs = [fm attributesOfItemAtPath:shell error:nil];
+    if (ame326_attrs == nil) {
+        if ([fm createSymbolicLinkAtPath:shell withDestinationPath:sharedVersions error:nil]) {
+            NSLog(@"[Ame326] instance versions linked -> shared versions (new): %@/versions",
+                  shell.lastPathComponent);
+        }
+        return;
+    }
+    NSString *ame326_type = [ame326_attrs objectForKey:NSFileType];
+    if ([ame326_type isEqualToString:NSFileTypeSymbolicLink]) {
+        NSString *ame326_cur = [fm destinationOfSymbolicLinkAtPath:shell error:nil];
+        NSString *ame326_resolved = @"";
+        if (ame326_cur.length > 0) {
+            NSString *ame326_abs = [shell.stringByDeletingLastPathComponent
+                                    stringByAppendingPathComponent:ame326_cur];
+            ame326_resolved = [ame326_abs stringByResolvingSymlinksInPath];
+        }
+        if ([ame326_resolved isEqualToString:sharedResolved]) return;   // 幂等
+        if ([fm removeItemAtPath:shell error:nil] &&
+            [fm createSymbolicLinkAtPath:shell withDestinationPath:sharedVersions error:nil]) {
+            NSLog(@"[Ame326] instance versions link re-pointed -> shared versions");
+        }
+        return;
+    }
+    if ([ame326_type isEqualToString:NSFileTypeDirectory]) {
+        NSArray<NSString *> *ame326_entries = [fm contentsOfDirectoryAtPath:shell error:nil];
+        if (ame326_entries.count > 0) {
+            NSLog(@"[Ame326] instance versions is a real non-empty dir -- left untouched (%lu entries)",
+                  (unsigned long)ame326_entries.count);
+            return;
+        }
+        if ([fm removeItemAtPath:shell error:nil] &&
+            [fm createSymbolicLinkAtPath:shell withDestinationPath:sharedVersions error:nil]) {
+            NSLog(@"[Ame326] instance versions empty shell -> shared versions link: %@/versions",
+                  shell.lastPathComponent);
+        }
+    }
+}
+
 /// ★ Task325：实例轴骨架 pass —— 整合包/AI 实例的隔离单元是 instances/<id>/
 /// （profile gameDir = 绝对路径，ModpackImportService Task316/269/275-F5 铸成），
 /// 与版本轴（versions/<id>/，Task322/324 铸成）零交集：Task324 的两条隔离判据
@@ -489,6 +560,9 @@
                 }
             }
         }
+        // ★ Task326：versions/ 空壳 → 共享 versions 链接（同 pass 幂等自愈，
+        //   装机锚点 latestlog 搜 "[Ame326] instance versions"）
+        [ModService ame326_ensureInstanceVersionsLink:ame325_gdComp fm:ame325_fm];
     }
     if (ame325_created > 0) {
         NSLog(@"[Ame325] instance-axis isolation skeleton ensured (%ld instance(s), %ld dir(s) created, FCL parity)",
