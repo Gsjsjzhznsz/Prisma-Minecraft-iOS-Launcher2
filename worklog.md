@@ -3543,3 +3543,27 @@ Work Log:
 Stage Summary:
 - 三报障全链交付：①点启动→下载/校验→JIT 门禁（深链/等待/重试全量）→SurfaceVC 换根→JLI_Launch 全链贯通（与 6.5.5 同构）②模组/整合包加载器筛选+FCL 自动预选+数据包 tab ③控件/手柄/插件仓库三分区并入下载中心左轨
 - 装机验证锚点：①LC 内点启动→latestlog 依次见 "[JIT] [ZL2Home]"（Task224 收口）→"[JIT] [Gate] Task134 enabler=..."（深链分发）→"Task322: JIT deep-link bundle-id -> host"→"[SurfaceSwap] Task183 launching SurfaceViewController"→"[JavaLauncher] Beginning JVM launch"；JIT 未开时见"等待 JIT"弹窗与 Task169 超时重试链 ②联机页开关节点→首次起节点不再弹"启动失败"（latestlog 搜 "Task323 pre-start mkdir"/"settle-retry once"）③下载中心模组 tab 右栏见"加载器"字段（进页自动预选当前实例加载器，可改/清）④左轨 12 项：数据包可搜可装、仓库三件直达
+
+---
+Task ID: 323 号段 · CI 闭环补记
+Agent: main (Super Z)
+Task: development/ui-smoke 双 workflow 终绿收口（r1/r2/r3 热修链）
+
+Work Log:
+- commit 2c12561（代码）+ 3d693bf（worklog）推送；dispatch 双 workflow 均 204
+- r0 3d693bf：双轮被并发组取消（r1 上位）；smoke 首轮实锤预览桩缺位——
+  ZL2Home 续链/ZL2Download 仓库三件的链接期符号面（Task323 断链教训：
+  smoke 桩 TU 是手写符号清单，新消费符号必须同步补桩）
+- r1 f997aa3：main TU 补 MCRT.metadata/setPrefString/setPrefInt/
+  UIKit_launchMinecraftSurfaceVC/PLJITGate 类桩 + stub TU 补仓库两件类桩；
+  被 r2 上位取消
+- r2 d1dee99：ZL2Home 换根符号改前向声明（ios_uikit_bridge.h 带 jni.h 传递
+  链，smoke -I 窄路径 TU 首例禁入）+ ame323_selfcheck 31 断言制；dev 一轮
+  终绿 run 40083642874，smoke 实锤缺 DataPackItem/DataPackService 类符号
+- r3 1058f30：stub TU 补数据包两件类桩 → 双 workflow 一轮终绿
+  （dev run#40084831959 / smoke head=1058f30）
+- 产物在位：ipa/tipa 各 222.4MB + dSYM 7.3MB
+
+Stage Summary:
+- Task 323 终审通过（dev+smoke 双绿）；门禁电池十三项制（+ame323_selfcheck
+  31 断言）；新 IPA 就绪待装机验证（锚点见 Task 323 条目 Stage Summary 4 条）
