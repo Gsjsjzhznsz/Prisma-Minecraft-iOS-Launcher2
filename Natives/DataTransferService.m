@@ -1675,8 +1675,8 @@ static void ame224_dosDateTime(NSDate *date, uint16_t *dosTime, uint16_t *dosDat
             if (ame321_dstAttrs && mode == Ame321SiblingMigrationModeSmart) {
                 unsigned long long ame321_ss = ame321_srcAttrs.fileSize;
                 unsigned long long ame321_ds = ame321_dstAttrs.fileSize;
-                NSTimeInterval ame321_dsec = [ame321_dstAttrs.modificationDate
-                    timeIntervalSinceDate:ame321_srcAttrs.modificationDate];
+                NSTimeInterval ame321_dsec = [ame321_dstAttrs.fileModificationDate
+                    timeIntervalSinceDate:ame321_srcAttrs.fileModificationDate];
                 if (ame321_ss == ame321_ds && fabs(ame321_dsec) < 1.0) {
                     ame321_unchanged++;   // 增量：内容未变，跳过
                     ame321_doCopy = NO;

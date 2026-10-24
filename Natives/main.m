@@ -746,8 +746,12 @@ void init_setupPCLLayout() {
                 }
                 NSString *ame321_dst = [prismaAI stringByAppendingPathComponent:ame321_rel];
                 NSDictionary *ame321_dAttrs = [fm attributesOfItemAtPath:ame321_dst error:nil];
-                BOOL ame321_take = (ame321_dAttrs == nil) ||
-                    ([ame321_sAttrs.modificationDate compare:ame321_dAttrs.modificationDate] == NSOrderedDescending);
+                // mtime 取值走 NSFileModificationDate 下标（NSDictionary 点语法属性族
+                //   在 main.m 编译单元不可见——CI r1 实锤，勿改回点语法）
+                NSDate *ame321_sM = ame321_sAttrs[NSFileModificationDate];
+                NSDate *ame321_dM = ame321_dAttrs[NSFileModificationDate];
+                BOOL ame321_take = (ame321_dAttrs == nil) || !ame321_dM ||
+                    !ame321_sM || [ame321_sM compare:ame321_dM] == NSOrderedDescending;
                 if (!ame321_take) continue;
                 [fm createDirectoryAtPath:ame321_dst.stringByDeletingLastPathComponent
                    withIntermediateDirectories:YES attributes:nil error:nil];

@@ -49,7 +49,10 @@ check('main.m: step4 else-branch newer-wins merge present',
 check('main.m: providers.json never lands in Prisma2/AI (Task275 guard in merge)',
       'providers.json' in pcl and 'Application Support' in pcl)
 check('main.m: merge keeps newer mtime winner',
-      'modificationDate compare:ame321_dAttrs.modificationDate] == NSOrderedDescending' in pcl)
+      'NSFileModificationDate' in pcl and
+      '[ame321_sM compare:ame321_dM] == NSOrderedDescending' in pcl)
+check('main.m: no dot-syntax modificationDate on NSDictionary (CI r1 实锤)',
+      '.modificationDate' not in pcl and '.modificationDate' not in dts_m)
 
 # ── ③ DataTransferService.h 声明面 ───────────────────────
 check('dts.h: Ame321SiblingMigrationMode enum',
