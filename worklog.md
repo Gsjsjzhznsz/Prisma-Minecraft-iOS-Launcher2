@@ -3638,3 +3638,21 @@ Work Log:
 Stage Summary:
 - Task 325 终审通过（dev+smoke 双绿，r1 一轮热修）；ame324_selfcheck 52 断言制（+14 Task325）；新 IPA 就绪待装机验证（锚点见 Task 325 条目 Stage Summary 4 条）
 - 门禁盲区备忘：python 手术后必须 grep 手术哨兵词（'- removed -' 类）——括号平衡/键数/CRLF 三门对"上下文归属"类雷全盲
+
+---
+Task ID: 326
+Agent: main (Super Z)
+Task: 用户装机 568628f 三报障复访根修：①SDL 小窗偏移依旧 ②插件功能无法正常使用（日志实锤 theme-sunset/modrinth-hot "权限拒绝: storage"）③versions 空目录依旧空目录
+
+Work Log:
+- 取证定位：用户日志 Version 1.0.0 development + Commit 568628f = 本仓 HEAD（Task325-r1）实锤，三报障全二代域；latestlog 11091 行全量判读
+- ②插件线双根因：modrinth-hot 的"权限拒绝: storage"= 运行时主题重放 [b storageGet:@"__theme"] 无守卫调用所致（其 JS 只用 fetch/dialog/rows，manifest 也没声明 storage——拒绝日志纯由启动器自己触发）；theme-sunset 被拒 = 存量安装 state.json 授权表与现行 manifest 脱节（launch-counter/renderer-quickswitch 的 storage 正常 = 同表同流，唯独残缺 = 旧代安装/迁移期写入 + installFromZip ⑥"已有授权即跳过"让残缺永久化）；另有三高危权限（ui.theme/net/renderer.write）Task317 设计默认拒，用户不进详情页手动授权 = 功能整体不可用。根修 = AmePluginRuntime 首方信任自愈（bootIfNeeded 先于装载循环：包内 builtin-plugins 清单内插件每次启动把全部声明权限同步为已授，幂等全量覆盖；第三方插件零触碰，高危默认拒口径原样保留；代价=首方件高危撤销不跨启动持久，有意接受并注释在案）+ 主题重放前置 storage 授权守卫（无授权静默跳过=语义本真）。装机锚点：latestlog 搜 "[AmePlugin] Task326 first-party grant heal"（四件各一条）
+- ③versions 空壳线：Task325 自留病历"用户在文件 App 里翻到的实例 versions/ 又是空壳"+ 本轮复访 = ModpackImportService Task316 在实例 gameDir 下建 versions/ 实体空目录，而版本本体恒写主 versions（Java 侧 Tools.java DIR_HOME_VERSION 固定指 POJAV_GAME_DIR/versions 不读 profile gameDir；Plain ZIP/MMC 内嵌 versions/ 亦提取到主目录）= 结构性永久空壳。根修 = ModService +ame326_ensureInstanceVersionsLink:fm:（实例 versions/ 空壳→指向共享 versions 的符号链接，与 main.m PCL 布局可见别名同机制；仅动空壳与缺失位，真实非空=用户数据绝不触碰；链接漂移重指；自指守卫防 default 实例 versions→自身环；共享 versions 缺失先建）挂 ame325 实例轴 pass 尾部（ame271 自愈链+ModpackImportService 成功分支两挂点自动带上）。装机锚点：latestlog 搜 "[Ame326] instance versions"，文件 App 实例目录内 versions/ 即见 26.3/、fabric-loader-* 全部版本实例
+- ①SDL 小窗线三根修（本轮日志新实锤：B 链全场零事件——Task59 鼠标计数 25 条全在全屏期、Task325 scale-fix 零触发、Task277 取证 loc×adaptive 数学自洽 = 输入全走 A 链且映射正确，用户所见偏移只能来自视觉映射本体）：⑴信箱式内容矩形——此前 surfaceView 铺满 touchView，窗口宽高比≠信念宽高比（自由窗口任意形状 vs 2360x1640=1.439）时 drawable→bounds 映射落在非均匀拉伸/裁切二义区，分数一致性失去可证性（Task282 修 origin 漂移/Task325 修 B 链都没闭合映射语义本体）；surfaceView 改按信念比例 aspect-fit 居中（内容宽高比==信念宽高比恒等式 → stretch==crop==等比三语义合一，映射唯一），信箱条内 touchView/控件层照旧全窗，条内触摸 sendTouchPoint 钳入内容边缘（桌面窗口语义；grab 增量/虚拟鼠标路径不受钳）+ adaptiveScale 改按内容矩形取值（X/Y 因子恒等各向同性，Task277 光标/热栏口径自动受益）+ 虚拟光标视觉帧⇄逻辑帧信箱偏移三写点（rescale 收尾/settings 重置/grab 重置）+ 两读点逆变换；⑵drawableSize 当帧同步重申——ANGLE 在 layer bounds 变化时重设自然尺寸、Task52 守卫每 50 帧才拉回（≤0.8s 错尺寸窗口 = MC 信念视口渲染进小 drawable = 右下裁切瞬态，装机日志 present-align 1970x1168→2360x1640 实锤），rescale 当帧主线程直接钉回信念整帧；⑶B 链一次性取证哨（嵌入视图 nil 早退前落证 + finger 0x700-0x702 观察哨）——若下轮日志现哨即 B 链通道存续待补形状，零哨 = 通道死寂定音
+- 门禁：task158 balance exit=0 + task219_syntax ALL GREEN + task240 balanced + task248 缺键0/硬编码0/动态键0 + task250 0 + verify_task219 81/81 + verify_task255 全 PASS + ame322/ame323(31)/ame324(52)/ame317/ame318 selfcheck 全绿；verify_task191 42/3 与 HEAD stash 对拍同结果=既有基线噪音非本轮引入；四文件 @implementation/@end 计数对拍 HEAD 零漂移、'- removed -' 哨兵零、NEL 16 字节对拍=HEAD 既有零新增
+- 改动 4 文件（AmePluginRuntime.m 首方自愈+重放守卫 / ModService.m versions 链接自愈 / SurfaceViewController.m 信箱矩形+drawable 重申+光标偏移+触摸钳制 / sdl3_hook.m 取证哨），全部新符号文件内闭合（零跨文件新消费，smoke 桩零同步需求）
+
+Stage Summary:
+- 三报障根修全链交付：①小窗画面 aspect-fit 无变形+映射唯一+resize 瞬态归零 ②内置四插件装即全权可用（首方信任），假"权限拒绝"告警清零 ③实例目录 versions/ 打开即见全部版本实例（FCL 观感闭环）
+- 装机锚点 4 条：latestlog 搜 "[AmePlugin] Task326 first-party grant heal"（4 条）/ "[Ame326] instance versions"（实例 versions 链接化）/ "[SurfaceVC] Task326: rescale drawableSize re-assert"（resize 当帧钉回）/ "[SDLHook] Task326"（B 链取证哨，预期零输出）
+- 设计取舍在案：首方插件高危撤销不跨启动持久（自愈回授，注释在 AmePluginRuntime）；信箱条视觉为信箱化必然形态（画面零变形优先）
