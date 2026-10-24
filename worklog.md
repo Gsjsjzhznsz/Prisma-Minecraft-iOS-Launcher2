@@ -3523,3 +3523,23 @@ Work Log:
 
 Stage Summary:
 - Task 322 终审通过（零热修）；门禁电池十二项制（+ame322_selfcheck）；新 IPA 就绪待装机验证（锚点见 Task 322 条目 Stage Summary 4 条）
+
+---
+Task ID: 323
+Agent: main (Super Z)
+Task: 用户装机 203d22b 三报障：①游戏还是起不来（6.5.5 同 LC 完全正常）②ZL2 下载功能缺件（加载器筛选等）③启动器特有仓库并入下载中心（用下载中心 UI）
+
+Work Log:
+- 取证重构：latestlog.txt（203d22b）全链判读——点启动后 ~19s 的"启动失败"弹窗实为 MultiplayerViewController mp.node.start_failed_title（ZeroTier 首次起节点 zts_init_from_storage code=-2，二次尝试即成 nodeID=803766111504）；游戏启动真因 = ZL2HomeViewController KVO 100% 分支只做收尾刷新（task=nil/恢复交互/ReloadProfileList）即终止，旧链续链（RP L1682-1755：profile 覆盖→Task224 叠层收口→invokeAfterJITEnabled→UIKit_launchMinecraftSurfaceVC）在 7.0-UI 重建时整段未移植，Task322 深链修在主页路径不可达（全仓 ZL2*.m 零 invokeAfterJIT/launchJVM 引用铁证）；insertSafety 两行 informational 非故障（HMCL 式 inheritsFrom 合并设计行为）；shaderc fork errno=1 为 +load 探针噪声
+- ①断链根修：新建 PLJITGate.h/.m——RP 版 Task134 门禁状态机 1:1 共享化（快路径/TXM 存活性复查与重挂/深链八选项/Task295 取消双通道/Task169 等待环/Task226 静默自动重拉/Task267 弃启/Task281 玻璃镜像），self.progressLabel→onStage 回调、弃启三件→onAbandon 回调、Task226 标记进程级 static 化；ZL2Home KVO 100% 补齐 profile 覆盖（graphicsApi/javaVersion/allocatedMemory，Task140 分居语义保留）+ ame323_beginJITGatedLaunchForMetadata（Task224 收口 0.8s/0.5s 沉降 + 门禁 + 换根 SurfaceVC，弃启回调恢复交互态）；CMakeLists 登记
+- ②ZeroTier 弹窗去误导：ZeroTierBridge startNodeWithHomeDirectory 起节点前 home 目录自检（带 mkdir 取证）+ init 失败沉降 0.4s 重试一次再如实上报；mp.node.start_failed_title/ame193.mp.4 zh-CN "启动失败"→"联机服务启动失败"（en 同步），联机域弹窗不再冒充游戏启动故障
+- ③加载器筛选（Prisma1 缺件对齐）：ZL2AssetSearchViewController 新增 loaderFilter/字段/弹层五选（全部/Fabric/Forge/Quilt/NeoForge，ZL2 域中文硬编码口径）+ filters[@"loader"] 透传（CurseForge modLoaderType 1/4/5/6 与 Modrinth categories:<loader> 消费端既有零改动）+ FCL Task179 语义自动预选（init 时从当前实例 parseVersionId 反解，四值白名单 optifine/vanilla 不发）+ 分类字段表空类型创建期隐藏（数据包死字段治理）
+- ④数据包 tab（Prisma1 八类对齐）：ZL2AssetSearchTypeDataPack 枚举 + projectType=datapack（CF kCurseForgeClassIDDataPacks 既有/Modrinth project_type:datapack 直通）+ AssetVersionTypeDataPack 详情页既有接线 + DataPackService 下载链移植（旧页 startDownloadForDataPackItem 等价，i18n_str_269/270 与 i18n_str_184 空态既有键零新键）
+- ⑤特有仓库并入下载中心（用户指令）：左轨 8→12 项三分区（六类资产｜按ID+收藏｜仓库三件）；控件仓库=ControlRepoViewController（ZL2 主题既有）/手柄仓库=同 VC initialCategoryIndex=2（设置页同口径）/插件仓库=ZL2PluginRepoViewController（Task318），三件各包 UINavigationController（navigationItem 按钮链与详情 push 需 nav 宿主），设置页同源入口保留零回归
+- ⑥门禁扩充两件：task240 FILES 硬编码清单补 Task323 改动域七文件（ZL2 域此前不在闸=断链漏网空档之一）；verify_task255 "Cleanup:%@/game" 断言重锚（Task322 game/ 退役后字面量退场，基线 stash 实锤本轮零引入）
+- 门禁：电池十二项全绿（task240 扩闸后 29 文件/task139/task158/task191 54 表/task248 缺键0硬编码0/task250 0/verify219 81/81/verify255 53 PASS 重锚后/ame322/ame323 新门 27 断言/import sweep）
+- 已知边界：loader 自动预选在 childCache 懒建时快照（切实例后不自动重预选，Prisma1 打开页快照同款语义）；PLJITGate 与退役旧壳三份拷贝并存（行为不变，后续轮收敛）
+
+Stage Summary:
+- 三报障全链交付：①点启动→下载/校验→JIT 门禁（深链/等待/重试全量）→SurfaceVC 换根→JLI_Launch 全链贯通（与 6.5.5 同构）②模组/整合包加载器筛选+FCL 自动预选+数据包 tab ③控件/手柄/插件仓库三分区并入下载中心左轨
+- 装机验证锚点：①LC 内点启动→latestlog 依次见 "[JIT] [ZL2Home]"（Task224 收口）→"[JIT] [Gate] Task134 enabler=..."（深链分发）→"Task322: JIT deep-link bundle-id -> host"→"[SurfaceSwap] Task183 launching SurfaceViewController"→"[JavaLauncher] Beginning JVM launch"；JIT 未开时见"等待 JIT"弹窗与 Task169 超时重试链 ②联机页开关节点→首次起节点不再弹"启动失败"（latestlog 搜 "Task323 pre-start mkdir"/"settle-retry once"）③下载中心模组 tab 右栏见"加载器"字段（进页自动预选当前实例加载器，可改/清）④左轨 12 项：数据包可搜可装、仓库三件直达
