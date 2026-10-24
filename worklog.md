@@ -3656,3 +3656,23 @@ Stage Summary:
 - 三报障根修全链交付：①小窗画面 aspect-fit 无变形+映射唯一+resize 瞬态归零 ②内置四插件装即全权可用（首方信任），假"权限拒绝"告警清零 ③实例目录 versions/ 打开即见全部版本实例（FCL 观感闭环）
 - 装机锚点 4 条：latestlog 搜 "[AmePlugin] Task326 first-party grant heal"（4 条）/ "[Ame326] instance versions"（实例 versions 链接化）/ "[SurfaceVC] Task326: rescale drawableSize re-assert"（resize 当帧钉回）/ "[SDLHook] Task326"（B 链取证哨，预期零输出）
 - 设计取舍在案：首方插件高危撤销不跨启动持久（自愈回授，注释在 AmePluginRuntime）；信箱条视觉为信箱化必然形态（画面零变形优先）
+
+---
+Task ID: 326 号段 · CI 闭环补记
+Agent: main (Super Z)
+Task: development/ui-smoke 双 workflow 终绿收口（r0 双红 → r1 一轮终绿）
+
+Work Log:
+- r0 c3ce6c9 双红（smoke run 40110798645 / dev run 40110796773 同源单雷）：SurfaceViewController.m:580/581
+  "initializer element is not a compile-time constant"——信箱内容矩形两枚全局量初值写了
+  CGPointZero/CGSizeZero（extern 常量非编译期常量）；★ 家法两进宫：Task280 教训原文
+  （"初值必须写 {0,0} 字面量而非性 CGSizeZero"）就印在插入点下方两行，本轮仍然踩中
+  ——该教训此前仅挂在 Task279 锚点注释里，未进门禁脚本
+- r1 c7c3f812：初值改 {0.0,0.0} 字面量 + 注释升格为文件内独立警块（点名家法两进宫）→
+  **smoke run 40111724571 + dev run 40111722915 双一轮终绿**（dev t+~19min 零热修）
+- 产物在位：ipa/tipa 各 222.4MB + dSYM 7.3MB（head=c7c3f812）
+- worklog 文档轮随本补记推送
+
+Stage Summary:
+- Task 326 终审通过（dev+smoke 双绿，r1 一轮热修）；新 IPA 就绪待装机验证（锚点见 Task 326 条目 Stage Summary 4 条）
+- 门禁盲区备忘（家法升级）：文件作用域全局量初值必须 {0,0} 字面量——CGPointZero/CGSizeZero/CGRectZero 全族禁入初始化器；该雷系教训在注释里仍被踩中，后续凡新增文件作用域结构体全局，selfcheck 应加"非字面量初始化器"扫描
