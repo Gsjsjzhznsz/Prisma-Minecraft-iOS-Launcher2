@@ -3827,10 +3827,11 @@ static const NSTimeInterval kAme291MergeWindowSeconds = 7.0 * 24.0 * 3600.0;
     profile[@"name"] = versionId;
     profile[@"lastVersionId"] = versionId;
     // ★ Task242：新下载版本自动开版本隔离（与模组端直装三处对齐，
-    //   PCL/FCL 行业惯例）——gameDir = versions/<id>/game（Task224 数据
-    //   分居新口径）。旧"共享根 + 手动切换"机制退役，用户仍可在版本
-    //   设置页三态选择器改回。
-    profile[@"gameDir"] = [NSString stringWithFormat:@"versions/%@/game", versionId];
+    //   PCL/FCL 行业惯例）——gameDir = versions/<id>/（★ Task322：game/
+    //   分居层退役，对齐 FCL/HMCL/PCL 混居通例；Task224 曾用
+    //   versions/<id>/game）。旧"共享根 + 手动切换"机制退役，用户仍可在
+    //   版本设置页三态选择器改回。
+    profile[@"gameDir"] = [NSString stringWithFormat:@"versions/%@", versionId];
     profile[@"type"] = @"custom";
     profile[@"created"] = [NSDate date].description;
 
@@ -4071,11 +4072,12 @@ static const NSTimeInterval kAme291MergeWindowSeconds = 7.0 * 24.0 * 3600.0;
             profile[@"name"] = versionId;
             profile[@"lastVersionId"] = versionId;
                         // ★ Task271（271-a F3·Task242 补完）：下载页 Fabric/Quilt 对齐新下载原版/
-            //   Forge/NeoForge 的隔离口径 —— gameDir = versions/<id>/game。旧
+            //   Forge/NeoForge 的隔离口径 —— gameDir = versions/<id>（★ Task322：
+            //   game/ 分居层退役，FCL/HMCL/PCL 混居通例）。旧
             //   gameDir="."（Task242 半迁移遗留+陈旧注释）让同名重装覆写既有隔离
             //   条目、新装实例生而共享（装机实锤：fabric-loader-* 模组列表变共享）。
             //   用户仍可在版本设置三态选择器改回。
-            profile[@"gameDir"] = [NSString stringWithFormat:@"versions/%@/game", versionId];
+            profile[@"gameDir"] = [NSString stringWithFormat:@"versions/%@", versionId];
             profile[@"type"] = @"custom";
             profile[@"created"] = [NSDate date].description;
             [PLProfiles.current saveProfile:profile withName:versionId];
@@ -4386,7 +4388,8 @@ static const NSTimeInterval kAme291MergeWindowSeconds = 7.0 * 24.0 * 3600.0;
         return;
     } else if (hasTrollStoreJIT) {
         NSLog(@"[JIT] [DownloadVC] TrollStore entitlement present but isJITEnabled=false, opening apple-magnifier://");
-        NSURL *jitURL = [NSURL URLWithString:[NSString stringWithFormat:@"apple-magnifier://enable-jit?bundle-id=%@", NSBundle.mainBundle.bundleIdentifier]];
+        // ★ Task322：深链 bundle-id 单一口径（LC guest → 宿主 id，非 LC 零变化）
+        NSURL *jitURL = [NSURL URLWithString:[NSString stringWithFormat:@"apple-magnifier://enable-jit?bundle-id=%@", ame322_stikjitBundleId()]];
         // ★ Task270（★1 回执对齐）：补 openURL 回执取证（NavCtrl:749/RightPanel:1812
         //   均有 ame185_ok 日志，DownloadVC 三处 completionHandler:nil = 回执丢失，
         //   历次 JIT 排障时本文件 openURL 结果不可考）。
@@ -4409,7 +4412,8 @@ static const NSTimeInterval kAme291MergeWindowSeconds = 7.0 * 24.0 * 3600.0;
         // StikDebug 卸载/URL scheme 未注册时 stikjit:// 无人响应，旧代码静默
         // 无视，用户只看到"正在开启 JIT"转圈直到超时。这里直接给出可行动
         // 的错误提示（安装 StikDebug 或换 JIT 开启方式）。
-        [UIApplication.sharedApplication openURL:[NSURL URLWithString:[NSString stringWithFormat:@"stikjit://enable-jit?bundle-id=%@&pid=%d%@", NSBundle.mainBundle.bundleIdentifier, getpid(), scriptDataString]] options:@{} completionHandler:^(BOOL urlOK) {
+        // ★ Task322：深链 bundle-id 单一口径（LC guest → 宿主 id，非 LC 零变化）
+        [UIApplication.sharedApplication openURL:[NSURL URLWithString:[NSString stringWithFormat:@"stikjit://enable-jit?bundle-id=%@&pid=%d%@", ame322_stikjitBundleId(), getpid(), scriptDataString]] options:@{} completionHandler:^(BOOL urlOK) {
             NSLog(@"[JIT] [DownloadVC] openURL stikjit:// -> %d", urlOK);
             if (!urlOK) {
                 dispatch_async(dispatch_get_main_queue(), ^{
@@ -4501,7 +4505,7 @@ static const NSTimeInterval kAme291MergeWindowSeconds = 7.0 * 24.0 * 3600.0;
             scriptDataString = [@"&script-data=" stringByAppendingString:[scriptData base64EncodedStringWithOptions:0]];
         }
         // ★ Task270（★1 回执对齐）：ame172 重挂链的 stikjit:// 同补回执。
-        [UIApplication.sharedApplication openURL:[NSURL URLWithString:[NSString stringWithFormat:@"stikjit://enable-jit?bundle-id=%@&pid=%d%@", NSBundle.mainBundle.bundleIdentifier, getpid(), scriptDataString]] options:@{} completionHandler:^(BOOL ame172_ok) {
+        [UIApplication.sharedApplication openURL:[NSURL URLWithString:[NSString stringWithFormat:@"stikjit://enable-jit?bundle-id=%@&pid=%d%@", ame322_stikjitBundleId(), getpid(), scriptDataString]] options:@{} completionHandler:^(BOOL ame172_ok) { // Task322 口径
             NSLog(@"[JIT] [DownloadVC] Task172 openURL stikjit:// -> %d", ame172_ok);
         }];
         NSLog(@"[JIT] [DownloadVC] Task172 stikjit:// re-attach fired (script=%lu bytes)",
@@ -5098,8 +5102,8 @@ static const NSTimeInterval kAme291MergeWindowSeconds = 7.0 * 24.0 * 3600.0;
             profile[@"name"] = versionId;
             profile[@"lastVersionId"] = versionId;
             // ★ Task271（271-a F3·Task242 补完）：下载页 OptiFine 同步隔离口径
-            //   versions/<id>/game（与 Fabric/原版同批半迁移遗留）。
-            profile[@"gameDir"] = [NSString stringWithFormat:@"versions/%@/game", versionId];
+            //   versions/<id>（★ Task322：game/ 分居层退役，与 Fabric/原版同批）。
+            profile[@"gameDir"] = [NSString stringWithFormat:@"versions/%@", versionId];
             profile[@"type"] = @"custom";
             profile[@"created"] = [NSDate date].description;
             [PLProfiles.current saveProfile:profile withName:versionId];

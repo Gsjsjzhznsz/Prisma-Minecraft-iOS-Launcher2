@@ -1823,7 +1823,8 @@ static const CGFloat AmePanelVerticalEdgeInset = 12;
         handler();
         return;
     } else if (hasTrollStoreJIT) {
-        NSURL *jitURL = [NSURL URLWithString:[NSString stringWithFormat:@"apple-magnifier://enable-jit?bundle-id=%@", NSBundle.mainBundle.bundleIdentifier]];
+        // ★ Task322：深链 bundle-id 单一口径（LC guest → 宿主 id，非 LC 零变化）
+        NSURL *jitURL = [NSURL URLWithString:[NSString stringWithFormat:@"apple-magnifier://enable-jit?bundle-id=%@", ame322_stikjitBundleId()]];
         // Task185：TrollStore 分支回执检查（他人装机反馈“巨魔 JIT 启动游戏
         // 没有任何反应”）。旧代码 completionHandler:nil——apple-magnifier://
         // 无人处理时（TrollStore 版本过旧/助手异常）完全静默，只能盲等
@@ -1857,12 +1858,18 @@ static const CGFloat AmePanelVerticalEdgeInset = 12;
             ame134_enabler = @"auto";
         }
         BOOL ame134_noScript = getPrefBool(@"debug.jit26_script_disable");
-        NSString *ame134_bundleId = NSBundle.mainBundle.bundleIdentifier;
+        // ★ Task322：深链 bundle-id 单一口径（LC guest → 宿主 id，非 LC 零变化）
+        NSString *ame134_bundleId = ame322_stikjitBundleId();
         BOOL ame294_builtinAvail = [StikDebugViewController ame294_builtinTrackAvailable];
         BOOL ame134_isTrollStore = getEntitlementValue(@"jb.pmap_cs.custom_trust") && isTrollStoreInstall();
         BOOL ame294_useBuiltin = NO;
         if ([ame134_enabler isEqualToString:@"builtin"]) {
-            ame294_useBuiltin = YES;
+            // ★ Task322：LC guest 下显式 builtin 同样降级深链（Task302 结构性
+            //   全死，显式留守 = 门禁弹窗 + 120s 空等，游戏起不来；ame304/139 同款）
+            ame294_useBuiltin = !ame302_isLiveContainerGuest();
+            if (!ame294_useBuiltin) {
+                NSLog(@"[JIT] [RightPanel] Task322: explicit builtin under LC guest structurally dead -- degrading to deep link");
+            }
         } else if ([ame134_enabler isEqualToString:@"auto"] && !ame134_isTrollStore) {
             ame294_useBuiltin = ame294_builtinAvail;
         }
@@ -1962,7 +1969,8 @@ static const CGFloat AmePanelVerticalEdgeInset = 12;
                 scriptDataString = [@"&script-data=" stringByAppendingString:[scriptData base64EncodedStringWithOptions:0]];
             }
             // Task176：openURL 结果取证 + 无处理器即时指引（不盲等 120s）。
-            NSURL *ame176_jitURL = [NSURL URLWithString:[NSString stringWithFormat:@"stikjit://enable-jit?bundle-id=%@&pid=%d%@", NSBundle.mainBundle.bundleIdentifier, getpid(), scriptDataString]];
+            // ★ Task322：深链 bundle-id 单一口径（LC guest → 宿主 id）
+            NSURL *ame176_jitURL = [NSURL URLWithString:[NSString stringWithFormat:@"stikjit://enable-jit?bundle-id=%@&pid=%d%@", ame322_stikjitBundleId(), getpid(), scriptDataString]];
             [UIApplication.sharedApplication openURL:ame176_jitURL options:@{} completionHandler:^(BOOL ame176_ok) {
                 NSLog(@"[JIT] [RightPanel] Task176 openURL stikjit:// -> %d", ame176_ok);
                 if (!ame176_ok) {
@@ -2181,7 +2189,7 @@ static const CGFloat AmePanelVerticalEdgeInset = 12;
         if (scriptData) {
             scriptDataString = [@"&script-data=" stringByAppendingString:[scriptData base64EncodedStringWithOptions:0]];
         }
-        [UIApplication.sharedApplication openURL:[NSURL URLWithString:[NSString stringWithFormat:@"stikjit://enable-jit?bundle-id=%@&pid=%d%@", NSBundle.mainBundle.bundleIdentifier, getpid(), scriptDataString]] options:@{} completionHandler:^(BOOL ame185_ok) {
+        [UIApplication.sharedApplication openURL:[NSURL URLWithString:[NSString stringWithFormat:@"stikjit://enable-jit?bundle-id=%@&pid=%d%@", ame322_stikjitBundleId(), getpid(), scriptDataString]] options:@{} completionHandler:^(BOOL ame185_ok) { // Task322 口径
             // Task185：回执取证（重挂场景已有等待弹窗 + 超时重试兑底，失败只记日志）
             NSLog(@"[JIT] [RightPanel] Task185 re-attach stikjit:// -> %d", ame185_ok);
         }];

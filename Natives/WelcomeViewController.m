@@ -1676,7 +1676,8 @@ static const NSInteger ame218_welcomeStepCount = 8;  // Task246：+1 界面风�
 /// 的同款语义——向导里只拉起不挂等待链；回前台时状态行自动刷新）。
 - (void)ame219_enableJitNow {
     NSString *ame219_enabler = self.pickedJitEnabler ?: @"auto";
-    NSString *ame219_bundleId = NSBundle.mainBundle.bundleIdentifier;
+    // ★ Task322：深链 bundle-id 单一口径（LC guest → 宿主 id，非 LC 零变化）
+    NSString *ame219_bundleId = ame322_stikjitBundleId();
     NSString *ame219_appName = [NSBundle.mainBundle objectForInfoDictionaryKey:@"CFBundleDisplayName"] ?: @"Prisma";
     NSURL *ame219_url = nil;
     NSString *ame219_tool = ame219_enabler;

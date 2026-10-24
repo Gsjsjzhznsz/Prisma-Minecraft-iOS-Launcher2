@@ -526,6 +526,43 @@ BOOL ame302_isLiveContainerGuest(void) {
     return ame302_cached;
 }
 
+// ★ Task322：stikjit:// 等深链的 bundle-id 口径收敛（单一事实源，四处深链
+// Task134/294/304/139 共用）。LC guest 下运行进程 = LC 宿主（guest 无独立
+// 进程），第三方开启工具（StikJIT/SideStore/StosDebug）按 bundle-id 定位
+// 目标——传 guest id 必然"查无此应用"（装机 12e9ca9 实锤：深链发出后
+// StikDebug 移交转圈无果，IMG_0440）。宿主 id 从本数据容器根的
+// .com.apple.mobile_container_manager_metadata.plist 读 MCMMetadataIdentifier
+// （LC guest 的数据容器即宿主数据容器：POJAV_HOME 形如
+// <宿主容器>/Documents/Data/Application/<guestUUID>/Documents，上溯 5 级
+// 即容器根）。读取失败/非 LC 环境一律回退 guest id（非 LC 行为零变化）。
+NSString *ame322_stikjitBundleId(void) {
+    static NSString *ame322_cached;
+    static dispatch_once_t ame322_once;
+    dispatch_once(&ame322_once, ^{
+        ame322_cached = NSBundle.mainBundle.bundleIdentifier ?: @"";
+        if (!ame302_isLiveContainerGuest()) return;
+        NSString *ame322_home = @(getenv("POJAV_HOME") ?: "");
+        if (ame322_home.length == 0) return;
+        NSString *ame322_container = ame322_home;
+        for (int ame322_i = 0; ame322_i < 5; ame322_i++) {
+            ame322_container = ame322_container.stringByDeletingLastPathComponent;
+        }
+        NSDictionary *ame322_meta = [NSDictionary dictionaryWithContentsOfFile:
+            [ame322_container stringByAppendingPathComponent:
+             @".com.apple.mobile_container_manager_metadata.plist"]];
+        NSString *ame322_hostId = ame322_meta[@"MCMMetadataIdentifier"];
+        if ([ame322_hostId isKindOfClass:[NSString class]] && ame322_hostId.length > 0) {
+            NSLog(@"[JIT] Task322: JIT deep-link bundle-id -> host %@ (LC guest; guest=%@)",
+                  ame322_hostId, ame322_cached);
+            ame322_cached = ame322_hostId;
+        } else {
+            NSLog(@"[JIT] Task322: LC host bundle-id unreadable (container metadata missing at %@) -- deep link keeps guest id %@",
+                  ame322_container, ame322_cached);
+        }
+    });
+    return ame322_cached;
+}
+
 #ifndef P_TRACED
 #define P_TRACED 0x00000800 /* process is being traced by a debugger (ptrace) */
 #endif

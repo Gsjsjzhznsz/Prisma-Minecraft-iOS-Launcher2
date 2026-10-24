@@ -629,7 +629,8 @@
     NSMutableDictionary *profile = [NSMutableDictionary dictionary];
     profile[@"name"] = versionId;
     profile[@"lastVersionId"] = versionId;
-    profile[@"gameDir"] = [NSString stringWithFormat:@"versions/%@/game", versionId];
+    // ★ Task322：game/ 分居层退役 —— versions/<id> 混居通例（Task242 口径五键）
+    profile[@"gameDir"] = [NSString stringWithFormat:@"versions/%@", versionId];
     profile[@"type"] = @"custom";
     profile[@"created"] = [NSDate date].description;
     [PLProfiles.current saveProfile:profile withName:versionId];

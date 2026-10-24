@@ -566,6 +566,18 @@ static BOOL ame306_spawnDerivable(void) {
     // 实际开启动作统一走 +ame294_enableBuiltinJITWithCompletion（与启动链
     // Task134/139 共用同一实现，页内仅维护 enabling 状态与弹窗）。
     if (@available(iOS 26.0, *)) {
+        // ★ Task322：LC guest 直通（装机 IMG_0444/0445 弹窗风暴根修）。builtin
+        //   三条派生轨在 LC 下结构性全死（Task302），页内任何内置尝试只会产出
+        //   "Task302 门禁如实报错 → 内置失败弹窗 → 降级征求弹窗" 三连（弹窗双源
+        //   收敛：同一结构性失败不再两条弹窗链各报一遍）——直接移交外部
+        //   StikDebug（深链 bundle-id 已按 Task322 口径换宿主 id，IMG_0440 移交
+        //   转圈无果的根因）。get-task-allow 门禁对 LC 宿主签名同样无意义
+        //   （宿主是开发签，能过门但轨还是死的），一并跳过。
+        if (ame302_isLiveContainerGuest()) {
+            NSLog(@"[JIT] Task322: LC guest -- JIT page skips builtin gates (structurally dead), straight handoff to StikDebug");
+            [self ame291_handoffToStikDebug];
+            return;
+        }
         if (!ame293_hasGetTaskAllow()) {
             [self ame291_showDialog:localize(@"ame293.jit.gettask_fail_title", nil)
                             message:localize(@"ame293.jit.gettask_fail", nil)];
@@ -621,7 +633,10 @@ static BOOL ame306_spawnDerivable(void) {
     self.lastStatus = localize(@"ame291.jit.handing", nil);
     [self.tableView reloadData];
 
-    NSString *bundleID = NSBundle.mainBundle.bundleIdentifier ?: @"";
+    // ★ Task322：深链 bundle-id 单一口径（utils ame322_stikjitBundleId）——
+    //   LC guest 下传宿主 id（第三方工具按 bundle-id 定位目标，guest id 必然
+    //   "查无此应用"，IMG_0440 移交转圈无果实锤）；非 LC 零变化。
+    NSString *bundleID = ame322_stikjitBundleId();
     NSString *escaped = [bundleID stringByAddingPercentEncodingWithAllowedCharacters:
         NSCharacterSet.URLQueryAllowedCharacterSet];
     // 脚本数据与 ame139 同源：主包根目录 UniversalJIT26.js（构建期打包）

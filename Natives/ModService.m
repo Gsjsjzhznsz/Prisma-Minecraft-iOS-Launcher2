@@ -239,8 +239,8 @@
 
     NSFileManager *fm = [NSFileManager defaultManager];
     for (NSString *rel in @[
-        [NSString stringWithFormat:@"versions/%@/game", vid],
         [NSString stringWithFormat:@"versions/%@", vid],
+        [NSString stringWithFormat:@"versions/%@/game", vid],
     ]) {
         NSString *dir = [base stringByAppendingPathComponent:rel];
         for (NSString *leaf in @[@"mods", @"saves"]) {
@@ -287,12 +287,12 @@
         if (!ame271_unset) continue;                       // 已显式配置：绝不碰
         NSString *ame271_hit = [self ame225_sniffedIsolationGameDirForProfile:ame271_prof];
         if (ame271_hit.length == 0) continue;              // 无隔离数据：空转零 IO
-        // 嗅探命中 → 反推注册表相对路径（优先新口径 versions/<vid>/game）
+        // 嗅探命中 → 反推注册表相对路径（★ Task322 新口径 versions/<vid> 优先）
         NSString *ame271_vid = ame271_prof[@"lastVersionId"];
         if (![ame271_vid isKindOfClass:[NSString class]] || ame271_vid.length == 0) continue;
-        NSString *ame271_rel = [NSString stringWithFormat:@"versions/%@/game", ame271_vid];
+        NSString *ame271_rel = [NSString stringWithFormat:@"versions/%@", ame271_vid];
         if (![ame271_hit isEqualToString:[ame271_base stringByAppendingPathComponent:ame271_rel]]) {
-            ame271_rel = [NSString stringWithFormat:@"versions/%@", ame271_vid];
+            ame271_rel = [NSString stringWithFormat:@"versions/%@/game", ame271_vid];
         }
         NSMutableDictionary *ame271_updated = [ame271_prof mutableCopy];
         ame271_updated[@"gameDir"] = ame271_rel;
@@ -328,18 +328,45 @@
         NSString *ame272_vid = ame272_prof[@"lastVersionId"];
         if (![ame272_vid isKindOfClass:[NSString class]] || ame272_vid.length == 0) continue;
         NSMutableDictionary *ame272_updated = [ame272_prof mutableCopy];
-        ame272_updated[@"gameDir"] = [NSString stringWithFormat:@"versions/%@/game", ame272_vid];
+        // ★ Task322：game/ 分居层退役 —— 收敛目标对齐 FCL/HMCL/PCL 混居通例
+        ame272_updated[@"gameDir"] = [NSString stringWithFormat:@"versions/%@", ame272_vid];
         [PLProfiles.current applyChanges:^(NSMutableDictionary<NSString *, id> *ame275_profiles) {
             ame275_profiles[ame272_key] = ame272_updated;
         }];
         ame272_swept++;
-        NSLog(@"[Ame271] default-isolation sweep: profile \"%@\" gameDir '%@' -> versions/%@/game (never explicitly configured)",
+        NSLog(@"[Ame271] default-isolation sweep: profile \"%@\" gameDir '%@' -> versions/%@ (never explicitly configured)",
               ame272_key, ame272_gd ?: @"(nil)", ame272_vid);
     }
     if (ame272_swept > 0) {
         ame271_healed += ame272_swept;
-        NSLog(@"[Ame271] default-isolation sweep: %ld profile(s) converged to versions/<id>/game",
+        NSLog(@"[Ame271] default-isolation sweep: %ld profile(s) converged to versions/<id>",
               (long)ame272_swept);
+    }
+    // ★ Task322（game 层退役·profile 重指）：main.m init_flattenIsolatedGameDirs
+    //   已把 game/ 内容上提到 versions/<id>/；本步把仍指向 versions/<id>/game
+    //   的 profile 重指 versions/<id>（Task224 分居口径退役）。幂等：重指后
+    //   不再命中；只认字符串精确匹配，自定义路径绝不碰。
+    NSInteger ame322_repointed = 0;
+    for (NSString *ame322_key in [ame271_profiles allKeys]) {
+        NSDictionary *ame322_prof = ame271_profiles[ame322_key];
+        if (![ame322_prof isKindOfClass:[NSDictionary class]]) continue;
+        NSString *ame322_gd = ame322_prof[@"gameDir"];
+        if (![ame322_gd isKindOfClass:[NSString class]]) continue;
+        NSString *ame322_vid = ame322_prof[@"lastVersionId"];
+        if (![ame322_vid isKindOfClass:[NSString class]] || ame322_vid.length == 0) continue;
+        if (![ame322_gd isEqualToString:[NSString stringWithFormat:@"versions/%@/game", ame322_vid]]) continue;
+        NSMutableDictionary *ame322_updated = [ame322_prof mutableCopy];
+        ame322_updated[@"gameDir"] = [NSString stringWithFormat:@"versions/%@", ame322_vid];
+        [PLProfiles.current applyChanges:^(NSMutableDictionary<NSString *, id> *ame275_profiles) {
+            ame275_profiles[ame322_key] = ame322_updated;
+        }];
+        ame322_repointed++;
+        NSLog(@"[Ame271] Task322: profile \"%@\" gameDir versions/%@/game -> versions/%@ (game-subdir retired)",
+              ame322_key, ame322_vid, ame322_vid);
+    }
+    if (ame322_repointed > 0) {
+        ame271_healed += ame322_repointed;
+        NSLog(@"[Ame271] Task322: %ld profile(s) repointed off retired game/ subdir", (long)ame322_repointed);
     }
     if (ame271_healed > 0) {
         [PLProfiles.current save];

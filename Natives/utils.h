@@ -231,6 +231,11 @@ BOOL ame169_waitForJITCondition(BOOL (^condition)(void), NSTimeInterval timeout,
 // YES 时 builtin JIT 三条派生轨（ExtensionKit/posix_spawn/fork）结构性不可用，
 // 调用方应快速如实报错或直通外部开启工具深链。
 BOOL ame302_isLiveContainerGuest(void);
+// ★ Task322：JIT 开启工具深链的 bundle-id 单一口径。LC guest → 宿主
+// bundle id（读容器 metadata MCMMetadataIdentifier，失败回退 guest id）；
+// 非 LC 环境 = NSBundle.mainBundle.bundleIdentifier（零变化）。Task134/
+// 294/304/139 四处 stikjit:// 等深链统一消费。
+NSString *ame322_stikjitBundleId(void);
 // Task185：JIT 等待成功后的自愈式主队列派发。病历（11e4b63 装机 latestlog.2）：
 // condition satisfied（后台态 3.8s，traced=1 exn=1）之后 dispatch_async(main)
 // 的续接块【从未执行】——Task183 锚点 "wait-completed block entered" 缺失，

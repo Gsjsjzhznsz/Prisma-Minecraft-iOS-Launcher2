@@ -979,7 +979,8 @@ static void ame312_recordThroughput(NSInteger idx, double bytes, double elapsed)
                 NSMutableDictionary *ame302_profile = [NSMutableDictionary dictionary];
                 ame302_profile[@"name"] = ame302_vid;
                 ame302_profile[@"lastVersionId"] = ame302_vid;
-                ame302_profile[@"gameDir"] = [NSString stringWithFormat:@"versions/%@/game", ame302_vid];
+                // ★ Task322：game/ 分居层退役 —— versions/<id> 混居通例
+                ame302_profile[@"gameDir"] = [NSString stringWithFormat:@"versions/%@", ame302_vid];
                 ame302_profile[@"type"] = @"custom";
                 ame302_profile[@"created"] = [NSDate date].description;
                 [PLProfiles.current saveProfile:ame302_profile withName:ame302_vid];

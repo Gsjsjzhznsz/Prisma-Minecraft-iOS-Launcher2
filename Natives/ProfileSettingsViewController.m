@@ -1787,12 +1787,12 @@ static NSString * localizeProfileTitle(NSString *title) {
     NSString *gameDir = self.profile[@"gameDir"];
     if (![gameDir isKindOfClass:[NSString class]] || [gameDir isEqualToString:@"."]) return 0;
     NSString *vid = self.profile[@"lastVersionId"] ?: @"";
-    // Task224：隔离目录与版本元数据分居（数据完整性根修）——新口径
-    // versions/<id>/game；旧口径 versions/<id>（jar/json 同目录混居，
-    // 版本重校验/清理/modpack 重导入可伤及存档）识别为隔离态，由迁移
-    // 路径自动升级搬入 game/ 子目录。
-    if ([gameDir isEqualToString:[NSString stringWithFormat:@"versions/%@/game", vid]]) return 1;
+    // Task224：隔离目录与版本元数据分居（旧口径 versions/<id>/game）。
+    // ★ Task322：分居层退役，新口径 = versions/<id>（FCL/HMCL/PCL 混居
+    // 通例，用户对照 FCL 树实锤 saves/config 与 jar/json 同层）；旧口径
+    // versions/<id>/game 仍识别为隔离态（存量 profile 由 ame271 重指）。
     if ([gameDir isEqualToString:[NSString stringWithFormat:@"versions/%@", vid]]) return 1;
+    if ([gameDir isEqualToString:[NSString stringWithFormat:@"versions/%@/game", vid]]) return 1;
     return 2;
 }
 
@@ -1829,9 +1829,8 @@ static NSString * localizeProfileTitle(NSString *title) {
 }
 
 /// 开启隔离 + 旧版升级自动迁移。把实例根目录下的运行时用户数据移入
-/// versions/<lastVersionId>/game/（Task224：数据与版本元数据分居——旧口径
-/// 直接放 versions/<id>/，与 jar/json 混居，版本重校验/清理/modpack 重导入
-/// 都可能伤及存档；本函数同时把旧口径数据自动升级搬入 game/ 子目录）：
+/// versions/<lastVersionId>/（★ Task322：game/ 分居层退役，FCL/HMCL/PCL
+/// 混居通例——旧口径数据自动搬回版本目录本体；jar/json 同层为行业常态）：
 /// 目标已存在的条目一律跳过（绝不覆盖）；libraries/assets/versions 保持
 /// 共享不迁移。迁移在后台队列执行（大 mods 目录不再冻结 UI），计数制
 /// 汇总（无百分比——杜绝负数显示）。
@@ -1867,9 +1866,12 @@ static NSString * localizeProfileTitle(NSString *title) {
                               @"POJAV_GAME_DIR unset"]];
         return;
     }
-    // Task224：隔离目标 = versions/<id>/game（数据与版本 jar/json 分居）。
-    NSString *relative = [NSString stringWithFormat:@"versions/%@/game", lastVersionId];
-    NSString *legacyRelative = [NSString stringWithFormat:@"versions/%@", lastVersionId];
+    // Task224：隔离目标 = versions/<id>（数据与版本 jar/json 同层）。
+    // ★ Task322：game/ 分居层退役，新口径 versions/<id>（FCL/HMCL/PCL 通例）；
+    // legacyRelative = 旧分居口径 versions/<id>/game（迁移方向已反转：
+    // 旧口径残留数据由 legacy 升级块反向搬回 versions/<id>）。
+    NSString *relative = [NSString stringWithFormat:@"versions/%@", lastVersionId];
+    NSString *legacyRelative = [NSString stringWithFormat:@"versions/%@/game", lastVersionId];
     NSString *isoDir = [instanceRoot stringByAppendingPathComponent:relative];
     NSString *legacyDir = [instanceRoot stringByAppendingPathComponent:legacyRelative];
     NSFileManager *fm = [NSFileManager defaultManager];
@@ -1955,11 +1957,10 @@ static NSString * localizeProfileTitle(NSString *title) {
             }
         }
 
-        // ★ Task225：legacy 升级【后置】——versions/<id>/ 根上混居的游戏
-        //     数据 → game/，只补主迁移后仍缺失的条目（旧顺序让旧残留
-        //     抢先占位 → 主迁移恒 skipped/moved=0，02a3fe1 日志集实锤
-        //     "moved=0 skipped=5"×2 = "迁移一下子完成"的直接根因）。
-        //     jar/json 等版本元数据不动；目标已存在一律跳过。
+        // ★ Task225：legacy 升级【后置】——★ Task322 方向反转：旧分居口径
+        //     versions/<id>/game/ 残留数据 → versions/<id>/（新口径混居），
+        //     只补主迁移后仍缺失的条目；jar/json 等版本元数据不动；
+        //     目标已存在一律跳过。
         if (migrate && ![legacyDir isEqualToString:isoDir] && [fm fileExistsAtPath:legacyDir]) {
             for (NSString *item in ame217_items) {
                 NSString *src = [legacyDir stringByAppendingPathComponent:item];
@@ -1971,7 +1972,7 @@ static NSString * localizeProfileTitle(NSString *title) {
                 }
             }
             if (legacyMoved > 0) {
-                NSLog(@"[ProfileSettings] Task224 legacy isolation upgraded: %ld item(s) versions/<id> -> versions/<id>/game",
+                NSLog(@"[ProfileSettings] Task322 legacy flatten: %ld item(s) versions/<id>/game -> versions/<id>",
                       (long)legacyMoved);
             }
         }
@@ -3176,8 +3177,8 @@ static ModVersion *ame217_pickVersionForGameVersion(NSArray<ModVersion *> *versi
             profile[@"name"] = versionId;
             profile[@"lastVersionId"] = versionId;
             // ★ Task271（271-a F3·Task242 补完）：实例页 OptiFine 同步隔离口径
-            //   versions/<id>/game（用户仍可在三态选择器改回）。
-            profile[@"gameDir"] = [NSString stringWithFormat:@"versions/%@/game", versionId];
+            //   versions/<id>（★ Task322：game/ 分居层退役，用户仍可在三态选择器改回）。
+            profile[@"gameDir"] = [NSString stringWithFormat:@"versions/%@", versionId];
             profile[@"type"] = @"custom";
             profile[@"created"] = [NSDate date].description;
             [PLProfiles.current saveProfile:profile withName:versionId];

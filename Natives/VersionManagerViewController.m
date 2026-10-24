@@ -2095,7 +2095,8 @@ static const CGFloat kVMCardCornerRadius = 16.0;
                     profile[@"name"] = vid;
                     profile[@"lastVersionId"] = vid;
                     // Task242 口径：新实例自动版本隔离（与下载完成创建一致）
-                    profile[@"gameDir"] = [NSString stringWithFormat:@"versions/%@/game", vid];
+                    // ★ Task322：game/ 分居层退役 —— versions/<id> 混居通例
+                    profile[@"gameDir"] = [NSString stringWithFormat:@"versions/%@", vid];
                     profile[@"type"] = @"custom";
                     profile[@"created"] = [NSDate date].description;
                     [PLProfiles.current saveProfile:profile withName:vid];

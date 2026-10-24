@@ -87,8 +87,9 @@
         NSArray<NSString *> *vdirs = [NSFileManager.defaultManager
             contentsOfDirectoryAtPath:versionsDir error:nil];
         for (NSString *vd in vdirs) {
-            NSString *game = [versionsDir stringByAppendingPathComponent:
-                [NSString stringWithFormat:@"%@/game", vd]];
+            // ★ Task322：game/ 分居层退役 —— 扫版本目录本体（日志/崩溃报告
+            // 按文件前缀扫描，saves/mods 等存档数据零接触）
+            NSString *game = [versionsDir stringByAppendingPathComponent:vd];
             BOOL isDir = NO;
             if ([NSFileManager.defaultManager fileExistsAtPath:game isDirectory:&isDir] && isDir) {
                 [roots addObject:game];

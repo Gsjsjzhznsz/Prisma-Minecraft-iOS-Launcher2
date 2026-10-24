@@ -755,7 +755,8 @@ static void *ProgressObserverContext = &ProgressObserverContext;
         handler();
         return;
     } else if (hasTrollStoreJIT) {
-        NSURL *jitURL = [NSURL URLWithString:[NSString stringWithFormat:@"apple-magnifier://enable-jit?bundle-id=%@", NSBundle.mainBundle.bundleIdentifier]];
+        // ★ Task322：深链 bundle-id 单一口径（LC guest → 宿主 id，非 LC 零变化）
+        NSURL *jitURL = [NSURL URLWithString:[NSString stringWithFormat:@"apple-magnifier://enable-jit?bundle-id=%@", ame322_stikjitBundleId()]];
         // Task185：回执检查（他人装机反馈“巨魔 JIT 启动游戏没有任何反应”——
         // completionHandler:nil 时 URL 无人处理完全静默，只能盲等 120s）。
         [UIApplication.sharedApplication openURL:jitURL options:@{} completionHandler:^(BOOL ame185_ok) {
@@ -780,7 +781,8 @@ static void *ProgressObserverContext = &ProgressObserverContext;
         }
         // Task176：openURL 结果取证（同 RightPanel；stikjit:// 拉起失败时
         // 下一行日志直接可见，不再与 120s 盲等混淆）。
-        NSURL *ame176_jitURL = [NSURL URLWithString:[NSString stringWithFormat:@"stikjit://enable-jit?bundle-id=%@&pid=%d%@", NSBundle.mainBundle.bundleIdentifier, getpid(), scriptDataString]];
+        // ★ Task322：深链 bundle-id 单一口径（LC guest → 宿主 id，非 LC 零变化）
+        NSURL *ame176_jitURL = [NSURL URLWithString:[NSString stringWithFormat:@"stikjit://enable-jit?bundle-id=%@&pid=%d%@", ame322_stikjitBundleId(), getpid(), scriptDataString]];
         [UIApplication.sharedApplication openURL:ame176_jitURL options:@{} completionHandler:^(BOOL ame176_ok) {
             NSLog(@"[JIT] [NavCtrl] Task176 openURL stikjit:// -> %d", ame176_ok);
         }];
@@ -911,7 +913,7 @@ static void *ProgressObserverContext = &ProgressObserverContext;
         if (scriptData) {
             scriptDataString = [@"&script-data=" stringByAppendingString:[scriptData base64EncodedStringWithOptions:0]];
         }
-        [UIApplication.sharedApplication openURL:[NSURL URLWithString:[NSString stringWithFormat:@"stikjit://enable-jit?bundle-id=%@&pid=%d%@", NSBundle.mainBundle.bundleIdentifier, getpid(), scriptDataString]] options:@{} completionHandler:^(BOOL ame185_ok) {
+        [UIApplication.sharedApplication openURL:[NSURL URLWithString:[NSString stringWithFormat:@"stikjit://enable-jit?bundle-id=%@&pid=%d%@", ame322_stikjitBundleId(), getpid(), scriptDataString]] options:@{} completionHandler:^(BOOL ame185_ok) { // Task322 口径
             // Task185：回执取证（重挂场景已有等待弹窗 + 超时重试兑底，失败只记日志）
             NSLog(@"[JIT] [NavCtrl] Task185 re-attach stikjit:// -> %d", ame185_ok);
         }];

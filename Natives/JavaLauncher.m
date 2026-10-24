@@ -2312,13 +2312,23 @@ static BOOL ame304_requestAndAwaitJITIfNeeded(NSString *tag) {
             ame304_enabler = @"auto";
         }
         BOOL ame304_noScript = getPrefBool(@"debug.jit26_script_disable");
-        NSString *ame304_bundleId = NSBundle.mainBundle.bundleIdentifier;
+        // ★ Task322：深链 bundle-id 单一口径（utils ame322_stikjitBundleId）——
+        //   LC guest 下传宿主 id（第三方工具按 bundle-id 定位目标，guest id 必
+        //   然"查无此应用"→移交转圈无果→120s 空等→游戏起不来）；非 LC 零变化。
+        NSString *ame304_bundleId = ame322_stikjitBundleId();
         // Task294/302 同口径：builtin 显式 + auto 非 TS 环境按可用性
         BOOL ame304_isTrollStore = getEntitlementValue(@"jb.pmap_cs.custom_trust") && isTrollStoreInstall();
         BOOL ame304_builtinAvail = [StikDebugViewController ame294_builtinTrackAvailable];
         BOOL ame304_useBuiltin = NO;
         if ([ame304_enabler isEqualToString:@"builtin"]) {
-            ame304_useBuiltin = YES;
+            // ★ Task322：LC guest 下显式 builtin 同样降级深链——builtin 三轨在
+            //   LC 结构性全死（Task302），显式留守只会产出"门禁报错弹窗 + 120s
+            //   空等"（游戏照样起不来）；LC 用户唯一活路是第三方工具深链，
+            //   如实报错语义由深链自身失败路径承担。
+            ame304_useBuiltin = !ame302_isLiveContainerGuest();
+            if (!ame304_useBuiltin) {
+                NSLog(@"[JIT] [%@] Task322: explicit builtin under LC guest structurally dead -- degrading to deep link", tag);
+            }
         } else if ([ame304_enabler isEqualToString:@"auto"] && !ame304_isTrollStore) {
             ame304_useBuiltin = ame304_builtinAvail;
         }
@@ -4336,7 +4346,8 @@ int launchHeadlessJVM(NSString *mainClass, NSArray<NSString *> *args, int minJav
                     ame139_enabler = @"auto";
                 }
                 BOOL ame139_noScript = getPrefBool(@"debug.jit26_script_disable");
-                NSString *ame139_bundleId = NSBundle.mainBundle.bundleIdentifier;
+                // ★ Task322：深链 bundle-id 单一口径（LC guest → 宿主 id，非 LC 零变化）
+                NSString *ame139_bundleId = ame322_stikjitBundleId();
                 // Task294：与 RightPanel Task134 同口径——builtin 显式选项 +
                 // auto 非巨魔环境内置轨可用时优先；显式 builtin 失败不擅自跳
                 // 第三方工具（仅报错），auto 失败降级 stikjit:// 深链继续等。
@@ -4344,7 +4355,12 @@ int launchHeadlessJVM(NSString *mainClass, NSArray<NSString *> *args, int minJav
                 BOOL ame294_builtinAvail = [StikDebugViewController ame294_builtinTrackAvailable];
                 BOOL ame294_useBuiltin = NO;
                 if ([ame139_enabler isEqualToString:@"builtin"]) {
-                    ame294_useBuiltin = YES;
+                    // ★ Task322：LC guest 下显式 builtin 同样降级深链（Task302
+                    //   结构性全死，显式留守 = 门禁弹窗 + 120s 空等，游戏起不来）
+                    ame294_useBuiltin = !ame302_isLiveContainerGuest();
+                    if (!ame294_useBuiltin) {
+                        NSLog(@"[JIT] [Headless] Task322: explicit builtin under LC guest structurally dead -- degrading to deep link");
+                    }
                 } else if ([ame139_enabler isEqualToString:@"auto"] && !ame294_isTrollStore) {
                     ame294_useBuiltin = ame294_builtinAvail;
                 }
@@ -4474,7 +4490,7 @@ int launchHeadlessJVM(NSString *mainClass, NSArray<NSString *> *args, int minJav
             }
             [UIApplication.sharedApplication openURL:[NSURL URLWithString:
                 [NSString stringWithFormat:@"stikjit://enable-jit?bundle-id=%@&pid=%d%@",
-                    NSBundle.mainBundle.bundleIdentifier, getpid(), ame139_scriptData]]
+                    ame322_stikjitBundleId(), getpid(), ame139_scriptData]] // Task322 口径
                 options:@{} completionHandler:nil];
             showDialog(localize(@"i18n_str_437", nil), localize(@"i18n_str_439", nil));
         });

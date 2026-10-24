@@ -611,8 +611,7 @@ void init_setupMultiDir() {
 //     Prisma2）：plugins（Task317 插件系统根）+ AI（会话/待办/版本缓存）。
 //     providers.json【绝不进 Prisma2/】——Task275 安全纪律（含 apiKey 的文件
 //     不落「文件」App 可读层），继续住 Application Support/AI。
-//   迁移纪律：真实目录整体 move 幂等（新位置已存在即跳过）；plugins 旧位留
-//   符号链接防外部引用断链（改名后悬空自动重指）；providers.json 先摘后迁，
+//   迁移纪律：真实目录整体 move 幂等（新位置已存在即跳过）；plugins 旧位符号链接退役（Task322：可见层新旧并存根修，不再于旧位建链——断链保护归 ame317_pluginsRootDir 保底自愈）；providers.json 先摘后迁，
 //   摘不动则整轮不迁（宁可保旧布局，不让密钥落可读层）；任何失败只打日志
 //   不阻塞启动。
 void init_setupPCLLayout() {
@@ -637,19 +636,19 @@ void init_setupPCLLayout() {
             }
         }
     }
-    // Task319 窗口期 plugins 旧位符号链接随改名悬空（→ $HOME/PCL/plugins 已
-    //   整体搬走）→ 重指 Prisma2/plugins 延续防断链保险；真实目录/文件不动。
+    // ★ Task322：plugins 旧位符号链接退役（"文件页新旧两个元素"并存根修，
+    //   装机 12e9ca9 实锤：Task318→319→320 升级链在 Documents 根同时留下旧位
+    //   plugins 链接与新 Prisma2/ 目录，用户视角即同页双元素）。链接的防断链
+    //   职责已由 ame317_pluginsRootDir 保底自愈承担（AmePluginPermissions 自
+    //   建目录），可见层新旧并存弊大于利——旧位符号链接一律移除（悬空/有效
+    //   都移）；真实目录/文件绝不触碰（未迁移真实目录由 DataTransferService
+    //   Task321 扫描器按代际迁移，attributesOfItemAtPath 不跟随链接天然兼容）。
     {
         NSString *legacyPluginsLink = [home stringByAppendingPathComponent:@"plugins"];
         NSDictionary *lpAttrs = [fm attributesOfItemAtPath:legacyPluginsLink error:nil];
         if (lpAttrs && [lpAttrs fileType] == NSFileTypeSymbolicLink) {
-            NSString *lpResolved = [legacyPluginsLink.stringByDeletingLastPathComponent
-                stringByAppendingPathComponent:([fm destinationOfSymbolicLinkAtPath:legacyPluginsLink error:nil] ?: @"")];
-            if (![fm fileExistsAtPath:lpResolved]) {
-                [fm removeItemAtPath:legacyPluginsLink error:nil];
-                [fm createSymbolicLinkAtPath:legacyPluginsLink
-                          withDestinationPath:[prismaDir stringByAppendingPathComponent:@"plugins"] error:nil];
-                NSLog(@"[Pre-init] Task320: dangling plugins symlink re-pointed to Prisma2/plugins");
+            if ([fm removeItemAtPath:legacyPluginsLink error:nil]) {
+                NSLog(@"[Pre-init] Task322: legacy root plugins symlink retired (in-app consumers all on Prisma2/plugins)");
             }
         }
     }
@@ -679,7 +678,7 @@ void init_setupPCLLayout() {
     // —— 2) Prisma2/ 建目录
     [fm createDirectoryAtPath:prismaDir withIntermediateDirectories:YES attributes:nil error:nil];
 
-    // —— 3) plugins → Prisma2/plugins（真实目录整体 move，旧位留符号链接防断链）
+    // —— 3) plugins → Prisma2/plugins（真实目录整体 move；★ Task322 旧位不再留符号链接——可见层新旧并存根修，断链保护归 ame317_pluginsRootDir）
     NSString *legacyPlugins = [home stringByAppendingPathComponent:@"plugins"];
     NSString *prismaPlugins = [prismaDir stringByAppendingPathComponent:@"plugins"];
     if (![fm fileExistsAtPath:prismaPlugins]) {
@@ -687,8 +686,7 @@ void init_setupPCLLayout() {
         if (pAttrs && [pAttrs fileType] == NSFileTypeDirectory) {
             NSError *ame319_plErr = nil;
             if ([fm moveItemAtPath:legacyPlugins toPath:prismaPlugins error:&ame319_plErr]) {
-                [fm createSymbolicLinkAtPath:legacyPlugins withDestinationPath:prismaPlugins error:nil];
-                NSLog(@"[Pre-init] Task319: plugins/ migrated into Prisma2/plugins (legacy symlink left in place)");
+                NSLog(@"[Pre-init] Task319: plugins/ migrated into Prisma2/plugins (legacy symlink retired per Task322)");
             } else {
                 NSLog(@"[Pre-init] Task319: plugins migration failed (%@) -- keeps legacy layout this launch", ame319_plErr.localizedDescription);
             }
@@ -801,6 +799,52 @@ void init_setupPCLLayout() {
         if (aliasAttrs) [fm removeItemAtPath:aliasLink error:nil];
         [fm createSymbolicLinkAtPath:aliasLink withDestinationPath:wantTarget error:nil];
         NSLog(@"[Pre-init] Task319: minecraft alias -> %@ (Files-app visible entry)", wantTarget);
+    }
+}
+
+// ★ Task322（文件同步④·game 层退役）：FCL/HMCL/PCL 行业通例 = 版本隔离数据
+//   直接住 versions/<id>/（与 jar/json 同层——用户对照 FCL 树实锤：saves/
+//   config/logs/options.txt 与 26.3.jar 并排）。Task224 曾引入 versions/<id>/
+//   game 分居层（动机"重校验/清理可伤存档"），逐流复核为理论性威胁：清理
+//   按文件前缀只扫日志类（Cleanup ame255_mcLogPaths）；残根"清理并重装"与
+//   版本删除（Task255）本就连坐整个 versions/<id>/（含 game/）——分居层从未
+//   真正挡住破坏面，反而让存档比 FCL 深一层（"文件的地方不和其他启动器同步"
+//   的最后一处结构差）。本函数把存量 game/ 内容一次性上提（幂等：目标存在
+//   即跳过绝不覆盖；game/ 空则删、非空留待下轮重试）。profile 重指由
+//   ModService ame271 自愈链（SceneDelegate 启动段）同轮完成。
+void init_flattenIsolatedGameDirs() {
+    const char *ame322_env = getenv("POJAV_GAME_DIR");
+    if (!ame322_env || !*ame322_env) return;
+    NSString *gameRoot = @(ame322_env);
+    NSString *versionsDir = [gameRoot stringByAppendingPathComponent:@"versions"];
+    NSArray *vdirs = [fm contentsOfDirectoryAtPath:versionsDir error:nil];
+    if (vdirs.count == 0) return;
+    NSInteger ame322_total = 0;
+    for (NSString *vd in vdirs) {
+        NSString *vpath = [versionsDir stringByAppendingPathComponent:vd];
+        NSDictionary *vAttrs = [fm attributesOfItemAtPath:vpath error:nil];
+        if (!vAttrs || [vAttrs fileType] != NSFileTypeDirectory) continue;
+        NSString *gameSub = [vpath stringByAppendingPathComponent:@"game"];
+        NSDictionary *gAttrs = [fm attributesOfItemAtPath:gameSub error:nil];
+        if (!gAttrs || [gAttrs fileType] != NSFileTypeDirectory) continue;
+        NSInteger ame322_moved = 0;
+        for (NSString *entry in [fm contentsOfDirectoryAtPath:gameSub error:nil]) {
+            NSString *src = [gameSub stringByAppendingPathComponent:entry];
+            NSString *dst = [vpath stringByAppendingPathComponent:entry];
+            if ([fm fileExistsAtPath:dst]) continue;   // 绝不覆盖
+            if ([fm moveItemAtPath:src toPath:dst error:nil]) ame322_moved++;
+        }
+        ame322_total += ame322_moved;
+        NSArray *left = [fm contentsOfDirectoryAtPath:gameSub error:nil];
+        if (left.count == 0) {
+            [fm removeItemAtPath:gameSub error:nil];
+            NSLog(@"[Pre-init] Task322: versions/%@/game flattened (%ld items up, empty subdir removed)", vd, (long)ame322_moved);
+        } else {
+            NSLog(@"[Pre-init] Task322: versions/%@/game partial flatten (%ld items up, %lu occupied targets left)", vd, (long)ame322_moved, (unsigned long)left.count);
+        }
+    }
+    if (ame322_total > 0) {
+        NSLog(@"[Pre-init] Task322: game-subdir flatten done (%ld items up to versions/<id>, FCL/HMCL/PCL parity)", (long)ame322_total);
     }
 }
 
@@ -1007,6 +1051,7 @@ int main(int argc, char *argv[]) {
     init_migrateLegacyUpgrade();
     init_setupMultiDir();
     init_setupPCLLayout(); // Task319/320：PCL 风格顶层布局（.minecraft + Prisma2/ 数据目录）+ 数据迁移（Task321 扩：AI 新者为准合并）
+    init_flattenIsolatedGameDirs(); // Task322④：存量 versions/<id>/game 上提（FCL/HMCL/PCL 混居通例，profile 重指归 ame271）
     toggleIsolatedPref(NO);
     // Task 167：MobileGlues DSA 黑屏反向迁移的【常跑】调用点。原挂载点
     // application:configurationForConnectingSceneSession: 只在新建场景会话时
