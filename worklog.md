@@ -3414,3 +3414,17 @@ Stage Summary:
 - 「文件」App 顶层观感对齐 PCL：.minecraft（游戏目录，桌面工具链语义）+ PCL/（plugins=Task317/318 插件系统根 + AI=会话/待办/缓存）+ minecraft（iOS 点前缀隐藏的可见兜底），三链接随实例切换自动跟随
 - 迁移安全三红线：密钥永不落可读层（前摘失败整轮不迁）/ 用户自建同名目录绝不覆盖（.minecraft/minecraft/PCL 三处三态保护）/ 整体 move 失败保旧布局下次重试
 - 装机锚点：①「文件」App Documents 顶层见 PCL/ 与 minecraft（.minecraft 在 Filza 等显示点前缀的管理器中可见）②旧装机升级后插件/权限授权/AI 会话全量无感保留（[Pre-init] Task319: plugins/ migrated + AI/ migrated 日志）③装新插件落 PCL/plugins ④AI 助手对话正常（会话已迁移）
+
+---
+Task ID: 319 号段 · CI 闭环补记
+Agent: main (Super Z)
+Task: development/ui-smoke 双 workflow 一轮终绿收口
+
+Work Log:
+- commit 99883745 推送 main（61113091..99883745）；dispatch 双 workflow（development.yml/ui-smoke.yml 均 204）
+- smoke run 40058112325：completed success（t+7min 零热修；语法门禁+preview 编译+模拟器渲染全过）
+- development run 40058110825：completed success（t+~20min 零热修；Task317 五进宫判例预防全命中——无新文件故 CMake/Makefile 登记面本就为零，i18n 零新键）
+
+Stage Summary:
+- Task 319（PCL 风格文件布局三件套 + 数据迁移 + 密钥前摘）CI 终审通过，零热修一轮绿
+- 更新指引：run 40058110825 产物 tipa 装机；装机锚点四条见 Task 319 条目（PCL/ 与 minecraft 顶层可见 / 插件授权 AI 会话无感保留 / 新插件落 PCL/plugins / AI 助手会话正常）
