@@ -3444,3 +3444,17 @@ Stage Summary:
 - 「文件」App 顶层定稿：.minecraft（游戏目录）+ Prisma2/（plugins=插件根 + AI=会话/缓存）+ minecraft（可见别名）；PCL 风格三件套语义不变，命名对齐 Prisma 二代
 - 迁移矩阵全覆盖四代设备：无数据（直建 Prisma2）/ Task317 旧布局（plugins+AI 直迁 Prisma2）/ Task319 窗口期（PCL/ 改名 + 悬空链接重指）/ Task319 密钥未摘竞态（前摘保 Task275）
 - 装机锚点：①顶层见 Prisma2/（不再有 PCL/）②插件页列表/授权/仓库全部正常（Prisma2/plugins）③AI 会话与待办正常（Prisma2/AI）④日志锚 [Pre-init] Task320: PCL/ renamed to Prisma2/
+
+---
+Task ID: 320 号段 · CI 闭环补记
+Agent: main (Super Z)
+Task: development/ui-smoke 双 workflow 一轮终绿收口
+
+Work Log:
+- commit b57302f2 推送 main（47d50bca..b57302f2）；dispatch 双 workflow（均 204）
+- smoke run 40061860973：completed success（t+~7min 零热修）
+- development run 40061859516：completed success（t+~19min 零热修）
+
+Stage Summary:
+- Task 320（Prisma2/ 改名 + Task319 窗口期迁移 + 悬空链接重指）CI 终审通过，连续第二轮零热修一轮绿
+- 更新指引：run 40061859516 产物 tipa 装机；顶层观感 = .minecraft + Prisma2/ + minecraft
