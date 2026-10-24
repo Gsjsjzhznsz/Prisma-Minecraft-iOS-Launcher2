@@ -3492,3 +3492,21 @@ Work Log:
 
 Stage Summary:
 - Task 321 终审通过（一轮热修）；本轮起门禁电池默认含 ame321_selfcheck 新门（46→47 项）
+
+---
+Task ID: 322
+Agent: main (Super Z)
+Task: 四报障根修（用户装机 12e9ca9 后实锤）：①游戏起不来 ②一大堆地方闪退/弹窗风暴 ③一个页面同时有新旧 2 个元素 ④还是有文件的地方不和其他启动器同步（附 FCL versions/26.3/ 对照树）
+
+Work Log:
+- 取证重构：上传目录 20+ 张 IMG 逐张重读定性——IMG_0448/0446 两类安装报错分别对应 Task305/303 已修问题（EX 字典/extensionDictionary，历史包时代现场）；IMG_0440-0445 = JIT 三通道全灭（direct-spawn AMFI errno=2/discovery 丢 Extensions/StikDebug 移交转圈）+ 显式 builtin 弹窗风暴；IMG_0457/0461 = 一代 6.5.5 JIT 管理页成熟 vs 二代 1.0.0 JIT 未开启；makefile Helper/Info.plist 已是 Task305 修复版（git log 579453c 实锤），装机失败链已被前序任务关闭
+- ①JIT 链（游戏起不来根修）：utils 新增 ame322_stikjitBundleId() 单一口径——LC guest 经 POJAV_HOME 上溯 5 级读 .com.apple.mobile_container_manager_metadata.plist 的 MCMMetadataIdentifier 取宿主 id（第三方工具按 bundle-id 定位目标，guest id 必然查无此应用→移交转圈无果 IMG_0440→120s 空等→启动失败），非 LC 零变化；六文件九处深链全收敛（StikDebug 页 handoff/RightPanel Task134+Task176/185/JavaLauncher Task304+Task139×2/DownloadVC×3/Welcome ame219/NavCtrl Task176+Task185+magnifier×2）；StikDebug 页 LC 直通（ame291_enableJIT 顶部短路：跳过 get-task-allow 门禁与注定失败的 builtin 尝试，IMG_0444/0445 弹窗风暴+弹窗双源收敛）；Task134/304/139 显式 builtin 在 LC 下结构降级深链（门禁弹窗+120s 空等根治）
+- ②plugins 旧位符号链接退役（"一个页面同时有新旧 2 个元素"根修）：Task318→319→320 升级链在 Documents 根同时留旧位 plugins 链接与新 Prisma2/ 目录（同页双元素头号嫌疑实锤）；init_setupPCLLayout Task320 重指块改幂等退役（悬空/有效都移）、step③迁移成功不再建链接，防断链职责移交 ame317_pluginsRootDir 保底自愈；真实目录绝不触碰（DTS Task321 扫描器 attributesOfItemAtPath 不跟随链接天然兼容）
+- ③game/ 分居层退役（文件不同步·FCL 对照树最后一处结构差）：FCL/HMCL/PCL 通例=版本隔离数据直接住 versions/<id>/（用户树实锤 saves/config/logs/options.txt 与 26.3.jar 同层）；Task224 versions/<id>/game 分居动机（重校验/清理/modpack 重导入伤存档）逐流复核为理论性——清理按文件前缀只扫日志类（ame255_mcLogPaths）、残根"清理并重装"与版本删除（Task255）本就连坐整个版本目录含 game/，分居从未真正挡住破坏面；写入点 8 处翻转 versions/<id>/game→versions/<id>（DVC 原版+Fabric+OptiFine/VMC 孤儿恢复/ZL2GameAddons/MCRT Task302/ProfileSettings 实例页 OptiFine/ModService Task272 sweep）；识别双口径兼容+优先序翻转（ame225 sniff/ame217 三态/ame271 F2 推断）；main.m 新增 init_flattenIsolatedGameDirs()（存量 game/ 内容幂等上提：绝不覆盖、空则删、非空留待下轮）+ main() 挂挡 init_setupPCLLayout 之后；ame271 自愈链新增 Task322 profile 重指（versions/<id>/game→versions/<id>，SceneDelegate 启动段）；ProfileSettings legacy 升级块方向反转（选择器手动迁移 game/→版本目录）；i18n 零改动（zh 文案"versions/%@"本就吻合新口径）
+- 事故两件：①Edit 工具显示层吞字第五例（main.m legacyPluginsLink 行 [home 显示为 ome，od -c/git diff 双证文件本体干净）②main.m 跨行 old_str 连续三轮不匹配（Task322 注释已在文件内而 step-0b 仍旧——MultiEdit 原子性破例：编辑1落盘编辑2失败）→ 家法 python 字节级手术收尾（task322_mainm_symlink_retire.py + task322_mainm_game_flatten.py，短锚点唯一性校验+括号平衡验尸）
+- 门禁：电池十一项全绿（task191 54 表 3289 键/task240 双门/task248 缺键0硬编码0动态键0/task250 0/task219_syntax ALL GREEN/verify_task219 81/81/verify_task316 37/37/ame317/ame318/ame321 selfcheck 0 失败）+ ame322_selfcheck 新门四域（game-retire 写入点禁令/plugins-link-retire/deeplink-bundleid 内联禁令/flatten-chain 在场）
+- 提交 203d22b 推送 main；dispatch 双 workflow 均 204（dev run#35 / smoke run#51）
+
+Stage Summary:
+- 四报障全链交付：①LC 下 JIT 开启一条路直通（深链带宿主 id，StikDebug/StikJIT 可定位目标）②builtin 弹窗风暴三连灭 ③文件页 plugins 旧位链接退役（同页只剩 Prisma2/ 新元素）④版本隔离口径对齐 FCL/HMCL/PCL（saves/config 直住 versions/<id>/，存量 game/ 自动上提+profile 自动重指）
+- 装机验证锚点：①LC 内启动游戏→latestlog 搜 "Task322: JIT deep-link bundle-id -> host"（宿主 id 替换）+ StikDebug 移交不再转圈无果 ②JIT 页点开启→LC 下零弹窗直跳 StikDebug ③文件页 Documents 根不再见 plugins 旧位链接 ④启动一次后 .minecraft/versions/<id>/ 下 saves/config 与 jar/json 同层（latestlog 搜 "Task322: versions/.*game flattened"）+ "Ame271 Task322: .* repointed off retired game"
