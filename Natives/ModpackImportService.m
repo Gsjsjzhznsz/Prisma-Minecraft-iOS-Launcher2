@@ -202,6 +202,25 @@ static NSString * const kImportedModpacksKey = @"ImportedModpacks";
 
 /// 给定 modpack id，返回 gameDir 的绝对路径 (用于本地文件操作)
 - (NSString *)absoluteGameDirForModpackId:(NSString *)modpackId {
+    // ★ Task329：已有实例 profile 的 gameDir 优先 —— 版本轴统一（ModService
+    //   ame329）后 profile gameDir = instances/<id>/versions/<vid>，换装/重
+    //   导入必须写进同一位置，否则 fresh 数据落实例根、游戏读版本目录 =
+    //   静默脱同步。归属判据 = profile gameDir 位于 instances/<modpackId>
+    //   之下（含根形态与已迁移的 versions/<vid> 深层形态）；无命中回落
+    //   旧口径 instances/<id>（全新导入不受影响，装完由 ame329 统一）。
+    NSString *ame329_expectedRoot = [self.customGameDir stringByAppendingPathComponent:modpackId];
+    NSString *ame329_rootStd = [ame329_expectedRoot stringByStandardizingPath];
+    NSString *ame329_rootPrefix = [ame329_rootStd stringByAppendingString:@"/"];
+    for (NSDictionary *ame329_prof in PLProfiles.current.profiles.allValues) {
+        if (![ame329_prof isKindOfClass:[NSDictionary class]]) continue;
+        NSString *ame329_gd = ame329_prof[@"gameDir"];
+        if (![ame329_gd isKindOfClass:[NSString class]] || ![ame329_gd isAbsolutePath]) continue;
+        NSString *ame329_gdStd = [ame329_gd stringByStandardizingPath];
+        if ([ame329_gdStd isEqualToString:ame329_rootStd] ||
+            [ame329_gdStd hasPrefix:ame329_rootPrefix]) {
+            return ame329_gd;
+        }
+    }
     return [self.customGameDir stringByAppendingPathComponent:modpackId];
 }
 

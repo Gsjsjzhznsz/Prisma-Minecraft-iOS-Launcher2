@@ -25,6 +25,12 @@ CGPoint lastVirtualMousePoint;
 - (void)sendTouchPoint:(CGPoint)location withEvent:(int)event;
 - (void)updateSavedResolution;
 - (void)updateGrabState;
+// ★ Task328：会话内分辨率即时生效（Navigation 菜单跨文件调用点；实现见
+//   SurfaceViewController.m ame328_applyResolutionInSession:——自由窗走
+//   ame328 核心重算+信箱溶解，全屏走 updateSavedResolution+Task250 强制
+//   通道；返回 NO = 会话未建立回落"重启后生效"旧语义）。
+//   （CI r0 教训：跨文件 selector 必须在 .h 可见，Task256 同族盲区第六例）
+- (BOOL)ame328_applyResolutionInSession:(CGFloat)ame328_res;
 
 + (GameSurfaceView *)surface;
 + (BOOL)isRunning;

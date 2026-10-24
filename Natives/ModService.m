@@ -465,6 +465,16 @@
                                         fm:(NSFileManager *)fm {
     const char *ame327_env = getenv("POJAV_GAME_DIR");
     if (!ame327_env || !*ame327_env) return;
+    // ★ Task329：版本轴形态守卫 —— gameDir 已是版本隔离目录（instances/<id>/
+    // versions/<vid>，ame329 统一后的形态）时绝不再物化：否则会在版本目录里
+    // 再套一层 versions/<vid>/<vid>.json 嵌套垃圾（ame329 结构性排除面）。
+    NSArray<NSString *> *ame327_comps = [gameDirAbsolute stringByStandardizingPath]
+        .pathComponents;
+    NSUInteger ame327_vIdx = [ame327_comps indexOfObject:@"versions"];
+    if (ame327_vIdx != NSNotFound && ame327_vIdx > 1 && ame327_vIdx < ame327_comps.count - 1
+        && [ame327_comps[ame327_vIdx - 2] isEqualToString:@"instances"]) {
+        return;
+    }
     NSString *sharedVersions = [[NSString stringWithUTF8String:ame327_env]
                                 stringByAppendingPathComponent:@"versions"];
     NSString *resolvedGame = [gameDirAbsolute stringByResolvingSymlinksInPath];
@@ -617,6 +627,145 @@
     }
 }
 
+/// ★ Task329：递归并入助手 —— 把 src 搬进 dstDir（同名目录递归并入子项，
+/// 同名文件冲突来件改名 <name>.ame329-<ts> 并置，绝不覆盖任何一方数据；
+/// 目录搬空后摘壳）。movedOut 累计实际搬移条目数（含递归子项）。
+static BOOL ame329_moveEntry(NSFileManager *fm, NSString *src, NSString *dstDir,
+                             NSString *ts, NSInteger *movedOut) {
+    NSString *name = src.lastPathComponent;
+    NSString *dst = [dstDir stringByAppendingPathComponent:name];
+    BOOL dstExists = NO, dstIsDir = NO, srcIsDir = NO;
+    dstExists = [fm fileExistsAtPath:dst isDirectory:&dstIsDir];
+    [fm fileExistsAtPath:src isDirectory:&srcIsDir];
+    if (!dstExists) {
+        if ([fm moveItemAtPath:src toPath:dst error:nil]) { (*movedOut)++; return YES; }
+        return NO;
+    }
+    if (dstIsDir && srcIsDir) {
+        BOOL allOK = YES;
+        NSArray *children = [fm contentsOfDirectoryAtPath:src error:nil] ?: @[];
+        for (NSString *child in children) {
+            BOOL ok = ame329_moveEntry(fm, [src stringByAppendingPathComponent:child], dst, ts, movedOut);
+            allOK = allOK && ok;
+        }
+        NSArray *left = [fm contentsOfDirectoryAtPath:src error:nil] ?: @[];
+        if (left.count == 0) [fm removeItemAtPath:src error:nil];   // 搬空摘壳，零数据
+        return allOK;
+    }
+    NSString *conflict = [dstDir stringByAppendingPathComponent:
+        [NSString stringWithFormat:@"%@.ame329-%@", name, ts]];
+    BOOL ok = [fm moveItemAtPath:src toPath:conflict error:nil];
+    if (ok) (*movedOut)++;
+    return ok;
+}
+
+/// ★ Task329：版本轴统一 pass —— 整合包实例数据搬家进版本目录（真·ZL2 风格）。
+/// 病历（用户五轮复访"versions 空目录"）：整合包导入走实例轴（profile
+/// gameDir = 绝对 instances/<id>，Task275 F5 直通），游戏数据（saves/mods/
+/// config/options.txt 等）全在实例根；versions/<vid>/ 内只有导入链创建的
+/// jar/json + Task271/324 六目录骨架。用户顺 .minecraft/versions/<vid>/
+/// 找数据只见空目录 —— Task326 链接 / Task327 物化 / Task328 清扫三轮都在
+/// 治"观感"，数据始终不在"家"。本 pass 把实例根的游戏数据整体搬进
+/// instances/<id>/versions/<vid>/（导入链已建好的版本目录），并把 profile
+/// gameDir 重指到同一位置 —— 版本目录自此 = 完整隔离数据目录（PCL2/ZL2
+/// 版本隔离形态），Files App 顺 .minecraft/versions/<vid>/ 直达全部数据。
+/// 口径：
+///   · 只认实例根形态（instances/<id> 恰两层）；已迁移形态 instances/<id>/
+///     versions/<vid> 与任意自定义绝对目录被层数判据天然排除（幂等）；
+///   · 搬家清单 = 版本目录内非隐藏、非共享层（versions/assets/libraries）、
+///     非导入元数据（import_report.json/.ame269_backup/旧 custom_gamedir）
+///     的全部根级条目（Task226 迁移清单同源口径的超集，leftovers 全带走）；
+///   · 冲突绝不覆盖（见 ame329_moveEntry）；空壳/搬空目录摘除零数据；
+///   · gameDir 重指条件 = 实际搬移 ≥1 项，或根已无候选但版本目录有内容
+///     （上次搬移后重指失败的残留修复）；applyChanges 锁内落盘；
+///   · 版本目录真身判据 = instances/<id>/versions/<vid>/<vid>.json 存在
+///     （ame324 marker 同口径），json 不在 = 无主实例绝不盲搬。
++ (void)ame329_unifyInstanceDataIntoVersionAxis {
+    const char *ame329_homeC = getenv("POJAV_HOME");
+    if (!ame329_homeC || !*ame329_homeC) return;
+    NSString *ame329_home = [NSString stringWithUTF8String:ame329_homeC];
+    if (ame329_home.length == 0) return;
+    NSFileManager *ame329_fm = [NSFileManager defaultManager];
+    NSString *ame329_rootStd = [[ame329_home stringByAppendingPathComponent:@"instances"]
+        stringByStandardizingPath];
+    NSString *ame329_rootPrefix = [ame329_rootStd stringByAppendingString:@"/"];
+    // 共享层 + 导入元数据 + 旧嵌套布局（Task316 ame316 迁移域）绝不触碰
+    NSSet *ame329_excluded = [NSSet setWithArray:@[
+        @"versions", @"assets", @"libraries",
+        @"import_report.json", @".ame269_backup", @"custom_gamedir"
+    ]];
+    NSString *ame329_ts = [NSString stringWithFormat:@"%ld", (long)[[NSDate date] timeIntervalSince1970]];
+    NSDictionary *ame329_profiles = PLProfiles.current.profiles;
+    NSInteger ame329_unified = 0;
+    for (NSString *ame329_name in ame329_profiles.allKeys) {
+        NSDictionary *ame329_prof = ame329_profiles[ame329_name];
+        if (![ame329_prof isKindOfClass:[NSDictionary class]]) continue;
+        NSString *ame329_gd = ame329_prof[@"gameDir"];
+        if (![ame329_gd isKindOfClass:[NSString class]] || ![ame329_gd isAbsolutePath]) continue;
+        NSString *ame329_gdStd = [ame329_gd stringByStandardizingPath];
+        // 判据①：恰为 instances/<id> 两层实例根
+        if (![ame329_gdStd hasPrefix:ame329_rootPrefix]) continue;
+        NSString *ame329_rest = [ame329_gdStd substringFromIndex:ame329_rootPrefix.length];
+        if (ame329_rest.length == 0 || [ame329_rest rangeOfString:@"/"].location != NSNotFound) continue;
+        // 判据②：实例根是真实目录（非符号链接；链接形态交给 ame325 旧链）
+        NSDictionary *ame329_attrs = [ame329_fm attributesOfItemAtPath:ame329_gdStd error:nil];
+        if (!ame329_attrs || [ame329_attrs[NSFileType] isEqualToString:NSFileTypeSymbolicLink]) continue;
+        BOOL ame329_isDir = NO;
+        if (![ame329_fm fileExistsAtPath:ame329_gdStd isDirectory:&ame329_isDir] || !ame329_isDir) continue;
+        // 判据③：lastVersionId 的版本目录真身存在（无主实例绝不盲搬）
+        NSString *ame329_vid = ame329_prof[@"lastVersionId"];
+        if (![ame329_vid isKindOfClass:[NSString class]] || ame329_vid.length == 0) continue;
+        NSString *ame329_vdir = [ame329_gdStd stringByAppendingPathComponent:
+            [NSString stringWithFormat:@"versions/%@", ame329_vid]];
+        NSString *ame329_marker = [ame329_vdir stringByAppendingPathComponent:
+            [NSString stringWithFormat:@"%@.json", ame329_vid]];
+        if (![ame329_fm fileExistsAtPath:ame329_marker]) continue;
+        // 候选搬家清单：根级非隐藏、非排除条目
+        NSMutableArray<NSString *> *ame329_pending = [NSMutableArray array];
+        for (NSString *ame329_item in [ame329_fm contentsOfDirectoryAtPath:ame329_gdStd error:nil]) {
+            if ([ame329_item hasPrefix:@"."]) continue;
+            if ([ame329_excluded containsObject:ame329_item]) continue;
+            [ame329_pending addObject:ame329_item];
+        }
+        NSInteger ame329_moved = 0;
+        if (ame329_pending.count > 0) {
+            if (![ame329_fm fileExistsAtPath:ame329_vdir]) {
+                [ame329_fm createDirectoryAtPath:ame329_vdir withIntermediateDirectories:YES attributes:nil error:nil];
+            }
+            for (NSString *ame329_item in ame329_pending) {
+                ame329_moveEntry(ame329_fm,
+                                 [ame329_gdStd stringByAppendingPathComponent:ame329_item],
+                                 ame329_vdir, ame329_ts, &ame329_moved);
+            }
+        }
+        // gameDir 重指：搬了东西，或根已净但版本目录有内容（上次重指失败残留修复）
+        BOOL ame329_vdirHasData = NO;
+        for (NSString *ame329_e in [ame329_fm contentsOfDirectoryAtPath:ame329_vdir error:nil]) {
+            if ([ame329_e isEqualToString:[NSString stringWithFormat:@"%@.json", ame329_vid]]) continue;
+            if ([ame329_e isEqualToString:[NSString stringWithFormat:@"%@.jar", ame329_vid]]) continue;
+            if ([ame329_e hasPrefix:@"."]) continue;
+            ame329_vdirHasData = YES;
+            break;
+        }
+        BOOL ame329_needRep = (ame329_moved > 0) || (ame329_pending.count == 0 && ame329_vdirHasData);
+        if (!ame329_needRep) continue;
+        NSString *ame329_oldGd = ame329_gd;
+        [PLProfiles.current applyChanges:^(NSMutableDictionary<NSString *, id> *ame329_profs) {
+            NSMutableDictionary *ame329_p = [ame329_profs[ame329_name] mutableCopy]
+                ?: [NSMutableDictionary dictionary];
+            ame329_p[@"gameDir"] = ame329_vdir;
+            ame329_profs[ame329_name] = ame329_p;
+        }];
+        ame329_unified++;
+        NSLog(@"[Ame329] instance data unified into version axis: instances/%@ → versions/%@ (%ld item(s) moved, gameDir %@ → %@)",
+              ame329_rest, ame329_vid, (long)ame329_moved, ame329_oldGd, ame329_vdir);
+    }
+    if (ame329_unified > 0) {
+        NSLog(@"[Ame329] version-axis unification done: %ld profile(s) re-pointed -- versions/<vid>/ now holds full isolated data (ZL2/PCL2 parity)",
+              (long)ame329_unified);
+    }
+}
+
 /// ★ Task325：实例轴骨架 pass —— 整合包/AI 实例的隔离单元是 instances/<id>/
 /// （profile gameDir = 绝对路径，ModpackImportService Task316/269/275-F5 铸成），
 /// 与版本轴（versions/<id>/，Task322/324 铸成）零交集：Task324 的两条隔离判据
@@ -682,6 +831,11 @@
 + (void)ame324_ensureIsolationSkeletonsAll {
     const char *ame324_env = getenv("POJAV_GAME_DIR");
     if (!ame324_env || !*ame324_env) return;
+    // ★ Task329：版本轴统一先行（实例根数据搬家进版本目录 + gameDir 重指）
+    //   —— 后续骨架/实例轴/清扫三 pass 都以搬家后的终态为准（迁移后版本
+    //   目录自带数据，ame324 判据②"事实上隔离"自然保它；空壳诱饵仍归
+    //   ame328 摘除）。
+    [ModService ame329_unifyInstanceDataIntoVersionAxis];
     NSString *ame324_base = [NSString stringWithUTF8String:ame324_env];
     if (ame324_base.length == 0) return;
     NSFileManager *ame324_fm = [NSFileManager defaultManager];
