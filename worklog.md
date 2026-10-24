@@ -3707,3 +3707,25 @@ Work Log:
 
 Stage Summary:
 - 双轮询证中；产物在位预期 ipa/tipa 222MB 级；装机锚点见 Task 327 条目 Stage Summary 6 条
+
+---
+Task ID: 327 号段 · CI 闭环补记
+Agent: main (Super Z)
+Task: development/ui-smoke 双 workflow 终绿收口（r0 双红 → r1 双一轮终绿）
+
+Work Log:
+- r0 4c909d2a 双红（smoke run 40116288807 / dev run 40116286893 同源单雷）：
+  ZL2SettingPages.m:1077 ame327_rebuildPluginRowsGroup 行题取值在 && 链里对 id
+  取 .length（ObjC && 不做类型收窄，CI 实锤 "property 'length' not found on
+  object of type 'id _Nullable'"）——本地门禁语义面盲区第六例（括号/键数/
+  自检三门对 ObjC 类型系统全盲）
+- r1 777e82cd：先 isKindOfClass 收窄到 NSString 再取 length → **双一轮终绿**
+  （smoke run 40117147709 / dev run 40117145601，零热修再犯）
+- 产物在位：ipa/tipa 各 222.4MB + dSYM 7.3MB（head=777e82cd）
+- worklog 文档轮随本补记推送
+
+Stage Summary:
+- Task 327 终审通过（dev+smoke 双绿，r1 一轮热修）；新 IPA 就绪待装机验证
+  （锚点见 Task 327 条目 Stage Summary 6 条）
+- 门禁盲区备忘：三元/&& 复合表达式内对容器取值属性（.length/.count）必须先
+  isKindOfClass 收窄——id 静态类型不随 && 左支收窄，编译期即炸
