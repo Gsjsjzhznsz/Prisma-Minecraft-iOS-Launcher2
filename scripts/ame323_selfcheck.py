@@ -167,6 +167,29 @@ def main():
           ]),
           "task240 硬编码清单必须覆盖 Task323 改动域（ZL2 域此前不在闸）")
 
+    # ── ⑧ smoke 预览桩（ui_fluent_smoke 链接面防回退） ──────────
+    preview_main = read("Natives/Preview/AmeFluentPreviewMain.m")
+    preview_stub = read("Natives/Preview/ZL2PagesStub.m")
+    check("preview:mcrt-metadata-stub",
+          "@property(nonatomic, copy) NSDictionary *metadata;" in preview_main,
+          "MCRT 桩必须有 metadata（预览模拟进度 100% 时 KVO 读它）")
+    check("preview:continuation-symbol-stubs",
+          all(k in preview_main for k in [
+              "void setPrefString(NSString *key, NSString *value)",
+              "void setPrefInt(NSString *key, NSInteger value)",
+              "void UIKit_launchMinecraftSurfaceVC(UIWindow *window, NSDictionary *metadata)",
+              "@interface PLJITGate : NSObject",
+          ]),
+          "ZL2Home 续链链接期 C/类符号桩必须齐备")
+    check("preview:repo-class-stubs",
+          "@interface ControlRepoViewController : UIViewController" in preview_stub
+          and "initialCategoryIndex" in preview_stub
+          and "@interface ZL2PluginRepoViewController : UIViewController" in preview_stub,
+          "下载中心左轨 9-11 仓库类链接桩必须齐备")
+    check("preview:home-no-bridge-import",
+          '#import "ios_uikit_bridge.h"' not in home,
+          "ZL2Home 有意前向声明换根符号（ios_uikit_bridge.h 带 jni.h 传递链，smoke -I 窄路径首例禁入）")
+
     print("=" * 40)
     print("ame323_selfcheck: %d passed, %d failed" % (len(PASSES), len(FAILS)))
     if FAILS:

@@ -71,7 +71,10 @@
 #import "DownloadTaskItem.h"
 #import "PLTaskProgressViewController.h"
 #import "PLJITGate.h"        // Task323：启动续链 JIT 门禁（RP 状态机共享化）
-#import "ios_uikit_bridge.h"  // UIKit_launchMinecraftSurfaceVC（Task323 续链终点）
+// Task323：续链终点换根符号——有意不 import ios_uikit_bridge.h（该头带 jni.h
+// 传递链，ui_fluent_smoke 的 -I 窄路径 TU 首例；本文件仅消费此一个 C 符号，
+// 前向声明同签名 ios_uikit_bridge.h:42，零传递风险）
+void UIKit_launchMinecraftSurfaceVC(UIWindow *window, NSDictionary *metadata);
 #import "LauncherPreferences.h" // Task323：profile 覆盖 setPrefString/setPrefInt（旧链同款）
 #import "utils.h"   // localize()
 
