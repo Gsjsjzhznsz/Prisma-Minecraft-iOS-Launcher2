@@ -71,6 +71,14 @@ static NSString *ame317_facadeSource(void) {
     "ame.fetch=function(url,opts,cb){"
     "if(typeof opts==='function'){cb=opts;opts={};}"
     "return raw.fetchOptionsCallback(String(url),opts||{},cb||function(){});};"
+    // ★ Task327：权限扩大 API 面（ui.nav / profile.write / files.game）
+    "ame.openPage=function(id){return raw.openPage(String(id));};"
+    "ame.createProfile=function(o){return raw.createProfile(o||{});};"
+    "ame.deleteProfile=function(n){return raw.deleteProfile(String(n));};"
+    "ame.listFiles=function(p){return raw.listGameFiles(String(p||'.'));};"
+    "ame.readFile=function(p){return raw.readGameFile(String(p));};"
+    "ame.writeFile=function(p,c,ap){return raw.writeGameFileContentAppend(String(p),String(c),!!ap);};"
+    "ame.removeFile=function(p){return raw.removeGameFile(String(p));};"
     "return ame;"
     "})(ameRaw);";
 }

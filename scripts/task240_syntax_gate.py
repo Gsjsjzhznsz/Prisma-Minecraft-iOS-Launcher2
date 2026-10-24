@@ -39,6 +39,14 @@ FILES = [
     "Natives/ZL2AssetSearchViewController.h",
     "Natives/ZL2DownloadViewController.m",
     "Natives/ZeroTierBridge.m",
+    # Task327：versions 物化 / SDL 自适应 / 插件扩权 / AI 写插件改动域入闸
+    "Natives/ModService.m",
+    "Natives/ZL2SettingPages.m",
+    "Natives/AmePluginPermissions.m",
+    "Natives/AmePluginBridge.h",
+    "Natives/AI/AiPluginWriterTool.h",
+    "Natives/AI/AiPluginWriterTool.m",
+    "Natives/AI/AiToolBootstrapper.m",
 ]
 
 def strip_strings_comments(text):

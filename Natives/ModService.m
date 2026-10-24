@@ -443,74 +443,96 @@
     }
 }
 
-/// ★ Task326：实例 versions/ 空壳根治。病历（Task325 自留病历 + 装机 568628f
-///   复访实锤"versions 空目录依旧空目录"）：ModpackImportService Task316 在
-///   实例 gameDir 下创建 versions/ 实体空目录，而版本本体（json/jar）由安装
-///   链写入主 versions（Java 侧 Tools.java DIR_HOME_VERSION 固定指向
-///   POJAV_GAME_DIR/versions，不从 profile gameDir 读取；Plain ZIP/MMC 内嵌
-///   versions/ 同样提取到主目录）——实例的 versions/ 是【结构性永久空壳】，
-///   用户在文件 App 里看到的就是它。修法 = 空壳替换为指向共享 versions 的
-///   符号链接（与 main.m PCL 布局 .minecraft/minecraft 可见别名同语义同机制，
-///   iOS 文件 App 可见可点）——实例目录打开即见 26.3/、fabric-loader-* 等
-///   版本实例目录，FCL 观感对齐。纪律：
-///   · 仅动【空壳】（0 条目）与缺失位；真实非空目录 = 用户数据，绝不触碰；
-///   · 已是链接则目标一致幂等早退、漂移重指；
-///   · 自指守卫：gameDir 解析后与 POJAV_GAME_DIR 同址（default 实例=共享根
-///     本体）绝不自链（防 versions→自身 环）；
-///   · 共享 versions 缺失先建（标准层目录，恒安全）。
-+ (void)ame326_ensureInstanceVersionsLink:(NSString *)gameDirAbsolute
-                                       fm:(NSFileManager *)fm {
-    const char *ame326_env = getenv("POJAV_GAME_DIR");
-    if (!ame326_env || !*ame326_env) return;
-    NSString *sharedVersions = [[NSString stringWithUTF8String:ame326_env]
+/// ★ Task327：实例 versions/ 真实文件物化（FCL 观感终态，替代 Task326 符号链接）。
+///   病历（Task326 自留 + 装机 c7c3f81 两轮复访"依旧空目录"）：Task326 用
+///   【绝对路径符号链接】把实例 versions/ 指向共享 versions —— 进程内自洽
+///   （FolderBrowser/MC 解析正常），但 iOS 文件 App（FileProvider）不跟随
+///   符号链接，且 LiveContainer 映射树下的绝对链接在进程外视图里必然断链
+///   = 用户在文件 App 里看到的 instances/<id>/versions/ 永远是空目录。
+///   修法 = 真实文件落盘：共享 versions/<vid>/ 的 <vid>.json 与 <vid>.jar
+///   逐版本物化进实例 versions/<vid>/。优先硬链接（同容器同卷零拷贝零
+///   额外空间，文件 App 呈现为普通文件），失败回退整拷贝（json KB 级、
+///   jar 至多 ~25MB，实例数有限可接受）。纪律：
+///   · 只增不删：实例侧已存在同名文件（真实用户数据）绝不触碰；
+///   · 共享 versions 仍是唯一事实源（Java 侧 Tools.java DIR_HOME_VERSION
+///     读共享目录，实例侧文件是 FCL 观感层，不参与启动解析）；
+///   · 旧 Task326 符号链接（本工具前代自产物）就地摘除换实体目录；
+///   · 自指守卫：gameDir 解析后与 POJAV_GAME_DIR 同址（default 实例=
+///     共享根本体）绝不物化（防 versions→自身 环）；
+///   · 共享 versions 缺失先建（标准层目录，恒安全）；
+///   · 非版本实例（无 <vid>.json 标记）跳过（残根/杂项不入）。
++ (void)ame327_materializeInstanceVersions:(NSString *)gameDirAbsolute
+                                        fm:(NSFileManager *)fm {
+    const char *ame327_env = getenv("POJAV_GAME_DIR");
+    if (!ame327_env || !*ame327_env) return;
+    NSString *sharedVersions = [[NSString stringWithUTF8String:ame327_env]
                                 stringByAppendingPathComponent:@"versions"];
     NSString *resolvedGame = [gameDirAbsolute stringByResolvingSymlinksInPath];
     NSString *resolvedSharedRoot = [[sharedVersions stringByDeletingLastPathComponent]
                                     stringByResolvingSymlinksInPath];
     if ([resolvedGame isEqualToString:resolvedSharedRoot]) return;   // 自指守卫
     NSString *shell = [gameDirAbsolute stringByAppendingPathComponent:@"versions"];
-    BOOL ame326_sharedIsDir = NO;
-    if (![fm fileExistsAtPath:sharedVersions isDirectory:&ame326_sharedIsDir]) {
+    // 共享 versions 缺失先建（标准层目录，恒安全）
+    BOOL ame327_sharedIsDir = NO;
+    if (![fm fileExistsAtPath:sharedVersions isDirectory:&ame327_sharedIsDir]) {
         [fm createDirectoryAtPath:sharedVersions
           withIntermediateDirectories:YES attributes:nil error:nil];
     }
-    NSString *sharedResolved = [sharedVersions stringByResolvingSymlinksInPath];
-    NSDictionary *ame326_attrs = [fm attributesOfItemAtPath:shell error:nil];
-    if (ame326_attrs == nil) {
-        if ([fm createSymbolicLinkAtPath:shell withDestinationPath:sharedVersions error:nil]) {
-            NSLog(@"[Ame326] instance versions linked -> shared versions (new): %@/versions",
-                  shell.lastPathComponent);
+    // 旧符号链接（Task326 自产物）→ 摘除换实体目录；真实目录保留（只增不删）
+    NSDictionary *ame327_attrs = [fm attributesOfItemAtPath:shell error:nil];
+    if (ame327_attrs) {
+        NSString *ame327_type = [ame327_attrs objectForKey:NSFileType];
+        if ([ame327_type isEqualToString:NSFileTypeSymbolicLink]) {
+            if ([fm removeItemAtPath:shell error:nil]) {
+                NSLog(@"[Ame327] instance versions legacy symlink removed (materialize takes over): %@/versions",
+                      shell.lastPathComponent);
+            }
+        } else if (![ame327_type isEqualToString:NSFileTypeDirectory]) {
+            return;   // 异常形态（普通文件等）不碰
         }
-        return;
     }
-    NSString *ame326_type = [ame326_attrs objectForKey:NSFileType];
-    if ([ame326_type isEqualToString:NSFileTypeSymbolicLink]) {
-        NSString *ame326_cur = [fm destinationOfSymbolicLinkAtPath:shell error:nil];
-        NSString *ame326_resolved = @"";
-        if (ame326_cur.length > 0) {
-            NSString *ame326_abs = [shell.stringByDeletingLastPathComponent
-                                    stringByAppendingPathComponent:ame326_cur];
-            ame326_resolved = [ame326_abs stringByResolvingSymlinksInPath];
+    if (![fm createDirectoryAtPath:shell withIntermediateDirectories:YES attributes:nil error:nil]) return;
+    // 逐版本物化（json + jar；loader 档无 jar 属正常跳过）
+    NSArray<NSString *> *ame327_vids = [fm contentsOfDirectoryAtPath:sharedVersions error:nil];
+    NSInteger ame327_made = 0;
+    for (NSString *ame327_vid in ame327_vids) {
+        if ([ame327_vid hasPrefix:@"."]) continue;
+        NSString *ame327_srcDir = [sharedVersions stringByAppendingPathComponent:ame327_vid];
+        NSString *ame327_srcJson = [ame327_srcDir stringByAppendingPathComponent:
+            [NSString stringWithFormat:@"%@.json", ame327_vid]];
+        if (![fm fileExistsAtPath:ame327_srcJson]) continue;   // 非版本实例
+        NSString *ame327_dstDir = [shell stringByAppendingPathComponent:ame327_vid];
+        if (![fm fileExistsAtPath:ame327_dstDir]) {
+            if (![fm createDirectoryAtPath:ame327_dstDir
+               withIntermediateDirectories:YES attributes:nil error:nil]) continue;
         }
-        if ([ame326_resolved isEqualToString:sharedResolved]) return;   // 幂等
-        if ([fm removeItemAtPath:shell error:nil] &&
-            [fm createSymbolicLinkAtPath:shell withDestinationPath:sharedVersions error:nil]) {
-            NSLog(@"[Ame326] instance versions link re-pointed -> shared versions");
+        NSArray<NSString *> *ame327_files = @[
+            [NSString stringWithFormat:@"%@.json", ame327_vid],
+            [NSString stringWithFormat:@"%@.jar", ame327_vid],
+        ];
+        for (NSString *ame327_fname in ame327_files) {
+            NSString *ame327_src = [ame327_srcDir stringByAppendingPathComponent:ame327_fname];
+            if (![fm fileExistsAtPath:ame327_src]) continue;   // jar 缺席正常
+            NSString *ame327_dst = [ame327_dstDir stringByAppendingPathComponent:ame327_fname];
+            if ([fm fileExistsAtPath:ame327_dst]) continue;   // 只增不删
+            // 优先硬链接（同容器同卷：零拷贝零空间，文件 App 呈现为普通文件）
+            BOOL ame327_ok = [fm linkItemAtPath:ame327_src toPath:ame327_dst error:nil];
+            if (!ame327_ok) {
+                NSError *ame327_cpErr = nil;
+                ame327_ok = [fm copyItemAtPath:ame327_src toPath:ame327_dst error:&ame327_cpErr];
+                if (!ame327_ok) {
+                    NSLog(@"[Ame327] materialize %@/%@ failed: %@",
+                          ame327_vid, ame327_fname,
+                          ame327_cpErr.localizedDescription ?: @"unknown");
+                    continue;
+                }
+            }
+            ame327_made++;
         }
-        return;
     }
-    if ([ame326_type isEqualToString:NSFileTypeDirectory]) {
-        NSArray<NSString *> *ame326_entries = [fm contentsOfDirectoryAtPath:shell error:nil];
-        if (ame326_entries.count > 0) {
-            NSLog(@"[Ame326] instance versions is a real non-empty dir -- left untouched (%lu entries)",
-                  (unsigned long)ame326_entries.count);
-            return;
-        }
-        if ([fm removeItemAtPath:shell error:nil] &&
-            [fm createSymbolicLinkAtPath:shell withDestinationPath:sharedVersions error:nil]) {
-            NSLog(@"[Ame326] instance versions empty shell -> shared versions link: %@/versions",
-                  shell.lastPathComponent);
-        }
+    if (ame327_made > 0) {
+        NSLog(@"[Ame327] instance versions materialized: %@/versions (%ld file(s), hardlink-first, FCL visibility)",
+              gameDirAbsolute.lastPathComponent, (long)ame327_made);
     }
 }
 
@@ -560,9 +582,10 @@
                 }
             }
         }
-        // ★ Task326：versions/ 空壳 → 共享 versions 链接（同 pass 幂等自愈，
-        //   装机锚点 latestlog 搜 "[Ame326] instance versions"）
-        [ModService ame326_ensureInstanceVersionsLink:ame325_gdComp fm:ame325_fm];
+        // ★ Task327：versions/ 真实文件物化（符号链接在文件 App/FileProvider
+        //   视图不解析——装机两轮"空目录依旧"实锤；装机锚点 latestlog 搜
+        //   "[Ame327] instance versions materialized"）
+        [ModService ame327_materializeInstanceVersions:ame325_gdComp fm:ame325_fm];
     }
     if (ame325_created > 0) {
         NSLog(@"[Ame325] instance-axis isolation skeleton ensured (%ld instance(s), %ld dir(s) created, FCL parity)",

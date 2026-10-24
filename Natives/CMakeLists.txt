@@ -786,6 +786,9 @@ add_executable(AngelAuraAmethyst
   AI/AiSleepTool.m
   AI/AiDownloadProbe.m
   AI/AiInstanceCreator.m
+
+  # Task 327：AI 写插件（create_plugin —— manifest+main.js 生成落盘+授权+装载）
+  AI/AiPluginWriterTool.m
 )
 
 # Task 83（FSR 独立化）：osm_bridge.mm 与 mgl_fsr.mm（Task119 新增）是仅有的

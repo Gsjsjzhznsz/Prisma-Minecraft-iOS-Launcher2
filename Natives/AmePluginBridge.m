@@ -6,6 +6,7 @@
 #import "utils.h"       // localize + 渲染器宏（RENDERER_NAME_*）
 #import "ZL2M3Kit.h"    // MD3 对话框
 #import "ZL2Theme.h"    // 主题令牌覆盖钩子
+#import "ZL2ShellViewController.h"   // Task327：页面导航通知契约（ZL2ShellNavigate）
 
 #import <UIKit/UIKit.h>
 
@@ -440,6 +441,201 @@ static const NSUInteger ame317_storageMaxBytes = 4 * 1024 * 1024;
                                            @"body": text ?: @""}]];
         });
     }] resume];
+}
+
+#pragma mark - 页面导航（ui.nav，Task327）
+
+- (void)openPage:(NSString *)pageId {
+    if (![self ame317_requirePerm:@"ui.nav"]) return;
+    // 页面序 = ZL2ShellViewController ame_childForIndex 0...6（越界/未知拒绝）
+    NSDictionary<NSString *, NSNumber *> *ame327_pageMap = @{
+        @"home": @0, @"download": @1, @"versions": @2, @"accounts": @3,
+        @"settings": @4, @"multiplayer": @5, @"ai": @6,
+    };
+    NSNumber *ame327_idx = ame327_pageMap[pageId ?: @""];
+    if (!ame327_idx) {
+        [self ame317_rejectValue:pageId ?: @""];
+        return;
+    }
+    dispatch_async(dispatch_get_main_queue(), ^{
+        [[NSNotificationCenter defaultCenter]
+            postNotificationName:ZL2ShellNavigateNotification
+                          object:nil
+                        userInfo:@{@"index": ame327_idx}];
+    });
+}
+
+#pragma mark - 实例档案写（profile.write，高危，Task327）
+
+/// 档案名规范：[a-zA-Z0-9._-]{1,64}（防脏名/分隔符注入 PLProfiles 注册表）
+- (BOOL)ame327_validProfileName:(NSString *)name {
+    if (name.length == 0 || name.length > 64) return NO;
+    NSCharacterSet *ok = [NSCharacterSet characterSetWithCharactersInString:
+                          @"abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789._-"];
+    for (NSUInteger i = 0; i < name.length; i++) {
+        if (![ok characterIsMember:[name characterAtIndex:i]]) return NO;
+    }
+    return YES;
+}
+
+- (BOOL)createProfile:(NSDictionary *)spec {
+    if (![self ame317_requirePerm:@"profile.write"]) return NO;
+    if (![spec isKindOfClass:[NSDictionary class]]) return NO;
+    NSString *name = [self ame317_string:spec[@"name"]];
+    if (![self ame327_validProfileName:name]) {
+        [self ame317_rejectValue:name ?: @""];
+        return NO;
+    }
+    NSDictionary *profiles = [PLProfiles current].profiles;
+    if (profiles[name] != nil) {
+        [self ame317_rejectValue:[NSString stringWithFormat:@"profile exists: %@", name]];
+        return NO;
+    }
+    NSString *version = [self ame317_string:spec[@"version"]] ?: @"";
+    NSString *gameDir = [self ame317_string:spec[@"gameDir"]];
+    if (gameDir == nil) {
+        const char *ame327_home = getenv("POJAV_HOME");
+        gameDir = ame327_home
+            ? [[NSString stringWithUTF8String:ame327_home]
+               stringByAppendingPathComponent:
+               [NSString stringWithFormat:@"instances/%@", name]]
+            : @"";
+    }
+    NSMutableDictionary *entry = [NSMutableDictionary dictionary];
+    if (version.length) entry[@"lastVersionId"] = version;
+    if (gameDir.length) entry[@"gameDir"] = gameDir;
+    [[PLProfiles current] applyChanges:^(NSMutableDictionary<NSString *, id> *ame327_all) {
+        ame327_all[name] = [entry copy];
+    }];
+    // 游戏目录落位（骨架 six-dir 留给 ame325/ame327 自愈链补齐，此处仅建根）
+    if (gameDir.length && ![NSFileManager.defaultManager fileExistsAtPath:gameDir]) {
+        [NSFileManager.defaultManager createDirectoryAtPath:gameDir
+                               withIntermediateDirectories:YES attributes:nil error:nil];
+    }
+    [[NSNotificationCenter defaultCenter] postNotificationName:@"ReloadProfileList" object:nil];
+    return YES;
+}
+
+- (BOOL)deleteProfile:(NSString *)name {
+    if (![self ame317_requirePerm:@"profile.write"]) return NO;
+    if (![self ame327_validProfileName:name]) {
+        [self ame317_rejectValue:name ?: @""];
+        return NO;
+    }
+    // 守卫：默认档案与当前选中档案不删（防自毁；先切档再删）
+    if ([name isEqualToString:@"(Default)"] ||
+        [name isEqualToString:[PLProfiles current].selectedProfileName]) {
+        [self ame317_rejectValue:[NSString stringWithFormat:@"profile in use: %@", name]];
+        return NO;
+    }
+    if ([PLProfiles current].profiles[name] == nil) {
+        [self ame317_rejectValue:[NSString stringWithFormat:@"profile missing: %@", name]];
+        return NO;
+    }
+    [[PLProfiles current] applyChanges:^(NSMutableDictionary<NSString *, id> *ame327_all) {
+        [ame327_all removeObjectForKey:name];
+    }];
+    [[NSNotificationCenter defaultCenter] postNotificationName:@"ReloadProfileList" object:nil];
+    return YES;
+}
+
+#pragma mark - 游戏目录文件沙盒（files.game，高危，Task327）
+
+static const NSUInteger ame327_fileReadMax = 2 * 1024 * 1024;
+static const NSUInteger ame327_fileWriteMax = 4 * 1024 * 1024;
+
+/// 路径守卫：仅当前实例 POJAV_GAME_DIR 内相对路径（禁 ..//绝对路径/
+/// symlink 逃逸）；返回已拼好的绝对路径（不要求存在）
+- (NSString *)ame327_gamePathFor:(NSString *)relPath {
+    const char *ame327_env = getenv("POJAV_GAME_DIR");
+    if (!ame327_env || !*ame327_env) return nil;
+    if (relPath.length == 0 || relPath.length > 512) return nil;
+    if ([relPath hasPrefix:@"/"]) return nil;
+    for (NSString *ame327_seg in [relPath pathComponents]) {
+        if ([ame327_seg isEqualToString:@".."] || ame327_seg.length == 0) return nil;
+    }
+    NSString *ame327_base = [NSString stringWithUTF8String:ame327_env];
+    NSString *ame327_full = [ame327_base stringByAppendingPathComponent:relPath];
+    NSString *ame327_resolved = [ame327_full stringByResolvingSymlinksInPath];
+    NSString *ame327_resolvedBase = [ame327_base stringByResolvingSymlinksInPath];
+    if (![ame327_resolved hasPrefix:ame327_resolvedBase]) return nil;   // symlink 逃逸
+    return ame327_full;
+}
+
+- (NSArray<NSDictionary *> *)listGameFiles:(NSString *)relPath {
+    if (![self ame317_requirePerm:@"files.game"]) return nil;
+    NSString *ame327_dir = [self ame327_gamePathFor:relPath ?: @""];
+    if (!ame327_dir) return nil;
+    NSFileManager *ame327_fm = [NSFileManager defaultManager];
+    BOOL ame327_isDir = NO;
+    if (![ame327_fm fileExistsAtPath:ame327_dir isDirectory:&ame327_isDir] || !ame327_isDir) return nil;
+    NSArray<NSString *> *ame327_names = [ame327_fm contentsOfDirectoryAtPath:ame327_dir error:nil];
+    NSMutableArray<NSDictionary *> *ame327_out = [NSMutableArray array];
+    for (NSString *ame327_nm in [ame327_names sortedArrayUsingSelector:@selector(compare:)]) {
+        if ([ame327_nm hasPrefix:@"."]) continue;
+        NSString *ame327_p = [ame327_dir stringByAppendingPathComponent:ame327_nm];
+        BOOL ame327_d = NO;
+        [ame327_fm fileExistsAtPath:ame327_p isDirectory:&ame327_d];
+        NSUInteger ame327_sz = 0;
+        if (!ame327_d) {
+            NSDictionary *ame327_at = [ame327_fm attributesOfItemAtPath:ame327_p error:nil];
+            ame327_sz = [ame327_at fileSize];
+        }
+        [ame327_out addObject:@{
+            @"name": ame327_nm,
+            @"isDir": @(ame327_d),
+            @"size": @(ame327_sz),
+        }];
+    }
+    return ame327_out;
+}
+
+- (NSString *)readGameFile:(NSString *)relPath {
+    if (![self ame317_requirePerm:@"files.game"]) return nil;
+    NSString *ame327_p = [self ame327_gamePathFor:relPath ?: @""];
+    if (!ame327_p) return nil;
+    NSDictionary *ame327_at = [NSFileManager.defaultManager attributesOfItemAtPath:ame327_p error:nil];
+    if ([ame327_at fileSize] > ame327_fileReadMax) return nil;   // 超限拒读
+    return [NSString stringWithContentsOfFile:ame327_p
+                                     encoding:NSUTF8StringEncoding error:nil];
+}
+
+- (BOOL)writeGameFile:(NSString *)relPath
+              content:(NSString *)content
+               append:(BOOL)append {
+    if (![self ame317_requirePerm:@"files.game"]) return NO;
+    NSString *ame327_p = [self ame327_gamePathFor:relPath ?: @""];
+    if (!ame327_p || content.length > ame327_fileWriteMax) return NO;
+    NSFileManager *ame327_fm = [NSFileManager defaultManager];
+    NSString *ame327_dir = ame327_p.stringByDeletingLastPathComponent;
+    if (![ame327_fm fileExistsAtPath:ame327_dir]) {
+        [ame327_fm createDirectoryAtPath:ame327_dir
+             withIntermediateDirectories:YES attributes:nil error:nil];
+    }
+    NSData *ame327_data = [content dataUsingEncoding:NSUTF8StringEncoding];
+    if (!ame327_data) return NO;
+    if (append && [ame327_fm fileExistsAtPath:ame327_p]) {
+        NSMutableData *ame327_mut = [NSMutableData dataWithContentsOfFile:ame327_p] ?: [NSMutableData data];
+        [ame327_mut appendData:ame327_data];
+        if (ame327_mut.length > ame327_fileWriteMax) return NO;
+        return [ame327_mut writeToFile:ame327_p atomically:YES];
+    }
+    return [ame327_data writeToFile:ame327_p atomically:YES];
+}
+
+- (BOOL)removeGameFile:(NSString *)relPath {
+    if (![self ame317_requirePerm:@"files.game"]) return NO;
+    NSString *ame327_p = [self ame327_gamePathFor:relPath ?: @""];
+    if (!ame327_p) return NO;
+    NSFileManager *ame327_fm = [NSFileManager defaultManager];
+    BOOL ame327_isDir = NO;
+    if (![ame327_fm fileExistsAtPath:ame327_p isDirectory:&ame327_isDir]) return NO;
+    if (ame327_isDir) {
+        // 仅空目录可删（防一键清空用户存档/模组树）
+        NSArray *ame327_children = [ame327_fm contentsOfDirectoryAtPath:ame327_p error:nil];
+        if (ame327_children.count > 0) return NO;
+    }
+    return [ame327_fm removeItemAtPath:ame327_p error:nil];
 }
 
 #pragma mark - 内部工具

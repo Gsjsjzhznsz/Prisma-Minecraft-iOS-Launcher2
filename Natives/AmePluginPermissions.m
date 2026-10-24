@@ -64,6 +64,13 @@ NSString *ame317_pluginsRootDir(void) {
             [[AmePluginPermissionItem alloc] initWithId:@"profile.read"  danger:NO],
             [[AmePluginPermissionItem alloc] initWithId:@"storage"       danger:NO],
             [[AmePluginPermissionItem alloc] initWithId:@"net"           danger:YES],
+            // ★ Task327：权限扩大三组（用户："最好整个启动器都可以修改"）
+            //   ui.nav      = 启动器页面导航（home/download/.../ai 七页切换）
+            //   profile.write = 实例档案增删（游戏目录/版本绑定）
+            //   files.game  = 当前实例游戏目录文件沙盒读写删（路径守卫+限额）
+            [[AmePluginPermissionItem alloc] initWithId:@"ui.nav"        danger:NO],
+            [[AmePluginPermissionItem alloc] initWithId:@"profile.write" danger:YES],
+            [[AmePluginPermissionItem alloc] initWithId:@"files.game"    danger:YES],
         ];
     });
     return perms;

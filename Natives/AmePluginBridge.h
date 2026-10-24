@@ -20,6 +20,10 @@ NS_ASSUME_NONNULL_BEGIN
 //   ame.storage.get(k) / .set(k,v) / .remove(k) / .keys()
 //   ame.fetch(url, {method, headers}, function(err, resp){…})
 //   ame.getProfiles()
+//   ame.openPage("home|download|versions|accounts|settings|multiplayer|ai")
+//   ame.createProfile({name, version?, gameDir?}) / ame.deleteProfile(name)
+//   ame.listFiles(p) / ame.readFile(p) / ame.writeFile(p, text, append?)
+//     / ame.removeFile(p)     —— 均沙盒于当前实例游戏目录（files.game）
 // ═══════════════════════════════════════════════════════════════════
 
 @interface AmePluginBridge : NSObject
@@ -43,6 +47,22 @@ NS_ASSUME_NONNULL_BEGIN
 - (void)teardown;
 /// 读插件私有存储（Runtime 装载期主题重放用；内部含 storage 权限门）
 - (nullable id)storageGet:(NSString *)key;
+
+#pragma mark - Task327 权限扩大 API
+
+/// 页面导航（ui.nav）：切换启动器主页面（ZL2ShellNavigate 通知契约）
+- (void)openPage:(NSString *)pageId;
+/// 实例档案写（profile.write，高危）：创建/删除实例档案 + ReloadProfileList
+- (BOOL)createProfile:(NSDictionary *)spec;
+- (BOOL)deleteProfile:(NSString *)name;
+/// 游戏目录文件沙盒（files.game，高危）：当前实例 POJAV_GAME_DIR 内
+/// 相对路径读写删列（路径守卫 + 大小限额；symlink 逃逸拒绝）
+- (nullable NSArray<NSDictionary *> *)listGameFiles:(NSString *)relPath;
+- (nullable NSString *)readGameFile:(NSString *)relPath;
+- (BOOL)writeGameFile:(NSString *)relPath
+              content:(NSString *)content
+               append:(BOOL)append;
+- (BOOL)removeGameFile:(NSString *)relPath;
 
 @end
 

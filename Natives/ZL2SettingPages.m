@@ -124,6 +124,7 @@
 #import "CustomControlsViewController.h"
 #import "AboutViewController.h"
 #import "JavaGUIViewController.h"
+#import "AmePluginRuntime.h"   // Task327：插件贡献行渲染（allContributedRows/invokeRowTap）
 
 #import <UniformTypeIdentifiers/UniformTypeIdentifiers.h>
 #import <stdlib.h>
@@ -747,6 +748,9 @@ static NSString *ame_pages_stringOr(id value, NSString *fallback) {
 @property (nonatomic, strong) ZL2SettingRowSlider *blurRow;
 @property (nonatomic, strong) NSArray<ZL2SettingRowList *> *sourceRows;
 @property (nonatomic, strong) NSArray<NSString *> *sourceRowKeys;   // 与 sourceRows 对齐
+// ★ Task327：插件贡献行动态组（viewWillAppear 重建——插件启停/装载变化即反映）
+@property (nonatomic, strong) UIView *ame327_pluginHeader;
+@property (nonatomic, strong) ZL2SettingCardGroup *ame327_pluginGroup;
 @end
 
 @interface ZL2LauncherSettingsPage () <UIDocumentPickerDelegate>
@@ -1035,6 +1039,71 @@ didPickDocumentsAtURLs:(NSArray<NSURL *> *)urls {
     };
     [group3 ame_addRows:@[backgroundRow, galleryRow, gameDirRow, importRow, pluginRow, repoRow, moreRow]];
     [self ame_addGroup:group3];
+    // ★ Task327：插件贡献行动态组（Task318 ame.addLauncherRow 的消费端——
+    //   此前全仓库零渲染 = 插件效果整体不可见的直因）
+    [self ame327_rebuildPluginRowsGroup];
+}
+
+/// ★ Task327：插件贡献行动态组。数据源 = [AmePluginRuntime allContributedRows]
+///   （每行 spec：id/title/subtitle/pluginName，由插件经 ame.addLauncherRow
+///   贡献）；点按经 invokeRowTap: 转发回插件 JS。无贡献行时不建组（页面
+///   零残留）；viewWillAppear 重建 = 插件启用/停用/装载即刻反映。
+- (void)ame327_rebuildPluginRowsGroup {
+    if (self.ame327_pluginHeader.superview) {
+        [self.groupsStack removeArrangedSubview:self.ame327_pluginHeader];
+        [self.ame327_pluginHeader removeFromSuperview];
+        self.ame327_pluginHeader = nil;
+    }
+    if (self.ame327_pluginGroup.superview) {
+        [self.groupsStack removeArrangedSubview:self.ame327_pluginGroup];
+        [self.ame327_pluginGroup removeFromSuperview];
+        self.ame327_pluginGroup = nil;
+    }
+    NSArray<NSDictionary *> *rows = [AmePluginRuntime allContributedRows];
+    if (rows.count == 0) return;
+    UILabel *header = [[UILabel alloc] init];
+    header.text = localize(@"ame327.plugin.rows.title", nil);
+    header.font = [ZL2Theme fontLabelLarge];
+    header.textColor = [ZL2Theme onSurfaceVariant];
+    header.translatesAutoresizingMaskIntoConstraints = NO;
+    [self.groupsStack addArrangedSubview:header];
+    self.ame327_pluginHeader = header;
+
+    ZL2SettingCardGroup *group = [[ZL2SettingCardGroup alloc] init];
+    for (NSDictionary *spec in rows) {
+        if (![spec isKindOfClass:[NSDictionary class]]) continue;
+        NSString *rowId = [spec[@"id"] isKindOfClass:[NSString class]] ? spec[@"id"] : nil;
+        if (rowId.length == 0) continue;
+        NSString *title = [spec[@"title"] isKindOfClass:[NSString class]] && spec[@"title"].length
+            ? spec[@"title"] : rowId;
+        NSString *sub = [spec[@"subtitle"] isKindOfClass:[NSString class]] ? spec[@"subtitle"] : nil;
+        NSString *pluginName = [spec[@"pluginName"] isKindOfClass:[NSString class]] ? spec[@"pluginName"] : nil;
+        if (pluginName.length) {
+            sub = sub.length
+                ? [NSString stringWithFormat:@"%@ · %@", sub, pluginName]
+                : [NSString stringWithFormat:@"%@", pluginName];
+        }
+        ZL2SettingRowAction *row = [[ZL2SettingRowAction alloc] initWithTitle:title subtitle:sub];
+        __weak typeof(self) wself = self;
+        row.onTap = ^{
+            [AmePluginRuntime invokeRowTap:rowId];
+            // 贡献行可能增删（个别插件点按后重组行集），0.4s 后重建动态组
+            dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.4 * NSEC_PER_SEC)),
+                           dispatch_get_main_queue(), ^{
+                [wself ame327_rebuildPluginRowsGroup];
+            });
+        };
+        [group ame_addRow:row];
+    }
+    [self ame_addGroup:group];
+    self.ame327_pluginGroup = group;
+}
+
+- (void)viewWillAppear:(BOOL)animated {
+    [super viewWillAppear:animated];
+    // ★ Task327：插件启停/装载变化（管理页开关、详情页授权、仓库安装）回
+    //   到本页即刻反映（贡献行集重建）
+    [self ame327_rebuildPluginRowsGroup];
 }
 
 - (void)ame_refreshState {

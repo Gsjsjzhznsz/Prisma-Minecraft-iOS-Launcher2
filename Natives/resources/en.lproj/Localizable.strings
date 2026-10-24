@@ -3508,3 +3508,13 @@
 "dl.controls.repo.download" = "Download";
 "dl.controls.repo.update" = "Update";
 "custom_controls.repo.installed_badge" = "Installed";
+/* Task327 plugin permission expansion + plugin UX (rows surface / guide) */
+"ame317.perm.ui.nav.name" = "Launcher navigation";
+"ame317.perm.ui.nav.desc" = "Switch between launcher pages (home/download/versions/accounts/settings/multiplayer/AI)";
+"ame317.perm.profile.write.name" = "Manage instances";
+"ame317.perm.profile.write.desc" = "Create or delete launcher instance profiles (dangerous: affects your instance registry)";
+"ame317.perm.files.game.name" = "Game folder access";
+"ame317.perm.files.game.desc" = "Read/write/delete files inside the current instance game folder (sandboxed, size-capped, empty folders only)";
+"ame327.plugin.rows.title" = "Plugin rows";
+"ame327.plugin.guide.title" = "How to use plugins";
+"ame327.plugin.guide.body" = "1. Effects - tap the rows in this page's \"Plugin rows\" section or Settings - \"Plugin rows\" group to trigger them; they are the features plugins provide.\n2. Permissions - dangerous permissions (network / theme / renderer write / instance manage / game folder) are denied by default; open the plugin detail page and enable them.\n3. AI-written plugins - ask the AI assistant \"write me a plugin\" with your idea; it generates, installs and loads one instantly.";

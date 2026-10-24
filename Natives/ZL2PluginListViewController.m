@@ -164,7 +164,7 @@ didPickDocumentsAtURLs:(NSArray<NSURL *> *)urls {
 #pragma mark - 表格
 
 - (NSInteger)numberOfSectionsInTableView:(UITableView *)tableView {
-    return 3;
+    return 4;   // ★ Task327：3→4（0 已装 / 1 贡献行 / 2 API 行 / 3 使用指南）
 }
 
 - (NSInteger)tableView:(UITableView *)tableView numberOfRowsInSection:(NSInteger)section {
@@ -176,6 +176,7 @@ didPickDocumentsAtURLs:(NSArray<NSURL *> *)urls {
 - (NSString *)tableView:(UITableView *)tableView titleForHeaderInSection:(NSInteger)section {
     if (section == 0) return localize(@"ame317.list.section_installed", nil);
     if (section == 1) return localize(@"ame317.list.section_rows", nil);
+    if (section == 3) return localize(@"ame327.plugin.guide.title", nil);   // ★ Task327
     return localize(@"ame317.list.section_about", nil);
 }
 
@@ -240,9 +241,16 @@ didPickDocumentsAtURLs:(NSArray<NSURL *> *)urls {
         cell.detailTextLabel.font = [ZL2Theme fontBodyMedium];
         cell.detailTextLabel.textColor = [ZL2Theme onSurfaceVariant];
         cell.accessoryType = UITableViewCellAccessoryDisclosureIndicator;
-    } else {
+    } else if (indexPath.section == 2) {
         cell.textLabel.text = [NSString stringWithFormat:
             localize(@"ame317.list.api_line", nil), [AmePluginManager apiVersion]];
+        cell.textLabel.font = [ZL2Theme fontBodyMedium];
+        cell.textLabel.textColor = [ZL2Theme onSurfaceVariant];
+        cell.textLabel.numberOfLines = 0;
+    } else {
+        // ★ Task327：使用指南行（用户："插件功能完全不知道怎么使用"——
+        //   三步卡：效果即用 / 高危授权 / AI 写插件）
+        cell.textLabel.text = localize(@"ame327.plugin.guide.body", nil);
         cell.textLabel.font = [ZL2Theme fontBodyMedium];
         cell.textLabel.textColor = [ZL2Theme onSurfaceVariant];
         cell.textLabel.numberOfLines = 0;

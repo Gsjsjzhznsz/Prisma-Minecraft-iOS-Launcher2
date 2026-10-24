@@ -17,6 +17,7 @@
 #import "AiSleepTool.h"
 #import "AiDownloadProbe.h"
 #import "AiInstanceCreator.h"
+#import "AiPluginWriterTool.h"   // Task327：AI 写插件（create_plugin）
 
 @implementation AiToolBootstrapper
 
@@ -89,6 +90,10 @@
 
     // 新建游戏目录实例（ControlledWrite）
     [registry registerTool:[[AiInstanceCreator alloc] init]];
+
+    // ★ Task327：AI 写插件（create_plugin，ControlledWrite）——对话产出
+    //   manifest+main.js，校验落盘+首装授权+即时装载，效果见 设置→插件功能
+    [registry registerTool:[[AiPluginWriterTool alloc] init]];
 }
 
 @end

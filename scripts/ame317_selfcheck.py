@@ -72,7 +72,7 @@ keysets = {}
 for lang, txt in langs.items():
     keysets[lang] = set(re.findall(r'"(ame317\.[a-zA-Z0-9_.]+)"\s*=', txt))
 base = keysets['en']
-check('ame317 keyset size', len(base) == 54, f'got {len(base)}')
+check('ame317 keyset size', len(base) == 60, f'got {len(base)}')   # Task327: 54+6（ui.nav/profile.write/files.game × name/desc）
 for lang in ['zh-Hans', 'zh-CN', 'zh-Hant']:
     check(f'keyset {lang} == en', keysets[lang] == base,
           f'diff={base ^ keysets[lang]}')

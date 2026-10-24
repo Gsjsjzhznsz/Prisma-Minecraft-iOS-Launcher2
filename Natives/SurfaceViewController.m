@@ -399,6 +399,10 @@ static BOOL ame83_fsr_capable_renderer(NSString *renderer) {
     //   只在流停 0.3s 后跑一次全链重算，避免每帧重算 drawableSize）。
     CGSize ame261_lastSyncedViewSize;
     NSTimer *ame261_geoResyncTimer;
+    // ★ Task327：信箱沉降定时器——自由窗口拖拽流停 0.6s 后执行真自适应
+    //   重宣告（ame327_settledReannounceForSize，信念链按当前窗口重算，
+    //   信箱内容矩形退化满窗 = 终态 1:1 零偏移零黑边）。
+    NSTimer *ame327_settleTimer;
     // ★ Task267（用户："切小窗会导致窗口偏移，显示底下的壁纸；要像其他
     //   启动器那样直接缩放，输入输出都不错位"根修）：自由窗口 scale-mode。
     //   根因：视图栈（rootView/touchView/surfaceView）只在旋转路径
@@ -2030,6 +2034,8 @@ static NSInteger ame283_lastLandscapeDev = 0;
                   ame326_old.width, ame326_old.height, ame326_target.width, ame326_target.height);
         }
     }
+    // ★ Task327：沉降自适应排程（流停 0.6s 后真自适应重宣告，信箱溶解）
+    [self ame327_scheduleSettledReannounce:ame283_target];
     virtualMouseFrame = [self ame326_virtualFrameFromVisual:self.mousePointerView.frame];   // 旋转路径同款收尾（Task326 信箱偏移逆变换）
     NSLog(@"[SurfaceVC] Task267/283: scale-mode stack resync (view %.0fx%.0f rot=%+.0fdeg logical %.0fx%.0f, adaptive %.2fx%.2f, phys %dx%d, window stays %dx%d, content %.0fx%.0f@(%.0f,%.0f))",
           ame267_w, ame267_h, (double)(ame283_angle * 180.0 / M_PI), ame267_lw, ame267_lh,
@@ -2043,6 +2049,11 @@ static NSInteger ame283_lastLandscapeDev = 0;
 ///   为基准）。全屏态原样返回（零变化）。
 - (CGPoint)ame267_adaptedPoint:(CGPoint)pt {
     if (!g_ame267_freeformScaled) return pt;
+    // ★ Task327：输入坐标先归一进内容矩形（rootView/touchView 全窗坐标
+    //   的消费方漏减 origin = 整段偏移信箱条宽度——Task326 信箱化的残余
+    //   面，与 ame327_contentPointFromRoot 同一口径的兜底位）。
+    pt.x -= g_ame267_contentOrigin.x;
+    pt.y -= g_ame267_contentOrigin.y;
     pt.x *= ame267_adaptiveScaleX;
     pt.y *= ame267_adaptiveScaleY;
     return pt;
@@ -2070,6 +2081,123 @@ static NSInteger ame283_lastLandscapeDev = 0;
         return g_ame267_contentSize;
     }
     return self.view.frame.size;
+}
+
+/// ★ Task327：全窗坐标 → 信箱内容矩形坐标归一（rootView/touchView 坐标系
+///   消费方的单一入口）。Task326 信箱化后 surfaceView = 内容矩形，而
+///   rootView/touchView 仍全窗——凡 locationInView:rootView/touchView 的
+///   游戏域消费方（悬停/双击F/长按/热栏检测/触控笔虚拟鼠标）必须先减
+///   内容矩形 origin 再走 scale 换算，否则整段偏移 origin（"点哪都偏"
+///   残余面：光标主路径 locationInView:surfaceView 本就是内容坐标不受
+///   影响，偏移集中在手势/悬停/热栏族）。全屏态 origin=(0,0) 恒等返回。
+- (CGPoint)ame327_contentPointFromRoot:(CGPoint)pt {
+    if (g_ame267_freeformScaled &&
+        g_ame267_contentSize.width > 0.5 && g_ame267_contentSize.height > 0.5) {
+        return CGPointMake(pt.x - g_ame267_contentOrigin.x,
+                           pt.y - g_ame267_contentOrigin.y);
+    }
+    return pt;
+}
+
+/// ★ Task327：信箱沉降排程（0.6s 合并；拖拽每 tick 重排反复重置，流停
+///   后才放行真自适应重宣告）。block+weakSelf 家法（Task268：target:self
+///   保留环 = dealloc 永不可达）。
+- (void)ame327_scheduleSettledReannounce:(CGSize)ame327_target {
+    [ame327_settleTimer invalidate];
+    ame327_settleTimer = nil;
+    __weak typeof(self) weakSelf = self;
+    ame327_settleTimer = [NSTimer timerWithTimeInterval:0.6
+                                                repeats:NO
+                                                  block:^(NSTimer *t) {
+        __strong typeof(weakSelf) strongSelf = weakSelf;
+        if (!strongSelf) return;
+        [strongSelf ame327_settledReannounceForSize:ame327_target];
+    }];
+    [[NSRunLoop mainRunLoop] addTimer:ame327_settleTimer
+                              forMode:NSRunLoopCommonModes];
+}
+
+/// ★ Task327：沉降真自适应重宣告（"SDL 小窗偏移能不能自适应"终态答案）。
+///   信箱只保证拖拽过程的即时正确（画面不变形 + 光标映射唯一），终态仍是
+///   黑边 + 非 1 输入因子；本方法在窗口尺寸沉降后把整条信念链按当前窗口
+///   重算并强制重宣告——MC viewport=窗口 px、drawable=窗口 px、内容矩形
+///   退化为满窗（origin=0、scale=screenScale 均匀）= 终态 1:1。语义与
+///   全屏重算链（updateSavedResolution 全量段）同源，作用域限定自由窗口
+///   沉降态。守卫：
+///   · 仍处自由窗口态（回全屏由既有解冻链接管）+ 会话已建立 + 前台；
+///   · 捕获尺寸与当前一致（沉降判定；不一致 = 拖拽未停，静默等下轮）；
+///   · 新旧信念差 ≤1px 幂等跳过（已 1:1）；
+///   · Task61 SDL_GetWindowSize 钉扎读全局 → 重宣告自动传导 SDL 层；
+///   · 快路径锚点先复位（Task279 同尺寸早退会跳过内容矩形重算）。
+- (void)ame327_settledReannounceForSize:(CGSize)ame327_target {
+    if (!g_ame267_freeformScaled) return;
+    if (windowWidth <= 0 || windowHeight <= 0) return;
+    if (!g_ame250_appActive) return;
+    if (self.surfaceView.superview == nil) return;
+    CGSize ame327_now = self.view.bounds.size;
+    if (fabs(ame327_now.width - ame327_target.width) > 0.5 ||
+        fabs(ame327_now.height - ame327_target.height) > 0.5) return;   // 未沉降
+    CGFloat ame327_lw = self.touchView.frame.size.width;
+    CGFloat ame327_lh = self.touchView.frame.size.height;
+    if (ame327_lw < 1.0 || ame327_lh < 1.0) return;
+    if (self.screenScale <= 0.0) self.screenScale = UIScreen.mainScreen.scale;
+    int ame327_newPhysW = (int)roundf(ame327_lw * self.screenScale);
+    int ame327_newPhysH = (int)roundf(ame327_lh * self.screenScale);
+    if (ame327_newPhysW <= 0 || ame327_newPhysH <= 0) return;
+    CGFloat ame327_res = (resolutionScale > 0.01f) ? resolutionScale : 1.0f;
+    int ame327_newSurfW = (int)roundf(ame327_newPhysW * ame327_res);
+    int ame327_newSurfH = (int)roundf(ame327_newPhysH * ame327_res);
+    if ((ame327_newSurfW % 2) != 0) { --ame327_newSurfW; }
+    if ((ame327_newSurfH % 2) != 0) { --ame327_newSurfH; }
+    int ame327_newWinW = (mgFsrScale > 1.0f)
+        ? (int)roundf((float)ame327_newSurfW / mgFsrScale) : ame327_newSurfW;
+    int ame327_newWinH = (mgFsrScale > 1.0f)
+        ? (int)roundf((float)ame327_newSurfH / mgFsrScale) : ame327_newSurfH;
+    if ((ame327_newWinW % 2) != 0) { --ame327_newWinW; }
+    if ((ame327_newWinH % 2) != 0) { --ame327_newWinH; }
+    if (abs(ame327_newWinW - windowWidth) <= 1 && abs(ame327_newWinH - windowHeight) <= 1) {
+        return;   // 已 1:1（比例一致），幂等跳过
+    }
+    int ame327_oldW = windowWidth, ame327_oldH = windowHeight;
+
+    // 信念链单点重算（与全屏段同源口径）
+    resolutionScale = ame327_res;
+    physicalWidth = ame327_newPhysW;
+    physicalHeight = ame327_newPhysH;
+    ame_surfaceWidth = ame327_newSurfW;
+    ame_surfaceHeight = ame327_newSurfH;
+    windowWidth = ame327_newWinW;
+    windowHeight = ame327_newWinH;
+    ame_windowToPhysRatio = 0.0f;
+    if (windowHeight > 0 && physicalHeight > 0) {
+        float ame327_ratio = (float)physicalHeight / (float)windowHeight;
+        if (ame327_ratio >= 0.25f && ame327_ratio <= 8.0f) {
+            ame_windowToPhysRatio = ame327_ratio;
+        }
+    }
+    ame166_metal_fsr_update_size(windowWidth, windowHeight);
+    self.surfaceView.layer.contentsScale = self.screenScale * resolutionScale;
+
+    // drawable 当帧钉回（Task326 同款；ANGLE resize 窗口杀同帧）
+    if ([self.surfaceView.layer isKindOfClass:CAMetalLayer.class]) {
+        CAMetalLayer *ame327_ml = (CAMetalLayer *)self.surfaceView.layer;
+        CGSize ame327_tgt = CGSizeMake(round((CGFloat)physicalWidth * ame327_res),
+                                       round((CGFloat)physicalHeight * ame327_res));
+        if (fabs(ame327_ml.drawableSize.width - ame327_tgt.width) > 0.5 ||
+            fabs(ame327_ml.drawableSize.height - ame327_tgt.height) > 0.5) {
+            ame327_ml.drawableSize = ame327_tgt;
+        }
+    }
+    // 内容矩形重排（比例一致 → 满窗溶解；快路径锚点先复位）
+    g_ame267_lastRescaledSize = CGSizeMake(0.0, 0.0);
+    [self ame267_rescaleViewStackToCurrentBounds];
+    ame261_lastSyncedViewSize = self.view.bounds.size;
+    // 强制重宣告（Task250 通道，绕过同值去重）+ 首触点兜底
+    CallbackBridge_nativeSendScreenSizeForced(windowWidth, windowHeight);
+    ame248_geoResyncPending = YES;
+    NSLog(@"[SurfaceVC] Task327: freeform settled adaptive re-announce (belief %dx%d -> %dx%d, view %.0fx%.0f, mailbox dissolved, input scale %.2f)",
+          ame327_oldW, ame327_oldH, (int)windowWidth, (int)windowHeight,
+          ame327_lw, ame327_lh, (double)ame267_adaptiveScaleX);
 }
 
 /// ★ Task277（"小窗还是漂移"收尾·热栏四路径双乘根修）：视图 pt → 整帧
@@ -4156,7 +4284,9 @@ static BOOL ame87_mcVersionRequiresTextureBuffer(NSString *mcVersionId) {
         if ([self isTouchInactive:self.primaryTouch] && event != ACTION_UP) return; 
         if (event == ACTION_MOVE && isGrabbing) {
             event = ACTION_MOVE_MOTION;
-            CGPoint prevLocationInView = [touchEvent previousLocationInView:self.rootView];
+            // ★ Task327：previous 与 location 同参考系（surfaceView=内容矩形；
+            //   混用 rootView 系会在信箱态给每个 MOVE 注入 -origin 恒定漂移）
+            CGPoint prevLocationInView = [touchEvent previousLocationInView:self.surfaceView];
             locationInView.x -= prevLocationInView.x;
             locationInView.y -= prevLocationInView.y;
         }
@@ -4275,6 +4405,8 @@ static BOOL ame87_mcVersionRequiresTextureBuffer(NSString *mcVersionId) {
         // UIScreen.mainScreen.scale（Task247 T2 统一时只改了 touchesBegan/
         // sendTouchEvent 两处，这里和 surfaceOnLongpress 同病）。
         CGPoint point = [sender locationInView:self.rootView];
+        // ★ Task327：全窗坐标先归一进信箱内容矩形（origin 补偿）
+        point = [self ame327_contentPointFromRoot:point];
         // ★ Task267：scale-mode 坐标适配（视图 pt → 整帧物理 px）
         // ★ Task277：双乘根修（同 sendTouchEvent 热栏路径，见彼处注释）。
         CGPoint ame267_hotbarPt = [self ame277_hotbarPointFromViewPt:point];
@@ -4290,6 +4422,9 @@ static BOOL ame87_mcVersionRequiresTextureBuffer(NSString *mcVersionId) {
 - (void)surfaceOnHover:(UIGestureRecognizer *)sender {
     if (isGrabbing) return;
     CGPoint point = [sender locationInView:self.rootView];
+    // ★ Task327：全窗坐标先归一进信箱内容矩形（指针悬停 = 光标主消费方，
+    //   信箱态不归一 = 指针与画面恒差 origin——"点哪都偏"主力路径）
+    point = [self ame327_contentPointFromRoot:point];
     switch (sender.state) {
         case UIGestureRecognizerStateBegan:
             [self sendTouchPoint:point withEvent:ACTION_DOWN];
@@ -4316,6 +4451,8 @@ static BOOL ame87_mcVersionRequiresTextureBuffer(NSString *mcVersionId) {
 
     if (!self.slideableHotbar) {
         CGPoint location = [sender locationInView:self.rootView];
+        // ★ Task327：全窗坐标先归一进信箱内容矩形（origin 补偿）
+        location = [self ame327_contentPointFromRoot:location];
         // ★ Task249：口径统一（同 surfaceOnDoubleClick，见彼处注释）。
         // ★ Task277：双乘根修（同 sendTouchEvent 热栏路径，见彼处注释）。
         CGPoint ame267_hotbarPt = [self ame277_hotbarPointFromViewPt:location];
@@ -5488,6 +5625,8 @@ BOOL Amethyst_EnforceSDL3Presentation(void) {
     for (UITouch *touch in touches) {
         if (touch.type == UITouchTypeIndirectPointer) continue;
         CGPoint locationInView = [touch locationInView:self.rootView];
+        // ★ Task327：全窗坐标先归一进信箱内容矩形（origin 补偿）
+        locationInView = [self ame327_contentPointFromRoot:locationInView];
         // Task247（T2）：同上——热栏探测与主触点链统一 scene scale 口径。
         // ★ Task277：双乘根修（同 sendTouchEvent 热栏路径，见彼处注释）。
         CGPoint ame267_hotbarPt = [self ame277_hotbarPointFromViewPt:locationInView];
@@ -5543,7 +5682,9 @@ BOOL Amethyst_EnforceSDL3Presentation(void) {
         if (touch.type == UITouchTypeIndirectPointer) {
             if (!isGrabbing && !virtualMouseEnabled) {
                 CGPoint point = [touch locationInView:self.rootView];
-                [self sendTouchPoint:point withEvent:ACTION_MOVE];
+                // ★ Task327：全窗坐标先归一进信箱内容矩形（origin 补偿）
+                [self sendTouchPoint:[self ame327_contentPointFromRoot:point]
+                           withEvent:ACTION_MOVE];
             }
             continue;
         }
@@ -5847,6 +5988,9 @@ BOOL Amethyst_EnforceSDL3Presentation(void) {
     //   block 持 weakSelf 空转）。
     [ame261_geoResyncTimer invalidate];
     ame261_geoResyncTimer = nil;
+    // ★ Task327：信箱沉降定时器随会话终结退役（同 ame261 家法）
+    [ame327_settleTimer invalidate];
+    ame327_settleTimer = nil;
 }
 
 @end

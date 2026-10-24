@@ -3503,3 +3503,13 @@
 "dl.controls.repo.download" = "下载";
 "dl.controls.repo.update" = "更新";
 "custom_controls.repo.installed_badge" = "已安装";
+/* Task327 插件权限扩大 + 插件可用性（效果区/指南） */
+"ame317.perm.ui.nav.name" = "启动器页面导航";
+"ame317.perm.ui.nav.desc" = "切换启动器主页面（主页/下载/版本/账户/设置/联机/AI）";
+"ame317.perm.profile.write.name" = "实例管理";
+"ame317.perm.profile.write.desc" = "创建或删除启动器实例档案（高危：直接影响实例注册表）";
+"ame317.perm.files.game.name" = "游戏目录访问";
+"ame317.perm.files.game.desc" = "读写删除当前实例游戏目录内的文件（沙盒限制、大小上限、仅可删空目录）";
+"ame327.plugin.rows.title" = "插件功能";
+"ame327.plugin.guide.title" = "插件使用指南";
+"ame327.plugin.guide.body" = "1. 效果即用 —— 本页「插件贡献」区与 设置 → 插件功能 区的行就是插件提供的功能，点击即触发。\n2. 权限授权 —— 高危权限（联网/主题/渲染器写入/实例管理/游戏目录）默认拒绝，进插件详情页打开对应开关即可。\n3. AI 写插件 —— 对 AI 助手说「帮我写一个插件」并描述需求，即可自动生成、安装并装载。";
