@@ -548,6 +548,8 @@ add_executable(AngelAuraAmethyst
   DownloadHistoryStore.m
   PLDownloadClient.m
   PLMirrorCenter.m
+  # Task323：启动续链 JIT 门禁共享助手（ZL2 主页断链根修；RP 状态机 1:1）
+  PLJITGate.m
   DataTransferService.m
   DataExportViewController.m
   AboutViewController.m

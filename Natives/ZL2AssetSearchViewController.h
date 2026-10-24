@@ -31,13 +31,16 @@
 
 NS_ASSUME_NONNULL_BEGIN
 
-/// 资产类型（ZL2 下载页五类远程搜索资产；顺序即结果页默认排序无关，仅枚举）
+/// 资产类型（ZL2 下载页远程搜索资产；顺序即结果页默认排序无关，仅枚举）
 typedef NS_ENUM(NSInteger, ZL2AssetSearchType) {
     ZL2AssetSearchTypeMod = 0,          // 模组
     ZL2AssetSearchTypeModpack = 1,      // 整合包
     ZL2AssetSearchTypeResourcePack = 2, // 资源包
     ZL2AssetSearchTypeWorld = 3,        // 存档（世界）
     ZL2AssetSearchTypeShader = 4,       // 光影包
+    ZL2AssetSearchTypeDataPack = 5,     // 数据包（Task323：Prisma1 八类对齐；
+                                        //  CF classId 映射既有 / Modrinth
+                                        //  project_type:datapack 直通）
 };
 
 @interface ZL2AssetSearchViewController : UIViewController

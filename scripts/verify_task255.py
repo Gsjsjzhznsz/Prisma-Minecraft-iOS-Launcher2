@@ -29,7 +29,8 @@ check("VM:legacy HOME 兜底", 'ame255_legacy' in vm and '%s/versions/%@' in vm)
 check("VM:删除后 ReloadProfileList", vm.count('postNotificationName:@"ReloadProfileList"') >= 2)
 cl = read("Natives/CleanupViewController.m")
 check("Cleanup:GAME_DIR 实例根", 'getenv("POJAV_GAME_DIR")' in cl and 'instanceRoot' in cl)
-check("Cleanup:versions/*/game 隔离目录扫", '%@/game' in cl)
+check("Cleanup:versions 隔离目录扫（Task323 重锚：Task322 game/ 分居层退役后扫版本目录本体，'%@/game' 字面量随写入点八处翻转退场）",
+      "Task322" in cl and 'stringByAppendingPathComponent:vd]' in cl)
 check("Cleanup:latestlog.crash 前缀", '"latestlog.crash"' in cl)
 
 # ─── 2. 毛玻璃第二刀（blurIntensity<=0.01 整层不装分支退役） ───

@@ -2278,7 +2278,7 @@
 "mp.network_id.title" = "设置 Network ID";
 "mp.network_id.use_adhoc" = "使用快速模式（无需注册）";
 "mp.node.start_failed_msg" = "ZeroTier 节点启动失败，请重试。";
-"mp.node.start_failed_title" = "启动失败";
+"mp.node.start_failed_title" = "联机服务启动失败";
 "mp.room.action.connect" = "连接房间";
 "mp.room.action.delete" = "删除房间";
 "mp.room.action.disconnect" = "断开连接";
@@ -2394,7 +2394,7 @@
 "ame193.mp.1" = "关闭";
 "ame193.mp.2" = "联机核心不可用";
 "ame193.mp.3" = "ZeroTier 联机核心未加载，无法启用联机。请使用包含真实 zt.framework 的构建版本。";
-"ame193.mp.4" = "启动失败";
+"ame193.mp.4" = "联机服务启动失败";
 "ame193.mp.5" = "ZeroTier 节点启动失败，请重试。";
 "ame193.mp.6" = "ZeroTier 联机核心未加载，无法设置 Network ID。";
 "ame193.mp.7" = "设置 Network ID";

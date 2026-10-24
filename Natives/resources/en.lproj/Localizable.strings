@@ -2282,7 +2282,7 @@
 "mp.network_id.title" = "Set Network ID";
 "mp.network_id.use_adhoc" = "Use Quick Mode (no sign-up)";
 "mp.node.start_failed_msg" = "The ZeroTier node failed to start. Please retry.";
-"mp.node.start_failed_title" = "Start Failed";
+"mp.node.start_failed_title" = "Online Service Start Failed";
 "mp.room.action.connect" = "Connect Room";
 "mp.room.action.delete" = "Delete Room";
 "mp.room.action.disconnect" = "Disconnect";
@@ -2398,7 +2398,7 @@
 "ame193.mp.1" = "Close";
 "ame193.mp.2" = "Multiplayer core unavailable";
 "ame193.mp.3" = "The ZeroTier core is not loaded, so multiplayer cannot be enabled. Please use a build that contains the real zt.framework.";
-"ame193.mp.4" = "Failed to start";
+"ame193.mp.4" = "Online service failed to start";
 "ame193.mp.5" = "Failed to start the ZeroTier node. Please try again.";
 "ame193.mp.6" = "The ZeroTier core is not loaded, so the Network ID cannot be set.";
 "ame193.mp.7" = "Set Network ID";

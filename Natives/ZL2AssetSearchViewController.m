@@ -93,6 +93,7 @@
 #import "ShaderItem.h"
 #import "ResourcePackItem.h"
 #import "WorldItem.h"
+#import "DataPackItem.h"          // Task323：数据包 tab（Prisma1 八类对齐）
 #import "ModVersionViewController.h"
 #import "ShaderVersionViewController.h"
 #import "AssetVersionViewController.h"
@@ -100,6 +101,7 @@
 #import "ShaderService.h"
 #import "ResourcePackService.h"
 #import "WorldService.h"
+#import "DataPackService.h"        // Task323：数据包下载链（旧页同源）
 #import "ModDependencyResolver.h"
 #import "ModpackExportService.h"
 #import "PLProfiles.h"
@@ -648,6 +650,15 @@ static UIColor *ZL2AssetSourceBadgeColor(NSInteger apiSource) {
 @property (nonatomic, strong) UILabel *categoryFieldValueLabel;
 @property (nonatomic, strong) UIView *categorySheetContent;   // 分类弹层内容（展示期持有）
 
+// Task323：加载器筛选（Prisma1 DownloadViewController 侧栏加载器组同语义；
+// 仅模组/整合包类型暴露；值域 = fabric/forge/quilt/neoforge，nil = 不限。
+// 两平台 API 层既有消费端：CurseForgeAPI ame173 loader→modLoaderType 映射 /
+// ModrinthAPI facets categories:<loader>）
+@property (nonatomic, copy) NSString *loaderFilter;           // nil/空 = 不限加载器
+@property (nonatomic, strong) UIControl *loaderFieldControl;  // 右栏加载器字段
+@property (nonatomic, strong) UILabel *loaderFieldValueLabel;
+@property (nonatomic, strong) UIView *loaderSheetContent;     // 加载器弹层内容（展示期持有）
+
 // 排序值域（ZL2 PlatformSortField 真实值域 + 旧页既有 i18n 文案键）
 @property (nonatomic, copy) NSArray<NSString *> *sortValues;
 @property (nonatomic, copy) NSArray<NSString *> *sortTitleKeys;
@@ -657,6 +668,7 @@ static UIColor *ZL2AssetSourceBadgeColor(NSInteger apiSource) {
 @property (nonatomic, strong) NSDictionary *pendingModpackDict;
 @property (nonatomic, strong) ResourcePackItem *pendingResourcePackItem;
 @property (nonatomic, strong) WorldItem *pendingWorldItem;
+@property (nonatomic, strong) DataPackItem *pendingDataPackItem;   // Task323：数据包版本页回填
 
 // 目标实例快照（旧页 targetProfileName 语义：打开页面时锁定，防操作期间切实例错写目录）
 @property (nonatomic, copy) NSString *lockedProfileName;
@@ -694,6 +706,21 @@ static UIColor *ZL2AssetSourceBadgeColor(NSInteger apiSource) {
         // ZL2 PlatformSortField 语义（相关度/下载量/人气=关注/新创建/最近更新），
         // 文案复用旧页排序菜单既有 i18n 键（零新键）
         _sortTitleKeys = @[@"i18n_str_162", @"i18n_str_2061", @"i18n_str_2035", @"i18n_str_2064", @"i18n_str_2033"];
+        // ★ Task323：FCL 语义加载器自动预选（Prisma1 DownloadViewController
+        // Task179 autoApplyProfileFiltersIfNeeded 等价）——仅模组/整合包 tab，
+        // 从当前选中实例反解加载器（ame_profileLoader）；用户可在右栏改/清。
+        // 仅透传两平台均支持的四值（optifine/vanilla 不发，防 CF modLoaderType
+        // 无映射空结果）。
+        _loaderFilter = nil;
+        if (type == ZL2AssetSearchTypeMod || type == ZL2AssetSearchTypeModpack) {
+            NSString *profileLoader = [self ame_profileLoader];
+            if ([profileLoader isEqualToString:@"fabric"] ||
+                [profileLoader isEqualToString:@"forge"] ||
+                [profileLoader isEqualToString:@"quilt"] ||
+                [profileLoader isEqualToString:@"neoforge"]) {
+                _loaderFilter = profileLoader;
+            }
+        }
     }
     return self;
 }
@@ -767,6 +794,7 @@ static UIColor *ZL2AssetSourceBadgeColor(NSInteger apiSource) {
         case ZL2AssetSearchTypeResourcePack: return @"resourcepack";
         case ZL2AssetSearchTypeWorld:        return @"world";
         case ZL2AssetSearchTypeShader:       return @"shader";
+        case ZL2AssetSearchTypeDataPack:     return @"datapack";   // Task323
     }
     return @"mod";
 }
@@ -779,6 +807,7 @@ static UIColor *ZL2AssetSourceBadgeColor(NSInteger apiSource) {
         case ZL2AssetSearchTypeResourcePack: return @"搜索资源包";
         case ZL2AssetSearchTypeWorld:        return @"搜索存档";
         case ZL2AssetSearchTypeShader:       return @"搜索光影包";
+        case ZL2AssetSearchTypeDataPack:     return @"搜索数据包";   // Task323
     }
     return @"搜索";
 }
@@ -791,6 +820,7 @@ static UIColor *ZL2AssetSourceBadgeColor(NSInteger apiSource) {
         case ZL2AssetSearchTypeResourcePack: return @"paintbrush";
         case ZL2AssetSearchTypeWorld:        return @"globe";
         case ZL2AssetSearchTypeShader:       return @"lightbulb";
+        case ZL2AssetSearchTypeDataPack:     return @"doc.text";   // Task323（SF1.0）
     }
     return @"magnifyingglass";
 }
@@ -871,7 +901,9 @@ static UIColor *ZL2AssetSourceBadgeColor(NSInteger apiSource) {
 
     // 分类字段（Task316 ZL2 筛选同步：SearchModScreen 分类同位；slug 表见
     // ame_categoryTableForType，Modrinth categories facet / CurseForge categories=id）
-    if (!self.favoritesMode) {
+    // Task323：表空类型（数据包）不展示死字段（ame_categoryFieldTapped 空表早退
+    // 的旧口径升级为创建期隐藏）
+    if (!self.favoritesMode && [self ame_categoryTableForType].count > 0) {
         UIImage *tagIcon = ZL2AssetSystemImage(@"tag", @"tag");
         UILabel *categoryValueLabel = nil;
         _categoryFieldControl = [self ame_panelFieldControlWithIcon:tagIcon
@@ -884,6 +916,24 @@ static UIColor *ZL2AssetSourceBadgeColor(NSInteger apiSource) {
                                   action:@selector(ame_categoryFieldTapped)
                         forControlEvents:UIControlEventTouchUpInside];
         [panelStack addArrangedSubview:_categoryFieldControl];
+    }
+
+    // ★ Task323：加载器字段（Prisma1 侧栏加载器组同语义；仅模组/整合包；
+    //   底部弹层五选：全部/Fabric/Forge/Quilt/NeoForge）
+    if (!self.favoritesMode &&
+        (self.assetType == ZL2AssetSearchTypeMod || self.assetType == ZL2AssetSearchTypeModpack)) {
+        UIImage *loaderIcon = ZL2AssetSystemImage(@"wrench", @"gear");
+        UILabel *loaderValueLabel = nil;
+        _loaderFieldControl = [self ame_panelFieldControlWithIcon:loaderIcon
+                                                       valueLabel:&loaderValueLabel];
+        _loaderFieldValueLabel = loaderValueLabel;
+        _loaderFieldControl.isAccessibilityElement = YES;
+        _loaderFieldControl.accessibilityLabel = @"加载器";
+        _loaderFieldControl.accessibilityTraits = UIAccessibilityTraitButton;
+        [_loaderFieldControl addTarget:self
+                                action:@selector(ame_loaderFieldTapped)
+                      forControlEvents:UIControlEventTouchUpInside];
+        [panelStack addArrangedSubview:_loaderFieldControl];
     }
 
     // 导入整合包（仅整合包类别展示，ZL2 SearchModPackScreen 同位按钮；
@@ -1248,6 +1298,18 @@ static UIColor *ZL2AssetSourceBadgeColor(NSInteger apiSource) {
             self.categoryFieldValueLabel.textColor = [ZL2Theme onSurfaceVariant];
         }
     }
+
+    // ★ Task323：加载器字段态（选中显示品牌名，未选显示占位）
+    if (self.loaderFieldValueLabel) {
+        NSString *loaderText = [self ame_loaderDisplayNameForValue:self.loaderFilter];
+        if (loaderText.length > 0) {
+            self.loaderFieldValueLabel.text = loaderText;
+            self.loaderFieldValueLabel.textColor = [ZL2Theme onSurface];
+        } else {
+            self.loaderFieldValueLabel.text = @"加载器";
+            self.loaderFieldValueLabel.textColor = [ZL2Theme onSurfaceVariant];
+        }
+    }
 }
 
 // 面板显隐收敛（宽态 ≥560pt 展示右栏；窄屏/收藏页列表全宽，ZL2 横屏语义）
@@ -1447,6 +1509,11 @@ static UIColor *ZL2AssetSourceBadgeColor(NSInteger apiSource) {
         case ZL2AssetSearchTypeShader:
             filters[@"projectType"] = @"shader";
             break;
+        case ZL2AssetSearchTypeDataPack:
+            // Task323：数据包（CurseForge classId 映射既有 kCurseForgeClassIDDataPacks /
+            //   Modrinth project_type:datapack facet 直通）
+            filters[@"projectType"] = @"datapack";
+            break;
     }
     if (self.sortField.length > 0) {
         filters[@"sort"] = self.sortField;
@@ -1455,6 +1522,15 @@ static UIColor *ZL2AssetSourceBadgeColor(NSInteger apiSource) {
     // Modrinth facets versions:X / CurseForge gameVersion 参数）
     if (self.gameVersionFilter.length > 0) {
         filters[@"mcVersion"] = self.gameVersionFilter;
+    }
+
+    // ★ Task323：加载器筛选（模组/整合包；两平台 API 均消费 loader 键：
+    //   CurseForge modLoaderType=fabric 4/forge 1/quilt 5/neoforge 6；
+    //   Modrinth facets categories:<loader>；资源包/光影/数据包/存档由
+    //   CurseForgeAPI ame173 闸门禁发，本页也只在模组/整合包暴露字段）
+    if ((self.assetType == ZL2AssetSearchTypeMod || self.assetType == ZL2AssetSearchTypeModpack) &&
+        self.loaderFilter.length > 0) {
+        filters[@"loader"] = self.loaderFilter;
     }
 
     // 分类筛选（Task316：两平台 API 均消费 category 键——Modrinth facets
@@ -1739,6 +1815,7 @@ static UIColor *ZL2AssetSourceBadgeColor(NSInteger apiSource) {
         case ZL2AssetSearchTypeResourcePack: type = @"resourcepack"; break;
         case ZL2AssetSearchTypeShader:      type = @"shader"; break;
         case ZL2AssetSearchTypeWorld:       type = @"world"; break;
+        case ZL2AssetSearchTypeDataPack:    type = @"datapack"; break;   // Task323：空表 → 分类字段隐藏
     }
     NSDictionary *tables = @{
         @"mod": @[
@@ -1886,6 +1963,113 @@ static UIColor *ZL2AssetSourceBadgeColor(NSInteger apiSource) {
         [ZL2M3BottomSheet dismissWithContentView:content];
     }
     self.categoryFilter = nil;
+    [self ame_applyFilterPanelAppearance];
+    [self ame_triggerSearchWithQuery:(self.searchQuery ?: @"")];
+}
+
+#pragma mark - 加载器筛选（Task323：Prisma1 侧栏加载器组同语义 + 弹层选择器）
+
+// 加载器值表（nil 值 = 不限；值域 = 两平台 API 消费端共同支持的四值：
+// CurseForge modLoaderType fabric 4/forge 1/quilt 5/neoforge 6，
+// Modrinth categories:<loader> facet）
+- (NSArray<NSArray<NSString *> *> *)ame_loaderTable {
+    return @[ @[@"", @"全部"],
+              @[@"fabric", @"Fabric"],
+              @[@"forge", @"Forge"],
+              @[@"quilt", @"Quilt"],
+              @[@"neoforge", @"NeoForge"] ];
+}
+
+- (NSString *)ame_loaderDisplayNameForValue:(NSString *)value {
+    if (value.length == 0) return @"";
+    for (NSArray<NSString *> *entry in [self ame_loaderTable]) {
+        if ([entry[0] isEqualToString:value]) return entry[1];
+    }
+    return value;  // 未知值兜底原样展示
+}
+
+- (void)ame_loaderFieldTapped {
+    if (self.loaderSheetContent) {
+        [ZL2M3BottomSheet dismissWithContentView:self.loaderSheetContent];
+        return;
+    }
+    CGFloat contentWidth = 420.0;
+    UIView *content = [[UIView alloc] init];
+    content.backgroundColor = [ZL2Theme surfaceContainerLow];
+    self.loaderSheetContent = content;
+
+    UILabel *titleLabel = [[UILabel alloc] init];
+    titleLabel.text = @"加载器";
+    titleLabel.font = [ZL2Theme fontTitleMedium];
+    titleLabel.textColor = [ZL2Theme onSurface];
+    titleLabel.translatesAutoresizingMaskIntoConstraints = NO;
+    [content addSubview:titleLabel];
+
+    UIScrollView *scroll = [[UIScrollView alloc] init];
+    scroll.backgroundColor = [UIColor clearColor];
+    scroll.showsVerticalScrollIndicator = YES;
+    scroll.alwaysBounceVertical = YES;
+    scroll.translatesAutoresizingMaskIntoConstraints = NO;
+    [content addSubview:scroll];
+
+    UIStackView *stack = [[UIStackView alloc] init];
+    stack.axis = UILayoutConstraintAxisVertical;
+    stack.spacing = 6;
+    stack.translatesAutoresizingMaskIntoConstraints = NO;
+    [scroll addSubview:stack];
+
+    __weak typeof(self) weakSelf = self;
+    __weak typeof(content) weakContent = content;
+    NSString *selected = self.loaderFilter ?: @"";
+    for (NSArray<NSString *> *entry in [self ame_loaderTable]) {
+        NSString *value = entry[0];
+        UIButton *option = [UIButton buttonWithType:UIButtonTypeCustom];
+        option.contentHorizontalAlignment = UIControlContentHorizontalAlignmentLeft;
+        option.titleEdgeInsets = UIEdgeInsetsMake(0, 14, 0, 14);
+        option.titleLabel.font = [ZL2Theme fontBodyLarge];
+        [option setTitle:entry[1] forState:UIControlStateNormal];
+        [option setTitleColor:[ZL2Theme onSurface] forState:UIControlStateNormal];
+        option.backgroundColor = [value isEqualToString:selected]
+            ? [ZL2Theme primaryContainer] : [ZL2Theme surfaceContainer];
+        option.layer.cornerRadius = [ZL2Theme radiusS];
+        option.layer.masksToBounds = YES;
+        option.translatesAutoresizingMaskIntoConstraints = NO;
+        [option.heightAnchor constraintEqualToConstant:44].active = YES;
+        [option addTarget:self action:@selector(ame_loaderOptionTapped:)
+         forControlEvents:UIControlEventTouchUpInside];
+        objc_setAssociatedObject(option, @selector(ame_loaderOptionTapped:), value, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+        [stack addArrangedSubview:option];
+    }
+    [stack.widthAnchor constraintEqualToAnchor:scroll.widthAnchor].active = YES;
+    [stack.topAnchor constraintEqualToAnchor:scroll.contentLayoutGuide.topAnchor constant:8].active = YES;
+    [stack.bottomAnchor constraintEqualToAnchor:scroll.contentLayoutGuide.bottomAnchor constant:-8].active = YES;
+
+    [NSLayoutConstraint activateConstraints:@[
+        [content.widthAnchor constraintEqualToConstant:contentWidth],
+        [content.heightAnchor constraintEqualToConstant:280],
+        [titleLabel.topAnchor constraintEqualToAnchor:content.topAnchor constant:18],
+        [titleLabel.leadingAnchor constraintEqualToAnchor:content.leadingAnchor constant:20],
+        [scroll.topAnchor constraintEqualToAnchor:titleLabel.bottomAnchor constant:12],
+        [scroll.leadingAnchor constraintEqualToAnchor:content.leadingAnchor constant:16],
+        [scroll.trailingAnchor constraintEqualToAnchor:content.trailingAnchor constant:-16],
+        [scroll.bottomAnchor constraintEqualToAnchor:content.bottomAnchor constant:-12],
+    ]];
+
+    [ZL2M3BottomSheet presentWithContentView:content
+                                  onDismiss:^{
+        __strong typeof(weakSelf) strongSelf = weakSelf;
+        if (!strongSelf) return;
+        strongSelf.loaderSheetContent = nil;
+        (void)weakContent;
+    }];
+}
+
+- (void)ame_loaderOptionTapped:(UIButton *)sender {
+    NSString *value = objc_getAssociatedObject(sender, @selector(ame_loaderOptionTapped:));
+    UIView *content = self.loaderSheetContent;
+    if (content) [ZL2M3BottomSheet dismissWithContentView:content];
+    // 空串 = 不限（归一为 nil；弹层行语义与过滤器值域一致）
+    self.loaderFilter = value.length > 0 ? value : nil;
     [self ame_applyFilterPanelAppearance];
     [self ame_triggerSearchWithQuery:(self.searchQuery ?: @"")];
 }
@@ -2057,6 +2241,30 @@ static UIColor *ZL2AssetSourceBadgeColor(NSInteger apiSource) {
             versionVC.apiSource = itemSource;
             versionVC.preferredGameVersion = [self ame_profileMinecraftVersion];
             versionVC.preferredLoader = [self ame_profileLoader];
+            [self ame_pushViewController:versionVC];
+            break;
+        }
+        case ZL2AssetSearchTypeDataPack: {
+            // ★ Task323：数据包（AssetVersionTypeDataPack 详情页既有，旧页
+            //   startDownloadForDataPackItem 同链；CurseForge/Modrinth 双源）
+            DataPackItem *item = [[DataPackItem alloc] initWithOnlineData:dict];
+            self.pendingDownloadType = @"datapack";
+            self.pendingDataPackItem = item;
+            AssetVersionViewController *versionVC = [[AssetVersionViewController alloc] init];
+            versionVC.assetType = AssetVersionTypeDataPack;
+            versionVC.projectID = item.onlineID;
+            versionVC.apiSource = itemSource;
+            versionVC.projectDisplayName = item.displayName;
+            versionVC.delegate = self;
+            versionVC.title = item.displayName;
+            versionVC.projectIconURL = item.iconURL;
+            versionVC.projectAuthor = item.author;
+            versionVC.projectDownloads = item.downloads;
+            versionVC.projectLikes = item.likes;
+            versionVC.projectDescription = item.dataPackDescription;
+            versionVC.projectCategories = item.categories;
+            versionVC.projectLastUpdated = item.lastUpdated;
+            versionVC.preferredGameVersion = [self ame_profileMinecraftVersion];
             [self ame_pushViewController:versionVC];
             break;
         }
@@ -2389,7 +2597,40 @@ static UIColor *ZL2AssetSourceBadgeColor(NSInteger apiSource) {
         if (!item) return;
         item.selectedVersionDownloadURL = primaryFile[@"url"];
         [self ame_startDownloadForWorldItem:item];
+    } else if ([downloadType isEqualToString:@"datapack"]) {
+        // ★ Task323：数据包回填（旧页 assetVersionViewController 分支等价；
+        //   SHA 提取与资源包同源 ZL2AssetSha1FromPrimaryFile）
+        DataPackItem *item = self.pendingDataPackItem;
+        self.pendingDataPackItem = nil;
+        if (!item) return;
+        item.selectedVersionDownloadURL = primaryFile[@"url"];
+        item.fileName = primaryFile[@"filename"] ?: [NSString stringWithFormat:@"%@.zip", item.displayName];
+        item.fileSHA1 = ZL2AssetSha1FromPrimaryFile(primaryFile);
+        [self ame_startDownloadForDataPackItem:item];
     }
+}
+
+// Task323：旧页 startDownloadForDataPackItem:（L6391-6414）等价移植；
+// 进度由 Service 内部注册的下载任务驱动统一进度页，本页只报结果。
+- (void)ame_startDownloadForDataPackItem:(DataPackItem *)item {
+    NSString *profileName = self.lockedProfileName ?: @"default";
+    __weak typeof(self) weakSelf = self;
+    [[DataPackService sharedService] downloadDataPack:item
+                                            toProfile:profileName
+                                            worldName:nil
+                                         expectedSHA1:item.fileSHA1
+                                             progress:nil
+                                           completion:^(BOOL success, NSError * _Nullable error) {
+        dispatch_async(dispatch_get_main_queue(), ^{
+            __strong typeof(weakSelf) strongSelf = weakSelf;
+            if (!strongSelf) return;
+            if (success && !error) {
+                [strongSelf ame_showSuccess:[NSString stringWithFormat:localize(@"i18n_str_269", nil), item.displayName]];
+            } else {
+                [strongSelf ame_showError:error.localizedDescription ?: localize(@"i18n_str_270", nil)];
+            }
+        });
+    }];
 }
 
 // 旧页 startDownloadForResourcePackItem:（L5742-5762）等价移植
@@ -2859,6 +3100,7 @@ static UIColor *ZL2AssetSourceBadgeColor(NSInteger apiSource) {
                 case ZL2AssetSearchTypeResourcePack: key = @"i18n_str_183"; break;   // 暂无资源包
                 case ZL2AssetSearchTypeWorld:        key = @"i18n_str_186"; break;   // 暂无世界
                 case ZL2AssetSearchTypeShader:       key = @"i18n_str_181"; break;   // 暂无光影
+                case ZL2AssetSearchTypeDataPack:     key = @"i18n_str_184"; break;   // 暂无数据包（Task323 既有键复用）
             }
             [self ame_showEmptyStateWithIcon:@"magnifyingglass" fallback:@"search"
                                         text:localize(key ?: @"i18n_str_180", nil)];

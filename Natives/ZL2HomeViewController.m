@@ -20,6 +20,13 @@
 // 下载 + KVO 百分比刷新（handleError 桩遵循 KVO 野指针纪律：task=nil 之前
 // 先移除观察者）。任务完成后统一进度页由任务内部（autoPresentDetail）接管。
 //
+// ★ Task323 启动续链补齐（"点启动后游戏不起"根修）：下载 100% 后 1:1 走旧
+// 链完成分支（LauncherRightPanelViewController L1682-1755）——profile 覆盖
+// （graphicsApi/javaVersion/allocatedMemory）→ Task224 叠层收口 + 沉降 →
+// PLJITGate 门禁（invokeAfterJITEnabled 状态机共享化，JIT 深链/等待环/弃启
+// 回调全量）→ UIKit_launchMinecraftSurfaceVC 换根 SurfaceViewController。
+// 7.0-UI 重建时该段曾整体缺失（下载完成即静默终止 = 游戏永远不起）。
+//
 // 数据链：实例列表/排序/加载器识别/有效性判定 = ZL2VersionsViewController
 // 同款契约（PLProfiles 键降序；ModLoaderIconHelper detectLoaderFromVersionId
 // + ModpackExportService parseVersionId 反解；versions/<id>/<id>.json 存在
@@ -63,6 +70,9 @@
 #import "DownloadTaskManager.h"
 #import "DownloadTaskItem.h"
 #import "PLTaskProgressViewController.h"
+#import "PLJITGate.h"        // Task323：启动续链 JIT 门禁（RP 状态机共享化）
+#import "ios_uikit_bridge.h"  // UIKit_launchMinecraftSurfaceVC（Task323 续链终点）
+#import "LauncherPreferences.h" // Task323：profile 覆盖 setPrefString/setPrefInt（旧链同款）
 #import "utils.h"   // localize()
 
 // KVO 观察上下文（旧链 ProgressObserverContext 同款静态指针判别，防父类/他人混淆）
@@ -1624,22 +1634,116 @@ static UIImage *ZL2HomeSizedImage(NSString *name, NSString *fallback, CGFloat po
 
     dispatch_async(dispatch_get_main_queue(), ^{
         if (percent >= 100) {
-            // 下载完成：统一进度页由任务内部接管（autoPresentDetail），本页仅收尾刷新。
+            // 下载完成：统一进度页由任务内部接管（autoPresentDetail）。
             // KVO 野指针纪律：task=nil 之前先移除观察者（旧链完成分支同款）。
             @try {
                 [progress removeObserver:self
                               forKeyPath:@"fractionCompleted"
                                  context:ZL2HomeProgressObserverContext];
             } @catch (NSException *e) {}
-            self.task = nil;
-            [self setLaunchInteractionEnabled:YES];
-            // 旧链同款：通知刷新版本列表（新版本已落盘可被版本管理页发现）
-            [[NSNotificationCenter defaultCenter] postNotificationName:@"ReloadProfileList" object:nil];
+
+            // ★ Task323 根修（"点启动后游戏不起"装机病历 203d22b latestlog
+            //   实锤）：本页 7.0-UI 重建时完成分支只移植到"收尾刷新"为止，
+            //   旧链（LauncherRightPanelViewController L1682-1755）的续链——
+            //   profile 覆盖 → Task224 叠层收口 → invokeAfterJITEnabled →
+            //   UIKit_launchMinecraftSurfaceVC——整段缺失，下载 100% 后静默
+            //   终止 = 无 JIT 日志/无 SurfaceSwap/无 JVM spawn。现 1:1 补齐：
+            NSDictionary *ame323_metadata = self.task.metadata;
+            if ([ame323_metadata isKindOfClass:[NSDictionary class]]) {
+                // ① profile 覆盖（旧链 L1684-1724 同款：Task140 分居语义保留）
+                NSString *profileName = PLProfiles.current.selectedProfileName;
+                NSDictionary *profile = PLProfiles.current.profiles[profileName];
+                if (profile) {
+                    // 应用图形 API 设置（MC 26.2+ 游戏内 OpenGL/Vulkan 切换）
+                    NSString *graphicsApi = profile[@"graphicsApi"];
+                    if (graphicsApi.length > 0) {
+                        setPrefString(@"video.graphics_api", graphicsApi);
+                    }
+                    // 应用Java版本设置（兼容旧版直装器写入的 NSDictionary 格式）
+                    id javaVerRaw = profile[@"javaVersion"];
+                    NSString *javaVer = nil;
+                    if ([javaVerRaw isKindOfClass:[NSDictionary class]]) {
+                        id major = javaVerRaw[@"majorVersion"];
+                        javaVer = major ? [major description] : @"auto";
+                    } else if ([javaVerRaw isKindOfClass:[NSString class]]) {
+                        javaVer = javaVerRaw;
+                    } else {
+                        javaVer = @"auto";
+                    }
+                    if (![javaVer isEqualToString:@"auto"]) {
+                        setPrefString(@"java.java_version", javaVer);
+                    }
+                    // 应用内存设置
+                    NSInteger allocatedMemory = [profile[@"allocatedMemory"] integerValue];
+                    if (allocatedMemory > 0) {
+                        setPrefInt(@"general.ram_allocation", (int)allocatedMemory);
+                    }
+                }
+                // ② Task224 叠层收口 + JIT 门禁续链（旧链 L1726-1755 同款；
+                //    门禁 onStage 会推进状态行：i18n_str_436 "等待 JIT" 等）
+                [self ame323_beginJITGatedLaunchForMetadata:ame323_metadata];
+            } else {
+                // 无 metadata（下载完成但版本 JSON 缺失等异常）：维持旧行为收尾
+                self.task = nil;
+                [self setLaunchInteractionEnabled:YES];
+                // 旧链同款：通知刷新版本列表（新版本已落盘可被版本管理页发现）
+                [[NSNotificationCenter defaultCenter] postNotificationName:@"ReloadProfileList" object:nil];
+            }
         } else {
             self.launchStatusLabel.text =
                 [NSString stringWithFormat:@"%@ %ld%%", localize(@"i18n_str_434", nil), (long)percent];
         }
     });
+}
+
+// Task323：启动续链第二段（旧链 LauncherRightPanelViewController L1726-1755
+// Task224 收口 1:1）：先把页面之上呈现的整条 UI 链 dismiss 干净（版本设置/
+// 编辑页文本框 + 拼音键盘后台化楔死主队列的病历，0.8s/0.5s 沉降），之后进
+// JIT 门禁（PLJITGate = 旧链 invokeAfterJITEnabled 状态机共享化），就绪后
+// 换根 SurfaceViewController 启动 JVM。
+- (void)ame323_beginJITGatedLaunchForMetadata:(NSDictionary *)metadata {
+    UIWindow *ame323_window = self.view.window;
+    UIViewController *ame323_root = ame323_window.rootViewController;
+    UIViewController *ame323_top = ame323_root;
+    while (ame323_top.presentedViewController) {
+        ame323_top = ame323_top.presentedViewController;
+    }
+    __weak typeof(self) weakSelf = self;
+    void (^ame323_beginJITWait)(void) = ^{
+        __strong typeof(weakSelf) strongSelf = weakSelf;
+        if (!strongSelf) return;
+        // 弃启回调：旧链 Task267 取消路径同款（task=nil + 恢复交互 + 刷列表）
+        void (^ame323_onAbandon)(void) = ^{
+            __strong typeof(weakSelf) strongSelf2 = weakSelf;
+            if (!strongSelf2) return;
+            strongSelf2.task = nil;
+            [strongSelf2 setLaunchInteractionEnabled:YES];
+            [[NSNotificationCenter defaultCenter] postNotificationName:@"ReloadProfileList" object:nil];
+        };
+        // 等待期 task 必须保活（handler 从 task.metadata 现读——旧链同款）
+        NSDictionary *ame323_launchMeta = strongSelf.task.metadata ?: metadata;
+        [PLJITGate invokeAfterJITEnabledWithHandler:^{
+            // Task183/185：JIT 就绪后换根 SurfaceViewController（JVM 进程内
+            // JLI_Launch 由 SurfaceViewController → launchJVM 链承担）
+            UIKit_launchMinecraftSurfaceVC(ame323_window, ame323_launchMeta);
+        } hostVC:strongSelf onAbandon:ame323_onAbandon onStage:^(NSString *stageText) {
+            __strong typeof(weakSelf) strongSelf3 = weakSelf;
+            if (!strongSelf3) return;
+            strongSelf3.launchStatusLabel.text = stageText;
+        }];
+    };
+    if (ame323_top != ame323_root && ame323_top.presentingViewController) {
+        NSLog(@"[JIT] [ZL2Home] Task224 closing presented stack ('%@') + 0.8s settle before JIT wait",
+              NSStringFromClass([ame323_top class]));
+        [ame323_top.presentingViewController dismissViewControllerAnimated:YES completion:^{
+            dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.8 * NSEC_PER_SEC)),
+                           dispatch_get_main_queue(), ame323_beginJITWait);
+        }];
+    } else {
+        // 无叠加 UI：仍给半拍让 resign/清理落地
+        dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.5 * NSEC_PER_SEC)),
+                       dispatch_get_main_queue(), ame323_beginJITWait);
+    }
 }
 
 - (void)setLaunchInteractionEnabled:(BOOL)enabled {

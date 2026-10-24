@@ -30,6 +30,15 @@ FILES = [
     "Natives/BingWallpaperGalleryViewController.m",
     "Natives/LauncherPrefManageJREViewController.m",
     "Natives/PLPrefTableViewController.m",
+    # Task323：启动续链/下载中心/仓库并入改动域入闸（此前 ZL2 域不在清单，
+    # 语法雷只能 CI 实证——扩闸补盲区）
+    "Natives/PLJITGate.m",
+    "Natives/PLJITGate.h",
+    "Natives/ZL2HomeViewController.m",
+    "Natives/ZL2AssetSearchViewController.m",
+    "Natives/ZL2AssetSearchViewController.h",
+    "Natives/ZL2DownloadViewController.m",
+    "Natives/ZeroTierBridge.m",
 ]
 
 def strip_strings_comments(text):

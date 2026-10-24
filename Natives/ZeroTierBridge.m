@@ -161,7 +161,32 @@ static void zeroTierEventCallback(void *msgPtr) {
         }
     }
 
+    // ★ Task323：存储目录自检（装机病历 203d22b：LC guest 首次起节点
+    // zts_init_from_storage 偶发 code=-2 直接弹"启动失败"，二次尝试即成——
+    // 早期窗口目录尚未就绪/竞态。起节点前确保 home 目录存在（带错误取证），
+    // init 失败后沉降 0.4s 自检重试一次，仍失败才如实上报。
+    NSFileManager *ame323_fm = [NSFileManager defaultManager];
+    if (![ame323_fm fileExistsAtPath:homeDir]) {
+        NSError *ame323_mkdirError = nil;
+        [ame323_fm createDirectoryAtPath:homeDir
+              withIntermediateDirectories:YES
+                               attributes:nil
+                                    error:&ame323_mkdirError];
+        NSLog(@"[ZeroTierBridge] Task323 pre-start mkdir %@ -> exists=%d (%@)",
+              homeDir, [ame323_fm fileExistsAtPath:homeDir], ame323_mkdirError);
+    }
     int result = zts_init_from_storage([homeDir UTF8String]);
+    if (result != ZTS_ERR_OK) {
+        NSLog(@"[ZeroTierBridge] Task323 zts_init_from_storage -> %d, settle-retry once", result);
+        [NSThread sleepForTimeInterval:0.4];
+        if (![ame323_fm fileExistsAtPath:homeDir]) {
+            [ame323_fm createDirectoryAtPath:homeDir
+                  withIntermediateDirectories:YES
+                                   attributes:nil
+                                        error:nil];
+        }
+        result = zts_init_from_storage([homeDir UTF8String]);
+    }
     if (result != ZTS_ERR_OK) {
         if (error) *error = [NSError errorWithDomain:kZeroTierErrorDomain code:ZeroTierErrorCodeNodeStartFailed userInfo:@{NSLocalizedDescriptionKey: [NSString stringWithFormat:localize(@"i18n_str_1101", nil), result]}];
         zts_node_stop();
