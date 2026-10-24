@@ -624,6 +624,25 @@ static void *ame_SDL_CreateWindowWithProperties(uint32_t props) {
     if (reuse && wnd != NULL) {
         ame_primaryWindow = wnd;
         ame_primaryWindowRefs = 1;
+        // ★ Task325：embed 与旧签名路径对齐（结构性缺口——两条创建路径此前
+        //   只有 ame_SDL_CreateWindow 做 embed；WithProperties 路径漏网 =
+        //   全局 ame_embeddedSDLView 为 NULL 时整个几何维护族（Task254/255/
+        //   261/267 的 SDL 重 assert）空转）。幂等一次性（s_embedTried 同款）。
+        static bool s_embedTriedProps = false;
+        if (!s_embedTriedProps) {
+            s_embedTriedProps = true;
+            __block bool embedOK = false;
+            if ([NSThread isMainThread]) {
+                embedOK = ame_embedSDLViewIntoHost();
+            } else {
+                dispatch_sync(dispatch_get_main_queue(), ^{
+                    embedOK = ame_embedSDLViewIntoHost();
+                });
+            }
+            if (!embedOK) {
+                NSDebugLog(@"[AmethystEmbed] WithProperties embed FAILED -- falling back to legacy behavior (SDL will own a separate UIWindow)");
+            }
+        }
     }
     NSDebugLog(@"[SDLHook] SDL_CreateWindowWithProperties -> %p", wnd);
     return wnd;
@@ -1369,6 +1388,54 @@ static bool ame_SDL_SetWindowFullscreen(void *window, bool fullscreen) {
 //   修复：在事件出口掐断 MINIMIZED(0x209)，MC 永不进入 iconified 状态，
 //   后台/前台往返零异常风暴、零表面失效。MAXIMIZED(0x20a)/RESTORED(0x20b)
 //   仍放行（它们调 onIconified(false)，是纵深防御）。
+// ★ Task325：SDL 原生触摸链（B 链）scale-mode 坐标补偿。
+// 病历：MC 信念窗口恒 launchJVM 告知 px（Task59/61 冻结），小窗（iPadOS 自由
+// 窗口）下嵌入 SDL 视图 bounds 随宿主缩放（Task267/282 链），SDL_uikitview
+// 触摸→mouse 事件坐标落在【视图 px 空间】（bounds × contentScale）——两条
+// 输入链并存：A 链=启动器合成事件（input_bridge pushSDLMouse*，Task267
+// adaptiveScale 已修正到信念空间，reserved=0xA1 标记直通）；B 链=SDL 原生
+// 触摸（SDL_uikitview 自己的 touches 链，此前无任何修正）→ 小窗下点哪都偏
+//（比例 = 视图px/信念px < 1，越靠右下偏得越多；用户报障“SDL 版本小窗偏移”，
+// 装机日志 [GLGeo] Task51 hierarchy #1000 实锤小窗 874x769 下视图链缩放）。
+// 修法 = PollEvent 出口对 B 链事件按 factor = 信念px/视图px 放大回信念空间；
+// 全屏态 factor 恒 1（视图px == 信念px）零变化，浮点容差 0.2% 防噪声。
+static void ame325_scaleFixSDLMouseEvent(void *event) {
+    if (windowWidth <= 0 || windowHeight <= 0) return;
+    UIView *v = ame_embeddedSDLView;
+    if (v == nil || v.superview == nil) return;
+    CGFloat vscale = v.contentScaleFactor;
+    if (vscale <= 0.0) vscale = [UIScreen mainScreen].scale;   // SDL_uikitview 罕见未设时兑底
+    CGFloat vw = v.bounds.size.width * vscale;
+    CGFloat vh = v.bounds.size.height * vscale;
+    if (vw < 1.0 || vh < 1.0) return;
+    float fx = (float)(((CGFloat)windowWidth) / vw);
+    float fy = (float)(((CGFloat)windowHeight) / vh);
+    if (fabsf(fx - 1.0f) < 0.002f && fabsf(fy - 1.0f) < 0.002f) return;   // 全屏直通
+    uint32_t type = *(const uint32_t *)event;
+    float *px = (float *)((char *)event + 28);
+    float *py = (float *)((char *)event + 32);
+    // 事件坐标钳入视图 px 空间再放大——防上游异常值过冲信念空间
+    float ox = *px, oy = *py;
+    if (ox < 0.0f) ox = 0.0f;
+    if (ox > (float)vw) ox = (float)vw;
+    if (oy < 0.0f) oy = 0.0f;
+    if (oy > (float)vh) oy = (float)vh;
+    *px = ox * fx;
+    *py = oy * fy;
+    if (type == 0x400) {   // motion：增量同口径放大（拖拽速度随比例归一）
+        float *pxrel = (float *)((char *)event + 36);
+        float *pyrel = (float *)((char *)event + 40);
+        *pxrel *= fx;
+        *pyrel *= fy;
+    }
+    static _Atomic unsigned long s_ame325_fixCount = 0;
+    unsigned long cn = atomic_fetch_add(&s_ame325_fixCount, 1) + 1;
+    if (cn <= 30 || cn % 500 == 0) {
+        NSLog(@"[SDLHook] Task325 native-input scale-fix #%lu type=0x%x (%.1f,%.1f)*[%.3f,%.3f]->(%.1f,%.1f) view=%.0fx%.0fpx belief=%dx%d",
+              cn, type, ox, oy, fx, fy, *px, *py, vw, vh, windowWidth, windowHeight);
+    }
+}
+
 static bool ame_SDL_PollEvent(void *event) {
     if (!ame_real_PollEvent) return false;
     for (;;) {
@@ -1428,6 +1495,18 @@ static bool ame_SDL_PollEvent(void *event) {
             // 与 mouse consumed，键盘消费侧完全不可见，"移动键是否送达 MC"
             // 无法裁定）。布局与 input_bridge_v3.m 推送侧 SDL3_KeyboardEvent
             // 一致：scancode@24(int) key@28(u32) down@36(bool)。
+            // ★ Task325：mouse 类事件坐标口径归一（无条件，每条都修）——
+            //   A 链（启动器推送，reserved=0xA1 标记）复位后直通；B 链（SDL
+            //   原生触摸）做 scale-mode 补偿（helper 注释见上）。日志保持
+            //   Task59 采样口径不变。
+            if (type >= 0x400 && type <= 0x402) {
+                uint32_t ame325_res = *(const uint32_t *)((const char *)event + 4);
+                if (ame325_res == 0xA1) {
+                    *(uint32_t *)((char *)event + 4) = 0;   // 复位（reserved 契约保持干净）
+                } else {
+                    ame325_scaleFixSDLMouseEvent(event);
+                }
+            }
             if (type == 0x300 || type == 0x301) {
                 static _Atomic unsigned long s_task64KeyCount = 0;
                 unsigned long kn = atomic_fetch_add(&s_task64KeyCount, 1) + 1;

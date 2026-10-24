@@ -110,4 +110,24 @@ NS_ASSUME_NONNULL_BEGIN
 
 @end
 
+#pragma mark - ⑥ M3 卡片 cell（下载中心仓库/插件仓库共用）
+
+/// ★ Task325：ZL2 卡片 cell —— 系统 Subtitle cell 的统一接棒者。
+///   卡底 surfaceContainer + radiusL + 14 内边距，标题 fontTitleMedium/
+///   onSurface，副文本 fontBodyMedium/onSurfaceVariant（3 行），右侧动作
+///   胶囊三态（0=下载 primary 底 / 1=已安装 surfaceContainerHighest 底灰字 /
+///   2=可更新 warning 底 / 3=隐藏）。按钮纯展示（点击语义 = 整行点击，
+///   由宿主 VC 的 didSelectRow / 按钮自挂 target 决定）。
+///   红线同 ZL2 域：translatesAutoresizingMaskIntoConstraints = NO、
+///   SF1.0 符号、零 viewWithTag 存状态。
+@interface ZL2M3CardCell : UITableViewCell
+
+@property (nonatomic, strong, readonly) UILabel *titleLabel;
+@property (nonatomic, strong, readonly) UILabel *subLabel;
+
+/// 动作胶囊三态：0=下载（primary）1=已安装（灰）2=可更新（warning）3=隐藏
+- (void)applyActionStyle:(NSInteger)style title:(NSString *)title;
+
+@end
+
 NS_ASSUME_NONNULL_END

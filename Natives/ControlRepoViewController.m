@@ -3,6 +3,8 @@
 #import "NMToast.h"
 #import "utils.h"
 #import "LauncherPreferences.h"
+#import "ZL2Theme.h"           // ★ Task325：仓库页 ZL2 新 UI 全面适配（令牌层）
+#import "ZL2M3Kit.h"           // ★ Task325：分类芯片行（ZL2M3FilterChip）
 #include <stdlib.h>  // getenv（POJAV_HOME；显式包含，不依赖伞头传递）
 
 // ============================================================================
@@ -60,7 +62,11 @@ static NSString *task189_mirrorURL(NSInteger idx, NSString *relPath) {
 //   缺省按 official 兼容旧索引）；手柄页 = category:gamepad 仓库条目，下载落盘
 //   controlmap/gamepads/<id>.json（手柄配置弹窗“当前”文件选择器同目录可直接选用）；
 //   本地页扫 controlmap/ 全部 .json（触屏布局，语义不变）。
-@property (nonatomic, strong) UISegmentedControl *categorySegment;
+@property (nonatomic, strong) UISegmentedControl *categorySegment;   // 死成员（Task325 芯片行退役；保留声明防外部引用面误伤，仅置 nil）
+// ★ Task325（下载中心仓库页 ZL2 新 UI）：UISegmentedControl → ZL2M3FilterChip
+//   芯片行（ZL2GameDownload 同款：横向滚动 + 选中 primaryContainer 两态）。
+@property (nonatomic, copy) NSArray<ZL2M3FilterChip *> *categoryChips;
+@property (nonatomic, strong) UIScrollView *chipsScroll;
 @property (nonatomic, assign) NSInteger selectedCategory;
 @property (nonatomic, copy) NSArray<NSDictionary *> *filteredLayouts;      // 官方/社区/手柄过滤结果
 @property (nonatomic, strong) NSMutableArray<NSDictionary *> *localLayouts; // 本地布局 {name, version, size}
@@ -201,6 +207,8 @@ static NSArray<NSString *> *ame232_layoutSafetyIssues(NSData *raw, id jsonObj) {
     return issues;
 }
 
+// ★ Task325：仓库卡片 cell 上收 ZL2M3Kit 公共组件（ZL2M3CardCell）——
+// 控件仓库与插件仓库（ZL2PluginRepoViewController）同款卡片语义，实现见 ZL2M3Kit.m。
 @implementation ControlRepoViewController
 
 /// Task232（反馈 #15）：下载落盘安装（直通与"仍要下载"确认两路共用）。
@@ -344,8 +352,11 @@ static NSArray<NSString *> *ame232_layoutSafetyIssues(NSData *raw, id jsonObj) {
     }];
 }
 
-- (void)ame310_categoryChanged:(UISegmentedControl *)seg {
-    self.selectedCategory = seg.selectedSegmentIndex;
+- (void)ame310_categoryChanged:(NSInteger)idx {
+    self.selectedCategory = idx;
+    for (ZL2M3FilterChip *chip in self.categoryChips) {
+        chip.selected = ((NSInteger)chip.tag == idx);
+    }
     if (self.selectedCategory == 3) [self ame310_scanLocalLayouts];   // 切到本地页时重扫（可能刚下载/刚删）
     else [self ame310_rebuildFilteredLayouts];
     [self.tableView reloadData];
@@ -364,35 +375,75 @@ static NSArray<NSString *> *ame232_layoutSafetyIssues(NSData *raw, id jsonObj) {
                 style:UIBarButtonItemStyleDone
                target:self
                action:@selector(ame230_uploadTapped:)];
+    // ★ Task325（仓库页 ZL2 新 UI）：页底 surface + 无分隔线 + 卡片 cell
+    self.tableView.backgroundColor = [ZL2Theme surface];
+    self.tableView.separatorStyle = UITableViewCellSeparatorStyleNone;
+    self.tableView.rowHeight = UITableViewAutomaticDimension;
+    self.tableView.estimatedRowHeight = 88.0;
+    self.tableView.contentInset = UIEdgeInsetsMake(6, 0, 16, 0);
+    [self.tableView registerClass:[ZL2M3CardCell class]
+           forCellReuseIdentifier:@"ZL2M3CardCell"];
     self.refreshControl = [[UIRefreshControl alloc] init];
+    self.refreshControl.tintColor = [ZL2Theme primary];
+    self.refreshControl.backgroundColor = [UIColor clearColor];
     [self.refreshControl addTarget:self action:@selector(refreshRepo:)
                   forControlEvents:UIControlEventValueChanged];
-    self.tableView.rowHeight = UITableViewAutomaticDimension;
-    self.tableView.estimatedRowHeight = 76.0;
-    // ★ Task310（控件三分类页）→ Task311（四分类）：顶部四分类分段控件
-    //   （官方精选/社区/手柄/本地）。手柄页 = 仓库 gamepad 控件映射下载区。
-    //   frame 定宽 + autoresizing 宽度弹窗——tableHeaderView 约束宽度不随
-    //   tableView 自适应的经典坑，autoresizingMask 一行解。
-    UIView *ame310_hdr = [[UIView alloc] initWithFrame:CGRectMake(0, 0, self.view.bounds.size.width, 48)];
+    // ★ Task310（控件三分类页）→ Task311（四分类）→ Task325（ZL2 芯片行）：
+    //   顶部四分类 UISegmentedControl → ZL2M3FilterChip 横向滚动行
+    //   （ZL2GameDownload 同款）。frame 定宽 + autoresizing 宽度弹窗——
+    //   tableHeaderView 约束宽度不随 tableView 自适应的经典坑，一行解。
+    UIView *ame310_hdr = [[UIView alloc] initWithFrame:CGRectMake(0, 0, self.view.bounds.size.width, 52)];
     ame310_hdr.autoresizingMask = UIViewAutoresizingFlexibleWidth;
-    self.categorySegment = [[UISegmentedControl alloc] initWithItems:@[
+    ame310_hdr.backgroundColor = [UIColor clearColor];
+    UIScrollView *scroll = [[UIScrollView alloc] init];
+    scroll.showsHorizontalScrollIndicator = NO;
+    scroll.translatesAutoresizingMaskIntoConstraints = NO;
+    [ame310_hdr addSubview:scroll];
+    UIStackView *stack = [[UIStackView alloc] init];
+    stack.axis = UILayoutConstraintAxisHorizontal;
+    stack.alignment = UIStackViewAlignmentCenter;
+    stack.spacing = 12;
+    stack.translatesAutoresizingMaskIntoConstraints = NO;
+    [scroll addSubview:stack];
+    NSArray<NSString *> *ame325_titles = @[
         localize(@"dl.controls.cat.official", nil),
         localize(@"dl.controls.cat.community", nil),
         localize(@"dl.controls.cat.gamepad", nil),
-        localize(@"dl.controls.cat.local", nil)]];
-    self.categorySegment.selectedSegmentIndex = 0;
-    self.categorySegment.frame = CGRectMake(12, 8, self.view.bounds.size.width - 24, 32);
-    self.categorySegment.autoresizingMask = UIViewAutoresizingFlexibleWidth;
-    [self.categorySegment addTarget:self action:@selector(ame310_categoryChanged:)
-                  forControlEvents:UIControlEventValueChanged];
-    [ame310_hdr addSubview:self.categorySegment];
+        localize(@"dl.controls.cat.local", nil)];
+    NSMutableArray *chips = [NSMutableArray array];
+    for (NSUInteger i = 0; i < ame325_titles.count; i++) {
+        ZL2M3FilterChip *chip = [[ZL2M3FilterChip alloc] initWithText:ame325_titles[i]];
+        chip.tag = (NSInteger)i;
+        chip.accessibilityLabel = ame325_titles[i];
+        [chip addTarget:self action:@selector(ame310_chipTapped:)
+       forControlEvents:UIControlEventTouchUpInside];
+        [stack addArrangedSubview:chip];
+        [chips addObject:chip];
+    }
+    self.categoryChips = chips;
+    self.chipsScroll = scroll;
+    [NSLayoutConstraint activateConstraints:@[
+        [scroll.topAnchor constraintEqualToAnchor:ame310_hdr.topAnchor constant:10],
+        [scroll.bottomAnchor constraintEqualToAnchor:ame310_hdr.bottomAnchor constant:-10],
+        [scroll.leadingAnchor constraintEqualToAnchor:ame310_hdr.leadingAnchor constant:16],
+        [scroll.trailingAnchor constraintEqualToAnchor:ame310_hdr.trailingAnchor constant:-16],
+        [stack.topAnchor constraintEqualToAnchor:scroll.topAnchor],
+        [stack.bottomAnchor constraintEqualToAnchor:scroll.bottomAnchor],
+        [stack.leadingAnchor constraintEqualToAnchor:scroll.contentLayoutGuide.leadingAnchor],
+        [stack.trailingAnchor constraintEqualToAnchor:scroll.contentLayoutGuide.trailingAnchor],
+        [stack.heightAnchor constraintEqualToAnchor:scroll.frameLayoutGuide.heightAnchor],
+    ]];
     self.tableView.tableHeaderView = ame310_hdr;
     if (self.initialCategoryIndex > 0 && self.initialCategoryIndex <= 3) {
-        self.categorySegment.selectedSegmentIndex = self.initialCategoryIndex;
-        [self ame310_categoryChanged:self.categorySegment];  // Task316：预选分类走同一重载路径
+        [self ame310_categoryChanged:self.initialCategoryIndex];  // Task316：预选分类走同一重载路径（Task325 改芯片选中态同步）
     }
     [self scanLocalVersions];
     [self fetchIndex];
+}
+
+/// Task325：分类芯片点击（UISegmentedControl 时代 ame310_categoryChanged: 的接棒者）
+- (void)ame310_chipTapped:(ZL2M3FilterChip *)chip {
+    [self ame310_categoryChanged:(NSInteger)chip.tag];
 }
 
 /// Task230：上传入口点击 → 选已安装布局 → 填元信息 → 安全检查 → 提交。
@@ -517,51 +568,47 @@ static NSArray<NSString *> *ame232_layoutSafetyIssues(NSData *raw, id jsonObj) {
 }
 
 - (UITableViewCell *)tableView:(UITableView *)tableView cellForRowAtIndexPath:(NSIndexPath *)indexPath {
-    static NSString *rid = @"Task188RepoCell";
-    UITableViewCell *cell = [tableView dequeueReusableCellWithIdentifier:rid];
-    if (!cell) {
-        cell = [[UITableViewCell alloc] initWithStyle:UITableViewCellStyleSubtitle reuseIdentifier:rid];
-        cell.accessoryType = UITableViewCellAccessoryNone;
-        cell.detailTextLabel.numberOfLines = 0;
-    }
+    // ★ Task325：卡片 cell（ZL2 新 UI）——系统 Subtitle cell 退役；行点击语义
+    //   （didSelectRow 全链）零改动，动作胶囊为纯展示态徽章。
+    ZL2M3CardCell *cell = [tableView dequeueReusableCellWithIdentifier:@"ZL2M3CardCell"
+                                                           forIndexPath:indexPath];
     if (self.selectedCategory == 3) {
         // ★ Task310：本地页（Task311 起索引 3）。空态 = 引导去官方精选/编辑器；有数据 = 布局清单。
         if (self.localLayouts.count == 0) {
-            cell.textLabel.text = localize(@"dl.controls.local.empty", nil);
-            cell.detailTextLabel.text = @"";
-            cell.accessoryType = UITableViewCellAccessoryNone;
+            cell.titleLabel.text = localize(@"dl.controls.local.empty", nil);
+            cell.subLabel.text = @"";
+            [cell applyActionStyle:3 title:@""];
             cell.selectionStyle = UITableViewCellSelectionStyleNone;
             return cell;
         }
         NSDictionary *e = self.localLayouts[indexPath.row];
-        cell.textLabel.text = [NSString stringWithFormat:@"%@", e[@"name"]];
+        cell.titleLabel.text = [NSString stringWithFormat:@"%@", e[@"name"]];
         NSString *ver = [e[@"version"] isKindOfClass:[NSString class]] && [(NSString *)e[@"version"] length] > 0
                         ? e[@"version"] : @"?";
         double kb = [(NSNumber *)e[@"size"] doubleValue] / 1024.0;
-        cell.detailTextLabel.text = [NSString stringWithFormat:localize(@"dl.controls.local.file.sub", nil), ver, kb];
-        cell.accessoryType = UITableViewCellAccessoryDetailButton;
+        cell.subLabel.text = [NSString stringWithFormat:localize(@"dl.controls.local.file.sub", nil), ver, kb];
+        [cell applyActionStyle:3 title:@""];
         cell.selectionStyle = UITableViewCellSelectionStyleDefault;
         return cell;
     }
     if (self.loadFailed || self.filteredLayouts.count == 0) {
         // ★ Task310：官方/社区空态区分——社区空 = 上传 CTA（点击可发布）。
         if (!self.loadFailed && self.selectedCategory == 1) {
-            cell.textLabel.text = localize(@"dl.controls.community.empty", nil);
-            cell.detailTextLabel.text = localize(@"dl.controls.community.empty.tap", nil);
-            cell.accessoryType = UITableViewCellAccessoryNone;
+            cell.titleLabel.text = localize(@"dl.controls.community.empty", nil);
+            cell.subLabel.text = localize(@"dl.controls.community.empty.tap", nil);
+            [cell applyActionStyle:3 title:@""];
             cell.selectionStyle = UITableViewCellSelectionStyleDefault;
             return cell;
         }
-        cell.textLabel.text = self.loadFailed ? localize(@"custom_controls.repo.fetch.failed", nil)
+        cell.titleLabel.text = self.loadFailed ? localize(@"custom_controls.repo.fetch.failed", nil)
                                               : localize(@"custom_controls.repo.empty", nil);
-        cell.detailTextLabel.text = self.loadFailed ? localize(@"custom_controls.repo.retry_hint", nil) : @"";
-        cell.accessoryType = UITableViewCellAccessoryNone;
+        cell.subLabel.text = self.loadFailed ? localize(@"custom_controls.repo.retry_hint", nil) : @"";
+        [cell applyActionStyle:3 title:@""];
         cell.selectionStyle = UITableViewCellSelectionStyleNone;
         return cell;
     }
     NSDictionary *e = self.filteredLayouts[indexPath.row];
-    cell.textLabel.text = [e[@"name"] isKindOfClass:[NSString class]] ? e[@"name"] : e[@"id"];
-    cell.accessoryType = UITableViewCellAccessoryNone;
+    cell.titleLabel.text = [e[@"name"] isKindOfClass:[NSString class]] ? e[@"name"] : e[@"id"];
     NSString *author = [e[@"author"] isKindOfClass:[NSString class]] ? e[@"author"] : @"?";
     NSString *desc = [e[@"description"] isKindOfClass:[NSString class]] ? e[@"description"] : @"";
     NSString *ver = [e[@"version"] isKindOfClass:[NSString class]] ? e[@"version"] : @"1.0";
@@ -570,16 +617,24 @@ static NSArray<NSString *> *ame232_layoutSafetyIssues(NSData *raw, id jsonObj) {
     NSString *ame311_cat = [e[@"category"] isKindOfClass:[NSString class]] ? e[@"category"] : @"official";
     NSString *local = [ame311_cat isEqualToString:@"gamepad"] ? self.localGamepadVersions[e[@"id"]]
                                                               : self.localVersions[e[@"id"]];
+    NSInteger ame325_action = 0;   // 0=下载 1=已安装 2=可更新
+    NSString *ame325_actionTitle = localize(@"dl.controls.repo.download", nil);
     if (local != nil) {
         [sub appendFormat:@"%@", [NSString stringWithFormat:localize(@"custom_controls.repo.installed", nil), local]];
         if (![local isEqualToString:ver]) {
             [sub appendFormat:@" · %@", [NSString stringWithFormat:localize(@"custom_controls.repo.update_available", nil), ver]];
+            ame325_action = 2;
+            ame325_actionTitle = localize(@"dl.controls.repo.update", nil);
+        } else {
+            ame325_action = 1;
+            ame325_actionTitle = localize(@"custom_controls.repo.installed_badge", nil);
         }
     } else {
         [sub appendString:[NSString stringWithFormat:localize(@"custom_controls.repo.author", nil), author]];
     }
     if (desc.length > 0) [sub appendFormat:@"\n%@", desc];
-    cell.detailTextLabel.text = sub;
+    cell.subLabel.text = sub;
+    [cell applyActionStyle:ame325_action title:ame325_actionTitle];
     cell.selectionStyle = UITableViewCellSelectionStyleDefault;
     return cell;
 }

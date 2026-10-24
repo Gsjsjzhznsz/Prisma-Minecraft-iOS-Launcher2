@@ -3504,3 +3504,7 @@
 "welcome.data.sibling.confirm.overwrite" = "Full overwrite";
 "ame321.migrate.done" = "Smart merge done: %ld new · %ld updated · %ld unchanged · %ld kept-newer. Restart the launcher to apply.";
 "ame321.migrate.done.overwrite" = "Migrated %ld files (full overwrite). Restart the launcher to apply.";
+/* Task325 control repo ZL2 card action badges */
+"dl.controls.repo.download" = "Download";
+"dl.controls.repo.update" = "Update";
+"custom_controls.repo.installed_badge" = "Installed";

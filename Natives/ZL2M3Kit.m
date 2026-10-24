@@ -658,3 +658,135 @@ static __weak ZL2M3OverlayViewController *_ame_currentSheet = nil;
 }
 
 @end
+
+#pragma mark - ⑥ M3 卡片 cell
+
+@interface ZL2M3CardCell ()
+@property (nonatomic, strong) UILabel *ame_titleLabel;
+@property (nonatomic, strong) UILabel *ame_subLabel;
+@property (nonatomic, strong) UILabel *actionLabel;
+@property (nonatomic, strong) UIView *actionPill;
+@property (nonatomic, strong) NSLayoutConstraint *pillTrailing;
+@property (nonatomic, strong) NSLayoutConstraint *titleFallback;
+@property (nonatomic, strong) NSLayoutConstraint *subFallback;
+@property (nonatomic, strong) NSLayoutConstraint *titleToPill;
+@property (nonatomic, strong) NSLayoutConstraint *subToPill;
+@end
+
+- removed -
+@implementation ZL2M3CardCell
+
+- (UILabel *)titleLabel { return _ame_titleLabel; }
+- (UILabel *)subLabel { return _ame_subLabel; }
+
+- (instancetype)initWithStyle:(UITableViewCellStyle)style reuseIdentifier:(NSString *)reuseIdentifier {
+    self = [super initWithStyle:style reuseIdentifier:reuseIdentifier];
+    if (self) {
+        self.backgroundColor = [UIColor clearColor];
+        self.selectionStyle = UITableViewCellSelectionStyleDefault;
+        self.selectedBackgroundView = [[UIView alloc] init];
+        self.selectedBackgroundView.backgroundColor =
+            [[ZL2Theme onSurface] colorWithAlphaComponent:0.06];
+
+        UIView *card = [[UIView alloc] init];
+        card.backgroundColor = [ZL2Theme surfaceContainer];
+        card.layer.cornerRadius = [ZL2Theme radiusL];
+        card.layer.masksToBounds = YES;
+        card.translatesAutoresizingMaskIntoConstraints = NO;
+        [self.contentView addSubview:card];
+
+        _ame_titleLabel = [[UILabel alloc] init];
+        _ame_titleLabel.font = [ZL2Theme fontTitleMedium];
+        _ame_titleLabel.textColor = [ZL2Theme onSurface];
+        _ame_titleLabel.numberOfLines = 1;
+        _ame_titleLabel.translatesAutoresizingMaskIntoConstraints = NO;
+        [card addSubview:_ame_titleLabel];
+
+        _ame_subLabel = [[UILabel alloc] init];
+        _ame_subLabel.font = [ZL2Theme fontBodyMedium];
+        _ame_subLabel.textColor = [ZL2Theme onSurfaceVariant];
+        _ame_subLabel.numberOfLines = 3;
+        _ame_subLabel.translatesAutoresizingMaskIntoConstraints = NO;
+        [card addSubview:_ame_subLabel];
+
+        _actionPill = [[UIView alloc] init];
+        _actionPill.layer.cornerRadius = [ZL2Theme radiusS];
+        _actionPill.layer.masksToBounds = YES;
+        _actionPill.translatesAutoresizingMaskIntoConstraints = NO;
+        _actionPill.userInteractionEnabled = NO;
+        [card addSubview:_actionPill];
+
+        _actionLabel = [[UILabel alloc] init];
+        _actionLabel.font = [ZL2Theme fontLabelMedium];
+        _actionLabel.textAlignment = NSTextAlignmentCenter;
+        _actionLabel.translatesAutoresizingMaskIntoConstraints = NO;
+        _actionLabel.userInteractionEnabled = NO;
+        [_actionPill addSubview:_actionLabel];
+
+        self.pillTrailing =
+            [_actionPill.trailingAnchor constraintEqualToAnchor:card.trailingAnchor constant:-14];
+        self.titleFallback =
+            [_ame_titleLabel.trailingAnchor constraintLessThanOrEqualToAnchor:card.trailingAnchor constant:-14];
+        self.subFallback =
+            [_ame_subLabel.trailingAnchor constraintLessThanOrEqualToAnchor:card.trailingAnchor constant:-14];
+        self.titleToPill =
+            [_ame_titleLabel.trailingAnchor constraintLessThanOrEqualToAnchor:_actionPill.leadingAnchor constant:-10];
+        self.subToPill =
+            [_ame_subLabel.trailingAnchor constraintLessThanOrEqualToAnchor:_actionPill.leadingAnchor constant:-10];
+        [NSLayoutConstraint activateConstraints:@[
+            [card.topAnchor constraintEqualToAnchor:self.contentView.topAnchor constant:5],
+            [card.bottomAnchor constraintEqualToAnchor:self.contentView.bottomAnchor constant:-5],
+            [card.leadingAnchor constraintEqualToAnchor:self.contentView.leadingAnchor constant:16],
+            [card.trailingAnchor constraintEqualToAnchor:self.contentView.trailingAnchor constant:-16],
+
+            [_ame_titleLabel.topAnchor constraintEqualToAnchor:card.topAnchor constant:12],
+            [_ame_titleLabel.leadingAnchor constraintEqualToAnchor:card.leadingAnchor constant:14],
+
+            [_ame_subLabel.topAnchor constraintEqualToAnchor:_ame_titleLabel.bottomAnchor constant:4],
+            [_ame_subLabel.leadingAnchor constraintEqualToAnchor:card.leadingAnchor constant:14],
+            [_ame_subLabel.bottomAnchor constraintEqualToAnchor:card.bottomAnchor constant:-12],
+
+            [_actionPill.centerYAnchor constraintEqualToAnchor:_ame_titleLabel.centerYAnchor],
+            self.pillTrailing,
+            [_actionPill.widthAnchor constraintGreaterThanOrEqualToConstant:56],
+            [_actionPill.heightAnchor constraintEqualToConstant:28],
+
+            [_actionLabel.centerXAnchor constraintEqualToAnchor:_actionPill.centerXAnchor],
+            [_actionLabel.centerYAnchor constraintEqualToAnchor:_actionPill.centerYAnchor],
+            [_actionLabel.leadingAnchor constraintGreaterThanOrEqualToAnchor:_actionPill.leadingAnchor constant:10],
+            [_actionPill.trailingAnchor constraintGreaterThanOrEqualToAnchor:_actionLabel.trailingAnchor constant:10],
+        ]];
+        self.titleToPill.active = YES;
+        self.subToPill.active = YES;
+    }
+    return self;
+}
+
+- (void)applyActionStyle:(NSInteger)style title:(NSString *)title {
+    BOOL hidden = (style == 3);
+    _actionPill.hidden = hidden;
+    _actionLabel.hidden = hidden;
+    self.pillTrailing.active = !hidden;
+    self.titleToPill.active = !hidden;
+    self.subToPill.active = !hidden;
+    self.titleFallback.active = hidden;
+    self.subFallback.active = hidden;
+    if (hidden) return;
+    switch (style) {
+        case 0:
+            _actionPill.backgroundColor = [ZL2Theme primary];
+            _actionLabel.textColor = [ZL2Theme onPrimary];
+            break;
+        case 1:
+            _actionPill.backgroundColor = [ZL2Theme surfaceContainerHighest];
+            _actionLabel.textColor = [ZL2Theme onSurfaceVariant];
+            break;
+        default:
+            _actionPill.backgroundColor = [ZL2Theme warning];
+            _actionLabel.textColor = [ZL2Theme onPrimary];
+            break;
+    }
+    _actionLabel.text = title;
+}
+
+@end

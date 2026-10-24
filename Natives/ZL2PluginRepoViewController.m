@@ -36,15 +36,18 @@ static NSString *ame318_builtinRoot(void) {
     self.items = [NSMutableArray array];
     self.installing = [NSMutableSet set];
 
-    self.table = [[UITableView alloc] initWithFrame:CGRectZero style:UITableViewStyleInsetGrouped];
+    // ★ Task325：InsetGrouped+系统 Subtitle cell → Plain 卡片流（ZL2M3CardCell）
+    self.table = [[UITableView alloc] initWithFrame:CGRectZero style:UITableViewStylePlain];
     self.table.translatesAutoresizingMaskIntoConstraints = NO;
     self.table.backgroundColor = [UIColor clearColor];
     self.table.separatorStyle = UITableViewCellSeparatorStyleNone;
     self.table.delegate = self;
     self.table.dataSource = self;
     self.table.keyboardDismissMode = UIScrollViewKeyboardDismissModeOnDrag;
-    // Task318：不 registerClass——注册类实例化的 UITableViewCell 是 Default 风格，
-    // detailTextLabel 恒 nil；Subtitle 风格 cell 在 cellForRow 手建（见下）
+    self.table.rowHeight = UITableViewAutomaticDimension;
+    self.table.estimatedRowHeight = 88.0;
+    self.table.contentInset = UIEdgeInsetsMake(6, 0, 16, 0);
+    [self.table registerClass:[ZL2M3CardCell class] forCellReuseIdentifier:@"ZL2M3CardCell"];
     [self.view addSubview:self.table];
 
     [NSLayoutConstraint activateConstraints:@[
@@ -53,6 +56,25 @@ static NSString *ame318_builtinRoot(void) {
         [self.table.trailingAnchor constraintEqualToAnchor:self.view.trailingAnchor],
         [self.table.bottomAnchor constraintEqualToAnchor:self.view.bottomAnchor],
     ]];
+
+    // Task325：系统组头 → 自绘小字标题（onSurfaceVariant + LabelLarge），
+    // 语义与 ame318.repo.section_title 不变；frame 头 + autoresizing 宽度弹窗。
+    UILabel *secTitle = [[UILabel alloc] initWithFrame:CGRectMake(0, 0, self.view.bounds.size.width, 36)];
+    secTitle.autoresizingMask = UIViewAutoresizingFlexibleWidth;
+    secTitle.text = localize(@"ame318.repo.section_title", nil);
+    secTitle.font = [ZL2Theme fontLabelLarge];
+    secTitle.textColor = [ZL2Theme onSurfaceVariant];
+    secTitle.translatesAutoresizingMaskIntoConstraints = NO;
+    UIView *hdr = [[UIView alloc] initWithFrame:CGRectMake(0, 0, self.view.bounds.size.width, 36)];
+    hdr.autoresizingMask = UIViewAutoresizingFlexibleWidth;
+    [hdr addSubview:secTitle];
+    [NSLayoutConstraint activateConstraints:@[
+        [secTitle.topAnchor constraintEqualToAnchor:hdr.topAnchor constant:8],
+        [secTitle.leadingAnchor constraintEqualToAnchor:hdr.leadingAnchor constant:32],
+        [secTitle.trailingAnchor constraintEqualToAnchor:hdr.trailingAnchor constant:-32],
+        [secTitle.bottomAnchor constraintEqualToAnchor:hdr.bottomAnchor constant:-4],
+    ]];
+    self.table.tableHeaderView = hdr;
 
     [self ame318_reload];
 }
@@ -115,27 +137,16 @@ static NSString *ame318_builtinRoot(void) {
     return MAX(self.items.count, 1); // 空态占位行
 }
 
-- (NSString *)tableView:(UITableView *)tableView titleForHeaderInSection:(NSInteger)section {
-    return localize(@"ame318.repo.section_title", nil);
-}
-
 - (UITableViewCell *)tableView:(UITableView *)tableView cellForRowAtIndexPath:(NSIndexPath *)indexPath {
-    static NSString *kId = @"cell";
-    // Task318：Subtitle 风格手建（同列表页修法——Default 风格 detailTextLabel 恒 nil，
-    // 版本/作者/简介需要副标题行）
-    UITableViewCell *cell = [tableView dequeueReusableCellWithIdentifier:kId];
-    if (!cell) cell = [[UITableViewCell alloc] initWithStyle:UITableViewCellStyleSubtitle
-                                              reuseIdentifier:kId];
-    cell.backgroundColor = [ZL2Theme surfaceBright];
-    cell.selectionStyle = UITableViewCellSelectionStyleNone;
-    cell.accessoryView = nil;
-    cell.accessoryType = UITableViewCellAccessoryNone;
-
+    // ★ Task325：系统 Subtitle cell → ZL2M3CardCell（卡底/字体/动作胶囊全令牌化）。
+    //   未装 = 整行点击安装（动作胶囊展示“安装/安装中”），已装 = 整行进详情页
+    //   （胶囊展示“已安装”），交互语义与两态展示解耦。
+    ZL2M3CardCell *cell = [tableView dequeueReusableCellWithIdentifier:@"ZL2M3CardCell"
+                                                          forIndexPath:indexPath];
     if (self.items.count == 0) {
-        cell.textLabel.text = localize(@"ame318.repo.empty", nil);
-        cell.textLabel.font = [ZL2Theme fontBodyMedium];
-        cell.textLabel.textColor = [ZL2Theme onSurfaceVariant];
-        cell.textLabel.numberOfLines = 0;
+        cell.titleLabel.text = localize(@"ame318.repo.empty", nil);
+        cell.subLabel.text = @"";
+        [cell applyActionStyle:3 title:@""];
         return cell;
     }
 
@@ -145,37 +156,16 @@ static NSString *ame318_builtinRoot(void) {
     BOOL installed = ([[AmePluginManager installedPluginIds] containsObject:m.pluginId]);
     BOOL installing = [self.installing containsObject:dirName];
 
-    cell.textLabel.text = [self ame318_displayNameForManifest:m];
-    cell.textLabel.font = [ZL2Theme fontTitleMedium];
-    cell.textLabel.textColor = [ZL2Theme onSurface];
+    cell.titleLabel.text = [self ame318_displayNameForManifest:m];
     NSString *authorLine = m.author.length ?
         [NSString stringWithFormat:localize(@"ame317.list.by_author", nil), m.author] : @"";
-    cell.detailTextLabel.text = [NSString stringWithFormat:@"v%@ · %@ · %@",
-                                 m.version ?: @"?", authorLine,
-                                 [self ame318_displaySummaryForManifest:m]];
-    cell.detailTextLabel.font = [ZL2Theme fontBodyMedium];
-    cell.detailTextLabel.textColor = [ZL2Theme onSurfaceVariant];
-    cell.detailTextLabel.numberOfLines = 2;
-
+    cell.subLabel.text = [NSString stringWithFormat:@"v%@ · %@ · %@",
+                          m.version ?: @"?", authorLine,
+                          [self ame318_displaySummaryForManifest:m]];
     if (installed) {
-        cell.accessoryType = UITableViewCellAccessoryDisclosureIndicator;
+        [cell applyActionStyle:1 title:localize(@"custom_controls.repo.installed_badge", nil)];
     } else {
-        UIButton *btn = [UIButton buttonWithType:UIButtonTypeSystem];
-        btn.layer.cornerRadius = 14.0;
-        btn.backgroundColor = [ZL2Theme primary];
-        [btn setTitle:localize(installing ? @"ame318.repo.installing" : @"ame318.repo.install", nil)
-             forState:UIControlStateNormal];
-        if (installing) {
-            btn.enabled = NO;
-            btn.alpha = 0.5;
-        }
-        [btn setTitleColor:[ZL2Theme onPrimary] forState:UIControlStateNormal];
-        btn.titleLabel.font = [ZL2Theme fontTitleMedium];
-        btn.contentEdgeInsets = UIEdgeInsetsMake(6, 14, 6, 14);
-        [btn addTarget:self action:@selector(ame318_installTapped:)
-              forControlEvents:UIControlEventTouchUpInside];
-        btn.tag = indexPath.row;
-        cell.accessoryView = btn;
+        [cell applyActionStyle:0 title:localize(installing ? @"ame318.repo.installing" : @"ame318.repo.install", nil)];
     }
     return cell;
 }
@@ -189,14 +179,18 @@ static NSString *ame318_builtinRoot(void) {
         ZL2PluginDetailViewController *detail =
             [[ZL2PluginDetailViewController alloc] initWithPluginId:m.pluginId];
         [self.navigationController pushViewController:detail animated:YES];
+        return;
     }
+    // ★ Task325：未装 = 整行点击安装（accessoryView 时代按钮链退役）
+    [self ame318_beginInstallForRow:(NSInteger)indexPath.row];
 }
 
 #pragma mark - 安装链（目录 → 临时 zip → installFromZip 全量校验链）
 
-- (void)ame318_installTapped:(UIButton *)sender {
+- (void)ame318_beginInstallForRow:(NSInteger)row {
     if (self.items.count == 0) return;
-    NSDictionary *item = self.items[(NSUInteger)sender.tag];
+    if (row < 0 || row >= (NSInteger)self.items.count) return;
+    NSDictionary *item = self.items[(NSUInteger)row];
     NSString *dirName = item[@"dirName"];
     if ([self.installing containsObject:dirName]) return;
     [self.installing addObject:dirName];

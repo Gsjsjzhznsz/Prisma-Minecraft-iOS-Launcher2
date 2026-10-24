@@ -405,34 +405,63 @@
     });
 }
 
-/// 各加载器清单端点（镜像策略沿用旧链：BMCLAPI/官方候选顺序由端点决定，
-/// 此处取主源 + 简短超时；失败态由 UI 呈现，用户可点刷新钮重拉）
+/// 各加载器清单端点（Task325：接入 PLMirrorCenter 候选链 —— 策略感知官方/镜像
+/// 排序；Forge 死兜底 XML 解析补齐；OptiFine 官方 HTML 兑底）
 - (nullable NSArray<NSString *> *)ame_fetchListForIdentifier:(NSString *)identifier
                                                  gameVersion:(NSString *)gameVersion {
     NSData *data = nil;
     if ([identifier isEqualToString:@"forge"]) {
         // BMCLAPI forge/minecraft/{v}：[{version:"xx.yy.z"}]（含 build 号）
+        // ★ Task325：原代码 maven-metadata.xml 兑底拿到数据后仍走 JSON 解析 =
+        //   死兑底（XML 永远解析不出）；BMCLAPI DNS 故障（-1003 判例）时官方
+        //   源彻底不可用。改为：BMCLAPI JSON 主源 → 官方 metadata.xml 正则提取。
         data = [self ame_syncFetch:
             [NSString stringWithFormat:@"https://bmclapi2.bangbang93.com/forge/minecraft/%@", gameVersion]];
-        if (!data) {
-            data = [self ame_syncFetch:
-                [NSString stringWithFormat:@"https://files.minecraftforge.net/net/minecraftforge/forge/maven-metadata.xml"]];
-        }
-        if (!data) return nil;
-        id json = [self ame_parseJSON:data];
-        if ([json isKindOfClass:[NSArray class]]) {
-            NSMutableArray *out_ = [NSMutableArray array];
-            for (NSDictionary *entry in json) {
-                NSString *version = entry[@"version"];
-                if (version.length > 0) [out_ addObject:version];
+        if (data) {
+            id json = [self ame_parseJSON:data];
+            if ([json isKindOfClass:[NSArray class]]) {
+                NSMutableArray *out_ = [NSMutableArray array];
+                for (NSDictionary *entry in json) {
+                    NSString *version = entry[@"version"];
+                    if (version.length > 0) [out_ addObject:version];
+                }
+                if (out_.count > 0) return out_;
             }
-            return out_;
+        }
+        NSLog(@"[ZL2Addons] forge bmclapi list failed -- falling back to official maven-metadata.xml");
+        NSData *meta = [self ame_syncFetch:
+            @"https://files.minecraftforge.net/net/minecraftforge/forge/maven-metadata.xml"];
+        if (meta) {
+            NSString *xml = [[NSString alloc] initWithData:meta encoding:NSUTF8StringEncoding];
+            if (xml.length > 0) {
+                NSRegularExpression *rx = [NSRegularExpression
+                    regularExpressionWithPattern:@"<version>([^<]+)</version>" options:0 error:nil];
+                NSMutableArray *out_ = [NSMutableArray array];
+                [rx enumerateMatchesInString:xml options:0 range:NSMakeRange(0, xml.length)
+                                  usingBlock:^(NSTextCheckingResult *m, NSMatchingFlags f, BOOL *stop) {
+                    NSString *v = [xml substringWithRange:[m rangeAtIndex:1]];
+                    // 形如 1.21.1-52.0.24：按游戏版本前缀过滤
+                    if ([v hasPrefix:gameVersion] && [v rangeOfString:@"-"].location != NSNotFound) {
+                        [out_ addObject:v];
+                    }
+                }];
+                // metadata 倒序 = 新版在前（文件内旧版在前）
+                if (out_.count > 0) return [[out_ reverseObjectEnumerator] allObjects];
+            }
         }
         return nil;
     }
     if ([identifier isEqualToString:@"neoforge"]) {
-        data = [self ame_syncFetch:
+        // Task325：maven.neoforged.net 单源 → 候选链（官方 + BMCLAPI /maven 镜像，策略感知）
+        NSURL *official = [NSURL URLWithString:
             @"https://maven.neoforged.net/api/maven/versions/releases/net/neoforged/neoforge"];
+        NSArray<NSURL *> *cands = [PLMirrorCenter candidateURLsForOriginalURL:official
+                                                                 resourceType:PLMirrorResourceTypeModLoader];
+        if (cands.count == 0) cands = @[official];
+        for (NSURL *u in cands) {
+            data = [self ame_syncFetch:u.absoluteString];
+            if (data) break;
+        }
         if (!data) return nil;
         id json = [self ame_parseJSON:data];
         NSArray<NSString *> *all = json[@"versions"];
@@ -446,10 +475,17 @@
         return [[out_ reverseObjectEnumerator] allObjects];
     }
     if ([identifier isEqualToString:@"fabric"]) {
-        // Fabric meta v2：[{loader:{version:"x.y.z"}}]（官方 + BMCLAPI 双源）
-        NSString *official = [NSString stringWithFormat:@"https://meta.fabricmc.net/v2/versions/loader/%@", gameVersion];
-        NSString *mirror = [NSString stringWithFormat:@"https://bmclapi2.bangbang93.com/fabric-meta/v2/versions/loader/%@", gameVersion];
-        data = [self ame_syncFetch:official] ?: [self ame_syncFetch:mirror];
+        // Fabric meta v2：[{loader:{version:"x.y.z"}}]（Task325：候选链替换硬编码双源，
+        // meta.fabricmc.net → BMCLAPI /fabric-meta 映射已在 PLMirrorCenter）
+        NSURL *official = [NSURL URLWithString:
+            [NSString stringWithFormat:@"https://meta.fabricmc.net/v2/versions/loader/%@", gameVersion]];
+        NSArray<NSURL *> *cands = [PLMirrorCenter candidateURLsForOriginalURL:official
+                                                                 resourceType:PLMirrorResourceTypeModLoader];
+        if (cands.count == 0) cands = @[official];
+        for (NSURL *u in cands) {
+            data = [self ame_syncFetch:u.absoluteString];
+            if (data) break;
+        }
         if (!data) return nil;
         id json = [self ame_parseJSON:data];
         if (![json isKindOfClass:[NSArray class]]) return nil;
@@ -461,12 +497,18 @@
         return out_;
     }
     if ([identifier isEqualToString:@"fabricapi"]) {
-        // Modrinth：fabric-api 项目按游戏版本过滤（facets 同步端点同构）
+        // Modrinth：fabric-api 项目按游戏版本过滤（Task325：接入 MCIM 候选链）
         NSString *gv = [gameVersion stringByAddingPercentEncodingWithAllowedCharacters:
                         [NSCharacterSet URLQueryAllowedCharacterSet]];
-        NSString *url = [NSString stringWithFormat:
-            @"https://api.modrinth.com/v2/project/fabric-api/version?game_versions=[%%22%@%%22]&loaders=[%%22fabric%%22]", gv];
-        data = [self ame_syncFetch:url];
+        NSURL *official = [NSURL URLWithString:[NSString stringWithFormat:
+            @"https://api.modrinth.com/v2/project/fabric-api/version?game_versions=[%%22%@%%22]&loaders=[%%22fabric%%22]", gv]];
+        NSArray<NSURL *> *cands = [PLMirrorCenter candidateURLsForOriginalURL:official
+                                                                 resourceType:PLMirrorResourceTypeAssetSearch];
+        if (cands.count == 0) cands = @[official];
+        for (NSURL *u in cands) {
+            data = [self ame_syncFetch:u.absoluteString];
+            if (data) break;
+        }
         if (!data) return nil;
         id json = [self ame_parseJSON:data];
         if (![json isKindOfClass:[NSArray class]]) return nil;
@@ -479,19 +521,57 @@
     }
     if ([identifier isEqualToString:@"optifine"]) {
         // BMCLAPI OptiFine 清单：[{type:"HD_U",patch:"H1",mcversion:"1.20.4"}]
+        // ★ Task325：bmclapi2 单源是 OptiFine“清单加载失败”的唯一定时炸弹（用户
+        //   日志 DNS -1003 实弹）；兑底 = 官方 optifine.net/downloads 页 HTML 提取
+        //   （OptiFine_<mc>_<type>_<patch>.jar 文件名正则，构造同款载荷）。
         data = [self ame_syncFetch:@"https://bmclapi2.bangbang93.com/optifine/versionList"];
-        if (!data) return nil;
-        id json = [self ame_parseJSON:data];
-        if (![json isKindOfClass:[NSArray class]]) return nil;
-        NSMutableArray *out_ = [NSMutableArray array];
-        for (NSDictionary *entry in json) {
-            if (![entry[@"mcversion"] isEqualToString:gameVersion]) continue;
-            NSString *type = entry[@"type"] ?: @"";
-            NSString *patch = entry[@"patch"] ?: @"";
-            if (type.length == 0) continue;
-            [out_ addObject:[NSString stringWithFormat:@"%@\x1f%@\x1f%@", type, patch, entry[@"filename"] ?: @""]];
+        if (data) {
+            id json = [self ame_parseJSON:data];
+            if ([json isKindOfClass:[NSArray class]]) {
+                NSMutableArray *out_ = [NSMutableArray array];
+                for (NSDictionary *entry in json) {
+                    if (![entry[@"mcversion"] isEqualToString:gameVersion]) continue;
+                    NSString *type = entry[@"type"] ?: @"";
+                    NSString *patch = entry[@"patch"] ?: @"";
+                    if (type.length == 0) continue;
+                    [out_ addObject:[NSString stringWithFormat:@"%@\x1f%@\x1f%@", type, patch, entry[@"filename"] ?: @""]];
+                }
+                if (out_.count > 0) return out_;
+            }
         }
-        return out_;
+        NSLog(@"[ZL2Addons] optifine bmclapi list failed -- falling back to optifine.net/downloads HTML");
+        NSData *htmlData = [self ame_syncFetch:@"https://optifine.net/downloads"];
+        if (htmlData) {
+            NSString *html = [[NSString alloc] initWithData:htmlData encoding:NSUTF8StringEncoding];
+            if (html.length > 0) {
+                // 文件名形态：OptiFine_1.21.4_HD_U_I7.jar（末段=patch，中段=type）
+                NSRegularExpression *rx = [NSRegularExpression
+                    regularExpressionWithPattern:@"OptiFine_([0-9][0-9._]*)_(.+?)\\.jar"
+                    options:0 error:nil];
+                NSMutableArray *out_ = [NSMutableArray array];
+                NSMutableSet *seen = [NSMutableSet set];
+                [rx enumerateMatchesInString:html options:0 range:NSMakeRange(0, html.length)
+                                  usingBlock:^(NSTextCheckingResult *m, NSMatchingFlags f, BOOL *stop) {
+                    if ([m numberOfRanges] < 3) return;
+                    NSString *mc = [html substringWithRange:[m rangeAtIndex:1]];
+                    NSString *tp = [html substringWithRange:[m rangeAtIndex:2]];
+                    if (![mc isEqualToString:gameVersion]) return;
+                    NSArray *segs = [tp componentsSeparatedByString:@"_"];
+                    if (segs.count < 2) return;
+                    NSString *patch = segs.lastObject;
+                    NSString *type = [[segs subarrayWithRange:NSMakeRange(0, segs.count - 1)]
+                        componentsJoinedByString:@"_"];
+                    if (type.length == 0 || patch.length == 0) return;
+                    NSString *payload = [NSString stringWithFormat:@"%@\x1f%@\x1fOptiFine_%@_%@.jar", type, patch, mc, tp];
+                    if (![seen containsObject:payload]) {
+                        [seen addObject:payload];
+                        [out_ addObject:payload];
+                    }
+                }];
+                if (out_.count > 0) return out_;
+            }
+        }
+        return nil;
     }
     return nil;
 }
@@ -1025,7 +1105,9 @@
     _listView.rowHeight = 40.0;
     _listView.delegate = self;
     _listView.dataSource = self;
-    _listView.scrollEnabled = NO;
+    // Task325：清单拉取成功也渲染 0 行的隐形雷修复面（reloadData 补齐）之外，
+    // 长清单（Fabric loader 100+ 行）在 260pt 钳高内可滚动（scrollEnabled=YES）
+    _listView.scrollEnabled = YES;
     _listView.translatesAutoresizingMaskIntoConstraints = NO;
     _listView.hidden = YES;
     [_listView registerClass:[UITableViewCell class] forCellReuseIdentifier:@"ZL2AddonItem"];
@@ -1125,7 +1207,12 @@
 
     _divider.hidden = !self.expanded;
     _listView.hidden = !self.expanded;
-    _listHeight.constant = self.expanded ? MIN((CGFloat)(MAX(self.items.count, 1)) * 40.0 + 8.0, 260.0) : 0.0;
+    // Task325：加载/失败态给列表区最小高度 48 —— spinner 与失败文案均锚在
+    // listView.centerY，历史版 0 高列表时两者都不可见（“什么都不显示”观感
+    // 死角之二）；items 到达后恢复数据高度。失败文案常驻可点（见 headerTapped）。
+    CGFloat ame325_min = (self.loading || self.listFailed) ? 48.0 : 0.0;
+    CGFloat ame325_data = MIN((CGFloat)(MAX(self.items.count, 1)) * 40.0 + 8.0, 260.0);
+    _listHeight.constant = self.expanded ? MAX(ame325_min, ame325_data) : 0.0;
 
     if (self.loading) {
         [_spinner startAnimating];
@@ -1134,14 +1221,22 @@
         [_spinner stopAnimating];
         _failedLabel.hidden = !self.listFailed;
     }
+    // ★ Task325 核心雷：items 到达后从不 reloadData —— UITableView 首次 layout
+    //   时 items 还是 nil 已缓存 0 行，后续展开/拉取成功都不触发行数重查，
+    //   清单拉取成功也渲染 0 行（IMG_0486 “Fabric 展开为空”直接根因）。
+    //   全文件原唯一 reloadData 在 didSelectRow（选中回写场景），补齐此处。
+    [self.listView reloadData];
     [UIView animateWithDuration:0.18 animations:^{
         [self layoutIfNeeded];
     }];
 }
 
 - (void)ame_headerTapped {
-    if (self.loading || self.listFailed) return;
-    if (self.items.count == 0) {
+    if (self.loading) return;
+    // Task325：失败态点卡头 = 重新拉取（历史版 no-op，恢复仅靠 28x28 刷新小钮
+    // —— “什么都不显示”观感死角之三）；有数据时维持展开/收起切换。
+    if (self.listFailed || self.items.count == 0) {
+        self.expanded = YES;
         [self ame_reloadTapped];
         return;
     }

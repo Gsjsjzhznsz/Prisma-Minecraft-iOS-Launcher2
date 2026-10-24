@@ -303,11 +303,16 @@ static float ame51_px_to_pt(float v) {
 }
 
 // Push a mouse motion event into SDL's event queue
+// ★ Task325：reserved=0xA1 标记“启动器推送、坐标已在 MC 信念空间”（Task267
+// adaptiveScale 链已修正）——PollEvent 出口见标记直通不复大（B 链 SDL 原生
+// 触摸才需要 scale-mode 补偿，见 sdl3_hook.m ame325_scaleFixSDLMouseEvent）。
+#define AME325_LAUNCHER_PUSHED 0xA1u
 static void pushSDLMouseMotion(float x, float y, float xrel, float yrel) {
     if (!pSDL_PushEvent || !g_sdlWindow) return;
     SDL3_MouseMotionEvent ev;
     memset(&ev, 0, sizeof(ev));
     ev.type = SDL3_EVENT_MOUSE_MOTION;
+    ev.reserved = AME325_LAUNCHER_PUSHED;
     ev.windowID = getSDLWindowID();
     ev.which = 0;
     ev.state = 0;
@@ -325,6 +330,7 @@ static void pushSDLMouseButton(uint8_t sdlButton, bool down, float x, float y) {
     SDL3_MouseButtonEvent ev;
     memset(&ev, 0, sizeof(ev));
     ev.type = down ? SDL3_EVENT_MOUSE_BUTTON_DOWN : SDL3_EVENT_MOUSE_BUTTON_UP;
+    ev.reserved = AME325_LAUNCHER_PUSHED;   // ★ Task325：A 链标记（同 pushSDLMouseMotion）
     ev.windowID = getSDLWindowID();
     ev.which = 0;
     ev.button = sdlButton;

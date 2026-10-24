@@ -443,10 +443,64 @@
     }
 }
 
+/// ★ Task325：实例轴骨架 pass —— 整合包/AI 实例的隔离单元是 instances/<id>/
+/// （profile gameDir = 绝对路径，ModpackImportService Task316/269/275-F5 铸成），
+/// 与版本轴（versions/<id>/，Task322/324 铸成）零交集：Task324 的两条隔离判据
+/// 在实例轴上定义性为假（gameDir 字面不匹配 versions/<vid>；目录形状探针只
+/// 探 POJAV_GAME_DIR/versions/<vid>/），整合包实例永远得不到六目录骨架 ——
+/// 用户装机实测“versions 里还是一个文件都没有”（病历：modrinth_<UUID> 实例
+/// 整个活在 instances/ 树，用户在文件 App 里翻到的实例 versions/ 又是空壳）。
+/// 本 pass 遍历注册表：gameDir 为绝对路径且位于 POJAV_HOME/instances/ 之下、
+/// 目录真实存在的 profile → 在该 gameDir 下补齐六目录（幂等零副作用）。
+/// FCL 观感对齐：实例目录打开即见 mods/saves/config 等隔离文件；全部内容类
+/// 扫描（ModService/WorldService/ResourcePackService 跟随 gameDir）无需一行
+/// 改动自动受益。守卫：仅接受 instances/ 子目录（防任意绝对路径误伤）。
++ (void)ame325_ensureInstanceAxisSkeletons {
+    const char *ame325_homeEnv = getenv("POJAV_HOME");
+    if (!ame325_homeEnv || !*ame325_homeEnv) return;
+    NSString *ame325_home = [NSString stringWithUTF8String:ame325_homeEnv];
+    if (ame325_home.length == 0) return;
+    NSString *ame325_instancesRoot = [ame325_home stringByAppendingPathComponent:@"instances"];
+    NSFileManager *ame325_fm = [NSFileManager defaultManager];
+    NSInteger ame325_created = 0;
+    NSInteger ame325_hit = 0;
+    NSDictionary *ame325_profiles = PLProfiles.current.profiles;
+    for (NSDictionary *ame325_prof in ame325_profiles.allValues) {
+        if (![ame325_prof isKindOfClass:[NSDictionary class]]) continue;
+        NSString *ame325_gd = ame325_prof[@"gameDir"];
+        if (![ame325_gd isKindOfClass:[NSString class]] || ame325_gd.length == 0) continue;
+        // 判据：绝对路径 + instances/ 子目录 + 目录真实存在（不凭空建实例目录）
+        if (![ame325_gd isAbsolutePath]) continue;
+        NSString *ame325_gdComp = [ame325_gd stringByStandardizingPath];
+        NSString *ame325_rootComp = [ame325_instancesRoot stringByStandardizingPath];
+        if (![ame325_gdComp hasPrefix:[ame325_rootComp stringByAppendingString:@"/"]]) continue;
+        BOOL ame325_isDir = NO;
+        if (![ame325_fm fileExistsAtPath:ame325_gdComp isDirectory:&ame325_isDir] || !ame325_isDir) continue;
+        ame325_hit++;
+        for (NSString *ame325_dir in @[@"mods", @"saves", @"config", @"resourcepacks", @"shaderpacks", @"screenshots"]) {
+            NSString *ame325_path = [ame325_gdComp stringByAppendingPathComponent:ame325_dir];
+            if (![ame325_fm fileExistsAtPath:ame325_path]) {
+                NSError *ame325_err = nil;
+                if ([ame325_fm createDirectoryAtPath:ame325_path withIntermediateDirectories:YES attributes:nil error:&ame325_err]) {
+                    ame325_created++;
+                } else {
+                    NSLog(@"[Ame325] instance-axis skeleton mkdir failed for %@/%@: %@",
+                          ame325_gdComp.lastPathComponent, ame325_dir, ame325_err.localizedDescription);
+                }
+            }
+        }
+    }
+    if (ame325_created > 0) {
+        NSLog(@"[Ame325] instance-axis isolation skeleton ensured (%ld instance(s), %ld dir(s) created, FCL parity)",
+              (long)ame325_hit, (long)ame325_created);
+    }
+}
+
 /// ★ Task324：全量骨架 pass——遍历 versions/<id>/<id>.json 真实版本实例，
 /// 逐个走 ame324_ensureIsolationSkeletonForVersionId（注册表/形状判据在内）。
 /// 调用点：ame271 自愈链收尾（SceneDelegate 启动段，Task322 重指后）+
 /// ZL2GameAddons 三个安装成功分支（装完即见，无需等下轮启动）。幂等零副作用。
+/// ★ Task325：尾部追加实例轴 pass（instances/<id>/ 整合包实例六目录）。
 + (void)ame324_ensureIsolationSkeletonsAll {
     const char *ame324_env = getenv("POJAV_GAME_DIR");
     if (!ame324_env || !*ame324_env) return;
@@ -462,6 +516,7 @@
         if (![ame324_fm fileExistsAtPath:ame324_marker]) continue;   // 非版本实例（残根/杂项）跳过
         [ModService ame324_ensureIsolationSkeletonForVersionId:ame324_vd];
     }
+    [ModService ame325_ensureInstanceAxisSkeletons];
 }
 
 - (nullable NSString *)existingModsFolderForProfile:(NSString *)profileName {

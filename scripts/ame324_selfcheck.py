@@ -146,6 +146,55 @@ def main():
           b"+ (void)ame324_ensureIsolationSkeletonsAll;\r\n" in raw,
           "ModService.h 插入行必须保持 CRLF")
 
+    # ── ⑤ Task325：实例轴骨架 + SDL 小窗输入补偿 + 仓库页 ZL2 化 ──
+    check("ame325:instance-axis-declared",
+          "+ (void)ame325_ensureInstanceAxisSkeletons;" in ms_h,
+          "ModService.h 必须声明 ame325 实例轴 pass")
+    check("ame325:instance-axis-implemented",
+          "+ (void)ame325_ensureInstanceAxisSkeletons {" in ms,
+          "ame325 实例轴 pass 实现必须在场")
+    check("ame325:instances-root-guard",
+          'stringByAppendingPathComponent:@"instances"]' in ms,
+          "实例轴判据必须限定 POJAV_HOME/instances/ 子目录（防任意绝对路径误伤）")
+    check("ame325:all-pass-tail-hook",
+          "[ModService ame325_ensureInstanceAxisSkeletons];" in ms,
+          "ame324 全量 pass 尾部必须挂实例轴 pass")
+    mpis = read("Natives/ModpackImportService.m")
+    check("ame325:import-hook",
+          "[ModService ame325_ensureInstanceAxisSkeletons];" in mpis
+          and '#import "ModService.h"' in mpis,
+          "ModpackImportService 导入成功即补实例轴骨架（不等下轮启动）")
+    sdl = read("Natives/sdl3_hook.m")
+    check("ame325:sdl-scalefix-present",
+          "ame325_scaleFixSDLMouseEvent" in sdl
+          and "native-input scale-fix" in sdl,
+          "SDL B 链（原生触摸）scale-mode 坐标补偿必须在场")
+    check("ame325:sdl-a-chain-marker",
+          "0xA1" in sdl and "ame325_res == 0xA1" in sdl,
+          "PollEvent 出口必须识别 A 链 reserved 标记防双重补偿")
+    ib = read("Natives/input_bridge_v3.m")
+    check("ame325:sdl-push-marker",
+          "AME325_LAUNCHER_PUSHED" in ib and ib.count("ev.reserved = AME325_LAUNCHER_PUSHED") >= 2,
+          "推送侧 mouse 两件必须带 A 链标记")
+    check("ame325:sdl-withprops-embed",
+          "s_embedTriedProps" in sdl,
+          "SDL_CreateWindowWithProperties 路径必须补 embed（结构性缺口对齐）")
+    check("ame325:addons-reloaddata",
+          "[self.listView reloadData];" in addons,
+          "AddonCard 刷新必须 reloadData（Fabric 展开为空根修）")
+    check("ame325:addons-candidate-chain",
+          "candidateURLsForOriginalURL:" in addons,
+          "加载器清单必须接入 PLMirrorCenter 候选链")
+    check("ame325:m3cardcell-shared",
+          "ZL2M3CardCell" in read("Natives/ZL2M3Kit.h")
+          and "ZL2RepoCardCell" not in read("Natives/ControlRepoViewController.m"),
+          "卡片 cell 必须上收 ZL2M3Kit 公共组件（本地类退役）")
+    for repo_rel in ("Natives/ControlRepoViewController.m", "Natives/ZL2PluginRepoViewController.m"):
+        repo = read(repo_rel)
+        check("ame325:%s-zl2card" % os.path.basename(repo_rel),
+              "ZL2M3CardCell" in repo and "UITableViewCellStyleSubtitle" not in repo,
+              "%s 必须用 ZL2M3CardCell（系统 Subtitle cell 退役）" % os.path.basename(repo_rel))
+
     print("")
     print("ame324_selfcheck: %d PASS / %d FAIL" % (len(PASSES), len(FAILS)))
     if FAILS:

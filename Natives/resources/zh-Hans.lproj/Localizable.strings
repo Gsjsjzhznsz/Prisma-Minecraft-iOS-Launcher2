@@ -3502,3 +3502,7 @@
 "welcome.data.sibling.confirm.overwrite" = "全量覆盖";
 "ame321.migrate.done" = "智能合并完成：新增 %ld · 更新 %ld · 未变 %ld · 保留较新 %ld。重启启动器后生效。";
 "ame321.migrate.done.overwrite" = "已迁移 %ld 个文件（全量覆盖）。重启启动器后生效。";
+/* Task325 控件仓库 ZL2 卡片动作徽章 */
+"dl.controls.repo.download" = "下载";
+"dl.controls.repo.update" = "更新";
+"custom_controls.repo.installed_badge" = "已安装";

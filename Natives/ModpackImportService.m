@@ -24,6 +24,7 @@
 #import "installer/ForgeProcessorExecutor.h"
 #import "PLCrashView.h"
 #import "PLProfiles.h"
+#import "ModService.h"          // Task325: 导入成功即补实例轴六目录骨架（不等下轮启动）
 #import "PLPreferences.h"
 #import "UnzipKit.h"
 #import "DownloadTaskManager.h"
@@ -1164,6 +1165,11 @@ static BOOL ame269_sMigrationRunning = NO;
         [self cleanupAbortedImportWithGameDir:(ame269_isReuse ? ame269_stageDir : gameDirAbsolute) mainTaskFailed:YES];
         return NO;
     }
+
+    // ★ Task325：导入成功即补实例轴六目录骨架（mods/saves/config/resourcepacks/
+    //   shaderpacks/screenshots）——FCL 观感：实例目录打开即见隔离文件，
+    //   不等下轮启动的 ame271/ame324 全量 pass。
+    [ModService ame325_ensureInstanceAxisSkeletons];
 
     // 第 5 步: 持久化整合包元信息
     NSMutableDictionary *savedModpack = [modpackInfo mutableCopy];

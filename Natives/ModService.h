@@ -89,6 +89,8 @@ typedef void(^ModDownloadHandler)(NSError * _Nullable error); // Added for downl
 // 默认实例与非隔离版本绝不创建（防"放了模组却不生效"误导）
 + (void)ame324_ensureIsolationSkeletonForVersionId:(NSString *)vid;
 + (void)ame324_ensureIsolationSkeletonsAll;
+/// Task325: instance-axis skeleton pass (modpack instances under instances/<id>/)
++ (void)ame325_ensureInstanceAxisSkeletons;
 
 @end
 
