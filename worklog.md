@@ -3695,3 +3695,15 @@ Work Log:
 Stage Summary:
 - 四联全链交付：①实例 versions/ 打开即见真实版本文件（json+jar 硬链接物化，文件 App 可见可取，FCL 观感终态）②SDL 小窗拖拽即时正确+沉降 0.6s 后 1:1 自适应（信箱溶解零偏移零黑边）③插件效果直达设置页「插件功能」区+管理页三步指南④插件可改整个启动器（导航/实例写/游戏目录沙盒三组新权限七 API）⑤AI 对话即得插件（create_plugin 全文档+自动装+即时生效）
 - 装机锚点 6 条：①文件 App instances/<id>/versions/ 见 <vid>/ 真实文件，latestlog 搜 "[Ame327] instance versions materialized"（legacy symlink removed 首轮可见）②小窗拖拽停止 ~0.6s 后黑边消失画面满窗，latestlog 搜 "[SurfaceVC] Task327: freeform settled adaptive re-announce"③设置页新增「插件功能」区四件插件的行可直接点④设置 → 插件管理 底部「插件使用指南」⑤插件详情页新增三组权限开关⑥AI 助手对话说"帮我写一个插件"→生成安装装载一条龙
+
+---
+Task ID: 327 号段 · CI 闭环补记
+Agent: main (Super Z)
+Task: development/ui-smoke 双 workflow dispatch（Task327 代码轮 4c909d2a）
+
+Work Log:
+- 提交 4c909d2a（代码+worklog 同轮）推送 main；凭据 = 一代仓 remote 内嵌 token 复用改写二代 URL（476cff9f..4c909d2a）
+- dispatch 双 workflow 均 204（development + ui-smoke，head=4c909d2a）
+
+Stage Summary:
+- 双轮询证中；产物在位预期 ipa/tipa 222MB 级；装机锚点见 Task 327 条目 Stage Summary 6 条
