@@ -1475,3 +1475,18 @@ NSString * const DownloadTaskResourceTypeModpack = @"modpack";
     NSLog(@"[AmeFluentPreview] stub downloadDataPack:%@", item.displayName);
 }
 @end
+
+// ★ Task330：ZL2HomeViewController 主页插件 chip（Task328 ame328_rows 贡献行
+//   计数，L1023 [AmePluginRuntime allContributedRows]）引用 AmePluginRuntime
+//   类符号 —— 预览 TU 集不含 AmePluginRuntime.m（正式构建 CMake 覆盖）。
+//   Task328 落地至 Task330 期间 preview mode 从未实跑（#65 仅为 syntax 模式），
+//   本轮 mode=all 首跑暴露。按本 TU 家法：手写同名类声明 + 空实现，不 import
+//   真实类头，链接期只需类符号（方法为运行时动态绑定）。
+@interface AmePluginRuntime : NSObject
++ (NSArray<NSDictionary *> *)allContributedRows;
++ (void)invokeRowTap:(NSString *)rowId;
+@end
+@implementation AmePluginRuntime
++ (NSArray<NSDictionary *> *)allContributedRows { return @[]; }
++ (void)invokeRowTap:(NSString *)rowId { (void)rowId; }
+@end

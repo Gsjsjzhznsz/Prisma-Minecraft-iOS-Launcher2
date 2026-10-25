@@ -3834,3 +3834,8 @@ ame330_selfcheck（新，27 锚点断言 + 5 括号平衡）+ame329 25/25+ame327
 Stage Summary:
 - 四问全落（全部在正确仓库基于 6f27abab 现状根修）：①versions 默认实例形态补口+plist 豁免顺修 ②插件陈旧副本启动期自愈+复用残留清除 ③SDL 触点时刻自愈双挂点 ④MD3 开关圆形化；一代侧 Task 329 撤销与 6f27aba 归属定案见一代仓 worklog Task 330 条目
 - 待办移交：JIT 游戏启动链（最高严重级，本轮未催未动）；下载中心 UI/加载器空白多轮遗留；AI 提示词插件章（Task 328 v3 已做，待装机复验）
+
+### 【闭环补记】CI r0/r1（preview 链接桩补齐）
+
+- r0：**dev run #50 一轮终绿**（Task 330 代码 CMake 全量链零雷，ipa/tipa 产物在位 @ b1ba7037）；smoke run #66 mode=all 预览链接红 = **存量断链非本轮回归**——Task328 主页插件 chip（ZL2HomeViewController L1023 `[AmePluginRuntime allContributedRows]`）落地以来 preview mode 从未实跑（#65 仅为 syntax 模式），预览 TU 集不含 AmePluginRuntime.m → `_OBJC_CLASS_$_AmePluginRuntime` 未决
+- r1 修复：ZL2PagesStub.m 尾部按本 TU 家法补 AmePluginRuntime 类桩（手写同名类声明+空实现，不 import 真实类头，链接期只需类符号）；smoke mode=all 重派复跑
