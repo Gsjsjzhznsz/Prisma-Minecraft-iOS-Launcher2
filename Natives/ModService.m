@@ -690,9 +690,15 @@ static BOOL ame329_moveEntry(NSFileManager *fm, NSString *src, NSString *dstDir,
         stringByStandardizingPath];
     NSString *ame329_rootPrefix = [ame329_rootStd stringByAppendingString:@"/"];
     // 共享层 + 导入元数据 + 旧嵌套布局（Task316 ame316 迁移域）绝不触碰
+    // ★ Task330：launcher_preferences.plist 强制豁免 —— PLPreferences 的
+    //   instancePath 恒等 POJAV_GAME_DIR/launcher_preferences.plist
+    //   （LauncherPreferences 每次访问从 env 重算），env 恒指实例根、不随
+    //   版本轴重指变化 → plist 属【启动器层】非游戏数据层，搬走 = 下次
+    //   启动偏好整表丢失（Task329 潜在缺陷顺修）。
     NSSet *ame329_excluded = [NSSet setWithArray:@[
         @"versions", @"assets", @"libraries",
-        @"import_report.json", @".ame269_backup", @"custom_gamedir"
+        @"import_report.json", @".ame269_backup", @"custom_gamedir",
+        @"launcher_preferences.plist"
     ]];
     NSString *ame329_ts = [NSString stringWithFormat:@"%ld", (long)[[NSDate date] timeIntervalSince1970]];
     NSDictionary *ame329_profiles = PLProfiles.current.profiles;
@@ -764,6 +770,120 @@ static BOOL ame329_moveEntry(NSFileManager *fm, NSString *src, NSString *dstDir,
         NSLog(@"[Ame329] version-axis unification done: %ld profile(s) re-pointed -- versions/<vid>/ now holds full isolated data (ZL2/PCL2 parity)",
               (long)ame329_unified);
     }
+    // ★ Task330：默认实例形态补口（gameDir 空/缺省的常规实例此前整支被
+    //   绝对路径判据跳过 —— 装机 [Ame329] 统一日志零出现的根因）。
+    [ModService ame330_unifyDefaultInstanceIntoVersionAxis];
+}
+
+/// ★ Task330：默认实例版本轴统一 —— "versions 依旧没有文件"第六轮收口。
+/// 病历（装机 6f27abab latestlog 实锤）：ame329 判据①要求 profile gameDir
+/// 为【绝对路径】，默认实例（gameDir 空/缺省，游戏数据活在 POJAV_GAME_DIR
+/// = instances/<id> 实例根）整支被绝对路径判据 continue 跳过 —— 装机日志
+/// [Ame324] 建六目录骨架 → [Ame328] 六目录全空判诱饵剪除 → versions/<vid>/
+/// 恒只有 json+jar，[Ame329] 统一日志零出现。本 pass 补齐默认实例形态：
+/// 生效根 = POJAV_GAME_DIR 解析（Task226 链 → instances/<id>），判据与
+/// ame329 同源（两层实例根 + 真实目录 + 版本目录真身 marker），命中即把
+/// 根级游戏数据搬进 versions/<vid>/ 并把 profile gameDir 重指绝对路径
+/// （启动链按 profile gameDir 下发生效目录 → MC 从版本目录读写 saves/
+/// mods/options.txt；版本 json/jar 本就在版本目录，POJAV_GAME_DIR/versions/
+/// 解析路径不变，启动零扰动）。
+/// 守卫（比 ame329 更严，防多档共根误伤）：
+///   · 生效根必须恰为 instances/<id> 两层（POJAV_HOME 本体/共享根不碰）；
+///   · 空值 gameDir 的 profile 有多个且 lastVersionId 不一致 = 共根歧义，
+///     整轮跳过（保守优先零误伤）；全部同版本才统一搬家+统一重指；
+///   · launcher_preferences.plist 豁免（PLPreferences 恒读实例根，见
+///     ame329 豁免集 Task330 注）；
+///   · 已迁移深层形态（gameDir=instances/<id>/versions/<vid>）不进本
+///     pass（绝对路径走 ame329 判据），幂等天然成立。
++ (void)ame330_unifyDefaultInstanceIntoVersionAxis {
+    const char *ame330_env = getenv("POJAV_GAME_DIR");
+    const char *ame330_homeC = getenv("POJAV_HOME");
+    if (!ame330_env || !*ame330_env || !ame330_homeC || !*ame330_homeC) return;
+    NSString *ame330_root = [[NSString stringWithUTF8String:ame330_env]
+        stringByResolvingSymlinksInPath];
+    if (ame330_root.length == 0) return;
+    NSString *ame330_instances = [[NSString stringWithUTF8String:ame330_homeC]
+        stringByAppendingPathComponent:@"instances"];
+    NSString *ame330_prefix = [[ame330_instances stringByStandardizingPath]
+        stringByAppendingString:@"/"];
+    if (![ame330_root hasPrefix:ame330_prefix]) return;   // 共享根/自定义根不碰
+    NSString *ame330_rest = [ame330_root substringFromIndex:ame330_prefix.length];
+    if (ame330_rest.length == 0 || [ame330_rest rangeOfString:@"/"].location != NSNotFound) return;
+    NSFileManager *ame330_fm = [NSFileManager defaultManager];
+    NSDictionary *ame330_attrs = [ame330_fm attributesOfItemAtPath:ame330_root error:nil];
+    if (!ame330_attrs || ![ame330_attrs[NSFileType] isEqualToString:NSFileTypeDirectory]) return;
+    // 默认形态 profile 清单（gameDir 空值/缺省/"."；其他相对路径不猜）
+    NSDictionary *ame330_profiles = PLProfiles.current.profiles;
+    NSMutableArray<NSString *> *ame330_names = [NSMutableArray array];
+    NSMutableSet<NSString *> *ame330_vids = [NSMutableSet set];
+    for (NSString *ame330_name in ame330_profiles.allKeys) {
+        NSDictionary *ame330_prof = ame330_profiles[ame330_name];
+        if (![ame330_prof isKindOfClass:[NSDictionary class]]) continue;
+        NSString *ame330_gd = ame330_prof[@"gameDir"];
+        if ([ame330_gd isKindOfClass:[NSString class]] && ame330_gd.length > 0
+            && ![ame330_gd isEqualToString:@"."]) continue;
+        NSString *ame330_vid = ame330_prof[@"lastVersionId"];
+        if (![ame330_vid isKindOfClass:[NSString class]] || ame330_vid.length == 0) continue;
+        [ame330_names addObject:ame330_name];
+        [ame330_vids addObject:ame330_vid];
+    }
+    if (ame330_names.count == 0) return;
+    if (ame330_vids.count > 1) {
+        NSLog(@"[Ame330] default-instance unify skipped: %lu default profile(s) share the root with distinct versions -- ambiguous, no touch",
+              (unsigned long)ame330_names.count);
+        return;
+    }
+    NSString *ame330_vid = ame330_vids.anyObject;
+    NSString *ame330_vdir = [ame330_root stringByAppendingPathComponent:
+        [NSString stringWithFormat:@"versions/%@", ame330_vid]];
+    NSString *ame330_marker = [ame330_vdir stringByAppendingPathComponent:
+        [NSString stringWithFormat:@"%@.json", ame330_vid]];
+    if (![ame330_fm fileExistsAtPath:ame330_marker]) return;   // 无主实例绝不盲搬
+    // 根级候选搬家清单（与 ame329 同口径：非隐藏、非共享层、非导入元数据）
+    NSSet *ame330_excluded = [NSSet setWithArray:@[
+        @"versions", @"assets", @"libraries",
+        @"import_report.json", @".ame269_backup", @"custom_gamedir",
+        @"launcher_preferences.plist"
+    ]];
+    NSMutableArray<NSString *> *ame330_pending = [NSMutableArray array];
+    for (NSString *ame330_item in [ame330_fm contentsOfDirectoryAtPath:ame330_root error:nil]) {
+        if ([ame330_item hasPrefix:@"."]) continue;
+        if ([ame330_excluded containsObject:ame330_item]) continue;
+        [ame330_pending addObject:ame330_item];
+    }
+    NSInteger ame330_moved = 0;
+    NSString *ame330_ts = [NSString stringWithFormat:@"%ld", (long)[[NSDate date] timeIntervalSince1970]];
+    if (ame330_pending.count > 0) {
+        if (![ame330_fm fileExistsAtPath:ame330_vdir]) {
+            [ame330_fm createDirectoryAtPath:ame330_vdir
+              withIntermediateDirectories:YES attributes:nil error:nil];
+        }
+        for (NSString *ame330_item in ame330_pending) {
+            ame329_moveEntry(ame330_fm,
+                             [ame330_root stringByAppendingPathComponent:ame330_item],
+                             ame330_vdir, ame330_ts, &ame330_moved);
+        }
+    }
+    // 重指：搬了东西，或根已净但版本目录有内容（上次重指失败残留修复）
+    BOOL ame330_vdirHasData = NO;
+    for (NSString *ame330_e in [ame330_fm contentsOfDirectoryAtPath:ame330_vdir error:nil]) {
+        if ([ame330_e isEqualToString:[NSString stringWithFormat:@"%@.json", ame330_vid]]) continue;
+        if ([ame330_e isEqualToString:[NSString stringWithFormat:@"%@.jar", ame330_vid]]) continue;
+        if ([ame330_e hasPrefix:@"."]) continue;
+        ame330_vdirHasData = YES;
+        break;
+    }
+    if (ame330_moved == 0 && !(ame330_pending.count == 0 && ame330_vdirHasData)) return;
+    [PLProfiles.current applyChanges:^(NSMutableDictionary<NSString *, id> *ame330_profs) {
+        for (NSString *ame330_name in ame330_names) {
+            NSMutableDictionary *ame330_p = [ame330_profs[ame330_name] mutableCopy]
+                ?: [NSMutableDictionary dictionary];
+            ame330_p[@"gameDir"] = ame330_vdir;
+            ame330_profs[ame330_name] = ame330_p;
+        }
+    }];
+    NSLog(@"[Ame330] default instance data unified into version axis: instances/%@ → versions/%@ (%ld item(s) moved, %lu profile(s) re-pointed -- PCL2/ZL2 parity)",
+          ame330_rest, ame330_vid, (long)ame330_moved, (unsigned long)ame330_names.count);
 }
 
 /// ★ Task325：实例轴骨架 pass —— 整合包/AI 实例的隔离单元是 instances/<id>/

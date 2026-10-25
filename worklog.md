@@ -4,7 +4,7 @@
 
  + 「滚动近况」即可开工；更早历史一律查 worklog-archive.md，勿通读）
 
-> 最后更新：Task 165（2026-09-25，ES/4.0 黑屏真根因根修：Task154 的 LWJGL delegate dlsym 补丁致 gl* 解析绕过 MobileGlues 前端，前端导出 xglGetProcAddress 复活死名查找；renderTexture 探针 + RCAS 运行期熔断）。此前：Task 164（RCAS 四项对齐 + 壁纸 nil 判定 + Vulkan FSR 矩阵）；Task 163（新拟态范围修正）；Task 162（八案根修）；Task 161（六案根修）。
+> 最后更新：Task 330（2026-10-26，四线终审收口：①默认实例版本轴统一——ame329 绝对路径判据漏斗的默认实例补口 + launcher_preferences.plist 豁免顺修 ②内置插件内容自愈——旧代 main.js 安装副本启动期原子升级，贡献行/效果面复活 + 插件页复用残留清除 ③SDL 触点时刻几何自愈——小窗/切后台陈旧因子当场治愈双挂点 ④MD3 开关拇指圆形化。跨仓库勘误：6f27aba 归属本仓定案，一代侧 Task 329 全量撤销）。此前：Task 165（2026-09-25，ES/4.0 黑屏真根因根修：Task154 的 LWJGL delegate dlsym 补丁致 gl* 解析绕过 MobileGlues 前端，前端导出 xglGetProcAddress 复活死名查找；renderTexture 探针 + RCAS 运行期熔断）。此前：Task 164（RCAS 四项对齐 + 壁纸 nil 判定 + Vulkan FSR 矩阵）；Task 163（新拟态范围修正）；Task 162（八案根修）；Task 161（六案根修）。
 > 新会话规则：新任务记录**追加到本文件最末尾**（`## Task N` 或 `---/Task ID:` 模板均可）；收尾时同步更新下面「当前状态」表；本文件超过 ~400 行时把最旧的任务段挪进 worklog-archive.md。
 
 ### 一句话
@@ -3784,3 +3784,53 @@ Stage Summary:
 
 - dev run 40123974299 + smoke run 40123975946 双一轮 success（dispatch 触发，本仓 push 触发器已拆）；SurfaceViewController.h 声明补齐即愈，零二次返工
 - 产物 ipa/tipa 222.4MB + dSYM 7.3MB 在位；装机验证锚点见 Task 329 条目 5 条（[Ame329] 日志 / versions/<vid>/ 实文件 / 存档可玩 / 换装不脱同步 / 分辨率菜单恢复出包）
+
+---
+## Task 330——四线终审收口（用户四问：versions 依旧没文件/插件还是无法使用/SDL 切后台+小窗输入错位/MD3 滑块张这样）＋跨仓库勘误执行
+
+**日期**：2026-10-26（UTC+8 会话）
+**触发**：用户装机 6f27aba 四问复访 + "请撤销提交，正确恢复6f27aba的问题"（一代侧误判勘误）
+
+### 跨仓库勘误（一代侧执行记录，本仓定位定案）
+
+- 用户指路 worklog → 二代仓库 = **Gsjsjzhznsz/Prisma-Minecraft-iOS-Launcher2**（本仓，公开，main=eb0e863e）克隆终验：设备构建 6f27aba = 本仓 6f27abab（Task 329 docs 提交），merge-base 实证直系祖先——二代谱系 Task 319-329 健在从未失传
+- 一代侧（Prisma-Minecraft-iOS-Launcher）误判第二进宫：设备日志头 "[Pre-Init] Fork: …/Prisma-Minecraft-iOS-Launcher" 是**上游指针**（二代系一代 fork），叠加两仓任务号/ame 前缀并行 → 一代把 6f27aba 误判为失传提交并错位重实现其 Task 329（9a2356c0）→ 按用户指令全量撤销（一代 main 受分支保护禁 force-push，标准 revert 三连，内容回到一代 Task 323 勘误状态，提交 177a8c8e）
+- 防再犯追加（继 Task 323 三条）：④设备日志 Fork 行=上游指针，归属判定以 Version 谱系（1.0.0=二代）+ 账号下仓库全量枚举为准 ⑤"本仓查不到"的哈希先试"另一仓库的 main 历史"再下结论
+
+### 线A：默认实例版本轴统一（versions 依旧没文件·第六轮收口）
+
+- 装机日志终审（latestlog.txt 10580 行实锤）：`[Ame324] isolation skeleton ensured (6 dir(s) created)` → `[Ame328] decoy skeleton pruned (6 empty dir(s))`，**`[Ame329]` 统一日志零出现**——Task329 判据①要求 profile gameDir 为绝对路径，默认实例（gameDir 空/缺省，数据在 POJAV_GAME_DIR=instances/default 实例根）整支被 continue 跳过；IMG_0490 实锤 versions/fabric-loader-…/ 只有 jar+json 两项
+- `ModService ame330_unifyDefaultInstanceIntoVersionAxis`（新 pass，ame329 尾部接线）：生效根=POJAV_GAME_DIR 解析（Task226 链），判据与 ame329 同源（instances/<id> 两层 + 真实目录 + 版本目录 marker），根级数据搬进 versions/<vid>/ + profile gameDir 重指绝对路径；守卫升级：空值 gameDir 的 profile 有多个且 lastVersionId 不一致=共根歧义整轮跳过（防多档共根误伤）
+- **launcher_preferences.plist 强制豁免**（ame329/ame330 两处豁免集）：PLPreferences instancePath 恒等 POJAV_GAME_DIR/launcher_preferences.plist（LauncherPreferences 每次 env 重算），env 恒指实例根 → plist 属启动器层，搬走=偏好整表丢失——Task329 整合包路线潜在缺陷顺修
+- 启动安全终验：JavaLauncher L2925 `PLProfiles resolveKeyForCurrentProfile:@"gameDir"` 绝对路径直接采用（Task275 链）→ 搬家重指后 MC 从版本目录读写 saves/mods/options.txt；版本 json 解析走 POJAV_GAME_DIR/versions/<vid>/（env 不变）零扰动；ame324/325/327/328 四 pass 对新形态全部幂等（ame327 物化守卫跳过深形态、ame328 清扫判据六目录有内容恒保）
+- 装机锚点：`[Ame330] default instance data unified into version axis: instances/<id> → versions/<vid> (N item(s) moved, M profile(s) re-pointed)`；歧义跳过时 `[Ame330] default-instance unify skipped`
+
+### 线B：内置插件内容自愈（插件还是无法使用·终审收口）
+
+- 病历闭环（日志+截图+冒烟三证）：四内置件"已装载"且权限计数与包内 manifest 全符（4/3/5/3）、零权限拒绝、零 JS 异常，但全脚本 ame.log 零输出+贡献行分区恒空（IMG_0489）——唯一自洽解释=设备安装副本是**旧代 main.js**（manifest 自 Task318 未变故计数对上），而 installFromZip"已有授权即跳过"（Task326 注记在案）+仓库重装同拦=陈旧副本无任何升级通道，残缺永久化
+- `AmePluginRuntime ame330_refreshFirstPartyContent`（新，bootIfNeeded 授权自愈后/装载循环前）：包内 builtin-plugins 的 manifest.json/main.js 与安装副本逐字节对比，不一致即 NSDataWritingAtomic 原子覆盖；仅首方内置件（ame326 清单判据），第三方零触碰；幂等一致零写
+- 顺修两件：①插件列表页 cell 复用残留（section 2"关于"/3"指南"不写 detailTextLabel，复用 Subtitle cell 残留上一插件"版本·作者·简介"整行——IMG_0489"关于"区复读 Modrinth 描述实锤）②"MD3 滑块"=ZL2M3Switch 拇指从未设 cornerRadius，16/24pt 方形色块怼轨道（用户"为什么md3的滑块张这样"）→ 拇指圆形化 thumb/2，MD3 轨道几何/主题令牌不动，五处消费方（插件列表/详情/设置卡/版本页）一并根治
+- 编译雷预防：AmePluginManager 无 +pluginsRoot 类方法声明（跨文件 selector 盲区候选）→ 直接用公开 C 面 ame317_pluginsRootDir()（AmePluginPermissions.h L19）
+- 装机锚点：`[AmePlugin] Task330 first-party content refresh: <pid> (bundle builtin-plugins -> installed copy, rows/log/effect surface revived)`；插件页贡献行分区出现 6 行（launch-counter 1/modrinth-hot 1/quickswitch 2/theme-sunset 2）；开关旋钮圆形
+
+### 线C：SDL 触点时刻几何自愈（切后台+小窗输入错位·终审收口）
+
+- 结构缺口：回前台链（247 三连/250 强制/255 真值对账/267 重排）只在 didBecomeActive 与固定节拍点跑；小窗态触点映射消费的 contentOrigin/adaptiveScale 是重排时刻缓存——后台往返后窗口 bounds 再变化（iPadOS 恢复期重排/窗口挪动/0.6s 沉降定时器跨后台失效永不补放）时无人重算=陈旧因子存活到下一次拖拽，触点整段偏移
+- `SurfaceViewController ame330_touchTimeReconcile`（新）：触点时刻以 touchView 实况帧单点重算信念链（Task328 核心复用，≤1px 幂等闸内置）；守卫三重：仅 freeform 态 + 会话建立 + 前台 + 沉降定时器未决（isValid，防打断 Task277 冻结语义）
+- 挂点两处：sendTouchPoint 顶部（geoResyncPending 兜底块之后——任一触点都能治愈，不限首触点）+ ame247_didBecomeActive 小窗分支（rescale 后即时收口，沉降定时器跨后台失效场景不等首触点）
+- 装机锚点：`[SurfaceVC] Task330: touch-time belief reconcile healed stale freeform factors`；一致态零日志零开销
+
+### 门禁电池
+
+ame330_selfcheck（新，27 锚点断言 + 5 括号平衡）+ame329 25/25+ame327 66/66+ame324 52/52+ame318/317 零失败+task139 all balanced+task240 syntax/import sweep 零残留+task191 3302 键（本轮零新键，四线全为行为面修复）+task248 缺键0/硬编码0/动态键0+task250 全零+verify219 81/81+verify255 全 PASS+内置件 JS 冒烟（scripts/ame330_js_smoke.js 入库，node 解析四件 rows=6/events/尾日志全注册）
+
+### 装机锚点汇总（预期日志）
+
+1. `[Ame330] default instance data unified into version axis`（首启一次；Files App 打开 .minecraft/versions/<vid>/ 即见 saves/mods/config/options.txt 全套实文件）
+2. `[AmePlugin] Task330 first-party content refresh` ×4（首启一次；贡献行 6 行 + 插件页开关圆形）
+3. `[SurfaceVC] Task330: touch-time belief reconcile healed…`（小窗/后台往返漂移后首个触点；一致态静默）
+4. 存档进游戏可玩（数据物理搬移同卷 rename 瞬时，冲突零覆盖）
+
+Stage Summary:
+- 四问全落（全部在正确仓库基于 6f27abab 现状根修）：①versions 默认实例形态补口+plist 豁免顺修 ②插件陈旧副本启动期自愈+复用残留清除 ③SDL 触点时刻自愈双挂点 ④MD3 开关圆形化；一代侧 Task 329 撤销与 6f27aba 归属定案见一代仓 worklog Task 330 条目
+- 待办移交：JIT 游戏启动链（最高严重级，本轮未催未动）；下载中心 UI/加载器空白多轮遗留；AI 提示词插件章（Task 328 v3 已做，待装机复验）

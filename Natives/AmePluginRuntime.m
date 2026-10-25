@@ -148,6 +148,58 @@ static NSString *ame317_facadeSource(void) {
     }
 }
 
+/// ★ Task330：内置插件内容自愈 —— "插件还是无法使用"终审收口。
+/// 病历（装机 6f27abab latestlog 实锤）：四内置件"已装载"且权限计数与包内
+/// manifest 全符（4/3/5/3），但 [Ame326] 授权自愈零日志、全脚本 ame.log
+/// 零输出、贡献行分区恒空、全程零权限拒绝零 JS 异常 —— 唯一自洽解释：
+/// 设备安装副本是【旧代 main.js】（manifest 自 Task318 未变故计数对上；
+/// 旧 JS 无贡献行注册/无尾日志），而 installFromZip"已有授权即跳过"
+/// （Task326 注记在案）+ 仓库重装同样被拦 = 陈旧副本无任何升级通道，
+/// 残缺永久化。修法 = 首方信任口径延伸到内容：每次启动把包内
+/// builtin-plugins 的 manifest.json/main.js 与安装副本逐字节对比，不一致
+/// 即整文件覆盖（NSDataWritingAtomic 原子替换）。第三方插件零触碰。
+/// 幂等：一致即跳过零写。时机：bootIfNeeded 内授权自愈之后、装载循环
+/// 之前（装载拿到的必是新件，无需热重载路径）。
++ (void)ame330_refreshFirstPartyContent {
+    NSString *ame330_bundleRoot = [[NSBundle mainBundle].resourcePath
+        stringByAppendingPathComponent:@"builtin-plugins"];
+    NSArray<NSString *> *ame330_builtin = [self ame326_bundleBuiltinPluginIds];
+    if (ame330_builtin.count == 0) return;
+    // ★ Task330 编译雷预防：AmePluginManager 无 +pluginsRoot 类方法声明
+    //   （ame317_pluginsRootDir C 函数是跨文件公开面，AmePluginPermissions.h
+    //   声明）——直接用 C 面入口，勿添 .h 新 API 面。
+    NSString *ame330_installRoot = ame317_pluginsRootDir();
+    if (ame330_installRoot.length == 0) return;
+    NSFileManager *ame330_fm = [NSFileManager defaultManager];
+    for (NSString *pid in [AmePluginManager installedPluginIds]) {
+        if (![ame330_builtin containsObject:pid]) continue;   // 仅首方内置件
+        NSString *ame330_srcDir = [ame330_bundleRoot stringByAppendingPathComponent:pid];
+        NSString *ame330_dstDir = [ame330_installRoot
+            stringByAppendingPathComponent:pid];
+        BOOL ame330_refreshed = NO;
+        for (NSString *ame330_fname in @[@"manifest.json", @"main.js"]) {
+            NSString *ame330_src = [ame330_srcDir stringByAppendingPathComponent:ame330_fname];
+            NSString *ame330_dst = [ame330_dstDir stringByAppendingPathComponent:ame330_fname];
+            NSData *ame330_new = [NSData dataWithContentsOfFile:ame330_src];
+            if (ame330_new.length == 0) continue;   // 包内缺失（异常态）不覆盖
+            NSData *ame330_old = [NSData dataWithContentsOfFile:ame330_dst];
+            if (ame330_old && [ame330_old isEqualToData:ame330_new]) continue;
+            if (![ame330_fm fileExistsAtPath:ame330_dstDir]) {
+                [ame330_fm createDirectoryAtPath:ame330_dstDir
+                  withIntermediateDirectories:YES attributes:nil error:nil];
+            }
+            if (![ame330_new writeToFile:ame330_dst options:NSDataWritingAtomic error:nil]) {
+                NSLog(@"[AmePlugin] Task330 content refresh write failed: %@/%@", pid, ame330_fname);
+                continue;
+            }
+            ame330_refreshed = YES;
+        }
+        if (ame330_refreshed) {
+            NSLog(@"[AmePlugin] Task330 first-party content refresh: %@ (bundle builtin-plugins -> installed copy, rows/log/effect surface revived)", pid);
+        }
+    }
+}
+
 + (void)bootIfNeeded {
     if (![NSThread isMainThread]) {
         dispatch_async(dispatch_get_main_queue(), ^{ [self bootIfNeeded]; });
@@ -160,6 +212,10 @@ static NSString *ame317_facadeSource(void) {
 
     // ★ Task326：首方授权自愈先于装载循环（本启动内装载即拿到完整授权）
     [self ame326_healFirstPartyGrants];
+
+    // ★ Task330：首方内容自愈（旧代 main.js 安装副本升级到包内现役版，
+    //   贡献行/尾日志/效果面全部复活；先于装载循环 = 装载必是新件）
+    [self ame330_refreshFirstPartyContent];
 
     for (NSString *pid in [AmePluginManager installedPluginIds]) {
         AmePluginManifest *m = [AmePluginManager manifestForPlugin:pid];

@@ -2266,6 +2266,30 @@ static NSInteger ame283_lastLandscapeDev = 0;
     return YES;
 }
 
+/// ★ Task330：触点时刻几何自愈 —— "SDL 切后台/小窗输入错位"终审收口。
+/// 病历（装机 6f27abab）：回前台链（247 三连重申/250 强制宣告/255 真值
+/// 对账/267 重排）只在 didBecomeActive 与固定节拍点跑；小窗态触点映射
+/// 消费的 contentOrigin/adaptiveScale 是【重排时刻缓存】——后台往返后
+/// 窗口 bounds 再变化（iPadOS 恢复期重排/窗口挪动/沉降定时器跨后台失效
+/// 永不补放）时无人重算 = 陈旧因子存活到下一次拖拽，触点整段偏移。
+/// 修法 = 触点时刻以 touchView 实况帧单点重算信念链（Task328 核心自带
+/// ≤1px 幂等闸：几何一致零动作零开销，漂移即愈）。守卫：
+///   · 仅自由窗（scale-mode）态 —— 全屏态信念链由 updateSavedResolution
+///     单点写入者正常维护，触点重算反破坏写入者纪律；
+///   · 会话已建立 + 前台；
+///   · 沉降定时器未决（isValid = 拖拽活动 0.6s 内，信箱实时映射本就
+///     正确，此时重算会打断 Task277 冻结语义）。
+- (void)ame330_touchTimeReconcile {
+    if (!g_ame267_freeformScaled) return;
+    if (self.surfaceView.superview == nil) return;
+    if (!g_ame250_appActive) return;
+    if (ame327_settleTimer.isValid) return;   // 拖拽沉降未决：信箱实时态
+    CGFloat ame330_res = (resolutionScale > 0.01f) ? resolutionScale : 1.0f;
+    if ([self ame328_recomputeBeliefChainFromTouchViewWithRes:ame330_res]) {
+        NSLog(@"[SurfaceVC] Task330: touch-time belief reconcile healed stale freeform factors (input mapping back in sync)");
+    }
+}
+
 /// ★ Task277（"小窗还是漂移"收尾·热栏四路径双乘根修）：视图 pt → 整帧
 ///   物理 px 的【热栏/直发命中口径】单一事实源。ame267_adaptiveScale 的
 ///   定义 = "视图 pt → 整帧物理 px"【完整】因子（physicalWidth = 整帧
@@ -3798,6 +3822,9 @@ static BOOL ame87_mcVersionRequiresTextureBuffer(NSString *mcVersionId) {
         }
         NSLog(@"[SurfaceVC] Task248/250: first-touch geometry re-sync applied + forced re-announce");
     }
+    // ★ Task330：触点时刻几何自愈（不限于首触点——后台往返/窗口挪动后的
+    //   任一触点都能把陈旧因子当场治愈；幂等闸保证一致态零开销）。
+    [self ame330_touchTimeReconcile];
     // Task 78（FSR 输入口径）：输入像素空间必须等于 MC 窗口信念
     // windowWidth×windowHeight（Task59 定案：MC 按告知窗口尺寸归一化）。
     // view 点 × screenScale = 物理空间；窗口 = 物理 × resolutionScale
@@ -3952,6 +3979,9 @@ static BOOL ame87_mcVersionRequiresTextureBuffer(NSString *mcVersionId) {
     //   写坏；全屏态此路不通零变化）。
     if (g_ame267_freeformScaled) {
         [self ame267_rescaleViewStackToCurrentBounds];
+        // ★ Task330：回前台小窗态即时自愈 —— 沉降定时器跨后台失效场景下
+        //   （后台往返吞掉 0.6s 沉降火警）陈旧因子不等首触点当场收口。
+        [self ame330_touchTimeReconcile];
     }
     [self updateSavedResolution];
     // ★ Task254（反馈 1）：复屏侧立即打一行三方取证 + SDL 视图几何（不等

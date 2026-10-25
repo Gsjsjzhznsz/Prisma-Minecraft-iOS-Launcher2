@@ -360,6 +360,10 @@ static UIViewController *ZL2M3TopmostViewController(void) {
         CGFloat lead = checked ? 14.0 : 18.0;
         self.thumbSizeConstraint.constant = thumb;
         self.thumbLeadingConstraint.constant = lead;
+        // ★ Task330：拇指圆形化 —— 旋钮此前从未设 cornerRadius，16/24pt
+        //   方形色块直接怼在轨道上（用户："为什么 md3 的滑块张这样"）。
+        //   圆形 = iOS 视觉母语；MD3 轨道几何与主题令牌配色保持不动。
+        self.thumbView.layer.cornerRadius = thumb / 2.0;
 
         if (checked) {
             self.trackView.backgroundColor = [ZL2Theme primary];

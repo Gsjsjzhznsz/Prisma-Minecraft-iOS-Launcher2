@@ -192,6 +192,11 @@ didPickDocumentsAtURLs:(NSArray<NSURL *> *)urls {
     cell.selectionStyle = UITableViewCellSelectionStyleNone;
     cell.accessoryView = nil;
     cell.accessoryType = UITableViewCellAccessoryNone;
+    // ★ Task330：复用残留清除 —— section 2（关于）/3（指南）不写
+    //   detailTextLabel，复用 section 0 的 Subtitle cell 时残留上一插件
+    //   的"版本 · 作者 · 简介"整行（装机截图实锤"关于"区复读 Modrinth
+    //   描述）。
+    cell.detailTextLabel.text = nil;
 
     if (indexPath.section == 0) {
         if (self.cards.count == 0) {
