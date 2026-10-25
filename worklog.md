@@ -3839,3 +3839,4 @@ Stage Summary:
 
 - r0：**dev run #50 一轮终绿**（Task 330 代码 CMake 全量链零雷，ipa/tipa 产物在位 @ b1ba7037）；smoke run #66 mode=all 预览链接红 = **存量断链非本轮回归**——Task328 主页插件 chip（ZL2HomeViewController L1023 `[AmePluginRuntime allContributedRows]`）落地以来 preview mode 从未实跑（#65 仅为 syntax 模式），预览 TU 集不含 AmePluginRuntime.m → `_OBJC_CLASS_$_AmePluginRuntime` 未决
 - r1 修复：ZL2PagesStub.m 尾部按本 TU 家法补 AmePluginRuntime 类桩（手写同名类声明+空实现，不 import 真实类头，链接期只需类符号）；smoke mode=all 重派复跑
+- 【CI 终验】r1 双绿收官：smoke run #67 mode=all 一轮终绿（preview 链接桩即愈）+ dev run #51 一轮终绿（acfe6098，ipa/tipa 产物在位）——Task 330 全链闭环
