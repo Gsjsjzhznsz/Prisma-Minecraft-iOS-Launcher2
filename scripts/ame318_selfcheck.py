@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # Task318 内置插件仓库综合静态自查
-# ① builtin-plugins 资源完备性（4 插件 × manifest+main.js，schema 字段/权限 id 合法）
+# ① builtin-plugins 资源完备性（Task332 起 5 插件 × manifest+main.js，schema 字段/权限 id 合法）
 # ② ame318.* 四表键集一致且 17 键、无意外占位符
 # ③ 新 .m 的 import 头文件闭环（文件存在于仓内）
 # ④ CMakeLists 已登记 ZL2PluginRepoViewController.m + 伞头已挂
@@ -17,12 +17,12 @@ def check(name, ok, detail=''):
 
 # ── ① builtin-plugins 资源完备性 ────────────────────────
 root = os.path.join(NAT, 'resources', 'builtin-plugins')
-expect_ids = {'theme-sunset', 'renderer-quickswitch', 'launch-counter', 'modrinth-hot'}
+expect_ids = {'theme-sunset', 'renderer-quickswitch', 'launch-counter', 'modrinth-hot', 'plugin-survey'}   # Task332: +plugin-survey 勘测插件
 try:
     dirs = set(d for d in os.listdir(root) if not d.startswith('.'))
 except FileNotFoundError:
     dirs = set()
-check('builtin-plugins dirs == 4 expected', dirs == expect_ids, f'got {sorted(dirs)}')
+check('builtin-plugins dirs == 5 expected', dirs == expect_ids, f'got {sorted(dirs)}')
 
 perm_src = open(os.path.join(NAT, 'AmePluginPermissions.m'), encoding='utf-8').read()
 perm_registry = set(re.findall(r'initWithId:@"([a-z0-9._]+)"', perm_src))
@@ -61,7 +61,7 @@ keysets = {}
 for lang, txt in langs.items():
     keysets[lang] = set(re.findall(r'"(ame318\.[a-zA-Z0-9_.-]+)"\s*=', txt))
 base = keysets['en']
-check('ame318 keyset size == 17', len(base) == 17, f'got {len(base)}')
+check('ame318 keyset size == 19 (Task332: +plugin-survey name/desc)', len(base) == 19, f'got {len(base)}')
 need_ui = {
     'ame318.repo.title', 'ame318.repo.nav', 'ame318.repo.entry_subtitle',
     'ame318.repo.section_title', 'ame318.repo.empty', 'ame318.repo.install',

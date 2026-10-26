@@ -64,7 +64,12 @@
         if (([fromVer[key] isKindOfClass:NSString.class] && [fromVer[key] length] > 0) || targetVer[key] == nil) {
             targetVer[key] = fromVer[key];
         } else {
-            NSLog(@"[MCDL] insertSafety: how to insert %@?", key);
+            // ★ Task332：良性路径静默 —— 走到 else = 父值已存在且子值非字符串
+            //   （fabric-loader JSON 的 assetIndex/assets 引用父版本资产索引，
+            //   父版本 26.3 的字典值原样保留 = 预期语义），vanilla 继承族每
+            //   启动必现两行。原 NSLog 探针措辞（"how to…"）像告警，装机
+            //   日志每轮被误读为"合并失败"（非缺陷：游戏资产链正常，装机
+            //   c711f745 实锤）。预期路径不再出声，语义注释在案。
         }
     }
 }

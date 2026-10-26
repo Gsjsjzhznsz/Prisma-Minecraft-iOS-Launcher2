@@ -3892,23 +3892,35 @@ static BOOL ame87_mcVersionRequiresTextureBuffer(NSString *mcVersionId) {
     //   （热栏/直发 UI 命中路径 ame267_adaptedPoint 不受影响——那是
     //   native 层整帧物理 px 口径的自洽几何，与 MC 信念换算无关。）
     // ★ Task277：因子计算收敛到 ame277_cursorOutScale 单一事实源（与
-    //   updateGrabState 抓取态 DOWN 共用；语义逐字节不变）。小窗分支追加
-    //   限频取证日志：若装机仍报漂移，下一轮日志直接给出 loc/out/
-    //   adaptive/belief/win/phys 七元组定音，不再盲猜。
+    //   updateGrabState 抓取态 DOWN 共用；语义逐字节不变）。
+    // ★ Task332：取证面放宽 —— 三轮根修（276/277/331）后用户仍报"小窗
+    //   输入依旧偏移"，而旧取证只在 freeformScaled=已武装时出日志：若
+    //   用户复现时标志未武装（置位链未命中的未知存活面），旧日志零输出
+    //   = 全盲（装机 c711f745 无任何 Task277 forensic/Task331 engage 行）。
+    //   改为任意窗口态 ACTION_DOWN 限频取证：freeformScaled 标志、
+    //   contentOrigin/contentSize、window/screen bounds 全部落日志 ——
+    //   "未武装"本身即为要抓的病灶形态，下轮日志直接判型（诊断先行，
+    //   不盲修第四轮）。nil window 时 bounds 消息返回零结构（ObjC 语义，
+    //   安全）。
     CGPoint ame277_out = [self ame277_cursorOutScale];
     CGFloat ame267_outX = ame277_out.x;
     CGFloat ame267_outY = ame277_out.y;
-    if (g_ame267_freeformScaled && event == ACTION_DOWN) {
+    if (event == ACTION_DOWN) {
         static CFAbsoluteTime ame277_lastForensic = 0;
         CFAbsoluteTime ame277_now = CFAbsoluteTimeGetCurrent();
         if (ame277_now - ame277_lastForensic > 5.0) {
             ame277_lastForensic = ame277_now;
-            NSLog(@"[SurfaceVC] Task277: mini-window touch forensic: loc=%.1fx%.1f out=%.2fx%.2f adaptive=%.2fx%.2f win=%dx%d phys=%dx%d fsr=%.2f res=%.2f",
+            NSLog(@"[SurfaceVC] Task277/332: touch forensic: loc=%.1fx%.1f out=%.2fx%.2f adaptive=%.2fx%.2f win=%dx%d phys=%dx%d fsr=%.2f res=%.2f freeform=%d content=%.0fx%.0f@(%.0f,%.0f) windowBounds=%@ screenBounds=%@",
                   location.x, location.y, ame267_outX, ame267_outY,
                   ame267_adaptiveScaleX, ame267_adaptiveScaleY,
                   (int)windowWidth, (int)windowHeight,
                   (int)physicalWidth, (int)physicalHeight,
-                  (double)mgFsrScale, (double)resolutionScale);
+                  (double)mgFsrScale, (double)resolutionScale,
+                  (int)g_ame267_freeformScaled,
+                  g_ame267_contentSize.width, g_ame267_contentSize.height,
+                  g_ame267_contentOrigin.x, g_ame267_contentOrigin.y,
+                  NSStringFromCGSize(self.view.window.bounds),
+                  NSStringFromCGSize(self.view.window.screen.bounds));
         }
     }
     // Task202（议题 #1）：双指滚动手势进行中——光标移动抑制（虚拟/非虚拟

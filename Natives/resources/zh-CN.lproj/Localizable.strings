@@ -3485,6 +3485,8 @@
 "ame318.builtin.renderer-quickswitch.desc" = "在已安装渲染器间循环切换并查看当前后端。";
 "ame318.builtin.launch-counter.name" = "启动统计";
 "ame318.builtin.launch-counter.desc" = "统计游戏启动次数与最近退出码，数据仅存本插件私有存储。";
+"ame318.builtin.plugin-survey.name" = "插件勘测";
+"ame318.builtin.plugin-survey.desc" = "勘测插件运行环境：ame 门面与 ameRaw 桥面方法面、权限执法面与异常面全量体检，报告落启动器日志（可 grep Task332-survey）。";
 "ame318.builtin.modrinth-hot.name" = "Modrinth 热门榜";
 "ame318.builtin.modrinth-hot.desc" = "联网拉取 Modrinth 下载量前五的模组（需联网权限）。";
 /* Task321 旧版升级自动迁移 + 兄弟迁移优化 */

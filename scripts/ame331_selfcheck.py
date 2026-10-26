@@ -102,7 +102,8 @@ else:
 R = f"{ROOT}/AmePluginRuntime.m"
 check("A2 facade calls storageSetValue", R, 'raw.storageSetValue(String(k),v)')
 absent("A2 old raw.storageSet( two-arg call gone", R, r"raw\.storageSet\(String\(k\),v\)", rx=True)
-check("A2 load census line", R, "Task331 load census")
+# ★ Task332 演进指针：load census 升级为 facade/raw 双面（Task332 行替代 Task331 行）
+check("A2 load census line (Task332 dual-face re-anchor)", R, "Task332 load census")
 check("A2 builtin census line", R, "Task331 builtin census")
 check("A2 bundle-missing ERROR line", R, "Task331 ERROR: bundle builtin-plugins missing main.js")
 

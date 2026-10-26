@@ -3490,6 +3490,8 @@
 "ame318.builtin.renderer-quickswitch.desc" = "Cycle installed renderers and inspect the current backend.";
 "ame318.builtin.launch-counter.name" = "Launch Stats";
 "ame318.builtin.launch-counter.desc" = "Count game launches and the last exit code (stored privately).";
+"ame318.builtin.plugin-survey.name" = "Plugin Survey";
+"ame318.builtin.plugin-survey.desc" = "Full survey of the plugin runtime: ame facade and ameRaw bridge method surface, permission enforcement and exceptions. Report goes to the launcher log (grep Task332-survey).";
 "ame318.builtin.modrinth-hot.name" = "Modrinth Trending";
 "ame318.builtin.modrinth-hot.desc" = "Fetch Modrinth's top five mods by downloads (requires network).";
 /* Task321 legacy-upgrade auto migration + sibling migration optimization */

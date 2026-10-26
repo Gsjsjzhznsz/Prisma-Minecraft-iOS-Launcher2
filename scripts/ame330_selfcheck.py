@@ -54,7 +54,15 @@ check("B3 atomic write", B, "NSDataWritingAtomic")
 check("B4 builtin-only scope", B, "仅首方内置件")
 check("B5 C-face root (compile-mine guard)", B, "ame317_pluginsRootDir()")
 check("B6 anchor log", B, "Task330 first-party content refresh")
-check("B7 before load loop", B, "ame330_refreshFirstPartyContent];\n\n    for (NSString *pid in [AmePluginManager installedPluginIds]) {")
+# ★ Task332 演进指针：boot 链插入 bridge export self-check（在 content refresh
+#   之后、装载循环之前），原相邻布局断言改为顺序断言。
+_idx_refresh_src = open(B, encoding="utf-8").read()
+_idx_refresh = _idx_refresh_src.find("ame330_refreshFirstPartyContent];")
+_idx_probe = _idx_refresh_src.find("Task332 bridge export self-check")
+_idx_loop = _idx_refresh_src.find("for (NSString *pid in [AmePluginManager installedPluginIds]) {", _idx_probe)
+checks.append("B7 content refresh precedes Task332 self-check precedes load loop")
+if not (-1 < _idx_refresh < _idx_probe < _idx_loop):
+    failed.append("B7: order broken -- refresh=%d probe=%d loop=%d" % (_idx_refresh, _idx_probe, _idx_loop))
 
 # ---- 线C：SurfaceVC 触点时刻几何自愈 ----
 C = f"{ROOT}/SurfaceViewController.m"

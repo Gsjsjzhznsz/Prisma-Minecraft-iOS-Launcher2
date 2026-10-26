@@ -3485,6 +3485,8 @@
 "ame318.builtin.renderer-quickswitch.desc" = "在已安裝渲染器間循環切換並查看目前後端。";
 "ame318.builtin.launch-counter.name" = "啟動統計";
 "ame318.builtin.launch-counter.desc" = "統計遊戲啟動次數與最近結束代碼，資料僅存本外掛私有儲存。";
+"ame318.builtin.plugin-survey.name" = "外掛勘測";
+"ame318.builtin.plugin-survey.desc" = "勘測外掛執行環境：ame 門面與 ameRaw 橋面方法面、權限執法面與異常面全量體檢，報告落啟動器日誌（可 grep Task332-survey）。";
 "ame318.builtin.modrinth-hot.name" = "Modrinth 熱門榜";
 "ame318.builtin.modrinth-hot.desc" = "連網抓取 Modrinth 下載量前五的模組（需網路權限）。";
 /* Task321 舊版升級自動遷移 + 兄弟遷移最佳化 */

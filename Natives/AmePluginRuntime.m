@@ -4,6 +4,7 @@
 
 #import <UIKit/UIKit.h>
 #import <JavaScriptCore/JavaScriptCore.h>
+#import <objc/runtime.h>   // Task332：class_conformsToProtocol（桥面启动自证）
 
 // ═══════════════════════════════════════════════════════════════════
 // AmePlugin 运行时实现（Task 317）
@@ -48,8 +49,19 @@
 
 // JSC 桥方法名规则 = 选择器去冒号拼接（on:handler: → onHandler），
 // 门面把外部 API 整形成 ame.on/dialog/storage.* 等惯用形态。
+// ★ Task332 门面作用域根修（装机 c711f745 latestlog 终审定音）：旧源
+//   `(function(raw){ var ame={}; … return ame; })(ameRaw);` 的 `var ame`
+//   声明在 IIFE【函数作用域】内，return 值被整体丢弃 —— 全局 ame 从未
+//   存在，四内置件顶层 `ame.*` 首访即 `TypeError: undefined is not an
+//   object`（设备日志逐字节吻合），census 的 ame(addLauncherRow)=MISSING
+//   实为 ame 本身 MISSING。Task331 的 JSExport 化（24 selector 导出）并非
+//   无效，而是被本作用域 bug 遮蔽：桥面 healthy 但门面从未挂上。修法 =
+//   `var ame=(function(raw){…})(ameRaw);` 一字补挂：IIFE 返回值赋给全局
+//   ame，闭包内局部 var ame 与全局赋值同形不同域，语义逐字节保持。
+//   node 桩冒烟（CI/门禁）直接提供 ame 全局，从不 evaluate 门面源 = 该
+//   bug 在 CI 不可见（语义面盲区第八例的延续，ObjC 桥面之外的 JS 侧盲区）。
 static NSString *ame317_facadeSource(void) {
-    return @"(function(raw){"
+    return @"var ame=(function(raw){"
     "var ame={};"
     "ame.log=function(m){return raw.log(String(m));};"
     "ame.toast=function(t){return raw.toast(String(t));};"
@@ -239,6 +251,28 @@ static NSString *ame317_facadeSource(void) {
     //   贡献行/尾日志/效果面全部复活；先于装载循环 = 装载必是新件）
     [self ame330_refreshFirstPartyContent];
 
+    // ★ Task332：ObjC 桥面启动自证 —— CI node 桩冒烟从未覆盖 JSC↔ObjC
+    //   桥面（语义面盲区第八例，Task331 入档）。一次性 JSContext 注入真实
+    //   AmePluginBridge 实例，验证 JSExport 导出链（协议声明 → runtime
+    //   采纳 → JSC 方法表）全程在线：raw.log / raw.addLauncherRowHandler
+    //   双代表在 JS 侧 typeof === 'function' 即 PASS。与装载循环零耦合
+    //   （探针 context 独立，ARC 释放），一行日志定音桥面健康度；MISSING
+    //   时 class_conformsToProtocol(JSExport) 同行落日志，断点层级一眼
+    //   可判（协议未采纳 vs JSC 导出异常）。
+    {
+        JSContext *ame332_probe = [[JSContext alloc] init];
+        AmePluginBridge *ame332_probeBridge = [[AmePluginBridge alloc]
+            initWithPluginId:@"__bridge_probe__" declaredPermissions:@[]];
+        [ame332_probe setObject:ame332_probeBridge forKeyedSubscript:@"raw"];
+        JSValue *ame332_logFn = [ame332_probe objectForKeyedSubscript:@"raw"][@"log"];
+        JSValue *ame332_rowFn = [ame332_probe objectForKeyedSubscript:@"raw"][@"addLauncherRowHandler"];
+        BOOL ame332_ok = ame332_logFn.isObject && ame332_rowFn.isObject;
+        NSLog(@"[AmePlugin] Task332 bridge export self-check: %@ (JSExport conformance=%d, log=%d, addLauncherRowHandler=%d)",
+              ame332_ok ? @"PASS" : @"MISSING",
+              class_conformsToProtocol([AmePluginBridge class], @protocol(JSExport)) ? 1 : 0,
+              ame332_logFn.isObject, ame332_rowFn.isObject);
+    }
+
     for (NSString *pid in [AmePluginManager installedPluginIds]) {
         AmePluginManifest *m = [AmePluginManager manifestForPlugin:pid];
         if (!m) {
@@ -332,15 +366,27 @@ static NSString *ame317_facadeSource(void) {
     //   MISSING = 桥面未导出，TypeError 将随之）/ 已注册贡献行数（行注册
     //   是否落地）/ 装载期 JS 异常。设备端“陈旧副本 vs 桥不可调 vs JS
     //   异常”三类病灶自此日志直接分型，不再依赖外围症状拼图。
+    // ★ Task332：普查升级为【双面】—— 设备 c711f745 终审发现单面普查
+    //   的判型盲区：ame 门面 MISSING 时无法区分"门面未挂"（Task332 根修
+    //   的作用域 bug）与"桥面未导出"（Task331 修的 JSExport 面）。新版
+    //   四段式：facade(ame.addLauncherRow) / raw(ameRaw.addLauncherRowHandler
+    //   + ameRaw.log 双代表) / rows / jsException —— facade=MISSING+raw=ok
+    //   即门面侧断链；facade=MISSING+raw=MISSING 即桥面侧断链（JSExport
+    //   链断，与 boot 期 bridge export self-check 联判）。
     {
         JSValue *ame331_ame = [ctx objectForKeyedSubscript:@"ame"];
         JSValue *ame331_fn = [ame331_ame objectForKeyedSubscript:@"addLauncherRow"];
         BOOL ame331_ameOk = ame331_ame.isObject && ame331_fn.isObject;
+        JSValue *ame332_raw = [ctx objectForKeyedSubscript:@"ameRaw"];
+        JSValue *ame332_rawRow = [ame332_raw objectForKeyedSubscript:@"addLauncherRowHandler"];
+        JSValue *ame332_rawLog = [ame332_raw objectForKeyedSubscript:@"log"];
+        BOOL ame332_rawOk = ame332_raw.isObject && ame332_rawRow.isObject && ame332_rawLog.isObject;
         NSUInteger ame331_rows = [self.bridges[pluginId] contributedRows].count;
         BOOL ame331_exc = topException && !topException.isUndefined;
-        NSLog(@"[AmePlugin:%@] Task331 load census: src=%@B ame(addLauncherRow)=%@ rows=%lu jsException=%@",
+        NSLog(@"[AmePlugin:%@] Task332 load census: src=%@B facade(addLauncherRow)=%@ raw(rowHandler/log)=%@ rows=%lu jsException=%@",
               pluginId, @(source.length),
               ame331_ameOk ? @"callable" : @"MISSING",
+              ame332_rawOk ? @"callable" : @"MISSING",
               (unsigned long)ame331_rows,
               ame331_exc ? @"YES" : @"no");
     }

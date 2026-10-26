@@ -1,0 +1,14 @@
+{
+  "id": "plugin-survey",
+  "name": "插件勘测",
+  "version": "1.0.0",
+  "author": "Prisma",
+  "description": "勘测插件运行环境：ame 门面与 ameRaw 桥面的方法面全量清点、权限执法面探测、异常面体检，报告落启动器日志（latestlog 可 grep Task332-survey）。",
+  "entry": "main.js",
+  "permissions": [
+    "ui.rows",
+    "ui.dialog",
+    "storage"
+  ],
+  "minApi": 1
+}

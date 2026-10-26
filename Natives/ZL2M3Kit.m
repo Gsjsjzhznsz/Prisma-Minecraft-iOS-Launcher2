@@ -384,6 +384,15 @@ static UIViewController *ZL2M3TopmostViewController(void) {
         }
         self.trackView.layer.cornerRadius = [ZL2M3Switch switchHeight] / 2.0;
         self.accessibilityValue = checked ? @"1" : @"0";
+        // ★ Task332：动画事务内显式布局 —— 用户装机 c711f745 实测"md3 开关
+        //   怎么没有动画"。根因：本 block 改的是 NSLayoutConstraint.constant
+        //   （行程 lead 4⇄24 / 尺寸 16⇄24），约束变更默认在【下一 layout
+        //   pass】瞬时落位、不进当前动画事务 = 行程/拇指缩放/圆角全部跳变
+        //   （颜色是直接层属性所以淡入还在——观感"有渐变没动作"）。
+        //   animations block 内 layoutIfNeeded 把布局捕获进当前事务，
+        //   Task331 弹簧行程（damping 0.8）自此真正可见；非动画路径
+        //   （初始化/程序化同步）提前布局一次，幂等零副作用。
+        [self layoutIfNeeded];
     };
     if (animated) {
         [UIView animateWithDuration:0.20

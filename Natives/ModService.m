@@ -397,6 +397,25 @@
     NSFileManager *ame324_fm = [NSFileManager defaultManager];
     NSString *ame324_flat = [ame324_base stringByAppendingPathComponent:
         [NSString stringWithFormat:@"versions/%@", vid]];
+    // ★ Task332：实例轴接管守卫（ame324×ame328 每启动抖动消除）—— 同 vid
+    //   存在【绝对路径】gameDir 的 profile（实例轴/自定义目录接管，ame329
+    //   统一后的深层形态 instances/<id>/versions/<vid>）时，版本轴 claim
+    //   一律失效。此前本方法只认相对平铺两种 gameDir（下方判据①），而
+    //   Task271 清扫建档的 ghost 档（gameDir=versions/<vid>）每轮命中 →
+    //   共享 versions/<vid>/ 重建 6 空目录 → 同轮 ame328 因
+    //   claimed&&instanceBound 判诱饵清除 = 每启动 ensure→prune 纯抖动
+    //   （装机 c711f745 日志实锤：Ame324 ensured 6 dir(s) → 同轮 Ame328
+    //   pruned 6 dir(s)）。守卫语义与 ame328 逐字节镜像：先扫实例轴接管，
+    //   命中即 return（深层形态的六目录观感由实例版本目录本体承载，
+    //   共享侧版本目录维持 FCL 形态 = json+jar only）。
+    for (NSDictionary *ame332_prof in PLProfiles.current.profiles.allValues) {
+        if (![ame332_prof isKindOfClass:[NSDictionary class]]) continue;
+        if (![ame332_prof[@"lastVersionId"] isEqualToString:vid]) continue;
+        NSString *ame332_gd = ame332_prof[@"gameDir"];
+        if ([ame332_gd isKindOfClass:[NSString class]] && ame332_gd.isAbsolutePath) {
+            return;
+        }
+    }
     BOOL ame324_isolated = NO;
     // 隔离判据①：注册表里存在指向该版本的隔离 profile（gameDir = 平铺新口径
     // 或旧 game 叶子；Task322 重指后新口径为主）

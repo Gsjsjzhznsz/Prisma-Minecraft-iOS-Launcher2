@@ -3893,3 +3893,49 @@ ame331_selfcheck 49 断言（新：协议 24 selector 导出/JS 名整形七关�
 
 - dispatch 双工作流一轮双绿：smoke run 40325430191（#68，mode=all：JSExport 化桥头语法 + preview TU 集编译 + ame331/ame330 门禁桩全过）+ dev run 40325420879（#52，CMake 全量链零热修，ipa/tipa 222.4MB + dSYM 7.3MB 产物在位 @ c711f745）——Task 331 全链闭环
 - 待装机验证锚点：Task 331 条目 6 条（builtin/load census ×8 / 贡献行 6 行 + v1.1.0 / 小窗首触即正确 / 开关行程 20pt / .minecraft 跟随游玩实例）
+
+---
+
+## Task 332 —— 设备 c711f745 装机四问复访：插件门面作用域终极根修+勘测插件 / MD3 开关动画事务补挂 / 版本隔离抖动消除+噪声静默 / 小窗取证面放宽
+
+### 装机日志终审定音（用户本轮 latestlog @ c711f745）
+
+- `[AmePlugin:launch-counter] 未捕获 JS 异常: TypeError: undefined is not an object` + `Task331 load census: ame(addLauncherRow)=MISSING rows=0` —— Task331 的 JSExport 化（24 selector）并未失效，而是被门面作用域 bug 遮蔽：门面源 `(function(raw){ var ame={}; … return ame; })(ameRaw);` 的 `var ame` 声明在 IIFE **函数作用域内**，return 值被整体丢弃 → **全局 ame 从未存在** → 四内置件顶层 `ame.*` 首访即 TypeError（与设备日志逐字节吻合；census 的 addLauncherRow=MISSING 实为 ame 本身 MISSING）。node 桩冒烟直接提供 ame 全局、从不 evaluate 门面源 = 该 bug 在 CI 完全不可见（语义面盲区第八例的 JS 侧延续）
+- `[Ame324] ensured 6 dir(s)` 同轮 `[Ame328] pruned 6 dir(s)` —— ame324×ame328 判据错位实锤：同 vid 双 profile（Task271 清扫建档 ghost 档 gameDir=相对 versions/<vid> + 主档绝对路径深层形态），ame324 判据①命中 ghost 档建共享侧骨架 → ame328 因 claimed&&instanceBound 判诱饵清除 = **每启动一轮 ensure→prune 纯抖动**
+- `[MCDL] insertSafety: how to insert assetIndex?/assets?` —— 良性路径：父版本 26.3 已有字典值原样保留（正确语义），vanilla 继承族每启动必现两行噪声日志
+
+### 四线实施
+
+1. **插件线（三通道合围 + 用户点题勘测插件）**
+   - 门面作用域根修：`var ame=(function(raw){…})(ameRaw);` 一字补挂（IIFE 返回值赋全局；闭包内局部 var ame 与全局赋值同形不同域，门面语义逐字节保持）
+   - load census 升级双面：facade(ame.addLauncherRow) / raw(ameRaw.addLauncherRowHandler+log) / rows / jsException 四段 —— facade=MISSING+raw=ok 即门面断链，双 MISSING 即桥面断链（判型不再歧义）
+   - boot 期桥面自证：一次性 JSContext 注入真实 AmePluginBridge，验证 raw.log/addLauncherRowHandler 在 JS 侧可调 + class_conformsToProtocol(JSExport) 同行落日志（JSExport 链断点层级一眼可判）
+   - **plugin-survey 勘测插件**（第五内置件，permissions=ui.rows/ui.dialog/storage）：贡献行「插件勘测」点开对话框摘要，点「全量报告」分行走 ame.log 落 latestlog（grep Task332-survey）；一切探测 try-catch 包裹（权限拒绝/断链本身即勘测数据）；for-in 枚举 ame/ameRaw 方法面（键数=0 即桥面未导出的直接证据）
+   - i18n 四表 +ame318.builtin.plugin-survey.name/desc（3302→3304）
+2. **MD3 开关动画线**：ame_applyAppearanceAnimated 的 apply block 末尾补 `[self layoutIfNeeded]` —— block 改的是 NSLayoutConstraint.constant（行程 lead 4⇄24/尺寸 16⇄24），约束变更默认下一 layout pass 瞬时落位**不进动画事务** = Task331 弹簧行程在设备上"有渐变没动作"（颜色淡入在、行程跳变）。动画事务内显式布局后，行程/拇指缩放/圆角全部可见化
+3. **版本隔离线（用户本轮拍板重点）**：①ame324 判据①前加实例轴接管守卫（同 vid 存在绝对路径 gameDir profile 即 return，语义与 ame328 逐字节镜像）——每启动省 6 建 6 清，深层形态下共享侧版本目录恒维持 FCL 形态（json+jar only）②insertSafety else 分支（父值保留的预期路径）静默化
+4. **小窗输入线（诊断先行，不盲修第四轮）**：Task277 取证面从"freeformScaled 已武装"放宽到任意窗口态 ACTION_DOWN 限频 5s，日志补 freeform 标志/contentOrigin/contentSize/window-screen bounds 十元组 —— 三轮根修（276/277/331）后仍报偏移而旧日志零输出 = 复现时标志可能未武装（置位链未命中的未知存活面），"未武装"本身即为要抓的病灶形态，下轮日志直接判型
+
+### 门禁
+
+- ame332_selfcheck 26 断言（新门：门面 var ame= / census 双面 / boot 自证 / JSExport conformance 探测 / 勘测插件资源 / layoutIfNeeded / ame324 守卫 / insertSafety 静默 / 取证放宽面 / Task331 锚点不回退）
+- 演进重锚：ame331 A2 load census（Task331→Task332 行）+ ame330 B7（相邻布局→顺序断言 refresh→self-check→load loop）+ ame318 dirs 4→5、keyset 17→19 + verify219 J 键数 3302→3304
+- 全电池：ame317/318/324/327/329/330/331/332 全绿 + ame330_js_smoke 5 件 rows 全注册（plugin-survey rows=1）+ task191 四表 3304 OK + task248/250/240/139 全绿 + verify219 ALL GREEN + verify255 全 PASS；verify191 42/3 存量红（HEAD 对照同红，与本轮无关）
+
+### 装机锚点汇总（预期日志）
+
+1. `[AmePlugin] Task332 bridge export self-check: PASS`（boot 期一行定音桥面；若 MISSING 且 conformance=0 = 协议采纳面断，另行追查）
+2. `[AmePlugin:<pid>] Task332 load census` ×5：**facade(addLauncherRow)=callable**（Task332 根修生效铁证）+ raw(rowHandler/log)=callable + rows 合计 7（原 6 + 勘测 1）+ jsException=no 且不再出现"未捕获 JS 异常"
+3. 主页贡献行 7 行，含新行「插件勘测」；点开→摘要对话框→「全量报告」→ latestlog 出现 `[AmePlugin:plugin-survey] Task332-survey` 分行报告（ame 方法面/ameRaw 方法面/storage roundtrip 全落日志）
+4. MD3 开关拨动：拇指 4⇄24 行程滑动 + 16⇄24 缩放 + 弹簧回弹全部可见（不再只有颜色渐变）
+5. 版本隔离：启动日志不再出现 `[Ame324] ensured`+`[Ame328] pruned` 成对抖动行（深层形态下共享 versions/<vid> 维持 json+jar only）；`insertSafety: how to insert` 两行噪声消失
+6. 小窗复现偏移后抓日志：`[SurfaceVC] Task277/332: touch forensic: … freeform=? content=… windowBounds=… screenBounds=…`（任意窗口态 5s 限频必达）——freeform=0 而窗口小于屏幕 = 置位链未武装实锤，直接移交定位
+
+### Stage Summary
+
+- 插件系统终极根因（门面 IIFE 作用域）落锤修复：Task317 上线以来插件在设备端**首次**具备完整可用条件（桥面 Task331 已通+门面本轮接通）
+- 勘测插件 plugin-survey 上线：插件系统故障从此有用户侧自助勘测通道（三通道：boot 自证/装载普查/勘测插件）
+- MD3 开关动画事务补挂（Task331 行程语义在本轮真正可见化）
+- 版本隔离每启动抖动消除 + vanilla 继承族噪声静默（ame324×ame328 语义镜像统一）
+- 小窗偏移交接诊断态：本轮不盲修第四轮，取证面放宽后待复现日志判型
+- 待办移交（不动）：JIT 游戏启动链（最高严重级）；下载中心 UI/加载器空白；AI 提示词插件章装机复验
