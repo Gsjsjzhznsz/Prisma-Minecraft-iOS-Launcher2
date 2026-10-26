@@ -3888,3 +3888,8 @@ ame331_selfcheck 49 断言（新：协议 24 selector 导出/JS 名整形七关�
 - 四问全落（全部在二代仓库基于 adb63d33 现状根修）：①插件桥 JSExport 化+storage 实名修正+双普查+manifest 翻新 ②SDL 触点自愈 v3 双洞（防抖窗口首触武装+帧指纹权威闸）③M3 开关 20pt 拨动行程 ④.minecraft 跟随现役实例
 - 语义面盲区第八例入档：node 桩冒烟不覆盖 ObjC 桥面——JSExport 类桥接型 API 的门禁候选 = 装载普查行设备断言（rows>0）
 - 待办移交：JIT 游戏启动链（最高严重级）；下载中心 UI/加载器空白；AI 提示词插件章装机复验
+
+### 【闭环补记】CI r0 双绿收官
+
+- dispatch 双工作流一轮双绿：smoke run 40325430191（#68，mode=all：JSExport 化桥头语法 + preview TU 集编译 + ame331/ame330 门禁桩全过）+ dev run 40325420879（#52，CMake 全量链零热修，ipa/tipa 222.4MB + dSYM 7.3MB 产物在位 @ c711f745）——Task 331 全链闭环
+- 待装机验证锚点：Task 331 条目 6 条（builtin/load census ×8 / 贡献行 6 行 + v1.1.0 / 小窗首触即正确 / 开关行程 20pt / .minecraft 跟随游玩实例）
