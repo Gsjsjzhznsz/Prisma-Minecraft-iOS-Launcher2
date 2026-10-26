@@ -3919,8 +3919,8 @@ static BOOL ame87_mcVersionRequiresTextureBuffer(NSString *mcVersionId) {
                   (int)g_ame267_freeformScaled,
                   g_ame267_contentSize.width, g_ame267_contentSize.height,
                   g_ame267_contentOrigin.x, g_ame267_contentOrigin.y,
-                  NSStringFromCGSize(self.view.window.bounds),
-                  NSStringFromCGSize(self.view.window.screen.bounds));
+                  NSStringFromCGRect(self.view.window.bounds),
+                  NSStringFromCGRect(self.view.window.screen.bounds));
         }
     }
     // Task202（议题 #1）：双指滚动手势进行中——光标移动抑制（虚拟/非虚拟
