@@ -3963,3 +3963,37 @@ ame331_selfcheck 49 断言（新：协议 24 selector 导出/JS 名整形七关�
 5. 插件详情页顶部 ⚠ 完全接管开关：开启后其余权限开关变灰禁用；运行日志见 `ame.super takeover grant: perm '…' allowed`
 6. 插件仓库页：远程区拉取成功行（log `Task333 remote index fetched via <mirror>`），四件演示件可安装/可更新，下载行 `Task333 download … via …`
 7. 小窗复现偏移后抓 `Task277/332/333: touch forensic`（live vs legacy 因子对照 + liveOrigin）；若仍偏移，live≠legacy 即缓存陈旧现行、live≈legacy 而 MC 侧仍偏 = 宣告消化面，三连后应自愈
+
+---
+
+## Task 334（207353e）四线 + CI r0 一轮双绿收官
+
+- 设备输入：1d0dfbe（Task 333 构建）装机 latestlog —— freeform 全段日志首次完整到手（首次触点取证 ×2 + 13 个缩放 tick resync + 沉降信念翻转 + 宣告三连 + 退出）
+- 线① SDL 小窗输入偏移第五轮 = MC 侧双信念劈裂结构性收口：
+  - 判型：freeform 段两条 touch forensic 的 live/legacy 因子全部自洽（2.000==2.000、content 满窗、liveOrigin=0）——启动器侧四轮换算（276/277/331/333）数学层面无懈可击，偏移必在 MC 侧信念
+  - 根因实锤：本 SDL 构建每个缩放 tick 发【两条】尺寸事件——0x207（Task61 已钉扎信念）与 0x206（携带未钉的原始逻辑点制 1146x820→…→803x697 直通进 MC）。MC 的窗口逻辑基准（输入归一化/GUI 依据）若消费 0x206，小窗态即与渲染基准（0x207 钉扎）、鼠标事件推送空间（信念 px）三者劈裂；全屏态无 resize 事件 = 从未暴露 = 与"只有小窗偏"的历轮观察完全吻合
+  - 修法（双端收口）：sdl3_hook.m PollEvent 钉扎面 0x207/0x208 → 0x206/0x207/0x208 三口全钉（Task61/334 日志锚点）；input_bridge_v3.m 宣告面单发 0x207 → ame334_pushWindowSizePair 0x206+0x207 事件对（沉降重宣告/前后台对齐【无物理 resize 伴随】，逻辑基准必须随宣告立即翻转，否则沉降翻转窗内双信念再现）
+  - 装机判型锚点（下轮日志）：`Task61/334 window-size event 0x206 rewritten`（钉扎在工作）+ `Task334 window size pair -> SDL 0x206+0x207`（宣告对在发）；若仍偏移而两锚点齐 = 劈裂假说证伪，下一嫌疑面为 MC 侧 SDL_ConvertEventToRenderCoordinates
+- 线②/③ 偏好键注册面批量修复（Task142/143"只能读写已注册键"家族全仓终审）：
+  - 新审计脚本 scripts/ame334_pref_key_audit.py（getPref*/setPref* 调用点 × PLPreferences 注册面全仓比对）
+  - 12 键 Setter 静默丢弃族注册：java.jvm_preset + java.jvm_preset_custom_args（设置页 JVM 预设选择每次启动静默回退 normal，装机 latestlog "Getter could not find java.jvm_preset"×3 实锤）+ download.speed_probe.bmclapi/.mcim（测速 memo 永不持久 = 每次启动双体系重测，Setter×2/Getter×4 实锤）+ general.thirdparty_servers（已存第三方服务器列表每次启动全丢）+ control.mod_touch_user_off / control.two_finger_keyboard / control.mod_touch_prev_preset_json / general.translation_notice_dismissed / internal.autolaunch_profile / controlrepo.mirror_idx / ame217.autoRendererBlacklist
+  - GET 噪音族注册（默认与读侧回退逐字一致零行为差）：general.disable_window_rotation_shim / debug.ame259_quic_guard / debug.ame280_kw_batch / internal.internal_launch_on_boot / launcher.account_selected_name
+  - 有意保留：internal.internal_current_button_scale（写点已注释=死键）、internal.latest_version.release/snapshot（只读降级面）、zink.*（只读 + api_features 注册会改变 MESA_EXTENSION_OVERRIDE 语义，风险面回避）
+- 线④ GameMenu 浮条幂等 memo 闸（装机日志实锤每缩放 tick 两轮 hardened+restyled = layoutSubviews→restorePositions 与 Task285 reassert→restorePositions 各一轮全量重铺）：几何签名 memo（gear frame + stats size）未变跳过重铺；ame232_floatingGlassStyleChanged 风格切换路径显式绕闸（几何未变但样式须全量重铺）
+- 门禁：ame334_selfcheck 31 断言（新：A1-A6 双信念收口 / B1-B18 注册面 / C1-C3 memo / D 括号平衡 HEAD 对照式）+ ame334_pref_key_audit 全仓审计 + 全电池 ame317~334 + task139/240/248/250 + verify219 81/81 + verify255 + js_smoke rows=7 全绿（task191 42/3 存量红 HEAD 对照同红）
+- CI：smoke (40362656920) + dev (40362660632) 一轮双绿 @ 207353e；ipa/tipa 222.4MB ×2 + dSYM 7.4MB 在位（零热修）
+
+### 装机锚点汇总（预期日志）
+
+1. `[SDLHook] Task61/334 window-size event 0x206 rewritten: <pts> -> <belief>`（小窗缩放期必现 = 钉扎在工作）
+2. `[InputDiag] Task334 window size pair -> SDL 0x206+0x207 <belief>`（宣告/对齐时 = 事件对在发）
+3. 小窗复现操作同轮（缩放 → 触点 → 判偏移）：forensic 行 live/legacy 依旧自洽 + 上述两锚点齐 = 双信念假说证伪待下轮换面；偏移消失 = 收官
+4. 设置页 JVM 预设选择后重启不再回退 normal；第三方登录保存的服务器地址重启仍在；翻译提示点过不再每次弹
+5. 启动日志 "could not find preference" 族（speed_probe ×6 / rotation_shim ×4 / jvm_preset ×3 / quic_guard ×1）全部消失
+6. 缩放窗口时 [GameMenu] hardened/restyled 每 tick 一轮（不再成对）
+
+### Stage Summary
+
+- 小窗偏移病历五代（267→276→277→331→333）后首次拿到"启动器侧全自洽"的完整装机证据，判型转到 MC 侧双信念并双端收口；本轮是结构性终点而不是又一层补丁
+- 偏好注册面是全仓系统性盲区的最后一批实体：设置页 JVM 预设、第三方服务器列表、双指键盘、翻译提示记忆、自动启动 profile 从本轮起写读双向生效
+- 待办移交（不动）：JIT 游戏启动链（最高严重级）；下载中心 UI/加载器空白复验；AI 提示词插件章装机复验
