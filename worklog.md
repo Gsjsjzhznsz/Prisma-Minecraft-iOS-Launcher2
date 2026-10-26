@@ -3840,3 +3840,51 @@ Stage Summary:
 - r0：**dev run #50 一轮终绿**（Task 330 代码 CMake 全量链零雷，ipa/tipa 产物在位 @ b1ba7037）；smoke run #66 mode=all 预览链接红 = **存量断链非本轮回归**——Task328 主页插件 chip（ZL2HomeViewController L1023 `[AmePluginRuntime allContributedRows]`）落地以来 preview mode 从未实跑（#65 仅为 syntax 模式），预览 TU 集不含 AmePluginRuntime.m → `_OBJC_CLASS_$_AmePluginRuntime` 未决
 - r1 修复：ZL2PagesStub.m 尾部按本 TU 家法补 AmePluginRuntime 类桩（手写同名类声明+空实现，不 import 真实类头，链接期只需类符号）；smoke mode=all 重派复跑
 - 【CI 终验】r1 双绿收官：smoke run #67 mode=all 一轮终绿（preview 链接桩即愈）+ dev run #51 一轮终绿（acfe6098，ipa/tipa 产物在位）——Task 330 全链闭环
+
+---
+## Task 331——四线（用户装机 adb63d33 四问复访：开小窗依旧输入偏移/插件依旧找不到任何功能入口/MD3 滑块怎么变成按压按钮了/versions 依旧没有游戏独立文件）
+
+**日期**：2026-10-26（UTC+8 会话）
+**触发**：用户装机 Task 330 构建（adb63d33）四问复访 + IMG_0493 插件页截图（贡献行分区恒空/开关呈"带圆点按压按钮"观感）
+
+### 线A：插件 API 面结构性根修（JSExport 化）+ 双普查自证链（插件依旧找不到任何功能入口·终审）
+
+- 病历终审（装机 adb63d33 latestlog 三证交集）：四内置件"已装载"且权限计数全符（4/3/5/3）、零权限拒绝、零 JS 异常，但全脚本 ame.log 零输出 + 贡献行分区恒空（IMG_0493）+ Task330 内容自愈零日志（幂等跳过 = 装机副本与包内"一致"）——**唯一自洽交集 = 桥面在 JS 侧整体不可调**：JSC 的 ObjC↔JS 桥只导出 JSExport 协议声明的方法（Apple JSExport 契约；未采纳协议的自定义类实例 = 不透明对象，全部自定义方法 undefined）。AmePluginBridge 自 Task317 以来零协议采纳 → ameRaw.* 全链 undefined → 门面（ame317_facadeSource）一经调用即 TypeError → 现役世代内置件顶层 ame.* 首调即炸；设备上"装载成功但零行为"的假象由【陈旧副本世代 JS（无 ame.* 调用故静默）】与【桥面缺失】两病灶合流构成。CI/门禁均为 node 桩冒烟，从未覆盖 ObjC 桥面 = 本仓 CI 语义面盲区第八例
+- 修法 = `AmePluginBridgeJSExport` 协议 24 selector 全量导出（JS 名整形 = selector 去冒号拼接、首段后各段首字母大写——log/onHandler/dialogCallback/addLauncherRowHandler/setPrefValue/storageSetValue/fetchOptionsCallback/writeGameFileContentAppend 与门面既定调用名逐一对齐；空值限定与类接口逐字镜像，拒绝返 nil 五方法显式 nullable 防 nullability conflict）
+- 同族修正 = 门面 `ame.storage.set` 旧调 `raw.storageSet(k,v)`（JSExport 整形后实名 storageSetValue）→ 改调实名——theme-sunset 调色落盘链/storage 全族复活
+- 双普查自证链：①开机普查行 `[AmePlugin] Task331 builtin census: <pid> bundle(main=NB) installed(main=NB) verdict=same|stale|refreshed|bundle-missing-main|installed-missing-main`（bundle 缺 main.js 升格 ERROR——"旧代 main.js 无升级通道"死案自此有取证位，bundle 残缺/副本陈旧/一致三态不再不可分辨）②装载普查行 `[AmePlugin:<pid>] Task331 load census: src=NB ame(addLauncherRow)=callable|MISSING rows=N jsException=YES|no`（陈旧副本/桥不可调/JS 异常三类病灶下次开机一锤定音）
+- 内置件 manifest 1.0.0→1.1.0 ×4：刷新生效后插件页直接可见 v1.1.0——用户无需日志即可验证自愈链路（首次启动 Task330 刷新必有日志 + 版本号翻新双重锚点）
+
+### 线B：SDL 小窗触点时刻自愈 v3（开小窗依旧输入偏移·双洞根修）
+
+- 装机 adb63d33 实锤 Task330 自愈零触发 → 双洞定位：
+  **洞A** = 小窗已缩而 scale-mode 未武装（Task261 防抖 0.3s 窗口内）——v2 首守卫 `(!freeformScaled)` 直接弹回，首触点按全屏因子映射 = 开小窗后立刻触摸整段偏移的头号存活面。v3 触点时刻以 updateSavedResolution 入口同闸**即时武装**（mailbox+因子从当前帧重排、信念不宣告 = Task267 冻结纪律保持），首触点即正确（锚点 `[SurfaceVC] Task331: touch-time scale-mode engage`）
+  **洞B** = 沉降定时器硬守卫反噬——拖拽期/沉降期（0.6s）触点被冻结在陈旧因子上（恰是几何漂移窗口）。v3 以**因子落库帧指纹权威闸**取代（`ame331_lastFactorFrame` 重排尾部落库；view-local 口径窗口挪动零误报）：实况帧 ≠ 落库帧 = 因子必陈旧 = 立即单点重排（拖拽期只刷 mailbox 不宣告信念 = Task277 冻结语义保持；沉降已过仍见帧漂移 = 跨后台失效永不补放场景走一次全链核心收口，Task330 语义保留）；指纹一致零开销直返（幂等）
+
+### 线C：MD3 开关拨动行程语义修复（MD3 滑块怎么变成按压按钮了·真身）
+
+- 旧 `lead = checked ? 14.0 : 18.0` 与 24/16 尺寸组合下拇指中心恒 = 26pt（52/2）——**两态只原地缩放零行程** = 带圆点的按压按钮观感（用户三轮抱怨真身：深棕方块→圆形化→按压按钮）。真 M3 行程几何 = OFF 拇指 16pt 左嵌 4（占位 4..20）/ ON 拇指 24pt 右嵌 4（占位 24..48），行程 20pt + 既有弹簧动画 = 拨动语言一眼可读；轨道 52x32/圆角/主题令牌不动，五消费方零布局影响（总宽不变）
+
+### 线D：可见层 .minecraft 跟随现役实例（versions 依旧没有游戏独立文件·第六轮收口）
+
+- 病历（装机 adb63d33 latestlog 实锤）：boot 期 Task226/319 链 .minecraft → 偏好实例（instances/default），实际游玩走 profile 轴（CwdAlign：`instances/modrinth_*/versions/<vid>` 深层形态）——文件 App 打开 `.minecraft/versions/` 只见 default 的 json+jar 空壳（Ame328 诱饵清扫口径），真数据躺在现役实例树 = 两套根错位观感本体；Task330 默认实例统一 pass 零日志（default 实例本无数据可搬，pass 正确无活干）
+- 修法 = 启动链 gameDir 终点（ame225 嗅探 + ame287 forge 收口后）重指 .minecraft → **现役实例根**：深层形态 `instances/<id>/versions/<vid>` 与根形态 `instances/<id>` 统一归到 `instances/<id>`——`.minecraft/versions/<vid>/` 即版本隔离数据（PCL2/ZL2 桌面语义）；Task319 三态纪律（resolved 同值幂等零动作/真实目录绝不覆盖/缺失创建）；非实例轴 gameDir 零触碰零日志；POJAV_GAME_DIR/chdir 启动链零感知。锚点 `[JavaLauncher] Task331: .minecraft re-pointed to active instance (<id>)`
+
+### 门禁电池
+
+ame331_selfcheck 49 断言（新：协议 24 selector 导出/JS 名整形七关键对/空值镜像六条/普查行/行程几何/指纹闸/实例轴重指/括号平衡/i18n 零新键）+ ame330_selfcheck C2/C3/C7 重锚（v3 演进指针挂注，余 29 断言原样）+ ame329 25/25 + ame327 66/66 + ame324 52/52 + ame318/317 零失败 + task139/240 全绿 + task191 3302 键（本轮零新键）+ task248/250 全零 + verify219 81/81 + verify255 PASS + 内置件 JS 冒烟 rows=6 全注册
+
+### 装机锚点汇总（预期日志）
+
+1. `[AmePlugin] Task331 builtin census` ×4（每启一次；verdict 首启应为 stale→refreshed，次启起 same）
+2. `[AmePlugin:<pid>] Task331 load census` ×4（ame=addLauncherRow callable；rows 合计 6；jsException=no）
+3. 插件页"插件贡献的启动器行"出现 6 行（launch-counter 1/modrinth-hot 1/quickswitch 2/theme-sunset 2）+ 版本号显示 v1.1.0；插件行点击即触发（对话框/渲染器切换/主题令牌）
+4. 开小窗后**首触点**即正确映射（`[SurfaceVC] Task331: touch-time scale-mode engage` 或 mailbox refresh 行；拖拽中触点不再冻结在陈旧因子）
+5. MD3 开关两态拇指分列左右（行程 20pt），拨动语言一眼可读
+6. 文件 App 打开 .minecraft/versions/<游玩版本>/ ——saves/mods/config/options.txt 全套实文件（`[JavaLauncher] Task331: .minecraft re-pointed to active instance`）
+
+### Stage Summary
+
+- 四问全落（全部在二代仓库基于 adb63d33 现状根修）：①插件桥 JSExport 化+storage 实名修正+双普查+manifest 翻新 ②SDL 触点自愈 v3 双洞（防抖窗口首触武装+帧指纹权威闸）③M3 开关 20pt 拨动行程 ④.minecraft 跟随现役实例
+- 语义面盲区第八例入档：node 桩冒烟不覆盖 ObjC 桥面——JSExport 类桥接型 API 的门禁候选 = 装载普查行设备断言（rows>0）
+- 待办移交：JIT 游戏启动链（最高严重级）；下载中心 UI/加载器空白；AI 提示词插件章装机复验
