@@ -5,15 +5,24 @@
 #import "utils.h" // localize
 #import "UnzipKit.h"
 
+#import <CommonCrypto/CommonDigest.h>
+
 // ═══════════════════════════════════════════════════════════════════
-// ZL2PluginRepoViewController 实现（Task 318 内置插件仓库）
+// ZL2PluginRepoViewController 实现（Task 318 内置插件仓库 / ★ Task333 上仓）
 // 口径注释：
-//  · 单区表：0=内置插件卡（已装 → 详情页；未装 → 一键安装钮）
-//  · 安装链 = 目录 → 临时 zip → installFromZip（与手动导入同一条
-//    全量校验链：manifest schema/entry 防逃逸/首装默认授权普通授高危拒）
-//  · 展示名 = ame318.builtin.<id>.name/desc 四表键优先，manifest 兜底
-//  · 装完自动装载（enabled 态由首装授权语义决定）；返回列表页时
-//    viewWillAppear 全量刷新，本页 reload 只服务本页状态
+//  · 双区表：0=远程官方仓库（index.json 拉取，zip 下载 → sha256 校验 →
+//    installFromZip 全量校验链）1=包内预置（builtin-plugins，随包件）
+//  · ★ Task333 插件上仓：四件演示插件迁移出 IPA（bundle 只留 plugin-survey
+//    勘测件），从本页远程安装/更新；IPA 体积让渡虽小（KB 级），架构收益
+//    = 插件可独立于启动器发版更新 + 仓库化分发
+//  · 镜像加速（用户："国内可以使用加速源"）：三通道按序探测（记忆镜像
+//    优先 → jsdelivr CDN → raw 官方 → ghfast 前缀代理），index 拉取成功者
+//    即为本次会话下载通道；选择结果落偏好供下次首试
+//  · 官方信任面：index official=true 件 = 与 bundle 内置件同信任根（同
+//    GitHub 仓库同发布者）→ noteRepoOfficialIndex 落缓存 + 授权自愈覆盖
+//    （声明权限全量授，ame.super 永不代授）；第三方件默认拒原样保留
+//  · 安装链 = 与手动导入同一条 installFromZip 全量校验（manifest schema/
+//    entry 防逃逸/首装授权普通授高危拒）
 // ═══════════════════════════════════════════════════════════════════
 
 static NSString *ame318_builtinRoot(void) {
@@ -21,10 +30,20 @@ static NSString *ame318_builtinRoot(void) {
         stringByAppendingPathComponent:@"builtin-plugins"];
 }
 
+// ★ Task333：远程仓库基址三通道（探测顺序即优先级；ghfast 前缀代理 = 国内
+//   加速面）。nsstring 常量放文件级避免块内捕获静态存储雷。
+static NSString * const ame333_repoBaseOfficial  = @"https://raw.githubusercontent.com/Gsjsjzhznsz/Prisma-Minecraft-iOS-Launcher2/main/plugin-repo/";
+static NSString * const ame333_repoBaseJsdelivr  = @"https://cdn.jsdelivr.net/gh/Gsjsjzhznsz/Prisma-Minecraft-iOS-Launcher2@main/plugin-repo/";
+static NSString * const ame333_repoBaseGhfast    = @"https://ghfast.top/https://raw.githubusercontent.com/Gsjsjzhznsz/Prisma-Minecraft-iOS-Launcher2/main/plugin-repo/";
+static NSString * const ame333_repoMirrorPrefKey = @"ame333.plugin.repo.mirror";
+
 @interface ZL2PluginRepoViewController () <UITableViewDelegate, UITableViewDataSource>
 @property (nonatomic, strong) UITableView *table;
-@property (nonatomic, strong) NSMutableArray<NSDictionary *> *items; // {dirName, manifest}
-@property (nonatomic, strong) NSMutableSet<NSString *> *installing;  // dirName 防重入
+@property (nonatomic, strong) NSMutableArray<NSDictionary *> *items;      // 包内区 {dirName, manifest}
+@property (nonatomic, strong) NSMutableArray<NSDictionary *> *remoteItems; // 远程区 {id,name,version,author,summary,file,size,sha256,official}
+@property (nonatomic, strong) NSMutableSet<NSString *> *installing;       // 插件 id 防重入
+@property (nonatomic, copy) NSString *remoteStatus;                       // 远程区状态行（nil=隐藏状态行）
+@property (nonatomic, assign) BOOL remoteFetched;
 @end
 
 @implementation ZL2PluginRepoViewController
@@ -34,7 +53,9 @@ static NSString *ame318_builtinRoot(void) {
     self.view.backgroundColor = [ZL2Theme surface];
     self.title = localize(@"ame318.repo.title", nil);
     self.items = [NSMutableArray array];
+    self.remoteItems = [NSMutableArray array];
     self.installing = [NSMutableSet set];
+    self.remoteStatus = localize(@"ame333.repo.fetching", nil);
 
     // ★ Task325：InsetGrouped+系统 Subtitle cell → Plain 卡片流（ZL2M3CardCell）
     self.table = [[UITableView alloc] initWithFrame:CGRectZero style:UITableViewStylePlain];
@@ -57,8 +78,7 @@ static NSString *ame318_builtinRoot(void) {
         [self.table.bottomAnchor constraintEqualToAnchor:self.view.bottomAnchor],
     ]];
 
-    // Task325：系统组头 → 自绘小字标题（onSurfaceVariant + LabelLarge），
-    // 语义与 ame318.repo.section_title 不变；frame 头 + autoresizing 宽度弹窗。
+    // Task325：系统组头 → 自绘小字标题
     UILabel *secTitle = [[UILabel alloc] initWithFrame:CGRectMake(0, 0, self.view.bounds.size.width, 36)];
     secTitle.autoresizingMask = UIViewAutoresizingFlexibleWidth;
     secTitle.text = localize(@"ame318.repo.section_title", nil);
@@ -77,6 +97,7 @@ static NSString *ame318_builtinRoot(void) {
     self.table.tableHeaderView = hdr;
 
     [self ame318_reload];
+    [self ame333_fetchRemoteIndex];   // 异步非阻塞，回来 reload
 }
 
 - (void)viewWillAppear:(BOOL)animated {
@@ -84,7 +105,109 @@ static NSString *ame318_builtinRoot(void) {
     [self ame318_reload];
 }
 
-#pragma mark - 数据装配
+#pragma mark - 远程 index（镜像探测 + 下载通道选择）
+
+/// 三通道按序探测（记忆镜像优先）——index JSON 拉取成功者即胜出。
+/// 返回 (indexDict, baseURL)；全败返回 (nil, nil)。
+- (NSDictionary *)ame333_fetchIndexWithBaseOut:(NSString **)baseOut {
+    NSMutableArray<NSString *> *bases = [NSMutableArray array];
+    NSString *remembered = [NSUserDefaults.standardUserDefaults stringForKey:ame333_repoMirrorPrefKey];
+    if (remembered.length) [bases addObject:remembered];
+    [bases addObjectsFromArray:@[ame333_repoBaseJsdelivr, ame333_repoBaseOfficial, ame333_repoBaseGhfast]];
+    NSURLSessionConfiguration *cfg = [NSURLSessionConfiguration ephemeralSessionConfiguration];
+    cfg.timeoutIntervalForRequest = 6.0;
+    NSURLSession *session = [NSURLSession sessionWithConfiguration:cfg];
+    for (NSString *base in bases) {
+        NSURL *url = [NSURL URLWithString:[base stringByAppendingString:@"index.json"]];
+        if (!url) continue;
+        // 常量基址 + 固定路径：semaphore 同步探测（页面上已有 fetching 状态行）
+        dispatch_semaphore_t sem = dispatch_semaphore_create(0);
+        __block NSData *data = nil;
+        [[session dataTaskWithURL:url
+                completionHandler:^(NSData *d, NSURLResponse *r, NSError *e) {
+            NSInteger http = ((NSHTTPURLResponse *)r).statusCode ?: 0;
+            if (d.length > 2 && http == 200) data = d;
+            dispatch_semaphore_signal(sem);
+        }] resume];
+        dispatch_semaphore_wait(sem, dispatch_time(DISPATCH_TIME_NOW, (int64_t)(8.0 * NSEC_PER_SEC)));
+        if (!data) continue;
+        id json = [NSJSONSerialization JSONObjectWithData:data options:0 error:nil];
+        if (![json isKindOfClass:[NSDictionary class]]) continue;
+        if (![json[@"plugins"] isKindOfClass:[NSArray class]]) continue;
+        if (baseOut) *baseOut = base;
+        return json;
+    }
+    return nil;
+}
+
+- (void)ame333_fetchRemoteIndex {
+    __weak typeof(self) wself = self;
+    dispatch_async(dispatch_get_global_queue(QOS_CLASS_UTILITY, 0), ^{
+        NSString *base = nil;
+        NSDictionary *index = [wself ame333_fetchIndexWithBaseOut:&base];
+        dispatch_async(dispatch_get_main_queue(), ^{
+            __strong typeof(wself) sself = wself;
+            if (!sself) return;
+            if (!index) {
+                sself.remoteStatus = localize(@"ame333.repo.fetch_fail", nil);
+                [sself tableReloadAndKeepScroll];
+                NSLog(@"[AmePluginRepo] Task333 remote index fetch failed (all mirrors)");
+                return;
+            }
+            [NSUserDefaults.standardUserDefaults setObject:base forKey:ame333_repoMirrorPrefKey];
+            NSLog(@"[AmePluginRepo] Task333 remote index fetched via %@", base);
+            // 官方信任面落缓存 + 授权自愈重跑（ame.super 永不代授）
+            NSMutableDictionary<NSString *, NSString *> *official = [NSMutableDictionary dictionary];
+            [sself.remoteItems removeAllObjects];
+            for (id raw in index[@"plugins"]) {
+                if (![raw isKindOfClass:[NSDictionary class]]) continue;
+                NSDictionary *p = raw;
+                NSString *pid = [p[@"id"] isKindOfClass:[NSString class]] ? p[@"id"] : nil;
+                NSString *file = [p[@"file"] isKindOfClass:[NSString class]] ? p[@"file"] : nil;
+                if (pid.length == 0 || file.length == 0) continue;
+                if ([pid hasPrefix:@"."]) continue;
+                [sself.remoteItems addObject:p];
+                if ([p[@"official"] boolValue]) official[pid] =
+                    [p[@"version"] isKindOfClass:[NSString class]] ? p[@"version"] : @"";
+            }
+            sself.remoteStatus = nil;
+            [sself tableReloadAndKeepScroll];
+            if (official.count) {
+                [AmePluginRuntime noteRepoOfficialIndex:official];
+            }
+        });
+    });
+}
+
+// UITableView reload 会回滚滚动位——远程区异步回包在用户阅读包内区时不打断
+- (void)tableReloadAndKeepScroll {
+    CGPoint offset = self.table.contentOffset;
+    [self.table reloadData];
+    [self.table layoutIfNeeded];
+    [self.table setContentOffset:offset animated:NO];
+}
+
+#pragma mark - sha256（CommonCrypto，远程件完整性闸）
+
++ (NSString *)ame333_sha256OfFile:(NSString *)path {
+    NSFileHandle *fh = [NSFileHandle fileHandleForReadingAtPath:path];
+    if (!fh) return nil;
+    CC_SHA256_CTX ctx;
+    CC_SHA256_Init(&ctx);
+    while (YES) {
+        NSData *chunk = [fh readDataOfLength:256 * 1024];
+        if (chunk.length == 0) break;
+        CC_SHA256_Update(&ctx, chunk.bytes, (CC_LONG)chunk.length);
+    }
+    [fh closeFile];
+    unsigned char digest[CC_SHA256_DIGEST_LENGTH];
+    CC_SHA256_Final(digest, &ctx);
+    NSMutableString *hex = [NSMutableString stringWithCapacity:CC_SHA256_DIGEST_LENGTH * 2];
+    for (int i = 0; i < CC_SHA256_DIGEST_LENGTH; i++) [hex appendFormat:@"%02x", digest[i]];
+    return hex;
+}
+
+#pragma mark - 数据装配（包内区）
 
 - (void)ame318_reload {
     [self.items removeAllObjects];
@@ -127,26 +250,61 @@ static NSString *ame318_builtinRoot(void) {
     return ([v isEqualToString:key] || v.length == 0) ? (m.summary ?: @"") : v;
 }
 
-#pragma mark - 表格
+#pragma mark - 表格（0=远程区 1=包内区）
 
 - (NSInteger)numberOfSectionsInTableView:(UITableView *)tableView {
-    return 1;
+    return 2;
 }
 
 - (NSInteger)tableView:(UITableView *)tableView numberOfRowsInSection:(NSInteger)section {
-    return MAX(self.items.count, 1); // 空态占位行
+    if (section == 0) return MAX(self.remoteItems.count, 1); // 远程空态/状态行占位
+    return MAX(self.items.count, 1);                          // 包内空态占位行
+}
+
+- (NSString *)tableView:(UITableView *)tableView titleForHeaderInSection:(NSInteger)section {
+    if (section == 0) return localize(@"ame333.repo.section_remote", nil);
+    return localize(@"ame333.repo.section_builtin", nil);
 }
 
 - (UITableViewCell *)tableView:(UITableView *)tableView cellForRowAtIndexPath:(NSIndexPath *)indexPath {
-    // ★ Task325：系统 Subtitle cell → ZL2M3CardCell（卡底/字体/动作胶囊全令牌化）。
-    //   未装 = 整行点击安装（动作胶囊展示“安装/安装中”），已装 = 整行进详情页
-    //   （胶囊展示“已安装”），交互语义与两态展示解耦。
+    // ★ Task325：系统 Subtitle cell → ZL2M3CardCell（卡底/字体/动作胶囊全令牌化）
     ZL2M3CardCell *cell = [tableView dequeueReusableCellWithIdentifier:@"ZL2M3CardCell"
                                                           forIndexPath:indexPath];
-    if (self.items.count == 0) {
+    if (indexPath.section == 0 && self.remoteItems.count == 0) {
+        cell.titleLabel.text = self.remoteStatus ?: localize(@"ame333.repo.fetch_empty", nil);
+        cell.subLabel.text = @"";
+        [cell applyActionStyle:3 title:@""];
+        return cell;
+    }
+    if (indexPath.section == 1 && self.items.count == 0) {
         cell.titleLabel.text = localize(@"ame318.repo.empty", nil);
         cell.subLabel.text = @"";
         [cell applyActionStyle:3 title:@""];
+        return cell;
+    }
+
+    if (indexPath.section == 0) {
+        // ★ Task333：远程件卡 —— 已装同版=已安装 / 已装低版=可更新 / 未装=安装
+        NSDictionary *p = self.remoteItems[(NSUInteger)indexPath.row];
+        NSString *pid = p[@"id"];
+        BOOL installing = [self.installing containsObject:pid];
+        NSString *name = [p[@"name"] isKindOfClass:[NSString class]] && ((NSString *)p[@"name"]).length
+            ? p[@"name"] : pid;
+        cell.titleLabel.text = name;
+        NSString *authorLine = ([p[@"author"] isKindOfClass:[NSString class]] && ((NSString *)p[@"author"]).length)
+            ? [NSString stringWithFormat:localize(@"ame317.list.by_author", nil), p[@"author"]] : @"";
+        cell.subLabel.text = [NSString stringWithFormat:@"v%@ · %@ · %@",
+                              [p[@"version"] isKindOfClass:[NSString class]] ? p[@"version"] : @"?",
+                              authorLine,
+                              [p[@"summary"] isKindOfClass:[NSString class]] ? p[@"summary"] : @""];
+        AmePluginManifest *installedM = [AmePluginManager manifestForPlugin:pid];
+        if (!installedM) {
+            [cell applyActionStyle:0 title:localize(installing ? @"ame318.repo.installing" : @"ame333.repo.install", nil)];
+        } else if ([installedM.version compare:p[@"version"]] == NSOrderedAscending) {
+            [cell applyActionStyle:0 title:localize(@"ame333.repo.update", nil)];
+        } else {
+            [cell applyActionStyle:1 title:localize(@"custom_controls.repo.installed_badge", nil)];
+        }
         return cell;
     }
 
@@ -154,7 +312,7 @@ static NSString *ame318_builtinRoot(void) {
     AmePluginManifest *m = item[@"manifest"];
     NSString *dirName = item[@"dirName"];
     BOOL installed = ([[AmePluginManager installedPluginIds] containsObject:m.pluginId]);
-    BOOL installing = [self.installing containsObject:dirName];
+    BOOL installing = [self.installing containsObject:m.pluginId];
 
     cell.titleLabel.text = [self ame318_displayNameForManifest:m];
     NSString *authorLine = m.author.length ?
@@ -172,6 +330,21 @@ static NSString *ame318_builtinRoot(void) {
 
 - (void)tableView:(UITableView *)tableView didSelectRowAtIndexPath:(NSIndexPath *)indexPath {
     [tableView deselectRowAtIndexPath:indexPath animated:YES];
+    if (indexPath.section == 0) {
+        if (self.remoteItems.count == 0) return;
+        NSDictionary *p = self.remoteItems[(NSUInteger)indexPath.row];
+        NSString *pid = p[@"id"];
+        AmePluginManifest *installedM = [AmePluginManager manifestForPlugin:pid];
+        // 已装同版或更高 → 详情页；已装低版或未装 → 下载安装/更新
+        if (installedM && [installedM.version compare:p[@"version"]] != NSOrderedAscending) {
+            ZL2PluginDetailViewController *detail =
+                [[ZL2PluginDetailViewController alloc] initWithPluginId:pid];
+            [self.navigationController pushViewController:detail animated:YES];
+            return;
+        }
+        [self ame333_beginRemoteInstallForRow:(NSInteger)indexPath.row];
+        return;
+    }
     if (self.items.count == 0) return;
     NSDictionary *item = self.items[(NSUInteger)indexPath.row];
     AmePluginManifest *m = item[@"manifest"];
@@ -185,16 +358,93 @@ static NSString *ame318_builtinRoot(void) {
     [self ame318_beginInstallForRow:(NSInteger)indexPath.row];
 }
 
-#pragma mark - 安装链（目录 → 临时 zip → installFromZip 全量校验链）
+#pragma mark - 远程安装链（镜像下载 → sha256 → installFromZip 全量校验链）
+
+- (void)ame333_beginRemoteInstallForRow:(NSInteger)row {
+    if (row < 0 || row >= (NSInteger)self.remoteItems.count) return;
+    NSDictionary *p = self.remoteItems[(NSUInteger)row];
+    NSString *pid = p[@"id"];
+    NSString *file = p[@"file"];
+    NSString *sha = p[@"sha256"];
+    if (pid.length == 0 || file.length == 0) return;
+    if ([self.installing containsObject:pid]) return;
+    if (sha.length != 64) {
+        [ZL2M3Dialog showTitle:localize(@"ame317.install.failed_title", nil)
+                           body:localize(@"ame333.repo.sha_mismatch", nil)
+                   confirmTitle:localize(@"ame317.common.ok", nil)
+                    destructive:NO
+                     onConfirm:nil
+                      onCancel:nil];
+        return;
+    }
+    [self.installing addObject:pid];
+    [self tableReloadAndKeepScroll];
+
+    NSString *base = [NSUserDefaults.standardUserDefaults stringForKey:ame333_repoMirrorPrefKey];
+    if (base.length == 0) base = ame333_repoBaseOfficial;
+    __weak typeof(self) wself = self;
+    dispatch_async(dispatch_get_global_queue(QOS_CLASS_USER_INITIATED, 0), ^{
+        NSString *tmpZip = [NSTemporaryDirectory()
+            stringByAppendingPathComponent:
+                [NSString stringWithFormat:@"ame333-repo-%@.zip", [NSUUID UUID].UUIDString]];
+        NSURL *url = [NSURL URLWithString:[base stringByAppendingString:file]];
+        AmePluginManifest *m = nil;
+        AmePluginInstallResult code = AmePluginInstallErrReadZip;
+        if (url) {
+            NSData *data = [NSData dataWithContentsOfURL:url];
+            NSLog(@"[AmePluginRepo] Task333 download %@ via %@ -> %@B", pid, base, data ? @(data.length) : @"0");
+            NSString *gotSha = data.length ? [wself.class ame333_sha256OfStringData:data] : nil;
+            if (data.length && gotSha && [gotSha isEqualToString:sha]) {
+                [data writeToFile:tmpZip options:NSDataWritingAtomic error:nil];
+                code = [AmePluginManager installFromZip:tmpZip outManifest:&m];
+            } else {
+                NSLog(@"[AmePluginRepo] Task333 sha mismatch for %@ (got %@ want %@)", pid, gotSha, sha);
+                code = AmePluginInstallErrReadZip;   // 完整性闸失败按下载失败报
+                m = nil;
+            }
+        }
+        [[NSFileManager defaultManager] removeItemAtPath:tmpZip error:nil];
+        dispatch_async(dispatch_get_main_queue(), ^{
+            __strong typeof(wself) sself = wself;
+            if (!sself) return;
+            [sself.installing removeObject:pid];
+            if (code == AmePluginInstallOK && m && [p[@"official"] boolValue]) {
+                // 官方件：声明权限即时全量授（与首方内置件同语义；ame.super 永不代授）
+                NSMutableDictionary<NSString *, NSNumber *> *g = [NSMutableDictionary dictionary];
+                for (NSString *perm in m.permissions) {
+                    if ([perm isEqualToString:@"ame.super"]) continue;
+                    g[perm] = @1;
+                }
+                [AmePluginPermissions replaceGrants:g forPlugin:m.pluginId];
+                [AmePluginPermissions setPluginEnabled:YES pluginId:m.pluginId];
+                NSLog(@"[AmePluginRepo] Task333 official plugin grants healed at install: %@", m.pluginId);
+            }
+            [sself ame318_installDidFinish:code manifest:m];
+        });
+    });
+}
+
+// 内存态 sha（下载流直算，免二次落盘读）
++ (NSString *)ame333_sha256OfStringData:(NSData *)data {
+    unsigned char digest[CC_SHA256_DIGEST_LENGTH];
+    CC_SHA256(data.bytes, (CC_LONG)data.length, digest);
+    NSMutableString *hex = [NSMutableString stringWithCapacity:CC_SHA256_DIGEST_LENGTH * 2];
+    for (int i = 0; i < CC_SHA256_DIGEST_LENGTH; i++) [hex appendFormat:@"%02x", digest[i]];
+    return hex;
+}
+
+#pragma mark - 包内安装链（目录 → 临时 zip → installFromZip 全量校验链）
 
 - (void)ame318_beginInstallForRow:(NSInteger)row {
     if (self.items.count == 0) return;
     if (row < 0 || row >= (NSInteger)self.items.count) return;
     NSDictionary *item = self.items[(NSUInteger)row];
     NSString *dirName = item[@"dirName"];
-    if ([self.installing containsObject:dirName]) return;
-    [self.installing addObject:dirName];
-    [self.table reloadData];
+    AmePluginManifest *pm = item[@"manifest"];
+    if (pm.pluginId.length == 0) return;
+    if ([self.installing containsObject:pm.pluginId]) return;
+    [self.installing addObject:pm.pluginId];
+    [self tableReloadAndKeepScroll];
 
     __weak typeof(self) wself = self;
     dispatch_async(dispatch_get_global_queue(QOS_CLASS_USER_INITIATED, 0), ^{
@@ -208,8 +458,10 @@ static NSString *ame318_builtinRoot(void) {
             : AmePluginInstallErrReadZip;
         [[NSFileManager defaultManager] removeItemAtPath:tmpZip error:nil];
         dispatch_async(dispatch_get_main_queue(), ^{
-            [wself.installing removeObject:dirName];
-            [wself ame318_installDidFinish:code manifest:m];
+            __strong typeof(wself) sself = wself;
+            if (!sself) return;
+            [sself.installing removeObject:pm.pluginId];
+            [sself ame318_installDidFinish:code manifest:m];
         });
     });
 }
@@ -258,7 +510,7 @@ static NSString *ame318_builtinRoot(void) {
 }
 
 - (void)ame318_installDidFinish:(AmePluginInstallResult)code manifest:(AmePluginManifest *)m {
-    [self.table reloadData];
+    [self tableReloadAndKeepScroll];
     if (code != AmePluginInstallOK) {
         NSString *body;
         switch (code) {
@@ -280,9 +532,8 @@ static NSString *ame318_builtinRoot(void) {
         return;
     }
 
-    // 安装结果弹窗（高危 ⚠ 标注；高危默认拒绝——详情页可改）。与手动导入流
-    // 同文案同链：ame317.install.confirm_body + ame317.perm.<id>.name 逐行预览；
-    // 覆盖重装时补一行私有存储清空提示。
+    // 安装结果弹窗（高危 ⚠ 标注）。★ Task333：官方件授权已即时全量授
+    // （预览仅告知），第三方件仍按既有口径：高危默认拒——详情页可改。
     NSMutableArray *lines = [NSMutableArray array];
     for (NSString *p in m.permissions) {
         BOOL danger = [AmePluginPermissions isDangerous:p];
@@ -308,7 +559,7 @@ static NSString *ame318_builtinRoot(void) {
     if ([AmePluginPermissions pluginEnabled:m.pluginId]) {
         [AmePluginRuntime setPluginEnabled:m.pluginId enabled:YES];
     }
-    [self.table reloadData];
+    [self tableReloadAndKeepScroll];
 }
 
 @end

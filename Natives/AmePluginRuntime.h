@@ -47,6 +47,12 @@ NS_ASSUME_NONNULL_BEGIN
 + (void)notifyAppEnteringForeground;
 + (void)notifyAppEnteringBackground;
 
+/// ★ Task333：插件仓库官方件信任面 —— 仓库页拉到官方 index 后把官方件
+///   清单落缓存并重跑授权自愈（官方仓 = 同 GitHub 仓库同发布者，与
+///   bundle 内置件同信任根；缓存落盘后 heal 面即含官方件）。安装官方件
+///   完成后同样调用：新装件立拿全部声明授权（与首方内置件同语义）。
++ (void)noteRepoOfficialIndex:(nullable NSDictionary<NSString *, NSString *> *)officialVersions;
+
 @end
 
 NS_ASSUME_NONNULL_END

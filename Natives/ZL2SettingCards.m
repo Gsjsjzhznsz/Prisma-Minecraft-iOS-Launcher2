@@ -194,6 +194,14 @@
 
     _title = [title copy];
     _subtitle = [subtitle copy];
+    // ★ Task333：init 路径文本落位 —— 病历（装机 96eb04c + IMG_0495 截图实锤）：
+    //   基类 init 只存 ivar 从不写 label.text，文本只有事后 setter（row.title = ...）
+    //   才可见。设置→启动器 group3 各行 = initWithTitle:@"" + 事后赋值 = 可见；
+    //   插件贡献行（ame327_rebuildPluginRowsGroup）= 纯 init 路径 = "插件功能 (6)"
+    //   六张永久空白卡（chevron 在、文字无）。在 init 终点补 label 赋值 = 全局
+    //   根修（所有 init 路径行一次性复活），setter 路径语义不变。
+    self.titleLabel.text = _title;
+    self.subtitleLabel.text = _subtitle;
 
     self.translatesAutoresizingMaskIntoConstraints = NO;
     self.isAccessibilityElement = YES;

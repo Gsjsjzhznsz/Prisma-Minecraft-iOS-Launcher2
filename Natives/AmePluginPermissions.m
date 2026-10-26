@@ -53,6 +53,14 @@ NSString *ame317_pluginsRootDir(void) {
     static dispatch_once_t once;
     dispatch_once(&once, ^{
         perms = @[
+            // ★ Task333：完全接管（最高级别权限，用户点题"启动器完全接管
+            //   权限，一打开全部东西都可以改"）—— 元权限：已授权即对全部
+            //   权限闸放行（执法点 AmePluginBridge ame317_requirePerm 首行）。
+            //   刻意不要求 manifest 声明 = 用户侧主控开关（详情页恒可切）；
+            //   开启后其余权限开关在详情页全部变灰禁用（语义：接管态下
+            //   逐项开关已无执法意义）。首方自愈（ame326/heal）刻意【不】
+            //   覆盖本权限：完全接管必须用户本人显式打开，绝不静默代授。
+            [[AmePluginPermissionItem alloc] initWithId:@"ame.super"      danger:YES],
             [[AmePluginPermissionItem alloc] initWithId:@"events"        danger:NO],
             [[AmePluginPermissionItem alloc] initWithId:@"ui.dialog"     danger:NO],
             [[AmePluginPermissionItem alloc] initWithId:@"ui.rows"       danger:NO],

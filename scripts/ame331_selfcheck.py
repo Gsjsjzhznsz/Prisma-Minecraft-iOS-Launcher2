@@ -108,9 +108,11 @@ check("A2 builtin census line", R, "Task331 builtin census")
 check("A2 bundle-missing ERROR line", R, "Task331 ERROR: bundle builtin-plugins missing main.js")
 
 # ── 线A3：内置件 manifest 1.1.0 ─────────────────────────────────────
-PLUG = f"{ROOT}/resources/builtin-plugins"
-for pid, perms in [("launch-counter", 4), ("modrinth-hot", 3),
-                   ("renderer-quickswitch", 5), ("theme-sunset", 3)]:
+# ★ Task333 重锚：四件演示件迁 plugin-repo/src（bundle 只留 plugin-survey）；
+#   theme-sunset 1.2.0（+ui.dialog 根治权限拒绝刷屏）
+PLUG = f"{ROOT}/../plugin-repo/src"
+for pid, ver, perms in [("launch-counter", "1.1.0", 4), ("modrinth-hot", "1.1.0", 3),
+                        ("renderer-quickswitch", "1.1.0", 5), ("theme-sunset", "1.2.0", 4)]:
     p = f"{PLUG}/{pid}/manifest.json"
     checks.append(f"A3 manifest {pid}")
     try:
@@ -118,8 +120,8 @@ for pid, perms in [("launch-counter", 4), ("modrinth-hot", 3),
     except Exception as e:
         failed.append(f"A3: {pid} manifest unreadable: {e}")
         continue
-    if d.get("version") != "1.1.0":
-        failed.append(f"A3: {pid} version={d.get('version')} expect 1.1.0")
+    if d.get("version") != ver:
+        failed.append(f"A3: {pid} version={d.get('version')} expect {ver}")
     if d.get("id") != pid:
         failed.append(f"A3: {pid} id mismatch")
     if len(d.get("permissions", [])) != perms:

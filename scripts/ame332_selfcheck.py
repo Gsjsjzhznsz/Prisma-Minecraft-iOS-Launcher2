@@ -61,7 +61,7 @@ check('V2 insertSafety semantics documented', '良性路径静默' in U)
 
 # ── ④ 小窗输入取证放宽 ───────────────────────────────────
 S = read(os.path.join(NAT, 'SurfaceViewController.m'))
-check('I1 forensic widened to all window states', 'Task277/332: touch forensic' in S)
+check('I1 forensic widened to all window states (Task333 re-anchor: 333 live/legacy)', 'Task277/332/333: touch forensic' in S)
 check('I1 forensic logs freeform flag', 'freeform=%d' in S)
 check('I1 forensic logs contentOrigin', 'content=%.0fx%.0f@(%.0f,%.0f)' in S)
 check('I1 forensic logs window/screen bounds', 'windowBounds=%@ screenBounds=%@' in S)

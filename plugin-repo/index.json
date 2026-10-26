@@ -1,0 +1,51 @@
+{
+  "schema": 1,
+  "repo": "Gsjsjzhznsz/Prisma-Minecraft-iOS-Launcher2",
+  "updated": "2026-10-26",
+  "plugins": [
+    {
+      "id": "launch-counter",
+      "name": "启动统计",
+      "version": "1.1.0",
+      "author": "Prisma",
+      "summary": "统计游戏启动次数与最近一次退出码，全部数据只存本插件私有存储，不上传。",
+      "file": "plugins/launch-counter.zip",
+      "size": 1233,
+      "sha256": "5a7b16a860d25c25b966685aa808925bb890e1de7be7961171ed6ea6264f6b45",
+      "official": true
+    },
+    {
+      "id": "modrinth-hot",
+      "name": "Modrinth 热门榜",
+      "version": "1.1.0",
+      "author": "Prisma",
+      "summary": "联网拉取 Modrinth 下载量前五的模组并在对话框展示。联网属高危权限，首次使用请在插件详情页授权。",
+      "file": "plugins/modrinth-hot.zip",
+      "size": 1548,
+      "sha256": "4ed1b2fa63290426a56f5fb89de339146b5dd0cc5f64b35e136b9f41da018eb1",
+      "official": true
+    },
+    {
+      "id": "renderer-quickswitch",
+      "name": "渲染器快切",
+      "version": "1.1.0",
+      "author": "Prisma",
+      "summary": "在已安装渲染器之间循环切换并随时查看当前后端。渲染器写入属高危权限，首次切换请在插件详情页授权。",
+      "file": "plugins/renderer-quickswitch.zip",
+      "size": 1613,
+      "sha256": "2c2feb0488d1a4494f2db746b387de49df8d4f2d11f0ead609df18bc676c2da3",
+      "official": true
+    },
+    {
+      "id": "theme-sunset",
+      "name": "日落主题包",
+      "version": "1.2.0",
+      "author": "Prisma",
+      "summary": "四套精选配色（日落/森林/海洋/玫瑰）一键换肤，支持循环切换与恢复默认。主题令牌属高危权限，首次使用请在插件详情页授权。",
+      "file": "plugins/theme-sunset.zip",
+      "size": 2366,
+      "sha256": "a974d54295730aa4ecdf7d8ab849aeab2ca60a7d9ca0b33636719cad2e3c0296",
+      "official": true
+    }
+  ]
+}

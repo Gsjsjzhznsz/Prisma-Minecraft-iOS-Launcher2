@@ -2117,10 +2117,15 @@ static NSInteger ame283_lastLandscapeDev = 0;
 ///   残余面：光标主路径 locationInView:surfaceView 本就是内容坐标不受
 ///   影响，偏移集中在手势/悬停/热栏族）。全屏态 origin=(0,0) 恒等返回。
 - (CGPoint)ame327_contentPointFromRoot:(CGPoint)pt {
-    if (g_ame267_freeformScaled &&
-        g_ame267_contentSize.width > 0.5 && g_ame267_contentSize.height > 0.5) {
-        return CGPointMake(pt.x - g_ame267_contentOrigin.x,
-                           pt.y - g_ame267_contentOrigin.y);
+    // ★ Task333：内容原点同步现读化 —— 缓存 g_ame267_contentOrigin 信念 →
+    //   surfaceView 实况 frame.origin（surfaceView 在 touchView 内、
+    //   touchView 铺满 rootView 原点，frame.origin 即 rootView 系偏移；
+    //   满窗时 origin=(0,0) 减法天然恒等，flag 分支依赖消失）。
+    if (self.surfaceView.superview != nil) {
+        CGPoint ame333_o = self.surfaceView.frame.origin;
+        if (ame333_o.x != 0.0 || ame333_o.y != 0.0) {
+            return CGPointMake(pt.x - ame333_o.x, pt.y - ame333_o.y);
+        }
     }
     return pt;
 }
@@ -2238,6 +2243,28 @@ static NSInteger ame283_lastLandscapeDev = 0;
     // 强制重宣告（Task250 通道，绕过同值去重）+ 首触点兜底
     CallbackBridge_nativeSendScreenSizeForced(windowWidth, windowHeight);
     ame248_geoResyncPending = YES;
+    // ★ Task333：宣告三连（ame247 骨架复用）—— V1 根治：沉降宣告历史是
+    //   "单发不可验证"（一发达出即押注必达且被 MC 消化；Task278 吞闸/
+    //   泵暂停/MC resize 竞态任一命中 = 永久错位且无自愈）。三连后单点
+    //   被吞不再是终态；Task61 钉扎读全局 = 重发自动传导 SDL 层。幂等
+    //   （强制通道恒推 0x207，同值重发零语义代价）。
+    __weak typeof(self) ame333_wself = self;
+    dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.8 * NSEC_PER_SEC)),
+                   dispatch_get_main_queue(), ^{
+        __strong typeof(ame333_wself) sself = ame333_wself;
+        if (sself && sself.view.window && windowWidth > 0) {
+            CallbackBridge_nativeSendScreenSizeForced(windowWidth, windowHeight);
+            NSLog(@"[SurfaceVC] Task333: announce trio #2 (t+0.8s, belief %dx%d)", (int)windowWidth, (int)windowHeight);
+        }
+    });
+    dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(2.5 * NSEC_PER_SEC)),
+                   dispatch_get_main_queue(), ^{
+        __strong typeof(ame333_wself) sself = ame333_wself;
+        if (sself && sself.view.window && windowWidth > 0) {
+            CallbackBridge_nativeSendScreenSizeForced(windowWidth, windowHeight);
+            NSLog(@"[SurfaceVC] Task333: announce trio #3 (t+2.5s, belief %dx%d)", (int)windowWidth, (int)windowHeight);
+        }
+    });
     NSLog(@"[SurfaceVC] Task328: belief chain recomputed from touchView (belief %dx%d -> %dx%d, res %.2f, view %.0fx%.0f, input scale %.2f)",
           ame328_oldW, ame328_oldH, (int)windowWidth, (int)windowHeight,
           (double)ame328_res, ame328_lw, ame328_lh, (double)ame267_adaptiveScaleX);
@@ -2343,9 +2370,16 @@ static NSInteger ame283_lastLandscapeDev = 0;
 ///   坐标越界 deviceScale 倍（iPad 2.0）→ 热栏手势/双击/长按全打空 =
 ///   "小窗还是漂移"的热栏侧根因。全屏态走 screenScale 原路零变化。
 - (CGPoint)ame277_hotbarPointFromViewPt:(CGPoint)pt {
-    if (g_ame267_freeformScaled) {
-        return CGPointMake(pt.x * (CGFloat)ame267_adaptiveScaleX,
-                           pt.y * (CGFloat)ame267_adaptiveScaleY);
+    // ★ Task333：热栏口径同步现读化 —— 缓存 adaptiveScale → 实况
+    //   physicalWidth/Height ÷ surfaceView 实况 bounds（数学恒等同上，
+    //   杀 V3：热栏四路径不经过触点自愈的时序洞）。
+    CGFloat ame333_cw = self.surfaceView.bounds.size.width;
+    CGFloat ame333_ch = self.surfaceView.bounds.size.height;
+    if (g_ame267_freeformScaled &&
+        ame333_cw > 0.5 && ame333_ch > 0.5 &&
+        physicalWidth > 0 && physicalHeight > 0) {
+        return CGPointMake(pt.x * ((CGFloat)physicalWidth / ame333_cw),
+                           pt.y * ((CGFloat)physicalHeight / ame333_ch));
     }
     CGFloat ame277_s = (self.screenScale > 0.0f) ? self.screenScale
                                                  : UIScreen.mainScreen.scale;
@@ -2372,6 +2406,32 @@ static NSInteger ame283_lastLandscapeDev = 0;
     if (mgFsrScale > 0.0f) ame277_s /= mgFsrScale;
     ame277_s *= resolutionScale;
     return CGPointMake(ame277_s, ame277_s);
+}
+
+/// ★ Task333：触点时刻现读几何（"一次性修好"的结构性根修）。
+/// 病历四代（267→276→277→331）：输入因子全部消费【重排时刻缓存】
+/// （g_ame267_freeformScaled 置位链 + ame267_adaptiveScale 落库 +
+/// contentOrigin 信念 + 帧指纹闸 + 防抖窗口）——缓存链每环都有错过
+/// 重算的存活面（V1 置位判定器 ame267_isFullscreenWindow 本身错→全链失效；
+/// V3 热栏四路径不经过触点自愈；V4 ≤1px 幂等闸吞累计漂移；V6 过渡窗
+/// 瞬态），四轮修复都是给缓存链打补丁，从未把消费端改成现读。
+/// 修法 = 因子逐触点从 surfaceView 实况 bounds 现算：
+///   out = MC 信念 px ÷ 内容矩形 pt（windowWidth/Height 是 SDL_GetWindowSize
+///   钉扎值 = MC 侧唯一信念空间，用它作分子 = 与 MC 信念构造性对齐）；
+///   缓存新鲜时 live == legacy（ame277 公式展开同源：adaptiveScale×res/FSR
+///   ≡ physical/content×res/FSR ≡ windowWidth/contentWidth）；缓存陈旧时
+///   live 即真相。全屏态同样成立（内容矩形满窗 → 分母=全屏 surface pt →
+///   live ≡ screenScale/FSR×res）——flag 分支依赖结构性消失（V2 家族
+///   "未武装"态即不再存在）。兜底：几何未建立（信念 0 或内容 0）回落
+///   legacy 链。
+- (CGPoint)ame333_liveCursorOutScale {
+    CGFloat ame333_cw = self.surfaceView.bounds.size.width;
+    CGFloat ame333_ch = self.surfaceView.bounds.size.height;
+    if (ame333_cw > 0.5 && ame333_ch > 0.5 && windowWidth > 0 && windowHeight > 0) {
+        return CGPointMake((CGFloat)windowWidth / ame333_cw,
+                           (CGFloat)windowHeight / ame333_ch);
+    }
+    return [self ame277_cursorOutScale];   // 几何未建立兜底
 }
 
 - (void)updateAudioSettings {
@@ -2815,10 +2875,11 @@ static NSInteger ame283_lastLandscapeDev = 0;
         //   FSR 除法/resScale 乘法/小窗替换三链（历史恰好 FSR=1/res=1 而无感），
         //   小窗态差 adaptiveScale×belief/deviceScale = 抓取瞬间光标跳位。
         //   改用与 sendTouchPoint 逐字节同源的 ame277_cursorOutScale 单一事实源。
-        CGPoint ame277_out = [self ame277_cursorOutScale];
+        // ★ Task333：抓取瞬间 DOWN 同步现读化（与主链同一现读源）。
+        CGPoint ame333_out = [self ame333_liveCursorOutScale];
         CallbackBridge_nativeSendCursorPos(ACTION_DOWN,
-            lastVirtualMousePoint.x * ame277_out.x,
-            lastVirtualMousePoint.y * ame277_out.y);
+            lastVirtualMousePoint.x * ame333_out.x,
+            lastVirtualMousePoint.y * ame333_out.y);
         CGSize ame326_cursorSpace = [self ame326_cursorSpaceSize];
         virtualMouseFrame.origin.x = ame326_cursorSpace.width / 2;
         virtualMouseFrame.origin.y = ame326_cursorSpace.height / 2;
@@ -3902,7 +3963,11 @@ static BOOL ame87_mcVersionRequiresTextureBuffer(NSString *mcVersionId) {
     //   "未武装"本身即为要抓的病灶形态，下轮日志直接判型（诊断先行，
     //   不盲修第四轮）。nil window 时 bounds 消息返回零结构（ObjC 语义，
     //   安全）。
-    CGPoint ame277_out = [self ame277_cursorOutScale];
+    // ★ Task333：消费端换现读（ame333_liveCursorOutScale）——缓存链四族
+    //   病灶的输入面结构性消失（详见该函数注释）；legacy 因子仅保留给
+    //   取证对照（live≠legacy 即缓存陈旧现行，装机日志直接判型）。
+    CGPoint ame333_legacyOut = [self ame277_cursorOutScale];
+    CGPoint ame277_out = [self ame333_liveCursorOutScale];
     CGFloat ame267_outX = ame277_out.x;
     CGFloat ame267_outY = ame277_out.y;
     if (event == ACTION_DOWN) {
@@ -3910,8 +3975,10 @@ static BOOL ame87_mcVersionRequiresTextureBuffer(NSString *mcVersionId) {
         CFAbsoluteTime ame277_now = CFAbsoluteTimeGetCurrent();
         if (ame277_now - ame277_lastForensic > 5.0) {
             ame277_lastForensic = ame277_now;
-            NSLog(@"[SurfaceVC] Task277/332: touch forensic: loc=%.1fx%.1f out=%.2fx%.2f adaptive=%.2fx%.2f win=%dx%d phys=%dx%d fsr=%.2f res=%.2f freeform=%d content=%.0fx%.0f@(%.0f,%.0f) windowBounds=%@ screenBounds=%@",
-                  location.x, location.y, ame267_outX, ame267_outY,
+            NSLog(@"[SurfaceVC] Task277/332/333: touch forensic: loc=%.1fx%.1f live=%.3fx%.3f legacy=%.3fx%.3f adaptive=%.2fx%.2f win=%dx%d phys=%dx%d fsr=%.2f res=%.2f freeform=%d content=%.0fx%.0f@(%.0f,%.0f) liveOrigin=%.1f,%.1f windowBounds=%@ screenBounds=%@",
+                  location.x, location.y,
+                  ame277_out.x, ame277_out.y,
+                  ame333_legacyOut.x, ame333_legacyOut.y,
                   ame267_adaptiveScaleX, ame267_adaptiveScaleY,
                   (int)windowWidth, (int)windowHeight,
                   (int)physicalWidth, (int)physicalHeight,
@@ -3919,6 +3986,7 @@ static BOOL ame87_mcVersionRequiresTextureBuffer(NSString *mcVersionId) {
                   (int)g_ame267_freeformScaled,
                   g_ame267_contentSize.width, g_ame267_contentSize.height,
                   g_ame267_contentOrigin.x, g_ame267_contentOrigin.y,
+                  self.surfaceView.frame.origin.x, self.surfaceView.frame.origin.y,
                   NSStringFromCGRect(self.view.window.bounds),
                   NSStringFromCGRect(self.view.window.screen.bounds));
         }

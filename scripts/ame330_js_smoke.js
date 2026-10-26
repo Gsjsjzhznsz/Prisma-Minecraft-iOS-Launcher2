@@ -1,14 +1,25 @@
 // Task330 冒烟：忠实模拟 AmePluginBridge 权限闸 + addLauncherRow 注册链，
-// 验证四个内置插件 JS 在"已授权"前提下能否注册贡献行（gen-2 仓内置件）。
+// 验证内置件 JS 在"已授权"前提下能否注册贡献行。
+// ★ Task333：扫描面 = bundle builtin-plugins + plugin-repo/src（上仓迁移
+//   后四件演示件的源码位），rows 总数口径不变（survey 1 + modrinth-hot 1
+//   + launch-counter 1 + quickswitch 2 + sunset 2 = 7）。
 const fs = require('fs');
 const path = require('path');
 
-const root = require('path').join(__dirname, '..', 'Natives', 'resources', 'builtin-plugins');
-const dirs = fs.readdirSync(root).filter(d => !d.startsWith('.'));
+const roots = [
+  path.join(__dirname, '..', 'Natives', 'resources', 'builtin-plugins'),
+  path.join(__dirname, '..', 'plugin-repo', 'src'),
+];
+const seen = new Set();
+for (const root of roots) {
+  if (!fs.existsSync(root)) continue;
+  const dirs = fs.readdirSync(root).filter(d => !d.startsWith('.'));
 
-for (const dir of dirs) {
-  const manifest = JSON.parse(fs.readFileSync(path.join(root, dir, 'manifest.json'), 'utf8'));
-  const source = fs.readFileSync(path.join(root, dir, 'main.js'), 'utf8');
+  for (const dir of dirs) {
+    if (seen.has(dir)) continue;   // bundle 与 repo 源同 id 只跑一次
+    seen.add(dir);
+    const manifest = JSON.parse(fs.readFileSync(path.join(root, dir, 'manifest.json'), 'utf8'));
+    const source = fs.readFileSync(path.join(root, dir, 'main.js'), 'utf8');
   const declared = new Set(manifest.permissions || []);
   const granted = new Set(manifest.permissions || []); // Task326 首方信任：全量授
   const rows = [];
@@ -55,4 +66,6 @@ for (const dir of dirs) {
   } catch (e) {
     console.log(`[${manifest.id}] JS EXCEPTION: ${e.message}`);
   }
+  }
 }
+console.log(`smoke total plugins=${seen.size} rows=7 expected`);

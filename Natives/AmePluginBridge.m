@@ -48,6 +48,14 @@ static const NSUInteger ame317_storageMaxBytes = 4 * 1024 * 1024;
 
 /// 权限门：未声明 或 未授权 → 抛 JS 异常返回 NO（fail-closed）
 - (BOOL)ame317_requirePerm:(NSString *)perm {
+    // ★ Task333：完全接管放行（ame.super 已授权即全权限通过）——用户点题
+    //   "最高级别权限，一打开全部东西都可以改"。刻意置于声明检查之前：
+    //   接管语义 = 逐项声明+逐项授权两道闸全部越过。日志落一行审计痕
+    //   （限频不必要：接管下每闸一行便于事后审计插件行为面）。
+    if ([AmePluginPermissions pluginHasGrant:self.pluginId permission:@"ame.super"]) {
+        NSLog(@"[AmePlugin:%@] ame.super takeover grant: perm '%@' allowed (bypass declaration+grant gates)", self.pluginId, perm);
+        return YES;
+    }
     if ([self.declaredPermissions containsObject:perm] &&
         [AmePluginPermissions pluginHasGrant:self.pluginId permission:perm]) {
         return YES;

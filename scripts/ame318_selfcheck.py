@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 # Task318 内置插件仓库综合静态自查
-# ① builtin-plugins 资源完备性（Task332 起 5 插件 × manifest+main.js，schema 字段/权限 id 合法）
+# ① builtin-plugins 资源完备性（★Task333 上仓迁移：bundle 只留 plugin-survey
+#    勘测件；四件演示件迁至 plugin-repo/src，由 ame333_selfcheck 管辖）
 # ② ame318.* 四表键集一致且 17 键、无意外占位符
 # ③ 新 .m 的 import 头文件闭环（文件存在于仓内）
 # ④ CMakeLists 已登记 ZL2PluginRepoViewController.m + 伞头已挂
@@ -17,12 +18,12 @@ def check(name, ok, detail=''):
 
 # ── ① builtin-plugins 资源完备性 ────────────────────────
 root = os.path.join(NAT, 'resources', 'builtin-plugins')
-expect_ids = {'theme-sunset', 'renderer-quickswitch', 'launch-counter', 'modrinth-hot', 'plugin-survey'}   # Task332: +plugin-survey 勘测插件
+expect_ids = {'plugin-survey'}   # ★Task333 上仓迁移：四件演示件迁 plugin-repo/src，bundle 只留勘测件
 try:
     dirs = set(d for d in os.listdir(root) if not d.startswith('.'))
 except FileNotFoundError:
     dirs = set()
-check('builtin-plugins dirs == 5 expected', dirs == expect_ids, f'got {sorted(dirs)}')
+check('builtin-plugins dirs == 1 expected (survey, Task333 migration)', dirs == expect_ids, f'got {sorted(dirs)}')
 
 perm_src = open(os.path.join(NAT, 'AmePluginPermissions.m'), encoding='utf-8').read()
 perm_registry = set(re.findall(r'initWithId:@"([a-z0-9._]+)"', perm_src))

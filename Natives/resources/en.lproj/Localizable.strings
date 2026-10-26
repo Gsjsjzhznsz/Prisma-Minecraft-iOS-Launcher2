@@ -325,7 +325,7 @@
 "preference.title.mg_custom_gl_version-4.5" = "OpenGL 4.5";
 "preference.title.mg_custom_gl_version-4.6" = "OpenGL 4.6";
 "preference.title.fsr1_setting" = "FSR 1.0 Upscaling";
-"preference.detail.fsr1_setting" = "AMD FidelityFX Super Resolution 1.0 upscaling. Picking a preset lowers the render resolution (Ultra Quality 77% / Quality 67% / Balanced 59% / Performance 50%) and the renderer upscales it back to the full-resolution surface. Works with the MobileGlues renderer (including the mg GLES and OpenGL 4.0 backends) and Zink (EASU). The mg Vulkan-direct backend (MobileGL), MoltenVK and gl4es do not support launcher-side FSR -- for Vulkan direct use the Resolution scaler in Video settings instead.";
+"preference.detail.fsr1_setting" = "AMD FidelityFX Super Resolution 1.0 upscaling. Picking a preset lowers the render resolution (Ultra Quality 77% / Quality 67% / Balanced 59% / Performance 50%) and the renderer upscales it back to the full-resolution surface. Only works with the MobileGlues (built-in FSR1) and Zink (EASU) renderers. The mg family (Vulkan / ES / OpenGL 4.0 backends), MoltenVK and gl4es do not support launcher-side FSR -- for those renderers use the Resolution scaler in Video settings instead.";
 "preference.title.mg_fsr1_setting-0" = "Off";
 "preference.title.mg_fsr1_setting-1" = "Ultra Quality";
 "preference.title.mg_fsr1_setting-2" = "Quality";
@@ -3521,3 +3521,13 @@
 "ame327.plugin.rows.title" = "Plugin rows";
 "ame327.plugin.guide.title" = "How to use plugins";
 "ame327.plugin.guide.body" = "1. Effects - tap the rows in this page's \"Plugin rows\" section or Settings - \"Plugin rows\" group to trigger them; they are the features plugins provide.\n2. Permissions - dangerous permissions (network / theme / renderer write / instance manage / game folder) are denied by default; open the plugin detail page and enable them.\n3. AI-written plugins - ask the AI assistant \"write me a plugin\" with your idea; it generates, installs and loads one instantly.";
+"ame317.perm.ame.super.name" = "Full takeover (super)";
+"ame317.perm.ame.super.desc" = "Highest-level grant: the plugin can use ALL launcher APIs and every permission gate passes; all other switches are greyed out while enabled";
+"ame333.repo.section_remote" = "Official plugin repo";
+"ame333.repo.section_builtin" = "Bundled plugins";
+"ame333.repo.fetching" = "Fetching plugin repo index…";
+"ame333.repo.fetch_fail" = "Repo unreachable — check network and retry";
+"ame333.repo.fetch_empty" = "Repo index is empty";
+"ame333.repo.install" = "Install";
+"ame333.repo.update" = "Update";
+"ame333.repo.sha_mismatch" = "Download integrity check failed (sha256 mismatch), install aborted";

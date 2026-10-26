@@ -137,25 +137,91 @@ static NSString *ame317_facadeSource(void) {
     return ids;
 }
 
+/// ★ Task333：官方仓信任面缓存 —— 仓库页拉到 index 后把官方件清单落盘
+///   （Prisma2/plugins/.repo-official.json，点前缀 = installedPluginIds
+///   扫描天然跳过）。官方仓 = 同 GitHub 仓库同发布者，与 bundle 内置件
+///   同信任根：官方件与首方内置件同享授权自愈（声明权限全量授）。
+///   第三方仓件（official 缺失/false）零触碰，高危默认拒原样保留。
+///   noteRepoOfficialIndex: = 仓库页/安装链入口（缓存重写 + heal 重跑）；
+///   缓存读失败 = 空表（官方面退化为 bundle 内置件，安全侧）。
++ (NSString *)ame333_officialCachePath {
+    return [ame317_pluginsRootDir() stringByAppendingPathComponent:@".repo-official.json"];
+}
+
++ (NSDictionary<NSString *, NSString *> *)ame333_officialCache {
+    NSData *data = [NSData dataWithContentsOfFile:[self ame333_officialCachePath]];
+    if (!data) return @{};
+    id json = [NSJSONSerialization JSONObjectWithData:data options:0 error:nil];
+    if (![json isKindOfClass:[NSDictionary class]]) return @{};
+    id official = json[@"official"];
+    if (![official isKindOfClass:[NSDictionary class]]) return @{};
+    NSMutableDictionary<NSString *, NSString *> *out = [NSMutableDictionary dictionary];
+    for (NSString *k in official) {
+        if ([k isKindOfClass:[NSString class]] && k.length) {
+            out[k] = [official[k] isKindOfClass:[NSString class]] ? official[k] : @"";
+        }
+    }
+    return out;
+}
+
++ (void)noteRepoOfficialIndex:(NSDictionary<NSString *, NSString *> *)officialVersions {
+    if (![NSThread isMainThread]) {
+        dispatch_async(dispatch_get_main_queue(), ^{ [self noteRepoOfficialIndex:officialVersions]; });
+        return;
+    }
+    NSDictionary *dict = officialVersions ?: @{};
+    NSData *data = [NSJSONSerialization dataWithJSONObject:@{@"official": dict }
+                                                   options:NSJSONWritingPrettyPrinted error:nil];
+    if (data && ![data writeToFile:[self ame333_officialCachePath]
+                           options:NSDataWritingAtomic error:nil]) {
+        NSLog(@"[AmePlugin] Task333 official cache write FAILED");
+        return;
+    }
+    NSLog(@"[AmePlugin] Task333 official repo cache updated: %lu entr%@", (unsigned long)dict.count,
+          dict.count == 1 ? @"y" : @"ies");
+    [self ame326_healFirstPartyGrants];   // 幂等：官方面即时生效
+}
+
 + (void)ame326_healFirstPartyGrants {
     NSArray<NSString *> *builtin = [self ame326_bundleBuiltinPluginIds];
-    if (builtin.count == 0) return;
+    // ★ Task333：heal 面 = bundle 内置件 ∪ 官方仓件缓存（同信任根同语义）
+    NSSet<NSString *> *trusted = builtin.count
+        ? [NSSet setWithArray:builtin] : [NSSet set];
+    NSDictionary<NSString *, NSString *> *official = [self ame333_officialCache];
+    if (official.count) {
+        NSMutableSet *t = [trusted mutableCopy];
+        [t addObjectsFromArray:official.allKeys];
+        trusted = t;
+    }
+    if (trusted.count == 0) return;
     for (NSString *pid in [AmePluginManager installedPluginIds]) {
-        if (![builtin containsObject:pid]) continue;   // 仅首方内置件，第三方不碰
+        if (![trusted containsObject:pid]) continue;   // 仅首方/官方信任件，第三方不碰
         AmePluginManifest *m = [AmePluginManager manifestForPlugin:pid];
         if (!m || m.permissions.count == 0) continue;
+        // ★ Task333：ame.super 永不自愈代授（完全接管必须用户本人显式打开）
+        //   判据从"计数不等"改为"声明项逐项缺失"——计数制会把用户表外显式
+        //   授予（ame.super）也判成失配，replaceGrants 整表覆盖 = 显式接管
+        //   授权被自愈静默抹掉的回归。修法：仅声明项缺失才 heal，且重写表
+        //   时保留既有表外授权（ame.super 等用户显式选择跨启动持久）。
         NSDictionary<NSString *, NSNumber *> *cur =
             [AmePluginPermissions grantsForPlugin:pid];
-        BOOL needHeal = (cur.count != m.permissions.count);
-        if (!needHeal) {
-            for (NSString *p in m.permissions) {
-                if (![cur[p] boolValue]) { needHeal = YES; break; }
-            }
+        BOOL needHeal = NO;
+        for (NSString *p in m.permissions) {
+            if ([p isEqualToString:@"ame.super"]) continue;
+            if (![cur[p] boolValue]) { needHeal = YES; break; }
         }
         if (!needHeal) continue;
         NSMutableDictionary<NSString *, NSNumber *> *g =
             [NSMutableDictionary dictionary];
-        for (NSString *p in m.permissions) g[p] = @1;   // 首方信任：全量授
+        for (NSString *p in m.permissions) {
+            // 完全接管不在声明内也不会进表；防御性再滤一道
+            if ([p isEqualToString:@"ame.super"]) continue;
+            g[p] = @1;   // 首方信任：全量授
+        }
+        for (NSString *k in cur) {
+            // 表外显式授权保留（用户手动授的 ame.super / 残留授权面）
+            if ([cur[k] boolValue] && g[k] == nil) g[k] = @1;
+        }
         [AmePluginPermissions replaceGrants:g forPlugin:pid];
         [AmePluginPermissions setPluginEnabled:YES pluginId:pid];
         NSLog(@"[AmePlugin] Task326 first-party grant heal: %@ (%@ perms -> granted)",
@@ -234,6 +300,51 @@ static NSString *ame317_facadeSource(void) {
     }
 }
 
+/// ★ Task333：新内置件引导安装 —— 病历（装机 96eb04c latestlog 实锤）：
+///   bundle 内置件 census 只出 4 件（launch-counter/modrinth-hot/
+///   renderer-quickswitch/theme-sunset），Task332 第五件 plugin-survey 全程
+///   零踪影。根因：ame330_refreshFirstPartyContent 只刷新【已安装】∩
+///   bundle 内置件交集 —— bundle 新增件从未被安装过 = 不在交集 = 永不
+///   装载（无 census/无行/无勘测入口）。修法 = 装载循环前对 bundle 内置
+///   件做存在性引导：bundle 有而未装即落位（manifest+main.js 双件齐才
+///   落，拒绝半成品），此后既有 heal/refresh/load 链自然接管。本引导
+///   同时是新插件上仓迁移后唯一随包件（plugin-survey）的首装通道。
++ (void)ame333_bootstrapBundleBuiltins {
+    NSString *ame333_bundleRoot = [[NSBundle mainBundle].resourcePath
+        stringByAppendingPathComponent:@"builtin-plugins"];
+    NSArray<NSString *> *ame333_builtin = [self ame326_bundleBuiltinPluginIds];
+    if (ame333_builtin.count == 0) return;
+    NSString *ame333_installRoot = ame317_pluginsRootDir();
+    if (ame333_installRoot.length == 0) return;
+    NSFileManager *ame333_fm = [NSFileManager defaultManager];
+    NSSet<NSString *> *ame333_installed =
+        [NSSet setWithArray:[AmePluginManager installedPluginIds]];
+    for (NSString *ame333_pid in ame333_builtin) {
+        if ([ame333_installed containsObject:ame333_pid]) continue;
+        NSString *ame333_srcDir = [ame333_bundleRoot
+            stringByAppendingPathComponent:ame333_pid];
+        NSString *ame333_dstDir = [ame333_installRoot
+            stringByAppendingPathComponent:ame333_pid];
+        NSData *ame333_mf = [NSData dataWithContentsOfFile:
+            [ame333_srcDir stringByAppendingPathComponent:@"manifest.json"]];
+        NSData *ame333_js = [NSData dataWithContentsOfFile:
+            [ame333_srcDir stringByAppendingPathComponent:@"main.js"]];
+        if (ame333_mf.length == 0 || ame333_js.length == 0) continue;   // 包残缺不落半成品
+        if (![ame333_fm createDirectoryAtPath:ame333_dstDir
+                  withIntermediateDirectories:YES attributes:nil error:nil]) continue;
+        BOOL ame333_ok =
+            [ame333_mf writeToFile:[ame333_dstDir stringByAppendingPathComponent:@"manifest.json"]
+                           options:NSDataWritingAtomic error:nil] &&
+            [ame333_js writeToFile:[ame333_dstDir stringByAppendingPathComponent:@"main.js"]
+                           options:NSDataWritingAtomic error:nil];
+        if (ame333_ok) {
+            NSLog(@"[AmePlugin] Task333 builtin bootstrap install: %@ (bundle -> installed copy, first-boot channel)", ame333_pid);
+        } else {
+            NSLog(@"[AmePlugin] Task333 builtin bootstrap install FAILED: %@", ame333_pid);
+        }
+    }
+}
+
 + (void)bootIfNeeded {
     if (![NSThread isMainThread]) {
         dispatch_async(dispatch_get_main_queue(), ^{ [self bootIfNeeded]; });
@@ -243,6 +354,9 @@ static NSString *ame317_facadeSource(void) {
     if (rt.booted) return;
     rt.booted = YES;
     [rt ame317_observeSystemEvents];
+
+    // ★ Task333：新内置件引导安装先于授权自愈（本启动内装载即拿到完整件）
+    [self ame333_bootstrapBundleBuiltins];
 
     // ★ Task326：首方授权自愈先于装载循环（本启动内装载即拿到完整授权）
     [self ame326_healFirstPartyGrants];

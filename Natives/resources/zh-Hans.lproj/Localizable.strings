@@ -325,7 +325,7 @@
 "preference.title.mg_custom_gl_version-4.5" = "OpenGL 4.5";
 "preference.title.mg_custom_gl_version-4.6" = "OpenGL 4.6";
 "preference.title.fsr1_setting" = "FSR 1.0 超分辨率";
-"preference.detail.fsr1_setting" = "AMD FidelityFX Super Resolution 1.0 超分辨率。选择档位即自动降低渲染分辨率（超高品质 77%／高品质 67%／均衡 59%／性能优先 50%），再由渲染器放大回全分辨率表面。对 MobileGlues 渲染器（含 mg 的 GLES／OpenGL 4.0 后端）与 Zink（EASU 升采样）生效；mg 的 Vulkan 直连后端（MobileGL）、MoltenVK、gl4es 不支持——Vulkan 直连需要降低渲染负载时，请改用视频设置中的「分辨率」缩放。";
+"preference.detail.fsr1_setting" = "AMD FidelityFX Super Resolution 1.0 超分辨率。选择档位即自动降低渲染分辨率（超高品质 77%／高品质 67%／均衡 59%／性能优先 50%），再由渲染器放大回全分辨率表面。仅对 MobileGlues（内置 FSR1）与 Zink（EASU 升采样）渲染器生效；mg 系列（Vulkan／ES／OpenGL 4.0 后端）、MoltenVK、gl4es 均不支持启动器侧 FSR——这些渲染器需要画质／帧率权衡时，请改用视频设置中的「分辨率」缩放。";
 "preference.title.mg_fsr1_setting-0" = "关闭";
 "preference.title.mg_fsr1_setting-1" = "超高品质";
 "preference.title.mg_fsr1_setting-2" = "高品质";
@@ -3519,3 +3519,13 @@
 "ame327.plugin.rows.title" = "插件功能";
 "ame327.plugin.guide.title" = "插件使用指南";
 "ame327.plugin.guide.body" = "1. 效果即用 —— 本页「插件贡献」区与 设置 → 插件功能 区的行就是插件提供的功能，点击即触发。\n2. 权限授权 —— 高危权限（联网/主题/渲染器写入/实例管理/游戏目录）默认拒绝，进插件详情页打开对应开关即可。\n3. AI 写插件 —— 对 AI 助手说「帮我写一个插件」并描述需求，即可自动生成、安装并装载。";
+"ame317.perm.ame.super.name" = "完全接管（超级权限）";
+"ame317.perm.ame.super.desc" = "最高级别授权：插件可调用启动器全部 API 且所有权限闸直接放行；开启期间其余权限开关变灰禁用";
+"ame333.repo.section_remote" = "官方插件仓库";
+"ame333.repo.section_builtin" = "包内预置插件";
+"ame333.repo.fetching" = "正在拉取插件仓库索引…";
+"ame333.repo.fetch_fail" = "仓库不可达——请检查网络后重试";
+"ame333.repo.fetch_empty" = "仓库索引为空";
+"ame333.repo.install" = "安装";
+"ame333.repo.update" = "可更新";
+"ame333.repo.sha_mismatch" = "下载完整性校验失败（sha256 不符），已中止安装";

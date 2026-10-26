@@ -209,8 +209,8 @@ print("== J. l10n + 公告 ==")
 for lang in ["en", "zh-Hans", "zh-Hant", "zh-CN"]:
     keys = set(re.findall(r'^"([^"]+)"\s*=',
                           rd(f"Natives/resources/{lang}.lproj/Localizable.strings"), re.M))
-    # ★ Task332 重锚：Task328 3302 + plugin-survey 勘测插件 name/desc 2 键 = 3304
-    check(f"J-{lang} 唯一键 3304（★Task332 重锚：Task328 3302 + plugin-survey name/desc 2 键 = 3304）", len(keys) == 3304, f"got {len(keys)}")
+    # ★ Task333 重锚：Task332 3304 + ame.super 完全接管 name/desc 2 键 + ame333.repo.* 远程仓 8 键 = 3314
+    check(f"J-{lang} 唯一键 3314（★Task333 重锚：332 3304 + ame.super 2 键 + ame333.repo 8 键 = 3314）", len(keys) == 3314, f"got {len(keys)}")
 check("J-公告 7 条（Task315 同步重锚：6.5.5 侧 region-notice+download-speed 并入，pin 语义保持）",
       len(ann) == 7
       and any(a["id"] == "region-notice-and-download-speed-2026-10-20" for a in ann)

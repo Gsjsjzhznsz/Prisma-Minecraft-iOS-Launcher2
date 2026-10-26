@@ -118,7 +118,14 @@
         cell.accessoryView = wrap;
     } else if (indexPath.section == 2) {
         AmePluginPermissionItem *item = self.permItems[(NSUInteger)indexPath.row];
-        BOOL declared = [self.manifest.permissions containsObject:item.permissionId];
+        // ★ Task333：完全接管交互 —— ame.super 恒可切（用户侧主控开关，
+        //   不要求 manifest 声明）；接管已开时其余权限开关全部变灰禁用
+        //   （语义：接管态下逐项开关无执法意义），文本同步降透明度。
+        BOOL ame333_isSuper = [item.permissionId isEqualToString:@"ame.super"];
+        BOOL ame333_superGranted = [AmePluginPermissions pluginHasGrant:self.pluginId
+                                                             permission:@"ame.super"];
+        BOOL declared = ame333_isSuper ||
+                        [self.manifest.permissions containsObject:item.permissionId];
         BOOL granted = [AmePluginPermissions pluginHasGrant:self.pluginId
                                                  permission:item.permissionId];
         cell.textLabel.text = [NSString stringWithFormat:@"%@%@",
@@ -136,7 +143,12 @@
 
         ZL2M3Switch *sw = [[ZL2M3Switch alloc] init];
         sw.on = granted;
-        sw.userInteractionEnabled = declared && self.manifest != nil;
+        sw.userInteractionEnabled = ame333_isSuper
+            ? (self.manifest != nil)
+            : (!ame333_superGranted && declared && self.manifest != nil);
+        sw.alpha = (!ame333_isSuper && ame333_superGranted) ? 0.35 : 1.0;
+        cell.textLabel.alpha = (!ame333_isSuper && ame333_superGranted) ? 0.45 : 1.0;
+        cell.detailTextLabel.alpha = (!ame333_isSuper && ame333_superGranted) ? 0.45 : 1.0;
         sw.tag = indexPath.row;
         [sw addTarget:self action:@selector(ame317_permToggled:)
              forControlEvents:UIControlEventValueChanged];
