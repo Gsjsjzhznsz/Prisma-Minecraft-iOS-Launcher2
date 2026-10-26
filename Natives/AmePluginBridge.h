@@ -26,7 +26,50 @@ NS_ASSUME_NONNULL_BEGIN
 //     / ame.removeFile(p)     —— 均沙盒于当前实例游戏目录（files.game）
 // ═══════════════════════════════════════════════════════════════════
 
-@interface AmePluginBridge : NSObject
+// ★ Task331：桥面 JSExport 化 —— 设备装机 adb63d33 终审定性：JSC 的
+//   ObjC↔JS 桥【只导出 JSExport 协议声明的方法】（Apple JSExport 契约；
+//   未采纳协议的自定义类实例在 JS 侧是不透明对象，全部自定义方法
+//   undefined）。AmePluginBridge 此前零协议采纳 → ameRaw.log/on/
+//   addLauncherRowHandler/… 全链 undefined → 门面（ame317_facadeSource）
+//   一经调用即 TypeError → 四内置件顶层 ame.* 首调即炸，行为面（行注册/
+//   尾日志/事件/存储）整体静默或异常——插件系统自 Task317 上线以来在
+//   设备端从未真正可用（CI/门禁均为 node 桩冒烟，从未覆盖 ObjC 桥面）。
+//   JS 名整形规则 = selector 去冒号拼接、首段后各段首字母大写——与门面
+//   既定调用名逐一对齐（log/onHandler/dialogCallback/addLauncherRowHandler/
+//   setPrefValue/storageSetValue/fetchOptionsCallback/writeGameFileContentAppend）。
+//   注意 storage.set：selector storageSet:value: 整形为 storageSetValue，
+//   门面 Task331 同步改调 raw.storageSetValue（原名 storageSet 两参调用
+//   在 JSExport 语义下必 undefined）。
+@protocol AmePluginBridgeJSExport <JSExport>
+- (void)log:(NSString *)msg;
+- (void)toast:(NSString *)text;
+- (void)dialog:(NSDictionary *)spec callback:(JSValue *)cb;
+- (void)on:(NSString *)event handler:(JSValue *)cb;
+- (void)off:(NSString *)event;
+- (void)addLauncherRow:(NSDictionary *)spec handler:(JSValue *)cb;
+- (BOOL)setThemeToken:(NSDictionary *)tokens;
+// 空值限定与类接口逐字镜像（NS_ASSUME_NONNULL 区；拒绝时返 nil 的方法
+// 协议侧必须显式 nullable，否则类采纳时 nullability conflict 编译报错）
+- (nullable id)getPref:(NSString *)key;
+- (BOOL)setPref:(NSString *)key value:(id)value;
+- (nullable NSDictionary *)getRenderer;
+- (BOOL)setRenderer:(NSDictionary *)cfg;
+- (nullable NSArray *)getProfiles;
+- (nullable id)storageGet:(NSString *)key;
+- (BOOL)storageSet:(NSString *)key value:(id)value;
+- (BOOL)storageRemove:(NSString *)key;
+- (NSArray *)storageKeys;
+- (void)fetch:(NSString *)urlString options:(NSDictionary *)opts callback:(JSValue *)cb;
+- (void)openPage:(NSString *)pageId;
+- (BOOL)createProfile:(NSDictionary *)spec;
+- (BOOL)deleteProfile:(NSString *)name;
+- (nullable NSArray<NSDictionary *> *)listGameFiles:(NSString *)relPath;
+- (nullable NSString *)readGameFile:(NSString *)relPath;
+- (BOOL)writeGameFile:(NSString *)relPath content:(NSString *)content append:(BOOL)append;
+- (BOOL)removeGameFile:(NSString *)relPath;
+@end
+
+@interface AmePluginBridge : NSObject <AmePluginBridgeJSExport>
 
 /// 所属插件 id（权限查询键）
 @property (nonatomic, copy, readonly) NSString *pluginId;

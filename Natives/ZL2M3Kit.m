@@ -357,7 +357,14 @@ static UIViewController *ZL2M3TopmostViewController(void) {
     void (^apply)(void) = ^{
         // MD3 三态尺寸：未选 16pt 拇指 + 2pt 描边；选中 24pt 拇指无描边
         CGFloat thumb = checked ? 24.0 : 16.0;
-        CGFloat lead = checked ? 14.0 : 18.0;
+        // ★ Task331：拨动行程语义修复（用户："MD3 滑块怎么变成按压按钮了"）
+        //   —— 旧值 lead = checked ? 14 : 18 与尺寸 24/16 组合下，拇指中心
+        //   恒 = 26pt（52/2），两态只原地缩放零行程 = 带圆点的按压按钮观感，
+        //   开关语义完全不可读。真 M3 行程几何：OFF 拇指 16pt 左嵌 4pt
+        //   （占位 4..20），ON 拇指 24pt 右嵌 4pt（占位 24..48），行程 20pt
+        //   + 弹簧动画（既有）= 拨动语言一眼可读；轨道 52x32/圆角/配色
+        //   令牌全部不动，五消费方零布局影响（总宽不变）。
+        CGFloat lead = checked ? 24.0 : 4.0;
         self.thumbSizeConstraint.constant = thumb;
         self.thumbLeadingConstraint.constant = lead;
         // ★ Task330：拇指圆形化 —— 旋钮此前从未设 cornerRadius，16/24pt

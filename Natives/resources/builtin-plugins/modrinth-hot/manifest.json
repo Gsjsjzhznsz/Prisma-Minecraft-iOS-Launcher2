@@ -1,10 +1,14 @@
 {
   "id": "modrinth-hot",
   "name": "Modrinth 热门榜",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "author": "Prisma",
   "description": "联网拉取 Modrinth 下载量前五的模组并在对话框展示。联网属高危权限，首次使用请在插件详情页授权。",
   "entry": "main.js",
-  "permissions": ["net", "ui.rows", "ui.dialog"],
+  "permissions": [
+    "net",
+    "ui.rows",
+    "ui.dialog"
+  ],
   "minApi": 1
 }

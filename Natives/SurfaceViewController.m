@@ -403,6 +403,13 @@ static BOOL ame83_fsr_capable_renderer(NSString *renderer) {
     //   重宣告（ame327_settledReannounceForSize，信念链按当前窗口重算，
     //   信箱内容矩形退化满窗 = 终态 1:1 零偏移零黑边）。
     NSTimer *ame327_settleTimer;
+    // ★ Task331：因子落库帧指纹 —— 因子的唯一输入 = touchView 实况帧
+    //   （ame328 核心同源读数）；每次因子重排落库时写入。触点时刻实况帧
+    //   与指纹失配 = 因子必陈旧 = 立即重排（取代 Task330 的沉降定时器
+    //   守卫——它把拖拽期/沉降期触点冻结在陈旧因子上，恰是"开小窗依旧
+    //   输入偏移"的第二存活面）。view-local 口径：窗口挪动（origin 变化）
+    //   不改本帧，零误报。
+    CGRect ame331_lastFactorFrame;
     // ★ Task267（用户："切小窗会导致窗口偏移，显示底下的壁纸；要像其他
     //   启动器那样直接缩放，输入输出都不错位"根修）：自由窗口 scale-mode。
     //   根因：视图栈（rootView/touchView/surfaceView）只在旋转路径
@@ -2053,6 +2060,9 @@ static NSInteger ame283_lastLandscapeDev = 0;
     // ★ Task327：沉降自适应排程（流停 0.6s 后真自适应重宣告，信箱溶解）
     [self ame327_scheduleSettledReannounce:ame283_target];
     virtualMouseFrame = [self ame326_virtualFrameFromVisual:self.mousePointerView.frame];   // 旋转路径同款收尾（Task326 信箱偏移逆变换）
+    // ★ Task331：因子落库帧指纹同步（本方法尾部 = 因子写入完成点；
+    //   触点时刻指纹闸据此判定因子是否陈旧，见 ame330_touchTimeReconcile）
+    ame331_lastFactorFrame = self.touchView.frame;
     NSLog(@"[SurfaceVC] Task267/283: scale-mode stack resync (view %.0fx%.0f rot=%+.0fdeg logical %.0fx%.0f, adaptive %.2fx%.2f, phys %dx%d, window stays %dx%d, content %.0fx%.0f@(%.0f,%.0f))",
           ame267_w, ame267_h, (double)(ame283_angle * 180.0 / M_PI), ame267_lw, ame267_lh,
           ame267_adaptiveScaleX, ame267_adaptiveScaleY,
@@ -2280,13 +2290,45 @@ static NSInteger ame283_lastLandscapeDev = 0;
 ///   · 沉降定时器未决（isValid = 拖拽活动 0.6s 内，信箱实时映射本就
 ///     正确，此时重算会打断 Task277 冻结语义）。
 - (void)ame330_touchTimeReconcile {
-    if (!g_ame267_freeformScaled) return;
     if (self.surfaceView.superview == nil) return;
     if (!g_ame250_appActive) return;
-    if (ame327_settleTimer.isValid) return;   // 拖拽沉降未决：信箱实时态
-    CGFloat ame330_res = (resolutionScale > 0.01f) ? resolutionScale : 1.0f;
-    if ([self ame328_recomputeBeliefChainFromTouchViewWithRes:ame330_res]) {
-        NSLog(@"[SurfaceVC] Task330: touch-time belief reconcile healed stale freeform factors (input mapping back in sync)");
+    if (self.view.window == nil) return;
+    // ★ Task331 洞A：小窗已缩而 scale-mode 未武装（Task261 防抖 0.3s 窗口
+    //   内，或任何未达路径）——旧版首守卫 (!freeformScaled) 直接弹回，触
+    //   点按全屏因子映射 = "开小窗后立刻触摸整段偏移"的头号存活面（装机
+    //   adb63d33 实锤 Task330 自愈零触发：flag 未武装 → 首守卫即返回）。
+    //   触点时刻以 updateSavedResolution 入口同闸即时武装：mailbox+因子从
+    //   当前帧重排，信念不宣告（Task267 冻结纪律保持），首触点即正确。
+    if (!g_ame267_freeformScaled) {
+        if (![self ame267_isFullscreenWindow] && windowWidth > 0 && windowHeight > 0) {
+            g_ame267_freeformScaled = YES;
+            [self ame267_rescaleViewStackToCurrentBounds];
+            ame261_lastSyncedViewSize = self.view.bounds.size;
+            ame331_lastFactorFrame = self.touchView.frame;
+            NSLog(@"[SurfaceVC] Task331: touch-time scale-mode engage (win %@ vs screen %@, debounce window bypassed, belief stays %dx%d)",
+                  NSStringFromCGSize(self.view.window.bounds.size),
+                  NSStringFromCGSize(self.view.window.screen.bounds.size),
+                  (int)windowWidth, (int)windowHeight);
+        }
+        return;
+    }
+    // ★ Task331 洞B：帧指纹权威闸 —— 实况帧 ≠ 因子落库帧 = 因子必陈旧，
+    //   无论沉降定时器是否未决，立即单点重排。取代 Task330 的沉降守卫
+    //   直返（拖拽期/沉降期触点被冻结在陈旧因子上）；指纹一致零开销直返
+    //   （幂等）。拖拽活动期只刷 mailbox/因子不宣告信念（防拖拽中信念
+    //   抖动，Task277 冻结语义保持）；沉降已过仍见帧漂移（跨后台失效
+    //   永不补放场景）走一次全链核心收口（含信念溶解宣告，Task330 语义保留）。
+    if (CGRectEqualToRect(self.touchView.frame, ame331_lastFactorFrame)) return;
+    [self ame267_rescaleViewStackToCurrentBounds];
+    ame261_lastSyncedViewSize = self.view.bounds.size;
+    ame331_lastFactorFrame = self.touchView.frame;
+    if (!ame327_settleTimer.isValid) {
+        CGFloat ame331_res = (resolutionScale > 0.01f) ? resolutionScale : 1.0f;
+        if ([self ame328_recomputeBeliefChainFromTouchViewWithRes:ame331_res]) {
+            NSLog(@"[SurfaceVC] Task330/331: touch-time belief reconcile healed stale freeform factors");
+        }
+    } else {
+        NSLog(@"[SurfaceVC] Task331: touch-time mailbox refresh on drifted frame (settle pending, belief frozen, input factors healed)");
     }
 }
 

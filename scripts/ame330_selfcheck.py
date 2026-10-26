@@ -59,12 +59,18 @@ check("B7 before load loop", B, "ame330_refreshFirstPartyContent];\n\n    for (N
 # ---- 线C：SurfaceVC 触点时刻几何自愈 ----
 C = f"{ROOT}/SurfaceViewController.m"
 check("C1 reconcile defined", C, "- (void)ame330_touchTimeReconcile {")
-check("C2 freeform-only guard", C, "if (!g_ame267_freeformScaled) return;")
-check("C3 settle-timer guard", C, "if (ame327_settleTimer.isValid) return;")
+# ★ Task331 演进注记：v2 的"freeform 未武装即弹回"首守卫升级为"触点时刻即时武装"
+#   分支（洞A：防抖窗口内首触点按全屏因子映射=开小窗偏移头号存活面），断言随之重锚。
+check("C2 freeform engage branch (Task331 v3)", C, "if (!g_ame267_freeformScaled) {")
+# ★ Task331 演进注记：v2 的沉降定时器硬守卫（拖拽期/沉降期触点被冻结在陈旧
+#   因子上=洞B）由帧指纹权威闸取代，断言随之重锚。
+check("C3 frame-fingerprint authority gate (Task331 v3)", C,
+      "CGRectEqualToRect(self.touchView.frame, ame331_lastFactorFrame)")
 check("C4 foreground guard", C, "if (!g_ame250_appActive) return;")
 check("C5 sendTouchPoint hook", C, "ame330_touchTimeReconcile];\n    // Task 78")
 check("C6 didBecomeActive hook", C, "ame330_touchTimeReconcile];\n    }\n    [self updateSavedResolution];")
-check("C7 core reuse (Task328)", C, "[self ame328_recomputeBeliefChainFromTouchViewWithRes:ame330_res]")
+# ★ Task331 演进注记：核心复用断言跟随 v3 局部变量重锚（ame330_res → ame331_res）。
+check("C7 core reuse (Task328)", C, "[self ame328_recomputeBeliefChainFromTouchViewWithRes:ame331_res]")
 check("C8 anchor log", C, "touch-time belief reconcile healed stale freeform factors")
 
 # ---- 线D：M3 开关圆形拇指 + 列表页复用残留 ----

@@ -2961,6 +2961,61 @@ int launchJVM(NSString *accountId, id launchTarget, int width, int height, int m
             gameDir = ame287_configureForgeUriSafeRoot(ame287_vid, gameDir);
         }
 
+        // ★ Task331：可见层 .minecraft 跟随现役实例（ZL2/PCL2 版本隔离观感收口，
+        //   用户第六轮复访："versions 依旧没有游戏独立文件"）。病历（装机
+        //   adb63d33 latestlog 实锤）：boot 期 Task226/319 把 .minecraft 链到
+        //   偏好游戏目录（instances/default），而实际游玩走 profile 轴
+        //   （CwdAlign：instances/modrinth_*/versions/<vid> 深层形态）——用户
+        //   文件 App 打开 .minecraft/versions/ 只见 default 实例的 json+jar
+        //   空壳（Ame328 诱饵清扫口径），真数据躺在现役实例树里，两套根错位
+        //   = "独立文件去哪了"观感本体。修法 = 启动链 gameDir 终点（ame225
+        //   嗅探 + ame287 forge 收口之后）把 .minecraft 重指到现役实例根：
+        //   深层形态 instances/<id>/versions/<vid> 与根形态 instances/<id>
+        //   统一归到 instances/<id>（.minecraft/versions/<vid>/ 即版本隔离
+        //   数据，PCL2/ZL2 桌面语义）。纪律沿用 Task319 三态：链接幂等重指
+        //   （resolved 目标同值零动作）/ 真实目录绝不覆盖 / 缺失创建；非实例
+        //   轴 gameDir（自定义/遗留目录）零触碰零日志。POJAV_GAME_DIR/chdir
+        //   启动链零感知（链接仅文件 App 可见层，游戏数据读写全走绝对 env）。
+        {
+            NSString *ame331_home = @(getenv("POJAV_HOME") ?: "");
+            if (ame331_home.length > 0) {
+                NSString *ame331_base = [[ame331_home stringByAppendingPathComponent:@"instances"]
+                                         stringByStandardizingPath];
+                NSString *ame331_gd = gameDir.stringByStandardizingPath;
+                NSString *ame331_prefix = [ame331_base stringByAppendingString:@"/"];
+                if ([ame331_gd hasPrefix:ame331_prefix]) {
+                    NSString *ame331_id = [ame331_gd substringFromIndex:ame331_prefix.length]
+                        .pathComponents.firstObject;
+                    if (ame331_id.length > 0) {
+                        NSString *ame331_root = [ame331_base stringByAppendingPathComponent:ame331_id];
+                        NSString *ame331_dotMC = [ame331_home stringByAppendingPathComponent:@".minecraft"];
+                        NSFileManager *ame331_fm = [NSFileManager defaultManager];
+                        NSDictionary *ame331_attrs = [ame331_fm attributesOfItemAtPath:ame331_dotMC error:nil];
+                        if (ame331_attrs) {
+                            if ([ame331_attrs fileType] == NSFileTypeSymbolicLink) {
+                                NSString *ame331_cur = [ame331_fm destinationOfSymbolicLinkAtPath:ame331_dotMC error:nil] ?: @"";
+                                NSString *ame331_resolvedCur = ame331_cur.length
+                                    ? [[ame331_dotMC.stringByDeletingLastPathComponent
+                                        stringByAppendingPathComponent:ame331_cur]
+                                       stringByResolvingSymlinksInPath] : @"";
+                                if (![ame331_resolvedCur isEqualToString:ame331_root.stringByResolvingSymlinksInPath]) {
+                                    [ame331_fm removeItemAtPath:ame331_dotMC error:nil];
+                                    [ame331_fm createSymbolicLinkAtPath:ame331_dotMC
+                                                  withDestinationPath:ame331_root error:nil];
+                                    NSLog(@"[JavaLauncher] Task331: .minecraft re-pointed to active instance (%@) -- ZL2 version-isolation visible layer follows the played profile", ame331_id);
+                                }
+                            }
+                            // 真实目录/文件：绝不覆盖用户数据（Task319 纪律原样）
+                        } else {
+                            [ame331_fm createSymbolicLinkAtPath:ame331_dotMC
+                                          withDestinationPath:ame331_root error:nil];
+                            NSLog(@"[JavaLauncher] Task331: .minecraft created -> active instance (%@)", ame331_id);
+                        }
+                    }
+                }
+            }
+        }
+
         // Task 87：桌面弹窗类 mod 预检（病历见 ame87_disableDesktopDialogMods 函数头）
         // ——实证案犯自动禁用（改名 .jar.disabled），Fabric 忽略非 .jar 文件。
         int ame87_disabledDialogMods = ame87_disableDesktopDialogMods(gameDir);

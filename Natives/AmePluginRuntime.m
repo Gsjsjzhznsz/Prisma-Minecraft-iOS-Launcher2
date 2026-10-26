@@ -65,7 +65,10 @@ static NSString *ame317_facadeSource(void) {
     "ame.getProfiles=function(){return raw.getProfiles();};"
     "ame.storage={"
     "get:function(k){return raw.storageGet(String(k));},"
-    "set:function(k,v){return raw.storageSet(String(k),v);},"
+    // ★ Task331：storageSet:value: 经 JSExport 整形后 JS 名 = storageSetValue
+    //   （旧调用 raw.storageSet 在协议桥下必 undefined → theme-sunset 调色
+    //   落盘链/storage 全族静默断链）
+    "set:function(k,v){return raw.storageSetValue(String(k),v);},"
     "remove:function(k){return raw.storageRemove(String(k));},"
     "keys:function(){return raw.storageKeys();}};"
     "ame.fetch=function(url,opts,cb){"
@@ -177,6 +180,25 @@ static NSString *ame317_facadeSource(void) {
         NSString *ame330_dstDir = [ame330_installRoot
             stringByAppendingPathComponent:pid];
         BOOL ame330_refreshed = NO;
+        // ★ Task331：首方内置件开机普查行 —— 每件每次启动一行，bundle 侧与
+        //   安装侧 main.js 双向大小 + 判定词。装机 adb63d33 实锤：刷新静默
+        //   无日志 = bundle 缺 src 与 bundle==installed 两种病灶不可分辨，
+        //   旧代 main.js 无升级通道永久化的死案再无取证手段。bundle 侧
+        //   main.js 缺失升格为 ERROR（payload cp -R 链路完备时应永不发生，
+        //   发生即包体残缺实锤）。
+        NSData *ame331_bundleMain = [NSData dataWithContentsOfFile:
+            [ame330_srcDir stringByAppendingPathComponent:@"main.js"]];
+        NSData *ame331_instMain = [NSData dataWithContentsOfFile:
+            [ame330_dstDir stringByAppendingPathComponent:@"main.js"]];
+        NSString *ame331_verdict =
+            (ame331_bundleMain.length == 0) ? @"bundle-missing-main" :
+            (ame331_instMain == nil)        ? @"installed-missing-main" :
+            ([ame331_instMain isEqualToData:ame331_bundleMain] ? @"same" : @"stale");
+        NSLog(@"[AmePlugin] Task331 builtin census: %@ bundle(main=%@B) installed(main=%@B) verdict=%@",
+              pid, @(ame331_bundleMain.length), @(ame331_instMain.length), ame331_verdict);
+        if (ame331_bundleMain.length == 0) {
+            NSLog(@"[AmePlugin] Task331 ERROR: bundle builtin-plugins missing main.js for %@ -- refresh channel dead, check payload packaging", pid);
+        }
         for (NSString *ame330_fname in @[@"manifest.json", @"main.js"]) {
             NSString *ame330_src = [ame330_srcDir stringByAppendingPathComponent:ame330_fname];
             NSString *ame330_dst = [ame330_dstDir stringByAppendingPathComponent:ame330_fname];
@@ -304,6 +326,23 @@ static NSString *ame317_facadeSource(void) {
     if (topException && !topException.isUndefined) {
         NSLog(@"[AmePlugin:%@] 装载期 JS 异常: %@", pluginId, topException);
         ctx.exception = nil;
+    }
+    // ★ Task331：装载普查行 —— 每件装载后一行，四要素一锤定音：源长度
+    //   （=0 即空脚本）/ ame.addLauncherRow 可调性（JSExport 桥面健康度：
+    //   MISSING = 桥面未导出，TypeError 将随之）/ 已注册贡献行数（行注册
+    //   是否落地）/ 装载期 JS 异常。设备端“陈旧副本 vs 桥不可调 vs JS
+    //   异常”三类病灶自此日志直接分型，不再依赖外围症状拼图。
+    {
+        JSValue *ame331_ame = [ctx objectForKeyedSubscript:@"ame"];
+        JSValue *ame331_fn = [ame331_ame objectForKeyedSubscript:@"addLauncherRow"];
+        BOOL ame331_ameOk = ame331_ame.isObject && ame331_fn.isObject;
+        NSUInteger ame331_rows = [self.bridges[pluginId] contributedRows].count;
+        BOOL ame331_exc = topException && !topException.isUndefined;
+        NSLog(@"[AmePlugin:%@] Task331 load census: src=%@B ame(addLauncherRow)=%@ rows=%lu jsException=%@",
+              pluginId, @(source.length),
+              ame331_ameOk ? @"callable" : @"MISSING",
+              (unsigned long)ame331_rows,
+              ame331_exc ? @"YES" : @"no");
     }
 
     // 主题令牌：storage 里若有 __theme 且仍有授权 → 开机重放
