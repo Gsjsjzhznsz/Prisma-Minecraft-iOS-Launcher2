@@ -54,6 +54,15 @@ static const CGFloat kDragThreshold = 10.0;
 @property (nonatomic, assign) BOOL isDragging;
 @property (nonatomic, assign) CGPoint dragStartPoint;
 @property (nonatomic, assign) CGPoint dragStartCenter;
+// ★ Task334（动画/逻辑优化）：ame232 重铺幂等 memo —— 装机 1d0dfbe 日志
+// 实锤每个缩放 tick 触发两轮 hardened+restyled（layoutSubviews→restorePositions
+// 与 Task285 reassert→restorePositions 各一轮，全量重铺三件套底色/描边/圆角）
+// = 活动窗口拖拽期布局功耗双倍 + 日志双倍。memo 记录上次重铺时的三件套
+// 几何签名，几何未变时跳过重铺（真正的几何变化照常应用；实例重建后
+// memo 随实例归零，首次必铺）。
+@property (nonatomic, assign) CGRect ame334_lastGlassGearFrame;
+@property (nonatomic, assign) CGSize ame334_lastGlassStatsSize;
+@property (nonatomic, assign) BOOL ame334_glassMemoValid;
 
 @end
 
@@ -185,6 +194,8 @@ static BOOL ame227_g_dockedLeft = NO;
 #pragma mark - Task232：悬浮栏玻璃（齿轮球/统计条/菜单标签）
 
 - (void)ame232_floatingGlassStyleChanged {
+    // ★ Task334：风格切换必须绕过幂等 memo（几何未变但样式要全量重铺）。
+    self.ame334_glassMemoValid = NO;
     [self ame232_applyFloatingGlass];
 }
 
@@ -205,6 +216,17 @@ static BOOL ame227_g_dockedLeft = NO;
 ///   - 两个文本件：不再往标签内插任何磨砂层——改实底半透明深色胶囊 +
 ///     0.75pt 白色发丝描边（iOS 26 玻璃边缘语言），文字永远画在最上层。
 - (void)ame232_applyFloatingGlass {
+    // ★ Task334：幂等 memo 闸 —— 三件套几何签名未变时跳过重铺（每缩放
+    //   tick 从两轮降为一轮；样式状态全部是本方法的确定性函数，签名相同
+    //   = 重铺产物逐字节相同 = 跳过零语义差异）。
+    if (self.ame334_glassMemoValid &&
+        CGRectEqualToRect(self.ame334_lastGlassGearFrame, self.menuButton.frame) &&
+        CGSizeEqualToSize(self.ame334_lastGlassStatsSize, self.statsLabel.frame.size)) {
+        return;
+    }
+    self.ame334_lastGlassGearFrame = self.menuButton.frame;
+    self.ame334_lastGlassStatsSize = self.statsLabel.frame.size;
+    self.ame334_glassMemoValid = YES;
     if (!LGCIsGlassStyleActive()) {
         // 非玻璃风格：还原原生外观（清玻璃层 + 恢复原底色 + 清 Task236 发丝描边）
         LGCRemoveGlassFromView(self.menuButton);

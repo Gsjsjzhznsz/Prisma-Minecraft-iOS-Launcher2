@@ -103,6 +103,30 @@ NSString *const PREF_MOD_MIRROR = @"general.mod_mirror";
             // 一次性迁移哨兵：YES 表示旧键 download_source 已迁移到上述 4 键，
             // 防止用户手动改新键后被重复迁移覆盖（见 LauncherPreferences.m migrateDownloadSourcePreferences）
             @"sourceMigrated": @NO,
+            // ★ Task334：测速赢家 memo 键注册（Task259 漏注册 = Setter 静默
+            //   丢弃，装机 1d0dfbe latestlog 实锤 "Setter could not find
+            //   preference download.speed_probe.*" ×2 + Getter ×4 → 每次启动
+            //   双体系重测、结果永不持久）。空字典默认 = "无 memo" 语义
+            //   （ame138_cachedWinnerForFamily 对缺 winner/ts 回落 nil），
+            //   注册后写读双向生效，TTL 内不再重复探测。
+            @"speed_probe": @{
+                @"bmclapi": [NSDictionary new],
+                @"mcim": [NSDictionary new],
+            }.mutableCopy,
+        }.mutableCopy,
+        // ★ Task334：三段新节注册（Setter 静默丢弃族）——
+        //   controlrepo.mirror_idx：控件仓库镜像记忆（漏注册 = 每次启动
+        //   从 0 号源重新探测）；ame217.autoRendererBlacklist：auto 渲染器
+        //   黑名单（漏注册 = 崩溃记忆丢失，同一崩溃渲染器反复自动选中）；
+        //   launcher.account_selected_name：Terracotta 多人页回显账号名。
+        @"controlrepo": @{
+            @"mirror_idx": @(0),
+        }.mutableCopy,
+        @"ame217": @{
+            @"autoRendererBlacklist": @"",
+        }.mutableCopy,
+        @"launcher": @{
+            @"account_selected_name": @"",
         }.mutableCopy,
         @"video": @{ // Video & Audio
             @"renderer": @"auto",
@@ -180,6 +204,14 @@ NSString *const PREF_MOD_MIRROR = @"general.mod_mirror";
             // Task 134：屏蔽控件——隐藏 mod 全部屏幕控件（写入空布局
             // 预设到 <游戏目录>/config/touchcontroller/，下次启动游戏生效）
             @"mod_touch_hide_controls": @NO,
+            // ★ Task334：控制面三键注册（Setter 静默丢弃族）——
+            //   mod_touch_user_off：用户关改 mod 触控的覆盖标记（
+            //   TouchControllerPreferencesViewController 三处写点）；
+            //   two_finger_keyboard：双指键盘开关（设置页写点，关改不
+            //   持久）；mod_touch_prev_preset_json：预设覆盖前备份。
+            @"mod_touch_user_off": @NO,
+            @"two_finger_keyboard": @NO,
+            @"mod_touch_prev_preset_json": @"",
             // UI 子面板占位 key（LauncherPreferencesViewController 的 getPreference 回调
             // 会对每个设置项按 "section.key" 查询，包括 button/childPane 类型）。
             // 提供空串默认值避免触发 "Getter could not find preference control.custom_controls" 日志。
@@ -205,7 +237,14 @@ NSString *const PREF_MOD_MIRROR = @"general.mod_mirror";
             @"auto_ram": @(!getEntitlementValue(@"com.apple.private.memorystatus")),
             @"allocated_memory": [NSNumber numberWithFloat:roundf((NSProcessInfo.processInfo.physicalMemory / 1048576) * 0.25)],
             // profile 写入的强制 Java 版本，auto=根据游戏版本自动选择
-            @"java_version": @"auto"
+            @"java_version": @"auto",
+            // ★ Task334：JVM 预设两键注册（Task256 引入设置页"JVM 预设"行时
+            //   漏注册 = Setter 静默丢弃，装机 latestlog 实锤 "Getter could
+            //   not find preference java.jvm_preset" ×3；用户选 memory/
+            //   performance 每次启动静默回退 normal）。默认值与消费方
+            //   ame256 解析链的回退值逐字对齐（缺键 → "normal"）。
+            @"jvm_preset": @"normal",
+            @"jvm_preset_custom_args": @"",
         }.mutableCopy,
         // MobileGlues 渲染器偏好
         // 当渲染器选择为 MobileGlues 或 Vulkan 时，由 init_loadMobileGluesConfig() 写入
@@ -297,6 +336,12 @@ NSString *const PREF_MOD_MIRROR = @"general.mod_mirror";
         }.mutableCopy,
         @"internal": @{
             @"isolated": @NO,
+            // ★ Task334：自动启动链两键注册（Setter 静默丢弃族）——
+            //   autolaunch_profile：右栏「重启并启动」目标 profile（漏注册
+            //   = 选定后冷启不自动进游戏）；internal_launch_on_boot：开屏
+            //   自启逃生舱（plist-only，注册仅消噪音）。
+            @"autolaunch_profile": @"",
+            @"internal_launch_on_boot": @NO,
             @"latest_version": [NSDictionary new]
         }.mutableCopy
     }.mutableCopy;
@@ -328,7 +373,16 @@ NSString *const PREF_MOD_MIRROR = @"general.mod_mirror";
             @"card_color": @"",
             // 主题强调色（hex 字符串，空串=回退到默认蓝 #429CF5，见 LauncherPreferences.m accentColor()）
             // 提供默认值避免每次访问触发 "Getter could not find preference general.accent_color" 日志
-            @"accent_color": @""
+            @"accent_color": @"",
+            // ★ Task334：杂项三键注册（Setter 静默丢弃族 + 日志噪音族）——
+            //   thirdparty_servers：第三方登录已存服务器列表（Task129b 漏注册
+            //   = 用户保存的地址每次启动全部丢失）；
+            //   translation_notice_dismissed：翻译提示关闭记忆（漏注册 =
+            //   每次启动重新弹）；disable_window_rotation_shim：旋转垫片
+            //   逃生舱（plist-only，注册仅消 Getter 噪音，默认与回退语义逐字一致）。
+            @"thirdparty_servers": [NSArray new],
+            @"translation_notice_dismissed": @NO,
+            @"disable_window_rotation_shim": @NO,
         };
         [defaults[@"general"] addEntriesFromDictionary:general];
 
@@ -347,7 +401,11 @@ NSString *const PREF_MOD_MIRROR = @"general.mod_mirror";
             @"debug_ipad_ui": @([[[UIDevice currentDevice].model lowercaseString] containsString:@"ipad"]),
             @"debug_auto_correction": @YES,
             @"debug_show_layout_bounds": @NO,
-            @"debug_show_layout_overlap": @NO
+            @"debug_show_layout_overlap": @NO,
+            // ★ Task334：plist-only 逃生舱两键注册（仅消 Getter 噪音；默认
+            //   与读侧回退语义逐字一致，注册不改变行为）。
+            @"ame259_quic_guard": @NO,
+            @"ame280_kw_batch": @NO
         }.mutableCopy;
         defaults[@"warnings"] = @{
             @"local_warn": @YES,

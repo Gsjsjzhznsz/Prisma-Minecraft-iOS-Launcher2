@@ -877,7 +877,7 @@ static const bool *ame_SDL_GetKeyboardState(int *numkeys) {
 //     1) SDL_GetWindowSize（点路径）→ 上报 windowWidth×windowHeight；
 //     2) SDL_GetWindowSizeInPixels → 钉到 windowWidth×windowHeight
 //        （当前本就等于该值——钉住后不再依赖 UIKit 窗口点尺寸）；
-//     3) 0x207/0x208 事件 data1/data2 改写（见 PollEvent 内 Task61 块）。
+//     3) 0x206/0x207/0x208 事件 data1/data2 改写（见 PollEvent 内 Task61 块）。
 //   UIKit 真实窗口仍由 Task51 钳制保持在 1180x820 点——几何/嵌入/触摸
 //   路由零改动；MC 侧看到的世界与已“完全正常”的 LWJGL/MG 26.2 路径
 //   （viewport==surface==2360x1640）完全对齐。viewport==surface 后
@@ -1470,7 +1470,19 @@ static bool ame_SDL_PollEvent(void *event) {
         // type@0 reserved@4 timestamp@8 windowID@16 data1@20 data2@24（与
         // 0x400 鼠标事件 x/y@28/32 同系布局，input_bridge_v3.m 推送侧互证）。
         // ---------------------------------------------------------------
-        if (type == 0x207 /*SDL_EVENT_WINDOW_RESIZED*/ ||
+        // ★ Task334（小窗偏移第五轮·MC 侧双信念劈裂收口）：装机 1d0dfbe
+        //   freeform 日志实锤——本 SDL 构建每个缩放 tick 发【两条】尺寸事件：
+        //   0x207（Task61 已钉）与 0x206（另一条尺寸事件，携带未钉的原始
+        //   逻辑点制 1146x820→…→803x697，直通进 MC）。MC 的窗口逻辑基准
+        //   （输入归一化/GUI 依据）若消费 0x206，小窗态就与渲染基准（0x207
+        //   钉扎信念）和鼠标事件推送空间（信念 px）三者劈裂 = 启动器侧
+        //   四轮换算修完取证全部自洽仍偏的结构性残留。全屏态无 resize
+        //   事件所以从未暴露。修法 = 0x206 一并钉扎：MC 能从事件通道读到
+        //   的每一个尺寸全部等于启动器信念，双信念劈裂从结构上消失
+        //   （EXPOSED 语义下载荷本被忽略，钉扎无副作用；尺寸语义下钉扎
+        //   正是所需）。
+        if (type == 0x206 /*size-carrying window event (raw logical pts, Task334 pin)*/ ||
+            type == 0x207 /*SDL_EVENT_WINDOW_RESIZED*/ ||
             type == 0x208 /*SDL_EVENT_WINDOW_PIXEL_SIZE_CHANGED*/) {
             int d61a = *(int *)((char *)event + 20);
             int d61b = *(int *)((char *)event + 24);
@@ -1481,7 +1493,7 @@ static bool ame_SDL_PollEvent(void *event) {
                 static _Atomic unsigned long s_task61_rewrites = 0;
                 unsigned long rn61 = atomic_fetch_add(&s_task61_rewrites, 1) + 1;
                 if (rn61 <= 20 || rn61 % 500 == 0) {
-                    NSLog(@"[SDLHook] Task61 window-size event 0x%x rewritten: %dx%d -> %dx%d (pts->px; UIKit window untouched, MC renders native res)",
+                    NSLog(@"[SDLHook] Task61/334 window-size event 0x%x rewritten: %dx%d -> %dx%d (pts->px; UIKit window untouched, MC renders native res)",
                           type, d61a, d61b, windowWidth, windowHeight);
                 }
             }

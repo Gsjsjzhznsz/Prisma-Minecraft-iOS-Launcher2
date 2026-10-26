@@ -59,6 +59,20 @@ extern void AmeControlJoystickOnGrabChange(BOOL grabbed);
 // 点制 1180x820 被 MC 按像素消费导致分辨率减半，正是利用此语义改写）。
 // nativeSendScreenSize 的 SDL3 路径用它把窗口信念下发给 MC。
 #define SDL3_EVENT_WINDOW_RESIZED  0x207
+// ★ Task334：本 SDL 构建每个缩放 tick 实发【两条】尺寸事件（装机 1d0dfbe
+//   freeform 日志：0x206 data=1146x820→…→803x697 原始点制直通 + 0x207 同值
+//   同发）。Task61 只钉 0x207/0x208，0x206 的原始逻辑点制直达 MC = 窗口
+//   逻辑基准（输入归一化依据）与渲染基准/鼠标事件空间在小窗态劈裂 = 小窗
+//   偏移第五轮结构性残留根因。sdl3_hook 侧 Task61/334 已把 0x206 钉扎；
+//   本文件的宣告路径同步升级为 0x206+0x207 事件对（ame334_pushWindowSizePair）。
+#define SDL3_EVENT_WINDOW_SIZE_CHANGED 0x206
+// ★ Task334：本 SDL 构建每个缩放 tick 实发【两条】尺寸事件（装机 1d0dfbe
+//   freeform 日志：0x206 data=1146x820→…→803x697 原始点制直通 + 0x207 同值
+//   同发）。Task61 只钉 0x207/0x208，0x206 的原始逻辑点制直达 MC = 窗口
+//   逻辑基准（输入归一化依据）与渲染基准/鼠标事件空间在小窗态劈裂 = 小窗
+//   偏移第五轮结构性残留根因。sdl3_hook 侧 Task61/334 已把 0x206 钉扎；
+//   本文件的宣告路径同步升级为 0x206+0x207 事件对（ame334_pushWindowSizePair）。
+#define SDL3_EVENT_WINDOW_SIZE_CHANGED 0x206
 // Task224：后台恢复链重建 SDL/MC 焦点态的标准事件对（resumeGameIfNeed）。
 #define SDL3_EVENT_WINDOW_MOUSE_ENTER  0x20C
 #define SDL3_EVENT_WINDOW_FOCUS_GAINED 0x20E
@@ -2556,6 +2570,35 @@ void CallbackBridge_nativeSendMouseButton(int button, int action, int mods) {
 //     （回前台三连重申 + 首触点兜底专用），保证修复推送必达。
 BOOL g_ame250_appActive = YES;
 
+// ★ Task334（小窗偏移第五轮·宣告面收口）：尺寸宣告从单发 0x207 升级为
+//   0x206+0x207 事件对 —— sdl3_hook 侧 Task334 实证本 SDL 构建每个缩放
+//   tick 发两条尺寸事件（MC 的窗口逻辑基准消费面未必是 0x207）。沉降
+//   重宣告/前后台对齐【没有物理 resize 伴随】，若只推 0x207，MC 逻辑
+//   基准仍钉在上一物理 resize 的旧值 = 沉降翻转窗内双信念再现。事件对
+//   = 宣告时两通道同时翻到新信念；PollEvent 侧 Task61/334 钉扎兑底
+//   （同值重写零代价）。
+static void ame334_pushWindowSizePair(int width, int height) {
+    if (!pSDL_PushEvent || !g_sdlWindow) return;
+    const uint32_t ame334_types[2] = { SDL3_EVENT_WINDOW_SIZE_CHANGED,
+                                       SDL3_EVENT_WINDOW_RESIZED };
+    for (int ame334_i = 0; ame334_i < 2; ame334_i++) {
+        SDL3_Event ev;
+        memset(&ev, 0, sizeof(ev));
+        SDL3_WindowEvent *we = (SDL3_WindowEvent *)&ev;
+        we->type = ame334_types[ame334_i];
+        we->windowID = getSDLWindowID();
+        we->data1 = width;
+        we->data2 = height;
+        pSDL_PushEvent((void *)&ev);
+    }
+    static int s_ame334_pairs = 0;
+    s_ame334_pairs++;
+    if (s_ame334_pairs <= 10 || s_ame334_pairs % 50 == 0) {
+        NSLog(@"[InputDiag] Task334 window size pair -> SDL 0x206+0x207 %dx%d #%d",
+              width, height, s_ame334_pairs);
+    }
+}
+
 void CallbackBridge_nativeSendScreenSizeForced(int width, int height) {
     windowWidth = width;
     windowHeight = height;
@@ -2586,18 +2629,11 @@ void CallbackBridge_nativeSendScreenSizeForced(int width, int height) {
         /* 强制通道：无视 Task83b 去重（后台/前台恢复对齐专用），但与 83b
          * 共享日志计数以便取证对账。 */
         if (pSDL_PushEvent) {
-            SDL3_Event ev;
-            memset(&ev, 0, sizeof(ev));
-            SDL3_WindowEvent *we = (SDL3_WindowEvent *)&ev;
-            we->type = SDL3_EVENT_WINDOW_RESIZED;
-            we->windowID = getSDLWindowID();
-            we->data1 = width;
-            we->data2 = height;
-            pSDL_PushEvent((void *)&ev);
+            ame334_pushWindowSizePair(width, height);
             static int s_task250_pushed = 0;
             s_task250_pushed++;
             if (s_task250_pushed <= 10 || s_task250_pushed % 50 == 0) {
-                NSLog(@"[InputDiag] Task250 forced window size -> SDL 0x207 %dx%d #%d (dedup bypassed)",
+                NSLog(@"[InputDiag] Task250 forced window size -> SDL 0x206+0x207 %dx%d #%d (dedup bypassed, Task334 pair)",
                       width, height, s_task250_pushed);
             }
         }
@@ -2683,18 +2719,11 @@ void CallbackBridge_nativeSendScreenSize(int width, int height) {
             s_task83b_lastW = width;
             s_task83b_lastH = height;
             if (pSDL_PushEvent) {
-                SDL3_Event ev;
-                memset(&ev, 0, sizeof(ev));
-                SDL3_WindowEvent *we = (SDL3_WindowEvent *)&ev;
-                we->type = SDL3_EVENT_WINDOW_RESIZED;
-                we->windowID = getSDLWindowID();
-                we->data1 = width;
-                we->data2 = height;
-                pSDL_PushEvent((void *)&ev);
+                ame334_pushWindowSizePair(width, height);
                 static int s_task83b_pushed = 0;
                 s_task83b_pushed++;
                 if (s_task83b_pushed <= 10 || s_task83b_pushed % 50 == 0) {
-                    NSLog(@"[InputDiag] Task83b window size -> SDL 0x207 %dx%d #%d (MC-side resize; FSR fallback now actually restores full-res)",
+                    NSLog(@"[InputDiag] Task83b window size -> SDL 0x206+0x207 %dx%d #%d (MC-side resize; Task334 pair; FSR fallback now actually restores full-res)",
                           width, height, s_task83b_pushed);
                 }
             }

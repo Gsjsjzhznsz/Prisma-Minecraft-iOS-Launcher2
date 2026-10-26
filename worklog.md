@@ -3939,3 +3939,27 @@ ame331_selfcheck 49 断言（新：协议 24 selector 导出/JS 名整形七关�
 - 版本隔离每启动抖动消除 + vanilla 继承族噪声静默（ame324×ame328 语义镜像统一）
 - 小窗偏移交接诊断态：本轮不盲修第四轮，取证面放宽后待复现日志判型
 - 待办移交（不动）：JIT 游戏启动链（最高严重级）；下载中心 UI/加载器空白；AI 提示词插件章装机复验
+
+---
+
+## Task 333（1d0dfbe）四问四线 + CI r0 双绿收官
+
+- 设备输入：96eb04c 装机 latestlog + IMG_0495 截图（设置页「插件功能 (6)」六张空白卡）
+- 线① 插件卡片空白根修：ZL2SettingRowBase init 只存 ivar 不写 label.text（文本唯有事后 setter 可见；group3 行=事后赋值故可见，贡献行=纯 init 故全空）→ init 终点补 label 赋值全局根修
+- 线② 新内置件引导安装：census 仅 4 件根因 = ame330 refresh 只覆盖「已安装 ∩ bundle 内置件」交集，bundle 新增件（plugin-survey）从未安装 → ame333_bootstrapBundleBuiltins 于装载循环前落位（+1 锚点 `Task333 builtin bootstrap install`）
+- 线③ 完全接管权限 ame.super：注册表置顶（danger）+ 桥闸首行放行（绕声明+授权双闸，审计日志）+ 详情页恒可切、开启后其余开关变灰禁用 + 首方自愈永不代授（判据改逐项缺失、replaceGrants 保留表外授权防 super 被抹回归）+ theme-sunset 补声明 ui.dialog（根治装机 latestlog 的未捕获 JS 异常刷屏；repo 侧版本翻新 1.2.0）
+- 线④ 插件真上仓库：四件演示件迁 plugin-repo/src，bundle 仅留 plugin-survey（cp -R 盲拷面自然瘦身；IPA 让渡 KB 级，真实收益=插件独立于启动器发版）；ame333_build_plugin_repo.py 产 zip+index.json（sha256/size 单一事实源）入仓库根 plugin-repo/（不进 resources 拷贝面）；仓库页双区（远程官方+包内预置）；镜像三通道探测（记忆镜像→jsdelivr→raw→ghfast，国内加速，偏好落 ame333.plugin.repo.mirror）；下载 sha256 闸 → installFromZip 全量校验链；官方信任面（official=true → .repo-official.json 缓存 → heal 面并入 + 安装即时全量授，ame.super 永不代授；同 GitHub 仓库同发布者=与 bundle 内置件同信任根）；已装低版=「可更新」
+- 线⑤ SDL 小窗输入一次性结构根修：消费端触点时刻现读 ame333_liveCursorOutScale（out = MC 信念 px ÷ 内容矩形 pt；缓存新鲜时与 legacy 数学恒等、陈旧时 live 即真相；flag 分支依赖消失）+ 热栏四路径/内容原点/抓取态 DOWN 同步现读化 + ame328 宣告三连（t+0/0.8/2.5s，单发被吞不再是终态）+ 取证行升级 live/legacy 双因子对照 + liveOrigin
+- 门禁：ame333_selfcheck 47 断言（新）+ ame317 62 键/ame318 dirs1/ame331 A3 迁移面/ame332 I1 前缀/verify219 3314 键重锚 + js_smoke 双源（bundle+plugin-repo/src）5 件 rows=7 + task191/248/250/240/139 + verify219/255 全绿
+- CI：smoke (40351499810) + dev (40351504749) 一轮双绿 @ 1d0dfbe；ipa/tipa 222.4MB ×2 + dSYM 在位（零热修）
+- 事件入档：环境重置致 repo 目录丢失（重克隆恢复）；被 kill 的全量脚本扫描误跑历史一次性补丁件（announce/docs/reanchor 族）改写 16 个非目标文件 → 全部 git restore 恢复后复跑电池确认零涟漪；教训 = 历史补丁件不可无差别批量执行
+
+### 装机锚点汇总（预期日志）
+
+1. `[AmePlugin] Task333 builtin bootstrap install: plugin-survey`（首次启动一行；勘测行「插件勘测」随件出现）
+2. bootstrap 后 census ×5（survey 在列）+ load census facade=callable rows 合计 7
+3. theme-sunset 拨动不再出现 `权限拒绝: ui.dialog` / `未捕获 JS 异常`（1.2.0 需经仓库页更新一次或重装生效）
+4. 设置页「插件功能 (N)」各卡片标题/副标题可见（空白卡根修）
+5. 插件详情页顶部 ⚠ 完全接管开关：开启后其余权限开关变灰禁用；运行日志见 `ame.super takeover grant: perm '…' allowed`
+6. 插件仓库页：远程区拉取成功行（log `Task333 remote index fetched via <mirror>`），四件演示件可安装/可更新，下载行 `Task333 download … via …`
+7. 小窗复现偏移后抓 `Task277/332/333: touch forensic`（live vs legacy 因子对照 + liveOrigin）；若仍偏移，live≠legacy 即缓存陈旧现行、live≈legacy 而 MC 侧仍偏 = 宣告消化面，三连后应自愈
