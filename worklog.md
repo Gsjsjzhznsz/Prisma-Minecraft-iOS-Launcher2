@@ -4042,3 +4042,23 @@ ame331_selfcheck 49 断言（新：协议 24 selector 导出/JS 名整形七关�
 
 ---
 
+
+## Task 337（三线：闪退根修 / neoforge 清单双雷根修 / 旧界面退役第二实体 @ c83376b69）
+
+- 设备输入：49858699 装机 latestlog 实弹 + 三问——「旧版本安装加载器闪退」/「为什么 neoforge 获取清单失败」/「继续退役旧界面」
+- 线① 闪退根修（NSInternalInconsistencyException 实锤栈：CFNetwork → ame336_asyncGet → setSelectedProfileName → CFXNotificationPost → ZL2VersionsViewController.profileListDidChange → reloadVersions → ame_rebuildList → CoreAutoLayout throw）：ame336 直装链 profile 注册段在 NSURLSession 回调线程直接赋值 selectedProfileName → 同步通知链后台跑 AutoLayout = 必崩；FabricUtils 注册段（localVersionList+saveProfile+selectedProfileName）整体 dispatch main 收口（入队序在 safeCompletion 之前=完成回调必然晚于注册，时序安全）+ ZL2VersionsViewController.reloadVersions 主线程防御钳制（通知链来源线程不可控，非主线程 weak 转发主队列）+ POJAV_GAME_DIR getenv 兜底（对表 ame336_installAPIForVendor，env 未设时 "(null)/versions/…" 陷阱）；ForgeDirectInstaller registerVersion 已自主线程化（dispatch_sync main，"must run on main thread"）= Forge 链无此雷，不动
+- 线② neoforge 获取清单失败双雷根修：①过滤语义雷——旧 hasPrefix:gameVersion+"-" 只认 Forge 复合形态（"1.21.1-52.0.24"），NeoForge maven 版本无 MC 前缀（"21.1.77"→1.21.1 / "26.1.2"→26.1）→ 恒空=清单失败 → ame185_loaderVersionMatchesGameVersion 共享匹配器（ForgeInstallVC addVersionToList 同款，新旧纪元+legacy 全兼容：26.1.2/26.3.0.5-beta/1.20.1-20.1.x-beta 三组语义验证）+ skipPatterns 非 client 变体剔除表（sources/userdev/javadoc/universal/slim 等）②镜像死端点雷——旧候选链走 PLMirrorCenter（maven.neoforged.net→BMCLAPI /maven 静态文件镜像）拼出 /maven/api/maven/versions/... 死端点（BMCLAPI 无此 REST API=404）→ 显式双源：官方 api/maven/versions/releases（versions[] 数组）+ BMCLAPI /neoforge/meta/api/maven/details（files[] DIRECTORY 提取，ForgeInstallVC 同源），按 general.download_source 策略排序；顺带补 utils.h+LauncherPreferences.h import 面
+- 线③ 旧界面退役第二实体：Forge/NeoForge 页内直装——ame337_installForgeLikeVendor 执行器（versionId 含 MC 段复合形态 "1.20.1-forge-47.3.0"/"26.1-neoforge-26.1.2"，JavaLauncher inferJavaMajorVersionFromVersionId 口径；installer jar 三形态路径 NeoForge 1.20.1 老坐标 net/neoforged/forge+现代 net/neoforged/neoforge+Forge net/minecraftforge/forge；官方+BMCLAPI /maven 双源下载逐候选回退 downloadTask 落盘 tmp；ForgeDirectInstaller installForgeFromInstaller 后台同步直装+registerVersion 自主线程化）+ M3 确认对话框（对表 ame336 模式）+ ame336Installing 忙态跨线共用（Addons 页任一直装在跑防重入）+ OptiFine 组合补装链保持（forge+optifine 勾选→直装完成后 pendingOptiFine 补丁流）→ Addons 页 ForgeInstallViewController 前向声明+push 点整体退役 = **新 UI Addons 九卡安装全家族零旧表单跳转**（Fabric-like Task336 + Forge/NeoForge 本轮 + OptiFine 既有页内补丁流 + 原版 MRDT 直通）；退役纪律保持：旧下载页 DownloadViewController 链路不动
+- Preview 桩面同步（语义面盲区第十一例预判——ZL2GameAddonsViewController.o 进 Preview 链接面，本地预检补桩防 CI r1 同模式红）：ZL2PagesStub 补 installForgeFromInstaller:versionId:error: 桩（恒 NO+error 填充，同 ensureParentVersionExists 防呆语义）+ ForgeInstallViewController/FabricInstallViewController 死桩退役（消费者已退役；DownloadViewController 不在 Preview TU 面）
+- 门禁：ame337_selfcheck 26 断言新门（A 闪退根修 4〔dispatch main 三连收口+块外零裸赋值防回退+钳制三件套+getenv 兜底〕/B neoforge 双雷 7/C 退役+直装 10〔含 C6 桩双断言+C7 退役纪律+C8 versionId 口径〕/D 结构 HEAD 对照×4+TU 面+D3 语义演进）+ ame336 C4 语义演进（"forge 分支保留旧表单"→"退役后零代码引用"，注释字样不算引用=行注释剥离）+ 全电池 ame317~337+task139/240/248/250+task191 全绿（task240 WARN 存量非本轮文件；task191 本轮实测全绿）
+- CI：r0 双 dispatch（smoke 40547131830 + dev 40547149115）@ c83376b69
+
+### 装机锚点汇总（预期行为）
+
+1. 1.8.9 选 Legacy Fabric + API 点安装：M3 确认 → 页内「安装中…」→ 「安装完成」，全程不闪退不跳旧表单（本轮实锤栈根修）
+2. 1.21.1 / 26.1 打开 NeoForge 卡：版本清单正常出列表（新线在前），不再「获取清单失败」
+3. Forge/NeoForge 卡选择后点安装：M3「确认安装（离线安装器直装）」→ 页内「安装中…」→ 「安装完成」（不跳旧表单）；forge+optifine 组合装完自动补 OptiFine 补丁
+4. 通知链任意来源线程：版本页不再因后台 AutoLayout 崩溃（防御钳制兜底）
+5. 日志锚点：[ZL2Addons] Task337 inline install start / [ZL2Addons] Task337 inline install done|failed / [ForgeDirect] Starting installation
+
+---
