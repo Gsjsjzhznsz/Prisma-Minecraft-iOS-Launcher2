@@ -4062,3 +4062,9 @@ ame331_selfcheck 49 断言（新：协议 24 selector 导出/JS 名整形七关�
 5. 日志锚点：[ZL2Addons] Task337 inline install start / [ZL2Addons] Task337 inline install done|failed / [ForgeDirect] Starting installation
 
 ---
+
+### Task 337 CI 收官段
+
+- CI r0 双 dispatch @ c83376b69：smoke 40547131830 **红**（Undefined _ame185_loaderVersionMatchesGameVersion——ZL2GameAddonsViewController.o 引用 neoforge 清单共享匹配器，Preview TU 面无 utils.m=链接缺口；语义面盲区第十一例 C 函数变体：本轮 D2 断言只查了类 TU 字符串没查 C 符号供给）+ dev 40547149115 cancelled（同 HEAD 换跑）；r1 热修 8b7ed1e2d：ZL2PagesStub 补 ame185 C 函数桩（saveJSONToFile 桩先例同款：签名对表+恒 NO 防呆+桩与真实现从不同一二进制）+ ame337 D6 符号供给断言（gav 引用 ame* C 函数 → stub/TU 面必须有供给）+ A1b/C1/D3 断言剥离器纠正（task139.strip_strings_comments 是括号平衡剥器只保留括号字符，误用于符号检查=恒空恒过假阳性；改自持 _strip_code 真代码剥离）+ **断言双向验证纪律首立**（C1 反向加引用红/A1b 反向裸赋值红/D6 反向删桩红，恢复绿——文本断言电池有效性从"跑绿即信"升级"反向验证"）
+- CI r1 双 dispatch @ 8b7ed1e2d：**双绿**（smoke 40548874336 + dev 40548879453；产物 ipa/tipa 222.4MB ×2 + dSYM 7.4MB）
+- 教训入档：①反向验证时 git checkout 恢复连带回滚了未提交的桩（r0 桩 Edit 被 checkout 吞）→ 反向测试一律用副本文件不动工作区 ②"注释字样伪引用"三例与"剥器误用恒过"同源于文本断言的语义面——符号检查必须真代码剥离，括号检查才用括号剥器
