@@ -15,6 +15,7 @@
 #import "DownloadTaskItem.h"
 #import "PLTaskStages.h"
 #import "PLProfiles.h"   // ★ Task302：实例注册表预登记（吞实例根修）
+#import "ZL2VersionIndex.h" // ★ Task335：ZL2 域清单同步查找（旧壳退役后全局 remoteVersionList 恒空）
 #import "ios_uikit_bridge.h"
 #import "utils.h"
 
@@ -430,6 +431,20 @@ static void ame312_recordThroughput(NSInteger idx, double bytes, double elapsed)
     BOOL ame300_renamed = [ame300_lookupId isKindOfClass:[NSString class]] && ame300_lookupId.length > 0;
     if (!ame300_renamed) ame300_lookupId = versionStr;
     version = (id)[MinecraftResourceUtils findVersion:ame300_lookupId inList:remoteVersionList];
+    // ★ Task335：ZL2 域清单兑底（旧壳 7.0-UI-8 退役后全局 remoteVersionList 恒空）。
+    // 病历：装机 207353e latestlog —— ZL2 壳下点「安装（原版）」（1.20.1/a1.2.6/
+    // rd-161348 等）findVersion 必 nil → 误入本地版本分支 →「未能打开文件
+    // <id>.json」错误弹窗 ×150+ = 新 UI 原版安装全量秒败。兑底语义：全局清单
+    // 未命中时经 ZL2VersionIndex 同步查找（后台线程限时 10s 等落定 + 锁内匹配；
+    // latest-* 种子已滤）。全局清单非空（旧壳/预览 TU 场景）时零行为差。
+
+    if (!version) {
+        NSDictionary *ame335_entry = [[ZL2VersionIndex sharedIndex] remoteVersionEntryForIdSync:ame300_lookupId];
+        if (ame335_entry) {
+            NSLog(@"[MCDL] Task335 version resolved via ZL2VersionIndex (global list empty/miss): %@", ame300_lookupId);
+            version = (id)ame335_entry;
+        }
+    }
 
     void(^completionBlock)(void) = ^{
         self.metadata = parseJSONFromFile(path);
@@ -579,6 +594,11 @@ static void ame312_recordThroughput(NSInteger idx, double bytes, double elapsed)
 
         if (json[@"inheritsFrom"]) {
             version = (id)[MinecraftResourceUtils findVersion:json[@"inheritsFrom"] inList:remoteVersionList];
+            // ★ Task335：inheritsFrom 父版本查找同款 ZL2 域兑底（同上病历面：
+            // 全局清单空时继承族实例的补拉链同样必失败）
+            if (!version) {
+                version = (id)[[ZL2VersionIndex sharedIndex] remoteVersionEntryForIdSync:json[@"inheritsFrom"]];
+            }
             if (version) {
                 path = [NSString stringWithFormat:@"%1$s/versions/%2$@/%2$@.json", getenv("POJAV_GAME_DIR"), json[@"inheritsFrom"]];
             } else {

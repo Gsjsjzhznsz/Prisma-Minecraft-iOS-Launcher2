@@ -59,7 +59,8 @@ extern NSMutableArray *localVersionList;
     
     self.localKVO = @{
         @"gameVersion": initialGameVersion,
-        @"loaderVendor": @"Fabric",
+        // ★ Task335：外部预选 vendor（ZL2 Addons 页三厂直装）；nil/空 = 保持 Fabric 默认
+        @"loaderVendor": self.presetVendor.length > 0 ? self.presetVendor : @"Fabric",
         @"loaderVersion": @"" // 初始为空，等待网络获取后填充
     }.mutableCopy;
     self.getPreference = ^id(NSString *section, NSString *key){
@@ -73,7 +74,10 @@ extern NSMutableArray *localVersionList;
         UISegmentedControl *view = [[UISegmentedControl alloc] initWithItems:item[@"pickList"]];
         [view addTarget:weakSelf action:@selector(segmentChanged:) forControlEvents:UIControlEventValueChanged];
         if (view.selectedSegmentIndex == UISegmentedControlNoSegment) {
-            view.selectedSegmentIndex = 0;
+            // ★ Task335：段选中态回显 localKVO 当前值（presetVendor 预入后首帧即见）
+            NSString *current = weakSelf.localKVO[key];
+            NSInteger matched = [item[@"pickList"] indexOfObject:current];
+            view.selectedSegmentIndex = (matched != NSNotFound) ? matched : 0;
         }
         cell.accessoryView = view;
     };
@@ -102,7 +106,9 @@ extern NSMutableArray *localVersionList;
               @"icon": @"folder.badge.gearshape",
               @"title": @"preference.profile.title.loader_vendor",
               @"type": typePickSegment,
-              @"pickList": @[@"Fabric", @"Quilt"],
+              // ★ Task335：三厂段（Fabric / Legacy Fabric / Quilt，ZL2 AddonList
+              // 全家族同步；pickList 项与 FabricUtils.endpoints 键一字对齐）
+              @"pickList": @[@"Fabric", @"Legacy Fabric", @"Quilt"],
               @"action": ^(int vendor){
                   [weakSelf fetchVersionEndpoints:vendor];
               }
@@ -156,6 +162,17 @@ extern NSMutableArray *localVersionList;
         NSDebugLog(@"[%@ Installer] Got %d loader versions", self.localKVO[@"loaderVendor"], (int)response.count);
         self.loaderMetadata = response;
         [self changeLoaderTypeTo:[self.localKVO[@"loaderType_index"] intValue]];
+        // ★ Task335：外部预选加载器版本（ZL2 Addons 页卡片选择直通）；
+        // 预选值不在列表内（如 unstable 过滤后）时保持首项默认
+        if (self.presetLoaderVersion.length > 0) {
+            if ([self.loaderList containsObject:self.presetLoaderVersion]) {
+                self.localKVO[@"loaderVersion"] = self.presetLoaderVersion;
+                [self.tableView reloadData];
+                NSDebugLog(@"[%@ Installer] preset loader version applied: %@", self.localKVO[@"loaderVendor"], self.presetLoaderVersion);
+            } else {
+                NSDebugLog(@"[%@ Installer] preset loader version not in list, keep default", self.localKVO[@"loaderVendor"]);
+            }
+        }
     } failure:errorCallback];
 }
 
@@ -227,8 +244,8 @@ extern NSMutableArray *localVersionList;
         [PLProfiles.current saveProfile:profile withName:response[@"id"]];
         PLProfiles.current.selectedProfileName = response[@"id"];
 
-        // If Fabric API installation is requested
-        if (strongSelf.shouldInstallAPI && [strongSelf.localKVO[@"loaderVendor"] isEqualToString:@"Fabric"]) {
+        // If API installation is requested（★ Task335：三厂 API 全支持，分流见 installFabricAPIWithCompletion）
+        if (strongSelf.shouldInstallAPI) {
             [strongSelf installFabricAPIWithCompletion:^(BOOL success, NSError *apiError) {
                 dispatch_async(dispatch_get_main_queue(), ^{
                     [strongSelf handleInstallationComplete:response[@"id"] endpoint:endpoint error:apiError];
@@ -274,8 +291,22 @@ extern NSMutableArray *localVersionList;
 - (void)installFabricAPIWithCompletion:(void (^)(BOOL success, NSError *error))completion {
     NSString *gameVersion = self.localKVO[@"gameVersion"];
     
+    // ★ Task335：API 工程按 vendor 分流（ZL2 FabricAPIVersions/LegacyFabricAPIVersions/
+    // QuiltAPIVersions 同源三工程）。注意 legacy-fabric-api 真实 loader 标签为
+    // "legacy-fabric"（"fabric" 查询恒空，2026-10 Modrinth 实测）。
+    NSString *vendor = self.localKVO[@"loaderVendor"];
+    NSString *project = @"fabric-api";
+    NSString *loaderTag = @"fabric";
+    if ([vendor isEqualToString:@"Legacy Fabric"]) {
+        project = @"legacy-fabric-api";
+        loaderTag = @"legacy-fabric";
+    } else if ([vendor isEqualToString:@"Quilt"]) {
+        project = @"qsl";
+        loaderTag = @"quilt";
+    }
+    
     // Fabric API download URL from Modrinth（经 PLMirrorCenter 按资源搜索策略应用镜像）
-    NSString *originalAPIURL = [NSString stringWithFormat:@"https://api.modrinth.com/v2/project/fabric-api/version?game_versions=[\"%@\"]&loaders=[\"fabric\"]", gameVersion];
+    NSString *originalAPIURL = [NSString stringWithFormat:@"https://api.modrinth.com/v2/project/%@/version?game_versions=[\"%@\"]&loaders=[\"%@\"]", project, gameVersion, loaderTag];
     NSString *apiUrl = [PLMirrorCenter preferredURLForOriginalURL:[NSURL URLWithString:originalAPIURL]
                                                      resourceType:PLMirrorResourceTypeAssetSearch].absoluteString ?: originalAPIURL;
     

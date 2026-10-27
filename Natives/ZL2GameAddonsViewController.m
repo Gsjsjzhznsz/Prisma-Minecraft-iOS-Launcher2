@@ -81,7 +81,9 @@
 @property (nonatomic, strong) UIControl *installButton;
 @property (nonatomic, strong) UILabel *installLabel;
 
-// 加载器卡（ZL2 顺序：OptiFine / Forge / NeoForge / Fabric / Fabric API）
+// 加载器卡（ZL2 顺序：OptiFine / Forge / NeoForge / Fabric / Fabric API /
+// Legacy Fabric / Legacy Fabric API / Quilt / Quilted Fabric API —— Task335 与
+// ZL2 AddonList 全家族对齐）
 @property (nonatomic, strong) UIScrollView *scroll;
 @property (nonatomic, strong) UIStackView *cardsStack;
 @property (nonatomic, strong) ZL2AddonCard *optifineCard;
@@ -89,6 +91,11 @@
 @property (nonatomic, strong) ZL2AddonCard *neoforgeCard;
 @property (nonatomic, strong) ZL2AddonCard *fabricCard;
 @property (nonatomic, strong) ZL2AddonCard *fabricAPICard;
+@property (nonatomic, strong) ZL2AddonCard *legacyFabricCard;
+@property (nonatomic, strong) ZL2AddonCard *legacyFabricAPICard;
+@property (nonatomic, strong) ZL2AddonCard *quiltCard;
+@property (nonatomic, strong) ZL2AddonCard *quiltAPICard;
+@property (nonatomic, strong) UILabel *noLoaderNote;
 
 // 版本清单在途刷新（防抖：同卡刷新去重）
 @property (nonatomic, strong) NSMutableSet<NSString *> *loadingIdentifiers;
@@ -189,33 +196,65 @@
     _installLabel.translatesAutoresizingMaskIntoConstraints = NO;
     [_installButton addSubview:_installLabel];
 
-    // ② 加载器卡（ZL2 顺序：OptiFine → Forge → NeoForge → Fabric → Fabric API）
+    // ② 加载器卡（ZL2 顺序：OptiFine → Forge → NeoForge → Fabric → Fabric API
+    //    → Legacy Fabric → Legacy Fabric API → Quilt → Quilted Fabric API）
     _optifineCard = [self ame_cardWithIdentifier:@"optifine"
                                            title:@"OptiFine"
-                                  iconBundleName:nil
+                                  iconBundleName:@"optifine"
                                  fallbackSymbol:@"sparkles"];
     _forgeCard = [self ame_cardWithIdentifier:@"forge"
                                         title:@"Forge"
-                               iconBundleName:@"forge_light"
+                               iconBundleName:@"forge" // Task335: 标准单文件 key（旧 *_light 命名不在 resources 拷贝面=永久 SF 兜底死引用）
                               fallbackSymbol:@"hammer"];
     _neoforgeCard = [self ame_cardWithIdentifier:@"neoforge"
                                            title:@"NeoForge"
-                                  iconBundleName:@"neoforge_light"
+                                  iconBundleName:@"neoforge" // Task335: 同上死引用修正，ZL2 img_loader_neoforge 同源
                                  fallbackSymbol:@"hammer.fill"];
     _fabricCard = [self ame_cardWithIdentifier:@"fabric"
                                          title:@"Fabric"
-                                iconBundleName:@"fabric_light"
+                                iconBundleName:@"fabric" // Task335: 同上死引用修正，ZL2 img_loader_fabric 同源
                                fallbackSymbol:@"link"];
     _fabricAPICard = [self ame_cardWithIdentifier:@"fabricapi"
                                             title:@"Fabric API"
                                    iconBundleName:nil
                                   fallbackSymbol:@"shippingbox"];
+    _legacyFabricCard = [self ame_cardWithIdentifier:@"legacyfabric"
+                                               title:@"Legacy Fabric"
+                                      iconBundleName:@"legacyfabric"
+                                     fallbackSymbol:@"link"];
+    _legacyFabricAPICard = [self ame_cardWithIdentifier:@"legacyfabricapi"
+                                                  title:@"Legacy Fabric API"
+                                         iconBundleName:nil
+                                        fallbackSymbol:@"shippingbox"];
+    _quiltCard = [self ame_cardWithIdentifier:@"quilt"
+                                        title:@"Quilt"
+                               iconBundleName:@"quilt"
+                              fallbackSymbol:@"bird"];
+    _quiltAPICard = [self ame_cardWithIdentifier:@"quiltapi"
+                                           title:@"Quilted Fabric API"
+                                  iconBundleName:nil
+                                 fallbackSymbol:@"shippingbox"];
     for (ZL2AddonCard *card in @[_optifineCard, _forgeCard, _neoforgeCard,
-                                 _fabricCard, _fabricAPICard]) {
+                                 _fabricCard, _fabricAPICard,
+                                 _legacyFabricCard, _legacyFabricAPICard,
+                                 _quiltCard, _quiltAPICard]) {
         [stack addArrangedSubview:card];
         [card.leadingAnchor constraintEqualToAnchor:stack.leadingAnchor].active = YES;
         [card.trailingAnchor constraintEqualToAnchor:stack.trailingAnchor].active = YES;
     }
+
+    // ★ Task335：无可用加载器版本（rd-*/a1.*/b1.* 等远古系全隐藏后）的引导文案
+    // —— 用户装机原话「在没有加载器支持的版本打开…显示清单加载失败，导致无法
+    // 点击安装原版」：与其出五张注定失败的红字卡，不如明示「无加载器可用，
+    // 可直接安装原版」，安装钮永不误导。
+    _noLoaderNote = [[UILabel alloc] init];
+    _noLoaderNote.text = @"该版本暂无可用模组加载器，可直接安装原版。";
+    _noLoaderNote.font = [ZL2Theme fontBodyMedium];
+    _noLoaderNote.textColor = [ZL2Theme onSurfaceVariant];
+    _noLoaderNote.textAlignment = NSTextAlignmentCenter;
+    _noLoaderNote.numberOfLines = 0;
+    _noLoaderNote.translatesAutoresizingMaskIntoConstraints = NO;
+    [stack addArrangedSubview:_noLoaderNote];
 
     // Task324：头部弹性链两枚降优先级约束（视图建好后创建，先赋优先级再入激活数组）
     NSLayoutConstraint *ame324_fieldLead =
@@ -276,13 +315,26 @@
     [_gameVersionLabel setContentCompressionResistancePriority:950
                                                       forAxis:UILayoutConstraintAxisHorizontal];
 
-    // NeoForge 支持门控：MC <1.20.1 系无 NeoForge（ZL2 rememberLoaderVerSupports
-    // 同口径——NeoForge 自 1.20.1 起才有版本线）
-    if (![self ame_neoforgeSupported]) {
-        _neoforgeCard.hidden = YES;
+    // ★ Task335：加载器版本支持门控统一套用（ZL2 LoaderVerSupports 同口径）。
+    // 不支持门 = 隐藏卡（UIStackView 折叠），替代旧行为「呈现注定失败的红字卡」。
+    _neoforgeCard.hidden = ![self ame_neoforgeSupported];
+    _fabricCard.hidden = ![self ame_fabricLikeSupported];
+    _fabricAPICard.hidden = _fabricCard.hidden;
+    _legacyFabricCard.hidden = ![self ame_legacyFabricSupported];
+    _legacyFabricAPICard.hidden = _legacyFabricCard.hidden;
+    _quiltCard.hidden = ![self ame_fabricLikeSupported];
+    _quiltAPICard.hidden = _quiltCard.hidden;
+    _forgeCard.hidden = ![self ame_forgeFamilySupported];
+    _optifineCard.hidden = ![self ame_forgeFamilySupported];
+    BOOL ame335_anyCard = !(_neoforgeCard.hidden && _fabricCard.hidden &&
+                            _legacyFabricCard.hidden && _quiltCard.hidden &&
+                            _forgeCard.hidden && _optifineCard.hidden);
+    _noLoaderNote.hidden = ame335_anyCard;
+    // Fabric API 清单依赖游戏版本（Modrinth facets），卡可见时首屏即拉；
+    // 隐藏版本不再发起注定失败的拉取
+    if (!_fabricAPICard.hidden) {
+        [self ame_loadListForCard:_fabricAPICard];
     }
-    // Fabric API 清单依赖游戏版本（Modrinth facets），首屏即拉
-    [self ame_loadListForCard:_fabricAPICard];
 }
 
 - (ZL2AddonCard *)ame_cardWithIdentifier:(NSString *)identifier
@@ -297,7 +349,46 @@
     return card;
 }
 
-#pragma mark - NeoForge 支持门控
+#pragma mark - 加载器版本支持门控（Task335：ZL2 LoaderVerSupports 同口径）
+
+// ZL2 DownloadGameModLoaderLists.kt rememberLoaderVerSupports：
+//   fabricLike = isBiggerVer("1.13.2") → Fabric/Quilt 仅 1.14+；
+//   LegacyFabric = !fabricLike（≤1.13.2，实测 meta 支持 1.3–1.13）；
+//   NeoForge = isBiggerVer("1.20")（1.20.1 起步，与既有 ame_neoforgeSupported 同判）。
+// iOS 侧加固：rd-*/a1.*/b1.*/c0.* 等远古系对 Forge/OptiFine 也无版本线（BMCLAPI
+// 实测空），隐藏而非呈现注定失败的清单卡（“清单加载失败”红字 = 装机投诉点）。
+
+/// "1.x[.z]" 形态判定（现代版号线；快照 25w14a 等不入）
+- (BOOL)ame_isModernOneDotX {
+    return [self.gameVersion hasPrefix:@"1."];
+}
+
+/// 1.<minor>[.<patch>] → minor（非 1.x 形态返回 -1）
+- (NSInteger)ame_oneDotMinor {
+    if (![self ame_isModernOneDotX]) return -1;
+    NSArray<NSString *> *parts = [self.gameVersion componentsSeparatedByString:@"."];
+    if (parts.count < 2) return -1;
+    return [parts[1] integerValue];
+}
+
+/// Forge/OptiFine 家族：1.x 全系（Forge 自 1.1、OptiFine 自 Beta 线；
+/// 远古非 1.x 形态两源均无版本线）
+- (BOOL)ame_forgeFamilySupported {
+    return [self ame_isModernOneDotX];
+}
+
+/// Fabric/Quilt：>1.13.2（ZL2 fabricLike 同口径）
+- (BOOL)ame_fabricLikeSupported {
+    NSInteger minor = [self ame_oneDotMinor];
+    return minor >= 14;
+}
+
+/// Legacy Fabric：1.3–1.13（meta.legacyfabric.net 实测支持域；
+/// 1.14+ 归 Fabric/Quilt，1.2 及以前无支持）
+- (BOOL)ame_legacyFabricSupported {
+    NSInteger minor = [self ame_oneDotMinor];
+    return minor >= 3 && minor <= 13;
+}
 
 - (BOOL)ame_neoforgeSupported {
     // "1.20.1" 起 NeoForge 有版本线；1.x 快照/远古全不支持
@@ -314,55 +405,75 @@
 
 #pragma mark - ZL2AddonCardDelegate（选择变更 → 互斥 + API 跟随）
 
+// Task335：API 卡 ↔ 主加载器卡映射（ZL2 apiToPrimary 同语义）
+- (ZL2AddonCard *)ame_apiCardForLoaderIdentifier:(NSString *)identifier {
+    if ([identifier isEqualToString:@"fabric"]) return self.fabricAPICard;
+    if ([identifier isEqualToString:@"legacyfabric"]) return self.legacyFabricAPICard;
+    if ([identifier isEqualToString:@"quilt"]) return self.quiltAPICard;
+    return nil;
+}
+
 - (void)addonCardDidChangeSelection:(ZL2AddonCard *)card {
     NSString *sel = card.selectedItem;
     if (sel.length == 0) {
-        // 清除选择：Fabric API 跟随清除（ZL2 fabric 清除时 API 语义不清除，但
-        // iOS 侧保持一致性：fabric 没了 API 无意义 → 清）
-        if ([card.identifier isEqualToString:@"fabric"]) {
-            self.fabricAPICard.selectedItem = nil;
-            [self.fabricAPICard ame_refreshAppearance];
+        // 清除选择：所属 API 卡跟随清除（iOS 侧保持一致性：loader 没了 API 无意义）
+        ZL2AddonCard *apiCard = [self ame_apiCardForLoaderIdentifier:card.identifier];
+        if (apiCard) {
+            apiCard.selectedItem = nil;
+            [apiCard ame_refreshAppearance];
         }
     } else {
         [self ame_applyExclusionForSelected:card.identifier];
-        // Fabric 选中 → 自动跟随最新 Fabric API（ZL2 DownloadGameWithAddonScreen
-        // 同语义：lastAPIVersion = fabricAPIList.firstOrNull）
-        if ([card.identifier isEqualToString:@"fabric"]) {
-            [self ame_loadListForCard:self.fabricAPICard];
+        // 主加载器选中 → 自动跟随最新 API（ZL2 DownloadGameWithAddonScreen
+        // 同语义：lastAPIVersion = *APIList.firstOrNull）
+        ZL2AddonCard *apiCard = [self ame_apiCardForLoaderIdentifier:card.identifier];
+        if (apiCard) {
+            [self ame_loadListForCard:apiCard];
         }
     }
     [self ame_refreshInstallButton];
 }
 
-/// 互斥（ZL2 ModLoader 家族语义 + 旧 ModLoaderInstallViewController 判例同口径）
+/// 互斥（Task335：ZL2 ModLoader 家族语义全家族化）
+/// 规则：optifine 仅可与 forge 共存；forge/neoforge/fabric/legacyfabric/quilt
+/// 五主加载器互斥（forge⇄optifine 组合除外）；API 卡不参与互斥。
 - (void)ame_applyExclusionForSelected:(NSString *)identifier {
-    // forge 与 fabric/neoforge 互斥（四加载器互斥族）
-    if ([identifier isEqualToString:@"forge"]) {
-        self.fabricCard.selectedItem = nil;
-        self.neoforgeCard.selectedItem = nil;
-        [self.fabricCard ame_refreshAppearance];
-        [self.neoforgeCard ame_refreshAppearance];
-    } else if ([identifier isEqualToString:@"fabric"]) {
-        self.forgeCard.selectedItem = nil;
-        self.neoforgeCard.selectedItem = nil;
-        self.optifineCard.selectedItem = nil;
-        [self.forgeCard ame_refreshAppearance];
-        [self.neoforgeCard ame_refreshAppearance];
-        [self.optifineCard ame_refreshAppearance];
-    } else if ([identifier isEqualToString:@"neoforge"]) {
-        self.forgeCard.selectedItem = nil;
-        self.fabricCard.selectedItem = nil;
-        self.optifineCard.selectedItem = nil;
-        [self.forgeCard ame_refreshAppearance];
-        [self.fabricCard ame_refreshAppearance];
-        [self.optifineCard ame_refreshAppearance];
-    } else if ([identifier isEqualToString:@"optifine"]) {
-        // optifine 仅可与 forge 共存（fabric/neoforge 互斥）
-        self.fabricCard.selectedItem = nil;
-        self.neoforgeCard.selectedItem = nil;
-        [self.fabricCard ame_refreshAppearance];
-        [self.neoforgeCard ame_refreshAppearance];
+    NSDictionary<NSString *, NSArray<NSString *> *> *exclusions = @{
+        @"forge":       @[@"neoforge", @"fabric", @"legacyfabric", @"quilt"],
+        @"neoforge":    @[@"forge", @"fabric", @"legacyfabric", @"quilt", @"optifine"],
+        @"fabric":      @[@"forge", @"neoforge", @"legacyfabric", @"quilt", @"optifine"],
+        @"legacyfabric": @[@"forge", @"neoforge", @"fabric", @"quilt", @"optifine"],
+        @"quilt":       @[@"forge", @"neoforge", @"fabric", @"legacyfabric", @"optifine"],
+        @"optifine":    @[@"neoforge", @"fabric", @"legacyfabric", @"quilt"],
+    };
+    for (NSString *other in exclusions[identifier] ?: @[]) {
+        ZL2AddonCard *otherCard = [self ame_cardForIdentifier:other];
+        if (otherCard && otherCard.selectedItem.length > 0) {
+            otherCard.selectedItem = nil;
+            // 被清除的主加载器，其 API 卡跟随清除
+            ZL2AddonCard *otherAPI = [self ame_apiCardForLoaderIdentifier:other];
+            if (otherAPI) {
+                otherAPI.selectedItem = nil;
+                [otherAPI ame_refreshAppearance];
+            }
+            [otherCard ame_refreshAppearance];
+        }
     }
+}
+
+- (ZL2AddonCard *)ame_cardForIdentifier:(NSString *)identifier {
+    NSDictionary<NSString *, ZL2AddonCard *> *map = @{
+        @"optifine": self.optifineCard,
+        @"forge": self.forgeCard,
+        @"neoforge": self.neoforgeCard,
+        @"fabric": self.fabricCard,
+        @"fabricapi": self.fabricAPICard,
+        @"legacyfabric": self.legacyFabricCard,
+        @"legacyfabricapi": self.legacyFabricAPICard,
+        @"quilt": self.quiltCard,
+        @"quiltapi": self.quiltAPICard,
+    };
+    return map[identifier];
 }
 
 #pragma mark - 清单加载（按需拉取，latest-wins 代际防护）
@@ -392,11 +503,18 @@
             } else {
                 card.listFailed = NO;
                 card.items = items;
-                // Fabric API 自动跟随：清单落定且 fabric 已选而 API 未选 → 选最新
-                if ([ident isEqualToString:@"fabricapi"] &&
-                    self.fabricCard.selectedItem.length > 0 &&
-                    card.selectedItem.length == 0) {
-                    card.selectedItem = items.firstObject;
+                // API 卡自动跟随（Task335 泛化：fabricapi/legacyfabricapi/quiltapi
+                // 同语义 —— 清单落定且所属主加载器已选而 API 未选 → 选最新，
+                // ZL2 lastAPIVersion = *APIList.firstOrNull 同口径）
+                NSString *ame335_loaderIdent = nil;
+                if ([ident isEqualToString:@"fabricapi"]) ame335_loaderIdent = @"fabric";
+                else if ([ident isEqualToString:@"legacyfabricapi"]) ame335_loaderIdent = @"legacyfabric";
+                else if ([ident isEqualToString:@"quiltapi"]) ame335_loaderIdent = @"quilt";
+                if (ame335_loaderIdent.length > 0) {
+                    ZL2AddonCard *loaderCard = [self ame_cardForIdentifier:ame335_loaderIdent];
+                    if (loaderCard.selectedItem.length > 0 && card.selectedItem.length == 0) {
+                        card.selectedItem = items.firstObject;
+                    }
                 }
             }
             [card ame_refreshAppearance];
@@ -497,13 +615,19 @@
         return out_;
     }
     if ([identifier isEqualToString:@"fabricapi"]) {
-        // Modrinth：fabric-api 项目按游戏版本过滤（Task325：接入 MCIM 候选链）
-        NSString *gv = [gameVersion stringByAddingPercentEncodingWithAllowedCharacters:
-                        [NSCharacterSet URLQueryAllowedCharacterSet]];
-        NSURL *official = [NSURL URLWithString:[NSString stringWithFormat:
-            @"https://api.modrinth.com/v2/project/fabric-api/version?game_versions=[%%22%@%%22]&loaders=[%%22fabric%%22]", gv]];
+        return [self ame_fetchModrinthVersionsForProject:@"fabric-api"
+                                              loaderTag:@"fabric"
+                                            gameVersion:gameVersion];
+    }
+    // ★ Task335：Legacy Fabric 加载器清单（meta.legacyfabric.net v2 —— 与 Fabric
+    // meta v2 同构 [{loader:{version}}]；ZL2 LegacyFabricVersions 同源，2026-10
+    // 实测 1.3–1.13 域内正常出列表）。BMCLAPI 无 legacy-fabric-meta 映射 →
+    // 候选链仅官方源（PLMirrorCenter 未识别主机原样返回）。
+    if ([identifier isEqualToString:@"legacyfabric"]) {
+        NSURL *official = [NSURL URLWithString:
+            [NSString stringWithFormat:@"https://meta.legacyfabric.net/v2/versions/loader/%@", gameVersion]];
         NSArray<NSURL *> *cands = [PLMirrorCenter candidateURLsForOriginalURL:official
-                                                                 resourceType:PLMirrorResourceTypeAssetSearch];
+                                                                 resourceType:PLMirrorResourceTypeModLoader];
         if (cands.count == 0) cands = @[official];
         for (NSURL *u in cands) {
             data = [self ame_syncFetch:u.absoluteString];
@@ -514,10 +638,46 @@
         if (![json isKindOfClass:[NSArray class]]) return nil;
         NSMutableArray *out_ = [NSMutableArray array];
         for (NSDictionary *entry in json) {
-            NSString *versionNumber = entry[@"version_number"];
-            if (versionNumber.length > 0) [out_ addObject:versionNumber];
+            NSString *version = entry[@"loader"][@"version"];
+            if (version.length > 0) [out_ addObject:version];
         }
         return out_;
+    }
+    // ★ Task335：Legacy Fabric API（Modrinth 项目 legacy-fabric-api，ZL2
+    // LegacyFabricAPIVersions 项目 9CJED7xi 同源）。注意该项目真实 loader 标签是
+    // ["legacy-fabric"]（["fabric"] 查询恒空，2026-10 实测）。
+    if ([identifier isEqualToString:@"legacyfabricapi"]) {
+        return [self ame_fetchModrinthVersionsForProject:@"legacy-fabric-api"
+                                              loaderTag:@"legacy-fabric"
+                                            gameVersion:gameVersion];
+    }
+    // ★ Task335：Quilt 加载器清单（meta.quiltmc.org v3 —— 与 Fabric meta 同构；
+    // ZL2 QuiltVersions 同源；BMCLAPI /quilt-meta 映射经 PLMirrorCenter 候选链）
+    if ([identifier isEqualToString:@"quilt"]) {
+        NSURL *official = [NSURL URLWithString:
+            [NSString stringWithFormat:@"https://meta.quiltmc.org/v3/versions/loader/%@", gameVersion]];
+        NSArray<NSURL *> *cands = [PLMirrorCenter candidateURLsForOriginalURL:official
+                                                                 resourceType:PLMirrorResourceTypeModLoader];
+        if (cands.count == 0) cands = @[official];
+        for (NSURL *u in cands) {
+            data = [self ame_syncFetch:u.absoluteString];
+            if (data) break;
+        }
+        if (!data) return nil;
+        id json = [self ame_parseJSON:data];
+        if (![json isKindOfClass:[NSArray class]]) return nil;
+        NSMutableArray *out_ = [NSMutableArray array];
+        for (NSDictionary *entry in json) {
+            NSString *version = entry[@"loader"][@"version"];
+            if (version.length > 0) [out_ addObject:version];
+        }
+        return out_;
+    }
+    // ★ Task335：Quilted Fabric API（Modrinth 项目 qsl，ZL2 QuiltAPIVersions 同源）
+    if ([identifier isEqualToString:@"quiltapi"]) {
+        return [self ame_fetchModrinthVersionsForProject:@"qsl"
+                                              loaderTag:@"quilt"
+                                            gameVersion:gameVersion];
     }
     if ([identifier isEqualToString:@"optifine"]) {
         // BMCLAPI OptiFine 清单：[{type:"HD_U",patch:"H1",mcversion:"1.20.4"}]
@@ -576,6 +736,35 @@
     return nil;
 }
 
+/// ★ Task335：Modrinth API 工程版本列表通用端点（原 fabricapi 分支逻辑上提）。
+/// 返回 version_number 列表（新版在前），经 PLMirrorCenter AssetSearch 候选链。
+- (nullable NSArray<NSString *> *)ame_fetchModrinthVersionsForProject:(NSString *)project
+                                                            loaderTag:(NSString *)loaderTag
+                                                          gameVersion:(NSString *)gameVersion {
+    NSData *data = nil;
+    NSString *gv = [gameVersion stringByAddingPercentEncodingWithAllowedCharacters:
+                    [NSCharacterSet URLQueryAllowedCharacterSet]];
+    NSURL *official = [NSURL URLWithString:[NSString stringWithFormat:
+        @"https://api.modrinth.com/v2/project/%@/version?game_versions=[%%22%@%%22]&loaders=[%%22%@%%22]",
+        project, gv, loaderTag]];
+    NSArray<NSURL *> *cands = [PLMirrorCenter candidateURLsForOriginalURL:official
+                                                             resourceType:PLMirrorResourceTypeAssetSearch];
+    if (cands.count == 0) cands = @[official];
+    for (NSURL *u in cands) {
+        data = [self ame_syncFetch:u.absoluteString];
+        if (data) break;
+    }
+    if (!data) return nil;
+    id json = [self ame_parseJSON:data];
+    if (![json isKindOfClass:[NSArray class]]) return nil;
+    NSMutableArray *out_ = [NSMutableArray array];
+    for (NSDictionary *entry in json) {
+        NSString *versionNumber = entry[@"version_number"];
+        if (versionNumber.length > 0) [out_ addObject:versionNumber];
+    }
+    return out_;
+}
+
 - (nullable NSData *)ame_syncFetch:(NSString *)urlString {
     if (urlString.length == 0) return nil;
     NSURL *url = [NSURL URLWithString:urlString];
@@ -615,16 +804,19 @@
 }
 
 - (void)ame_refreshInstallButton {
-    BOOL busy = self.loadingIdentifiers.count > 0;
     BOOL hasSelection = self.forgeCard.selectedItem.length > 0 ||
                         self.neoforgeCard.selectedItem.length > 0 ||
                         self.fabricCard.selectedItem.length > 0 ||
+                        self.legacyFabricCard.selectedItem.length > 0 ||
+                        self.quiltCard.selectedItem.length > 0 ||
                         self.optifineCard.selectedItem.length > 0;
     self.installButton.userInteractionEnabled = YES;
     self.installButton.backgroundColor = [ZL2Theme primary];
     self.installLabel.textColor = [ZL2Theme onPrimary];
-    self.installLabel.text = busy ? @"清单加载中…"
-                            : hasSelection ? @"安装"
+    // ★ Task335：busy 态不再改安装钮文案 —— 旧版 busy 时按钮长期显示“清单加载中…”
+    // （慢源 40s+ 兑底链期间），用户感知“卡在清单加载中”且不敢点（装机投诉原话）。
+    // 加载态由各卡自带 spinner 表达；安装钮文案只反映语义（装什么），恒可点。
+    self.installLabel.text = hasSelection ? @"安装"
                             : @"安装（原版）";
     self.installButton.accessibilityLabel = self.installLabel.text;
 }
@@ -638,13 +830,31 @@
     NSString *neoforge = self.neoforgeCard.selectedItem;
     NSString *fabric = self.fabricCard.selectedItem;
     NSString *fabricAPIOn = self.fabricAPICard.selectedItem;   // 布尔语义（依赖 fabric）
+    NSString *legacyFabric = self.legacyFabricCard.selectedItem;         // ★ Task335
+    NSString *legacyFabricAPIOn = self.legacyFabricAPICard.selectedItem; // ★ Task335
+    NSString *quilt = self.quiltCard.selectedItem;                       // ★ Task335
+    NSString *quiltAPIOn = self.quiltAPICard.selectedItem;               // ★ Task335
     NSString *optifine = self.optifineCard.selectedItem;
 
-    if (fabric.length > 0) {
-        // Fabric(+API)：legacy FabricInstallViewController（自带版本选择页）
+    // ★ Task335：Fabric-like 家族（Fabric / Legacy Fabric / Quilt）统一分发到
+    // FabricInstallViewController（其 vendor 段原生支持三厂；preset 直入对应
+    // 厂商 + 卡片所选加载器版本直通，API 卡选择 → shouldInstallAPI）
+    if (fabric.length > 0 || legacyFabric.length > 0 || quilt.length > 0) {
         FabricInstallViewController *vc = [[FabricInstallViewController alloc] init];
         vc.gameVersion = self.gameVersion;
-        vc.shouldInstallAPI = (fabricAPIOn.length > 0);
+        if (legacyFabric.length > 0) {
+            vc.presetVendor = @"Legacy Fabric";
+            vc.presetLoaderVersion = legacyFabric;
+            vc.shouldInstallAPI = (legacyFabricAPIOn.length > 0);
+        } else if (quilt.length > 0) {
+            vc.presetVendor = @"Quilt";
+            vc.presetLoaderVersion = quilt;
+            vc.shouldInstallAPI = (quiltAPIOn.length > 0);
+        } else {
+            vc.presetVendor = @"Fabric";
+            vc.presetLoaderVersion = fabric;
+            vc.shouldInstallAPI = (fabricAPIOn.length > 0);
+        }
         __weak typeof(self) weakSelf = self;
         vc.completionHandler = ^(BOOL success, NSString *profileName, NSError *error) {
             dispatch_async(dispatch_get_main_queue(), ^{
@@ -742,9 +952,12 @@
     }
 
     // 版本隔离 profile（Task242 口径五键）
+    // ★ Task335：lastVersionId 必须指向【实际下载的版本】（self.gameVersion），
+    // profile 名才是用户自定义名 —— 旧实现两者都写自定义名，自定义名 ≠ 版本号时
+    // 启动必报「未能打开文件 <名>.json」（启动链按 lastVersionId 找版本 JSON）。
     NSMutableDictionary *profile = [NSMutableDictionary dictionary];
     profile[@"name"] = versionId;
-    profile[@"lastVersionId"] = versionId;
+    profile[@"lastVersionId"] = self.gameVersion;
     // ★ Task322：game/ 分居层退役 —— versions/<id> 混居通例（Task242 口径五键）
     profile[@"gameDir"] = [NSString stringWithFormat:@"versions/%@", versionId];
     profile[@"type"] = @"custom";

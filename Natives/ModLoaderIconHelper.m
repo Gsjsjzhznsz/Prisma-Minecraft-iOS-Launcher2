@@ -213,6 +213,7 @@
     // 注意顺序：neoforge 在 forge 之前，optifabric 在 optifine 之前
     if ([lower containsString:@"neoforge"])   return @"neoforge";
     if ([lower containsString:@"forge"])      return @"forge";
+    if ([lower containsString:@"legacyfabric"]) return @"legacyfabric"; // Task335: Legacy Fabric 专属 PNG（ZL2 同源资产；必须先于 fabric 命中，否则被 containsString fabric 吞掉）
     if ([lower containsString:@"optifabric"]) return @"optifine"; // 与 OptiFine 共用图标
     if ([lower containsString:@"optifine"])   return @"optifine"; // HMCL 官方 PNG
     if ([lower containsString:@"quilt"])      return @"quilt";    // HMCL 官方 PNG

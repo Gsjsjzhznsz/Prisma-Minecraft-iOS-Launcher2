@@ -120,6 +120,39 @@ NSString * const ZL2VersionIndexLogTag = @"[ZL2VersionIndex]";
     });
 }
 
+// ★ Task335：远端清单条目同步查找（MRDT 原版下载链专用；契约见 .h）。
+// 旧壳退役后全局 remoteVersionList 恒空 → MRDT findVersion 必 nil →
+// 原版安装误入本地版本分支秒败（装机 207353e 实弹 ×150+ 错误弹窗）。
+// 本方法把 ZL2 埓清单快照以同步语义供给 MRDT：后台线程限时等待落定 +
+// 锁内匹配；主线程不等待（仅已落定快照）。只出有 url 的可下载条目。
+- (nullable NSDictionary<NSString *, id> *)remoteVersionEntryForIdSync:(NSString *)versionId {
+    if (versionId.length == 0) return nil;
+    if ([NSThread isMainThread]) {
+        // 主线程调用不等待（防主线死锁）：仅查已落定快照
+        NSDictionary *entry = [self ame_matchInList:versionId];
+        if (entry && ![entry[@"url"] isKindOfClass:[NSString class]]) return nil;
+        return entry;
+    }
+    __block NSDictionary *entry = nil;
+    dispatch_semaphore_t sem = dispatch_semaphore_create(0);
+    dispatch_async(_ame_lookupQueue, ^{
+        [_ame_cond lock];
+        BOOL loaded = _ame_remoteLoaded;
+        [_ame_cond unlock];
+        if (!loaded) {
+            // 未落定 → 限时等待（内部先发起拉取；睡眠不占串行队列——v1 自锁死判例）
+            [self ame_waitForRemoteList];
+        }
+        entry = [self ame_matchInList:versionId];
+        // 滤 latest-* 种子条目（无 url 字段，MRDT 不可下载）
+        if (entry && ![entry[@"url"] isKindOfClass:[NSString class]]) entry = nil;
+        dispatch_semaphore_signal(sem);
+    });
+    dispatch_semaphore_wait(sem, dispatch_time(DISPATCH_TIME_NOW,
+        (int64_t)(ZL2VersionIndexRemoteWaitBudget * NSEC_PER_SEC)));
+    return entry;
+}
+
 #pragma mark - 通知入口
 
 - (void)ame_onFindVersion:(NSNotification *)notification {

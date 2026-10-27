@@ -56,6 +56,16 @@ NS_ASSUME_NONNULL_BEGIN
 /// 强制重取远程清单（幂等去重在途；重试按钮用）。
 - (void)refresh;
 
+/// ★ Task335：远端清单条目同步查找（MRDT 原版下载链专用）。
+/// 病历：旧壳 7.0-UI-8 退役后全局 remoteVersionList 恒空，MRDT
+/// downloadVersionMetadata: 的 findVersion:inList: 必 nil → 误入本地
+/// 版本分支报「未能打开文件 <id>.json」= ZL2 壳下原版安装全量秒败
+/// （装机 207353e latestlog：1.20.1/a1.2.6/rd-161348 弹错误对话框 ×150+）。
+/// 语义：后台线程调用时限时等待清单落定（复用查找期预算 10s）后锁内
+/// 匹配；只返回可下载的远端条目（有 url 字段，latest-* 种子被滤）。
+/// 主线程调用不等待（防主线死锁）：仅查已落定快照，未落定返回 nil。
+- (nullable NSDictionary<NSString *, id> *)remoteVersionEntryForIdSync:(NSString *)versionId;
+
 @end
 
 NS_ASSUME_NONNULL_END

@@ -11,7 +11,7 @@ import os
 import re
 import sys
 
-ROOT = "/home/z/my-project/repo-prisma2/Natives"
+ROOT = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "Natives")
 checks = []
 failed = []
 

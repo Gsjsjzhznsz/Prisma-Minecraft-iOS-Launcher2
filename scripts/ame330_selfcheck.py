@@ -4,10 +4,11 @@
 线A=ModService 默认实例版本轴统一；线B=Runtime 首方内容自愈；
 线C=SurfaceVC 触点时刻几何自愈；线D=ZL2M3Switch 拇指圆形化 + 列表页复用残留清除。
 """
+import os
 import re
 import sys
 
-ROOT = "/home/z/my-project/repo-prisma2/Natives"
+ROOT = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "Natives")
 checks = []
 failed = []
 

@@ -11,6 +11,15 @@
             @"icon": @"https://avatars.githubusercontent.com/u/21025855?s=64",
             @"json": @"https://meta.fabricmc.net/v2/versions/loader/%@/%@/profile/json"
         },
+        // ★ Task335：Legacy Fabric（meta.legacyfabric.net v2，与 Fabric meta v2
+        // 同构：game/loader 列表 + profile/json 端点；2026-10 实测 1.3–1.13 域内
+        // 全链可用；ZL2 LegacyFabricVersions 同源）
+        @"Legacy Fabric": @{
+            @"game": @"https://meta.legacyfabric.net/v2/versions/game",
+            @"loader": @"https://meta.legacyfabric.net/v2/versions/loader",
+            @"icon": @"https://avatars.githubusercontent.com/u/21025855?s=64",
+            @"json": @"https://meta.legacyfabric.net/v2/versions/loader/%@/%@/profile/json"
+        },
         @"Quilt": @{
             @"game": @"https://meta.quiltmc.org/v3/versions/game",
             @"loader": @"https://meta.quiltmc.org/v3/versions/loader",
