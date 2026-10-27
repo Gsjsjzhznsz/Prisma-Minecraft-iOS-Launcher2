@@ -3494,6 +3494,8 @@
 "ame318.builtin.plugin-survey.desc" = "Full survey of the plugin runtime: ame facade and ameRaw bridge method surface, permission enforcement and exceptions. Report goes to the launcher log (grep Task332-survey).";
 "ame318.builtin.modrinth-hot.name" = "Modrinth Trending";
 "ame318.builtin.modrinth-hot.desc" = "Fetch Modrinth's top five mods by downloads (requires network).";
+"ame318.builtin.fluent-ui.name" = "Fluent UI Theme";
+"ame318.builtin.fluent-ui.desc" = "Full launcher retheming with Fluent 2 / Apple material tokens: light (brand blue + neutral layers), dark (dark panels) and blend (Fluent skeleton x Apple system colors). Cycles on tap, one tap to reset.";
 /* Task321 legacy-upgrade auto migration + sibling migration optimization */
 "welcome.data.sibling.desc2" = "Source: %1$@ · Size %2$@. One-tap migration into this launcher (source data is kept untouched).";
 "welcome.data.sibling.kind.prisma1" = "Prisma 1.x (legacy)";

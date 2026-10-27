@@ -475,6 +475,13 @@ extern BOOL g_ame250_appActive;
 //   CallbackBridge_nativeSendScreenSize 拦截 Java 侧窗口尺寸回报（真实
 //   小窗尺寸会污染冻结的全帧 MC 窗口信念 = 小窗触点漂移根因②）。
 extern BOOL g_ame267_freeformScaled;
+// ★ Task338（非SDL 分辨率两段式应用）：挂起几何提交旗标（input_bridge_v3.m
+//   定义）。生产者 = SurfaceVC ame328 全屏分支（栈队列/LWJGL2 会话延迟呈现
+//   面提交：先只把新窗口信念经强制通道宣告给 MC）；消费者 = pojavPumpEvents
+//   事件排空尾（MC 已消费 EVENT_TYPE_WINDOW_SIZE/FB_SIZE）→ 消费即清零并
+//   dispatch main 调 ame338_commitPendingResolutionGeometry。看门狗（ame328
+//   侧 2s dispatch_after）为病态停泵会话兜底收敛。
+extern volatile BOOL g_ame338_pendingResCommit;
 void CallbackBridge_nativeSendScroll(CGFloat xoffset, CGFloat yoffset);
 void CallbackBridge_sendKeycode(int keycode, jchar keychar, int scancode, int modifiers, BOOL isDown);
 void CallbackBridge_pauseGameIfNeed();

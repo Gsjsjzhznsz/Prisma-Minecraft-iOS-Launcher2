@@ -1288,6 +1288,29 @@ void pojavPumpEvents(void* window) {
                 break;
         }
     }
+    // ★ Task338（非SDL 分辨率两段式应用·第二段触发器）：栈队列会话（LWJGL2
+    //   = 1.12.2 及以下一族）的 EVENT_TYPE_WINDOW_SIZE/FB_SIZE 已在本泵循环
+    //   送达 MC（Display 兼容层回调 → wasResized → MC 下一 tick 重建帧缓冲）。
+    //   MC 收到即提交呈现面几何（dispatch main 落 SurfaceVC 的
+    //   ame338_commitPendingResolutionGeometry = updateSavedResolution 全链）。
+    //   根修语义：Task328 旧即时路径【先改 drawableSize/contentsScale 后通告】
+    //   在 LWJGL2 上留出以秒计的追赶窗（加载屏停泵期尤甚），GL 渲染器按旧
+    //   尺寸帧缓冲呈现到新尺寸 drawable，未覆盖区域 = 未初始化内存上屏 =
+    //   用户实测"调节分辨率后出现黑块"。两段式把呈现面翻转压到 MC 消费宣告
+    //   之后，追赶窗收敛到 1-2 tick。rootViewController 取法复用本文件
+    //   grab-sync 既有模式（Task66 同款）。
+    if (g_ame338_pendingResCommit) {
+        g_ame338_pendingResCommit = NO;
+        NSLog(@"[InputDiag] Task338: pump drained size events -> commit pending resolution geometry");
+        dispatch_async(dispatch_get_main_queue(), ^{
+            @try {
+                SurfaceViewController *vc = (SurfaceViewController *)UIWindow.mainWindow.rootViewController;
+                if (vc) [vc ame338_commitPendingResolutionGeometry];
+            } @catch (NSException *e) {
+                NSLog(@"[InputDiag] Task338: commit dispatch failed: %@", e);
+            }
+        });
+    }
     // ★ Task275（P1-a2）：陈旧 counter 回写退役——原“读 counter→处理 [0,counter)→
     //   回写同一 counter”在泵处理期间生产者已 fetch_add 前进时，回写把新事件索
     //   引回卷（重复投递/覆盖丢失）。队列清零唯一归 pojavRewindEvents（Java 侧每
@@ -2569,6 +2592,10 @@ void CallbackBridge_nativeSendMouseButton(int button, int action, int mods) {
 //   - CallbackBridge_nativeSendScreenSizeForced：绕过去重的显式入口
 //     （回前台三连重申 + 首触点兜底专用），保证修复推送必达。
 BOOL g_ame250_appActive = YES;
+
+// ★ Task338（非SDL 分辨率两段式应用）：挂起几何提交旗标（extern 契约见
+//   utils.h）。生产者/消费者语义与看门狗兜底详见该处注释。
+volatile BOOL g_ame338_pendingResCommit = NO;
 
 // ★ Task334（小窗偏移第五轮·宣告面收口）：尺寸宣告从单发 0x207 升级为
 //   0x206+0x207 事件对 —— sdl3_hook 侧 Task334 实证本 SDL 构建每个缩放

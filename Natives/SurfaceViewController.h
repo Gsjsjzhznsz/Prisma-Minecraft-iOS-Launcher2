@@ -32,6 +32,12 @@ CGPoint lastVirtualMousePoint;
 //   （CI r0 教训：跨文件 selector 必须在 .h 可见，Task256 同族盲区第六例）
 - (BOOL)ame328_applyResolutionInSession:(CGFloat)ame328_res;
 
+// ★ Task338：非SDL 两段式分辨率应用的第二段（几何提交端点）。input_bridge_v3
+//   泵尾（MC 消费尺寸宣告后）与 ame328 看门狗（2s 兜底）调用；主队列串行化
+//   执行 updateSavedResolution 全链重算（profile resolution 键已由菜单动作
+//   落盘 → 新 res 生效 + drawableSize/contentsScale 同帧翻转 + 幂等重宣告）。
+- (void)ame338_commitPendingResolutionGeometry;
+
 + (GameSurfaceView *)surface;
 + (BOOL)isRunning;
 // 获取当前显示的 SurfaceViewController 实例

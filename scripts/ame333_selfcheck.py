@@ -61,7 +61,7 @@ try:
     dirs = sorted(d for d in os.listdir(builtin_root) if not d.startswith('.'))
 except FileNotFoundError:
     dirs = []
-check('D1 bundle builtin == survey only', dirs == ['plugin-survey'], f'got {dirs}')
+check('D1 bundle builtin == survey+fluent-ui (Task338)', dirs == ['fluent-ui', 'plugin-survey'], f'got {dirs}')
 repo_src = os.path.join(REPO, 'plugin-repo', 'src')
 src_dirs = sorted(d for d in os.listdir(repo_src) if not d.startswith('.'))
 check('D2 repo src == 4 migrated',
@@ -124,7 +124,7 @@ for lang in ['en', 'zh-Hans', 'zh-CN', 'zh-Hant']:
     keys = set(re.findall(r'^"([^"]+)"\s*=', txt, re.M))
     check(f'F1 {lang} all 10 Task333 keys', set(need) <= keys,
           f'missing={sorted(set(need) - keys)}')
-    check(f'F2 {lang} unique keys == 3314', len(keys) == 3314, f'got {len(keys)}')
+    check(f'F2 {lang} unique keys == 3316 (Task338: +fluent-ui name/desc)', len(keys) == 3316, f'got {len(keys)}')
 
 print()
 if fails:

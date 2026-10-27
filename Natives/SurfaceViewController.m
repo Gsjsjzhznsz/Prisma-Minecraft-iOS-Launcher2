@@ -2291,6 +2291,49 @@ static NSInteger ame283_lastLandscapeDev = 0;
         if (!g_ame250_appActive) return NO;
         return [self ame328_recomputeBeliefChainFromTouchViewWithRes:ame328_res];
     }
+    // ★ Task338（非SDL 调节分辨率"不迅速 + 黑块"根修）：栈队列会话（LWJGL2
+    //   = 1.12.2 及以下一族）两段式应用——
+    //   病灶（旧即时路径）：本分支【先改呈现面后通告】——updateSavedResolution
+    //   同帧翻转 contentsScale/drawableSize（CAMetalLayer 立即重分配），而 MC
+    //   信念经事件队列异步追赶（栈队列 → Display.update 泵 → Display 兼容层
+    //   wasResized → MC 帧缓冲重建），加载屏/长停顿期泵停 = 追赶窗以秒计。
+    //   窗口内 GL 渲染器按旧尺寸帧缓冲呈现到新尺寸 drawable，未覆盖区域 =
+    //   未初始化内存上屏 = 用户实测"调节之后出现黑块"（50→100 上调方向必现；
+    //   下调方向表现为一过性发软）。SDL 会话无此窗（Task334 事件对 + MoltenVK
+    //   随层惰性重建）；GLFW 直调会话（1.13–26.2 非SDL）回调同步执行，追赶窗
+    //   仅 1-2 tick，维持旧路径。
+    //   两段式：第一段只把新窗口信念（surface = physical × 新 res，MC 窗口 =
+    //   surface / mgFsrScale，与 updateSavedResolution 2706-2717 行口径逐位
+    //   同源）经强制通道宣告（栈队列入队，MC 下一泵即消费），呈现面几何不动；
+    //   第二段在泵尾（input_bridge_v3 消费 g_ame338_pendingResCommit）调
+    //   ame338_commitPendingResolutionGeometry 全链重算。看门狗 2s 兜底：
+    //   病态停泵（MC 死会话）也收敛，宁可迟到不缺席。
+    if (isUseStackQueueCall && isInputReady) {
+        CGFloat ame338_fsr = (mgFsrScale > 0.0f) ? mgFsrScale : 1.0f;
+        int ame338_w = roundf((float)physicalWidth * ame328_res / ame338_fsr);
+        int ame338_h = roundf((float)physicalHeight * ame328_res / ame338_fsr);
+        if ((ame338_w % 2) != 0) { --ame338_w; }
+        if ((ame338_h % 2) != 0) { --ame338_h; }
+        if (ame338_w > 0 && ame338_h > 0) {
+            // 第一段：只宣告信念（栈队列入队），呈现面几何零触碰
+            CallbackBridge_nativeSendScreenSizeForced(ame338_w, ame338_h);
+            g_ame338_pendingResCommit = YES;
+            NSLog(@"[SurfaceVC] Task338: in-session resolution announce-first "
+                  @"(stack-queue, pending %dx%d, res %.2f, fsr %.2f)",
+                  ame338_w, ame338_h, (double)ame328_res, (double)ame338_fsr);
+            __weak typeof(self) weakSelf = self;
+            dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(2.0 * NSEC_PER_SEC)),
+                           dispatch_get_main_queue(), ^{
+                if (g_ame338_pendingResCommit) {
+                    g_ame338_pendingResCommit = NO;
+                    NSLog(@"[SurfaceVC] Task338: watchdog commit (pump never drained within 2s)");
+                    [weakSelf ame338_commitPendingResolutionGeometry];
+                }
+            });
+            return YES;
+        }
+        // 尺寸退化（物理面异常）→ 落到旧即时路径收敛
+    }
     // 全屏：全链重算（Task159 profile 键 → resolutionScale → surface/drawable/
     // 窗口信念 + 内建宣告），再走强制通道兜底
     [self updateSavedResolution];
@@ -2301,6 +2344,27 @@ static NSInteger ame283_lastLandscapeDev = 0;
     NSLog(@"[SurfaceVC] Task328: in-session resolution apply (fullscreen path, belief now %dx%d, res %.2f)",
           (int)windowWidth, (int)windowHeight, (double)resolutionScale);
     return YES;
+}
+
+/// ★ Task338：两段式分辨率应用第二段 —— MC 已消费尺寸宣告（泵排空尾 /
+///   2s 看门狗）后提交呈现面几何。profile resolution 键已由菜单动作落盘 →
+///   本方法只是以新键全链重算（新 res 生效 + drawableSize/contentsScale
+///   同帧翻转 + 幂等重宣告）。任意线程可调（泵在 MC 渲染线程），主队列
+///   串行化（Task60：updateSavedResolution 主线程单一写者纪律）。
+- (void)ame338_commitPendingResolutionGeometry {
+    if (![NSThread isMainThread]) {
+        __weak typeof(self) weakSelf = self;
+        dispatch_async(dispatch_get_main_queue(), ^{ [weakSelf ame338_commitPendingResolutionGeometry]; });
+        return;
+    }
+    if (self.surfaceView.superview == nil) return;           // 会话已撤
+    NSLog(@"[SurfaceVC] Task338: commit pending resolution geometry "
+          @"(MC consumed resize; belief %dx%d)", windowWidth, windowHeight);
+    [self updateSavedResolution];
+    if (windowWidth > 0 && windowHeight > 0) {
+        CallbackBridge_nativeSendScreenSizeForced(windowWidth, windowHeight);
+    }
+    ame248_geoResyncPending = YES;
 }
 
 /// ★ Task330：触点时刻几何自愈 —— "SDL 切后台/小窗输入错位"终审收口。

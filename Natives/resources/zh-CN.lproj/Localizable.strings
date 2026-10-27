@@ -3489,6 +3489,8 @@
 "ame318.builtin.plugin-survey.desc" = "勘测插件运行环境：ame 门面与 ameRaw 桥面方法面、权限执法面与异常面全量体检，报告落启动器日志（可 grep Task332-survey）。";
 "ame318.builtin.modrinth-hot.name" = "Modrinth 热门榜";
 "ame318.builtin.modrinth-hot.desc" = "联网拉取 Modrinth 下载量前五的模组（需联网权限）。";
+"ame318.builtin.fluent-ui.name" = "Fluent UI 主题";
+"ame318.builtin.fluent-ui.desc" = "依据 Fluent 2 / Apple 材质令牌的整套启动器换装：亮色（品牌蓝+中性分层）、暗色（暗面板）、混融（Fluent 骨架 × Apple 系统色）。点击循环切换，一键恢复默认。";
 /* Task321 旧版升级自动迁移 + 兄弟迁移优化 */
 "welcome.data.sibling.desc2" = "来源 %1$@，数据量 %2$@，可一键迁移到本启动器（源数据保留不动）。";
 "welcome.data.sibling.kind.prisma1" = "Prisma 旧版（1.x）";

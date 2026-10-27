@@ -127,6 +127,13 @@ static UIImage *ZL2VersionsSystemImage(NSString *name, NSString *fallback) {
 
 @end
 
+// ★ Task338：清理中心页（实现在文件尾；前置声明必须在消费点之前——
+//   ame338_showCleanup 在 ZL2VersionsViewController @implementation 内
+//   alloc/取 property，声明后置 = undeclared identifier 编译雷）。
+@interface ZL2CleanupPage : UIViewController
+@property(nonatomic, copy) NSArray<NSDictionary *> *(^ame338_versionScanner)(void);
+@end
+
 @implementation ZL2VersionsViewController
 
 #pragma mark - Lifecycle
@@ -282,7 +289,21 @@ static UIImage *ZL2VersionsSystemImage(NSString *name, NSString *fallback) {
                                                           userInfo:@{@"index": @(1)}];
     };
 
-    _headerRow = [[UIStackView alloc] initWithArrangedSubviews:@[_titleLabel, spacer, refreshButton, installButton]];
+    // ★ Task338（旧页功能迁移第一实体）：扫描/清理工具钮（magnifyingglass，
+    //   SF1.0 = 旧 VM 页扫描 FAB 同符号）——旧 VersionManagerViewController
+    //   扫描 FAB 的「扫描并恢复版本 / 清理垃圾」双入口迁入新 UI 版本页。
+    //   旧页实体在新 UI 流程内零引用（本文件不 import 旧 VC 头，逻辑自包含
+    //   移植，Preview/smoke 链接面零新增符号 = 第十一例免疫）。
+    ZL2VersionsTapControl *scanButton = [self iconButtonWithImageName:@"magnifyingglass"
+                                                             fallback:@"magnifyingglass"
+                                                                 size:40
+                                                        accessibility:@"扫描版本"];
+    scanButton.backgroundColor = [ZL2Theme surfaceContainer];
+    scanButton.ame_action = ^{
+        [weakSelf ame338_showScanSheet];
+    };
+
+    _headerRow = [[UIStackView alloc] initWithArrangedSubviews:@[_titleLabel, spacer, refreshButton, scanButton, installButton]];
     _headerRow.axis = UILayoutConstraintAxisHorizontal;
     _headerRow.alignment = UIStackViewAlignmentCenter;
     _headerRow.spacing = 12;
@@ -922,6 +943,509 @@ static UIImage *ZL2VersionsSystemImage(NSString *name, NSString *fallback) {
                                               style:UIAlertActionStyleDefault
                                             handler:nil]];
     [self presentViewController:alert animated:YES completion:nil];
+}
+
+#pragma mark - Task338 扫描/清理（旧页功能迁移第一实体，自包含移植）
+
+// 旧 VersionManagerViewController 扫描 FAB（ame255_showScanActionSheet）的
+// 新 UI 落点：扫描并恢复版本 / 清理垃圾 双入口。移植纪律：
+//   · 零旧 VC 头依赖（不 import VersionManagerViewController/CleanupViewController
+//     ——旧页实体退役后此处不得陪葬；Preview/smoke 链接面零新增符号）；
+//   · 扫描/路径逻辑 1:1 移植（口径注释保留），判定基准逐位对齐旧实现。
+
+/// 扫描 action sheet：恢复版本 / 清理垃圾 双入口（旧 VM 页 FAB 同款语义）。
+- (void)ame338_showScanSheet {
+    UIAlertController *sheet = [UIAlertController
+        alertControllerWithTitle:localize(@"vm.scan.title", @"扫描版本")
+                         message:nil
+                  preferredStyle:UIAlertControllerStyleActionSheet];
+    [sheet addAction:[UIAlertAction actionWithTitle:localize(@"vm.scan.restore", @"扫描并恢复版本")
+                                              style:UIAlertActionStyleDefault
+                                            handler:^(__unused UIAlertAction *a) {
+        [self ame338_showRestoreDialog];
+    }]];
+    [sheet addAction:[UIAlertAction actionWithTitle:localize(@"vm.scan.cleanup", @"清理垃圾")
+                                              style:UIAlertActionStyleDefault
+                                            handler:^(__unused UIAlertAction *a) {
+        [self ame338_showCleanup];
+    }]];
+    [sheet addAction:[UIAlertAction actionWithTitle:localize(@"resman.common.cancel", nil)
+                                              style:UIAlertActionStyleCancel handler:nil]];
+    sheet.popoverPresentationController.sourceView = self.view;
+    sheet.popoverPresentationController.sourceRect =
+        CGRectMake(self.view.bounds.size.width - 110, 60, 1, 1);
+    [self presentViewController:sheet animated:YES completion:nil];
+}
+
+/// 无引用版本恢复对话框（旧 VM 页 T5 同款）：versions/ 里存在但无实例引用
+/// 的版本，逐个一键重建实例（Task242 口径 gameDir=versions/<id> 混居）。
+- (void)ame338_showRestoreDialog {
+    dispatch_async(dispatch_get_global_queue(QOS_CLASS_USER_INITIATED, 0), ^{
+        NSArray<NSDictionary *> *all = [ZL2VersionsViewController ame338_scanInstalledVersions];
+        NSMutableArray<NSDictionary *> *orphans = [NSMutableArray array];
+        for (NSDictionary *v in all) {
+            if ([v[@"jsonOK"] boolValue] && ![v[@"referenced"] boolValue]) {
+                [orphans addObject:v];
+            }
+        }
+        dispatch_async(dispatch_get_main_queue(), ^{
+            if (orphans.count == 0) {
+                [self showAlert:localize(@"vm.scan.no_orphan", @"未发现可恢复的版本：目录中的版本均已被实例引用。")];
+                return;
+            }
+            UIAlertController *alert = [UIAlertController
+                alertControllerWithTitle:localize(@"vm.scan.title", @"扫描版本")
+                                 message:[NSString stringWithFormat:
+                                     localize(@"vm.scan.orphan_msg", @"发现 %lu 个未被实例引用的版本，选择要恢复的："),
+                                     (unsigned long)orphans.count]
+                          preferredStyle:UIAlertControllerStyleAlert];
+            NSUInteger ame338_limit = MIN(orphans.count, (NSUInteger)8);
+            for (NSUInteger i = 0; i < ame338_limit; i++) {
+                NSDictionary *v = orphans[i];
+                NSString *vid = v[@"id"];
+                [alert addAction:[UIAlertAction actionWithTitle:vid
+                                                          style:UIAlertActionStyleDefault
+                                                        handler:^(__unused UIAlertAction *a) {
+                    NSMutableDictionary *profile = [NSMutableDictionary dictionary];
+                    profile[@"name"] = vid;
+                    profile[@"lastVersionId"] = vid;
+                    // Task242 口径：新实例自动版本隔离（Task322 混居通例）
+                    profile[@"gameDir"] = [NSString stringWithFormat:@"versions/%@", vid];
+                    profile[@"type"] = @"custom";
+                    profile[@"created"] = [NSDate date].description;
+                    [PLProfiles.current saveProfile:profile withName:vid];
+                    NSLog(@"[ZL2Versions] Task338: restored orphan version '%@' as a new profile", vid);
+                    // 新 UI 刷新契约：通知驱动（本页监听 ReloadProfileList）
+                    [[NSNotificationCenter defaultCenter] postNotificationName:@"ReloadProfileList" object:nil];
+                }]];
+            }
+            [alert addAction:[UIAlertAction actionWithTitle:localize(@"resman.common.cancel", nil)
+                                                      style:UIAlertActionStyleCancel handler:nil]];
+            [self presentViewController:alert animated:YES completion:nil];
+        });
+    });
+}
+
+/// 清理中心呈现（旧 VM 页 T6 同款语义，ZL2 风格页面替代旧 CleanupVC）。
+- (void)ame338_showCleanup {
+    ZL2CleanupPage *cleanup = [[ZL2CleanupPage alloc] init];
+    cleanup.modalPresentationStyle = UIModalPresentationPageSheet;
+    cleanup.ame338_versionScanner = ^NSArray<NSDictionary *> *(void) {
+        return [ZL2VersionsViewController ame338_scanInstalledVersions];
+    };
+    [self presentViewController:cleanup animated:YES completion:nil];
+}
+
+// ── 路径/扫描助手（CleanupViewController ame255_* 与 VM ame256_* 1:1 移植，
+//    判定基准逐位对齐；旧页退役后本组为唯一实现）──────────────
+
+/// 游戏/启动器共享根（POJAV_HOME；Task226 起共享根与 default 实例同源）。
++ (NSString *)ame338_homeRoot {
+    const char *home = getenv("POJAV_HOME");
+    if (home != NULL && home[0] != '\0') return [NSString stringWithUTF8String:home];
+    return NSTemporaryDirectory();
+}
+
+/// 递归目录大小（CleanupVC ame255_sizeOfPath 同款）。
++ (unsigned long long)ame338_sizeOfPath:(NSString *)path {
+    unsigned long long total = 0;
+    NSDirectoryEnumerator *en = [NSFileManager.defaultManager enumeratorAtPath:path];
+    NSString *rel;
+    while ((rel = [en nextObject])) {
+        NSDictionary *attrs = [NSFileManager.defaultManager
+            attributesOfItemAtPath:[path stringByAppendingPathComponent:rel] error:nil];
+        total += [attrs fileSize];
+    }
+    return total;
+}
+
+/// 目录下全部文件（不含子目录本身），前缀/后缀过滤（CleanupVC 同款）。
++ (NSArray<NSString *> *)ame338_filesInDir:(NSString *)dir
+                                pathPrefix:(NSArray<NSString *> *)prefixes {
+    NSMutableArray<NSString *> *files = [NSMutableArray array];
+    NSArray<NSString *> *entries = [NSFileManager.defaultManager
+        contentsOfDirectoryAtPath:dir error:nil];
+    for (NSString *e in entries) {
+        NSString *full = [dir stringByAppendingPathComponent:e];
+        BOOL isDir = NO;
+        if (![NSFileManager.defaultManager fileExistsAtPath:full isDirectory:&isDir] || isDir) continue;
+        BOOL match = (prefixes.count == 0);
+        for (NSString *p in prefixes) {
+            if ([e hasPrefix:p] || [e hasSuffix:p]) { match = YES; break; }
+        }
+        if (match) [files addObject:full];
+    }
+    return files;
+}
+
+/// 启动器侧日志垃圾全集（CleanupVC ame255_launcherLogPaths 同款；
+/// 在用的 latestlog.txt 永不触碰）。
++ (NSMutableArray<NSString *> *)ame338_launcherLogPaths {
+    NSMutableArray<NSString *> *paths = [NSMutableArray array];
+    NSString *home = [self ame338_homeRoot];
+    [paths addObjectsFromArray:[self ame338_filesInDir:home
+                                            pathPrefix:@[@"latestlog.old", @"latestlog.1", @"latestlog.2", @"latestlog.3",
+                                                         @"latestlog.crash"]]];
+    NSString *fatal = [home stringByAppendingPathComponent:@"fatal_trace.txt"];
+    if ([NSFileManager.defaultManager fileExistsAtPath:fatal]) [paths addObject:fatal];
+    NSArray<NSString *> *ame338_searchPaths =
+        NSSearchPathForDirectoriesInDomains(NSDocumentDirectory, NSUserDomainMask, YES);
+    NSString *docs = (ame338_searchPaths.count > 0 && ame338_searchPaths.firstObject != nil)
+        ? ame338_searchPaths.firstObject
+        : home;
+    NSString *tcLog = [docs stringByAppendingPathComponent:@"terracotta/terracotta.log"];
+    if ([NSFileManager.defaultManager fileExistsAtPath:tcLog]) [paths addObject:tcLog];
+    return paths;
+}
+
+/// MC 侧日志类垃圾全集（CleanupVC ame255_mcLogPaths 同款）：实例根
+/// （GAME_DIR）+ 共享根（HOME 兜底）+ 每个版本目录（Task322 混居通例）。
++ (NSMutableArray<NSString *> *)ame338_mcLogPaths {
+    NSMutableArray<NSString *> *paths = [NSMutableArray array];
+    const char *gameDir = getenv("POJAV_GAME_DIR");
+    NSString *instanceRoot = (gameDir != NULL && gameDir[0] != '\0')
+        ? [NSString stringWithUTF8String:gameDir] : nil;
+    NSString *home = [self ame338_homeRoot];
+    NSMutableArray<NSString *> *roots = [NSMutableArray array];
+    if (instanceRoot != nil) [roots addObject:instanceRoot];
+    if (home != nil && ![home isEqualToString:instanceRoot]) [roots addObject:home];
+    for (NSString *root in @[instanceRoot ?: home]) {
+        if (root == nil) continue;
+        NSString *versionsDir = [root stringByAppendingPathComponent:@"versions"];
+        NSArray<NSString *> *vdirs = [NSFileManager.defaultManager
+            contentsOfDirectoryAtPath:versionsDir error:nil];
+        for (NSString *vd in vdirs) {
+            NSString *game = [versionsDir stringByAppendingPathComponent:vd];
+            BOOL isDir = NO;
+            if ([NSFileManager.defaultManager fileExistsAtPath:game isDirectory:&isDir] && isDir) {
+                [roots addObject:game];
+            }
+        }
+    }
+    for (NSString *root in roots) {
+        [paths addObjectsFromArray:[self ame338_filesInDir:[root stringByAppendingPathComponent:@"logs"]
+                                                pathPrefix:@[@".log", @".txt", @".gz"]]];
+        [paths addObjectsFromArray:[self ame338_filesInDir:[root stringByAppendingPathComponent:@"crash-reports"]
+                                                pathPrefix:@[@".txt", @".log"]]];
+        [paths addObjectsFromArray:[self ame338_filesInDir:root
+                                                pathPrefix:@[@"hs_err_pid", @"debug.log", @"latest.log"]]];
+    }
+    return paths;
+}
+
+/// 递归目录大小（VM ame256_calculateFolderSizeAtPath 同款写出口径）。
++ (void)ame338_calculateFolderSizeAtPath:(NSString *)path size:(unsigned long long *)outSize {
+    if (!outSize) return;
+    *outSize = [self ame338_sizeOfPath:path];
+}
+
+/// versions/ 全量扫描（VM ame256_scanVersionsForCleanup 1:1 移植）：
+/// GAME_DIR 优先 / HOME 兜底，引用判定 = 实例 lastVersionId 集合。
++ (NSArray<NSDictionary *> *)ame338_scanInstalledVersions {
+    NSString *versionsDir = [NSString stringWithFormat:@"%s/versions",
+        getenv("POJAV_GAME_DIR") ? getenv("POJAV_GAME_DIR") : getenv("POJAV_HOME")];
+    NSMutableArray<NSDictionary *> *result = [NSMutableArray array];
+    NSArray<NSString *> *entries = [NSFileManager.defaultManager
+        contentsOfDirectoryAtPath:versionsDir error:nil];
+    if (entries.count == 0) return result;
+    NSMutableSet<NSString *> *referenced = [NSMutableSet set];
+    for (NSString *key in PLProfiles.current.profiles) {
+        NSDictionary *p = PLProfiles.current.profiles[key];
+        if ([p isKindOfClass:NSDictionary.class] &&
+            [p[@"lastVersionId"] isKindOfClass:[NSString class]]) {
+            [referenced addObject:p[@"lastVersionId"]];
+        }
+    }
+    for (NSString *entry in entries) {
+        NSString *vdir = [versionsDir stringByAppendingPathComponent:entry];
+        BOOL isDir = NO;
+        if (![NSFileManager.defaultManager fileExistsAtPath:vdir isDirectory:&isDir] || !isDir) continue;
+        NSString *jsonPath = [vdir stringByAppendingPathComponent:
+            [NSString stringWithFormat:@"%@.json", entry]];
+        BOOL jsonOK = [NSFileManager.defaultManager fileExistsAtPath:jsonPath];
+        unsigned long long folderSize = 0;
+        [ZL2VersionsViewController ame338_calculateFolderSizeAtPath:vdir size:&folderSize];
+        [result addObject:@{
+            @"id": entry,
+            @"path": vdir,
+            @"jsonOK": @(jsonOK),
+            @"referenced": @([referenced containsObject:entry]),
+            @"sizeBytes": @(folderSize),
+        }];
+    }
+    [result sortUsingComparator:^NSComparisonResult(NSDictionary *a, NSDictionary *b) {
+        return [a[@"id"] compare:b[@"id"]];
+    }];
+    return result;
+}
+
+@end
+
+#pragma mark - ZL2CleanupPage（Task338 清理中心，ZL2 风格替代旧清理中心页）
+
+// 旧 CleanupViewController（UITableViewController + AmeTheme 旧档）的 ZL2
+// 重写：三行分类（启动器日志 / MC 日志与崩溃报告 / 无引用版本×n）+ 逐行
+// 确认删除。设计约束与旧页 1:1：只删"可再生数据"（日志/崩溃报告/无引用
+// 版本），绝不触碰 saves/、资源库、assets、libraries 等耗时下载资产。
+// 版本扫描器由调用方注入（ame338_versionScanner，与恢复功能共用同一口径）。
+// （@interface 前置声明在 ZL2VersionsViewController @implementation 之前）
+@implementation ZL2CleanupPage {
+    UIScrollView *_scrollView;
+    UIStackView *_rowsStack;
+    UILabel *_emptyLabel;
+}
+
+- (void)viewDidLoad {
+    [super viewDidLoad];
+    self.view.backgroundColor = [ZL2Theme surface];
+
+    _scrollView = [[UIScrollView alloc] init];
+    _scrollView.alwaysBounceVertical = YES;
+    _scrollView.translatesAutoresizingMaskIntoConstraints = NO;
+    [self.view addSubview:_scrollView];
+
+    _rowsStack = [[UIStackView alloc] init];
+    _rowsStack.axis = UILayoutConstraintAxisVertical;
+    _rowsStack.alignment = UIStackViewAlignmentFill;
+    _rowsStack.spacing = 12;
+    _rowsStack.translatesAutoresizingMaskIntoConstraints = NO;
+    [_scrollView addSubview:_rowsStack];
+
+    // 页头行：标题 + 关闭钮（ZL2 页头规格：大标题 + 40×40 surfaceContainer 钮）
+    UILabel *title = [[UILabel alloc] init];
+    title.text = localize(@"cleanup.title", @"清理垃圾");
+    title.font = [ZL2Theme fontTitleLarge];
+    title.textColor = [ZL2Theme onSurface];
+
+    UIControl *close = [[UIControl alloc] init];
+    close.layer.cornerRadius = [ZL2Theme radiusS];
+    close.backgroundColor = [ZL2Theme surfaceContainer];
+    close.translatesAutoresizingMaskIntoConstraints = NO;
+    close.isAccessibilityElement = YES;
+    close.accessibilityLabel = localize(@"cleanup.close", @"关闭");
+    [close addTarget:self action:@selector(ame338_close) forControlEvents:UIControlEventTouchUpInside];
+    UIImageView *closeIcon = [[UIImageView alloc] initWithImage:
+        [ZL2VersionsSystemImage(@"xmark", @"xmark.circle") imageWithRenderingMode:UIImageRenderingModeAlwaysTemplate]];
+    closeIcon.tintColor = [ZL2Theme onSurfaceVariant];
+    closeIcon.contentMode = UIViewContentModeScaleAspectFit;
+    closeIcon.translatesAutoresizingMaskIntoConstraints = NO;
+    closeIcon.userInteractionEnabled = NO;
+    [close addSubview:closeIcon];
+
+    UIStackView *header = [[UIStackView alloc] initWithArrangedSubviews:@[title, [[UIView alloc] init], close]];
+    header.axis = UILayoutConstraintAxisHorizontal;
+    header.alignment = UIStackViewAlignmentCenter;
+    header.spacing = 12;
+    header.translatesAutoresizingMaskIntoConstraints = NO;
+
+    [_rowsStack addArrangedSubview:header];
+
+    _emptyLabel = [[UILabel alloc] init];
+    _emptyLabel.text = @"没有可清理的垃圾";
+    _emptyLabel.font = [ZL2Theme fontBodyMedium];
+    _emptyLabel.textColor = [ZL2Theme onSurfaceVariant];
+    _emptyLabel.textAlignment = NSTextAlignmentCenter;
+    _emptyLabel.hidden = YES;
+
+    [NSLayoutConstraint activateConstraints:@[
+        [_scrollView.topAnchor constraintEqualToAnchor:self.view.topAnchor],
+        [_scrollView.bottomAnchor constraintEqualToAnchor:self.view.bottomAnchor],
+        [_scrollView.leadingAnchor constraintEqualToAnchor:self.view.leadingAnchor],
+        [_scrollView.trailingAnchor constraintEqualToAnchor:self.view.trailingAnchor],
+        [_rowsStack.topAnchor constraintEqualToAnchor:_scrollView.contentLayoutGuide.topAnchor constant:20],
+        [_rowsStack.bottomAnchor constraintEqualToAnchor:_scrollView.contentLayoutGuide.bottomAnchor constant:-24],
+        [_rowsStack.leadingAnchor constraintGreaterThanOrEqualToAnchor:_scrollView.contentLayoutGuide.leadingAnchor constant:20],
+        [_rowsStack.trailingAnchor constraintGreaterThanOrEqualToAnchor:_scrollView.contentLayoutGuide.trailingAnchor constant:20],
+        [_rowsStack.centerXAnchor constraintEqualToAnchor:_scrollView.frameLayoutGuide.centerXAnchor],
+        [_rowsStack.widthAnchor constraintLessThanOrEqualToConstant:ZL2VersionsContentMaxWidth],
+        [close.widthAnchor constraintEqualToConstant:40],
+        [close.heightAnchor constraintEqualToConstant:40],
+        [closeIcon.centerXAnchor constraintEqualToAnchor:close.centerXAnchor],
+        [closeIcon.centerYAnchor constraintEqualToAnchor:close.centerYAnchor],
+        [closeIcon.widthAnchor constraintEqualToConstant:20],
+        [closeIcon.heightAnchor constraintEqualToConstant:20],
+    ]];
+
+    [self ame338_reloadRows];
+    NSLog(@"[Cleanup] Task338: ZL2 cleanup page opened");
+}
+
+- (void)ame338_close {
+    [self dismissViewControllerAnimated:YES completion:nil];
+}
+
+/// 行模型重建（CleanupVC ame255_reloadRows 同款三分类，后台线程扫描）。
+- (void)ame338_reloadRows {
+    dispatch_async(dispatch_get_global_queue(QOS_CLASS_USER_INITIATED, 0), ^{
+        NSMutableArray<NSDictionary *> *rows = [NSMutableArray array];
+        NSString *detailFmt = localize(@"cleanup.row_detail", @"%lu 个文件 · %@");
+
+        // ① 启动器日志
+        NSArray *launcher = [ZL2VersionsViewController ame338_launcherLogPaths];
+        if (launcher.count > 0) {
+            unsigned long long sz = 0;
+            for (NSString *p in launcher) sz += [ZL2VersionsViewController ame338_sizeOfPath:p];
+            [rows addObject:@{
+                @"title": localize(@"cleanup.launcher_logs", @"启动器日志"),
+                @"detail": [NSString stringWithFormat:detailFmt,
+                            (unsigned long)launcher.count,
+                            [NSByteCountFormatter stringFromByteCount:sz countStyle:NSByteCountFormatterCountStyleMemory]],
+                @"paths": launcher,
+                @"confirm": localize(@"cleanup.launcher_logs.confirm", @"删除全部历史日志？正在使用的 latestlog.txt 不受影响。"),
+            }];
+        }
+
+        // ② MC 日志 / 崩溃报告
+        NSArray *mc = [ZL2VersionsViewController ame338_mcLogPaths];
+        if (mc.count > 0) {
+            unsigned long long sz = 0;
+            for (NSString *p in mc) sz += [ZL2VersionsViewController ame338_sizeOfPath:p];
+            [rows addObject:@{
+                @"title": localize(@"cleanup.mc_logs", @"MC 日志与崩溃报告"),
+                @"detail": [NSString stringWithFormat:detailFmt,
+                            (unsigned long)mc.count,
+                            [NSByteCountFormatter stringFromByteCount:sz countStyle:NSByteCountFormatterCountStyleMemory]],
+                @"paths": mc,
+                @"confirm": localize(@"cleanup.mc_logs.confirm", @"删除全部 MC 日志与崩溃报告？（仅删日志类文件，不影响存档与资源）"),
+            }];
+        }
+
+        // ③ 无引用版本（扫描器注入；逐个删除）
+        if (self.ame338_versionScanner != nil) {
+            for (NSDictionary *v in self.ame338_versionScanner()) {
+                if ([v[@"referenced"] boolValue]) continue;
+                if (![v[@"jsonOK"] boolValue]) continue;
+                NSString *vid = v[@"id"];
+                unsigned long long sz = [v[@"sizeBytes"] unsignedLongLongValue];
+                NSString *path = v[@"path"];
+                [rows addObject:@{
+                    @"title": [NSString stringWithFormat:localize(@"cleanup.orphan_row", @"无引用版本：%@"),
+                               [vid isKindOfClass:[NSString class]] && vid.length > 0 ? vid : @"?"],
+                    @"detail": [NSByteCountFormatter stringFromByteCount:sz countStyle:NSByteCountFormatterCountStyleMemory],
+                    @"paths": @[path],
+                    @"confirm": [NSString stringWithFormat:
+                        localize(@"cleanup.orphan_confirm", @"删除无引用版本「%@」及其隔离数据目录？（Task242 隔离的 game 目录一并删除，存档不保留）"), vid],
+                }];
+            }
+        }
+
+        dispatch_async(dispatch_get_main_queue(), ^{
+            [self ame338_applyRows:rows];
+        });
+    });
+}
+
+/// 主线程行渲染：重建 rowsStack（页头保留）+ 空态显隐。
+- (void)ame338_applyRows:(NSArray<NSDictionary *> *)rows {
+    // 摘除旧行（页头 = arrangedSubviews[0]，恒保留）
+    NSMutableArray<UIView *> *stale = [NSMutableArray array];
+    for (NSUInteger i = 1; i < _rowsStack.arrangedSubviews.count; i++) {
+        [stale addObject:_rowsStack.arrangedSubviews[i]];
+    }
+    for (UIView *v in stale) {
+        [_rowsStack removeArrangedSubview:v];
+        [v removeFromSuperview];
+    }
+    _emptyLabel.hidden = (rows.count > 0);
+    if (rows.count == 0) [_rowsStack addArrangedSubview:_emptyLabel];
+
+    for (NSDictionary *row in rows) {
+        ZL2VersionsTapControl *card = [[ZL2VersionsTapControl alloc] init];
+        card.backgroundColor = [ZL2Theme surfaceContainerLow];
+        card.layer.cornerRadius = [ZL2Theme radiusS];
+        card.translatesAutoresizingMaskIntoConstraints = NO;
+        card.isAccessibilityElement = YES;
+        card.accessibilityLabel = row[@"title"];
+
+        UIImageView *trash = [[UIImageView alloc] initWithImage:
+            [ZL2VersionsSystemImage(@"trash", @"trash.circle") imageWithRenderingMode:UIImageRenderingModeAlwaysTemplate]];
+        trash.tintColor = [ZL2Theme error];
+        trash.contentMode = UIViewContentModeScaleAspectFit;
+        trash.translatesAutoresizingMaskIntoConstraints = NO;
+        trash.userInteractionEnabled = NO;
+
+        UILabel *t = [[UILabel alloc] init];
+        t.text = row[@"title"];
+        t.font = [ZL2Theme fontLabelLarge];
+        t.textColor = [ZL2Theme onSurface];
+        t.numberOfLines = 1;
+        t.translatesAutoresizingMaskIntoConstraints = NO;
+        t.userInteractionEnabled = NO;
+
+        UILabel *d = [[UILabel alloc] init];
+        d.text = row[@"detail"];
+        d.font = [ZL2Theme fontLabelMedium];
+        d.textColor = [ZL2Theme onSurfaceVariant];
+        d.numberOfLines = 1;
+        d.translatesAutoresizingMaskIntoConstraints = NO;
+        d.userInteractionEnabled = NO;
+
+        UIStackView *texts = [[UIStackView alloc] initWithArrangedSubviews:@[t, d]];
+        texts.axis = UILayoutConstraintAxisVertical;
+        texts.spacing = 2;
+        texts.translatesAutoresizingMaskIntoConstraints = NO;
+        texts.userInteractionEnabled = NO;
+
+        [card addSubview:trash];
+        [card addSubview:texts];
+
+        // block 载荷携带行模型（ZL2VersionsTapControl.ame_action，本文件
+        // 通用构件；weak self 防持有环 —— 页面自持 rowsStack → 卡 → block）
+        __weak typeof(self) weakPage = self;
+        card.ame_action = ^{
+            [weakPage ame338_confirmRow:row];
+        };
+
+        [NSLayoutConstraint activateConstraints:@[
+            [card.heightAnchor constraintGreaterThanOrEqualToConstant:64],
+            [trash.leadingAnchor constraintEqualToAnchor:card.leadingAnchor constant:16],
+            [trash.centerYAnchor constraintEqualToAnchor:card.centerYAnchor],
+            [trash.widthAnchor constraintEqualToConstant:22],
+            [trash.heightAnchor constraintEqualToConstant:22],
+            [texts.leadingAnchor constraintEqualToAnchor:trash.trailingAnchor constant:14],
+            [texts.trailingAnchor constraintLessThanOrEqualToAnchor:card.trailingAnchor constant:-16],
+            [texts.centerYAnchor constraintEqualToAnchor:card.centerYAnchor],
+            [texts.topAnchor constraintGreaterThanOrEqualToAnchor:card.topAnchor constant:10],
+            [texts.bottomAnchor constraintLessThanOrEqualToAnchor:card.bottomAnchor constant:-10],
+        ]];
+
+        [_rowsStack addArrangedSubview:card];
+    }
+}
+
+/// 行点击 → 确认 → 删除（CleanupVC didSelectRow 同款语义：逐路径删除 +
+/// 释放量记账 + 重扫）。
+- (void)ame338_confirmRow:(NSDictionary *)row {
+    if (![row isKindOfClass:[NSDictionary class]]) return;
+    NSArray<NSString *> *paths = row[@"paths"];
+    if (paths.count == 0) return;
+
+    UIAlertController *confirm = [UIAlertController
+        alertControllerWithTitle:row[@"title"]
+                         message:row[@"confirm"]
+                  preferredStyle:UIAlertControllerStyleAlert];
+    [confirm addAction:[UIAlertAction actionWithTitle:localize(@"resman.common.cancel", nil)
+                                                style:UIAlertActionStyleCancel handler:nil]];
+    [confirm addAction:[UIAlertAction actionWithTitle:localize(@"i18n_str_306", nil)
+                                                style:UIAlertActionStyleDestructive
+                                              handler:^(__unused UIAlertAction *a) {
+        NSError *lastError = nil;
+        NSUInteger deleted = 0;
+        unsigned long long freed = 0;
+        for (NSString *p in paths) {
+            unsigned long long sz = [ZL2VersionsViewController ame338_sizeOfPath:p];
+            if ([NSFileManager.defaultManager removeItemAtPath:p error:&lastError]) {
+                deleted++;
+                freed += sz;
+            }
+        }
+        NSLog(@"[Cleanup] Task338: deleted %lu path(s), freed %@ (last error: %@)",
+              (unsigned long)deleted,
+              [NSByteCountFormatter stringFromByteCount:freed countStyle:NSByteCountFormatterCountStyleMemory],
+              lastError.localizedDescription ?: @"none");
+        [self ame338_reloadRows];
+    }]];
+    [self presentViewController:confirm animated:YES completion:nil];
 }
 
 @end
