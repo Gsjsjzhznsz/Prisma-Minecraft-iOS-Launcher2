@@ -385,6 +385,19 @@ NSMutableDictionary* parseJSONFromFile(NSString *path) {
     return nil;
 }
 
+// utils.h: NSError* saveJSONToFile(NSDictionary *dict, NSString *path);
+// ★ Task336：FabricUtils 直装执行器（ame336_installFabricLikeVendor）进预览
+// 编译后的链接期桩——截图流程不触安装链，no-op 成功即安全
+NSError* saveJSONToFile(NSDictionary *dict, NSString *path) {
+    (void)dict; (void)path;
+    return nil;
+}
+
+// LauncherNavigationController.h 声明（定义于主程序 TU）：本地版本注册表。
+// ★ Task336：FabricUtils ame336 执行器 extern 消费——预览环境空表实例
+// （CI 截图不触安装链；主程序构建用真身，桩与真实现从不同一二进制）
+NSMutableArray *localVersionList = nil;
+
 #pragma mark - extern 常量桩（定义各一次，字面量值照抄真实 .m）
 
 // DownloadTaskManager.h 声明（DownloadTaskManager.m L7-8 原值）。manager 本体
