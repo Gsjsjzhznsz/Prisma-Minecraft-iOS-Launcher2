@@ -68,6 +68,18 @@ def _deltas(src):
             src.count('(') - src.count(')'),
             src.count('[') - src.count(']'))
 
+def _strip_code(text):
+    """真代码剥离（符号引用检查用）：剥块注释/字符串字面量/行注释，保留标识符。
+    注意区分 task139.strip_strings_comments（括号平衡剥器，只保留括号字符，
+    误用于符号检查会恒空恒过——ame337 r1 纠正）。"""
+    text = re.sub(r'/\*.*?\*/', '', text, flags=re.S)          # 块注释
+    text = re.sub(r'"(?:[^"\\]|\\.)*"', '""', text)          # 字符串字面量
+    lines = []
+    for ln in text.split('\n'):                                 # 行注释
+        i = ln.find('//')
+        lines.append(ln[:i] if i >= 0 else ln)
+    return '\n'.join(lines)
+
 gav = read('Natives/ZL2GameAddonsViewController.m')
 fum = read('Natives/installer/FabricUtils.m')
 zvv = read('Natives/ZL2VersionsViewController.m')
@@ -88,7 +100,7 @@ check('A1 FabricUtils profile 注册段 dispatch main（selectedProfileName 三�
 # 主函数体内不得再有【块外】裸 selectedProfileName 赋值（防回退：
 # strip 注释后提取 ame336 函数体，dispatch 块外出现即 FAIL；注释字样不算）
 mfn = re.search(r'ame336_installFabricLikeVendor.*?(?=\n@end)', fum, re.S)
-body_code = _strip_strings_comments(mfn.group(0) if mfn else '')
+body_code = _strip_code(mfn.group(0) if mfn else '')
 stripped = re.sub(r'dispatch_async\(dispatch_get_main_queue.*?\}\);', '', body_code, flags=re.S)
 check('A1b dispatch 块外零裸 selectedProfileName 赋值（防回退）',
       'selectedProfileName = profileId' not in stripped,
@@ -136,7 +148,7 @@ check('B7 download_source 策略排序（bmclFirst）',
       '策略排序缺失')
 
 # ── C 线③ Forge/NeoForge 退役 + 页内直装 ─────────────────────
-gav_code = _strip_strings_comments(gav)
+gav_code = _strip_code(gav)
 check('C1 Addons 页零 ForgeInstallViewController 代码引用（注释字样合法）',
       'ForgeInstallViewController' not in gav_code,
       '代码仍有引用（前向声明/push）')
@@ -195,6 +207,19 @@ smoke = read('scripts/ui_fluent_smoke.sh')
 check('D2 Preview TU 面（Addons 页 + FabricUtils 保持）',
       'ZL2GameAddonsViewController' in smoke and 'installer/FabricUtils' in smoke,
       'TU 清单漂移')
+
+# D6 符号供给防复发（CI r0 40547131830 实锤 Undefined _ame185_loaderVersionMatchesGameVersion
+# = 第十一例 C 函数变体：ame337 门禁 D2 只查了类 TU 字符串没查 C 符号供给）：
+# gav 代码面引用的 ame* C 函数必须在 Preview 桩面或 TU 清单有供给
+gav_syms = set(re.findall(r'\b(ame\d+_[a-zA-Z]+)\s*\(', _strip_code(gav)))
+missing = []
+for sym in sorted(gav_syms):
+    supplied = (('BOOL ' + sym + '(' in stub) or ('void ' + sym + '(' in stub)
+                or ('NSError* ' + sym + '(' in stub) or (sym in smoke))
+    if not supplied:
+        missing.append(sym)
+check('D6 Preview 面 C 符号供给全覆盖（gav 引用 ame* 函数 vs stub/TU）',
+      len(missing) == 0, 'missing: ' + ','.join(missing) if missing else '')
 
 # ame336 语义演进回归（E4 前向声明断言→退役断言：gav 内 FabricInstall 零引用）
 check('D3 Task336 E4 语义演进：FabricInstall 代码零引用断言保持',

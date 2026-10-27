@@ -393,6 +393,17 @@ NSError* saveJSONToFile(NSDictionary *dict, NSString *path) {
     return nil;
 }
 
+// utils.h:299 BOOL ame185_loaderVersionMatchesGameVersion(NSString *, NSString *);
+// ★ Task337 r1：neoforge 清单共享匹配器 C 函数桩——ZL2GameAddonsViewController.o
+// （ame_fetchListForIdentifier neoforge 分支）进预览编译后的链接期缺口
+// （CI smoke r0 40547131830 实锤 Undefined _ame185_loaderVersionMatchesGameVersion；
+// 真身定义于 utils.m，主程序构建用真身，桩与真实现从不同一二进制）。
+// 恒 NO → 预览清单过滤恒空 = 空清单红字形态（截图不触达，仅链路符号必须齐）
+BOOL ame185_loaderVersionMatchesGameVersion(NSString *loaderVersion, NSString *gameVersion) {
+    (void)loaderVersion; (void)gameVersion;
+    return NO;
+}
+
 // LauncherNavigationController.h 声明（定义于主程序 TU）：本地版本注册表。
 // ★ Task336：FabricUtils ame336 执行器 extern 消费——预览环境空表实例
 // （CI 截图不触安装链；主程序构建用真身，桩与真实现从不同一二进制）
