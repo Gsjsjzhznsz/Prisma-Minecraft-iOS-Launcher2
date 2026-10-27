@@ -107,17 +107,19 @@ preview_mode() {
     ZL2GameAddonsViewController    # 7.0-UI-14：Addons 加载器选择屏（选版后加载器组合+安装分发）
     ZL2SearchIdViewController      # 7.0-UI-14：按项目 ID 直查页（下载左轨第 6 项）
     ZL2FavoritesStore              # 7.0-UI-14：收藏仓库（plist 快照，搜索卡心形/收藏页共用）
+    installer/FabricUtils          # Task336：Addons 页直装执行器（ame336 页内联安装新依赖）
   )
   local objs=()
   for s in "${sources[@]}"; do
+    local base; base="$(basename "$s")"   # Task336：支持 installer/ 子目录 TU（.o 平铺 OUT）
     echo "  编译 $s.m"
-    if ! xcrun clang -c "${COMMON[@]}" "$NATIVES/$s.m" -o "$OUT/$s.o" 2>"$OUT/compile-$s.log"; then
+    if ! xcrun clang -c "${COMMON[@]}" "$NATIVES/$s.m" -o "$OUT/$base.o" 2>"$OUT/compile-$base.log"; then
       echo "  ✗ $s.m 编译失败:"
-      cat "$OUT/compile-$s.log" || true
+      cat "$OUT/compile-$base.log" || true
       FAIL=1
       return
     fi
-    objs+=("$OUT/$s.o")
+    objs+=("$OUT/$base.o")
   done
 
   echo "  编译 Preview/AmeFluentPreviewMain.m"

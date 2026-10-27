@@ -147,6 +147,8 @@ for rel in ['Natives/ZL2GameAddonsViewController.m', 'Natives/installer/FabricUt
 
 cmk = read('Natives/CMakeLists.txt')
 check('D2 CMake 编译面 FabricUtils.m 在列', 'installer/FabricUtils.m' in cmk)
+check('D4 Preview TU 清单含 FabricUtils（ui-smoke 链接面；CI run 40531580616 实锤缺口）',
+      'installer/FabricUtils' in read('scripts/ui_fluent_smoke.sh'))
 check('D3 接口双面一致（.h 声明参数序 == .m 实现）',
       re.search(r'ame336_installFabricLikeVendor:\(NSString \*\)vendor\s*\n\s*gameVersion:', fuh)
       and re.search(r'ame336_installFabricLikeVendor:\(NSString \*\)vendor\s*\n\s*gameVersion:', fum))
