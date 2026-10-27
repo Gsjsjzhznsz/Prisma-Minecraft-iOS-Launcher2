@@ -120,10 +120,12 @@ check('B5 Addons 九卡构造',
 check('B6 互斥表全家族（五主键 + optifine 特例）',
       all(f'@"{k}":' in gav for k in ['forge', 'neoforge', 'fabric', 'legacyfabric', 'quilt', 'optifine'])
       and '@[@"forge", @"fabric", @"legacyfabric", @"quilt", @"optifine"]' in gav)
-check('B7 分发三厂 preset 直装',
-      'vc.presetVendor = @"Legacy Fabric"' in gav
-      and 'vc.presetVendor = @"Quilt"' in gav
-      and 'vc.presetVendor = @"Fabric"' in gav)
+# B7（★ Task336 语义演进）：分发三厂 preset 直装退役 → 页内直装 vendor 三值
+check('B7 分发三厂直装 vendor 三值（Task336 页内直装）',
+      'vendor = @"Legacy Fabric"' in gav
+      and 'vendor = @"Quilt"' in gav
+      and 'vendor = @"Fabric"' in gav
+      and 'ame336_installFabricLikeVendor' in gav)
 
 # ── C 线③ 端点泛化 ──────────────────────────────────────────
 check('C1 legacyfabric 清单端点',
@@ -208,13 +210,14 @@ for rel in ['Natives/MinecraftResourceDownloadTask.m',
 check('E2 preset property .h 声明与 .m 应用一致',
       re.search(r'@property.*presetVendor', fivh)
       and re.search(r'@property.*presetLoaderVersion', fivh))
-# E4 语义面盲区第十例防线：ZL2GameAddonsViewController.m 文件内前向声明
-# （非 import installer 头）必须与 installer/FabricInstallViewController.h
-# 的 preset 双 property 同步扩展（CI smoke 40515594446 实锤缺口）。
-_m = re.search(r'@interface FabricInstallViewController.*?@end', gav, re.S)
-check('E4 前向声明同步 preset 双 property',
-      bool(_m) and 'presetVendor' in _m.group(0)
-      and 'presetLoaderVersion' in _m.group(0))
+# E4 语义面盲区第十例防线（Task335：前向声明与 installer 头漂移）。
+# ★ Task336 语义演进：FabricInstallViewController 前向声明整体退役——
+# 新 UI Addons 页 Fabric-like 安装改 FabricUtils.ame336 页内直装，本文件
+# 不再代码引用该旧表单（旧下载页链路仍在用，由该 TU 自行 import）。
+_m = re.search(r'@interface FabricInstallViewController', gav)
+check('E4 FabricInstallViewController 已退役出 Addons 页（无代码引用）',
+      _m is None and 'FabricInstallViewController *vc' not in gav
+      and 'ame336_installFabricLikeVendor' in gav)
 cmk = read('Natives/CMakeLists.txt')
 check('E3 CMake 编译面含涉改 TU',
       'ZL2VersionIndex.m' in cmk and 'installer/FabricUtils.m' in cmk

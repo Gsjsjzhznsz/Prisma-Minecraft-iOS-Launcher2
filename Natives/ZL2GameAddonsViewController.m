@@ -10,6 +10,7 @@
 
 #import "ZL2GameAddonsViewController.h"
 #import "ModService.h"          // ★ Task324：安装成功后隔离骨架即时补齐（六目录 FCL parity）
+#import "installer/FabricUtils.h" // ★ Task336：Fabric-like 三厂直装执行器（页内联安装）
 #import "ZL2Theme.h"
 #import "ZL2M3Kit.h"
 #import "PLProfiles.h"
@@ -33,17 +34,10 @@
 @property (nonatomic, copy) NSString *presetVersionString;
 @end
 
-@interface FabricInstallViewController : UIViewController
-@property (nonatomic, copy) NSString *gameVersion;
-@property (nonatomic, assign) BOOL shouldInstallAPI;
-@property (nonatomic, copy) void (^completionHandler)(BOOL success, NSString *profileName, NSError *error);
-// ★ Task335 r1 热修：本文件前向声明（非 import installer 头，include 路径不含
-//   installer/ 子目录——同 ForgeInstallViewController 声明模式）必须与
-//   installer/FabricInstallViewController.h 同步扩展；缺 preset 双 property =
-//   点语法编译期检查红（CI smoke 40515594446 实锤，语义面盲区第十例）
-@property (nonatomic, copy, nullable) NSString *presetVendor;
-@property (nonatomic, copy, nullable) NSString *presetLoaderVersion;
-@end
+// ★ Task336：FabricInstallViewController 前向声明退役——新 UI Addons 页
+//   Fabric-like 安装改页内直装（FabricUtils.ame336 执行器），本文件不再
+//   引用该旧表单（旧下载页 DownloadViewController 链路仍在用，其头文件
+//   由该 TU 自行 import）；ForgeInstallViewController 仍在用（forge 分支）。
 
 #pragma mark - 加载器选择卡（ZL2 AddonListLayout 同构）
 
@@ -108,6 +102,7 @@
 
 // 安装域（OptiFine 补丁流 + MRDT 原版流）
 @property (nonatomic, strong, nullable) MinecraftResourceDownloadTask *activeTask;
+@property (nonatomic, assign) BOOL ame336Installing; // Task336：Fabric-like 直装执行中（安装钮防重入）
 @property (nonatomic, copy) NSString *pendingOptiFineAfterForge;   // forge 完成后补装的 OptiFine 载荷
 @property (nonatomic, copy) NSString *pendingOptiFineGameVersion;
 
@@ -355,16 +350,65 @@
     return card;
 }
 
-#pragma mark - 加载器版本支持门控（Task335：ZL2 LoaderVerSupports 同口径）
+#pragma mark - 加载器版本支持门控（Task335 初版 / Task336 年份制根修）
 
 // ZL2 DownloadGameModLoaderLists.kt rememberLoaderVerSupports：
 //   fabricLike = isBiggerVer("1.13.2") → Fabric/Quilt 仅 1.14+；
 //   LegacyFabric = !fabricLike（≤1.13.2，实测 meta 支持 1.3–1.13）；
 //   NeoForge = isBiggerVer("1.20")（1.20.1 起步，与既有 ame_neoforgeSupported 同判）。
-// iOS 侧加固：rd-*/a1.*/b1.*/c0.* 等远古系对 Forge/OptiFine 也无版本线（BMCLAPI
-// 实测空），隐藏而非呈现注定失败的清单卡（“清单加载失败”红字 = 装机投诉点）。
+// ★ Task336 病历（IMG_0500 装机）：Task335 初版门控全链硬编码 "1." 前缀形态
+//   （hasPrefix:@"1."），MC 26.x 年份制版本（2026 起 Mojang 版本方案，id 形如
+//   "26.3"/"26.4-snapshot-6"）被整体判非现代版 → 九卡全隐 = 「26.x 的新版本
+//   没有加载器可选」。2026-10-27 实测 26.x 全家族均有版本线：Fabric loader
+//   26.3→0.20.1（快照 26.4-snapshot-6→0.20.1 亦有）/ Quilt 26.3→0.20.0-beta.9 /
+//   Forge 26.1→62.0.x（BMCLAPI）/ NeoForge 26.1.2.x–26.3.0.x（maven 全线）/
+//   OptiFine 26.2 HD U K2（BMCLAPI preview）。ZL2 侧 isBiggerVer 是语义比较
+//   天然兼容年份制——iOS 侧改为同构语义比较，前缀硬编码退役。
 
-/// "1.x[.z]" 形态判定（现代版号线；快照 25w14a 等不入）
+/// 版本 id 前导数字段解析："26.3"→@[@26,@3]；"26.4-snapshot-6"→@[@26,@4]；
+/// "1.21.11"→@[@1,@21,@11]；"25w14a"/"rd-132"/"a1.2.6"→nil（无前导纯数字段/
+/// 非现代形态）。门控唯一入参形态，快照后缀自然剥离。
+- (nullable NSArray<NSNumber *> *)ame_versionComponents {
+    if (self.gameVersion.length == 0) return nil;
+    NSMutableArray<NSNumber *> *out_ = [NSMutableArray array];
+    NSCharacterSet *nonDigit = [[NSCharacterSet decimalDigitCharacterSet] invertedSet];
+    for (NSString *seg in [self.gameVersion componentsSeparatedByString:@"."]) {
+        // 段内取前导数字（"11-pre1"→11；"snapshot"→空段即止）
+        // ★ 注意 NSNotFound ?: 陷阱：rangeOfCharacterFromSet 未命中时 location
+        //   = NSNotFound（非零为真），?: 会取左值 → substringToIndex:NSNotFound 越界
+        NSRange firstNonDigit = [seg rangeOfCharacterFromSet:nonDigit];
+        NSUInteger cut = (firstNonDigit.location == NSNotFound) ? seg.length : firstNonDigit.location;
+        NSString *digits = [seg substringToIndex:cut];
+        if (digits.length == 0) break;
+        [out_ addObject:@(digits.integerValue)];
+        if ([seg length] != [digits length]) break; // "11-pre1" 数字段终止
+    }
+    if (out_.count < 2) return nil; // 至少主.次两段才算可判形态
+    return out_;
+}
+
+/// 纯数字点形态（"26.3"/"1.21.11" YES；"26.4-snapshot-6"/"1.21.11-pre1"
+/// 含字母 NO）—— Forge/OptiFine/NeoForge 家族的快照/pre 排除闸（这些工程
+/// 只对正式版发线，BMCLAPI/maven 实测）
+- (BOOL)ame_isPlainNumericVersion {
+    NSCharacterSet *allowed = [NSCharacterSet characterSetWithCharactersInString:@"0123456789."];
+    return [self.gameVersion rangeOfCharacterFromSet:[allowed invertedSet]].location == NSNotFound;
+}
+
+/// 本版本数字组件是否 ≥ 给定组件序列（逐段数值比较，短侧补 0）
+- (BOOL)ame_versionComponentsAtLeast:(NSArray<NSNumber *> *)rhs {
+    NSArray<NSNumber *> *lhs = [self ame_versionComponents];
+    if (!lhs) return NO;
+    NSUInteger n = MAX(lhs.count, rhs.count);
+    for (NSUInteger i = 0; i < n; i++) {
+        NSInteger l = i < lhs.count ? lhs[i].integerValue : 0;
+        NSInteger r = i < rhs.count ? rhs[i].integerValue : 0;
+        if (l != r) return l > r;
+    }
+    return YES;
+}
+
+/// 1.x 形态保留判（老日志/兼容面引用；门控本体已迁语义比较）
 - (BOOL)ame_isModernOneDotX {
     return [self.gameVersion hasPrefix:@"1."];
 }
@@ -377,36 +421,46 @@
     return [parts[1] integerValue];
 }
 
-/// Forge/OptiFine 家族：1.x 全系（Forge 自 1.1、OptiFine 自 Beta 线；
-/// 远古非 1.x 形态两源均无版本线）
+/// Forge/OptiFine 家族（★ Task336 语义化）：1.x 全系 + 26.x 年份制正式版。
+/// 年份制快照（26.4-snapshot-6，注意实为 2 段一个点）Forge/OptiFine 无版本线
+/// （BMCLAPI 实测仅正式版 26.1/26.2 线），纯数字点形态闸排除，防"清单加载
+/// 失败"红字复现（Task335 投诉面）。
 - (BOOL)ame_forgeFamilySupported {
-    return [self ame_isModernOneDotX];
+    NSArray<NSNumber *> *comps = [self ame_versionComponents];
+    if (!comps) return NO;
+    return [self ame_isPlainNumericVersion]; // "1.7.10" / "1.21.11" / "26.3" 全过；快照/pre 排除
 }
 
-/// Fabric/Quilt：>1.13.2（ZL2 fabricLike 同口径）
+/// Fabric/Quilt（★ Task336 语义化 = ZL2 fabricLike 同口径）：≥1.14（含 26.x
+/// 年份制全系与快照——meta 实测 26.4-snapshot-6 亦有 loader 0.20.1）
 - (BOOL)ame_fabricLikeSupported {
-    NSInteger minor = [self ame_oneDotMinor];
-    return minor >= 14;
+    return [self ame_versionComponentsAtLeast:@[@1, @14]];
 }
 
-/// Legacy Fabric：1.3–1.13（meta.legacyfabric.net 实测支持域；
-/// 1.14+ 归 Fabric/Quilt，1.2 及以前无支持）
+/// Legacy Fabric：1.3–1.13（年份制 26.x 落 ≥1.14 = Fabric 域，此处天然排除；
+/// meta.legacyfabric.net 实测支持域 1.3–1.13，1.14+ 归 Fabric/Quilt）
 - (BOOL)ame_legacyFabricSupported {
-    NSInteger minor = [self ame_oneDotMinor];
+    NSArray<NSNumber *> *comps = [self ame_versionComponents];
+    if (!comps || comps[0].integerValue != 1) return NO;
+    NSInteger minor = comps.count > 1 ? comps[1].integerValue : 0;
     return minor >= 3 && minor <= 13;
 }
 
 - (BOOL)ame_neoforgeSupported {
-    // "1.20.1" 起 NeoForge 有版本线；1.x 快照/远古全不支持
-    NSArray<NSString *> *parts = [self.gameVersion componentsSeparatedByString:@"."];
-    if (parts.count < 2) return NO;
-    if (![parts[0] isEqualToString:@"1"]) return NO;
-    NSInteger minor = [parts[1] integerValue];
+    // ≥1.20.1（★ Task336 语义化；年份制 26.x 全系支持——maven 实测
+    // 26.1.2.x–26.3.0.x 正式线；年份制快照无正式线排除，同 forge 家族纪律）
+    NSArray<NSNumber *> *comps = [self ame_versionComponents];
+    if (!comps) return NO;
+    if (comps[0].integerValue >= 2) {
+        return [self ame_isPlainNumericVersion]; // 快照排除
+    }
+    if (comps[0].integerValue != 1) return NO;
+    NSInteger minor = comps.count > 1 ? comps[1].integerValue : 0;
     if (minor > 20) return YES;
     if (minor < 20) return NO;
     // 1.20.x：x>=1 有线（1.20.1 起步）
-    if (parts.count < 3) return NO;
-    return [parts[2] integerValue] >= 1;
+    NSInteger patch = comps.count > 2 ? comps[2].integerValue : 0;
+    return patch >= 1;
 }
 
 #pragma mark - ZL2AddonCardDelegate（选择变更 → 互斥 + API 跟随）
@@ -816,7 +870,17 @@
                         self.legacyFabricCard.selectedItem.length > 0 ||
                         self.quiltCard.selectedItem.length > 0 ||
                         self.optifineCard.selectedItem.length > 0;
+    if (self.ame336Installing) {
+        // Task336：直装执行态（网络链路中）——防重入，文案明确告知；
+        // 与 Task335 清单 busy 态（恒可点）不同，这是真实的不可中断操作
+        self.installButton.userInteractionEnabled = NO;
+        self.installButton.alpha = 0.6;
+        self.installLabel.text = @"安装中…";
+        self.installButton.accessibilityLabel = @"安装中";
+        return;
+    }
     self.installButton.userInteractionEnabled = YES;
+    self.installButton.alpha = 1.0;
     self.installButton.backgroundColor = [ZL2Theme primary];
     self.installLabel.textColor = [ZL2Theme onPrimary];
     // ★ Task335：busy 态不再改安装钮文案 —— 旧版 busy 时按钮长期显示“清单加载中…”
@@ -842,50 +906,70 @@
     NSString *quiltAPIOn = self.quiltAPICard.selectedItem;               // ★ Task335
     NSString *optifine = self.optifineCard.selectedItem;
 
-    // ★ Task335：Fabric-like 家族（Fabric / Legacy Fabric / Quilt）统一分发到
-    // FabricInstallViewController（其 vendor 段原生支持三厂；preset 直入对应
-    // 厂商 + 卡片所选加载器版本直通，API 卡选择 → shouldInstallAPI）
+    // ★ Task336：Fabric-like 家族（Fabric / Legacy Fabric / Quilt）页内直装——
+    // M3 确认对话框 → FabricUtils 直装执行器（profile 候选轮询 + 版本 json 落盘 +
+    // profile 注册 + 可选三厂 API）。旧 UI FabricInstallViewController 表单在本
+    // 流程退役（用户点题「点击安装跳到这里」；旧下载页 DownloadViewController
+    // 链路仍在用该表单，本页不再 push）。
     if (fabric.length > 0 || legacyFabric.length > 0 || quilt.length > 0) {
-        FabricInstallViewController *vc = [[FabricInstallViewController alloc] init];
-        vc.gameVersion = self.gameVersion;
+        if (self.ame336Installing) return; // 执行中防重入
+        NSString *vendor = nil, *loaderVer = nil;
+        BOOL installAPI = NO;
         if (legacyFabric.length > 0) {
-            vc.presetVendor = @"Legacy Fabric";
-            vc.presetLoaderVersion = legacyFabric;
-            vc.shouldInstallAPI = (legacyFabricAPIOn.length > 0);
+            vendor = @"Legacy Fabric"; loaderVer = legacyFabric;
+            installAPI = (legacyFabricAPIOn.length > 0);
         } else if (quilt.length > 0) {
-            vc.presetVendor = @"Quilt";
-            vc.presetLoaderVersion = quilt;
-            vc.shouldInstallAPI = (quiltAPIOn.length > 0);
+            vendor = @"Quilt"; loaderVer = quilt;
+            installAPI = (quiltAPIOn.length > 0);
         } else {
-            vc.presetVendor = @"Fabric";
-            vc.presetLoaderVersion = fabric;
-            vc.shouldInstallAPI = (fabricAPIOn.length > 0);
+            vendor = @"Fabric"; loaderVer = fabric;
+            installAPI = (fabricAPIOn.length > 0);
         }
         __weak typeof(self) weakSelf = self;
-        vc.completionHandler = ^(BOOL success, NSString *profileName, NSError *error) {
-            dispatch_async(dispatch_get_main_queue(), ^{
-                __strong typeof(weakSelf) s = weakSelf;
-                if (!s) return;
+        NSString *apiNote = installAPI
+            ? [NSString stringWithFormat:@"\n将同时安装 %@ API", vendor] : @"";
+        NSString *confirmBody = [NSString stringWithFormat:
+            @"游戏版本 %@\n加载器 %@ %@%@", self.gameVersion, vendor, loaderVer, apiNote];
+        [ZL2M3Dialog showTitle:@"确认安装"
+                          body:confirmBody
+                  confirmTitle:@"安装"
+                    destructive:NO
+                     onConfirm:^{
+            __strong typeof(weakSelf) s = weakSelf;
+            if (!s) return;
+            s.ame336Installing = YES;
+            [s ame_refreshInstallButton];
+            NSLog(@"[ZL2Addons] Task336 inline install start: %@ %@/%@ (api=%d)",
+                  vendor, s.gameVersion, loaderVer, installAPI);
+            [FabricUtils ame336_installFabricLikeVendor:vendor
+                                            gameVersion:s.gameVersion
+                                          loaderVersion:loaderVer
+                                             installAPI:installAPI
+                                             completion:^(BOOL success, NSString *profileId, NSError *error) {
+                __strong typeof(weakSelf) st = weakSelf;
+                if (!st) return;
+                st.ame336Installing = NO;
+                [st ame_refreshInstallButton];
                 if (success) {
                     [[NSNotificationCenter defaultCenter]
                         postNotificationName:@"ReloadProfileList" object:nil];
                     // Task324：安装成功即时补齐隔离骨架（注册表已隔离 → 六目录可见可即用）
                     [ModService ame324_ensureIsolationSkeletonsAll];
                     [ZL2M3Dialog showTitle:@"安装完成"
-                                      body:profileName ?: versionId
+                                      body:[NSString stringWithFormat:@"%@\n(%@ %@)",
+                                            profileId ?: st.gameVersion, vendor, loaderVer]
                               confirmTitle:@"知道了"
                                 destructive:NO
                                  onConfirm:nil onCancel:nil];
-                } else if (error) {
+                } else {
                     [ZL2M3Dialog showTitle:@"安装失败"
                                       body:error.localizedDescription ?: @"网络异常，可重试。"
                               confirmTitle:@"知道了"
                                 destructive:NO
                                  onConfirm:nil onCancel:nil];
                 }
-            });
-        };
-        [self.navigationController pushViewController:vc animated:YES];
+            }];
+        } onCancel:nil];
         return;
     }
 
