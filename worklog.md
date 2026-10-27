@@ -3997,3 +3997,26 @@ ame331_selfcheck 49 断言（新：协议 24 selector 导出/JS 名整形七关�
 - 小窗偏移病历五代（267→276→277→331→333）后首次拿到"启动器侧全自洽"的完整装机证据，判型转到 MC 侧双信念并双端收口；本轮是结构性终点而不是又一层补丁
 - 偏好注册面是全仓系统性盲区的最后一批实体：设置页 JVM 预设、第三方服务器列表、双指键盘、翻译提示记忆、自动启动 profile 从本轮起写读双向生效
 - 待办移交（不动）：JIT 游戏启动链（最高严重级）；下载中心 UI/加载器空白复验；AI 提示词插件章装机复验
+
+## Task 335（3607c763 + r1 热修 94382618）五线 + CI r0 热修 r1 双绿收官
+
+- 设备输入：207353e（Task 334 构建）装机 latestlog —— 原版安装「未能打开文件 1.20.1.json」错误弹窗 ×150+（连完全受支持的 1.20.1 都秒败）+「清单加载中」卡死投诉
+- 线① 清单加载失败/原版安装秒败根修：旧壳 7.0-UI-8 退役后全局 remoteVersionList 恒空 → MRDT findVersion:inList: 必 nil → 误入本地版本分支报「未能打开文件 <id>.json」= ZL2 壳下原版安装全量秒败 → ZL2VersionIndex 新增 remoteVersionEntryForIdSync（后台线程限时 10s 等落定 + 锁内匹配 + latest-* 种子滤除；主线程不等待防死锁）+ MRDT 双处接驳（downloadVersionMetadata 主查找 + inheritsFrom 父版本继承链同款兑底）
+- 线② 模组加载器同步 ZL2（Legacy Fabric / Quilt 全家族）：FabricUtils endpoints +meta.legacyfabric.net v2（本轮实测 1.3–1.13 域全链可用，与 Fabric meta v2 同构）+ FabricInstallViewController vendor 段三厂 pickList + presetVendor/presetLoaderVersion 直装预设（段选中态回显 + 版本直通 + 不在列表保持默认）+ API 安装按 vendor 分流（Modrinth legacy-fabric-api / qsl；legacy-fabric-api 真实 loader 标签为 legacy-fabric，「fabric」查询恒空 2026-10 实测）+ shouldInstallAPI 不再 vendor-gated
+- 线③ 旧 UI 功能迁新 UI 端点泛化：Addons 页九卡（optifine/forge/neoforge/fabric/fabricapi/legacyfabric/legacyfabricapi/quilt/quiltapi，ZL2 AddonList 同序）+ 支持门控（LegacyFabric=1.3–1.13 与 fabric-like 互斥补集；无可用加载器版本显示引导文案而非注定失败的清单卡=「打开灰显示清单加载失败」投诉根修）+ 互斥表全家族五键（forge⇄optifine 特例保留）+ API 卡自动跟随泛化 + ame_syncFetch 40s 硬顶 + loadingIdentifiers 在途去重（多点不叠加）+ 安装钮三态重定音（恒可点；busy 态不再改文案=「多点几下还卡清单加载中」投诉根修；无选择=「安装（原版）」直通 ame_installVanilla）+ profile 命名根修（lastVersionId 指向实际下载版本，自定义名不再污染启动链版本 JSON 查找）
+- 线④ 图标批量同步 ZL2（除 IPA 图标）：img_loader_{fabric,legacy_fabric,neoforge,optifine,quilt} ZL2 drawable 同源入库（webp→PNG 转换）双链落位（resources/ModLoaderIcons Makefile cp -R 面 + Natives/ModLoaderIcons CMake GLOB 面 817-831 行——本轮勘察实锤双链并全量对齐）+ legacyfabric.png 新增（@2x 双链同字节）+ ModLoaderIconHelper pngKeyForLoader 补 legacyfabric 分支（必须先于 fabric 防 containsString 吞并）+ 三处 iconBundleName *_light 死引用修正为标准 key（旧命名不在 resources 拷贝面=永久 SF 兜底）+ 六张过时 light/dark 资产退役 + IPA AppIcon 零触碰
+- 门禁：ame335_selfcheck 37 断言（新：A 原版安装链 ×8 / B 全家族 ×7 / C 端点 ×5 / D 图标双链 ×8 / E 结构 ×5+括号 HEAD 对照 ×6+E4 前向声明同步）+ ame330/331 ROOT 硬编码路径迁移修补（repo2 重克隆后失效）+ 全电池 ame317~335 + task139/240/248/250 + verify219 81/81 + verify255 + js_smoke rows=7 全绿（task191 42/3 存量红 stash 对照同红）
+- CI：r0 3607c763 smoke 红（40515594446）——ZL2GameAddonsViewController.m:846 property 'presetVendor' not found = 语义面盲区第十例（文件内前向声明 FabricInstallViewController 非 import installer 头：include 路径不含 installer/ 子目录，同 ForgeInstallViewController 声明模式；旧代码只 alloc/push 无点语法故 HEAD 绿，本轮 vc.presetVendor 点语法触发编译期 property 检查）；r1 热修 94382618 前向声明补双 property + E4 断言防复发 → smoke (40517547391) + dev (40517556187) 一轮双绿 @ 94382618；ipa/tipa 222.4MB ×2 + dSYM 7.4MB 在位
+- 事件入档：①语义面盲区第十例=前向声明与真实头漂移（文本断言电池盲区清单 +1；本地无 ObjC 编译闸）②渲染伪影判例再现：rg/Read 显示层吞行首 `[`（`anager GET:` 实为合法 `[manager GET:`，od -c 字节级定案；同 @[memoryCard] 家法）③环境重启磁盘 100% 满：download/ 旧 release 产物 4.4G 清理（GitHub Releases 有备份）；ame330/331 脚本硬编码旧仓库路径修补为脚本相对定位
+
+### 装机锚点汇总（预期日志/行为）
+
+1. 「安装（原版）」点击 1.20.1/a1.2.6 等：`[MCDL] Task335 version resolved via ZL2VersionIndex (global list empty/miss): <id>` → 下载正常启动，零「未能打开文件」弹窗
+2. Addons 页：九卡可见（按游戏版本门控显示/隐藏），fabric/forge/neoforge/optifine/quilt/legacyfabric 六品牌图标为 ZL2 同源图形（不再 SF 兜底）
+3. Legacy Fabric 卡（1.3–1.13 版本域）：选择后点安装 → FabricInstallViewController vendor 段直显「Legacy Fabric」且加载器版本直通预选
+4. Quilt 卡同理；勾选任一 API 卡 → 安装完成后 mods/ 内出现对应 API jar（legacy-fabric-api / qsl）
+5. 清单拉取期间安装钮恒显示「安装」或「安装（原版）」且可点；重复点击同一卡不叠加请求（loadingIdentifiers 闸）
+6. 自定义 profile 名安装原版后可正常启动（lastVersionId=实际版本号）
+
+---
+
