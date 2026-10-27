@@ -208,6 +208,13 @@ for rel in ['Natives/MinecraftResourceDownloadTask.m',
 check('E2 preset property .h 声明与 .m 应用一致',
       re.search(r'@property.*presetVendor', fivh)
       and re.search(r'@property.*presetLoaderVersion', fivh))
+# E4 语义面盲区第十例防线：ZL2GameAddonsViewController.m 文件内前向声明
+# （非 import installer 头）必须与 installer/FabricInstallViewController.h
+# 的 preset 双 property 同步扩展（CI smoke 40515594446 实锤缺口）。
+_m = re.search(r'@interface FabricInstallViewController.*?@end', gav, re.S)
+check('E4 前向声明同步 preset 双 property',
+      bool(_m) and 'presetVendor' in _m.group(0)
+      and 'presetLoaderVersion' in _m.group(0))
 cmk = read('Natives/CMakeLists.txt')
 check('E3 CMake 编译面含涉改 TU',
       'ZL2VersionIndex.m' in cmk and 'installer/FabricUtils.m' in cmk

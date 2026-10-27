@@ -37,6 +37,12 @@
 @property (nonatomic, copy) NSString *gameVersion;
 @property (nonatomic, assign) BOOL shouldInstallAPI;
 @property (nonatomic, copy) void (^completionHandler)(BOOL success, NSString *profileName, NSError *error);
+// ★ Task335 r1 热修：本文件前向声明（非 import installer 头，include 路径不含
+//   installer/ 子目录——同 ForgeInstallViewController 声明模式）必须与
+//   installer/FabricInstallViewController.h 同步扩展；缺 preset 双 property =
+//   点语法编译期检查红（CI smoke 40515594446 实锤，语义面盲区第十例）
+@property (nonatomic, copy, nullable) NSString *presetVendor;
+@property (nonatomic, copy, nullable) NSString *presetLoaderVersion;
 @end
 
 #pragma mark - 加载器选择卡（ZL2 AddonListLayout 同构）
