@@ -1005,29 +1005,15 @@ typedef NS_ENUM(NSInteger, AssetVersionType) {
 
 #pragma mark Forge 直装器（installer/ForgeDirectInstaller.h；整合包原版预装门）
 
-// 7.0-UI-14：Addons 屏安装分发目标 VC 桩（消费方 TU 自含声明，此处供实现）
-@interface ForgeInstallViewController : UIViewController
-@property (nonatomic, copy) NSString *gameVersion;
-@property (nonatomic, assign) BOOL isNeoForge;
-@property (nonatomic, assign) NSInteger selectedScheme;
-@property (nonatomic, copy) void (^completionHandler)(BOOL success, NSString *profileName, id resultOrError);
-@property (nonatomic, copy) NSString *presetVersionString;
-@end
-
-@implementation ForgeInstallViewController
-@end
-
-@interface FabricInstallViewController : UIViewController
-@property (nonatomic, copy) NSString *gameVersion;
-@property (nonatomic, assign) BOOL shouldInstallAPI;
-@property (nonatomic, copy) void (^completionHandler)(BOOL success, NSString *profileName, NSError *error);
-@end
-
-@implementation FabricInstallViewController
-@end
-
+// ★ Task337：ForgeInstallViewController/FabricInstallViewController 桩退役——
+//   新 UI Addons 页两旧表单 push 点均已退役（Task336 Fabric 页内直装 +
+//   Task337 Forge/NeoForge 页内直装），桩失去消费者（旧下载页
+//   DownloadViewController 不在 Preview 编译面，其头文件自行 import）。
 
 @interface ForgeDirectInstaller : NSObject
++ (BOOL)installForgeFromInstaller:(NSString *)installerPath
+                        versionId:(NSString *)versionId
+                            error:(NSError **)error;
 + (BOOL)ensureParentVersionExists:(NSString *)minecraftVersion error:(NSError **)error;
 @end
 
@@ -1038,6 +1024,19 @@ typedef NS_ENUM(NSInteger, AssetVersionType) {
 // 而该任务的演示桩 progress 永不 finished → 后台线程空转 30 分钟（预览环境
 // 防呆优先；该链路截图不触达，仅链路符号必须齐）
 + (BOOL)ensureParentVersionExists:(NSString *)minecraftVersion error:(NSError **)error {
+    return NO;
+}
+
+// ★ Task337：ame337 页内直装执行器调用点（ZL2GameAddonsViewController.o）
+// 的链接符号桩——预览环境恒 NO（同上防呆语义：install_profile 解析与
+// libraries 全量下载在预览无真实执行面）
++ (BOOL)installForgeFromInstaller:(NSString *)installerPath
+                        versionId:(NSString *)versionId
+                            error:(NSError **)error {
+    if (error) {
+        *error = [NSError errorWithDomain:@"ForgeDirectInstaller" code:2
+              userInfo:@{NSLocalizedDescriptionKey: @"preview stub"}];
+    }
     return NO;
 }
 

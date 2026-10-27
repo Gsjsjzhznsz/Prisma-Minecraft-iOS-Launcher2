@@ -228,9 +228,13 @@ static void ame336_fetchProfile(NSArray<NSURL *> *candidates, void (^completion)
             return;
         }
 
-        // 版本 json 落盘（versions/<id>/<id>.json，legacy 安装器同口径）
-        NSString *jsonPath = [NSString stringWithFormat:@"%s/versions/%@/%@.json",
-                              getenv("POJAV_GAME_DIR"), profileId, profileId];
+        // 版本 json 落盘（versions/<id>/<id>.json，legacy 安装器同口径）。
+        // ★ Task337：POJAV_GAME_DIR 为空的兜底对表 ame336_installAPIForVendor
+        // （旧写法 %s 直塞 getenv 结果，env 未设时路径变 "(null)/versions/…"）。
+        const char *ame336_env = getenv("POJAV_GAME_DIR");
+        NSString *ame336_gameDir = ame336_env ? [NSString stringWithUTF8String:ame336_env] : NSHomeDirectory();
+        NSString *jsonPath = [ame336_gameDir stringByAppendingPathComponent:
+            [NSString stringWithFormat:@"versions/%@/%@.json", profileId, profileId]];
         [[NSFileManager defaultManager] createDirectoryAtPath:jsonPath.stringByDeletingLastPathComponent
                                   withIntermediateDirectories:YES attributes:nil error:nil];
         NSError *saveError = saveJSONToFile(profileJson, jsonPath);
@@ -238,18 +242,33 @@ static void ame336_fetchProfile(NSArray<NSURL *> *candidates, void (^completion)
             safeCompletion(NO, nil, saveError);
             return;
         }
-        [localVersionList addObject:@{@"id": profileId, @"type": @"custom"}];
 
-        // profile 注册（★ Task322 混居口径 gameDir=versions/<id>；旧表单
-        // /game 分居层不再延续——Task322 已退役 game/ 层）
-        NSMutableDictionary *profile = [NSMutableDictionary dictionary];
-        profile[@"name"] = profileId;
-        profile[@"lastVersionId"] = profileId;
-        profile[@"gameDir"] = [NSString stringWithFormat:@"versions/%@", profileId];
-        profile[@"type"] = @"custom";
-        profile[@"created"] = [NSDate date].description;
-        [PLProfiles.current saveProfile:profile withName:profileId];
-        PLProfiles.current.selectedProfileName = profileId;
+        // ★ Task337 线①闪退根修：profile 注册段整体主线程执行。
+        //   旧写法在 NSURLSession 回调线程直接执行
+        //   PLProfiles.current.selectedProfileName = profileId → 触发
+        //   SelectedProfileChanged 同步通知 → 通知接收方
+        //   ZL2VersionsViewController.profileListDidChange → reloadVersions →
+        //   ame_rebuildList（AutoLayout）在后台线程执行 =
+        //   NSInternalInconsistencyException（装机 1.8.9 Legacy Fabric 实锤
+        //   latestlog 栈：CFNetwork → ame336_asyncGet → setSelectedProfileName
+        //   → CFXNotificationPost → ame_rebuildList → CoreAutoLayout throw）。
+        //   localVersionList 注册/saveProfile 一并主线程序列化（注册表是
+        //   UI 读面，写方收口主队列；入队序在 safeCompletion 之前 → 完成
+        //   回调必然晚于注册，时序安全）。
+        dispatch_async(dispatch_get_main_queue(), ^{
+            [localVersionList addObject:@{@"id": profileId, @"type": @"custom"}];
+
+            // profile 注册（★ Task322 混居口径 gameDir=versions/<id>；旧表单
+            // /game 分居层不再延续——Task322 已退役 game/ 层）
+            NSMutableDictionary *profile = [NSMutableDictionary dictionary];
+            profile[@"name"] = profileId;
+            profile[@"lastVersionId"] = profileId;
+            profile[@"gameDir"] = [NSString stringWithFormat:@"versions/%@", profileId];
+            profile[@"type"] = @"custom";
+            profile[@"created"] = [NSDate date].description;
+            [PLProfiles.current saveProfile:profile withName:profileId];
+            PLProfiles.current.selectedProfileName = profileId;
+        });
         NSLog(@"[FabricUtils] Task336 fabric-like installed: %@ %@/%@ (api=%d)",
               vendor, gameVersion, loaderVersion, installAPI);
 

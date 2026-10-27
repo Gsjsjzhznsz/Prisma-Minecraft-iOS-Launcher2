@@ -117,8 +117,10 @@ check('C3 ame336Installing 忙态（防重入 + 安装中…）',
       'ame336Installing' in gav
       and gav.count('ame336Installing') >= 4
       and '@"安装中…"' in gav)
-check('C4 旧下载页链路保留（DownloadViewController→Forge 表单不动）',
-      'ForgeInstallViewController *vc' in gav
+_gav_code = re.sub(r'//.*', '', gav)  # 行注释剥离（C4 语义演进：注释字样不算引用）
+check('C4 旧下载页链路保留（DownloadViewController→Forge 表单不动；'
+      'Task337 语义演进：gav 侧 Forge push 已退役→零代码引用）',
+      re.search(r'ForgeInstallViewController', _gav_code) is None
       and re.search(r'FabricInstallViewController alloc', read('Natives/DownloadViewController.m')) is None
       and re.search(r'ForgeInstallViewController alloc', read('Natives/DownloadViewController.m')))
 check('C5 成功链三件套',

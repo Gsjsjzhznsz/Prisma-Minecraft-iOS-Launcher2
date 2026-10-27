@@ -176,6 +176,16 @@ static UIImage *ZL2VersionsSystemImage(NSString *name, NSString *fallback) {
 #pragma mark - State Refresh (public)
 
 - (void)reloadVersions {
+    // ★ Task337 线①防御钳制：本页监听的 ReloadProfileList/SelectedProfileChanged
+    //   通知来源线程不可控（PLProfiles.setSelectedProfileName 可从任意后台队列
+    //   发出，ame336 直装链的 NSURLSession 回调线程实锤踩雷——后台线程跑
+    //   ame_rebuildList 的 AutoLayout = NSInternalInconsistencyException 闪退）。
+    //   非主线程到达时转发主队列后返回（weak 引用防已 dealloc 的 VC 被复活）。
+    if (![NSThread isMainThread]) {
+        __weak typeof(self) weakSelf = self;
+        dispatch_async(dispatch_get_main_queue(), ^{ [weakSelf reloadVersions]; });
+        return;
+    }
     // 旧 VC viewWillAppear 同款：先 updateCurrent 重拉注册表再重建
     [PLProfiles updateCurrent];
     [self ame_rebuildData];

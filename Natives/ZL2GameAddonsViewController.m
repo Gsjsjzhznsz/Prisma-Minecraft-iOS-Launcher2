@@ -11,6 +11,7 @@
 #import "ZL2GameAddonsViewController.h"
 #import "ModService.h"          // ★ Task324：安装成功后隔离骨架即时补齐（六目录 FCL parity）
 #import "installer/FabricUtils.h" // ★ Task336：Fabric-like 三厂直装执行器（页内联安装）
+#import "installer/ForgeDirectInstaller.h" // ★ Task337：Forge/NeoForge 直装执行器（页内联安装）
 #import "ZL2Theme.h"
 #import "ZL2M3Kit.h"
 #import "PLProfiles.h"
@@ -19,25 +20,18 @@
 #import "MinecraftResourceDownloadTask.h"
 #import "PLMirrorCenter.h"
 #import "PLTaskStages.h"
+#import "utils.h"               // ★ Task337：ame185_loaderVersionMatchesGameVersion（neoforge 清单共享匹配器）
+#import "LauncherPreferences.h" // ★ Task337：getPrefObject（download_source 镜像策略）
 
 #include <stdlib.h>
 
-#pragma mark - 安装分发目标 VC 本地最小类声明（import 手术判例：真实头链
-#pragma mark ForgeInstallSchemeViewController/PLPrefTableViewController 在
-#pragma mark 预览 TU 与桩实现撞符号；消费方自含声明，消息按选择器运行时解析）
-
-@interface ForgeInstallViewController : UIViewController
-@property (nonatomic, copy) NSString *gameVersion;
-@property (nonatomic, assign) BOOL isNeoForge;
-@property (nonatomic, assign) NSInteger selectedScheme;
-@property (nonatomic, copy) void (^completionHandler)(BOOL success, NSString *profileName, id resultOrError);
-@property (nonatomic, copy) NSString *presetVersionString;
-@end
-
-// ★ Task336：FabricInstallViewController 前向声明退役——新 UI Addons 页
-//   Fabric-like 安装改页内直装（FabricUtils.ame336 执行器），本文件不再
-//   引用该旧表单（旧下载页 DownloadViewController 链路仍在用，其头文件
-//   由该 TU 自行 import）；ForgeInstallViewController 仍在用（forge 分支）。
+// ★ Task337：ForgeInstallViewController 前向声明退役——新 UI Addons 页
+//   Forge/NeoForge 安装改页内直装（ame337 执行器：installer jar 下载 +
+//   ForgeDirectInstaller 解析直装），本文件不再引用该旧表单（旧下载页
+//   DownloadViewController 链路仍在用，其头文件由该 TU 自行 import）。
+//   至此新 UI Addons 页九卡安装全家族零旧表单跳转：Fabric-like（Task336
+//   FabricUtils 直装）+ Forge/NeoForge（本轮 ame337）+ OptiFine（既有页内
+//   补丁流）+ 原版（MRDT 直通）。
 
 #pragma mark - 加载器选择卡（ZL2 AddonListLayout 同构）
 
@@ -630,26 +624,74 @@
         return nil;
     }
     if ([identifier isEqualToString:@"neoforge"]) {
-        // Task325：maven.neoforged.net 单源 → 候选链（官方 + BMCLAPI /maven 镜像，策略感知）
-        NSURL *official = [NSURL URLWithString:
+        // ★ Task337 双雷根修（「neoforge 获取清单失败」装机实锤）：
+        //  ①过滤语义雷：旧过滤 hasPrefix:gameVersion+"-" 只认 Forge 复合形态
+        //    （"1.21.1-52.0.24"），而 NeoForge maven 版本号无 MC 前缀
+        //    （"21.1.77" 对应 1.21.1 / "26.1.2" 对应 26.1）→ 恒空=清单失败。
+        //    改用 ame185_loaderVersionMatchesGameVersion 共享匹配器
+        //    （ForgeInstallViewController 同款，新旧纪元+legacy 全兼容）+
+        //    skipPatterns 剔除非 client 变体（sources/userdev/javadoc 等）。
+        //  ②镜像死端点雷：旧候选链走 PLMirrorCenter（maven.neoforged.net →
+        //    BMCLAPI /maven 静态文件镜像），拼出 /maven/api/maven/versions/…
+        //    死端点（BMCLAPI 无此 REST API → 404）。改为显式双源：官方
+        //    api/maven/versions/releases（versions[] 数组）+ BMCLAPI
+        //    /neoforge/meta/api/maven/details 镜像（files[] DIRECTORY 提取，
+        //    ForgeInstallViewController 同源），按 download_source 策略排序。
+        NSString *ame337_ds = getPrefObject(@"general.download_source");
+        BOOL ame337_bmclFirst = [ame337_ds isEqualToString:@"bmclapi"];
+        NSURL *ame337_official = [NSURL URLWithString:
             @"https://maven.neoforged.net/api/maven/versions/releases/net/neoforged/neoforge"];
-        NSArray<NSURL *> *cands = [PLMirrorCenter candidateURLsForOriginalURL:official
-                                                                 resourceType:PLMirrorResourceTypeModLoader];
-        if (cands.count == 0) cands = @[official];
+        NSURL *ame337_bmcl = [NSURL URLWithString:
+            @"https://bmclapi2.bangbang93.com/neoforge/meta/api/maven/details/releases/net/neoforged/neoforge"];
+        NSArray<NSURL *> *cands = ame337_bmclFirst
+            ? @[ame337_bmcl, ame337_official] : @[ame337_official, ame337_bmcl];
+        NSArray<NSString *> *all = nil;
         for (NSURL *u in cands) {
-            data = [self ame_syncFetch:u.absoluteString];
-            if (data) break;
+            NSData *d = [self ame_syncFetch:u.absoluteString];
+            if (!d) continue;
+            id json = [self ame_parseJSON:d];
+            if (![json isKindOfClass:[NSDictionary class]]) continue;
+            if ([u.host containsString:@"bmclapi"]) {
+                // BMCLAPI details 形态：files[] 中 type=DIRECTORY 的 name 即版本目录
+                NSArray *files = json[@"files"];
+                if (![files isKindOfClass:[NSArray class]]) continue;
+                NSMutableArray *v = [NSMutableArray array];
+                for (NSDictionary *f in files) {
+                    if (![f isKindOfClass:[NSDictionary class]]) continue;
+                    NSString *name = f[@"name"];
+                    if ([f[@"type"] isEqualToString:@"DIRECTORY"] && name.length > 0
+                        && ![name.lowercaseString containsString:@"maven"]) {
+                        [v addObject:name];
+                    }
+                }
+                if (v.count > 0) { all = v; break; }
+            } else {
+                // 官方端点形态：versions[] 字符串数组
+                NSArray *versions = json[@"versions"];
+                if ([versions isKindOfClass:[NSArray class]] && versions.count > 0) {
+                    all = versions; break;
+                }
+            }
         }
-        if (!data) return nil;
-        id json = [self ame_parseJSON:data];
-        NSArray<NSString *> *all = json[@"versions"];
         if (!all) return nil;
-        // 过滤当前游戏版本前缀（"1.21.1-beta"/"1.21.1"），新线在前
-        NSString *prefix = [NSString stringWithFormat:@"%@-", gameVersion];
+        // 非 client 变体剔除（ForgeInstallViewController addVersionToList 同表）
+        NSArray *skipPatterns = @[
+            @"sources", @"userdev", @"javadoc", @"universal", @"slim",
+            @"-all", @"-changelog", @"-installer-win", @"-mdk"
+        ];
         NSMutableArray *out_ = [NSMutableArray array];
         for (NSString *version in all) {
-            if ([version hasPrefix:prefix]) [out_ addObject:version];
+            if (![version isKindOfClass:[NSString class]] || version.length == 0) continue;
+            BOOL skipped = NO;
+            for (NSString *p in skipPatterns) {
+                if ([version containsString:p]) { skipped = YES; break; }
+            }
+            if (skipped) continue;
+            if (ame185_loaderVersionMatchesGameVersion(version, self.gameVersion)) {
+                [out_ addObject:version];
+            }
         }
+        // 官方/BMCLAPI 均为旧→新序，反转为新在前
         return [[out_ reverseObjectEnumerator] allObjects];
     }
     if ([identifier isEqualToString:@"fabric"]) {
@@ -974,46 +1016,67 @@
     }
 
     if (neoforge.length > 0 || forge.length > 0) {
-        // Forge/NeoForge：legacy ForgeInstallViewController（preset 直入方案选择，
-        // 跳过清单重拉）；完成后若有 OptiFine 组合则补装补丁
-        ForgeInstallViewController *vc = [[ForgeInstallViewController alloc] init];
-        vc.gameVersion = self.gameVersion;
-        vc.isNeoForge = (neoforge.length > 0);
-        vc.presetVersionString = neoforge.length > 0 ? neoforge : forge;
+        // ★ Task337：Forge/NeoForge 页内直装——M3 确认对话框 → ame337 执行器
+        //   （installer jar 双源下载 → ForgeDirectInstaller 解析直装）。
+        //   旧 UI ForgeInstallViewController 表单在本流程退役（旧界面退役
+        //   第二实体；旧下载页 DownloadViewController 链路仍在用该表单，
+        //   本页不再 push）。ame336Installing 忙态跨线共用（Addons 页
+        //   任一直装在跑期间安装钮防重入）。
+        if (self.ame336Installing) return;
+        NSString *amVendor = (neoforge.length > 0) ? @"NeoForge" : @"Forge";
+        NSString *amLoaderVer = (neoforge.length > 0) ? neoforge : forge;
         __weak typeof(self) weakSelf = self;
-        NSString *optiPayload = (optifine.length > 0 && neoforge.length == 0) ? optifine : nil;
-        vc.completionHandler = ^(BOOL success, NSString *profileName, id resultOrError) {
-            dispatch_async(dispatch_get_main_queue(), ^{
-                __strong typeof(weakSelf) s = weakSelf;
-                if (!s) return;
+        NSString *confirmBody = [NSString stringWithFormat:
+            @"游戏版本 %@\n加载器 %@ %@\n（离线安装器直装）",
+            self.gameVersion, amVendor, amLoaderVer];
+        [ZL2M3Dialog showTitle:@"确认安装"
+                          body:confirmBody
+                  confirmTitle:@"安装"
+                    destructive:NO
+                     onConfirm:^{
+            __strong typeof(weakSelf) s = weakSelf;
+            if (!s) return;
+            s.ame336Installing = YES;
+            [s ame_refreshInstallButton];
+            NSLog(@"[ZL2Addons] Task337 inline install start: %@ %@/%@",
+                  amVendor, s.gameVersion, amLoaderVer);
+            [s ame337_installForgeLikeVendor:amVendor
+                                 gameVersion:s.gameVersion
+                               loaderVersion:amLoaderVer
+                                  completion:^(BOOL success, NSString *profileId, NSError *error) {
+                __strong typeof(weakSelf) st = weakSelf;
+                if (!st) return;
+                st.ame336Installing = NO;
+                [st ame_refreshInstallButton];
                 if (!success) {
-                    NSString *msg = [resultOrError isKindOfClass:NSError.class]
-                        ? ((NSError *)resultOrError).localizedDescription
-                        : @"安装流程中断，可重试。";
-                    [ZL2M3Dialog showTitle:@"安装失败" body:msg
-                              confirmTitle:@"知道了" destructive:NO
-                               onConfirm:nil onCancel:nil];
+                    [ZL2M3Dialog showTitle:@"安装失败"
+                                      body:error.localizedDescription ?: @"安装器下载或解析失败，可重试。"
+                              confirmTitle:@"知道了"
+                                destructive:NO
+                                 onConfirm:nil onCancel:nil];
                     return;
                 }
                 [[NSNotificationCenter defaultCenter]
                     postNotificationName:@"ReloadProfileList" object:nil];
-                // Task324：forge/neoforge 安装成功即时补齐隔离骨架（版本 id 映射免查，全量扫描幂等）
+                // Task324：forge/neoforge 安装成功即时补齐隔离骨架（全量扫描幂等）
                 [ModService ame324_ensureIsolationSkeletonsAll];
+                NSString *optiPayload = (st.optifineCard.selectedItem.length > 0
+                                         && neoforge.length == 0) ? st.optifineCard.selectedItem : nil;
                 if (optiPayload.length > 0) {
                     // forge 完成后补装 OptiFine 补丁（继承链：optifine 继承 forge 版本）
-                    s.pendingOptiFineAfterForge = optiPayload;
-                    s.pendingOptiFineGameVersion = profileName ?: versionId;
-                    [s ame_installOptiFinePatch];
+                    st.pendingOptiFineAfterForge = optiPayload;
+                    st.pendingOptiFineGameVersion = profileId ?: versionId;
+                    [st ame_installOptiFinePatch];
                 } else {
                     [ZL2M3Dialog showTitle:@"安装完成"
-                                      body:profileName ?: versionId
+                                      body:[NSString stringWithFormat:@"%@\n(%@ %@)",
+                                            profileId ?: versionId, amVendor, amLoaderVer]
                               confirmTitle:@"知道了"
                                 destructive:NO
                                  onConfirm:nil onCancel:nil];
                 }
-            });
-        };
-        [self.navigationController pushViewController:vc animated:YES];
+            }];
+        } onCancel:nil];
         return;
     }
 
@@ -1106,6 +1169,124 @@
                     destructive:NO
                      onConfirm:nil onCancel:nil];
     }
+}
+
+#pragma mark - Task337：Forge/NeoForge 页内直装执行器（旧表单退役后继）
+
+/// installer jar 双源下载（官方 maven + BMCLAPI /maven 静态镜像，按
+/// download_source 策略排序，逐候选回退）→ ForgeDirectInstaller 同步直装
+/// （后台队列，内部 registerVersion 自主线程化）。completion 统一主线程。
+/// profileId = versionId 可读复合形态（含 MC 版本段，JavaLauncher
+/// inferJavaMajorVersionFromVersionId 口径："1.20.1-forge-47.3.0"）。
+- (void)ame337_installForgeLikeVendor:(NSString *)vendor
+                          gameVersion:(NSString *)gameVersion
+                        loaderVersion:(NSString *)versionString
+                           completion:(void (^)(BOOL success, NSString *profileId, NSError *error))completion {
+    void (^safeCompletion)(BOOL, NSString *, NSError *) = ^(BOOL s, NSString *pid, NSError *e) {
+        dispatch_async(dispatch_get_main_queue(), ^{ completion(s, pid, e); });
+    };
+
+    // ① versionId：Forge 清单为复合形态 "<mc>-<v>"（ame185 过滤后仍复合），
+    //    提取纯加载器段；NeoForge 清单为纯加载器版本号（"26.1.2"）。
+    NSString *pureLoader = versionString;
+    NSString *compoundPrefix = [NSString stringWithFormat:@"%@-", gameVersion];
+    if ([pureLoader hasPrefix:compoundPrefix]) {
+        pureLoader = [pureLoader substringFromIndex:compoundPrefix.length];
+    }
+    NSString *versionId = [NSString stringWithFormat:@"%@-%@-%@", gameVersion,
+        [vendor isEqualToString:@"NeoForge"] ? @"neoforge" : @"forge", pureLoader];
+
+    // ② installer jar 路径三形态（ForgeInstallViewController startDownloadWithScheme 同表）：
+    //    NeoForge 1.20.1 时代（versionString 含 1.20.1 或 47. 前缀）→ 老坐标
+    //    net/neoforged/forge/<v>/forge-<v>-installer.jar；NeoForge 现代 →
+    //    net/neoforged/neoforge/<v>/neoforge-<v>-installer.jar；Forge →
+    //    net/minecraftforge/forge/<v>/forge-<v>-installer.jar。
+    NSString *am337Path = nil;
+    if ([vendor isEqualToString:@"NeoForge"]) {
+        if ([versionString containsString:@"1.20.1"] || [versionString hasPrefix:@"47."]) {
+            am337Path = [NSString stringWithFormat:@"net/neoforged/forge/%@/forge-%@-installer.jar",
+                         versionString, versionString];
+        } else {
+            am337Path = [NSString stringWithFormat:@"net/neoforged/neoforge/%@/neoforge-%@-installer.jar",
+                         versionString, versionString];
+        }
+    } else {
+        am337Path = [NSString stringWithFormat:@"net/minecraftforge/forge/%@/forge-%@-installer.jar",
+                     versionString, versionString];
+    }
+    NSString *ds = getPrefObject(@"general.download_source");
+    BOOL am337BmclFirst = [ds isEqualToString:@"bmclapi"];
+    NSURL *am337Official = [NSURL URLWithString:
+        [NSString stringWithFormat:@"https://maven.minecraftforge.net/%@", am337Path]];
+    // NeoForge 两形态的官方域是 maven.neoforged.net（/releases 前缀）；Forge 老坐标
+    // 由 NeoForge maven 接管托管。按 vendor 前缀区分官方域：
+    if ([vendor isEqualToString:@"NeoForge"]) {
+        am337Official = [NSURL URLWithString:
+            [NSString stringWithFormat:@"https://maven.neoforged.net/releases/%@", am337Path]];
+    }
+    NSURL *am337Bmcl = [NSURL URLWithString:
+        [NSString stringWithFormat:@"https://bmclapi2.bangbang93.com/maven/%@", am337Path]];
+    NSArray<NSURL *> *am337Cands = am337BmclFirst
+        ? @[am337Bmcl, am337Official] : @[am337Official, am337Bmcl];
+
+    // ③ 双源下载（downloadTask 落盘 tmp，失败逐候选回退）
+    __block NSUInteger am337Idx = 0;
+    __block void (^am337TryNext)(void);
+    NSString *am337Dest = [NSTemporaryDirectory() stringByAppendingPathComponent:
+        [NSString stringWithFormat:@"ame337-%@-installer-%@.jar", vendor,
+         [[NSProcessInfo processInfo] globallyUniqueString]]];
+    am337TryNext = ^{
+        if (am337Idx >= am337Cands.count) {
+            am337TryNext = nil;
+            safeCompletion(NO, nil, [NSError errorWithDomain:@"ZL2Addons" code:-1
+                userInfo:@{NSLocalizedDescriptionKey:
+                @"安装器下载失败：官方与镜像源均不可达，可切换下载源后重试。"}]);
+            return;
+        }
+        NSURL *u = am337Cands[am337Idx];
+        am337Idx++;
+        [[NSURLSession.sharedSession downloadTaskWithURL:u
+            completionHandler:^(NSURL *location, NSURLResponse *resp, NSError *dlError) {
+            if (dlError || !location) {
+                NSLog(@"[ZL2Addons] Task337 installer download failed (%@): %@",
+                      u.host, dlError.localizedDescription ?: @"no data");
+                am337TryNext();
+                return;
+            }
+            NSHTTPURLResponse *http = (NSHTTPURLResponse *)resp;
+            if ([http isKindOfClass:NSHTTPURLResponse.class] && http.statusCode >= 400) {
+                NSLog(@"[ZL2Addons] Task337 installer download HTTP %ld (%@)",
+                      (long)http.statusCode, u.host);
+                [[NSFileManager defaultManager] removeItemAtPath:location.path error:nil];
+                am337TryNext();
+                return;
+            }
+            [[NSFileManager defaultManager] removeItemAtPath:am337Dest error:nil];
+            NSError *moveError = nil;
+            [[NSFileManager defaultManager] moveItemAtURL:location
+                                                    toURL:[NSURL fileURLWithPath:am337Dest]
+                                                    error:&moveError];
+            if (moveError) {
+                safeCompletion(NO, nil, moveError);
+                return;
+            }
+            // ④ 直装：ForgeDirectInstaller 同步解析 install_profile + libraries
+            //    下载 + version json 落盘 + profile 注册（内部 registerVersion
+            //    自主线程化——通知链主线程发出，线①防线兜底）。
+            dispatch_async(dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_DEFAULT, 0), ^{
+                NSError *installError = nil;
+                BOOL installed = [ForgeDirectInstaller installForgeFromInstaller:am337Dest
+                                                                       versionId:versionId
+                                                                          error:&installError];
+                [[NSFileManager defaultManager] removeItemAtPath:am337Dest error:nil];
+                NSLog(@"[ZL2Addons] Task337 inline install %@: %@ (ver=%@)",
+                      installed ? @"done" : @"failed", versionId,
+                      installError.localizedDescription ?: @"ok");
+                safeCompletion(installed, installed ? versionId : nil, installError);
+            });
+        }] resume];
+    };
+    am337TryNext();
 }
 
 #pragma mark - OptiFine 补丁安装（legacy installOptiFineAsPatch 1:1）
