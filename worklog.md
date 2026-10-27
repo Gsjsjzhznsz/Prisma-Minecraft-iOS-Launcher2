@@ -4020,3 +4020,25 @@ ame331_selfcheck 49 断言（新：协议 24 selector 导出/JS 名整形七关�
 
 ---
 
+
+## Task 336（7c4393b2 + r1 热修 e8c19fd0 + r2 热修 49858699）三线 + CI r2 双绿收官
+
+- 设备输入：IMG_0500 装机截图三问——「为什么点击安装会跳到这里」（旧 UI FabricInstallViewController 表单）/「为什么 26.x 的新版本没有加载器可选」/「继续退役旧界面，在新界面实现新 UI 的功能入口」
+- 线① 26.x 年份制门控根修：Task335 门控全链硬编码 "1." 前缀（hasPrefix:@"1."）→ 26.3/26.4-snapshot-6 被整体判非现代版九卡全隐；2026-10-27 实测 26.x 全家族均有版本线（Fabric 26.3→0.20.1 快照亦有 / Quilt 26.3→0.20.0-beta.9 / Forge 26.1→62.0.x / NeoForge 26.1.2.x–26.3.0.x / OptiFine 26.2 HD U K2）→ ame_versionComponents 前导数字段解析 + ame_versionComponentsAtLeast 语义比较（ZL2 isBiggerVer 同构）+ ame_isPlainNumericVersion 纯数字点形态闸（Forge/OptiFine/NeoForge 快照-pre 排除防清单红字复现；Fabric-like 快照放行）+ NSNotFound ?: 陷阱防线；五门控函数全部语义化
+- 线② Fabric-like 页内直装（「点击安装跳到这里」退役）：FabricUtils 新增 ame336_installFabricLikeVendor 直装执行器（profile 候选轮询 PLMirrorCenter 策略序+断环 / 版本 json 落盘 / localVersionList 注册 / saveProfile Task322 混居 gameDir=versions/<id> 旧表单 /game 分居层不再延续 / API 三厂分流 Modrinth（legacy-fabric-api loaderTag=legacy-fabric、qsl）/ API 失败不翻转主体 / completion 统一主线程 / asyncGet 泛化 NSArray=Modrinth 版本查询返回数组）+ Addons 页 M3 确认对话框 → 执行器 → ReloadProfileList+ame324 隔离骨架+M3Dialog + ame336Installing 忙态（安装中…防重入，与 Task335 清单 busy 恒可点语义分立）
+- 线③ 旧界面退役第一实体：FabricInstallViewController 前向声明+push 点从新 UI Addons 页整体退役（零代码引用）；退役纪律=只退役新 UI 流程内跳转（旧下载页 DownloadViewController 链路保留）；ForgeInstallViewController 保留（Forge 链复杂度高下轮抽取）
+- 门禁：ame336_selfcheck 27 断言新门（A 门控语义化 8/B 执行器 8/C 退役 5/D 结构 4+括号 HEAD 对照）+ ame335 E4/B7 语义演进（前向声明防线→退役断言/preset 分发→vendor 三值）+ 全电池 ame317~336+task139/240/248/250+verify219/255+js_smoke rows=7 全绿（task191 42/3 存量红同模式）
+- CI：r0 7c4393b2 smoke 红（40531580616）= 语义面盲区第十一例（Preview TU 清单与 CMake 主目标漂移：Undefined _OBJC_CLASS_$_FabricUtils）→ r1 e8c19fd0 smoke 二红（40533914709：_saveJSONToFile/_localVersionList 链接缺口）→ r2 49858699 双绿（smoke 40536444700 + dev 40536455234，ipa/tipa 222.4MB ×2 + dSYM 7.4MB）；dev 主目标自 r1 即绿（主 CMake 链真身完整，缺口全在 Preview 桩面）
+- 事件入档：①语义面盲区第十一例=Preview 目标 TU 清单漂移（文本断言电池清单再 +1；D4/D5 断言双防复发）②本地方括号 HEAD 对照捕获真编译雷一枚（[[[NSURLSession...] dataTask:...] resume] 三层嵌套缺外层 [——括号平衡断言二次立功）③借 repo-prisma 凭证误指一代仓库（non-fast-forward 假象）→ 纠正二代 URL + API 验证后 fast-forward；教训=换 origin 必先验证目标仓库全名
+- 桩纪律落桩：ZL2PagesStub 补 saveJSONToFile（import utils.h 签名对表）+ localVersionList（extern 全局变量定义一次 nil 实例；桩与真实现从不同一二进制）
+
+### 装机锚点汇总（预期行为）
+
+1. 26.3 等年份制版本打开 Addons 页：Fabric/Quilt/Forge/NeoForge/OptiFine 卡全部可见（快照 26.4-snapshot-N：Fabric/Quilt 可见，Forge/NeoForge/OptiFine 按线域隐藏）
+2. 任一 Fabric-like 卡选择后点安装：M3「确认安装」对话框（游戏版本/加载器/版本/API 说明）→ 确认 → 页内「安装中…」→ 「安装完成」（全程不跳旧表单）
+3. 勾选 API 卡：确认框含「将同时安装 … API」行；完成后实例 mods/ 内出现对应 jar
+4. 1.13.2：Legacy Fabric 卡可见（Fabric/Quilt 隐藏）——IMG_0500 场景正确口径
+5. 日志锚点：[ZL2Addons] Task336 inline install start / [FabricUtils] Task336 fabric-like installed / [FabricUtils] Task336 API installed
+
+---
+
