@@ -4107,3 +4107,20 @@ ame331_selfcheck 49 断言（新：协议 24 selector 导出/JS 名整形七关�
 5. 主题插件「Fluent UI 主题」行为与本轮原生重设计互不干扰（插件仍可循环三板覆盖原生默认）
 
 ---
+
+## Task 340（三线：Fluent 换装退役 / 插件仓库 CDN 可见性 / 左下角渲染分裂根修 @ 0d4a5881）
+
+- 设备输入：用户三问——「Fluent 2 / Apple 重设计的是fluent-ui插件，不是启动器代码」/「还有为什么启动器插件列表没有远程仓库的fluent-ui插件」/「还有在竖屏进入世界之后切换横屏只有左下角在动」
+- 线① 启动器 Fluent 换装整体退役（范围澄清落地）：Task339 线③把 Fluent 2/Apple 令牌层（AMEFluentTheme.h/m）+ 主页 70 处换装 + 结构性 Fluent 化三件做进了启动器代码——用户澄清重设计对象是 fluent-ui **插件**而非启动器本体 → 定向回退：AMEFluentTheme.h/m 删除 + ZL2HomeViewController `git checkout 8fc59ef8`（Task338 版 ZL2 令牌，纯回退零手工）+ CMakeLists TU 摘除 + ui_fluent_smoke 双口径回收（syntax grep 条件 / preview sources 元素）+ ame339 C 组五断言翻转为「启动器无 Fluent 换装」方向（C1 文件不存在/C2 主页回归 ZL2Theme/C3 零 Fluent 化残留/C4 CMake 无 TU/C5 smoke 无功能位，S-C2 反向探针同步：主页回潜 AMEFluentTheme import 必翻红）；fluent-ui 插件本体（plugin-repo/src + zip + index.json 第五件）原样保留
+- 线② 插件仓库远程件不可见根修（用户："为什么插件列表没有远程仓库的fluent-ui插件"）：装机日志实锤（5a6c059 构建 21:46:04）——`[AmePluginRepo] Task333 remote index fetched via cdn.jsdelivr.net...@main` + `official repo cache updated: 4 entries`，而 index.json 第五件 fluent-ui 已于 Task339 入库 = **jsdelivr 对 @main 分支引用按固定窗口（~12h）缓存，push 不会主动失效**，远程区数据源完全来自 index → 新件在缓存窗口内不可见（用户打开插件仓库页只见 4 件）。修法双保险：①客户端预热——ame333_fetchIndexWithBaseOut 对 jsdelivr 通道拉取前先打 purge.jsdelivr.net 官方端点（GET 刷新该路径 CDN 缓存；3s 超时 + ame340_purged 单次闸每页打开至多一次 + 失败不阻断，raw/ghfast 通道兜底）+ index 拉取取证带插件计数（`(N plugins)`）；②CI 侧根修——development.yml 末步新增 Purge jsdelivr 步骤（构建成功后 curl purge 端点，与 workflow_dispatch 协议同频；python 字节级插入保全 CRLF）
+- 线③ "竖窗转横屏只有左下角在动"根修（渲染三方分裂）：AME 装机日志逐帧取证闭环——①scale-mode 拖拽全程正常（Task267/283 stack resync 34 次 rot=0→-90deg ⊥ 旋转正确）②沉降触发 Task326 drawable re-assert 2360x1640→1484x1272 + Task328 信念重算 2360x1640→1484x1272 + Task333 announce trio #2/#3 宣告 ③**swap 全程 RenderDiag viewport 恒 [0,0 2360x1640] 深至 swap#5784，surface=1473x756** —— MC viewport 与启动器信念/drawable 三方分裂，viewport∩surface = 左下角区域 = 用户实测症状（GL 左下原点映射）。根因 = **1.8.9 LWJGL2-on-LWJGL3 垫片会话尺寸宣告三通道全断**（泵日志 isUseStackQueue=0 = 非 SDL 直调形态；Task255 auto-correct 失配检测被 Task277 冻结闸拦截 + nativeSendScreenSizeForced 的 GLFW 通道以 invoke 非 NULL 为前置、SDL 通道以 g_sdlWindow 为前置——垫片会话 invoke 双 NULL + 无 SDL 窗口 → 宣告只更新全局变量，MC viewport 永不跟随；Task327/328 沉降重算在此形态 = 三方分裂制造器）。根修三件：①`ame340_mc_resize_channel_alive()` 三通道可达性查询（input_bridge_v3.m 定义 + utils.h 声明：GLFW invoke 双指针 ∪ SDL 窗口+PushEvent）②ame328_recomputeBeliefChainFromTouchViewWithRes 入口闸——不可达形态保持 scale-mode 冻结全帧语义（MC 恒全帧渲染 + CA 信箱等比缩放显示），drawable 钉回信念整帧（Task326 同款）防 ANGLE 随 layer bounds 自然化缩小交集，分辨率调节诚实回落"重启后生效"（调用方 NO 分支既有语义）③nativeSendScreenSizeForced 首 3 次通道取证探针（下轮装机定案垫片注册形态，为真自适应重宣告铺路）；338 两段式链逐位保留（ame340 C6 断言）
+- 门禁：ame340_selfcheck 20 断言新门（A 退役 4 / B purge 7〔CRLF 完整 + YAML 动态解析双校验〕/ C 闸 7〔含 338 链不破坏 + trio 不在闸路径〕/ D 结构 2）+ --selftest 反向 3 探针全翻红（S-C1 可达性查询击穿 / S-C2 闸禁用 / S-B1 purge 摘除）；**ame327 存量断言同步**（Task339 r1 `(float)value` 热修只同步了 ame339 探针、漏同步 ame327 旧电池"游戏内菜单接入即时应用"断言 → 本轮全电池揪出补齐，66 断言复绿）；全电池 ame317~340 全绿 + task139/240 all balanced + task248/250 全零 + task191 54 表 3317 键
+- CI：**r0 双绿一次过** @ 0d4a5881（smoke 40705149679 + dev 40705154284；产物 ipa/tipa 222.5MB ×2 + dSYM 7.4MB）——本轮零热修：ObjC 侧改动（闸代码）全部落在既有 import 面（CAMetalLayer/fabs/environ.h extern），ObjC 点语法/类型语义面零新增；文本断言电池 + 反向探针先行把语义面盲区在本地拦尽
+
+### 装机锚点汇总（预期行为）
+
+1. 1.8.9 会话拖小窗/转置/沉降：画面恒完整（缩小版全帧或信箱等比），不再"只有左下角在动"；日志锚点 `[SurfaceVC] Task340: belief recompute gated (MC resize channel dead...)` + `[SurfaceVC] Task340: drawable re-pinned to frozen belief ...`
+2. 启动期首 3 次尺寸宣告：日志 `[InputDiag] Task340 resize channel probe #N: GLFW_invoke_WindowSize=... alive=N`（垫片形态取证，供下轮定案）
+3. 插件仓库页打开：远程列表 5 件（含「Fluent UI 主题」），日志 `[AmePluginRepo] Task340 jsdelivr index cache purge: http=200` + `remote index fetched via ... (5 plugins)`
+4. 主页：ZL2 令牌观感回归 Task338 版（Fluent 换装退役）；插件仓库装的 fluent-ui 插件仍可三板换肤（插件面保留）
+5. 1.8.9 会话内 ⚙→分辨率调整：Toast 回落「重启后生效」（诚实语义；同形态会话内即时应用退役）
