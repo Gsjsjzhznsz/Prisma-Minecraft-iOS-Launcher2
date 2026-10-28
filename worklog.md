@@ -4225,3 +4225,14 @@ ame331_selfcheck 49 断言（新：协议 24 selector 导出/JS 名整形七关�
    `[AmePlugin:fluent-ui] 形状/字体令牌覆盖 12/12 项`；
 3. 重启启动器：`__shape` 装载期重放（色+形状双恢复）；插件停用 → 双族还原
    M3 刻度。
+
+### CI 收官段
+
+- **CI r0（双绿一次过，runner 抖动一次重跑）**：smoke `40720965833` 绿 +
+  dev `40720976213` **cancelled**（runner 基础设施抖动——15 分钟整被系统取消、
+  日志 blob BlobNotFound 不可读、无编译错误证据、无并发 run 抢占
+  [push 触发器已拆除 + 列表无同组 run]）；按热修惯例原样 re-dispatch →
+  dev `40723809695` @ `d3771029`（worklog 提交，代码与 b51978b9 逐位一致）
+  **绿**——零代码改动过全量编译，抖动定性实锤。产物 ipa/tipa 222.5MB×2 +
+  dSYM 7.4MB。
+- 本轮 r0 即双绿（smoke 首跑绿 / dev 第二次跑绿），零代码热修轮。
