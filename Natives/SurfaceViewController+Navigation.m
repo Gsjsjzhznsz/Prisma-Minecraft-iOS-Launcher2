@@ -1341,11 +1341,11 @@ static UIColor *ame244_snapshotTint(void) {
     // 兼容镜像：JavaGUI（executeJar 窗口，无实例上下文）4 处仍读全局
     // video.resolution（Task159 注释明确的保留设计），保持旧全局写入
     // 不回归其行为。
-    setPrefFloat(@"video.resolution", value.floatValue);
+    setPrefFloat(@"video.resolution", (float)value);
     // Task187 → ★ Task328 会话内即时生效链 + ★ Task338 两段式（呈现面
     // 翻转压到 MC 消费宣告之后）全量保留。
     if (value != currentValue) {
-        BOOL ame328_applied = [self ame328_applyResolutionInSession:value.floatValue / 100.0];
+        BOOL ame328_applied = [self ame328_applyResolutionInSession:(float)value / 100.0];
         [NMToast showMessage:localize(ame328_applied
             ? @"game.menu.resolution.applied"
             : @"game.menu.resolution.next_launch", nil)];

@@ -44,7 +44,7 @@ index_json = json.loads(read('plugin-repo/index.json'))
 if '--selftest' in sys.argv:
     print('== ame339 selftest（反向验证：内存注入病灶，必翻红）==')
     inj_nav = nav.replace('- (void)ame339_resOptionTouched:', '- (void)ame339_resOptionTouched_disabled:')
-    inj_nav2 = nav.replace('[self ame328_applyResolutionInSession:value.floatValue / 100.0]', '')
+    inj_nav2 = nav.replace('[self ame328_applyResolutionInSession:(float)value / 100.0]', '')
     bad = 0
     # S-A2: 面板方法被禁用 -> A2 探针必翻红
     ok_a2 = ('- (void)ame339_resOptionTouched:' in inj_nav)
@@ -99,13 +99,17 @@ check('A2 自绘面板四件套',
 check('A3 应用链 1:1 保留（profile 写入 + 会话内生效 + 兼容镜像 + Toast）',
       'ame328_applyResolutionInSession' in nav_code
       and 'PLProfiles.current.profiles[ame186_profileName] = ame186_profile;' in nav_code
-      and 'setPrefFloat(@"video.resolution", value.floatValue)' in nav
+      and 'setPrefFloat(@"video.resolution", (float)value)' in nav
       and 'NMToast showMessage:' in nav_code,
       '应用链断件')
 check('A4 取证日志三连', 'resolution panel presented' in nav
       and 'resolution option selected' in nav
       and 'resolution apply result' in nav,
       '取证日志缺失')
+check('A7 NSInteger 点语法退役（r0 热修判例：value 由 NSNumber 改 NSInteger 后 .floatValue 必炸）',
+      'value.floatValue' not in nav and '(float)value / 100.0' in nav
+      and 'setPrefFloat(@"video.resolution", (float)value)' in nav,
+      'NSInteger 上仍有 floatValue 点语法')
 langs_13 = ('zh-Hans', 'zh-CN', 'zh-Hant', 'en', 'ja', 'ko', 'fr', 'de', 'es', 'it', 'pt-BR', 'ru', 'km')
 i18n_missing = [l for l in langs_13
                 if 'game.menu.resolution.current' not in read(f'Natives/resources/{l}.lproj/Localizable.strings')]
