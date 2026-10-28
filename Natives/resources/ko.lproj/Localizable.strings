@@ -367,6 +367,7 @@
 "game.menu.toggle_keyboard" = "게임 내 키보드 전환";
 "game.menu.resolution" = "해상도";
 "game.menu.resolution.message" = "게임 해상도 배율을 선택하세요";
+"game.menu.resolution.current" = "현재 적용: %ld%%";
 "game.menu.resolution.next_launch" = "해상도가 저장되었습니다. 게임을 다시 시작하면 적용됩니다.";
 "game.menu.resolution.applied" = "Resolution saved and applied instantly";
 "game.note.airplay" = "Minecraft가 AirPlay 미러링 화면에 표시되고 있습니다";

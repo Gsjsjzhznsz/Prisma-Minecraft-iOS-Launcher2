@@ -14,6 +14,7 @@
 "game.menu.toggle_keyboard" = "Toggle Keyboard";
 "game.menu.resolution" = "Resolution";
 "game.menu.resolution.message" = "Select game resolution scale";
+"game.menu.resolution.current" = "Currently active: %ld%%";
 
 "game.note.airplay" = "Minecraft is being displayed in AirPlay mirrored display";
 

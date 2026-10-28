@@ -474,6 +474,7 @@
 "game.menu.toggle_keyboard" = "Activer/désactiver le clavier en jeu";
 "game.menu.resolution" = "Résolution";
 "game.menu.resolution.message" = "Sélectionnez l’échelle de résolution du jeu";
+"game.menu.resolution.current" = "Actuellement : %ld%%";
 "game.menu.resolution.next_launch" = "Enregistré. Redémarrez le jeu pour l’appliquer.";
 "game.menu.resolution.applied" = "Resolution saved and applied instantly";
 "Details" = "Détails";

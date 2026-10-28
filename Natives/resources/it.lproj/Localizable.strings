@@ -444,6 +444,7 @@
 "game.menu.toggle_keyboard" = "Mostra/nascondi tastiera";
 "game.menu.resolution" = "Risoluzione";
 "game.menu.resolution.message" = "Seleziona la scala di risoluzione del gioco";
+"game.menu.resolution.current" = "Attuale: %ld%%";
 "game.menu.resolution.next_launch" = "Salvato. Riavvia il gioco per applicare.";
 "game.menu.resolution.applied" = "Resolution saved and applied instantly";
 "Details" = "Dettagli";

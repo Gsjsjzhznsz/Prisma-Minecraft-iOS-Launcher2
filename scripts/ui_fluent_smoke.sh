@@ -49,7 +49,7 @@ syntax_mode() {
   while IFS= read -r f; do
     files+=("$f")
   done < <(ls "$NATIVES"/*.m 2>/dev/null | while IFS= read -r f; do
-    if grep -lq -e '"AmeTheme\.h"' -e '"Fluent[A-Z]' -e '"ZL2Theme\.h"' "$f" 2>/dev/null; then echo "$f"; fi
+    if grep -lq -e '"AmeTheme\.h"' -e '"Fluent[A-Z]' -e '"ZL2Theme\.h"' -e '"AMEFluentTheme\.h"' "$f" 2>/dev/null; then echo "$f"; fi
   done)
 
   echo "迁移面文件数: ${#files[@]}"
@@ -95,7 +95,8 @@ preview_mode() {
   echo "== UI Fluent 预览（模拟器渲染冒烟）=="
 
   local sources=(
-    AmeTheme FluentButton FluentCard FluentListCell FluentTextField
+    AmeTheme AMEFluentTheme   # ★Task339：Fluent 2 / Apple 官方令牌层（主页重设计事实源）
+    FluentButton FluentCard FluentListCell FluentTextField
     FluentToast FluentSegmentedControl FluentProgress FluentBanner
     LauncherMenuViewController
     ZL2Theme ZL2RailView ZL2HomeViewController

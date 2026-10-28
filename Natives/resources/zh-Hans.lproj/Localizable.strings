@@ -14,6 +14,7 @@
 "game.menu.toggle_keyboard" = "游戏内键盘开关";
 "game.menu.resolution" = "分辨率调整";
 "game.menu.resolution.message" = "选择游戏分辨率缩放比例";
+"game.menu.resolution.current" = "当前生效：%ld%%";
 "game.menu.resolution.next_launch" = "分辨率已保存，重启游戏后生效";
 "game.menu.resolution.applied" = "Resolution saved and applied instantly";
 

@@ -36,6 +36,8 @@
 
 // category 不能存储 ivar，用 associated object 实现 menuDimView
 static const void *kMenuDimViewKey = &kMenuDimViewKey;
+// ★ Task339：分辨率调整自绘面板的关联存储（防重复弹出的幂等撤除）
+static const void *kAme339ResPanelKey = &kAme339ResPanelKey;
 // ★ Task237：自定义菜单面板的关联存储（行滚动区 / 行数组 / 磨砂层）
 static const void *kAme237RowsScrollKey = &kAme237RowsScrollKey;
 static const void *kAme237RowsKey = &kAme237RowsKey;
@@ -1193,10 +1195,19 @@ static UIColor *ame244_snapshotTint(void) {
 }
 
 /// FCL/ZL2 风格：调整游戏分辨率（对应 FCL window_scale / ZL2 resolutionRatio）
+/// ★ Task339（"进世界之后就切不了分辨率"根修·UI 面）：二级选择器从
+///   AmeNativeMenu（UIAlertController actionSheet 家族）整体退役——装机
+///   日志 2026-10-28 实锤：世界内（iPadOS 自由窗 697x379 + 旋转转置态）
+///   打开齿轮菜单后点击"分辨率调整"，AmeNativeMenu 全链日志（Task242/
+///   245/267 present 路由行）零输出 = 二级 actionSheet 在小窗/转置态静
+///   默失败或不可达，选择链从未触发（无 Task186 写入 / 无 ame328 应用
+///   / MC viewport 停在 1394x758 res=1.00）。根修 = 换 GameMenu 家族自
+///   绘面板（Ame237MenuRow 行控件 + 深色实底卡，与齿轮菜单 native 档同
+///   源组件族），直挂 self.view 零转置耦合，全形态（全屏/自由窗/转置/
+///   iPhone）呈现链全在本 VC 掌控内；应用逻辑（profile 写入 + ame328
+///   会话内生效链 + 338 两段式）逐行 1:1 保留。取证日志三连（面板弹出/
+///   选项点选/应用结果）补齐此前的零日志盲区。
 - (void)actionAdjustResolution {
-    // ★ Task240：换装系统原生 UIMenu（旧 actionSheet 退役；锚定常驻的
-    // 齿轮悬浮球，避免面板关闭后锚点失效）。
-
     NSArray *options = @[@25, @50, @75, @100, @125, @150];
     // Task186（分辨率调节失效根修）：Task159 实例化后生效链（updateSavedResolution）
     // 读 profile 键 resolution（[PLProfiles resolveKeyForCurrentProfile:]，
@@ -1205,58 +1216,144 @@ static UIColor *ame244_snapshotTint(void) {
     // 生效值脱节。修法：读写全部对齐 profile 层（与生效链同源）。
     NSInteger currentValue = [PLProfiles resolveKeyForCurrentProfile:@"resolution"].integerValue;
     if (currentValue <= 0) currentValue = 100;
-    NSMutableArray<NSDictionary *> *ame240_items = [NSMutableArray array];
-    for (NSNumber *value in options) {
-        NSString *title = [NSString stringWithFormat:@"%ld%%", (long)value.intValue];
-        if (value.intValue == currentValue) {
-            title = [NSString stringWithFormat:@"✓ %@", title];
-        }
-        [ame240_items addObject:@{
-            @"title": title,
-            @"handler": ^{
-            // Task186：写当前实例的 resolution 键（setServerIp 同款 mutableCopy
-            // 写回模式，updateSavedResolution 立即可见——PLProfiles.current 同一
-            // 内存对象，无需重建）；
-            NSString *ame186_profileName = PLProfiles.current.selectedProfileName;
-            if (ame186_profileName.length > 0) {
-                NSMutableDictionary *ame186_profile = [PLProfiles.current.profiles[ame186_profileName] mutableCopy];
-                if (!ame186_profile) ame186_profile = [NSMutableDictionary dictionary];
-                ame186_profile[@"resolution"] = [NSString stringWithFormat:@"%ld", (long)value.intValue];
-                PLProfiles.current.profiles[ame186_profileName] = ame186_profile;
-                [PLProfiles.current save];
-                NSLog(@"[Task186] in-game resolution: profile '%@' resolution -> %ld%% (was %ld%%)",
-                      ame186_profileName, (long)value.intValue, (long)currentValue);
-            }
-            // 兼容镜像：JavaGUI（executeJar 窗口，无实例上下文）4 处仍读全局
-            // video.resolution（Task159 注释明确的保留设计），保持旧全局写入
-            // 不回归其行为。
-            setPrefFloat(@"video.resolution", value.floatValue);
-            // Task187（分辨率触摸错位根修）→ ★ Task328 退役换装：Task187 当时
-            // 不立即动几何的根因 = "MC 窗口信念在本进程内不可变"（立即重算会让
-            // 表面缩放而 MC 仍按旧信念渲染，触点整体偏移 1/旧比例，装机实测
-            // 病灶）。Task327 沉降自适应重宣告已把信念变成可变（强制宣告 +
-            // 触点/热栏/光标三条换算链同源重算），本菜单恢复【会话内即时生效】：
-            // ame328_applyResolutionInSession 按全屏/自由窗两分支重算信念链并
-            // 强制宣告；会话未建立（启动前调节）回落"下次启动生效"旧语义。
-            if (value.intValue != currentValue) {
-                BOOL ame328_applied = [self ame328_applyResolutionInSession:value.floatValue / 100.0];
-                [NMToast showMessage:localize(ame328_applied
-                    ? @"game.menu.resolution.applied"
-                    : @"game.menu.resolution.next_launch", nil)];
-                NSLog(@"[Task187/328] in-game resolution saved %ld%% -- %@",
-                      (long)value.intValue,
-                      ame328_applied
-                          ? @"applied in-session (belief chain recomputed + forced re-announce)"
-                          : @"saved, applies next launch (no live session)");
-            }
-            },
-        }];
+
+    // 复开幂等：已有面板先撤（防双面板叠层）
+    UIView *ame339_old = objc_getAssociatedObject(self, kAme339ResPanelKey);
+    if (ame339_old) {
+        [ame339_old removeFromSuperview];
+        objc_setAssociatedObject(self, kAme339ResPanelKey, nil, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
     }
 
-    // ★ Task240：系统 UIMenu 呈现。
-    [AmeNativeMenu ame240_presentMenuWithTitle:localize(@"game.menu.resolution", nil)
-                                     dictItems:ame240_items
-                                    sourceView:self.gameMenuOverlay ?: self.view];
+    // 全屏遮罩容器（直挂 self.view；点遮罩关闭）
+    UIView *ame339_panel = [[UIView alloc] initWithFrame:self.view.bounds];
+    ame339_panel.autoresizingMask = UIViewAutoresizingFlexibleWidth | UIViewAutoresizingFlexibleHeight;
+    ame339_panel.backgroundColor = [UIColor colorWithWhite:0.0 alpha:0.35];
+    UITapGestureRecognizer *ame339_dimTap = [[UITapGestureRecognizer alloc]
+        initWithTarget:self action:@selector(ame339_dismissResolutionPanel)];
+    [ame339_panel addGestureRecognizer:ame339_dimTap];
+
+    // 深色实底卡片（与齿轮菜单 native 档同源：不依赖磨砂合成，游戏层上恒可读）
+    CGFloat ame339_cardW = MIN(320.0, self.view.bounds.size.width - 48.0);
+    CGFloat ame339_cardH = 74.0 + options.count * 48.0 + 8.0;
+    UIView *ame339_card = [[UIView alloc] initWithFrame:CGRectMake(
+        (self.view.bounds.size.width - ame339_cardW) / 2.0,
+        (self.view.bounds.size.height - ame339_cardH) / 2.0,
+        ame339_cardW, ame339_cardH)];
+    ame339_card.autoresizingMask = UIViewAutoresizingFlexibleLeftMargin | UIViewAutoresizingFlexibleRightMargin
+                                 | UIViewAutoresizingFlexibleTopMargin | UIViewAutoresizingFlexibleBottomMargin;
+    ame339_card.backgroundColor = [UIColor colorWithWhite:0.11 alpha:0.97];
+    ame339_card.layer.cornerRadius = 16.0;
+    ame339_card.layer.shadowColor = [UIColor blackColor].CGColor;
+    ame339_card.layer.shadowOpacity = 0.4;
+    ame339_card.layer.shadowRadius = 18.0;
+    ame339_card.layer.shadowOffset = CGSizeMake(0, 6);
+    ame339_panel.userInteractionEnabled = YES;
+    ame339_card.userInteractionEnabled = YES;
+    [ame339_panel addSubview:ame339_card];
+
+    // 标题 + 当前生效值副题
+    UILabel *ame339_title = [[UILabel alloc] initWithFrame:CGRectMake(18.0, 14.0, ame339_cardW - 70.0, 24.0)];
+    ame339_title.text = localize(@"game.menu.resolution", nil);
+    ame339_title.font = [UIFont systemFontOfSize:17.0 weight:UIFontWeightSemibold];
+    ame339_title.textColor = [UIColor whiteColor];
+    [ame339_card addSubview:ame339_title];
+
+    UILabel *ame339_sub = [[UILabel alloc] initWithFrame:CGRectMake(18.0, 40.0, ame339_cardW - 70.0, 18.0)];
+    ame339_sub.text = [NSString stringWithFormat:localize(@"game.menu.resolution.current", nil), (long)currentValue];
+    ame339_sub.font = [UIFont systemFontOfSize:13.0];
+    ame339_sub.textColor = [UIColor colorWithWhite:1.0 alpha:0.62];
+    [ame339_card addSubview:ame339_sub];
+
+    // 关闭钮（40x40，ZL2CleanupPage 页头关闭钮同款几何）
+    UIButton *ame339_close = [UIButton buttonWithType:UIButtonTypeSystem];
+    ame339_close.frame = CGRectMake(ame339_cardW - 52.0, 10.0, 40.0, 40.0);
+    UIImage *ame339_closeIcon = [AmeFloatingMenu symbolImageForName:@"xmark.circle.fill"];
+    [ame339_close setImage:ame339_closeIcon ?: [UIImage systemImageNamed:@"xmark.circle.fill"]
+                  forState:UIControlStateNormal];
+    ame339_close.tintColor = [UIColor colorWithWhite:1.0 alpha:0.72];
+    [ame339_close addTarget:self action:@selector(ame339_dismissResolutionPanel)
+           forControlEvents:UIControlEventTouchUpInside];
+    [ame339_card addSubview:ame339_close];
+
+    // 六档行（Ame237MenuRow 家族；选中档 checkmark 前缀）
+    CGFloat ame237_rowY = 74.0;
+    for (NSUInteger ame339_i = 0; ame339_i < options.count; ame339_i++) {
+        NSInteger ame339_value = [options[ame339_i] integerValue];
+        BOOL ame339_selected = (ame339_value == currentValue);
+        NSString *ame339_label = ame339_selected
+            ? [NSString stringWithFormat:@"✓ %ld%%", (long)ame339_value]
+            : [NSString stringWithFormat:@"%ld%%", (long)ame339_value];
+        Ame237MenuRow *ame339_row = [[Ame237MenuRow alloc] initWithFrame:CGRectMake(0.0, ame237_rowY, ame339_cardW, 48.0)];
+        [ame339_row ame237_configureWithIcon:nil
+                                       title:ame339_label
+                                   textColor:[UIColor whiteColor]
+                                  symbolTint:[UIColor whiteColor]
+                                   emphasis:ame339_selected];
+        ame339_row.tag = (NSInteger)ame339_i;
+        [ame339_row addTarget:self action:@selector(ame339_resOptionTouched:)
+             forControlEvents:UIControlEventTouchUpInside];
+        [ame339_card addSubview:ame339_row];
+        ame237_rowY += 48.0;
+    }
+
+    objc_setAssociatedObject(self, kAme339ResPanelKey, ame339_panel, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+    [self.view addSubview:ame339_panel];
+    ame339_panel.alpha = 0.0;
+    ame339_card.transform = CGAffineTransformMakeScale(0.94, 0.94);
+    [UIView animateWithDuration:0.22 animations:^{
+        ame339_panel.alpha = 1.0;
+        ame339_card.transform = CGAffineTransformIdentity;
+    }];
+    NSLog(@"[GameMenu] Task339: resolution panel presented (current=%ld%%, view=%.0fx%.0f)",
+          (long)currentValue, self.view.bounds.size.width, self.view.bounds.size.height);
+}
+
+- (void)ame339_dismissResolutionPanel {
+    UIView *ame339_panel = objc_getAssociatedObject(self, kAme339ResPanelKey);
+    if (!ame339_panel) return;
+    objc_setAssociatedObject(self, kAme339ResPanelKey, nil, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+    [UIView animateWithDuration:0.16 animations:^{ ame339_panel.alpha = 0.0; }
+                     completion:^(BOOL finished) { [ame339_panel removeFromSuperview]; }];
+}
+
+- (void)ame339_resOptionTouched:(Ame237MenuRow *)sender {
+    NSUInteger ame339_idx = (NSUInteger)sender.tag;
+    NSArray *options = @[@25, @50, @75, @100, @125, @150];
+    if (ame339_idx >= options.count) return;
+    NSInteger value = [options[ame339_idx] integerValue];
+    // Task186：写当前实例的 resolution 键（setServerIp 同款 mutableCopy
+    // 写回模式，updateSavedResolution 立即可见——PLProfiles.current 同一
+    // 内存对象，无需重建）；
+    NSInteger currentValue = [PLProfiles resolveKeyForCurrentProfile:@"resolution"].integerValue;
+    if (currentValue <= 0) currentValue = 100;
+    NSLog(@"[GameMenu] Task339: resolution option selected %ld%% (was %ld%%)",
+          (long)value, (long)currentValue);
+    NSString *ame186_profileName = PLProfiles.current.selectedProfileName;
+    if (ame186_profileName.length > 0) {
+        NSMutableDictionary *ame186_profile = [PLProfiles.current.profiles[ame186_profileName] mutableCopy];
+        if (!ame186_profile) ame186_profile = [NSMutableDictionary dictionary];
+        ame186_profile[@"resolution"] = [NSString stringWithFormat:@"%ld", (long)value];
+        PLProfiles.current.profiles[ame186_profileName] = ame186_profile;
+        [PLProfiles.current save];
+        NSLog(@"[Task186] in-game resolution: profile '%@' resolution -> %ld%% (was %ld%%)",
+              ame186_profileName, (long)value, (long)currentValue);
+    }
+    // 兼容镜像：JavaGUI（executeJar 窗口，无实例上下文）4 处仍读全局
+    // video.resolution（Task159 注释明确的保留设计），保持旧全局写入
+    // 不回归其行为。
+    setPrefFloat(@"video.resolution", value.floatValue);
+    // Task187 → ★ Task328 会话内即时生效链 + ★ Task338 两段式（呈现面
+    // 翻转压到 MC 消费宣告之后）全量保留。
+    if (value != currentValue) {
+        BOOL ame328_applied = [self ame328_applyResolutionInSession:value.floatValue / 100.0];
+        [NMToast showMessage:localize(ame328_applied
+            ? @"game.menu.resolution.applied"
+            : @"game.menu.resolution.next_launch", nil)];
+        NSLog(@"[GameMenu] Task339: resolution apply result: %d (%@)",
+              ame328_applied,
+              ame328_applied ? @"applied in-session" : @"saved, applies next launch");
+    }
+    [self ame339_dismissResolutionPanel];
 }
 
 - (void)actionOpenNavigationMenu {

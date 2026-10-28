@@ -61,16 +61,16 @@ try:
     dirs = sorted(d for d in os.listdir(builtin_root) if not d.startswith('.'))
 except FileNotFoundError:
     dirs = []
-check('D1 bundle builtin == survey+fluent-ui (Task338)', dirs == ['fluent-ui', 'plugin-survey'], f'got {dirs}')
+check('D1 bundle builtin == survey (Task339: fluent-ui 外置回远程仓库)', dirs == ['plugin-survey'], f'got {dirs}')
 repo_src = os.path.join(REPO, 'plugin-repo', 'src')
 src_dirs = sorted(d for d in os.listdir(repo_src) if not d.startswith('.'))
-check('D2 repo src == 4 migrated',
-      src_dirs == ['launch-counter', 'modrinth-hot', 'renderer-quickswitch', 'theme-sunset'],
+check('D2 repo src == 5 migrated (Task339: +fluent-ui)',
+      src_dirs == ['fluent-ui', 'launch-counter', 'modrinth-hot', 'renderer-quickswitch', 'theme-sunset'],
       f'got {src_dirs}')
 idx_path = os.path.join(REPO, 'plugin-repo', 'index.json')
 idx = json.load(open(idx_path, encoding='utf-8'))
 check('D3 index schema 1', idx.get('schema') == 1)
-check('D4 index 4 plugins', len(idx.get('plugins', [])) == 4)
+check('D4 index 5 plugins (Task339: +fluent-ui)', len(idx.get('plugins', [])) == 5)
 byid = {p['id']: p for p in idx['plugins']}
 check('D5 all official=true', all(p.get('official') is True for p in idx['plugins']))
 for pid, p in sorted(byid.items()):
@@ -124,7 +124,7 @@ for lang in ['en', 'zh-Hans', 'zh-CN', 'zh-Hant']:
     keys = set(re.findall(r'^"([^"]+)"\s*=', txt, re.M))
     check(f'F1 {lang} all 10 Task333 keys', set(need) <= keys,
           f'missing={sorted(set(need) - keys)}')
-    check(f'F2 {lang} unique keys == 3316 (Task338: +fluent-ui name/desc)', len(keys) == 3316, f'got {len(keys)}')
+    check(f'F2 {lang} unique keys == 3317 (Task339: +game.menu.resolution.current)', len(keys) == 3317, f'got {len(keys)}')
 
 print()
 if fails:

@@ -500,6 +500,7 @@ add_executable(AngelAuraAmethyst
   AmeFloatingMenu.m
   AmeNativeMenu.m
   AmeTheme.m
+  AMEFluentTheme.m   # ★Task339：Fluent 2 / Apple 官方令牌层（fluentui-apple 逐值溯源；主页重设计事实源）
   # 7.0-UI-4：Fluent 组件库首批（fluent2_kit 规格 ObjC 重建）
   FluentButton.m
   FluentCard.m

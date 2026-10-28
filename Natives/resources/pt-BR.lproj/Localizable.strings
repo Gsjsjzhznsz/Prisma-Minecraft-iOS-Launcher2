@@ -452,6 +452,7 @@
 "game.menu.toggle_keyboard" = "Alternar teclado no jogo";
 "game.menu.resolution" = "Resolução";
 "game.menu.resolution.message" = "Selecione a escala de resolução do jogo";
+"game.menu.resolution.current" = "Atual: %ld%%";
 "game.menu.resolution.next_launch" = "Salvo. Reinicie o jogo para aplicar.";
 "game.menu.resolution.applied" = "Resolution saved and applied instantly";
 "Details" = "Detalhes";

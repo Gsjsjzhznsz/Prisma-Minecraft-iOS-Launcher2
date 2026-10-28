@@ -13,8 +13,8 @@ AngelAuraAmethyst（Amethyst-iOS 重制版，fork **Gsjsjzhznsz/Air-Minecraft-iO
 ### 当前状态（收尾时更新）
 | 项 | 值 |
 |---|---|
-| 远端 HEAD | Task 321 提交 + worklog（门禁十一项全绿）：旧版本升级自动迁移（一代 ≤6.5.5 原地升级指纹+快照落档 + AI 新者为准合并）+ 从 Air 自动迁移优化（智能合并/身份识别/档案状态机） |
-| 最新 Task 号 | **321**（多会话并行开发，开新任务前先 fetch 避让编号） |
+| 远端 HEAD | Task 339 提交 + worklog（ame339 19 断言+反向 4 探针全绿）：进世界后切不了分辨率根修（二级 actionSheet 在自由窗/转置态静默失败实锤 → GameMenu 家族自绘分辨率面板，应用链 338 两段式 1:1 保留）+ fluent-ui 外置远程仓库（builtin 收敛 survey 独留 + plugin-repo 第五件）+ AMEFluentTheme（fluentui-apple 令牌层）主页 70 处全量换装 Fluent 2/Apple |
+| 最新 Task 号 | **339**（多会话并行开发，开新任务前先 fetch 避让编号） |
 | 待用户装机验证 | Task 183（四线锚点见文末）+ Task 182（三锚点）+ Task 181（六锚点）+ Task 180（双滑条透明度）+ Task 179（八连修）+ Task 178/177（新拟态定稿）+ 更早轮次 |
 | 已知历史遗留 | v6.0.0-release-notes.md 是工作区工件不在 git（发布时从 announcements.json 重导出）；部分 verify 级联失败为沙箱环境性（会话本地脚本被清 + task132/135/149/158 路径依赖 + task140 G2/G3 日志轮换），与基线对拍判读 |
 
@@ -4086,5 +4086,24 @@ ame331_selfcheck 49 断言（新：协议 24 selector 导出/JS 名整形七关�
 3. 1.13–26.2（GLFW）/26.3+（SDL）会话调节分辨率：行为与上一版完全一致（旧即时路径保留，日志仍 Task328 fullscreen path）
 4. 主页「Fluent UI 主题」行：首击说明对话框→应用亮色；再击循环暗色/混融/恢复默认（toast 明示）；重启启动器主题保留（__theme 重放）；新开页面/重启全量生效
 5. 版本页页头三钮（刷新/扫描/安装）：扫描钮→「扫描并恢复版本」（无引用版本逐个重建实例，列表即时刷新）/「清理垃圾」→ ZL2 清理中心（三分类卡片逐项确认删除，正在用的 latestlog.txt 永不触碰）
+
+---
+
+## Task 339（三线：进世界后切不了分辨率根修 / fluent-ui 外置远程仓库 / Fluent 2·Apple 官方重设计 @ 本轮）
+
+- 设备输入：用户三问——「为什么进世界之后就切不了分辨率了」/「fluent-ui不用内置，放在远程仓库」/「依据 https://github.com/microsoft/fluentui-apple 重新设计界面，而不是依旧套用 ZL2 的」
+- 线① 进世界后切不了分辨率（UI 面根修）：装机 latestlog（commit 8fc59ef 会话）取证闭环——用户在世界内（iPadOS 自由窗 697x379 + 旋转转置 rot=-90 态）gear tap #2 打开菜单（rows=11 panel={{297,0},{400,379}}）后**零二级菜单日志**（AmeNativeMenu Task242/245/267 present 路由行全无 + 无 Task186 写入 + 无 ame328 应用 + MC viewport 停在 1394x758 res=1.00）= 旧二级选择器（ame240 = UIAlertController actionSheet 家族）在小窗/转置态静默失败或不可达，选择链从未触发；同屏另有 surface=1762x1481 vs drawable=1394x758 的 Task52 heal 拉锯（transposed-uncured 千次循环 + GL 1282 每帧刷）为伴生病灶（既有 Task326/52/55 战局，本轮不扩线）。根修 = 二级选择器整体退役换 **GameMenu 家族自绘面板**（Ame237MenuRow 行控件 + 深色实底卡 16pt 圆角 + 40×40 关闭钮 + 遮罩点击关闭，与齿轮菜单 native 档同源组件族），直挂 self.view 零转置耦合，全形态（全屏/自由窗/转置/iPhone）呈现链全在本 VC 掌控内；应用逻辑（Task186 profile 写入 + setPrefFloat 兼容镜像 + ame328 会话内生效链 + 338 两段式）逐行 1:1 保留；取证日志三连补齐零日志盲区（`[GameMenu] Task339: resolution panel presented / option selected / apply result`）；i18n 新键 game.menu.resolution.current 13 表齐（amend339 批插脚本幂等）
+- 线② fluent-ui 外置（用户点题"不用内置，放在远程仓库"）：`git mv` Natives/resources/builtin-plugins/fluent-ui → plugin-repo/src/fluent-ui（R 记录零内容变化）+ plugins/fluent-ui.zip 重打包（zip 根直接 manifest.json+main.js，与现有四件同构，3045B sha256=e5f4c0d1d8305cc5...）+ index.json 增 fluent-ui 条目（official=true，updated 2026-10-28）——用户从插件仓库页一键安装；bundle builtin 收敛回 survey 独留（Task333 后首件回迁远程）；ame330 census 链零改动收敛实证（ame326_bundleBuiltinPluginIds = bundle 目录动态扫描，已安装副本在用户设备继续可用，刷新通道随外置自然终止）
+- 线③ Fluent 2 / Apple 官方重设计（用户点题"依据 fluentui-apple 重新设计界面，而不是依旧套用 ZL2"）：新令牌层 **AMEFluentTheme.h/.m**（fluentui-apple 逐值溯源：Brand10 #0F6CBD/#4CC2FF 双态 + Brand20/BrandTint + Neutral fg1-3/bg1-3/stroke1-2 + 语义色 error/success/warning + Type ramp Title2 28S→Caption 12 + 圆角 Fluent2 口径 4/8/12 + 4pt 间距栅格 + shadow8/16 辅助；全动态 colorWithDynamicProvider 零 traitCollection 分支，ZL2Home 红线全量继承）；主页 ZL2HomeViewController **70 处调用点全量换装**（ZL2Theme M3 口径 → AMEFluentTheme Fluent 2/Apple 口径映射表驱动，注释提及不动）+ 结构性 Fluent 化三件——实例卡 = bg1+stroke2 hairline+shadow8（fluentui-apple 卡片三件套）、选中态 = brand 2pt 描边（旧 brandContainer 换 brand）、启动大钮 = FilledButton 按压态 Brand→BrandShade（TouchDown/Up/Cancel 三路）；AmeTheme（fluent2_kit 口径既有令牌层，Fluent 组件库 7 件消费面）本轮不动并行共存，消费面收敛移交下轮；CMakeLists 登记 + ui_fluent_smoke 双口径演进（syntax 门禁加 AMEFluentTheme.h 面 + preview sources 加 AMEFluentTheme）
+- 门禁：ame339_selfcheck 19 断言新门（A 分辨率 6〔actionSheet 退役/自绘四件套/应用链 1:1/取证三连/i18n 13 表/338 链未破坏〕/B 外置 5〔builtin 收敛/源件齐/zip 结构/index 完整性 sha256+size 实算对拍/旧电池演进〕/C Fluent 5〔令牌核心/主页零 ZL2Theme 残留/Fluent 化四件/CMake 登记/smoke 双口径〕/D 结构 3）+ --selftest 反向验证 4 探针全翻红（S-A2 面板方法禁用/S-A3 生效链摘除/S-C2 主页回潜 ZL2Theme/S-B3 sha256 篡改）；旧电池三件随演进翻绿：ame318（builtin 断言 2→1 件）、ame333（D1/D2/D4 repo 面 + F2 键数 3316→3317）、ame338（B 组路径迁 repo）；全电池 ame317~338+ame339 全绿（task139 语法门禁 all balanced）
+- CI：r0 双 dispatch（smoke + development）待回填
+
+### 装机锚点汇总（预期行为）
+
+1. 1.8.9 世界内（含 iPadOS 自由窗/旋转转置态）⚙→分辨率调整：弹出深色自绘面板（六档行 + ✓ 当前档 + 当前生效副题 + 关闭钮），任选档位即写 profile 并走 338 两段式宣告（日志序 `[GameMenu] Task339: resolution panel presented` → `option selected` → `apply result: 1`）——二级 actionSheet 不可达病灶根除
+2. 点遮罩或关闭钮撤面板（0.16s 淡出）；复开幂等（旧面板先撤）
+3. 主页整体 Fluent 2 / Apple 质感：实例卡白面+发丝描边+轻投影（暗色黑面自动对偶）、选中实例 brand 蓝描边 2pt、启动大钮按下变深（BrandShade）、全文字/圆角/间距 Fluent ramp
+4. 插件仓库页：远程列表第 5 件「Fluent UI 主题」（official 徽章）一键安装；bundle 不再随包附带 fluent-ui（已安装用户副本继续可用）
+5. 主题插件「Fluent UI 主题」行为与本轮原生重设计互不干扰（插件仍可循环三板覆盖原生默认）
 
 ---

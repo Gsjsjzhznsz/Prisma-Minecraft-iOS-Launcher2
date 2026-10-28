@@ -2,7 +2,10 @@
 # Task318 内置插件仓库综合静态自查
 # ① builtin-plugins 资源完备性（★Task333 上仓迁移：bundle 只留 plugin-survey
 #    勘测件；四件演示件迁至 plugin-repo/src，由 ame333_selfcheck 管辖。
-#    ★Task338：fluent-ui 内置件入仓 —— bundle = survey + fluent-ui 两件）
+#    ★Task338：fluent-ui 内置件入仓 —— bundle = survey + fluent-ui 两件。
+#    ★Task339：fluent-ui 外置回远程插件仓库（用户点题“fluent-ui不用内置，
+#    放在远程仓库”）—— bundle 收敛回 survey 独留，fluent-ui 迁至
+#    plugin-repo/src/fluent-ui + plugins/fluent-ui.zip（ame339_selfcheck 管辖）
 # ② ame318.* 四表键集一致且 17 键、无意外占位符
 # ③ 新 .m 的 import 头文件闭环（文件存在于仓内）
 # ④ CMakeLists 已登记 ZL2PluginRepoViewController.m + 伞头已挂
@@ -19,12 +22,12 @@ def check(name, ok, detail=''):
 
 # ── ① builtin-plugins 资源完备性 ────────────────────────
 root = os.path.join(NAT, 'resources', 'builtin-plugins')
-expect_ids = {'plugin-survey', 'fluent-ui'}   # ★Task333 迁移后 survey 独留；★Task338 fluent-ui 入仓
+expect_ids = {'plugin-survey'}   # ★Task339：fluent-ui 外置回远程仓库，bundle 收敛回 survey 独留
 try:
     dirs = set(d for d in os.listdir(root) if not d.startswith('.'))
 except FileNotFoundError:
     dirs = set()
-check('builtin-plugins dirs == 2 expected (survey + fluent-ui, Task338)', dirs == expect_ids, f'got {sorted(dirs)}')
+check('builtin-plugins dirs == 1 expected (survey; fluent-ui 外置 Task339)', dirs == expect_ids, f'got {sorted(dirs)}')
 
 perm_src = open(os.path.join(NAT, 'AmePluginPermissions.m'), encoding='utf-8').read()
 perm_registry = set(re.findall(r'initWithId:@"([a-z0-9._]+)"', perm_src))

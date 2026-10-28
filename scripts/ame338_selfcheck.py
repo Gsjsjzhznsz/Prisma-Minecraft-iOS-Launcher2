@@ -131,8 +131,8 @@ svch = read('Natives/SurfaceViewController.h')
 ib3 = read('Natives/input_bridge_v3.m')
 utilsh = read('Natives/utils.h')
 zvv = read('Natives/ZL2VersionsViewController.m')
-manifest = read('Natives/resources/builtin-plugins/fluent-ui/manifest.json')
-mainjs = read('Natives/resources/builtin-plugins/fluent-ui/main.js')
+manifest = read('plugin-repo/src/fluent-ui/manifest.json')   # ★Task339：外置回远程仓库（bundle 路径退役）
+mainjs = read('plugin-repo/src/fluent-ui/main.js')
 s318 = read('scripts/ame318_selfcheck.py')
 smoke = read('scripts/ui_fluent_smoke.sh')
 
@@ -218,9 +218,9 @@ check('B4 三板 + 恢复默认语义',
       and "storageRemove('__theme')" in mainjs,
       '三板或缺恢复默认')
 
-check('B5 ame318 电池语义演进', "{'plugin-survey', 'fluent-ui'}" in s318
+check('B5 ame318 电池语义演进', "{'plugin-survey'}" in s318
       and 'len(base) == 21' in s318,
-      'ame318 断言未随插件入仓演进')
+      'ame318 断言未随插件外置演进（Task339）')
 
 i18n_ok = True
 i18n_detail = ''

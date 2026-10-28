@@ -14,6 +14,7 @@
 "game.menu.toggle_keyboard" = "Toggle Keyboard";
 "game.menu.resolution" = "Resolution";
 "game.menu.resolution.message" = "Select game resolution scale";
+"game.menu.resolution.current" = "現在の値：%ld%%";
 
 "game.note.airplay" = "Minecraft は AirPlay ミラーディスプレイに表示されています";
 

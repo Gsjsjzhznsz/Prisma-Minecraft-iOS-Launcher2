@@ -1,7 +1,7 @@
 {
   "schema": 1,
   "repo": "Gsjsjzhznsz/Prisma-Minecraft-iOS-Launcher2",
-  "updated": "2026-10-26",
+  "updated": "2026-10-28",
   "plugins": [
     {
       "id": "launch-counter",
@@ -45,6 +45,17 @@
       "file": "plugins/theme-sunset.zip",
       "size": 2366,
       "sha256": "a974d54295730aa4ecdf7d8ab849aeab2ca60a7d9ca0b33636719cad2e3c0296",
+      "official": true
+    },
+    {
+      "id": "fluent-ui",
+      "name": "Fluent UI 主题",
+      "version": "1.0.0",
+      "author": "Prisma",
+      "summary": "依据 Fluent 2 / Apple 材质令牌的整套启动器换装：亮色（Fluent 2 品牌蓝 + 中性分层）、暗色（Fluent 暗面板）、混融（Fluent 骨架 × Apple 系统色）循环切换，恢复默认一键还原。",
+      "file": "plugins/fluent-ui.zip",
+      "size": 3045,
+      "sha256": "e5f4c0d1d8305cc5eefa40aa3ee00d094d5deb85de12a2b53e8b637a51405c22",
       "official": true
     }
   ]
