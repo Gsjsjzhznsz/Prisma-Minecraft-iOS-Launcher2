@@ -248,12 +248,18 @@ check('B8 Task340 index purge 保留（既有回归）',
 # ═══════════════════════ C 组：结构 ═══════════════════════
 print('== C 组：结构 ==')
 
-# C1: 大括号平衡（四个改动文件）
+# C1: 括号平衡（四个改动文件）——★Task342 r1 判例：三层 ObjC 消息链
+#   [[[A m1] m2] resume] 少一层 `[`（CI dev 40734990645 实锤 missing '['），
+#   大括号平衡断言查不出 → C 组补圆括号/方括号平衡三查。
 for name, src in (('JavaLauncher.m', jl), ('main_hook.m', mh), ('SceneDelegate.m', scene),
                   ('ZL2PluginRepoViewController.m', repo_vc), ('AmePluginManager.h', mgr_h)):
     code = strip_real(src)
     check(f'C1 {name} 大括号平衡', code.count('{') == code.count('}'),
           f"{code.count('{')} vs {code.count('}')}")
+    check(f'C1 {name} 圆括号平衡', code.count('(') == code.count(')'),
+          f"{code.count('(')} vs {code.count(')')}")
+    check(f'C1 {name} 方括号平衡', code.count('[') == code.count(']'),
+          f"{code.count('[')} vs {code.count(']')}")
 
 # C2: strings 文件引号闭合（逐行偶数个未转义双引号）
 ok_q = True

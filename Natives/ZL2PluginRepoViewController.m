@@ -433,9 +433,14 @@ static NSString * const ame333_repoMirrorPrefKey = @"ame333.plugin.repo.mirror";
             if (filePurge) {
                 dispatch_semaphore_t fpsem = dispatch_semaphore_create(0);
                 __block NSInteger fphttp = 0;
+                // ★Task342 r1 热修（CI dev 40734990645 实锤：missing '[' at
+                //   start of message send expression @438）：三层消息链
+                //   [[[session sessionWithConfig] dataTask] resume] 少一层
+                //   `[`——对齐 Task340 既有模式（局部变量 + 两层消息）。
                 NSURLSessionConfiguration *pcfg = [NSURLSessionConfiguration ephemeralSessionConfiguration];
                 pcfg.timeoutIntervalForRequest = 3.0;
-                [[NSURLSession sessionWithConfiguration:pcfg] dataTaskWithURL:filePurge completionHandler:^(NSData *d, NSURLResponse *r, NSError *e) {
+                NSURLSession *psession = [NSURLSession sessionWithConfiguration:pcfg];
+                [[psession dataTaskWithURL:filePurge completionHandler:^(NSData *d, NSURLResponse *r, NSError *e) {
                     fphttp = ((NSHTTPURLResponse *)r).statusCode ?: 0;
                     dispatch_semaphore_signal(fpsem);
                 }] resume];
