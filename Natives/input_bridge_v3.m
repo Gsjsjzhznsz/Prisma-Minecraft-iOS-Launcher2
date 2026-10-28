@@ -2626,7 +2626,30 @@ static void ame334_pushWindowSizePair(int width, int height) {
     }
 }
 
+// ★Task340：MC 尺寸宣告通道可达性查询（SurfaceViewController 信念重算闸的
+//   判据源）。三通道 = GLFW 直调 invoke / 栈队列 send（sendData 同样以
+//   invoke 非 NULL 为前置）/ SDL 推送。全断 = 1.8.9 LWJGL2-on-LWJGL3 垫片
+//   形态（nativeSendScreenSizeForced 只更新全局变量，MC viewport 永不跟随）
+//   → 调用方必须闸住一切"改 MC 信念"的重算（三方分裂制造器）。
+int ame340_mc_resize_channel_alive(void) {
+    if (GLFW_invoke_WindowSize || GLFW_invoke_FramebufferSize) return 1;
+    if (g_sdlWindow && pSDL_PushEvent) return 1;
+    return 0;
+}
+
 void CallbackBridge_nativeSendScreenSizeForced(int width, int height) {
+    // ★Task340：通道可达性取证（首 3 次宣告时打印一次）——装机日志实锁
+    //   （1.8.9 LWJGL2-on-LWJGL3 垫片会话）：Task333 trio 三连宣告 1484x1272
+    //   后 MC viewport 恒 2360x1640、EGL surface 1473x756（交集=左下角 =
+    //   用户实测"竖窗转横屏只有左下角在动"）。取证定案垫片会话的通道形态，
+    //   为将来真自适应重宣告铺路。
+    static int s_ame340_probe = 0;
+    if (s_ame340_probe < 3) {
+        s_ame340_probe++;
+        NSLog(@"[InputDiag] Task340 resize channel probe #%d: GLFW_invoke_WindowSize=%p FramebufferSize=%p g_sdlWindow=%p stackQueue=%d alive=%d",
+              s_ame340_probe, (void*)GLFW_invoke_WindowSize, (void*)GLFW_invoke_FramebufferSize,
+              g_sdlWindow, isUseStackQueueCall, ame340_mc_resize_channel_alive());
+    }
     windowWidth = width;
     windowHeight = height;
 

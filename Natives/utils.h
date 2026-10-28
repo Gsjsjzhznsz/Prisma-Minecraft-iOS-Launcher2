@@ -482,6 +482,12 @@ extern BOOL g_ame267_freeformScaled;
 //   dispatch main 调 ame338_commitPendingResolutionGeometry。看门狗（ame328
 //   侧 2s dispatch_after）为病态停泵会话兜底收敛。
 extern volatile BOOL g_ame338_pendingResCommit;
+// ★ Task340（"竖窗转横屏只有左下角在动"根修）：MC 尺寸宣告通道可达性查询
+//   （input_bridge_v3.m 定义）。三通道 = GLFW 直调 invoke / 栈队列 send /
+//   SDL 推送；全断 = 1.8.9 LWJGL2-on-LWJGL3 垫片形态 → SurfaceVC 的信念
+//   重算（ame328 核心/会话内分辨率调节）在此形态必须闸住（重算必产生
+//   三方分裂：启动器信念/drawable 已新、MC viewport 冻结旧值）。
+int ame340_mc_resize_channel_alive(void);
 void CallbackBridge_nativeSendScroll(CGFloat xoffset, CGFloat yoffset);
 void CallbackBridge_sendKeycode(int keycode, jchar keychar, int scancode, int modifiers, BOOL isDown);
 void CallbackBridge_pauseGameIfNeed();

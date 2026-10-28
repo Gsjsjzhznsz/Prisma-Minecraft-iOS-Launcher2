@@ -139,8 +139,9 @@ check("应用方法双分支（自由窗核心 / 全屏全链）",
       "ame267_isFullscreenWindow] || g_ame267_freeformScaled" in sv and
       "[self updateSavedResolution];" in sv.split("- (BOOL)ame328_applyResolutionInSession:")[1].split("@end")[0])
 nav = rd("Natives/SurfaceViewController+Navigation.m")
+# ★Task340：断言同步 Task339 r1 热修新调用形式（NSInteger 点语法退役）
 check("游戏内菜单接入即时应用 + applied 键",
-      "ame328_applyResolutionInSession:value.floatValue / 100.0" in nav and
+      "ame328_applyResolutionInSession:(float)value / 100.0" in nav and
       'game.menu.resolution.applied' in nav)
 # ⑦C 插件效果直达
 check("设置页插件组上移至外观组后（新位点 + 组3 尾零残留）",

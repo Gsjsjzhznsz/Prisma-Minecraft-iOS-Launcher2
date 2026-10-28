@@ -2185,6 +2185,43 @@ static NSInteger ame283_lastLandscapeDev = 0;
 ///   返回 YES = 信念已改变并应用；NO = 无效几何，或幂等跳过（新信念与旧
 ///   信念差 ≤1px，比例一致已 1:1）。
 - (BOOL)ame328_recomputeBeliefChainFromTouchViewWithRes:(CGFloat)ame328_res {
+    // ★Task340（"竖窗转横屏只有左下角在动"根修）：MC 可达性闸——信念重算的
+    //   语义前提 = 新窗口尺寸能传导 MC（viewport 重建）。传导三通道（GLFW 直调
+    //   invoke / 栈队列 send / SDL 推送）全断 = 1.8.9 LWJGL2-on-LWJGL3 垫片
+    //   形态（装机日志实锁：Task333 trio 三连宣告 1484x1272 后 MC viewport
+    //   恒 2360x1640，EGL surface 1473x756 —— viewport∩surface 仅左下角 =
+    //   用户实测"只有左下角在动"；AME 5784 swap 全程 RenderDiag viewport
+    //   未变过）。此形态重算 = 制造三方分裂（启动器信念/drawable 已新、MC
+    //   viewport 冻结旧值）→ 闸住：保持 scale-mode 冻结全帧语义（MC 恒全帧
+    //   渲染，CA 信箱等比缩放显示），drawable 钉回信念整帧防 ANGLE 自然化
+    //   后的交集缩小。分辨率调节在此形态由调用方回落"重启后生效"。
+    if (!ame340_mc_resize_channel_alive()) {
+        static int s_ame340_gate = 0;
+        if (s_ame340_gate < 3) {
+            s_ame340_gate++;
+            NSLog(@"[SurfaceVC] Task340: belief recompute gated (MC resize channel dead -- LWJGL2-on-LWJGL3 shim form); frozen belief stays %dx%d",
+                  windowWidth, windowHeight);
+        }
+        // drawable 钉回信念整帧（Task326 同款）：ANGLE 随 layer bounds 自然化
+        //   drawable（装机实锁 2360x1640 -> 1473x756 漂移），MC 按冻结 viewport
+        //   全帧渲染必须画进同尺寸 drawable，否则交集缩小 = 左下角残影。内容
+        //   矩形与信念同比例（Task326 恒等式）→ 钉回后 CA 等比缩放不变形。
+        if (physicalWidth > 0 && physicalHeight > 0 &&
+            [self.surfaceView.layer isKindOfClass:CAMetalLayer.class]) {
+            CAMetalLayer *ame340_ml = (CAMetalLayer *)self.surfaceView.layer;
+            CGFloat ame340_r = (resolutionScale > 0.01f) ? resolutionScale : 1.0f;
+            CGSize ame340_tgt = CGSizeMake(round((CGFloat)physicalWidth * ame340_r),
+                                           round((CGFloat)physicalHeight * ame340_r));
+            CGSize ame340_old = ame340_ml.drawableSize;
+            if (fabs(ame340_old.width - ame340_tgt.width) > 0.5 ||
+                fabs(ame340_old.height - ame340_tgt.height) > 0.5) {
+                ame340_ml.drawableSize = ame340_tgt;
+                NSLog(@"[SurfaceVC] Task340: drawable re-pinned to frozen belief %.0fx%.0f -> %.0fx%.0f",
+                      ame340_old.width, ame340_old.height, ame340_tgt.width, ame340_tgt.height);
+            }
+        }
+        return NO;
+    }
     CGFloat ame328_lw = self.touchView.frame.size.width;
     CGFloat ame328_lh = self.touchView.frame.size.height;
     if (ame328_lw < 1.0 || ame328_lh < 1.0) return NO;
@@ -2287,6 +2324,14 @@ static NSInteger ame283_lastLandscapeDev = 0;
 - (BOOL)ame328_applyResolutionInSession:(CGFloat)ame328_res {
     if (self.surfaceView.superview == nil) return NO;        // 会话未启动
     if (windowWidth <= 0 || windowHeight <= 0) return NO;    // 信念未建立
+    // ★Task340：不可达形态会话内分辨率调节整体退役（全屏/自由窗双分支同闸）
+    //   ——宣告三通道全断时 MC viewport 不跟随（同"左下角"根因），无论哪个
+    //   分支会话内应用必然三方分裂 → 诚实回落"重启后生效"（本函数 NO 返回
+    //   既有语义，调用方 Toast 提示）。
+    if (!ame340_mc_resize_channel_alive()) {
+        NSLog(@"[SurfaceVC] Task340: in-session resolution apply unavailable (MC resize channel dead) -- falls back to next-launch");
+        return NO;
+    }
     if (![self ame267_isFullscreenWindow] || g_ame267_freeformScaled) {
         if (!g_ame250_appActive) return NO;
         return [self ame328_recomputeBeliefChainFromTouchViewWithRes:ame328_res];

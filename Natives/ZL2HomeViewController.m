@@ -50,7 +50,7 @@
 // UISheetPresentationController；UICollectionView 经典 dataSource，无
 // iOS15+ cell registration；SF 符号全 SF1.0 级并带旧名 fallback，尺寸用
 // UIImageSymbolConfiguration——iOS13+ API，在本仓 iOS14 上限内）；
-// 颜色/字体/圆角一律取 AMEFluentTheme 动态令牌（Fluent 2 / Apple，Task339；无 traitCollection 分支）；
+// 颜色/字体/圆角一律取 ZL2Theme 动态令牌（无 traitCollection 分支）；
 // 全部子视图 translatesAutoresizingMaskIntoConstraints = NO；视图身份
 // 直接属性持有 + block 载荷（sender.tag / viewWithTag 一律不用）；继承
 // UIKit 属性一律 self. 访问（7.0-UI-12-r2 判例）；alert 一律 present 到
@@ -59,7 +59,7 @@
 //
 
 #import "ZL2HomeViewController.h"
-#import "AMEFluentTheme.h"
+#import "ZL2Theme.h"
 #import "ZL2M3Kit.h"                 // ZL2M3BottomSheet（长按卡菜单）
 #import "authenticator/BaseAuthenticator.h"
 #import "PLProfiles.h"
@@ -186,13 +186,9 @@ static UIImage *ZL2HomeSizedImage(NSString *name, NSString *fallback, CGFloat po
 
         // 卡本体（可点 = 选实例）
         _cardBody = [[ZL2HomeTapControl alloc] init];
-        _cardBody.backgroundColor = [AMEFluentTheme bg1];
-        _cardBody.layer.cornerRadius = [AMEFluentTheme radiusCard];
-        // ★ Task339 Fluent 化：卡片 = bg1 + stroke2 hairline 描边 + Fluent shadow8
-        //   （fluentui-apple 卡片三件套；选中态描边在 configure 内切换）
-        _cardBody.layer.borderWidth = 1.0;
-        _cardBody.layer.borderColor = [AMEFluentTheme stroke2].CGColor;
-        [AMEFluentTheme applyCardShadow:_cardBody];
+        _cardBody.backgroundColor = [ZL2Theme surfaceContainer];
+        _cardBody.layer.cornerRadius = [ZL2Theme radiusM];
+        _cardBody.layer.borderWidth = 0;
         _cardBody.translatesAutoresizingMaskIntoConstraints = NO;
         _cardBody.isAccessibilityElement = YES;
         _cardBody.accessibilityTraits = UIAccessibilityTraitButton;
@@ -200,7 +196,7 @@ static UIImage *ZL2HomeSizedImage(NSString *name, NSString *fallback, CGFloat po
 
         // —— 实例图标 40（加载器品牌图标优先，兜底 gamecontroller 模板）——
         _iconBg = [[UIView alloc] init];
-        _iconBg.layer.cornerRadius = [AMEFluentTheme radiusControl];
+        _iconBg.layer.cornerRadius = [ZL2Theme radiusS];
         _iconBg.layer.masksToBounds = YES;
         _iconBg.translatesAutoresizingMaskIntoConstraints = NO;
         [_cardBody addSubview:_iconBg];
@@ -213,8 +209,8 @@ static UIImage *ZL2HomeSizedImage(NSString *name, NSString *fallback, CGFloat po
 
         // —— 名称 / 信息行 ——
         _nameLabel = [[UILabel alloc] init];
-        _nameLabel.font = [AMEFluentTheme fontBodyStrong];
-        _nameLabel.textColor = [AMEFluentTheme fg1];
+        _nameLabel.font = [ZL2Theme fontLabelLarge];
+        _nameLabel.textColor = [ZL2Theme onSurface];
         _nameLabel.numberOfLines = 1;
         _nameLabel.lineBreakMode = NSLineBreakByTruncatingTail;
         _nameLabel.translatesAutoresizingMaskIntoConstraints = NO;
@@ -222,8 +218,8 @@ static UIImage *ZL2HomeSizedImage(NSString *name, NSString *fallback, CGFloat po
         [_cardBody addSubview:_nameLabel];
 
         _infoLabel = [[UILabel alloc] init];
-        _infoLabel.font = [AMEFluentTheme fontSubheadline];
-        _infoLabel.textColor = [AMEFluentTheme fg2];
+        _infoLabel.font = [ZL2Theme fontLabelMedium];
+        _infoLabel.textColor = [ZL2Theme onSurfaceVariant];
         _infoLabel.numberOfLines = 1;
         _infoLabel.lineBreakMode = NSLineBreakByTruncatingTail;
         _infoLabel.translatesAutoresizingMaskIntoConstraints = NO;
@@ -232,7 +228,7 @@ static UIImage *ZL2HomeSizedImage(NSString *name, NSString *fallback, CGFloat po
 
         // —— 右下小启动钮（16pt 播放图标 + 文字，primary 色）——
         _playButton = [[ZL2HomeTapControl alloc] init];
-        _playButton.layer.cornerRadius = [AMEFluentTheme radiusControl];
+        _playButton.layer.cornerRadius = [ZL2Theme radiusS];
         _playButton.translatesAutoresizingMaskIntoConstraints = NO;
         _playButton.isAccessibilityElement = YES;
         _playButton.accessibilityTraits = UIAccessibilityTraitButton;
@@ -240,7 +236,7 @@ static UIImage *ZL2HomeSizedImage(NSString *name, NSString *fallback, CGFloat po
 
         UIImage *playImage = ZL2HomeSizedImage(@"play.fill", @"play", 16);
         _playIconView = [[UIImageView alloc] initWithImage:[playImage imageWithRenderingMode:UIImageRenderingModeAlwaysTemplate]];
-        _playIconView.tintColor = [AMEFluentTheme brand];
+        _playIconView.tintColor = [ZL2Theme primary];
         _playIconView.contentMode = UIViewContentModeScaleAspectFit;
         _playIconView.translatesAutoresizingMaskIntoConstraints = NO;
         _playIconView.userInteractionEnabled = NO;
@@ -249,8 +245,8 @@ static UIImage *ZL2HomeSizedImage(NSString *name, NSString *fallback, CGFloat po
         _playLabel = [[UILabel alloc] init];
         // 常量文案先落位再测宽（小钮宽度 = 内容宽的测量依据）
         _playLabel.text = @"启动";
-        _playLabel.font = [AMEFluentTheme fontSubheadline];
-        _playLabel.textColor = [AMEFluentTheme brand];
+        _playLabel.font = [ZL2Theme fontLabelMedium];
+        _playLabel.textColor = [ZL2Theme primary];
         _playLabel.numberOfLines = 1;
         _playLabel.translatesAutoresizingMaskIntoConstraints = NO;
         _playLabel.userInteractionEnabled = NO;
@@ -333,7 +329,7 @@ static UIImage *ZL2HomeSizedImage(NSString *name, NSString *fallback, CGFloat po
     // 信息行：MC 版本/加载器小字；无效版本 = error 色提示（版本页同语义）
     if (!valid) {
         self.infoLabel.text = @"该版本无效";
-        self.infoLabel.textColor = [AMEFluentTheme error];
+        self.infoLabel.textColor = [ZL2Theme error];
     } else {
         if (mcVersion.length > 0 && loader.length > 0) {
             self.infoLabel.text = [NSString stringWithFormat:@"MC %@ · %@",
@@ -345,7 +341,7 @@ static UIImage *ZL2HomeSizedImage(NSString *name, NSString *fallback, CGFloat po
         } else {
             self.infoLabel.text = @"";
         }
-        self.infoLabel.textColor = [AMEFluentTheme fg2];
+        self.infoLabel.textColor = [ZL2Theme onSurfaceVariant];
     }
 
     // 实例图标：加载器图标（PNG 原色 / SF 品牌色，版本页同款）；取不到 →
@@ -358,15 +354,13 @@ static UIImage *ZL2HomeSizedImage(NSString *name, NSString *fallback, CGFloat po
     } else {
         UIImage *fallbackIcon = ZL2HomeSystemImage(@"gamecontroller.fill", @"gamecontroller");
         self.iconView.image = [fallbackIcon imageWithRenderingMode:UIImageRenderingModeAlwaysTemplate];
-        self.iconView.tintColor = [AMEFluentTheme fg2];
-        self.iconBg.backgroundColor = [AMEFluentTheme bg3];
+        self.iconView.tintColor = [ZL2Theme onSurfaceVariant];
+        self.iconBg.backgroundColor = [ZL2Theme surfaceVariant];
     }
 
-    // 选中态：brand 2pt 描边（fluentui-apple 选中口径）；未选中 = stroke2 hairline
-    self.cardBody.layer.borderWidth = isSelected ? 2 : 1;
-    self.cardBody.layer.borderColor = isSelected
-        ? [AMEFluentTheme brand].CGColor
-        : [AMEFluentTheme stroke2].CGColor;
+    // 选中态：primaryContainer 2pt 描边（复用残留防护：未选中恒清零）
+    self.cardBody.layer.borderWidth = isSelected ? 2 : 0;
+    self.cardBody.layer.borderColor = [ZL2Theme primaryContainer].CGColor;
 
     self.cardBody.accessibilityLabel = [NSString stringWithFormat:@"实例 %@，%@",
                                         profileName, isSelected ? @"当前实例" : @"点按选用"];
@@ -440,7 +434,7 @@ static UIImage *ZL2HomeSizedImage(NSString *name, NSString *fallback, CGFloat po
 - (void)viewDidLoad {
     [super viewDidLoad];
 
-    self.view.backgroundColor = [AMEFluentTheme bg2];
+    self.view.backgroundColor = [ZL2Theme surface];
     [self buildViews];
     // 复用注册（经典 dataSource 路径；cell 类自带 configure，无 iOS15+ registration）
     [self.gridView registerClass:[ZL2HomeVersionCardCell class]
@@ -524,8 +518,8 @@ static UIImage *ZL2HomeSizedImage(NSString *name, NSString *fallback, CGFloat po
     //（extraLarge 圆角，cardColor = surfaceBright），内部账号区居中贴顶、
     //  版本行+启动钮贴底；旧三张分离小卡废弃
     _actionMenu = [[UIView alloc] init];
-    _actionMenu.backgroundColor = [AMEFluentTheme bg1];
-    _actionMenu.layer.cornerRadius = [AMEFluentTheme radiusPanel];
+    _actionMenu.backgroundColor = [ZL2Theme surfaceBright];
+    _actionMenu.layer.cornerRadius = [ZL2Theme radiusXL];
     _actionMenu.layer.masksToBounds = YES;
     _actionMenu.translatesAutoresizingMaskIntoConstraints = NO;
     [self.view addSubview:_actionMenu];
@@ -564,8 +558,8 @@ static UIImage *ZL2HomeSizedImage(NSString *name, NSString *fallback, CGFloat po
     [_accountAvatarBg addSubview:_accountAvatarView];
 
     _accountNameLabel = [[UILabel alloc] init];
-    _accountNameLabel.font = [AMEFluentTheme fontTitleMedium];
-    _accountNameLabel.textColor = [AMEFluentTheme fg1];
+    _accountNameLabel.font = [ZL2Theme fontTitleMedium];
+    _accountNameLabel.textColor = [ZL2Theme onSurface];
     _accountNameLabel.numberOfLines = 1;
     _accountNameLabel.lineBreakMode = NSLineBreakByTruncatingTail;
     _accountNameLabel.textAlignment = NSTextAlignmentCenter;
@@ -574,8 +568,8 @@ static UIImage *ZL2HomeSizedImage(NSString *name, NSString *fallback, CGFloat po
     [_accountCard addSubview:_accountNameLabel];
 
     _accountTypeLabel = [[UILabel alloc] init];
-    _accountTypeLabel.font = [AMEFluentTheme fontSubheadline];
-    _accountTypeLabel.textColor = [AMEFluentTheme fg2];
+    _accountTypeLabel.font = [ZL2Theme fontLabelMedium];
+    _accountTypeLabel.textColor = [ZL2Theme onSurfaceVariant];
     _accountTypeLabel.numberOfLines = 1;
     _accountTypeLabel.lineBreakMode = NSLineBreakByTruncatingTail;
     _accountTypeLabel.textAlignment = NSTextAlignmentCenter;
@@ -596,7 +590,7 @@ static UIImage *ZL2HomeSizedImage(NSString *name, NSString *fallback, CGFloat po
     [_menuStack addArrangedSubview:_versionCard];
 
     _versionIconBg = [[UIView alloc] init];
-    _versionIconBg.layer.cornerRadius = [AMEFluentTheme radiusControl];
+    _versionIconBg.layer.cornerRadius = [ZL2Theme radiusS];
     _versionIconBg.layer.masksToBounds = YES;
     _versionIconBg.translatesAutoresizingMaskIntoConstraints = NO;
     _versionIconBg.userInteractionEnabled = NO;
@@ -609,8 +603,8 @@ static UIImage *ZL2HomeSizedImage(NSString *name, NSString *fallback, CGFloat po
     [_versionIconBg addSubview:_versionIconView];
 
     _versionNameLabel = [[UILabel alloc] init];
-    _versionNameLabel.font = [AMEFluentTheme fontBodyStrong];
-    _versionNameLabel.textColor = [AMEFluentTheme fg1];
+    _versionNameLabel.font = [ZL2Theme fontLabelLarge];
+    _versionNameLabel.textColor = [ZL2Theme onSurface];
     _versionNameLabel.numberOfLines = 1;
     _versionNameLabel.lineBreakMode = NSLineBreakByTruncatingTail;
     _versionNameLabel.translatesAutoresizingMaskIntoConstraints = NO;
@@ -618,8 +612,8 @@ static UIImage *ZL2HomeSizedImage(NSString *name, NSString *fallback, CGFloat po
     [_versionCard addSubview:_versionNameLabel];
 
     _versionLoaderLabel = [[UILabel alloc] init];
-    _versionLoaderLabel.font = [AMEFluentTheme fontSubheadline];
-    _versionLoaderLabel.textColor = [AMEFluentTheme fg2];
+    _versionLoaderLabel.font = [ZL2Theme fontLabelMedium];
+    _versionLoaderLabel.textColor = [ZL2Theme onSurfaceVariant];
     _versionLoaderLabel.numberOfLines = 1;
     _versionLoaderLabel.lineBreakMode = NSLineBreakByTruncatingTail;
     _versionLoaderLabel.translatesAutoresizingMaskIntoConstraints = NO;
@@ -657,8 +651,8 @@ static UIImage *ZL2HomeSizedImage(NSString *name, NSString *fallback, CGFloat po
 
     // —— 下载状态行（KVO 百分比态；非下载态隐藏塌缩）——
     _launchStatusLabel = [[UILabel alloc] init];
-    _launchStatusLabel.font = [AMEFluentTheme fontSubheadline];
-    _launchStatusLabel.textColor = [AMEFluentTheme fg2];
+    _launchStatusLabel.font = [ZL2Theme fontLabelMedium];
+    _launchStatusLabel.textColor = [ZL2Theme onSurfaceVariant];
     _launchStatusLabel.textAlignment = NSTextAlignmentCenter;
     _launchStatusLabel.numberOfLines = 1;
     _launchStatusLabel.translatesAutoresizingMaskIntoConstraints = NO;
@@ -670,15 +664,7 @@ static UIImage *ZL2HomeSizedImage(NSString *name, NSString *fallback, CGFloat po
     // 28 圆角 / 高 48 / 播放图标 + 三态文案；"zl2_home_launch" 为向导锚点）——
     _launchButton = [[UIControl alloc] init];
     _launchButton.accessibilityIdentifier = @"zl2_home_launch";
-    _launchButton.layer.cornerRadius = [AMEFluentTheme radiusPanel];   // 28（spec 定稿）
-    // ★ Task339 Fluent 化：FilledButton 按压态 = BrandShade（fluentui-apple
-    //   FilledButton pressed 口径）；启用/禁用色由 ame_refreshLaunchButton 管理
-    [_launchButton addTarget:self
-                      action:@selector(ame339_launchTouchDown)
-            forControlEvents:UIControlEventTouchDown];
-    [_launchButton addTarget:self
-                      action:@selector(ame339_launchTouchRestore)
-            forControlEvents:UIControlEventTouchUpInside | UIControlEventTouchUpOutside | UIControlEventTouchCancel];
+    _launchButton.layer.cornerRadius = [ZL2Theme radiusXL];   // 28（spec 定稿）
     _launchButton.translatesAutoresizingMaskIntoConstraints = NO;
     _launchButton.isAccessibilityElement = YES;
     [_launchButton addTarget:self
@@ -693,8 +679,8 @@ static UIImage *ZL2HomeSizedImage(NSString *name, NSString *fallback, CGFloat po
     _launchIconView.userInteractionEnabled = NO;
 
     _launchButtonLabel = [[UILabel alloc] init];
-    _launchButtonLabel.font = [AMEFluentTheme fontBodyStrong];
-    _launchButtonLabel.textColor = [AMEFluentTheme onBrand];
+    _launchButtonLabel.font = [ZL2Theme fontLabelLarge];
+    _launchButtonLabel.textColor = [ZL2Theme onPrimary];
     _launchButtonLabel.numberOfLines = 1;
     _launchButtonLabel.lineBreakMode = NSLineBreakByTruncatingTail;
     _launchButtonLabel.translatesAutoresizingMaskIntoConstraints = NO;
@@ -714,8 +700,8 @@ static UIImage *ZL2HomeSizedImage(NSString *name, NSString *fallback, CGFloat po
     //    时塌缩隐藏 = 零回归。puzzlepiece.extension 为 SF2.0/iOS14 符号，带
     //    旧名 fallback，本仓 iOS14 上限内）——
     _pluginChipButton = [[UIControl alloc] init];
-    _pluginChipButton.backgroundColor = [AMEFluentTheme bg3];
-    _pluginChipButton.layer.cornerRadius = [AMEFluentTheme radiusControl];
+    _pluginChipButton.backgroundColor = [ZL2Theme surfaceContainerHigh];
+    _pluginChipButton.layer.cornerRadius = [ZL2Theme radiusS];
     _pluginChipButton.translatesAutoresizingMaskIntoConstraints = NO;
     _pluginChipButton.isAccessibilityElement = YES;
     _pluginChipButton.accessibilityTraits = UIAccessibilityTraitButton;
@@ -729,13 +715,13 @@ static UIImage *ZL2HomeSizedImage(NSString *name, NSString *fallback, CGFloat po
     UIImage *pluginChipImage = ZL2HomeSizedImage(@"puzzlepiece.extension", @"gearshape", 14);
     _pluginChipIconView = [[UIImageView alloc] initWithImage:[pluginChipImage imageWithRenderingMode:UIImageRenderingModeAlwaysTemplate]];
     _pluginChipIconView.contentMode = UIViewContentModeScaleAspectFit;
-    _pluginChipIconView.tintColor = [AMEFluentTheme fg2];
+    _pluginChipIconView.tintColor = [ZL2Theme onSurfaceVariant];
     _pluginChipIconView.translatesAutoresizingMaskIntoConstraints = NO;
     _pluginChipIconView.userInteractionEnabled = NO;
 
     _pluginChipLabel = [[UILabel alloc] init];
-    _pluginChipLabel.font = [AMEFluentTheme fontSubheadline];
-    _pluginChipLabel.textColor = [AMEFluentTheme fg1];
+    _pluginChipLabel.font = [ZL2Theme fontLabelMedium];
+    _pluginChipLabel.textColor = [ZL2Theme onSurface];
     _pluginChipLabel.textAlignment = NSTextAlignmentCenter;
     _pluginChipLabel.numberOfLines = 1;
     _pluginChipLabel.lineBreakMode = NSLineBreakByTruncatingTail;
@@ -762,8 +748,8 @@ static UIImage *ZL2HomeSizedImage(NSString *name, NSString *fallback, CGFloat po
     // —— ④ 停靠边提示（ActionMenuDrag 简化语义的可见性说明）——
     _menuHintLabel = [[UILabel alloc] init];
     _menuHintLabel.text = @"长按菜单可切换停靠边";
-    _menuHintLabel.font = [AMEFluentTheme fontSubheadline];
-    _menuHintLabel.textColor = [AMEFluentTheme fg2];
+    _menuHintLabel.font = [ZL2Theme fontLabelMedium];
+    _menuHintLabel.textColor = [ZL2Theme onSurfaceVariant];
     _menuHintLabel.textAlignment = NSTextAlignmentCenter;
     _menuHintLabel.numberOfLines = 1;
     _menuHintLabel.translatesAutoresizingMaskIntoConstraints = NO;
@@ -835,7 +821,7 @@ static UIImage *ZL2HomeSizedImage(NSString *name, NSString *fallback, CGFloat po
                                            a11y:(NSString *)a11y {
     ZL2HomeTapControl *button = [[ZL2HomeTapControl alloc] init];
     button.backgroundColor = [UIColor clearColor];
-    button.layer.cornerRadius = [AMEFluentTheme radiusControl];
+    button.layer.cornerRadius = [ZL2Theme radiusS];
     button.translatesAutoresizingMaskIntoConstraints = NO;
     button.isAccessibilityElement = YES;
     button.accessibilityTraits = UIAccessibilityTraitButton;
@@ -843,7 +829,7 @@ static UIImage *ZL2HomeSizedImage(NSString *name, NSString *fallback, CGFloat po
 
     UIImage *image = ZL2HomeSystemImage(symbol, fallback);
     UIImageView *iconView = [[UIImageView alloc] initWithImage:[image imageWithRenderingMode:UIImageRenderingModeAlwaysTemplate]];
-    iconView.tintColor = [AMEFluentTheme fg2];
+    iconView.tintColor = [ZL2Theme onSurfaceVariant];
     iconView.contentMode = UIViewContentModeScaleAspectFit;
     iconView.translatesAutoresizingMaskIntoConstraints = NO;
     iconView.userInteractionEnabled = NO;
@@ -905,31 +891,31 @@ static UIImage *ZL2HomeSizedImage(NSString *name, NSString *fallback, CGFloat po
 
     UIImage *archiveImage = ZL2HomeSystemImage(@"archivebox", nil);
     UIImageView *iconView = [[UIImageView alloc] initWithImage:[archiveImage imageWithRenderingMode:UIImageRenderingModeAlwaysTemplate]];
-    iconView.tintColor = [AMEFluentTheme fg2];
+    iconView.tintColor = [ZL2Theme onSurfaceVariant];
     iconView.contentMode = UIViewContentModeScaleAspectFit;
     iconView.translatesAutoresizingMaskIntoConstraints = NO;
     iconView.userInteractionEnabled = NO;
 
     UILabel *label = [[UILabel alloc] init];
     label.text = @"没有安装版本";
-    label.font = [AMEFluentTheme fontSubheadline];
-    label.textColor = [AMEFluentTheme fg2];
+    label.font = [ZL2Theme fontBodyMedium];
+    label.textColor = [ZL2Theme onSurfaceVariant];
     label.textAlignment = NSTextAlignmentCenter;
     label.numberOfLines = 1;
     label.translatesAutoresizingMaskIntoConstraints = NO;
     label.userInteractionEnabled = NO;
 
     ZL2HomeTapControl *downloadButton = [[ZL2HomeTapControl alloc] init];
-    downloadButton.backgroundColor = [AMEFluentTheme brand];
-    downloadButton.layer.cornerRadius = [AMEFluentTheme radiusControl];
+    downloadButton.backgroundColor = [ZL2Theme primary];
+    downloadButton.layer.cornerRadius = [ZL2Theme radiusS];
     downloadButton.translatesAutoresizingMaskIntoConstraints = NO;
     downloadButton.isAccessibilityElement = YES;
     downloadButton.accessibilityTraits = UIAccessibilityTraitButton;
 
     UILabel *downloadLabel = [[UILabel alloc] init];
     downloadLabel.text = @"去下载";
-    downloadLabel.font = [AMEFluentTheme fontBodyStrong];
-    downloadLabel.textColor = [AMEFluentTheme onBrand];
+    downloadLabel.font = [ZL2Theme fontLabelLarge];
+    downloadLabel.textColor = [ZL2Theme onPrimary];
     downloadLabel.numberOfLines = 1;
     downloadLabel.textAlignment = NSTextAlignmentCenter;
     downloadLabel.translatesAutoresizingMaskIntoConstraints = NO;
@@ -1233,8 +1219,8 @@ static UIImage *ZL2HomeSizedImage(NSString *name, NSString *fallback, CGFloat po
 
     UILabel *titleLabel = [[UILabel alloc] init];
     titleLabel.text = profileName;
-    titleLabel.font = [AMEFluentTheme fontTitleMedium];
-    titleLabel.textColor = [AMEFluentTheme fg1];
+    titleLabel.font = [ZL2Theme fontTitleMedium];
+    titleLabel.textColor = [ZL2Theme onSurface];
     titleLabel.numberOfLines = 1;
     titleLabel.lineBreakMode = NSLineBreakByTruncatingTail;
     titleLabel.translatesAutoresizingMaskIntoConstraints = NO;
@@ -1307,7 +1293,7 @@ static UIImage *ZL2HomeSizedImage(NSString *name, NSString *fallback, CGFloat po
 
     UIImage *image = ZL2HomeSystemImage(symbol, fallback);
     UIImageView *iconView = [[UIImageView alloc] initWithImage:[image imageWithRenderingMode:UIImageRenderingModeAlwaysTemplate]];
-    iconView.tintColor = destructive ? [AMEFluentTheme error] : [AMEFluentTheme fg2];
+    iconView.tintColor = destructive ? [ZL2Theme error] : [ZL2Theme onSurfaceVariant];
     iconView.contentMode = UIViewContentModeScaleAspectFit;
     iconView.translatesAutoresizingMaskIntoConstraints = NO;
     iconView.userInteractionEnabled = NO;
@@ -1315,8 +1301,8 @@ static UIImage *ZL2HomeSizedImage(NSString *name, NSString *fallback, CGFloat po
 
     UILabel *label = [[UILabel alloc] init];
     label.text = text;
-    label.font = [AMEFluentTheme fontBodyStrong];
-    label.textColor = destructive ? [AMEFluentTheme error] : [AMEFluentTheme fg1];
+    label.font = [ZL2Theme fontLabelLarge];
+    label.textColor = destructive ? [ZL2Theme error] : [ZL2Theme onSurface];
     label.numberOfLines = 1;
     label.translatesAutoresizingMaskIntoConstraints = NO;
     label.userInteractionEnabled = NO;
@@ -1456,14 +1442,14 @@ static UIImage *ZL2HomeSizedImage(NSString *name, NSString *fallback, CGFloat po
             } else {
                 UIImage *placeholder = ZL2HomeSystemImage(@"person.crop.circle.fill", @"person.circle.fill");
                 weakSelf.accountAvatarView.image = [placeholder imageWithRenderingMode:UIImageRenderingModeAlwaysTemplate];
-                weakSelf.accountAvatarView.tintColor = [AMEFluentTheme fg2];
+                weakSelf.accountAvatarView.tintColor = [ZL2Theme onSurfaceVariant];
             }
         }];
     } else {
         // 未登录：加号占位（ZL2 ActionMenu 账号槽语义）
         UIImage *plusImage = ZL2HomeSystemImage(@"plus.circle.fill", @"plus.circle");
         self.accountAvatarView.image = [plusImage imageWithRenderingMode:UIImageRenderingModeAlwaysTemplate];
-        self.accountAvatarView.tintColor = [AMEFluentTheme fg2];
+        self.accountAvatarView.tintColor = [ZL2Theme onSurfaceVariant];
     }
 }
 
@@ -1480,7 +1466,7 @@ static UIImage *ZL2HomeSizedImage(NSString *name, NSString *fallback, CGFloat po
         NSString *mcVersion = parsed[@"minecraft"] ?: versionId;
 
         self.versionNameLabel.text = selectedProfile;
-        self.versionNameLabel.textColor = [AMEFluentTheme fg1];
+        self.versionNameLabel.textColor = [ZL2Theme onSurface];
 
         if (mcVersion.length > 0 && loader.length > 0) {
             self.versionLoaderLabel.text = [NSString stringWithFormat:@"MC %@ · %@",
@@ -1501,17 +1487,17 @@ static UIImage *ZL2HomeSizedImage(NSString *name, NSString *fallback, CGFloat po
         } else {
             UIImage *fallbackIcon = ZL2HomeSystemImage(@"gamecontroller.fill", @"gamecontroller");
             self.versionIconView.image = [fallbackIcon imageWithRenderingMode:UIImageRenderingModeAlwaysTemplate];
-            self.versionIconView.tintColor = [AMEFluentTheme fg2];
-            self.versionIconBg.backgroundColor = [AMEFluentTheme bg3];
+            self.versionIconView.tintColor = [ZL2Theme onSurfaceVariant];
+            self.versionIconBg.backgroundColor = [ZL2Theme surfaceVariant];
         }
     } else {
         self.versionNameLabel.text = @"选择版本";
-        self.versionNameLabel.textColor = [AMEFluentTheme fg2];
+        self.versionNameLabel.textColor = [ZL2Theme onSurfaceVariant];
         self.versionLoaderLabel.text = @"";
         UIImage *fallbackIcon = ZL2HomeSystemImage(@"gamecontroller.fill", @"gamecontroller");
         self.versionIconView.image = [fallbackIcon imageWithRenderingMode:UIImageRenderingModeAlwaysTemplate];
-        self.versionIconView.tintColor = [AMEFluentTheme fg2];
-        self.versionIconBg.backgroundColor = [AMEFluentTheme bg3];
+        self.versionIconView.tintColor = [ZL2Theme onSurfaceVariant];
+        self.versionIconBg.backgroundColor = [ZL2Theme surfaceVariant];
     }
 }
 
@@ -1520,12 +1506,12 @@ static UIImage *ZL2HomeSizedImage(NSString *name, NSString *fallback, CGFloat po
     BaseAuthenticator *auth = BaseAuthenticator.current;
     BOOL buttonEnabled = (self.task == nil) && !self.ame_launchChainActive;
     self.launchButton.enabled = buttonEnabled;
-    self.launchButton.backgroundColor = buttonEnabled ? [AMEFluentTheme brand]
-                                                      : [AMEFluentTheme stroke1];
-    self.launchIconView.tintColor = buttonEnabled ? [AMEFluentTheme onBrand]
-                                                  : [AMEFluentTheme fg2];
-    self.launchButtonLabel.textColor = buttonEnabled ? [AMEFluentTheme onBrand]
-                                                     : [AMEFluentTheme fg2];
+    self.launchButton.backgroundColor = buttonEnabled ? [ZL2Theme launchReadyTint]
+                                                      : [ZL2Theme launchDisabledTint];
+    self.launchIconView.tintColor = buttonEnabled ? [ZL2Theme onPrimary]
+                                                  : [ZL2Theme onSurfaceVariant];
+    self.launchButtonLabel.textColor = buttonEnabled ? [ZL2Theme onPrimary]
+                                                     : [ZL2Theme onSurfaceVariant];
 
     BOOL hasActiveTasks = [[DownloadTaskManager sharedManager] hasActiveTasks];
     BOOL hasAccount = (auth != nil);
@@ -1542,20 +1528,6 @@ static UIImage *ZL2HomeSizedImage(NSString *name, NSString *fallback, CGFloat po
     self.launchStatusLabel.hidden = (self.task == nil);
     self.launchButton.accessibilityLabel = statusText;
     self.launchButton.accessibilityTraits = UIAccessibilityTraitButton;
-}
-
-// ★ Task339 Fluent 化：FilledButton 按压态（Brand → BrandShade；fluentui-apple
-//   FilledButton pressed 口径）。启用/禁用底色由 ame_refreshLaunchButton 管理，
-//   按压只改色不改 enabled——禁用态 UIControl 不发 TouchDown，天然无冲突。
-- (void)ame339_launchTouchDown {
-    if (!self.launchButton.enabled) return;
-    self.launchButton.backgroundColor = [AMEFluentTheme brandShade];
-}
-
-- (void)ame339_launchTouchRestore {
-    BOOL buttonEnabled = (self.task == nil) && !self.ame_launchChainActive;
-    self.launchButton.backgroundColor = buttonEnabled ? [AMEFluentTheme brand]
-                                                      : [AMEFluentTheme stroke1];
 }
 
 #pragma mark - Notifications

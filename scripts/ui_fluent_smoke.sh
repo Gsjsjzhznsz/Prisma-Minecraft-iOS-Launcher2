@@ -49,7 +49,9 @@ syntax_mode() {
   while IFS= read -r f; do
     files+=("$f")
   done < <(ls "$NATIVES"/*.m 2>/dev/null | while IFS= read -r f; do
-    if grep -lq -e '"AmeTheme\.h"' -e '"Fluent[A-Z]' -e '"ZL2Theme\.h"' -e '"AMEFluentTheme\.h"' "$f" 2>/dev/null; then echo "$f"; fi
+    if grep -lq -e '"AmeTheme\.h"' -e '"Fluent[A-Z]' -e '"ZL2Theme\.h"' "$f" 2>/dev/null; then echo "$f"; fi
+  # ★Task340：AMEFluentTheme 面退役（用户澄清 Fluent 重设计只落 fluent-ui 插件，
+  #   不落启动器代码；启动器主页回归 ZL2Theme 令牌）
   done)
 
   echo "迁移面文件数: ${#files[@]}"
@@ -95,7 +97,7 @@ preview_mode() {
   echo "== UI Fluent 预览（模拟器渲染冒烟）=="
 
   local sources=(
-    AmeTheme AMEFluentTheme   # ★Task339：Fluent 2 / Apple 官方令牌层（主页重设计事实源）
+    AmeTheme   # ★Task340：AMEFluentTheme 退役（重设计只落 fluent-ui 远程插件）
     FluentButton FluentCard FluentListCell FluentTextField
     FluentToast FluentSegmentedControl FluentProgress FluentBanner
     LauncherMenuViewController

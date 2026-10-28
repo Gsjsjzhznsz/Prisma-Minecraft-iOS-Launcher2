@@ -458,3 +458,14 @@ jobs:
             --title "Nightly (SDL3) @ ${SHORT}" \
             --notes "$NOTES" \
             "${ASSETS[@]}"
+
+      # ★Task340：插件仓库 CDN 缓存自动预清——jsdelivr 对 @main 分支引用按
+      # 固定窗口（~12h）缓存，push 更新 plugin-repo/ 后客户端在窗口内仍拉到
+      # 旧 index.json（装机日志实锤：fluent-ui 第五件入库后用户只见 4 件）。
+      # 构建成功即 purge（与 workflow_dispatch 协议同频）；客户端另有打开
+      # 插件仓库页时的 purge 预热双保险（ZL2PluginRepoViewController）。
+      - name: Purge jsdelivr plugin-repo index cache (Task340)
+        if: matrix.platform_name == 'ios' && success()
+        run: |
+          curl -s -o /dev/null -w "purge jsdelivr index.json: HTTP %{http_code}\n" \
+            "https://purge.jsdelivr.net/gh/Gsjsjzhznsz/Prisma-Minecraft-iOS-Launcher2@main/plugin-repo/index.json" || true

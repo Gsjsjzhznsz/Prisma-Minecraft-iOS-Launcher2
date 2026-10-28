@@ -35,6 +35,13 @@ static NSString *ame318_builtinRoot(void) {
 static NSString * const ame333_repoBaseOfficial  = @"https://raw.githubusercontent.com/Gsjsjzhznsz/Prisma-Minecraft-iOS-Launcher2/main/plugin-repo/";
 static NSString * const ame333_repoBaseJsdelivr  = @"https://cdn.jsdelivr.net/gh/Gsjsjzhznsz/Prisma-Minecraft-iOS-Launcher2@main/plugin-repo/";
 static NSString * const ame333_repoBaseGhfast    = @"https://ghfast.top/https://raw.githubusercontent.com/Gsjsjzhznsz/Prisma-Minecraft-iOS-Launcher2/main/plugin-repo/";
+// ★Task340：jsdelivr purge 端点（官方 API，GET 即刷新该路径的 CDN 缓存）。
+//   装机日志实锤（5a6c059）：index.json 第五件 fluent-ui 已入库，用户打开
+//   插件仓库页仍只见 4 件——jsdelivr 对 @main 分支引用按固定窗口缓存
+//   （~12h），push 不会主动失效，远程区数据源完全来自 index → 新件在
+//   缓存窗口内不可见（用户："为什么插件列表没有远程仓库的 fluent-ui"）。
+//   修法 = 拉取 jsdelivr 通道前先打 purge 端点预清缓存；失败不阻断
+//   （旧缓存可接受，raw/ghfast 通道兜底，CI 侧另加 push 后自动 purge）。
 static NSString * const ame333_repoMirrorPrefKey = @"ame333.plugin.repo.mirror";
 
 @interface ZL2PluginRepoViewController () <UITableViewDelegate, UITableViewDataSource>
@@ -117,7 +124,27 @@ static NSString * const ame333_repoMirrorPrefKey = @"ame333.plugin.repo.mirror";
     NSURLSessionConfiguration *cfg = [NSURLSessionConfiguration ephemeralSessionConfiguration];
     cfg.timeoutIntervalForRequest = 6.0;
     NSURLSession *session = [NSURLSession sessionWithConfiguration:cfg];
+    BOOL ame340_purged = NO;   // purge 每次页面打开至多一次（jsdelivr 与记忆镜像同域不重复打）
     for (NSString *base in bases) {
+        // ★Task340：jsdelivr 通道拉取前预清 CDN 缓存（见 ame333_repoBaseGhfast
+        //   上方注）；3s 超时，结果只取证不阻断。
+        if (!ame340_purged && [base containsString:@"cdn.jsdelivr.net"]) {
+            ame340_purged = YES;
+            NSString *purgeUrl = [ame333_repoBaseJsdelivr stringByAppendingString:@"index.json"];
+            purgeUrl = [purgeUrl stringByReplacingOccurrencesOfString:@"cdn.jsdelivr.net"
+                                                           withString:@"purge.jsdelivr.net"];
+            NSURL *purge = [NSURL URLWithString:purgeUrl];
+            if (purge) {
+                dispatch_semaphore_t psem = dispatch_semaphore_create(0);
+                __block NSInteger phttp = 0;
+                [[session dataTaskWithURL:purge completionHandler:^(NSData *d, NSURLResponse *r, NSError *e) {
+                    phttp = ((NSHTTPURLResponse *)r).statusCode ?: 0;
+                    dispatch_semaphore_signal(psem);
+                }] resume];
+                dispatch_semaphore_wait(psem, dispatch_time(DISPATCH_TIME_NOW, (int64_t)(3.0 * NSEC_PER_SEC)));
+                NSLog(@"[AmePluginRepo] Task340 jsdelivr index cache purge: http=%ld", (long)phttp);
+            }
+        }
         NSURL *url = [NSURL URLWithString:[base stringByAppendingString:@"index.json"]];
         if (!url) continue;
         // 常量基址 + 固定路径：semaphore 同步探测（页面上已有 fetching 状态行）
@@ -155,7 +182,8 @@ static NSString * const ame333_repoMirrorPrefKey = @"ame333.plugin.repo.mirror";
                 return;
             }
             [NSUserDefaults.standardUserDefaults setObject:base forKey:ame333_repoMirrorPrefKey];
-            NSLog(@"[AmePluginRepo] Task333 remote index fetched via %@", base);
+            NSLog(@"[AmePluginRepo] Task333 remote index fetched via %@ (%lu plugins)", base,
+                  (unsigned long)[index[@"plugins"] count]);
             // 官方信任面落缓存 + 授权自愈重跑（ame.super 永不代授）
             NSMutableDictionary<NSString *, NSString *> *official = [NSMutableDictionary dictionary];
             [sself.remoteItems removeAllObjects];

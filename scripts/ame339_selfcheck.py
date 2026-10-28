@@ -33,13 +33,13 @@ def strip_code(src):
 nav = read('Natives/SurfaceViewController+Navigation.m')
 svc = read('Natives/SurfaceViewController.m')
 home = read('Natives/ZL2HomeViewController.m')
-ft_h = read('Natives/AMEFluentTheme.h')
-ft_m = read('Natives/AMEFluentTheme.m')
 cmk = read('Natives/CMakeLists.txt')
 smoke = read('scripts/ui_fluent_smoke.sh')
 s318 = read('scripts/ame318_selfcheck.py')
 s338 = read('scripts/ame338_selfcheck.py')
 index_json = json.loads(read('plugin-repo/index.json'))
+# ★Task340：AMEFluentTheme 退役（用户澄清：Fluent 2 / Apple 重设计只落 fluent-ui
+# 插件，不落启动器代码）——C 组断言全部翻转为「启动器无 Fluent 换装」方向。
 
 if '--selftest' in sys.argv:
     print('== ame339 selftest（反向验证：内存注入病灶，必翻红）==')
@@ -59,13 +59,13 @@ if '--selftest' in sys.argv:
         print('S-A3 未翻红（生效链探针失效）'); bad += 1
     else:
         print('ok  S-A3 反向：生效链摘除 -> FAIL（符合预期）')
-    # S-C2: 主页回潜 ZL2Theme
-    inj_home = home.replace('[AMEFluentTheme brand]', '[ZL2Theme primary]', 1)
-    ok_c2 = not re.search(r'\[ZL2Theme \w+\]', inj_home) is None
+    # S-C2 (Task340): 启动器回潜 AMEFluentTheme 换装 -> C2 探针必翻红
+    inj_home = home.replace('#import "ZL2Theme.h"', '#import "AMEFluentTheme.h"', 1)
+    ok_c2 = ('AMEFluentTheme' in inj_home)
     if not ok_c2:
         print('S-C2 未翻红（主页令牌探针失效）'); bad += 1
     else:
-        print('ok  S-C2 反向：主页回潜 ZL2Theme -> FAIL（符合预期）')
+        print('ok  S-C2 反向：主页回潜 AMEFluentTheme -> FAIL（符合预期）')
     # S-B3: index.json sha256 与 zip 实算不符
     import tempfile
     tmp = json.loads(json.dumps(index_json))
@@ -148,44 +148,39 @@ check('B5 旧电池演进同步（ame318 收敛断言 + ame338 repo 路径）',
       "{'plugin-survey'}" in s318 and "plugin-repo/src/fluent-ui/manifest.json" in s338,
       '旧电池断言未随外置演进')
 
-# ══ C 线C Fluent 2 / Apple 重设计 ══════════════════════════════
-check('C1 AMEFluentTheme 令牌核心（brand 双态 + Neutral + ramp + 圆角栅格）',
-      '0x0F/255.0 green:0x6C/255.0 blue:0xBD' in ft_m
-      and '0x4C/255.0 green:0xC2/255.0 blue:0xFF' in ft_m
-      and 'colorWithDynamicProvider' in ft_m
-      and '+ (CGFloat)radiusCard    { return 8.0; }' in ft_m
-      and '+ (CGFloat)radiusControl { return 4.0; }' in ft_m
-      and '+ (CGFloat)spacingM   { return 16.0; }' in ft_m
-      and 'fontTitleLarge' in ft_h and 'fontCaption' in ft_h
-      and 'applyCardShadow' in ft_h,
-      '令牌核心缺件')
-check('C2 主页换装（import AMEFluentTheme + 零 ZL2Theme 调用）',
-      '#import "AMEFluentTheme.h"' in home and not re.search(r'\[ZL2Theme \w+\]', home),
-      '主页仍引用 ZL2Theme')
+# ══ C 线C 启动器无 Fluent 换装（Task340 范围澄清）═════════════════
+ft_h_exists = os.path.isfile(os.path.join(REPO, 'Natives/AMEFluentTheme.h'))
+ft_m_exists = os.path.isfile(os.path.join(REPO, 'Natives/AMEFluentTheme.m'))
+check('C1 AMEFluentTheme 令牌层退役（h/m 文件不存在）',
+      not ft_h_exists and not ft_m_exists,
+      'AMEFluentTheme 仍存在')
+check('C2 主页回归 ZL2 令牌（import ZL2Theme + 零 AMEFluentTheme）',
+      '#import "ZL2Theme.h"' in home and 'AMEFluentTheme' not in home,
+      '主页仍引用 AMEFluentTheme')
 home_code = strip_code(home)
-check('C3 Fluent 化四件（卡 hairline+shadow8 / 选中 brand 2pt / 按压 brandShade / 三态 onBrand）',
-      'applyCardShadow:_cardBody' in home_code
-      and 'isSelected ? 2 : 1' in home_code
-      and 'ame339_launchTouchDown' in home_code and 'brandShade' in home_code
-      and 'AMEFluentTheme onBrand]' in home_code,
-      'Fluent 化缺件')
-check('C4 CMakeLists 登记新 TU', 'AMEFluentTheme.m' in cmk, 'CMakeLists 未登记')
-check('C5 smoke 双口径演进（syntax 加 AMEFluentTheme.h + preview sources）',
-      '"AMEFluentTheme\\.h"' in smoke and 'AmeTheme AMEFluentTheme' in smoke,
-      'smoke 脚本未演进')
+check('C3 主页零 Fluent 化残留（卡 shadow / brandShade / onBrand 三件全无）',
+      'applyCardShadow' not in home_code
+      and 'brandShade' not in home_code
+      and 'AMEFluentTheme onBrand]' not in home_code,
+      '主页仍有 Fluent 化残留')
+check('C4 CMakeLists 无 AMEFluentTheme TU', 'AMEFluentTheme' not in cmk, 'CMakeLists 仍登记')
+check('C5 smoke 双口径回收（syntax 条件 + preview sources 均无 AMEFluentTheme）',
+      '-e \'"AMEFluentTheme\\.h"\' -e' not in smoke
+      and not re.search(r'^\s+AmeTheme\s+AMEFluentTheme', smoke, re.M),
+      'smoke 脚本仍引用')
 
 # ══ D 线D 结构护栏 ═════════════════════════════════════════════
-check('D1 文件清单（新令牌层 + 外置插件源 + zip）',
-      os.path.isfile(os.path.join(REPO, 'Natives/AMEFluentTheme.h'))
-      and os.path.isfile(os.path.join(REPO, 'Natives/AMEFluentTheme.m'))
+check('D1 文件清单（令牌层退役 + 外置插件源 + zip）',
+      not os.path.isfile(os.path.join(REPO, 'Natives/AMEFluentTheme.h'))
+      and not os.path.isfile(os.path.join(REPO, 'Natives/AMEFluentTheme.m'))
       and os.path.isfile(os.path.join(REPO, 'plugin-repo/src/fluent-ui/main.js'))
       and os.path.isfile(os.path.join(REPO, 'plugin-repo/plugins/fluent-ui.zip')),
       '文件缺件')
 check('D2 断言漂移护栏（ame338 A1 两段式断言面未漂移）',
       r'Task338（非SDL 调节分辨率"不迅速 \+ 黑块"根修）' in s338,
       'ame338 断言面漂移')
-check('D3 编译面闭环（主页 import 的 TU 均已在 CMakeLists）',
-      'AMEFluentTheme.m' in cmk and 'ZL2HomeViewController.m' in cmk,
+check('D3 编译面闭环（主页 TU 在 CMakeLists 且无孤儿令牌 TU）',
+      'AMEFluentTheme' not in cmk and 'ZL2HomeViewController.m' in cmk,
       'TU 编译面缺口')
 
 print()
