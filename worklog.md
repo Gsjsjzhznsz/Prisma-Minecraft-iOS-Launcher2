@@ -4124,3 +4124,104 @@ ame331_selfcheck 49 断言（新：协议 24 selector 导出/JS 名整形七关�
 3. 插件仓库页打开：远程列表 5 件（含「Fluent UI 主题」），日志 `[AmePluginRepo] Task340 jsdelivr index cache purge: http=200` + `remote index fetched via ... (5 plugins)`
 4. 主页：ZL2 令牌观感回归 Task338 版（Fluent 换装退役）；插件仓库装的 fluent-ui 插件仍可三板换肤（插件面保留）
 5. 1.8.9 会话内 ⚙→分辨率调整：Toast 回落「重启后生效」（诚实语义；同形态会话内即时应用退役）
+
+## Task 341（两线：1.20.1 启动闪退根修 / Fluent 插件完全重设计 @ b51978b9）
+
+日期：2026-10-28 ｜ 提交：`b51978b9`（main）｜ 基线：0d4a5881（Task 340 收官）
+
+### 线A：1.20.1 无法启动 / 安装完成闪退 —— 根修（metallum_agent.jar 禁入 -cp）
+
+- **病历（装机 0d4a588 latestlog 实弹）**：1.20.1 Fabric 会话首启 remap 阶段
+  （`[FabricLoader/GameRemap] Fabric is preparing JARs on first launch` →
+  `GameProviderHelper.deobfuscate` → tiny-remapper `readClassPathAsync` 把 JVM
+  `-cp` 全量喂给继承索引扫描）命中 `libs/metallum_agent.jar` 内
+  `classes262/com/metallum/client/metal/render/mtl/MTLWinding.class`——agent
+  类集为 Java 25 class（major 69），被 1.20.1 fabric-loader 0.14.23 内嵌旧版
+  ASM ClassReader 拒收：`IllegalArgumentException: Unsupported class file
+  major version 69` → 未捕获 → JVM `exit(1)` → 「安装完成闪退」。
+- **根因定位**：JavaLauncher.m `launchJVM` 与 `launchHeadlessJVM` 两处
+  classpath 构建均为 `libs/` 目录全量 `*.jar` 收集 → metallum_agent.jar 无条件
+  进 `-cp` → 进 `java.class.path`。Task201 的 `-javaagent` 门禁
+  （MC major ≥ 26 才启用 agent）只管参数、管不住 `-cp` 目录扫描——日志中
+  `Task201: Metallum agent skipped` 与 remap 崩溃并存即此。
+- **修法（ame341-agent-cp-exclusion 双落位）**：两处循环显式
+  `if ([libFile isEqualToString:@"metallum_agent.jar"]) continue;`。语义：
+  agent 由 `-javaagent` 自加载（26 会话），metallum 类集经 defineClass 直接
+  注入 MC 类加载器（JavaLauncher.m 4038 注释段既有口径），全程无需 `-cp`；
+  26 会话不受影响（`-javaagent` jar 由 JVM 自动追加到系统 classpath，且 26.x
+  走 fabric-loader 0.20.x 新版 ASM 支持 major 69）；旧会话 Task201 已 skip
+  `-javaagent` → jar 完全不在 classpath → 根修达成。
+- **顺带修正**：Task201 skipped 文案 "this session runs Java 8" 为写死误导
+  （1.20.1 实际 Java 17）→ 改为 "agent jar also kept off -cp per Task341"。
+
+### 线B：Fluent 插件完全重设计（用户点题：要完全重新设计 UI，不是依旧 zl2 样式）
+
+- **形态诊断**：fluent-ui v1.0.0 本质 = 三套调色板 × 28 色令牌换色（ame317
+  覆盖面只有颜色），UI 形状（M3 12/16/28 大圆角）与字体阶（M3 刻度）硬编码
+  在 ZL2Theme → 观感「依旧 zl2 样式」。Fluent 2 与 M3 的核心差异
+  （4pt 小圆角体系、Segoe 式字阶）插件根本够不着。
+- **引擎扩展（ZL2Theme ame341_setPluginThemeShape）**：形状阶五档
+  （radiusXS/S/M/L/XL → NSNumber，钳制 0...40 pt，isnan 防御）+ 字体阶七档
+  （fontHeadline/TitleLarge/TitleMedium/BodyLarge/BodyMedium/LabelLarge/
+  LabelMedium → {size 8...40, weight regular/medium/semibold/bold}
+  白名单映射）纳入插件可覆盖令牌；记账还原与 ame317 逐位同构
+  （token → @[pluginId, 值] 后写者胜 / stale 先清 / 空集还原）；
+  **默认值 M3 刻度不变 = 引擎零 Fluent 资产**，Fluent 形态全部住在插件侧
+  （与 Task340「换装退役」裁定一致：这是主题引擎能力建设，不是启动器换装）。
+  覆盖即全页面生效：ZL2 页面 71 处圆角 + 144 处字体全部经 getter 消费
+  （ZL2M3Kit 硬编码 cornerRadius 全为几何派生 thumb/2 等，无遗漏）。
+- **桥面（AmePluginBridge setThemeShape）**：JSExport 协议声明（Task332
+  判例：不进协议必 undefined）+ ui.theme 同权限执法（ame317_requirePerm）+
+  `__shape` 持久化（与 `__theme` 同一 storage 文件读改写合并）。
+- **Runtime 三件**：facade `ame.setThemeShape` 注册；装载期 `__shape` 重放
+  （storage + ui.theme 双授权守卫，旧版插件只存 __theme 时静默跳过）；
+  `themeShapesByPlugin` 记账 + 卸载色/形状双族还原。
+- **fluent-ui 插件 v2.0.0 完全重写**（Fluent 2 全维度，fluentui-apple 溯源）：
+  - 形状：控件统一 4pt（radiusXS/S）· 卡片 8pt（M/L）· 浮层/大容器 12pt
+    （XL）——M3 的 12/16/28 大圆角体系整体收紧（Fluent 观感签名）；
+  - 字阶（Fluent2 Typography ramp）：fontHeadline 28S（Title2）/
+    fontTitleLarge 20S（Title3）/ fontTitleMedium 15SB（Body1Strong）/
+    fontBodyLarge 17R（Body1）/ fontBodyMedium 15R（Body2）/
+    fontLabelLarge 15SB（Body1Strong）/ fontLabelMedium 13R（Caption1）；
+  - 色板三套保留（fluent-light 品牌蓝 0F6CBD / fluent-dark 品牌青 4CC2FF /
+    fluent-apple Apple 系统色混融）；
+  - 形状链独立容错：setThemeShape 失败（旧引擎）退化为 v1 仅换色形态；
+  - 恢复语义升级：桥面统一空表重放=清除（setThemeToken({}) +
+    setThemeShape({})），不再 JS 侧手动 storageRemove。
+- **仓库件**：ame333 打包器 `updated` 字段动态化（原写死 2026-10-26）；重打包
+  全 5 件（fluent-ui 2.0.0 4090B，sha256 单一事实源重算——zip mtime 使全部
+  哈希刷新，size 不变）。
+
+### 门禁
+
+- **ame341_selfcheck 17 断言**（A classpath 4〔双落位/真实代码活体/拼接顺序/
+  误导文案退役〕/ B 全维度 10〔引擎声明/记账活体/5+7 getter 覆盖/桥面全链/
+  facade/Runtime 三件/插件 v2 要素/manifest/index+zip 实算对拍〕/ D 结构 3
+  〔六文件括号平衡/ame317 色链不破坏/js_smoke 桩面〕）+
+  `--selftest` 反向 3 探针全翻红（S-A1 classpath 排除全摘 / S-B1 引擎记账
+  击穿 / S-B2 插件形状令牌摘除）。
+- **新判例（第十三例变体）**：strip_code 剥离器块注释正则被字符串字面量内的
+  `/*`（JavaLauncher.m lwjgl 通配条目 `"%@/*"`）误触发，吞掉后续大段代码 →
+  探针假阴性（A 组 7 红假象）。单遍扫描真剥离器 strip_real（注释优先于
+  字符串、字符串内不触发注释）入 ame341 电池；ame337 剥器判例的深化翻版。
+- **js_smoke 桩面**：补 setThemeToken/setThemeShape 双 handler（ui.theme
+  执法同构），fluent-ui v2 行为面（token:28 + shape:12）进冒烟；rows=7
+  口径不变。
+- **存量电池两件随演进翻绿**：ame338 B4（恢复语义 v1 storageRemove →
+  v2 桥面空表重放色+形状双清）/ ame339 B4（version 2.0.0）。
+- 全电池：ame317~341 全绿（ame341 17/17）+ task139/240 all balanced +
+  task248/250 全零 + task191 3317 键。
+
+### CI
+
+- smoke `40720965833` + dev `40720976213` @ `b51978b9`（workflow_dispatch）。
+
+### 预期装机验证锚点
+
+1. 1.20.1（或任意 MC<26 + Fabric）首启：remap 阶段不再出现
+   `Unsupported class file major version 69` → 正常进游戏；
+2. 插件仓库刷新 fluent-ui → 2.0.0；应用后新开页面：卡片/浮层圆角明显收紧
+   （8/12pt）、标题字重升级（semibold）——日志
+   `[AmePlugin:fluent-ui] 形状/字体令牌覆盖 12/12 项`；
+3. 重启启动器：`__shape` 装载期重放（色+形状双恢复）；插件停用 → 双族还原
+   M3 刻度。
