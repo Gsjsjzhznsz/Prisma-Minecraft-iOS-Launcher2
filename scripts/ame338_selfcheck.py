@@ -211,11 +211,11 @@ check('B3 main.js 结构四件套', 'typeof ame' in mainjs
       and "'__theme'" in mainjs and len(mainjs) > 2000,
       '结构缺失或脚本过短')
 
-check('B4 三板 + 恢复默认语义',
+check('B4 三板 + 恢复默认语义（Task341 v2：桥面统一空表重放=清除，色+形状双清）',
       "key: 'fluent-light'" in mainjs and "key: 'fluent-dark'" in mainjs
       and "key: 'fluent-apple'" in mainjs
       and 'ame.setThemeToken({})' in js_code
-      and "storageRemove('__theme')" in mainjs,
+      and 'ame.setThemeShape({})' in js_code,
       '三板或缺恢复默认')
 
 check('B5 ame318 电池语义演进', "{'plugin-survey'}" in s318

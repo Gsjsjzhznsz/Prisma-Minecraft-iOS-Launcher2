@@ -3724,7 +3724,10 @@ int launchJVM(NSString *accountId, id launchTarget, int width, int height, int m
             NSLog(@"[JavaLauncher] Task201: Metallum agent enabled: -javaagent:metallum_agent.jar (mcVersion=%@)",
                   metallumMcVersionId);
         } else {
-            NSLog(@"[JavaLauncher] Task201: Metallum agent skipped: MC major %ld < 26 (agent needs Java 21+ class files, this session runs Java 8)",
+            // Task341 文案修正：旧从句 "this session runs Java 8" 是写死的误导
+            //   （1.20.1 实际跑 Java 17）；从句删除，修饰语改为与 Task341 根修
+            //   同源的口径（agent jar 已摘出 -cp，见下方 classpath 循环排除）。
+            NSLog(@"[JavaLauncher] Task201: Metallum agent skipped: MC major %ld < 26 (agent needs Java 21+ class files; agent jar also kept off -cp per Task341)",
                   (long)metallumMcMajor);
         }
     }
@@ -4254,6 +4257,24 @@ int launchJVM(NSString *accountId, id launchTarget, int width, int height, int m
         // AmethystAccountJNI 闪退即此）。launcher.jar 与 minecraft 的 split
         // package 由上方 ignoreList 注入根除。
         if (![libFile hasSuffix:@".jar"]) continue;
+        // ★ Task341：metallum_agent.jar 禁入 -cp（ame341-agent-cp-exclusion）。
+        //   病历（装机 0d4a588 latestlog 实弹，用户 1.20.1 报障“无法启动/安装
+        //   完成闪退”）：Fabric 首启 remap（GameProviderHelper.deobfuscate →
+        //   tiny-remapper readClassPathAsync）把 -cp 全量喂给继承索引扫描，
+        //   libs/ 目录全量收集把 metallum_agent.jar 也带上了；agent 类集
+        //   classes262/*（MTLWinding 等）是 Java 25 class（major 69），
+        //   1.20.1 fabric-loader 0.14.23 内嵌旧版 ASM ClassReader 直接
+        //   IllegalArgumentException: Unsupported class file major version 69
+        //   → 未捕获 → JVM exit(1)。Task201 的 -javaagent 门禁（MC major
+        //   >= 26 才启用）只管 agent 参数，管不住本循环的 -cp 目录扫描。
+        //   修法：agent jar 从 -cp 排除——agent 自身由 -javaagent 自加载
+        //   （26 会话），metallum 类集经 defineClass 直接注入 MC 类加载器
+        //   （见下方 4038 注释段），全程无需 -cp。注：-javaagent 的 jar 会被
+        //   JVM 自动追加到系统 classpath，26 会话 metallum_agent.jar 仍在
+        //   classpath（agent 链路必须），但 26.x 走 fabric-loader 0.20.x 新版
+        //   ASM（支持 major 69）不受此伤；旧会话 Task201 已 skip -javaagent
+        //   → jar 完全不在 classpath → 根修达成。
+        if ([libFile isEqualToString:@"metallum_agent.jar"]) continue;
         [classpathBuilder appendFormat:@"%@/%@:", librariesPath, libFile];
     }
     [classpathBuilder appendString:lwjglJar];
@@ -4712,9 +4733,13 @@ int launchHeadlessJVM(NSString *mainClass, NSArray<NSString *> *args, int minJav
     for (NSString *libFile in libFiles) {
         // lwjgl-333/ 与 lwjgl-341/ 是目录，不以 .jar 结尾，不会被误收，
         // 由下方按解析出的版本单独追加。
-        if ([libFile hasSuffix:@".jar"]) {
-            [classpathBuilder appendFormat:@"%@/%@:", librariesPath, libFile];
-        }
+        if (![libFile hasSuffix:@".jar"]) continue;
+        // ★ Task341：metallum_agent.jar 禁入 -cp（ame341-agent-cp-exclusion）——
+        //   launchJVM 主路径同病历（headless 虽不跑 Fabric remap，但
+        //   Forge processors 链的 ASM 工具同样按 classpath 扫描类文件，
+        //   major 69 类集无谓雷区；headless 亦无 metallum 消费面）。
+        if ([libFile isEqualToString:@"metallum_agent.jar"]) continue;
+        [classpathBuilder appendFormat:@"%@/%@:", librariesPath, libFile];
     }
     // headless JVM 用于 Forge/NeoForge 安装期的 processors，不运行 MC 本体，
     // 但仍可能引用 LWJGL 类。这里按当前 profile 解析版本并追加对应目录。

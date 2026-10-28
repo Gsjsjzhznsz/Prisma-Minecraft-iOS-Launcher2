@@ -9,6 +9,7 @@
 //
 
 #import "ZL2Theme.h"
+#import <math.h>   // Task341：isnan（形状/字体覆盖值防御钳制；smoke/Preview 目标自包含编译）
 
 static UIColor *ZL2ColorLightDark(int light, int dark) {
     return [UIColor colorWithDynamicProvider:^UIColor *_Nonnull(UITraitCollection *traits) {
@@ -62,6 +63,46 @@ static UIColor *AmePluginColorOverride(NSString *token) {
     ({ UIColor *ame317_ov = AmePluginColorOverride(@#token); \
        ame317_ov ? ame317_ov : ZL2ColorLightDark(light, dark); })
 
+#pragma mark - Task341 形状/字体覆盖基础设施（自包含，不依赖插件运行时）
+
+// 记账口径与 ame317 逐位同构：token → @[pluginId, 值]（后写者胜）。
+//   shape 表存 NSNumber（pt）；font 表存 UIFont（解析定型，getter 零重解析）。
+static NSMutableDictionary<NSString *, NSArray *> *ame341_shapeOverride = nil;
+static NSMutableDictionary<NSString *, NSArray *> *ame341_fontOverride = nil;
+
+static CGFloat AmePluginShapeOverride(NSString *token, CGFloat fallback) {
+    if (ame341_shapeOverride.count == 0) return fallback;
+    NSArray *entry = ame341_shapeOverride[token];
+    if (entry.count == 2) return [(NSNumber *)entry[1] doubleValue];
+    return fallback;
+}
+
+static UIFont *AmePluginFontOverride(NSString *token, UIFont *fallback) {
+    if (ame341_fontOverride.count == 0) return fallback;
+    NSArray *entry = ame341_fontOverride[token];
+    if (entry.count == 2) return (UIFont *)entry[1];
+    return fallback;
+}
+
+// weight 字符串/数字 → UIFontWeight（白名单映射，未知值回落 regular）
+static UIFontWeight Ame341WeightFromValue(id v) {
+    if ([v isKindOfClass:[NSString class]]) {
+        NSString *s = [(NSString *)v lowercaseString];
+        if ([s isEqualToString:@"medium"] || [s isEqualToString:@"500"]) return UIFontWeightMedium;
+        if ([s isEqualToString:@"semibold"] || [s isEqualToString:@"600"]) return UIFontWeightSemibold;
+        if ([s isEqualToString:@"bold"] || [s isEqualToString:@"700"]) return UIFontWeightBold;
+        return UIFontWeightRegular;   // "regular"/"400"/未知字符串
+    }
+    if ([v isKindOfClass:[NSNumber class]]) {
+        double w = [(NSNumber *)v doubleValue];
+        if (w >= 700) return UIFontWeightBold;
+        if (w >= 600) return UIFontWeightSemibold;
+        if (w >= 500) return UIFontWeightMedium;
+        return UIFontWeightRegular;
+    }
+    return UIFontWeightRegular;
+}
+
 
 @implementation ZL2Theme
 
@@ -104,6 +145,64 @@ static UIColor *AmePluginColorOverride(NSString *token) {
         }
     }
     NSLog(@"[AmePlugin:%@] 主题令牌覆盖 %lu/%lu 项", pluginId,
+          (unsigned long)applied, (unsigned long)tokens.count);
+    return YES;
+}
+
++ (BOOL)ame341_setPluginThemeShape:(NSString *)pluginId
+                            tokens:(NSDictionary *)tokens {
+    if (pluginId.length == 0) return NO;
+    static NSSet<NSString *> *shapeKeys = nil;
+    static NSSet<NSString *> *fontKeys = nil;
+    static dispatch_once_t once;
+    dispatch_once(&once, ^{
+        shapeKeys = [NSSet setWithArray:@[
+            @"radiusXS", @"radiusS", @"radiusM", @"radiusL", @"radiusXL",
+        ]];
+        fontKeys = [NSSet setWithArray:@[
+            @"fontHeadline", @"fontTitleLarge", @"fontTitleMedium",
+            @"fontBodyLarge", @"fontBodyMedium",
+            @"fontLabelLarge", @"fontLabelMedium",
+        ]];
+    });
+    if (!ame341_shapeOverride) ame341_shapeOverride = [NSMutableDictionary dictionary];
+    if (!ame341_fontOverride)  ame341_fontOverride  = [NSMutableDictionary dictionary];
+    // 先清本插件既有覆盖（还原语义，两表同清），再落新集合（后写者胜）
+    NSMutableArray *stale = [NSMutableArray array];
+    [ame341_shapeOverride enumerateKeysAndObjectsUsingBlock:^(NSString *k, NSArray *e, BOOL *_) {
+        if ([e[0] isEqualToString:pluginId]) [stale addObject:k];
+    }];
+    [ame341_fontOverride enumerateKeysAndObjectsUsingBlock:^(NSString *k, NSArray *e, BOOL *_) {
+        if ([e[0] isEqualToString:pluginId]) [stale addObject:k];
+    }];
+    for (NSString *k in stale) {
+        [ame341_shapeOverride removeObjectForKey:k];
+        [ame341_fontOverride removeObjectForKey:k];
+    }
+    if (![tokens isKindOfClass:[NSDictionary class]] || tokens.count == 0) {
+        return YES;
+    }
+    NSUInteger applied = 0;
+    for (NSString *k in tokens) {
+        id v = tokens[k];
+        if ([shapeKeys containsObject:k] && [v isKindOfClass:[NSNumber class]]) {
+            // pt 钳制 0...40（M3 最大 28、Fluent 2 最大 12，40 已留足插件自定余地）
+            double r = [(NSNumber *)v doubleValue];
+            if (r < 0 || r > 40 || isnan(r)) continue;
+            ame341_shapeOverride[k] = @[pluginId, @(r)];
+            applied++;
+        } else if ([fontKeys containsObject:k] && [v isKindOfClass:[NSDictionary class]]) {
+            NSDictionary *fs = (NSDictionary *)v;
+            double size = [fs[@"size"] isKindOfClass:[NSNumber class]]
+                          ? [(NSNumber *)fs[@"size"] doubleValue] : -1;
+            if (size < 8 || size > 40 || isnan(size)) continue;
+            UIFont *font = [UIFont systemFontOfSize:size
+                                             weight:Ame341WeightFromValue(fs[@"weight"])];
+            ame341_fontOverride[k] = @[pluginId, font];
+            applied++;
+        }
+    }
+    NSLog(@"[AmePlugin:%@] 形状/字体令牌覆盖 %lu/%lu 项", pluginId,
           (unsigned long)applied, (unsigned long)tokens.count);
     return YES;
 }
@@ -219,21 +318,46 @@ static UIColor *AmePluginColorOverride(NSString *token) {
 
 #pragma mark - 形状阶
 
-+ (CGFloat)radiusXS { return 4.0; }
-+ (CGFloat)radiusS  { return 8.0; }
-+ (CGFloat)radiusM  { return 12.0; }
-+ (CGFloat)radiusL  { return 16.0; }
-+ (CGFloat)radiusXL { return 28.0; }
+// ★ Task341：五档圆角经 AmePluginShapeOverride 先行检查插件覆盖
+//   （默认值 M3 刻度不变；覆盖全页面生效——ZL2 页面 71 处圆角全部经本组 getter）
++ (CGFloat)radiusXS { return AmePluginShapeOverride(@"radiusXS", 4.0); }
++ (CGFloat)radiusS  { return AmePluginShapeOverride(@"radiusS", 8.0); }
++ (CGFloat)radiusM  { return AmePluginShapeOverride(@"radiusM", 12.0); }
++ (CGFloat)radiusL  { return AmePluginShapeOverride(@"radiusL", 16.0); }
++ (CGFloat)radiusXL { return AmePluginShapeOverride(@"radiusXL", 28.0); }
 
 #pragma mark - 字体阶
 
-+ (UIFont *)fontHeadline    { return [UIFont systemFontOfSize:28.0 weight:UIFontWeightSemibold]; }
-+ (UIFont *)fontTitleLarge  { return [UIFont systemFontOfSize:22.0 weight:UIFontWeightRegular]; }
-+ (UIFont *)fontTitleMedium { return [UIFont systemFontOfSize:16.0 weight:UIFontWeightMedium]; }
-+ (UIFont *)fontBodyLarge   { return [UIFont systemFontOfSize:16.0 weight:UIFontWeightRegular]; }
-+ (UIFont *)fontBodyMedium  { return [UIFont systemFontOfSize:14.0 weight:UIFontWeightRegular]; }
-+ (UIFont *)fontLabelLarge  { return [UIFont systemFontOfSize:14.0 weight:UIFontWeightMedium]; }
-+ (UIFont *)fontLabelMedium { return [UIFont systemFontOfSize:12.0 weight:UIFontWeightMedium]; }
+// ★ Task341：七档字体经 AmePluginFontOverride 先行检查插件覆盖
+//   （默认值 M3 刻度不变；ZL2 页面 144 处字体全部经本组 getter）
++ (UIFont *)fontHeadline {
+    return AmePluginFontOverride(@"fontHeadline",
+                                 [UIFont systemFontOfSize:28.0 weight:UIFontWeightSemibold]);
+}
++ (UIFont *)fontTitleLarge {
+    return AmePluginFontOverride(@"fontTitleLarge",
+                                 [UIFont systemFontOfSize:22.0 weight:UIFontWeightRegular]);
+}
++ (UIFont *)fontTitleMedium {
+    return AmePluginFontOverride(@"fontTitleMedium",
+                                 [UIFont systemFontOfSize:16.0 weight:UIFontWeightMedium]);
+}
++ (UIFont *)fontBodyLarge {
+    return AmePluginFontOverride(@"fontBodyLarge",
+                                 [UIFont systemFontOfSize:16.0 weight:UIFontWeightRegular]);
+}
++ (UIFont *)fontBodyMedium {
+    return AmePluginFontOverride(@"fontBodyMedium",
+                                 [UIFont systemFontOfSize:14.0 weight:UIFontWeightRegular]);
+}
++ (UIFont *)fontLabelLarge {
+    return AmePluginFontOverride(@"fontLabelLarge",
+                                 [UIFont systemFontOfSize:14.0 weight:UIFontWeightMedium]);
+}
++ (UIFont *)fontLabelMedium {
+    return AmePluginFontOverride(@"fontLabelMedium",
+                                 [UIFont systemFontOfSize:12.0 weight:UIFontWeightMedium]);
+}
 
 #pragma mark - 语义
 

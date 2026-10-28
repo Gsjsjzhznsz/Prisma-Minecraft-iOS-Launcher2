@@ -57,7 +57,8 @@ def main():
     index = {
         'schema': 1,
         'repo': 'Gsjsjzhznsz/Prisma-Minecraft-iOS-Launcher2',
-        'updated': '2026-10-26',
+        # Task341：updated 动态生成（此前写死 '2026-10-26' 随轮次漂移失真）
+        'updated': __import__('datetime').date.today().isoformat(),
         'plugins': entries,
     }
     with open(INDEX, 'w', encoding='utf-8') as f:

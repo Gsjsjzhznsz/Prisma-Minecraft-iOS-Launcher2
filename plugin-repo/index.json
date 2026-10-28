@@ -4,6 +4,17 @@
   "updated": "2026-10-28",
   "plugins": [
     {
+      "id": "fluent-ui",
+      "name": "Fluent UI",
+      "version": "2.0.0",
+      "author": "Prisma",
+      "summary": "Fluent 2 完整设计语言换装（非 ZL2 主题换色）：控件 4pt / 卡片 8pt / 浮层 12pt 小圆角体系 + Fluent2 字阶（Title 28S/20S · Body 17R/15R · Caption 13R）+ 三套色板（Fluent 亮·品牌蓝 / Fluent 暗·品牌青 / Fluent × Apple 混融）循环切换，恢复默认一键还原。需启动器内置 Task341 形状/字体令牌引擎。",
+      "file": "plugins/fluent-ui.zip",
+      "size": 4090,
+      "sha256": "6f21064da561a71c73eee1cc5d60e8708eaa79a5dc21c1da9bea09c9d6c5fe7a",
+      "official": true
+    },
+    {
       "id": "launch-counter",
       "name": "启动统计",
       "version": "1.1.0",
@@ -11,7 +22,7 @@
       "summary": "统计游戏启动次数与最近一次退出码，全部数据只存本插件私有存储，不上传。",
       "file": "plugins/launch-counter.zip",
       "size": 1233,
-      "sha256": "5a7b16a860d25c25b966685aa808925bb890e1de7be7961171ed6ea6264f6b45",
+      "sha256": "f5e182030eed5e7ff4a970c59957bca6256f767c30a3b83bbb895be5fdff48b3",
       "official": true
     },
     {
@@ -22,7 +33,7 @@
       "summary": "联网拉取 Modrinth 下载量前五的模组并在对话框展示。联网属高危权限，首次使用请在插件详情页授权。",
       "file": "plugins/modrinth-hot.zip",
       "size": 1548,
-      "sha256": "4ed1b2fa63290426a56f5fb89de339146b5dd0cc5f64b35e136b9f41da018eb1",
+      "sha256": "3e759d966cdcb46edc49a60032ad9a92200f964553745af62c02d669528d3c2e",
       "official": true
     },
     {
@@ -33,7 +44,7 @@
       "summary": "在已安装渲染器之间循环切换并随时查看当前后端。渲染器写入属高危权限，首次切换请在插件详情页授权。",
       "file": "plugins/renderer-quickswitch.zip",
       "size": 1613,
-      "sha256": "2c2feb0488d1a4494f2db746b387de49df8d4f2d11f0ead609df18bc676c2da3",
+      "sha256": "fe1765be1fa2ab72a6b3d42e6a8c98b22f181065aadfad39691ac31ca0d2fe18",
       "official": true
     },
     {
@@ -44,18 +55,7 @@
       "summary": "四套精选配色（日落/森林/海洋/玫瑰）一键换肤，支持循环切换与恢复默认。主题令牌属高危权限，首次使用请在插件详情页授权。",
       "file": "plugins/theme-sunset.zip",
       "size": 2366,
-      "sha256": "a974d54295730aa4ecdf7d8ab849aeab2ca60a7d9ca0b33636719cad2e3c0296",
-      "official": true
-    },
-    {
-      "id": "fluent-ui",
-      "name": "Fluent UI 主题",
-      "version": "1.0.0",
-      "author": "Prisma",
-      "summary": "依据 Fluent 2 / Apple 材质令牌的整套启动器换装：亮色（Fluent 2 品牌蓝 + 中性分层）、暗色（Fluent 暗面板）、混融（Fluent 骨架 × Apple 系统色）循环切换，恢复默认一键还原。",
-      "file": "plugins/fluent-ui.zip",
-      "size": 3045,
-      "sha256": "e5f4c0d1d8305cc5eefa40aa3ee00d094d5deb85de12a2b53e8b637a51405c22",
+      "sha256": "f575bcf8d8e80d35e1acca046d267f4dd2aa63f8691a56b4ebea04f7349ed341",
       "official": true
     }
   ]

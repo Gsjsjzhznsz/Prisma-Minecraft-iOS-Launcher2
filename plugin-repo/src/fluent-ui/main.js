@@ -1,17 +1,43 @@
-// Task338 内置主题插件（fluent-ui）—— 用户点题"能不能依据 Fluent Apple
-// 写一个 Fluent UI 启动器插件，放到仓库里面"。
-// 定位：Fluent 2 / Apple 材质令牌的整套启动器换装（ZL2Theme 28 令牌全量）。
-//   · fluent-light  ：Fluent 2 亮色 —— 品牌蓝 #0F6CBD + 中性分层（F5→EB）
-//   · fluent-dark   ：Fluent 暗色   —— 品牌青 #4CC2FF + 暗面板分层（11→3B）
-//   · fluent-apple  ：混融          —— Fluent 骨架 × Apple 系统色（#007AFF
-//                                      + iOS systemGray6 分层）
-// 交互纪律（主页整洁）：单行入口，点击循环 亮→暗→混融→恢复默认；首次点击
-// 出说明对话框。持久化走 storage '__theme'（native 侧装载期自动重放）。
+// Task341 fluent-ui v2.0.0 —— 「完全重新设计 UI」版（用户点题：Fluent 插件
+// 要完全重新设计 UI，而不是依旧使用 zl2 样式）。
+// ---------------------------------------------------------------------
+// v1.0.0 的形态本质 = 三套调色板 × 28 色令牌换色：UI 结构/形状/字体仍是
+// Material 3（ZL2 出厂刻度），用户观感「依旧 zl2 样式」。v2 依托引擎新增
+// 的形状/字体覆盖面（ZL2Theme ame341：五档圆角 + 七档字阶，ZL2 页面
+// 71 处圆角 + 144 处字体全部经 getter 消费）交付完整 Fluent 2 设计语言：
+//
+//   · 形状（fluentui-apple Corner Radius 溯源）：控件统一 4pt 小圆角、
+//     卡片 8pt、浮层/大容器 12pt —— M3 的 12/16/28 大圆角体系整体收紧，
+//     这是 Fluent 与 M3 观感差异最大的形状签名。
+//   · 字阶（fluentui-apple Fluent2 Typography ramp 溯源）：Title2 28S /
+//     Title3 20S / Body1 17R (Strong 15SB) / Body2 15R / Caption1 13R ——
+//     与 M3 刻度（22R 标题 / 14M 标签）完全不同的字重分布。
+//   · 色板（fluentui-apple Brand/Neutral 溯源，v1 延续）：
+//       fluent-light：品牌蓝 #0F6CBD + 中性分层（F5→EB）
+//       fluent-dark ：品牌青 #4CC2FF + 暗面板分层（11→3B）
+//       fluent-apple：混融 —— Fluent 骨架（形/字）× Apple 系统色（#007AFF
+//                     + iOS systemGray6 分层）
+//
+// 交互纪律（主页整洁）不变：单行入口，点击循环 亮→暗→混融→恢复默认；
+// 首次点击出说明对话框。持久化走桥面 __theme/__shape 装载期重放键。
 // 全部调用 try-catch 包裹 —— 权限/桥面单点故障不得炸掉整插件。
 (function () {
   if (typeof ame === 'undefined') return;
 
-  var MARK = 'Task338-fluent';
+  var MARK = 'Task341-fluent';
+
+  // Fluent 2 形状/字阶：三套方案共用（Fluent 2 形态与色板无关；apple 混融
+  // 也保持 Fluent 骨架，只换色）。fluentui-apple 溯源值，见文件头注释。
+  var FLUENT_SHAPE = {
+    radiusXS: 4, radiusS: 4, radiusM: 8, radiusL: 8, radiusXL: 12,
+    fontHeadline:    { size: 28, weight: 'semibold' },
+    fontTitleLarge:  { size: 20, weight: 'semibold' },
+    fontTitleMedium: { size: 15, weight: 'semibold' },
+    fontBodyLarge:   { size: 17, weight: 'regular' },
+    fontBodyMedium:  { size: 15, weight: 'regular' },
+    fontLabelLarge:  { size: 15, weight: 'semibold' },
+    fontLabelMedium: { size: 13, weight: 'regular' }
+  };
 
   var PALETTES = [
     {
@@ -82,14 +108,19 @@
   function storageGet(key) {
     try { return ame.storage.get(key); } catch (e) { return null; }
   }
-  function storageRemove(key) {
-    try { return ame.storage.remove(key); } catch (e) { return false; }
-  }
 
   function currentIndex() {
     var raw = storageGet('fluent.idx');
     var n = parseInt(raw, 10);
     return (isNaN(n) || n < 0 || n >= PALETTES.length) ? -1 : n;
+  }
+
+  // 形状链独立容错：setThemeShape 失败（旧引擎/桥面异常）不阻塞色板应用，
+  // 退化为 v1 形态（仅换色）——全维度与仅换色之间平滑降级。
+  function applyShape() {
+    try { ame.setThemeShape(FLUENT_SHAPE); } catch (e) {
+      ame.log('[' + MARK + '] setThemeShape failed (old engine? color-only fallback): ' + e);
+    }
   }
 
   function applyPalette(idx) {
@@ -101,35 +132,37 @@
       try { ame.toast('主题应用失败（ui.theme 权限或桥面异常）'); } catch (e2) {}
       return;
     }
-    // '__theme' 为 native 装载期重放键（AmePluginRuntime：有 ui.theme 授权时
-    // 读取并以 NSDictionary 应用）—— 持久化与即时应用双通道同源。
-    storageSet('__theme', pal.tokens);
+    applyShape();
+    // '__theme'/'__shape' 由桥面 setThemeToken/setThemeShape 落盘（装载期
+    // 重放键）——插件侧只持久化循环态。
     storageSet('fluent.idx', String(idx));
-    try { ame.toast('已应用：' + pal.name + '（新开页面/重启启动器全量生效）'); } catch (e) {}
-    ame.log('[' + MARK + '] palette applied: ' + pal.key);
+    try { ame.toast('已应用：' + pal.name + '（Fluent 2 全维度 · 新开页面/重启启动器全量生效）'); } catch (e) {}
+    ame.log('[' + MARK + '] palette applied: ' + pal.key + ' (color+shape)');
   }
 
   function restoreDefault() {
     try { ame.setThemeToken({}); } catch (e) {
       ame.log('[' + MARK + '] reset failed: ' + e);
     }
-    storageRemove('__theme');
+    try { ame.setThemeShape({}); } catch (e) {
+      ame.log('[' + MARK + '] shape reset failed: ' + e);
+    }
     storageSet('fluent.idx', '-1');
-    try { ame.toast('已恢复默认主题（embermire）'); } catch (e) {}
+    try { ame.toast('已恢复默认主题（embermire · M3 刻度）'); } catch (e) {}
     ame.log('[' + MARK + '] theme restored to default');
   }
 
   try {
     ame.addLauncherRow(
-      { id: 'fluent-ui', title: 'Fluent UI 主题', subtitle: 'Fluent 2 × Apple 令牌换装（点击循环）' },
+      { id: 'fluent-ui', title: 'Fluent UI', subtitle: 'Fluent 2 完整设计语言（点击循环）' },
       function (rowId) {
         var announced = storageGet('fluent.announced') === 'yes';
         if (!announced) {
           storageSet('fluent.announced', 'yes');
           try {
             ame.dialog({
-              title: 'Fluent UI 主题',
-              body: '依据 Fluent 2 / Apple 材质令牌的整套换装：\n· Fluent 亮色 —— 品牌蓝 + 中性分层\n· Fluent 暗色 —— 暗面板分层\n· Fluent × Apple 混融 —— Apple 系统色\n点击本行循环切换，第 4 次恢复默认。令牌全量 28 项，主题在重放后跨启动保留。',
+              title: 'Fluent UI',
+              body: 'Fluent 2 完整设计语言换装（非 ZL2 主题换色）：\n· 形状 —— 控件 4pt / 卡片 8pt / 浮层 12pt（M3 大圆角整体收紧）\n· 字阶 —— Title 28S/20S · Body 17R/15R · Caption 13R（Fluent2 ramp）\n· 色板 —— Fluent 亮（品牌蓝）/ Fluent 暗（品牌青）/ Fluent × Apple 混融\n点击本行循环切换，第 4 次恢复默认。重启启动器后自动重放。',
               confirm: '应用 Fluent 亮色',
               cancel: '关闭'
             }, function (ok) {
@@ -151,5 +184,5 @@
     return;
   }
 
-  ame.log('[' + MARK + '] fluent-ui loaded（主题行已注册：主页贡献行「Fluent UI 主题」，点击循环亮/暗/混融/默认）');
+  ame.log('[' + MARK + '] fluent-ui v2 loaded（Fluent 2 全维度：色28+形状5+字阶7；主页贡献行「Fluent UI」，点击循环亮/暗/混融/默认）');
 })();

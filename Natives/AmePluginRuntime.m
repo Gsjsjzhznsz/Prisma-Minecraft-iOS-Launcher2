@@ -21,6 +21,7 @@
 @property (nonatomic, strong) NSMutableDictionary<NSString *, JSContext *> *contexts;
 @property (nonatomic, strong) NSMutableDictionary<NSString *, AmePluginBridge *> *bridges;
 @property (nonatomic, strong) NSMutableDictionary<NSString *, NSDictionary<NSString *, NSString *> *> *themeTokensByPlugin;
+@property (nonatomic, strong) NSMutableDictionary<NSString *, NSDictionary *> *themeShapesByPlugin;   // Task341 形状/字体记账
 @property (nonatomic, assign) BOOL booted;
 @end
 
@@ -41,6 +42,7 @@
         _contexts = [NSMutableDictionary dictionary];
         _bridges = [NSMutableDictionary dictionary];
         _themeTokensByPlugin = [NSMutableDictionary dictionary];
+        _themeShapesByPlugin = [NSMutableDictionary dictionary];
     }
     return self;
 }
@@ -70,6 +72,8 @@ static NSString *ame317_facadeSource(void) {
     "ame.off=function(ev){return raw.off(ev===undefined?'':String(ev));};"
     "ame.addLauncherRow=function(spec,cb){return raw.addLauncherRowHandler(spec||{},cb||function(){});};"
     "ame.setThemeToken=function(tokens){return raw.setThemeToken(tokens||{});};"
+    // ★ Task341：形状/字体令牌（半径 pt + 字体阶 {size,weight}，ui.theme 同权限）
+    "ame.setThemeShape=function(t){return raw.setThemeShape(t||{});};"
     "ame.getPref=function(k){return raw.getPref(String(k));};"
     "ame.setPref=function(k,v){return raw.setPrefValue(String(k),v);};"
     "ame.getRenderer=function(){return raw.getRenderer();};"
@@ -521,6 +525,15 @@ static NSString *ame317_facadeSource(void) {
         [AmePluginPermissions pluginHasGrant:pluginId permission:@"ui.theme"]) {
         [self ame317_applyThemeTokens:pluginId tokens:savedTheme];
     }
+    // ★ Task341：形状/字体令牌同机制重放（__shape 持久化键；装载期自动回放，
+    //   色令牌与形状令牌相互独立——旧版插件只存 __theme 时 shape 链静默跳过）
+    if ([AmePluginPermissions pluginHasGrant:pluginId permission:@"storage"]) {
+        id savedShape = [b storageGet:@"__shape"];
+        if ([savedShape isKindOfClass:[NSDictionary class]] &&
+            [AmePluginPermissions pluginHasGrant:pluginId permission:@"ui.theme"]) {
+            [self ame317_applyThemeShape:pluginId tokens:savedShape];
+        }
+    }
 
     if (dispatchLaunchEvent) {
         [self ame317_dispatchEvent:@"app.launch" payload:pluginId toPlugin:pluginId];
@@ -531,8 +544,9 @@ static NSString *ame317_facadeSource(void) {
 
 - (void)ame317_unloadPlugin:(NSString *)pluginId {
     NSAssert([NSThread isMainThread], @"AmePlugin 卸载必须主线程");
-    // 主题令牌还原本插件贡献
+    // 主题令牌还原本插件贡献（色 + Task341 形状/字体两族同收）
     [self ame317_applyThemeTokens:pluginId tokens:nil];
+    [self ame317_applyThemeShape:pluginId tokens:nil];
     AmePluginBridge *bridge = self.bridges[pluginId];
     [bridge teardown];
     JSContext *ctx = self.contexts[pluginId];
@@ -564,6 +578,26 @@ static NSString *ame317_facadeSource(void) {
         }
     } else {
         [self.themeTokensByPlugin removeObjectForKey:pluginId];
+    }
+}
+
+// ★ Task341：形状/字体令牌记账（与 ame317_applyThemeTokens 逐位同构：
+//   先精确还原上一次本插件贡献，再应用新集合；空集 = 清记账+还原）
+- (void)ame317_applyThemeShape:(NSString *)pluginId
+                        tokens:(NSDictionary *)tokens {
+    NSDictionary *previous = self.themeShapesByPlugin[pluginId];
+    if (previous) {
+        [ZL2Theme ame341_setPluginThemeShape:pluginId tokens:nil];
+    }
+    if ([tokens isKindOfClass:[NSDictionary class]] && tokens.count > 0) {
+        BOOL ok = [ZL2Theme ame341_setPluginThemeShape:pluginId tokens:tokens];
+        if (ok) {
+            self.themeShapesByPlugin[pluginId] = tokens;
+        } else {
+            self.themeShapesByPlugin[pluginId] = @{};
+        }
+    } else {
+        [self.themeShapesByPlugin removeObjectForKey:pluginId];
     }
 }
 

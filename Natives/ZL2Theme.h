@@ -98,6 +98,23 @@ NS_ASSUME_NONNULL_BEGIN
 + (BOOL)ame317_setPluginThemeTokens:(NSString *)pluginId
                              tokens:(nullable NSDictionary<NSString *, NSString *> *)tokens;
 
+#pragma mark - Task341 插件形状/字体令牌覆盖（高危权限 ui.theme，同 ame317 记账还原语义）
+
+// Fluent 2 等非 M3 设计语言「完全重设计」的引擎承载面：色令牌（ame317）之外
+// 的形状阶与字体阶从此可被插件整体重塑（ZL2 页面 71 处圆角 + 144 处字体全部
+// 经 getter 消费，覆盖即全页面生效；默认值 M3 刻度不变 = 本引擎不携带任何
+// Fluent 视觉资产，Fluent 形态全部住在插件侧）。
+//
+// tokens 结构（混合键空间，白名单见 .m）：
+//   radius* 键 → NSNumber（pt，钳制 0...40）；
+//   font*   键 → NSDictionary {@{@"size": 15, @"weight": @"semibold"}}，
+//                weight 接受 "regular"/"medium"/"semibold"/"bold"（数字
+//                400/500/600/700 同义映射）。未知键忽略；类型不合法跳过。
+// 空/nil = 清除该插件全部形状/字体覆盖（停用/卸载还原用）。后写者胜。
+// 与 ame317 色令牌覆盖相互独立（可单独应用、单独还原）。
++ (BOOL)ame341_setPluginThemeShape:(NSString *)pluginId
+                            tokens:(nullable NSDictionary *)tokens;
+
 @end
 
 NS_ASSUME_NONNULL_END
