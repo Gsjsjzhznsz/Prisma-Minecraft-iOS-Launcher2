@@ -4307,3 +4307,17 @@ ame331_selfcheck 49 断言（新：协议 24 selector 导出/JS 名整形七关�
    + 下载体积 4090B（v2.0.0）→ sha 校验过 → 安装成功弹窗；若仍 mismatch 弹窗文案
    变为「下载完整性校验失败（sha256 不符）」而非 zip 写入错误。
 4. 设置-调试出现「退役镜像映射代码缓存（JIT 自救）」开关行（默认关）。
+
+### CI 收官段（Task 342）
+
+- **CI r0**：smoke 40735011222 绿 + dev 40734990645 **failure**——
+  ZL2PluginRepoViewController.m:438 `missing '[' at start of message send
+  expression`：三层 ObjC 消息链
+  `[[[NSURLSession sessionWithConfiguration] dataTaskWithURL] resume]` 实写
+  两层 `[`（session 消息→dataTask 消息→resume 消息语义需三层）；新判例：
+  本地门禁大括号平衡查不出方括号层数错。
+- **r1 fdc3cab**：对齐 Task340 既有模式（局部变量 psession + 两层消息
+  `[[psession dataTask] resume]`，pcfg 声明随移）+ ame342_selfcheck C 组
+  升级大/圆/方三括号平衡 15 断言（22→32 断言）防复发 → **CI 双绿一次过**
+  （smoke 40738035800 + dev 40738031925 @ fdc3cab，产物 ipa/tipa 222.5MB ×2
+  + dSYM 7.4MB）；零代码语义面改动（纯语法结构热修）。
