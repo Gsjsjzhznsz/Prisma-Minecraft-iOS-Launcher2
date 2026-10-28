@@ -415,9 +415,36 @@ static NSString * const ame333_repoMirrorPrefKey = @"ame333.plugin.repo.mirror";
         NSString *tmpZip = [NSTemporaryDirectory()
             stringByAppendingPathComponent:
                 [NSString stringWithFormat:@"ame333-repo-%@.zip", [NSUUID UUID].UUIDString]];
-        NSURL *url = [NSURL URLWithString:[base stringByAppendingString:file]];
+        // ★Task342：下载 URL 加 cache-busting query（?cb=<毫秒时间戳>）——
+        //   装机实弹（d377102 latestlog 2026-10-29）：Task340 purge 后 index 已
+        //   是新 5 件，但 fluent-ui.zip 下载仍回 CDN 旧缓存 3045B（v1）→
+        //   sha mismatch ×3（got=e5f4c0d1 want=6f21064d）。purge 只对 index
+        //   生效，文件级缓存未失效。jsdelivr 的 cache key 含 query，未知
+        //   query 即回源拿最新；raw/ghfast 通道 query 无害。双保险：下载前
+        //   再对同路径打一次 purge.jsdelivr.net（3s 超时，结果只取证不阻断）。
+        NSURL *url = [NSURL URLWithString:[NSString stringWithFormat:@"%@%@?cb=%lld",
+            base, file, (long long)([NSDate date].timeIntervalSince1970 * 1000.0)]];
+        if (url && [base containsString:@"cdn.jsdelivr.net"]) {
+            NSString *filePurgeUrl = [[[base stringByAppendingString:file]
+                stringByReplacingOccurrencesOfString:@"cdn.jsdelivr.net"
+                                          withString:@"purge.jsdelivr.net"]
+                stringByAppendingString:@"?cb=1"];
+            NSURL *filePurge = [NSURL URLWithString:filePurgeUrl];
+            if (filePurge) {
+                dispatch_semaphore_t fpsem = dispatch_semaphore_create(0);
+                __block NSInteger fphttp = 0;
+                NSURLSessionConfiguration *pcfg = [NSURLSessionConfiguration ephemeralSessionConfiguration];
+                pcfg.timeoutIntervalForRequest = 3.0;
+                [[NSURLSession sessionWithConfiguration:pcfg] dataTaskWithURL:filePurge completionHandler:^(NSData *d, NSURLResponse *r, NSError *e) {
+                    fphttp = ((NSHTTPURLResponse *)r).statusCode ?: 0;
+                    dispatch_semaphore_signal(fpsem);
+                }] resume];
+                dispatch_semaphore_wait(fpsem, dispatch_time(DISPATCH_TIME_NOW, (int64_t)(3.0 * NSEC_PER_SEC)));
+                NSLog(@"[AmePluginRepo] Task342 jsdelivr file cache purge (%@): http=%ld", pid, (long)fphttp);
+            }
+        }
         AmePluginManifest *m = nil;
-        AmePluginInstallResult code = AmePluginInstallErrReadZip;
+        AmePluginInstallResult code = AmePluginInstallErrDownload;
         if (url) {
             NSData *data = [NSData dataWithContentsOfURL:url];
             NSLog(@"[AmePluginRepo] Task333 download %@ via %@ -> %@B", pid, base, data ? @(data.length) : @"0");
@@ -425,11 +452,17 @@ static NSString * const ame333_repoMirrorPrefKey = @"ame333.plugin.repo.mirror";
             if (data.length && gotSha && [gotSha isEqualToString:sha]) {
                 [data writeToFile:tmpZip options:NSDataWritingAtomic error:nil];
                 code = [AmePluginManager installFromZip:tmpZip outManifest:&m];
+            } else if (!data.length) {
+                NSLog(@"[AmePluginRepo] Task342 download failed for %@ (empty body via %@)", pid, base);
+                code = AmePluginInstallErrDownload;
+                m = nil;
             } else {
                 NSLog(@"[AmePluginRepo] Task333 sha mismatch for %@ (got %@ want %@)", pid, gotSha, sha);
-                code = AmePluginInstallErrReadZip;   // 完整性闸失败按下载失败报
+                code = AmePluginInstallErrShaMismatch;   // ★Task342：专属错误码，不再误报 zip 写入错误
                 m = nil;
             }
+        } else {
+            NSLog(@"[AmePluginRepo] Task342 invalid download URL for %@ (base=%@ file=%@)", pid, base, file);
         }
         [[NSFileManager defaultManager] removeItemAtPath:tmpZip error:nil];
         dispatch_async(dispatch_get_main_queue(), ^{
@@ -517,7 +550,14 @@ static NSString * const ame333_repoMirrorPrefKey = @"ame333.plugin.repo.mirror";
     NSString *src = [ame318_builtinRoot() stringByAppendingPathComponent:dirName];
     NSMutableArray<NSString *> *relPaths = [NSMutableArray array];
     [self ame318_collectFilesUnder:src relative:@"" into:relPaths];
-    if (relPaths.count == 0) return NO;
+    if (relPaths.count == 0) {
+        // ★Task342：静默 NO 取证（本轮用户弹窗"zip 写入错误"实为 ame333 sha
+        //   失败文案错位，但本分支同样静默——builtin 根缺失/目录名不匹配
+        //   时无任何日志，排查只能盲猜）。下次命中日志直接可见。
+        NSLog(@"[AmePluginRepo] Task342 builtin zip collected 0 files (src=%@ dirName=%@ exists=%d)",
+              src, dirName, [[NSFileManager defaultManager] fileExistsAtPath:src]);
+        return NO;
+    }
 
     NSError *err = nil;
     UZKArchive *archive = [[UZKArchive alloc] initWithPath:zipPath error:&err];
@@ -543,6 +583,8 @@ static NSString * const ame333_repoMirrorPrefKey = @"ame333.plugin.repo.mirror";
         NSString *body;
         switch (code) {
             case AmePluginInstallErrReadZip:    body = localize(@"ame318.repo.zip_failed", nil); break;
+            case AmePluginInstallErrDownload:   body = localize(@"ame333.repo.download_failed", nil); break;
+            case AmePluginInstallErrShaMismatch: body = localize(@"ame333.repo.sha_mismatch", nil); break;
             case AmePluginInstallErrNoManifest: body = localize(@"ame317.install.err_manifest", nil); break;
             case AmePluginInstallErrBadJSON:    body = localize(@"ame317.install.err_json", nil); break;
             case AmePluginInstallErrBadSchema:  body = localize(@"ame317.install.err_schema", nil); break;

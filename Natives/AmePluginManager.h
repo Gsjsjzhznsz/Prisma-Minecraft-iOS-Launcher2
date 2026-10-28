@@ -34,6 +34,10 @@ typedef NS_ENUM(NSInteger, AmePluginInstallResult) {
     AmePluginInstallErrBadEntry   = 5, // entry 文件缺失或路径越界
     AmePluginInstallErrAPITooNew  = 6, // minApi > 启动器插件 API 版本
     AmePluginInstallErrMove       = 7, // 落盘失败
+    // ★ Task342：ame333 远程链失败族从 ErrReadZip 拆出（旧口径把"下载/sha
+    //   失败"误报成"打包内置插件失败（zip 写入错误）"，用户实弹弹窗错位）。
+    AmePluginInstallErrDownload   = 8, // 远程 zip 下载失败（网络/镜像全败）
+    AmePluginInstallErrShaMismatch = 9, // sha256 与 index 登记值不符（CDN 缓存旧/仓库未同步）
 };
 
 @interface AmePluginManager : NSObject

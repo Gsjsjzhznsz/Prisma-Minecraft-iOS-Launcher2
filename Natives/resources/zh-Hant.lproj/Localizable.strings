@@ -572,6 +572,8 @@
 "preference.detail.jit_enabler" = "選擇用於開啟 JIT 的應用。啟動器內建使用啟動器內建的 JIT 助手（需 iOS 26+）。若未安裝 StikDebug，請改選 SideStore、StosDebug、JitStreamer-EB 或 TrollStore，否則點啟動沒有反應。自動（預設）在內建工具可用時優先使用，否則按裝置依次嘗試 TrollStore、StikDebug、SideStore。";
 "preference.title.jit26_script_disable" = "停用 iOS 26 JS 指令碼 JIT";
 "preference.detail.jit26_script_disable" = "啟動遊戲時不再向 JIT 工具傳送 UniversalJIT26.js 指令碼（純除錯器附加式 JIT）。僅當你的工具不支援指令碼、或指令碼導致異常時才需要開啟；依賴系統級記憶體映射的裝置（TXM）開啟後可能無法啟動遊戲。";
+"preference.title.mirror_codecache_disable" = "退役鏡像映射代碼快取（JIT 自救）";
+"preference.detail.mirror_codecache_disable" = "不再向 JVM 傳遞 -XX:+MirrorMappedCodeCache，改走普通非鏡像代碼快取軌。用於 iOS 27 + StikJIT 下 SIGBUS at StubRoutines::call_stub（鏡像雙視圖關係破裂）的自救；預設關閉，行為零變化。";
 "preference.touchcontroller.hide_controls" = "遮蔽啟動器控制項（保留模組按鈕）";
 "preference.touchcontroller.ok" = "确定";
 "preference.touchcontroller.cancel" = "取消";
@@ -3382,6 +3384,7 @@
 "ame303.manifest_missing" = "無法解析版本「%@」：遠端版本清單尚未載入，且本機沒有可複製的版本檔案。請檢查網路連線後重試。";
 "ame306.jit.spawn_denied" = "目前安裝方式無法使用內建 JIT：非越獄沙盒拒絕衍生 JIT 輔助程序（僅 TrollStore / 越獄環境可能允許）。直接點「啟動遊戲」即可——JIT 會經 StikDebug 自動申請；也可在 StikDebug 應用內手動為啟動器開啟 JIT。";
 "ame307.crash.switch_gles" = "一鍵切換 GLES 後端（繞開 MoltenVK）";
+"ame342.crash.retire_mirror" = "開啟 JIT 自救模式（退役鏡像代碼快取）";
 "dl.controls.cat.official" = "官方精選";
 "dl.controls.cat.community" = "社群";
 "dl.controls.cat.local" = "本機";
@@ -3529,3 +3532,4 @@
 "ame333.repo.install" = "安裝";
 "ame333.repo.update" = "可更新";
 "ame333.repo.sha_mismatch" = "下載完整性校驗失敗（sha256 不符），已中止安裝";
+"ame333.repo.download_failed" = "外掛下載失敗，請檢查網路後重試。";

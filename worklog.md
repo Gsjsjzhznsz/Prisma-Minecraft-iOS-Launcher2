@@ -4236,3 +4236,74 @@ ame331_selfcheck 49 断言（新：协议 24 selector 导出/JS 名整形七关�
   **绿**——零代码改动过全量编译，抖动定性实锤。产物 ipa/tipa 222.5MB×2 +
   dSYM 7.4MB。
 - 本轮 r0 即双绿（smoke 首跑绿 / dev 第二次跑绿），零代码热修轮。
+
+## Task 342（两线 @ 本轮）— 2026-10-29
+
+### 线① 1.20.1 闪退第二轮根修（SIGBUS at ~StubRoutines::call_stub = JIT 镜像代码缓存布局异常）
+
+- **装机实弹取证（d377102 latestlog 2026-10-29）**：Task341 的 ASM major-69 修复已生效
+  （agent 已排除 -cp，Task201 文案正确），但 1.20.1（Java 17.0.20）首启崩得更早——JVM
+  create_vm 初始化 java.lang 类阶段第一次执行 call_stub 即 SIGBUS（pc=0x71241080bc =
+  JIT26 mapping RX 段 +0xbc）。决定性证据：libjvm 自报 `mapping at RW=0x7128108000,
+  RX=0x7124108000`，**RW-RX 相距 1GB**；正常镜像布局应 ≈ 请求值紧邻（上游 issue #293
+  日志样本：Requesting 240 MB → RW=RX+240MB+16KB）。RW/RX 双视图关系破裂 → RX 段无
+  有效代码可执行 → 取指 access fault（SIGBUS 而非 SIGSEGV）。
+- **问题窄化**：同一 `-XX:+MirrorMappedCodeCache` 在用户 Java 21/25 会话健康（Cobblemon
+  正常），且 64m 镜像轨（Task284/285 的 iOS 27 A15 SIGBUS 硬边界）已在位——本轮异常
+  是 jre17 mirror 链（libjvm × StikJIT 应答协议）在 iOS 27.0.1 TXM 设备上的新形态。
+  launcher 不可控层：libjvm 预编译产物、StikJIT debugserver 应答、TXM 行为。
+- **修法（launcher 侧三层）**：
+  1. `debug.mirror_codecache_disable` 自救开关（默认 NO 零行为变化）——launchJVM +
+     launchHeadlessJVM 双落位：开启后 iOS26+ 会话退役 `-XX:+MirrorMappedCodeCache`
+     并走 256m 非镜像轨；设置-调试新增同名开关行（defaults 注册 + typeSwitch）。
+  2. ame273 crash report 定向分级（main_hook，ame307 模板同构）：SIGBUS 与
+     `StubRoutines::call_stub` 同场 → 专项 fix 文案（更新 StikJIT / 一键自救 /
+     更换 JIT 工具三选）。
+  3. SceneDelegate 崩溃弹窗一键动作：headline 含 call_stub 且开关未开 →
+     「开启 JIT 自救模式（退役镜像代码缓存）」（写偏好 + ame342_mirror_retired.txt
+     marker 取证，下次启动非镜像轨生效；已开仍崩不再出现）。
+  4. 探针取证：launchJVM 前打印 ame301 探针 region 地址（1 页 brk0x69 通道），与
+     libjvm 稍后的 "Got JIT mapping" 行并排落日志，下轮复现可直接对拍 debugger
+     分配行为（正常堆段 vs 异常高位段 / 相邻 vs 远隔）。
+
+### 线② 插件安装失败文案错位 + CDN 文件缓存根修
+
+- **装机实弹弹窗**：「安装失败 / 打包内置插件失败（zip 写入错误）」实为 ame333 远程链
+  sha mismatch（Task318 文案被错误复用，注释自曝"完整性闸失败按下载失败报"）。
+- **根因链**：Task340 purge 只对 index.json 生效（日志 5 plugins 新件）——fluent-ui.zip
+  文件级 CDN 缓存仍旧（回 3045B v1）→ sha mismatch ×3（got=e5f4c0d1 want=6f21064d）。
+- **修法**：
+  1. 错误码拆分：`AmePluginInstallErrDownload=8`（空下载）/
+     `AmePluginInstallErrShaMismatch=9`（sha 不符），ame318_installDidFinish switch
+     补两分支文案，不再误报 zip 写入错误。
+  2. CDN 根修双保险：下载 URL 加 `?cb=<毫秒时间戳>` cache-busting（jsdelivr cache key
+     含 query 即回源）+ 下载前对同路径打文件级 purge.jsdelivr.net（3s 超时单次闸，
+     结果只取证不阻断）。
+  3. ame318_zipBuiltinPlugin 空收集静默 NO 加取证日志（builtin 根缺失/目录名不匹配
+     不再盲猜）。
+  4. i18n 四表新键：`ame333.repo.download_failed` / `preference.title|detail.
+     mirror_codecache_disable` / `ame342.crash.retire_mirror`（键总数 3317→3321）。
+
+### 门禁与收官
+
+- `ame342_selfcheck` 22 断言（A 自救通道 8 / B 错误码+CDN 8 / C 结构 6）+ `--selftest`
+  反向 4 探针全翻红（S-A1 摘闸退化裸 @available / S-B1 错误码回退 / S-B2 cache-busting
+  摘除 / S-A2 crash 特征摘除）；新判例：断言面剥离器误用 strip_real（字符串清空致 12
+  断言假红）→ strip_keep_str（同构单遍扫描、字符串原样保留）。
+- 全电池 ame317~342 全绿（ame333 F2 基线顺延 3317→3321）+ task139/240 balanced +
+  task248/250 全零 + task191 四主表 3321 键。
+
+### 预期装机验证锚点
+
+1. 1.20.1 再启动：若仍 SIGBUS 闪退 → 下次启动弹出 ame273 玻璃弹窗带
+   「开启 JIT 自救模式」按钮（headline=v ~StubRoutines::call_stub）；点击后重启启动
+   1.20.1，日志见 `Task342: debug.mirror_codecache_disable=1 -- retiring
+   MirrorMappedCodeCache` 且 JVM 参数无 MirrorMappedCodeCache（能否进世界=非镜像轨
+   可行性定案；若 SIGSEGV 于 CodeCache 写入则非镜像轨不可行，回滚开关并等上游
+   jre17 patch）。
+2. 启动日志 `Task342 probe region: 0x...（1 页）` 与 `Got JIT mapping 0x...` 并排——
+   两段地址关系取证 debugger 分配行为。
+3. 插件仓库安装 fluent-ui：日志 `Task342 jsdelivr file cache purge (fluent-ui): http=200`
+   + 下载体积 4090B（v2.0.0）→ sha 校验过 → 安装成功弹窗；若仍 mismatch 弹窗文案
+   变为「下载完整性校验失败（sha256 不符）」而非 zip 写入错误。
+4. 设置-调试出现「退役镜像映射代码缓存（JIT 自救）」开关行（默认关）。

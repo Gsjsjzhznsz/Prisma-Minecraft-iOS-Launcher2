@@ -2008,6 +2008,13 @@ if ([section isEqualToString:@"general"]) {
                 @"enableCondition": whenNotInGame,
                 @"requestReload": @YES
             },
+            @{@"key": @"mirror_codecache_disable",
+                @"hasDetail": @YES,
+                @"icon": @"photo.on.rectangle.angled",
+                @"type": self.typeSwitch,
+                @"enableCondition": whenNotInGame,
+                @"requestReload": @YES
+            },
             @{@"key": @"debug_universal_script_jit",
                 @"icon": @"scroll",
                 @"type": self.typeSwitch,

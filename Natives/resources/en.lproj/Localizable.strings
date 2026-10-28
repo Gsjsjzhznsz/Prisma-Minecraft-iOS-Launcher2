@@ -575,6 +575,8 @@
 "preference.detail.jit_enabler" = "Choose the app used to enable JIT. Built-in uses the launcher's own JIT helper (iOS 26+). If you don't have StikDebug installed, pick SideStore, StosDebug, JitStreamer-EB or TrollStore instead, otherwise tapping Launch does nothing. Auto (default) prefers the built-in helper when available, then tries TrollStore, StikDebug, then SideStore depending on your device.";
 "preference.title.jit26_script_disable" = "Disable iOS 26 JS-Script JIT";
 "preference.detail.jit26_script_disable" = "Stop sending UniversalJIT26.js to the JIT tool when launching the game (plain debugger-attach JIT). Only turn this on if your tool doesn't support scripts or the script misbehaves; devices that need system-level memory mapping (TXM) may fail to launch the game with this enabled.";
+"preference.title.mirror_codecache_disable" = "Retire mirrored code cache (JIT self-rescue)";
+"preference.detail.mirror_codecache_disable" = "Stop passing -XX:+MirrorMappedCodeCache to the JVM and use the plain non-mirrored code cache track. Self-rescue for SIGBUS at StubRoutines::call_stub on iOS 27 + StikJIT (mirror-mapped CodeCache RW/RX views non-adjacent). Off = no behavior change.";
 "preference.touchcontroller.hide_controls" = "Hide Launcher Controls (keep mod buttons)";
 "preference.touchcontroller.ok" = "OK";
 "preference.touchcontroller.cancel" = "Cancel";
@@ -3387,6 +3389,7 @@
 "ame303.manifest_missing" = "Could not resolve version \"%@\": the remote version manifest is not loaded yet and no local copy exists to duplicate from. Check your network connection and try again.";
 "ame306.jit.spawn_denied" = "Builtin JIT is unavailable with this install: the non-jailbroken sandbox denies spawning the JIT helper process (only TrollStore/jailbroken hosts may allow it). Just press Launch -- JIT is requested automatically via StikDebug; or enable JIT for the launcher manually inside StikDebug.";
 "ame307.crash.switch_gles" = "Switch to GLES backend (bypass MoltenVK)";
+"ame342.crash.retire_mirror" = "Enable JIT self-rescue (retire mirrored code cache)";
 "dl.controls.cat.official" = "Featured";
 "dl.controls.cat.community" = "Community";
 "dl.controls.cat.local" = "On this device";
@@ -3534,3 +3537,4 @@
 "ame333.repo.install" = "Install";
 "ame333.repo.update" = "Update";
 "ame333.repo.sha_mismatch" = "Download integrity check failed (sha256 mismatch), install aborted";
+"ame333.repo.download_failed" = "Plugin download failed. Check your network and try again.";

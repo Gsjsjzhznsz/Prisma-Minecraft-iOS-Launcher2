@@ -684,6 +684,27 @@ static void ame274_presentAfterSettling(UIViewController *presenter, UIViewContr
                 NSLog(@"[Ame307] GLES fallback engaged from crash dialog (mobileglues.mobilegl_backend=2, marker written) -- next launch bypasses MoltenVK");
             }]];
         }
+        // ★ Task342：JIT 镜像代码缓存自愈入口——headline 指向
+        // ~StubRoutines::call_stub（生成端 main_hook ame342 定向 fix 同源
+        // 判据：SIGBUS@call_stub = JIT26 mirror-mapped CodeCache RW/RX 双
+        // 视图关系破裂）且自救开关尚未开启时，追加"开启 JIT 自救模式"一键
+        // 动作：写 debug.mirror_codecache_disable=1（退役镜像映射代码缓存，
+        // 下次启动走非镜像轨）+ marker 落盘取证。已开启仍崩（= 非镜像轨
+        // 也死）则不再重复出现，走常规排查（更新/更换 JIT 工具）。
+        if (headline.length > 0 && [headline containsString:@"StubRoutines::call_stub"] &&
+            !getPrefBool(@"debug.mirror_codecache_disable")) {
+            [ame273_alert addAction:[UIAlertAction actionWithTitle:localize(@"ame342.crash.retire_mirror", nil)
+                style:UIAlertActionStyleDefault handler:^(UIAlertAction *action) {
+                setPrefBool(@"debug.mirror_codecache_disable", YES);
+                NSString *ame342_home = [NSProcessInfo processInfo].environment[@"POJAV_HOME"];
+                if (ame342_home.length > 0) {
+                    NSString *ame342_marker = [ame342_home stringByAppendingPathComponent:@"ame342_mirror_retired.txt"];
+                    NSString *ame342_stamp = [NSString stringWithFormat:@"time=%@\nheadline=%@\n", [NSDate date], headline];
+                    [ame342_stamp writeToFile:ame342_marker atomically:YES encoding:NSUTF8StringEncoding error:nil];
+                }
+                NSLog(@"[Ame342] mirror code cache retired from crash dialog (debug.mirror_codecache_disable=1, marker written) -- next launch uses the non-mirrored track");
+            }]];
+        }
         // ★ Task275（P2-b5）：宿主现取锚——2.5s 延迟期间语言切换等会重建根，
         // 快照宿主脱窗后 present 静默失败且报告已归档 = 补弹永久丢失。
         __block UIViewController *ame273_anchor = nil;

@@ -396,6 +396,9 @@ NSString *const PREF_MOD_MIRROR = @"general.mod_mirror";
             // sidestore）与 iOS 26 JS 脚本 JIT 开关（默认携带脚本）
             @"jit_enabler": @"auto",
             @"jit26_script_disable": @NO,
+            // ★ Task342：JIT 镜像代码缓存退役自救开关（默认关零行为变化；
+            //   SIGBUS@call_stub 装机实弹的自救通道，崩溃弹窗一键开启）
+            @"mirror_codecache_disable": @NO,
             @"debug_hide_home_indicator": @NO,
             // Task 129g：同 hidden_sidebar——model 推导，避免求值时机依赖。
             @"debug_ipad_ui": @([[[UIDevice currentDevice].model lowercaseString] containsString:@"ipad"]),

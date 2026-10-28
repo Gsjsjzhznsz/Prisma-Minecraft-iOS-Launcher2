@@ -615,7 +615,31 @@ static void ame273_writeCrashReport(int code) {
             if (!ame307_mgl && strstr(lines[i].start, "libMobileGL.dylib") != NULL) ame307_mgl = 1;
             if (ame307_molten && ame307_mgl) break;
         }
-        if (ame307_molten && ame307_mgl) {
+        // ★Task342：JIT 镜像代码缓存布局异常定向诊断（装机 d377102
+        //   latestlog 2026-10-29 实锤）——iOS 27.0.1 (M4/TXM) + StikJIT +
+        //   Java 17，64m 镜像轨首启即 SIGBUS at ~StubRoutines::call_stub
+        //   （pc = JIT26 mapping RX 段 +0xbc），libjvm 自报
+        //   "mapping at RW=0x7128108000, RX=0x7124108000" 即 RW-RX 相距
+        //   1GB（正常镜像布局应 ≈ 请求值紧邻，参照上游 issue #293 样本
+        //   RW=RX+240MB）——RW/RX 双视图关系破裂，RX 段无有效代码可执行
+        //   → 取指 access fault。同一 flag 在 Java 21/25 会话正常，问题
+        //   窄化到 jre17 mirror 链（libjvm × StikJIT 应答协议）。特征 =
+        //   SIGBUS 与 StubRoutines::call_stub 同场（或 mirror mapping 布局
+        //   行在场）。自救 = debug.mirror_codecache_disable（退役镜像映射
+        //   代码缓存，走非镜像轨）；呈现层（SceneDelegate）按同特征追加
+        //   一键开启动作（ame342）。
+        int ame342_sigbus = 0, ame342_stub = 0, ame342_mirror = 0;
+        for (int i = 0; i < lineCount; i++) {
+            if (!ame342_sigbus && strstr(lines[i].start, "SIGBUS") != NULL) ame342_sigbus = 1;
+            if (!ame342_stub && strstr(lines[i].start, "StubRoutines::call_stub") != NULL) ame342_stub = 1;
+            if (!ame342_mirror && strstr(lines[i].start, "mapping at RW=") != NULL) ame342_mirror = 1;
+            if (ame342_sigbus && ame342_stub) break;
+        }
+        if (ame342_sigbus && ame342_stub) {
+            NSLog(@"[Ame342] JIT mirror code cache crash signature detected (SIGBUS + call_stub%s) -- targeted fix guidance attached",
+                  ame342_mirror ? " + mirror layout line" : "");
+            fix = "JIT 代码缓存镜像映射异常（JIT26 mirror-mapped CodeCache 双视图关系破裂，RX 段无有效代码可执行）。自救：①把 StikJIT/StikDebug 更新到最新版后重试（iPadOS 27 兼容）②在启动器崩溃弹窗点「开启 JIT 自救模式」（或 设置-调试-退役镜像映射代码缓存）后重试 ③更换 JIT 开启工具（SideStore/JitStreamer-EB 等）。 EN: JIT code-cache mirror mapping is broken (RW/RX views non-adjacent, RX pages carry no code). Self-rescue: 1) update StikJIT/StikDebug to the latest build 2) tap 'Enable JIT self-rescue' in the crash dialog (or Settings-Debug-Retire mirrored code cache) and retry 3) switch to another JIT enabler.";
+        } else if (ame307_molten && ame307_mgl) {
             NSLog(@"[Ame307] MoltenVK crash signature detected (libMoltenVK+libMobileGL) -- targeted fix guidance attached");
             fix = "MoltenVK（MobileGlues Vulkan 后端）在着色器管线初始化时崩溃（空指针）。缓解：设置-视频-渲染器-渲染后端(MobileGlues) 切到 GLES 档（不经 MoltenVK），或改用其他渲染器后重试。 EN: MoltenVK (MobileGlues Vulkan backend) crashed during shader pipeline init (null deref). Mitigation: switch the MobileGlues backend to GLES (bypasses MoltenVK), or pick another renderer.";
         } else {

@@ -2533,6 +2533,12 @@ int launchJVM(NSString *accountId, id launchTarget, int width, int height, int m
             [PLLogOutputView handleExitCode:1];
             return 1;
         }
+        // ★Task342：探针 region 取证——ame301 探针（brk0x69 请求 1 页）与
+        //   libjvm 稍后自请的 64MB mapping（"Requesting/Got JIT mapping"行）
+        //   同走 debugger 应答通道。两段地址区间并排落日志，下轮装机若再
+        //   现镜像布局异常（RW-RX 与请求值不符）可直接对拍 debugger 分配
+        //   行为（正常堆段 vs 异常高位段 / 相邻 vs 远隔）。
+        NSLog(@"[JIT] [JavaLauncher] Task342 probe region: %p (1 page) -- brk0x69 channel alive; compare with libjvm 'Got JIT mapping' line below", result);
         if ((uint32_t)result != 0x690000E0) {
             munmap(result, getpagesize());
             // legacy script 只允许调用一次 breakpoint，必须切换到 UniversalJIT26
@@ -3851,13 +3857,28 @@ int launchJVM(NSString *accountId, id launchTarget, int width, int height, int m
     //   类加载 JIT 编译高峰期不再经历多次堆扩张（每次扩张 = RX 映射内
     //   mprotect 页翻转 + 锁窗口），commit 是虚拟预留、物理页按需分配，
     //   驻留零增加；总预算仍锁死 64m 外部硬边界。
+    //   ★ Task342（"1.20.1 闪退"第二轮实弹）：iOS 27.0.1 (M4/TXM) + StikJIT
+    //   + Java 17 装机日志实锤新形态——ReservedCodeCacheSize=64m 轨仍
+    //   SIGBUS at ~StubRoutines::call_stub（pc 落在 JIT26 mapping RX 段
+    //   +0xbc），且 libjvm 自报 "mapping at RW=0x7128108000, RX=0x7124108000"
+    //   即 RW-RX 相距 1GB（正常镜像布局应 ≈ 请求值紧邻，参照上游 issue
+    //   #293 样本 RW=RX+240MB）——镜像双视图关系破裂，RX 段无有效代码可
+    //   执行 → 取指 access fault。同一 flag 在 Java 21/25 会话正常（用户
+    //   Cobblemon 会话健康），问题窄化为 jre17 mirror 链（libjvm×StikJIT
+    //   应答协议）。修法：debug.mirror_codecache_disable 自救开关（默认
+    //   NO 零行为变化）——开启后 iOS26+ 会话退役 -XX:+MirrorMappedCode
+    //   Cache 并走 256m 非镜像轨；崩溃弹窗（ame273）提供一键开启。
+    BOOL ame342_retireMirror = getPrefBool(@"debug.mirror_codecache_disable");
+    if (ame342_retireMirror) {
+        NSLog(@"[JavaLauncher] Task342: debug.mirror_codecache_disable=1 -- retiring MirrorMappedCodeCache for this session (self-rescue path)");
+    }
     if (ame286_legacyVersion) {
         // ★ Task286：远古版 JIT 体量极小（PocketJ legacy path 同值
         //   2M/16M）——小预留降低 iOS 虚拟地址空间压力，Classic/Alpha
         //   无大 CodeCache 需求；镜像轨 64m 硬边界内富余。
         PUSH_MARGV_LITERAL("-XX:ReservedCodeCacheSize=16m");
         PUSH_MARGV_LITERAL("-XX:InitialCodeCacheSize=2m");
-    } else if (@available(iOS 26.0, *)) {
+    } else if (@available(iOS 26.0, *) && !ame342_retireMirror) {
         PUSH_MARGV_LITERAL("-XX:ReservedCodeCacheSize=64m");
         PUSH_MARGV_LITERAL("-XX:InitialCodeCacheSize=48m");
         PUSH_MARGV_LITERAL("-XX:CodeCacheExpansionSize=8m");
@@ -3868,7 +3889,7 @@ int launchJVM(NSString *accountId, id launchTarget, int width, int height, int m
     }
 
     // On iOS 26, use mirror mapped JIT by default
-    if (@available(iOS 26.0, *)) {
+    if (@available(iOS 26.0, *) && !ame342_retireMirror) {
         PUSH_MARGV_LITERAL("-XX:+MirrorMappedCodeCache");
     }
 
@@ -4706,7 +4727,10 @@ int launchHeadlessJVM(NSString *mainClass, NSArray<NSString *> *args, int minJav
     // CodeCache 参数（对齐 launchJVM Task284 分轨 + Task285 镜像轨 Initial
     // 一次到位：iOS 26+ 镜像映射 64m 硬边界防 SIGBUS；iOS < 26 非镜像路
     // 径 256m 防 CodeCache 满退化）
-    if (@available(iOS 26.0, *)) {
+    // ★ Task342：debug.mirror_codecache_disable 自救开关 headless 同步
+    //   （launchJVM 同款语义，处理器/安装链会话同受镜像布局异常影响）。
+    BOOL ame342_retireMirror = getPrefBool(@"debug.mirror_codecache_disable");
+    if (@available(iOS 26.0, *) && !ame342_retireMirror) {
         PUSH_HARGV_LITERAL("-XX:ReservedCodeCacheSize=64m");
         PUSH_HARGV_LITERAL("-XX:InitialCodeCacheSize=48m");
         PUSH_HARGV_LITERAL("-XX:CodeCacheExpansionSize=8m");
@@ -4715,7 +4739,7 @@ int launchHeadlessJVM(NSString *mainClass, NSArray<NSString *> *args, int minJav
         PUSH_HARGV_LITERAL("-XX:InitialCodeCacheSize=32m");
         PUSH_HARGV_LITERAL("-XX:CodeCacheExpansionSize=8m");
     }
-    if (@available(iOS 26.0, *)) {
+    if (@available(iOS 26.0, *) && !ame342_retireMirror) {
         PUSH_HARGV_LITERAL("-XX:+MirrorMappedCodeCache");
     }
     // ★ Task286：iOS 27 compressed class space 兼容（launchJVM 同款，见彼处
