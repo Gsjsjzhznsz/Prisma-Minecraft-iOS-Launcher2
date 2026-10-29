@@ -4397,3 +4397,14 @@ Work Log:
 Stage Summary:
 - 两线全交付：①备份链"导出拒残缺包 + 导入验脊柱 + 偏好即时重套用 + 存档分布透明"四段闭环——下一轮备份-恢复测试，日志应见 `[DataTransfer] Task345: spine check prefs=present` + `[ExportOps] Task345: archive manifest entries=N top-level: ...` + `Task345: saves inventory ... (total=N)`；若备份仍缺设置文件，摘要会直说"备份中未包含启动器设置文件"（= 备份源头问题，不再疑似导入器）②插件页三屏排版结构全换且全量经令牌引擎——fluent-ui v2.1 装机即可见圆角/密度/字阶/卡片解剖整体变排（不再只换色），恢复默认档回到 M3 基线
 - 装机验证锚点：①导入旧备份 → 摘要含"存档分布：default(0) · ..."行；导入含设置的正常备份 → 重启前后设置/实例/游戏目录即时生效（`Task345: game directory changed after preference reload (A -> B)` 锚点）②导出 → 日志出现 archive manifest 直方图；缺设置的备份导出被拒 ③插件页 hero 卡/瓦片卡/动作按钮三屏全新排版；fluent-ui 启用时排版整体 Fluent 化
+
+---
+## Task 345-ci——CI 闭环补记（dispatch 双发一轮终绿零热修）
+
+Work Log:
+- dev 40868464000 + smoke 40868467024 @ c1df0c0 双绿一轮（Task 340/344 同款 dispatch 双发惯例；本轮无编译雷——新 Ame345PluginCardCell 类在页 .m 内、smoke 链接面（hub 不编 pages）零波及，D 组三括号平衡门预先挡掉结构性语法面）
+- worklog 345/345-ci 双条目推送（本轮）
+
+Stage Summary:
+- Task 345 两线全闭环进可装机测试包（dev 产物 ipa/tipa 在架）：①备份链四段（导出拒残缺/导入验脊柱/偏好即时重套用/存档分布透明）②插件三屏结构重排（令牌引擎全页联动）
+- 装机验证锚点见 Task 345 条目 Stage Summary（Task345 spine check / saves inventory / archive manifest 三日志锚点 + 插件三屏 hero/瓦片卡新排版 + fluent-ui 排版联动）
