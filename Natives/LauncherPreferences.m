@@ -36,6 +36,15 @@ void toggleIsolatedPref(BOOL forceEnable) {
     [pref toggleIsolationForced:forceEnable];
 }
 
+// ★ Task346：备份导出前脉柱落盘保险（见 LauncherPreferences.h 声明）。
+//   saveGlobalPref 幂等（全量覆写 launcher_preferences_v2.plist）；文件
+//   已在场且与内存一致时为无实质变化的一次原子写，零风险。
+void ame346_flushGlobalPrefsToDisk(void) {
+    if (!pref) return;
+    [pref saveGlobalPref];
+    NSLog(@"[LauncherPreferences] Task346: global prefs flushed to disk (backup spine guard)");
+}
+
 #pragma mark Download source migration
 
 /// 一次性迁移：旧键 general.download_source → 新版 4 个分类镜像策略键

@@ -254,6 +254,10 @@ typedef NS_ENUM(NSInteger, Ame229PickerMode) {
     [self.presenter presentViewController:progress animated:YES completion:nil];
 
     dispatch_async(dispatch_get_global_queue(QOS_CLASS_USER_INITIATED, 0), ^{
+        // ★ Task346：导出前脉柱落盘保险——偏好内存态尚未落盘（新容器首启
+        //   从未改设置等边缘）时，先 flush 再遍历，备份必带设置文件；
+        //   幂等原子写，已一致时零实质变化。
+        ame346_flushGlobalPrefsToDisk();
         NSError *err = nil;
         UZKArchive *archive = [[UZKArchive alloc] initWithPath:tmpPath error:&err];
         __block BOOL ok = (archive != nil);
@@ -459,6 +463,7 @@ typedef NS_ENUM(NSInteger, Ame229PickerMode) {
 
         NSInteger restored = 0;
         NSInteger ame344_skippedPluginFiles = 0;   // Task344：插件目录跳过计数（摘要留痕）
+        NSInteger ame346_skippedSpineFiles = 0;    // Task346：空/坏脉柱防毒化跳过计数
         NSMutableSet<NSString *> *ame232_touchedInstances = [NSMutableSet set];
         if (!failMsg) {
             // 逐文件合并回 POJAV_HOME（同名覆盖 = 恢复语义）。
@@ -478,6 +483,20 @@ typedef NS_ENUM(NSInteger, Ame229PickerMode) {
                     [enumerator skipDescendants];
                     ame344_skippedPluginFiles++;
                     continue;
+                }
+                // ★ Task346（zip 导入"数据不行"第五轮）：脉柱防毒化——备份包
+                //   里的 launcher_preferences_v2.plist 若为空/损坏（解析
+                //   count==0），落盘会用坏文件顶掉设备上现役好文件 →
+                //   loadPreferences 读到空表 → "Initializing default values"
+                //   → 设置全丢观感。修法：空/坏脉柱不落盘（保留现役文件），
+                //   计数留痕；非脉柱文件语义不变。
+                if ([rel isEqualToString:@"launcher_preferences_v2.plist"]) {
+                    NSDictionary *ame346_chk = [NSDictionary dictionaryWithContentsOfFile:
+                        [staging stringByAppendingPathComponent:rel]];
+                    if (ame346_chk.count == 0) {
+                        ame346_skippedSpineFiles++;
+                        continue;
+                    }
                 }
                 // ★ Task232（反馈 #13）：记录本次实际写入的实例名（instances/<name>/...）
                 if ([rel hasPrefix:@"instances/"]) {
@@ -510,11 +529,14 @@ typedef NS_ENUM(NSInteger, Ame229PickerMode) {
         }
 
         [fm removeItemAtPath:staging error:nil];
-        NSLog(@"[DataTransfer] Task217: import restored %ld files%@%@",
+        NSLog(@"[DataTransfer] Task217: import restored %ld files%@%@%@",
               (long)restored, failMsg ? [NSString stringWithFormat:@" (FAILED: %@)", failMsg] : @" (ok)",
               ame344_skippedPluginFiles > 0
                   ? [NSString stringWithFormat: @" [Task344: %ld plugin file(s) skipped -- app-managed state, reinstall from plugin repo]",
-                      (long)ame344_skippedPluginFiles] : @"");
+                      (long)ame344_skippedPluginFiles] : @"",
+              ame346_skippedSpineFiles > 0
+                  ? [NSString stringWithFormat: @" [Task346: %ld empty/corrupt prefs spine skipped -- kept current settings]",
+                      (long)ame346_skippedSpineFiles] : @"");
 
         // ★ Task345（zip 导入"数据不行"第四轮 · 本轮装机日志实锤定案）：
         //   导入流水线全绿（11475 files ok）但 PLPreferences 打出
@@ -1095,6 +1117,9 @@ static void ame224_dosDateTime(NSDate *date, uint16_t *dosTime, uint16_t *dosDat
         BOOL instanceFull = [selected containsObject:Ame224SectionIdInstance];
 
         NSMutableArray<NSDictionary *> *found = [NSMutableArray array];
+        // ★ Task346：导出前脉柱落盘保险（与 Task219 全量导出同口径；见
+        //   LauncherPreferences.h 声明）——分区导出同样必带设置文件。
+        ame346_flushGlobalPrefsToDisk();
         [self ame224_walkHome:home cancelProgress:cancelProgress visitor:^(NSString *rel, unsigned long long size, NSDate *mtime) {
             [found addObject:@{ @"rel": rel, @"size": @(size), @"mtime": mtime ?: [NSDate date] }];
         }];
@@ -1116,6 +1141,15 @@ static void ame224_dosDateTime(NSDate *date, uint16_t *dosTime, uint16_t *dosDat
                            [bucket isEqualToString:Ame224SectionIdMods] ||
                            [bucket isEqualToString:Ame224SectionIdScreenshots] ||
                            [bucket isEqualToString:Ame224SectionIdServers]);
+            }
+            // ★ Task346：启动器设置脉柱强制在场——分区勾选不含"启动器"时
+            //   偏好文件依旧进包（残缺备份 = 导入端"设置全丢"唯一源头；
+            //   v1 launcher_preferences.plist 一并带走兼容一代备份互导；
+            //   Task345 写毕脉柱校验保留为兜底）。
+            if (!include &&
+                ([rel isEqualToString:@"launcher_preferences_v2.plist"] ||
+                 [rel isEqualToString:@"launcher_preferences.plist"])) {
+                include = YES;
             }
             if (!include) continue;
             unsigned long long size = [f[@"size"] unsignedLongLongValue];

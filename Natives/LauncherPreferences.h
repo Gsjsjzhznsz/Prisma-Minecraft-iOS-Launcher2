@@ -52,6 +52,12 @@ void ame211_migrateCfSourceToModrinth(void);
 /// libgl4es_114.dylib -> libgl4eszl2.dylib）。幂等；main.m 常跑点调用。
 void ame212_migrateHolyGl4es(void);
 
+/// Task346：备份导出前脉柱落盘保险（幂等）。PLPreferences 逐改动即时写盘，
+/// 但"从未改过设置"的容器可能仍无有效偏好文件——导出 walk 会产出缺脉柱的
+/// 残缺包（导入端"设置全丢"源头形态之一）。两条导出器（Task219 全量 /
+/// Task224 分区）在遍历前调用本函数强制落盘一次。
+void ame346_flushGlobalPrefsToDisk(void);
+
 id getPrefObject(NSString *key);
 BOOL getPrefBool(NSString *key);
 float getPrefFloat(NSString *key);

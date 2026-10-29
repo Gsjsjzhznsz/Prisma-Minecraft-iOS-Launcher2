@@ -172,8 +172,8 @@ check('B8 插件 v2 全维度（Fluent 形状五档 + 字阶七档 + setThemeSha
       and 'ame.setThemeShape({})' in plugin_js
       and 'primary:' in plugin_js and "ame.setThemeToken(pal.tokens)" in plugin_js,
       'Fluent 全维度缺件')
-check('B9 manifest v2.1.0（★Task343 演进顺延：+布局令牌；版本 + 名称 + ui.theme 权限保持）',
-      plugin_manifest.get('version') == '2.1.0'
+check('B9 manifest v2.1.1（★Task346 演进顺延：即时重排文案；版本 + 名称 + ui.theme 权限保持）',
+      plugin_manifest.get('version') == '2.1.1'
       and plugin_manifest.get('name') == 'Fluent UI'
       and 'ui.theme' in plugin_manifest.get('permissions', []),
       'manifest 未升级')
@@ -184,10 +184,10 @@ _zpath = os.path.join(REPO, 'plugin-repo', 'plugins', 'fluent-ui.zip')
 _zdata = open(_zpath, 'rb').read() if os.path.isfile(_zpath) else b''
 _zsha = hashlib.sha256(_zdata).hexdigest()
 _znames = zipfile.ZipFile(_zpath).namelist() if os.path.isfile(_zpath) else []
-check('B10 index/zip 实算对拍（★Task343 演进顺延：sha256+size 逐位一致 + zip 根两文件 + v2.1.0）',
+check('B10 index/zip 实算对拍（★Task346 演进顺延：sha256+size 逐位一致 + zip 根两文件 + v2.1.1）',
       _fe is not None and _fe['sha256'] == _zsha and _fe['size'] == len(_zdata)
       and sorted(_znames) == ['main.js', 'manifest.json']
-      and _fe['version'] == '2.1.0',
+      and _fe['version'] == '2.1.1',
       'index 与 zip 漂移')
 
 # ══ D 线 结构护栏 ═════════════════════════════════════════════

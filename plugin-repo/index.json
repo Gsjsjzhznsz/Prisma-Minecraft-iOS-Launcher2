@@ -6,12 +6,12 @@
     {
       "id": "fluent-ui",
       "name": "Fluent UI",
-      "version": "2.1.0",
+      "version": "2.1.1",
       "author": "Prisma",
-      "summary": "Fluent 2 完整设计语言换装（非 ZL2 主题换色）：排版（控件 32pt 线 / 卡片 4pt 栅格解剖 / 胶囊 80×32，Task343 布局令牌）+ 控件 4pt / 卡片 8pt / 浮层 12pt 小圆角体系 + Fluent2 字阶（Title 28S/20S · Body 17R/15R · Caption 13R）+ 三套色板（Fluent 亮·品牌蓝 / Fluent 暗·品牌青 / Fluent × Apple 混融）循环切换，恢复默认一键还原。需启动器内置 Task341/343 形状/布局令牌引擎。",
+      "summary": "Fluent 2 完整设计语言换装（非 ZL2 主题换色）：排版（控件 32pt 线 / 卡片 4pt 栅格解剖 / 胶囊 80×32，Task343 布局令牌）+ 控件 4pt / 卡片 8pt / 浮层 12pt 小圆角体系 + Fluent2 字阶（Title 28S/20S · Body 17R/15R · Caption 13R）+ 三套色板（Fluent 亮·品牌蓝 / Fluent 暗·品牌青 / Fluent × Apple 混融）循环切换，恢复默认一键还原。v2.1.1：随 Task346 宿主端即时重建杠杆，每次切换全界面即时重排（色/形/字/排版四族同时生效，不再需要新开页面或重启）。需启动器内置 Task341/343 形状/布局令牌引擎。",
       "file": "plugins/fluent-ui.zip",
-      "size": 4782,
-      "sha256": "f94067008d2f32ec6d91902f4fa372e0629387ef213301369ca70031971bfb29",
+      "size": 5139,
+      "sha256": "4257d8e8939d5e2ce5df0546f189b953f3a2329a2c7b91248ed3008af47fa586",
       "official": true
     },
     {
@@ -22,7 +22,7 @@
       "summary": "统计游戏启动次数与最近一次退出码，全部数据只存本插件私有存储，不上传。",
       "file": "plugins/launch-counter.zip",
       "size": 1233,
-      "sha256": "f5e182030eed5e7ff4a970c59957bca6256f767c30a3b83bbb895be5fdff48b3",
+      "sha256": "81afc527044888f76c8247a0dc4190ed53a0fe67ec8e5a921b90e70e53704345",
       "official": true
     },
     {
@@ -33,7 +33,7 @@
       "summary": "联网拉取 Modrinth 下载量前五的模组并在对话框展示。联网属高危权限，首次使用请在插件详情页授权。",
       "file": "plugins/modrinth-hot.zip",
       "size": 1548,
-      "sha256": "3e759d966cdcb46edc49a60032ad9a92200f964553745af62c02d669528d3c2e",
+      "sha256": "2141880fd8708f3ae78f23274c3b8728b416ca958e8a8700e03bac7dc4cf77d6",
       "official": true
     },
     {
@@ -44,7 +44,7 @@
       "summary": "在已安装渲染器之间循环切换并随时查看当前后端。渲染器写入属高危权限，首次切换请在插件详情页授权。",
       "file": "plugins/renderer-quickswitch.zip",
       "size": 1613,
-      "sha256": "fe1765be1fa2ab72a6b3d42e6a8c98b22f181065aadfad39691ac31ca0d2fe18",
+      "sha256": "02c95de0e81b7fd55bafa101b06f1a41e9db7fffaa5641b4a3425644434dd641",
       "official": true
     },
     {
@@ -55,7 +55,7 @@
       "summary": "四套精选配色（日落/森林/海洋/玫瑰）一键换肤，支持循环切换与恢复默认。主题令牌属高危权限，首次使用请在插件详情页授权。",
       "file": "plugins/theme-sunset.zip",
       "size": 2366,
-      "sha256": "f575bcf8d8e80d35e1acca046d267f4dd2aa63f8691a56b4ebea04f7349ed341",
+      "sha256": "c001cbdcbc873f48682179e1a8bcf1b8433475f4f996713a0f222d015492b954",
       "official": true
     }
   ]

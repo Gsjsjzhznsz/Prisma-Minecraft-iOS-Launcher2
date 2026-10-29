@@ -116,6 +116,44 @@ static UIFontWeight Ame341WeightFromValue(id v) {
 }
 
 
+// ★ Task346（用户第五轮复诉「插件只变了配色」· 机械根因定案）：三个令牌
+//   setter 原本只改静态覆盖字典 + 持久化，从不触发任何 UI 重建——而几何
+//   （圆角/字体/布局度量）与色板全部在视图构建期经 getter 烘焙，在屏页
+//   面永远看不到令牌变化；用户在主页点击循环时能观察到的只有零散的动
+//   态色刷新 = 「只变了配色」。修法：复用 Task230/Task344 久经验证的根
+//   视图重建杠杆（post AppLanguageChanged → SceneDelegate
+//   applyLanguageChange 重建 ZL2Shell）——令牌落表后全界面以新刻度整体
+//   重建，色/形/字/排版四族即时生效。启动期重放路径由 rootViewController
+//   缺席守卫天然跳过（令牌先于首次构建在位，首建即新刻度，无需重建）。
+static BOOL ame346_rebuildScheduled = NO;
+static void ame346_requestRootRebuild(void) {
+    if (ame346_rebuildScheduled) return;   // 同拍连发合并（连点循环去抖）
+    ame346_rebuildScheduled = YES;
+    dispatch_async(dispatch_get_main_queue(), ^{
+        ame346_rebuildScheduled = NO;
+        @try {
+            UIViewController *ame346_root = nil;
+            if (@available(iOS 13.0, *)) {
+                for (UIScene *ame346_scene in UIApplication.sharedApplication.connectedScenes) {
+                    if (![ame346_scene isKindOfClass:[UIWindowScene class]]) continue;
+                    for (UIWindow *ame346_w in ((UIWindowScene *)ame346_scene).windows) {
+                        if (ame346_w.isKeyWindow) {
+                            ame346_root = ame346_w.rootViewController;
+                            break;
+                        }
+                    }
+                    if (ame346_root) break;
+                }
+            }
+            if (!ame346_root) return;   // 启动期根未建：重放路径无需重建
+            [[NSNotificationCenter defaultCenter] postNotificationName:@"AppLanguageChanged" object:nil];
+            NSLog(@"[ZL2Theme] Task346: token change -> root rebuild posted (AppLanguageChanged lever)");
+        } @catch (NSException *ame346_e) {
+            NSLog(@"[ZL2Theme] Task346: root rebuild dispatch exception (%@)", ame346_e);
+        }
+    });
+}
+
 @implementation ZL2Theme
 
 + (BOOL)ame317_setPluginThemeTokens:(NSString *)pluginId
@@ -145,6 +183,7 @@ static UIFontWeight Ame341WeightFromValue(id v) {
     }];
     for (NSString *k in stale) [ame317_flatTokenOverride removeObjectForKey:k];
     if (![tokens isKindOfClass:[NSDictionary class]] || tokens.count == 0) {
+        ame346_requestRootRebuild();   // ★ Task346：还原语义同样即时生效
         return YES;
     }
     NSUInteger applied = 0;
@@ -158,6 +197,7 @@ static UIFontWeight Ame341WeightFromValue(id v) {
     }
     NSLog(@"[AmePlugin:%@] 主题令牌覆盖 %lu/%lu 项", pluginId,
           (unsigned long)applied, (unsigned long)tokens.count);
+    ame346_requestRootRebuild();   // ★ Task346：覆盖落表即全界面重建
     return YES;
 }
 
@@ -192,6 +232,7 @@ static UIFontWeight Ame341WeightFromValue(id v) {
         [ame341_fontOverride removeObjectForKey:k];
     }
     if (![tokens isKindOfClass:[NSDictionary class]] || tokens.count == 0) {
+        ame346_requestRootRebuild();   // ★ Task346：还原语义同样即时生效
         return YES;
     }
     NSUInteger applied = 0;
@@ -216,6 +257,7 @@ static UIFontWeight Ame341WeightFromValue(id v) {
     }
     NSLog(@"[AmePlugin:%@] 形状/字体令牌覆盖 %lu/%lu 项", pluginId,
           (unsigned long)applied, (unsigned long)tokens.count);
+    ame346_requestRootRebuild();   // ★ Task346：覆盖落表即全界面重建
     return YES;
 }
 
@@ -255,6 +297,7 @@ static UIFontWeight Ame341WeightFromValue(id v) {
     }];
     for (NSString *k in stale) [ame343_layoutOverride removeObjectForKey:k];
     if (![tokens isKindOfClass:[NSDictionary class]] || tokens.count == 0) {
+        ame346_requestRootRebuild();   // ★ Task346：还原语义同样即时生效
         return YES;
     }
     NSUInteger applied = 0;
@@ -270,6 +313,7 @@ static UIFontWeight Ame341WeightFromValue(id v) {
     }
     NSLog(@"[AmePlugin:%@] 布局令牌覆盖 %lu/%lu 项", pluginId,
           (unsigned long)applied, (unsigned long)tokens.count);
+    ame346_requestRootRebuild();   // ★ Task346：覆盖落表即全界面重建
     return YES;
 }
 

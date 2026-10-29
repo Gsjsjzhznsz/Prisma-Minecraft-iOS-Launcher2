@@ -124,7 +124,7 @@ for lang in ['en', 'zh-Hans', 'zh-CN', 'zh-Hant']:
     keys = set(re.findall(r'^"([^"]+)"\s*=', txt, re.M))
     check(f'F1 {lang} all 10 Task333 keys', set(need) <= keys,
           f'missing={sorted(set(need) - keys)}')
-    check(f'F2 {lang} unique keys == 3319 (Task343: 3321 - 2 general.ui_layout title/detail 死偏好退役)', len(keys) == 3319, f'got {len(keys)}')
+    check(f'F2 {lang} unique keys == 3324 (★Task346 演进顺延: Task343 3321 - 2 死偏好 = 3319, Task345 +5 ame345.* 键 = 3324)', len(keys) == 3324, f'got {len(keys)}')
 
 print()
 if fails:

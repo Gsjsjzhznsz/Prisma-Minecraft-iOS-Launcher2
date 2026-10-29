@@ -27,6 +27,9 @@ extern NSString *const PREF_MOD_MIRROR;
 - (id)getObject:(NSString *)key;
 - (BOOL)setObject:(NSString *)key value:(id)value;
 - (void)reset;
+// Task346：全局偏好内存态 -> launcher_preferences_v2.plist 强制落盘
+//（备份导出前脉柱保险；LauncherPreferences ame346_flushGlobalPrefsToDisk 消费）。
+- (void)saveGlobalPref;
 
 // 下载源管理（按类型独立）
 + (NSString *)currentDownloadSourceForType:(NSString *)type;

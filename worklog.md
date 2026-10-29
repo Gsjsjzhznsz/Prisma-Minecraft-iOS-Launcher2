@@ -13,9 +13,9 @@ AngelAuraAmethyst（Amethyst-iOS 重制版，fork **Gsjsjzhznsz/Air-Minecraft-iO
 ### 当前状态（收尾时更新）
 | 项 | 值 |
 |---|---|
-| 远端 HEAD | Task 339 提交 + worklog（ame339 19 断言+反向 4 探针全绿）：进世界后切不了分辨率根修（二级 actionSheet 在自由窗/转置态静默失败实锤 → GameMenu 家族自绘分辨率面板，应用链 338 两段式 1:1 保留）+ fluent-ui 外置远程仓库（builtin 收敛 survey 独留 + plugin-repo 第五件）+ AMEFluentTheme（fluentui-apple 令牌层）主页 70 处全量换装 Fluent 2/Apple |
-| 最新 Task 号 | **339**（多会话并行开发，开新任务前先 fetch 避让编号） |
-| 待用户装机验证 | Task 183（四线锚点见文末）+ Task 182（三锚点）+ Task 181（六锚点）+ Task 180（双滑条透明度）+ Task 179（八连修）+ Task 178/177（新拟态定稿）+ 更早轮次 |
+| 远端 HEAD | Task 346 提交 + worklog（ame346 15 断言+反向 3 探针全绿）：①插件主题令牌即时全界面重排（ZL2Theme 三 setter × 应用/还原六落位接 AppLanguageChanged 根重建杠杆——「只变了配色」机械根因=setter 只改静态字典不触发重建、几何构建期烘焙）②备份脉柱链四段收口（导出 flush 双器 + 分区强制脉柱 + 导入空/坏脉柱防毒化 + Task345 校验兜底）+ fluent-ui v2.1.1 文案/仓库件 |
+| 最新 Task 号 | **346**（多会话并行开发，开新任务前先 fetch 避让编号） |
+| 待用户装机验证 | Task 346（两线锚点见文末）+ Task 345（spine check/saves inventory/插件三屏 hero）+ 更早轮次（Task 183 四线锚点见文末）+ Task 182（三锚点）+ Task 181（六锚点）+ Task 180（双滑条透明度）+ Task 179（八连修）+ Task 178/177（新拟态定稿）+ 更早轮次 |
 | 已知历史遗留 | v6.0.0-release-notes.md 是工作区工件不在 git（发布时从 announcements.json 重导出）；部分 verify 级联失败为沙箱环境性（会话本地脚本被清 + task132/135/149/158 路径依赖 + task140 G2/G3 日志轮换），与基线对拍判读 |
 
 ### 双会话并行协作规则（重要）
@@ -4408,3 +4408,22 @@ Work Log:
 Stage Summary:
 - Task 345 两线全闭环进可装机测试包（dev 产物 ipa/tipa 在架）：①备份链四段（导出拒残缺/导入验脊柱/偏好即时重套用/存档分布透明）②插件三屏结构重排（令牌引擎全页联动）
 - 装机验证锚点见 Task 345 条目 Stage Summary（Task345 spine check / saves inventory / archive manifest 三日志锚点 + 插件三屏 hero/瓦片卡新排版 + fluent-ui 排版联动）
+
+---
+## Task 346——两线（用户装机 c1df0c0 第五轮复诉联修）：①插件主题令牌「即时全界面重排」（"只变了配色"终结） / ②备份脉柱链四段收口（"zip 导入不行"终结）
+
+日期：2026-10-29
+
+Work Log:
+- 【取证（装机 c1df0c0 latestlog 第五轮）】①"插件只变了配色"机械定案：AmePluginBridge setThemeToken/Shape/Layout 三方法只改 ZL2Theme 静态覆盖字典 + __theme/__shape/__layout 持久化，从不触发任何 UI 重建——几何（圆角/字体/布局度量）与色板全部在视图构建期经 getter 烘焙，在屏页面永远看不到令牌变化；日志铁证 = 用户 12 秒内连点 4 次（apple→default→light→dark）全部只在主页观察，且三套色板共用同一 FLUENT_SHAPE/FLUENT_LAYOUT（palette 间只有色差），叠加"布局令牌覆盖 13/13 项"照打——令牌引擎全绿但用户视角零排版变化。②"zip 数据备份导入依旧不行"实锤链：`Task217: import restored 11475 files (ok)` 后 `Task345: spine check prefs=MISSING/EMPTY` + `[PLPreferences] Initializing default values` + `saves inventory total=0`——备份包（prisma-backup-20261029-152121.zip）内无 launcher_preferences_v2.plist（导出端"启动器"分区未勾/旧构建导出/脉柱空损均可产此形态），导入侧脊柱校验如实告警但备份源头无设置可恢复。
+- 【线A 令牌即时生效（复用久验证杠杆，零新机制）】ZL2Theme 新增 ame346_requestRootRebuild（main-queue 合并去抖 + keyWindow.rootViewController 在场守卫 + AppLanguageChanged 投递 + Task346 日志锚点）：SceneDelegate applyLanguageChange 既有链路重建 ZL2Shell = 全界面以新刻度整体重建，色/形/字/排版四族即时生效。六落位 = ame317/341/343 三 setter × 应用/还原双路径（还原语义——插件停用/恢复默认——同样即时回退 M3 基线）。启动期重放路径由根缺席守卫天然跳过（令牌先于首次构建在位，首建即新刻度，零多余重建）；桥面应用/装载重放/卸载还原三路全部经 setter 单一咽喉覆盖。刷新失败 @try 包裹不阻塞令牌应用。
+- 【线B 备份脉柱链四段收口】①导出前 flush：LauncherPreferences ame346_flushGlobalPrefsToDisk（static pref 实例 → saveGlobalPref，幂等原子写；PLPreferences.h 补 saveGlobalPref 声明），Task219 全量 + Task224 分区两导出器 walk 前各调一次——"从未改过设置"的容器不再产出缺脉柱包。②分区导出脉柱强制在场：ame224 分区过滤后 launcher_preferences_v2.plist（+v1 兼容件）无论勾选一律进包——残缺备份源头拔除；Task345 写毕校验保留为兜底。③导入空/坏脉柱防毒化：合并循环对 staging 里的 launcher_preferences_v2.plist 先解析，count==0 不落盘（防坏文件顶掉设备现役好文件 → "Initializing default values" 设置全丢形态），计数入 Task217 日志行 `[Task346: N empty/corrupt prefs spine skipped -- kept current settings]`。④存档分布真相线/偏好一致性重套用（Task345 三件）原样保留。
+- 【插件面】fluent-ui v2.1.1：头注释 + 首次说明对话框 + 行副题 + toast 文案全面改口"全界面即时重排"（"新开页面/重启启动器全量生效"退役），manifest version/description 同步；ame333 打包器重打包（5139B，sha/size/index 单一事实源重算）；存量电池 ame339 B4 / ame341 B9/B10 / ame343 C6 版本锚顺延 2.1.0 → 2.1.1。
+- 【门禁】ame346_selfcheck 新门 15 断言（A 即时链 5〔杠杆定义/六落位/三还原路径/SceneDelegate 消费面/桥+Runtime 全路径〕/ B 备份链 5〔flush 链/双导出器/强制在场/防毒化/Task345 兜底回归锚〕/ C 插件面 3〔三方对拍/文案落位/LAYOUT 13 键回归锚〕/ D 结构 2）+ --selftest 反向 3 探针（重建全摘/强制脉柱摘/版本回退）全翻红。
+- 工程纪要：PLPreferences.h 为 CRLF 文件（Edit 工具 miss，python 字节级补丁——行尾差异不影响其余 LF 文件）；MultiEdit 原子性异常第三例（DataTransfer 六编辑批 edit3 失败回滚不一致——edit1/2 实际落地，改逐条 Edit + 逐条 grep 验证补齐）。
+
+Stage Summary:
+- 两线全交付：①主题令牌三族（色/形/字/布）变更即全界面重建——插件页点击循环立刻看到圆角收紧/控件 32pt 线/4pt 栅格卡片/字阶变化，不再只变色；恢复默认即时回退 M3 刻度 ②备份链"导出 flush + 脉柱强制在场 + 导入防毒化 + Task345 校验兜底"四段闭环——新导出的任何备份必含启动器设置，导入即恢复；旧残缺备份导入时坏脉柱不再毒化现役设置。
+- 装机验证锚点：①插件仓库更新 fluent-ui → 2.1.1，主页点「Fluent UI」行：整界面（含在屏页面）即刻重排（卡片圆角 8/12pt、胶囊 80×32、搜索框变矮、字阶 Fluent ramp），第 4 次点击恢复默认即刻回退；日志锚点 `[ZL2Theme] Task346: token change -> root rebuild posted` ②导出备份 → 日志 `[LauncherPreferences] Task346: global prefs flushed to disk`，分区导出不勾"启动器"包内仍有 launcher_preferences_v2.plist（Task345 archive manifest 直方图可见）③导入旧残缺备份 → `Task346: N empty/corrupt prefs spine skipped`（若包内脉柱空损）或 Task345 prefs_missing 告警（包内无脉柱），当前设置不再被默认值吃掉。
+
+---

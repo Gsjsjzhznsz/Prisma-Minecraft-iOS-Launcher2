@@ -86,8 +86,8 @@ check("C8 anchor log", C, "touch-time belief reconcile healed stale freeform fac
 D = f"{ROOT}/ZL2M3Kit.m"
 check("D1 thumb circle", D, "self.thumbView.layer.cornerRadius = thumb / 2.0;")
 L = f"{ROOT}/ZL2PluginListViewController.m"
-check("D2 reuse-residue clear", L, "cell.detailTextLabel.text = nil;")
-check("D3 about-section rationale", L, '装机截图实锤"关于"区复读')
+check("D2 reuse-residue clear (★Task346 顺延: Task345 自绘 Ame345PluginCardCell 复用复位锚)", L, "_titleBottomConstraint.active = NO;   // 正文流态复用复位")
+check("D3 plugin-page structural rationale (★Task346 顺延: Task345 hero 头卡结构注)", L, "页首 hero 头卡（图标瓦片 + 计数摘要 + 两个一级动作")
 
 # ---- 结构完整性 ----
 for p in [A, B, C, D, L]:

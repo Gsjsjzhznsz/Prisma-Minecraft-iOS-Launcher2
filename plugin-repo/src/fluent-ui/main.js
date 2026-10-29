@@ -1,5 +1,10 @@
-// Task343 fluent-ui v2.1.0 —— 「排版也 Fluent」版（用户点题：插件画面还是
+// Task343 fluent-ui v2.1.1 —— 「排版也 Fluent」版（用户点题：插件画面还是
 // zl2 的，要重新设计整个画面，排版都要变化，跟 Fluent 应用对齐）。
+// ---------------------------------------------------------------------
+// ★ v2.1.1（Task346）：宿主端接入即时重建杠杆（ZL2Theme 令牌 setter 落表后
+//   触发根视图重建，复用 Task230/Task344 验证过的 AppLanguageChanged 链路）
+//   —— 每次切换色/形/字/排版四族全界面【即时】生效，不再需要新开页面
+//   或重启；文案同步更新，消除「只变了配色」的感知落差。
 // ---------------------------------------------------------------------
 // v2.0.0 交付了形状（五档圆角收紧 4/4/8/8/12）+ 字阶（Fluent2 ramp 七档）
 // + 三色板 28 色，但页面【排版/间距/密度】仍是 ZL2 的 M3 刻度 —— 引擎和
@@ -167,7 +172,7 @@
     // '__theme'/'__shape'/'__layout' 由桥面 setThemeToken/setThemeShape/
     // setThemeLayout 落盘（装载期重放键）——插件侧只持久化循环态。
     storageSet('fluent.idx', String(idx));
-    try { ame.toast('已应用：' + pal.name + '（Fluent 2 全维度·排版就位 · 新开页面/重启启动器全量生效）'); } catch (e) {}
+    try { ame.toast('已应用：' + pal.name + '（Fluent 2 全维度 · 全界面即时重排 · 重启自动重放）'); } catch (e) {}
     ame.log('[' + MARK + '] palette applied: ' + pal.key + ' (color+shape+layout)');
   }
 
@@ -188,7 +193,7 @@
 
   try {
     ame.addLauncherRow(
-      { id: 'fluent-ui', title: 'Fluent UI', subtitle: 'Fluent 2 完整设计语言·排版就位（点击循环）' },
+      { id: 'fluent-ui', title: 'Fluent UI', subtitle: 'Fluent 2 全维度换装·即时生效（点击循环）' },
       function (rowId) {
         var announced = storageGet('fluent.announced') === 'yes';
         if (!announced) {
@@ -196,7 +201,7 @@
           try {
             ame.dialog({
               title: 'Fluent UI',
-              body: 'Fluent 2 完整设计语言换装（非 ZL2 主题换色）：\n· 排版 —— 控件统一 32pt 线 / 卡片 4pt 栅格解剖 / 胶囊 80×32（Task343 布局令牌）\n· 形状 —— 控件 4pt / 卡片 8pt / 浮层 12pt（M3 大圆角整体收紧）\n· 字阶 —— Title 28S/20S · Body 17R/15R · Caption 13R（Fluent2 ramp）\n· 色板 —— Fluent 亮（品牌蓝）/ Fluent 暗（品牌青）/ Fluent × Apple 混融\n点击本行循环切换，第 4 次恢复默认。重启启动器后自动重放。',
+              body: 'Fluent 2 完整设计语言换装（非 ZL2 主题换色）：\n· 排版 —— 控件统一 32pt 线 / 卡片 4pt 栅格解剖 / 胶囊 80×32（Task343 布局令牌）\n· 形状 —— 控件 4pt / 卡片 8pt / 浮层 12pt（M3 大圆角整体收紧）\n· 字阶 —— Title 28S/20S · Body 17R/15R · Caption 13R（Fluent2 ramp）\n· 色板 —— Fluent 亮（品牌蓝）/ Fluent 暗（品牌青）/ Fluent × Apple 混融\n点击本行循环切换，第 4 次恢复默认；每次切换全界面即时重排（Task346），重启启动器后自动重放。',
               confirm: '应用 Fluent 亮色',
               cancel: '关闭'
             }, function (ok) {
@@ -218,5 +223,5 @@
     return;
   }
 
-  ame.log('[' + MARK + '] fluent-ui v2.1 loaded（Fluent 2 全维度：色28+形状5+字阶7+布局13；主页贡献行「Fluent UI」，点击循环亮/暗/混融/默认）');
+  ame.log('[' + MARK + '] fluent-ui v2.1.1 loaded（Fluent 2 全维度：色28+形状5+字阶7+布局13；全界面即时重排；主页贡献行「Fluent UI」，点击循环亮/暗/混融/默认）');
 })();
