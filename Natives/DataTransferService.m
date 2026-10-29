@@ -452,12 +452,27 @@ typedef NS_ENUM(NSInteger, Ame229PickerMode) {
         }
 
         NSInteger restored = 0;
+        NSInteger ame344_skippedPluginFiles = 0;   // Task344：插件目录跳过计数（摘要留痕）
         NSMutableSet<NSString *> *ame232_touchedInstances = [NSMutableSet set];
         if (!failMsg) {
             // 逐文件合并回 POJAV_HOME（同名覆盖 = 恢复语义）。
             NSDirectoryEnumerator *enumerator = [fm enumeratorAtPath:staging];
             NSString *rel;
             while ((rel = [enumerator nextObject])) {
+                // ★ Task344（zip 导入"数据不行"第三轮取证定案）：插件目录属
+                //   应用管理状态，不随备份回写。旧位 plugins/（一代真实目录、
+                //   Task319-321 二代符号链接期）曾经导入写穿把一代插件目录灌进
+                //   Prisma2/plugins——fail-closed 校验全灭=「跳过损坏插件目录」
+                //   ×5 实弹；Task322 符号链接退役后，导入又会在旧位重建真实
+                //   目录=文件页新旧并存垃圾回潮（pre-init 收编治标）。恢复语义
+                //   从本提交起跳过两处插件根（ Prisma2/ 其余子树照常恢复——AI
+                //   会话等用户数据仍随备份走），插件以仓库页重装为准。
+                if ([rel isEqualToString:@"plugins"] || [rel hasPrefix:@"plugins/"] ||
+                    [rel isEqualToString:@"Prisma2/plugins"] || [rel hasPrefix:@"Prisma2/plugins/"]) {
+                    [enumerator skipDescendants];
+                    ame344_skippedPluginFiles++;
+                    continue;
+                }
                 // ★ Task232（反馈 #13）：记录本次实际写入的实例名（instances/<name>/...）
                 if ([rel hasPrefix:@"instances/"]) {
                     NSString *ame232_rest = [rel substringFromIndex:@"instances/".length];
@@ -489,8 +504,11 @@ typedef NS_ENUM(NSInteger, Ame229PickerMode) {
         }
 
         [fm removeItemAtPath:staging error:nil];
-        NSLog(@"[DataTransfer] Task217: import restored %ld files%@",
-              (long)restored, failMsg ? [NSString stringWithFormat:@" (FAILED: %@)", failMsg] : @" (ok)");
+        NSLog(@"[DataTransfer] Task217: import restored %ld files%@%@",
+              (long)restored, failMsg ? [NSString stringWithFormat:@" (FAILED: %@)", failMsg] : @" (ok)",
+              ame344_skippedPluginFiles > 0
+                  ? [NSString stringWithFormat: @" [Task344: %ld plugin file(s) skipped -- app-managed state, reinstall from plugin repo]",
+                      (long)ame344_skippedPluginFiles] : @"");
 
         // ★ Task227（反馈 #9：导入无效果 + 数据像被重置）：两个收尾动作。
         // ① 备份里可能带 legacy 布局的 Library/Application Support/minecraft
@@ -1632,6 +1650,7 @@ static void ame224_dosDateTime(NSDate *date, uint16_t *dosTime, uint16_t *dosDat
         // Task321 计数：copied=新增 / updated=以源覆盖（源较新或内容有差异）/
         // unchanged=未变跳过（增量核心）/ newerKept=目标较新保留（新存档绝不回滚）。
         NSInteger ame321_copied = 0, ame321_updated = 0, ame321_unchanged = 0, ame321_newerKept = 0;
+        NSInteger ame344_skippedPluginFiles = 0;   // Task344：插件目录跳过计数
 
         // 全量遍历源目录（剔除运行期垃圾 + Library 缓存树；与 zip 导出
         // 的剔除口径一致——迁移的是"数据"，不是缓存）。
@@ -1640,6 +1659,17 @@ static void ame224_dosDateTime(NSDate *date, uint16_t *dosTime, uint16_t *dosDat
         while ((rel = [enumerator nextObject])) {
             if ([rel isEqualToString:@"Library"] || [rel hasPrefix:@"Library/"]) {
                 [enumerator skipDescendants];
+                continue;
+            }
+            // ★ Task344：插件目录属应用管理状态，不随兄弟迁移搬运（与 zip
+            //   导入同口径）。兄弟侧可能是一代真实 plugins/、Task319-321 期
+            //   符号链接或现役 Prisma2/plugins——三种形态灌入现役根都是毒
+            //   （一代权限 id fail-closed 全灭 / 覆盖现役版），插件以仓库页
+            //   重装为准。Prisma2/ 其余子树照常迁移（AI 会话等用户数据）。
+            if ([rel isEqualToString:@"plugins"] || [rel hasPrefix:@"plugins/"] ||
+                [rel isEqualToString:@"Prisma2/plugins"] || [rel hasPrefix:@"Prisma2/plugins/"]) {
+                [enumerator skipDescendants];
+                ame344_skippedPluginFiles++;
                 continue;
             }
             NSString *base = rel.lastPathComponent;
@@ -1698,8 +1728,9 @@ static void ame224_dosDateTime(NSDate *date, uint16_t *dosTime, uint16_t *dosDat
                 continue;
             }
         }
-        NSLog(@"[DataTransfer] Task321: sibling migration done (mode=%ld copied=%ld updated=%ld unchanged=%ld newerKept=%ld%@)",
+        NSLog(@"[DataTransfer] Task321: sibling migration done (mode=%ld copied=%ld updated=%ld unchanged=%ld newerKept=%ld pluginSkipped=%ld%@)",
               (long)mode, (long)ame321_copied, (long)ame321_updated, (long)ame321_unchanged, (long)ame321_newerKept,
+              (long)ame344_skippedPluginFiles,
               failMsg ? [NSString stringWithFormat:@" FAILED: %@", failMsg] : @"");
 
         if (failMsg == nil) {

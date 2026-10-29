@@ -1,5 +1,5 @@
 //
-// ZL2SettingPages.m — ZL2 设置八屏子页实现（7.0-UI-13-S）
+// ZL2SettingPages.m — ZL2 设置子页实现（7.0-UI-13-S 八屏；Task344 扩容十屏：+AI/+调试，旧设置 83 项全量迁移）
 //
 // 结构：每屏 = 垂直滚动 + 分组「连体卡片」（ZL2SettingCards 家族：组卡外
 // 圆角 28 / 内圆角 4 / 组间 2pt / 行内 padding 16 / 行高 ≥56 / 底
@@ -126,8 +126,20 @@
 #import "JavaGUIViewController.h"
 #import "AmePluginRuntime.h"   // Task327：插件贡献行渲染（allContributedRows/invokeRowTap）
 
+// ★ Task344 旧设置全量迁移：新增外部消费面
+#import "AIProviderConfigViewController.h"
+#import "AISessionListViewController.h"
+#import "AISystemPromptEditorViewController.h"
+#import "StikDebugViewController.h"
+#import "DataExportViewController.h"
+#import "DataTransferService.h"
+#import "CurseForgeAPIKeyViewController.h"
+#import "CustomIconManager.h"
+
 #import <UniformTypeIdentifiers/UniformTypeIdentifiers.h>
 #import <stdlib.h>
+#import <QuartzCore/QuartzCore.h>   // Task344：CAMetalLayer developerHUD 探测
+#import "UIKit+hook.h"              // Task344：realUIIdiom（陀螺仪面 TV 闸）
 
 // 内容列最大宽（照抄 ZL2SettingsViewController 旧枢纽：iPad 居中，iPhone 占满减边距）
 static const CGFloat ame_pageContentMaxWidth = 520;
@@ -148,6 +160,34 @@ static NSString *ame_pages_stringOr(id value, NSString *fallback) {
         return value;
     }
     return fallback;
+}
+
+// Task344：游戏会话闸（旧 LauncherPreferencesViewController whenNotInGame
+// 同口径——可见 VC 是 SurfaceViewController 即视为在游戏中；行卡不建灰禁
+// 面板，直接不响应/不展示实时态）
+static BOOL ame_pages_whenNotInGame(void) {
+    UIViewController *visibleVC = currentVC();
+    return ![visibleVC isKindOfClass:NSClassFromString(@"SurfaceViewController")];
+}
+
+// Task344：hex 颜色往返（旧 VC colorFromHexString/hexStringFromColor 平移）
+static UIColor *ame_pages_colorFromHex(id hex) {
+    if (![hex isKindOfClass:[NSString class]] || [(NSString *)hex length] == 0) return nil;
+    NSString *clean = [(NSString *)hex stringByReplacingOccurrencesOfString:@"#" withString:@""];
+    unsigned int rgb = 0;
+    NSScanner *scanner = [NSScanner scannerWithString:clean];
+    if (![scanner scanHexInt:&rgb]) return nil;
+    return [UIColor colorWithRed:((rgb >> 16) & 0xFF) / 255.0
+                           green:((rgb >> 8) & 0xFF) / 255.0
+                            blue:(rgb & 0xFF) / 255.0
+                           alpha:1.0];
+}
+
+static NSString *ame_pages_hexFromColor(UIColor *color) {
+    CGFloat r = 0, g = 0, b = 0, a = 0;
+    [color getRed:&r green:&g blue:&b alpha:&a];
+    return [NSString stringWithFormat:@"%02X%02X%02X",
+            (unsigned)(r * 255), (unsigned)(g * 255), (unsigned)(b * 255)];
 }
 
 #pragma mark - 基类（滚动骨架 + 组卡装配 + push 助手）
@@ -224,6 +264,14 @@ static NSString *ame_pages_stringOr(id value, NSString *fallback) {
 - (void)ame_push:(UIViewController *)vc titled:(NSString *)fallbackTitle {
     if (!vc.title) vc.title = fallbackTitle;
     [self.navigationController pushViewController:vc animated:YES];
+}
+
+// ★ Task344：present 统一入口（原 ZL2LauncherSettingsPage 私有实现上移基类
+//   ——新 AI/调试屏与游戏屏弹窗共用；壳内宿主导航可达，兼底顶栈 present）
+- (void)ame_presentVC:(UIViewController *)vc {
+    UIViewController *host = self.navigationController ?: self;
+    while (host.presentedViewController) host = host.presentedViewController;
+    [host presentViewController:vc animated:YES completion:nil];
 }
 
 - (void)ame_refreshState {
@@ -310,7 +358,200 @@ static NSString *ame_pages_stringOr(id value, NSString *fallback) {
     [group1 ame_addRows:@[rendererRow, resolutionRow, fullscreenRow]];
     [self ame_addGroup:group1];
 
-    // --- 组 2：更多设置（长尾兜底契约）---
+    // ── ★ Task344 旧设置全量迁移：video 分区渲染增强四项 ──
+    ZL2SettingCardGroup *videoGroup = [[ZL2SettingCardGroup alloc] init];
+    // FSR 档位（video.fsr1_setting，0-4 五档；Task78 补齐 Performance 档）
+    NSArray<NSString *> *fsrKeys = @[@"0", @"1", @"2", @"3", @"4"];
+    NSArray<NSString *> *fsrNames = @[
+        localize(@"preference.title.mg_fsr1_setting-0", nil),
+        localize(@"preference.title.mg_fsr1_setting-1", nil),
+        localize(@"preference.title.mg_fsr1_setting-2", nil),
+        localize(@"preference.title.mg_fsr1_setting-3", nil),
+        localize(@"preference.title.mg_fsr1_setting-4", nil),
+    ];
+    ZL2SettingRowList *fsrRow =
+        [[ZL2SettingRowList alloc] initWithTitle:@"" subtitle:nil
+                                 options:fsrNames optionKeys:fsrKeys];
+    fsrRow.title = localize(@"preference.title.fsr1_setting", nil);
+    fsrRow.subtitle = localize(@"preference.detail.fsr1_setting", nil);
+    [fsrRow ame_reloadSelectedIndex:(NSInteger)[fsrKeys indexOfObject:
+        ame_pages_stringOr(getPrefObject(@"video.fsr1_setting"), @"0")]];
+    fsrRow.onSelect = ^(NSInteger index) {
+        if (index < 0 || (NSUInteger)index >= fsrKeys.count) return;
+        setPrefString(@"video.fsr1_setting", fsrKeys[index]);
+    };
+    // RCAS 锐化（video.fsr_rcas_sharpness，-1/0.1..1 七档）
+    NSArray<NSString *> *rcasKeys = @[@"-1", @"0.1", @"0.2", @"0.3", @"0.5", @"0.7", @"1"];
+    NSMutableArray<NSString *> *rcasNames = [NSMutableArray array];
+    for (NSUInteger ri = 0; ri < rcasKeys.count; ri++) {
+        [rcasNames addObject:localize(
+            [NSString stringWithFormat:@"preference.title.mg_fsr_rcas-%@", @(ri)], nil)];
+    }
+    ZL2SettingRowList *rcasRow =
+        [[ZL2SettingRowList alloc] initWithTitle:@"" subtitle:nil
+                                 options:rcasNames optionKeys:rcasKeys];
+    rcasRow.title = localize(@"preference.title.fsr_rcas_sharpness", nil);
+    rcasRow.subtitle = localize(@"preference.detail.fsr_rcas_sharpness", nil);
+    [rcasRow ame_reloadSelectedIndex:(NSInteger)[rcasKeys indexOfObject:
+        ame_pages_stringOr(getPrefObject(@"video.fsr_rcas_sharpness"), @"-1")]];
+    rcasRow.onSelect = ^(NSInteger index) {
+        if (index < 0 || (NSUInteger)index >= rcasKeys.count) return;
+        setPrefString(@"video.fsr_rcas_sharpness", rcasKeys[index]);
+    };
+    // 垂直同步禁用
+    ZL2SettingRowSwitch *vsyncRow =
+        [[ZL2SettingRowSwitch alloc] initWithTitle:@"" subtitle:nil];
+    vsyncRow.title = localize(@"preference.title.disable_game_vsync", nil);
+    vsyncRow.subtitle = localize(@"preference.detail.disable_game_vsync", nil);
+    [vsyncRow ame_setOn:getPrefBool(@"video.disable_game_vsync")];
+    vsyncRow.onToggle = ^(BOOL on) {
+        setPrefBool(@"video.disable_game_vsync", on);
+    };
+    // 性能 HUD（仅 Metal developerHUD 可用设备展示）
+    ZL2SettingRowSwitch *hudRow = nil;
+    if ([CAMetalLayer instancesRespondToSelector:@selector(developerHUDProperties)]) {
+        hudRow = [[ZL2SettingRowSwitch alloc] initWithTitle:@"" subtitle:nil];
+        hudRow.title = localize(@"preference.title.performance_hud", nil);
+        hudRow.subtitle = localize(@"preference.detail.performance_hud", nil);
+        [hudRow ame_setOn:getPrefBool(@"video.performance_hud")];
+        hudRow.onToggle = ^(BOOL on) {
+            setPrefBool(@"video.performance_hud", on);
+        };
+        [videoGroup ame_addRows:@[fsrRow, rcasRow, vsyncRow, hudRow]];
+    } else {
+        [videoGroup ame_addRows:@[fsrRow, rcasRow, vsyncRow]];
+    }
+    [self ame_addGroup:videoGroup];
+
+    // ── ★ Task344 旧设置全量迁移：MobileGlues 高级九项 ──
+    ZL2SettingCardGroup *mgGroup = [[ZL2SettingCardGroup alloc] init];
+    // 渲染后端（getRendererFamilyKeys/Names 与旧页同取值域）
+    NSArray<NSString *> *familyKeys = getRendererFamilyKeys();
+    NSArray<NSString *> *familyNames = getRendererFamilyNames();
+    ZL2SettingRowList *backendRow =
+        [[ZL2SettingRowList alloc] initWithTitle:@"" subtitle:nil
+                                 options:familyNames optionKeys:familyKeys];
+    backendRow.title = localize(@"preference.title.renderer_backend", nil);
+    backendRow.subtitle = localize(@"preference.detail.renderer_backend", nil);
+    [backendRow ame_reloadSelectedIndex:(NSInteger)[familyKeys indexOfObject:
+        ame_pages_stringOr(getPrefObject(@"mobileglues.renderer_backend"), @"auto")]];
+    backendRow.onSelect = ^(NSInteger index) {
+        if (index < 0 || (NSUInteger)index >= familyKeys.count) return;
+        setPrefString(@"mobileglues.renderer_backend", familyKeys[index]);
+    };
+    [mgGroup ame_addRow:backendRow];
+    // GL 无错误模式（0/1/2 三档）
+    NSArray<NSString *> *noErrKeys = @[@"0", @"1", @"2"];
+    NSArray<NSString *> *noErrNames = @[
+        localize(@"preference.title.mg_enable_no_error-0", nil),
+        localize(@"preference.title.mg_enable_no_error-1", nil),
+        localize(@"preference.title.mg_enable_no_error-2", nil),
+    ];
+    ZL2SettingRowList *noErrRow =
+        [[ZL2SettingRowList alloc] initWithTitle:@"" subtitle:nil
+                                 options:noErrNames optionKeys:noErrKeys];
+    noErrRow.title = localize(@"preference.title.enable_no_error", nil);
+    noErrRow.subtitle = localize(@"preference.detail.enable_no_error", nil);
+    [noErrRow ame_reloadSelectedIndex:(NSInteger)[noErrKeys indexOfObject:
+        ame_pages_stringOr(getPrefObject(@"mobileglues.enable_no_error"), @"0")]];
+    noErrRow.onSelect = ^(NSInteger index) {
+        if (index < 0 || (NSUInteger)index >= noErrKeys.count) return;
+        setPrefString(@"mobileglues.enable_no_error", noErrKeys[index]);
+    };
+    [mgGroup ame_addRow:noErrRow];
+    // 扩展开关三件
+    ZL2SettingRowSwitch *timerQueryRow =
+        [[ZL2SettingRowSwitch alloc] initWithTitle:@"" subtitle:nil];
+    timerQueryRow.title = localize(@"preference.title.enable_ext_timer_query", nil);
+    timerQueryRow.subtitle = localize(@"preference.detail.enable_ext_timer_query", nil);
+    [timerQueryRow ame_setOn:getPrefBool(@"mobileglues.enable_ext_timer_query")];
+    timerQueryRow.onToggle = ^(BOOL on) {
+        setPrefBool(@"mobileglues.enable_ext_timer_query", on);
+    };
+    ZL2SettingRowSwitch *computeRow =
+        [[ZL2SettingRowSwitch alloc] initWithTitle:@"" subtitle:nil];
+    computeRow.title = localize(@"preference.title.enable_ext_compute_shader", nil);
+    computeRow.subtitle = localize(@"preference.detail.enable_ext_compute_shader", nil);
+    [computeRow ame_setOn:getPrefBool(@"mobileglues.enable_ext_compute_shader")];
+    computeRow.onToggle = ^(BOOL on) {
+        setPrefBool(@"mobileglues.enable_ext_compute_shader", on);
+    };
+    ZL2SettingRowSwitch *dsaRow =
+        [[ZL2SettingRowSwitch alloc] initWithTitle:@"" subtitle:nil];
+    dsaRow.title = localize(@"preference.title.enable_ext_direct_state_access", nil);
+    dsaRow.subtitle = localize(@"preference.detail.enable_ext_direct_state_access", nil);
+    [dsaRow ame_setOn:getPrefBool(@"mobileglues.enable_ext_direct_state_access")];
+    dsaRow.onToggle = ^(BOOL on) {
+        setPrefBool(@"mobileglues.enable_ext_direct_state_access", on);
+    };
+    [mgGroup ame_addRows:@[timerQueryRow, computeRow, dsaRow]];
+    // GLSL 缓存上限（0-256MB 滑条）
+    ZL2SettingRowSlider *glslRow =
+        [[ZL2SettingRowSlider alloc] initWithTitle:@"" subtitle:nil
+                                   minimum:0 maximum:256 suffix:@"MB"];
+    glslRow.title = localize(@"preference.title.max_glsl_cache_size", nil);
+    glslRow.subtitle = localize(@"preference.detail.max_glsl_cache_size", nil);
+    [glslRow ame_setValue:(NSInteger)getPrefFloat(@"mobileglues.max_glsl_cache_size")];
+    glslRow.onValueChanged = ^(NSInteger value) {
+        setPrefFloat(@"mobileglues.max_glsl_cache_size", (float)value);
+    };
+    [mgGroup ame_addRow:glslRow];
+    // 多重绘制模式（0/1/2）
+    NSArray<NSString *> *mdKeys = @[@"0", @"1", @"2"];
+    NSArray<NSString *> *mdNames = @[
+        localize(@"preference.title.mg_multidraw_mode-0", nil),
+        localize(@"preference.title.mg_multidraw_mode-1", nil),
+        localize(@"preference.title.mg_multidraw_mode-2", nil),
+    ];
+    ZL2SettingRowList *mdRow =
+        [[ZL2SettingRowList alloc] initWithTitle:@"" subtitle:nil
+                                 options:mdNames optionKeys:mdKeys];
+    mdRow.title = localize(@"preference.title.multidraw_mode", nil);
+    mdRow.subtitle = localize(@"preference.detail.multidraw_mode", nil);
+    [mdRow ame_reloadSelectedIndex:(NSInteger)[mdKeys indexOfObject:
+        ame_pages_stringOr(getPrefObject(@"mobileglues.multidraw_mode"), @"0")]];
+    mdRow.onSelect = ^(NSInteger index) {
+        if (index < 0 || (NSUInteger)index >= mdKeys.count) return;
+        setPrefString(@"mobileglues.multidraw_mode", mdKeys[index]);
+    };
+    [mgGroup ame_addRow:mdRow];
+    // ANGLE 深度清除修正
+    ZL2SettingRowSwitch *angleRow =
+        [[ZL2SettingRowSwitch alloc] initWithTitle:@"" subtitle:nil];
+    angleRow.title = localize(@"preference.title.angle_depth_clear_fix_mode", nil);
+    angleRow.subtitle = localize(@"preference.detail.angle_depth_clear_fix_mode", nil);
+    [angleRow ame_setOn:getPrefBool(@"mobileglues.angle_depth_clear_fix_mode")];
+    angleRow.onToggle = ^(BOOL on) {
+        setPrefBool(@"mobileglues.angle_depth_clear_fix_mode", on);
+    };
+    [mgGroup ame_addRow:angleRow];
+    // 自定义 GL 版本（0=关闭 + 4.0..4.6）
+    NSArray<NSString *> *glvKeys = @[@"0", @"4.0", @"4.1", @"4.2", @"4.3", @"4.4", @"4.5", @"4.6"];
+    NSArray<NSString *> *glvNames = @[
+        localize(@"preference.title.mg_custom_gl_version-0", nil),
+        localize(@"preference.title.mg_custom_gl_version-4.0", nil),
+        localize(@"preference.title.mg_custom_gl_version-4.1", nil),
+        localize(@"preference.title.mg_custom_gl_version-4.2", nil),
+        localize(@"preference.title.mg_custom_gl_version-4.3", nil),
+        localize(@"preference.title.mg_custom_gl_version-4.4", nil),
+        localize(@"preference.title.mg_custom_gl_version-4.5", nil),
+        localize(@"preference.title.mg_custom_gl_version-4.6", nil),
+    ];
+    ZL2SettingRowList *glvRow =
+        [[ZL2SettingRowList alloc] initWithTitle:@"" subtitle:nil
+                                 options:glvNames optionKeys:glvKeys];
+    glvRow.title = localize(@"preference.title.custom_gl_version", nil);
+    glvRow.subtitle = localize(@"preference.detail.custom_gl_version", nil);
+    [glvRow ame_reloadSelectedIndex:(NSInteger)[glvKeys indexOfObject:
+        ame_pages_stringOr(getPrefObject(@"mobileglues.custom_gl_version"), @"0")]];
+    glvRow.onSelect = ^(NSInteger index) {
+        if (index < 0 || (NSUInteger)index >= glvKeys.count) return;
+        setPrefString(@"mobileglues.custom_gl_version", glvKeys[index]);
+    };
+    [mgGroup ame_addRow:glvRow];
+    [self ame_addGroup:mgGroup];
+
+    // --- 组 4：更多设置（长尾兜底契约）---
     ZL2SettingCardGroup *group2 = [[ZL2SettingCardGroup alloc] init];
     ZL2SettingRowAction *moreRow =
         [[ZL2SettingRowAction alloc] initWithTitle:@"" subtitle:nil];
@@ -324,17 +565,9 @@ static NSString *ame_pages_stringOr(id value, NSString *fallback) {
 }
 
 - (void)ame_refreshState {
-    ame142_migrateRendererStorage();
-    NSString *current = ame_pages_stringOr(getPrefObject(@"video.renderer"), @"auto");
-    NSInteger idx = (NSInteger)[getRendererKeys(YES) indexOfObject:current];
-    if (idx < 0) idx = (NSInteger)[getRendererKeys(YES) indexOfObject:@"auto"];
-    [self.rendererRow ame_reloadSelectedIndex:MAX(idx, 0)];
-
-    NSInteger resolution = (NSInteger)getPrefFloat(@"video.resolution");
-    [self.resolutionRow ame_setValue:(resolution <= 0 ? 100 : resolution)];
-
-    id fullscreenRaw = getPrefObject(@"video.fullscreen_airplay");
-    [self.fullscreenRow ame_setOn:(fullscreenRaw ? [fullscreenRaw boolValue] : YES)];
+    // Task344：新行族（FSR/MobileGlues）一并随切轨刷新——全量重建最简一致
+    //（rendererRow/resolutionRow/fullscreenRow 在 ame_buildGroups 内重读重挂）
+    [self ame_rebuildGroups];
 }
 
 @end
@@ -447,6 +680,86 @@ static NSString *ame_pages_stringOr(id value, NSString *fallback) {
     [group2 ame_addRow:isolationRow];
     [self ame_addGroup:group2];
 
+    // ── ★ Task344 旧设置全量迁移：音频/兼容组（video+general 跨分区收拢）──
+    ZL2SettingCardGroup *audioGroup = [[ZL2SettingCardGroup alloc] init];
+    // 静音其他音频（游戏会话压低/暂停系统音源）
+    ZL2SettingRowSwitch *silenceOtherRow =
+        [[ZL2SettingRowSwitch alloc] initWithTitle:@"" subtitle:nil];
+    silenceOtherRow.title = localize(@"preference.title.silence_other_audio", nil);
+    silenceOtherRow.subtitle = localize(@"preference.detail.silence_other_audio", nil);
+    [silenceOtherRow ame_setOn:getPrefBool(@"video.silence_other_audio")];
+    silenceOtherRow.onToggle = ^(BOOL on) {
+        setPrefBool(@"video.silence_other_audio", on);
+    };
+    // 静音键跟随（静音拨片按下时游戏跟随静音）
+    ZL2SettingRowSwitch *silenceSwitchRow =
+        [[ZL2SettingRowSwitch alloc] initWithTitle:@"" subtitle:nil];
+    silenceSwitchRow.title = localize(@"preference.title.silence_with_switch", nil);
+    silenceSwitchRow.subtitle = localize(@"preference.detail.silence_with_switch", nil);
+    [silenceSwitchRow ame_setOn:getPrefBool(@"video.silence_with_switch")];
+    silenceSwitchRow.onToggle = ^(BOOL on) {
+        setPrefBool(@"video.silence_with_switch", on);
+    };
+    // 麦克风
+    ZL2SettingRowSwitch *micRow =
+        [[ZL2SettingRowSwitch alloc] initWithTitle:@"" subtitle:nil];
+    micRow.title = localize(@"preference.title.allow_microphone", nil);
+    micRow.subtitle = localize(@"preference.detail.allow_microphone", nil);
+    [micRow ame_setOn:getPrefBool(@"video.allow_microphone")];
+    micRow.onToggle = ^(BOOL on) {
+        setPrefBool(@"video.allow_microphone", on);
+    };
+    // 远古版本内存兼容轨（JavaLauncher 消费，默认 ON）
+    ZL2SettingRowSwitch *legacyCompatRow =
+        [[ZL2SettingRowSwitch alloc] initWithTitle:@"" subtitle:nil];
+    legacyCompatRow.title = localize(@"preference.title.legacy_compatibility", nil);
+    legacyCompatRow.subtitle = localize(@"preference.detail.legacy_compatibility", nil);
+    [legacyCompatRow ame_setOn:getPrefBool(@"general.legacy_compatibility")];
+    legacyCompatRow.onToggle = ^(BOOL on) {
+        setPrefBool(@"general.legacy_compatibility", on);
+    };
+    // Cosmetica 皮肤披风
+    ZL2SettingRowSwitch *cosmeticaRow =
+        [[ZL2SettingRowSwitch alloc] initWithTitle:@"" subtitle:nil];
+    cosmeticaRow.title = localize(@"preference.title.cosmetica", nil);
+    cosmeticaRow.subtitle = localize(@"preference.detail.cosmetica", nil);
+    [cosmeticaRow ame_setOn:getPrefBool(@"general.cosmetica")];
+    cosmeticaRow.onToggle = ^(BOOL on) {
+        setPrefBool(@"general.cosmetica", on);
+    };
+    [audioGroup ame_addRows:@[silenceOtherRow, silenceSwitchRow, micRow,
+                              legacyCompatRow, cosmeticaRow]];
+    [self ame_addGroup:audioGroup];
+    // 内存限制帮助（说明弹窗 + 教程直达；旧页 showMemoryLimitHelp 平移）
+    ZL2SettingCardGroup *memHelpGroup = [[ZL2SettingCardGroup alloc] init];
+    ZL2SettingRowAction *memHelpRow =
+        [[ZL2SettingRowAction alloc] initWithTitle:@"" subtitle:nil];
+    memHelpRow.title = localize(@"preference.title.memory_limit_help", nil);
+    memHelpRow.subtitle = localize(@"preference.detail.memory_limit_help", nil);
+    memHelpRow.onTap = ^{
+        UIAlertController *alert = [UIAlertController
+            alertControllerWithTitle:localize(@"mem_help.title", @"关于内存限制")
+                             message:localize(@"mem_help.message",
+                                 @"·扩展内存限制权限，使用GetMoreRAM开启\n"
+                                  "让iOS为启动器分配更多内存空间，通常能分配6GB内存\n\n"
+                                  "·扩展虚拟内存权限，开启方式见下\n"
+                                  "让iOS为启动器分配更多内存寻址，通常能分配7GB内存并提升稳定性\n\n"
+                                  "推荐使用付费开发者证书，安装软件自动开启上述权限且支持开启JIT")
+                      preferredStyle:UIAlertControllerStyleAlert];
+        [alert addAction:[UIAlertAction actionWithTitle:localize(@"mem_help.button", @"付费开发者证书")
+                                                  style:UIAlertActionStyleDefault
+                                                handler:^(UIAlertAction *action) {
+            NSURL *url = [NSURL URLWithString:@"https://b23.tv/WtgrPJM"];
+            [[UIApplication sharedApplication] openURL:url options:@{} completionHandler:nil];
+        }]];
+        [alert addAction:[UIAlertAction actionWithTitle:localize(@"OK", nil)
+                                                  style:UIAlertActionStyleCancel
+                                                handler:nil]];
+        [weakSelf ame_presentVC:alert];
+    };
+    [memHelpGroup ame_addRow:memHelpRow];
+    [self ame_addGroup:memHelpGroup];
+
     // --- 组 3：更多设置 ---
     ZL2SettingCardGroup *group3 = [[ZL2SettingCardGroup alloc] init];
     ZL2SettingRowAction *moreRow =
@@ -479,20 +792,8 @@ static NSString *ame_pages_stringOr(id value, NSString *fallback) {
 }
 
 - (void)ame_refreshState {
-    NSInteger memoryCap = (NSInteger)ame173_safeHeapCeilingMB() + 512;
-    if (memoryCap < 1024) memoryCap = 1024;
-    NSMutableDictionary *profile = [[[PLProfiles current] selectedProfile] mutableCopy]
-        ?: [NSMutableDictionary dictionary];
-    NSInteger memory = [profile[@"allocatedMemory"] integerValue];
-    if (memory <= 0) memory = MIN(memoryCap / 2, 2048);
-    [self.memoryRow ame_setValue:MAX(256, MIN(memoryCap, memory))];
-
-    NSString *preset = ame_pages_stringOr(getPrefObject(@"java.jvm_preset"), @"normal");
-    [self.presetRow ame_reloadSelectedIndex:
-        (NSInteger)[ame_gamePagePresetKeys() indexOfObject:preset]];
-    [self.customArgsRow ame_setText:ame_pages_stringOr(getPrefObject(@"java.jvm_preset_custom_args"), @"")];
-    [self.javaArgsRow ame_setText:ame_pages_stringOr(getPrefObject(@"java.java_args"), @"")];
-    [self.isolationRow ame_setOn:getPrefBool(@"internal.isolated")];
+    // Task344：音频/兼容组随切轨刷新——全量重建（与内存/隔离行同链）
+    [self ame_rebuildGroups];
 }
 
 @end
@@ -505,6 +806,11 @@ static NSString *ame_pages_stringOr(id value, NSString *fallback) {
 @property (nonatomic, strong) ZL2SettingRowSlider *intensityRow;
 @property (nonatomic, strong) ZL2SettingRowSwitch *moveViewRow;
 @property (nonatomic, strong) ZL2SettingRowSwitch *hideControlsRow;
+// ★ Task344：自定义鼠标指针图片选择（旧页 openMousePointerPicker 平移）
+@property (nonatomic, assign) BOOL ame344_pickingMousePointer;
+@end
+
+@interface ZL2ControlSettingsPage () <UIImagePickerControllerDelegate, UINavigationControllerDelegate>
 @end
 
 @implementation ZL2ControlSettingsPage
@@ -582,6 +888,221 @@ static NSString *ame_pages_stringOr(id value, NSString *fallback) {
     [group1 ame_addRows:@[modeRow, vibrateRow, intensityRow, moveViewRow, hideControlsRow]];
     [self ame_addGroup:group1];
 
+    // ── ★ Task344 旧设置全量迁移：键鼠与控件组（旧 control 分区主体）──
+    ZL2SettingCardGroup *kbGroup = [[ZL2SettingCardGroup alloc] init];
+    // 键位调整入口（画布编辑器，旧 childPane 平移；模态 nav 与控制管理屏同款）
+    ZL2SettingRowAction *editorRow =
+        [[ZL2SettingRowAction alloc] initWithTitle:@"" subtitle:nil];
+    editorRow.title = localize(@"preference.title.custom_controls", nil);
+    editorRow.subtitle = @"全屏画布编辑器（添加/拖动/缩放控件）";
+    editorRow.onTap = ^{
+        CustomControlsViewController *editor = [[CustomControlsViewController alloc] init];
+        UINavigationController *nav = [[UINavigationController alloc] initWithRootViewController:editor];
+        nav.modalInPresentation = YES;
+        [weakSelf presentViewController:nav animated:YES completion:nil];
+    };
+    [kbGroup ame_addRow:editorRow];
+    // 滑动热栏（TouchController 启用时灰禁——旧页 enableCondition 同口径）
+    ZL2SettingRowSwitch *hotbarRow =
+        [[ZL2SettingRowSwitch alloc] initWithTitle:@"" subtitle:nil];
+    hotbarRow.title = localize(@"preference.title.slideable_hotbar", nil);
+    hotbarRow.subtitle = localize(@"preference.detail.slideable_hotbar", nil);
+    [hotbarRow ame_setOn:getPrefBool(@"control.slideable_hotbar")];
+    hotbarRow.onToggle = ^(BOOL on) {
+        setPrefBool(@"control.slideable_hotbar", on);
+    };
+    if (!getPrefBool(@"control.mod_touch_enable")) {
+        [kbGroup ame_addRow:hotbarRow];   // 重建式刷新：TC 开启后重进本页即消失
+    }
+    // 手势鼠标 / 手势热栏 / Fluid 移动垫 / 虚拟鼠标
+    ZL2SettingRowSwitch *gestureMouseRow =
+        [[ZL2SettingRowSwitch alloc] initWithTitle:@"" subtitle:nil];
+    gestureMouseRow.title = localize(@"preference.title.gesture_mouse", nil);
+    gestureMouseRow.subtitle = localize(@"preference.detail.gesture_mouse", nil);
+    [gestureMouseRow ame_setOn:getPrefBool(@"control.gesture_mouse")];
+    gestureMouseRow.onToggle = ^(BOOL on) {
+        setPrefBool(@"control.gesture_mouse", on);
+    };
+    ZL2SettingRowSwitch *gestureHotbarRow =
+        [[ZL2SettingRowSwitch alloc] initWithTitle:@"" subtitle:nil];
+    gestureHotbarRow.title = localize(@"preference.title.gesture_hotbar", nil);
+    gestureHotbarRow.subtitle = localize(@"preference.detail.gesture_hotbar", nil);
+    [gestureHotbarRow ame_setOn:getPrefBool(@"control.gesture_hotbar")];
+    gestureHotbarRow.onToggle = ^(BOOL on) {
+        setPrefBool(@"control.gesture_hotbar", on);
+    };
+    ZL2SettingRowSwitch *fluidRow =
+        [[ZL2SettingRowSwitch alloc] initWithTitle:@"" subtitle:nil];
+    fluidRow.title = localize(@"preference.title.fluid_button_slide", nil);
+    fluidRow.subtitle = localize(@"preference.detail.fluid_button_slide", nil);
+    [fluidRow ame_setOn:getPrefBool(@"control.fluid_button_slide")];
+    fluidRow.onToggle = ^(BOOL on) {
+        setPrefBool(@"control.fluid_button_slide", on);
+    };
+    ZL2SettingRowSwitch *virtMouseRow =
+        [[ZL2SettingRowSwitch alloc] initWithTitle:@"" subtitle:nil];
+    virtMouseRow.title = localize(@"preference.title.virtmouse_enable", nil);
+    virtMouseRow.subtitle = localize(@"preference.detail.virtmouse_enable", nil);
+    [virtMouseRow ame_setOn:getPrefBool(@"control.virtmouse_enable")];
+    virtMouseRow.onToggle = ^(BOOL on) {
+        setPrefBool(@"control.virtmouse_enable", on);
+    };
+    [kbGroup ame_addRows:@[gestureMouseRow, gestureHotbarRow, fluidRow, virtMouseRow]];
+    // 四滑条：按钮缩放/鼠标缩放/鼠标速度/长按阈值
+    ZL2SettingRowSlider *buttonScaleRow =
+        [[ZL2SettingRowSlider alloc] initWithTitle:@"" subtitle:nil minimum:50 maximum:500 suffix:@"%"];
+    buttonScaleRow.title = localize(@"preference.title.button_scale", nil);
+    buttonScaleRow.subtitle = localize(@"preference.detail.button_scale", nil);
+    [buttonScaleRow ame_setValue:(NSInteger)getPrefFloat(@"control.button_scale")];
+    buttonScaleRow.onValueChanged = ^(NSInteger value) {
+        setPrefFloat(@"control.button_scale", (float)value);
+    };
+    ZL2SettingRowSlider *mouseScaleRow =
+        [[ZL2SettingRowSlider alloc] initWithTitle:@"" subtitle:nil minimum:25 maximum:300 suffix:@"%"];
+    mouseScaleRow.title = localize(@"preference.title.mouse_scale", nil);
+    mouseScaleRow.subtitle = localize(@"preference.detail.mouse_scale", nil);
+    [mouseScaleRow ame_setValue:(NSInteger)getPrefFloat(@"control.mouse_scale")];
+    mouseScaleRow.onValueChanged = ^(NSInteger value) {
+        setPrefFloat(@"control.mouse_scale", (float)value);
+    };
+    ZL2SettingRowSlider *mouseSpeedRow =
+        [[ZL2SettingRowSlider alloc] initWithTitle:@"" subtitle:nil minimum:25 maximum:300 suffix:@"%"];
+    mouseSpeedRow.title = localize(@"preference.title.mouse_speed", nil);
+    mouseSpeedRow.subtitle = localize(@"preference.detail.mouse_speed", nil);
+    [mouseSpeedRow ame_setValue:(NSInteger)getPrefFloat(@"control.mouse_speed")];
+    mouseSpeedRow.onValueChanged = ^(NSInteger value) {
+        setPrefFloat(@"control.mouse_speed", (float)value);
+    };
+    ZL2SettingRowSlider *pressRow =
+        [[ZL2SettingRowSlider alloc] initWithTitle:@"" subtitle:nil minimum:100 maximum:1000 suffix:@"ms"];
+    pressRow.title = localize(@"preference.title.press_duration", nil);
+    pressRow.subtitle = localize(@"preference.detail.press_duration", nil);
+    [pressRow ame_setValue:(NSInteger)getPrefFloat(@"control.press_duration")];
+    pressRow.onValueChanged = ^(NSInteger value) {
+        setPrefFloat(@"control.press_duration", (float)value);
+    };
+    [kbGroup ame_addRows:@[buttonScaleRow, mouseScaleRow, mouseSpeedRow, pressRow]];
+    [self ame_addGroup:kbGroup];
+
+    // ── ★ Task344：键盘/触感/陀螺仪组 ──
+    ZL2SettingCardGroup *kbdGroup = [[ZL2SettingCardGroup alloc] init];
+    ZL2SettingRowSwitch *twoFingerRow =
+        [[ZL2SettingRowSwitch alloc] initWithTitle:@"" subtitle:nil];
+    twoFingerRow.title = localize(@"preference.title.two_finger_keyboard", nil);
+    twoFingerRow.subtitle = localize(@"preference.detail.two_finger_keyboard", nil);
+    [twoFingerRow ame_setOn:getPrefBool(@"control.two_finger_keyboard")];
+    twoFingerRow.onToggle = ^(BOOL on) {
+        setPrefBool(@"control.two_finger_keyboard", on);
+    };
+    ZL2SettingRowSwitch *sdlKbdRow =
+        [[ZL2SettingRowSwitch alloc] initWithTitle:@"" subtitle:nil];
+    sdlKbdRow.title = localize(@"preference.title.auto_keyboard_sdl", nil);
+    sdlKbdRow.subtitle = localize(@"preference.detail.auto_keyboard_sdl", nil);
+    [sdlKbdRow ame_setOn:getPrefBool(@"control.auto_keyboard_sdl")];
+    sdlKbdRow.onToggle = ^(BOOL on) {
+        setPrefBool(@"control.auto_keyboard_sdl", on);
+    };
+    ZL2SettingRowSwitch *hapticsRow =
+        [[ZL2SettingRowSwitch alloc] initWithTitle:@"" subtitle:nil];
+    hapticsRow.title = localize(@"preference.title.disable_haptics", nil);
+    hapticsRow.subtitle = localize(@"preference.detail.disable_haptics", nil);
+    [hapticsRow ame_setOn:getPrefBool(@"control.disable_haptics")];
+    hapticsRow.onToggle = ^(BOOL on) {
+        setPrefBool(@"control.disable_haptics", on);
+    };
+    [kbdGroup ame_addRows:@[twoFingerRow, sdlKbdRow, hapticsRow]];
+    // 陀螺仪三件（TV 无陀螺仪——旧页 enableCondition 同口径）
+    if (realUIIdiom != UIUserInterfaceIdiomTV) {
+        ZL2SettingRowSwitch *gyroRow =
+            [[ZL2SettingRowSwitch alloc] initWithTitle:@"" subtitle:nil];
+        gyroRow.title = localize(@"preference.title.gyroscope_enable", nil);
+        gyroRow.subtitle = localize(@"preference.detail.gyroscope_enable", nil);
+        [gyroRow ame_setOn:getPrefBool(@"control.gyroscope_enable")];
+        gyroRow.onToggle = ^(BOOL on) {
+            setPrefBool(@"control.gyroscope_enable", on);
+        };
+        ZL2SettingRowSwitch *gyroInvertRow =
+            [[ZL2SettingRowSwitch alloc] initWithTitle:@"" subtitle:nil];
+        gyroInvertRow.title = localize(@"preference.title.gyroscope_invert_x_axis", nil);
+        gyroInvertRow.subtitle = localize(@"preference.detail.gyroscope_invert_x_axis", nil);
+        [gyroInvertRow ame_setOn:getPrefBool(@"control.gyroscope_invert_x_axis")];
+        gyroInvertRow.onToggle = ^(BOOL on) {
+            setPrefBool(@"control.gyroscope_invert_x_axis", on);
+        };
+        ZL2SettingRowSlider *gyroSensRow =
+            [[ZL2SettingRowSlider alloc] initWithTitle:@"" subtitle:nil minimum:50 maximum:300 suffix:@"%"];
+        gyroSensRow.title = localize(@"preference.title.gyroscope_sensitivity", nil);
+        gyroSensRow.subtitle = localize(@"preference.detail.gyroscope_sensitivity", nil);
+        [gyroSensRow ame_setValue:(NSInteger)getPrefFloat(@"control.gyroscope_sensitivity")];
+        gyroSensRow.onValueChanged = ^(NSInteger value) {
+            setPrefFloat(@"control.gyroscope_sensitivity", (float)value);
+        };
+        [kbdGroup ame_addRows:@[gyroRow, gyroInvertRow, gyroSensRow]];
+    }
+    [self ame_addGroup:kbdGroup];
+
+    // ── ★ Task344：指针/可见性/实例工具组 ──
+    ZL2SettingCardGroup *miscGroup = [[ZL2SettingCardGroup alloc] init];
+    ZL2SettingRowAction *pointerRow =
+        [[ZL2SettingRowAction alloc] initWithTitle:@"" subtitle:nil];
+    pointerRow.title = localize(@"preference.title.custom_mouse_pointer", nil);
+    pointerRow.subtitle = localize(@"preference.detail.custom_mouse_pointer", nil);
+    pointerRow.onTap = ^{
+        [weakSelf ame344_openMousePointerPicker];
+    };
+    ZL2SettingRowAction *pointerResetRow =
+        [[ZL2SettingRowAction alloc] initWithTitle:@"" subtitle:nil];
+    pointerResetRow.title = localize(@"preference.title.reset_mouse_pointer", nil);
+    pointerResetRow.subtitle = localize(@"preference.detail.reset_mouse_pointer", nil);
+    pointerResetRow.onTap = ^{
+        NSString *path = [NSString stringWithFormat:@"%s/controlmap/mouse_pointer.png", getenv("POJAV_HOME")];
+        [NSFileManager.defaultManager removeItemAtPath:path error:nil];
+        [NSNotificationCenter.defaultCenter postNotificationName:@"MousePointerUpdated" object:nil];
+        [weakSelf ame344_showNotice:localize(@"i18n_str_393", nil)];
+    };
+    ZL2SettingRowSwitch *hwHideRow =
+        [[ZL2SettingRowSwitch alloc] initWithTitle:@"" subtitle:nil];
+    hwHideRow.title = localize(@"preference.title.hardware_hide", nil);
+    hwHideRow.subtitle = localize(@"preference.detail.hardware_hide", nil);
+    [hwHideRow ame_setOn:getPrefBool(@"control.hardware_hide")];
+    hwHideRow.onToggle = ^(BOOL on) {
+        setPrefBool(@"control.hardware_hide", on);
+    };
+    ZL2SettingRowSwitch *recHideRow =
+        [[ZL2SettingRowSwitch alloc] initWithTitle:@"" subtitle:nil];
+    recHideRow.title = localize(@"preference.title.recording_hide", nil);
+    recHideRow.subtitle = localize(@"preference.detail.recording_hide", nil);
+    [recHideRow ame_setOn:getPrefBool(@"control.recording_hide")];
+    recHideRow.onToggle = ^(BOOL on) {
+        setPrefBool(@"control.recording_hide", on);
+    };
+    ZL2SettingRowSwitch *ctrlUpdRow =
+        [[ZL2SettingRowSwitch alloc] initWithTitle:@"" subtitle:nil];
+    ctrlUpdRow.title = localize(@"preference.title.auto_control_update_check", nil);
+    ctrlUpdRow.subtitle = localize(@"preference.detail.auto_control_update_check", nil);
+    [ctrlUpdRow ame_setOn:getPrefBool(@"control.auto_control_update_check")];
+    ctrlUpdRow.onToggle = ^(BOOL on) {
+        setPrefBool(@"control.auto_control_update_check", on);
+    };
+    [miscGroup ame_addRows:@[pointerRow, pointerResetRow, hwHideRow, recHideRow, ctrlUpdRow]];
+    // 跨实例疾跑切换（Task229 全链平移）
+    ZL2SettingRowAction *sprintRow =
+        [[ZL2SettingRowAction alloc] initWithTitle:@"" subtitle:nil];
+    sprintRow.title = localize(@"preference.title.mc_toggle_sprint", nil);
+    sprintRow.subtitle = localize(@"preference.detail.mc_toggle_sprint", nil);
+    sprintRow.onTap = ^{
+        [weakSelf ame229_toggleSprintTapped];
+    };
+    ZL2SettingRowAction *keybindRow =
+        [[ZL2SettingRowAction alloc] initWithTitle:@"" subtitle:nil];
+    keybindRow.title = localize(@"preference.title.keybind_sync", nil);
+    keybindRow.subtitle = localize(@"preference.detail.keybind_sync", nil);
+    keybindRow.onTap = ^{
+        [weakSelf ame229_syncKeybindsAcrossInstances];
+    };
+    [miscGroup ame_addRows:@[sprintRow, keybindRow]];
+    [self ame_addGroup:miscGroup];
+
     // --- 组 2：完整触控设置（长尾兜底）---
     ZL2SettingCardGroup *group2 = [[ZL2SettingCardGroup alloc] init];
     ZL2SettingRowAction *fullRow =
@@ -638,14 +1159,244 @@ static NSString *ame_pages_stringOr(id value, NSString *fallback) {
 }
 
 - (void)ame_refreshState {
-    BOOL enabled = getPrefBool(@"control.mod_touch_enable");
-    NSInteger mode = getPrefInt(@"control.mod_touch_mode");
-    if (mode < 0 || mode > 2) mode = 0;
-    [self.modeRow ame_reloadSelectedIndex:(enabled ? mode : 0)];
-    [self.vibrateRow ame_setOn:getPrefBool(@"control.mod_touch_vibrate_enable")];
-    [self.intensityRow ame_setValue:MAX(1, MIN(3, getPrefInt(@"control.mod_touch_vibrate_intensity")))];
-    [self.moveViewRow ame_setOn:getPrefBool(@"control.mod_touch_moveview_enable")];
-    [self.hideControlsRow ame_setOn:getPrefBool(@"control.mod_touch_hide_controls")];
+    // Task344：控制全量迁移后行族随外部变化重建（TC 模式/热栏灰禁/陀螺仪面）
+    [self ame_rebuildGroups];
+}
+
+#pragma mark - Task344 旧 control 分区助手（旧 VC 平移）
+
+// 轻反馈（旧 showSuccessMessage 形态收敛为无标题 alert）
+- (void)ame344_showNotice:(NSString *)text {
+    UIAlertController *alert = [UIAlertController alertControllerWithTitle:nil
+                                                                   message:text
+                                                            preferredStyle:UIAlertControllerStyleAlert];
+    [alert addAction:[UIAlertAction actionWithTitle:localize(@"OK", nil)
+                                              style:UIAlertActionStyleDefault handler:nil]];
+    [self presentViewController:alert animated:YES completion:nil];
+}
+
+// 自定义鼠标指针（旧 openMousePointerPicker 平移）
+- (void)ame344_openMousePointerPicker {
+    self.ame344_pickingMousePointer = YES;
+    UIImagePickerController *picker = [[UIImagePickerController alloc] init];
+    picker.sourceType = UIImagePickerControllerSourceTypePhotoLibrary;
+    picker.delegate = self;
+    [self ame_presentVC:picker];
+}
+
+- (void)imagePickerController:(UIImagePickerController *)picker
+didFinishPickingMediaWithInfo:(NSDictionary<UIImagePickerControllerInfoKey,id> *)info {
+    [picker dismissViewControllerAnimated:YES completion:^{
+        UIImage *image = info[UIImagePickerControllerOriginalImage];
+        if (!image) return;
+        if (!self.ame344_pickingMousePointer) return;
+        self.ame344_pickingMousePointer = NO;
+        NSString *path = [NSString stringWithFormat:@"%s/controlmap/mouse_pointer.png", getenv("POJAV_HOME")];
+        NSData *pngData = UIImagePNGRepresentation(image);
+        [NSFileManager.defaultManager createDirectoryAtPath:[path stringByDeletingLastPathComponent]
+                                withIntermediateDirectories:YES attributes:nil error:nil];
+        BOOL ok = [pngData writeToFile:path atomically:YES];
+        if (ok) {
+            [NSNotificationCenter.defaultCenter postNotificationName:@"MousePointerUpdated" object:nil];
+            [self ame344_showNotice:localize(@"i18n_str_369", nil)];
+        } else {
+            [self ame344_showNotice:localize(@"i18n_str_370", nil)];
+        }
+    }];
+}
+
+// 跨实例 options.txt 全集（旧 ame229_allInstanceOptionsPaths 1:1 平移）
+- (NSArray<NSString *> *)ame229_allInstanceOptionsPaths {
+    const char *home = getenv("POJAV_HOME");
+    if (home == NULL || home[0] == '\0') return @[];
+    NSString *instancesRoot = [NSString stringWithFormat:@"%s/instances", home];
+    NSFileManager *fm = NSFileManager.defaultManager;
+    NSMutableArray<NSString *> *out = [NSMutableArray array];
+    for (NSString *inst in [fm contentsOfDirectoryAtPath:instancesRoot error:nil]) {
+        NSString *instDir = [instancesRoot stringByAppendingPathComponent:inst];
+        BOOL isDir = NO;
+        if (![fm fileExistsAtPath:instDir isDirectory:&isDir] || !isDir) continue;
+        // 新隔离布局：instances/<inst>/versions/<ver>/game/options.txt
+        NSString *versionsDir = [instDir stringByAppendingPathComponent:@"versions"];
+        for (NSString *ver in [fm contentsOfDirectoryAtPath:versionsDir error:nil]) {
+            NSString *opt = [[versionsDir stringByAppendingPathComponent:ver]
+                stringByAppendingPathComponent:@"game/options.txt"];
+            if ([fm fileExistsAtPath:opt]) [out addObject:opt];
+        }
+        // 兼容旧布局：实例根直接挂 options.txt
+        NSString *optRoot = [instDir stringByAppendingPathComponent:@"options.txt"];
+        if ([fm fileExistsAtPath:optRoot] && ![out containsObject:optRoot]) {
+            [out addObject:optRoot];
+        }
+        // Task270 (M6)：custom_gamedir 第二层（ame269 整合包实例）
+        NSString *customRoot = [instDir stringByAppendingPathComponent:@"custom_gamedir"];
+        BOOL customIsDir = NO;
+        if ([fm fileExistsAtPath:customRoot isDirectory:&customIsDir] && customIsDir) {
+            for (NSString *customId in [fm contentsOfDirectoryAtPath:customRoot error:nil]) {
+                if ([customId hasPrefix:@"."]) continue;
+                NSString *optCustom = [[customRoot stringByAppendingPathComponent:customId]
+                    stringByAppendingPathComponent:@"options.txt"];
+                if ([fm fileExistsAtPath:optCustom] && ![out containsObject:optCustom]) {
+                    [out addObject:optCustom];
+                }
+            }
+        }
+    }
+    // mtime 降序（最近玩的在前）
+    [out sortUsingComparator:^NSComparisonResult(NSString *a, NSString *b) {
+        NSDate *da = [fm attributesOfItemAtPath:a error:nil].fileModificationDate ?: [NSDate distantPast];
+        NSDate *db = [fm attributesOfItemAtPath:b error:nil].fileModificationDate ?: [NSDate distantPast];
+        return [db compare:da];
+    }];
+    return out;
+}
+
+- (nullable NSArray<NSString *> *)ame229_linesOfOptions:(NSString *)path {
+    NSString *content = [NSString stringWithContentsOfFile:path
+                                                  encoding:NSUTF8StringEncoding error:nil];
+    if (content.length == 0) return nil;
+    return [content componentsSeparatedByString:@"\n"];
+}
+
+- (NSDictionary<NSString *, NSString *> *)ame229_keybindsOfOptions:(NSString *)path {
+    NSArray<NSString *> *lines = [self ame229_linesOfOptions:path];
+    if (lines == nil) return @{};
+    NSMutableDictionary<NSString *, NSString *> *out = [NSMutableDictionary dictionary];
+    for (NSString *ln in lines) {
+        if (![ln hasPrefix:@"key_key."]) continue;
+        NSRange c = [ln rangeOfString:@":"];
+        if (c.location == NSNotFound || c.location + 1 >= ln.length) continue;
+        [out setObject:[ln substringFromIndex:c.location + 1]
+                forKey:[ln substringToIndex:c.location]];
+    }
+    return out;
+}
+
+- (BOOL)ame229_writeToggleSprint:(BOOL)present toOptions:(NSString *)path {
+    NSArray<NSString *> *lines = [self ame229_linesOfOptions:path];
+    if (lines == nil) return NO;
+    NSMutableArray<NSString *> *out = [NSMutableArray array];
+    BOOL wrote = NO;
+    for (NSString *ln in lines) {
+        if ([ln hasPrefix:@"toggleSprint:"]) {
+            [out addObject:present ? @"toggleSprint:true" : @"toggleSprint:false"];
+            wrote = YES;
+        } else {
+            [out addObject:ln];
+        }
+    }
+    if (!wrote) {
+        [out addObject:present ? @"toggleSprint:true" : @"toggleSprint:false"];
+    }
+    NSString *newContent = [out componentsJoinedByString:@"\n"];
+    BOOL ok = [newContent writeToFile:path atomically:YES encoding:NSUTF8StringEncoding error:nil];
+    if (ok) {
+        NSLog(@"[ZL2Settings] Task229 toggleSprint %@ -> %@", present ? @"true" : @"false", path);
+    }
+    return ok;
+}
+
+// 跨实例疾跑切换（旧 mc_toggle_sprint action 1:1 平移）
+- (void)ame229_toggleSprintTapped {
+    BOOL anyOn = NO;
+    for (NSString *p in [self ame229_allInstanceOptionsPaths]) {
+        for (NSString *ln in [self ame229_linesOfOptions:p] ?: @[]) {
+            if ([ln hasPrefix:@"toggleSprint:true"]) { anyOn = YES; break; }
+        }
+        if (anyOn) break;
+    }
+    UIAlertController *alert = [UIAlertController
+        alertControllerWithTitle:localize(@"ame229.sprint.title", nil)
+                         message:anyOn ? localize(@"ame229.sprint.on.desc", nil)
+                                       : localize(@"ame229.sprint.off.desc", nil)
+                  preferredStyle:UIAlertControllerStyleAlert];
+    NSString *onTitle = localize(@"ame229.sprint.turn_on", nil);
+    NSString *offTitle = localize(@"ame229.sprint.turn_off", nil);
+    __weak typeof(self) weakSelf = self;
+    [alert addAction:[UIAlertAction actionWithTitle:anyOn ? offTitle : onTitle
+                                               style:UIAlertActionStyleDefault
+                                             handler:^(UIAlertAction *a) {
+        BOOL enable = !anyOn;
+        NSInteger wrote = 0, total = 0;
+        for (NSString *p in [weakSelf ame229_allInstanceOptionsPaths]) {
+            total++;
+            if ([weakSelf ame229_writeToggleSprint:enable toOptions:p]) wrote++;
+        }
+        NSLog(@"[ZL2Settings] Task229 toggleSprint written %ld/%ld instance options.txt (enable=%d)",
+              (long)wrote, (long)total, (int)enable);
+        [weakSelf ame344_showNotice:[NSString stringWithFormat:
+            localize(@"ame229.sprint.result", nil), (long)wrote]];
+    }]];
+    [alert addAction:[UIAlertAction actionWithTitle:localize(@"resman.common.cancel", nil)
+                                               style:UIAlertActionStyleCancel handler:nil]];
+    [self presentViewController:alert animated:YES completion:nil];
+}
+
+// 跨实例键位同步（旧 ame229_syncKeybindsAcrossInstances 1:1 平移）
+- (void)ame229_syncKeybindsAcrossInstances {
+    NSArray<NSString *> *paths = [self ame229_allInstanceOptionsPaths];
+    if (paths.count < 2) {
+        [self ame344_showNotice:localize(@"ame229.keybind.sync.one_instance", nil)];
+        return;
+    }
+    // 源选择：优先“非默认键位行最多”的档，并列取 mtime 最新（已降序）
+    NSString *source = nil;
+    NSInteger bestCount = 0;
+    for (NSString *p in paths) {
+        NSArray<NSString *> *lines = [self ame229_linesOfOptions:p];
+        if (lines == nil) continue;
+        NSInteger cnt = 0;
+        for (NSString *ln in lines) {
+            if ([ln hasPrefix:@"key_key."]) cnt++;
+        }
+        if (cnt > bestCount) { bestCount = cnt; source = p; }
+    }
+    if (source == nil || bestCount == 0) {
+        [self ame344_showNotice:localize(@"ame229.keybind.sync.no_bindings", nil)];
+        return;
+    }
+    NSDictionary *sourceBindings = [self ame229_keybindsOfOptions:source];
+    if (sourceBindings.count == 0) {
+        [self ame344_showNotice:localize(@"ame229.keybind.sync.no_bindings", nil)];
+        return;
+    }
+    NSInteger syncedFiles = 0, addedRows = 0;
+    for (NSString *p in paths) {
+        if ([p isEqualToString:source]) continue;
+        NSArray<NSString *> *lines = [self ame229_linesOfOptions:p];
+        if (lines == nil) continue;
+        NSMutableSet *existing = [NSMutableSet set];
+        NSMutableArray<NSString *> *out = [NSMutableArray arrayWithArray:lines];
+        for (NSString *ln in lines) {
+            NSRange c = [ln rangeOfString:@":"];
+            if (c.location != NSNotFound) {
+                [existing addObject:[ln substringToIndex:c.location]];
+            }
+        }
+        NSInteger before = out.count;
+        for (NSString *key in sourceBindings) {
+            if (![existing containsObject:key]) {
+                NSString *row = [NSString stringWithFormat:@"%@:%@", key, sourceBindings[key]];
+                if (out.count > 0 && [out.lastObject isEqualToString:@""]) {
+                    [out insertObject:row atIndex:out.count - 1];
+                } else {
+                    [out addObject:row];
+                }
+            }
+        }
+        if (out.count > before) {
+            NSString *newContent = [out componentsJoinedByString:@"\n"];
+            if ([newContent writeToFile:p atomically:YES encoding:NSUTF8StringEncoding error:nil]) {
+                syncedFiles++;
+                addedRows += (out.count - before);
+            }
+        }
+    }
+    NSLog(@"[ZL2Settings] Task229 keybind sync: source=%@ (%ld binding rows) -> %ld file(s), %ld row(s) added",
+          source, (long)bestCount, (long)syncedFiles, (long)addedRows);
+    NSString *msg = [NSString stringWithFormat:localize(@"ame229.keybind.sync.done", nil),
+                     (long)syncedFiles, (long)addedRows];
+    [self ame344_showNotice:msg];
 }
 
 @end
@@ -751,9 +1502,11 @@ static NSString *ame_pages_stringOr(id value, NSString *fallback) {
 // ★ Task327：插件贡献行动态组（viewWillAppear 重建——插件启停/装载变化即反映）
 @property (nonatomic, strong) UIView *ame327_pluginHeader;
 @property (nonatomic, strong) ZL2SettingCardGroup *ame327_pluginGroup;
+// ★ Task344：自定义颜色选择（旧页 openColorPickerForKey 平移）
+@property (nonatomic, copy) NSString *ame344_pickingColorKey;
 @end
 
-@interface ZL2LauncherSettingsPage () <UIDocumentPickerDelegate>
+@interface ZL2LauncherSettingsPage () <UIDocumentPickerDelegate, UIColorPickerViewControllerDelegate>
 @end
 
 @implementation ZL2LauncherSettingsPage
@@ -776,12 +1529,6 @@ static NSString *ame_pages_stringOr(id value, NSString *fallback) {
     }
 }
 
-- (void)ame_presentVC:(UIViewController *)vc {
-    // 壳内宿主导航可达（设置页由 ZL2Shell 包 nav）；兜底顶栈 present
-    UIViewController *host = self.navigationController ?: self;
-    while (host.presentedViewController) host = host.presentedViewController;
-    [host presentViewController:vc animated:YES completion:nil];
-}
 
 - (void)documentPicker:(UIDocumentPickerViewController *)controller
 didPickDocumentsAtURLs:(NSArray<NSURL *> *)urls {
@@ -943,6 +1690,132 @@ didPickDocumentsAtURLs:(NSArray<NSURL *> *)urls {
     //   外观组之后第 2 位，进入首屏可视域。
     [self ame327_rebuildPluginRowsGroup];
 
+    // ── ★ Task344 旧设置全量迁移：外观进阶组（旧 general 分区核心）──
+    ZL2SettingCardGroup *advGroup = [[ZL2SettingCardGroup alloc] init];
+    // 界面风格（general.interface_style；写后延迟一拍重铺——Task226 闪退根修纪律）
+    NSArray<NSString *> *styleKeys = @[@"auto", @"native", @"liquid_glass", @"pseudo_glass"];
+    NSArray<NSString *> *styleNames = @[
+        localize(@"prisma.interface_style.auto", nil),
+        localize(@"prisma.interface_style.native", nil),
+        localize(@"prisma.interface_style.liquid_glass", nil),
+        localize(@"prisma.interface_style.pseudo_glass", nil),
+    ];
+    ZL2SettingRowList *styleRow =
+        [[ZL2SettingRowList alloc] initWithTitle:@"" subtitle:nil
+                                 options:styleNames optionKeys:styleKeys];
+    styleRow.title = localize(@"preference.title.interface_style", nil);
+    styleRow.subtitle = localize(@"preference.detail.interface_style", nil);
+    [styleRow ame_reloadSelectedIndex:(NSInteger)[styleKeys indexOfObject:
+        ame_pages_stringOr(getPrefObject(@"general.interface_style"), @"auto")]];
+    styleRow.onSelect = ^(NSInteger index) {
+        if (index < 0 || (NSUInteger)index >= styleKeys.count) return;
+        setPrefString(@"general.interface_style", styleKeys[index]);
+        // Task226：弹层收起事务先落地，重铺在干净事务边界执行
+        dispatch_async(dispatch_get_main_queue(), ^{
+            [[BackgroundManager sharedManager] refreshUIEffect];
+            [[NSNotificationCenter defaultCenter] postNotificationName:@"BackgroundUIEffectChanged" object:nil];
+        });
+    };
+    [advGroup ame_addRow:styleRow];
+    // 伪玻璃透明度（Task263/276：游戏内也可调，不灰禁）
+    ZL2SettingRowSlider *pseudoRow =
+        [[ZL2SettingRowSlider alloc] initWithTitle:@"" subtitle:nil minimum:0 maximum:100 suffix:@"%"];
+    pseudoRow.title = localize(@"preference.title.pseudo_glass_transparency", nil);
+    pseudoRow.subtitle = localize(@"preference.detail.pseudo_glass_transparency", nil);
+    [pseudoRow ame_setValue:(NSInteger)getPrefFloat(@"general.pseudo_glass_transparency")];
+    pseudoRow.onValueChanged = ^(NSInteger value) {
+        setPrefFloat(@"general.pseudo_glass_transparency", (float)value);
+    };
+    // 界面缩放 / 文字缩放（85-125 / 85-130，旧页同域）
+    ZL2SettingRowSlider *uiScaleRow =
+        [[ZL2SettingRowSlider alloc] initWithTitle:@"" subtitle:nil minimum:85 maximum:125 suffix:@"%"];
+    uiScaleRow.title = localize(@"preference.title.ui_scale", nil);
+    uiScaleRow.subtitle = localize(@"preference.detail.ui_scale", nil);
+    [uiScaleRow ame_setValue:(NSInteger)getPrefFloat(@"general.ui_scale")];
+    uiScaleRow.onValueChanged = ^(NSInteger value) {
+        setPrefFloat(@"general.ui_scale", (float)value);
+    };
+    ZL2SettingRowSlider *textScaleRow =
+        [[ZL2SettingRowSlider alloc] initWithTitle:@"" subtitle:nil minimum:85 maximum:130 suffix:@"%"];
+    textScaleRow.title = localize(@"preference.title.text_scale", nil);
+    textScaleRow.subtitle = localize(@"preference.detail.text_scale", nil);
+    [textScaleRow ame_setValue:(NSInteger)getPrefFloat(@"general.text_scale")];
+    textScaleRow.onValueChanged = ^(NSInteger value) {
+        setPrefFloat(@"general.text_scale", (float)value);
+    };
+    [advGroup ame_addRows:@[pseudoRow, uiScaleRow, textScaleRow]];
+    // 旧壳侧栏隐藏（新壳无侧栏语义——保留键写入兼容但标注现状）
+    ZL2SettingRowSwitch *sidebarRow =
+        [[ZL2SettingRowSwitch alloc] initWithTitle:@"" subtitle:nil];
+    sidebarRow.title = localize(@"preference.title.hidden_sidebar", nil);
+    sidebarRow.subtitle = localize(@"preference.detail.hidden_sidebar", nil);
+    [sidebarRow ame_setOn:getPrefBool(@"general.hidden_sidebar")];
+    sidebarRow.onToggle = ^(BOOL on) {
+        setPrefBool(@"general.hidden_sidebar", on);
+    };
+    [advGroup ame_addRow:sidebarRow];
+    // 自定义三色（强调/文字/卡片，UIColorPicker 平移）+ 一键还原
+    ZL2SettingRowAction *accentRow =
+        [[ZL2SettingRowAction alloc] initWithTitle:@"" subtitle:nil];
+    accentRow.title = localize(@"i18n_str_383", nil);
+    accentRow.subtitle = localize(@"preference.detail.custom_accent_color", nil);
+    accentRow.onTap = ^{ [weakSelf ame344_openColorPickerForKey:@"general.accent_color" title:localize(@"i18n_str_383", nil)]; };
+    ZL2SettingRowAction *textColorRow =
+        [[ZL2SettingRowAction alloc] initWithTitle:@"" subtitle:nil];
+    textColorRow.title = localize(@"i18n_str_384", nil);
+    textColorRow.subtitle = localize(@"preference.detail.custom_text_color", nil);
+    textColorRow.onTap = ^{ [weakSelf ame344_openColorPickerForKey:@"general.text_color" title:localize(@"i18n_str_384", nil)]; };
+    ZL2SettingRowAction *cardColorRow =
+        [[ZL2SettingRowAction alloc] initWithTitle:@"" subtitle:nil];
+    cardColorRow.title = localize(@"i18n_str_385", nil);
+    cardColorRow.subtitle = localize(@"preference.detail.custom_card_color", nil);
+    cardColorRow.onTap = ^{ [weakSelf ame344_openColorPickerForKey:@"general.card_color" title:localize(@"i18n_str_385", nil)]; };
+    ZL2SettingRowAction *resetColorsRow =
+        [[ZL2SettingRowAction alloc] initWithTitle:@"" subtitle:nil];
+    resetColorsRow.title = localize(@"i18n_str_386", nil);
+    resetColorsRow.subtitle = @"恢复强调色/文字色/卡片色出厂默认";
+    resetColorsRow.onTap = ^{
+        setPrefObject(@"general.accent_color", @"");
+        setPrefObject(@"general.text_color", @"");
+        setPrefObject(@"general.card_color", @"");
+        [[NSNotificationCenter defaultCenter] postNotificationName:@"LauncherAppearanceChanged" object:nil];
+    };
+    [advGroup ame_addRows:@[accentRow, textColorRow, cardColorRow, resetColorsRow]];
+    // 应用图标（默认/自定义图库两态；CustomIconManager 链平移）
+    NSArray<NSString *> *iconKeys = @[@"AppIcon-Light", @"CustomIcon"];
+    NSArray<NSString *> *iconNames = @[
+        localize(@"preference.title.appicon-default", nil),
+        localize(@"preference.title.appicon-custom", nil),
+    ];
+    ZL2SettingRowList *iconRow =
+        [[ZL2SettingRowList alloc] initWithTitle:@"" subtitle:nil
+                                 options:iconNames optionKeys:iconKeys];
+    iconRow.title = localize(@"preference.title.appicon", nil);
+    iconRow.subtitle = localize(@"preference.detail.appicon", nil);
+    BOOL hasCustom = [[CustomIconManager sharedManager] hasCustomIcon];
+    [iconRow ame_reloadSelectedIndex:(hasCustom ? 1 : 0)];
+    iconRow.onSelect = ^(NSInteger index) {
+        if (index == 0) {
+            [[CustomIconManager sharedManager] removeCustomIcon];
+            [UIApplication.sharedApplication setAlternateIconName:nil completionHandler:nil];
+        } else {
+            if (![[CustomIconManager sharedManager] hasCustomIcon]) {
+                [weakSelf ame_presentVC:([UIAlertController
+                    alertControllerWithTitle:localize(@"i18n_str_388", nil)
+                                      message:localize(@"i18n_str_389", nil)
+                               preferredStyle:UIAlertControllerStyleAlert])];
+                return;
+            }
+            [[CustomIconManager sharedManager] setCustomIconWithCompletion:^(BOOL success, NSError * _Nullable error) {
+                if (!success && error) {
+                    NSLog(@"[ZL2Settings] appicon error: %@", error);
+                }
+            }];
+        }
+    };
+    [advGroup ame_addRow:iconRow];
+    [self ame_addGroup:advGroup];
+
     // --- 组 2：下载源（download.* 四分类真键；值域 official/mirror/speed_first）---
     NSArray<NSString *> *sourceKeys = @[@"official_first", @"mirror_first", @"speed_first"];
     NSArray<NSString *> *sourceNames = @[
@@ -951,6 +1824,7 @@ didPickDocumentsAtURLs:(NSArray<NSURL *> *)urls {
         localize(@"preference.title.mirror_policy-speed_first", nil),
     ];
     NSDictionary<NSString *, NSString *> *sourceTitles = @{
+        @"download.mod_mirror":           @"模组镜像源",
         @"download.fileSource":          @"文件下载源",
         @"download.assetSearchSource":   @"资源搜索源",
         @"download.assetDownloadSource": @"资源下载源",
@@ -984,6 +1858,143 @@ didPickDocumentsAtURLs:(NSArray<NSURL *> *)urls {
     ZL2SettingCardGroup *group2 = [[ZL2SettingCardGroup alloc] init];
     [group2 ame_addRows:[sourceRows copy]];
     [self ame_addGroup:group2];
+
+    // ── ★ Task344 旧设置全量迁移：下载完整性与公告组 ──
+    ZL2SettingCardGroup *miscGroup = [[ZL2SettingCardGroup alloc] init];
+    // 下载完整性校验（general.check_sha）
+    ZL2SettingRowSwitch *shaRow =
+        [[ZL2SettingRowSwitch alloc] initWithTitle:@"" subtitle:nil];
+    shaRow.title = localize(@"preference.title.check_sha", nil);
+    shaRow.subtitle = localize(@"preference.detail.check_sha", nil);
+    [shaRow ame_setOn:getPrefBool(@"general.check_sha")];
+    shaRow.onToggle = ^(BOOL on) {
+        setPrefBool(@"general.check_sha", on);
+    };
+    // 多线程下载（general.multi_threaded）
+    ZL2SettingRowSwitch *mtRow =
+        [[ZL2SettingRowSwitch alloc] initWithTitle:@"" subtitle:nil];
+    mtRow.title = localize(@"i18n_str_387", nil);
+    mtRow.subtitle = localize(@"preference.detail.multi_threaded", nil);
+    [mtRow ame_setOn:getPrefBool(@"general.multi_threaded")];
+    mtRow.onToggle = ^(BOOL on) {
+        setPrefBool(@"general.multi_threaded", on);
+    };
+    // CurseForge API Key（表单页模态，旧页同款）
+    ZL2SettingRowAction *cfKeyRow =
+        [[ZL2SettingRowAction alloc] initWithTitle:@"" subtitle:nil];
+    cfKeyRow.title = localize(@"preference.title.curseforge_api_key", nil);
+    cfKeyRow.subtitle = localize(@"preference.detail.curseforge_api_key", nil);
+    cfKeyRow.onTap = ^{
+        CurseForgeAPIKeyViewController *vc = [[CurseForgeAPIKeyViewController alloc] init];
+        UINavigationController *nav = [[UINavigationController alloc] initWithRootViewController:vc];
+        nav.modalPresentationStyle = UIModalPresentationFormSheet;
+        [weakSelf ame_presentVC:nav];
+    };
+    [miscGroup ame_addRows:@[shaRow, mtRow, cfKeyRow]];
+    // 调试日志（general.debug_logging；游戏会话下轮生效——Task205 口径）
+    ZL2SettingRowSwitch *dbgLogRow =
+        [[ZL2SettingRowSwitch alloc] initWithTitle:@"" subtitle:nil];
+    dbgLogRow.title = localize(@"preference.title.debug_logging", nil);
+    dbgLogRow.subtitle = localize(@"preference.detail.debug_logging", nil);
+    [dbgLogRow ame_setOn:getPrefBool(@"general.debug_logging")];
+    dbgLogRow.onToggle = ^(BOOL on) {
+        debugLogEnabled = on;
+        NSLog(@"[Debugging] Debug log enabled: %@ (renderer diagnostics verbose from next game session)", on ? @"YES" : @"NO");
+    };
+    // 公告预览等级（full/summary/title_only）
+    NSArray<NSString *> *apvKeys = @[@"full", @"summary", @"title_only"];
+    NSArray<NSString *> *apvNames = @[
+        localize(@"i18n_str_390", nil),
+        localize(@"i18n_str_391", nil),
+        localize(@"i18n_str_392", nil),
+    ];
+    ZL2SettingRowList *apvRow =
+        [[ZL2SettingRowList alloc] initWithTitle:@"" subtitle:nil
+                                 options:apvNames optionKeys:apvKeys];
+    apvRow.title = localize(@"preference.title.announcement_preview_level", nil);
+    apvRow.subtitle = localize(@"preference.detail.announcement_preview_level", nil);
+    [apvRow ame_reloadSelectedIndex:(NSInteger)[apvKeys indexOfObject:
+        ame_pages_stringOr(getPrefObject(@"general.announcement_preview_level"), @"full")]];
+    apvRow.onSelect = ^(NSInteger index) {
+        if (index < 0 || (NSUInteger)index >= apvKeys.count) return;
+        setPrefString(@"general.announcement_preview_level", apvKeys[index]);
+    };
+    [miscGroup ame_addRows:@[dbgLogRow, apvRow]];
+    [self ame_addGroup:miscGroup];
+
+    // ── ★ Task344 旧设置全量迁移：数据管理组（导出/导入/兄弟迁移/重置）──
+    ZL2SettingCardGroup *dataGroup = [[ZL2SettingCardGroup alloc] init];
+    ZL2SettingRowAction *exportRow =
+        [[ZL2SettingRowAction alloc] initWithTitle:@"" subtitle:nil];
+    exportRow.title = localize(@"preference.title.data_export", nil);
+    exportRow.subtitle = localize(@"preference.detail.data_export", nil);
+    exportRow.onTap = ^{
+        [weakSelf ame_push:[[DataExportViewController alloc] init]
+                   titled:localize(@"preference.title.data_export", nil)];
+    };
+    ZL2SettingRowAction *importRow2 =
+        [[ZL2SettingRowAction alloc] initWithTitle:@"" subtitle:nil];
+    importRow2.title = localize(@"preference.title.data_import", nil);
+    importRow2.subtitle = localize(@"preference.detail.data_import", nil);
+    importRow2.onTap = ^{
+        [[DataTransferService sharedService] importDataFromViewController:weakSelf];
+    };
+    ZL2SettingRowAction *siblingRow =
+        [[ZL2SettingRowAction alloc] initWithTitle:@"" subtitle:nil];
+    siblingRow.title = localize(@"preference.title.data_sibling_import", nil);
+    siblingRow.subtitle = localize(@"preference.detail.data_sibling_import", nil);
+    siblingRow.onTap = ^{
+        [weakSelf ame261_siblingImportTapped];
+    };
+    ZL2SettingRowAction *eraseDemoRow =
+        [[ZL2SettingRowAction alloc] initWithTitle:@"" subtitle:nil];
+    eraseDemoRow.title = localize(@"preference.title.erase_demo_data", nil);
+    eraseDemoRow.subtitle = @"删除内置演示账户的全部游戏数据";
+    eraseDemoRow.errorState = YES;
+    eraseDemoRow.onTap = ^{
+        NSString *demoPath = [NSString stringWithFormat:@"%s/.demo", getenv("POJAV_HOME")];
+        BOOL hasDemo = [NSFileManager.defaultManager contentsOfDirectoryAtPath:demoPath error:nil].count > 0;
+        if (!hasDemo || !ame_pages_whenNotInGame()) return;
+        [ZL2M3Dialog showTitle:localize(@"preference.title.erase_demo_data", nil)
+                          body:localize(@"preference.title.confirm.erase_demo_data", nil)
+                  confirmTitle:localize(@"OK", nil)
+                   destructive:YES
+                    onConfirm:^{
+            NSError *error;
+            if ([NSFileManager.defaultManager removeItemAtPath:demoPath error:&error]) {
+                [NSFileManager.defaultManager createDirectoryAtPath:demoPath
+                                        withIntermediateDirectories:YES attributes:nil error:nil];
+            } else {
+                NSLog(@"[ZL2Settings] erase_demo_data error: %@", error);
+            }
+        }
+                      onCancel:nil];
+    };
+    ZL2SettingRowAction *resetWarnRow =
+        [[ZL2SettingRowAction alloc] initWithTitle:@"" subtitle:nil];
+    resetWarnRow.title = localize(@"preference.title.reset_warnings", nil);
+    resetWarnRow.subtitle = @"重新显示此前永久关闭的安全提示";
+    resetWarnRow.onTap = ^{
+        resetWarnings();
+    };
+    ZL2SettingRowAction *resetSetRow =
+        [[ZL2SettingRowAction alloc] initWithTitle:@"" subtitle:nil];
+    resetSetRow.title = localize(@"preference.title.reset_settings", nil);
+    resetSetRow.subtitle = @"所有自定义首选项恢复出厂";
+    resetSetRow.errorState = YES;
+    resetSetRow.onTap = ^{
+        [ZL2M3Dialog showTitle:localize(@"preference.title.reset_settings", nil)
+                          body:localize(@"preference.title.confirm.reset_settings", nil)
+                  confirmTitle:localize(@"OK", nil)
+                   destructive:YES
+                    onConfirm:^{
+            loadPreferences(YES);
+            [weakSelf ame_rebuildGroups];
+        }
+                      onCancel:nil];
+    };
+    [dataGroup ame_addRows:@[exportRow, importRow2, siblingRow, eraseDemoRow, resetWarnRow, resetSetRow]];
+    [self ame_addGroup:dataGroup];
 
     // --- 组 3：入口 ---
     ZL2SettingCardGroup *group3 = [[ZL2SettingCardGroup alloc] init];
@@ -1138,6 +2149,88 @@ didPickDocumentsAtURLs:(NSArray<NSURL *> *)urls {
         [self.sourceRows[i] ame_reloadSelectedIndex:
             valid ? (NSInteger)[sourceKeys indexOfObject:value] : 2];
     }
+}
+
+#pragma mark - Task344 旧 general 分区助手（旧 VC 平移）
+
+// 自定义颜色选择（旧 openColorPickerForKey 平移；iOS 14+ UIColorPicker）
+- (void)ame344_openColorPickerForKey:(NSString *)fullKey title:(NSString *)title {
+    UIColorPickerViewController *picker = [[UIColorPickerViewController alloc] init];
+    picker.title = title;
+    picker.delegate = self;
+    UIColor *current = ame_pages_colorFromHex(getPrefObject(fullKey));
+    if (current) picker.selectedColor = current;
+    self.ame344_pickingColorKey = fullKey;
+    [self ame_presentVC:picker];
+}
+
+- (void)colorPickerViewControllerDidFinish:(UIColorPickerViewController *)viewController {
+    NSString *key = self.ame344_pickingColorKey;
+    self.ame344_pickingColorKey = nil;
+    if (!key) return;
+    setPrefObject(key, ame_pages_hexFromColor(viewController.selectedColor));
+    [[NSNotificationCenter defaultCenter] postNotificationName:@"LauncherAppearanceChanged" object:nil];
+}
+
+// 兄弟安装数据迁移入口（旧 ame261_siblingImportTapped 1:1 平移）
+- (void)ame261_siblingImportTapped {
+    NSArray<NSDictionary *> *ame261_siblings = [DataTransferService ame260_scanSiblingLauncherHomes];
+    if (ame261_siblings.count == 0) {
+        [self ame344_showNotice:localize(@"prefs.data_sibling.none", nil)];
+        return;
+    }
+    NSDictionary *ame261_best = ame261_siblings.firstObject;
+    NSString *ame261_src = ame261_best[@"path"];
+    unsigned long long ame261_bytes = [ame261_best[@"bytes"] unsignedLongLongValue];
+    NSString *ame261_sizeText = ame261_bytes >= (1ULL << 30)
+        ? [NSString stringWithFormat:@"%.1f GB", (double)ame261_bytes / (double)(1ULL << 30)]
+        : [NSString stringWithFormat:@"%llu MB", ame261_bytes / (1ULL << 20)];
+    // Task321：来源身份标注（prisma1/prisma2/prisma-plugins/legacy）+ 数据量
+    NSString *ame261_kind = ame261_best[@"kind"] ?: @"legacy";
+    NSString *ame261_kindText = localize(
+        [@"welcome.data.sibling.kind." stringByAppendingString:ame261_kind], nil);
+    NSString *ame261_msg = [NSString stringWithFormat:
+        localize(@"welcome.data.sibling.desc2", nil), ame261_kindText, ame261_sizeText];
+    UIAlertController *ame261_confirm = [UIAlertController
+        alertControllerWithTitle:localize(@"welcome.data.sibling.title", nil)
+                         message:ame261_msg
+                  preferredStyle:UIAlertControllerStyleAlert];
+    __weak typeof(self) weakSelf = self;
+    void (^ame321_run)(Ame321SiblingMigrationMode) = ^(Ame321SiblingMigrationMode ame321_mode) {
+        [DataTransferService.sharedService
+            ame321_migrateFromSiblingHome:ame261_src mode:ame321_mode presenter:weakSelf
+                               completion:^(BOOL ok, NSString *message) {
+            UIAlertController *ame261_done = [UIAlertController
+                alertControllerWithTitle:(ok ? localize(@"welcome.data.sibling.title", nil)
+                                              : localize(@"i18n_str_108", nil))
+                                 message:message
+                          preferredStyle:UIAlertControllerStyleAlert];
+            [ame261_done addAction:[UIAlertAction actionWithTitle
+                :localize(@"i18n_str_44", @"OK") style:UIAlertActionStyleCancel handler:nil]];
+            [weakSelf ame_presentVC:ame261_done];
+        }];
+    };
+    [ame261_confirm addAction:[UIAlertAction actionWithTitle
+        :localize(@"welcome.data.sibling.confirm.smart", nil) style:UIAlertActionStyleDefault handler:^(UIAlertAction *a) {
+        ame321_run(Ame321SiblingMigrationModeSmart);
+    }]];
+    [ame261_confirm addAction:[UIAlertAction actionWithTitle
+        :localize(@"welcome.data.sibling.confirm.overwrite", nil) style:UIAlertActionStyleDestructive handler:^(UIAlertAction *a) {
+        ame321_run(Ame321SiblingMigrationModeOverwrite);
+    }]];
+    [ame261_confirm addAction:[UIAlertAction actionWithTitle
+        :localize(@"resman.common.cancel", @"Cancel") style:UIAlertActionStyleCancel handler:nil]];
+    [self ame_presentVC:ame261_confirm];
+}
+
+// 轻反馈（与控制屏 ame344_showNotice 同形；本页独立实现避免跨页类别）
+- (void)ame344_showNotice:(NSString *)text {
+    UIAlertController *alert = [UIAlertController alertControllerWithTitle:nil
+                                                                   message:text
+                                                            preferredStyle:UIAlertControllerStyleAlert];
+    [alert addAction:[UIAlertAction actionWithTitle:localize(@"OK", nil)
+                                              style:UIAlertActionStyleDefault handler:nil]];
+    [self ame_presentVC:alert];
 }
 
 @end
@@ -1706,6 +2799,227 @@ didPickDocumentsAtURLs:(NSArray<NSURL *> *)urls {
 // 轻量反馈（复制成功等）；无独立 toast 组件，沿用既有 alert 形态（无标题）
 - (void)ame_showNoticeText:(NSString *)text {
     [self ame_showUpdateAlertWithTitle:nil message:text];
+}
+
+@end
+
+#pragma mark - ⑤b AI 屏（Task344 旧设置全量迁移：ai 分区入新UI）
+
+@implementation ZL2AISettingsPage
+
+- (void)ame_buildGroups {
+    __weak typeof(self) weakSelf = self;
+
+    // --- 组 1：提供商与会话（旧 ai 分区入口行平移）---
+    ZL2SettingCardGroup *group1 = [[ZL2SettingCardGroup alloc] init];
+    ZL2SettingRowAction *providerRow =
+        [[ZL2SettingRowAction alloc] initWithTitle:@"" subtitle:nil];
+    providerRow.title = localize(@"preference.title.provider_config", nil);
+    providerRow.subtitle = @"配置 API 地址与密钥（OpenAI 兼容协议）";
+    providerRow.onTap = ^{
+        AIProviderConfigViewController *vc = [[AIProviderConfigViewController alloc] init];
+        UINavigationController *nav = [[UINavigationController alloc] initWithRootViewController:vc];
+        nav.modalPresentationStyle = UIModalPresentationFormSheet;
+        [weakSelf ame_presentVC:nav];
+    };
+    ZL2SettingRowAction *sessionRow =
+        [[ZL2SettingRowAction alloc] initWithTitle:@"" subtitle:nil];
+    sessionRow.title = localize(@"preference.title.session_list", nil);
+    sessionRow.subtitle = @"查看与继续历史 AI 对话";
+    sessionRow.onTap = ^{
+        AISessionListViewController *vc = [[AISessionListViewController alloc] init];
+        UINavigationController *nav = [[UINavigationController alloc] initWithRootViewController:vc];
+        nav.modalPresentationStyle = UIModalPresentationFormSheet;
+        [weakSelf ame_presentVC:nav];
+    };
+    // 系统提示词（编辑器模态，旧页同款）
+    ZL2SettingRowAction *promptRow =
+        [[ZL2SettingRowAction alloc] initWithTitle:@"" subtitle:nil];
+    promptRow.title = localize(@"preference.title.system_prompt", nil);
+    promptRow.subtitle = @"自定义注入对话的系统级提示词";
+    promptRow.onTap = ^{
+        AISystemPromptEditorViewController *vc = [[AISystemPromptEditorViewController alloc] init];
+        UINavigationController *nav = [[UINavigationController alloc] initWithRootViewController:vc];
+        nav.modalPresentationStyle = UIModalPresentationFormSheet;
+        [weakSelf ame_presentVC:nav];
+    };
+    [group1 ame_addRows:@[providerRow, sessionRow, promptRow]];
+    [self ame_addGroup:group1];
+
+    // --- 组 2：行为开关（安全模式三档 + Markdown 渲染）---
+    ZL2SettingCardGroup *group2 = [[ZL2SettingCardGroup alloc] init];
+    NSArray<NSString *> *safetyKeys = @[@"safe", @"ask", @"yolo"];
+    NSArray<NSString *> *safetyNames = @[
+        localize(@"ame189.ai.safety_safe", nil),
+        localize(@"ame189.ai.safety_ask", nil),
+        localize(@"ame189.ai.safety_yolo", nil),
+    ];
+    ZL2SettingRowList *safetyRow =
+        [[ZL2SettingRowList alloc] initWithTitle:@"" subtitle:nil
+                                 options:safetyNames optionKeys:safetyKeys];
+    safetyRow.title = localize(@"preference.title.safety_mode", nil);
+    safetyRow.subtitle = localize(@"preference.detail.safety_mode", nil);
+    [safetyRow ame_reloadSelectedIndex:(NSInteger)[safetyKeys indexOfObject:
+        ame_pages_stringOr(getPrefObject(@"ai.safety_mode"), @"ask")]];
+    safetyRow.onSelect = ^(NSInteger index) {
+        if (index < 0 || (NSUInteger)index >= safetyKeys.count) return;
+        setPrefString(@"ai.safety_mode", safetyKeys[index]);
+    };
+    ZL2SettingRowSwitch *markdownRow =
+        [[ZL2SettingRowSwitch alloc] initWithTitle:@"" subtitle:nil];
+    markdownRow.title = localize(@"preference.title.markdown_enabled", nil);
+    markdownRow.subtitle = @"AI 回复以 Markdown 格式渲染";
+    [markdownRow ame_setOn:getPrefBool(@"ai.markdown_enabled")];
+    markdownRow.onToggle = ^(BOOL on) {
+        setPrefBool(@"ai.markdown_enabled", on);
+    };
+    [group2 ame_addRows:@[safetyRow, markdownRow]];
+    [self ame_addGroup:group2];
+}
+
+- (void)ame_refreshState {
+    [self ame_rebuildGroups];
+}
+
+@end
+
+#pragma mark - ⑤c 调试屏（Task344 旧设置全量迁移：debug 分区入新UI）
+
+@implementation ZL2DebugSettingsPage
+
+- (void)ame_buildGroups {
+    __weak typeof(self) weakSelf = self;
+
+    // --- 组 1：JIT 调度（jit_enabler 八档 + 内置 JIT 管理入口）---
+    ZL2SettingCardGroup *group1 = [[ZL2SettingCardGroup alloc] init];
+    NSArray<NSString *> *jitKeys = @[
+        @"auto", @"builtin", @"stikjit", @"sidestore",
+        @"stosdebug", @"jitstreamer", @"trollstore", @"manual",
+    ];
+    NSArray<NSString *> *jitNames = @[
+        localize(@"preference.debug.jit_enabler.auto", nil),
+        localize(@"preference.debug.jit_enabler.builtin", nil),
+        localize(@"preference.debug.jit_enabler.stikjit", nil),
+        localize(@"preference.debug.jit_enabler.sidestore", nil),
+        localize(@"preference.debug.jit_enabler.stosdebug", nil),
+        localize(@"preference.debug.jit_enabler.jitstreamer", nil),
+        localize(@"preference.debug.jit_enabler.trollstore", nil),
+        localize(@"preference.debug.jit_enabler.manual", nil),
+    ];
+    ZL2SettingRowList *jitRow =
+        [[ZL2SettingRowList alloc] initWithTitle:@"" subtitle:nil
+                                 options:jitNames optionKeys:jitKeys];
+    jitRow.title = localize(@"preference.title.jit_enabler", nil);
+    jitRow.subtitle = localize(@"preference.detail.jit_enabler", nil);
+    [jitRow ame_reloadSelectedIndex:(NSInteger)[jitKeys indexOfObject:
+        ame_pages_stringOr(getPrefObject(@"debug.jit_enabler"), @"auto")]];
+    jitRow.onSelect = ^(NSInteger index) {
+        if (index < 0 || (NSUInteger)index >= jitKeys.count) return;
+        setPrefString(@"debug.jit_enabler", jitKeys[index]);
+    };
+    [group1 ame_addRow:jitRow];
+    // 内置 JIT 管理（Task291 配对文件 + 深链开启；表单模态旧页同款）
+    ZL2SettingRowAction *stikRow =
+        [[ZL2SettingRowAction alloc] initWithTitle:@"" subtitle:nil];
+    stikRow.title = localize(@"ame291.jit.pref_row", nil);
+    stikRow.subtitle = localize(@"preference.detail.ame291_builtin_jit", nil);
+    stikRow.onTap = ^{
+        StikDebugViewController *jitVC = [[StikDebugViewController alloc] init];
+        UINavigationController *nav = [[UINavigationController alloc] initWithRootViewController:jitVC];
+        nav.modalPresentationStyle = UIModalPresentationFormSheet;
+        [weakSelf ame_presentVC:nav];
+    };
+    [group1 ame_addRow:stikRow];
+    [self ame_addGroup:group1];
+
+    // --- 组 2：JIT 故障面（四开关；后两件有前置条件——旧页 enableCondition 同口径）---
+    ZL2SettingCardGroup *group2 = [[ZL2SettingCardGroup alloc] init];
+    ZL2SettingRowSwitch *jit26Row =
+        [[ZL2SettingRowSwitch alloc] initWithTitle:@"" subtitle:nil];
+    jit26Row.title = localize(@"preference.title.jit26_script_disable", nil);
+    jit26Row.subtitle = localize(@"preference.detail.jit26_script_disable", nil);
+    [jit26Row ame_setOn:getPrefBool(@"debug.jit26_script_disable")];
+    jit26Row.onToggle = ^(BOOL on) {
+        setPrefBool(@"debug.jit26_script_disable", on);
+    };
+    ZL2SettingRowSwitch *mirrorRow =
+        [[ZL2SettingRowSwitch alloc] initWithTitle:@"" subtitle:nil];
+    mirrorRow.title = localize(@"preference.title.mirror_codecache_disable", nil);
+    mirrorRow.subtitle = localize(@"preference.detail.mirror_codecache_disable", nil);
+    [mirrorRow ame_setOn:getPrefBool(@"debug.mirror_codecache_disable")];
+    mirrorRow.onToggle = ^(BOOL on) {
+        setPrefBool(@"debug.mirror_codecache_disable", on);
+    };
+    [group2 ame_addRows:@[jit26Row, mirrorRow]];
+    if (DeviceHasJITFlags(JIT_FLAG_FORCE_MIRRORED | JIT_FLAG_HAS_TXM) && ame_pages_whenNotInGame()) {
+        ZL2SettingRowSwitch *universalRow =
+            [[ZL2SettingRowSwitch alloc] initWithTitle:@"" subtitle:nil];
+        universalRow.title = localize(@"preference.title.debug_universal_script_jit", nil);
+        universalRow.subtitle = @"通用 JIT 脚本（TXM 设备实验特性）";
+        [universalRow ame_setOn:getPrefBool(@"debug.debug_universal_script_jit")];
+        universalRow.onToggle = ^(BOOL on) {
+            setPrefBool(@"debug.debug_universal_script_jit", on);
+        };
+        [group2 ame_addRow:universalRow];
+        if (getPrefBool(@"debug.debug_universal_script_jit")) {
+            ZL2SettingRowSwitch *attachedRow =
+                [[ZL2SettingRowSwitch alloc] initWithTitle:@"" subtitle:nil];
+            attachedRow.title = localize(@"preference.title.debug_always_attached_jit", nil);
+            attachedRow.subtitle = localize(@"preference.detail.debug_always_attached_jit", nil);
+            [attachedRow ame_setOn:getPrefBool(@"debug.debug_always_attached_jit")];
+            attachedRow.onToggle = ^(BOOL on) {
+                setPrefBool(@"debug.debug_always_attached_jit", on);
+            };
+            [group2 ame_addRow:attachedRow];
+        }
+    }
+    ZL2SettingRowSwitch *skipWaitRow =
+        [[ZL2SettingRowSwitch alloc] initWithTitle:@"" subtitle:nil];
+    skipWaitRow.title = localize(@"preference.title.debug_skip_wait_jit", nil);
+    skipWaitRow.subtitle = localize(@"preference.detail.debug_skip_wait_jit", nil);
+    [skipWaitRow ame_setOn:getPrefBool(@"debug.debug_skip_wait_jit")];
+    skipWaitRow.onToggle = ^(BOOL on) {
+        setPrefBool(@"debug.debug_skip_wait_jit", on);
+    };
+    [group2 ame_addRow:skipWaitRow];
+    [self ame_addGroup:group2];
+
+    // --- 组 3：界面调试（三开关）---
+    ZL2SettingCardGroup *group3 = [[ZL2SettingCardGroup alloc] init];
+    // 隐藏 Home 指示器（有底部安全区的设备才有意义——旧页同口径）
+    if (self.view.safeAreaInsets.bottom > 0) {
+        ZL2SettingRowSwitch *homeRow =
+            [[ZL2SettingRowSwitch alloc] initWithTitle:@"" subtitle:nil];
+        homeRow.title = localize(@"preference.title.debug_hide_home_indicator", nil);
+        homeRow.subtitle = localize(@"preference.detail.debug_hide_home_indicator", nil);
+        [homeRow ame_setOn:getPrefBool(@"debug.debug_hide_home_indicator")];
+        homeRow.onToggle = ^(BOOL on) {
+            setPrefBool(@"debug.debug_hide_home_indicator", on);
+        };
+        [group3 ame_addRow:homeRow];
+    }
+    ZL2SettingRowSwitch *ipadRow =
+        [[ZL2SettingRowSwitch alloc] initWithTitle:@"" subtitle:nil];
+    ipadRow.title = localize(@"preference.title.debug_ipad_ui", nil);
+    ipadRow.subtitle = localize(@"preference.detail.debug_ipad_ui", nil);
+    [ipadRow ame_setOn:getPrefBool(@"debug.debug_ipad_ui")];
+    ipadRow.onToggle = ^(BOOL on) {
+        setPrefBool(@"debug.debug_ipad_ui", on);
+    };
+    ZL2SettingRowSwitch *autoCorrRow =
+        [[ZL2SettingRowSwitch alloc] initWithTitle:@"" subtitle:nil];
+    autoCorrRow.title = localize(@"preference.title.debug_auto_correction", nil);
+    autoCorrRow.subtitle = localize(@"preference.detail.debug_auto_correction", nil);
+    [autoCorrRow ame_setOn:getPrefBool(@"debug.debug_auto_correction")];
+    autoCorrRow.onToggle = ^(BOOL on) {
+        setPrefBool(@"debug.debug_auto_correction", on);
+    };
+    [group3 ame_addRows:@[ipadRow, autoCorrRow]];
+    [self ame_addGroup:group3];
+}
+
+- (void)ame_refreshState {
+    [self ame_rebuildGroups];
 }
 
 @end

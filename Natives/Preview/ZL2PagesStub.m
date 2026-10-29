@@ -1388,6 +1388,18 @@ NSString * const DownloadTaskResourceTypeModpack = @"modpack";
 @implementation ZL2LauncherSettingsPage
 @end
 
+// ★ Task344：左轨扩容 8→10 新页桩（真实现在 ZL2SettingPages.m，桩仅满足
+//   链接期类符号——hub ame_pageForIndex case5/case6 新引用）
+@interface ZL2AISettingsPage : ZL2SettingPageStubBase
+@end
+@implementation ZL2AISettingsPage
+@end
+
+@interface ZL2DebugSettingsPage : ZL2SettingPageStubBase
+@end
+@implementation ZL2DebugSettingsPage
+@end
+
 @interface ZL2JavaManagerSettingsPage : ZL2SettingPageStubBase
 @end
 @implementation ZL2JavaManagerSettingsPage

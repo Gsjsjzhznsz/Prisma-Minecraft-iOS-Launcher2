@@ -355,6 +355,123 @@ static NSString *ame317_facadeSource(void) {
     }
 }
 
+// ═══ Task344：旧代插件清单开机自愈 ═══
+// 背景（用户实弹：装机日志「跳过损坏插件目录」×5）：一代备份内容经
+// Task319-321 期的旧位 plugins 符号链接写进现役根，一代 manifest 声明的
+// 权限 id（notify / theme.write / files.plugin）在现役注册表已退役——
+// fail-closed 校验全灭且无任何自愈路径，插件从此静默失踪。
+// 三段处置（装载循环前执行，幂等）：
+//   ① 权限谱系映射重写：notify→ui.dialog+ui.rows / theme.write→ui.theme /
+//      files.plugin→storage；映射表外未知 id 丢弃留痕（引擎本就无此执法
+//      面，丢弃零行为差）。先在内存字典预校验，通过才落盘。
+//   ② 官方件（目录含 .repo-official.json 标记）镜像安装期语义：全量授权 +
+//      自动启用；第三方仅按映射迁移既有授权键，启用交用户。
+//   ③ 不可自愈（JSON 解析失败 / 映射后预校验仍不过）：整目录改名隐藏隔离
+//      （.ame344-corrupt-<id>-<ts>，扫描器 hasPrefix@"." 天然跳过），仓库页
+//      视同未安装=一键重装；原始文件保留在隔离目录内供取证。
++ (void)ame344_healLegacyPluginDirs {
+    NSFileManager *fm = [NSFileManager defaultManager];
+    for (NSString *pid in [AmePluginManager installedPluginIds]) {
+        if ([AmePluginManager manifestForPlugin:pid]) continue;   // 健康，不动
+        NSString *dir = [AmePluginManager pluginDir:pid];
+        NSString *mfPath = [dir stringByAppendingPathComponent:@"manifest.json"];
+        NSData *raw = [NSData dataWithContentsOfFile:mfPath];
+        id json = raw ? [NSJSONSerialization JSONObjectWithData:raw options:0 error:nil] : nil;
+        if (![json isKindOfClass:[NSDictionary class]]) {
+            [self ame344_quarantinePluginDir:dir pluginId:pid
+                                      reason:(raw ? @"manifest.json 非 JSON 对象" : @"manifest.json 不可读")];
+            continue;
+        }
+        // ① 权限谱系映射（一代 Task318 注册表 → 现役注册表）
+        NSArray *oldPerms = [json objectForKey:@"permissions"];
+        if (![oldPerms isKindOfClass:[NSArray class]]) oldPerms = @[];
+        NSMutableArray *mapped = [NSMutableArray array];
+        NSMutableArray *notes = [NSMutableArray array];
+        BOOL changed = NO;
+        for (id p in oldPerms) {
+            if (![p isKindOfClass:[NSString class]]) { changed = YES; continue; }
+            NSString *op = p;
+            NSArray *to = nil;
+            if ([op isEqualToString:@"notify"])            to = @[@"ui.dialog", @"ui.rows"];
+            else if ([op isEqualToString:@"theme.write"])  to = @[@"ui.theme"];
+            else if ([op isEqualToString:@"files.plugin"]) to = @[@"storage"];
+            if (to) {
+                changed = YES;
+                [notes addObject:[NSString stringWithFormat:@"%@→%@", op, [to componentsJoinedByString:@"+"]]];
+                for (NSString *n in to) if (![mapped containsObject:n]) [mapped addObject:n];
+            } else if ([AmePluginPermissions isValidPermissionId:op]) {
+                if (![mapped containsObject:op]) [mapped addObject:op];
+            } else {
+                changed = YES;
+                [notes addObject:[NSString stringWithFormat:@"%@丢弃(未注册)", op]];
+            }
+        }
+        if (!changed) {
+            // 无权限面问题仍校验失败 = 结构性损坏（缺字段/超长/id 非法等）
+            AmePluginInstallResult code = AmePluginInstallErrBadSchema;
+            [AmePluginManager validateManifestDictionary:json errCode:&code];
+            [self ame344_quarantinePluginDir:dir pluginId:pid
+                                      reason:[NSString stringWithFormat:@"errCode=%ld", (long)code]];
+            continue;
+        }
+        // 预校验（不碰原文件，通过才落盘）
+        NSMutableDictionary *fixed = [json mutableCopy];
+        fixed[@"permissions"] = mapped;
+        AmePluginInstallResult code = AmePluginInstallErrBadSchema;
+        AmePluginManifest *m = [AmePluginManager validateManifestDictionary:fixed errCode:&code];
+        if (!m) {
+            [self ame344_quarantinePluginDir:dir pluginId:pid
+                                      reason:[NSString stringWithFormat:@"映射后 errCode=%ld", (long)code]];
+            continue;
+        }
+        NSData *out = [NSJSONSerialization dataWithJSONObject:fixed
+                                                      options:NSJSONWritingPrettyPrinted
+                                                        error:nil];
+        if (!out || ![out writeToFile:mfPath atomically:YES]) {
+            NSLog(@"[AmePlugin] Task344 自愈写盘失败: %@ -- 保留原样下轮重试", pid);
+            continue;
+        }
+        // ② 授权/启用面
+        BOOL official = [fm fileExistsAtPath:[dir stringByAppendingPathComponent:@".repo-official.json"]];
+        if (official) {
+            // 镜像 Task333 安装即时全量授语义（官方信任面=同仓库同发布者）
+            NSMutableDictionary *g = [NSMutableDictionary dictionary];
+            for (NSString *p in mapped) [g setObject:@1 forKey:p];
+            [AmePluginPermissions replaceGrants:g forPlugin:pid];
+            [AmePluginPermissions setPluginEnabled:YES pluginId:pid];
+        } else {
+            // 第三方：既有授权键按映射迁移（notify→ui.dialog/ui.rows 等），
+            // 启用状态不动（用户在详情页开）
+            NSDictionary *old = [AmePluginPermissions grantsForPlugin:pid];
+            for (NSString *p in mapped) {
+                if (old[p] != nil) continue;
+                NSString *legacySrc = nil;
+                if ([p isEqualToString:@"ui.dialog"] || [p isEqualToString:@"ui.rows"]) legacySrc = @"notify";
+                else if ([p isEqualToString:@"ui.theme"])  legacySrc = @"theme.write";
+                else if ([p isEqualToString:@"storage"])   legacySrc = @"files.plugin";
+                NSNumber *v = legacySrc ? old[legacySrc] : nil;
+                if (v) [AmePluginPermissions setGrant:v.boolValue forPlugin:pid permission:p];
+            }
+            [AmePluginPermissions flushState];
+        }
+        NSLog(@"[AmePlugin] Task344 旧代清单自愈: %@ (%@)%@", pid,
+              [notes componentsJoinedByString:@", "],
+              official ? @" official=全量授+启用" : @"");
+    }
+}
+
++ (void)ame344_quarantinePluginDir:(NSString *)dir pluginId:(NSString *)pid reason:(NSString *)reason {
+    NSString *ts = [NSString stringWithFormat:@"%lld", (long long)[NSDate date].timeIntervalSince1970];
+    NSString *name = [NSString stringWithFormat:@".ame344-corrupt-%@-%@", pid, ts];
+    NSString *dst = [[dir stringByDeletingLastPathComponent] stringByAppendingPathComponent:name];
+    NSError *err = nil;
+    if ([[NSFileManager defaultManager] moveItemAtPath:dir toPath:dst error:&err]) {
+        NSLog(@"[AmePlugin] Task344 损坏插件目录已隔离: %@ (%@) -- 可在插件仓库页重装", pid, reason);
+    } else {
+        NSLog(@"[AmePlugin] Task344 损坏插件目录隔离失败: %@ (%@) err=%@", pid, reason, err.localizedDescription);
+    }
+}
+
 + (void)bootIfNeeded {
     if (![NSThread isMainThread]) {
         dispatch_async(dispatch_get_main_queue(), ^{ [self bootIfNeeded]; });
@@ -374,6 +491,10 @@ static NSString *ame317_facadeSource(void) {
     // ★ Task330：首方内容自愈（旧代 main.js 安装副本升级到包内现役版，
     //   贡献行/尾日志/效果面全部复活；先于装载循环 = 装载必是新件）
     [self ame330_refreshFirstPartyContent];
+
+    // ★ Task344：旧代清单自愈（一代备份灌入的旧权限 id manifest 开机映射
+    //   修复/隔离，先于装载循环 = 能修的本轮即复活，修不了的不再刷屏）
+    [self ame344_healLegacyPluginDirs];
 
     // ★ Task332：ObjC 桥面启动自证 —— CI node 桩冒烟从未覆盖 JSC↔ObjC
     //   桥面（语义面盲区第八例，Task331 入档）。一次性 JSContext 注入真实
@@ -400,7 +521,16 @@ static NSString *ame317_facadeSource(void) {
     for (NSString *pid in [AmePluginManager installedPluginIds]) {
         AmePluginManifest *m = [AmePluginManager manifestForPlugin:pid];
         if (!m) {
-            NSLog(@"[AmePlugin] 跳过损坏插件目录: %@", pid);
+            // Task344：带原因留痕（自愈后仍失败=结构性损坏，正常已被隔离，
+            // 此分支仅在隔离失败等病态时可达）
+            NSData *ame344_raw = [NSData dataWithContentsOfFile:
+                [[AmePluginManager pluginDir:pid] stringByAppendingPathComponent:@"manifest.json"]];
+            id ame344_json = ame344_raw ? [NSJSONSerialization JSONObjectWithData:ame344_raw options:0 error:nil] : nil;
+            AmePluginInstallResult ame344_code = ame344_raw ? AmePluginInstallErrBadJSON : AmePluginInstallErrNoManifest;
+            if ([ame344_json isKindOfClass:[NSDictionary class]]) {
+                [AmePluginManager validateManifestDictionary:ame344_json errCode:&ame344_code];
+            }
+            NSLog(@"[AmePlugin] 跳过损坏插件目录: %@ (errCode=%ld) -- 可在插件仓库页重装", pid, (long)ame344_code);
             continue;
         }
         if (![AmePluginPermissions pluginEnabled:pid]) continue;

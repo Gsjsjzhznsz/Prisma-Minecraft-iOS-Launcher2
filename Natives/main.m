@@ -691,6 +691,34 @@ void init_setupPCLLayout() {
                 NSLog(@"[Pre-init] Task319: plugins migration failed (%@) -- keeps legacy layout this launch", ame319_plErr.localizedDescription);
             }
         }
+    } else {
+        // ★ Task344：旧位真实目录增量收编（zip 导入曾在旧位重建 plugins/
+        //   真实目录=文件页新旧并存回潮+引擎永不可读的死数据）。现役根已
+        //   存在时按 id 合流：现役根没有的同 id 整体移入（装载期 Task344
+        //   自愈判定去留），已有的同 id 保留现役版；收编后旧位连根清除。
+        NSDictionary *lpAttrs = [fm attributesOfItemAtPath:legacyPlugins error:nil];
+        if (lpAttrs && [lpAttrs fileType] == NSFileTypeDirectory) {
+            NSInteger ame344_adopted = 0, ame344_keptCurrent = 0;
+            for (NSString *ame344_pid in [fm contentsOfDirectoryAtPath:legacyPlugins error:nil]) {
+                if ([ame344_pid hasPrefix:@"."]) continue;
+                NSString *ame344_src = [legacyPlugins stringByAppendingPathComponent:ame344_pid];
+                NSString *ame344_dst = [prismaPlugins stringByAppendingPathComponent:ame344_pid];
+                BOOL ame344_srcDir = NO;
+                if (![fm fileExistsAtPath:ame344_src isDirectory:&ame344_srcDir] || !ame344_srcDir) continue;
+                if ([fm fileExistsAtPath:ame344_dst]) { ame344_keptCurrent++; continue; } // 现役版优先
+                if ([fm moveItemAtPath:ame344_src toPath:ame344_dst error:nil]) ame344_adopted++;
+            }
+            // 旧位的 state.json（一代授权账本）不搬：授权以现役根账本 +
+            // Task344 装载期自愈映射为准。
+            NSError *ame344_rmErr = nil;
+            if ([fm removeItemAtPath:legacyPlugins error:&ame344_rmErr]) {
+                NSLog(@"[Pre-init] Task344: stray legacy plugins/ root adopted (moved=%ld keptCurrent=%ld, root removed)",
+                      (long)ame344_adopted, (long)ame344_keptCurrent);
+            } else if (ame344_adopted > 0 || ame344_keptCurrent > 0) {
+                NSLog(@"[Pre-init] Task344: stray legacy plugins/ root partially adopted (moved=%ld keptCurrent=%ld, remove failed: %@)",
+                      (long)ame344_adopted, (long)ame344_keptCurrent, ame344_rmErr.localizedDescription);
+            }
+        }
     }
 
     // —— 4) AI → Prisma2/AI（真实目录整体 move；App 内路径已全量切 Prisma2/AI，旧位不留链接）

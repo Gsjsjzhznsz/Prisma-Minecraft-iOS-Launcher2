@@ -262,15 +262,18 @@ static UIImage *ame_hubSystemImage(NSString *name, NSString *fallback) {
         [_railStack.trailingAnchor constraintLessThanOrEqualToAnchor:_railScrollView.contentLayoutGuide.trailingAnchor constant:-4.0],
     ]];
 
-    // —— 轨项装配（8 项 + 2 条组分隔线；组间 custom spacing 6 呼吸）——
-    //   0 渲染器 / 1 游戏 / 2 控制 / 3 手柄 / 4 启动器 ｜ 5 Java 管理 /
-    //   6 控制管理 ｜ 7 关于
+    // —— 轨项装配（Task344 扩容 8→10 项 + 3 条组分隔线；组间 custom spacing 6 呼吸）——
+    //   0 渲染器 / 1 游戏 / 2 控制 / 3 手柄 / 4 启动器 ｜ 5 AI / 6 调试 ｜
+    //   7 Java 管理 / 8 控制管理 ｜ 9 关于
+    //   （AI/调试插在启动器后：主页插件 chip 定点 index=4 不受影响）
     NSArray<NSArray<NSString *> *> *defs = @[
         @[@"渲染器",   @"cpu",                       @"gearshape"],
         @[@"游戏",     @"gamecontroller",            @""],
         @[@"控制",     @"hand.tap",                  @"hand.point.up.left"],
         @[@"手柄",     @"gamecontroller.fill",       @"gamecontroller"],
         @[@"启动器",   @"gearshape.fill",            @"gear"],
+        @[@"AI",       @"sparkles",                  @""],
+        @[@"调试",     @"ladybug",                   @"ant.fill"],
         @[@"Java 管理", @"wrench.and.screwdriver",   @"wrench"],
         @[@"控制管理", @"square.on.square",          @"square.split.2x1"],
         @[@"关于",     @"info.circle",               @""],
@@ -285,9 +288,9 @@ static UIImage *ame_hubSystemImage(NSString *name, NSString *fallback) {
         [_railStack addArrangedSubview:item];
         [_railItems addObject:item];
 
-        // 组分隔线：4→5（启动器｜Java管理/控制管理）与 6→7（控制管理｜关于）；
-        // 分隔线两侧 custom spacing 6 呼吸（组间距语义）
-        if (i == 4 || i == 6) {
+        // 组分隔线：4→5（启动器｜AI/调试）、6→7（调试｜Java管理/控制管理）
+        // 与 8→9（控制管理｜关于）；分隔线两侧 custom spacing 6 呼吸（组间距语义）
+        if (i == 4 || i == 6 || i == 8) {
             [_railStack setCustomSpacing:6.0 afterView:item];
             UIView *separator = [[UIView alloc] init];
             separator.backgroundColor =
@@ -354,9 +357,11 @@ static UIImage *ame_hubSystemImage(NSString *name, NSString *fallback) {
         case 2: page = [[ZL2ControlSettingsPage alloc] init];         break;
         case 3: page = [[ZL2GamepadSettingsPage alloc] init];         break;
         case 4: page = [[ZL2LauncherSettingsPage alloc] init];        break;
-        case 5: page = [[ZL2JavaManagerSettingsPage alloc] init];     break;
-        case 6: page = [[ZL2ControlManagerSettingsPage alloc] init];  break;
-        case 7: page = [[ZL2AboutSettingsPage alloc] init];           break;
+        case 5: page = [[ZL2AISettingsPage alloc] init];              break;
+        case 6: page = [[ZL2DebugSettingsPage alloc] init];           break;
+        case 7: page = [[ZL2JavaManagerSettingsPage alloc] init];     break;
+        case 8: page = [[ZL2ControlManagerSettingsPage alloc] init];  break;
+        case 9: page = [[ZL2AboutSettingsPage alloc] init];           break;
         default: return nil;
     }
     // 页首大标题（ZL2SettingPage.viewDidLoad 消费）
@@ -372,9 +377,11 @@ static UIImage *ame_hubSystemImage(NSString *name, NSString *fallback) {
         case 2: return @"控制";
         case 3: return @"手柄";
         case 4: return @"启动器";
-        case 5: return @"Java 管理";
-        case 6: return @"控制管理";
-        case 7: return @"关于";
+        case 5: return @"AI";
+        case 6: return @"调试";
+        case 7: return @"Java 管理";
+        case 8: return @"控制管理";
+        case 9: return @"关于";
         default: return @"";
     }
 }
@@ -396,7 +403,7 @@ static UIImage *ame_hubSystemImage(NSString *name, NSString *fallback) {
 
 // 子页切换：attach + 显隐 + 0.18s crossDissolve（同壳 showPageAtIndex）
 - (void)ame_showPageAtIndex:(NSInteger)index {
-    if (index < 0 || index > 7) return;
+    if (index < 0 || index > 9) return;
     if (index == self.currentIndex) return;
 
     UIViewController *next = [self ame_pageForIndex:index];
@@ -441,7 +448,7 @@ static UIImage *ame_hubSystemImage(NSString *name, NSString *fallback) {
 // ★ Task328：外部定点子页（userInfo[@"index"]）；越界忽略
 - (void)ame328_selectSubPage:(NSNotification *)note {
     NSInteger ame328_index = [note.userInfo[@"index"] integerValue];
-    if (ame328_index < 0 || ame328_index > 7) return;
+    if (ame328_index < 0 || ame328_index > 9) return;
     [self ame_showPageAtIndex:ame328_index];
 }
 

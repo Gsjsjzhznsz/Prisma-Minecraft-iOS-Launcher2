@@ -72,6 +72,16 @@ NS_ASSUME_NONNULL_BEGIN
 @interface ZL2LauncherSettingsPage : ZL2SettingPage
 @end
 
+#pragma mark - ⑤b AI 屏（Task344 旧设置全量迁移：ai 分区入新UI）
+
+@interface ZL2AISettingsPage : ZL2SettingPage
+@end
+
+#pragma mark - ⑤c 调试屏（Task344 旧设置全量迁移：debug 分区入新UI）
+
+@interface ZL2DebugSettingsPage : ZL2SettingPage
+@end
+
 #pragma mark - ⑥ Java 管理屏
 
 @interface ZL2JavaManagerSettingsPage : ZL2SettingPage
