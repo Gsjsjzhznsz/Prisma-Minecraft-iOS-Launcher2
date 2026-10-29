@@ -1,17 +1,17 @@
 {
   "schema": 1,
   "repo": "Gsjsjzhznsz/Prisma-Minecraft-iOS-Launcher2",
-  "updated": "2026-10-29",
+  "updated": "2026-10-30",
   "plugins": [
     {
       "id": "fluent-ui",
       "name": "Fluent UI",
-      "version": "2.2.0",
+      "version": "2.3.0",
       "author": "Prisma",
-      "summary": "Fluent 2 完整设计语言：NavigationView 左侧导航窗格结构 + 排版/形状/字阶/色板全维度令牌，即时重建生效",
+      "summary": "Fluent 2 完整设计语言：NavigationView 左侧导航窗格结构 + 排版/形状/字阶/色板全维度令牌，装载即自动生效",
       "file": "plugins/fluent-ui.zip",
-      "size": 5104,
-      "sha256": "2b819a4f4b70d7caf78e8bd4af174fd50c67fefd2d5275a82384b5877c33e1e4",
+      "size": 5818,
+      "sha256": "dd350a076d2ba80253348d23f7815e1f7b1cf998c766326da80c09eae3333f98",
       "official": true
     },
     {

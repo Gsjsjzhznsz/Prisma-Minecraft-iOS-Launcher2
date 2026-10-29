@@ -94,9 +94,9 @@ check('A3 救援数据源前置快照（合并循环前 extractDataFromFile + v1
       'extractDataFromFile:\n                @"launcher_preferences_v2.plist"' in dt
       and 'dictionaryWithContentsOfFile:\n                [staging stringByAppendingPathComponent:@"launcher_preferences.plist"]' in dt)
 
-check('A4 摘要如实上报（v1 恢复行 + 坏包保留行，i18n 键双落位）',
+check('A4 摘要如实上报（v1 恢复行 + 坏包保留行，i18n 键双落位；★Task348 演进：保留行消费点移交 ame348.import.spine_absent）',
       'localize(@"ame347.import.spine_v1", nil)' in dt
-      and 'localize(@"ame347.import.spine_kept", nil)' in dt
+      and 'localize(@"ame348.import.spine_absent", nil)' in dt
       and "Task347: spine rescued zipEntry=" in dt)
 
 check('A5 分区导出脉柱恒强校验（requirePrefs:YES 无条件——强制进包必强验）',
@@ -162,8 +162,8 @@ zdata = open(zpath, "rb").read()
 zsha = hashlib.sha256(zdata).hexdigest()
 znames = sorted(zipfile.ZipFile(zpath).namelist())
 
-check('C1 v2.2.0 三方对拍（manifest + index 条目 + zip 实算 sha/size + zip 根两文件）',
-      man.get("version") == "2.2.0" and fe and fe.get("version") == "2.2.0"
+check('C1 v2.3.0 三方对拍（manifest + index 条目 + zip 实算 sha/size + zip 根两文件）',
+      man.get("version") == "2.3.0" and fe and fe.get("version") == "2.3.0"
       and fe.get("sha256") == zsha and fe.get("size") == len(zdata)
       and znames == ["main.js", "manifest.json"])
 
@@ -177,11 +177,11 @@ check('C2 结构应用/还原落位（FLUENT_STRUCTURE navigationview + 容错 +
       and "ame.setThemeLayout({})" in plugin_js
       and "ame.setThemeShape(FLUENT_SHAPE)" in plugin_js)
 
-check('C3 v2.2.0 文案升维（左窗格/NavigationView 结构叙事 + v2.1.1 旧副题退役）',
+check('C3 v2.3.0 文案升维（装载即生效叙事 + v2.2.0 旧副题退役）',
       "左侧 NavigationView 导航窗格" in plugin_js
-      and "Fluent 2 全维度·左侧导航窗格（点击循环）" in plugin_js
-      and "fluent-ui v2.2.0 loaded" in plugin_js
-      and "fluent-ui v2.1.1 loaded" not in plugin_js
+      and "Fluent 2 全维度·左侧导航窗格·装载即生效（点击循环）" in plugin_js
+      and "fluent-ui v2.3.0 loaded" in plugin_js
+      and "fluent-ui v2.2.0 loaded" not in plugin_js
       and "Fluent 2 全维度换装·即时生效（点击循环）" not in plugin_js)
 
 # ══ D 结构护栏 ═════════════════════════════════════════════════
@@ -214,8 +214,8 @@ if "--selftest" in sys.argv:
     print(f"  {'RED' if not ok else 'NOT-RED'}  S-B1 壳层 nav 骨架分支摘除")
     if not ok: reds.append("S-B1")
 
-    # S-C1：manifest 版本回退 2.1.1 → C1 断言条件必翻红
-    ok = (man.get("version") == "2.1.1" and fe and fe.get("version") == "2.2.0")
+    # S-C1：manifest 版本回退 2.2.0 → C1 断言条件必翻红
+    ok = (man.get("version") == "2.2.0" and fe and fe.get("version") == "2.3.0")
     print(f"  {'RED' if not ok else 'NOT-RED'}  S-C1 manifest 版本回退")
     if not ok: reds.append("S-C1")
 

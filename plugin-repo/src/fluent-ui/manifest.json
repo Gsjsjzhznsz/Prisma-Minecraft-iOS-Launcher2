@@ -1,9 +1,9 @@
 {
   "id": "fluent-ui",
   "name": "Fluent UI",
-  "version": "2.2.0",
+  "version": "2.3.0",
   "author": "Prisma",
-  "description": "Fluent 2 完整设计语言：NavigationView 左侧导航窗格结构 + 排版/形状/字阶/色板全维度令牌，即时重建生效",
+  "description": "Fluent 2 完整设计语言：NavigationView 左侧导航窗格结构 + 排版/形状/字阶/色板全维度令牌，装载即自动生效",
   "entry": "main.js",
   "permissions": [
     "ui.rows",

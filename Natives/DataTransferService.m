@@ -492,6 +492,46 @@ typedef NS_ENUM(NSInteger, Ame229PickerMode) {
                                   : @"empty/absent",
                   ame347_v1Prefs ? [NSString stringWithFormat:@"ok(%lu keys)", (unsigned long)ame347_v1Prefs.count]
                                  : @"empty/absent");
+            // ★ Task348（zip 导入"数据不行"第七轮 · 全包深扫救援）：装机日志
+            //   定案=用户 1.0 旧版导出的备份包内 v2 脉柱 0 键 + v1 缺席，三段
+            //   救援无米下锅。旧版导出器可能把设置文件放在非根路径（包裹目录/
+            //   分区布局），根位两源皆空时扫全包找 launcher_preferences*.plist
+            //   候选。两条硬边界：① instances/ 子树一律排除——实例级偏好
+            //   （隔离实例 launcher_preferences.plist）不得冒充全局脉柱，误收
+            //   = 全局设置被单实例覆盖；② v1/v2 判定按内容（env_vars 在场=
+            //   一代平铺布局）不按文件名。命中即顶入对应快照源（v2→直写源 /
+            //   v1→迁移源），完全复用既有三段救援链，不新增落盘路径。
+            if (ame347_zipSpine == nil && ame347_v1Prefs == nil) {
+                NSArray<NSString *> *ame348_all = [archive listFilenames:nil];
+                NSString *ame348_bestPath = nil;
+                NSDictionary *ame348_bestDict = nil;
+                for (NSString *ame348_p in ame348_all) {
+                    if (![ame348_p.lastPathComponent isEqualToString:@"launcher_preferences_v2.plist"] &&
+                        ![ame348_p.lastPathComponent isEqualToString:@"launcher_preferences.plist"]) continue;
+                    if ([ame348_p isEqualToString:@"launcher_preferences_v2.plist"] ||
+                        [ame348_p isEqualToString:@"launcher_preferences.plist"]) continue;   // 根位已试
+                    if ([ame348_p hasPrefix:@"instances/"] ||
+                        [ame348_p rangeOfString:@"/instances/"].location != NSNotFound) continue;   // 实例级排除
+                    NSData *ame348_d = [archive extractDataFromFile:ame348_p error:nil];
+                    if (ame348_d.length == 0) continue;
+                    NSDictionary *ame348_dict = [NSPropertyListSerialization
+                        propertyListWithData:ame348_d options:0 format:nil error:nil];
+                    if (![ame348_dict isKindOfClass:[NSDictionary class]]) continue;
+                    if (ame348_bestDict && ame348_dict.count <= ame348_bestDict.count) continue;
+                    ame348_bestDict = ame348_dict;
+                    ame348_bestPath = ame348_p;
+                }
+                if (ame348_bestDict.count > 0) {
+                    BOOL ame348_isV1 = (ame348_bestDict[@"env_vars"] != nil);
+                    NSLog(@"[DataTransfer] Task348: deep scan rescue candidate %@ (%@, %lu keys)",
+                          ame348_bestPath, ame348_isV1 ? @"v1 legacy" : @"v2 layout",
+                          (unsigned long)ame348_bestDict.count);
+                    if (ame348_isV1) ame347_v1Prefs = ame348_bestDict;
+                    else ame347_zipSpine = ame348_bestDict;
+                } else {
+                    NSLog(@"[DataTransfer] Task348: deep scan found no settings data anywhere in backup -- backup predates forced-spine export, files/instances unaffected");
+                }
+            }
         }
         NSMutableSet<NSString *> *ame232_touchedInstances = [NSMutableSet set];
         if (!failMsg) {
@@ -740,8 +780,12 @@ typedef NS_ENUM(NSInteger, Ame229PickerMode) {
                 ame230_summaryExtras = [ame230_summaryExtras stringByAppendingFormat:@"\n%@",
                     localize(@"ame347.import.spine_v1", nil)];
             } else if (ame347_spineKept) {
+                // ★ Task348：文案根修——旧键"空/损坏"把旧版备份的正常形态报成
+                //   文件故障（用户五轮复诉的观感燃料：包从源头就没带设置数据，
+                //   不是导入坏了，用户还专门澄清"这是 1.0 的备份不是 6.5.5 的"）。
+                //   如实说清三件事：包里没有设置数据 / 不是导入故障 / 其余已恢复。
                 ame230_summaryExtras = [ame230_summaryExtras stringByAppendingFormat:@"\n%@",
-                    localize(@"ame347.import.spine_kept", nil)];
+                    localize(@"ame348.import.spine_absent", nil)];
             }
             // ★ Task232（反馈 #13：备份导入无效，第三轮）：导入"成功"但用户
             //   看不到任何变化的主形态 = 备份里的存档落在【别的实例名】下，

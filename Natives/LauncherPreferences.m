@@ -43,6 +43,14 @@ void ame346_flushGlobalPrefsToDisk(void) {
     if (!pref) return;
     [pref saveGlobalPref];
     NSLog(@"[LauncherPreferences] Task346: global prefs flushed to disk (backup spine guard)");
+    // ★ Task348：落盘后回读验证——空/不可解析的脉柱一旦进包，导入端只能
+    //   "保留当前设置"（1.0 备份病历的形态：包内 v2 0 键 + v1 缺席，设置
+    //   数据从源头就不在包里，任何导入端救援都无米下锅）。当场大声报警，
+    //   交给导出侧 Task345 强校验拒绝交付，不再静默产出残缺备份。
+    NSDictionary *ame348_chk = [NSDictionary dictionaryWithContentsOfFile:pref.globalPath];
+    if (ame348_chk.count == 0) {
+        NSLog(@"[LauncherPreferences] Task348: WARNING flushed spine reads back empty/unparseable (%@) -- export gate will refuse delivery", pref.globalPath.lastPathComponent);
+    }
 }
 
 #pragma mark Download source migration

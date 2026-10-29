@@ -1,7 +1,13 @@
-// Task343 fluent-ui v2.2.0 —— 「结构也 Fluent」版（用户四轮复诉：插件画面
-// 还是 zl2 的，要重新设计整个画面，排版都要变化，跟 Fluent 应用对齐）。
+// Task343 fluent-ui v2.3.0 —— 「装载即生效」版（用户五轮复诉：还是变色，
+// 要重新设计整个画面，排版都要变化，跟 Fluent 应用对齐）。
 // ---------------------------------------------------------------------
-// ★ v2.2.0（Task347）：接入结构令牌承载面（ame.setThemeStructure）——
+// ★ v2.3.0（Task348）：装载即自动应用——v2.2.0 的结构令牌只在点击行之后
+//   才上场，用户不点就永远只见换色（装机日志实锤：会话内一路是 v2.1.1 的
+//   palette applied，零 structure 链）。现在插件装载即自动应用持久化方案
+//  （首次=Fluent 亮色），结构与色形排全维度一次到位；用户点过「恢复默认」
+//  （fluent.optout=yes）则尊重选择不再自动上场，点击行重新参与循环即解除。
+// ---------------------------------------------------------------------
+// v2.2.0（Task347）：接入结构令牌承载面（ame.setThemeStructure）——
 //   壳层导航骨架整体切换为 WinUI NavigationView 蓝图：左侧导航窗格
 //  （宽屏常驻 / 窄屏抽屉，WinUI SelectionIndicator 选中指示条，设置驻
 //   窗格底）+ 大标题内容区（WinUI Page Header）。这是排版级的实质变化：
@@ -26,9 +32,11 @@
 //       色板 —— fluent-light 品牌蓝 #0F6CBD / fluent-dark 品牌青 #4CC2FF /
 //               fluent-apple 混融 #007AFF + systemGray6 分层。
 //
-// 交互纪律不变：单行入口，点击循环 亮→暗→混融→恢复默认；首次点击出
-// 说明对话框。持久化走桥面 __theme/__shape/__layout/__structure 装载期
-// 重放键。结构/布局链独立容错：setThemeStructure / setThemeLayout 失败
+// 交互纪律（v2.3.0）：装载即自动应用持久化方案（首次=Fluent 亮色），单行
+// 入口点击循环 亮→暗→混融→恢复默认；首次点击出说明对话框；恢复默认后
+// 装载期不再自动上场（optout），点击行重新参与。持久化走桥面 __theme/
+// __shape/__layout/__structure 装载期重放键 + fluent.idx/fluent.optout。
+// 结构/布局链独立容错：setThemeStructure / setThemeLayout 失败
 // （旧引擎/桥面异常）不阻塞其余族——五维度 → 布局+形色 → 形+色 → 仅色
 // 四级平滑降级。全部调用 try-catch 包裹——权限/桥面单点故障不得炸整插件。
 (function () {
@@ -173,7 +181,8 @@
     }
   }
 
-  function applyPalette(idx) {
+  // silent=true：装载期自动应用不弹 toast（每次开机都弹=噪声），仅留日志。
+  function applyPalette(idx, silent) {
     var pal = PALETTES[idx];
     try {
       ame.setThemeToken(pal.tokens);
@@ -189,8 +198,25 @@
     // setThemeShape/setThemeLayout/setThemeStructure 落盘（装载期重放键）
     // ——插件侧只持久化循环态。
     storageSet('fluent.idx', String(idx));
-    try { ame.toast('已应用：' + pal.name + '（NavigationView 左窗格结构 · 全维度 · 即时重建）'); } catch (e) {}
-    ame.log('[' + MARK + '] palette applied: ' + pal.key + ' (structure+color+shape+layout)');
+    if (!silent) try { ame.toast('已应用：' + pal.name + '（NavigationView 左窗格结构 · 全维度 · 即时重建）'); } catch (e) {}
+    ame.log('[' + MARK + '] palette applied: ' + pal.key + ' (structure+color+shape+layout' + (silent ? ', auto' : '') + ')');
+  }
+
+  // ★ Task348（v2.3.0 装载即生效）：五轮复诉的最后一环——插件装载即自动
+  //   应用持久化方案（首次=Fluent 亮色），NavigationView 左窗格结构零交互
+  //   上场；桥面 __structure 重放链只在用户点过之后才有持久化键可重放，
+  //   首装/升级首启的空白窗口由这里补齐。optout（恢复默认过）则不自动上场。
+  function autoApply() {
+    try {
+      if (storageGet('fluent.optout') === 'yes') {
+        ame.log('[' + MARK + '] auto-apply skipped (user restored default; tap row to re-engage)');
+        return;
+      }
+      var idx = currentIndex();
+      applyPalette(idx >= 0 ? idx : 0, true);
+    } catch (e) {
+      ame.log('[' + MARK + '] auto-apply failed (non-fatal): ' + e);
+    }
   }
 
   function restoreDefault() {
@@ -207,14 +233,19 @@
       ame.log('[' + MARK + '] structure reset failed: ' + e);
     }
     storageSet('fluent.idx', '-1');
+    // ★ Task348：恢复默认 = 用户显式退出 Fluent 换装，装载期自动应用从此
+    //   尊重选择不再上场；点击行重新参与循环即解除 optout。
+    storageSet('fluent.optout', 'yes');
     try { ame.toast('已恢复默认主题（embermire · M3 刻度 · 顶栏骨架）'); } catch (e) {}
-    ame.log('[' + MARK + '] theme restored to default');
+    ame.log('[' + MARK + '] theme restored to default (optout armed)');
   }
 
   try {
     ame.addLauncherRow(
-      { id: 'fluent-ui', title: 'Fluent UI', subtitle: 'Fluent 2 全维度·左侧导航窗格（点击循环）' },
+      { id: 'fluent-ui', title: 'Fluent UI', subtitle: 'Fluent 2 全维度·左侧导航窗格·装载即生效（点击循环）' },
       function (rowId) {
+        // ★ Task348：点击行 = 重新参与循环，解除装载期 optout。
+        if (storageGet('fluent.optout') === 'yes') storageSet('fluent.optout', 'no');
         var announced = storageGet('fluent.announced') === 'yes';
         if (!announced) {
           storageSet('fluent.announced', 'yes');
@@ -243,5 +274,7 @@
     return;
   }
 
-  ame.log('[' + MARK + '] fluent-ui v2.2.0 loaded（Fluent 2 全维度：结构 shellLayout=navigationview + 色28+形状5+字阶7+布局13；主页贡献行「Fluent UI」，点击循环亮/暗/混融/默认）');
+  autoApply();
+
+  ame.log('[' + MARK + '] fluent-ui v2.3.0 loaded（Fluent 2 全维度装载即生效：结构 shellLayout=navigationview + 色28+形状5+字阶7+布局13 自动应用；点击循环亮/暗/混融/默认，恢复默认后点击重新参与）');
 })();

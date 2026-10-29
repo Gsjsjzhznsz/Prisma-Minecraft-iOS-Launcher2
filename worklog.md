@@ -4457,3 +4457,19 @@ Stage Summary:
 - 装机验证锚点见 Task 347 条目 Stage Summary（结构令牌日志锚 / spine snapshot + rescued 锚 / 分区导出强校验锚）
 
 ---
+## Task 348——两线（用户 3574e2a 第七轮复诉联修："真服了，2个问题需要修这么多次"）：①ZIP 导入全包深扫救援 + 空包诚实文案（"数据导入依旧"第七轮终结线） / ②fluent-ui v2.3.0 装载即生效（"还是变颜色"第五轮终结线）
+
+日期：2026-10-30
+
+Work Log:
+- 【取证（用户补充关键情报："这个备份其实是前几轮 1.0 一样的版本的备份 zip，不是 6.5.5 的备份"）】①ZIP 导入定案升级：Task347 三段救援在装机日志里确实跑了（`Task347: spine snapshot -- zipEntryV2=empty/absent v1Legacy=empty/absent`），但两路快照皆空=救援无米下锅——备份包从源头就没带设置数据（v2 脉柱 0 键 + v1 缺席；该包由 ≤345 无 flush 构建导出，Task346 起导出侧已强制 flush+进包+回读强校验，旧包不可再生）。②"还是变颜色"定案升级：装机日志实锤会话全程 v2.1.1（`fluent-ui v2.1.1 loaded`，palette applied 无 structure 链）——v2.2.0 在会话中段才被 Task333 自动装上（5104B，grants healed），且其结构令牌只在用户点击行之后才应用：重启 + 点击两道门槛，用户一步没走完就下了"还是变颜色"的结论。
+- 【线A 导入深扫救援 + 文案根修】①第四段救援（全包深扫）：根位两源皆空时 `listFilenames` 扫全包找 launcher_preferences*.plist 候选（非根路径=包裹目录/分区布局的旧版包），候选计数择优；两条硬边界——instances/ 子树一律排除（隔离实例级偏好不得冒充全局脉柱）、v1/v2 按内容判定（env_vars 在场=一代平铺）不按文件名；命中即顶入 Task347 快照源（v2→直写救援 / v1→迁移恢复），完全复用既有三段链零新增落盘路径（`Task348: deep scan rescue candidate ...` / `deep scan found no settings data anywhere in backup` 日志锚）。②空包文案根修：spineKept 摘要行从 ame347.import.spine_kept（"设置文件为空/损坏"——把旧版备份的正常形态报成文件故障，用户五轮观感燃料）换键 ame348.import.spine_absent（"备份包内没有启动器设置数据（导出该备份的旧版本未包含设置，非导入故障）——已保留当前设置，文件与实例已恢复"），54 表全落位（zh 系全译、其余英文兜底）。③导出侧补强：ame346_flushGlobalPrefsToDisk 落盘后回读验证，空/不可解析当场大声报警（Task348 WARNING），交 Task345 导出侧强校验拒绝交付——残缺备份从此在导出端当场暴露，不再静默上机。
+- 【线B fluent-ui v2.3.0 装载即生效】①autoApply：插件装载即自动应用持久化方案（首次=Fluent 亮色，persisted idx 沿用）——NavigationView 左窗格结构 + 色28/形5/字7/布13 全维度零交互上场，填补"桥面 __structure 重放链只在用户点过之后才有持久化键"的首装/升级首启空白窗口；applyPalette 加 silent 参数（装载期不弹 toast 防开机噪声）。②optout 语义：恢复默认=显式退出（fluent.optout=yes），装载期不再自动上场尊重选择；点击行=重新参与循环并解除 optout。③文案升维：行副题"装载即生效（点击循环）"、loaded 日志 v2.3.0、头部注释 v2.3.0 装载即生效叙事。④manifest 2.3.0 + zip 重打包（5818B）+ index.json sha256/size/updated 单一事实源重算。
+- 【门禁】ame348_selfcheck 新门 11 断言（A 深扫+文案 5 / B 装载即生效 4 / D 结构 2）+ --selftest 反向 3 探针全翻红；ame347_selfcheck 存量演进（C1/C3 版本顺延 2.3.0、A4 消费点移交 ame348 键）；ame330_js_smoke autoApply 链路（storage 桩 undefined → idx=-1 → fluent-light 静默应用）rows=7 不变；task139/240 balanced。
+
+Stage Summary:
+- 两线全交付：①旧版备份（≤345 无 flush 构建导出）导入——包内有设置数据（任意路径/两代布局）即深扫救援恢复；确实没有则摘要如实说"备份包内没有设置数据（非导入故障），已保留当前设置，文件与实例已恢复"；新导出侧空脉柱当场报警+强校验拒绝交付 ②fluent-ui v2.3.0 装载即自动应用：更新插件后重启启动器，不点任何东西整壳即刻是 WinUI NavigationView 左窗格 + 大标题蓝图（iPad 常驻窗格/iPhone 抽屉）——排版级实质变化零交互到手；恢复默认即刻回退顶栏且重启后不再自动上场。
+- 装机验证锚点：①插件仓库更新 fluent-ui → 2.3.0（或 Task333 自动更新）→ 重启：日志 `[AmePlugin:fluent-ui] fluent-ui v2.3.0 loaded` + `palette applied: fluent-light (structure+color+shape+layout, auto)`，界面直接左窗格 ②重新导入同一 1.0 备份：日志 `Task347: spine snapshot` + `Task348: deep scan ...`（或 found no settings data），摘要行不再出现"空/损坏"字样 ③新导出任意包：`Task346: global prefs flushed` 后无 Task348 WARNING = 包内设置数据完好。
+- 遗留诚实声明：用户手持的 20261029-152121 包设置数据物理不在包内（v2 0 键 + v1 缺席），任何导入端修复都无法凭空恢复其旧设置——本轮交付的是"以后不再产生这种包 + 包里有就能救 + 说法不再甩锅用户"；设置本体仍以设备现役为准。
+
+---

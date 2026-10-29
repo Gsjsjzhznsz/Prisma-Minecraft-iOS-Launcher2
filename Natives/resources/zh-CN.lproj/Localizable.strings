@@ -3538,3 +3538,4 @@
 "ame345.import.instance_saves" = "存档分布：%@";
 "ame347.import.spine_v1" = "已从一代备份设置（launcher_preferences.plist）迁移恢复启动器设置";
 "ame347.import.spine_kept" = "备份中的启动器设置文件为空/损坏——已保留当前设置";
+"ame348.import.spine_absent" = "备份包内没有启动器设置数据（导出该备份的旧版本未包含设置，非导入故障）——已保留当前设置，文件与实例已恢复";
