@@ -4444,3 +4444,16 @@ Stage Summary:
 - 装机验证锚点：①插件仓库更新 fluent-ui → 2.2.0，点主页「Fluent UI」行：整壳即刻重建为左窗格 + 大标题布局（iPad 常驻窗格；iPhone 汉堡抽屉），第 4 次点击恢复默认即刻回退顶栏；日志锚点 `[AmePlugin:fluent-ui] 结构令牌覆盖 1/1 项（shellLayout=navigationview）` ②重新导入同一个旧备份：日志 `Task347: spine snapshot -- zipEntryV2=... v1Legacy=...` + `spine rescued/rescued via v1 migration`（或摘要行如实说明），导入完成 toast 含设置恢复结果行，游戏目录/主题/实例名等设置随备份回来 ③分区导出不勾"启动器"：包内脉柱空/坏时导出当场报错（不再静默交付残缺包）。
 
 ---
+---
+## Task 347-ci——CI 闭环补记（dispatch 双发 + r1 热修一轮绿）
+
+Work Log:
+- dispatch 双发首轮（40898058983 dev + 40898063724 smoke @ 7915bc1）双红：dev Build for ios 实锤 ZL2ShellViewController.m:888 'expected identifier'——NavigationView 构建器 NSLayoutConstraint 数组里 ame347_paneLeading/ame347_contentLeading 两枚前导约束被误包一层方括号（`[self.x]` = 零选择器消息发送，非法 ObjC；数组元素应为约束对象本身）；本地括号平衡门三个族全过（数量守恒不抓语义非法形态）——结构性语法盲区第九例
+- r1 3574e2a：去括号两处 + 全库同形态扫描（`^\s*\[self\.[a-z0-9_]+\],?$`）零残留；门禁复跑 task139/240 + ame347 17 断言全绿
+- r1 dispatch 双发（40899839329 dev + 40899843648 smoke）一轮双绿；产物 ipa/tipa artifact 在架（com.prisma-devs.prisma-ios）
+
+Stage Summary:
+- Task 347 两线全闭环进可装机测试包（dev 40899839329 产物在架）：①ZIP 导入脉柱三段救援（旧坏备份也能救回设置）②fluent-ui v2.2.0 NavigationView 排版级重设计（结构令牌第五族全链）
+- 装机验证锚点见 Task 347 条目 Stage Summary（结构令牌日志锚 / spine snapshot + rescued 锚 / 分区导出强校验锚）
+
+---
