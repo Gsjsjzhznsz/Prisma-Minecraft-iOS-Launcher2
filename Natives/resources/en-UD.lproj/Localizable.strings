@@ -544,3 +544,8 @@
 "dl.asset.filter.category" = "Category";
 "dl.asset.category.any" = "All categories";
 "game.menu.resolution.applied" = "Resolution saved and applied instantly";
+"ame345.list.hero.count" = "%lu installed · %lu running";
+"ame345.list.action.import" = "Import plugin";
+"ame345.repo.hero.count" = "%lu remote · %lu built-in";
+"ame345.import.prefs_missing" = "Backup carries no launcher preferences file; current settings kept";
+"ame345.import.instance_saves" = "Saves by instance: %@";

@@ -3531,3 +3531,8 @@
 "ame333.repo.update" = "可更新";
 "ame333.repo.sha_mismatch" = "下載完整性校驗失敗（sha256 不符），已中止安裝";
 "ame333.repo.download_failed" = "外掛下載失敗，請檢查網路後重試。";
+"ame345.list.hero.count" = "已安裝 %lu · 執行中 %lu";
+"ame345.list.action.import" = "匯入外掛";
+"ame345.repo.hero.count" = "遠端 %lu · 內建 %lu";
+"ame345.import.prefs_missing" = "備份中未包含啟動器設定檔，設定保持目前值";
+"ame345.import.instance_saves" = "存檔分佈：%@";

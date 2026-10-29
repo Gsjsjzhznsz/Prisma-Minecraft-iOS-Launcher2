@@ -3534,3 +3534,8 @@
 "ame333.repo.update" = "可更新";
 "ame333.repo.sha_mismatch" = "下载完整性校验失败（sha256 不符），已中止安装";
 "ame333.repo.download_failed" = "插件下载失败，请检查网络后重试。";
+"ame345.list.hero.count" = "已安装 %lu · 运行中 %lu";
+"ame345.list.action.import" = "导入插件";
+"ame345.repo.hero.count" = "远程 %lu · 内置 %lu";
+"ame345.import.prefs_missing" = "备份中未包含启动器设置文件，设置保持当前值";
+"ame345.import.instance_saves" = "存档分布：%@";

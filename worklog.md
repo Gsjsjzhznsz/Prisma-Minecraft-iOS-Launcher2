@@ -4380,3 +4380,20 @@ Work Log:
 Stage Summary:
 - Task 344 三线全闭环进可装机测试包（dev 产物 ipa/tipa 在架）：导入/迁移插件根免疫+旧位收编 / 插件旧代清单开机自愈（映射修复+隔离+重装指引）/ 旧设置 83 项全量迁移新UI（枢纽十屏）
 - 装机验证锚点见 Task 344 条目 Stage Summary（导入日志 Task344 跳过+收编行 / 自愈或隔离日志 / 设置页左轨 AI+调试两新项与 66 迁移键可达）
+
+---
+## Task 345——两线（用户装机日志 6f397ddc 第四轮复诉联修）：①zip 备份导入脊柱校验+偏好一致性重套用+存档分布真相线 / ②插件三屏结构性重排（"只变了配色"终结——排版经令牌引擎全页联动）
+
+日期：2026-10-29
+
+Work Log:
+- 【取证（装机 latestlog 6f397dd 构建第四轮）】①导入全绿但设置全丢定案：`Task217: import restored 11475 files (ok)` 后紧跟 `[PLPreferences] Initializing default values for global preferences` = 合并落盘后 `launcher_preferences_v2.plist` 不在场/不可解析 → PLPreferences 静默初始化默认值覆盖内存缓存，用户视角=出厂态（"导入了但什么都不对"）；同日志 `Task230: import summary -- 3 instance(s)... saves=0` + Task232 自动切换未触发 = 触达实例全无存档，"存档 0 个"只报当前实例的真相缺口暴露 ②顺序雷：`init_setupMultiDir()` 在 `loadPreferences(NO)`【前】跑，用的是内存旧值——备份 plist 若指向另一实例，软链/POJAV_GAME_DIR 错到下次重启（"导入后要重启才生效"的半状态主因）③"插件只变了配色"结构性定案：插件管理页旧实现 = 系统 InsetGrouped cell（系统容器圆角/几何不经 ame341/ame343 令牌引擎），fluent-ui v2.1 的形状/布局覆盖到达时【本页纹丝不动】（色+字阶变了、排版没变 = 感知根源；仓库页 ZL2M3CardCell 已消费 ame343 胶囊面所以观感稍好）
+- T1 导入三件（DataTransferService.m）：①脊柱校验——合并后验 `launcher_preferences_v2.plist` 在场且可解析（dictionaryWithContentsOfFile 非空），缺席时 WARNING 留痕 + 摘要 toast 直说（ame345.import.prefs_missing，不再让默认值静默吃掉设置）；②偏好一致性重套用——gdBefore 快照 → loadPreferences(NO) → gdAfter 对比，变化即重跑 init_setupMultiDir + PLProfiles updateCurrent + ReloadProfileList/SelectedProfileChanged 双通知（重载后顺序修正，软链/注册表不再等重启）；③存档分布真相线——触达实例逐一数 saves（`name(N)` 列表入摘要 ame345.import.instance_saves + `Task345: saves inventory` 日志锚点），"存档 0 个"从此带全量分布
+- T1b 导出脊柱校验（双导出器同闸）：Task219 全量导出写毕回读校验（listFilenames 顶层直方图取证锚点 `[ExportOps] Task345: archive manifest` + launcher_preferences_v2.plist 回读 NSPropertyListSerialization 解析），缺/空/坏 plist 当场报错拒绝交付（`spine check: ...` 进失败 toast）；Task224 分区导出同闸（勾选"启动器"分区时强校验）——残缺备份不再流到导入端（对齐导入侧，用户备份-重装-恢复全链闭环）
+- T2 插件三屏结构性重排（逻辑链零改动，视觉结构全换）：①列表页（ZL2PluginListViewController 重写）——Plain 卡片流自绘单元格 Ame345PluginCardCell（surfaceBright 卡底 + radiusM 圆角 + 36pt primaryContainer 图标瓦片 + 标题/副文 + 尾随开关/chevron 槽；圆角/边距/行高全经 ZL2Theme radius*/ame343_layoutMetric 消费 = fluent-ui 形状/布局覆盖即全页生效，单行/双行/正文流三态约束组自调整尺寸确定性）+ 页首 hero 头卡（48pt 瓦片 + fontHeadline 大标题 + 计数摘要 + 仓库(实心)/导入(描边) 两个一级动作按钮，"+"菜单保留为肌肉记忆备份）+ 节标题自绘卡外 labelMedium（系统组头退役）；②详情页——信息节单 cell 三行字升级为页首 hero 身份卡（56pt 瓦片 + fontHeadline 名称 + v·作者元行 + 多行简介段落）；③仓库页——36pt 小字组头升级为 hero 头卡（瓦片 + 大标题 + 远程/内置计数摘要，fetch/reload 双点刷新）
+- 门禁：task139/240 all balanced；task191 54 表 3324 键 OK（+5 键：ame345.list.hero.count / ame345.list.action.import / ame345.repo.hero.count / ame345.import.prefs_missing / ame345.import.instance_saves，en/zh-CN/zh-Hans/zh-Hant 实译余表英文兜底）；task248/250 全零；ame317~344 全电池自检全绿（317/318/321/322/323/324/327/329/330/331(49)/332~343/344(34) 零失败）
+- 备忘：一代仓（Prisma-Minecraft-iOS-Launcher）同题预研轮已在本地验证同款修法（PrismaTheme 度量令牌+动态色对/插件三屏重设计/导入同三件），本轮按 Task330 归属定案落在二代仓实施；一代仓工作区未提交已弃置
+
+Stage Summary:
+- 两线全交付：①备份链"导出拒残缺包 + 导入验脊柱 + 偏好即时重套用 + 存档分布透明"四段闭环——下一轮备份-恢复测试，日志应见 `[DataTransfer] Task345: spine check prefs=present` + `[ExportOps] Task345: archive manifest entries=N top-level: ...` + `Task345: saves inventory ... (total=N)`；若备份仍缺设置文件，摘要会直说"备份中未包含启动器设置文件"（= 备份源头问题，不再疑似导入器）②插件页三屏排版结构全换且全量经令牌引擎——fluent-ui v2.1 装机即可见圆角/密度/字阶/卡片解剖整体变排（不再只换色），恢复默认档回到 M3 基线
+- 装机验证锚点：①导入旧备份 → 摘要含"存档分布：default(0) · ..."行；导入含设置的正常备份 → 重启前后设置/实例/游戏目录即时生效（`Task345: game directory changed after preference reload (A -> B)` 锚点）②导出 → 日志出现 archive manifest 直方图；缺设置的备份导出被拒 ③插件页 hero 卡/瓦片卡/动作按钮三屏全新排版；fluent-ui 启用时排版整体 Fluent 化

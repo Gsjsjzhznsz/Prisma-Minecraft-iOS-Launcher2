@@ -15,6 +15,7 @@
 @property (nonatomic, strong) AmePluginManifest *manifest;
 @property (nonatomic, strong) UITableView *table;
 @property (nonatomic, strong) NSArray<AmePluginPermissionItem *> *permItems;
+@property (nonatomic, assign) CGFloat ame345_lastHeroWidth;
 @end
 
 @implementation ZL2PluginDetailViewController
@@ -48,6 +49,130 @@
         [self.table.trailingAnchor constraintEqualToAnchor:self.view.trailingAnchor],
         [self.table.bottomAnchor constraintEqualToAnchor:self.view.bottomAnchor],
     ]];
+    [self ame345_installHeroHeader];
+}
+
+- (void)viewDidLayoutSubviews {
+    [super viewDidLayoutSubviews];
+    [self ame345_remindHeroHeaderIfNeeded];
+}
+
+#pragma mark - Task345 hero 身份卡（信息节升级）
+
+// 原信息节是单张系统 cell 里的三行字（v/作者/简介挤 detailTextLabel）。
+// 重排为页首 hero 卡：56pt 图标瓦片 + 标题字阶大标题 + 版本·作者元行 +
+// 多行简介段落；圆角/边距/字阶全走令牌（ame341/ame343 覆盖即生效）。
+- (void)ame345_installHeroHeader {
+    CGFloat mH = [ZL2Theme ame343_layoutMetric:@"cardMarginH" fallback:16.0];
+    CGFloat inX = [ZL2Theme ame343_layoutMetric:@"cardInsetX" fallback:14.0];
+    CGFloat inT = [ZL2Theme ame343_layoutMetric:@"cardInsetTop" fallback:12.0];
+    CGFloat inB = [ZL2Theme ame343_layoutMetric:@"cardInsetBottom" fallback:12.0];
+    CGFloat gap = [ZL2Theme ame343_layoutMetric:@"cardContentGap" fallback:4.0];
+
+    UIView *card = [[UIView alloc] init];
+    card.translatesAutoresizingMaskIntoConstraints = NO;
+    card.backgroundColor = [ZL2Theme surfaceBright];
+    card.layer.cornerRadius = [ZL2Theme radiusL];
+    card.layer.borderWidth = 1.0;
+    card.layer.borderColor = [ZL2Theme outlineVariant].CGColor;
+    card.clipsToBounds = YES;
+
+    UIView *tile = [[UIView alloc] init];
+    tile.translatesAutoresizingMaskIntoConstraints = NO;
+    tile.backgroundColor = [ZL2Theme primaryContainer];
+    tile.layer.cornerRadius = [ZL2Theme radiusM];
+    tile.clipsToBounds = YES;
+    UIImageView *tileIcon = [[UIImageView alloc] initWithImage:[UIImage systemImageNamed:@"puzzlepiece.extension"]];
+    tileIcon.translatesAutoresizingMaskIntoConstraints = NO;
+    tileIcon.contentMode = UIViewContentModeScaleAspectFit;
+    tileIcon.tintColor = [ZL2Theme onPrimaryContainer];
+    [tile addSubview:tileIcon];
+
+    UILabel *nameLabel = [[UILabel alloc] init];
+    nameLabel.translatesAutoresizingMaskIntoConstraints = NO;
+    nameLabel.numberOfLines = 1;
+    nameLabel.text = self.manifest ? (self.manifest.name ?: self.pluginId) : self.pluginId;
+    nameLabel.font = [ZL2Theme fontHeadline];
+    nameLabel.textColor = [ZL2Theme onSurface];
+
+    UILabel *metaLabel = [[UILabel alloc] init];
+    metaLabel.translatesAutoresizingMaskIntoConstraints = NO;
+    metaLabel.numberOfLines = 1;
+    metaLabel.font = [ZL2Theme fontLabelMedium];
+    metaLabel.textColor = [ZL2Theme onSurfaceVariant];
+    if (self.manifest) {
+        NSString *authorLine = self.manifest.author.length
+            ? [NSString stringWithFormat:localize(@"ame317.list.by_author", nil), self.manifest.author] : @"-";
+        metaLabel.text = [NSString stringWithFormat:@"v%@ · %@",
+                          self.manifest.version ?: @"?", authorLine];
+    } else {
+        metaLabel.text = localize(@"ame317.detail.broken", nil);
+    }
+
+    UILabel *descLabel = [[UILabel alloc] init];
+    descLabel.translatesAutoresizingMaskIntoConstraints = NO;
+    descLabel.numberOfLines = 0;
+    descLabel.font = [ZL2Theme fontBodyMedium];
+    descLabel.textColor = [ZL2Theme onSurfaceVariant];
+    descLabel.text = self.manifest ? (self.manifest.summary ?: @"") : @"";
+
+    [card addSubview:tile];
+    [card addSubview:nameLabel];
+    [card addSubview:metaLabel];
+    [card addSubview:descLabel];
+
+    [NSLayoutConstraint activateConstraints:@[
+        [tile.leadingAnchor constraintEqualToAnchor:card.leadingAnchor constant:inX],
+        [tile.topAnchor constraintEqualToAnchor:card.topAnchor constant:inT],
+        [tile.widthAnchor constraintEqualToConstant:56.0],
+        [tile.heightAnchor constraintEqualToConstant:56.0],
+        [tileIcon.centerXAnchor constraintEqualToAnchor:tile.centerXAnchor],
+        [tileIcon.centerYAnchor constraintEqualToAnchor:tile.centerYAnchor],
+        [tileIcon.widthAnchor constraintEqualToConstant:28.0],
+        [tileIcon.heightAnchor constraintEqualToConstant:28.0],
+
+        [nameLabel.leadingAnchor constraintEqualToAnchor:tile.trailingAnchor constant:gap + inX],
+        [nameLabel.bottomAnchor constraintEqualToAnchor:tile.centerYAnchor constant:-1.0],
+        [nameLabel.trailingAnchor constraintLessThanOrEqualToAnchor:card.trailingAnchor constant:-inX],
+
+        [metaLabel.leadingAnchor constraintEqualToAnchor:nameLabel.leadingAnchor],
+        [metaLabel.topAnchor constraintEqualToAnchor:tile.centerYAnchor constant:1.0],
+        [metaLabel.trailingAnchor constraintLessThanOrEqualToAnchor:card.trailingAnchor constant:-inX],
+
+        [descLabel.topAnchor constraintEqualToAnchor:tile.bottomAnchor constant:inT],
+        [descLabel.leadingAnchor constraintEqualToAnchor:card.leadingAnchor constant:inX],
+        [descLabel.trailingAnchor constraintEqualToAnchor:card.trailingAnchor constant:-inX],
+        [descLabel.bottomAnchor constraintEqualToAnchor:card.bottomAnchor constant:-inB],
+    ]];
+
+    UIView *header = [[UIView alloc] init];
+    header.translatesAutoresizingMaskIntoConstraints = NO;
+    [header addSubview:card];
+    [NSLayoutConstraint activateConstraints:@[
+        [card.topAnchor constraintEqualToAnchor:header.topAnchor constant:6.0],
+        [card.leadingAnchor constraintEqualToAnchor:header.leadingAnchor constant:mH],
+        [card.trailingAnchor constraintEqualToAnchor:header.trailingAnchor constant:-mH],
+        [card.bottomAnchor constraintEqualToAnchor:header.bottomAnchor constant:0],
+    ]];
+    self.table.tableHeaderView = header;
+    self.ame345_lastHeroWidth = 0;
+}
+
+- (void)ame345_remindHeroHeaderIfNeeded {
+    UIView *header = self.table.tableHeaderView;
+    if (!header) return;
+    CGFloat width = CGRectGetWidth(self.table.bounds);
+    if (width <= 0 || fabs(width - self.ame345_lastHeroWidth) < 0.5) return;
+    self.ame345_lastHeroWidth = width;
+    [header setNeedsLayout];
+    [header layoutIfNeeded];
+    CGFloat h = [header systemLayoutSizeFittingSize:CGSizeMake(width, 0)
+                             withHorizontalFittingPriority:UILayoutPriorityRequired
+                                   verticalFittingPriority:UILayoutPriorityFittingSizeLevel].height;
+    CGRect f = header.frame;
+    f.size.height = h;
+    header.frame = f;
+    self.table.tableHeaderView = header;
 }
 
 - (void)viewWillAppear:(BOOL)animated {

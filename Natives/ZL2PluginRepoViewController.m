@@ -51,6 +51,8 @@ static NSString * const ame333_repoMirrorPrefKey = @"ame333.plugin.repo.mirror";
 @property (nonatomic, strong) NSMutableSet<NSString *> *installing;       // 插件 id 防重入
 @property (nonatomic, copy) NSString *remoteStatus;                       // 远程区状态行（nil=隐藏状态行）
 @property (nonatomic, assign) BOOL remoteFetched;
+@property (nonatomic, strong) UILabel *ame345_heroCountLabel;             ///< Task345 hero 计数行
+@property (nonatomic, assign) CGFloat ame345_lastHeroWidth;
 @end
 
 @implementation ZL2PluginRepoViewController
@@ -85,26 +87,115 @@ static NSString * const ame333_repoMirrorPrefKey = @"ame333.plugin.repo.mirror";
         [self.table.bottomAnchor constraintEqualToAnchor:self.view.bottomAnchor],
     ]];
 
-    // Task325：系统组头 → 自绘小字标题
-    UILabel *secTitle = [[UILabel alloc] initWithFrame:CGRectMake(0, 0, self.view.bounds.size.width, 36)];
-    secTitle.autoresizingMask = UIViewAutoresizingFlexibleWidth;
-    secTitle.text = localize(@"ame318.repo.section_title", nil);
-    secTitle.font = [ZL2Theme fontLabelLarge];
-    secTitle.textColor = [ZL2Theme onSurfaceVariant];
-    secTitle.translatesAutoresizingMaskIntoConstraints = NO;
-    UIView *hdr = [[UIView alloc] initWithFrame:CGRectMake(0, 0, self.view.bounds.size.width, 36)];
-    hdr.autoresizingMask = UIViewAutoresizingFlexibleWidth;
-    [hdr addSubview:secTitle];
-    [NSLayoutConstraint activateConstraints:@[
-        [secTitle.topAnchor constraintEqualToAnchor:hdr.topAnchor constant:8],
-        [secTitle.leadingAnchor constraintEqualToAnchor:hdr.leadingAnchor constant:32],
-        [secTitle.trailingAnchor constraintEqualToAnchor:hdr.trailingAnchor constant:-32],
-        [secTitle.bottomAnchor constraintEqualToAnchor:hdr.bottomAnchor constant:-4],
-    ]];
-    self.table.tableHeaderView = hdr;
+    // ★ Task345：系统组头小字 → hero 头卡（图标瓦片 + 标题字阶 + 远程/内置计数
+    //   摘要；圆角/边距/字阶全走令牌，ame341/ame343 覆盖即生效）。
+    [self ame345_installHeroHeader];
 
     [self ame318_reload];
     [self ame333_fetchRemoteIndex];   // 异步非阻塞，回来 reload
+}
+
+#pragma mark - Task345 hero 头卡
+
+- (void)ame345_installHeroHeader {
+    CGFloat mH = [ZL2Theme ame343_layoutMetric:@"cardMarginH" fallback:16.0];
+    CGFloat inX = [ZL2Theme ame343_layoutMetric:@"cardInsetX" fallback:14.0];
+    CGFloat inT = [ZL2Theme ame343_layoutMetric:@"cardInsetTop" fallback:12.0];
+    CGFloat inB = [ZL2Theme ame343_layoutMetric:@"cardInsetBottom" fallback:12.0];
+    CGFloat gap = [ZL2Theme ame343_layoutMetric:@"cardContentGap" fallback:4.0];
+
+    UIView *card = [[UIView alloc] init];
+    card.translatesAutoresizingMaskIntoConstraints = NO;
+    card.backgroundColor = [ZL2Theme surfaceBright];
+    card.layer.cornerRadius = [ZL2Theme radiusL];
+    card.layer.borderWidth = 1.0;
+    card.layer.borderColor = [ZL2Theme outlineVariant].CGColor;
+    card.clipsToBounds = YES;
+
+    UIView *tile = [[UIView alloc] init];
+    tile.translatesAutoresizingMaskIntoConstraints = NO;
+    tile.backgroundColor = [ZL2Theme primaryContainer];
+    tile.layer.cornerRadius = [ZL2Theme radiusM];
+    tile.clipsToBounds = YES;
+    UIImageView *tileIcon = [[UIImageView alloc] initWithImage:[UIImage systemImageNamed:@"shippingbox.fill"]];
+    tileIcon.translatesAutoresizingMaskIntoConstraints = NO;
+    tileIcon.contentMode = UIViewContentModeScaleAspectFit;
+    tileIcon.tintColor = [ZL2Theme onPrimaryContainer];
+    [tile addSubview:tileIcon];
+
+    UILabel *titleLabel = [[UILabel alloc] init];
+    titleLabel.translatesAutoresizingMaskIntoConstraints = NO;
+    titleLabel.text = localize(@"ame318.repo.title", nil);
+    titleLabel.font = [ZL2Theme fontHeadline];
+    titleLabel.textColor = [ZL2Theme onSurface];
+
+    UILabel *countLabel = [[UILabel alloc] init];
+    countLabel.translatesAutoresizingMaskIntoConstraints = NO;
+    countLabel.font = [ZL2Theme fontBodyMedium];
+    countLabel.textColor = [ZL2Theme onSurfaceVariant];
+    self.ame345_heroCountLabel = countLabel;
+
+    [card addSubview:tile];
+    [card addSubview:titleLabel];
+    [card addSubview:countLabel];
+
+    [NSLayoutConstraint activateConstraints:@[
+        [tile.leadingAnchor constraintEqualToAnchor:card.leadingAnchor constant:inX],
+        [tile.topAnchor constraintEqualToAnchor:card.topAnchor constant:inT],
+        [tile.bottomAnchor constraintEqualToAnchor:card.bottomAnchor constant:-inB],
+        [tile.widthAnchor constraintEqualToConstant:48.0],
+        [tile.heightAnchor constraintEqualToConstant:48.0],
+        [tileIcon.centerXAnchor constraintEqualToAnchor:tile.centerXAnchor],
+        [tileIcon.centerYAnchor constraintEqualToAnchor:tile.centerYAnchor],
+        [tileIcon.widthAnchor constraintEqualToConstant:24.0],
+        [tileIcon.heightAnchor constraintEqualToConstant:24.0],
+
+        [titleLabel.leadingAnchor constraintEqualToAnchor:tile.trailingAnchor constant:gap + inX],
+        [titleLabel.bottomAnchor constraintEqualToAnchor:tile.centerYAnchor constant:-1.0],
+        [titleLabel.trailingAnchor constraintLessThanOrEqualToAnchor:card.trailingAnchor constant:-inX],
+
+        [countLabel.leadingAnchor constraintEqualToAnchor:titleLabel.leadingAnchor],
+        [countLabel.topAnchor constraintEqualToAnchor:tile.centerYAnchor constant:1.0],
+        [countLabel.trailingAnchor constraintLessThanOrEqualToAnchor:card.trailingAnchor constant:-inX],
+    ]];
+
+    UIView *header = [[UIView alloc] init];
+    header.translatesAutoresizingMaskIntoConstraints = NO;
+    [header addSubview:card];
+    [NSLayoutConstraint activateConstraints:@[
+        [card.topAnchor constraintEqualToAnchor:header.topAnchor constant:6.0],
+        [card.leadingAnchor constraintEqualToAnchor:header.leadingAnchor constant:mH],
+        [card.trailingAnchor constraintEqualToAnchor:header.trailingAnchor constant:-mH],
+        [card.bottomAnchor constraintEqualToAnchor:header.bottomAnchor constant:0],
+    ]];
+    self.table.tableHeaderView = header;
+    self.ame345_lastHeroWidth = 0;
+    [self ame345_refreshHeroCount];
+}
+
+- (void)ame345_refreshHeroCount {
+    if (!self.ame345_heroCountLabel) return;
+    self.ame345_heroCountLabel.text = [NSString stringWithFormat:
+        localize(@"ame345.repo.hero.count", nil),
+        (unsigned long)self.remoteItems.count, (unsigned long)self.items.count];
+}
+
+- (void)viewDidLayoutSubviews {
+    [super viewDidLayoutSubviews];
+    UIView *header = self.table.tableHeaderView;
+    if (!header) return;
+    CGFloat width = CGRectGetWidth(self.table.bounds);
+    if (width <= 0 || fabs(width - self.ame345_lastHeroWidth) < 0.5) return;
+    self.ame345_lastHeroWidth = width;
+    [header setNeedsLayout];
+    [header layoutIfNeeded];
+    CGFloat h = [header systemLayoutSizeFittingSize:CGSizeMake(width, 0)
+                             withHorizontalFittingPriority:UILayoutPriorityRequired
+                                   verticalFittingPriority:UILayoutPriorityFittingSizeLevel].height;
+    CGRect f = header.frame;
+    f.size.height = h;
+    header.frame = f;
+    self.table.tableHeaderView = header;
 }
 
 - (void)viewWillAppear:(BOOL)animated {
@@ -199,6 +290,7 @@ static NSString * const ame333_repoMirrorPrefKey = @"ame333.plugin.repo.mirror";
                     [p[@"version"] isKindOfClass:[NSString class]] ? p[@"version"] : @"";
             }
             sself.remoteStatus = nil;
+            [sself ame345_refreshHeroCount];
             [sself tableReloadAndKeepScroll];
             if (official.count) {
                 [AmePluginRuntime noteRepoOfficialIndex:official];
@@ -261,6 +353,7 @@ static NSString * const ame333_repoMirrorPrefKey = @"ame333.plugin.repo.mirror";
         }
         [self.items addObject:@{@"dirName": dirName, @"manifest": m}];
     }
+    [self ame345_refreshHeroCount];
     [self.table reloadData];
 }
 

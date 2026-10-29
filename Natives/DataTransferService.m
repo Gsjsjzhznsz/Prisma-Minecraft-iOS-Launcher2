@@ -315,6 +315,12 @@ typedef NS_ENUM(NSInteger, Ame229PickerMode) {
             dispatch_async(dispatch_get_main_queue(), ^{
                 bar.progress = 1.0f;
             });
+            // Task345：导出脉柱校验——缺/损启动器设置的备份导入后必然
+            // “设置全丢”，当场报错优于交付残缺包（对齐导入侧脉柱校验）。
+            if (ok) {
+                NSString *spine = [self ame345_exportSpineProblem:archive requirePrefs:YES];
+                if (spine) { ok = NO; failMsg = spine; }
+            }
             NSLog(@"[DataTransfer] Task219: export wrote %ld files (level=%ld) -> %@ (%@)",
                   (long)written, (long)method, tmpPath.lastPathComponent, ok ? @"ok" : @"FAILED");
         }
@@ -510,6 +516,26 @@ typedef NS_ENUM(NSInteger, Ame229PickerMode) {
                   ? [NSString stringWithFormat: @" [Task344: %ld plugin file(s) skipped -- app-managed state, reinstall from plugin repo]",
                       (long)ame344_skippedPluginFiles] : @"");
 
+        // ★ Task345（zip 导入"数据不行"第四轮 · 本轮装机日志实锤定案）：
+        //   导入流水线全绿（11475 files ok）但 PLPreferences 打出
+        //   "Initializing default values for global preferences" = 合并后
+        //   launcher_preferences_v2.plist 不在场/不可解析 → 设置被默认值
+        //   静默覆盖，用户看到的是出厂态（"导入了但什么都不对"）。
+        //   ① 脉柱校验：合并后验偏好文件在场且可解析；缺席时在摘要
+        //      toast 里直接说明（不再让默认值初始化静默吃掉设置）。
+        BOOL ame345_prefsMissing = NO;
+        if (!failMsg) {
+            NSString *prefsPath = [home stringByAppendingPathComponent:@"launcher_preferences_v2.plist"];
+            NSDictionary *prefsCheck = [NSDictionary dictionaryWithContentsOfFile:prefsPath];
+            ame345_prefsMissing = (prefsCheck.count == 0);
+            NSLog(@"[DataTransfer] Task345: spine check prefs=%@ (%@)",
+                  ame345_prefsMissing ? @"MISSING/EMPTY" : @"present",
+                  prefsPath.lastPathComponent);
+            if (ame345_prefsMissing) {
+                NSLog(@"[DataTransfer] Task345: WARNING backup did not restore launcher_preferences_v2.plist -- settings will stay at current values");
+            }
+        }
+
         // ★ Task227（反馈 #9：导入无效果 + 数据像被重置）：两个收尾动作。
         // ① 备份里可能带 legacy 布局的 Library/Application Support/minecraft
         //   真实目录（上游老版本数据）——导入落位后立即触发与启动期同源的
@@ -519,6 +545,13 @@ typedef NS_ENUM(NSInteger, Ame229PickerMode) {
         // ② 恢复进 instances/<name>/ 的数据若与当前实例名不一致（备份来自
         //   别的实例名），现在如实记日志——下轮反馈可据此定位。
         if (!failMsg) {
+            // ★ Task345：顺序修正——先快照旧偏好里的游戏目录，等 loadPreferences
+            //   重载后再对比。原顺序 init_setupMultiDir 在重载【前】跑，用的是
+            //   内存里的旧值；若备份的 plist 指向另一个实例，软链/POJAV_GAME_DIR
+            //   会一直错到下次重启 = "导入后要重启才生效"的半状态主因。
+            NSString *ame345_gdBefore = [getPrefObject(@"general.game_directory") isKindOfClass:NSString.class]
+                ? (NSString *)getPrefObject(@"general.game_directory") : @"default";
+            if (ame345_gdBefore.length == 0) ame345_gdBefore = @"default";
             @try {
                 extern void init_setupMultiDir(void);
                 init_setupMultiDir();
@@ -543,6 +576,25 @@ typedef NS_ENUM(NSInteger, Ame229PickerMode) {
                 NSLog(@"[DataTransfer] Task230: preferences reloaded from disk after import");
             } @catch (NSException *ame230_e) {
                 NSLog(@"[DataTransfer] Task230: preference reload exception (%@)", ame230_e);
+            }
+            // ★ Task345：偏好一致性重套用——重载后若游戏目录变了（备份指向
+            //   另一实例），立即重跑 init_setupMultiDir 重指软链 + PLProfiles
+            //   同步，不再等重启。
+            @try {
+                NSString *ame345_gdAfter = [getPrefObject(@"general.game_directory") isKindOfClass:NSString.class]
+                    ? (NSString *)getPrefObject(@"general.game_directory") : @"default";
+                if (ame345_gdAfter.length == 0) ame345_gdAfter = @"default";
+                if (![ame345_gdAfter isEqualToString:ame345_gdBefore]) {
+                    extern void init_setupMultiDir(void);
+                    init_setupMultiDir();
+                    [PLProfiles updateCurrent];
+                    [[NSNotificationCenter defaultCenter] postNotificationName:@"ReloadProfileList" object:nil];
+                    [[NSNotificationCenter defaultCenter] postNotificationName:@"SelectedProfileChanged" object:nil];
+                    NSLog(@"[DataTransfer] Task345: game directory changed after preference reload (%@ -> %@) -- symlink/profiles re-applied",
+                          ame345_gdBefore, ame345_gdAfter);
+                }
+            } @catch (NSException *ame345_e) {
+                NSLog(@"[DataTransfer] Task345: post-reload consistency exception (%@)", ame345_e);
             }
             dispatch_async(dispatch_get_main_queue(), ^{
                 [[NSNotificationCenter defaultCenter] postNotificationName:@"AppLanguageChanged"
@@ -573,6 +625,30 @@ typedef NS_ENUM(NSInteger, Ame229PickerMode) {
                   [ame232_touchedInstances.allObjects componentsJoinedByString:@","]);
             ame230_summaryExtras = [NSString stringWithFormat:localize(@"ame230.import.summary", nil),
                                     (unsigned long)ame230_instanceCount, ame227_gd, (unsigned long)ame230_savesCount];
+            // ★ Task345：存档分布真相线——“存档 0 个”不再只报当前实例；
+            // 被写入实例的存档逐一列出，用户一眼看到数据落在了哪里。
+            if (ame232_touchedInstances.count > 0) {
+                NSMutableArray<NSString *> *ame345_saveMap = [NSMutableArray array];
+                NSUInteger ame345_totalSaves = 0;
+                for (NSString *ame345_n in [ame232_touchedInstances.allObjects sortedArrayUsingSelector:@selector(compare:)]) {
+                    NSUInteger ame345_sc = [fm contentsOfDirectoryAtPath:
+                        [ame230_instancesDir stringByAppendingPathComponent:
+                            [NSString stringWithFormat:@"%@/saves", ame345_n]] error:nil].count;
+                    ame345_totalSaves += ame345_sc;
+                    [ame345_saveMap addObject:[NSString stringWithFormat:@"%@(%lu)", ame345_n, (unsigned long)ame345_sc]];
+                }
+                NSLog(@"[DataTransfer] Task345: saves inventory across touched instances: %@ (total=%lu)",
+                      [ame345_saveMap componentsJoinedByString:@" · "], (unsigned long)ame345_totalSaves);
+                ame230_summaryExtras = [ame230_summaryExtras stringByAppendingFormat:@"\n%@",
+                    [NSString stringWithFormat:localize(@"ame345.import.instance_saves", nil),
+                     [ame345_saveMap componentsJoinedByString:@" · "]]];
+            }
+            // ★ Task345：脉柱校验②——备份未带回启动器设置时，摘要直接说明
+            // （否则 PLPreferences 默认值初始化静默吃掉设置，用户只见“全丢了”）。
+            if (ame345_prefsMissing) {
+                ame230_summaryExtras = [ame230_summaryExtras stringByAppendingFormat:@"\n%@",
+                    localize(@"ame345.import.prefs_missing", nil)];
+            }
             // ★ Task232（反馈 #13：备份导入无效，第三轮）：导入"成功"但用户
             //   看不到任何变化的主形态 = 备份里的存档落在【别的实例名】下，
             //   当前实例（default）依旧是空的——日志全绿、界面纹丝不动。
@@ -1476,6 +1552,23 @@ static void ame224_dosDateTime(NSDate *date, uint16_t *dosTime, uint16_t *dosDat
         free(wbuf);
         free(sout);
 
+        // Task345：导出脉柱校验（勾选“启动器”分区时强校验）——设置文件缺席
+        // 的备份导入后必然“设置全丢”，当场报错优于交付残缺包。
+        if (!cancelled && !failed) {
+            @try {
+                UZKArchive *spineArchive = [[UZKArchive alloc] initWithPath:tmpPath error:nil];
+                NSString *spine = [self ame345_exportSpineProblem:spineArchive
+                                                     requirePrefs:[selected containsObject:Ame224SectionIdLauncher]];
+                if (spine) {
+                    failed = YES;
+                    failMsg = spine;
+                    [[NSFileManager defaultManager] removeItemAtPath:tmpPath error:nil];
+                }
+            } @catch (NSException *ame345_e) {
+                NSLog(@"[ExportOps] Task345: spine check exception (%@)", ame345_e);
+            }
+        }
+
         unsigned long long finalBytes = (unsigned long long)__sync_add_and_fetch(&st->bytesDone, 0);
         NSUInteger finalFiles = (NSUInteger)__sync_add_and_fetch(&st->filesDone, 0);
         free(st);
@@ -1499,6 +1592,55 @@ static void ame224_dosDateTime(NSDate *date, uint16_t *dosTime, uint16_t *dosDat
               tmpPath.lastPathComponent, (long)method, (unsigned long)skippedCount);
         completion(tmpPath, nil);
     });
+}
+
+#pragma mark - Task345：导出脉柱校验（备份不可缺启动器设置）
+
+/// 导出后回读脉柱：清单直方图日志 + launcher_preferences_v2.plist 回读解析。
+/// 返回 nil = 脉柱完好；非 nil = 失败原因（调用方按导出失败处置）。
+/// 本轮装机日志实锤的失效形态：备份包缺/损启动器设置文件 → 导入后
+/// PLPreferences 静默初始化默认值 → 用户眼中的“导入无效、设置全丢”。
+/// 导出侧当场拒绝交付残缺备份，不再让坏包流到导入端。
+- (nullable NSString *)ame345_exportSpineProblem:(nullable UZKArchive *)archive
+                                   requirePrefs:(BOOL)requirePrefs {
+    if (!archive) return @"spine check: archive unreadable";
+    NSError *err = nil;
+    NSArray<NSString *> *names = [archive listFilenames:&err];
+    if (!names || err) {
+        return [NSString stringWithFormat:@"spine check: archive unreadable (%@)",
+                err.localizedDescription ?: @"?"];
+    }
+    // 顶层直方图（取证锚点：下一轮“备份里到底有什么”一目了然）。
+    NSMutableDictionary<NSString *, NSNumber *> *hist = [NSMutableDictionary dictionary];
+    for (NSString *n in names) {
+        NSArray *comps = [n pathComponents];
+        NSString *top = comps.count > 1 ? comps[0] : @"(root)";
+        hist[top] = @([hist[top] unsignedIntegerValue] + 1);
+    }
+    NSMutableArray<NSString *> *parts = [NSMutableArray array];
+    for (NSString *k in [hist.allKeys sortedArrayUsingSelector:@selector(compare:)]) {
+        [parts addObject:[NSString stringWithFormat:@"%@=%@", k, hist[k]]];
+    }
+    NSLog(@"[ExportOps] Task345: archive manifest entries=%lu top-level: %@",
+          (unsigned long)names.count, [parts componentsJoinedByString:@" "]);
+
+    if (!requirePrefs) return nil;
+    if (![names containsObject:@"launcher_preferences_v2.plist"]) {
+        return @"spine check: launcher_preferences_v2.plist missing from archive";
+    }
+    NSData *prefsData = [archive extractDataFromFile:@"launcher_preferences_v2.plist" error:&err];
+    if (!prefsData || prefsData.length == 0) {
+        return @"spine check: launcher_preferences_v2.plist empty on read-back";
+    }
+    id plist = [NSPropertyListSerialization propertyListWithData:prefsData
+                                                         options:0
+                                                          format:nil
+                                                           error:&err];
+    if (![plist isKindOfClass:[NSDictionary class]] || ((NSDictionary *)plist).count == 0) {
+        return [NSString stringWithFormat:@"spine check: preferences plist unparseable (%@)",
+                err.localizedDescription ?: @"empty"];
+    }
+    return nil;
 }
 
 - (void)ame223_presentDestinationPickerForTmpPath:(NSString *)tmpPath
