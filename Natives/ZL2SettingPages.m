@@ -127,9 +127,9 @@
 #import "AmePluginRuntime.h"   // Task327：插件贡献行渲染（allContributedRows/invokeRowTap）
 
 // ★ Task344 旧设置全量迁移：新增外部消费面
-#import "AIProviderConfigViewController.h"
-#import "AISessionListViewController.h"
-#import "AISystemPromptEditorViewController.h"
+#import "AI/AIProviderConfigViewController.h"
+#import "AI/AISessionListViewController.h"
+#import "AI/AISystemPromptEditorViewController.h"
 #import "StikDebugViewController.h"
 #import "DataExportViewController.h"
 #import "DataTransferService.h"
