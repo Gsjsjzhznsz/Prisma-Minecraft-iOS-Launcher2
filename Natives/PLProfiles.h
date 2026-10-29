@@ -27,6 +27,17 @@
 /// block 在实例锁内直接改活字典，出锁前自动 save（save 同锁可重入）。
 - (void)applyChanges:(void (NS_NOESCAPE ^)(NSMutableDictionary<NSString *, id> *profiles))changes;
 
+/// ★ Task349：孤儿实例目录收编——扫描 POJAV_HOME/instances/* 真实目录，凡
+///   注册表（launcher_profiles.json）无对应条目者按目录名登记（gameDir 绝对
+///   路径锚定，Task316 判例；lastVersionId 尽力从实例自带 launcher_profiles.json
+///   回读），一并处理一代全局注册表（POJAV_HOME/launcher_profiles.json）在
+///   现役注册表尚为出厂默认单条时的合并导入（成功后改名归档防复燃）。
+///   幂等、只增不改：同名键 / gameDir 命中 / 当前游戏目录 / 隐藏与符号链接
+///   与空目录一律跳过，绝不触碰既有条目与选中态。有新登记时主队列投递
+///   ReloadProfileList。返回新登记条数（含一代合并）。tag 仅用于日志定位
+///   （"import" = 导入收尾 / "startup" = 启动期）。
++ (NSUInteger)ame349_reconcileOrphanInstancesLogTag:(NSString *)tag;
+
 // 服务器地址（FCL 风格：启动后自动加入服务器，留空则不加入）
 - (NSString *)serverIpForCurrentProfile;
 - (NSString *)serverIpForProfile:(NSString *)profileName;

@@ -252,6 +252,167 @@ static PLProfiles* current;
     }
 }
 
+#pragma mark - ★ Task349 孤儿实例目录收编（zip 导入旧包实例列表可见性根修）
+
+// 病历（装机 0ad0735 IMG_0522 + latestlog 第八轮）：Task217 导入 11474 files
+// (ok) + Task230 摘要"已恢复 3 个实例"，主页实例网格却只有 "(Default)" 一张卡
+// ——实例列表按注册表（launcher_profiles.json）枚举（Task302 判例），恢复进
+// instances/ 的目录若无对应条目 = 永久隐身。旧版备份（≤345 无脉柱形态）常见
+// 注册表缺席/落位错层（一代全局位 POJAV_HOME 根 vs 现役 POJAV_GAME_DIR 位），
+// 导入后注册表被防毒化保留现役（或回退出厂默认），恢复的实例目录全部成为孤儿。
+// 修法：扫描收编（导入收尾 + 启动期双挂点，幂等只增）+ 一代全局注册表在
+// 现役注册表尚为出厂默认单条时合并导入（改名归档防复燃）。
++ (NSUInteger)ame349_reconcileOrphanInstancesLogTag:(NSString *)tag {
+    const char *ame349_home = getenv("POJAV_HOME");
+    if (!ame349_home) return 0;
+    NSString *ame349_homeStr = [NSString stringWithUTF8String:ame349_home];
+    if (ame349_homeStr.length == 0) return 0;
+
+    NSFileManager *ame349_fm = NSFileManager.defaultManager;
+    NSString *ame349_instancesDir = [ame349_homeStr stringByAppendingPathComponent:@"instances"];
+    NSArray<NSString *> *ame349_entries =
+        [ame349_fm contentsOfDirectoryAtPath:ame349_instancesDir error:nil] ?: @[];
+
+    PLProfiles *ame349_mgr = [PLProfiles current];
+    NSDictionary<NSString *, NSDictionary<NSString *, NSString *> *> *ame349_snapshot =
+        [NSDictionary dictionaryWithDictionary:ame349_mgr.profiles];
+
+    // 当前游戏目录（目录名↔注册表键不同名判例：instances/default vs "(Default)"，
+    // profile 无 gameDir 键即解析为当前实例——按目录名匹配会误登记现役实例）
+    NSString *ame349_currentGameDir =
+        getPrefObject(@"general.game_directory") ?: @"default";
+    if (![ame349_currentGameDir isKindOfClass:[NSString class]] ||
+        ame349_currentGameDir.length == 0) {
+        ame349_currentGameDir = @"default";
+    }
+
+    // 现役注册表是否尚为"出厂默认单条"（一代全局注册表合并的闸门；用户已
+    // 自建/下载过实例则现役注册表为权威，不做合并防复燃）
+    BOOL ame349_defaultOnly = NO;
+    if (ame349_snapshot.count == 1) {
+        NSDictionary *ame349_d = ame349_snapshot[@"(Default)"];
+        ame349_defaultOnly = [ame349_d isKindOfClass:[NSDictionary class]] &&
+            [ame349_d[@"lastVersionId"] isKindOfClass:[NSString class]] &&
+            [ame349_d[@"lastVersionId"] isEqualToString:@"latest-release"];
+    }
+
+    // ---- 扫描：真实目录（符号链接/隐藏隔离/.ame344-corrupt-* 一律跳过）----
+    NSMutableArray<NSString *> *ame349_orphans = [NSMutableArray array];
+    for (NSString *ame349_name in [ame349_entries sortedArrayUsingSelector:@selector(compare:)]) {
+        if (ame349_name.length == 0 || [ame349_name hasPrefix:@"."]) continue;
+        NSString *ame349_path = [ame349_instancesDir stringByAppendingPathComponent:ame349_name];
+        NSDictionary *ame349_attrs = [ame349_fm attributesOfItemAtPath:ame349_path error:nil];
+        // attributesOfItemAtPath 不跟随链接：仅真实目录入围（shared_core 级
+        // 符号链接与断链天然排除；nil 属性 / 非目录均经 continue 跳过）
+        if (![ame349_attrs[NSFileType] isEqualToString:NSFileTypeDirectory]) continue;
+        // 空目录跳过（setupMultiDir 预建壳/用户未初始化的游戏目录不产生废卡）
+        NSArray *ame349_inner = [ame349_fm contentsOfDirectoryAtPath:ame349_path error:nil];
+        if (ame349_inner.count == 0) continue;
+        BOOL ame349_known = [ame349_name isEqualToString:ame349_currentGameDir];
+        if (!ame349_known) {
+            for (NSString *ame349_key in ame349_snapshot) {
+                if ([ame349_key isEqualToString:ame349_name]) { ame349_known = YES; break; }
+                NSString *ame349_gd = ame349_snapshot[ame349_key][@"gameDir"];
+                if ([ame349_gd isKindOfClass:[NSString class]] &&
+                    [ame349_gd isEqualToString:ame349_path]) { ame349_known = YES; break; }
+            }
+        }
+        if (!ame349_known) [ame349_orphans addObject:ame349_name];
+    }
+
+    // ---- 登记孤儿（lastVersionId 尽力从实例自带 launcher_profiles.json 回读）----
+    NSMutableArray<NSDictionary *> *ame349_newProfiles = [NSMutableArray array];
+    for (NSString *ame349_name in ame349_orphans) {
+        NSMutableDictionary *ame349_p = [NSMutableDictionary dictionary];
+        ame349_p[@"name"] = ame349_name;
+        NSString *ame349_path = [ame349_instancesDir stringByAppendingPathComponent:ame349_name];
+        NSDictionary *ame349_own = parseJSONFromFile(
+            [ame349_path stringByAppendingPathComponent:@"launcher_profiles.json"]);
+        if ([ame349_own isKindOfClass:[NSDictionary class]] &&
+            ame349_own[@"NSErrorObject"] == nil) {
+            NSDictionary *ame349_ownProfiles = ame349_own[@"profiles"];
+            if ([ame349_ownProfiles isKindOfClass:[NSDictionary class]]) {
+                id ame349_sel = ame349_own[@"selectedProfile"];
+                NSDictionary *ame349_pick = ([ame349_sel isKindOfClass:[NSString class]])
+                    ? ame349_ownProfiles[ame349_sel] : nil;
+                if (![ame349_pick isKindOfClass:[NSDictionary class]]) {
+                    for (NSDictionary *ame349_cand in ame349_ownProfiles.allValues) {
+                        if ([ame349_cand isKindOfClass:[NSDictionary class]]) { ame349_pick = ame349_cand; break; }
+                    }
+                }
+                id ame349_lv = [ame349_pick isKindOfClass:[NSDictionary class]]
+                    ? ame349_pick[@"lastVersionId"] : nil;
+                if ([ame349_lv isKindOfClass:[NSString class]] &&
+                    ((NSString *)ame349_lv).length > 0) {
+                    ame349_p[@"lastVersionId"] = ame349_lv;
+                }
+            }
+        }
+        // gameDir 绝对路径锚定（Task316 扁平化判例）；type/created 与 Task302
+        // 预登记同族。
+        ame349_p[@"gameDir"] = ame349_path;
+        ame349_p[@"type"] = @"custom";
+        ame349_p[@"created"] = [NSDate date].description;
+        [ame349_newProfiles addObject:ame349_p];
+    }
+
+    // ---- 一代全局注册表合并（仅出厂默认单条现役时）----
+    NSUInteger ame349_legacyMerged = 0;
+    NSString *ame349_legacyPath = [ame349_homeStr stringByAppendingPathComponent:@"launcher_profiles.json"];
+    NSString *ame349_legacyArchive = nil;
+    if (ame349_defaultOnly) {
+        NSDictionary *ame349_legacy = parseJSONFromFile(ame349_legacyPath);
+        NSDictionary *ame349_legacyProfiles =
+            [ame349_legacy isKindOfClass:[NSDictionary class]] ? ame349_legacy[@"profiles"] : nil;
+        if ([ame349_legacyProfiles isKindOfClass:[NSDictionary class]] &&
+            ame349_legacyProfiles.count > 0 && ame349_legacy[@"NSErrorObject"] == nil) {
+            __block NSUInteger ame349_count = 0;
+            [ame349_mgr applyChanges:^(NSMutableDictionary<NSString *, id> *profiles) {
+                for (NSString *ame349_k in ame349_legacyProfiles) {
+                    if (profiles[ame349_k] != nil) continue;
+                    NSDictionary *ame349_p = ame349_legacyProfiles[ame349_k];
+                    if (![ame349_p isKindOfClass:[NSDictionary class]]) continue;
+                    NSMutableDictionary *ame349_copy = [ame349_p mutableCopy];
+                    ame349_copy[@"name"] = ame349_k;
+                    profiles[ame349_k] = ame349_copy;
+                    ame349_count++;
+                }
+            }];
+            ame349_legacyMerged = ame349_count;
+            if (ame349_legacyMerged > 0) {
+                // 改名归档防复燃（用户此后删除实例不被下次启动复活；数据保留）
+                ame349_legacyArchive = [ame349_legacyPath stringByAppendingString:@".ame349-imported"];
+                [ame349_fm moveItemAtPath:ame349_legacyPath toPath:ame349_legacyArchive error:nil];
+            }
+        }
+    }
+
+    if (ame349_newProfiles.count > 0) {
+        [ame349_mgr applyChanges:^(NSMutableDictionary<NSString *, id> *profiles) {
+            for (NSDictionary *ame349_p in ame349_newProfiles) {
+                profiles[ame349_p[@"name"]] = [ame349_p mutableCopy];
+            }
+        }];
+    }
+
+    NSUInteger ame349_registered = ame349_newProfiles.count + ame349_legacyMerged;
+    NSLog(@"[Ame349] reconcile(%@): scanned=%lu registered=%lu (orphans=%lu legacyMerged=%lu names=%@)",
+          tag ?: @"?",
+          (unsigned long)ame349_entries.count,
+          (unsigned long)ame349_registered,
+          (unsigned long)ame349_orphans.count,
+          (unsigned long)ame349_legacyMerged,
+          [ame349_newProfiles valueForKey:@"name"]);
+
+    if (ame349_registered > 0) {
+        // 导入线程/启动期双挂点统一主队列投递（AmePluginRuntime 消费方刷新）
+        dispatch_async(dispatch_get_main_queue(), ^{
+            [[NSNotificationCenter defaultCenter] postNotificationName:@"ReloadProfileList" object:nil];
+        });
+    }
+    return ame349_registered;
+}
+
 #pragma mark - 服务器地址（FCL 风格：启动后自动加入服务器）
 
 // 获取当前选中 profile 的服务器地址，留空返回 @""

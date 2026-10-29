@@ -721,6 +721,21 @@ typedef NS_ENUM(NSInteger, Ame229PickerMode) {
             } @catch (NSException *ame345_e) {
                 NSLog(@"[DataTransfer] Task345: post-reload consistency exception (%@)", ame345_e);
             }
+            // ★ Task349：导入后孤儿实例收编——旧版备份（≤345 无脉柱形态）常无
+            //   可恢复的现役注册表（launcher_profiles.json 缺席/一代全局位落位），
+            //   恢复进 instances/ 的实例目录因此不进实例列表 = "已恢复 3 个实例
+            //   但界面只显示 1 个"的观感断层（装机 0ad0735 IMG_0522 实锤）。
+            //   收编幂等只增（同名键/gameDir 命中/当前游戏目录/隐藏/链接/空目录
+            //   一律跳过），随后 AppLanguageChanged 根重建即见新卡，无需重启。
+            @try {
+                NSUInteger ame349_registered = [PLProfiles ame349_reconcileOrphanInstancesLogTag:@"import"];
+                if (ame349_registered > 0) {
+                    NSLog(@"[DataTransfer] Task349: %lu orphan instance(s) registered into profile list after import",
+                          (unsigned long)ame349_registered);
+                }
+            } @catch (NSException *ame349_e) {
+                NSLog(@"[DataTransfer] Task349: instance reconcile exception (%@)", ame349_e);
+            }
             dispatch_async(dispatch_get_main_queue(), ^{
                 [[NSNotificationCenter defaultCenter] postNotificationName:@"AppLanguageChanged"
                                                                     object:[getPrefObject(@"general.app_language") isKindOfClass:NSString.class]

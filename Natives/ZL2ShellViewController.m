@@ -88,6 +88,7 @@
 #import "AI/AIViewController.h"          // Task318：AI 助手入口恢复（7.0-UI-8 旧壳退役后
 #import "AI/AiSessionStore.h"           //   顶栏 RailItem 第 5 项重挂；旧壳 showAIPage 同参）
 #import "utils.h"                       // Task318：localize（AI 顶栏项文案四表键，缺头=隐式声明雷）
+#import "BackgroundManager.h"            // ★ Task349：壁纸描边字体视图树级豁免（ame230_setViewTreeStrokeExempt）
 
 #include <stdlib.h>
 
@@ -497,6 +498,8 @@ static UIImage *ZL2ShellSystemImage(NSString *name, NSString *fallback) {
 @property(nonatomic, strong) UIView *dimOverlay;                      // 抽屉态遮罩
 @property(nonatomic, strong) NSLayoutConstraint *ame347_paneLeading;  // 窗格前导（抽屉开合驱动）
 @property(nonatomic, strong) NSLayoutConstraint *ame347_contentLeading; // 内容区前导（宽窄驱动）
+@property(nonatomic, strong) NSLayoutConstraint *ame347_headerLeading; // ★ Task349：大标题前导（让位左钮槽位）
+@property(nonatomic, assign) BOOL ame347_widthClassApplied;           // ★ Task349：首轮宽窄态必派发哨兵
 @end
 
 @implementation ZL2ShellViewController
@@ -515,6 +518,16 @@ static UIImage *ZL2ShellSystemImage(NSString *name, NSString *fallback) {
 - (void)viewDidLoad {
     [super viewDidLoad];
     self.view.backgroundColor = [ZL2Theme surface];
+
+    // ★ Task349：壁纸描边字体（Task227/232 全局 setText:/drawTextInRect: 交换）
+    //   视图树级豁免。装机 IMG_0522 实锤：hasBackground 设备上 ZL2 全壳满屏
+    //   白底黑边幽灵字（含大标题/卡片/胶囊）——根因 = ZL2 壳所有表面均为
+    //   ZL2Theme 不透明动态色（dynamicProvider alpha=1.0），壁纸从不在壳内容
+    //   后透出，描边可读性处理在 opaque 面上纯损耗。树级豁免（ame230
+    //   superview 链上溯 16 层）覆盖壳内全部页面/卡片/单元格；欢迎向导
+    //   （Task230）/文件浏览器（Task229）/模态呈现页（独立窗口容器）既有
+    //   豁免链不受影响。
+    ame230_setViewTreeStrokeExempt(self.view, YES);
 
     // 7.0-UI-11：版本索引服务预热（远程清单在途拉取，启动链查找免竞态等待）
     [[ZL2VersionIndex sharedIndex] warmUp];
@@ -926,7 +939,10 @@ static UIImage *ZL2ShellSystemImage(NSString *name, NSString *fallback) {
         [self.navBackButton.leadingAnchor constraintEqualToAnchor:self.contentHeader.safeAreaLayoutGuide.leadingAnchor constant:8.0],
         [self.navBackButton.centerYAnchor constraintEqualToAnchor:self.contentHeader.centerYAnchor],
 
-        [self.headerTitle.leadingAnchor constraintEqualToAnchor:self.contentHeader.safeAreaLayoutGuide.leadingAnchor constant:16.0],
+        // ★ Task349：大标题前导改为可变约束——窄屏汉堡/返回钮（32pt 槽位）
+        //   与标题同位重叠，由 ame_refreshNavShellStateAnimated 按可见性派发。
+        self.ame347_headerLeading = [self.headerTitle.leadingAnchor constraintEqualToAnchor:self.contentHeader.safeAreaLayoutGuide.leadingAnchor constant:16.0],
+        self.ame347_headerLeading,
         [self.headerTitle.centerYAnchor constraintEqualToAnchor:self.contentHeader.centerYAnchor],
         [self.headerTitle.trailingAnchor constraintLessThanOrEqualToAnchor:self.taskPill.leadingAnchor constant:-12.0],
 
@@ -948,6 +964,14 @@ static UIImage *ZL2ShellSystemImage(NSString *name, NSString *fallback) {
     // viewDidLayoutSubviews 必派发一次宽窄态（iPhone 闭合 / iPad 常驻），
     // 且首绘前完成——零可见闪帧。
     self.ame347_regular = YES;
+    // ★ Task349：宽屏几何构建期即为真值。原实现 contentLeading 常量停留在
+    //   创建默认 0，全靠 viewDidLayoutSubviews 的"变化才派发"兜底——而
+    //   ame347_regular 预置 YES 与 iPad 实际宽类相同 → 首轮永不派发 →
+    //   内容区（后 addSubview，z 序在窗格之上）以全宽盖死 NavigationView
+    //   左窗格 = 装机 IMG_0522 实锤"结构令牌应用了但界面没有左窗格"（导航
+    //   全灭：无窗格/无顶栏 rail/无汉堡，用户无路可走）。构建期即落 280pt
+    //   + 首轮无条件派发（ame347_widthClassApplied 哨兵）双保险。
+    self.ame347_contentLeading.constant = ZL2ShellPaneWidth;
     [self ame347_applyDrawerGeometryAnimated:NO];
     [self.view setNeedsLayout];
 }
@@ -999,7 +1023,10 @@ static UIImage *ZL2ShellSystemImage(NSString *name, NSString *fallback) {
     [super viewDidLayoutSubviews];
     if (!self.ame347_navMode) return;
     BOOL ame347_nowRegular = self.view.bounds.size.width >= ZL2ShellRegularMinWidth;
-    if (ame347_nowRegular != self.ame347_regular) {
+    // ★ Task349：首轮无条件派发（原"变化才派发"在 iPad 上永不点火——预置
+    //   regular=YES 与实际宽类相同，见 ame_buildNavigationViewShell 内注释）。
+    if (!self.ame347_widthClassApplied || ame347_nowRegular != self.ame347_regular) {
+        self.ame347_widthClassApplied = YES;
         [self ame347_applyWidthClass:ame347_nowRegular];
     }
 }
@@ -1020,6 +1047,11 @@ static UIImage *ZL2ShellSystemImage(NSString *name, NSString *fallback) {
             [item ame_setSelected:(item.pageIndex >= 0 && item.pageIndex == ame347_index)];
         }];
         BOOL ame347_hamburgerVisible = !self.ame347_regular && !ame347_backVisible;
+        // ★ Task349：大标题让位左钮槽位（汉堡/返回 32pt + 前导 8pt + 间距 6pt
+        //   = 46pt；两钮互斥同槽）——原实现标题 leading 恒 16pt，窄屏与汉堡
+        //   同位重叠（Task347 遗留几何缺陷）。
+        self.ame347_headerLeading.constant =
+            (ame347_hamburgerVisible || ame347_backVisible) ? 46.0 : 16.0;
         self.hamburgerButton.alpha = ame347_hamburgerVisible ? 1.0 : 0.0;
         self.hamburgerButton.hidden = !ame347_hamburgerVisible;
         self.navBackButton.alpha = ame347_backVisible ? 1.0 : 0.0;

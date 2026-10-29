@@ -1097,6 +1097,14 @@ int main(int argc, char *argv[]) {
     // updateCurrent 之前，profile 解析拿到的即迁移后的值）。
     ame212_migrateHolyGl4es();
     [PLProfiles updateCurrent];
+    // ★ Task349：启动期孤儿实例收编（与导入收尾同源，幂等只增）——存量设备上
+    //   由旧构建导入/迁移落位的 instances/ 目录（无注册表条目）在此一次性进
+    //   实例列表，无需重新导入。装机锚点 "[Ame349] reconcile(startup): ..."。
+    @try {
+        [PLProfiles ame349_reconcileOrphanInstancesLogTag:@"startup"];
+    } @catch (NSException *ame349_e) {
+        NSLog(@"[Pre-init] Task349: instance reconcile exception (%@)", ame349_e);
+    }
     init_setupAccounts();
     init_setupCustomControls();
     init_exportJIT26Script();

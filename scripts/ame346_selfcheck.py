@@ -153,17 +153,17 @@ zdata = open(zpath, "rb").read()
 zsha = hashlib.sha256(zdata).hexdigest()
 znames = sorted(zipfile.ZipFile(zpath).namelist())
 
-check('C1 v2.2.0 三方对拍（manifest + index 条目 + zip 实算 sha/size + zip 根两文件；★Task347 顺延）',
-      man.get("version") == "2.2.0" and fe and fe.get("version") == "2.2.0"
+check('C1 v2.3.0 三方对拍（manifest + index 条目 + zip 实算 sha/size + zip 根两文件；★Task348 顺延）',
+      man.get("version") == "2.3.0" and fe and fe.get("version") == "2.3.0"
       and fe.get("sha256") == zsha and fe.get("size") == len(zdata)
       and znames == ["main.js", "manifest.json"])
 
 plugin_js = read("plugin-repo/src/fluent-ui/main.js")
-check('C2 结构叙事文案落位（v2.1.1 副题退役 + 行副题/loaded 行升 2.2.0；★Task347 顺延）',
+check('C2 装载即生效叙事文案落位（v2.2.0 点击循环副题退役 + 行副题/loaded 行升 2.3.0；★Task348 顺延）',
       "左侧导航窗格" in plugin_js
       and "新开页面/重启启动器全量生效" not in plugin_js
-      and "Fluent 2 全维度·左侧导航窗格（点击循环）" in plugin_js
-      and "fluent-ui v2.2.0 loaded" in plugin_js)
+      and "Fluent 2 全维度·左侧导航窗格·装载即生效（点击循环）" in plugin_js
+      and "fluent-ui v2.3.0 loaded" in plugin_js)
 
 LAYOUT_KEYS = ["searchBarHeight", "chipHeight", "cardMarginV", "cardMarginH",
                "cardInsetX", "cardInsetTop", "cardInsetBottom", "cardContentGap",
@@ -203,8 +203,8 @@ if "--selftest" in sys.argv:
     print(f"  {'RED' if not ok else 'NOT-RED'}  S-B1 分区强制脉柱摘除")
     if not ok: reds.append("S-B1")
 
-    # S-C1：manifest 版本回退 2.1.1 → C1 断言条件必翻红
-    ok = (man.get("version") == "2.1.1" and fe and fe.get("version") == "2.2.0")
+    # S-C1：manifest 版本回退 2.2.0 → C1 断言条件必翻红
+    ok = (man.get("version") == "2.2.0" and fe and fe.get("version") == "2.3.0")
     print(f"  {'RED' if not ok else 'NOT-RED'}  S-C1 manifest 版本回退")
     if not ok: reds.append("S-C1")
 
