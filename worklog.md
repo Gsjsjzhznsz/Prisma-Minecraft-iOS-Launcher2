@@ -4339,3 +4339,15 @@ Stage Summary:
 - 三线全交付：旧壳 1.09 万行物理退场（autoCheck 挂载移防保功能无损）/ 新模组页 16 项旧功能清偿 14 项（2 项语义不适用入档）/ fluent-ui 排版第四令牌族贯通（引擎中性+插件侧 Fluent 刻度）
 - 装机验证锚点：①启动/切语言/退出游戏三路径无旧壳回归（Welcome 引导锚 A/B/C 正常圈选）②版本详情→模组子页：搜索/筛选/排序/批量/检查更新（双源检查横幅进度→确认→下载替换）/Modrinth 跳转/隔离徽标/导入防重名③插件页安装 fluent-ui v2.1.0 → 点击循环：卡片动作胶囊 80×32、搜索框变矮、卡片呼吸感变化（4pt 栅格）+ 既有色/形/字三族④主页无「界面布局」设置残留⑤控件自动检查更新照常（ZL2Home 挂载）
 - 遗留移交：LauncherPreferences(2849)/ControlRepo(1085)/旧 DownloadViewController 链（ProfileSettings 长尾间接可达）为旧页退役下一批（需先建 ZL2 替代面）；ModsManagerViewController 旧页入口仅剩 ProfileSettings→资源管理（本线新页补齐后为下轮退役对象）；布局令牌仅覆盖数值刻度，「结构异构」（卡片形态本身不同）需插件侧页面结构 API（路径 B）另立项
+
+---
+## Task 343-ci——CI 闭环（r0 smoke 红=第十二例 Preview 链接面缺口 → r1 双绿一轮终绿）
+
+Work Log:
+- r0 smoke 40827947049 failure：预览 app 启动即崩 `+[ControlRepoViewController autoCheckControlUpdatesOnce] unrecognized selector`——线A 的 autoCheck 挂载点移防 ZL2Home（smoke TU）后，新预览链接依赖 ControlRepoViewController 类方法，而预览链接面该类是 ZL2PagesStub 最小桩（无该方法）= 语义面盲区第十二例（Task336 FabricUtils TU 清单漂移同族：本地门禁不编译 Preview 链接面只有 CI 拦）；r1 57e7c267 桩类补类方法空实现 + ame343 D7 断言防复发（桩齐挂载在 + 主页 TU 在 CMake）
+- r1 双绿：smoke 40829204247 + dev 40829206750 一轮终绿；产物 ipa/tipa 233MB ×2 + dSYM 7.4MB 全在位
+- worklog 343/343-ci 双条目闭环（本轮推送）
+
+Stage Summary:
+- Task 343 三线全闭环进可装机测试包：旧壳家族 1.09 万行物理退场（autoCheck 移防 ZL2Home）+ 新模组页 ModService 全量接线（搜索/筛选/排序/批量/更新全流程）+ fluent-ui v2.1.0 排版第四令牌族（胶囊 80×32 / 4pt 栅格卡片 / 控件 32pt 线）
+- 装机验证锚点（4 条）见 Task 343 条目 Stage Summary；fluent-ui v2.1 需在插件仓库页更新安装（或清理重装）后生效
