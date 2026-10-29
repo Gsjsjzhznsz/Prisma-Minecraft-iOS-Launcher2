@@ -4368,3 +4368,15 @@ Work Log:
 Stage Summary:
 - 三线全交付：zip 导入/兄弟迁移对插件根免疫（旧数据不再毒化现役根+旧位残留 pre-init 收编）→「导入没效果」主病灶拔除；一代灌入的 5 个旧插件目录开机自愈（能修的本轮复活+官方件全量授，修不了的隐藏隔离+仓库页一键重装）→「插件只变色」根因链闭环（fluent-ui 更新到 v2.1.0 后形/字/布三族即上机）；旧设置 83 项全量迁移新UI（枢纽十屏+AI/调试两新屏，66 迁移键+9 复杂 handler 1:1 平移）→ LauncherPreferences 旧页退位条件达成（旧壳退役下一批）。
 - 装机验证锚点：①导入一代备份→日志 "Task344: N plugin file(s) skipped"+旧位收编行+插件页五件全部在列可启用 ②latestlog 见 "[AmePlugin] Task344 旧代清单自愈: fluent-ui (notify→ui.dialog+ui.rows...) official=全量授+启用"（或隔离行+插件仓库页重装 v2.1.0）③设置页左轨出现 AI/调试两新项：渲染器屏 FSR/MobileGlues 九件、控制屏 21 项、启动器屏外观进阶/数据管理、AI 屏 5 项、调试屏 10 项全可达且写入同真键。
+
+---
+## Task 344-ci——CI 闭环（r0 dev 红=AI 三头文件路径雷 → r1 双绿一轮终绿）
+
+Work Log:
+- r0 dev 40845411424 failure：ZL2SettingPages.m:130 fatal error 'AIProviderConfigViewController.h' file not found——AI 三头文件在 Natives/AI/ 子目录而 include_directories 未含该路径（旧 VC 同源判例 #import "AI/..." 带前缀；本地 python 全 import 可达性扫描此前未跑成防线缺口）→ r1 6f397ddc 三 import 补 AI/ 前缀 + 五头（StikDebug/DataExport/CurseForge/CustomIconManager/DataTransferService）python 可达性扫描 NONE 确认 + smoke 40847094151 一次绿（Task344 桩面预防生效：ZL2PagesStub 补 AI/Debug 两桩未踩第十二例）
+- r1 双绿：dev 40847090844 + smoke 40847094151（dispatch 双发惯例，development.yml/ui-smoke.yml 均 workflow_dispatch-only 无 push 触发——两轮 dispatch 后约 19 分钟终绿）
+- worklog 344/344-ci 双条目闭环（本轮推送）
+
+Stage Summary:
+- Task 344 三线全闭环进可装机测试包（dev 产物 ipa/tipa 在架）：导入/迁移插件根免疫+旧位收编 / 插件旧代清单开机自愈（映射修复+隔离+重装指引）/ 旧设置 83 项全量迁移新UI（枢纽十屏）
+- 装机验证锚点见 Task 344 条目 Stage Summary（导入日志 Task344 跳过+收编行 / 自愈或隔离日志 / 设置页左轨 AI+调试两新项与 66 迁移键可达）
