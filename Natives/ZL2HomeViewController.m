@@ -60,6 +60,7 @@
 
 #import "ZL2HomeViewController.h"
 #import "ZL2Theme.h"
+#import "ControlRepoViewController.h"   // ★Task343：控件自动检查更新挂载（旧 Root 壳退役后移防主页）
 #import "ZL2M3Kit.h"                 // ZL2M3BottomSheet（长按卡菜单）
 #import "authenticator/BaseAuthenticator.h"
 #import "PLProfiles.h"
@@ -436,6 +437,10 @@ static UIImage *ZL2HomeSizedImage(NSString *name, NSString *fallback, CGFloat po
 
     self.view.backgroundColor = [ZL2Theme surface];
     [self buildViews];
+    // ★Task343：控件自动检查更新挂载点（Task255 链 1:1——旧 Root 壳物理退役，
+    // 开关门控 + 静态一次性守卫在 autoCheckControlUpdatesOnce 实现内，主页
+    // viewDidLoad 每启动恰一次）
+    [ControlRepoViewController autoCheckControlUpdatesOnce];
     // 复用注册（经典 dataSource 路径；cell 类自带 configure，无 iOS15+ registration）
     [self.gridView registerClass:[ZL2HomeVersionCardCell class]
       forCellWithReuseIdentifier:@"zl2_home_version_card"];
@@ -1574,7 +1579,7 @@ static UIImage *ZL2HomeSizedImage(NSString *name, NSString *fallback, CGFloat po
     [self refreshLaunchState];
 }
 
-#pragma mark - Launch Chain（1:1 旧链语义，LauncherRightPanelViewController L1403-1550）
+#pragma mark - Launch Chain（1:1 旧链语义；历史指针：旧右面板续链段，类已 Task343 退役）
 
 - (void)launchButtonTapped {
     if (self.task) {

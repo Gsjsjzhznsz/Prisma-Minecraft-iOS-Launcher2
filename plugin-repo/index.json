@@ -1,17 +1,17 @@
 {
   "schema": 1,
   "repo": "Gsjsjzhznsz/Prisma-Minecraft-iOS-Launcher2",
-  "updated": "2026-10-28",
+  "updated": "2026-10-29",
   "plugins": [
     {
       "id": "fluent-ui",
       "name": "Fluent UI",
-      "version": "2.0.0",
+      "version": "2.1.0",
       "author": "Prisma",
-      "summary": "Fluent 2 完整设计语言换装（非 ZL2 主题换色）：控件 4pt / 卡片 8pt / 浮层 12pt 小圆角体系 + Fluent2 字阶（Title 28S/20S · Body 17R/15R · Caption 13R）+ 三套色板（Fluent 亮·品牌蓝 / Fluent 暗·品牌青 / Fluent × Apple 混融）循环切换，恢复默认一键还原。需启动器内置 Task341 形状/字体令牌引擎。",
+      "summary": "Fluent 2 完整设计语言换装（非 ZL2 主题换色）：排版（控件 32pt 线 / 卡片 4pt 栅格解剖 / 胶囊 80×32，Task343 布局令牌）+ 控件 4pt / 卡片 8pt / 浮层 12pt 小圆角体系 + Fluent2 字阶（Title 28S/20S · Body 17R/15R · Caption 13R）+ 三套色板（Fluent 亮·品牌蓝 / Fluent 暗·品牌青 / Fluent × Apple 混融）循环切换，恢复默认一键还原。需启动器内置 Task341/343 形状/布局令牌引擎。",
       "file": "plugins/fluent-ui.zip",
-      "size": 4090,
-      "sha256": "6f21064da561a71c73eee1cc5d60e8708eaa79a5dc21c1da9bea09c9d6c5fe7a",
+      "size": 4782,
+      "sha256": "f94067008d2f32ec6d91902f4fa372e0629387ef213301369ca70031971bfb29",
       "official": true
     },
     {

@@ -22,6 +22,7 @@
 @property (nonatomic, strong) NSMutableDictionary<NSString *, AmePluginBridge *> *bridges;
 @property (nonatomic, strong) NSMutableDictionary<NSString *, NSDictionary<NSString *, NSString *> *> *themeTokensByPlugin;
 @property (nonatomic, strong) NSMutableDictionary<NSString *, NSDictionary *> *themeShapesByPlugin;   // Task341 形状/字体记账
+@property (nonatomic, strong) NSMutableDictionary<NSString *, NSDictionary *> *themeLayoutsByPlugin;  // Task343 布局记账
 @property (nonatomic, assign) BOOL booted;
 @end
 
@@ -43,6 +44,7 @@
         _bridges = [NSMutableDictionary dictionary];
         _themeTokensByPlugin = [NSMutableDictionary dictionary];
         _themeShapesByPlugin = [NSMutableDictionary dictionary];
+        _themeLayoutsByPlugin = [NSMutableDictionary dictionary];
     }
     return self;
 }
@@ -74,6 +76,10 @@ static NSString *ame317_facadeSource(void) {
     "ame.setThemeToken=function(tokens){return raw.setThemeToken(tokens||{});};"
     // ★ Task341：形状/字体令牌（半径 pt + 字体阶 {size,weight}，ui.theme 同权限）
     "ame.setThemeShape=function(t){return raw.setThemeShape(t||{});};"
+    // ★ Task343：布局令牌（数值键空间 pt，ui.theme 同权限）
+    "ame.setThemeLayout=function(t){return raw.setThemeLayout(t||{});};"
+    // ★ Task343：布局令牌（数值键空间 pt，ui.theme 同权限）
+    "ame.setThemeLayout=function(t){return raw.setThemeLayout(t||{});};"
     "ame.getPref=function(k){return raw.getPref(String(k));};"
     "ame.setPref=function(k,v){return raw.setPrefValue(String(k),v);};"
     "ame.getRenderer=function(){return raw.getRenderer();};"
@@ -534,6 +540,15 @@ static NSString *ame317_facadeSource(void) {
             [self ame317_applyThemeShape:pluginId tokens:savedShape];
         }
     }
+    // ★ Task343：布局令牌同机制重放（__layout 持久化键；四族相互独立——
+    //   旧版插件只存 __theme/__shape 时 layout 链静默跳过）
+    if ([AmePluginPermissions pluginHasGrant:pluginId permission:@"storage"]) {
+        id savedLayout = [b storageGet:@"__layout"];
+        if ([savedLayout isKindOfClass:[NSDictionary class]] &&
+            [AmePluginPermissions pluginHasGrant:pluginId permission:@"ui.theme"]) {
+            [self ame343_applyThemeLayout:pluginId tokens:savedLayout];
+        }
+    }
 
     if (dispatchLaunchEvent) {
         [self ame317_dispatchEvent:@"app.launch" payload:pluginId toPlugin:pluginId];
@@ -544,9 +559,10 @@ static NSString *ame317_facadeSource(void) {
 
 - (void)ame317_unloadPlugin:(NSString *)pluginId {
     NSAssert([NSThread isMainThread], @"AmePlugin 卸载必须主线程");
-    // 主题令牌还原本插件贡献（色 + Task341 形状/字体两族同收）
+    // 主题令牌还原本插件贡献（色 + Task341 形状/字体 + Task343 布局三族同收）
     [self ame317_applyThemeTokens:pluginId tokens:nil];
     [self ame317_applyThemeShape:pluginId tokens:nil];
+    [self ame343_applyThemeLayout:pluginId tokens:nil];
     AmePluginBridge *bridge = self.bridges[pluginId];
     [bridge teardown];
     JSContext *ctx = self.contexts[pluginId];
@@ -598,6 +614,26 @@ static NSString *ame317_facadeSource(void) {
         }
     } else {
         [self.themeShapesByPlugin removeObjectForKey:pluginId];
+    }
+}
+
+// ★ Task343：布局令牌记账（与 ame317_applyThemeShape 逐位同构：
+//   先精确还原上一次本插件贡献，再应用新集合；空集 = 清记账+还原）
+- (void)ame343_applyThemeLayout:(NSString *)pluginId
+                         tokens:(NSDictionary *)tokens {
+    NSDictionary *previous = self.themeLayoutsByPlugin[pluginId];
+    if (previous) {
+        [ZL2Theme ame343_setPluginThemeLayout:pluginId tokens:nil];
+    }
+    if ([tokens isKindOfClass:[NSDictionary class]] && tokens.count > 0) {
+        BOOL ok = [ZL2Theme ame343_setPluginThemeLayout:pluginId tokens:tokens];
+        if (ok) {
+            self.themeLayoutsByPlugin[pluginId] = tokens;
+        } else {
+            self.themeLayoutsByPlugin[pluginId] = @{};
+        }
+    } else {
+        [self.themeLayoutsByPlugin removeObjectForKey:pluginId];
     }
 }
 

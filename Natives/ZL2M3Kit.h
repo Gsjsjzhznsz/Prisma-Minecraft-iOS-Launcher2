@@ -22,6 +22,9 @@
 // 通用红线（与 ZL2 域全部页面同一条）：
 //   - 颜色/字体/圆角一律 ZL2Theme 类方法，零 AmeTheme、零硬编码 UIColor、
 //     零手写 traitCollection 深浅分支（dynamicProvider 系统正统路径）；
+//   - ★ Task343：布局几何（搜索框/chip 高度、卡片内外边距、动作胶囊、
+//     对话框/按钮尺寸）一律 ZL2Theme ame343_layoutMetric:fallback:，
+//     零裸数值约束（插件布局令牌第四族覆盖面）；
 //   - iOS 14.0 API 上限：禁 UISheetPresentationController（iOS15）、
 //     button.configuration（iOS15）、UIMenu 挂按钮（域内判例禁用）；
 //   - SF 符号全 SF1.0 级；

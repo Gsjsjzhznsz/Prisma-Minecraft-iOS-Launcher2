@@ -229,6 +229,27 @@ static const NSUInteger ame317_storageMaxBytes = 4 * 1024 * 1024;
     return ok;
 }
 
+// ★ Task343：布局令牌覆盖（ui.theme，高危；setThemeShape 同构执法链）
+//   数值键值 = JS number（JSC 桥自动转 NSNumber）。类型/白名单/钳制在
+//   ZL2Theme 侧。
+- (BOOL)setThemeLayout:(NSDictionary *)tokens {
+    if (![self ame317_requirePerm:@"ui.theme"]) return NO;
+    if (![tokens isKindOfClass:[NSDictionary class]]) return NO;
+    BOOL ok = [ZL2Theme ame343_setPluginThemeLayout:self.pluginId tokens:tokens];
+    if (ok) {
+        // 持久化 __layout 供下次 boot 重放（与 __theme/__shape 同一 storage
+        // 文件读改写合并，禁整表覆盖——同族口径）
+        NSMutableDictionary *storage = [self ame317_loadStorage];
+        storage[@"__layout"] = tokens ?: @{};
+        NSError *err = nil;
+        NSData *data = [NSJSONSerialization dataWithJSONObject:storage options:0 error:&err];
+        if (data && data.length <= ame317_storageMaxBytes) {
+            [data writeToURL:[self ame317_storageURL] atomically:YES];
+        }
+    }
+    return ok;
+}
+
 #pragma mark - 启动器设置读写（settings.read / settings.write）
 
 - (id)getPref:(NSString *)key {

@@ -52,6 +52,10 @@ NS_ASSUME_NONNULL_BEGIN
 //   {size, weight} 混合键空间，白名单在 ZL2Theme 侧）。JSExport 协议声明
 //   必不可缺——JSC 桥只导出协议声明的方法（Task332 判例）。
 - (BOOL)setThemeShape:(NSDictionary *)tokens;
+// ★ Task343：布局令牌覆盖（ui.theme 同权限；数值键空间 {searchBarHeight,
+//   chipHeight, card*, pill*, dialogInset, buttonHeight} = pt 数值，白名单
+//   + 钳制在 ZL2Theme 侧）。JSExport 协议声明必不可缺（Task332 判例）。
+- (BOOL)setThemeLayout:(NSDictionary *)tokens;
 // 空值限定与类接口逐字镜像（NS_ASSUME_NONNULL 区；拒绝时返 nil 的方法
 // 协议侧必须显式 nullable，否则类采纳时 nullability conflict 编译报错）
 - (nullable id)getPref:(NSString *)key;

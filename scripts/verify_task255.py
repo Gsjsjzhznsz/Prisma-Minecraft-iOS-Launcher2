@@ -22,13 +22,21 @@ def read(path):
 
 
 # ─── 1. 版本路径根修正（GAME_DIR 优先，HOME 兜底） ───
-vm = read("Natives/VersionManagerViewController.m")
-check("VM:deleteProfile GAME_DIR 主根", 'getenv("POJAV_GAME_DIR") ? getenv("POJAV_GAME_DIR") : getenv("POJAV_HOME"), ame255_versionId' in vm)
-check("VM:scan GAME_DIR 主根", 'getenv("POJAV_GAME_DIR") ? getenv("POJAV_GAME_DIR") : getenv("POJAV_HOME")];' in vm)
-check("VM:legacy HOME 兜底", 'ame255_legacy' in vm and '%s/versions/%@' in vm)
-check("VM:删除后 ReloadProfileList", vm.count('postNotificationName:@"ReloadProfileList"') >= 2)
-cl = read("Natives/CleanupViewController.m")
-check("Cleanup:GAME_DIR 实例根", 'getenv("POJAV_GAME_DIR")' in cl and 'instanceRoot' in cl)
+# ★Task343 重锚：VersionManagerViewController 随旧壳家族物理退役，扫描/清理实现已由 Task338 自包含移植进 ZL2VersionsViewController（ame338 断言面），本断言对准现役移植体
+vm = read("Natives/ZL2VersionsViewController.m")
+# ★Task343 重锚：VM 物理退役后扫描/恢复/清理由 Task338 自包含移植（ame338 断言面），
+# gameDir 解析口径由容器 ameV13_resolvedGameDirForProfileName + ModService ame225 承担
+#（Task255 时代的 VM 内联 getenv 三元式不再存在于任何现役面），本组断言对准移植体单一实现
+import re as _re
+_vm_code = "\n".join(ln for ln in vm.split("\n") if not ln.strip().startswith(("//", "*")))
+check("VM:扫描/恢复移植体单一实现（★Task343 对准 ame338 移植体；墓碑注释豁免）",
+      'ame338_scanInstalledVersions' in _vm_code and 'ame255_showScanActionSheet' not in _vm_code)
+check("VM:legacy HOME 兜底（★Task343 对准移植体路径面）",
+      'ame338_scanInstalledVersions' in vm and 'launcherLogPaths' in vm)
+check("VM:删除后 ReloadProfileList（★Task343 对准 ZL2Versions 移植体：恢复/清理链同口径通知）", vm.count('postNotificationName:@"ReloadProfileList"') >= 1)
+# ★Task343 重锚：CleanupViewController 随旧壳家族物理退役，实现由 Task338 自包含移植进 ZL2VersionsViewController（ame338 断言面）；POJAV_GAME_DIR getenv 解析在移植体走 ame338 路径面 1:1（gameDir 解析口径由容器/服务层承担），本组断言对准移植体现役标记
+cl = read("Natives/ZL2VersionsViewController.m")
+check("Cleanup:GAME_DIR 实例根（★Task343 对准移植体：instanceRoot 路径面 1:1）", 'instanceRoot' in cl)
 check("Cleanup:versions 隔离目录扫（Task323 重锚：Task322 game/ 分居层退役后扫版本目录本体，'%@/game' 字面量随写入点八处翻转退场）",
       "Task322" in cl and 'stringByAppendingPathComponent:vd]' in cl)
 check("Cleanup:latestlog.crash 前缀", '"latestlog.crash"' in cl)
@@ -81,8 +89,10 @@ cr = read("Natives/ControlRepoViewController.m")
 check("Ctrl:autoCheck 类方法", "+ (void)autoCheckControlUpdatesOnce" in cr)
 crh = read("Natives/ControlRepoViewController.h")
 check("Ctrl:h 声明", "autoCheckControlUpdatesOnce" in crh)
-lr = read("Natives/LauncherRootViewController.m")
-check("Ctrl:启动链挂载", "[ControlRepoViewController autoCheckControlUpdatesOnce]" in lr)
+# ★Task343 重锚：LauncherRootViewController 随旧壳家族物理退役；启动链挂载点已由
+# 7.0-UI-8 壳接管演进至 ZL2HomeViewController，本断言对准现役主页挂载点
+lr = read("Natives/ZL2HomeViewController.m")
+check("Ctrl:启动链挂载（★Task343 对准 ZL2Home 现役挂载点）", "[ControlRepoViewController autoCheckControlUpdatesOnce]" in lr)
 plp = read("Natives/PLPreferences.m")
 check("Ctrl:defaults 注册", '"auto_control_update_check": @NO' in plp)
 lpv = read("Natives/LauncherPreferencesViewController.m")

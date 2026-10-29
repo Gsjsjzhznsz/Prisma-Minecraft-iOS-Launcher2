@@ -86,7 +86,7 @@ syntax_mode() {
 
 # ─────────────────────────────────────────────────────────────
 # preview 模式：编译 harness → 模拟器安装启动 → 逐页浅/深截图
-#   harness = AmeTheme + Fluent 组件 8 件 + LauncherMenuViewController
+#   harness = AmeTheme + Fluent 组件 8 件（Task343：LauncherMenuViewController 随旧壳退役摘除）
 #   + Preview/AmeFluentPreviewMain.m（服务桩内嵌，见该文件头注释）
 #   + Preview/ZL2PagesStub.m（7.0-UI-9 四页桩 TU）。
 #   7.0-UI-9-e 起槽位 1-4 换装 ZL2 四功能页真实 VC；7.0-UI-10-c 起壳为
@@ -100,7 +100,6 @@ preview_mode() {
     AmeTheme   # ★Task340：AMEFluentTheme 退役（重设计只落 fluent-ui 远程插件）
     FluentButton FluentCard FluentListCell FluentTextField
     FluentToast FluentSegmentedControl FluentProgress FluentBanner
-    LauncherMenuViewController
     ZL2Theme ZL2RailView ZL2HomeViewController
     ZL2DownloadViewController ZL2VersionsViewController
     ZL2AccountsViewController ZL2SettingsViewController

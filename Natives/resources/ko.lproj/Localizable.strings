@@ -2219,7 +2219,6 @@
 "preference.title.safety_mode" = "기본 안전 모드";
 "preference.title.session_list" = "세션 목록";
 "preference.title.system_prompt" = "시스템 프롬프트";
-"preference.title.ui_layout" = "UI 레이아웃";
 "preference.title.ui_theme" = "외관 테마";
 "preference.section.footer.general" = "런처의 일반 동작과 외관 옵션입니다.";
 "preference.section.footer.download" = "게임 리소스 다운로드 소스와 미러 정책입니다.";
@@ -2250,7 +2249,6 @@
 "preference.detail.launcher_background" = "런처 배경(이미지/동영상)을 설정하거나 기본 단색 배경으로 복원합니다.";
 "preference.detail.manage_runtime" = "Java 런타임을 관리합니다: 각 버전의 런타임을 확인, 다운로드, 삭제합니다.";
 "preference.detail.multi_threaded" = "게임 리소스를 여러 스레드로 다운로드하여 속도를 높입니다. 일부 미러 소스는 지원하지 않을 수 있습니다.";
-"preference.detail.ui_layout" = "홈 화면 레이아웃을 선택합니다: 멀티 카드 또는 컴팩트. 완전히 적용하려면 런처를 재시작하세요.";
 "preference.detail.ui_theme" = "라이트/다크/시스템 따르기 외관 모드를 선택합니다.";
 "auto_update.toast.new_version" = "새 버전 %@ 사용 가능";
 "auto_update.toast.view" = "보기";

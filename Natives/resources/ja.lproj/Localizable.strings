@@ -2397,7 +2397,6 @@
 "preference.title.safety_mode" = "デフォルトセーフティモード";
 "preference.title.session_list" = "セッション一覧";
 "preference.title.system_prompt" = "システムプロンプト";
-"preference.title.ui_layout" = "UI レイアウト";
 "preference.title.ui_theme" = "外観テーマ";
 "preference.section.footer.general" = "ランチャーの全般的な動作と外観のオプションです。";
 "preference.section.footer.download" = "ゲームアセットのダウンロードソースとミラーポリシーです。";
@@ -2428,7 +2427,6 @@
 "preference.detail.launcher_background" = "ランチャー背景（画像/動画）を設定、またはデフォルトの単色背景に戻します。";
 "preference.detail.manage_runtime" = "Java ランタイムの管理：各バージョンのランタイムを表示、ダウンロード、削除します。";
 "preference.detail.multi_threaded" = "ゲームアセットのダウンロードをマルチスレッドで行い、速度を向上させます。一部のミラーでは対応していない場合があります。";
-"preference.detail.ui_layout" = "ホーム画面レイアウトを選択：マルチカードまたはコンパクトビュー。変更後はランチャーを再起動すると完全に反映されます。";
 "preference.detail.ui_theme" = "ライト/ダーク/システムに従う外観モードを選択します。";
 "auto_update.toast.new_version" = "新しいバージョン %@ があります";
 "auto_update.toast.view" = "表示";

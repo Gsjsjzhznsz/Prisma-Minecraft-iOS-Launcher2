@@ -354,7 +354,8 @@ NSString *const PREF_MOD_MIRROR = @"general.mod_mirror";
             // idiom 改写影响，与 hook 的 iPad 机型直通 Pad 同口径）。
             @"hidden_sidebar": @([[[UIDevice currentDevice].model lowercaseString] containsString:@"iphone"]),
             @"appicon": @"AppIcon-Light",
-            @"ui_layout": @"vs",
+            // Task343：general.ui_layout 死偏好退役——根选择自 7.0-UI-8 起恒
+            // ZL2 壳（SceneDelegate 不再读本键），注册与 12 表词条一并清场。
             // Task161：初次使用默认"跟随系统"（用户指令"外观模式默认跟随系统"，
             // 推翻 Task160 的 light 缺省；SceneDelegate 读 general.ui_theme，
             // auto -> UIUserInterfaceStyleUnspecified）。

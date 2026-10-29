@@ -14,8 +14,7 @@ FILES = [
     "Natives/JavaLauncher.m",
     "Natives/LauncherPreferencesViewController.m",
     "Natives/ProfileSettingsViewController.m",
-    "Natives/LauncherRightPanelViewController.m",
-    "Natives/LauncherRootViewController.m",
+    # Task343：LauncherRightPanel/Root 随旧壳家族物理退役摘闸（闸域收敛现役面）
     "Natives/utils.h",
     "Natives/ctxbridges/mgl_fsr.mm",
     "Natives/ctxbridges/osm_bridge.mm",

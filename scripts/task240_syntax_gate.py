@@ -11,7 +11,7 @@ FILES = [
     "Natives/AmeNativeMenu.m",
     "Natives/AmeNativeMenu.h",
     "Natives/AccountListViewController.m",
-    "Natives/LauncherRightPanelViewController.m",
+    # Task343：LauncherRightPanel/HomeCustomize 随旧壳家族物理退役摘闸
     "Natives/PLLogOutputView.m",
     "Natives/DataTransferService.m",
     "Natives/MultiplayerViewController.m",
@@ -19,7 +19,6 @@ FILES = [
     "Natives/ModpackExportViewController.m",
     "Natives/ModpackImportViewController.m",
     "Natives/DownloadViewController.m",
-    "Natives/HomeCustomizeViewController.m",
     "Natives/BackgroundSettingsViewController.m",
     "Natives/ProfileSettingsViewController.m",
     "Natives/SurfaceViewController+Navigation.m",

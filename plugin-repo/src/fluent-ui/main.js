@@ -1,30 +1,34 @@
-// Task341 fluent-ui v2.0.0 —— 「完全重新设计 UI」版（用户点题：Fluent 插件
-// 要完全重新设计 UI，而不是依旧使用 zl2 样式）。
+// Task343 fluent-ui v2.1.0 —— 「排版也 Fluent」版（用户点题：插件画面还是
+// zl2 的，要重新设计整个画面，排版都要变化，跟 Fluent 应用对齐）。
 // ---------------------------------------------------------------------
-// v1.0.0 的形态本质 = 三套调色板 × 28 色令牌换色：UI 结构/形状/字体仍是
-// Material 3（ZL2 出厂刻度），用户观感「依旧 zl2 样式」。v2 依托引擎新增
-// 的形状/字体覆盖面（ZL2Theme ame341：五档圆角 + 七档字阶，ZL2 页面
-// 71 处圆角 + 144 处字体全部经 getter 消费）交付完整 Fluent 2 设计语言：
+// v2.0.0 交付了形状（五档圆角收紧 4/4/8/8/12）+ 字阶（Fluent2 ramp 七档）
+// + 三色板 28 色，但页面【排版/间距/密度】仍是 ZL2 的 M3 刻度 —— 引擎和
+// 桥面当时没有布局承载面。v2.1 依托 Task343 新增的布局令牌族
+//（ZL2Theme ame343：13 键数值白名单，ZL2M3Kit 搜索框/chip/卡片解剖/动作
+// 胶囊/对话框/按钮 31 处几何全部经 ame343_layoutMetric:fallback: 消费）
+// 把排版整体搬到 Fluent 刻度：
 //
-//   · 形状（fluentui-apple Corner Radius 溯源）：控件统一 4pt 小圆角、
-//     卡片 8pt、浮层/大容器 12pt —— M3 的 12/16/28 大圆角体系整体收紧，
-//     这是 Fluent 与 M3 观感差异最大的形状签名。
-//   · 字阶（fluentui-apple Fluent2 Typography ramp 溯源）：Title2 28S /
-//     Title3 20S / Body1 17R (Strong 15SB) / Body2 15R / Caption1 13R ——
-//     与 M3 刻度（22R 标题 / 14M 标签）完全不同的字重分布。
-//   · 色板（fluentui-apple Brand/Neutral 溯源，v1 延续）：
-//       fluent-light：品牌蓝 #0F6CBD + 中性分层（F5→EB）
-//       fluent-dark ：品牌青 #4CC2FF + 暗面板分层（11→3B）
-//       fluent-apple：混融 —— Fluent 骨架（形/字）× Apple 系统色（#007AFF
-//                     + iOS systemGray6 分层）
+//   · 布局（fluentui-apple 4pt 栅格 + WinUI 控件度量溯源）：
+//       控件高度统一 32pt（Fluent 标准控件线）——动作胶囊 56×28 → 80×32、
+//       按钮 40 → 32、chip 32 保持 32、搜索框 44 → 40（紧凑档）；
+//       卡片解剖走 4pt 栅格 —— 外边距 16/4、内边距 16/12/12、
+//       标题→副文间隙 4 → 6；对话框内边距 24（WinUI ContentDialog）。
+//   · 形状/字阶/色板（v2.0.0 全量保留，fluentui-apple 溯源不变）：
+//       形状 —— 控件 4pt / 卡片 8pt / 浮层 12pt；
+//       字阶 —— Title2 28S / Title3 20S / Body1 17R (Strong 15SB) /
+//               Body2 15R / Caption1 13R；
+//       色板 —— fluent-light 品牌蓝 #0F6CBD / fluent-dark 品牌青 #4CC2FF /
+//               fluent-apple 混融 #007AFF + systemGray6 分层。
 //
-// 交互纪律（主页整洁）不变：单行入口，点击循环 亮→暗→混融→恢复默认；
-// 首次点击出说明对话框。持久化走桥面 __theme/__shape 装载期重放键。
+// 交互纪律不变：单行入口，点击循环 亮→暗→混融→恢复默认；首次点击出
+// 说明对话框。持久化走桥面 __theme/__shape/__layout 装载期重放键。
+// 布局链独立容错：setThemeLayout 失败（旧引擎/桥面异常）不阻塞色板/形状，
+// 退化为 v2.0 形态 —— 全维度 → 形状+色 → 仅色 三级平滑降级。
 // 全部调用 try-catch 包裹 —— 权限/桥面单点故障不得炸掉整插件。
 (function () {
   if (typeof ame === 'undefined') return;
 
-  var MARK = 'Task341-fluent';
+  var MARK = 'Task343-fluent';
 
   // Fluent 2 形状/字阶：三套方案共用（Fluent 2 形态与色板无关；apple 混融
   // 也保持 Fluent 骨架，只换色）。fluentui-apple 溯源值，见文件头注释。
@@ -37,6 +41,24 @@
     fontBodyMedium:  { size: 15, weight: 'regular' },
     fontLabelLarge:  { size: 15, weight: 'semibold' },
     fontLabelMedium: { size: 13, weight: 'regular' }
+  };
+
+  // ★ Task343：Fluent 布局刻度（fluentui-apple 4pt 栅格 + WinUI 控件度量
+  // 溯源；键名 = 引擎白名单中性 spacing/density 语义，见 ZL2Theme.h）。
+  var FLUENT_LAYOUT = {
+    searchBarHeight: 40,   // M3 44 → Fluent 紧凑搜索框
+    chipHeight: 32,        // Fluent pill 控件线（与 M3 chip 同高，显式声明）
+    cardMarginV: 4,        // 5 → 4pt 栅格
+    cardMarginH: 16,       // 16（4pt 栅格，显式声明）
+    cardInsetX: 16,        // 14 → 16（Fluent 卡片内边距）
+    cardInsetTop: 12,      // 12（4pt 栅格，显式声明）
+    cardInsetBottom: 12,   // 12（4pt 栅格，显式声明）
+    cardContentGap: 6,     // 4 → 6（标题/副文呼吸感）
+    pillMinWidth: 80,      // 56 → 80（Fluent 按钮最小宽度）
+    pillHeight: 32,        // 28 → 32（Fluent 标准控件高度）
+    pillGap: 12,           // 10 → 12（4pt 栅格）
+    dialogInset: 24,       // 24（WinUI ContentDialog，显式声明）
+    buttonHeight: 32       // 40 → 32（Fluent 标准控件高度）
   };
 
   var PALETTES = [
@@ -123,6 +145,14 @@
     }
   }
 
+  // ★ Task343：布局链独立容错（与形状链同纪律）：setThemeLayout 失败
+  // 不阻塞色板/形状，退化为 v2.0 形态（形+色，排版仍 M3 刻度）。
+  function applyLayout() {
+    try { ame.setThemeLayout(FLUENT_LAYOUT); } catch (e) {
+      ame.log('[' + MARK + '] setThemeLayout failed (old engine? v2.0 fallback): ' + e);
+    }
+  }
+
   function applyPalette(idx) {
     var pal = PALETTES[idx];
     try {
@@ -133,11 +163,12 @@
       return;
     }
     applyShape();
-    // '__theme'/'__shape' 由桥面 setThemeToken/setThemeShape 落盘（装载期
-    // 重放键）——插件侧只持久化循环态。
+    applyLayout();
+    // '__theme'/'__shape'/'__layout' 由桥面 setThemeToken/setThemeShape/
+    // setThemeLayout 落盘（装载期重放键）——插件侧只持久化循环态。
     storageSet('fluent.idx', String(idx));
-    try { ame.toast('已应用：' + pal.name + '（Fluent 2 全维度 · 新开页面/重启启动器全量生效）'); } catch (e) {}
-    ame.log('[' + MARK + '] palette applied: ' + pal.key + ' (color+shape)');
+    try { ame.toast('已应用：' + pal.name + '（Fluent 2 全维度·排版就位 · 新开页面/重启启动器全量生效）'); } catch (e) {}
+    ame.log('[' + MARK + '] palette applied: ' + pal.key + ' (color+shape+layout)');
   }
 
   function restoreDefault() {
@@ -147,6 +178,9 @@
     try { ame.setThemeShape({}); } catch (e) {
       ame.log('[' + MARK + '] shape reset failed: ' + e);
     }
+    try { ame.setThemeLayout({}); } catch (e) {
+      ame.log('[' + MARK + '] layout reset failed: ' + e);
+    }
     storageSet('fluent.idx', '-1');
     try { ame.toast('已恢复默认主题（embermire · M3 刻度）'); } catch (e) {}
     ame.log('[' + MARK + '] theme restored to default');
@@ -154,7 +188,7 @@
 
   try {
     ame.addLauncherRow(
-      { id: 'fluent-ui', title: 'Fluent UI', subtitle: 'Fluent 2 完整设计语言（点击循环）' },
+      { id: 'fluent-ui', title: 'Fluent UI', subtitle: 'Fluent 2 完整设计语言·排版就位（点击循环）' },
       function (rowId) {
         var announced = storageGet('fluent.announced') === 'yes';
         if (!announced) {
@@ -162,7 +196,7 @@
           try {
             ame.dialog({
               title: 'Fluent UI',
-              body: 'Fluent 2 完整设计语言换装（非 ZL2 主题换色）：\n· 形状 —— 控件 4pt / 卡片 8pt / 浮层 12pt（M3 大圆角整体收紧）\n· 字阶 —— Title 28S/20S · Body 17R/15R · Caption 13R（Fluent2 ramp）\n· 色板 —— Fluent 亮（品牌蓝）/ Fluent 暗（品牌青）/ Fluent × Apple 混融\n点击本行循环切换，第 4 次恢复默认。重启启动器后自动重放。',
+              body: 'Fluent 2 完整设计语言换装（非 ZL2 主题换色）：\n· 排版 —— 控件统一 32pt 线 / 卡片 4pt 栅格解剖 / 胶囊 80×32（Task343 布局令牌）\n· 形状 —— 控件 4pt / 卡片 8pt / 浮层 12pt（M3 大圆角整体收紧）\n· 字阶 —— Title 28S/20S · Body 17R/15R · Caption 13R（Fluent2 ramp）\n· 色板 —— Fluent 亮（品牌蓝）/ Fluent 暗（品牌青）/ Fluent × Apple 混融\n点击本行循环切换，第 4 次恢复默认。重启启动器后自动重放。',
               confirm: '应用 Fluent 亮色',
               cancel: '关闭'
             }, function (ok) {
@@ -184,5 +218,5 @@
     return;
   }
 
-  ame.log('[' + MARK + '] fluent-ui v2 loaded（Fluent 2 全维度：色28+形状5+字阶7；主页贡献行「Fluent UI」，点击循环亮/暗/混融/默认）');
+  ame.log('[' + MARK + '] fluent-ui v2.1 loaded（Fluent 2 全维度：色28+形状5+字阶7+布局13；主页贡献行「Fluent UI」，点击循环亮/暗/混融/默认）');
 })();

@@ -10,7 +10,6 @@
 #import "JavaGUIViewController.h"
 #import "JavaLauncher.h"
 #import "PLCrashView.h"
-#import "LauncherMenuViewController.h"
 #import "LauncherNavigationController.h"
 #import "UIKit+NativeSurface.h"
 #import "UIViewController+AMEPanel.h"

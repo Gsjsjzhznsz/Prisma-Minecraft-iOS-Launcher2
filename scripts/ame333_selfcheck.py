@@ -124,7 +124,7 @@ for lang in ['en', 'zh-Hans', 'zh-CN', 'zh-Hant']:
     keys = set(re.findall(r'^"([^"]+)"\s*=', txt, re.M))
     check(f'F1 {lang} all 10 Task333 keys', set(need) <= keys,
           f'missing={sorted(set(need) - keys)}')
-    check(f'F2 {lang} unique keys == 3321 (Task342: +mirror_codecache_disable title/detail + download_failed + retire_mirror)', len(keys) == 3321, f'got {len(keys)}')
+    check(f'F2 {lang} unique keys == 3319 (Task343: 3321 - 2 general.ui_layout title/detail 死偏好退役)', len(keys) == 3319, f'got {len(keys)}')
 
 print()
 if fails:

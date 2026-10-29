@@ -3,8 +3,7 @@
 #import "SceneDelegate.h"
 #import "LauncherNavigationController.h"
 #import "LauncherPreferences.h"
-#import "LauncherSplitViewController.h"
-#import "ZL2ShellViewController.h"   // 7.0-UI-11：回壳判定与新壳兜底
+#import "ZL2ShellViewController.h"   // 7.0-UI-11：回壳判定与新壳兜底（Task343：旧壳双轨退役，单轨新壳）
 #import "PLLogOutputView.h"
 #import "PLProfiles.h"
 #import "ModService.h"   // Task268：profile 生效 mods 目录实况核对
@@ -538,12 +537,11 @@ void UIKit_returnToSplitView() {
         UIWindow *window = UIWindow.mainWindow;
 
         // Return from JavaGUIViewController
-        // 7.0-UI-11：根壳判定双轨——旧壳 LauncherSplit（历史语义保留）与
-        // ZL2 新壳同属"模态挂在壳上"形态，都是 dismiss 回壳；旧实现只认
-        // 旧壳类，ZL2 壳下执行 Jar 的返回会坠入下方 Surface 分支，tmpRootVC
-        // 为 nil 时被新建旧壳 = "执行 Jar 退出后整个界面变旧版"病灶。
-        if ([window.rootViewController isKindOfClass:LauncherSplitViewController.class] ||
-            [window.rootViewController isKindOfClass:ZL2ShellViewController.class]) {
+        // 7.0-UI-11：根壳判定双轨（旧壳 LauncherSplit + ZL2 新壳）。
+        // Task343：旧壳家族物理退役，双轨收敛单轨 ZL2 新壳——SceneDelegate
+        // 冷启/切语言重建/游戏退出兑底三入口早已一律新壳，旧壳类不再存在，
+        // 双轨判定的旧支永假，摘除（同 #if 0 死块一并清理）。
+        if ([window.rootViewController isKindOfClass:ZL2ShellViewController.class]) {
             [currentVC() dismissViewControllerAnimated:YES completion:nil];
             return;
         }
@@ -570,13 +568,7 @@ void UIKit_returnToSplitView() {
 }
 
 void launchInitialViewController(UIWindow *window) {
-    // 7.0-UI-11：无调用方（SceneDelegate 直建根壳），仅保符号一致性——指向新壳
+    // 7.0-UI-11：无调用方（SceneDelegate 直建根壳），仅保符号一致性——指向新壳。
+    // Task343：旧壳分支 #if 0 死块随旧壳家族退役一并摘除。
     window.rootViewController = [[ZL2ShellViewController alloc] init];
-#if 0
-    if (getPrefBool(@"internal.internal_launch_on_boot")) {
-        window.rootViewController = [[SurfaceViewController alloc] init];
-    } else {
-        window.rootViewController = [[LauncherSplitViewController alloc] initWithStyle:UISplitViewControllerStyleDoubleColumn];
-    }
-#endif
 }

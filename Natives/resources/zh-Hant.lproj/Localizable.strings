@@ -2041,7 +2041,6 @@
 "preference.title.safety_mode" = "預設安全模式";
 "preference.title.session_list" = "会话列表";
 "preference.title.system_prompt" = "系統提示词";
-"preference.title.ui_layout" = "介面布局";
 "preference.title.ui_theme" = "外观主题";
 "preference.section.footer.general" = "啟動器常规行为与外观選項。";
 "preference.section.footer.download" = "游戏资源下載源与镜像策略。";
@@ -2072,7 +2071,6 @@
 "preference.detail.launcher_background" = "設定啟動器背景（圖片/影片），或恢復預設纯色背景。";
 "preference.detail.manage_runtime" = "管理 Java 執行时：查看、下載、删除各版本執行时。";
 "preference.detail.multi_threaded" = "下載游戏资源时启用多執行緒，可提升下載速度；部分镜像源可能不支持。";
-"preference.detail.ui_layout" = "選擇主介面布局：多卡並列或緊湊檢視，修改后重啟啟動器完全生效。";
 "preference.detail.ui_theme" = "選擇淺色/深色/跟随系統的外观模式。";
 
 /* Task 125：啟動時自動檢測更新 */

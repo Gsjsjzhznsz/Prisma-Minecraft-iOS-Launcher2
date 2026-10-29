@@ -2042,7 +2042,6 @@
 "preference.detail.launcher_background" = "Set a launcher background (image/video), or restore the default solid color.";
 "preference.detail.manage_runtime" = "Manage Java runtimes: view, download and delete each version.";
 "preference.detail.multi_threaded" = "Download game assets with multiple threads for higher speed. Some mirrors may not support it.";
-"preference.detail.ui_layout" = "Choose the home screen layout: multi-card or compact. Restart the launcher to fully apply.";
 "preference.detail.ui_theme" = "Choose light/dark/system appearance.";
 "preference.title.renderer.debug.mithril" = "Mithril (1.17+) - OpenGL 3.3 Core via Vulkan/Metal, EXPERIMENTAL";
 "preference.title.renderer_backend" = "MobileGlues backend";
@@ -2071,7 +2070,6 @@
 "preference.title.safety_mode" = "Default Safety Mode";
 "preference.title.session_list" = "Session List";
 "preference.title.system_prompt" = "System Prompt";
-"preference.title.ui_layout" = "UI Layout";
 "preference.title.ui_theme" = "Appearance Theme";
 "preference.section.footer.general" = "General launcher behavior and appearance options.";
 "preference.section.footer.download" = "Download sources and mirror policy for game assets.";

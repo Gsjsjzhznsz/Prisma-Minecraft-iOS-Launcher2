@@ -161,7 +161,7 @@ static UIViewController *ZL2M3TopmostViewController(void) {
         [_field.trailingAnchor constraintEqualToAnchor:self.trailingAnchor constant:-12].active = YES;
         [_field.topAnchor constraintEqualToAnchor:self.topAnchor].active = YES;
         [_field.bottomAnchor constraintEqualToAnchor:self.bottomAnchor].active = YES;
-        [self.heightAnchor constraintEqualToConstant:44].active = YES;
+        [self.heightAnchor constraintEqualToConstant:[ZL2Theme ame343_layoutMetric:@"searchBarHeight" fallback:44.0]].active = YES;
     }
     return self;
 }
@@ -207,7 +207,7 @@ static UIViewController *ZL2M3TopmostViewController(void) {
 @implementation ZL2M3FilterChip
 
 + (CGFloat)preferredHeight {
-    return 32;
+    return [ZL2Theme ame343_layoutMetric:@"chipHeight" fallback:32.0];
 }
 
 - (instancetype)initWithText:(NSString *)text {
@@ -478,20 +478,20 @@ static __weak ZL2M3OverlayViewController *_ame_currentDialog = nil;
     [_cardView addSubview:confirmButton];
 
     [NSLayoutConstraint activateConstraints:@[
-        [headline.topAnchor constraintEqualToAnchor:_cardView.topAnchor constant:24],
-        [headline.leadingAnchor constraintEqualToAnchor:_cardView.leadingAnchor constant:24],
-        [headline.trailingAnchor constraintEqualToAnchor:_cardView.trailingAnchor constant:-24],
+        [headline.topAnchor constraintEqualToAnchor:_cardView.topAnchor constant:[ZL2Theme ame343_layoutMetric:@"dialogInset" fallback:24.0]],
+        [headline.leadingAnchor constraintEqualToAnchor:_cardView.leadingAnchor constant:[ZL2Theme ame343_layoutMetric:@"dialogInset" fallback:24.0]],
+        [headline.trailingAnchor constraintEqualToAnchor:_cardView.trailingAnchor constant:-[ZL2Theme ame343_layoutMetric:@"dialogInset" fallback:24.0]],
 
         [bodyLabel.topAnchor constraintEqualToAnchor:headline.bottomAnchor constant:12],
-        [bodyLabel.leadingAnchor constraintEqualToAnchor:_cardView.leadingAnchor constant:24],
-        [bodyLabel.trailingAnchor constraintEqualToAnchor:_cardView.trailingAnchor constant:-24],
+        [bodyLabel.leadingAnchor constraintEqualToAnchor:_cardView.leadingAnchor constant:[ZL2Theme ame343_layoutMetric:@"dialogInset" fallback:24.0]],
+        [bodyLabel.trailingAnchor constraintEqualToAnchor:_cardView.trailingAnchor constant:-[ZL2Theme ame343_layoutMetric:@"dialogInset" fallback:24.0]],
 
         [confirmButton.centerYAnchor constraintEqualToAnchor:cancelButton.centerYAnchor],
         [cancelButton.trailingAnchor constraintEqualToAnchor:_cardView.trailingAnchor constant:-12],
         [confirmButton.trailingAnchor constraintEqualToAnchor:cancelButton.leadingAnchor constant:-8],
         [cancelButton.topAnchor constraintEqualToAnchor:bodyLabel.bottomAnchor constant:20],
-        [cancelButton.heightAnchor constraintEqualToConstant:40],
-        [confirmButton.heightAnchor constraintEqualToConstant:40],
+        [cancelButton.heightAnchor constraintEqualToConstant:[ZL2Theme ame343_layoutMetric:@"buttonHeight" fallback:40.0]],
+        [confirmButton.heightAnchor constraintEqualToConstant:[ZL2Theme ame343_layoutMetric:@"buttonHeight" fallback:40.0]],
         [_cardView.bottomAnchor constraintEqualToAnchor:cancelButton.bottomAnchor constant:12],
 
         // M3 基础对话框宽度域：min 280 / max 560
@@ -499,8 +499,8 @@ static __weak ZL2M3OverlayViewController *_ame_currentDialog = nil;
         [_cardView.widthAnchor constraintLessThanOrEqualToConstant:560],
         [_cardView.centerXAnchor constraintEqualToAnchor:self.view.centerXAnchor],
         [_cardView.centerYAnchor constraintEqualToAnchor:self.view.centerYAnchor],
-        [_cardView.leadingAnchor constraintGreaterThanOrEqualToAnchor:self.view.leadingAnchor constant:24],
-        [_cardView.trailingAnchor constraintLessThanOrEqualToAnchor:self.view.trailingAnchor constant:-24],
+        [_cardView.leadingAnchor constraintGreaterThanOrEqualToAnchor:self.view.leadingAnchor constant:[ZL2Theme ame343_layoutMetric:@"dialogInset" fallback:24.0]],
+        [_cardView.trailingAnchor constraintLessThanOrEqualToAnchor:self.view.trailingAnchor constant:-[ZL2Theme ame343_layoutMetric:@"dialogInset" fallback:24.0]],
     ]];
 }
 
@@ -618,8 +618,8 @@ static __weak ZL2M3OverlayViewController *_ame_currentSheet = nil;
         [grabber.heightAnchor constraintEqualToConstant:4],
 
         [_contentView.topAnchor constraintEqualToAnchor:grabber.bottomAnchor constant:16],
-        [_contentView.leadingAnchor constraintEqualToAnchor:_sheetView.leadingAnchor constant:16],
-        [_contentView.trailingAnchor constraintEqualToAnchor:_sheetView.trailingAnchor constant:-16],
+        [_contentView.leadingAnchor constraintEqualToAnchor:_sheetView.leadingAnchor constant:[ZL2Theme ame343_layoutMetric:@"cardMarginH" fallback:16.0]],
+        [_contentView.trailingAnchor constraintEqualToAnchor:_sheetView.trailingAnchor constant:-[ZL2Theme ame343_layoutMetric:@"cardMarginH" fallback:16.0]],
         // 内容底缘 = 安全区底 + 12（sheet 本体延伸到屏幕底，M3 规格语义）
         [_contentView.bottomAnchor constraintEqualToAnchor:safe.bottomAnchor constant:-12],
     ]];
@@ -743,37 +743,37 @@ static __weak ZL2M3OverlayViewController *_ame_currentSheet = nil;
         [_actionPill addSubview:_actionLabel];
 
         self.pillTrailing =
-            [_actionPill.trailingAnchor constraintEqualToAnchor:card.trailingAnchor constant:-14];
+            [_actionPill.trailingAnchor constraintEqualToAnchor:card.trailingAnchor constant:-[ZL2Theme ame343_layoutMetric:@"cardInsetX" fallback:14.0]];
         self.titleFallback =
-            [_ame_titleLabel.trailingAnchor constraintLessThanOrEqualToAnchor:card.trailingAnchor constant:-14];
+            [_ame_titleLabel.trailingAnchor constraintLessThanOrEqualToAnchor:card.trailingAnchor constant:-[ZL2Theme ame343_layoutMetric:@"cardInsetX" fallback:14.0]];
         self.subFallback =
-            [_ame_subLabel.trailingAnchor constraintLessThanOrEqualToAnchor:card.trailingAnchor constant:-14];
+            [_ame_subLabel.trailingAnchor constraintLessThanOrEqualToAnchor:card.trailingAnchor constant:-[ZL2Theme ame343_layoutMetric:@"cardInsetX" fallback:14.0]];
         self.titleToPill =
-            [_ame_titleLabel.trailingAnchor constraintLessThanOrEqualToAnchor:_actionPill.leadingAnchor constant:-10];
+            [_ame_titleLabel.trailingAnchor constraintLessThanOrEqualToAnchor:_actionPill.leadingAnchor constant:-[ZL2Theme ame343_layoutMetric:@"pillGap" fallback:10.0]];
         self.subToPill =
-            [_ame_subLabel.trailingAnchor constraintLessThanOrEqualToAnchor:_actionPill.leadingAnchor constant:-10];
+            [_ame_subLabel.trailingAnchor constraintLessThanOrEqualToAnchor:_actionPill.leadingAnchor constant:-[ZL2Theme ame343_layoutMetric:@"pillGap" fallback:10.0]];
         [NSLayoutConstraint activateConstraints:@[
-            [card.topAnchor constraintEqualToAnchor:self.contentView.topAnchor constant:5],
-            [card.bottomAnchor constraintEqualToAnchor:self.contentView.bottomAnchor constant:-5],
-            [card.leadingAnchor constraintEqualToAnchor:self.contentView.leadingAnchor constant:16],
-            [card.trailingAnchor constraintEqualToAnchor:self.contentView.trailingAnchor constant:-16],
+            [card.topAnchor constraintEqualToAnchor:self.contentView.topAnchor constant:[ZL2Theme ame343_layoutMetric:@"cardMarginV" fallback:5.0]],
+            [card.bottomAnchor constraintEqualToAnchor:self.contentView.bottomAnchor constant:-[ZL2Theme ame343_layoutMetric:@"cardMarginV" fallback:5.0]],
+            [card.leadingAnchor constraintEqualToAnchor:self.contentView.leadingAnchor constant:[ZL2Theme ame343_layoutMetric:@"cardMarginH" fallback:16.0]],
+            [card.trailingAnchor constraintEqualToAnchor:self.contentView.trailingAnchor constant:-[ZL2Theme ame343_layoutMetric:@"cardMarginH" fallback:16.0]],
 
-            [_ame_titleLabel.topAnchor constraintEqualToAnchor:card.topAnchor constant:12],
-            [_ame_titleLabel.leadingAnchor constraintEqualToAnchor:card.leadingAnchor constant:14],
+            [_ame_titleLabel.topAnchor constraintEqualToAnchor:card.topAnchor constant:[ZL2Theme ame343_layoutMetric:@"cardInsetTop" fallback:12.0]],
+            [_ame_titleLabel.leadingAnchor constraintEqualToAnchor:card.leadingAnchor constant:[ZL2Theme ame343_layoutMetric:@"cardInsetX" fallback:14.0]],
 
-            [_ame_subLabel.topAnchor constraintEqualToAnchor:_ame_titleLabel.bottomAnchor constant:4],
-            [_ame_subLabel.leadingAnchor constraintEqualToAnchor:card.leadingAnchor constant:14],
-            [_ame_subLabel.bottomAnchor constraintEqualToAnchor:card.bottomAnchor constant:-12],
+            [_ame_subLabel.topAnchor constraintEqualToAnchor:_ame_titleLabel.bottomAnchor constant:[ZL2Theme ame343_layoutMetric:@"cardContentGap" fallback:4.0]],
+            [_ame_subLabel.leadingAnchor constraintEqualToAnchor:card.leadingAnchor constant:[ZL2Theme ame343_layoutMetric:@"cardInsetX" fallback:14.0]],
+            [_ame_subLabel.bottomAnchor constraintEqualToAnchor:card.bottomAnchor constant:-[ZL2Theme ame343_layoutMetric:@"cardInsetBottom" fallback:12.0]],
 
             [_actionPill.centerYAnchor constraintEqualToAnchor:_ame_titleLabel.centerYAnchor],
             self.pillTrailing,
-            [_actionPill.widthAnchor constraintGreaterThanOrEqualToConstant:56],
-            [_actionPill.heightAnchor constraintEqualToConstant:28],
+            [_actionPill.widthAnchor constraintGreaterThanOrEqualToConstant:[ZL2Theme ame343_layoutMetric:@"pillMinWidth" fallback:56.0]],
+            [_actionPill.heightAnchor constraintEqualToConstant:[ZL2Theme ame343_layoutMetric:@"pillHeight" fallback:28.0]],
 
             [_actionLabel.centerXAnchor constraintEqualToAnchor:_actionPill.centerXAnchor],
             [_actionLabel.centerYAnchor constraintEqualToAnchor:_actionPill.centerYAnchor],
-            [_actionLabel.leadingAnchor constraintGreaterThanOrEqualToAnchor:_actionPill.leadingAnchor constant:10],
-            [_actionPill.trailingAnchor constraintGreaterThanOrEqualToAnchor:_actionLabel.trailingAnchor constant:10],
+            [_actionLabel.leadingAnchor constraintGreaterThanOrEqualToAnchor:_actionPill.leadingAnchor constant:[ZL2Theme ame343_layoutMetric:@"pillGap" fallback:10.0]],
+            [_actionPill.trailingAnchor constraintGreaterThanOrEqualToAnchor:_actionLabel.trailingAnchor constant:[ZL2Theme ame343_layoutMetric:@"pillGap" fallback:10.0]],
         ]];
         self.titleToPill.active = YES;
         self.subToPill.active = YES;

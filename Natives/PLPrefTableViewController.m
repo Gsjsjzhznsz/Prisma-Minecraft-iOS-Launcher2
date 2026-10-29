@@ -4,7 +4,6 @@
 
 #import "DBNumberedSlider.h"
 #import "LauncherNavigationController.h"
-#import "LauncherMenuViewController.h"
 #import "LauncherPreferences.h"
 #import "PLPrefTableViewController.h"
 #import "BackgroundManager.h"

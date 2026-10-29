@@ -2239,7 +2239,6 @@
 "preference.title.safety_mode" = "Standard-Sicherheitsmodus";
 "preference.title.session_list" = "Sitzungsliste";
 "preference.title.system_prompt" = "Systemprompt";
-"preference.title.ui_layout" = "UI-Layout";
 "preference.title.ui_theme" = "Erscheinungsbild-Design";
 "preference.section.footer.general" = "Allgemeine Verhaltens- und Darstellungsoptionen des Launchers.";
 "preference.section.footer.download" = "Download-Quellen und Spiegelstrategie für Spielressourcen.";
@@ -2270,7 +2269,6 @@
 "preference.detail.launcher_background" = "Legt einen Launcher-Hintergrund fest (Bild/Video) oder stellt die einfarbige Standardfarbe wieder her.";
 "preference.detail.manage_runtime" = "Java-Laufzeiten verwalten: jede Version ansehen, herunterladen und löschen.";
 "preference.detail.multi_threaded" = "Lädt Spiel-Assets mit mehreren Threads für höhere Geschwindigkeit herunter. Einige Spiegel unterstützen das möglicherweise nicht.";
-"preference.detail.ui_layout" = "Wähle das Startbildschirm-Layout: mehrere Karten oder kompakte Ansicht. Starte den Launcher neu, um es vollständig anzuwenden.";
 "preference.detail.ui_theme" = "Wähle helles/dunkles/System-Erscheinungsbild.";
 "auto_update.toast.new_version" = "Neue Version %@ verfügbar";
 "auto_update.toast.view" = "Ansehen";

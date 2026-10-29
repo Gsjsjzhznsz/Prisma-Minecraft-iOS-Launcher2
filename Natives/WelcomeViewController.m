@@ -58,8 +58,8 @@
 #import "UIKit+NativeSurface.h"
 #import "utils.h"
 #import "UIKit+hook.h"   // Task223：UIWindow.mainWindow 分类声明（zl2 焦点遮罩取主窗口）
-#import "LauncherMenuViewController.h"        // Task233：锚点按类识别（侧边导航）
-#import "LauncherRightPanelViewController.h"  // Task233：锚点按类识别（右面板/启动按钮深搜）
+// Task343：旧壳锚点头（LauncherMenu/RightPanel）随旧壳家族物理退役摘除，
+// 引导锚点单轨 ZL2 壳（7.0-UI-11 专用锚点集）。
 #include <mach-o/dyld.h>
 #include <unistd.h>
 
@@ -705,24 +705,10 @@ static const NSInteger ame218_welcomeStepCount = 8;  // Task246：+1 界面风�
         return;
     }
 
-    // ---- Task233：按类识别三区 VC（Card 布局与 vs 三栏布局通吃）----
+    // ---- Task233 旧壳三区按类识别已随旧壳家族退役（Task343）：
+    //      SceneDelegate 根壳自 7.0-UI-8 起恒为 ZL2 壳，下方专用锚点集
+    //      全命中；非 ZL2 根（理论不可达）直接进关于页，绝不阻塞。
     UIViewController *root = window.rootViewController;
-    NSArray<UIViewController *> *children = root.childViewControllers;
-    LauncherMenuViewController *ame233_menuVC = nil;
-    LauncherRightPanelViewController *ame233_rightVC = nil;
-    UIViewController *ame233_contentVC = nil;
-    for (UIViewController *ame233_c in children) {
-        if ([ame233_c isKindOfClass:[LauncherMenuViewController class]]) {
-            ame233_menuVC = (LauncherMenuViewController *)ame233_c;
-        } else if ([ame233_c isKindOfClass:[LauncherRightPanelViewController class]]) {
-            ame233_rightVC = (LauncherRightPanelViewController *)ame233_c;
-        } else if (ame233_contentVC == nil) {
-            ame233_contentVC = ame233_c;
-        }
-    }
-    NSLog(@"[Welcome] Task233 anchor discovery: menu=%d content=%d right=%d (children=%lu)",
-          ame233_menuVC != nil, ame233_contentVC != nil, ame233_rightVC != nil,
-          (unsigned long)children.count);
     // ---- 7.0-UI-11：ZL2 新壳锚点先行（旧壳三区探测在 ZL2 壳下天然全空，
     //      仅剩"主内容区"一条幸存锚点且语义不完整——ZL2 的启动按钮在主页
     //      网格区、导航枢纽在顶栏右簇）。ZL2 壳下走专用锚点集：全部真实
@@ -809,219 +795,10 @@ static const NSInteger ame218_welcomeStepCount = 8;  // Task246：+1 界面风�
         [Ame223CoachMarksView showSequence:items completion:presentAbout];
         return;
     }
-
-
-    // ---- 锚点 1：侧边导航（菜单 VC 的真实视图）----
-    if (ame233_menuVC != nil && ame233_menuVC.isViewLoaded && ame233_menuVC.view.window != nil) {
-        CGRect r = [Ame223CoachMarksView screenRectForView:ame233_menuVC.view];
-        if (!CGRectIsNull(r)) {
-            [items addObject:@{
-                @"rect": [NSValue valueWithCGRect:r],
-                @"title": localize(@"coachmarks.nav.title", nil),
-                @"body": localize(@"coachmarks.nav.body", nil),
-                @"round": @NO,
-            }];
-        }
-    }
-
-    // ---- 锚点 2：主内容区（= 内容子 VC，不再是 lastObject——Card 布局的
-    //      lastObject 是右面板，旧代码文案张冠李戴）----
-    if (ame233_contentVC != nil && ame233_contentVC.isViewLoaded && ame233_contentVC.view.window != nil) {
-        CGRect r = [Ame223CoachMarksView screenRectForView:ame233_contentVC.view];
-        if (!CGRectIsNull(r)) {
-            [items addObject:@{
-                @"rect": [NSValue valueWithCGRect:r],
-                @"title": localize(@"coachmarks.content.title", nil),
-                @"body": localize(@"coachmarks.content.body", nil),
-                @"round": @NO,
-            }];
-        }
-    }
-
-    // ---- 锚点 3：启动按钮（Task234 第五轮：不再按位置猜）----
-    // Task233 的深搜取“最靠下大按钮”——右面板布局里执行Jar/选择版本
-    // （38pt，贴底并排）恰在启动按钮（46pt）之下，搜索稳定命中执行Jar
-    // （用户实测“本来要圈启动按钮变成了执行jar”）。本轮三级确定性锚定：
-    // ① 右面板 VC 直接给出 launchButton 真身（ame234_launchAnchorView）；
-    // ② 标题匹配兜底（启动按钮三态标题 i18n_str_412/434/435 任一命中即
-    //    真身；执行Jar i18n_str_414 / 选择版本 i18n_str_38 明确排除）；
-    // ③ 整个右面板真实 frame（Task233 形态）。
-    CGRect btnRect = CGRectNull;
-    NSString *ame234_tier = @"none";
-    if (ame233_rightVC != nil && ame233_rightVC.isViewLoaded) {
-        // ① 真身直取
-        UIView *ame234_launch = [ame233_rightVC ame234_launchAnchorView];
-        if (ame234_launch != nil && !ame234_launch.hidden && ame234_launch.window != nil) {
-            CGRect sr = [Ame223CoachMarksView screenRectForView:ame234_launch];
-            if (!CGRectIsNull(sr)) {
-                btnRect = CGRectInset(sr, -14, -14);
-                ame234_tier = @"direct";
-            }
-        }
-        // ② 标题匹配兜底（防御未来按钮重构/换类时仍不锚错）
-        if (CGRectIsNull(btnRect)) {
-            NSArray<NSString *> *ame234_launchTitles = @[
-                localize(@"i18n_str_412", nil),   // 启动游戏
-                localize(@"i18n_str_434", nil),   // 启动游戏（下载中）
-                localize(@"i18n_str_435", nil),   // 登录并启动
-            ];
-            NSString *ame234_jarTitle = localize(@"i18n_str_414", nil);   // 执行Jar
-            NSString *ame234_verTitle = localize(@"i18n_str_38", nil);    // 选择版本
-            UIView *ame233_best = nil;
-            NSMutableArray<UIView *> *ame233_stack = [NSMutableArray arrayWithObject:ame233_rightVC.view];
-            int ame233_visited = 0;
-            while (ame233_stack.count > 0 && ame233_visited < 600) {
-                UIView *ame233_v = ame233_stack.lastObject;
-                [ame233_stack removeLastObject];
-                ame233_visited++;
-                if (ame233_v.hidden || ame233_v.alpha <= 0.01) continue;
-                if ([ame233_v isKindOfClass:[UIButton class]] &&
-                    ame233_v.frame.size.height > 36 && ame233_v.frame.size.width > 80) {
-                    NSString *ame234_t = [(UIButton *)ame233_v currentTitle];
-                    if ([ame234_launchTitles containsObject:ame234_t]) {
-                        ame233_best = ame233_v;   // 三态标题命中即启动按钮真身
-                        break;
-                    }
-                    if (ame234_t != nil &&
-                        ([ame234_t isEqualToString:ame234_jarTitle] ||
-                         [ame234_t isEqualToString:ame234_verTitle])) {
-                        continue;   // 明确排除：执行Jar / 选择版本
-                    }
-                    if (ame233_best == nil ||
-                        CGRectGetMaxY(ame233_v.frame) > CGRectGetMaxY(ame233_best.frame)) {
-                        ame233_best = ame233_v;   // 未识别大按钮：退化为最靠下
-                    }
-                }
-                for (UIView *ame233_sub in ame233_v.subviews) {
-                    [ame233_stack addObject:ame233_sub];
-                }
-            }
-            if (ame233_best != nil) {
-                CGRect sr = [Ame223CoachMarksView screenRectForView:ame233_best];
-                if (!CGRectIsNull(sr)) {
-                    btnRect = CGRectInset(sr, -14, -14);
-                    ame234_tier = @"title-match";
-                }
-            }
-        }
-        // ③ 整面板兜底（真实视图 frame，不再是屏幕比例猜位）
-        if (CGRectIsNull(btnRect)) {
-            CGRect r = [Ame223CoachMarksView screenRectForView:ame233_rightVC.view];
-            if (!CGRectIsNull(r)) {
-                btnRect = r;
-                ame234_tier = @"whole-panel";
-            }
-        }
-    }
-    NSLog(@"[Welcome] Task234 launch anchor tier=%@ rect=%@",
-          ame234_tier, CGRectIsNull(btnRect) ? @"null" : NSStringFromCGRect(btnRect));
-    if (!CGRectIsNull(btnRect)) {
-        [items addObject:@{
-            @"rect": [NSValue valueWithCGRect:btnRect],
-            @"title": localize(@"coachmarks.launch.title", nil),
-            @"body": localize(@"coachmarks.launch.body", nil),
-            @"round": @YES,
-        }];
-    }
-
-    // ---- 锚点 4/5（Task226 加入，Task233 根治，Task235 锚点 5 重锚）：
-    //      语义区域锚点从【真实视图 frame】派生（旧版屏幕比例硬编码 = 圈挖
-    //      在空白区的直接原因）。下载与模组 = 菜单栏下半区（下载/模组入口
-    //      所在）；版本与隔离 = 右面板“选择版本”按钮（Task235：旧“内容区
-    //      上半 42%”圈住的其实是主页头像卡）。窗口坐标 + 钳制在窗口内。
-    CGRect sb = window.bounds;
-    if (CGRectIsEmpty(sb)) sb = UIScreen.mainScreen.bounds;
-    if (ame233_menuVC != nil && ame233_menuVC.isViewLoaded && ame233_menuVC.view.window != nil) {
-        CGRect mr = [Ame223CoachMarksView screenRectForView:ame233_menuVC.view];
-        if (!CGRectIsNull(mr)) {
-            CGRect dr = mr;
-            dr.origin.y = CGRectGetMinY(mr) + CGRectGetHeight(mr) * 0.52;
-            dr.size.height = CGRectGetHeight(mr) * 0.48;
-            dr = CGRectIntersection(dr, sb);
-            if (!CGRectIsNull(dr) && !CGRectIsEmpty(dr)) {
-                [items addObject:@{
-                    @"rect": [NSValue valueWithCGRect:dr],
-                    @"title": localize(@"coachmarks.downloads.title", nil),
-                    @"body": localize(@"coachmarks.downloads.body", nil),
-                    @"round": @NO,
-                }];
-            }
-        }
-    }
-    // ---- 锚点 5（Task226 加入，Task233 根治，Task235 第六轮重锚）：
-    //      “版本与隔离”。Task233 版从【内容区上半 42%】派生——Card 布局的
-    //      主页内容顶部恰是全宽头像卡（用户实测“被指向我的个人主页头像”）。
-    //      版本与隔离的真实入口 = 右面板“选择版本”按钮（manageVersionBtn，
-    //      版本切换与实例隔离管理都在那里）。三级确定性锚定（与锚点 3 同
-    //      范式）：① 右面板 VC 直取真身（ame235_versionAnchorView）；
-    //      ② 标题匹配兜底（i18n_str_38“选择版本”）；③ 整个右面板真实
-    //      frame。全部失败则宁可跳过该页，绝不回落到头像区。
-    CGRect verRect = CGRectNull;
-    NSString *ame235_verTier = @"none";
-    if (ame233_rightVC != nil && ame233_rightVC.isViewLoaded) {
-        // ① 真身直取
-        UIView *ame235_verBtn = [ame233_rightVC ame235_versionAnchorView];
-        if (ame235_verBtn != nil && !ame235_verBtn.hidden && ame235_verBtn.window != nil) {
-            CGRect sr = [Ame223CoachMarksView screenRectForView:ame235_verBtn];
-            if (!CGRectIsNull(sr)) {
-                verRect = CGRectInset(sr, -10, -10);
-                ame235_verTier = @"direct";
-            }
-        }
-        // ② 标题匹配兜底（防御未来按钮重构/换类时仍不锚错）
-        if (CGRectIsNull(verRect)) {
-            NSString *ame235_verTitle = localize(@"i18n_str_38", nil);   // 选择版本
-            UIView *ame235_titleMatch = nil;
-            NSMutableArray<UIView *> *ame235_stack = [NSMutableArray arrayWithObject:ame233_rightVC.view];
-            int ame235_visited = 0;
-            while (ame235_stack.count > 0 && ame235_visited < 600) {
-                UIView *ame235_v = [ame235_stack lastObject];
-                [ame235_stack removeLastObject];
-                ame235_visited++;
-                if (ame235_v.hidden || ame235_v.alpha <= 0.01) continue;
-                if ([ame235_v isKindOfClass:[UIButton class]] &&
-                    ame235_v.frame.size.height > 20 && ame235_v.frame.size.width > 60) {
-                    NSString *ame235_t = [(UIButton *)ame235_v currentTitle];
-                    if (ame235_t != nil && [ame235_t isEqualToString:ame235_verTitle]) {
-                        ame235_titleMatch = ame235_v;
-                        break;
-                    }
-                }
-                for (UIView *ame235_sub in ame235_v.subviews) {
-                    [ame235_stack addObject:ame235_sub];
-                }
-            }
-            if (ame235_titleMatch != nil) {
-                CGRect sr = [Ame223CoachMarksView screenRectForView:ame235_titleMatch];
-                if (!CGRectIsNull(sr)) {
-                    verRect = CGRectInset(sr, -10, -10);
-                    ame235_verTier = @"title-match";
-                }
-            }
-        }
-        // ③ 整面板兜底（真实视图 frame）
-        if (CGRectIsNull(verRect)) {
-            CGRect r = [Ame223CoachMarksView screenRectForView:ame233_rightVC.view];
-            if (!CGRectIsNull(r)) {
-                verRect = r;
-                ame235_verTier = @"whole-panel";
-            }
-        }
-    }
-    NSLog(@"[Welcome] Task235 version anchor tier=%@ rect=%@",
-          ame235_verTier, CGRectIsNull(verRect) ? @"null" : NSStringFromCGRect(verRect));
-    if (!CGRectIsNull(verRect)) {
-        verRect = CGRectIntersection(verRect, sb);
-        if (!CGRectIsNull(verRect) && !CGRectIsEmpty(verRect)) {
-            [items addObject:@{
-                @"rect": [NSValue valueWithCGRect:verRect],
-                @"title": localize(@"coachmarks.versions.title", nil),
-                @"body": localize(@"coachmarks.versions.body", nil),
-                @"round": @NO,
-            }];
-        }
-    }
-
+    // ---- Task343：旧壳锚点 1-5（ame233_menuVC/contentVC/rightVC 消费段）
+    //      随旧壳家族物理退役整体摘除——ZL2 专用锚点集（上方锚 A/B/C）
+    //      已是唯一锚点源；非 ZL2 根（理论不可达）items 恒空，由收尾空判定
+    //      直进关于页（Task225 语义：引导是增强，绝不阻塞）。
     if (items.count == 0) {
         presentAbout();
         return;

@@ -2236,7 +2236,6 @@
 /* Task271 translations */
 "preference.title.session_list" = "Liste des sessions";
 "preference.title.system_prompt" = "Invite système";
-"preference.title.ui_layout" = "Disposition de l’interface";
 "preference.title.ui_theme" = "Thème d’apparence";
 "preference.section.footer.general" = "Comportement général du lanceur et options d’apparence.";
 "preference.section.footer.download" = "Sources de téléchargement et politique de miroir pour les ressources du jeu.";
@@ -2267,7 +2266,6 @@
 "preference.detail.launcher_background" = "Définit un fond pour le lanceur (image/vidéo) ou rétablit le fond uni par défaut.";
 "preference.detail.manage_runtime" = "Gère les environnements d’exécution Java : consulter, télécharger et supprimer chaque version.";
 "preference.detail.multi_threaded" = "Télécharge les ressources du jeu avec plusieurs threads pour plus de vitesse. Certains miroirs peuvent ne pas le prendre en charge.";
-"preference.detail.ui_layout" = "Choisissez la disposition de l’écran d’accueil : multi-cartes ou compacte. Redémarrez le lanceur pour l’appliquer entièrement.";
 "preference.detail.ui_theme" = "Choisissez l’apparence clair/sombre/système.";
 "auto_update.toast.new_version" = "Nouvelle version %@ disponible";
 "auto_update.toast.view" = "Consulter";

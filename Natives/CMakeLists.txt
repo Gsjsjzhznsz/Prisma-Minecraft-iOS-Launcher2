@@ -582,19 +582,10 @@ add_executable(AngelAuraAmethyst
   MultiplayerViewController.m
   LanPortDetector.m
   # ★ Task255：清理垃圾中心（清单 6）
-  CleanupViewController.m
   ZeroTierBridge.m
   SOCKS5Proxy.m
   PortForwarder.m
-  LauncherMenuViewController.m
   LauncherNavigationController.m
-  LauncherNewsViewController.m
-  LauncherHelpViewController.m
-  HomeCustomizeViewController.m
-  LauncherRootViewController.m
-  LauncherCardLayoutViewController.m
-  LauncherRightPanelViewController.m
-  VersionManagerViewController.m
   ProfileSettingsViewController.m
   DownloadViewController.m
   # Task291: built-in JIT (PocketJ port phase 1)
@@ -606,7 +597,6 @@ add_executable(AngelAuraAmethyst
   LauncherPrefGameDirViewController.m
   LauncherPrefManageJREViewController.m
   LauncherProfileEditorViewController.m
-  LauncherSplitViewController.m
   MinecraftResourceDownloadTask.m
   MinecraftResourceUtils.m
   PickTextField.m
@@ -641,7 +631,6 @@ add_executable(AngelAuraAmethyst
   ModItem.m
   ModService.m
   ModTableViewCell.m
-  ModTableViewController.m
   ModsManagerViewController.m
   ModVersion.m
   ModVersionViewController.m

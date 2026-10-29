@@ -2228,7 +2228,6 @@
 "preference.title.safety_mode" = "Modalità sicura predefinita";
 "preference.title.session_list" = "Lista sessioni";
 "preference.title.system_prompt" = "Prompt di sistema";
-"preference.title.ui_layout" = "Layout interfaccia";
 "preference.title.ui_theme" = "Tema aspetto";
 "preference.section.footer.general" = "Opzioni generali di comportamento e aspetto del launcher.";
 "preference.section.footer.download" = "Sorgenti di download e politica mirror per le risorse di gioco.";
@@ -2259,7 +2258,6 @@
 "preference.detail.launcher_background" = "Imposta lo sfondo del launcher (immagine/video) o ripristina il colore pieno predefinito.";
 "preference.detail.manage_runtime" = "Gestisci i runtime Java: visualizza, scarica ed elimina ogni versione.";
 "preference.detail.multi_threaded" = "Scarica le risorse di gioco con più thread per maggiore velocità. Alcuni mirror potrebbero non supportarlo.";
-"preference.detail.ui_layout" = "Scegli il layout della schermata Home: multi-scheda o compatto. Riavvia il launcher per applicare completamente.";
 "preference.detail.ui_theme" = "Scegli l'aspetto chiaro/scuro/sistema.";
 "auto_update.toast.new_version" = "Nuova versione %@ disponibile";
 "auto_update.toast.view" = "Vedi";

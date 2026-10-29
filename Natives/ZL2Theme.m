@@ -84,6 +84,18 @@ static UIFont *AmePluginFontOverride(NSString *token, UIFont *fallback) {
     return fallback;
 }
 
+#pragma mark - Task343 布局覆盖基础设施（与 ame341 逐位同构，自包含不依赖插件运行时）
+
+// 记账口径同 ame341：token → @[pluginId, NSNumber(pt)]（后写者胜）。
+static NSMutableDictionary<NSString *, NSArray *> *ame343_layoutOverride = nil;
+
+static CGFloat Ame343LayoutOverride(NSString *token, CGFloat fallback) {
+    if (ame343_layoutOverride.count == 0) return fallback;
+    NSArray *entry = ame343_layoutOverride[token];
+    if (entry.count == 2) return [(NSNumber *)entry[1] doubleValue];
+    return fallback;
+}
+
 // weight 字符串/数字 → UIFontWeight（白名单映射，未知值回落 regular）
 static UIFontWeight Ame341WeightFromValue(id v) {
     if ([v isKindOfClass:[NSString class]]) {
@@ -203,6 +215,60 @@ static UIFontWeight Ame341WeightFromValue(id v) {
         }
     }
     NSLog(@"[AmePlugin:%@] 形状/字体令牌覆盖 %lu/%lu 项", pluginId,
+          (unsigned long)applied, (unsigned long)tokens.count);
+    return YES;
+}
+
++ (CGFloat)ame343_layoutMetric:(NSString *)token fallback:(CGFloat)fallback {
+    return Ame343LayoutOverride(token, fallback);
+}
+
++ (BOOL)ame343_setPluginThemeLayout:(NSString *)pluginId
+                             tokens:(NSDictionary *)tokens {
+    if (pluginId.length == 0) return NO;
+    // 白名单 + 钳制区间（键名中性 spacing/density 语义，守 Task340
+    // "引擎零 Fluent 资产"裁定：引擎只提供承载面，形态全部住在插件侧）
+    static NSDictionary<NSString *, NSArray<NSNumber *> *> *layoutKeys = nil;
+    static dispatch_once_t once;
+    dispatch_once(&once, ^{
+        layoutKeys = @{
+            @"searchBarHeight": @[@32, @64],
+            @"chipHeight":      @[@24, @48],
+            @"cardMarginV":     @[@0,  @24],
+            @"cardMarginH":     @[@0,  @40],
+            @"cardInsetX":      @[@0,  @40],
+            @"cardInsetTop":    @[@0,  @40],
+            @"cardInsetBottom": @[@0,  @40],
+            @"cardContentGap":  @[@0,  @24],
+            @"pillMinWidth":    @[@32, @160],
+            @"pillHeight":      @[@20, @56],
+            @"pillGap":         @[@0,  @32],
+            @"dialogInset":     @[@8,  @48],
+            @"buttonHeight":    @[@28, @64],
+        };
+    });
+    if (!ame343_layoutOverride) ame343_layoutOverride = [NSMutableDictionary dictionary];
+    // 先清本插件既有覆盖（还原语义），再落新集合（后写者胜）
+    NSMutableArray *stale = [NSMutableArray array];
+    [ame343_layoutOverride enumerateKeysAndObjectsUsingBlock:^(NSString *k, NSArray *e, BOOL *_) {
+        if ([e[0] isEqualToString:pluginId]) [stale addObject:k];
+    }];
+    for (NSString *k in stale) [ame343_layoutOverride removeObjectForKey:k];
+    if (![tokens isKindOfClass:[NSDictionary class]] || tokens.count == 0) {
+        return YES;
+    }
+    NSUInteger applied = 0;
+    for (NSString *k in tokens) {
+        id v = tokens[k];
+        if (![v isKindOfClass:[NSNumber class]]) continue;
+        NSArray<NSNumber *> *range = layoutKeys[k];
+        if (range.count != 2) continue;
+        double p = [(NSNumber *)v doubleValue];
+        if (isnan(p) || p < [range[0] doubleValue] || p > [range[1] doubleValue]) continue;
+        ame343_layoutOverride[k] = @[pluginId, @(p)];
+        applied++;
+    }
+    NSLog(@"[AmePlugin:%@] 布局令牌覆盖 %lu/%lu 项", pluginId,
           (unsigned long)applied, (unsigned long)tokens.count);
     return YES;
 }

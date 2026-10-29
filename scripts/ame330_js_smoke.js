@@ -49,6 +49,7 @@ for (const root of roots) {
     // ★ Task341：色/形状令牌桩（fluent-ui v2 全维度链覆盖：色28+形状5+字阶7）
     setThemeTokenHandler: (t) => { if (!requirePerm('ui.theme')) throw new Error('denied'); calls.push('token:' + Object.keys(t || {}).length); return true; },
     setThemeShapeHandler: (t) => { if (!requirePerm('ui.theme')) throw new Error('denied'); calls.push('shape:' + Object.keys(t || {}).length); return true; },
+    setThemeLayoutHandler: (t) => { if (!requirePerm('ui.theme')) throw new Error('denied'); calls.push('layout:' + Object.keys(t || {}).length); return true; },
   };
 
   const ame = {
@@ -56,6 +57,7 @@ for (const root of roots) {
     toast: (t) => ameRaw.toastHandler(t),
     setThemeToken: (t) => ameRaw.setThemeTokenHandler(t),
     setThemeShape: (t) => ameRaw.setThemeShapeHandler(t),
+    setThemeLayout: (t) => ameRaw.setThemeLayoutHandler(t),
     dialog: (s, c) => ameRaw.dialogHandler(s, c),
     on: (e, c) => ameRaw.onHandler(e, c),
     log: (m) => ameRaw.logHandler(m),

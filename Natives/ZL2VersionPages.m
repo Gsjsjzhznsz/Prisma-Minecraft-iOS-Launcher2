@@ -65,6 +65,12 @@
 #import "ZL2VersionNBT.h"
 #import "ModLoaderIconHelper.h"      // 7.0-UI-13-r1：加载器识别（详情头图标口径）
 #import "ModpackExportService.h"     // 7.0-UI-13-r1：版本 id 反解（MC 版本口径）
+#import "ModService.h"                 // ★ Task343：模组页数据层（scan/toggle/delete/metadata/隔离口径）
+#import "ModUpdateService.h"          // ★ Task343：检查更新全流程（双源限流）
+#import "PLDownloadClient.h"          // ★ Task343：更新下载（镜像候选 + SHA1 校验）
+#import "PLMirrorCenter.h"
+#import "ZL2DownloadViewController.h" // ★ Task343：空态「去下载」模组轨直达
+#import <CommonCrypto/CommonDigest.h> // ★ Task343：流式 SHA1（Modrinth 反查依赖）
 #import "ZL2VersionDetailViewController.h"   // +ameV13_resolvedGameDirForProfileName:（gameDir 重解析兜底）
 #import "PLProfiles.h"
 #import "ProfileSettingsViewController.h"    // 「完整实例设置」长尾入口（旧链 1:1）
@@ -998,13 +1004,90 @@ static UIImage *ZL2V13ThumbnailAtPath(NSString *path, CGFloat maxPixel) {
 
 @end
 
-#pragma mark - ② 模组管理
+#pragma mark - ② 模组管理（★ Task343：ModService/ModUpdateService 全量接线版）
+
+// 旧 UI 模组页（ModsManagerViewController，1758 行 + 基类 550 行）功能对齐：
+//   · 数据层全程 ModService（scan/toggle/delete/metadata/隔离嗅探口径）——
+//     退役旁路实现（旧版子页直接 NSFileManager 枚举改名 = 第二实现漂移）；
+//   · 搜索（displayName/fileName 实时过滤）+ 状态筛选 chips（全部/已启用/
+//     已禁用）+ 排序切换（名称 ⇄ 修改时间）；
+//   · 批量选择模式（全选/批量启用/禁用/删除，M3Dialog 确认）；
+//   · 检查更新全流程（流式 SHA1 → ModUpdateService 双源限流检查 → M3Dialog
+//     确认 → PLDownloadClient 镜像候选 + SHA1 校验并发下载 → 删旧移新保留
+//     禁用态 → 结果汇总），忙态横幅阶段文本；
+//   · 元数据卡片（jar 内 fabric.mod.json/mods.toml 解析显示名）+ Modrinth
+//     项目页跳转（onlineID）+ 加载器错配橙色徽标（ame288 同语义）；
+//   · 隔离态三态徽标（ame219）+ 生效 mods 目录提示行（Task264）；
+//   · 导入 _copy/_copy_N 同名规避（Task268 同语义）；
+//   · 空态「去下载」直达 ZL2 下载中心模组轨 + targetProfileName 透传
+//     （Task265/324 语义保留）。
+// 有意不做（语义不适用版本详情内嵌页，非功能缺失）：实例切换器/跨实例
+// 下载横幅——版本详情天然钉定单实例（Task265 跟随/钉定是旧抽屉入口特有
+// 语义）；本页 profileName 即详情页实例，下载中心透传已覆盖对账诉求。
+// i18n：全部复用旧页既有键（resman.mods.* / resman.common.* / ame225.mods.*，
+// 54 表已齐），零新增键。
+
+// 更新下载任务（旧 ModsManagerViewController ModUpdateTask 同构；改名防符号撞）
+@interface ZL2V13ModUpdateTask : NSObject
+@property (nonatomic, strong) ModUpdateResult *result;
+@property (nonatomic, strong) ModItem *mod;
+@property (nonatomic, strong) ModVersion *targetVersion;
+@property (nonatomic, copy, nullable) NSString *tempPath;
+@property (nonatomic, assign) BOOL downloadSucceeded;
+@end
+@implementation ZL2V13ModUpdateTask
+@end
+
+// 流式 SHA1（旧 ModsManagerSHA1ForFile 同实现：CommonCrypto 256KB 块流式，
+// Modrinth 反查依赖；大文件不进内存）
+static NSString *ZL2V13ModSHA1ForFile(NSString *path) {
+    if (path.length == 0) return nil;
+    NSFileManager *fm = [NSFileManager defaultManager];
+    if (![fm fileExistsAtPath:path]) return nil;
+    FILE *fp = fopen(path.fileSystemRepresentation, "rb");
+    if (!fp) return nil;
+    unsigned char md[CC_SHA1_DIGEST_LENGTH];
+    CC_SHA1_CTX ctx;
+    CC_SHA1_Init(&ctx);
+    unsigned char buf[262144];
+    size_t n;
+    while ((n = fread(buf, 1, sizeof(buf), fp)) > 0) {
+        CC_SHA1_Update(&ctx, buf, (CC_LONG)n);
+    }
+    fclose(fp);
+    CC_SHA1_Final(md, &ctx);
+    NSMutableString *hex = [NSMutableString stringWithCapacity:40];
+    for (int i = 0; i < CC_SHA1_DIGEST_LENGTH; i++) {
+        [hex appendFormat:@"%02x", md[i]];
+    }
+    return hex;
+}
 
 @interface ZL2VersionModsPage () <UIDocumentPickerDelegate>
 @property (nonatomic, strong) UIStackView *ameV13_contentStack;
 @property (nonatomic, strong) UIStackView *ameV13_cardsStack;
 @property (nonatomic, strong) UILabel *ameV13_countLabel;
-@property (nonatomic, copy) NSArray<NSDictionary *> *ameV13_rows;
+@property (nonatomic, strong) UILabel *ameV13_busyLabel;          // 更新忙态阶段横幅
+@property (nonatomic, strong) ZL2M3SearchBar *ameV13_searchBar;
+@property (nonatomic, strong) NSMutableArray<ZL2M3FilterChip *> *ameV13_filterChips;   // 0 全部/1 启用/2 禁用
+@property (nonatomic, strong) ZL2M3FilterChip *ameV13_sortNameChip;   // 排序双 chip（100/101）
+@property (nonatomic, strong) ZL2M3FilterChip *ameV13_sortTimeChip;
+@property (nonatomic, strong) UILabel *ameV13_isoBadge;           // 隔离态徽标（点按出说明）
+@property (nonatomic, strong) UILabel *ameV13_folderCaption;      // 生效 mods 目录提示行
+// 选择模式工具条（懒建，随选择态显隐）
+@property (nonatomic, strong) UIStackView *ameV13_selectBar;
+@property (nonatomic, strong) UILabel *ameV13_selectCountLabel;
+@property (nonatomic, copy) NSArray<ModItem *> *ameV13_mods;      // ModService 全量
+@property (nonatomic, copy) NSArray<ModItem *> *ameV13_viewMods;  // 搜索+筛选+排序后
+@property (nonatomic, strong) NSMutableDictionary<NSString *, NSNumber *> *ameV13_mtimeByPath;
+@property (nonatomic, strong) NSMutableDictionary<NSString *, NSString *> *ameV13_displayNameByPath;
+@property (nonatomic, strong) NSMutableDictionary<NSString *, NSString *> *ameV13_onlineIdByPath;
+@property (nonatomic, strong) NSMutableDictionary<NSString *, ModUpdateResult *> *ameV13_updateResults;
+@property (nonatomic, strong) NSMutableSet<NSString *> *ameV13_selectedPaths;
+@property (nonatomic, assign) BOOL ameV13_selectMode;
+@property (nonatomic, assign) BOOL ameV13_updateBusy;
+@property (nonatomic, assign) NSInteger ameV13_filterMode;   // 0 全部 1 启用 2 禁用
+@property (nonatomic, assign) NSInteger ameV13_sortMode;     // 0 名称 1 修改时间
 @end
 
 @implementation ZL2VersionModsPage
@@ -1012,6 +1095,12 @@ static UIImage *ZL2V13ThumbnailAtPath(NSString *path, CGFloat maxPixel) {
 - (void)viewDidLoad {
     [super viewDidLoad];
     self.view.backgroundColor = [UIColor clearColor];
+    _ameV13_mtimeByPath = [NSMutableDictionary dictionary];
+    _ameV13_displayNameByPath = [NSMutableDictionary dictionary];
+    _ameV13_onlineIdByPath = [NSMutableDictionary dictionary];
+    _ameV13_updateResults = [NSMutableDictionary dictionary];
+    _ameV13_selectedPaths = [NSMutableSet set];
+    _ameV13_filterChips = [NSMutableArray array];
 
     UILabel *countLabel = [[UILabel alloc] init];
     countLabel.font = [ZL2Theme fontLabelMedium];
@@ -1020,17 +1109,109 @@ static UIImage *ZL2V13ThumbnailAtPath(NSString *path, CGFloat maxPixel) {
     countLabel.translatesAutoresizingMaskIntoConstraints = NO;
     _ameV13_countLabel = countLabel;
 
+    __weak typeof(self) wself = self;
+    // 检查更新（旧页顶栏同名入口 1:1）
+    UIControl *updateButton = [self ameV13_iconButtonWithImageName:@"arrow.triangle.2.circlepath"
+                                                          fallback:@"arrow.2.circlepath"
+                                                             size:32
+                                                     accessibility:localize(@"resman.mods.check_update", nil)
+                                                             action:^{ [wself ameV13_checkForUpdates]; }];
+    // 批量选择
+    UIControl *selectButton = [self ameV13_iconButtonWithImageName:@"checkmark.circle"
+                                                          fallback:@"circle"
+                                                             size:32
+                                                     accessibility:localize(@"resman.common.select", nil)
+                                                             action:^{ [wself ameV13_toggleSelectMode]; }];
     // 导入（多选 zip/jar 复制进 mods/）
     UIControl *importButton = [self ameV13_iconButtonWithImageName:@"square.and.arrow.down"
                                                           fallback:@"tray.and.arrow.down"
                                                              size:32
                                                      accessibility:localize(@"resman.mods.import", nil)
-                                                            action:^{ [self ameV13_showImportPicker]; }];
+                                                             action:^{ [wself ameV13_showImportPicker]; }];
 
     NSString *pageTitle = @"模组";
-    UIStackView *header = [self ameV13_pageHeaderRowWithTitle:pageTitle trailing:@[countLabel, importButton]];
+    UIStackView *header = [self ameV13_pageHeaderRowWithTitle:pageTitle
+                                                     trailing:@[countLabel, updateButton, selectButton, importButton]];
     _ameV13_contentStack = [self ameV13_installContentSkeleton];
     [_ameV13_contentStack addArrangedSubview:header];
+
+    // 更新忙态横幅（阶段文本；隐藏 = 空文本）
+    UILabel *busy = [[UILabel alloc] init];
+    busy.font = [ZL2Theme fontLabelMedium];
+    busy.textColor = [ZL2Theme onSurfaceVariant];
+    busy.numberOfLines = 1;
+    busy.translatesAutoresizingMaskIntoConstraints = NO;
+    busy.hidden = YES;
+    _ameV13_busyLabel = busy;
+    [_ameV13_contentStack addArrangedSubview:busy];
+
+    // 搜索（ZL2M3SearchBar；显示名/文件名双口径实时过滤）
+    ZL2M3SearchBar *search = [[ZL2M3SearchBar alloc] init];
+    search.placeholder = localize(@"resman.mods.search_placeholder", nil);
+    __weak typeof(search) wsearch = search;   // 防自持有环（onReturn 捕获搜索框自身）
+    search.onTextChanged = ^(NSString *text) { [wself ameV13_applyFilter]; };
+    search.onReturn = ^(NSString *text) { [wsearch resignFirstResponder]; };
+    _ameV13_searchBar = search;
+    [_ameV13_contentStack addArrangedSubview:search];
+
+    // 筛选 chips 行（全部/已启用/已禁用 + 排序切换）
+    UIStackView *chips = [[UIStackView alloc] init];
+    chips.axis = UILayoutConstraintAxisHorizontal;
+    chips.spacing = 8;
+    chips.translatesAutoresizingMaskIntoConstraints = NO;
+    NSArray<NSString *> *chipTitles = @[
+        localize(@"resman.mods.filter.all", nil),
+        localize(@"resman.mods.filter.enabled", nil),
+        localize(@"resman.mods.filter.disabled", nil),
+    ];
+    for (NSUInteger i = 0; i < chipTitles.count; i++) {
+        ZL2M3FilterChip *chip = [[ZL2M3FilterChip alloc] initWithText:chipTitles[i]];
+        chip.tag = (NSInteger)i;
+        [chip addTarget:self action:@selector(ameV13_filterChipTapped:)
+               forControlEvents:UIControlEventTouchUpInside];
+        chip.selected = (i == 0);
+        [_ameV13_filterChips addObject:chip];
+        [chips addArrangedSubview:chip];
+    }
+    ZL2M3FilterChip *sortNameChip = [[ZL2M3FilterChip alloc] initWithText:localize(@"resman.mods.sort.name", nil)];
+    sortNameChip.tag = 100;   // 排序双 chip：100=名称 / 101=修改时间（选中态随 sortMode）
+    [sortNameChip addTarget:self action:@selector(ameV13_sortChipTapped:)
+           forControlEvents:UIControlEventTouchUpInside];
+    ZL2M3FilterChip *sortTimeChip = [[ZL2M3FilterChip alloc] initWithText:localize(@"resman.mods.sort.modified", nil)];
+    sortTimeChip.tag = 101;
+    [sortTimeChip addTarget:self action:@selector(ameV13_sortChipTapped:)
+           forControlEvents:UIControlEventTouchUpInside];
+    _ameV13_sortNameChip = sortNameChip;
+    _ameV13_sortTimeChip = sortTimeChip;
+    [chips addArrangedSubview:[self ameV13_spacer]];
+    [chips addArrangedSubview:sortNameChip];
+    [chips addArrangedSubview:sortTimeChip];
+    [_ameV13_contentStack addArrangedSubview:chips];
+    [self ameV13_refreshSortChips];
+
+    // 隔离态徽标 + 生效目录提示行（ame219 三态 + Task264 目录）
+    UILabel *iso = [[UILabel alloc] init];
+    iso.font = [ZL2Theme fontLabelMedium];
+    iso.numberOfLines = 1;
+    iso.translatesAutoresizingMaskIntoConstraints = NO;
+    iso.userInteractionEnabled = YES;
+    [iso addGestureRecognizer:[[UITapGestureRecognizer alloc] initWithTarget:self action:@selector(ameV13_isoBadgeTapped)]];
+    _ameV13_isoBadge = iso;
+    UILabel *folder = [[UILabel alloc] init];
+    folder.font = [ZL2Theme fontLabelMedium];
+    folder.textColor = [ZL2Theme onSurfaceVariant];
+    folder.numberOfLines = 1;
+    folder.lineBreakMode = NSLineBreakByTruncatingMiddle;
+    folder.translatesAutoresizingMaskIntoConstraints = NO;
+    _ameV13_folderCaption = folder;
+    [_ameV13_contentStack addArrangedSubview:iso];
+    [_ameV13_contentStack addArrangedSubview:folder];
+    [self ameV13_refreshIsoBadge];
+
+    // 选择模式工具条（懒建；计数字 + 全选/启用/禁用/删除/完成）
+    [self ameV13_buildSelectBar];
+    [_ameV13_contentStack addArrangedSubview:_ameV13_selectBar];
+    _ameV13_selectBar.hidden = YES;
 
     _ameV13_cardsStack = [[UIStackView alloc] init];
     _ameV13_cardsStack.axis = UILayoutConstraintAxisVertical;
@@ -1040,118 +1221,292 @@ static UIImage *ZL2V13ThumbnailAtPath(NSString *path, CGFloat maxPixel) {
     [_ameV13_contentStack addArrangedSubview:_ameV13_cardsStack];
 }
 
+#pragma mark 隔离徽标与目录行
+
+- (void)ameV13_refreshIsoBadge {
+    NSInteger state = [ModService ame219_isolationStateForProfile:self.ameV13_profileName];
+    NSString *note = (state == 1) ? localize(@"ame225.mods.isolated_note", nil)
+                    : (state == 2) ? localize(@"ame225.mods.sniffed_note", nil)
+                                   : localize(@"ame225.mods.shared_note", nil);
+    _ameV13_isoBadge.text = [NSString stringWithFormat:@"%@ %@", note, @"›"];
+    UIColor *badgeColor = (state == 0) ? [ZL2Theme onSurfaceVariant] : [ZL2Theme tertiary];
+    _ameV13_isoBadge.textColor = badgeColor;
+    NSString *dir = [ModService.sharedService ame264_effectiveModsFolderForProfile:self.ameV13_profileName];
+    _ameV13_folderCaption.text = dir.length > 0
+        ? [NSString stringWithFormat:@"%@ %@", localize(@"resman.mods.folder.caption", nil), dir]
+        : @"";
+}
+
+- (void)ameV13_isoBadgeTapped {
+    // 隔离语义说明（Task219 三态口径；版本详情内嵌页无设置跳转诉求）
+    NSInteger state = [ModService ame219_isolationStateForProfile:self.ameV13_profileName];
+    NSString *note = (state == 1) ? localize(@"ame225.mods.isolated_note", nil)
+                    : (state == 2) ? localize(@"ame225.mods.sniffed_note", nil)
+                                   : localize(@"ame225.mods.shared_note", nil);
+    [self ameV13_showAlertMessage:note];
+}
+
+#pragma mark 数据装载（ModService 全量接线）
+
 - (void)ameV13_reloadContent {
+    if (_ameV13_updateBusy) return;   // 更新流程持有数据快照，装载完再刷新
+    __weak typeof(self) wself = self;
+    NSString *profile = self.ameV13_profileName;
+    [[ModService sharedService] scanModsForProfile:profile completion:^(NSArray<ModItem *> *mods) {
+        __strong typeof(wself) strongSelf = wself;
+        if (!strongSelf) return;
+        strongSelf.ameV13_mods = mods ?: @[];
+        // 目录提示行随扫描刷新（Task264 生效目录实况）
+        [strongSelf ameV13_refreshIsoBadge];
+        // 修改时间缓存（排序档）+ 元数据补齐（显示名/onlineID，逐个异步）
+        [strongSelf ameV13_collectAuxForMods:strongSelf.ameV13_mods];
+        [strongSelf ameV13_applyFilter];
+    }];
+}
+
+- (void)ameV13_collectAuxForMods:(NSArray<ModItem *> *)mods {
+    __weak typeof(self) wself = self;
     dispatch_async(dispatch_get_global_queue(QOS_CLASS_USER_INITIATED, 0), ^{
-        NSString *modsDir = [self.ameV13_gameDir stringByAppendingPathComponent:@"mods"];
-        NSArray<NSDictionary *> *rows = [self ameV13_enumerateDirectory:modsDir filesOnly:YES extensions:nil];
-        rows = [rows sortedArrayUsingComparator:^NSComparisonResult(NSDictionary *a, NSDictionary *b) {
-            return [a[@"name"] compare:b[@"name"]];
-        }];
+        NSMutableDictionary<NSString *, NSNumber *> *mtimes = [NSMutableDictionary dictionary];
+        for (ModItem *mod in mods) {
+            NSDictionary *attr = [NSFileManager.defaultManager attributesOfItemAtPath:mod.filePath error:nil];
+            if (attr) {
+                mtimes[mod.filePath] = @([attr fileModificationDate].timeIntervalSince1970);
+            }
+        }
         dispatch_async(dispatch_get_main_queue(), ^{
-            self.ameV13_rows = rows;
-            self.ameV13_countLabel.text = [NSString stringWithFormat:@"共 %ld 个", (long)rows.count];
-            [self ameV13_rebuildCards];
+            __strong typeof(wself) strongSelf = wself;
+            if (!strongSelf) return;
+            [strongSelf.ameV13_mtimeByPath addEntriesFromDictionary:mtimes];
+            [strongSelf ameV13_applyFilter];   // mtime 到位后重排一次
         });
     });
+    for (ModItem *mod in mods) {
+        [[ModService sharedService] fetchMetadataForMod:mod completion:^(ModItem *item, NSError *error) {
+            dispatch_async(dispatch_get_main_queue(), ^{
+                __strong typeof(wself) strongSelf = wself;
+                if (!strongSelf || !item.filePath.length) return;
+                if (item.displayName.length > 0) {
+                    strongSelf.ameV13_displayNameByPath[item.filePath] = item.displayName;
+                }
+                if (item.onlineID.length > 0) {
+                    strongSelf.ameV13_onlineIdByPath[item.filePath] = item.onlineID;
+                }
+                [strongSelf ameV13_applyFilter];   // 元数据到位即增量重排（卡片标题升级）
+            });
+        }];
+    }
 }
+
+#pragma mark 过滤 / 排序 / 重建
+
+- (void)ameV13_applyFilter {
+    NSString *needle = _ameV13_searchBar.text ?: @"";
+    needle = [needle stringByTrimmingCharactersInSet:[NSCharacterSet whitespaceCharacterSet]];
+    NSMutableArray<ModItem *> *view = [NSMutableArray array];
+    for (ModItem *mod in _ameV13_mods) {
+        if (_ameV13_filterMode == 1 && mod.disabled) continue;
+        if (_ameV13_filterMode == 2 && !mod.disabled) continue;
+        if (needle.length > 0) {
+            NSString *display = _ameV13_displayNameByPath[mod.filePath] ?: @"";
+            NSString *base = mod.basename ?: @"";
+            if ([display localizedCaseInsensitiveContainsString:needle] == NO &&
+                [base localizedCaseInsensitiveContainsString:needle] == NO &&
+                [(mod.fileName ?: @"") localizedCaseInsensitiveContainsString:needle] == NO) {
+                continue;
+            }
+        }
+        [view addObject:mod];
+    }
+    if (_ameV13_sortMode == 0) {
+        [view sortUsingComparator:^NSComparisonResult(ModItem *a, ModItem *b) {
+            NSString *an = [self ameV13_displayNameFor:a];
+            NSString *bn = [self ameV13_displayNameFor:b];
+            return [an caseInsensitiveCompare:bn];
+        }];
+    } else {
+        [view sortUsingComparator:^NSComparisonResult(ModItem *a, ModItem *b) {
+            double am = [self.ameV13_mtimeByPath[a.filePath] doubleValue];
+            double bm = [self.ameV13_mtimeByPath[b.filePath] doubleValue];
+            return bm > am ? NSOrderedDescending : (bm < am ? NSOrderedAscending : NSOrderedSame);
+        }];
+    }
+    _ameV13_viewMods = [view copy];
+    // 计数徽章 + 清理已不在列表的勾选/徽章态
+    _ameV13_countLabel.text = [NSString stringWithFormat:@"共 %ld 个", (long)_ameV13_viewMods.count];
+    [_ameV13_selectedPaths intersectSet:[NSSet setWithArray:[_ameV13_viewMods valueForKeyPath:@"filePath"]]];
+    [self ameV13_updateSelectCount];
+    [self ameV13_rebuildCards];
+}
+
+- (NSString *)ameV13_displayNameFor:(ModItem *)mod {
+    NSString *display = _ameV13_displayNameByPath[mod.filePath];
+    return (display.length > 0) ? display : (mod.basename ?: mod.fileName ?: @"?");
+}
+
+#pragma mark 卡片重建
 
 - (void)ameV13_rebuildCards {
     [self ameV13_clearStack:_ameV13_cardsStack];
-    if (self.ameV13_rows.count == 0) {
-        NSString *emptyText = localize(@"resman.mods.empty", nil);
-        [_ameV13_cardsStack addArrangedSubview:[self ameV13_emptyStateWithSymbol:@"puzzlepiece.extension" fallback:@"puzzlepiece" text:emptyText]];
+    if (_ameV13_viewMods.count == 0) {
+        BOOL isFiltering = (_ameV13_filterMode != 0) ||
+                           ([_ameV13_searchBar.text stringByTrimmingCharactersInSet:
+                             [NSCharacterSet whitespaceCharacterSet]].length > 0);
+        if (_ameV13_mods.count == 0) {
+            // 全空态：去下载（ZL2 下载中心模组轨 + 目标实例透传，Task265/324）
+            UIView *empty = [self ameV13_emptyStateWithSymbol:@"puzzlepiece.extension"
+                                                     fallback:@"puzzlepiece"
+                                                         text:localize(@"resman.mods.empty", nil)];
+            [_ameV13_cardsStack addArrangedSubview:empty];
+            UIControl *goDownload = [self ameV13_iconButtonWithImageName:@"arrow.down.circle.fill"
+                                                                fallback:@"arrow.down.circle"
+                                                                   size:40
+                                                           accessibility:localize(@"resman.common.go_download", nil)
+                                                                   action:^{ [self ameV13_openDownloadCenter]; }];
+            // 双 spacer 夹持居中（Fill 对齐下 stack 拉伸整行，两 spacer 均分余量）
+            UIStackView *cta = [[UIStackView alloc] init];
+            cta.axis = UILayoutConstraintAxisHorizontal;
+            cta.translatesAutoresizingMaskIntoConstraints = NO;
+            [cta addArrangedSubview:[self ameV13_spacer]];
+            [cta addArrangedSubview:goDownload];
+            [cta addArrangedSubview:[self ameV13_spacer]];
+            [_ameV13_cardsStack addArrangedSubview:cta];
+        } else if (isFiltering) {
+            [_ameV13_cardsStack addArrangedSubview:[self ameV13_emptyStateWithSymbol:@"magnifyingglass"
+                                                                            fallback:@"magnifyingglass"
+                                                                                text:localize(@"resman.mods.search_empty", nil)]];
+        }
         return;
     }
-    for (NSDictionary *row in self.ameV13_rows) {
-        [_ameV13_cardsStack addArrangedSubview:[self ameV13_cardForRow:row]];
+    for (ModItem *mod in _ameV13_viewMods) {
+        [_ameV13_cardsStack addArrangedSubview:[self ameV13_cardForMod:mod]];
     }
 }
 
-- (UIView *)ameV13_cardForRow:(NSDictionary *)row {
-    NSString *name = row[@"name"];
-    NSString *path = row[@"path"];
-    BOOL disabled = [name.lowercaseString hasSuffix:@".disabled"];
+- (UIView *)ameV13_cardForMod:(ModItem *)mod {
+    NSString *name = [self ameV13_displayNameFor:mod];
+    NSString *sizeText = ZL2V13ByteCount([[[NSFileManager defaultManager]
+        attributesOfItemAtPath:mod.filePath error:nil] fileSize]);
+    NSMutableArray<NSString *> *detailParts = [NSMutableArray arrayWithObject:sizeText];
+    if (mod.disabled) [detailParts addObject:localize(@"resman.common.disabled_tag", nil)];
+    ModUpdateResult *upd = _ameV13_updateResults[mod.filePath];
+    if (upd) {
+        [detailParts addObject:[NSString stringWithFormat:@"%@ → %@",
+            localize(@"resman.mods.check_update", nil),
+            upd.candidateVersions.firstObject.versionNumber ?: localize(@"resman.mods.update.latest", nil)]];
+    }
+    UIStackView *textStack = [self ameV13_textStackWithTitle:name
+                                                      detail:[detailParts componentsJoinedByString:@" · "]];
+    // 加载器错配徽标（ame288 同语义：橙档 tertiary 色 + 错配加载器名）
+    NSString *loader = [self ameV13_profileLoaderForDisplay];
+    if (loader.length > 0 && [self ameV13_mod:mod mismatchesProfileLoader:loader]) {
+        UILabel *badge = [[UILabel alloc] init];
+        badge.font = [ZL2Theme fontLabelMedium];
+        badge.textColor = [ZL2Theme warning];
+        badge.text = [NSString stringWithFormat:localize(@"resman.mods.badge.loader_mismatch", nil), loader];
+        badge.translatesAutoresizingMaskIntoConstraints = NO;
+        [textStack addArrangedSubview:badge];
+    }
 
     UIView *iconBox = [self ameV13_iconBoxWithSymbol:@"puzzlepiece.extension" fallback:@"puzzlepiece" size:48 iconSize:26];
-
-    NSString *sizeText = ZL2V13ByteCount([row[@"size"] unsignedLongLongValue]);
-    NSString *detailText = disabled
-        ? [NSString stringWithFormat:@"%@ · %@", sizeText, localize(@"resman.common.disabled_tag", nil)]
-        : sizeText;
-    UIStackView *textStack = [self ameV13_textStackWithTitle:name detail:detailText];
-
     UIView *spacer = [self ameV13_spacer];
 
-    // 启用禁用开关（禁用=追加 .disabled / 启用=剥后缀，ModService 同语义）
+    if (_ameV13_selectMode) {
+        // 选择模式：圆圈勾选钮替代开关/删除（基类工具条承担批量动作）
+        BOOL checked = [_ameV13_selectedPaths containsObject:mod.filePath];
+        UIControl *check = [self ameV13_iconButtonWithImageName:checked ? @"checkmark.circle.fill" : @"circle"
+                                                      fallback:checked ? @"checkmark.circle.fill" : @"circle"
+                                                                 size:32
+                                                         accessibility:localize(@"resman.common.select", nil)
+                                                                 action:^{ [self ameV13_toggleSelectedMod:mod]; }];
+        UIStackView *wrap = [self ameV13_rowCardWithViews:@[iconBox, textStack, spacer, check]
+                                                alignment:UIStackViewAlignmentCenter];
+        UITapGestureRecognizer *rowTap = [[UITapGestureRecognizer alloc] initWithTarget:self action:@selector(ameV13_cardTapped:)];
+        [wrap addGestureRecognizer:rowTap];
+        objc_setAssociatedObject(wrap, @selector(ameV13_cardTapped:), mod.filePath, OBJC_ASSOCIATION_COPY_NONATOMIC);
+        return wrap;
+    }
+
+    // 启用/禁用开关（ModService.toggleEnableForMod：Task217 失败弹窗 + 201 自愈重扫）
     ZL2M3Switch *toggle = [[ZL2M3Switch alloc] init];
     toggle.translatesAutoresizingMaskIntoConstraints = NO;
     toggle.accessibilityLabel = name;
-    toggle.on = !disabled;
-    toggle.tag = 0;
+    toggle.on = !mod.disabled;
     [toggle addTarget:self action:@selector(ameV13_toggleChanged:) forControlEvents:UIControlEventValueChanged];
-    objc_setAssociatedObject(toggle, @selector(ameV13_toggleChanged:), path, OBJC_ASSOCIATION_COPY_NONATOMIC);
+    objc_setAssociatedObject(toggle, @selector(ameV13_toggleChanged:), mod.filePath, OBJC_ASSOCIATION_COPY_NONATOMIC);
 
     UIControl *deleteButton = [self ameV13_iconButtonWithImageName:@"trash"
                                                           fallback:@"trash.fill"
                                                              size:32
                                                      accessibility:localize(@"resman.common.delete", nil)
-                                                            action:^{ [self ameV13_confirmDeleteMod:name path:path]; }];
+                                                             action:^{ [self ameV13_confirmDeleteMod:mod]; }];
 
     UIStackView *wrap = [self ameV13_rowCardWithViews:@[iconBox, textStack, spacer, toggle, deleteButton]
                                             alignment:UIStackViewAlignmentCenter];
+    // 行点按 = Modrinth 项目页（onlineID 命中）；未命中出「链接不可用」说明
+    UITapGestureRecognizer *rowTap = [[UITapGestureRecognizer alloc] initWithTarget:self action:@selector(ameV13_cardTapped:)];
+    [wrap addGestureRecognizer:rowTap];
+    objc_setAssociatedObject(wrap, @selector(ameV13_cardTapped:), mod.filePath, OBJC_ASSOCIATION_COPY_NONATOMIC);
     return wrap;
 }
 
-#pragma mark 模组：启用/禁用（.disabled 后缀语义，ModService.toggleEnableForMod 同口径）
+#pragma mark 卡片动作
+
+- (void)ameV13_cardTapped:(UITapGestureRecognizer *)sender {
+    NSString *path = objc_getAssociatedObject(sender.view, @selector(ameV13_cardTapped:));
+    if (path.length == 0) return;
+    if (_ameV13_selectMode) {
+        for (ModItem *mod in _ameV13_viewMods) {
+            if ([mod.filePath isEqualToString:path]) { [self ameV13_toggleSelectedMod:mod]; return; }
+        }
+        return;
+    }
+    NSString *onlineId = _ameV13_onlineIdByPath[path];
+    if (onlineId.length > 0) {
+        NSURL *url = [NSURL URLWithString:[NSString stringWithFormat:@"https://modrinth.com/mod/%@", onlineId]];
+        if (url) {
+            [[UIApplication sharedApplication] openURL:url options:@{} completionHandler:nil];
+            return;
+        }
+    }
+    [self ameV13_showAlertMessage:localize(@"resman.mods.link_unavailable_message", nil)];
+}
 
 - (void)ameV13_toggleChanged:(ZL2M3Switch *)sender {
     NSString *path = objc_getAssociatedObject(sender, @selector(ameV13_toggleChanged:));
-    if (path.length == 0) return;
-    NSString *name = path.lastPathComponent;
-    BOOL wantEnable = sender.on;
-    NSString *lower = name.lowercaseString;
-    NSString *newName = nil;
-    if (!wantEnable && ![lower hasSuffix:@".disabled"]) {
-        newName = [name stringByAppendingString:@".disabled"];
-    } else if (wantEnable && [lower hasSuffix:@".disabled"]) {
-        if ([lower hasSuffix:@".jar.disabled"]) {
-            newName = [name substringToIndex:name.length - @".jar.disabled".length];
-        } else {
-            newName = [name substringToIndex:name.length - @".disabled".length];
+    ModItem *target = nil;
+    for (ModItem *mod in _ameV13_viewMods) {
+        if ([mod.filePath isEqualToString:path]) { target = mod; break; }
+    }
+    if (!target) { sender.on = !sender.on; return; }
+    // ZL2M3Switch 契约：sender.on = 用户意图新值
+    target.disabled = !sender.on;
+    NSError *error = nil;
+    BOOL ok = [[ModService sharedService] toggleEnableForMod:target error:&error];
+    if (!ok) {
+        // Task217 家族：失败一律弹窗给真实原因；ModServiceError 201（源文件
+        // 缺失）额外自愈重扫——幽灵条目即刻消失，不再是"点了没反应"
+        sender.on = !sender.on;   // 视觉回滚（失败时模型态未变）
+        [self ameV13_showAlertMessage:error.localizedDescription ?: localize(@"common.unknown_error", nil)];
+        if ([error.domain isEqualToString:@"ModServiceError"] && error.code == 201) {
+            [self ameV13_reloadContent];
         }
-    }
-    if (newName.length == 0 || [newName isEqualToString:name]) return;
-
-    NSString *dir = [path stringByDeletingLastPathComponent];
-    NSString *newPath = [dir stringByAppendingPathComponent:newName];
-    // Task217：目标同名预检（mods/ 同时存在 foo.jar 与 foo.jar.disabled 时拒改）
-    if ([NSFileManager.defaultManager fileExistsAtPath:newPath]) {
-        NSString *conflictText = @"同名文件已存在，无法切换启用状态";
-        sender.on = !sender.on;  // 视觉回滚
-        [self ameV13_showAlertMessage:conflictText];
         return;
     }
-    NSError *err = nil;
-    if (![NSFileManager.defaultManager moveItemAtPath:path toPath:newPath error:&err]) {
-        sender.on = !sender.on;  // 视觉回滚
-        NSString *failedText = localize(@"resman.common.operation_failed", nil);
-        [self ameV13_showAlertMessage:[NSString stringWithFormat:@"%@: %@", failedText, ZL2V13ErrorText(err)]];
-        return;
-    }
-    NSLog(@"[ZL2VersionPages] mod toggle: %@ -> %@", name, newName);
-    [self ameV13_reloadContent];
+    NSLog(@"[ZL2VersionPages] Task343 mod toggle: %@ -> %@", target.fileName, target.disabled ? @"disabled" : @"enabled");
 }
 
-#pragma mark 模组：删除（M3Dialog 确认）
-
-- (void)ameV13_confirmDeleteMod:(NSString *)name path:(NSString *)path {
+- (void)ameV13_confirmDeleteMod:(ModItem *)mod {
+    NSString *name = [self ameV13_displayNameFor:mod];
     NSString *bodyText = [NSString stringWithFormat:localize(@"resman.common.delete_message_irreversible", nil), name];
     __weak typeof(self) weakSelf = self;
     [self ameV13_confirmDeleteTitle:name
                                body:bodyText
                           onConfirm:^{
         NSError *err = nil;
-        if ([NSFileManager.defaultManager removeItemAtPath:path error:&err]) {
+        if ([[ModService sharedService] deleteMod:mod error:&err]) {
+            [weakSelf.ameV13_updateResults removeObjectForKey:mod.filePath];
+            [weakSelf.ameV13_selectedPaths removeObject:mod.filePath];
             [weakSelf ameV13_reloadContent];
         } else {
             NSString *failedText = localize(@"resman.common.delete_failed", nil);
@@ -1160,7 +1515,7 @@ static UIImage *ZL2V13ThumbnailAtPath(NSString *path, CGFloat maxPixel) {
     }];
 }
 
-#pragma mark 模组：导入（多选 zip/jar 复制进 mods/）
+#pragma mark 导入（Task268 同名 _copy_N 规避）
 
 - (void)ameV13_showImportPicker {
     UTType *jarType = [UTType typeWithFilenameExtension:@"jar"];
@@ -1179,13 +1534,26 @@ static UIImage *ZL2V13ThumbnailAtPath(NSString *path, CGFloat maxPixel) {
         NSInteger ok = 0;
         NSInteger fail = 0;
         for (NSURL *url in urls) {
-            NSString *dest = [modsDir stringByAppendingPathComponent:url.lastPathComponent];
+            // Task268 同名规避：mods/ 已有同名时 _copy / _copy_N 循环探底
+            NSString *base = url.lastPathComponent;
+            NSString *dest = [modsDir stringByAppendingPathComponent:base];
+            NSString *nameNoExt = base.stringByDeletingPathExtension;
+            NSString *ext = base.pathExtension;
+            NSUInteger copyIdx = 0;
+            while ([NSFileManager.defaultManager fileExistsAtPath:dest]) {
+                copyIdx++;
+                NSString *candidate = (copyIdx == 1)
+                    ? [NSString stringWithFormat:@"%@_copy%@", nameNoExt, ext.length ? [@"." stringByAppendingString:ext] : @""]
+                    : [NSString stringWithFormat:@"%@_copy_%lu%@", nameNoExt, (unsigned long)copyIdx, ext.length ? [@"." stringByAppendingString:ext] : @""];
+                dest = [modsDir stringByAppendingPathComponent:candidate];
+                if (copyIdx > 999) break;   // 病态防御
+            }
             NSError *err = nil;
             if ([NSFileManager.defaultManager copyItemAtPath:url.path toPath:dest error:&err]) {
                 ok++;
             } else {
                 fail++;
-                NSLog(@"[ZL2VersionPages] mod import failed %@: %@", url.lastPathComponent, err.localizedDescription);
+                NSLog(@"[ZL2VersionPages] Task343 mod import failed %@: %@", url.lastPathComponent, err.localizedDescription);
             }
         }
         dispatch_async(dispatch_get_main_queue(), ^{
@@ -1196,6 +1564,466 @@ static UIImage *ZL2V13ThumbnailAtPath(NSString *path, CGFloat maxPixel) {
             [self ameV13_reloadContent];
         });
     });
+}
+
+#pragma mark 批量选择模式
+
+- (void)ameV13_buildSelectBar {
+    UIStackView *bar = [[UIStackView alloc] init];
+    bar.axis = UILayoutConstraintAxisHorizontal;
+    bar.spacing = 8;
+    bar.translatesAutoresizingMaskIntoConstraints = NO;
+    UILabel *count = [[UILabel alloc] init];
+    count.font = [ZL2Theme fontLabelLarge];
+    count.textColor = [ZL2Theme onSurface];
+    count.translatesAutoresizingMaskIntoConstraints = NO;
+    _ameV13_selectCountLabel = count;
+    [bar addArrangedSubview:count];
+    [bar addArrangedSubview:[self ameV13_spacer]];
+    __weak typeof(self) wself = self;
+    UIControl *allBtn = [self ameV13_iconButtonWithImageName:@"checkmark.circle" fallback:@"circle" size:30
+                                                     accessibility:localize(@"resman.common.select", nil)
+                                                             action:^{ [wself ameV13_selectAll]; }];
+    UIControl *enableBtn = [self ameV13_iconButtonWithImageName:@"eye" fallback:@"eye.fill" size:30
+                                                      accessibility:localize(@"resman.common.enable", nil)
+                                                              action:^{ [wself ameV13_batchSetDisabled:NO]; }];
+    UIControl *disableBtn = [self ameV13_iconButtonWithImageName:@"eye.slash" fallback:@"eye.slash.fill" size:30
+                                                       accessibility:localize(@"resman.common.disable", nil)
+                                                               action:^{ [wself ameV13_batchSetDisabled:YES]; }];
+    UIControl *deleteBtn = [self ameV13_iconButtonWithImageName:@"trash" fallback:@"trash.fill" size:30
+                                                      accessibility:localize(@"resman.common.batch_delete", nil)
+                                                              action:^{ [wself ameV13_batchDelete]; }];
+    UIControl *doneBtn = [self ameV13_iconButtonWithImageName:@"xmark.circle.fill" fallback:@"xmark.circle" size:30
+                                                    accessibility:localize(@"resman.common.done", nil)
+                                                            action:^{ [wself ameV13_toggleSelectMode]; }];
+    [bar addArrangedSubview:allBtn];
+    [bar addArrangedSubview:enableBtn];
+    [bar addArrangedSubview:disableBtn];
+    [bar addArrangedSubview:deleteBtn];
+    [bar addArrangedSubview:doneBtn];
+    _ameV13_selectBar = bar;
+}
+
+- (void)ameV13_toggleSelectMode {
+    if (!_ameV13_selectMode && _ameV13_viewMods.count == 0) return;
+    _ameV13_selectMode = !_ameV13_selectMode;
+    if (_ameV13_selectMode) {
+        [_ameV13_selectedPaths removeAllObjects];
+    } else {
+        [_ameV13_selectedPaths removeAllObjects];
+    }
+    _ameV13_selectBar.hidden = !_ameV13_selectMode;
+    [self ameV13_updateSelectCount];
+    [self ameV13_rebuildCards];
+}
+
+- (void)ameV13_updateSelectCount {
+    _ameV13_selectCountLabel.text = [NSString stringWithFormat:localize(@"resman.common.selected_count", nil),
+                                     (long)_ameV13_selectedPaths.count];
+}
+
+- (void)ameV13_toggleSelectedMod:(ModItem *)mod {
+    if ([_ameV13_selectedPaths containsObject:mod.filePath]) {
+        [_ameV13_selectedPaths removeObject:mod.filePath];
+    } else {
+        [_ameV13_selectedPaths addObject:mod.filePath];
+    }
+    [self ameV13_updateSelectCount];
+    [self ameV13_rebuildCards];
+}
+
+- (void)ameV13_selectAll {
+    BOOL allSelected = (_ameV13_selectedPaths.count >= _ameV13_viewMods.count && _ameV13_viewMods.count > 0);
+    [_ameV13_selectedPaths removeAllObjects];
+    if (!allSelected) {
+        for (ModItem *mod in _ameV13_viewMods) [_ameV13_selectedPaths addObject:mod.filePath];
+    }
+    [self ameV13_updateSelectCount];
+    [self ameV13_rebuildCards];
+}
+
+- (NSArray<ModItem *> *)ameV13_selectedMods {
+    NSMutableArray<ModItem *> *items = [NSMutableArray array];
+    for (ModItem *mod in _ameV13_viewMods) {
+        if ([_ameV13_selectedPaths containsObject:mod.filePath]) [items addObject:mod];
+    }
+    return [items copy];
+}
+
+- (void)ameV13_batchSetDisabled:(BOOL)wantDisabled {
+    NSArray<ModItem *> *items = [self ameV13_selectedMods];
+    if (items.count == 0) {
+        [self ameV13_showAlertMessage:localize(@"resman.mods.none_selected", nil)];
+        return;
+    }
+    NSInteger ok = 0;
+    NSInteger fail = 0;
+    for (ModItem *mod in items) {
+        if (mod.disabled == wantDisabled) { ok++; continue; }   // 语义上无操作计成功
+        mod.disabled = wantDisabled;
+        NSError *err = nil;
+        if ([[ModService sharedService] toggleEnableForMod:mod error:&err]) ok++;
+        else fail++;
+    }
+    [self ameV13_reloadContent];
+    [self ameV13_showAlertMessage:[NSString stringWithFormat:localize(@"resman.mods.batch.toggle_complete", nil), (long)ok, (long)fail]];
+}
+
+- (void)ameV13_batchDelete {
+    NSArray<ModItem *> *items = [self ameV13_selectedMods];
+    if (items.count == 0) {
+        [self ameV13_showAlertMessage:localize(@"resman.mods.none_selected", nil)];
+        return;
+    }
+    NSString *bodyText = [NSString stringWithFormat:localize(@"resman.mods.batch.delete_message", nil), (long)items.count];
+    __weak typeof(self) weakSelf = self;
+    [self ameV13_confirmDeleteTitle:localize(@"resman.common.batch_delete", nil)
+                               body:bodyText
+                          onConfirm:^{
+        NSInteger ok = 0;
+        NSInteger fail = 0;
+        for (ModItem *mod in items) {
+            NSError *err = nil;
+            if ([[ModService sharedService] deleteMod:mod error:&err]) {
+                ok++;
+                [weakSelf.ameV13_updateResults removeObjectForKey:mod.filePath];
+            } else {
+                fail++;
+            }
+        }
+        [weakSelf.ameV13_selectedPaths removeAllObjects];
+        [weakSelf ameV13_reloadContent];
+        [weakSelf ameV13_showAlertMessage:[NSString stringWithFormat:localize(@"resman.mods.batch.result_message", nil), (long)ok, (long)fail]];
+    }];
+}
+
+#pragma mark 检查更新全流程（旧页状态机 1:1：空闲→检查中→确认→下载替换中→完成）
+
+- (void)ameV13_setBusy:(BOOL)busy text:(nullable NSString *)text {
+    _ameV13_updateBusy = busy;
+    _ameV13_busyLabel.hidden = !busy;
+    _ameV13_busyLabel.text = text ?: @"";
+}
+
+- (void)ameV13_checkForUpdates {
+    if (_ameV13_updateBusy) return;   // 防重复触发
+    if (_ameV13_mods.count == 0) {
+        [self ameV13_showAlertMessage:localize(@"resman.mods.no_local_for_update", nil)];
+        return;
+    }
+    // gameVersion/loader：本实例 lastVersionId 反解（Task217 parseVersionId 全形态口径）
+    NSDictionary *prof = PLProfiles.current.profiles[self.ameV13_profileName] ?: @{};
+    NSString *lastVersionId = [prof isKindOfClass:[NSDictionary class]] ? prof[@"lastVersionId"] : nil;
+    if (lastVersionId.length == 0) {
+        [self ameV13_showAlertMessage:localize(@"resman.mods.no_version_info", nil)];
+        return;
+    }
+    NSDictionary *parsed = [ModpackExportService parseVersionId:lastVersionId];
+    NSString *gameVersion = parsed[@"minecraft"];
+    NSString *loader = parsed[@"loader"];
+    if (![gameVersion isKindOfClass:[NSString class]] || gameVersion.length == 0) {
+        gameVersion = lastVersionId;   // 纯 <mc> 格式，无 loader
+        loader = nil;
+    }
+
+    [self ameV13_setBusy:YES text:localize(@"resman.mods.update.checking", nil)];
+    NSArray<ModItem *> *mods = [_ameV13_mods copy];
+    NSString *gv = gameVersion;
+    NSString *ld = loader;
+    dispatch_queue_t queue = dispatch_get_global_queue(QOS_CLASS_USER_INITIATED, 0);
+    __weak typeof(self) weakSelf = self;
+    dispatch_async(queue, ^{
+        // 阶段 1：补齐 SHA1（Modrinth 反查必需；大文件流式计算）
+        for (ModItem *mod in mods) {
+            if (mod.fileSHA1.length == 0) {
+                mod.fileSHA1 = ZL2V13ModSHA1ForFile(mod.filePath);
+            }
+        }
+        // 阶段 2：并发检查（dispatch_group 汇总 + 信号量限流 3，旧页同刻度）
+        dispatch_group_t group = dispatch_group_create();
+        dispatch_semaphore_t semaphore = dispatch_semaphore_create(3);
+        NSObject *lock = [[NSObject alloc] init];
+        NSMutableArray<ModUpdateResult *> *updatable = [NSMutableArray array];
+        __block NSInteger unrecognized = 0;
+        __block NSInteger completed = 0;
+        NSInteger total = mods.count;
+        for (ModItem *mod in mods) {
+            dispatch_group_enter(group);
+            dispatch_async(queue, ^{
+                dispatch_semaphore_wait(semaphore, DISPATCH_TIME_FOREVER);
+                [[ModUpdateService sharedService] checkUpdateForMod:mod
+                                                        gameVersion:gv
+                                                             loader:ld
+                                                        projectType:@"mod"
+                                                         completion:^(ModUpdateResult *result) {
+                    @synchronized(lock) {
+                        if (result) {
+                            if ([result hasUpdate]) [updatable addObject:result];
+                        } else {
+                            unrecognized++;   // 双源未命中 → 无法识别
+                        }
+                        completed++;
+                    }
+                    dispatch_async(dispatch_get_main_queue(), ^{
+                        [weakSelf ameV13_setBusy:YES
+                                            text:[NSString stringWithFormat:localize(@"resman.mods.update.checking_progress", nil), (long)completed, (long)total]];
+                    });
+                    dispatch_semaphore_signal(semaphore);
+                    dispatch_group_leave(group);
+                }];
+            });
+        }
+        dispatch_group_notify(group, dispatch_get_main_queue(), ^{
+            __strong typeof(weakSelf) strongSelf = weakSelf;
+            if (!strongSelf) return;
+            [strongSelf ameV13_setBusy:NO text:nil];
+            // 徽章：命中更新的 Mod 显示更新标记
+            [strongSelf.ameV13_updateResults removeAllObjects];
+            for (ModUpdateResult *result in updatable) {
+                if (result.localFilePath.length > 0) {
+                    strongSelf.ameV13_updateResults[result.localFilePath] = result;
+                }
+            }
+            [strongSelf ameV13_applyFilter];
+            if (updatable.count == 0) {
+                NSString *message = localize(@"resman.mods.update.all_latest", nil);
+                if (unrecognized > 0) {
+                    message = [NSString stringWithFormat:localize(@"resman.mods.update.all_latest_skipped", nil), (long)unrecognized];
+                }
+                [strongSelf ameV13_showAlertMessage:message];
+            } else {
+                [strongSelf ameV13_presentUpdateConfirmWithResults:[updatable copy] skipped:unrecognized];
+            }
+        });
+    });
+}
+
+/// 更新确认（M3Dialog；逐项列 名称 当前→新版本，超长截断 8 项，旧页同口径）
+- (void)ameV13_presentUpdateConfirmWithResults:(NSArray<ModUpdateResult *> *)results skipped:(NSInteger)skipped {
+    if (results.count == 0) return;
+    NSMutableArray<NSString *> *lines = [NSMutableArray array];
+    NSUInteger maxLines = 8;
+    for (NSUInteger i = 0; i < results.count && i < maxLines; i++) {
+        ModUpdateResult *result = results[i];
+        NSString *name = result.localFilePath.lastPathComponent ?: localize(@"resman.common.unknown_file", nil);
+        NSString *display = _ameV13_displayNameByPath[result.localFilePath];
+        if (display.length > 0) name = display;
+        NSString *current = result.currentVersion.versionNumber ?: @"?";
+        NSString *target = result.candidateVersions.firstObject.versionNumber ?: localize(@"resman.mods.update.latest", nil);
+        [lines addObject:[NSString stringWithFormat:@"%@\n%@ → %@", name, current, target]];
+    }
+    if (results.count > maxLines) {
+        [lines addObject:[NSString stringWithFormat:localize(@"resman.mods.update.more_total", nil), (long)results.count]];
+    }
+    if (skipped > 0) {
+        [lines addObject:[NSString stringWithFormat:localize(@"resman.mods.update.skipped_line", nil), (long)skipped]];
+    }
+    NSString *body = [lines componentsJoinedByString:@"\n"];
+    __weak typeof(self) weakSelf = self;
+    [ZL2M3Dialog showTitle:[NSString stringWithFormat:localize(@"resman.mods.update.found_title", nil), (long)results.count]
+                      body:body
+              confirmTitle:localize(@"resman.mods.update.update_all", nil)
+               destructive:NO
+                onConfirm:^{ [weakSelf ameV13_performUpdatesWithResults:results skipped:skipped]; }
+                 onCancel:nil];
+}
+
+/// 执行更新：并发下载到临时目录（PLDownloadClient，镜像候选 + SHA1 校验 +
+/// zip EOCD 兜底）→ 删旧移新（保留禁用态）→ 清徽章、重载、汇总（旧页 1:1）
+- (void)ameV13_performUpdatesWithResults:(NSArray<ModUpdateResult *> *)results skipped:(NSInteger)skipped {
+    NSMutableArray<ZL2V13ModUpdateTask *> *tasks = [NSMutableArray array];
+    for (ModUpdateResult *result in results) {
+        ModVersion *target = result.candidateVersions.firstObject;
+        if (!target) continue;
+        ZL2V13ModUpdateTask *task = [[ZL2V13ModUpdateTask alloc] init];
+        task.result = result;
+        task.targetVersion = target;
+        for (ModItem *mod in _ameV13_mods) {
+            if ([mod.filePath isEqualToString:result.localFilePath]) { task.mod = mod; break; }
+        }
+        [tasks addObject:task];
+    }
+    if (tasks.count == 0) return;
+
+    NSString *tempDir = [NSTemporaryDirectory() stringByAppendingPathComponent:
+        [NSString stringWithFormat:@"ModUpdate_%@", [[NSUUID UUID] UUIDString]]];
+    NSError *mkError = nil;
+    [[NSFileManager defaultManager] createDirectoryAtPath:tempDir
+                              withIntermediateDirectories:YES attributes:nil error:&mkError];
+    if (mkError) {
+        [self ameV13_showAlertMessage:[NSString stringWithFormat:@"%@: %@",
+            localize(@"resman.mods.update.failed_title", nil), mkError.localizedDescription]];
+        return;
+    }
+
+    [self ameV13_setBusy:YES text:[NSString stringWithFormat:localize(@"resman.mods.update.downloading", nil), 0L, (long)tasks.count]];
+    dispatch_queue_t queue = dispatch_get_global_queue(QOS_CLASS_USER_INITIATED, 0);
+    dispatch_group_t group = dispatch_group_create();
+    dispatch_semaphore_t semaphore = dispatch_semaphore_create(4);
+    NSObject *progressLock = [[NSObject alloc] init];
+    __block NSInteger downloadDone = 0;
+    NSInteger total = tasks.count;
+    __weak typeof(self) weakSelf = self;
+
+    for (ZL2V13ModUpdateTask *task in tasks) {
+        NSDictionary *primaryFile = task.targetVersion.primaryFile;
+        if (![primaryFile isKindOfClass:[NSDictionary class]]) { task.downloadSucceeded = NO; continue; }
+        NSString *urlString = [primaryFile[@"url"] isKindOfClass:[NSString class]] ? primaryFile[@"url"] : nil;
+        NSString *fileName = [primaryFile[@"filename"] isKindOfClass:[NSString class]] ? primaryFile[@"filename"] : nil;
+        NSDictionary *hashes = [primaryFile[@"hashes"] isKindOfClass:[NSDictionary class]] ? primaryFile[@"hashes"] : nil;
+        NSString *sha1 = nil;
+        if ([hashes[@"sha1"] isKindOfClass:[NSString class]]) sha1 = hashes[@"sha1"];
+        NSURL *url = urlString.length > 0 ? [NSURL URLWithString:urlString] : nil;
+        if (!url || fileName.length == 0) { task.downloadSucceeded = NO; continue; }
+
+        dispatch_group_enter(group);
+        dispatch_async(queue, ^{
+            dispatch_semaphore_wait(semaphore, DISPATCH_TIME_FOREVER);
+            PLDownloadRequest *request = [[PLDownloadRequest alloc] init];
+            // 镜像候选列表（官方 CDN + 镜像，按用户策略排序）
+            request.candidateURLs = [PLMirrorCenter candidateURLsForOriginalURL:url
+                                                                   resourceType:PLMirrorResourceTypeAssetDownload];
+            request.expectedSHA1 = sha1.length > 0 ? sha1 : nil;
+            request.destinationPath = [tempDir stringByAppendingPathComponent:fileName];
+            request.taskIdentifier = [NSString stringWithFormat:@"modupdate-%@", [[NSUUID UUID] UUIDString]];
+            request.allowZipFallbackCheck = YES;   // 无 SHA1 时 zip EOCD 兜底
+            [[PLDownloadClient sharedClient] startRequest:request
+                                                 progress:nil
+                                                    speed:nil
+                                               completion:^(BOOL success, NSError *error) {
+                if (success) {
+                    task.downloadSucceeded = YES;
+                    task.tempPath = request.destinationPath;
+                } else {
+                    task.downloadSucceeded = NO;
+                    task.tempPath = nil;
+                    NSLog(@"[ZL2VersionPages] Task343 update download failed (%@): %@", fileName, error);
+                }
+                NSInteger done;
+                @synchronized(progressLock) { downloadDone++; done = downloadDone; }
+                dispatch_async(dispatch_get_main_queue(), ^{
+                    [weakSelf ameV13_setBusy:YES
+                                        text:[NSString stringWithFormat:localize(@"resman.mods.update.downloading", nil), (long)done, (long)total]];
+                });
+                dispatch_semaphore_signal(semaphore);
+                dispatch_group_leave(group);
+            }];
+        });
+    }
+
+    dispatch_group_notify(group, dispatch_get_main_queue(), ^{
+        __strong typeof(weakSelf) strongSelf = weakSelf;
+        if (!strongSelf) {
+            [[NSFileManager defaultManager] removeItemAtPath:tempDir error:nil];
+            return;
+        }
+        [strongSelf ameV13_setBusy:YES text:localize(@"resman.mods.update.replacing", nil)];
+        dispatch_async(dispatch_get_global_queue(QOS_CLASS_USER_INITIATED, 0), ^{
+            NSFileManager *fm = [NSFileManager defaultManager];
+            NSInteger successCount = 0;
+            NSInteger failCount = 0;
+            for (ZL2V13ModUpdateTask *task in tasks) {
+                NSString *fileName = task.result.localFilePath.lastPathComponent ?: localize(@"resman.common.unknown_file", nil);
+                if (!task.downloadSucceeded || task.tempPath.length == 0) { failCount++; continue; }
+                // 下载文件名优先（新版本文件名可能变化）
+                NSDictionary *primaryFile = task.targetVersion.primaryFile;
+                NSString *downloadName = [primaryFile isKindOfClass:[NSDictionary class]]
+                    ? ([primaryFile[@"filename"] isKindOfClass:[NSString class]] ? primaryFile[@"filename"] : nil)
+                    : nil;
+                if (downloadName.length > 0) fileName = downloadName;
+                NSString *oldPath = task.result.localFilePath;
+                NSString *oldDir = [oldPath stringByDeletingLastPathComponent];
+                // 旧文件处于禁用状态（.disabled 后缀）时，新文件同样禁用，保留用户意图
+                BOOL keepDisabled = [oldPath.lowercaseString hasSuffix:@".disabled"];
+                NSString *newPath = [oldDir stringByAppendingPathComponent:fileName];
+                if (keepDisabled && ![newPath.lowercaseString hasSuffix:@".disabled"]) {
+                    newPath = [newPath stringByAppendingString:@".disabled"];
+                }
+                @try {
+                    if ([fm fileExistsAtPath:oldPath]) [fm removeItemAtPath:oldPath error:nil];
+                    if (![newPath isEqualToString:oldPath] && [fm fileExistsAtPath:newPath]) [fm removeItemAtPath:newPath error:nil];
+                    NSError *moveError = nil;
+                    if ([fm moveItemAtPath:task.tempPath toPath:newPath error:&moveError]) {
+                        successCount++;
+                        task.tempPath = nil;
+                    } else {
+                        failCount++;
+                        NSLog(@"[ZL2VersionPages] Task343 update replace failed (%@): %@", fileName, moveError);
+                    }
+                } @catch (NSException *exception) {
+                    failCount++;
+                    NSLog(@"[ZL2VersionPages] Task343 update replace exception (%@): %@", fileName, exception);
+                }
+            }
+            [fm removeItemAtPath:tempDir error:nil];
+            dispatch_async(dispatch_get_main_queue(), ^{
+                __strong typeof(weakSelf) innerSelf = weakSelf;
+                if (!innerSelf) return;
+                [innerSelf.ameV13_updateResults removeAllObjects];
+                [innerSelf ameV13_setBusy:NO text:nil];
+                [innerSelf ameV13_reloadContent];
+                [innerSelf ameV13_showAlertMessage:[NSString stringWithFormat:localize(@"resman.mods.update.done_message", nil),
+                                                    (long)successCount, (long)failCount, (long)skipped]];
+            });
+        });
+    });
+}
+
+#pragma mark 去下载（Task265/324：ZL2 下载中心模组轨直达）
+
+- (void)ameV13_openDownloadCenter {
+    ZL2DownloadViewController *dvc = [[ZL2DownloadViewController alloc] init];
+    dvc.selectedIndex = 2;   // 模组轨
+    dvc.targetProfileName = self.ameV13_profileName;
+    [self.navigationController pushViewController:dvc animated:YES];
+}
+
+#pragma mark 加载器识别（旧页 ame288 同语义：实例名启发式推断 + 错配判定）
+
+- (NSString *)ameV13_profileLoaderForDisplay {
+    NSDictionary *prof = PLProfiles.current.profiles[self.ameV13_profileName] ?: @{};
+    NSString *vid = [prof isKindOfClass:[NSDictionary class]] ? prof[@"lastVersionId"] : nil;
+    if (vid.length == 0) return @"";
+    NSDictionary *parsed = [ModpackExportService parseVersionId:vid];
+    NSString *loader = parsed[@"loader"];
+    return [loader isKindOfClass:[NSString class]] ? (loader.lowercaseString ?: @"") : @"";
+}
+
+- (BOOL)ameV13_mod:(ModItem *)mod mismatchesProfileLoader:(NSString *)loader {
+    if (loader.length == 0) return NO;
+    NSString *l = loader.lowercaseString;
+    BOOL wantsFabric = [l containsString:@"fabric"];
+    BOOL wantsNeo = [l containsString:@"neoforge"];
+    BOOL wantsForge = [l containsString:@"forge"] && !wantsNeo;
+    // ModItem.isFabric/isForge/isNeoForge 由元数据解析填充；未解析出家族
+    // 信息（纯 jar 无清单）不误报
+    BOOL familyKnown = mod.isFabric || mod.isForge || mod.isNeoForge;
+    if (!familyKnown) return NO;
+    if (wantsNeo) return !mod.isNeoForge;
+    if (wantsForge) return !mod.isForge;
+    if (wantsFabric) return !mod.isFabric;
+    return NO;
+}
+
+#pragma mark 筛选/排序 chips
+
+- (void)ameV13_filterChipTapped:(ZL2M3FilterChip *)sender {
+    _ameV13_filterMode = sender.tag;
+    for (ZL2M3FilterChip *chip in _ameV13_filterChips) {
+        chip.selected = (chip.tag == sender.tag);
+    }
+    [self ameV13_applyFilter];
+}
+
+- (void)ameV13_sortChipTapped:(ZL2M3FilterChip *)sender {
+    _ameV13_sortMode = (sender.tag == 101) ? 1 : 0;
+    [self ameV13_refreshSortChips];
+    [self ameV13_applyFilter];
+}
+
+- (void)ameV13_refreshSortChips {
+    _ameV13_sortNameChip.selected = (_ameV13_sortMode == 0);
+    _ameV13_sortTimeChip.selected = (_ameV13_sortMode == 1);
 }
 
 @end

@@ -320,15 +320,6 @@
 @implementation DataExportViewController
 @end
 
-// CleanupViewController：init + ame255_versionScanner 注入（扫描器由调用方
-// 注入避免 Cleanup → VersionManager 头依赖，真实页同款块签名）
-@interface CleanupViewController : UITableViewController
-@property(nonatomic, copy, nullable) NSArray<NSDictionary *> *(^ame255_versionScanner)(void);
-@end
-
-@implementation CleanupViewController
-@end
-
 @interface CurseForgeAPIKeyViewController : UIViewController
 @end
 
@@ -341,19 +332,9 @@
 @implementation AboutViewController
 @end
 
-// VersionManagerViewController：仅消费 +ame256_scanVersionsForCleanup 类方法
-//（主页磁贴/清理页共用的扫描单一实现）——桩返回 nil，避免链接整个旧 VC
-@interface VersionManagerViewController : UIViewController
-+ (nullable NSArray<NSDictionary *> *)ame256_scanVersionsForCleanup;
-@end
-
-@implementation VersionManagerViewController
-
-+ (nullable NSArray<NSDictionary *> *)ame256_scanVersionsForCleanup {
-    return nil;
-}
-
-@end
+// Task343：CleanupViewController/VersionManagerViewController 桩随旧壳家族
+// 物理退役整体摘除——smoke 链接面 TU（ZL2Versions 自包含移植等）零代码
+// 引用，桩无消费方（Task338 自包含移植后遗留的防御性死桩）。
 
 #pragma mark - C 函数桩（签名对真实头，定义各一次）
 

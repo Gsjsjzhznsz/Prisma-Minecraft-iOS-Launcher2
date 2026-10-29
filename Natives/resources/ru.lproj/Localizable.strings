@@ -2420,7 +2420,6 @@
 "preference.title.safety_mode" = "Режим безопасности по умолчанию";
 "preference.title.session_list" = "Список сессий";
 "preference.title.system_prompt" = "Системный промпт";
-"preference.title.ui_layout" = "Компоновка интерфейса";
 "preference.title.ui_theme" = "Тема оформления";
 "preference.section.footer.general" = "Общие параметры поведения и внешнего вида лаунчера.";
 "preference.section.footer.download" = "Источники загрузки и политика зеркал для игровых ресурсов.";
@@ -2451,7 +2450,6 @@
 "preference.detail.launcher_background" = "Задаёт фон лаунчера (изображение/видео) или возвращает сплошной цвет по умолчанию.";
 "preference.detail.manage_runtime" = "Управление средами Java: просмотр, загрузка и удаление версий.";
 "preference.detail.multi_threaded" = "Многопоточная загрузка игровых ресурсов для большей скорости; некоторые зеркала могут её не поддерживать.";
-"preference.detail.ui_layout" = "Выбор компоновки главного экрана: несколько карточек или компактный вид. Для полного применения перезапустите лаунчер.";
 "preference.detail.ui_theme" = "Выбор оформления: светлое/тёмное/как в системе.";
 "auto_update.toast.new_version" = "Доступна новая версия %@";
 "auto_update.toast.view" = "Открыть";

@@ -115,6 +115,29 @@ NS_ASSUME_NONNULL_BEGIN
 + (BOOL)ame341_setPluginThemeShape:(NSString *)pluginId
                             tokens:(nullable NSDictionary *)tokens;
 
+#pragma mark - Task343 插件布局令牌覆盖（高危权限 ui.theme，同 ame317/341 记账还原语义）
+
+// 排版/间距刻度的插件承载面（ame341 形状/字体之外的第四令牌族）：列表密度、
+// 卡片解剖（内外边距/内容间隙）、动作胶囊与搜索框/chip/对话框/按钮的几何
+// 全部经 ame343_layoutMetric:fallback: 消费（默认值 = 现行 ZL2 硬编码刻度，
+// 零覆盖零变化 = 引擎不携带任何非 M3 视觉资产；Fluent 等非 M3 设计语言的
+// 排版形态全部住在插件侧）。
+//
+// tokens 结构（数值键空间，白名单 + 钳制见 .m）：键 → NSNumber（pt）。
+//   searchBarHeight(32...64) / chipHeight(24...48) /
+//   cardMarginV(0...24) / cardMarginH(0...40) / cardInsetX(0...40) /
+//   cardInsetTop(0...40) / cardInsetBottom(0...40) / cardContentGap(0...24) /
+//   pillMinWidth(32...160) / pillHeight(20...56) / pillGap(0...32) /
+//   dialogInset(8...48) / buttonHeight(28...64)
+// 未知键忽略；类型不合法/越界跳过。空/nil = 清除该插件全部布局覆盖
+// （停用/卸载还原用）。后写者胜。与色/形状/字体三族相互独立。
++ (BOOL)ame343_setPluginThemeLayout:(NSString *)pluginId
+                             tokens:(nullable NSDictionary *)tokens;
+
+// 布局刻度读取（消费侧一行式）：token 未被插件覆盖时返回 fallback（即
+// 消费点既有硬编码值——改动最小化，默认行为逐位不变）。
++ (CGFloat)ame343_layoutMetric:(NSString *)token fallback:(CGFloat)fallback;
+
 @end
 
 NS_ASSUME_NONNULL_END
