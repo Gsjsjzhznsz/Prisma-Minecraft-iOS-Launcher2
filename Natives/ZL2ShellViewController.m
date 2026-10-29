@@ -885,7 +885,7 @@ static UIImage *ZL2ShellSystemImage(NSString *name, NSString *fallback) {
     self.ame347_paneLeading = [self.paneWrap.leadingAnchor constraintEqualToAnchor:self.view.leadingAnchor];
     self.ame347_contentLeading = [self.container.leadingAnchor constraintEqualToAnchor:self.view.leadingAnchor];
     [NSLayoutConstraint activateConstraints:@[
-        [self.ame347_paneLeading],
+        self.ame347_paneLeading,
         [self.paneWrap.topAnchor constraintEqualToAnchor:self.view.topAnchor],
         [self.paneWrap.bottomAnchor constraintEqualToAnchor:self.view.bottomAnchor],
         [self.paneWrap.widthAnchor constraintEqualToConstant:ZL2ShellPaneWidth],
@@ -934,7 +934,7 @@ static UIImage *ZL2ShellSystemImage(NSString *name, NSString *fallback) {
         [self.taskPill.centerYAnchor constraintEqualToAnchor:self.contentHeader.centerYAnchor],
 
         [self.container.topAnchor constraintEqualToAnchor:self.contentHeader.bottomAnchor],
-        [self.ame347_contentLeading],
+        self.ame347_contentLeading,
         [self.container.trailingAnchor constraintEqualToAnchor:self.view.trailingAnchor],
         [self.container.bottomAnchor constraintEqualToAnchor:self.view.bottomAnchor],
 
