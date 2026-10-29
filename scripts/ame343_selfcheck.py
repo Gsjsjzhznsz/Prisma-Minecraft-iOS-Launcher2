@@ -224,6 +224,11 @@ for f in bal_files:
 check('D1 触碰面三括号平衡（10 文件，真代码剥离口径）', not unbal, f'unbalanced: {unbal}')
 jsbal = read("plugin-repo/src/fluent-ui/main.js")
 check('D2 fluent-ui main.js 花括号平衡', jsbal.count("{") == jsbal.count("}"))
+stub = read("Natives/Preview/ZL2PagesStub.m")
+check('D7 Preview 链接面预判（autoCheck 挂载 → 桩类补齐类方法，第十二例防线）',
+      '+ (void)autoCheckControlUpdatesOnce;' in stub
+      and '+ (void)autoCheckControlUpdatesOnce {}' in stub
+      and 'ZL2HomeViewController.m' in read("Natives/CMakeLists.txt"))
 dead_refs = []
 for n in FAMILY:
     for root, _, files in os.walk("Natives"):

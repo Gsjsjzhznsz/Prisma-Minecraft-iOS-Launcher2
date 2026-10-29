@@ -1418,10 +1418,16 @@ NSString * const DownloadTaskResourceTypeModpack = @"modpack";
 // ControlRepoViewController.h 最小桩（真头在 Natives 根，ZL2Download.m 编译期
 // 消费真头；本 TU 只补链接期类符号 + initialCategoryIndex 运行时响应）。
 // 预览恒选游戏页（index 0），仓库 case 不执行——仅防链接期 undefined symbol。
+// ★ Task343：+autoCheckControlUpdatesOnce 桩——ZL2HomeViewController（smoke
+// TU）viewDidLoad 挂载点消费该类方法（Task255 链，旧 Root 壳退役后移防主页），
+// 链接面缺口第十二例预判补桩（Task336 FabricUtils 同族判例）；预览无控件
+// 仓库注册表，桩为空实现。
 @interface ControlRepoViewController : UIViewController
 @property (nonatomic, assign) NSInteger initialCategoryIndex;
++ (void)autoCheckControlUpdatesOnce;
 @end
 @implementation ControlRepoViewController
++ (void)autoCheckControlUpdatesOnce {}
 @end
 
 // ZL2PluginRepoViewController.h 最小桩（Task318 内置插件仓库；同上仅防链接）
