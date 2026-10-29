@@ -138,6 +138,26 @@ NS_ASSUME_NONNULL_BEGIN
 // 消费点既有硬编码值——改动最小化，默认行为逐位不变）。
 + (CGFloat)ame343_layoutMetric:(NSString *)token fallback:(CGFloat)fallback;
 
+#pragma mark - Task347 插件结构令牌覆盖（高危权限 ui.theme，同 ame317/341/343 记账还原语义）
+
+// 界面【结构蓝图】的插件承载面（色/形/字/排版四族之外的第五族）：壳层导航
+// 骨架整体切换。前三轮"插件只变了配色"的结构性终点——令牌只能重铺几何，
+// 结构必须换蓝图；本族让插件可要求壳层以另一套导航骨架重建（消费方
+// ZL2ShellViewController 构建期读取，配合 Task346 根重建杠杆即时生效）。
+//
+// tokens 结构（字符串键空间，白名单见 .m）：
+//   shellLayout → NSString
+//     @"topbar"        = ZL2 顶栏骨架（默认；M3 基线，顶栏右侧 RailItem 导航）
+//     @"navigationview" = Fluent NavigationView 骨架（WinUI 布局：左侧
+//                         导航窗格 + 大标题内容区；宽屏常驻窗格 / 窄屏抽屉）
+// 未知键忽略；未知值跳过。空/nil = 清除该插件全部结构覆盖（停用/卸载还原
+// 用，回 topbar 基线）。后写者胜。与前四族相互独立。
++ (BOOL)ame347_setPluginThemeStructure:(NSString *)pluginId
+                                tokens:(nullable NSDictionary *)tokens;
+
+// 结构蓝图读取（壳层构建期消费）：无覆盖时返回 @"topbar"（M3 基线不变）。
++ (NSString *)ame347_shellLayout;
+
 @end
 
 NS_ASSUME_NONNULL_END

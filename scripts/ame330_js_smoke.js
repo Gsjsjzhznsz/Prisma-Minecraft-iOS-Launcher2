@@ -50,6 +50,8 @@ for (const root of roots) {
     setThemeTokenHandler: (t) => { if (!requirePerm('ui.theme')) throw new Error('denied'); calls.push('token:' + Object.keys(t || {}).length); return true; },
     setThemeShapeHandler: (t) => { if (!requirePerm('ui.theme')) throw new Error('denied'); calls.push('shape:' + Object.keys(t || {}).length); return true; },
     setThemeLayoutHandler: (t) => { if (!requirePerm('ui.theme')) throw new Error('denied'); calls.push('layout:' + Object.keys(t || {}).length); return true; },
+    // ★ Task347：结构令牌桩（fluent-ui v2.2.0 结构链覆盖：shellLayout 蓝图）
+    setThemeStructureHandler: (t) => { if (!requirePerm('ui.theme')) throw new Error('denied'); calls.push('structure:' + Object.keys(t || {}).length); return true; },
   };
 
   const ame = {
@@ -58,6 +60,7 @@ for (const root of roots) {
     setThemeToken: (t) => ameRaw.setThemeTokenHandler(t),
     setThemeShape: (t) => ameRaw.setThemeShapeHandler(t),
     setThemeLayout: (t) => ameRaw.setThemeLayoutHandler(t),
+    setThemeStructure: (t) => ameRaw.setThemeStructureHandler(t),
     dialog: (s, c) => ameRaw.dialogHandler(s, c),
     on: (e, c) => ameRaw.onHandler(e, c),
     log: (m) => ameRaw.logHandler(m),

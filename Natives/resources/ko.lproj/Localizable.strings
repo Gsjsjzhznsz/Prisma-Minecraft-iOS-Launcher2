@@ -3199,3 +3199,5 @@
 "ame345.repo.hero.count" = "%lu remote · %lu built-in";
 "ame345.import.prefs_missing" = "Backup carries no launcher preferences file; current settings kept";
 "ame345.import.instance_saves" = "Saves by instance: %@";
+"ame347.import.spine_v1" = "Launcher settings restored from legacy backup preferences (launcher_preferences.plist)";
+"ame347.import.spine_kept" = "Launcher preferences in backup are empty/corrupt -- current settings kept";

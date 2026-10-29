@@ -82,8 +82,8 @@ check('A1 根重建杠杆定义（合并去抖 + 主队列 + AppLanguageChanged 
       and 'postNotificationName:@"AppLanguageChanged"' in theme
       and "[ZL2Theme] Task346: token change -> root rebuild posted" in theme)
 
-check('A2 六落位（三 setter × 应用/还原双路径均接入）',
-      theme_code.count("ame346_requestRootRebuild()") == 6,
+check('A2 八落位（四 setter × 应用/还原双路径均接入；★Task347 ame347 结构 setter 接入）',
+      theme_code.count("ame346_requestRootRebuild()") == 8,
       f'call sites={theme_code.count("ame346_requestRootRebuild()")}')
 
 def _restore_has_call(code):
@@ -93,8 +93,8 @@ def _restore_has_call(code):
         hits += 1
     return hits
 
-check('A3 三还原路径全部带重建调用（还原语义同样即时生效）',
-      _restore_has_call(theme_code) == 3,
+check('A3 四还原路径全部带重建调用（还原语义同样即时生效；★Task347 +结构族）',
+      _restore_has_call(theme_code) == 4,
       f'restore paths with call={_restore_has_call(theme_code)}')
 
 sd = read("Natives/SceneDelegate.m")
@@ -153,17 +153,17 @@ zdata = open(zpath, "rb").read()
 zsha = hashlib.sha256(zdata).hexdigest()
 znames = sorted(zipfile.ZipFile(zpath).namelist())
 
-check('C1 v2.1.1 三方对拍（manifest + index 条目 + zip 实算 sha/size + zip 根两文件）',
-      man.get("version") == "2.1.1" and fe and fe.get("version") == "2.1.1"
+check('C1 v2.2.0 三方对拍（manifest + index 条目 + zip 实算 sha/size + zip 根两文件；★Task347 顺延）',
+      man.get("version") == "2.2.0" and fe and fe.get("version") == "2.2.0"
       and fe.get("sha256") == zsha and fe.get("size") == len(zdata)
       and znames == ["main.js", "manifest.json"])
 
 plugin_js = read("plugin-repo/src/fluent-ui/main.js")
-check('C2 即时重排文案落位（旧"新开页面/重启启动器全量生效"退役 + 行副题/loaded 行升 2.1.1）',
-      "全界面即时重排" in plugin_js
+check('C2 结构叙事文案落位（v2.1.1 副题退役 + 行副题/loaded 行升 2.2.0；★Task347 顺延）',
+      "左侧导航窗格" in plugin_js
       and "新开页面/重启启动器全量生效" not in plugin_js
-      and "Fluent 2 全维度换装·即时生效（点击循环）" in plugin_js
-      and "fluent-ui v2.1.1 loaded" in plugin_js)
+      and "Fluent 2 全维度·左侧导航窗格（点击循环）" in plugin_js
+      and "fluent-ui v2.2.0 loaded" in plugin_js)
 
 LAYOUT_KEYS = ["searchBarHeight", "chipHeight", "cardMarginV", "cardMarginH",
                "cardInsetX", "cardInsetTop", "cardInsetBottom", "cardContentGap",
@@ -203,8 +203,8 @@ if "--selftest" in sys.argv:
     print(f"  {'RED' if not ok else 'NOT-RED'}  S-B1 分区强制脉柱摘除")
     if not ok: reds.append("S-B1")
 
-    # S-C1：manifest 版本回退 2.1.0 → C1 断言条件必翻红
-    ok = (man.get("version") == "2.1.0" and fe and fe.get("version") == "2.1.1")
+    # S-C1：manifest 版本回退 2.1.1 → C1 断言条件必翻红
+    ok = (man.get("version") == "2.1.1" and fe and fe.get("version") == "2.2.0")
     print(f"  {'RED' if not ok else 'NOT-RED'}  S-C1 manifest 版本回退")
     if not ok: reds.append("S-C1")
 

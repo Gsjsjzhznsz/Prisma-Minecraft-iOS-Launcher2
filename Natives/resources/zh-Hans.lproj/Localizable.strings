@@ -3539,3 +3539,5 @@
 "ame345.repo.hero.count" = "远程 %lu · 内置 %lu";
 "ame345.import.prefs_missing" = "备份中未包含启动器设置文件，设置保持当前值";
 "ame345.import.instance_saves" = "存档分布：%@";
+"ame347.import.spine_v1" = "已从一代备份设置（launcher_preferences.plist）迁移恢复启动器设置";
+"ame347.import.spine_kept" = "备份中的启动器设置文件为空/损坏——已保留当前设置";

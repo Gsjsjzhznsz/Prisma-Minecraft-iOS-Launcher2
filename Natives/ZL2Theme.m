@@ -96,6 +96,21 @@ static CGFloat Ame343LayoutOverride(NSString *token, CGFloat fallback) {
     return fallback;
 }
 
+#pragma mark - Task347 结构覆盖基础设施（与 ame341/343 逐位同构，自包含不依赖插件运行时）
+
+// 记账口径同 ame341：token → @[pluginId, NSString]（后写者胜）。
+static NSMutableDictionary<NSString *, NSArray *> *ame347_structureOverride = nil;
+
+static NSString *Ame347StructureOverride(NSString *token, NSString *fallback) {
+    if (ame347_structureOverride.count == 0) return fallback;
+    NSArray *entry = ame347_structureOverride[token];
+    if (entry.count == 2) {
+        NSString *v = entry[1];
+        if ([v isKindOfClass:[NSString class]] && v.length > 0) return v;
+    }
+    return fallback;
+}
+
 // weight 字符串/数字 → UIFontWeight（白名单映射，未知值回落 regular）
 static UIFontWeight Ame341WeightFromValue(id v) {
     if ([v isKindOfClass:[NSString class]]) {
@@ -315,6 +330,56 @@ static void ame346_requestRootRebuild(void) {
           (unsigned long)applied, (unsigned long)tokens.count);
     ame346_requestRootRebuild();   // ★ Task346：覆盖落表即全界面重建
     return YES;
+}
+
+// ★ Task347：结构令牌 setter（白名单 = shellLayout 二值蓝图；同族记账
+//   还原语义 + Task346 根重建杠杆——结构换蓝图必须整壳重建才有意义，
+//   应用/还原双路径都即时生效）。
++ (BOOL)ame347_setPluginThemeStructure:(NSString *)pluginId
+                                tokens:(NSDictionary *)tokens {
+    if (pluginId.length == 0) return NO;
+    // 白名单 + 值域（中性结构语义：壳层导航骨架蓝图选择；守 Task340
+    // "引擎零 Fluent 资产"裁定——引擎只提供两种骨架承载面，形态语义
+    // 全部住在插件侧）。
+    static NSSet<NSString *> *structureKeys = nil;
+    static NSDictionary<NSString *, NSSet<NSString *> *> *structureValues = nil;
+    static dispatch_once_t once;
+    dispatch_once(&once, ^{
+        structureKeys = [NSSet setWithArray:@[ @"shellLayout" ]];
+        structureValues = @{
+            @"shellLayout": [NSSet setWithArray:@[ @"topbar", @"navigationview" ]],
+        };
+    });
+    if (!ame347_structureOverride) ame347_structureOverride = [NSMutableDictionary dictionary];
+    // 先清本插件既有覆盖（还原语义），再落新集合（后写者胜）
+    NSMutableArray *stale = [NSMutableArray array];
+    [ame347_structureOverride enumerateKeysAndObjectsUsingBlock:^(NSString *k, NSArray *e, BOOL *_) {
+        if ([e[0] isEqualToString:pluginId]) [stale addObject:k];
+    }];
+    for (NSString *k in stale) [ame347_structureOverride removeObjectForKey:k];
+    if (![tokens isKindOfClass:[NSDictionary class]] || tokens.count == 0) {
+        ame346_requestRootRebuild();   // ★ Task346：还原语义同样即时生效
+        return YES;
+    }
+    NSUInteger applied = 0;
+    for (NSString *k in tokens) {
+        id v = tokens[k];
+        if (![structureKeys containsObject:k]) continue;
+        if (![v isKindOfClass:[NSString class]]) continue;
+        NSSet *allowed = structureValues[k];
+        if (![allowed containsObject:v]) continue;
+        ame347_structureOverride[k] = @[pluginId, v];
+        applied++;
+    }
+    NSLog(@"[AmePlugin:%@] 结构令牌覆盖 %lu/%lu 项（shellLayout=%@）", pluginId,
+          (unsigned long)applied, (unsigned long)tokens.count,
+          Ame347StructureOverride(@"shellLayout", @"topbar"));
+    ame346_requestRootRebuild();   // ★ Task346：结构落表即整壳重建
+    return YES;
+}
+
++ (NSString *)ame347_shellLayout {
+    return Ame347StructureOverride(@"shellLayout", @"topbar");
 }
 
 #pragma mark - 主色系

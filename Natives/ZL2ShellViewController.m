@@ -106,6 +106,11 @@ static const CGFloat ZL2ShellPillWidth = 120.0;         // 任务胶囊宽 120dp
 static const CGFloat ZL2ShellPillHeight = 28.0;         // 任务胶囊高
 static const CGFloat ZL2ShellAnimateDuration = 0.18;    // 全壳动画时长
 
+// ★ Task347 NavigationView 骨架常量（WinUI 布局溯源：4pt 栅格）
+static const CGFloat ZL2ShellPaneWidth = 280.0;         // 窗格宽（WinUI open 320 紧凑化）
+static const CGFloat ZL2ShellHeaderHeight = 52.0;       // 大标题内容区头高
+static const CGFloat ZL2ShellRegularMinWidth = 640.0;   // ≥ 此宽常驻窗格（窄屏抽屉）
+
 // SF Symbols 取图兜底（ZL2HomeViewController 同款静态 helper）：基名优先，
 // 取不到走同族旧名，仍取不到为 nil（调用方以模板渲染前自判）
 static UIImage *ZL2ShellSystemImage(NSString *name, NSString *fallback) {
@@ -278,6 +283,108 @@ static UIImage *ZL2ShellSystemImage(NSString *name, NSString *fallback) {
 
 @end
 
+#pragma mark - ★ Task347 NavigationView 窗格导航项（WinUI NavigationViewItem 等价）
+
+// Fluent NavigationView 左侧窗格行：选中指示条（3×16 圆角竖条，WinUI
+// SelectionIndicator）+ 图标 + 标签整行按钮。几何/着色全经 ZL2Theme 令牌
+// （radiusS / fontBodyMedium / primary / surfaceContainerHigh / onSurface*），
+// 插件令牌覆盖即整窗格生效——与顶栏形态同一令牌消费纪律。
+@interface ZL2ShellNavItem : ZL2ShellTapControl
+@property(nonatomic, assign, readonly) NSInteger pageIndex;   // -1 = 瞬时动作
+- (instancetype)initWithTitle:(NSString *)title
+                       symbol:(NSString *)symbol
+                     fallback:(NSString *)fallback
+                    pageIndex:(NSInteger)pageIndex;
+- (void)ame_setSelected:(BOOL)selected;   // 纯状态应用（动画由壳侧统一包裹）
+@end
+
+@interface ZL2ShellNavItem ()
+@property(nonatomic, strong) UIView *indicator;    // 3×16 选中指示条
+@property(nonatomic, strong) UIImageView *iconView;
+@property(nonatomic, strong) UILabel *label;
+@end
+
+@implementation ZL2ShellNavItem
+
+- (instancetype)initWithTitle:(NSString *)title
+                       symbol:(NSString *)symbol
+                     fallback:(NSString *)fallback
+                    pageIndex:(NSInteger)pageIndex {
+    self = [super initWithFrame:CGRectZero];
+    if (self) {
+        _pageIndex = pageIndex;
+
+        _indicator = [[UIView alloc] init];
+        _indicator.translatesAutoresizingMaskIntoConstraints = NO;
+        _indicator.backgroundColor = [ZL2Theme primary];
+        _indicator.layer.cornerRadius = 1.5;
+        _indicator.layer.masksToBounds = YES;
+        _indicator.hidden = YES;
+        [self addSubview:_indicator];
+
+        UIImage *image = ZL2ShellSystemImage(symbol, fallback);
+        if (image) image = [image imageWithRenderingMode:UIImageRenderingModeAlwaysTemplate];
+        _iconView = [[UIImageView alloc] initWithImage:image];
+        _iconView.translatesAutoresizingMaskIntoConstraints = NO;
+        _iconView.contentMode = UIViewContentModeScaleAspectFit;
+        _iconView.userInteractionEnabled = NO;
+        [self addSubview:_iconView];
+
+        _label = [[UILabel alloc] init];
+        _label.translatesAutoresizingMaskIntoConstraints = NO;
+        _label.font = [ZL2Theme fontBodyMedium];
+        _label.text = title;
+        _label.numberOfLines = 1;
+        _label.lineBreakMode = NSLineBreakByTruncatingTail;
+        _label.userInteractionEnabled = NO;
+        [self addSubview:_label];
+
+        [NSLayoutConstraint activateConstraints:@[
+            // WinUI SelectionIndicator：x=3 起 3pt 宽、16pt 高垂直居中
+            [_indicator.leadingAnchor constraintEqualToAnchor:self.leadingAnchor constant:3.0],
+            [_indicator.centerYAnchor constraintEqualToAnchor:self.centerYAnchor],
+            [_indicator.widthAnchor constraintEqualToConstant:3.0],
+            [_indicator.heightAnchor constraintEqualToConstant:16.0],
+
+            [_iconView.leadingAnchor constraintEqualToAnchor:self.leadingAnchor constant:14.0],
+            [_iconView.centerYAnchor constraintEqualToAnchor:self.centerYAnchor],
+            [_iconView.widthAnchor constraintEqualToConstant:20.0],
+            [_iconView.heightAnchor constraintEqualToConstant:20.0],
+
+            [_label.leadingAnchor constraintEqualToAnchor:_iconView.trailingAnchor constant:14.0],
+            [_label.centerYAnchor constraintEqualToAnchor:self.centerYAnchor],
+            [_label.trailingAnchor constraintLessThanOrEqualToAnchor:self.trailingAnchor constant:-12.0],
+            [_label.heightAnchor constraintLessThanOrEqualToAnchor:self.heightAnchor],
+
+            [self.heightAnchor constraintEqualToConstant:36.0],
+        ]];
+
+        _iconView.tintColor = [ZL2Theme onSurfaceVariant];
+        _label.textColor = [ZL2Theme onSurfaceVariant];
+        self.layer.cornerRadius = [ZL2Theme radiusS];
+        self.layer.masksToBounds = YES;
+
+        self.isAccessibilityElement = YES;
+        self.accessibilityLabel = title;
+        self.accessibilityTraits = UIAccessibilityTraitButton;
+    }
+    return self;
+}
+
+- (void)ame_setSelected:(BOOL)selected {
+    // WinUI 11 选中语义：指示条 + 中性抬升行底（M3 映射 = surfaceContainerHigh；
+    // 内容着色 onSurface 强调）——区别于 ZL2 顶栏 secondaryContainer 胶囊语义
+    self.indicator.hidden = !selected;
+    self.backgroundColor = selected ? [ZL2Theme surfaceContainerHigh] : [UIColor clearColor];
+    UIColor *tint = selected ? [ZL2Theme onSurface] : [ZL2Theme onSurfaceVariant];
+    self.iconView.tintColor = tint;
+    self.label.textColor = tint;
+    self.accessibilityTraits = selected ? (UIAccessibilityTraitButton | UIAccessibilityTraitSelected)
+                                        : UIAccessibilityTraitButton;
+}
+
+@end
+
 #pragma mark - 任务进度胶囊（LinearProgressIndicator + assignment 等价）
 
 @interface ZL2ShellTaskPill : ZL2ShellTapControl
@@ -372,6 +479,24 @@ static UIImage *ZL2ShellSystemImage(NSString *name, NSString *fallback) {
 @property(nonatomic, strong) UIView *container;                       // 子页挂载区
 @property(nonatomic, strong) NSMutableDictionary<NSNumber *, UIViewController *> *childCache;
 @property(nonatomic, assign) NSInteger currentIndex;
+
+// ★ Task347 NavigationView 骨架态（topbar 骨架时全部闲置）
+@property(nonatomic, assign) BOOL ame347_navMode;                     // 结构令牌 = navigationview
+@property(nonatomic, assign) BOOL ame347_regular;                     // 宽屏常驻窗格 / 窄屏抽屉
+@property(nonatomic, assign) BOOL ame347_drawerOpen;                  // 窄屏抽屉展开态
+@property(nonatomic, strong) UIView *paneWrap;                        // 左侧导航窗格容器
+@property(nonatomic, strong) UILabel *paneTitle;                      // 窗格头（应用名）
+@property(nonatomic, strong) UIScrollView *paneScroll;
+@property(nonatomic, strong) UIStackView *paneStack;                  // 主导航项列
+@property(nonatomic, strong) UIStackView *paneFooterStack;            // 底部固定（设置/文件）
+@property(nonatomic, strong) NSArray<ZL2ShellNavItem *> *navItems;    // 全部窗格项（主 + 底）
+@property(nonatomic, strong) UIView *contentHeader;                   // 大标题内容区头
+@property(nonatomic, strong) ZL2ShellIconButton *hamburgerButton;     // 窄屏抽屉钮
+@property(nonatomic, strong) ZL2ShellIconButton *navBackButton;       // 内容区返回钮
+@property(nonatomic, strong) UILabel *headerTitle;                    // 大标题
+@property(nonatomic, strong) UIView *dimOverlay;                      // 抽屉态遮罩
+@property(nonatomic, strong) NSLayoutConstraint *ame347_paneLeading;  // 窗格前导（抽屉开合驱动）
+@property(nonatomic, strong) NSLayoutConstraint *ame347_contentLeading; // 内容区前导（宽窄驱动）
 @end
 
 @implementation ZL2ShellViewController
@@ -394,8 +519,16 @@ static UIImage *ZL2ShellSystemImage(NSString *name, NSString *fallback) {
     // 7.0-UI-11：版本索引服务预热（远程清单在途拉取，启动链查找免竞态等待）
     [[ZL2VersionIndex sharedIndex] warmUp];
 
-    [self ame_buildTopBar];
-    [self ame_buildContainer];
+    // ★ Task347：结构令牌决定壳层导航骨架（ame347_shellLayout；插件覆盖 +
+    //   Task346 根重建杠杆 = 换蓝图即时整壳重建）。默认 topbar 骨架逐位不变。
+    self.ame347_navMode = [[ZL2Theme ame347_shellLayout]
+                           isEqualToString:@"navigationview"];
+    if (self.ame347_navMode) {
+        [self ame_buildNavigationViewShell];
+    } else {
+        [self ame_buildTopBar];
+        [self ame_buildContainer];
+    }
 
     // 通知契约：旧启动链（ShowHomePage）+ FCL 账户契约（ShowAccountManager）
     // + ZL2 程序化切页（ZL2ShellNavigate）+ 任务胶囊 / nav 栈深跟随
@@ -583,6 +716,322 @@ static UIImage *ZL2ShellSystemImage(NSString *name, NSString *fallback) {
     ]];
 }
 
+#pragma mark - ★ Task347 NavigationView 骨架（WinUI 布局：左窗格 + 大标题内容区）
+
+// 结构蓝图消费纪律（与 topbar 骨架同源令牌）：
+//   窗格 = surfaceContainerLow（Fluent 层级底）+ outlineVariant 发丝分隔；
+//   导航项 = ZL2ShellNavItem（WinUI SelectionIndicator 3×16 + 中性抬升行底）；
+//   内容区头 = 大标题（fontHeadline，WinUI Page Header）+ 任务胶囊复用；
+//   宽屏（≥640pt）常驻窗格，窄屏（iPhone）收成抽屉 + 遮罩。
+- (void)ame_buildNavigationViewShell {
+    __weak typeof(self) weakSelf = self;
+
+    // ---- 窗格（最外层最后 addSubview，抽屉态盖在内容区上）----
+    self.paneWrap = [[UIView alloc] init];
+    self.paneWrap.translatesAutoresizingMaskIntoConstraints = NO;
+    self.paneWrap.backgroundColor = [ZL2Theme surfaceContainerLow];
+    [self.view addSubview:self.paneWrap];
+
+    self.paneTitle = [[UILabel alloc] init];
+    self.paneTitle.translatesAutoresizingMaskIntoConstraints = NO;
+    self.paneTitle.font = [ZL2Theme fontTitleMedium];
+    self.paneTitle.textColor = [ZL2Theme onSurface];
+    self.paneTitle.numberOfLines = 1;
+    NSString *ame347_appName = [NSProcessInfo.processInfo.processName length] > 0
+        ? NSProcessInfo.processInfo.processName : @"Prisma Launcher";
+    self.paneTitle.text = ame347_appName;
+    [self.paneWrap addSubview:self.paneTitle];
+
+    self.paneScroll = [[UIScrollView alloc] init];
+    self.paneScroll.translatesAutoresizingMaskIntoConstraints = NO;
+    self.paneScroll.alwaysBounceVertical = NO;
+    self.paneScroll.showsVerticalScrollIndicator = NO;
+    [self.paneWrap addSubview:self.paneScroll];
+
+    self.paneStack = [[UIStackView alloc] init];
+    self.paneStack.axis = UILayoutConstraintAxisVertical;
+    self.paneStack.alignment = UIStackViewAlignmentFill;
+    self.paneStack.distribution = UIStackViewDistributionFill;
+    self.paneStack.spacing = 2.0;
+    self.paneStack.translatesAutoresizingMaskIntoConstraints = NO;
+    [self.paneScroll addSubview:self.paneStack];
+
+    // 主导航项（页面序 = 顶栏 RailItem 契约：0 主页 / 1 下载 / 2 版本 /
+    // 3 账户 / 5 联机 / 6 AI；4 设置驻底部，-1 文件 = 瞬时动作）
+    NSArray<NSString *> *ame347_titles = @[@"主页", @"下载", @"版本", @"账户",
+                                           @"多人联机", localize(@"ame192.ai.title", nil)];
+    NSArray<NSString *> *ame347_symbols = @[@"house.fill",
+                                            @"arrow.down.circle.fill",
+                                            @"shippingbox.fill",
+                                            @"person.crop.circle.fill",
+                                            @"person.2.fill",
+                                            @"sparkles"];
+    NSArray<NSString *> *ame347_fallbacks = @[@"house",
+                                              @"arrow.down.circle",
+                                              @"shippingbox",
+                                              @"person.crop.circle",
+                                              @"person.2",
+                                              @"sparkles"];
+    NSArray<NSNumber *> *ame347_pages = @[@0, @1, @2, @3, @5, @6];
+    NSMutableArray<ZL2ShellNavItem *> *ame347_items = [NSMutableArray array];
+    [ame347_titles enumerateObjectsUsingBlock:^(NSString *itemTitle, NSUInteger idx, BOOL *stop) {
+        ZL2ShellNavItem *item = [[ZL2ShellNavItem alloc]
+            initWithTitle:itemTitle
+                    symbol:ame347_symbols[idx]
+                  fallback:ame347_fallbacks[idx]
+                 pageIndex:ame347_pages[idx].integerValue];
+        NSInteger ame347_target = ame347_pages[idx].integerValue;
+        item.ame_action = ^{
+            [weakSelf ame_setDrawerOpen:NO animated:YES];
+            [weakSelf showPageAtIndex:ame347_target];
+        };
+        [self.paneStack addArrangedSubview:item];
+        [ame347_items addObject:item];
+    }];
+
+    // 底部固定：设置（WinUI 惯例：设置驻窗格底）+ 文件（瞬时）
+    // （文案走数组字面——与主导航/顶栏 RailItem 同款判例，task248 写入点闸同构）
+    UIView *ame347_sep = [[UIView alloc] init];
+    ame347_sep.translatesAutoresizingMaskIntoConstraints = NO;
+    ame347_sep.backgroundColor = [ZL2Theme outlineVariant];
+    [self.paneWrap addSubview:ame347_sep];
+
+    self.paneFooterStack = [[UIStackView alloc] init];
+    self.paneFooterStack.axis = UILayoutConstraintAxisVertical;
+    self.paneFooterStack.alignment = UIStackViewAlignmentFill;
+    self.paneFooterStack.spacing = 2.0;
+    self.paneFooterStack.translatesAutoresizingMaskIntoConstraints = NO;
+    [self.paneWrap addSubview:self.paneFooterStack];
+
+    NSArray<NSString *> *ame347_footerTitles = @[@"设置", @"文件"];
+    NSArray<NSString *> *ame347_footerSymbols = @[@"gearshape.fill", @"folder.fill"];
+    NSArray<NSString *> *ame347_footerFallbacks = @[@"gearshape", @"folder"];
+    NSArray<NSNumber *> *ame347_footerPages = @[@4, @(-1)];
+    [ame347_footerTitles enumerateObjectsUsingBlock:^(NSString *itemTitle, NSUInteger idx, BOOL *stop) {
+        ZL2ShellNavItem *item = [[ZL2ShellNavItem alloc]
+            initWithTitle:itemTitle
+                    symbol:ame347_footerSymbols[idx]
+                  fallback:ame347_footerFallbacks[idx]
+                 pageIndex:ame347_footerPages[idx].integerValue];
+        NSInteger ame347_target = ame347_footerPages[idx].integerValue;
+        item.ame_action = ^{
+            [weakSelf ame_setDrawerOpen:NO animated:YES];
+            if (ame347_target < 0) {
+                // 文件 = 瞬时动作（顶栏文件夹项同语义：文件浏览器 PageSheet）
+                [weakSelf ame_openFileManagerSheet];
+                return;
+            }
+            [weakSelf showPageAtIndex:ame347_target];
+        };
+        [self.paneFooterStack addArrangedSubview:item];
+        [ame347_items addObject:item];
+    }];
+    self.navItems = [ame347_items copy];
+
+    // ---- 抽屉遮罩（窄屏展开态，点击收起）----
+    self.dimOverlay = [[UIControl alloc] init];
+    self.dimOverlay.translatesAutoresizingMaskIntoConstraints = NO;
+    self.dimOverlay.backgroundColor = [UIColor colorWithWhite:0.0 alpha:0.35];
+    self.dimOverlay.alpha = 0.0;
+    self.dimOverlay.userInteractionEnabled = NO;
+    [self.view addSubview:self.dimOverlay];
+    [(UIControl *)self.dimOverlay addTarget:self action:@selector(ame_dimTapped)
+                   forControlEvents:UIControlEventTouchUpInside];
+
+    // ---- 内容区头（大标题 + 返回/汉堡 + 任务胶囊）----
+    self.contentHeader = [[UIView alloc] init];
+    self.contentHeader.translatesAutoresizingMaskIntoConstraints = NO;
+    self.contentHeader.backgroundColor = [ZL2Theme surface];
+    [self.view addSubview:self.contentHeader];
+
+    self.hamburgerButton = [[ZL2ShellIconButton alloc] initWithSymbol:@"line.3.horizontal" fallback:@"text.justify"];
+    self.hamburgerButton.accessibilityLabel = @"导航";
+    self.hamburgerButton.ame_action = ^{
+        [weakSelf ame_setDrawerOpen:!weakSelf.ame347_drawerOpen animated:YES];
+    };
+    [self.contentHeader addSubview:self.hamburgerButton];
+
+    self.navBackButton = [[ZL2ShellIconButton alloc] initWithSymbol:@"chevron.left" fallback:nil];
+    self.navBackButton.accessibilityLabel = @"返回";
+    self.navBackButton.ame_action = ^{
+        [weakSelf ame_popCurrentIfPossible];
+    };
+    self.navBackButton.alpha = 0.0;
+    self.navBackButton.hidden = YES;
+    [self.contentHeader addSubview:self.navBackButton];
+
+    self.headerTitle = [[UILabel alloc] init];
+    self.headerTitle.translatesAutoresizingMaskIntoConstraints = NO;
+    self.headerTitle.font = [ZL2Theme fontHeadline];
+    self.headerTitle.textColor = [ZL2Theme onSurface];
+    self.headerTitle.numberOfLines = 1;
+    self.headerTitle.lineBreakMode = NSLineBreakByTruncatingTail;
+    [self.contentHeader addSubview:self.headerTitle];
+
+    self.taskPill = [[ZL2ShellTaskPill alloc] init];
+    self.taskPill.translatesAutoresizingMaskIntoConstraints = NO;
+    self.taskPill.ame_action = ^{
+        [weakSelf ame_openTaskProgress];
+    };
+    [self.contentHeader addSubview:self.taskPill];
+
+    // ---- 内容区 ----
+    self.container = [[UIView alloc] init];
+    self.container.translatesAutoresizingMaskIntoConstraints = NO;
+    self.container.backgroundColor = [UIColor clearColor];
+    [self.view addSubview:self.container];
+
+    // 宽窄态约束一次建全：前导常量由 ame347_applyWidthClass 派发
+    self.ame347_paneLeading = [self.paneWrap.leadingAnchor constraintEqualToAnchor:self.view.leadingAnchor];
+    self.ame347_contentLeading = [self.container.leadingAnchor constraintEqualToAnchor:self.view.leadingAnchor];
+    [NSLayoutConstraint activateConstraints:@[
+        [self.ame347_paneLeading],
+        [self.paneWrap.topAnchor constraintEqualToAnchor:self.view.topAnchor],
+        [self.paneWrap.bottomAnchor constraintEqualToAnchor:self.view.bottomAnchor],
+        [self.paneWrap.widthAnchor constraintEqualToConstant:ZL2ShellPaneWidth],
+
+        [self.paneTitle.topAnchor constraintEqualToAnchor:self.paneWrap.safeAreaLayoutGuide.topAnchor constant:12.0],
+        [self.paneTitle.leadingAnchor constraintEqualToAnchor:self.paneWrap.leadingAnchor constant:16.0],
+        [self.paneTitle.trailingAnchor constraintLessThanOrEqualToAnchor:self.paneWrap.trailingAnchor constant:-16.0],
+
+        [self.paneScroll.topAnchor constraintEqualToAnchor:self.paneTitle.bottomAnchor constant:8.0],
+        [self.paneScroll.leadingAnchor constraintEqualToAnchor:self.paneWrap.leadingAnchor],
+        [self.paneScroll.trailingAnchor constraintEqualToAnchor:self.paneWrap.trailingAnchor],
+
+        [self.paneStack.topAnchor constraintEqualToAnchor:self.paneScroll.topAnchor constant:4.0],
+        [self.paneStack.leadingAnchor constraintEqualToAnchor:self.paneScroll.leadingAnchor constant:6.0],
+        [self.paneStack.trailingAnchor constraintEqualToAnchor:self.paneScroll.trailingAnchor constant:-6.0],
+        [self.paneStack.bottomAnchor constraintEqualToAnchor:self.paneScroll.bottomAnchor constant:-4.0],
+        [self.paneStack.widthAnchor constraintEqualToAnchor:self.paneScroll.widthAnchor constant:-12.0],
+
+        [ame347_sep.leadingAnchor constraintEqualToAnchor:self.paneWrap.leadingAnchor constant:12.0],
+        [ame347_sep.trailingAnchor constraintEqualToAnchor:self.paneWrap.trailingAnchor constant:-12.0],
+        [ame347_sep.heightAnchor constraintEqualToConstant:0.5],
+        [ame347_sep.bottomAnchor constraintEqualToAnchor:self.paneFooterStack.topAnchor constant:-4.0],
+
+        [self.paneFooterStack.leadingAnchor constraintEqualToAnchor:self.paneWrap.leadingAnchor constant:6.0],
+        [self.paneFooterStack.trailingAnchor constraintEqualToAnchor:self.paneWrap.trailingAnchor constant:-6.0],
+        [self.paneFooterStack.bottomAnchor constraintEqualToAnchor:self.paneWrap.safeAreaLayoutGuide.bottomAnchor constant:-6.0],
+
+        [self.contentHeader.topAnchor constraintEqualToAnchor:self.view.topAnchor],
+        // 与 topBar 同款 safeArea 延伸语义：头底 = safeArea 顶 + 52
+        [self.contentHeader.bottomAnchor constraintEqualToAnchor:self.view.safeAreaLayoutGuide.topAnchor
+                                                        constant:ZL2ShellHeaderHeight],
+        [self.contentHeader.leadingAnchor constraintEqualToAnchor:self.view.leadingAnchor],
+        [self.contentHeader.trailingAnchor constraintEqualToAnchor:self.view.trailingAnchor],
+
+        [self.hamburgerButton.leadingAnchor constraintEqualToAnchor:self.contentHeader.safeAreaLayoutGuide.leadingAnchor constant:8.0],
+        [self.hamburgerButton.centerYAnchor constraintEqualToAnchor:self.contentHeader.centerYAnchor],
+
+        [self.navBackButton.leadingAnchor constraintEqualToAnchor:self.contentHeader.safeAreaLayoutGuide.leadingAnchor constant:8.0],
+        [self.navBackButton.centerYAnchor constraintEqualToAnchor:self.contentHeader.centerYAnchor],
+
+        [self.headerTitle.leadingAnchor constraintEqualToAnchor:self.contentHeader.safeAreaLayoutGuide.leadingAnchor constant:16.0],
+        [self.headerTitle.centerYAnchor constraintEqualToAnchor:self.contentHeader.centerYAnchor],
+        [self.headerTitle.trailingAnchor constraintLessThanOrEqualToAnchor:self.taskPill.leadingAnchor constant:-12.0],
+
+        [self.taskPill.trailingAnchor constraintEqualToAnchor:self.contentHeader.safeAreaLayoutGuide.trailingAnchor constant:-12.0],
+        [self.taskPill.centerYAnchor constraintEqualToAnchor:self.contentHeader.centerYAnchor],
+
+        [self.container.topAnchor constraintEqualToAnchor:self.contentHeader.bottomAnchor],
+        [self.ame347_contentLeading],
+        [self.container.trailingAnchor constraintEqualToAnchor:self.view.trailingAnchor],
+        [self.container.bottomAnchor constraintEqualToAnchor:self.view.bottomAnchor],
+
+        [self.dimOverlay.topAnchor constraintEqualToAnchor:self.view.topAnchor],
+        [self.dimOverlay.leadingAnchor constraintEqualToAnchor:self.view.leadingAnchor],
+        [self.dimOverlay.trailingAnchor constraintEqualToAnchor:self.view.trailingAnchor],
+        [self.dimOverlay.bottomAnchor constraintEqualToAnchor:self.view.bottomAnchor],
+    ]];
+
+    // 宽窄态哨兵：预置 YES（与抽屉闭合判定相反），保证首轮
+    // viewDidLayoutSubviews 必派发一次宽窄态（iPhone 闭合 / iPad 常驻），
+    // 且首绘前完成——零可见闪帧。
+    self.ame347_regular = YES;
+    [self ame347_applyDrawerGeometryAnimated:NO];
+    [self.view setNeedsLayout];
+}
+
+// 宽窄态派发：宽屏常驻窗格 / 窄屏抽屉（viewDidLayoutSubviews 阈值检测驱动）
+- (void)ame347_applyWidthClass:(BOOL)regular {
+    self.ame347_regular = regular;
+    self.ame347_contentLeading.constant = regular ? ZL2ShellPaneWidth : 0.0;
+    if (!regular && self.ame347_drawerOpen) {
+        self.ame347_drawerOpen = NO;   // 跨阈值收敛抽屉（旋转/分屏）
+    }
+    [self ame347_applyDrawerGeometryAnimated:NO];
+    [self ame_refreshNavShellStateAnimated:NO];
+}
+
+// 抽屉几何：常驻（宽屏）恒 open 几何；抽屉（窄屏）按开合态平移窗格 + 遮罩
+- (void)ame347_applyDrawerGeometryAnimated:(BOOL)animated {
+    BOOL ame347_paneShown = self.ame347_regular || self.ame347_drawerOpen;
+    CGFloat ame347_target = ame347_paneShown ? 0.0 : -(ZL2ShellPaneWidth + 12.0);
+    self.ame347_paneLeading.constant = ame347_target;
+    self.paneWrap.layer.shadowOpacity = (!self.ame347_regular && self.ame347_drawerOpen) ? 0.25f : 0.0f;
+    self.paneWrap.layer.shadowRadius = 16.0;
+    self.paneWrap.layer.shadowOffset = CGSizeMake(8.0, 0.0);
+    self.paneWrap.layer.shadowColor = [UIColor blackColor].CGColor;
+    void (^ame347_apply)(void) = ^{
+        self.dimOverlay.alpha = (!self.ame347_regular && self.ame347_drawerOpen) ? 1.0 : 0.0;
+        self.dimOverlay.userInteractionEnabled = (!self.ame347_regular && self.ame347_drawerOpen);
+        [self.view layoutIfNeeded];
+    };
+    if (animated && self.view.window) {
+        [UIView animateWithDuration:ZL2ShellAnimateDuration animations:ame347_apply];
+    } else {
+        ame347_apply();
+    }
+}
+
+- (void)ame_setDrawerOpen:(BOOL)open animated:(BOOL)animated {
+    if (self.ame347_regular) return;   // 常驻窗格无抽屉语义
+    if (self.ame347_drawerOpen == open) return;
+    self.ame347_drawerOpen = open;
+    [self ame347_applyDrawerGeometryAnimated:animated];
+}
+
+- (void)ame_dimTapped {
+    [self ame_setDrawerOpen:NO animated:YES];
+}
+
+- (void)viewDidLayoutSubviews {
+    [super viewDidLayoutSubviews];
+    if (!self.ame347_navMode) return;
+    BOOL ame347_nowRegular = self.view.bounds.size.width >= ZL2ShellRegularMinWidth;
+    if (ame347_nowRegular != self.ame347_regular) {
+        [self ame347_applyWidthClass:ame347_nowRegular];
+    }
+}
+
+// 大标题内容区头态刷新（nav 骨架的 ame_refreshTopBarStateAnimated 等价物）：
+// 窗格选中跟随 + 大标题 + 返回/汉堡互斥显隐 + 任务胶囊（viewWillAppear 补刷）
+- (void)ame_refreshNavShellStateAnimated:(BOOL)animated {
+    if (!self.isViewLoaded || self.currentIndex < 0) return;
+    NSInteger ame347_index = self.currentIndex;
+
+    UINavigationController *ame347_nav = [self ame_currentNav];
+    BOOL ame347_backVisible = (ame347_nav.viewControllers.count > 1);
+
+    [self.headerTitle setText:[self ame_titleForIndex:ame347_index]];
+
+    void (^ame347_apply)(void) = ^{
+        [self.navItems enumerateObjectsUsingBlock:^(ZL2ShellNavItem *item, NSUInteger idx, BOOL *stop) {
+            [item ame_setSelected:(item.pageIndex >= 0 && item.pageIndex == ame347_index)];
+        }];
+        BOOL ame347_hamburgerVisible = !self.ame347_regular && !ame347_backVisible;
+        self.hamburgerButton.alpha = ame347_hamburgerVisible ? 1.0 : 0.0;
+        self.hamburgerButton.hidden = !ame347_hamburgerVisible;
+        self.navBackButton.alpha = ame347_backVisible ? 1.0 : 0.0;
+        self.navBackButton.hidden = !ame347_backVisible;
+    };
+    if (animated && self.contentHeader.window) {
+        [UIView animateWithDuration:ZL2ShellAnimateDuration animations:ame347_apply];
+    } else {
+        ame347_apply();
+    }
+}
+
 #pragma mark - 通知
 
 - (void)ame_showHome {
@@ -699,6 +1148,11 @@ static UIImage *ZL2ShellSystemImage(NSString *name, NSString *fallback) {
 }
 
 - (void)ame_refreshTopBarStateAnimated:(BOOL)animated {
+    // ★ Task347：nav 骨架走等价刷新（窗格选中/大标题/返回汉堡互斥）
+    if (self.ame347_navMode) {
+        [self ame_refreshNavShellStateAnimated:animated];
+        return;
+    }
     if (!self.isViewLoaded || self.currentIndex < 0) return;
     NSInteger index = self.currentIndex;
 
@@ -777,9 +1231,10 @@ static UIImage *ZL2ShellSystemImage(NSString *name, NSString *fallback) {
     void (^apply)(void) = ^{
         self.taskPill.hidden = !active;
         self.taskPill.alpha = active ? 1.0 : 0.0;
-        [self.topBar layoutIfNeeded];
+        // ★ Task347：动画上下文按骨架择一（topbar / nav 内容区头）
+        (self.topBar ?: self.contentHeader).layoutIfNeeded;
     };
-    if (self.topBar.window) {
+    if ((self.topBar ?: self.contentHeader).window) {
         [UIView animateWithDuration:ZL2ShellAnimateDuration animations:apply];
     } else {
         apply();

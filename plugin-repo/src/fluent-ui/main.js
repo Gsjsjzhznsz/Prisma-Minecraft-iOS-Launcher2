@@ -1,24 +1,25 @@
-// Task343 fluent-ui v2.1.1 —— 「排版也 Fluent」版（用户点题：插件画面还是
-// zl2 的，要重新设计整个画面，排版都要变化，跟 Fluent 应用对齐）。
+// Task343 fluent-ui v2.2.0 —— 「结构也 Fluent」版（用户四轮复诉：插件画面
+// 还是 zl2 的，要重新设计整个画面，排版都要变化，跟 Fluent 应用对齐）。
 // ---------------------------------------------------------------------
-// ★ v2.1.1（Task346）：宿主端接入即时重建杠杆（ZL2Theme 令牌 setter 落表后
-//   触发根视图重建，复用 Task230/Task344 验证过的 AppLanguageChanged 链路）
-//   —— 每次切换色/形/字/排版四族全界面【即时】生效，不再需要新开页面
-//   或重启；文案同步更新，消除「只变了配色」的感知落差。
+// ★ v2.2.0（Task347）：接入结构令牌承载面（ame.setThemeStructure）——
+//   壳层导航骨架整体切换为 WinUI NavigationView 蓝图：左侧导航窗格
+//  （宽屏常驻 / 窄屏抽屉，WinUI SelectionIndicator 选中指示条，设置驻
+//   窗格底）+ 大标题内容区（WinUI Page Header）。这是排版级的实质变化：
+//   导航从顶栏右侧图标组整体迁到左窗格，不再是同一蓝图上重铺几何。
+//   v2.1.1 的即时重建杠杆（Task346 根重建）让换蓝图也即时生效。
 // ---------------------------------------------------------------------
-// v2.0.0 交付了形状（五档圆角收紧 4/4/8/8/12）+ 字阶（Fluent2 ramp 七档）
-// + 三色板 28 色，但页面【排版/间距/密度】仍是 ZL2 的 M3 刻度 —— 引擎和
-// 桥面当时没有布局承载面。v2.1 依托 Task343 新增的布局令牌族
-//（ZL2Theme ame343：13 键数值白名单，ZL2M3Kit 搜索框/chip/卡片解剖/动作
-// 胶囊/对话框/按钮 31 处几何全部经 ame343_layoutMetric:fallback: 消费）
-// 把排版整体搬到 Fluent 刻度：
+// v2.1.x 交付了布局/形状/字阶/色板四族令牌（控件 32pt 线、卡片 4pt 栅格、
+// 五档圆角收紧 4/4/8/8/12、Fluent2 ramp 七档、三色板 28 色），v2.2.0 在
+// 此之上补上第五族——结构：
 //
+//   · 结构（shellLayout = navigationview）：
+//       左窗格 —— 应用名头 + 主导航（主页/下载/版本/账户/联机/AI）+
+//       底部固定（设置/文件）；选中项 = 指示条 + 中性抬升行底。
+//       内容区 —— 大标题页头 + 任务胶囊；宽屏常驻窗格，窄屏收抽屉。
 //   · 布局（fluentui-apple 4pt 栅格 + WinUI 控件度量溯源）：
-//       控件高度统一 32pt（Fluent 标准控件线）——动作胶囊 56×28 → 80×32、
-//       按钮 40 → 32、chip 32 保持 32、搜索框 44 → 40（紧凑档）；
-//       卡片解剖走 4pt 栅格 —— 外边距 16/4、内边距 16/12/12、
-//       标题→副文间隙 4 → 6；对话框内边距 24（WinUI ContentDialog）。
-//   · 形状/字阶/色板（v2.0.0 全量保留，fluentui-apple 溯源不变）：
+//       控件高度统一 32pt——动作胶囊 80×32、按钮 32、chip 32、搜索框 40；
+//       卡片解剖走 4pt 栅格；对话框内边距 24（WinUI ContentDialog）。
+//   · 形状/字阶/色板（fluentui-apple 溯源不变）：
 //       形状 —— 控件 4pt / 卡片 8pt / 浮层 12pt；
 //       字阶 —— Title2 28S / Title3 20S / Body1 17R (Strong 15SB) /
 //               Body2 15R / Caption1 13R；
@@ -26,10 +27,10 @@
 //               fluent-apple 混融 #007AFF + systemGray6 分层。
 //
 // 交互纪律不变：单行入口，点击循环 亮→暗→混融→恢复默认；首次点击出
-// 说明对话框。持久化走桥面 __theme/__shape/__layout 装载期重放键。
-// 布局链独立容错：setThemeLayout 失败（旧引擎/桥面异常）不阻塞色板/形状，
-// 退化为 v2.0 形态 —— 全维度 → 形状+色 → 仅色 三级平滑降级。
-// 全部调用 try-catch 包裹 —— 权限/桥面单点故障不得炸掉整插件。
+// 说明对话框。持久化走桥面 __theme/__shape/__layout/__structure 装载期
+// 重放键。结构/布局链独立容错：setThemeStructure / setThemeLayout 失败
+// （旧引擎/桥面异常）不阻塞其余族——五维度 → 布局+形色 → 形+色 → 仅色
+// 四级平滑降级。全部调用 try-catch 包裹——权限/桥面单点故障不得炸整插件。
 (function () {
   if (typeof ame === 'undefined') return;
 
@@ -64,6 +65,12 @@
     pillGap: 12,           // 10 → 12（4pt 栅格）
     dialogInset: 24,       // 24（WinUI ContentDialog，显式声明）
     buttonHeight: 32       // 40 → 32（Fluent 标准控件高度）
+  };
+
+  // ★ Task347：Fluent 结构蓝图（WinUI NavigationView；键值 = 引擎白名单
+  // 中性骨架语义，见 ZL2Theme.h ame347 注释）。
+  var FLUENT_STRUCTURE = {
+    shellLayout: 'navigationview'   // 左窗格 + 大标题内容区（宽屏常驻/窄屏抽屉）
   };
 
   var PALETTES = [
@@ -142,6 +149,14 @@
     return (isNaN(n) || n < 0 || n >= PALETTES.length) ? -1 : n;
   }
 
+  // ★ Task347：结构链独立容错（最高族优先应用；失败不阻塞形色，
+  // 退化为 v2.1 形态——同蓝图重铺几何，无左窗格）。
+  function applyStructure() {
+    try { ame.setThemeStructure(FLUENT_STRUCTURE); } catch (e) {
+      ame.log('[' + MARK + '] setThemeStructure failed (old engine? v2.1 fallback): ' + e);
+    }
+  }
+
   // 形状链独立容错：setThemeShape 失败（旧引擎/桥面异常）不阻塞色板应用，
   // 退化为 v1 形态（仅换色）——全维度与仅换色之间平滑降级。
   function applyShape() {
@@ -167,13 +182,15 @@
       try { ame.toast('主题应用失败（ui.theme 权限或桥面异常）'); } catch (e2) {}
       return;
     }
+    applyStructure();
     applyShape();
     applyLayout();
-    // '__theme'/'__shape'/'__layout' 由桥面 setThemeToken/setThemeShape/
-    // setThemeLayout 落盘（装载期重放键）——插件侧只持久化循环态。
+    // '__theme'/'__shape'/'__layout'/'__structure' 由桥面 setThemeToken/
+    // setThemeShape/setThemeLayout/setThemeStructure 落盘（装载期重放键）
+    // ——插件侧只持久化循环态。
     storageSet('fluent.idx', String(idx));
-    try { ame.toast('已应用：' + pal.name + '（Fluent 2 全维度 · 全界面即时重排 · 重启自动重放）'); } catch (e) {}
-    ame.log('[' + MARK + '] palette applied: ' + pal.key + ' (color+shape+layout)');
+    try { ame.toast('已应用：' + pal.name + '（NavigationView 左窗格结构 · 全维度 · 即时重建）'); } catch (e) {}
+    ame.log('[' + MARK + '] palette applied: ' + pal.key + ' (structure+color+shape+layout)');
   }
 
   function restoreDefault() {
@@ -186,14 +203,17 @@
     try { ame.setThemeLayout({}); } catch (e) {
       ame.log('[' + MARK + '] layout reset failed: ' + e);
     }
+    try { ame.setThemeStructure({}); } catch (e) {
+      ame.log('[' + MARK + '] structure reset failed: ' + e);
+    }
     storageSet('fluent.idx', '-1');
-    try { ame.toast('已恢复默认主题（embermire · M3 刻度）'); } catch (e) {}
+    try { ame.toast('已恢复默认主题（embermire · M3 刻度 · 顶栏骨架）'); } catch (e) {}
     ame.log('[' + MARK + '] theme restored to default');
   }
 
   try {
     ame.addLauncherRow(
-      { id: 'fluent-ui', title: 'Fluent UI', subtitle: 'Fluent 2 全维度换装·即时生效（点击循环）' },
+      { id: 'fluent-ui', title: 'Fluent UI', subtitle: 'Fluent 2 全维度·左侧导航窗格（点击循环）' },
       function (rowId) {
         var announced = storageGet('fluent.announced') === 'yes';
         if (!announced) {
@@ -201,7 +221,7 @@
           try {
             ame.dialog({
               title: 'Fluent UI',
-              body: 'Fluent 2 完整设计语言换装（非 ZL2 主题换色）：\n· 排版 —— 控件统一 32pt 线 / 卡片 4pt 栅格解剖 / 胶囊 80×32（Task343 布局令牌）\n· 形状 —— 控件 4pt / 卡片 8pt / 浮层 12pt（M3 大圆角整体收紧）\n· 字阶 —— Title 28S/20S · Body 17R/15R · Caption 13R（Fluent2 ramp）\n· 色板 —— Fluent 亮（品牌蓝）/ Fluent 暗（品牌青）/ Fluent × Apple 混融\n点击本行循环切换，第 4 次恢复默认；每次切换全界面即时重排（Task346），重启启动器后自动重放。',
+              body: 'Fluent 2 完整设计语言换装（真重排版，非 ZL2 主题换色）：\n· 结构 —— 左侧 NavigationView 导航窗格（宽屏常驻/窄屏抽屉，WinUI 选中指示条，设置驻窗格底）+ 大标题内容区，导航整体离开顶栏（Task347 结构令牌）\n· 排版 —— 控件统一 32pt 线 / 卡片 4pt 栅格解剖 / 胶囊 80×32（Task343 布局令牌）\n· 形状 —— 控件 4pt / 卡片 8pt / 浮层 12pt（M3 大圆角整体收紧）\n· 字阶 —— Title 28S/20S · Body 17R/15R · Caption 13R（Fluent2 ramp）\n· 色板 —— Fluent 亮（品牌蓝）/ Fluent 暗（品牌青）/ Fluent × Apple 混融\n点击本行循环切换，第 4 次恢复默认；每次切换全界面即时重建（Task346 根重建杠杆），重启启动器后自动重放。',
               confirm: '应用 Fluent 亮色',
               cancel: '关闭'
             }, function (ok) {
@@ -223,5 +243,5 @@
     return;
   }
 
-  ame.log('[' + MARK + '] fluent-ui v2.1.1 loaded（Fluent 2 全维度：色28+形状5+字阶7+布局13；全界面即时重排；主页贡献行「Fluent UI」，点击循环亮/暗/混融/默认）');
+  ame.log('[' + MARK + '] fluent-ui v2.2.0 loaded（Fluent 2 全维度：结构 shellLayout=navigationview + 色28+形状5+字阶7+布局13；主页贡献行「Fluent UI」，点击循环亮/暗/混融/默认）');
 })();

@@ -616,6 +616,32 @@ static id Ame239_SafeValueForPath(NSString *key, NSDictionary *root) {
     [self saveGlobalPref];
 }
 
+// ★ Task347（zip 导入"数据不行"第六轮 · 一代备份设置救援）：v1 旧布局偏好
+//   字典 -> v2 全局偏好字典。语义与 initWithAutomaticMigrator 迁移分支逐位
+//   同构：defaults 为骨架（defaultPrefForGlobal:YES，保证 v2 读侧键面完整），
+//   再按骨架键位从 v1 旧布局（根位直查 -> getPreference: 递归子字典）回填
+//   旧值——defaults 没有的键不收（与启动期迁移完全同口径，避免僵尸键）。
+//   消费方：DataTransferService 导入侧——备份包内 v2 脉柱空/坏时用包内
+//   v1 launcher_preferences.plist 迁移恢复，老备份的设置不再二次丢失。
++ (NSMutableDictionary<NSString *, NSMutableDictionary *> *)ame347_migratedGlobalPrefsFromV1:(NSDictionary *)oldPref {
+    if (![oldPref isKindOfClass:[NSDictionary class]] || oldPref.count == 0) return nil;
+    NSMutableDictionary<NSString *, NSMutableDictionary *> *skeleton =
+        [self defaultPrefForGlobal:YES];
+    if (!skeleton) return nil;
+    NSInteger ame347_filled = 0;
+    for (NSString *section in skeleton.allKeys) {
+        for (NSString *key in skeleton[section].allKeys) {
+            id value = [self getOldLayoutPreference:key from:oldPref];
+            if (value) {
+                skeleton[section][key] = value;
+                ame347_filled++;
+            }
+        }
+    }
+    NSLog(@"[PLPreferences] Task347: v1 prefs migrated -> v2 layout (%ld key(s) filled from legacy backup)", (long)ame347_filled);
+    return skeleton;
+}
+
 - (void)saveGlobalPref {
     [self.globalPref writeToFile:self.globalPath atomically:YES];
 }

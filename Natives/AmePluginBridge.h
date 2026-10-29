@@ -56,6 +56,10 @@ NS_ASSUME_NONNULL_BEGIN
 //   chipHeight, card*, pill*, dialogInset, buttonHeight} = pt 数值，白名单
 //   + 钳制在 ZL2Theme 侧）。JSExport 协议声明必不可缺（Task332 判例）。
 - (BOOL)setThemeLayout:(NSDictionary *)tokens;
+// ★ Task347：结构令牌覆盖（ui.theme 同权限；字符串键空间 {shellLayout:
+//   "topbar"|"navigationview"} = 壳层导航骨架蓝图，白名单在 ZL2Theme 侧）。
+//   JSExport 协议声明必不可缺（Task332 判例）。
+- (BOOL)setThemeStructure:(NSDictionary *)tokens;
 // 空值限定与类接口逐字镜像（NS_ASSUME_NONNULL 区；拒绝时返 nil 的方法
 // 协议侧必须显式 nullable，否则类采纳时 nullability conflict 编译报错）
 - (nullable id)getPref:(NSString *)key;

@@ -20,6 +20,7 @@
 #import "external/UnzipKit/UZKArchive.h"
 #import "utils.h"
 #import "LauncherPreferences.h"   // getPrefObject（Task224 分区口径读当前实例名）
+#import "PLPreferences.h"         // ★ Task347：ame347_migratedGlobalPrefsFromV1（v1 脉柱迁移救援）
 #import "PLProfiles.h"            // Task275 F3: 自动切实例后注册表同步
 #import <UniformTypeIdentifiers/UniformTypeIdentifiers.h>
 // Task224：自研 zip 写器直接使用 zlib（deflate/crc32）。libz 已随 UnzipKit
@@ -464,6 +465,34 @@ typedef NS_ENUM(NSInteger, Ame229PickerMode) {
         NSInteger restored = 0;
         NSInteger ame344_skippedPluginFiles = 0;   // Task344：插件目录跳过计数（摘要留痕）
         NSInteger ame346_skippedSpineFiles = 0;    // Task346：空/坏脉柱防毒化跳过计数
+        // ★ Task347（zip 导入"数据不行"第六轮）：脉柱救援三段数据源——合并循环
+        //   前快照，规避枚举途中条目已被 move 的时序歧义。
+        NSInteger ame347_spineZipRescued = 0;      // ① staging 副本空但 ZIP 条目完好 → 权威副本直写
+        NSInteger ame347_spineV1Restored = 0;      // ② v2 脉柱坏但包内 v1 完好 → 一代迁移恢复
+        BOOL ame347_spineKept = NO;                // ③ 两路皆空 → 保留现役设置（摘要如实上报）
+        NSDictionary *ame347_zipSpine = nil;
+        NSDictionary *ame347_v1Prefs = nil;
+        if (!failMsg && archive) {
+            // ① 数据源：v2 脉柱从 ZIP 条目直读（不信任 staging 解压产物——
+            //    staging 副本空 ≠ 包内条目坏，解压层异常时以此为准）。
+            NSData *ame347_spineData = [archive extractDataFromFile:
+                @"launcher_preferences_v2.plist" error:nil];
+            if (ame347_spineData.length > 0) {
+                ame347_zipSpine = [NSPropertyListSerialization
+                    propertyListWithData:ame347_spineData options:0 format:nil error:nil];
+                if (![ame347_zipSpine isKindOfClass:[NSDictionary class]]) ame347_zipSpine = nil;
+            }
+            // ② 数据源：包内一代设置（v2 脉柱坏时的迁移恢复源；staging 在此
+            //    尚未被合并循环动过，读取无时序歧义）。
+            NSDictionary *ame347_v1chk = [NSDictionary dictionaryWithContentsOfFile:
+                [staging stringByAppendingPathComponent:@"launcher_preferences.plist"]];
+            if (ame347_v1chk.count > 0) ame347_v1Prefs = ame347_v1chk;
+            NSLog(@"[DataTransfer] Task347: spine snapshot -- zipEntryV2=%@ v1Legacy=%@",
+                  ame347_zipSpine ? [NSString stringWithFormat:@"ok(%lu keys)", (unsigned long)ame347_zipSpine.count]
+                                  : @"empty/absent",
+                  ame347_v1Prefs ? [NSString stringWithFormat:@"ok(%lu keys)", (unsigned long)ame347_v1Prefs.count]
+                                 : @"empty/absent");
+        }
         NSMutableSet<NSString *> *ame232_touchedInstances = [NSMutableSet set];
         if (!failMsg) {
             // 逐文件合并回 POJAV_HOME（同名覆盖 = 恢复语义）。
@@ -490,10 +519,41 @@ typedef NS_ENUM(NSInteger, Ame229PickerMode) {
                 //   loadPreferences 读到空表 → "Initializing default values"
                 //   → 设置全丢观感。修法：空/坏脉柱不落盘（保留现役文件），
                 //   计数留痕；非脉柱文件语义不变。
+                // ★ Task347（第六轮）：防毒化基础上加三段救援——用户手里的
+                //   历史坏包不必重新导出也能把设置救回来：
+                //   ① ZIP 直读救援：staging 副本空但包内条目可解析（解压层
+                //      异常形态）→ 权威副本直写 POJAV_HOME；
+                //   ② v1 迁移恢复：包内 launcher_preferences.plist（一代设置，
+                //      Task346 起强制进包）可解析 → defaults 骨架 + 旧值回填
+                //      迁移为 v2 落盘（PLPreferences ame347 迁移器）；
+                //   ③ 两路皆空：保留现役设置（Task346 语义），摘要如实上报。
                 if ([rel isEqualToString:@"launcher_preferences_v2.plist"]) {
                     NSDictionary *ame346_chk = [NSDictionary dictionaryWithContentsOfFile:
                         [staging stringByAppendingPathComponent:rel]];
                     if (ame346_chk.count == 0) {
+                        NSString *ame347_dstSpine = [home stringByAppendingPathComponent:rel];
+                        if (ame347_zipSpine.count > 0) {
+                            if ([ame347_zipSpine writeToFile:ame347_dstSpine atomically:YES]) {
+                                ame347_spineZipRescued++;
+                                NSLog(@"[DataTransfer] Task347: spine rescued from zip entry (staging copy empty, authoritative dict %lu keys written)", (unsigned long)ame347_zipSpine.count);
+                            } else {
+                                ame346_skippedSpineFiles++;
+                            }
+                            continue;
+                        }
+                        if (ame347_v1Prefs.count > 0) {
+                            NSMutableDictionary *ame347_migrated = [PLPreferences
+                                ame347_migratedGlobalPrefsFromV1:ame347_v1Prefs];
+                            if (ame347_migrated.count > 0 &&
+                                [ame347_migrated writeToFile:ame347_dstSpine atomically:YES]) {
+                                ame347_spineV1Restored++;
+                                NSLog(@"[DataTransfer] Task347: spine restored via v1 migration (%lu key(s) written)", (unsigned long)ame347_migrated.count);
+                            } else {
+                                ame346_skippedSpineFiles++;
+                            }
+                            continue;
+                        }
+                        ame347_spineKept = YES;
                         ame346_skippedSpineFiles++;
                         continue;
                     }
@@ -536,7 +596,10 @@ typedef NS_ENUM(NSInteger, Ame229PickerMode) {
                       (long)ame344_skippedPluginFiles] : @"",
               ame346_skippedSpineFiles > 0
                   ? [NSString stringWithFormat: @" [Task346: %ld empty/corrupt prefs spine skipped -- kept current settings]",
-                      (long)ame346_skippedSpineFiles] : @"");
+                      (long)ame346_skippedSpineFiles] : @"",
+              (ame347_spineZipRescued > 0 || ame347_spineV1Restored > 0)
+                  ? [NSString stringWithFormat: @" [Task347: spine rescued zipEntry=%ld v1Migrated=%ld]",
+                      (long)ame347_spineZipRescued, (long)ame347_spineV1Restored] : @"");
 
         // ★ Task345（zip 导入"数据不行"第四轮 · 本轮装机日志实锤定案）：
         //   导入流水线全绿（11475 files ok）但 PLPreferences 打出
@@ -667,9 +730,18 @@ typedef NS_ENUM(NSInteger, Ame229PickerMode) {
             }
             // ★ Task345：脉柱校验②——备份未带回启动器设置时，摘要直接说明
             // （否则 PLPreferences 默认值初始化静默吃掉设置，用户只见“全丢了”）。
+            // ★ Task347：救援结果如实上报——v1 迁移恢复成功 / 坏包两路皆空
+            //   保留现役，两条摘要行让"导入后设置到底怎么了"不再靠猜。
             if (ame345_prefsMissing) {
                 ame230_summaryExtras = [ame230_summaryExtras stringByAppendingFormat:@"\n%@",
                     localize(@"ame345.import.prefs_missing", nil)];
+            }
+            if (ame347_spineV1Restored > 0) {
+                ame230_summaryExtras = [ame230_summaryExtras stringByAppendingFormat:@"\n%@",
+                    localize(@"ame347.import.spine_v1", nil)];
+            } else if (ame347_spineKept) {
+                ame230_summaryExtras = [ame230_summaryExtras stringByAppendingFormat:@"\n%@",
+                    localize(@"ame347.import.spine_kept", nil)];
             }
             // ★ Task232（反馈 #13：备份导入无效，第三轮）：导入"成功"但用户
             //   看不到任何变化的主形态 = 备份里的存档落在【别的实例名】下，
@@ -1586,13 +1658,18 @@ static void ame224_dosDateTime(NSDate *date, uint16_t *dosTime, uint16_t *dosDat
         free(wbuf);
         free(sout);
 
-        // Task345：导出脉柱校验（勾选“启动器”分区时强校验）——设置文件缺席
-        // 的备份导入后必然“设置全丢”，当场报错优于交付残缺包。
+        // Task345：导出脉柱校验——设置文件缺席的备份导入后必然“设置全丢”，
+        // 当场报错优于交付残缺包。
+        // ★ Task347：requirePrefs 无条件 YES——Task346 起脉柱（v2+v1）在分区
+        //   勾选不含"启动器"时也强制进包，"勾了启动器才校验"的旧口径留下
+        //   检查盲区：强制进包的脉柱若空/坏照样交付 → 导入端又见"设置全丢"
+        //   （装机日志 Task346: 1 empty/corrupt prefs spine skipped 实锤形态）。
+        //   脉柱既然恒在场，校验就恒执行。
         if (!cancelled && !failed) {
             @try {
                 UZKArchive *spineArchive = [[UZKArchive alloc] initWithPath:tmpPath error:nil];
                 NSString *spine = [self ame345_exportSpineProblem:spineArchive
-                                                     requirePrefs:[selected containsObject:Ame224SectionIdLauncher]];
+                                                     requirePrefs:YES];
                 if (spine) {
                     failed = YES;
                     failMsg = spine;

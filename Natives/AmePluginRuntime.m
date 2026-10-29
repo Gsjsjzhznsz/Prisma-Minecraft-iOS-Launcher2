@@ -23,6 +23,7 @@
 @property (nonatomic, strong) NSMutableDictionary<NSString *, NSDictionary<NSString *, NSString *> *> *themeTokensByPlugin;
 @property (nonatomic, strong) NSMutableDictionary<NSString *, NSDictionary *> *themeShapesByPlugin;   // Task341 形状/字体记账
 @property (nonatomic, strong) NSMutableDictionary<NSString *, NSDictionary *> *themeLayoutsByPlugin;  // Task343 布局记账
+@property (nonatomic, strong) NSMutableDictionary<NSString *, NSDictionary *> *themeStructuresByPlugin; // Task347 结构记账
 @property (nonatomic, assign) BOOL booted;
 @end
 
@@ -45,6 +46,7 @@
         _themeTokensByPlugin = [NSMutableDictionary dictionary];
         _themeShapesByPlugin = [NSMutableDictionary dictionary];
         _themeLayoutsByPlugin = [NSMutableDictionary dictionary];
+        _themeStructuresByPlugin = [NSMutableDictionary dictionary];
     }
     return self;
 }
@@ -78,8 +80,8 @@ static NSString *ame317_facadeSource(void) {
     "ame.setThemeShape=function(t){return raw.setThemeShape(t||{});};"
     // ★ Task343：布局令牌（数值键空间 pt，ui.theme 同权限）
     "ame.setThemeLayout=function(t){return raw.setThemeLayout(t||{});};"
-    // ★ Task343：布局令牌（数值键空间 pt，ui.theme 同权限）
-    "ame.setThemeLayout=function(t){return raw.setThemeLayout(t||{});};"
+    // ★ Task347：结构令牌（壳层导航骨架蓝图，ui.theme 同权限）
+    "ame.setThemeStructure=function(t){return raw.setThemeStructure(t||{});};"
     "ame.getPref=function(k){return raw.getPref(String(k));};"
     "ame.setPref=function(k,v){return raw.setPrefValue(String(k),v);};"
     "ame.getRenderer=function(){return raw.getRenderer();};"
@@ -679,6 +681,16 @@ static NSString *ame317_facadeSource(void) {
             [self ame343_applyThemeLayout:pluginId tokens:savedLayout];
         }
     }
+    // ★ Task347：结构令牌同机制重放（__structure 持久化键；五族相互独立——
+    //   旧版插件只存 __theme/__shape/__layout 时 structure 链静默跳过；
+    //   重放路径先于壳层首建在表，首建即新蓝图，无需重建）
+    if ([AmePluginPermissions pluginHasGrant:pluginId permission:@"storage"]) {
+        id savedStructure = [b storageGet:@"__structure"];
+        if ([savedStructure isKindOfClass:[NSDictionary class]] &&
+            [AmePluginPermissions pluginHasGrant:pluginId permission:@"ui.theme"]) {
+            [self ame347_applyThemeStructure:pluginId tokens:savedStructure];
+        }
+    }
 
     if (dispatchLaunchEvent) {
         [self ame317_dispatchEvent:@"app.launch" payload:pluginId toPlugin:pluginId];
@@ -693,6 +705,7 @@ static NSString *ame317_facadeSource(void) {
     [self ame317_applyThemeTokens:pluginId tokens:nil];
     [self ame317_applyThemeShape:pluginId tokens:nil];
     [self ame343_applyThemeLayout:pluginId tokens:nil];
+    [self ame347_applyThemeStructure:pluginId tokens:nil];
     AmePluginBridge *bridge = self.bridges[pluginId];
     [bridge teardown];
     JSContext *ctx = self.contexts[pluginId];
@@ -764,6 +777,26 @@ static NSString *ame317_facadeSource(void) {
         }
     } else {
         [self.themeLayoutsByPlugin removeObjectForKey:pluginId];
+    }
+}
+
+// ★ Task347：结构令牌记账（与 ame343_applyThemeLayout 逐位同构：
+//   先精确还原上一次本插件贡献，再应用新集合；空集 = 清记账+还原）
+- (void)ame347_applyThemeStructure:(NSString *)pluginId
+                            tokens:(NSDictionary *)tokens {
+    NSDictionary *previous = self.themeStructuresByPlugin[pluginId];
+    if (previous) {
+        [ZL2Theme ame347_setPluginThemeStructure:pluginId tokens:nil];
+    }
+    if ([tokens isKindOfClass:[NSDictionary class]] && tokens.count > 0) {
+        BOOL ok = [ZL2Theme ame347_setPluginThemeStructure:pluginId tokens:tokens];
+        if (ok) {
+            self.themeStructuresByPlugin[pluginId] = tokens;
+        } else {
+            self.themeStructuresByPlugin[pluginId] = @{};
+        }
+    } else {
+        [self.themeStructuresByPlugin removeObjectForKey:pluginId];
     }
 }
 

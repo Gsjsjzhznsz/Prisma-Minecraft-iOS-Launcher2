@@ -4,7 +4,7 @@
 
  + 「滚动近况」即可开工；更早历史一律查 worklog-archive.md，勿通读）
 
-> 最后更新：Task 330（2026-10-26，四线终审收口：①默认实例版本轴统一——ame329 绝对路径判据漏斗的默认实例补口 + launcher_preferences.plist 豁免顺修 ②内置插件内容自愈——旧代 main.js 安装副本启动期原子升级，贡献行/效果面复活 + 插件页复用残留清除 ③SDL 触点时刻几何自愈——小窗/切后台陈旧因子当场治愈双挂点 ④MD3 开关拇指圆形化。跨仓库勘误：6f27aba 归属本仓定案，一代侧 Task 329 全量撤销）。此前：Task 165（2026-09-25，ES/4.0 黑屏真根因根修：Task154 的 LWJGL delegate dlsym 补丁致 gl* 解析绕过 MobileGlues 前端，前端导出 xglGetProcAddress 复活死名查找；renderTexture 探针 + RCAS 运行期熔断）。此前：Task 164（RCAS 四项对齐 + 壁纸 nil 判定 + Vulkan FSR 矩阵）；Task 163（新拟态范围修正）；Task 162（八案根修）；Task 161（六案根修）。
+> 最后更新：Task 347（2026-10-29，两线终审收口：①ZIP 导入脉柱三段救援——ZIP 直读/v1 迁移/保底留痕 + 分区导出脉柱恒强校验，旧坏备份也能救回设置 ②结构令牌第五族 + ZL2Shell NavigationView 骨架——左窗格+大标题内容区，fluent-ui v2.2.0 排版级实质重设计）。此前：Task 330（2026-10-26，四线终审收口：①默认实例版本轴统一——ame329 绝对路径判据漏斗的默认实例补口 + launcher_preferences.plist 豁免顺修 ②内置插件内容自愈——旧代 main.js 安装副本启动期原子升级，贡献行/效果面复活 + 插件页复用残留清除 ③SDL 触点时刻几何自愈——小窗/切后台陈旧因子当场治愈双挂点 ④MD3 开关拇指圆形化。跨仓库勘误：6f27aba 归属本仓定案，一代侧 Task 329 全量撤销）。此前：Task 165（2026-09-25，ES/4.0 黑屏真根因根修：Task154 的 LWJGL delegate dlsym 补丁致 gl* 解析绕过 MobileGlues 前端，前端导出 xglGetProcAddress 复活死名查找；renderTexture 探针 + RCAS 运行期熔断）。此前：Task 164（RCAS 四项对齐 + 壁纸 nil 判定 + Vulkan FSR 矩阵）；Task 163（新拟态范围修正）；Task 162（八案根修）；Task 161（六案根修）。
 > 新会话规则：新任务记录**追加到本文件最末尾**（`## Task N` 或 `---/Task ID:` 模板均可）；收尾时同步更新下面「当前状态」表；本文件超过 ~400 行时把最旧的任务段挪进 worklog-archive.md。
 
 ### 一句话
@@ -13,9 +13,9 @@ AngelAuraAmethyst（Amethyst-iOS 重制版，fork **Gsjsjzhznsz/Air-Minecraft-iO
 ### 当前状态（收尾时更新）
 | 项 | 值 |
 |---|---|
-| 远端 HEAD | Task 346 提交 + worklog（ame346 15 断言+反向 3 探针全绿）：①插件主题令牌即时全界面重排（ZL2Theme 三 setter × 应用/还原六落位接 AppLanguageChanged 根重建杠杆——「只变了配色」机械根因=setter 只改静态字典不触发重建、几何构建期烘焙）②备份脉柱链四段收口（导出 flush 双器 + 分区强制脉柱 + 导入空/坏脉柱防毒化 + Task345 校验兜底）+ fluent-ui v2.1.1 文案/仓库件 |
-| 最新 Task 号 | **346**（多会话并行开发，开新任务前先 fetch 避让编号） |
-| 待用户装机验证 | Task 346（两线锚点见文末）+ Task 345（spine check/saves inventory/插件三屏 hero）+ 更早轮次（Task 183 四线锚点见文末）+ Task 182（三锚点）+ Task 181（六锚点）+ Task 180（双滑条透明度）+ Task 179（八连修）+ Task 178/177（新拟态定稿）+ 更早轮次 |
+| 远端 HEAD | Task 347 提交 + worklog（ame347 17 断言+反向 3 探针全绿）：①导入脉柱三段救援（ZIP 直读/PLPreferences ame347 v1 迁移器/保底留痕 + 摘要两新键 54 表 + 分区导出 requirePrefs:YES 恒强校验）②结构令牌第五族（ZL2Theme ame347 shellLayout 白名单 + 桥面/Runtime/壳层全链 + ZL2ShellViewController NavigationView 双骨架）+ fluent-ui v2.2.0 排版级重设计 |
+| 最新 Task 号 | **347**（多会话并行开发，开新任务前先 fetch 避让编号） |
+| 待用户装机验证 | Task 347（两线锚点见文末）+ Task 346（两线锚点见文末）+ Task 345（spine check/saves inventory/插件三屏 hero）+ 更早轮次（Task 183 四线锚点见文末）+ Task 182（三锚点）+ Task 181（六锚点）+ Task 180（双滑条透明度）+ Task 179（八连修）+ Task 178/177（新拟态定稿）+ 更早轮次 |
 | 已知历史遗留 | v6.0.0-release-notes.md 是工作区工件不在 git（发布时从 announcements.json 重导出）；部分 verify 级联失败为沙箱环境性（会话本地脚本被清 + task132/135/149/158 路径依赖 + task140 G2/G3 日志轮换），与基线对拍判读 |
 
 ### 双会话并行协作规则（重要）
@@ -4425,5 +4425,22 @@ Work Log:
 Stage Summary:
 - 两线全交付：①主题令牌三族（色/形/字/布）变更即全界面重建——插件页点击循环立刻看到圆角收紧/控件 32pt 线/4pt 栅格卡片/字阶变化，不再只变色；恢复默认即时回退 M3 刻度 ②备份链"导出 flush + 脉柱强制在场 + 导入防毒化 + Task345 校验兜底"四段闭环——新导出的任何备份必含启动器设置，导入即恢复；旧残缺备份导入时坏脉柱不再毒化现役设置。
 - 装机验证锚点：①插件仓库更新 fluent-ui → 2.1.1，主页点「Fluent UI」行：整界面（含在屏页面）即刻重排（卡片圆角 8/12pt、胶囊 80×32、搜索框变矮、字阶 Fluent ramp），第 4 次点击恢复默认即刻回退；日志锚点 `[ZL2Theme] Task346: token change -> root rebuild posted` ②导出备份 → 日志 `[LauncherPreferences] Task346: global prefs flushed to disk`，分区导出不勾"启动器"包内仍有 launcher_preferences_v2.plist（Task345 archive manifest 直方图可见）③导入旧残缺备份 → `Task346: N empty/corrupt prefs spine skipped`（若包内脉柱空损）或 Task345 prefs_missing 告警（包内无脉柱），当前设置不再被默认值吃掉。
+
+---
+## Task 347——两线（用户 fbf0bc1 第六轮复诉联修）：①ZIP 导入脉柱三段救援（"数据导入依旧"终结线） / ②Fluent 结构令牌 + NavigationView 骨架（"还是变颜色"终结线）
+
+日期：2026-10-29
+
+Work Log:
+- 【取证（装机 fbf0bc1 latestlog 第六轮）】①ZIP 导入定案：`Task217: import restored 11474 files (ok)` + `[Task346: 1 empty/corrupt prefs spine skipped -- kept current settings]` + `Task345: spine check prefs=present`——备份包（prisma-backup-20261029-152121.zip，用户手持旧构建产物）内 launcher_preferences_v2.plist 为空/坏，Task346 防毒化按设计跳过 → 设置未恢复 → general.game_directory 停 default → 打开空实例（saves total=0）= 用户视角"导入了什么都没变"；防毒化守住了设置却也让旧坏包永远救不回设置 = 结构性死角。②"还是变颜色"定案：Task346 根重建杠杆确实在跑（`[ZL2Theme] Task346: token change -> root rebuild posted` 照打），但五族令牌（色28+形12+布13）全部是同一结构蓝图上的几何重铺——顶栏还是顶栏、卡片还是卡片；用户要的是"重新设计整个画面、排版都要变化、跟 Fluent 应用对齐"= 结构蓝图级变化，令牌引擎物理上无法承载。
+- 【线A 导入脉柱三段救援（用户不必重新导出，旧坏包也能救回设置）】①数据源前置快照：合并循环前 `extractDataFromFile:` 直读 ZIP 内 v2 脉柱（不信任 staging 解压产物——staging 空 ≠ 包内坏）+ staging v1 launcher_preferences.plist 预读（Task346 起强制进包），零时序歧义（`Task347: spine snapshot -- zipEntryV2=ok(N keys) v1Legacy=ok(N keys)` 日志锚）。②合并循环防毒化分支升级三段：ZIP 直读救援（staging 副本空但条目可解析 → 权威字典直写 POJAV_HOME）→ v1 迁移恢复（PLPreferences 新类方法 ame347_migratedGlobalPrefsFromV1：defaults 骨架 + getOldLayoutPreference 旧值回填，与启动期迁移分支同语义）→ 保底留痕（两路皆空保留现役 + 摘要如实上报）。③摘要两新键 54 表（ame347.import.spine_v1 / spine_kept）：导入后设置到底恢复没有，toast 直接说，不再让用户猜。④分区导出收口：Task345 脉柱校验 requirePrefs 无条件 YES——Task346 强制进包与"勾了启动器才校验"的旧口径并存留下检查盲区（强制进包的空脉柱照样交付），脉柱恒在场则校验恒执行。
+- 【线B 结构令牌第五族 + NavigationView 骨架（排版级实质变化）】①ZL2Theme ame347 结构覆盖基础设施（与 ame341/343 逐位同构：token → @[pluginId, NSString] 记账、白名单 shellLayout ∈ topbar|navigationview、后写者胜、空集还原；应用/还原双路径接 ame346_requestRootRebuild——六落位增至八落位）。②桥面 setThemeStructure（ui.theme 高危执法链 + JSExport 协议声明 + __structure 持久化）+ Runtime 门面/装载重放/卸载还原/记账面五触点全链。③ZL2ShellViewController 双骨架：viewDidLoad 按 ame347_shellLayout 分建——topbar 骨架逐位不变；NavigationView 骨架 = 左窗格（surfaceContainerLow 层级底 + 应用名头 + 主导航六项 0/1/2/3/5/6 + 底部固定设置/文件 + WinUI SelectionIndicator 3×16 选中指示条 + 中性抬升行底）+ 大标题内容区（fontHeadline 页头 + 返回/汉堡互斥 + 任务胶囊复用）+ 宽窄双态（≥640pt 常驻窗格；窄屏收抽屉 + 遮罩点击收起 + 跨阈值自动收敛）。全部着色/几何经 ZL2Theme 令牌消费——fluent-ui 的色/形/字/布覆盖与结构蓝图同屏联动。④ame_refreshTopBarStateAnimated 入口分支 + ame_refreshTaskPill 动画上下文双骨架择一（topBar ?: contentHeader）。
+- 【插件面】fluent-ui v2.2.0：FLUENT_STRUCTURE（shellLayout=navigationview）最高族优先应用 + 独立容错（五维度 → 布局形色 → 形色 → 仅色四级降级）；首次对话框/行副题/toast/loaded 全面改口"NavigationView 左窗格结构"（排版级实质变化叙事）；manifest 2.2.0 + ame333 重打包（5104B，sha/size/index 单一事实源重算）。
+- 【门禁】ame347_selfcheck 新门 17 断言（A 救援链 6 / B 结构链 6 / C 插件面 3 / D 结构 2）+ --selftest 反向 3 探针全翻红；ame330_js_smoke 扩 setThemeStructure 桩 6 件 rows=7；task191 3326 键 54 表全 OK；task139/240 balanced；task248/250 全零。
+- 工程纪要：PLPreferences.h CRLF（python 字节级补丁判例沿用）；剥码器断言两处踩坑（@"" 选择器字面 / 注释锚在 strip_code 后消失——改对 raw 匹配，门禁脚本自身迭代）。
+
+Stage Summary:
+- 两线全交付：①旧坏备份导入 = ZIP 直读救援（解压层异常形态）或 v1 迁移恢复（包内一代设置在则必恢复），两路皆空时摘要明说"备份中的设置文件为空/损坏——已保留当前设置"；新导出（本版起）分区/全量双路脉柱恒强校验，坏包源头拔除 ②fluent-ui v2.2.0 应用后壳层换 WinUI NavigationView 蓝图：左侧导航窗格（宽屏常驻/窄屏抽屉、指示条选中态、设置驻底）+ 大标题内容区——排版级实质变化，恢复默认即时回退顶栏骨架。
+- 装机验证锚点：①插件仓库更新 fluent-ui → 2.2.0，点主页「Fluent UI」行：整壳即刻重建为左窗格 + 大标题布局（iPad 常驻窗格；iPhone 汉堡抽屉），第 4 次点击恢复默认即刻回退顶栏；日志锚点 `[AmePlugin:fluent-ui] 结构令牌覆盖 1/1 项（shellLayout=navigationview）` ②重新导入同一个旧备份：日志 `Task347: spine snapshot -- zipEntryV2=... v1Legacy=...` + `spine rescued/rescued via v1 migration`（或摘要行如实说明），导入完成 toast 含设置恢复结果行，游戏目录/主题/实例名等设置随备份回来 ③分区导出不勾"启动器"：包内脉柱空/坏时导出当场报错（不再静默交付残缺包）。
 
 ---

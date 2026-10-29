@@ -3536,3 +3536,5 @@
 "ame345.repo.hero.count" = "遠端 %lu · 內建 %lu";
 "ame345.import.prefs_missing" = "備份中未包含啟動器設定檔，設定保持目前值";
 "ame345.import.instance_saves" = "存檔分佈：%@";
+"ame347.import.spine_v1" = "已從一代備份設定（launcher_preferences.plist）遷移恢復啟動器設定";
+"ame347.import.spine_kept" = "備份中的啟動器設定檔為空/損壞——已保留目前設定";
