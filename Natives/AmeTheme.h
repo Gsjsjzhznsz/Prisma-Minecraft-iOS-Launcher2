@@ -1,21 +1,24 @@
 //
 // AmeTheme.h
-// Prisma-Minecraft-iOS-Launcher2 — Fluent 2 设计令牌层（v2 · fluent2_kit 官方取值）
+// Prisma-Minecraft-iOS-Launcher2 — 设计令牌层（v3 · M3 承载层）
 //
-// 7.0-UI-4: 令牌取值整体对齐 graundtech/fluent2_kit（MIT）的官方 Fluent 2
-// token 系统（lib/src/fluent_models/*），逐值溯源：
-//   颜色   ← FluentColors / FluentDarkColors（neutralForeground/Background/
-//            Stroke + status* 全阶，canvas #F5F5F5/#141414）
-//   品牌   ← theme_data.dart _brandColor ramp（#0F6CBD，dark 取 400 #2A93EE）
-//   圆角   ← FluentCornerRadius small2/medium4/large8/xLarge12
-//   字体   ← MixedFluentTextTheme iOS(SF Pro)：caption1 13/body2 15/body1 17/
-//            title3 20/title2 22/title1 28
-// 深浅适配：dynamicProvider（iOS 13+，部署目标 14.0 安全），业务代码禁止
-// 自行判 traitCollection。
+// ★ Task354（MD3 设计语言统一，用户指令"全面修改为 md3 样式，避免 ui 设计
+//   语言混杂"）：本层从"Fluent 2 官方取值"（v2，fluent2_kit 溯源）整体转位为
+//   M3 承载层——全部 getter 重指向 ZL2Theme（Material 3 embermire 令牌），
+//   API 形状与 v1/v2 完全兼容，既有消费面零改动即整面切换 MD3 视觉。
+//   语义映射总表见 AmeTheme.m 文件头。旧 Fluent 取值档案在 git 历史 v2。
 //
-// v2 变更（相对 v1）：textTertiary/bgPrimary/divider/三状态色按官方值修正；
-// fill 系由 alpha 黑白改为官方实色阶；radius S/M/L 重校 2/4/8 + 新增 XL12；
-// fontSubtitle 权重对齐 title3 regular + 新增 fontTitle2。
+// 历史溯源存档：
+//   v1→v2（7.0-UI-4）：令牌取值整体对齐 graundtech/fluent2_kit（MIT）的官方
+//   Fluent 2 token 系统（lib/src/fluent_models/*），逐值溯源：
+//     颜色   ← FluentColors / FluentDarkColors（neutralForeground/Background/
+//              Stroke + status* 全阶，canvas #F5F5F5/#141414）
+//     品牌   ← theme_data.dart _brandColor ramp（#0F6CBD，dark 取 400 #2A93EE）
+//     圆角   ← FluentCornerRadius small2/medium4/large8/xLarge12
+//     字体   ← MixedFluentTextTheme iOS(SF Pro)：caption1 13/body2 15/body1 17/
+//              title3 20/title2 22/title1 28
+//   深浅适配：dynamicProvider（iOS 13+，部署目标 14.0 安全），业务代码禁止
+//   自行判 traitCollection（v3 起由 ZL2Theme 动态色承担，语义不变）。
 //
 
 #import <UIKit/UIKit.h>
@@ -24,12 +27,12 @@ NS_ASSUME_NONNULL_BEGIN
 
 @interface AmeTheme : NSObject
 
-#pragma mark - Brand（品牌 · _brandColor ramp）
-/// 品牌主色：Light #0F6CBD（ramp 主值）/ Dark #2A93EE（ramp 400）
+#pragma mark - Brand（M3 primary 系）
+/// M3 primary（embermire 动态深浅）
 + (UIColor *)brandPrimary;
-/// 品牌浅底（brandBackgroundTint 对偶，选中态底色）
+/// 选中态底色（M3 secondaryContainer，v2 为 alpha 淡底）
 + (UIColor *)brandTinted;
-/// 品牌色上的文字/图标（恒白）
+/// 品牌色上的文字/图标（M3 onPrimary，恒对比安全）
 + (UIColor *)textOnBrand;
 
 #pragma mark - Background & Surface（FluentColors neutralBackground*）

@@ -1,80 +1,90 @@
 //
 // AmeTheme.m
-// Prisma-Minecraft-iOS-Launcher2 — Fluent 2 令牌层实现（v2 · fluent2_kit 官方取值）
+// Prisma-Minecraft-iOS-Launcher2 — 设计令牌层实现（v3 · M3 承载层）
 //
-// 取值溯源：graundtech/fluent2_kit（MIT）lib/src/fluent_models/fluent_colors.dart
-// / fluent_corner_radius.dart + lib/theme_data.dart（_brandColor ramp 与
-// MixedFluentTextTheme iOS 分支）。API 与 v1 完全兼容，已迁文件零改动。
+// ★ Task354（MD3 设计语言统一，用户指令"全面修改为 md3 样式，避免 ui 设计
+//   语言混杂"）：v2 的 Fluent 2 官方取值（fluent2_kit）整体退役，全部 getter
+//   重指向 ZL2Theme（Material 3 embermire 令牌层）的对应角色——API 与 v1/v2
+//   完全兼容，既有消费面（FluentToast/FluentButton/FluentListCell/欢迎页/
+//   管理页/崩溃视图/游戏内浮层等 20+ 文件）零改动即整面切换 M3 视觉。
+//
+//   语义映射（Fluent → M3）：
+//     brandPrimary→primary          textPrimary→onSurface
+//     brandTinted→secondaryContainer  textSecondary→onSurfaceVariant
+//     textOnBrand→onPrimary           textTertiary→outline
+//     bgPrimary→surface             fillSubtle→surfaceContainerHighest
+//     bgSecondary→surfaceContainerLow fillStrong→surfaceVariant
+//     surfaceCard→surfaceBright（ZL2 cardColor() 同源） divider→outlineVariant
+//     surfaceOverlay→surfaceContainerHigh
+//     statusDanger→error  statusSuccess→success  statusWarning→warning
+//   字阶（M3 刻度）：
+//     fontCaption→labelMedium(12)  fontBody2→bodyMedium(14)  fontBody→bodyLarge(16)
+//     fontButton→labelLarge(14 medium)  fontSubtitle→titleLarge(22)
+//     fontTitle2→titleLarge(22)  fontTitle→headline(28 semibold)
+//   形状（M3 圆角阶）：
+//     radiusS→4  radiusM→8  radiusL→12  radiusXL→16  radiusGlass→28
+//
+// 旧 Fluent 取值档案：git 历史 v2（7.0-UI-4 起至 Task353 止）。
 //
 
 #import "AmeTheme.h"
-
-// 动态色构造助手：light/dark 双值一次成型
-static UIColor *AmeDynamic(uint32_t light, uint32_t dark) {
-    return [UIColor colorWithDynamicProvider:^UIColor *(UITraitCollection *traits) {
-        uint32_t hex = (traits.userInterfaceStyle == UIUserInterfaceStyleDark) ? dark : light;
-        return [UIColor colorWithRed:((hex >> 16) & 0xFF) / 255.0
-                               green:((hex >> 8) & 0xFF) / 255.0
-                                blue:(hex & 0xFF) / 255.0
-                               alpha:1.0];
-    }];
-}
+#import "ZL2Theme.h"
 
 @implementation AmeTheme
 
-#pragma mark - Brand
+#pragma mark - Brand（→ M3 primary 系）
 
-+ (UIColor *)brandPrimary { return AmeDynamic(0x0F6CBD, 0x2A93EE); }
++ (UIColor *)brandPrimary { return [ZL2Theme primary]; }
 
 + (UIColor *)brandTinted {
-    // brandBackgroundTint 对偶：主色低 alpha 淡底
-    return [[AmeTheme brandPrimary] colorWithAlphaComponent:0.12];
+    // 选中态淡底 → M3 secondaryContainer（实色阶，替代 v2 alpha 淡底）
+    return [ZL2Theme secondaryContainer];
 }
 
-+ (UIColor *)textOnBrand { return [UIColor whiteColor]; }
++ (UIColor *)textOnBrand { return [ZL2Theme onPrimary]; }
 
-#pragma mark - Background & Surface
+#pragma mark - Background & Surface（→ M3 surface 容器阶）
 
-+ (UIColor *)bgPrimary      { return AmeDynamic(0xF5F5F5, 0x141414); } // canvas
-+ (UIColor *)bgSecondary    { return AmeDynamic(0xFFFFFF, 0x1F1F1F); } // bg2
-+ (UIColor *)surfaceCard    { return AmeDynamic(0xFFFFFF, 0x292929); } // bg3
-+ (UIColor *)surfaceOverlay { return AmeDynamic(0xFAFAFA, 0x333333); } // bg4
++ (UIColor *)bgPrimary      { return [ZL2Theme surface]; }              // 页面画布
++ (UIColor *)bgSecondary    { return [ZL2Theme surfaceContainerLow]; }  // 次级/内嵌
++ (UIColor *)surfaceCard    { return [ZL2Theme surfaceBright]; }        // 卡面（ZL2 cardColor() 同源）
++ (UIColor *)surfaceOverlay { return [ZL2Theme surfaceContainerHigh]; } // 浮层
 
-#pragma mark - Text
+#pragma mark - Text（→ M3 onSurface 系）
 
-+ (UIColor *)textPrimary   { return AmeDynamic(0x242424, 0xFFFFFF); } // fg1
-+ (UIColor *)textSecondary { return AmeDynamic(0x616161, 0xD6D6D6); } // fg2
-+ (UIColor *)textTertiary  { return AmeDynamic(0x808080, 0xADADAD); } // fg3
++ (UIColor *)textPrimary   { return [ZL2Theme onSurface]; }        // 一级
++ (UIColor *)textSecondary { return [ZL2Theme onSurfaceVariant]; } // 二级
++ (UIColor *)textTertiary  { return [ZL2Theme outline]; }          // 三级
 
-#pragma mark - Fill & Divider
+#pragma mark - Fill & Divider（→ M3 surfaceVariant 系）
 
-+ (UIColor *)fillSubtle { return AmeDynamic(0xF0F0F0, 0x3D3D3D); } // bg5
-+ (UIColor *)fillStrong { return AmeDynamic(0xD1D1D1, 0x5C5C5C); } // bg6
-+ (UIColor *)divider    { return AmeDynamic(0xD1D1D1, 0x4D4D4D); } // stroke1
++ (UIColor *)fillSubtle { return [ZL2Theme surfaceContainerHighest]; }
++ (UIColor *)fillStrong { return [ZL2Theme surfaceVariant]; }
++ (UIColor *)divider    { return [ZL2Theme outlineVariant]; }
 
-#pragma mark - Status
+#pragma mark - Status（→ M3 状态色）
 
-+ (UIColor *)statusDanger  { return AmeDynamic(0xC50F1F, 0xDC626D); }
-+ (UIColor *)statusSuccess { return AmeDynamic(0x107C10, 0x54B054); }
-+ (UIColor *)statusWarning { return AmeDynamic(0xBC4B09, 0xFAA06B); }
++ (UIColor *)statusDanger  { return [ZL2Theme error]; }
++ (UIColor *)statusSuccess { return [ZL2Theme success]; }
++ (UIColor *)statusWarning { return [ZL2Theme warning]; }
 
-#pragma mark - Typography（SF Pro · MixedFluentTextTheme）
+#pragma mark - Typography（→ M3 字阶）
 
-+ (UIFont *)fontCaption  { return [UIFont systemFontOfSize:13.0 weight:UIFontWeightRegular]; }
-+ (UIFont *)fontBody2    { return [UIFont systemFontOfSize:15.0 weight:UIFontWeightRegular]; }
-+ (UIFont *)fontBody     { return [UIFont systemFontOfSize:17.0 weight:UIFontWeightRegular]; }
-+ (UIFont *)fontButton   { return [UIFont systemFontOfSize:17.0 weight:UIFontWeightSemibold]; }
-+ (UIFont *)fontSubtitle { return [UIFont systemFontOfSize:20.0 weight:UIFontWeightRegular]; }
-+ (UIFont *)fontTitle2   { return [UIFont systemFontOfSize:22.0 weight:UIFontWeightSemibold]; }
-+ (UIFont *)fontTitle    { return [UIFont systemFontOfSize:28.0 weight:UIFontWeightBold]; }
++ (UIFont *)fontCaption  { return [ZL2Theme fontLabelMedium]; } // 12 medium
++ (UIFont *)fontBody2    { return [ZL2Theme fontBodyMedium]; }  // 14
++ (UIFont *)fontBody     { return [ZL2Theme fontBodyLarge]; }   // 16
++ (UIFont *)fontButton   { return [ZL2Theme fontLabelLarge]; }  // 14 medium（M3 按钮刻度）
++ (UIFont *)fontSubtitle { return [ZL2Theme fontTitleLarge]; }  // 22
++ (UIFont *)fontTitle2   { return [ZL2Theme fontTitleLarge]; }  // 22
++ (UIFont *)fontTitle    { return [ZL2Theme fontHeadline]; }    // 28 semibold
 
-#pragma mark - Metrics
+#pragma mark - Metrics（→ M3 圆角阶）
 
-+ (CGFloat)radiusS  { return 2.0; }
-+ (CGFloat)radiusM  { return 4.0; }
-+ (CGFloat)radiusL  { return 8.0; }
-+ (CGFloat)radiusXL { return 12.0; }
-+ (CGFloat)radiusGlass { return 24.0; }  ///< Task316：玻璃面板专用（连续曲线由调用方 cornerCurve 承担）
++ (CGFloat)radiusS  { return [ZL2Theme radiusXS]; }  // 4
++ (CGFloat)radiusM  { return [ZL2Theme radiusS]; }   // 8
++ (CGFloat)radiusL  { return [ZL2Theme radiusM]; }   // 12
++ (CGFloat)radiusXL { return [ZL2Theme radiusL]; }   // 16
++ (CGFloat)radiusGlass { return [ZL2Theme radiusXL]; } ///< 28（浮层/玻璃面板；连续曲线由调用方 cornerCurve 承担）
 
 #pragma mark - Environment
 

@@ -28,11 +28,21 @@
 #import "LauncherPreferences.h" // ★ Task250：accentColor()（菜单行符号 tint 跟随主题强调色）
 #import "AmeLiquidGlassView.h"  // ★ Task252：TG LegacyGlassView 配方接管面板玻璃
 #import "SurfaceViewController.h" // ★ Task252：+surface 判定游戏域（快照供料 vs 实况采样）
-#import "AmeTheme.h" // ★ 7.0-UI-3e：Fluent 设计令牌层（浮层底/描边/填充/文字语义化迁移）
+#import "AmeTheme.h" // ★ 7.0-UI-3e：Fluent 设计令牌层（v3 起整体重指向 M3，见 AmeTheme.h）
+#import "ZL2Theme.h"  // ★ Task354：MD3 统一 —— 面板材质/字阶/色彩/形状改 M3 令牌直读
 #import <CoreImage/CoreImage.h>   // ★ Task277：快照磨砂材质化（高斯+饱和度，Apple 材质观感）
 #import <objc/runtime.h>          // ★ Task302：no-mirror 豁免标记（实例流弹窗恒原生）
 
 #pragma mark - 前向声明与工具
+
+// ★ Task354（MD3 设计语言统一，用户指令“全面修改为 md3 样式，避免 ui 设计
+//   语言混杂”）：菜单/弹窗面板材质全面 M3 表面化——TG 液态玻璃（ame252
+//   玻璃管线）/ 快照磨砂（ame244/245 管线）/ 系统材质（blurView）在菜单域
+//   整体退役，面板 = ZL2Theme surfaceContainerHigh 实底 + M3 字阶/色彩/
+//   形状（radiusXL 28）+ elevation 阴影。呈现路由/命中/动画/动作链/输入
+//   镜像全不动；玻璃管线代码保留（背景壁纸磨砂等域仍用），仅菜单域不再
+//   进入（快照抓帧与 8Hz 重抓同步旁路 = 省电）。
+static const BOOL Ame354MD3MenuMaterial = YES;
 
 @interface Ame237MenuActionMirror : NSObject
 @property (nonatomic, strong, nullable) UIAlertAction *orig;
@@ -286,7 +296,7 @@ static UIColor *Ame244SnapshotTint(void) {
         _iconView.contentMode = UIViewContentModeCenter;
         _iconView.userInteractionEnabled = NO;
         _rowLabel = [[UILabel alloc] init];
-        _rowLabel.font = [UIFont systemFontOfSize:16];
+        _rowLabel.font = [ZL2Theme fontBodyLarge]; // ★ Task354：M3 bodyLarge（原 SF 16 regular）
         _rowLabel.textAlignment = NSTextAlignmentLeft;
         _rowLabel.userInteractionEnabled = NO;
         [self addSubview:_iconView];
@@ -305,8 +315,8 @@ static UIColor *Ame244SnapshotTint(void) {
     self.rowLabel.text = title;
     self.rowLabel.textColor = textColor;
     self.rowLabel.font = emphasis
-        ? [UIFont systemFontOfSize:16 weight:UIFontWeightSemibold]
-        : [UIFont systemFontOfSize:16];
+        ? [ZL2Theme fontTitleMedium]   // ★ Task354：M3 titleMedium 16 medium（强调行）
+        : [ZL2Theme fontBodyLarge];    // ★ Task354：M3 bodyLarge 16 regular
 }
 
 - (void)layoutSubviews {
@@ -424,8 +434,8 @@ static UIColor *Ame244SnapshotTint(void) {
     //   两档，统一收敛为 surfaceOverlay 浮层令牌（动态深浅自带）。玻璃风格下
     //   TG 玻璃接管时底色置 nil（见下方分支）；磨砂/快照护栏仍由 blurView/
     //   快照层独立承载可读性，防御面不回退。
-    self.panel.backgroundColor = [AmeTheme surfaceOverlay]; // ★ 7.0-UI-3e：浮层底色令牌（原 Task237/239 防御性半透明实底退役，磨砂/快照护栏仍由 blurView/快照层承载）
-    self.panel.layer.cornerRadius = [AmeTheme radiusGlass]; // ★ 7.0-UI-3e：浮层大圆角令牌（原 26pt 硬编码；blur/快照/描边/阴影路径六处同步换令牌保持裁剪一致）
+    self.panel.backgroundColor = [ZL2Theme surfaceContainerHigh]; // ★ Task354：M3 浮层容器色（原 Fluent surfaceOverlay；MD3 统一，动态深浅）
+    self.panel.layer.cornerRadius = [ZL2Theme radiusXL]; // ★ Task354：M3 大容器圆角 28（原 Fluent radiusGlass 24；MD3 对话框刻度）
     self.panel.layer.cornerCurve = kCACornerCurveContinuous;
     self.panel.layer.shadowColor = [UIColor blackColor].CGColor;
     self.panel.layer.shadowOpacity = 0.32;
@@ -441,18 +451,19 @@ static UIColor *Ame244SnapshotTint(void) {
     //   磨砂（Task237 路径，装机验证可读）。原生风格不经过本组件——中央
     //   路由（ame237_hook_presentViewController）直通旧版系统弹窗。
     UIVisualEffect *ame239_effect = nil;
-    if (LGCIsGlassStyleActive()) {
+    if (!Ame354MD3MenuMaterial && LGCIsGlassStyleActive()) {
         ame239_effect = LGCNativeGlassEffect();
     }
-    if (ame239_effect == nil) {
+    if (ame239_effect == nil && !Ame354MD3MenuMaterial) {
         ame239_effect = [UIBlurEffect effectWithStyle:UIBlurEffectStyleSystemMaterial];
     }
     self.blurView = [[UIVisualEffectView alloc] initWithEffect:ame239_effect];
     self.blurView.userInteractionEnabled = NO;
-    self.blurView.layer.cornerRadius = [AmeTheme radiusGlass]; // 7.0-UI-3e
+    self.blurView.layer.cornerRadius = [ZL2Theme radiusXL]; // ★ Task354（隐藏层，防御保留）
     self.blurView.layer.cornerCurve = kCACornerCurveContinuous;
     self.blurView.layer.masksToBounds = YES;
     [self.panel addSubview:self.blurView];   // index 0：恒在全部内容之下
+    self.blurView.hidden = Ame354MD3MenuMaterial;   // ★ Task354：MD3 实底面板，材质层整体退场（磨砂护栏保留待命）
     // ★ Task243：自绘磨砂层（呈现入口传入的 keyWindow 快照）。
     // ★ Task244（IMG_0379：26.3/27.0.1 弹窗恒纯黑定案）：UIGlassEffect 在
     //   本进程渲染为不透明黑块，把垫在它下面的快照整体盖死——层序改定
@@ -475,7 +486,8 @@ static UIColor *Ame244SnapshotTint(void) {
     //   244/245 快照磨砂（前-252 世代配方，全版本安全）。
     GameSurfaceView *ame252_surface = [SurfaceViewController surface];
     BOOL ame252_overGame = (ame252_surface != nil && ame252_surface.window != nil);
-    BOOL ame252_glassActive = LGCIsGlassStyleActive() &&
+    BOOL ame252_glassActive = !Ame354MD3MenuMaterial &&
+                              LGCIsGlassStyleActive() &&
                               LGCGameSessionGlassAllowed() &&
                               [AmeLiquidGlassView ame252_isSupported];
     if (ame252_glassActive) {
@@ -501,7 +513,7 @@ static UIColor *Ame244SnapshotTint(void) {
             ame252_glassActive = NO;   // 构造失败（理论不可达）→ 旧管线
         }
     }
-    if (!ame252_glassActive && ame244_snapImg != nil) {
+    if (!Ame354MD3MenuMaterial && !ame252_glassActive && ame244_snapImg != nil) {
         // ★ Task245（IMG_0380 用户定案“透视有问题”）：旧摆法 AspectFill
         //   居中裁剪 = 显示的是整屏快照的中心放大裁切，弹窗背后根本不是
         //   这个内容，几何错位的“假透视”。改【窗口对位真透视】：快照按
@@ -599,6 +611,9 @@ static UIColor *Ame244SnapshotTint(void) {
         [self.panel insertSubview:ame245_clip belowSubview:self.blurView];
         self.blurView.hidden = YES;   // 快照成品磨砂上岗，系统材质层退场
     }
+    if (Ame354MD3MenuMaterial) {
+        NSLog(@"[AmeMenu] Task354 menu material: M3 surface (md3 unified, panel=surfaceContainerHigh r=%g, glass/frost pipeline retired in menu domain)", (double)[ZL2Theme radiusXL]);
+    } else {
     NSLog(@"[AmeMenu] Task252 menu material: %@ (style=%@, background=%@)",
           ame252_glassActive ? (self.ame252_glassSnapshotMode ? @"TG liquid glass (snapshot feed)"
                                                               : @"TG liquid glass (live backdrop)")
@@ -606,23 +621,24 @@ static UIColor *Ame244SnapshotTint(void) {
                                      : @"SystemMaterial fallback"),
           LGCIsGlassStyleActive() ? @"glass" : @"native",
           ame244_snapImg != nil ? @"frost-snapshot+tint" : @"material-blur");
+    }
 
     // 内容
     if (self.ame237_title.length > 0) {
         self.titleLabel = [[UILabel alloc] init];
         self.titleLabel.text = self.ame237_title;
-        self.titleLabel.font = [UIFont systemFontOfSize:17 weight:UIFontWeightSemibold];
-        self.titleLabel.textColor = [AmeTheme textPrimary]; // 7.0-UI-3e
-        self.titleLabel.textAlignment = NSTextAlignmentCenter;
+        self.titleLabel.font = [ZL2Theme fontTitleLarge]; // ★ Task354：M3 titleLarge（原 iOS 17 semibold）
+        self.titleLabel.textColor = [ZL2Theme onSurface]; // ★ Task354：M3 onSurface
+        self.titleLabel.textAlignment = NSTextAlignmentLeft; // ★ Task354：MD3 对话框标题起点对齐（原居中）
         self.titleLabel.numberOfLines = 0;
         [self.panel addSubview:self.titleLabel];
     }
     if (self.ame237_message.length > 0) {
         self.messageLabel = [[UILabel alloc] init];
         self.messageLabel.text = self.ame237_message;
-        self.messageLabel.font = [UIFont systemFontOfSize:14 weight:UIFontWeightRegular];
-        self.messageLabel.textColor = [AmeTheme textSecondary]; // 7.0-UI-3e
-        self.messageLabel.textAlignment = NSTextAlignmentCenter;
+        self.messageLabel.font = [ZL2Theme fontBodyMedium]; // ★ Task354：M3 bodyMedium（原 SF 14）
+        self.messageLabel.textColor = [ZL2Theme onSurfaceVariant]; // ★ Task354：M3 次级正文
+        self.messageLabel.textAlignment = NSTextAlignmentLeft; // ★ Task354：MD3 起点对齐
         self.messageLabel.numberOfLines = 0;
         [self.panel addSubview:self.messageLabel];
     }
@@ -632,8 +648,8 @@ static UIColor *Ame244SnapshotTint(void) {
     for (UITextField *src in self.ame237_alertFields) {
         if (![src isKindOfClass:[UITextField class]]) continue;
         UITextField *f = [[UITextField alloc] init];
-        f.font = [UIFont systemFontOfSize:15];
-        f.textColor = [AmeTheme textPrimary]; // 7.0-UI-3e
+        f.font = [ZL2Theme fontBodyLarge]; // ★ Task354：M3 bodyLarge（原 SF 15）
+        f.textColor = [ZL2Theme onSurface]; // ★ Task354：M3 onSurface
         f.placeholder = src.placeholder;
         f.text = src.text;
         f.secureTextEntry = src.secureTextEntry;
@@ -643,10 +659,9 @@ static UIColor *Ame244SnapshotTint(void) {
         f.clearButtonMode = src.clearButtonMode;
         f.returnKeyType = src.returnKeyType;
         f.tag = src.tag;
-        f.backgroundColor = [AmeTheme fillStrong]; // 7.0-UI-3e：输入内衬强填充令牌（原黑白 alpha 0.12/0.06）
-        f.layer.cornerRadius = 10.0;
-        f.layer.borderWidth = 0.5;
-        f.layer.borderColor = [AmeTheme divider].CGColor; // 7.0-UI-3e：描边令牌（原黑白 alpha 0.25/0.12，Fluent 发丝线规格）
+        f.backgroundColor = [ZL2Theme surfaceContainerHighest]; // ★ Task354：M3 填充型输入底（原 Fluent fillStrong）
+        f.layer.cornerRadius = [ZL2Theme radiusS]; // ★ Task354：M3 小件圆角 8（原 10 硬编码）
+        f.layer.borderWidth = 0.0;   // ★ Task354：M3 filled field 无描边（原 0.5pt divider 发丝线）
         f.layer.cornerCurve = kCACornerCurveContinuous;
         UIView *leftPad = [[UIView alloc] initWithFrame:CGRectMake(0, 0, 12, 1)];
         f.leftView = leftPad;
@@ -686,13 +701,13 @@ static UIColor *Ame244SnapshotTint(void) {
                      : @"xmark.circle";
         }
         UIImage *icon = [AmeFloatingMenu symbolImageForName:iconName];
-        UIColor *textColor = (m.style == 2) ? [AmeTheme statusDanger] : [AmeTheme textPrimary]; // 7.0-UI-3e：destructive 红/常规主文字
+        UIColor *textColor = (m.style == 2) ? [ZL2Theme error] : [ZL2Theme onSurface]; // ★ Task354：M3 error/onSurface（原 Fluent statusDanger/textPrimary）
         // ★ Task250（反馈 5：恢复主题强调色适配）：符号 tint 从硬编码
         //   systemBlueColor 改为主题强调色（accentColor()，与设置页/右栏
         //   启动按钮同源）——伪玻璃档全接管后本面板是用户最高频的菜单面，
         //   主题色必须跟随；destructive 红/取消灰语义不变。
-        UIColor *symbolTint = (m.style == 2) ? [AmeTheme statusDanger] // 7.0-UI-3e
-                            : (m.style == 1) ? [AmeTheme textSecondary] // 7.0-UI-3e：取消灰语义
+        UIColor *symbolTint = (m.style == 2) ? [ZL2Theme error] // ★ Task354：M3 error
+                            : (m.style == 1) ? [ZL2Theme onSurfaceVariant] // ★ Task354：M3 次级语义（取消灰）
                             : accentColor();
         [row ame237_configureWithIcon:icon
                                 title:(m.title.length > 0 ? m.title : @"")
@@ -708,7 +723,7 @@ static UIColor *Ame244SnapshotTint(void) {
         [self.rows addObject:row];
         if (idx + 1 < self.ame237_actions.count) {
             UIView *sep = [[UIView alloc] init];
-            sep.backgroundColor = [AmeTheme divider]; // 7.0-UI-3e：发丝分隔线令牌（原黑白 alpha 0.16/0.10）
+            sep.backgroundColor = [ZL2Theme outlineVariant]; // ★ Task354：M3 弱描边分隔（原 Fluent divider）
             sep.userInteractionEnabled = NO;
             [self.rowsScroll addSubview:sep];
             [self.separators addObject:sep];
@@ -719,13 +734,14 @@ static UIColor *Ame244SnapshotTint(void) {
     // 发丝描边覆盖环（最上层；空心底环不遮内容、不参与命中）
     self.borderOverlay = [[UIView alloc] init];
     self.borderOverlay.backgroundColor = [UIColor clearColor];
-    self.borderOverlay.layer.cornerRadius = [AmeTheme radiusGlass]; // 7.0-UI-3e
+    self.borderOverlay.layer.cornerRadius = [ZL2Theme radiusXL]; // ★ Task354（随面板 M3 刻度）
     self.borderOverlay.layer.cornerCurve = kCACornerCurveContinuous;
     self.borderOverlay.layer.borderWidth = 0.75;
-    self.borderOverlay.layer.borderColor = [AmeTheme divider].CGColor; // 7.0-UI-3e：发丝描边环令牌（原黑白 alpha 0.30/0.10）
+    self.borderOverlay.layer.borderColor = [ZL2Theme outlineVariant].CGColor; // ★ Task354（令牌收口；MD3 实底面板下恒隐藏）
     self.borderOverlay.userInteractionEnabled = NO;
-    // ★ Task252：TG 玻璃接管时自带 0.8pt 描边环，旧发丝环退场。
-    self.borderOverlay.hidden = (self.ame252_glass != nil);
+    // ★ Task354：MD3 实底面板无描边环——层级感由 elevation 阴影承担
+    //   （原 Task252 TG 玻璃自带描边/发丝环语义随玻璃管线一并退役）。
+    self.borderOverlay.hidden = YES;
     [self.panel addSubview:self.borderOverlay];
 
     // 入场初始态（viewDidAppear 前不可见——无动画路径在此直接摆正）
@@ -800,7 +816,10 @@ static UIColor *Ame244SnapshotTint(void) {
     //   磨砂原料持续跟上）。逐帧窗口快照会把自家面板拍进去（自噬），
     //   重抓源 = presentingViewController.view（OverFullScreen 下恒在
     //   本组件之下，纯背景内容）。
-    [self ame246_startBackgroundRefresh];
+    //   ★ Task354：MD3 材质零磨砂消费 → 8Hz 重抓旁路（省电）。
+    if (!Ame354MD3MenuMaterial) {
+        [self ame246_startBackgroundRefresh];
+    }
     if (self.mirrorFields.count > 0) {
         dispatch_async(dispatch_get_main_queue(), ^{
             [self.mirrorFields.firstObject becomeFirstResponder];
@@ -1274,9 +1293,11 @@ static UIColor *Ame244SnapshotTint(void) {
     menu.ame237_onDismiss = onDismiss;
     // ★ Task243：present 动画开始前抓帧（此时 presenter 的窗口内容仍是
     //   呈现前的画面，无自噬风险）——重度降采样快照作为面板自绘磨砂。
-    //   抓帧失败（nil）保持面板深色底现状；桌面/普通窗口上系统磨砂
-    //   本就合成，快照叠加观感中性。
-    menu.ame243_snapshotImage = Ame243BlurredKeyWindowSnapshot(presenter.view);
+    //   ★ Task354：MD3 材质下快照零消费（实底面板）→ 抓帧旁路省电；
+    //   非MD3 闸（现恒关）保留原路径。
+    if (!Ame354MD3MenuMaterial) {
+        menu.ame243_snapshotImage = Ame243BlurredKeyWindowSnapshot(presenter.view);
+    }
     // 注：presenter.view 为 nil（理论边缘）时函数内 hostView.window == nil
     // 直接返回 nil，面板走深色底护栏——无需额外兜底分支（类方法内 self
     // 是 Class 不能写 self.view，Task 243 CI r1 实证）。
