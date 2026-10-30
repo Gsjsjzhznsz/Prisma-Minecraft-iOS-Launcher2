@@ -472,14 +472,20 @@ static UIImage *ZL2VersionsSystemImage(NSString *name, NSString *fallback) {
         NSString *versionId = profile[@"lastVersionId"];
         if (![versionId isKindOfClass:[NSString class]]) versionId = nil;
 
+        // ★ Task351：latest 别名占位符不进加载器/MC 版本解析（启动链在线
+        //   解析，信息行留空避免 “MC latest-release” 伪文案）
+        BOOL ame351_alias = [self ame_isLatestAlias:versionId];
+
         // 加载器 / MC 版本：旧 VC 同款双契约（字符串识别 + parseVersionId 反解）
-        NSString *loader = versionId ? [ModLoaderIconHelper detectLoaderFromVersionId:versionId] : nil;
-        NSDictionary *parsed = versionId ? [ModpackExportService parseVersionId:versionId] : @{};
-        NSString *mcVersion = parsed[@"minecraft"] ?: versionId;
+        NSString *loader = (versionId && !ame351_alias)
+            ? [ModLoaderIconHelper detectLoaderFromVersionId:versionId] : nil;
+        NSDictionary *parsed = (versionId && !ame351_alias)
+            ? [ModpackExportService parseVersionId:versionId] : @{};
+        NSString *mcVersion = parsed[@"minecraft"] ?: (ame351_alias ? @"" : versionId);
 
         // 无效版本：versions/<id>/<id>.json 不存在（路径口径 = 旧 VC
         // ame256_scanVersionsForCleanup：GAME_DIR 优先、POJAV_HOME 兜底）
-        BOOL valid = [self ame_isVersionIdValid:versionId];
+        BOOL valid = [self ame_isVersionIdValid:versionId forProfile:profile];
 
         [rows addObject:@{
             @"name": name,
@@ -495,7 +501,22 @@ static UIImage *ZL2VersionsSystemImage(NSString *name, NSString *fallback) {
 }
 
 - (BOOL)ame_isVersionIdValid:(NSString *)versionId {
+    return [self ame_isVersionIdValid:versionId forProfile:nil];
+}
+
+// ★ Task351：latest 别名占位符（MinecraftResourceDownloadTask 启动链在线解析）
+- (BOOL)ame_isLatestAlias:(NSString *)versionId {
+    return [versionId isEqualToString:@"latest-release"] ||
+           [versionId isEqualToString:@"latest-snapshot"] ||
+           [versionId isEqualToString:@"latest"];
+}
+
+- (BOOL)ame_isVersionIdValid:(NSString *)versionId forProfile:(NSDictionary *)profile {
     if (versionId.length == 0) return NO;
+    // ★ Task351：latest 别名占位符恒有效——启动链在线解析为实际版本并按需
+    //   下载，本地 versions/ 按字面查询必 miss = 出厂 (Default) 卡
+    //   “该版本无效”的误判根因。
+    if ([self ame_isLatestAlias:versionId]) return YES;
     // 与旧 VC Task255/Task256 路径口径逐项一致：真机实体在
     // POJAV_GAME_DIR/versions（= instances/<当前实例>/versions），
     // POJAV_HOME/versions 仅旧版布局存在，作降序兜底（双 NULL 防御）。
@@ -508,6 +529,16 @@ static UIImage *ZL2VersionsSystemImage(NSString *name, NSString *fallback) {
         root = [NSString stringWithUTF8String:home];
     }
     if (root.length == 0) return NO;
+    // ★ Task351：profile 自身 gameDir 优先——版本隔离实例的版本实体在自己
+    //   目录，原实现只查当前实例 root，非当前实例即使实体在也必误判。
+    NSString *ame351_gd = [profile isKindOfClass:[NSDictionary class]]
+        ? profile[@"gameDir"] : nil;
+    if ([ame351_gd isKindOfClass:[NSString class]] &&
+        ame351_gd.length > 0 && ![ame351_gd isEqualToString:@"."]) {
+        NSString *ame351_json = [NSString stringWithFormat:
+            @"%@/versions/%@/%@.json", ame351_gd, versionId, versionId];
+        if ([NSFileManager.defaultManager fileExistsAtPath:ame351_json]) return YES;
+    }
     NSString *vdir = [NSString stringWithFormat:@"%@/versions/%@", root, versionId];
     NSString *jsonPath = [vdir stringByAppendingPathComponent:[NSString stringWithFormat:@"%@.json", versionId]];
     if ([NSFileManager.defaultManager fileExistsAtPath:jsonPath]) return YES;
@@ -621,6 +652,7 @@ static UIImage *ZL2VersionsSystemImage(NSString *name, NSString *fallback) {
     NSString *loader = row[@"loader"];
     NSString *mcVersion = row[@"mcVersion"];
     NSString *summary = row[@"summary"];
+    NSString *versionId = row[@"versionId"];
     BOOL valid = [row[@"valid"] boolValue];
     BOOL isSelected = [row[@"isSelected"] boolValue];
 
@@ -718,7 +750,10 @@ static UIImage *ZL2VersionsSystemImage(NSString *name, NSString *fallback) {
         badgeContainer.translatesAutoresizingMaskIntoConstraints = NO;
 
         UILabel *badgeLabel = [[UILabel alloc] init];
-        badgeLabel.text = @"该版本无效";
+        // ★ Task351：versionId 空 = 未选择版本，区别于“选了但实体缺失”
+        badgeLabel.text = (versionId.length == 0)
+            ? localize(@"ame351.instance.no_version", nil)
+            : @"该版本无效";
         badgeLabel.font = [ZL2Theme fontLabelMedium];
         badgeLabel.textColor = [ZL2Theme error];
         badgeLabel.numberOfLines = 1;

@@ -500,6 +500,8 @@ static UIImage *ZL2ShellSystemImage(NSString *name, NSString *fallback) {
 @property(nonatomic, strong) NSLayoutConstraint *ame347_contentLeading; // 内容区前导（宽窄驱动）
 @property(nonatomic, strong) NSLayoutConstraint *ame347_headerLeading; // ★ Task349：大标题前导（让位左钮槽位）
 @property(nonatomic, assign) BOOL ame347_widthClassApplied;           // ★ Task349：首轮宽窄态必派发哨兵
+@property(nonatomic, strong) NSLayoutConstraint *ame350_headerWrapLeading; // ★ Task350：内容区头前导（宽屏 = 窗格宽，头不再横穿窗格）
+@property(nonatomic, assign) BOOL ame350_layoutLogged;                // ★ Task350：首帧布局自证哨兵
 @end
 
 @implementation ZL2ShellViewController
@@ -908,6 +910,12 @@ static UIImage *ZL2ShellSystemImage(NSString *name, NSString *fallback) {
         [self.paneTitle.trailingAnchor constraintLessThanOrEqualToAnchor:self.paneWrap.trailingAnchor constant:-16.0],
 
         [self.paneScroll.topAnchor constraintEqualToAnchor:self.paneTitle.bottomAnchor constant:8.0],
+        // ★ Task350：滚动区底部外部锚定——原实现仅 top/leading/trailing，frame
+        //   高度全靠内容推导（self-sizing scroll view）在装机 iPadOS 27 上塌缩，
+        //   clipsToBounds 默认 YES → 六项主导航全灭而 footer（外部锚定完整）
+        //   正常 = IMG_0524 实锤“窗格在、中间空”。锚到分隔线后滚动区高度
+        //   完全由外部约束确定，不再依赖内容推导。
+        [self.paneScroll.bottomAnchor constraintEqualToAnchor:ame347_sep.topAnchor constant:-8.0],
         [self.paneScroll.leadingAnchor constraintEqualToAnchor:self.paneWrap.leadingAnchor],
         [self.paneScroll.trailingAnchor constraintEqualToAnchor:self.paneWrap.trailingAnchor],
 
@@ -930,7 +938,12 @@ static UIImage *ZL2ShellSystemImage(NSString *name, NSString *fallback) {
         // 与 topBar 同款 safeArea 延伸语义：头底 = safeArea 顶 + 52
         [self.contentHeader.bottomAnchor constraintEqualToAnchor:self.view.safeAreaLayoutGuide.topAnchor
                                                         constant:ZL2ShellHeaderHeight],
-        [self.contentHeader.leadingAnchor constraintEqualToAnchor:self.view.leadingAnchor],
+        // ★ Task350：头前导可变——宽屏 = 窗格宽（280，与内容区对齐，大标题/
+        //   胶囊只在内容区绘制；原实现恒全宽，大标题画在窗格上与 paneTitle
+        //   同位重叠 = IMG_0524 “ZalithLauncher” 顶在窗格头上的实锤）；
+        //   窄屏 = 0（汉堡/返回驻头左，抽屉语义不变）。
+        self.ame350_headerWrapLeading = [self.contentHeader.leadingAnchor constraintEqualToAnchor:self.view.leadingAnchor],
+        self.ame350_headerWrapLeading,
         [self.contentHeader.trailingAnchor constraintEqualToAnchor:self.view.trailingAnchor],
 
         [self.hamburgerButton.leadingAnchor constraintEqualToAnchor:self.contentHeader.safeAreaLayoutGuide.leadingAnchor constant:8.0],
@@ -972,6 +985,9 @@ static UIImage *ZL2ShellSystemImage(NSString *name, NSString *fallback) {
     //   全灭：无窗格/无顶栏 rail/无汉堡，用户无路可走）。构建期即落 280pt
     //   + 首轮无条件派发（ame347_widthClassApplied 哨兵）双保险。
     self.ame347_contentLeading.constant = ZL2ShellPaneWidth;
+    // ★ Task350：宽屏几何构建期即为真值（与 contentLeading 同款纪律）——
+    //   头前导同步落窗格宽，首绘即无重叠。
+    self.ame350_headerWrapLeading.constant = ZL2ShellPaneWidth;
     [self ame347_applyDrawerGeometryAnimated:NO];
     [self.view setNeedsLayout];
 }
@@ -980,6 +996,8 @@ static UIImage *ZL2ShellSystemImage(NSString *name, NSString *fallback) {
 - (void)ame347_applyWidthClass:(BOOL)regular {
     self.ame347_regular = regular;
     self.ame347_contentLeading.constant = regular ? ZL2ShellPaneWidth : 0.0;
+    // ★ Task350：内容区头前导与内容区同语义派发（宽屏避窗格 / 窄屏全宽）
+    self.ame350_headerWrapLeading.constant = regular ? ZL2ShellPaneWidth : 0.0;
     if (!regular && self.ame347_drawerOpen) {
         self.ame347_drawerOpen = NO;   // 跨阈值收敛抽屉（旋转/分屏）
     }
@@ -1028,6 +1046,17 @@ static UIImage *ZL2ShellSystemImage(NSString *name, NSString *fallback) {
     if (!self.ame347_widthClassApplied || ame347_nowRegular != self.ame347_regular) {
         self.ame347_widthClassApplied = YES;
         [self ame347_applyWidthClass:ame347_nowRegular];
+    }
+    // ★ Task350：首帧布局自证——窗格滚动区/主导航列 frame 与行数落日志，
+    //   “窗格在、中间空”一类布局塌缩从此装机日志直接可判读（六项应在列时
+    //   arranged=6、paneStack 高 ≈ 6×36+5×2=226pt；frame 高异常即约束面问题）。
+    if (!self.ame350_layoutLogged) {
+        self.ame350_layoutLogged = YES;
+        NSLog(@"[Ame350] nav shell first layout -- paneScroll=%@ paneStack=%@ arranged=%lu (nav=%d regular=%d drawerOpen=%d)",
+              NSStringFromCGRect(self.paneScroll.frame),
+              NSStringFromCGRect(self.paneStack.frame),
+              (unsigned long)self.paneStack.arrangedSubviews.count,
+              self.ame347_navMode, self.ame347_regular, self.ame347_drawerOpen);
     }
 }
 

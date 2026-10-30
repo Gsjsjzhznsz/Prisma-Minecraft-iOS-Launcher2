@@ -348,6 +348,66 @@ static PLProfiles* current;
                 }
             }
         }
+        // ★ Task351：版本推断级联——旧版备份实例目录普遍无自带
+        //   launcher_profiles.json（装机 latestlog 实锤：两 modrinth 实例
+        //   ParseJSON 三连 miss，收编后 lastVersionId 空缺 → 主页/版本页
+        //   全卡"该版本无效"红字 = "导入的数据不完整"观感主源）。回读失败
+        //   后按证据硬度级联：② 实例 versions/ 本地实体（<vid>/<vid>.json
+        //   真实文件，多候选取版本 JSON mtime 最新——整合包实例常见
+        //   vanilla+loader 双实体，loader JSON 通常最后写入）→ ③
+        //   modrinth.index.json dependencies.minecraft（Modrinth 整合包
+        //   MC 版本，vanilla 版本 id 即 MC 号，启动链可在线解析安装）→
+        //   ④ instance.json（其他启动器同族实例元数据 lastVersionId/
+        //   gameVersion）。来源留痕 [Ame351] 日志供装机判读。
+        if (![ame349_p[@"lastVersionId"] isKindOfClass:[NSString class]]) {
+            NSString *ame351_vid = nil;
+            NSString *ame351_src = nil;
+            NSString *ame351_versionsDir = [ame349_path stringByAppendingPathComponent:@"versions"];
+            NSDate *ame351_best = nil;
+            for (NSString *ame351_v in [ame349_fm contentsOfDirectoryAtPath:ame351_versionsDir error:nil] ?: @[]) {
+                if (ame351_v.length == 0 || [ame351_v hasPrefix:@"."]) continue;
+                NSString *ame351_json = [[ame351_versionsDir
+                    stringByAppendingPathComponent:ame351_v]
+                    stringByAppendingPathComponent:[NSString stringWithFormat:@"%@.json", ame351_v]];
+                if (![ame349_fm fileExistsAtPath:ame351_json]) continue;
+                NSDate *ame351_mtime = [ame349_fm attributesOfItemAtPath:ame351_json error:nil][NSFileModificationDate];
+                if (!ame351_best || [ame351_mtime compare:ame351_best] == NSOrderedDescending) {
+                    ame351_best = ame351_mtime;
+                    ame351_vid = ame351_v;
+                    ame351_src = @"versions/";
+                }
+            }
+            if (!ame351_vid) {
+                NSDictionary *ame351_mindex = parseJSONFromFile(
+                    [ame349_path stringByAppendingPathComponent:@"modrinth.index.json"]);
+                id ame351_deps = ([ame351_mindex isKindOfClass:[NSDictionary class]]
+                    ? ame351_mindex[@"dependencies"] : nil);
+                id ame351_mc = ([ame351_deps isKindOfClass:[NSDictionary class]]
+                    ? ame351_deps[@"minecraft"] : nil);
+                if ([ame351_mc isKindOfClass:[NSString class]] &&
+                    ((NSString *)ame351_mc).length > 0) {
+                    ame351_vid = ame351_mc;
+                    ame351_src = @"modrinth.index.json";
+                }
+            }
+            if (!ame351_vid) {
+                NSDictionary *ame351_meta = parseJSONFromFile(
+                    [ame349_path stringByAppendingPathComponent:@"instance.json"]);
+                if ([ame351_meta isKindOfClass:[NSDictionary class]]) {
+                    id ame351_lv = ame351_meta[@"lastVersionId"] ?: ame351_meta[@"gameVersion"];
+                    if ([ame351_lv isKindOfClass:[NSString class]] &&
+                        ((NSString *)ame351_lv).length > 0) {
+                        ame351_vid = ame351_lv;
+                        ame351_src = @"instance.json";
+                    }
+                }
+            }
+            if (ame351_vid) {
+                ame349_p[@"lastVersionId"] = ame351_vid;
+                NSLog(@"[Ame351] reconcile: version inferred for %@ -> %@ (source=%@)",
+                      ame349_name, ame351_vid, ame351_src);
+            }
+        }
         // gameDir 绝对路径锚定（Task316 扁平化判例）；type/created 与 Task302
         // 预登记同族。
         ame349_p[@"gameDir"] = ame349_path;

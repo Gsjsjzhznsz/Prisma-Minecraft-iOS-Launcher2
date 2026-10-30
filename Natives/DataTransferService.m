@@ -736,6 +736,20 @@ typedef NS_ENUM(NSInteger, Ame229PickerMode) {
             } @catch (NSException *ame349_e) {
                 NSLog(@"[DataTransfer] Task349: instance reconcile exception (%@)", ame349_e);
             }
+            // ★ Task351：游离存档深扫归位——Task345 清点只覆盖 instances/<n>/saves，
+            //   旧布局备份（≤345）的游戏数据常恢复到 instances/ 之外（POJAV_HOME
+            //   根/saves、Library/Application Support/minecraft/saves 等 legacy 位），
+            //   清点恒 0 = “导入的数据不完整”观感第三源。清点前执行：整目录归位
+            //   到当前实例 saves/（同名后缀防覆盖），Task230/345/232 全链即见真值。
+            NSUInteger ame351_rescued = 0;
+            @try {
+                NSString *ame351_gd = [getPrefObject(@"general.game_directory") isKindOfClass:NSString.class]
+                    ? (NSString *)getPrefObject(@"general.game_directory") : @"default";
+                if (ame351_gd.length == 0) ame351_gd = @"default";
+                ame351_rescued = [self ame351_rescueStraySavesToInstance:ame351_gd logTag:@"import"];
+            } @catch (NSException *ame351_e) {
+                NSLog(@"[DataTransfer] Task351: stray saves rescue exception (%@)", ame351_e);
+            }
             dispatch_async(dispatch_get_main_queue(), ^{
                 [[NSNotificationCenter defaultCenter] postNotificationName:@"AppLanguageChanged"
                                                                     object:[getPrefObject(@"general.app_language") isKindOfClass:NSString.class]
@@ -782,6 +796,12 @@ typedef NS_ENUM(NSInteger, Ame229PickerMode) {
                 ame230_summaryExtras = [ame230_summaryExtras stringByAppendingFormat:@"\n%@",
                     [NSString stringWithFormat:localize(@"ame345.import.instance_saves", nil),
                      [ame345_saveMap componentsJoinedByString:@" · "]]];
+            }
+            // ★ Task351：旧布局游离存档归位结果（与存档分布行相邻呈现）
+            if (ame351_rescued > 0) {
+                ame230_summaryExtras = [ame230_summaryExtras stringByAppendingFormat:@"\n%@",
+                    [NSString stringWithFormat:localize(@"ame351.import.saves_rescued", nil),
+                     (unsigned long)ame351_rescued]];
             }
             // ★ Task345：脉柱校验②——备份未带回启动器设置时，摘要直接说明
             // （否则 PLPreferences 默认值初始化静默吃掉设置，用户只见“全丢了”）。
@@ -2101,6 +2121,91 @@ static void ame224_dosDateTime(NSDate *date, uint16_t *dosTime, uint16_t *dosDat
             }];
         });
     });
+}
+
+#pragma mark - ★ Task351：游离存档深扫归位（旧布局备份导入收尾）
+
+// instances/ 子树外的 saves/<world>/level.dat（1.0 旧布局备份的游戏数据常
+// 恢复到 POJAV_HOME 根/saves、Library/Application Support/minecraft/saves
+// 等 legacy 位——Task345 清点只覆盖 instances/<n>/saves，游离存档恒 0）。
+// 整目录 move 归位到指定实例 saves/（同名追加 -N 防覆盖），返回归位世界数。
+- (NSUInteger)ame351_rescueStraySavesToInstance:(NSString *)instanceName
+                                         logTag:(NSString *)tag {
+    const char *ame351_home = getenv("POJAV_HOME");
+    if (!ame351_home || instanceName.length == 0) return 0;
+    NSString *ame351_root = [NSString stringWithUTF8String:ame351_home];
+    if (ame351_root.length == 0) return 0;
+    NSFileManager *ame351_fm = [NSFileManager defaultManager];
+    NSString *ame351_instancesDir = [ame351_root stringByAppendingPathComponent:@"instances"];
+    NSString *ame351_instPrefix = [ame351_instancesDir stringByAppendingString:@"/"];
+
+    // 目标实例必须真实存在（防误建目录）
+    NSDictionary *ame351_tattrs = [ame351_fm attributesOfItemAtPath:
+        [ame351_instancesDir stringByAppendingPathComponent:instanceName] error:nil];
+    if (![ame351_tattrs[NSFileType] isEqualToString:NSFileTypeDirectory]) {
+        NSLog(@"[DataTransfer] Task351(%@): rescue target instance '%@' absent -- skip",
+              tag ?: @"?", instanceName);
+        return 0;
+    }
+
+    NSMutableArray<NSString *> *ame351_strayWorlds = [NSMutableArray array];
+    NSDirectoryEnumerator *ame351_e = [ame351_fm enumeratorAtPath:ame351_root];
+    NSString *ame351_rel = nil;
+    while ((ame351_rel = [ame351_e nextObject])) {
+        // 运行期缓存不进扫（与导出跳过口径一致）
+        if ([ame351_rel hasPrefix:@"Library/Caches/"]) { [ame351_e skipDescendants]; continue; }
+        // instances/ 内的 saves 属实例本体（含嵌套 .minecraft/saves），不碰不下钻
+        if ([ame351_rel hasPrefix:ame351_instPrefix] &&
+            [ame351_rel.lastPathComponent isEqualToString:@"saves"]) {
+            [ame351_e skipDescendants];
+            continue;
+        }
+        if (![ame351_rel.lastPathComponent isEqualToString:@"saves"]) continue;
+        NSString *ame351_savesAbs = [ame351_root stringByAppendingPathComponent:ame351_rel];
+        for (NSString *ame351_w in [ame351_fm contentsOfDirectoryAtPath:ame351_savesAbs error:nil] ?: @[]) {
+            if ([ame351_w hasPrefix:@"."]) continue;
+            NSString *ame351_wAbs = [ame351_savesAbs stringByAppendingPathComponent:ame351_w];
+            BOOL ame351_isDir = NO;
+            if (![ame351_fm fileExistsAtPath:ame351_wAbs isDirectory:&ame351_isDir] || !ame351_isDir) continue;
+            if (![ame351_fm fileExistsAtPath:
+                    [ame351_wAbs stringByAppendingPathComponent:@"level.dat"]]) continue;
+            [ame351_strayWorlds addObject:ame351_wAbs];
+        }
+        [ame351_e skipDescendants];   // saves 内部不再下钻（世界内无嵌套 saves）
+    }
+
+    if (ame351_strayWorlds.count == 0) {
+        NSLog(@"[DataTransfer] Task351(%@): stray saves scan clean (instances/ external)",
+              tag ?: @"?");
+        return 0;
+    }
+
+    NSString *ame351_destSaves = [[ame351_instancesDir
+        stringByAppendingPathComponent:instanceName] stringByAppendingPathComponent:@"saves"];
+    NSUInteger ame351_rescued = 0;
+    for (NSString *ame351_wAbs in ame351_strayWorlds) {
+        [ame351_fm createDirectoryAtPath:ame351_destSaves
+             withIntermediateDirectories:YES attributes:nil error:nil];
+        NSString *ame351_dest = [ame351_destSaves stringByAppendingPathComponent:ame351_wAbs.lastPathComponent];
+        if ([ame351_fm fileExistsAtPath:ame351_dest]) {
+            NSUInteger ame351_n = 1;
+            while ([ame351_fm fileExistsAtPath:[NSString stringWithFormat:@"%@-%lu",
+                    ame351_dest, (unsigned long)ame351_n]]) ame351_n++;
+            ame351_dest = [NSString stringWithFormat:@"%@-%lu", ame351_dest, (unsigned long)ame351_n];
+        }
+        NSError *ame351_err = nil;
+        if ([ame351_fm moveItemAtPath:ame351_wAbs toPath:ame351_dest error:&ame351_err]) {
+            ame351_rescued++;
+            NSLog(@"[DataTransfer] Task351(%@): stray world rescued '%@' -> %@",
+                  tag ?: @"?", ame351_wAbs.lastPathComponent, ame351_dest);
+        } else {
+            NSLog(@"[DataTransfer] Task351(%@): stray world move failed (%@): %@",
+                  tag ?: @"?", ame351_wAbs, ame351_err);
+        }
+    }
+    NSLog(@"[DataTransfer] Task351(%@): stray saves rescue done -- worlds=%lu dest=instances/%@/saves",
+          tag ?: @"?", (unsigned long)ame351_rescued, instanceName);
+    return ame351_rescued;
 }
 
 @end

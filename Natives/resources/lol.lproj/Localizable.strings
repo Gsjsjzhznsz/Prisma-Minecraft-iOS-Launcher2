@@ -392,3 +392,6 @@
 "ame347.import.spine_v1" = "Launcher settings restored from legacy backup preferences (launcher_preferences.plist)";
 "ame347.import.spine_kept" = "Launcher preferences in backup are empty/corrupt -- current settings kept";
 "ame348.import.spine_absent" = "No launcher settings data in this backup (the older version that exported it did not include settings -- not an import failure) -- current settings kept, files and instances restored";
+
+"ame351.instance.no_version" = "No version selected";
+"ame351.import.saves_rescued" = "Rescued %lu world(s) from the backup's legacy layout into the current instance";

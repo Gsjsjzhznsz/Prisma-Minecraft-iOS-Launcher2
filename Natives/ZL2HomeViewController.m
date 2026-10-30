@@ -329,7 +329,13 @@ static UIImage *ZL2HomeSizedImage(NSString *name, NSString *fallback, CGFloat po
 
     // 信息行：MC 版本/加载器小字；无效版本 = error 色提示（版本页同语义）
     if (!valid) {
-        self.infoLabel.text = @"该版本无效";
+        // ★ Task351：versionId 空 = 未选择版本（收编推断也未命中），区别于
+        //   “选了但实体缺失”的无效态——引导语义不同（前者去安装版本）
+        if (versionId.length == 0) {
+            self.infoLabel.text = localize(@"ame351.instance.no_version", nil);
+        } else {
+            self.infoLabel.text = @"该版本无效";
+        }
         self.infoLabel.textColor = [ZL2Theme error];
     } else {
         if (mcVersion.length > 0 && loader.length > 0) {
@@ -1139,12 +1145,19 @@ static UIImage *ZL2HomeSizedImage(NSString *name, NSString *fallback, CGFloat po
         NSString *versionId = profile[@"lastVersionId"];
         if (![versionId isKindOfClass:[NSString class]]) versionId = nil;
 
-        // 加载器 / MC 版本：版本页同款双契约（字符串识别 + parseVersionId 反解）
-        NSString *loader = versionId ? [ModLoaderIconHelper detectLoaderFromVersionId:versionId] : nil;
-        NSDictionary *parsed = versionId ? [ModpackExportService parseVersionId:versionId] : @{};
-        NSString *mcVersion = parsed[@"minecraft"] ?: versionId;
+        // ★ Task351：latest 别名占位符（latest-release/latest-snapshot/latest）
+        //   不进加载器/MC 版本解析——启动链在线解析，信息行留空避免
+        //   “MC latest-release” 伪文案
+        BOOL ame351_alias = [self ame_isLatestAlias:versionId];
 
-        BOOL valid = [self ame_isVersionIdValid:versionId];
+        // 加载器 / MC 版本：版本页同款双契约（字符串识别 + parseVersionId 反解）
+        NSString *loader = (versionId && !ame351_alias)
+            ? [ModLoaderIconHelper detectLoaderFromVersionId:versionId] : nil;
+        NSDictionary *parsed = (versionId && !ame351_alias)
+            ? [ModpackExportService parseVersionId:versionId] : @{};
+        NSString *mcVersion = parsed[@"minecraft"] ?: (ame351_alias ? @"" : versionId);
+
+        BOOL valid = [self ame_isVersionIdValid:versionId forProfile:profile];
 
         [rows addObject:@{
             @"name": name,
@@ -1166,7 +1179,23 @@ static UIImage *ZL2HomeSizedImage(NSString *name, NSString *fallback, CGFloat po
 }
 
 - (BOOL)ame_isVersionIdValid:(NSString *)versionId {
+    return [self ame_isVersionIdValid:versionId forProfile:nil];
+}
+
+// ★ Task351：latest 别名占位符（MinecraftResourceDownloadTask 启动链在线
+//   解析，本地 versions/ 按字面查询必 miss）
+- (BOOL)ame_isLatestAlias:(NSString *)versionId {
+    return [versionId isEqualToString:@"latest-release"] ||
+           [versionId isEqualToString:@"latest-snapshot"] ||
+           [versionId isEqualToString:@"latest"];
+}
+
+- (BOOL)ame_isVersionIdValid:(NSString *)versionId forProfile:(NSDictionary *)profile {
     if (versionId.length == 0) return NO;
+    // ★ Task351：latest 别名占位符恒有效——启动链在线解析为实际版本并按需
+    //   下载，本地 versions/ 按字面查询必 miss = 出厂 (Default) 卡
+    //   "该版本无效"的误判根因。
+    if ([self ame_isLatestAlias:versionId]) return YES;
     // 与版本页 Task255/Task256 路径口径逐项一致：真机实体在
     // POJAV_GAME_DIR/versions（= instances/<当前实例>/versions），
     // POJAV_HOME/versions 仅旧版布局存在，作降序兜底（双 NULL 防御）。
@@ -1179,6 +1208,17 @@ static UIImage *ZL2HomeSizedImage(NSString *name, NSString *fallback, CGFloat po
         root = [NSString stringWithUTF8String:home];
     }
     if (root.length == 0) return NO;
+    // ★ Task351：profile 自身 gameDir 优先——版本隔离实例的版本实体在自己
+    //   目录（instances/<n>/versions），原实现只查当前实例 root，非当前实例
+    //   即使实体在也必误判（Task349 收编条目 gameDir 绝对路径锚定正好可消费）。
+    NSString *ame351_gd = [profile isKindOfClass:[NSDictionary class]]
+        ? profile[@"gameDir"] : nil;
+    if ([ame351_gd isKindOfClass:[NSString class]] &&
+        ame351_gd.length > 0 && ![ame351_gd isEqualToString:@"."]) {
+        NSString *ame351_json = [NSString stringWithFormat:
+            @"%@/versions/%@/%@.json", ame351_gd, versionId, versionId];
+        if ([NSFileManager.defaultManager fileExistsAtPath:ame351_json]) return YES;
+    }
     NSString *vdir = [NSString stringWithFormat:@"%@/versions/%@", root, versionId];
     NSString *jsonPath = [vdir stringByAppendingPathComponent:[NSString stringWithFormat:@"%@.json", versionId]];
     if ([NSFileManager.defaultManager fileExistsAtPath:jsonPath]) return YES;
