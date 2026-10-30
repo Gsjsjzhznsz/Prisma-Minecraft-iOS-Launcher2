@@ -1669,8 +1669,11 @@ static UIImage *ZL2HomeSizedImage(NSString *name, NSString *fallback, CGFloat po
     }
 
     NSString *versionId = PLProfiles.current.profiles[selectedProfile][@"lastVersionId"];
-    if (!versionId) {
-        [self showAlert:localize(@"i18n_str_43", nil)];
+    // ★ Task352：空/缺失版本 = "未选择版本"（收编与 Task352 修复遍也未命中
+    //   的如实态，引导语义：去版本/下载页选择或安装），不再弹误导性的
+    //   "无法获取版本信息"（str_43 语义是版本存在但获取失败）
+    if (![versionId isKindOfClass:[NSString class]] || versionId.length == 0) {
+        [self showAlert:localize(@"ame351.instance.no_version", nil)];
         return;
     }
 

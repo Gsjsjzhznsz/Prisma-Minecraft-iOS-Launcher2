@@ -359,53 +359,16 @@ static PLProfiles* current;
         //   MC 版本，vanilla 版本 id 即 MC 号，启动链可在线解析安装）→
         //   ④ instance.json（其他启动器同族实例元数据 lastVersionId/
         //   gameVersion）。来源留痕 [Ame351] 日志供装机判读。
+        // ★ Task352：级联收编为公共方法 ame352_inferVersionForDir:homeRoot:fm:
+        //   （孤儿收编与存量空版本修复遍共用；1.0 旧布局根位 versions/ 兜底一并纳入）
         if (![ame349_p[@"lastVersionId"] isKindOfClass:[NSString class]]) {
-            NSString *ame351_vid = nil;
-            NSString *ame351_src = nil;
-            NSString *ame351_versionsDir = [ame349_path stringByAppendingPathComponent:@"versions"];
-            NSDate *ame351_best = nil;
-            for (NSString *ame351_v in [ame349_fm contentsOfDirectoryAtPath:ame351_versionsDir error:nil] ?: @[]) {
-                if (ame351_v.length == 0 || [ame351_v hasPrefix:@"."]) continue;
-                NSString *ame351_json = [[ame351_versionsDir
-                    stringByAppendingPathComponent:ame351_v]
-                    stringByAppendingPathComponent:[NSString stringWithFormat:@"%@.json", ame351_v]];
-                if (![ame349_fm fileExistsAtPath:ame351_json]) continue;
-                NSDate *ame351_mtime = [ame349_fm attributesOfItemAtPath:ame351_json error:nil][NSFileModificationDate];
-                if (!ame351_best || [ame351_mtime compare:ame351_best] == NSOrderedDescending) {
-                    ame351_best = ame351_mtime;
-                    ame351_vid = ame351_v;
-                    ame351_src = @"versions/";
-                }
-            }
-            if (!ame351_vid) {
-                NSDictionary *ame351_mindex = parseJSONFromFile(
-                    [ame349_path stringByAppendingPathComponent:@"modrinth.index.json"]);
-                id ame351_deps = ([ame351_mindex isKindOfClass:[NSDictionary class]]
-                    ? ame351_mindex[@"dependencies"] : nil);
-                id ame351_mc = ([ame351_deps isKindOfClass:[NSDictionary class]]
-                    ? ame351_deps[@"minecraft"] : nil);
-                if ([ame351_mc isKindOfClass:[NSString class]] &&
-                    ((NSString *)ame351_mc).length > 0) {
-                    ame351_vid = ame351_mc;
-                    ame351_src = @"modrinth.index.json";
-                }
-            }
-            if (!ame351_vid) {
-                NSDictionary *ame351_meta = parseJSONFromFile(
-                    [ame349_path stringByAppendingPathComponent:@"instance.json"]);
-                if ([ame351_meta isKindOfClass:[NSDictionary class]]) {
-                    id ame351_lv = ame351_meta[@"lastVersionId"] ?: ame351_meta[@"gameVersion"];
-                    if ([ame351_lv isKindOfClass:[NSString class]] &&
-                        ((NSString *)ame351_lv).length > 0) {
-                        ame351_vid = ame351_lv;
-                        ame351_src = @"instance.json";
-                    }
-                }
-            }
-            if (ame351_vid) {
-                ame349_p[@"lastVersionId"] = ame351_vid;
+            NSDictionary *ame352_hit = [self ame352_inferVersionForDir:ame349_path
+                                                              homeRoot:ame349_homeStr
+                                                                    fm:ame349_fm];
+            if (ame352_hit) {
+                ame349_p[@"lastVersionId"] = ame352_hit[@"vid"];
                 NSLog(@"[Ame351] reconcile: version inferred for %@ -> %@ (source=%@)",
-                      ame349_name, ame351_vid, ame351_src);
+                      ame349_name, ame352_hit[@"vid"], ame352_hit[@"src"]);
             }
         }
         // gameDir 绝对路径锚定（Task316 扁平化判例）；type/created 与 Task302
@@ -455,6 +418,53 @@ static PLProfiles* current;
         }];
     }
 
+    // ---- ★ Task352 存量空版本修复遍（孤儿闸缺口根修）----
+    // 病历（装机 286eb30 第十轮 latestlog）：Task351 推断级联只挂在孤儿收编
+    // 循环内——导入期 Task227 post-import merge 先登记实例 → reconcile 时
+    // orphans=0 → 级联从未执行（装机日志 [Ame351] infer 零行实锤）→ 收编实例
+    // lastVersionId 永久空缺 → 主页启动弹"无法获取版本信息"。修法：对注册表
+    // 内所有 lastVersionId 空缺的 profile（含现役实例）重跑同一级联：实例
+    // gameDir 优先、instances/<键名> 兜底目录定位，根位 versions/ 最后兜底；
+    // 命中即回填 + [Ame352] 逐例留痕。幂等：非空即权威跳过，重复 reconcile 不复写。
+    __block NSUInteger ame352_repaired = 0;
+    __block NSMutableArray<NSString *> *ame352_repairedNames = [NSMutableArray array];
+    [ame349_mgr applyChanges:^(NSMutableDictionary<NSString *, id> *profiles) {
+        for (NSString *ame352_key in profiles.allKeys) {
+            NSDictionary *ame352_p = profiles[ame352_key];
+            if (![ame352_p isKindOfClass:[NSDictionary class]]) continue;
+            id ame352_lv = ame352_p[@"lastVersionId"];
+            if ([ame352_lv isKindOfClass:[NSString class]] &&
+                ((NSString *)ame352_lv).length > 0) continue; // 非空即权威，不动
+            NSString *ame352_dir = nil;
+            id ame352_gd = ame352_p[@"gameDir"];
+            if ([ame352_gd isKindOfClass:[NSString class]] &&
+                ((NSString *)ame352_gd).length > 0) {
+                BOOL ame352_isDir = NO;
+                if ([ame349_fm fileExistsAtPath:ame352_gd isDirectory:&ame352_isDir] &&
+                    ame352_isDir) ame352_dir = ame352_gd;
+            }
+            if (!ame352_dir) {
+                NSString *ame352_byName = [ame349_instancesDir
+                    stringByAppendingPathComponent:ame352_key];
+                BOOL ame352_isDir2 = NO;
+                if ([ame349_fm fileExistsAtPath:ame352_byName isDirectory:&ame352_isDir2] &&
+                    ame352_isDir2) ame352_dir = ame352_byName;
+            }
+            if (!ame352_dir) continue;
+            NSDictionary *ame352_hit = [PLProfiles ame352_inferVersionForDir:ame352_dir
+                                                                    homeRoot:ame349_homeStr
+                                                                          fm:ame349_fm];
+            if (!ame352_hit) continue;
+            NSMutableDictionary *ame352_upd = [ame352_p mutableCopy];
+            ame352_upd[@"lastVersionId"] = ame352_hit[@"vid"];
+            profiles[ame352_key] = ame352_upd;
+            ame352_repaired++;
+            [ame352_repairedNames addObject:ame352_key];
+            NSLog(@"[Ame352] reconcile(%@): version repaired for %@ -> %@ (source=%@)",
+                  tag ?: @"?", ame352_key, ame352_hit[@"vid"], ame352_hit[@"src"]);
+        }
+    }];
+
     NSUInteger ame349_registered = ame349_newProfiles.count + ame349_legacyMerged;
     NSLog(@"[Ame349] reconcile(%@): scanned=%lu registered=%lu (orphans=%lu legacyMerged=%lu names=%@)",
           tag ?: @"?",
@@ -464,13 +474,96 @@ static PLProfiles* current;
           (unsigned long)ame349_legacyMerged,
           [ame349_newProfiles valueForKey:@"name"]);
 
-    if (ame349_registered > 0) {
+    NSLog(@"[Ame352] reconcile(%@): empty-version repair pass done (repaired=%lu%@)",
+          tag ?: @"?", (unsigned long)ame352_repaired,
+          ame352_repairedNames.count > 0
+              ? [NSString stringWithFormat:@": %@", [ame352_repairedNames componentsJoinedByString:@", "]]
+              : @"");
+    if (ame349_registered > 0 || ame352_repaired > 0) {
         // 导入线程/启动期双挂点统一主队列投递（AmePluginRuntime 消费方刷新）
         dispatch_async(dispatch_get_main_queue(), ^{
             [[NSNotificationCenter defaultCenter] postNotificationName:@"ReloadProfileList" object:nil];
         });
     }
     return ame349_registered;
+}
+
+#pragma mark - ★ Task352 版本推断级联公共体（孤儿收编 + 存量修复遍共用）
+
+// 按证据硬度级联推断实例的 lastVersionId（不落盘，只出证据）：
+// ① <dir>/versions/<vid>/<vid>.json 真实实体（多候选取版本 JSON mtime 最新
+//    ——整合包实例常见 vanilla+loader 双实体，loader JSON 通常最后写入）；
+// ② <dir>/modrinth.index.json dependencies.minecraft（Modrinth 整合包 MC
+//    版本，vanilla 版本 id 即 MC 号，启动链可在线解析安装）；
+// ③ <dir>/instance.json lastVersionId/gameVersion（其他启动器同族实例元数据）；
+// ④ <homeRoot>/versions/ 根位实体（1.0 旧布局：版本集全局存放，实例目录
+//    无任何版本证据时的最后兜底，source=versions/(legacy-root) 显式留痕）。
+// 命中返回 @{@"vid": id, @"src": 来源}；全空返回 nil（调用方保持空缺如实呈现）。
++ (NSDictionary *)ame352_inferVersionForDir:(NSString *)dir
+                                   homeRoot:(NSString *)homeRoot
+                                         fm:(NSFileManager *)fm {
+    if (dir.length == 0 || !fm) return nil;
+    NSString *ame352_vid = nil;
+    NSString *ame352_src = nil;
+    NSDate *ame352_best = nil;
+    NSString *ame352_versionsDir = [dir stringByAppendingPathComponent:@"versions"];
+    for (NSString *ame352_v in [fm contentsOfDirectoryAtPath:ame352_versionsDir error:nil] ?: @[]) {
+        if (ame352_v.length == 0 || [ame352_v hasPrefix:@"."]) continue;
+        NSString *ame352_json = [[ame352_versionsDir
+            stringByAppendingPathComponent:ame352_v]
+            stringByAppendingPathComponent:[NSString stringWithFormat:@"%@.json", ame352_v]];
+        if (![fm fileExistsAtPath:ame352_json]) continue;
+        NSDate *ame352_mtime = [fm attributesOfItemAtPath:ame352_json error:nil][NSFileModificationDate];
+        if (!ame352_best || [ame352_mtime compare:ame352_best] == NSOrderedDescending) {
+            ame352_best = ame352_mtime;
+            ame352_vid = ame352_v;
+            ame352_src = @"versions/";
+        }
+    }
+    if (!ame352_vid) {
+        NSDictionary *ame352_mindex = parseJSONFromFile(
+            [dir stringByAppendingPathComponent:@"modrinth.index.json"]);
+        id ame352_deps = ([ame352_mindex isKindOfClass:[NSDictionary class]]
+            ? ame352_mindex[@"dependencies"] : nil);
+        id ame352_mc = ([ame352_deps isKindOfClass:[NSDictionary class]]
+            ? ame352_deps[@"minecraft"] : nil);
+        if ([ame352_mc isKindOfClass:[NSString class]] &&
+            ((NSString *)ame352_mc).length > 0) {
+            ame352_vid = ame352_mc;
+            ame352_src = @"modrinth.index.json";
+        }
+    }
+    if (!ame352_vid) {
+        NSDictionary *ame352_meta = parseJSONFromFile(
+            [dir stringByAppendingPathComponent:@"instance.json"]);
+        if ([ame352_meta isKindOfClass:[NSDictionary class]]) {
+            id ame352_lv = ame352_meta[@"lastVersionId"] ?: ame352_meta[@"gameVersion"];
+            if ([ame352_lv isKindOfClass:[NSString class]] &&
+                ((NSString *)ame352_lv).length > 0) {
+                ame352_vid = ame352_lv;
+                ame352_src = @"instance.json";
+            }
+        }
+    }
+    if (!ame352_vid && homeRoot.length > 0) {
+        NSString *ame352_rootVersions = [homeRoot stringByAppendingPathComponent:@"versions"];
+        NSDate *ame352_rootBest = nil;
+        for (NSString *ame352_v in [fm contentsOfDirectoryAtPath:ame352_rootVersions error:nil] ?: @[]) {
+            if (ame352_v.length == 0 || [ame352_v hasPrefix:@"."]) continue;
+            NSString *ame352_json = [[ame352_rootVersions
+                stringByAppendingPathComponent:ame352_v]
+                stringByAppendingPathComponent:[NSString stringWithFormat:@"%@.json", ame352_v]];
+            if (![fm fileExistsAtPath:ame352_json]) continue;
+            NSDate *ame352_mtime = [fm attributesOfItemAtPath:ame352_json error:nil][NSFileModificationDate];
+            if (!ame352_rootBest || [ame352_mtime compare:ame352_rootBest] == NSOrderedDescending) {
+                ame352_rootBest = ame352_mtime;
+                ame352_vid = ame352_v;
+                ame352_src = @"versions/(legacy-root)";
+            }
+        }
+    }
+    if (!ame352_vid) return nil;
+    return @{@"vid": ame352_vid, @"src": ame352_src};
 }
 
 #pragma mark - 服务器地址（FCL 风格：启动后自动加入服务器）
