@@ -4505,3 +4505,19 @@ Stage Summary:
 - 两线全交付：①iPad NavigationView 左窗格主导航六项（主页/下载/版本/账户/联机/AI）从"窗格在、中间空"恢复整列可见（滚动区高度外部锚定不依赖内容推导），内容区大标题/任务胶囊从横穿窗格收正到内容区（paneTitle 与大标题不再同位重叠）——Fluent NavigationView 排版首次完整成形；②导入完整性三根——收编实例版本三级推断（versions/ 实体 → modrinth.index.json → instance.json）、latest 别名与 gameDir 判定双误判根修（(Default) 与隔离实例不再冤枉红牌）、旧布局游离存档深扫归位（有就归位进清点与摘要，没有则摘要维持诚实口径）。
 - 装机验证锚点：①重启启动器：日志 `[Ame350] nav shell first layout -- paneScroll=... paneStack=... arranged=6 (nav=1 regular=1 drawerOpen=0)`，iPad 左窗格六项可见可点，大标题"ZalithLauncher"在内容区头（不再压窗格头）；②重导入同一 1.0 备份：日志 `[Ame351] reconcile: version inferred for modrinth_xxx -> <版本> (source=versions/ 或 modrinth.index.json)`，实例卡显示 MC 版本且不再红牌（versions/ 有实体即可直接启动）；(Default) 卡显示"MC 最新正式版"语义的绿牌（latest-release 判定正名）；③若备份带旧布局存档：日志 `[DataTransfer] Task351(import): stray world rescued '<世界名>' -> ...` + 摘要行"已从备份旧布局归位 N 个存档世界"，存档分布行同步非零；④若备份确实无存档：`Task351(import): stray saves scan clean`——清点为 0 是事实而非导入故障。
 - 遗留诚实声明：①收编实例若实例目录无 versions/ 实体且无 modrinth/instance 元数据，卡面将显示"未选择版本"（error 色）——这是备份内确实没有版本数据的如实呈现，用户经下载页安装版本后即恢复；②1.0 备份的设置数据物理缺席（Task348 结论）不变，本轮不动；③fluent-ui 插件侧（JS）本轮零改动，插件仓 v2.3.0 沿用。
+
+---
+
+## Task 350/351-ci——CI 闭环（run 98/83 failure → r1 286eb30 → run 99/84 一轮终绿）
+
+日期：2026-10-30
+
+Work Log:
+- 【积压推送】Task350/351 双提交（a651084 代码 + 40271a9 worklog）此前仅存二代仓库本地 main 从未推送——远端停 31345e2，用户设备无新 CI 产物可装 = 第九轮复诉后仍无感的直接原因；本轮凭新 token 推送 31345e2..40271a9 并手动 workflow_dispatch（本仓三 workflow 均 dispatch-only，push 不触发；dev+smoke 双跑惯例）。
+- 【run 98/83 failure 双实锤同一根因】ZL2HomeViewController.m:334 use of undeclared identifier 'versionId'——ame_configureWithRow 行模型键注释链含 versionId 但提取漏声明（Task351"未选择版本"分支首次真实编译即炸；本地门禁全绿不含全量编译，smoke 才是编译闸）。
+- 【r1 286eb30】ame_configureWithRow 补 NSString *versionId = row[@"versionId"]（1164 行行构造恒写该键，空值语义安全）；重调度 run 99（smoke）/84（dev）一轮双绿。
+- 【产物】com.prisma-devs.prisma-1.0.0-ios.ipa / -trollstore.tipa 各 ~225MB + AngelAuraAmethyst.dSYM 7.1MB 全在位（run 84 artifact，本地 download/ 按 286eb30 归档）。
+
+Stage Summary:
+- Task 350/351 正式交付可装机：新 IPA（286eb30）就绪；装机锚点不变（[Ame350] nav shell first layout arranged=6 / [Ame351] reconcile: version inferred ... source=... / [DataTransfer] Task351 stray world rescued '<世界名>' / 摘要行 ame351.import.saves_rescued）。
+- 教训沉淀：①本地门禁（task139/240/248/250/191/verify219）≠ 编译通过，代码提交后必须 dispatch smoke 验证编译再报交付；②CI dispatch-only 的仓库，"推送成功"≠"构建开始"，dispatch+轮询是交付闭环的一部分。
