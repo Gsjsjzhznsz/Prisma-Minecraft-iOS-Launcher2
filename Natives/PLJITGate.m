@@ -25,12 +25,33 @@
 // 进程内单实例语义下 static 等价：第一轮超时静默重拉，第二轮才弹重试框）
 static BOOL gPL323JITAutoRetried = NO;
 
+// ★ Task355（一代议题 #20 根修）：门禁单飞（single-flight）护栏。
+//   病历（#20 装机 crash.txt）：等待环期间门禁被二次进入（下载完成自动续链
+//   与手动启动链并发，或完成回调重入），两套等待环/双“等待 JIT”弹窗/双
+//   后台断言并行（心跳日志每 10s 成对出现），JIT 开启后双 handler 二次
+//   进 JVM——用户侧表现即 "startgame -> don't loading game" 永久等待，
+//   最终只能菜单里 force-close 杀进程（latestlog 终局 exit(0) 实锤）。
+//   语义：等待在飞时，后续进入一律视为重复链——留痕后走 onAbandon 恢复
+//   启动器交互态，不产生第二套等待。清位时机：主等待完成块与重挂完成块
+//   入口处先清位再分支，保证 Task226 自动重拉 / Task169 手动重试的合法
+//   再进入不被误拦；快速路径（JIT 已开/跳过等待）不置位。全程主队列访问
+//   （入口与完成块均 main），无锁。
+static BOOL gPL355GateInFlight = NO;
+
 @implementation PLJITGate
 
 + (void)invokeAfterJITEnabledWithHandler:(void (^)(void))handler
                                   hostVC:(UIViewController *)hostVC
                                onAbandon:(void (^)(void))onAbandon
                                  onStage:(void (^)(NSString *))onStage {
+    // ★ Task355：单飞护栏（见 gPL355GateInFlight 注释）。置位点在下方等待
+    //   环入口（快速路径不置位不挡道）；完成块入口先清位再分支。
+    if (gPL355GateInFlight) {
+        NSLog(@"[JIT] [Gate] Task355: duplicate gate entry while a JIT wait is already in flight -- suppressing and abandoning this chain");
+        if (onAbandon) onAbandon();
+        return;
+    }
+
     [[UIApplication sharedApplication] sendAction:@selector(resignFirstResponder) to:nil from:nil forEvent:nil];
 
     // ★ Task297-ci（run#914 编译热修）：等待环取消语义双通道的两个 __block 位
@@ -216,6 +237,9 @@ static BOOL gPL323JITAutoRetried = NO;
         }
     }
 
+    // ★ Task355：从这里起进入等待环（hasTrollStoreJIT / enabler 分支都会落到
+    //   此），置位单飞标记；完成块统一清位。
+    gPL355GateInFlight = YES;
     if (onStage) onStage(localize(@"i18n_str_436", nil));
 
     // Task267：等待期可取消弹窗（120s 心跳 10s；取消/超时语义见下）
@@ -256,6 +280,7 @@ static BOOL gPL323JITAutoRetried = NO;
         // 主队列上永不执行的主治——见 utils.h ame185_dispatchToMainSelfHealing）。
         ame185_dispatchToMainSelfHealing(^{
             NSLog(@"[JIT] [Gate] Task183 wait-completed block entered on main (ok=%d)", ok);
+            gPL355GateInFlight = NO;   // ★ Task355：先清位再分支（重试再进入合法）
             if (ame172_bgt != UIBackgroundTaskInvalid) {
                 [UIApplication.sharedApplication endBackgroundTask:ame172_bgt];
                 ame172_bgt = UIBackgroundTaskInvalid;
@@ -326,7 +351,14 @@ static BOOL gPL323JITAutoRetried = NO;
     UIAlertController *retry = [UIAlertController alertControllerWithTitle:localize(@"i18n_str_437", nil)
                                                                    message:localize(@"ame189.jit.timeout_msg", nil)
                                                             preferredStyle:UIAlertControllerStyleAlert];
-    [retry addAction:[UIAlertAction actionWithTitle:localize(@"resman.common.cancel", nil) style:UIAlertActionStyleCancel handler:nil]];
+    [retry addAction:[UIAlertAction actionWithTitle:localize(@"resman.common.cancel", nil) style:UIAlertActionStyleCancel handler:^(UIAlertAction * _Nonnull action) {
+        // ★ Task355（#20 配套）：超时弹窗取消 = 放弃本次启动——恢复启动器
+        //   交互态。旧实现 handler:nil：取消后启动链交互态悬挂（启动钮不可
+        //   用/等待残留），用户只能杀 App 重开——与 #20 装机 latestlog 终局
+        //   force-close 同款病历。
+        NSLog(@"[JIT] [Gate] Task355: JIT timeout alert cancelled -- abandoning launch");
+        if (onAbandon) onAbandon();
+    }]];
     [retry addAction:[UIAlertAction actionWithTitle:localize(@"ame189.jit.retry", nil) style:UIAlertActionStyleDefault handler:^(UIAlertAction * _Nonnull action) {
         [self invokeAfterJITEnabledWithHandler:handler hostVC:hostVC onAbandon:onAbandon onStage:onStage];
     }]];
@@ -345,6 +377,9 @@ static BOOL gPL323JITAutoRetried = NO;
                                 hostVC:(UIViewController *)hostVC
                              onAbandon:(void (^)(void))onAbandon
                                onStage:(void (^)(NSString *))onStage {
+    // ★ Task355：重挂链同样占单飞位（主等待完成块已清位，此处重占防在飞
+    //   窗口内重复链插入）；完成块入口清位。
+    gPL355GateInFlight = YES;
     if (onStage) onStage(localize(@"i18n_str_436", nil));
     // Task267：重挂等待同样可取消（同主等待语义）。
     __block BOOL ame267_cancelled = NO;
@@ -403,6 +438,7 @@ static BOOL gPL323JITAutoRetried = NO;
         BOOL ok = ame169_waitForJITCondition(^{ return (BOOL)(ame267_cancelled || JIT26IsLikelyDebuggerKeepAttached()); }, 120.0, @"JIT26 debugger attach");
         // Task185：自愈式派发（同主等待路径）。
         ame185_dispatchToMainSelfHealing(^{
+            gPL355GateInFlight = NO;   // ★ Task355：先清位再分支（重试再进入合法）
             if (ame172_bgt != UIBackgroundTaskInvalid) {
                 [UIApplication.sharedApplication endBackgroundTask:ame172_bgt];
                 ame172_bgt = UIBackgroundTaskInvalid;

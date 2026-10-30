@@ -4650,7 +4650,15 @@ static BOOL ame87_mcVersionRequiresTextureBuffer(NSString *mcVersionId) {
 }
 
 - (BOOL)prefersPointerLocked {
-    return GCMouse.mice.count > 0 && (isGrabbing || virtualMouseEnabled);
+    // ★ Task355（一代议题 #16 根修）：硬件鼠标在场即锁定系统指针。
+    //   旧条件 (isGrabbing || virtualMouseEnabled) 下，GCMouse 已连接但未抓取
+    //   （主菜单/暂停/聊天等非抓取态）时 iOS 系统指针点持续悬浮在游戏画面上
+    //   （议题 #16 装机视频实锤，iPhone 11 + 蓝牙鼠标键鼠套装）。锁定后
+    //   movedHandler 相对增量照常经 ACTION_MOVE_MOTION 驱动游戏虚拟光标
+    //   （含菜单态，桌面同款语义）；GCMouse 连接/断开通知处已有
+    //   setNeedsUpdateOfPrefersPointerLocked 重评估。启动器界面（本 VC 不在
+    //   焦点链）不受影响，指针在启动器里照常可见可用。
+    return GCMouse.mice.count > 0;
 }
 
 - (void)registerMouseCallbacks:(GCMouse *)mouse {
@@ -5013,7 +5021,19 @@ static NSMapTable<ControlButton *, UIColor *> *s_ame261_modLatchColors = nil;
             }
         } else if (keycode > 0) {
             // Task179：修饰键 toggle 判定（在 nativeSendKey 之前）。
-            if (AME176_IS_MOD_KEY(keycode)) {
+            // ★ Task355（一代议题 #21 根修）：轻点锁存尊重按钮"开关形"设置。
+            //   控制编辑器保存恒写入 isToggle（CustomControlsViewController
+            //   switchToggleable 保存路径 properties[@"isToggle"]=@(switch.isOn)）
+            //   ——显式 false = 用户要常规按住，旧代码却对全部修饰键无条件
+            //   锁存（议题 #21 实锤：Alt/LeftShift 自定义按钮 toggle 关了仍
+            //   轻点锁存）。口径：isToggle 键显式存在 → 以按钮为准（false=
+            //   常规按住，DOWN/UP 直通不锁存）；键缺省（出厂"保持 SHIFT/
+            //   保持 CTRL"布局与存量自定义布局均无此键）→ 维持 Task179
+            //   锁存语义，存量潜行玩法零回归。
+            id ame355_toggleProp = sender.properties[@"isToggle"];
+            BOOL ame355_latchEnabled =
+                (ame355_toggleProp == nil) ? YES : [ame355_toggleProp boolValue];
+            if (ame355_latchEnabled && AME176_IS_MOD_KEY(keycode)) {
                 if (held) {
                     // DOWN：记录按压起点（供 UP 时区分轻点/长按）。
                     s_ame176_modDownTime[@(keycode)] = @(CFAbsoluteTimeGetCurrent());

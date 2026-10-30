@@ -2919,6 +2919,24 @@ int launchJVM(NSString *accountId, id launchTarget, int width, int height, int m
         if (!graphicsApi || graphicsApi.length == 0) {
             graphicsApi = @"default";
         }
+        // ★ Task355（一代议题 #17 根修）：prefer_vulkan × 非 MoltenVK 渲染器双占用闸。
+        //   病历（#17：libmetallum 渲染器 + prefer_vulkan → error -1 游戏起不来）：
+        //   MC 26.2+ 的 prefer_vulkan 走 LWJGL Vulkan，Metal 设备由 MoltenVK 实例
+        //   托管；而 metallum/mithril/MobileGL(DirectVulkan) 等 GL 翻译层同样自持
+        //   Vulkan-on-Metal 设备——两个 Vulkan 实例抢同一 CAMetalLayer，初始化期
+        //   即 error -1。代码自证（SurfaceViewController Task166 注释）：真 Vulkan
+        //   路径 = prefer_vulkan 且 renderer=libMoltenVK.dylib。此处把非法组合钳回
+        //   default（MC 走 GL 路径，渲染器语义零变化），toast 明示 + 日志留档；
+        //   MoltenVK 渲染器原样放行。实例级 profile 值不改写（只在启动出口钳）。
+        if ([graphicsApi isEqualToString:@"prefer_vulkan"]
+            && ![renderer isEqualToString:@ RENDERER_NAME_VULKAN]) {
+            NSLog(@"[JavaLauncher] Task355: graphicsApi=prefer_vulkan is only valid with the %@ renderer (active=%@) -- clamped to default (issue #17: dual Vulkan-on-Metal ownership = error -1)",
+                  @ RENDERER_NAME_VULKAN, renderer);
+            dispatch_async(dispatch_get_main_queue(), ^{
+                [NMToast showMessage:@"Vulkan API 仅支持 MoltenVK 渲染器（其余渲染器会双占用 Metal 设备导致 error -1），本次启动已回退默认图形 API。\nVulkan API requires the MoltenVK renderer (dual Vulkan-on-Metal ownership = error -1); fell back to the default graphics API."];
+            });
+            graphicsApi = @"default";
+        }
         setenv("AMETHYST_GRAPHICS_API", graphicsApi.UTF8String, 1);
         NSLog(@"[JavaLauncher] GRAPHICS_API is set to %@\n", graphicsApi);
 
@@ -3189,13 +3207,42 @@ int launchJVM(NSString *accountId, id launchTarget, int width, int height, int m
         }
     }
     if (!validateVirtualMemorySpace(allocmem)) {
-        UIKit_returnToSplitView();
-        if (getEntitlementValue(@"com.apple.developer.kernel.increased-memory-limit")) {
-            showDialog(localize(@"Error", nil), @"Insufficient contiguous virtual memory space. Lower memory allocation and try again.");
-        } else {
-            showDialog(localize(@"Error", nil), @"Insufficient contiguous virtual memory space. Increased Memory Limit entitlement is missing, please add it via GetMoreRam app.");
+        // ★ Task355（一代议题 #19 根修之二）：VA 预检失败不再硬拒启——向下探测
+        //   最大可预留堆，取最大可行档继续启动。
+        //   病历（#19，iPad Pro M5 + Impactor 内存扩展已开）：分配 8000MB 点启动
+        //   永远停在主页（validateVirtualMemorySpace 的 8GB 连续 VA mmap 直接
+        //   失败 → return 1），用户必须手动逐档降到位才起得来。结构性原因：
+        //   扩展权限只加 increased-memory-limit（Jetsam 物理上限抬升）不加
+        //   extended-virtual-addressing（VA 空间维持 ~4GB 档）时，>VA 档位的
+        //   分配值预检必败，而报错话术与"扩展已开启"自相矛盾。修法：自
+        //   allocmem 起按 512MB 步进向下试探 mmap，取最大可行档（≥1024MB）
+        //   继续启动 + toast 明示实际生效值（复用 ame189.utils.mem_clamped，
+        //   零新增 i18n 键）；连 1024MB 都不可预留 = 结构性不可启动，维持原
+        //   拒启 + 对话框。物理侧安全网不受影响——ame141 的 Task173 钳制先行，
+        //   此处只救"VA 预留不足导致的拒启"。
+        int ame355_try = allocmem;
+        int ame355_ok = 0;
+        while (ame355_try >= 1024) {
+            if (validateVirtualMemorySpace(ame355_try)) { ame355_ok = ame355_try; break; }
+            ame355_try -= 512;
         }
-        return 1;
+        if (ame355_ok >= 1024) {
+            NSLog(@"[JavaLauncher] Task355: VA probe %dMB failed -- proceeding with largest reservable heap %dMB (issue #19)", allocmem, ame355_ok);
+            dispatch_async(dispatch_get_main_queue(), ^{
+                [NMToast showMessage:[NSString stringWithFormat:
+                    localize(@"ame189.utils.mem_clamped", nil),
+                    allocmem, ame355_ok, allocmem, ame355_ok]];
+            });
+            allocmem = ame355_ok;
+        } else {
+            UIKit_returnToSplitView();
+            if (getEntitlementValue(@"com.apple.developer.kernel.increased-memory-limit")) {
+                showDialog(localize(@"Error", nil), @"Insufficient contiguous virtual memory space. Lower memory allocation and try again.");
+            } else {
+                showDialog(localize(@"Error", nil), @"Insufficient contiguous virtual memory space. Increased Memory Limit entitlement is missing, please add it via GetMoreRam app.");
+            }
+            return 1;
+        }
     }
 
     int margc = -1;

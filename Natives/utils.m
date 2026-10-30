@@ -1136,8 +1136,6 @@ int ame173_safeHeapCeilingMB(void) {
         uint64_t avail = os_proc_available_memory();
         if (avail > 0) {
             int availMB = (int)(avail >> 20);
-            // 剩余可用 − 1.2GB 原生预留（JVM 非堆 + 渲染面 + 系统开销）
-            // = 可安全承诺的 -Xmx。
             // Task223 上游同步（upstream 862f8b48d [fix/1024-floor]）：权威读数
             // 路径不再做 1024 下限。iPhone X（3GB，extended VA）实测：
             // available=1807MB -> 安全堆顶 607MB，旧代码把 607 强抬到 1024，
@@ -1146,9 +1144,32 @@ int ame173_safeHeapCeilingMB(void) {
             // 断在字体加载 = SIGKILL 特征）。本 fork 用户主力 ≥4GB 时下限
             // 无副作用，但 3GB 设备上它把"必死的 SIGKILL"换成"可控的 GC 抖动"。
             // 权威路径宁可要小堆：堆小只是慢，超顶是死。
-            ceilingMB = availMB - 1200;
-            NSLog(@"[Task173] safe heap ceiling: os_proc_available_memory=%dMB -> Xmx ceiling %dMB (native reserve 1200MB, no floor on authoritative path)",
-                  availMB, ceilingMB);
+            //
+            // ★ Task355（一代议题 #19 根修之一）：口径从"瞬时可用"换"进程上限"。
+            //   os_proc_available_memory() = jetsam 上限 − 当前 phys_footprint，
+            //   随启动器自身足迹增长与系统压力持续缩水——同一台机器冷启动读数
+            //   高、跑一阵子读数低，钳出来的堆顶跟着漂。上限 = available +
+            //   当前 phys_footprint（TASK_VM_INFO，mach/mach.h 已引入）=
+            //   jetsam 限额的稳定口径，与调用时机无关；increased-memory-limit
+            //   扩展权限的抬升照实反映，无权限包维持系统默认限额。
+            //   天花板语义不变：上限 − 1.2GB 原生预留 = 可安全承诺的 -Xmx。
+            int64_t ame355_footMB = -1;
+            task_vm_info_data_t ame355_vmInfo;
+            mach_msg_type_number_t ame355_vmCount = TASK_VM_INFO_COUNT;
+            if (task_info(mach_task_self(), TASK_VM_INFO,
+                          (task_info_t)&ame355_vmInfo, &ame355_vmCount) == KERN_SUCCESS) {
+                ame355_footMB = (int64_t)(ame355_vmInfo.phys_footprint >> 20);
+            }
+            if (ame355_footMB >= 0) {
+                int ame355_limitMB = availMB + (int)ame355_footMB;
+                ceilingMB = ame355_limitMB - 1200;
+                NSLog(@"[Task355] safe heap ceiling: jetsam limit=%dMB (available=%dMB + phys_footprint=%lldMB) -> Xmx ceiling %dMB (native reserve 1200MB, no floor on authoritative path)",
+                      ame355_limitMB, availMB, ame355_footMB, ceilingMB);
+            } else {
+                ceilingMB = availMB - 1200;
+                NSLog(@"[Task173] safe heap ceiling: os_proc_available_memory=%dMB -> Xmx ceiling %dMB (task_info unavailable, legacy transient reading; native reserve 1200MB)",
+                      availMB, ceilingMB);
+            }
         }
     }
     if (ceilingMB <= 0) {
