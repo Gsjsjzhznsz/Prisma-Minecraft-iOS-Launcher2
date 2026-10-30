@@ -56,22 +56,22 @@ amem_code = strip_code(amem)
 ameh = read("Natives/AmeTheme.h")
 
 # ══ A 菜单/弹窗面板 MD3 材质化 ═══════════════════════════════
-check('A1 MD3 材质闸常量在位（Task354 语义注释 + static const BOOL）',
-      "static const BOOL Ame354MD3MenuMaterial = YES;" in menu_code
-      and "MD3 设计语言统一" in menu)
+check('A1 材质闸常量在位（★ Task360 玻璃档恢复：Ame360GlassMenuMaterial = YES）',
+      "static const BOOL Ame360GlassMenuMaterial = YES;" in menu_code
+      and "Task360" in menu)
 
 check('A2 面板 M3 实底 + 大容器圆角（surfaceContainerHigh + radiusXL）',
       "self.panel.backgroundColor = [ZL2Theme surfaceContainerHigh];" in menu
       and "self.panel.layer.cornerRadius = [ZL2Theme radiusXL];" in menu)
 
-check('A3 三条玻璃/磨砂管线菜单域全闸（blurView 效果选择/TG 玻璃/快照磨砂分支）',
-      "if (!Ame354MD3MenuMaterial && LGCIsGlassStyleActive()) {" in menu_code
-      and "BOOL ame252_glassActive = !Ame354MD3MenuMaterial &&" in menu_code
-      and "if (!Ame354MD3MenuMaterial && !ame252_glassActive && ame244_snapImg != nil) {" in menu_code)
+check('A3 三条玻璃/磨砂管线菜单域重新上岗（★ Task360：blurView 效果选择/TG 玻璃/快照磨砂分支）',
+      "if (Ame360GlassMenuMaterial && LGCIsGlassStyleActive()) {" in menu_code
+      and "BOOL ame252_glassActive = Ame360GlassMenuMaterial &&" in menu_code
+      and "if (Ame360GlassMenuMaterial && !ame252_glassActive && ame244_snapImg != nil) {" in menu_code)
 
-check('A4 blurView 退场 + 描边环退役（hidden 常驻）',
-      "self.blurView.hidden = Ame354MD3MenuMaterial;" in menu_code
-      and "self.borderOverlay.hidden = YES;" in menu_code)
+check('A4 blurView/描边环随玻璃档归队（hidden = !Ame360GlassMenuMaterial）',
+      "self.blurView.hidden = !Ame360GlassMenuMaterial;" in menu_code
+      and "self.borderOverlay.hidden = !Ame360GlassMenuMaterial;" in menu_code)
 
 check('A5 M3 字阶落位（title=fontTitleLarge / message=fontBodyMedium / 输入=bodyLarge / 行=bodyLarge+titleMedium）',
       "self.titleLabel.font = [ZL2Theme fontTitleLarge];" in menu
@@ -92,8 +92,8 @@ check('A7 MD3 对齐语义（标题/正文起点对齐 + 输入框无描边 + ra
       and "f.layer.borderWidth = 0.0;" in menu
       and "f.layer.cornerRadius = [ZL2Theme radiusS];" in menu)
 
-check('A8 [Ame354] 材质日志锚（M3 surface unified 可 grep）',
-      '"[AmeMenu] Task354 menu material: M3 surface (md3 unified' in menu)
+check('A8 [Ame356] 材质日志锚（pseudo-liquid-glass restored 可 grep）',
+      '"[AmeMenu] Task360 menu material: pseudo-liquid-glass restored' in menu)
 
 # ══ B AmeTheme v3 M3 承载层 ═════════════════════════════════
 check('B1 色彩 17 getter 全部重指向 ZL2Theme（无 Fluent AmeDynamic 残留取值）',
@@ -119,19 +119,19 @@ check('B4 .h 契约更新（v3 M3 承载层声明 + 旧 Fluent 取值档案留�
       "v3 · M3 承载层" in ameh and "Task354" in ameh and "fluent2_kit" in ameh)
 
 # ══ C 省电旁路 + 结构护栏 ═══════════════════════════════════
-check('C1 快照抓帧 + 8Hz 重抓 MD3 下旁路',
-      "if (!Ame354MD3MenuMaterial) {\n        menu.ame243_snapshotImage" in menu
-      and "if (!Ame354MD3MenuMaterial) {\n        [self ame246_startBackgroundRefresh];" in menu)
+check('C1 快照抓帧 + 8Hz 重抓玻璃档恢复（★ Task360 旁路退役）',
+      "if (Ame360GlassMenuMaterial) {\n        menu.ame243_snapshotImage" in menu
+      and "if (Ame360GlassMenuMaterial) {\n        [self ame246_startBackgroundRefresh];" in menu)
 
 check('C2 呈现/命中/动作链未动（present 镜像 + rowTapped + dimTapped 锚仍在）',
       "ame237_rowTapped:" in menu_code and "ame237_dimTapped" in menu_code
       and 'presentViewController:menu animated:NO' in menu_code)
 
 # ══ S 反向探针（病灶变体注入比对，零仓内触碰） ═════════════
-check('S-A1 摘除 MD3 材质闸 → 变体可检出',
-      "static const BOOL Ame354MD3MenuMaterial = YES;" in menu
-      and "static const BOOL Ame354MD3MenuMaterial = YES;"
-          not in menu.replace("static const BOOL Ame354MD3MenuMaterial = YES;", ""))
+check('S-A1 摘除玻璃材质闸 → 变体可检出',
+      "static const BOOL Ame360GlassMenuMaterial = YES;" in menu
+      and "static const BOOL Ame360GlassMenuMaterial = YES;"
+          not in menu.replace("static const BOOL Ame360GlassMenuMaterial = YES;", ""))
 check('S-A2 面板底色回退 Fluent 值 → 变体可检出',
       "self.panel.backgroundColor = [ZL2Theme surfaceContainerHigh];" in menu
       and "self.panel.backgroundColor = [ZL2Theme surfaceContainerHigh];"
@@ -139,11 +139,11 @@ check('S-A2 面板底色回退 Fluent 值 → 变体可检出',
 check('S-B1 AmeTheme 回落 Fluent 硬编码 → 变体可检出',
       "AmeDynamic(" not in amem_code
       and "AmeDynamic(" not in amem_code.replace("return [ZL2Theme ", "return AmeDynamic(0x0,".replace("AmeDynamic(0x0,", "")))
-check('S-C1 玻璃分支闸摘除（TG 玻璃在菜单域复燃路径）→ 变体可检出',
-      "BOOL ame252_glassActive = !Ame354MD3MenuMaterial &&" in menu
-      and "BOOL ame252_glassActive = !Ame354MD3MenuMaterial &&"
-          not in menu.replace("BOOL ame252_glassActive = !Ame354MD3MenuMaterial &&",
-                              "BOOL ame252_glassActive = LGCIsGlassStyleActive() &&"))
+check('S-C1 玻璃分支闸摘除（TG 玻璃在菜单域退役路径）→ 变体可检出',
+      "BOOL ame252_glassActive = Ame360GlassMenuMaterial &&" in menu
+      and "BOOL ame252_glassActive = Ame360GlassMenuMaterial &&"
+          not in menu.replace("BOOL ame252_glassActive = Ame360GlassMenuMaterial &&",
+                              "BOOL ame252_glassActive = NO &&"))
 
 print()
 if fails:

@@ -125,6 +125,8 @@
 #import "AboutViewController.h"
 #import "JavaGUIViewController.h"
 #import "AmePluginRuntime.h"   // Task327：插件贡献行渲染（allContributedRows/invokeRowTap）
+#import "LiquidGlassCompat.h"  // ★ Ame361：界面风格/缩放/透明度统一走 LGC 中枢（消费方同源）
+#import "AI/AiSettings.h"      // ★ Ame361：AI 安全模式/Markdown 直连 AiSettings（NSUserDefaults 同源）
 
 // ★ Task344 旧设置全量迁移：新增外部消费面
 #import "AI/AIProviderConfigViewController.h"
@@ -374,11 +376,20 @@ static NSString *ame_pages_hexFromColor(UIColor *color) {
                                  options:fsrNames optionKeys:fsrKeys];
     fsrRow.title = localize(@"preference.title.fsr1_setting", nil);
     fsrRow.subtitle = localize(@"preference.detail.fsr1_setting", nil);
+    // ★ Ame361：存储键重映射 mobileglues.*（旧页 Task83 同款——消费方
+    //   JavaLauncher/MobileGlues 读 mobileglues.fsr1_setting；写错段
+    //   video.fsr1_setting 未注册被静默丢弃 = FSR 档位不生效根因）。
+    //   注册表默认为 NSNumber（@(0)），双态解析（旧页 ame130 同款）：
+    //   NSString 直用 / NSNumber stringValue / nil 回退出厂默认。
+    id ame361_fsrRaw = getPrefObject(@"mobileglues.fsr1_setting");
+    NSString *ame361_fsrVal = [ame361_fsrRaw isKindOfClass:[NSString class]]
+        ? ame361_fsrRaw
+        : ([ame361_fsrRaw isKindOfClass:[NSNumber class]] ? [(NSNumber *)ame361_fsrRaw stringValue] : nil);
     [fsrRow ame_reloadSelectedIndex:(NSInteger)[fsrKeys indexOfObject:
-        ame_pages_stringOr(getPrefObject(@"video.fsr1_setting"), @"0")]];
+        ame361_fsrVal ?: @"0"]];
     fsrRow.onSelect = ^(NSInteger index) {
         if (index < 0 || (NSUInteger)index >= fsrKeys.count) return;
-        setPrefString(@"video.fsr1_setting", fsrKeys[index]);
+        setPrefString(@"mobileglues.fsr1_setting", fsrKeys[index]);
     };
     // RCAS 锐化（video.fsr_rcas_sharpness，-1/0.1..1 七档）
     NSArray<NSString *> *rcasKeys = @[@"-1", @"0.1", @"0.2", @"0.3", @"0.5", @"0.7", @"1"];
@@ -392,11 +403,17 @@ static NSString *ame_pages_hexFromColor(UIColor *color) {
                                  options:rcasNames optionKeys:rcasKeys];
     rcasRow.title = localize(@"preference.title.fsr_rcas_sharpness", nil);
     rcasRow.subtitle = localize(@"preference.detail.fsr_rcas_sharpness", nil);
+    // ★ Ame361：同款重映射 mobileglues.fsr_rcas_sharpness（旧页 Task130；
+    //   注册默认 @0.2 为 NSNumber，双态解析同上）
+    id ame361_rcasRaw = getPrefObject(@"mobileglues.fsr_rcas_sharpness");
+    NSString *ame361_rcasVal = [ame361_rcasRaw isKindOfClass:[NSString class]]
+        ? ame361_rcasRaw
+        : ([ame361_rcasRaw isKindOfClass:[NSNumber class]] ? [(NSNumber *)ame361_rcasRaw stringValue] : nil);
     [rcasRow ame_reloadSelectedIndex:(NSInteger)[rcasKeys indexOfObject:
-        ame_pages_stringOr(getPrefObject(@"video.fsr_rcas_sharpness"), @"-1")]];
+        ame361_rcasVal ?: @"0.2"]];
     rcasRow.onSelect = ^(NSInteger index) {
         if (index < 0 || (NSUInteger)index >= rcasKeys.count) return;
-        setPrefString(@"video.fsr_rcas_sharpness", rcasKeys[index]);
+        setPrefString(@"mobileglues.fsr_rcas_sharpness", rcasKeys[index]);
     };
     // 垂直同步禁用
     ZL2SettingRowSwitch *vsyncRow =
@@ -1692,7 +1709,10 @@ didPickDocumentsAtURLs:(NSArray<NSURL *> *)urls {
 
     // ── ★ Task344 旧设置全量迁移：外观进阶组（旧 general 分区核心）──
     ZL2SettingCardGroup *advGroup = [[ZL2SettingCardGroup alloc] init];
-    // 界面风格（general.interface_style；写后延迟一拍重铺——Task226 闪退根修纪律）
+    // 界面风格（★ Ame361：读写改走 LGC 中枢 = NSUserDefaults prisma.
+    // interface_style，消费方 LiquidGlassCompat 同源——原 PLPreferences
+    // general.interface_style 未注册被静默丢弃 = 新UI修改回退根因之一；
+    // 写后延迟一拍重铺——Task226 闪退根修纪律）
     NSArray<NSString *> *styleKeys = @[@"auto", @"native", @"liquid_glass", @"pseudo_glass"];
     NSArray<NSString *> *styleNames = @[
         localize(@"prisma.interface_style.auto", nil),
@@ -1706,10 +1726,12 @@ didPickDocumentsAtURLs:(NSArray<NSURL *> *)urls {
     styleRow.title = localize(@"preference.title.interface_style", nil);
     styleRow.subtitle = localize(@"preference.detail.interface_style", nil);
     [styleRow ame_reloadSelectedIndex:(NSInteger)[styleKeys indexOfObject:
-        ame_pages_stringOr(getPrefObject(@"general.interface_style"), @"auto")]];
+        LGCStringFromInterfaceStyle(LGCStoredInterfaceStyle())]];
     styleRow.onSelect = ^(NSInteger index) {
         if (index < 0 || (NSUInteger)index >= styleKeys.count) return;
-        setPrefString(@"general.interface_style", styleKeys[index]);
+        // ★ Ame361：LGCSetStoredInterfaceStyle 落 NSUserDefaults 并广播
+        //   LGCInterfaceStyleChangedNotification（全局风格链即时重铺）
+        LGCSetStoredInterfaceStyle(LGCInterfaceStyleFromString(styleKeys[index]));
         // Task226：弹层收起事务先落地，重铺在干净事务边界执行
         dispatch_async(dispatch_get_main_queue(), ^{
             [[BackgroundManager sharedManager] refreshUIEffect];
@@ -1718,30 +1740,34 @@ didPickDocumentsAtURLs:(NSArray<NSURL *> *)urls {
     };
     [advGroup ame_addRow:styleRow];
     // 伪玻璃透明度（Task263/276：游戏内也可调，不灰禁）
+    // ★ Ame361：读写改走 LGC 中枢（prisma.pseudo_glass_transparency，
+    //   0-100% ↔ 0.0-1.0 换算与旧页 Task263 同款）
     ZL2SettingRowSlider *pseudoRow =
         [[ZL2SettingRowSlider alloc] initWithTitle:@"" subtitle:nil minimum:0 maximum:100 suffix:@"%"];
     pseudoRow.title = localize(@"preference.title.pseudo_glass_transparency", nil);
     pseudoRow.subtitle = localize(@"preference.detail.pseudo_glass_transparency", nil);
-    [pseudoRow ame_setValue:(NSInteger)getPrefFloat(@"general.pseudo_glass_transparency")];
+    [pseudoRow ame_setValue:(NSInteger)round(LGCPseudoGlassTransparency() * 100.0)];
     pseudoRow.onValueChanged = ^(NSInteger value) {
-        setPrefFloat(@"general.pseudo_glass_transparency", (float)value);
+        LGCSetPseudoGlassTransparency((CGFloat)value / 100.0);
     };
     // 界面缩放 / 文字缩放（85-125 / 85-130，旧页同域）
+    // ★ Ame361：读写改走 LGC 中枢（prisma.ui_scale / prisma.text_scale，
+    //   百分比 ↔ 倍率换算 + 步进钳制 + 广播均由 LGC 层承担）
     ZL2SettingRowSlider *uiScaleRow =
         [[ZL2SettingRowSlider alloc] initWithTitle:@"" subtitle:nil minimum:85 maximum:125 suffix:@"%"];
     uiScaleRow.title = localize(@"preference.title.ui_scale", nil);
     uiScaleRow.subtitle = localize(@"preference.detail.ui_scale", nil);
-    [uiScaleRow ame_setValue:(NSInteger)getPrefFloat(@"general.ui_scale")];
+    [uiScaleRow ame_setValue:(NSInteger)round(LGCUIScaleMultiplier() * 100.0)];
     uiScaleRow.onValueChanged = ^(NSInteger value) {
-        setPrefFloat(@"general.ui_scale", (float)value);
+        LGCSetUIScaleMultiplier((CGFloat)value / 100.0);
     };
     ZL2SettingRowSlider *textScaleRow =
         [[ZL2SettingRowSlider alloc] initWithTitle:@"" subtitle:nil minimum:85 maximum:130 suffix:@"%"];
     textScaleRow.title = localize(@"preference.title.text_scale", nil);
     textScaleRow.subtitle = localize(@"preference.detail.text_scale", nil);
-    [textScaleRow ame_setValue:(NSInteger)getPrefFloat(@"general.text_scale")];
+    [textScaleRow ame_setValue:(NSInteger)round(LGCTextScaleMultiplier() * 100.0)];
     textScaleRow.onValueChanged = ^(NSInteger value) {
-        setPrefFloat(@"general.text_scale", (float)value);
+        LGCSetTextScaleMultiplier((CGFloat)value / 100.0);
     };
     [advGroup ame_addRows:@[pseudoRow, uiScaleRow, textScaleRow]];
     // 旧壳侧栏隐藏（新壳无侧栏语义——保留键写入兼容但标注现状）
@@ -1837,15 +1863,27 @@ didPickDocumentsAtURLs:(NSArray<NSURL *> *)urls {
             [[ZL2SettingRowList alloc] initWithTitle:@"" subtitle:nil
                                      options:sourceNames optionKeys:sourceKeys];
         row.title = sourceTitles[prefKey];
+        // ★ Ame361：mod_mirror 是虚键（PLPreferences 未注册，Setter 静默
+        //   丢弃 = 回退根因之一）——对齐旧页 Task138 粗控协议：读写均落
+        //   已注册主键 assetSearchSource，写时同步 assetDownloadSource。
+        NSString *ame361_readKey = [prefKey isEqualToString:@"download.mod_mirror"]
+            ? @"download.assetSearchSource" : prefKey;
         // 显示兜底（Task218 口径）：缺值/非法值 → 出厂默认 speed_first
-        NSString *value = ame_pages_stringOr(getPrefObject(prefKey), @"speed_first");
+        NSString *value = ame_pages_stringOr(getPrefObject(ame361_readKey), @"speed_first");
         BOOL valid = [sourceKeys containsObject:value];
         [row ame_reloadSelectedIndex:
             valid ? (NSInteger)[sourceKeys indexOfObject:value]
                   : (NSInteger)[sourceKeys indexOfObject:@"speed_first"]];
         row.onSelect = ^(NSInteger index) {
             if (index < 0 || (NSUInteger)index >= sourceKeys.count) return;
-            setPrefString(prefKey, sourceKeys[index]);
+            if ([prefKey isEqualToString:@"download.mod_mirror"]) {
+                // ★ Ame361：粗控一体写入（旧页 Task138 同款：模组 API 搜索
+                //   与文件下载同属 MCIM 体系，双键同步变更）
+                setPrefString(@"download.assetSearchSource", sourceKeys[index]);
+                setPrefString(@"download.assetDownloadSource", sourceKeys[index]);
+            } else {
+                setPrefString(prefKey, sourceKeys[index]);
+            }
             // speed_first 测速引擎立即跟上（mod_mirror 行 Task138 同款）
             [PLMirrorCenter startSpeedProbesIfNeeded];
         };
@@ -2859,19 +2897,33 @@ didPickDocumentsAtURLs:(NSArray<NSURL *> *)urls {
                                  options:safetyNames optionKeys:safetyKeys];
     safetyRow.title = localize(@"preference.title.safety_mode", nil);
     safetyRow.subtitle = localize(@"preference.detail.safety_mode", nil);
-    [safetyRow ame_reloadSelectedIndex:(NSInteger)[safetyKeys indexOfObject:
-        ame_pages_stringOr(getPrefObject(@"ai.safety_mode"), @"ask")]];
+    // ★ Ame361：直连 AiSettings（NSUserDefaults ai.safety_mode，消费方
+    //   AiSafetyManager 同源；旧页 Task189 闭包特判同款协议）——原
+    //   PLPreferences ai.safety_mode 未注册被静默丢弃 = "新UI修改回退、
+    //   旧页修改生效"双标根因。存储值 = 稳定 ID（safe/ask/yolo）。
+    NSString *ame361_safety = @"safe";
+    switch ([[AiSettings sharedSettings] safetyMode]) {
+        case AiSafetyModeSafe:  ame361_safety = @"safe"; break;
+        case AiSafetyModeAsk:   ame361_safety = @"ask";  break;
+        case AiSafetyModeYOLO:  ame361_safety = @"yolo"; break;
+    }
+    [safetyRow ame_reloadSelectedIndex:(NSInteger)[safetyKeys indexOfObject:ame361_safety]];
     safetyRow.onSelect = ^(NSInteger index) {
         if (index < 0 || (NSUInteger)index >= safetyKeys.count) return;
-        setPrefString(@"ai.safety_mode", safetyKeys[index]);
+        NSString *k = safetyKeys[index];
+        AiSafetyMode mode = [k isEqualToString:@"yolo"] ? AiSafetyModeYOLO
+                          : [k isEqualToString:@"ask"]  ? AiSafetyModeAsk
+                          : AiSafetyModeSafe;
+        [[AiSettings sharedSettings] setSafetyMode:mode];
     };
     ZL2SettingRowSwitch *markdownRow =
         [[ZL2SettingRowSwitch alloc] initWithTitle:@"" subtitle:nil];
     markdownRow.title = localize(@"preference.title.markdown_enabled", nil);
     markdownRow.subtitle = @"AI 回复以 Markdown 格式渲染";
-    [markdownRow ame_setOn:getPrefBool(@"ai.markdown_enabled")];
+    // ★ Ame361：直连 AiSettings（消费方 AiSettings.markdownEnabled 同源）
+    [markdownRow ame_setOn:[[AiSettings sharedSettings] markdownEnabled]];
     markdownRow.onToggle = ^(BOOL on) {
-        setPrefBool(@"ai.markdown_enabled", on);
+        [[AiSettings sharedSettings] setMarkdownEnabled:on];
     };
     [group2 ame_addRows:@[safetyRow, markdownRow]];
     [self ame_addGroup:group2];

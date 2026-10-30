@@ -135,7 +135,12 @@ static const CGFloat kMsgCornerRadius = 12.0;
         self.contentTextView.text = content;
         self.contentTextView.textColor = contentColor;
     } else {
-        NSAttributedString *attr = [MarkdownParser parseMarkdown:content baseFont:[UIFont systemFontOfSize:kMsgFontSize]];
+        // ★ Ame362：正文色显式传系统自适应 labelColor（与用户消息同源）
+        //   ——旧版走 AmeTheme→ZL2Theme→插件覆盖链，覆盖色与硬编码气泡底
+        //   失配时正文隐形（装机 IMG_0532 实锤 AI 回复全部不可见）。
+        NSAttributedString *attr = [MarkdownParser parseMarkdown:content
+                                                         baseFont:[UIFont systemFontOfSize:kMsgFontSize]
+                                                        textColor:[UIColor labelColor]];
         self.contentTextView.attributedText = attr;
     }
 
@@ -146,8 +151,12 @@ static const CGFloat kMsgCornerRadius = 12.0;
         self.contentTextView.textColor = contentColor;
         [self rebuildHorizontalConstraintsForUser:YES];
     } else {
-        // 助手消息：左对齐，白 0.08 底 + MarkdownParser 内置系统文字色 + 毛玻璃
-        self.bubbleView.backgroundColor = [UIColor colorWithWhite:1.0 alpha:0.08];
+        // 助手消息：左对齐，系统三级背景色 + MarkdownParser 内置文字色
+        // ★ Ame362：气泡底从硬编码白 0.08 改系统自适应 tertiarySystem-
+        //   BackgroundColor——与 labelColor 正文恒保高对比（主题/插件覆盖
+        //   任意状态下 AI 回复可见；旧硬编码底在插件覆盖正文色变暗时
+        //   黑字近黑底 = 隐形元凶面）。
+        self.bubbleView.backgroundColor = [UIColor tertiarySystemBackgroundColor];
         [self rebuildHorizontalConstraintsForUser:NO];
     }
 }
@@ -249,7 +258,10 @@ static const CGFloat kMsgCornerRadius = 12.0;
                                          context:nil];
         textSize = r.size;
     } else {
-        NSAttributedString *attr = [MarkdownParser parseMarkdown:content baseFont:[UIFont systemFontOfSize:kMsgFontSize]];
+        // ★ Ame362：测高与渲染同色路（labelColor 注入），高度/渲染一致性保障
+        NSAttributedString *attr = [MarkdownParser parseMarkdown:content
+                                                         baseFont:[UIFont systemFontOfSize:kMsgFontSize]
+                                                        textColor:[UIColor labelColor]];
         CGRect r = [attr boundingRectWithSize:CGSizeMake(textWidth, CGFLOAT_MAX)
                                       options:NSStringDrawingUsesLineFragmentOrigin | NSStringDrawingUsesFontLeading
                                       context:nil];

@@ -23,6 +23,16 @@ NS_ASSUME_NONNULL_BEGIN
 /// @param baseFont 基础字体（默认系统 15pt）
 + (NSAttributedString *)parseMarkdown:(NSString *)markdown baseFont:(UIFont *)baseFont;
 
+/// ★ Ame362：指定正文色版本——气泡域（AIMessageCell）用系统自适应色
+///   （labelColor）保证任何主题/插件覆盖状态下正文可见（旧版正文色走
+///   AmeTheme→ZL2Theme→插件覆盖链，覆盖色与硬编码气泡底失配时正文
+///   隐形——装机 IMG_0532 实锤 AI 回复全部不可见）。nil = 回退主题令牌。
+///   内部代码块底/链接色/分隔线等仍取主题令牌。
+/// @param textColor 正文/列表/标题基色（nil = AmeTheme textPrimary）
++ (NSAttributedString *)parseMarkdown:(NSString *)markdown
+                              baseFont:(UIFont *)baseFont
+                             textColor:(nullable UIColor *)textColor;
+
 @end
 
 NS_ASSUME_NONNULL_END

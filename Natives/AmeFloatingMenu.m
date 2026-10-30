@@ -42,7 +42,13 @@
 //   形状（radiusXL 28）+ elevation 阴影。呈现路由/命中/动画/动作链/输入
 //   镜像全不动；玻璃管线代码保留（背景壁纸磨砂等域仍用），仅菜单域不再
 //   进入（快照抓帧与 8Hz 重抓同步旁路 = 省电）。
-static const BOOL Ame354MD3MenuMaterial = YES;
+//
+//   ★ Task360（用户指令“把伪液态玻璃弹窗取消 md3 风格，以前的伪液态玻璃
+//     的透明的不够”）：菜单/弹窗面板材质回退伪液态玻璃管线（TG 玻璃/
+//     快照磨砂在菜单域重新上岗）——Task354 的 M3 字阶/色彩/输入框排版
+//     排版保留（文字可读性不回退）；且快照磨砂 tint 梯度整体提透一档
+//     （默认档深 0.40→0.32 / 浅 0.42→0.34，拉满 100% 近全透）。
+static const BOOL Ame360GlassMenuMaterial = YES;
 
 @interface Ame237MenuActionMirror : NSObject
 @property (nonatomic, strong, nullable) UIAlertAction *orig;
@@ -260,15 +266,18 @@ static BOOL Ame244SnapshotLooksValid(UIImage *ame244_img) {
 ///   （0.0 最闷 = 深 0.65/浅 0.70；1.0 最透 = 深 0.15/浅 0.15）——首轮
 ///   ±0.15/±0.20 梯度装机实测不可分辨；provider 内延迟求值（每次深浅
 ///   色切换读最新值），在屏面板重铺由通知监听驱动（viewDidLoad 注册）。
+///   ★ Task360（"以前的伪液态玻璃的透明的不够"）：梯度整体提透一档——
+///   默认档（50%）深 0.40→0.32 / 浅 0.42→0.34，拉满（100%）深 0.03/
+///   浅 0.04 近全透；最闷端同步收窄（深 0.61/浅 0.64），保持黑字可读下限。
 static UIColor *Ame244SnapshotTint(void) {
     return [UIColor colorWithDynamicProvider:^UIColor * _Nonnull(UITraitCollection * _Nonnull tc) {
         CGFloat ame263_t = LGCPseudoGlassTransparency();
         CGFloat ame263_a = (tc.userInterfaceStyle == UIUserInterfaceStyleDark)
-            ? 0.40 - 0.50 * (ame263_t - 0.5)    // 0.65(最闷)..0.15(最透)，0.5→0.40
-            : 0.42 - 0.55 * (ame263_t - 0.5);   // 0.70..0.15，0.5→0.42
+            ? 0.32 - 0.58 * (ame263_t - 0.5)    // 0.61(最闷)..0.03(最透)，0.5→0.32
+            : 0.34 - 0.60 * (ame263_t - 0.5);   // 0.64..0.04，0.5→0.34
         return (tc.userInterfaceStyle == UIUserInterfaceStyleDark)
-            ? [UIColor colorWithWhite:0.0 alpha:ame263_a]
-            : [UIColor colorWithWhite:1.0 alpha:ame263_a];
+            ? [UIColor colorWithWhite:0.0 alpha:MAX(0.03, ame263_a)]
+            : [UIColor colorWithWhite:1.0 alpha:MAX(0.04, ame263_a)];
     }];
 }
 
@@ -397,6 +406,10 @@ static UIColor *Ame244SnapshotTint(void) {
 @property (nonatomic, strong) UIView *panel;
 @property (nonatomic, strong) UIVisualEffectView *blurView;
 @property (nonatomic, strong) UIView *borderOverlay;
+/// ★ Task359（用户：“悬浮弹窗信息太多就会挡住按钮”）：标题/正文/输入区
+///   装入可滚动容器——header 内容超出面板预算时内部滚动，按钮行区恒定
+///   可见，不再被长文本顶出面板（Ask 工具长问题列表/长报文弹窗元凶面）。
+@property (nonatomic, strong) UIScrollView *headerScroll;
 @property (nonatomic, strong) UILabel *titleLabel;
 @property (nonatomic, strong) UILabel *messageLabel;
 @property (nonatomic, strong) NSMutableArray<UITextField *> *mirrorFields;
@@ -451,10 +464,10 @@ static UIColor *Ame244SnapshotTint(void) {
     //   磨砂（Task237 路径，装机验证可读）。原生风格不经过本组件——中央
     //   路由（ame237_hook_presentViewController）直通旧版系统弹窗。
     UIVisualEffect *ame239_effect = nil;
-    if (!Ame354MD3MenuMaterial && LGCIsGlassStyleActive()) {
+    if (Ame360GlassMenuMaterial && LGCIsGlassStyleActive()) {
         ame239_effect = LGCNativeGlassEffect();
     }
-    if (ame239_effect == nil && !Ame354MD3MenuMaterial) {
+    if (ame239_effect == nil && Ame360GlassMenuMaterial) {
         ame239_effect = [UIBlurEffect effectWithStyle:UIBlurEffectStyleSystemMaterial];
     }
     self.blurView = [[UIVisualEffectView alloc] initWithEffect:ame239_effect];
@@ -463,7 +476,7 @@ static UIColor *Ame244SnapshotTint(void) {
     self.blurView.layer.cornerCurve = kCACornerCurveContinuous;
     self.blurView.layer.masksToBounds = YES;
     [self.panel addSubview:self.blurView];   // index 0：恒在全部内容之下
-    self.blurView.hidden = Ame354MD3MenuMaterial;   // ★ Task354：MD3 实底面板，材质层整体退场（磨砂护栏保留待命）
+    self.blurView.hidden = !Ame360GlassMenuMaterial;   // ★ Task360：玻璃档材质层归队（MD3 期退场的护栏重上岗）
     // ★ Task243：自绘磨砂层（呈现入口传入的 keyWindow 快照）。
     // ★ Task244（IMG_0379：26.3/27.0.1 弹窗恒纯黑定案）：UIGlassEffect 在
     //   本进程渲染为不透明黑块，把垫在它下面的快照整体盖死——层序改定
@@ -486,7 +499,7 @@ static UIColor *Ame244SnapshotTint(void) {
     //   244/245 快照磨砂（前-252 世代配方，全版本安全）。
     GameSurfaceView *ame252_surface = [SurfaceViewController surface];
     BOOL ame252_overGame = (ame252_surface != nil && ame252_surface.window != nil);
-    BOOL ame252_glassActive = !Ame354MD3MenuMaterial &&
+    BOOL ame252_glassActive = Ame360GlassMenuMaterial &&
                               LGCIsGlassStyleActive() &&
                               LGCGameSessionGlassAllowed() &&
                               [AmeLiquidGlassView ame252_isSupported];
@@ -513,7 +526,7 @@ static UIColor *Ame244SnapshotTint(void) {
             ame252_glassActive = NO;   // 构造失败（理论不可达）→ 旧管线
         }
     }
-    if (!Ame354MD3MenuMaterial && !ame252_glassActive && ame244_snapImg != nil) {
+    if (Ame360GlassMenuMaterial && !ame252_glassActive && ame244_snapImg != nil) {
         // ★ Task245（IMG_0380 用户定案“透视有问题”）：旧摆法 AspectFill
         //   居中裁剪 = 显示的是整屏快照的中心放大裁切，弹窗背后根本不是
         //   这个内容，几何错位的“假透视”。改【窗口对位真透视】：快照按
@@ -611,8 +624,9 @@ static UIColor *Ame244SnapshotTint(void) {
         [self.panel insertSubview:ame245_clip belowSubview:self.blurView];
         self.blurView.hidden = YES;   // 快照成品磨砂上岗，系统材质层退场
     }
-    if (Ame354MD3MenuMaterial) {
-        NSLog(@"[AmeMenu] Task354 menu material: M3 surface (md3 unified, panel=surfaceContainerHigh r=%g, glass/frost pipeline retired in menu domain)", (double)[ZL2Theme radiusXL]);
+    if (Ame360GlassMenuMaterial) {
+        NSLog(@"[AmeMenu] Task360 menu material: pseudo-liquid-glass restored (glass/frost pipeline re-engaged, md3 typography kept, tint default dark=%.2f light=%.2f)",
+              0.32, 0.34);
     } else {
     NSLog(@"[AmeMenu] Task252 menu material: %@ (style=%@, background=%@)",
           ame252_glassActive ? (self.ame252_glassSnapshotMode ? @"TG liquid glass (snapshot feed)"
@@ -624,6 +638,15 @@ static UIColor *Ame244SnapshotTint(void) {
     }
 
     // 内容
+    // ★ Task359：header 滚动容器（标题/正文/镜像输入框）——插在材质层
+    //   之上、行区之下；ame237_layout 按预算分配高度（超限内滚）。
+    self.headerScroll = [[UIScrollView alloc] init];
+    self.headerScroll.showsVerticalScrollIndicator = YES;
+    self.headerScroll.alwaysBounceVertical = NO;
+    self.headerScroll.layer.masksToBounds = YES;
+    self.headerScroll.keyboardDismissMode = UIScrollViewKeyboardDismissModeInteractive;
+    [self.panel addSubview:self.headerScroll];
+
     if (self.ame237_title.length > 0) {
         self.titleLabel = [[UILabel alloc] init];
         self.titleLabel.text = self.ame237_title;
@@ -631,7 +654,7 @@ static UIColor *Ame244SnapshotTint(void) {
         self.titleLabel.textColor = [ZL2Theme onSurface]; // ★ Task354：M3 onSurface
         self.titleLabel.textAlignment = NSTextAlignmentLeft; // ★ Task354：MD3 对话框标题起点对齐（原居中）
         self.titleLabel.numberOfLines = 0;
-        [self.panel addSubview:self.titleLabel];
+        [self.headerScroll addSubview:self.titleLabel];
     }
     if (self.ame237_message.length > 0) {
         self.messageLabel = [[UILabel alloc] init];
@@ -640,7 +663,7 @@ static UIColor *Ame244SnapshotTint(void) {
         self.messageLabel.textColor = [ZL2Theme onSurfaceVariant]; // ★ Task354：M3 次级正文
         self.messageLabel.textAlignment = NSTextAlignmentLeft; // ★ Task354：MD3 起点对齐
         self.messageLabel.numberOfLines = 0;
-        [self.panel addSubview:self.messageLabel];
+        [self.headerScroll addSubview:self.messageLabel];
     }
 
     // 镜像输入框（alert 自有字段仅作数据源；本组件字段负责交互并双向同步）
@@ -670,7 +693,7 @@ static UIColor *Ame244SnapshotTint(void) {
         [f addTarget:self action:@selector(ame237_fieldChanged:)
             forControlEvents:UIControlEventEditingChanged];
         [self.mirrorFields addObject:f];
-        [self.panel addSubview:f];
+        [self.headerScroll addSubview:f];
     }
 
     // 菜单行（唯一滚动区；高度足够时禁用滚动 = 平铺）
@@ -739,9 +762,9 @@ static UIColor *Ame244SnapshotTint(void) {
     self.borderOverlay.layer.borderWidth = 0.75;
     self.borderOverlay.layer.borderColor = [ZL2Theme outlineVariant].CGColor; // ★ Task354（令牌收口；MD3 实底面板下恒隐藏）
     self.borderOverlay.userInteractionEnabled = NO;
-    // ★ Task354：MD3 实底面板无描边环——层级感由 elevation 阴影承担
-    //   （原 Task252 TG 玻璃自带描边/发丝环语义随玻璃管线一并退役）。
-    self.borderOverlay.hidden = YES;
+    // ★ Task360：玻璃档描边环归队（TG 玻璃自带描边/快照磨砂自带 0.75pt
+    //   环时本环冗余，由各档自隐；材质回退档显示）——MD3 期的恒隐退役。
+    self.borderOverlay.hidden = !Ame360GlassMenuMaterial;
     [self.panel addSubview:self.borderOverlay];
 
     // 入场初始态（viewDidAppear 前不可见——无动画路径在此直接摆正）
@@ -816,13 +839,19 @@ static UIColor *Ame244SnapshotTint(void) {
     //   磨砂原料持续跟上）。逐帧窗口快照会把自家面板拍进去（自噬），
     //   重抓源 = presentingViewController.view（OverFullScreen 下恒在
     //   本组件之下，纯背景内容）。
-    //   ★ Task354：MD3 材质零磨砂消费 → 8Hz 重抓旁路（省电）。
-    if (!Ame354MD3MenuMaterial) {
+    //   ★ Task360：玻璃档恢复 8Hz 动态重抓（背景变化/面板挪位磨砂跟上）。
+    if (Ame360GlassMenuMaterial) {
         [self ame246_startBackgroundRefresh];
     }
     if (self.mirrorFields.count > 0) {
         dispatch_async(dispatch_get_main_queue(), ^{
-            [self.mirrorFields.firstObject becomeFirstResponder];
+            UITextField *ame359_first = self.mirrorFields.firstObject;
+            [ame359_first becomeFirstResponder];
+            // ★ Task359：header 内滚时把焦点输入框滚入可视区（键盘弹起前
+            //   对位，长标题+底部输入框场景不再盲打）。
+            if (self.headerScroll.scrollEnabled && ame359_first != nil) {
+                [self.headerScroll scrollRectToVisible:ame359_first.frame animated:YES];
+            }
         });
     }
 }
@@ -948,6 +977,15 @@ static UIColor *Ame244SnapshotTint(void) {
         panelH = MAX(panelH, MIN(ame271_want, contentH));
         rowsAvail = MAX(0.0, panelH - rowsTop - bottomInset);
     }
+    // ★ Task359（“悬浮弹窗信息太多就会挡住按钮”根治）：header 装入
+    //   可滚动容器后按预算分配——行区（按钮）优先保底 MIN(rowsH, 110)，
+    //   header 至多占其余全部；header 内容（长标题/长正文/多输入框）
+    //   超预算时内部滚动，不再把按钮顶出面板或压成不可点缝。
+    //   Ask 工具长问题列表/长报文弹窗（装机 alert #5 title 数百行）元凶面。
+    CGFloat ame359_rowsMin = MIN(rowsH, 110.0);
+    CGFloat ame359_headerMax = MAX(0.0, panelH - ame359_rowsMin - bottomInset);
+    CGFloat headerAvail = MIN(rowsTop, ame359_headerMax);
+    rowsAvail = MAX(0.0, panelH - headerAvail - bottomInset);
 
     self.panel.frame = CGRectMake((bw - W) / 2.0, (bh - panelH) / 2.0, W, panelH);
     if (self.ame237_kbShift > 0.0) {
@@ -974,7 +1012,12 @@ static UIColor *Ame244SnapshotTint(void) {
                        bw, bh);
     }
     self.borderOverlay.frame = self.panel.bounds;
-    self.rowsScroll.frame = CGRectMake(0.0, rowsTop, W, rowsAvail);
+    // ★ Task359：header 滚动区铺排（顶部至行区顶；内容高 = rowsTop，
+    //   超预算时 scrollEnabled = header 内滚可达）
+    self.headerScroll.frame = CGRectMake(0.0, 0.0, W, headerAvail);
+    self.headerScroll.contentSize = CGSizeMake(W, rowsTop);
+    self.headerScroll.scrollEnabled = (rowsTop > headerAvail + 0.5);
+    self.rowsScroll.frame = CGRectMake(0.0, headerAvail, W, rowsAvail);
     self.rowsScroll.contentSize = CGSizeMake(W, rowsH);
     self.rowsScroll.scrollEnabled = (rowsH > rowsAvail + 0.5);
     // ★ Task271（271-b D5）：可滚时给出指示器/可达性暗示（旧版恒隐藏 =
@@ -999,9 +1042,10 @@ static UIColor *Ame244SnapshotTint(void) {
     static int ame237_layoutLog = 0;
     ame237_layoutLog++;
     if (ame237_layoutLog <= 5 || ame237_layoutLog % 25 == 0) {
-        NSLog(@"[AmeMenu] Task237 panel layout #%d (panel=%@ rows=%lu avail=%.0f scroll=%d)",
+        NSLog(@"[AmeMenu] Task359 panel layout #%d (panel=%@ rows=%lu avail=%.0f scroll=%d header=%.0f/%.0f scrolled=%d)",
               ame237_layoutLog, NSStringFromCGRect(self.panel.frame),
-              (unsigned long)n, (double)rowsAvail, (int)self.rowsScroll.isScrollEnabled);
+              (unsigned long)n, (double)rowsAvail, (int)self.rowsScroll.isScrollEnabled,
+              (double)headerAvail, (double)rowsTop, (int)self.headerScroll.scrollEnabled);
     }
 }
 
@@ -1293,9 +1337,9 @@ static UIColor *Ame244SnapshotTint(void) {
     menu.ame237_onDismiss = onDismiss;
     // ★ Task243：present 动画开始前抓帧（此时 presenter 的窗口内容仍是
     //   呈现前的画面，无自噬风险）——重度降采样快照作为面板自绘磨砂。
-    //   ★ Task354：MD3 材质下快照零消费（实底面板）→ 抓帧旁路省电；
-    //   非MD3 闸（现恒关）保留原路径。
-    if (!Ame354MD3MenuMaterial) {
+    //   ★ Task360：玻璃档恢复快照消费（伪液态玻璃观感的磨砂原料），
+    //   抓帧旁路随 MD3 档一并退役（现恒走玻璃档）。
+    if (Ame360GlassMenuMaterial) {
         menu.ame243_snapshotImage = Ame243BlurredKeyWindowSnapshot(presenter.view);
     }
     // 注：presenter.view 为 nil（理论边缘）时函数内 hostView.window == nil

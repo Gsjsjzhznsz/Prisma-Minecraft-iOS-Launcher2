@@ -30,6 +30,13 @@
 }
 
 + (NSAttributedString *)parseMarkdown:(NSString *)markdown baseFont:(UIFont *)baseFont {
+    // ★ Ame362：旧签名转发（nil = 主题令牌 textPrimary，行为与旧版逐字节一致）
+    return [self parseMarkdown:markdown baseFont:baseFont textColor:nil];
+}
+
++ (NSAttributedString *)parseMarkdown:(NSString *)markdown
+                              baseFont:(UIFont *)baseFont
+                             textColor:(UIColor *)ame358_textColor {
     if (markdown.length == 0) {
         return [[NSAttributedString alloc] initWithString:@""];
     }
@@ -42,7 +49,9 @@
     UIFont *h2Font = [UIFont systemFontOfSize:20 weight:UIFontWeightBold];
     UIFont *h3Font = [UIFont systemFontOfSize:17 weight:UIFontWeightBold];
 
-    UIColor *textColor = [AmeTheme textPrimary];
+    // ★ Ame362：正文色可注入（nil = 主题令牌，旧路径兼容）；代码块底/
+    //   链接/分隔线仍取主题令牌（语义色不随正文色漂移）
+    UIColor *textColor = ame358_textColor ?: [AmeTheme textPrimary];
     UIColor *secondaryColor = [AmeTheme textSecondary];
     UIColor *linkColor = [AmeTheme brandPrimary];
     UIColor *codeBgColor = [AmeTheme fillSubtle];
