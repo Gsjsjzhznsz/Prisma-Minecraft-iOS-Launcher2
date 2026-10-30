@@ -4538,3 +4538,37 @@ Work Log:
 Stage Summary:
 - "无法获取版本信息"终结线：空版本实例启动期自愈（导入/启动双挂点 reconcile 修复遍），1.0 旧布局根位版本集纳入推断；用户侧预期：重导入同备份或重启启动器 → 日志 [Ame352] reconcile(...) version repaired for <实例> -> <版本> (source=...) + 主页实例卡显示 MC 版本 → 启动不再弹窗。
 - 诚实声明：实例目录与备份根位均无版本证据时卡面如实显示"未选择版本"（去下载页安装即可）——这是数据缺席的如实呈现，不是导入故障。
+
+---
+
+## Task 353——启动期版本根对齐（用户 29f8b67 第十一轮复诉："该版本无效。"）：启动链三级口径 × 版本轴实例两张皮终局线
+
+日期：2026-10-30
+
+Work Log:
+- 【取证（装机 29f8b67 latestlog 第十一轮）】好消息面：[Ame352] reconcile(startup) 修复遍实弹命中——两个 modrinth profile 的 lastVersionId 修复出真实 vid（`version repaired for modrinth_... -> fabric-loader-0.14.23-1.20.1-c34c2a7d (source=versions/)` ×2，实体 = instances/<x>/versions/<vid>/<vid>.json 真实文件，Task351 级联①层判定）； stray world rescued ×4（'新的世界'-2/-3/-4 与 '新的世界-1-1'，1.0 旧布局游离存档深扫归位首次批量命中）+ spine check prefs=present + 11474 files (ok)。坏消息面：点启动必弹"找不到版本信息，请检查版本是否正确"（Task237 alert #1/#2 title 实锤 = i18n_str_432），同帧 `[ZL2VersionIndex] unresolved 'fabric-loader-0.19.5-26.3-9576aab3' (loaded=1 localScan=0 disk=0)` ×2。
+- 【根因定案（判定/启动两张皮）】启动链三级口径全部以全局 POJAV_GAME_DIR（=偏好当前实例，出厂 default）为根：①ZL2VersionIndex ②本地扫描（GAME_DIR/versions + POJAV_HOME/versions）+ ③Task72 磁盘兜底（GAME_DIR/versions/<id>/<id>.json）；②MRDT 全部 versions/<id> 落位与 launchcheck 校验同根；③Java Tools.DIR_HOME_VERSION = POJAV_GAME_DIR/versions（JavaApp Tools.java:49）。而版本轴实例（Ame329 统一后 gameDir = instances/<x>/versions/<vid>）的版本实体在 profile 自洽根——判定侧 Task351 已吃 profile gameDir（卡片显示"有效"），启动侧没吃 = 卡片"有效"与启动 unresolved 并存。Task352 条目"版本隔离实例非当前时如实判死（str_432）——切换实例即解，不误报"的语义核对被本轮装机 latestlog 推翻：修复出的 vid 实体在实例自根，任何"当前实例"扫描都够不着。
+- 【修复三层】①PLProfiles 新增 ame353_versionRootForProfileName:（纯读探测：gameDir Task275 ame275 同口径展开（绝对原样/相对 instances/<偏好目录>/ 拼接/缺失=当前实例根）→ 祖先链近→远逐级探 R/versions/<vid>/<vid>.json（深度 6 上限，到 POJAV_HOME 必停，实例局部优先于根位）→ GAME_DIR 锚兜底；latest-* 别名/空 vid/实体不在即 nil 绝不指根 = 在线解析下载流原样）；②ZL2Home launchGame 发 FindVersionInRemoteList 前 setenv 对齐 POJAV_GAME_DIR 到版本根（`[Ame353] launch version-root aligned: <旧> -> <新> (profile=, vid=)` 留痕；对齐后索引②/③、MRDT 落位+launchcheck、Java DIR_HOME_VERSION/DIR_HOME_LIBRARY/ame225 资源自愈三段全链同根自洽，MRDT 校验链缺啥补啥顺势把 libraries/assets 补进 profile 自根 = 版本隔离安装语义闭环）；③ZL2VersionIndex 新增 ②' 实例树兜底扫描（POJAV_HOME/instances/*/versions/<id> 目录级一跳，不经启动链的兜底网，未来任何 FindVersion 调用方受保护；resolved from instances tree scan 留痕）。
+- 【护栏（对齐的次生风险封堵）】对齐窗口内任何 reloadProfileList→updateCurrent 都会按新根读 instances/<x>/launcher_profiles.json——版本轴实例无自带注册表，旧代码当场 defaultProfiles+[self save] 把出厂注册表误写进实例根且 selectedProfile 丢失 = 启动半途"请先选择实例"。PLProfiles 新增 last-known-good 注册表锚：读成功才记锚，失守回读锚零写入（`[Ame353] registry fallback` 留痕），收窄面仅"当前注册表读不到"一种，冷启动无锚维持出厂语义。
+- 【门禁】ame353_selfcheck 14 断言（A 对齐链 5/B 护栏 2/C 兜底 3/S 反向探针 4）全绿；存量 ame349 9/9 + task139 balanced + task240 OK + task248/250 全零 + task191 3329 锚不变（零新增 i18n 键）+ verify219 81/81（verify_task191 41/4 为干净基线存量，stash 对照实锤非本轮引入）；CI：smoke #101 + dev #86（d83f01b，与 Task354 同轮）双绿一轮终。
+
+Stage Summary:
+- "该版本无效/找不到版本信息"终结线：版本轴实例启动期 POJAV_GAME_DIR 对齐 profile 自洽根，判定/启动/Java 三段同根；用户侧预期：点启动 modrinth 实例卡 → 日志 `[Ame353] launch version-root aligned` → [ZL2VersionIndex] resolved from local versions scan（对齐根）→ MRDT 校验链按需补 libraries/assets 进实例自根 → JVM 启动；首次启动可能有一轮资源补全下载（缺啥补啥进实例自根，版本隔离安装语义）。
+- 兜底网：任何不经主页启动链的 FindVersionInRemoteList 调用也受 ②' 实例树扫描保护。
+
+---
+
+## Task 354——MD3 设计语言全面统一（用户同轮指令："深度试试非md3样式的界面，全面修改为md3样式，避免ui设计语言混杂。"）：双令牌层收口 + 菜单面板 MD3 材质化
+
+日期：2026-10-30
+
+Work Log:
+- 【混语言根源定案】双令牌层并存：ZL2Theme = Material 3 embermire 令牌层（新壳全页面）vs AmeTheme = Fluent 2 令牌层（v2 fluent2_kit 取值，承载浮层/弹窗/toast/欢迎页/管理页/游戏内浮层 20+ 文件）；叠加菜单面板 TG 液态玻璃材质（Task237/252/277/278：快照磨砂 + tint + 顶部光泽 + 底部景深 + 发丝描边环四层玻璃配方）压在 MD3 页面上 = 用户观感"设计语言混杂"的两大实体。
+- 【线A 菜单/弹窗面板 MD3 材质化（AmeFloatingMenu）】面板 = ZL2Theme surfaceContainerHigh 实底 + radiusXL 28 + elevation 阴影；blurView（系统材质）/ame252 TG 玻璃/ame244 快照磨砂三条管线在菜单域整体退役（Ame354MD3MenuMaterial 闸；呈现路由/命中/动画/动作链/输入镜像全不动，玻璃管线代码保留供壁纸磨砂等域）；内容全面 M3 令牌：title=fontTitleLarge+起点对齐（MD3 对话框语义，原 iOS 17semibold 居中）、message=fontBodyMedium+起点对齐、镜像输入框=surfaceContainerHighest 填充底+radiusS 8+无描边（M3 filled field）、菜单行=bodyLarge+强调行 titleMedium 16 medium、destructive=error、取消=onSurfaceVariant、分隔线=outlineVariant、描边环退役 hidden=YES（层级感由 elevation 承担）；[Ame354] menu material: M3 surface (md3 unified) 日志锚；快照抓帧 + 8Hz 动态重抓 MD3 下旁路 = 省电。
+- 【线B AmeTheme v3 整体转位 M3 承载层】全部 29 getter 重指向 ZL2Theme 对应角色：brandPrimary→primary / brandTinted→secondaryContainer / textOnBrand→onPrimary / bgPrimary→surface / bgSecondary→surfaceContainerLow / surfaceCard→surfaceBright（ZL2 cardColor 同源）/ surfaceOverlay→surfaceContainerHigh / textPrimary→onSurface / textSecondary→onSurfaceVariant / textTertiary→outline / fillSubtle→surfaceContainerHighest / fillStrong→surfaceVariant / divider→outlineVariant / status*→error/success/warning + 字阶 7 getter（caption→labelMedium 12/body2→bodyMedium 14/body→bodyLarge 16/button→labelLarge 14 medium/subtitle→titleLarge 22/title2→titleLarge 22/title→headline 28）+ 圆角 5 getter（S2→4/M4→8/L8→12/XL12→16/glass24→28）——API 形状与 v1/v2 完全兼容，FluentToast/FluentButton/FluentListCell/欢迎页/PLCrashView/游戏内浮层等既有消费面零改动即整面切换 MD3 视觉；旧 Fluent 取值档案 git 历史 v2。
+- 【审计留档（本轮显式不动面）】BackgroundManager TG 壁纸磨砂（Task288/289 用户可配置壁纸特性，近期刚稳定化，仅壁纸模糊档可见）与 fluent-ui 插件（可选装，用户已恢复默认未参与）= 设计语言收口后的两处显式非 M3 面，留待后续决策（退役/重设计由用户拍板）。
+- 【门禁】ame354_selfcheck 18 断言（A 材质 8/B 承载层 4/C 结构 2/S 反向探针 4）全绿；存量 task139 balanced + task240 OK + ame349 9/9 + ame353 14/14 + task248/250 全零 + task191 3329 锚不变（零新增 i18n 键）+ verify219 81/81；CI：smoke #101 + dev #86（d83f01b）双绿一轮终。
+
+Stage Summary:
+- 用户侧预期：任意弹窗/菜单（含"找不到版本信息"这类 alert）= M3 surfaceContainerHigh 实底面板 + 28 圆角 + M3 字阶起点对齐（不再是液态玻璃）；toast/按钮/列表卡/欢迎页/崩溃视图全量跟随 embermire M3 色板；装机锚点：[Ame354] menu material: M3 surface (md3 unified, panel=surfaceContainerHigh r=28, glass/frost pipeline retired in menu domain)。
+- 诚实声明：壁纸模糊档（设置-背景）的 TG 磨砂是用户可配置特性本轮保留；如需彻底 M3 化（纯 surface 背景）请明确指示。
