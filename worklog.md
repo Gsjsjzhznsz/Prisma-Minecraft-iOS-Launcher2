@@ -4521,3 +4521,20 @@ Work Log:
 Stage Summary:
 - Task 350/351 正式交付可装机：新 IPA（286eb30）就绪；装机锚点不变（[Ame350] nav shell first layout arranged=6 / [Ame351] reconcile: version inferred ... source=... / [DataTransfer] Task351 stray world rescued '<世界名>' / 摘要行 ame351.import.saves_rescued）。
 - 教训沉淀：①本地门禁（task139/240/248/250/191/verify219）≠ 编译通过，代码提交后必须 dispatch smoke 验证编译再报交付；②CI dispatch-only 的仓库，"推送成功"≠"构建开始"，dispatch+轮询是交付闭环的一部分。
+
+---
+
+## Task 352——存量空版本修复遍（用户 286eb30 第十轮复诉："无法获取版本信息。"）：Task351 推断级联孤儿闸缺口根修 + 主页空版本如实文案
+
+日期：2026-10-30
+
+Work Log:
+- 【取证（装机 286eb30 latestlog 第十轮）】好消息面：[Ame350] arranged=6 稳定出现（侧边栏六项可见，本轮零复诉）+ 导入 11474 files (ok) + [DataTransfer] Task351 stray world rescued ×2（'新的世界'→default/saves 与 -1，1.0 旧布局存档归位首次实弹命中）——Task350/351 两线装机验证通过。坏消息面：littleskin 登录成功后启动弹"无法获取版本信息"（Task237 alert #3/4/5 title 实锤 = i18n_str_43，ZL2HomeViewController 启动链）。
+- 【根因定案】reconcile(import) 日志 `scanned=3 registered=0 (orphans=0 legacyMerged=0)` + 全日志 [Ame351] infer 零行 → Task351 推断级联只挂在孤儿收编循环内（ame349_orphans 成员才进），而导入期 Task227 post-import merge 先把 3 实例登记进注册表 → reconcile 时 orphans=0 → 级联从未执行 → 收编实例 lastVersionId 永久空缺 → 主页启动 `if (!versionId)` 弹 str_43。结构缺口：级联的触发条件（孤儿）≠ 症状人群（已登记但空版本）。
+- 【修复三件】①级联收编公共方法 ame352_inferVersionForDir:homeRoot:fm:（versions/ 实体 mtime 最优 → modrinth.index.json dependencies.minecraft → instance.json lastVersionId/gameVersion → 新增第④层 <POJAV_HOME>/versions/ 根位实体兜底——1.0 旧布局版本集全局存放的实证形态，source=versions/(legacy-root) 显式留痕）；②reconcile 尾部新增存量空版本修复遍：applyChanges 锁内遍历注册表，lastVersionId 空缺（非 NSString 或空串）的 profile（含现役）按 gameDir→instances/<键名> 定位重跑级联，命中回填 + [Ame352] version repaired 逐例留痕 + 摘要行 [Ame352] empty-version repair pass done (repaired=N: 名单)，非空即权威幂等不复写，ReloadProfileList 触发条件扩 repaired>0；③ZL2Home 启动链空/缺失版本弹 ame351.instance.no_version（"未选择版本"，如实引导去版本/下载页）替代误导性 str_43（其语义是"版本存在但获取失败"）。
+- 【语义核对】修复遍推断出的本地 id 启动时走 FindVersionInRemoteList ②本地扫描命中（POJAV_GAME_DIR=当前实例）；latest 别名走种子条目 + MRDT 在线解析（Task335 契约）；版本隔离实例非当前时如实判死（str_432）——切换实例即解，不误报。
+- 【门禁】task139 全 balanced / task240 syntax gate OK + retired refs 0 + import sweep OK（唯一 WARN 存量）/ 零新 i18n 键（task191 锚 3329 不动）；CI：smoke #100 + dev #85（29f8b67）双绿一轮终。
+
+Stage Summary:
+- "无法获取版本信息"终结线：空版本实例启动期自愈（导入/启动双挂点 reconcile 修复遍），1.0 旧布局根位版本集纳入推断；用户侧预期：重导入同备份或重启启动器 → 日志 [Ame352] reconcile(...) version repaired for <实例> -> <版本> (source=...) + 主页实例卡显示 MC 版本 → 启动不再弹窗。
+- 诚实声明：实例目录与备份根位均无版本证据时卡面如实显示"未选择版本"（去下载页安装即可）——这是数据缺席的如实呈现，不是导入故障。
