@@ -320,6 +320,7 @@ static UIImage *ZL2HomeSizedImage(NSString *name, NSString *fallback, CGFloat po
 // loader/mcVersion/valid/isSelected）
 - (void)ame_configureWithRow:(NSDictionary *)row {
     NSString *profileName = row[@"name"];
+    NSString *versionId = row[@"versionId"]; // ★ Task351 r1：行模型键注释链含 versionId（@334 未选择版本分支引用），CI 首轮实锤漏声明
     NSString *loader = row[@"loader"];
     NSString *mcVersion = row[@"mcVersion"];
     BOOL valid = [row[@"valid"] boolValue];
