@@ -11,6 +11,12 @@
 
 static PLProfiles* current;
 
+// ★ Task353：进程内“最后已知完好注册表”路径锚——读成功才记录；
+//   initWithCurrentInstance 读失守时优先回读该锚（零写入），防启动期版本根
+//   对齐窗口内 updateCurrent 把出厂注册表误写进无注册表的实例根（病历见
+//   initWithCurrentInstance 注）。仅进程内生命周期，冷启动无锚走原语义。
+static NSString *_ame353_registryLastGoodPath = nil;
+
 @interface PLProfiles()
 @end
 
@@ -106,8 +112,31 @@ static PLProfiles* current;
     self.profilePath = [@(getenv("POJAV_GAME_DIR")) stringByAppendingPathComponent:@"launcher_profiles.json"];
     self.profileDict = parseJSONFromFile(self.profilePath);
     if (self.profileDict[@"NSErrorObject"]) {
+        // ★ Task353：注册表读失守不立即出厂重置——先回读进程内最后已知完好
+        //   锚（零写入）。病历面：启动期版本根对齐（ZL2Home [Ame353]）把
+        //   POJAV_GAME_DIR 指到 profile 自洽实例根后，任何
+        //   reloadProfileList→updateCurrent 都会按新根读
+        //   instances/<x>/launcher_profiles.json——版本轴实例（Ame329 统一）
+        //   无自带注册表，旧代码当场 defaultProfiles+[self save] 把出厂注册
+        //   表误写进实例根且 selectedProfile 丢失 = 启动半途“请先选择实例”。
+        //   收窄面仅“当前注册表读不到”一种：有锚续用（实例根绝不被误写），
+        //   无锚（冷启动真首次）维持出厂默认原语义。
+        if (_ame353_registryLastGoodPath.length > 0
+            && ![_ame353_registryLastGoodPath isEqualToString:self.profilePath]) {
+            NSMutableDictionary *ame353_rescued = parseJSONFromFile(_ame353_registryLastGoodPath);
+            if ([ame353_rescued isKindOfClass:[NSDictionary class]]
+                && !ame353_rescued[@"NSErrorObject"]) {
+                self.profileDict = ame353_rescued;
+                NSLog(@"[Ame353] registry fallback: %@ unreadable -> last-known-good %@ (no write)",
+                      self.profilePath, _ame353_registryLastGoodPath);
+                return self;
+            }
+        }
         self.profileDict = PLProfiles.defaultProfiles;
         [self save];
+    } else {
+        // 读成功才记锚（失守回读的“最后已知完好”语义）
+        _ame353_registryLastGoodPath = [self.profilePath copy];
     }
 
     return self;
@@ -564,6 +593,87 @@ static PLProfiles* current;
     }
     if (!ame352_vid) return nil;
     return @{@"vid": ame352_vid, @"src": ame352_src};
+}
+
+#pragma mark - ★ Task353 启动期版本根对齐（“该版本无效/找不到版本信息”终局线）
+
+// 病历（装机 29f8b67 latestlog 实锤）：[Ame352] 修复遍把两个 modrinth profile
+// 的 lastVersionId 修复为 fabric-loader-<ver>-<mc>-<hash>（source=versions/，
+// 实体真实存在），但点启动必弹 i18n_str_432（[ZL2VersionIndex] unresolved
+// loaded=1 localScan=0 disk=0）。根因 = 启动链三级口径全部以全局
+// POJAV_GAME_DIR（=偏好当前实例，出厂 default）为根：①ZL2VersionIndex ②③
+// 本地扫描；②MRDT versions/<id> 落位与 launchcheck 校验；③Java
+// Tools.DIR_HOME_VERSION = POJAV_GAME_DIR/versions。而版本轴实例
+// （Ame329 统一后 gameDir = instances/<x>/versions/<vid>）的版本实体在
+// profile 自洽根——判定侧 Task351 已吃 profile gameDir（卡片“有效”），
+// 启动侧没吃 = 判定/启动两张皮。修法 = 本方法求出版本根 R（
+// R/versions/<vid>/<vid>.json 真实存在），调用方（ZL2Home launchGame）在发
+// FindVersionInRemoteList 前把 POJAV_GAME_DIR 对齐到 R：索引/MRDT/Java 三段
+// 同根自洽，MRDT 校验链（缺啥补啥）顺势把 libraries/assets 补进 profile
+// 自根 = 版本隔离安装语义闭环。
+// 探测顺序 = gameDir 展开点的祖先链（近→远，实例局部优先于根位；版本轴深
+// 层形态第三级命中），锚点兜底 POJAV_GAME_DIR（自定义 gameDir 而版本装在
+// 当前实例的形态）。纯读零副作用；latest-* 别名/未装/找不到实体返回 nil
+// （别名走在线解析下载流，绝不指根）。
++ (NSString *)ame353_versionRootForProfileName:(NSString *)profileName {
+    if (profileName.length == 0) return nil;
+    NSDictionary *ame353_p = self.current.profiles[profileName];
+    if (![ame353_p isKindOfClass:[NSDictionary class]]) return nil;
+    NSString *ame353_vid = ame353_p[@"lastVersionId"];
+    if (![ame353_vid isKindOfClass:[NSString class]] || ame353_vid.length == 0) return nil;
+    if ([ame353_vid hasPrefix:@"latest-"]) return nil;
+
+    NSString *ame353_home = @(getenv("POJAV_HOME") ?: "");
+    if (ame353_home.length == 0) return nil;
+
+    // gameDir 展开（Task275 ame275 同口径：绝对原样；相对按
+    // instances/<偏好目录>/ 拼接；缺失 = 当前实例根）
+    NSString *ame353_start = nil;
+    NSString *ame353_gd = ame353_p[@"gameDir"];
+    if ([ame353_gd isKindOfClass:[NSString class]] && ame353_gd.length > 0) {
+        if ([ame353_gd isAbsolutePath]) {
+            ame353_start = ame353_gd;
+        } else {
+            NSString *ame353_pref = getPrefObject(@"general.game_directory");
+            if (!ame353_pref.length) ame353_pref = @"default";
+            ame353_start = [NSString stringWithFormat:@"%@/instances/%@/%@",
+                ame353_home, ame353_pref, ame353_gd];
+        }
+    } else {
+        ame353_start = @(getenv("POJAV_GAME_DIR") ?: "");
+    }
+    ame353_start = ame353_start.stringByStandardizingPath;
+    if (ame353_start.length == 0) return nil;
+
+    NSFileManager *ame353_fm = [NSFileManager defaultManager];
+    NSString *(^ame353_jsonFor)(NSString *) = ^(NSString *root) {
+        return [[[root stringByAppendingPathComponent:@"versions"]
+            stringByAppendingPathComponent:ame353_vid]
+            stringByAppendingPathComponent:[NSString stringWithFormat:@"%@.json", ame353_vid]];
+    };
+    // 祖先链探测（最多 6 级，到 POJAV_HOME 必停）
+    NSString *ame353_cur = ame353_start;
+    for (int ame353_depth = 0; ame353_depth < 6; ++ame353_depth) {
+        BOOL ame353_isDir = NO;
+        if ([ame353_fm fileExistsAtPath:ame353_jsonFor(ame353_cur) isDirectory:&ame353_isDir]
+            && !ame353_isDir) {
+            return ame353_cur;
+        }
+        if ([ame353_cur isEqualToString:ame353_home]) break;
+        NSString *ame353_parent = [ame353_cur stringByDeletingLastPathComponent];
+        if (ame353_parent.length == 0 || [ame353_parent isEqualToString:ame353_cur]) break;
+        ame353_cur = ame353_parent;
+    }
+    // 锚点兜底：版本装在当前实例而 profile gameDir 在别处的形态
+    NSString *ame353_envRoot = @(getenv("POJAV_GAME_DIR") ?: "");
+    if (ame353_envRoot.length > 0) {
+        BOOL ame353_isDir = NO;
+        if ([ame353_fm fileExistsAtPath:ame353_jsonFor(ame353_envRoot) isDirectory:&ame353_isDir]
+            && !ame353_isDir) {
+            return ame353_envRoot;
+        }
+    }
+    return nil;
 }
 
 #pragma mark - 服务器地址（FCL 风格：启动后自动加入服务器）

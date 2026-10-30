@@ -14,6 +14,10 @@
 //   ② 本地 versions/ 目录扫描命中（POJAV_GAME_DIR 优先、POJAV_HOME 兜底，
 //      ZL2VersionsViewController 无效版本判定同口径）→ @{id, type=custom}
 //      （已安装版本启动路径）
+//   ②' 实例树兜底扫描命中（★ Task353：POJAV_HOME/instances/<x>/versions/<id>
+//      目录级一跳——版本轴/多实例布局（Ame329 统一、Task349 收编、1.0 备份
+//      导入）的版本实体常驻实例自根，两个标准根够不着时由此兜底；启动侧
+//      根对齐见 PLProfiles ame353 / ZL2Home launchGame [Ame353] 注）
 //   ③ <id>.json 直查磁盘兜底（Task72 语义：列表快照过期不误杀已装版本）
 //   ④ 全空 → callback(nil)（ZL2Home 弹"找不到版本信息"并恢复交互）
 //

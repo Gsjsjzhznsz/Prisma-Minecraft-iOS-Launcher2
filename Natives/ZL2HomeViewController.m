@@ -1686,6 +1686,33 @@ static UIImage *ZL2HomeSizedImage(NSString *name, NSString *fallback, CGFloat po
         [PLProfiles.current save];
     }
 
+    // ★ Task353：启动期版本根对齐（"该版本无效/找不到版本信息"终局线）。
+    //   病历（装机 29f8b67 latestlog 实锤）：版本轴实例（Ame329 统一后
+    //   gameDir=instances/<x>/versions/<vid>）的版本实体在 profile 自洽根，
+    //   而启动链三级口径（ZL2VersionIndex ②③ 本地扫描 / MRDT versions/<id>
+    //   落位与校验 / Java DIR_HOME_VERSION=POJAV_GAME_DIR/versions）全部以
+    //   全局 POJAV_GAME_DIR（=偏好当前实例）为根——卡片判定侧 Task351 已吃
+    //   profile gameDir（卡显示"有效"），启动侧没吃 = 判定/启动两张皮，点
+    //   启动必弹 i18n_str_432（unresolved loaded=1 localScan=0 disk=0）。
+    //   修法：发 FindVersionInRemoteList 前把 POJAV_GAME_DIR 对齐到 profile
+    //   版本根 R（R/versions/<vid>/<vid>.json 真实存在，PLProfiles 纯读探
+    //   测），Java/MRDT/索引三段全链同根自洽；对齐后 MRDT 校验链（缺啥补啥）
+    //   顺势把 libraries/assets 补进 profile 自根 = 版本隔离安装语义闭环。
+    //   注册表失守面由 PLProfiles ame353 last-known-good 锚兜住（对齐窗口内
+    //   updateCurrent 读不到新根注册表时回读旧锚，绝不出厂重置误写）。
+    //   nil（latest 别名/未装/实体不在）零触碰 = 正常在线解析下载流原样。
+    {
+        NSString *ame353_root = [PLProfiles ame353_versionRootForProfileName:selectedProfile];
+        if (ame353_root.length > 0) {
+            NSString *ame353_prev = @(getenv("POJAV_GAME_DIR") ?: "");
+            if (![ame353_root isEqualToString:ame353_prev]) {
+                setenv("POJAV_GAME_DIR", ame353_root.UTF8String, 1);
+                NSLog(@"[Ame353] launch version-root aligned: %@ -> %@ (profile=%@, vid=%@)",
+                      ame353_prev, ame353_root, selectedProfile, versionId);
+            }
+        }
+    }
+
     // 设置 UI 为下载状态（反查窗口期防双击；恢复点：回调失败/完成/handleError）
     [self setLaunchInteractionEnabled:NO];
 

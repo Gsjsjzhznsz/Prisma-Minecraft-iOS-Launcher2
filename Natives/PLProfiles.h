@@ -38,6 +38,13 @@
 ///   （"import" = 导入收尾 / "startup" = 启动期）。
 + (NSUInteger)ame349_reconcileOrphanInstancesLogTag:(NSString *)tag;
 
+/// ★ Task353：启动期版本根对齐——求该 profile 的版本根 R（满足
+///   R/versions/<vid>/<vid>.json 真实存在），供启动链把 POJAV_GAME_DIR 对齐
+///   到 profile 自洽根（ZL2VersionIndex 本地扫描 / MRDT versions/<id> 落位 /
+///   Java DIR_HOME_VERSION 三段同根；病历与修法见 .m 实现注）。纯读零副作用；
+///   latest-* 别名 / 未选版本 / 实体不在磁盘返回 nil（正常下载流不受影响）。
++ (NSString *)ame353_versionRootForProfileName:(NSString *)profileName;
+
 // 服务器地址（FCL 风格：启动后自动加入服务器，留空则不加入）
 - (NSString *)serverIpForCurrentProfile;
 - (NSString *)serverIpForProfile:(NSString *)profileName;
