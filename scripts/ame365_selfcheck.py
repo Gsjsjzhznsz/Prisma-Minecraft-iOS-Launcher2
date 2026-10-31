@@ -54,10 +54,10 @@ check('A2 .m 四实现 + 权限执法点（jit.read/jit.write/game.launch/logs.r
       and "- (void)enableJIT:(JSValue *)cb {" in bm
       and "- (void)launchGameWithProfile:(NSDictionary *)opts callback:(JSValue *)cb {" in bm
       and "- (NSString *)readLog:(NSString *)which limit:(double)maxLines {" in bm)
-check('A3 私有方法跨类前向声明（Task261 判例防线 + ★r1 @class 前置——类别声明不前置声明未知类）',
+check('A3 私有方法跨类消费前向声明（★r2 口径：类别定义须完整 @interface——导入 ZL2HomeViewController.h，@class 不够）',
       "@interface ZL2ShellViewController (Ame365Bridge)" in bm
       and "@interface ZL2HomeViewController (Ame365Bridge)" in bm
-      and "@class ZL2HomeViewController;" in bm
+      and '#import "ZL2HomeViewController.h"' in bm
       and "- (UIViewController *)ame_childForIndex:(NSInteger)index;" in bm
       and "- (void)launchButtonTapped;" in bm)
 check('A4 门面接线（JSExport 整形名逐一对齐 Task331 规则）',
