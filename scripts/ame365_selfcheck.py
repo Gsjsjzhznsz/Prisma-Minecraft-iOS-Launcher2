@@ -54,9 +54,10 @@ check('A2 .m 四实现 + 权限执法点（jit.read/jit.write/game.launch/logs.r
       and "- (void)enableJIT:(JSValue *)cb {" in bm
       and "- (void)launchGameWithProfile:(NSDictionary *)opts callback:(JSValue *)cb {" in bm
       and "- (NSString *)readLog:(NSString *)which limit:(double)maxLines {" in bm)
-check('A3 私有方法跨类前向声明（Task261 判例防线）',
+check('A3 私有方法跨类前向声明（Task261 判例防线 + ★r1 @class 前置——类别声明不前置声明未知类）',
       "@interface ZL2ShellViewController (Ame365Bridge)" in bm
       and "@interface ZL2HomeViewController (Ame365Bridge)" in bm
+      and "@class ZL2HomeViewController;" in bm
       and "- (UIViewController *)ame_childForIndex:(NSInteger)index;" in bm
       and "- (void)launchButtonTapped;" in bm)
 check('A4 门面接线（JSExport 整形名逐一对齐 Task331 规则）',
@@ -96,7 +97,15 @@ FRAG = re.compile(r'@?"((?:[^"\\]|\\.)*)"')
 def produced(t):
     return "".join(m.group(1) for m in FRAG.finditer(t))
 
-head_v5 = subprocess.run(["git", "-C", REPO, "show", "HEAD:Natives/AI/AiSettings.m"],
+# ★ r1 基线口径修正：本提交合入后 HEAD 的 defaultSystemPrompt 已是 v6，
+#   "HEAD=v5" 只在提交前成立。改用 pickaxe 动态定位 v5 基线 = 首个引入
+#   ame365_v5DefaultSystemPrompt 的提交的父提交（该提交永不变化，跨后续
+#   提交稳定）。
+_intro = subprocess.run(["git", "-C", REPO, "log", "--format=%H", "-S",
+                         "ame365_v5DefaultSystemPrompt", "--", "Natives/AI/AiSettings.m"],
+                        capture_output=True, text=True, check=True).stdout.split()
+_base = (_intro[-1] + "^") if _intro else "HEAD"
+head_v5 = subprocess.run(["git", "-C", REPO, "show", f"{_base}:Natives/AI/AiSettings.m"],
                          capture_output=True, text=True, check=True).stdout.replace("\r\n", "\n")
 h5 = head_v5[head_v5.index("+ (NSString *)defaultSystemPrompt {"):head_v5.index("/// ★ Task364：v4 默认提示词全文")]
 check('C1 v5 留档产出串 == git HEAD v5（逐字节迁移基线铁律）',

@@ -51,6 +51,10 @@ static const NSUInteger ame317_storageMaxBytes = 4 * 1024 * 1024;
 // ★ Task365：私有方法跨类消费前向声明（Task261 判例同族防线——ARC 下未声明
 //   selector = no known instance method 编译错）。主页启动按钮动作 launchButtonTapped
 //   与壳层子页访问器 ame_childForIndex: 均只活在各自 .m，桥面仅经类别声明消费。
+//   ★ r1（CI run 41167538237 编译实锤）：@interface 类别声明不前置声明未知类
+//   ——ZL2HomeViewController 头未导入时类别声明直接 cannot find interface
+//   declaration；须先 @class 前置（ZL2ShellViewController 经既有 import 可见）。
+@class ZL2HomeViewController;
 @interface ZL2ShellViewController (Ame365Bridge)
 - (UIViewController *)ame_childForIndex:(NSInteger)index;
 @end
