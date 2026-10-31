@@ -59,7 +59,9 @@ for root, _, fs in os.walk(NAT):
 for f in new_ms:
     src = open(os.path.join(NAT, f), encoding='utf-8').read()
     for imp in re.findall(r'#import\s+"([^"]+)"', src):
-        ok = imp in natives_files
+        # ★Task367 重锚：子目录导入（如 AI/AiSettings.h，Task365 ai.ask 接线引入）
+        # 按相对路径存在性判定；根目录导入沿用 basename 集合。
+        ok = imp in natives_files or os.path.exists(os.path.join(NAT, imp))
         check(f'{f} import {imp}', ok)
 
 # ── ④ CMake 登记 ────────────────────────────────────────
@@ -72,7 +74,7 @@ keysets = {}
 for lang, txt in langs.items():
     keysets[lang] = set(re.findall(r'"(ame317\.[a-zA-Z0-9_.]+)"\s*=', txt))
 base = keysets['en']
-check('ame317 keyset size', len(base) == 62, f'got {len(base)}')   # ★Task333 重锚: 60+2（ame.super 完全接管 name/desc）
+check('ame317 keyset size', len(base) == 99, f'got {len(base)}')  # ★Task367 重锚: 62(Task333) → 99（Task364 ui.views +2 / 365 自修复三件套 +8 / 366 权限 20→33 组全量 name/desc 重排）
 for lang in ['zh-Hans', 'zh-CN', 'zh-Hant']:
     check(f'keyset {lang} == en', keysets[lang] == base,
           f'diff={base ^ keysets[lang]}')

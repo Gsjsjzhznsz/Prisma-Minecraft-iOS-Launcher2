@@ -252,6 +252,18 @@ static NSString * const kAiSessionMessagesDidChangeNotification = @"AiSessionMes
             return;
         }
 
+        // ★ Task367：权威全文回填——fullResponse.content 是客户端累计的全量
+        //   文本；此前回复内容只信 onChunk 累积，而流尾未刷出的尾窗增量
+        //   （短回复可能=全部内容）丢失 → 工具执行完成后的回复气泡空白
+        //   不可见（装机实录）。取更长者回填，与 AiAPIClient 快照 flush
+        //   形成双保险，任何漏刷路径都兑不住。
+        NSString *ame367_fullText = [fullResponse isKindOfClass:[NSDictionary class]]
+            ? fullResponse[@"content"] : nil;
+        if ([ame367_fullText isKindOfClass:[NSString class]] &&
+            ame367_fullText.length > assistantMessage.content.length) {
+            assistantMessage.content = ame367_fullText;
+        }
+
         if (accToolCalls.count > 0) {
             // 进入工具执行阶段
             [strongSelf saveSession:session];
@@ -263,6 +275,11 @@ static NSString * const kAiSessionMessagesDidChangeNotification = @"AiSessionMes
                   completionHandler:completionHandler];
         } else {
             // 无工具调用，正常结束
+            if (assistantMessage.content.length == 0) {
+                // ★ Task367：真·空回复不留在会话里——空泡（48pt 底色块）在
+                //   玻璃背景上不可辨，会被误读为"没有回复"；与错误路径同口径。
+                [session.messages removeObject:assistantMessage];
+            }
             [strongSelf saveSession:session];
             strongSelf.running = NO;
             if (completionHandler) completionHandler(nil);

@@ -47,6 +47,8 @@
     @"\n"
     @"【1. 写插件铁律】\n"
     @"· 代码必须是纯 JS：无 require/import/浏览器对象；顶层用 (function(){...})(); 包裹；全文 ≤200KB。\n"
+    @"· 运行环境全局可用：setTimeout/setInterval/clearTimeout/clearInterval（与浏览器同语义，返回数字句柄）+ console.log/warn/error/info（重定向到启动器日志）。\n"
+    @"· manifest 的 permissions 必须覆盖代码实际调用的全部 ame.* 域（漏声明=运行时权限拒绝异常，插件当场失效）——生成代码前先按 API 用量列全权限清单再填进 create_plugin 参数。\n"
     @"· API 调用未经授权会抛异常：用 try/catch 捕获，并引导用户到 插件管理 → 对应插件 → 详情页 开启权限（高危权限安装后默认拒绝）。\n"
     @"· 插件效果出现在 设置 → 插件功能 区——每个插件必须至少 addLauncherRow 贡献一行，让用户看得见点得着。\n"
     @"· create_plugin 参数：id（小写字母/数字/._-，3-64 字符，全局唯一）、name（显示名 ≤64 字）、description（说明）、permissions（权限 id 数组，见【2】）、code（main.js 全文）、overwrite（同 id 覆盖，默认 false）。\n"

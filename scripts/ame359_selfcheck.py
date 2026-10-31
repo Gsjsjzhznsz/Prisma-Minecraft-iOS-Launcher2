@@ -124,17 +124,22 @@ check('D3 助手气泡底改系统自适应（硬编码白 0.08 退役）',
       and "bubbleView.backgroundColor = [UIColor colorWithWhite:1.0 alpha:0.08];" not in cell)
 
 # ══ E [Ame363] AI 提示词插件文档扩容 ═════════════════════
-check('E1 迁移链 v3→v4→v5→v6（ame363_v3/ame364_v4/ame365_v5 三留档 + 终版号 6【★Task365 重锚】+ 三级自适应升级日志）',
+# ★ Task367 重锚：Task366 已将默认提示词升 v7（桥面 118 方法/33 权限），
+#   迁移链补 v6→v7 与 ame366_v6 留档；E4 锚点同步 v7 文档形态（ame.theme.* 别名）。
+check('E1 迁移链 v3→v4→v5→v6→v7（ame363_v3/ame364_v4/ame365_v5/ame366_v6 四留档 + 终版号 7【★Task367 重锚】+ 四级自适应升级日志）',
       "+ (NSString *)ame363_v3DefaultSystemPrompt {" in aiset
       and "+ (NSString *)ame364_v4DefaultSystemPrompt {" in aiset
       and "+ (NSString *)ame365_v5DefaultSystemPrompt {" in aiset
+      and "+ (NSString *)ame366_v6DefaultSystemPrompt {" in aiset
       and "[ame267_saved isEqualToString:[self ame363_v3DefaultSystemPrompt]]" in aiset
       and "[ame267_saved isEqualToString:[self ame364_v4DefaultSystemPrompt]]" in aiset
       and "[ame267_saved isEqualToString:[self ame365_v5DefaultSystemPrompt]]" in aiset
-      and "[ame267_d setInteger:6 forKey:kSystemPromptVersionKey];" in aiset
+      and "[ame267_saved isEqualToString:[self ame366_v6DefaultSystemPrompt]]" in aiset
+      and "[ame267_d setInteger:7 forKey:kSystemPromptVersionKey];" in aiset
       and "Task363: v3 default system prompt auto-upgraded to v4" in aiset
       and "Task364: v4 default system prompt auto-upgraded to v5" in aiset
-      and "Task365: v5 default system prompt auto-upgraded to v6" in aiset)
+      and "Task365: v5 default system prompt auto-upgraded to v6" in aiset
+      and "Task366: v6 default system prompt auto-upgraded to v7" in aiset)
 check('E2 v4 提示词含主题四家族（setThemeToken/Shape/Layout/Structure + shellLayout 值域）',
       "ame.setThemeToken(色令牌表)" in aiset_v4_zone
       and "ame.setThemeShape(形状/字阶表)" in aiset_v4_zone
@@ -147,9 +152,10 @@ check('E3 v4 提示词含全量 API 面锚点（14 权限+ame.super/色值格式
       and "≤2MB" in aiset_v4_zone and "30 秒超时" in aiset_v4_zone)
 # ★ Task365 重锚：工具描述大段 API 块已迁至 get_plugin_docs 文档（create_plugin
 #   描述瘦身为契约+速览+文档前置铁律），四族令牌/色值断言改指 AiPluginDocsTool。
-check('E4 插件文档工具对齐（四族主题令牌 + 色值 + create_plugin 契约；★Task365 重锚至 AiPluginDocsTool）',
-      "ame.setThemeShape" in dtool and "ame.setThemeLayout" in dtool
-      and "ame.setThemeStructure" in dtool and "#RRGGBBAA" in dtool
+# ★ Task367 重锚：Task366 文档 v7 全量重写后写族锚点为 ame.theme.* 别名形态。
+check('E4 插件文档工具对齐（四族主题令牌 + 色值 + create_plugin 契约；★Task367 重锚至 v7 形态）',
+      "ame.theme.setShape" in dtool and "ame.theme.setLayout" in dtool
+      and "ame.theme.setStructure" in dtool and "#RRGGBBAA" in dtool
       and "get_plugin_docs" in ptool)
 check('E5 v4 保留一~六章/行为纪律/openPage 七页（非插件域零回归）',
       "【一、用户想安装 Minecraft 时" in aiset_v4_zone

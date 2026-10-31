@@ -25,6 +25,7 @@
 @property (nonatomic, strong) NSMutableDictionary<NSString *, NSDictionary *> *themeShapesByPlugin;   // Task341 形状/字体记账
 @property (nonatomic, strong) NSMutableDictionary<NSString *, NSDictionary *> *themeLayoutsByPlugin;  // Task343 布局记账
 @property (nonatomic, strong) NSMutableDictionary<NSString *, NSDictionary *> *themeStructuresByPlugin; // Task347 结构记账
+@property (nonatomic, strong) NSMutableDictionary<NSString *, NSMutableDictionary<NSNumber *, NSNumber *> *> *timerRegistries; // ★ Task367 定时器注册表（handle->active；卸载即清，在途回调查活静默）
 @property (nonatomic, assign) BOOL booted;
 @end
 
@@ -48,6 +49,7 @@
         _themeShapesByPlugin = [NSMutableDictionary dictionary];
         _themeLayoutsByPlugin = [NSMutableDictionary dictionary];
         _themeStructuresByPlugin = [NSMutableDictionary dictionary];
+        _timerRegistries = [NSMutableDictionary dictionary];
     }
     return self;
 }
@@ -741,6 +743,47 @@ static NSString *ame317_facadeSource(void) {
      "ame.log(a);};"
      "this.console={log:ameLogFn,warn:ameLogFn,error:ameLogFn,info:ameLogFn};"];
 
+    // ★ Task367：定时器补齐——JSC 无 setTimeout/setInterval/clearTimeout/
+    //   clearInterval，而 AI 产插件天然按浏览器约定书写（装机日志实锤：
+    //   ui.free.drag 抛 ReferenceError: Can't find variable: setTimeout
+    //   即死于本缺口，同属"AI 写插件可用性"面）。实现 = dispatch_after
+    //   主队列（上下文本就主队列口径）+ 每插件注册表；卸载清表，在途
+    //   回调经运行时查活（contexts 已换实例/摘除即静默），不炸不残留。
+    {
+        NSMutableDictionary<NSNumber *, NSNumber *> *timers = [NSMutableDictionary dictionary];
+        self.timerRegistries[pluginId] = timers;
+        __block NSInteger ame367_seq = 0;
+        __weak typeof(self) weakRuntime = self;
+
+        JSValue *ame367_setTimeout = [JSValue valueWithBlock:^double(JSValue *fn, double ms) {
+            if (!fn.isObject) return -1;
+            if (!(ms >= 0)) ms = 0;
+            if (ms > 300000) ms = 300000;   // 单次 ≤5min 封顶防失控
+            NSNumber *handle = @(++ame367_seq);
+            timers[handle] = @YES;
+            [weakRuntime ame367_scheduleTimer:fn ms:ms repeat:NO handle:handle
+                                       timers:timers pluginId:pluginId context:ctx];
+            return (double)handle.integerValue;
+        } inContext:ctx];
+        JSValue *ame367_setInterval = [JSValue valueWithBlock:^double(JSValue *fn, double ms) {
+            if (!fn.isObject) return -1;
+            if (!(ms >= 10)) ms = 10;       // 周期下限 10ms
+            if (ms > 300000) ms = 300000;
+            NSNumber *handle = @(++ame367_seq);
+            timers[handle] = @YES;
+            [weakRuntime ame367_scheduleTimer:fn ms:ms repeat:YES handle:handle
+                                       timers:timers pluginId:pluginId context:ctx];
+            return (double)handle.integerValue;
+        } inContext:ctx];
+        JSValue *ame367_clear = [JSValue valueWithBlock:^void(double handle) {
+            [timers removeObjectForKey:@(handle)];
+        } inContext:ctx];
+        [ctx setObject:ame367_setTimeout forKeyedSubscript:@"setTimeout"];
+        [ctx setObject:ame367_setInterval forKeyedSubscript:@"setInterval"];
+        [ctx setObject:ame367_clear forKeyedSubscript:@"clearTimeout"];
+        [ctx setObject:ame367_clear forKeyedSubscript:@"clearInterval"];
+    }
+
     @try {
         [ctx evaluateScript:source];
     } @catch (NSException *ex) {
@@ -833,6 +876,34 @@ static NSString *ame317_facadeSource(void) {
           @(m.permissions.count));
 }
 
+// ★ Task367：定时器在途派发（setTimeout/setInterval 共用）。liveness 双闸：
+//   ①运行时 contexts[pluginId] 仍指向同一 ctx（插件卸载/重载即失活）；
+//   ②注册表句柄仍为 active（clearTimeout/clearInterval 已摘除即失活）。
+//   周期定时器在闸内自续约，链随任一闸断开自然终止；fn 抛异常由
+//   ctx.exceptionHandler 兜底（只记录不崩进程，与插件代码同口径）。
+- (void)ame367_scheduleTimer:(JSValue *)fn
+                          ms:(double)ms
+                      repeat:(BOOL)repeat
+                      handle:(NSNumber *)handle
+                      timers:(NSMutableDictionary<NSNumber *, NSNumber *> *)timers
+                    pluginId:(NSString *)pluginId
+                     context:(JSContext *)ctx {
+    __weak typeof(self) weakRuntime = self;
+    int64_t deltaNs = (int64_t)(ms * NSEC_PER_MSEC);
+    dispatch_after(dispatch_time(DISPATCH_TIME_NOW, deltaNs), dispatch_get_main_queue(), ^{
+        __strong typeof(weakRuntime) strongRuntime = weakRuntime;
+        if (!strongRuntime || strongRuntime.contexts[pluginId] != ctx) return;   // 已卸载/重载
+        if (![timers[handle] boolValue]) return;                                 // 已 clear
+        if (repeat) {
+            [strongRuntime ame367_scheduleTimer:fn ms:ms repeat:YES handle:handle
+                                         timers:timers pluginId:pluginId context:ctx];
+        } else {
+            [timers removeObjectForKey:handle];   // 单次：触发即出表（防表无限增长）
+        }
+        [fn callWithArguments:@[]];
+    });
+}
+
 - (void)ame317_unloadPlugin:(NSString *)pluginId {
     NSAssert([NSThread isMainThread], @"AmePlugin 卸载必须主线程");
     // 主题令牌还原本插件贡献（色 + Task341 形状/字体 + Task343 布局三族同收）
@@ -850,6 +921,9 @@ static NSString *ame317_facadeSource(void) {
     }
     [self.bridges removeObjectForKey:pluginId];
     [self.contexts removeObjectForKey:pluginId];
+    // ★ Task367：定时器注册表随卸载清——在途 dispatch_after 回调经查活
+    //   （contexts 已摘除）静默丢弃，周期链自然断绝，不炸不残留
+    [self.timerRegistries removeObjectForKey:pluginId];
     NSLog(@"[AmePlugin:%@] 已卸载", pluginId);
 }
 

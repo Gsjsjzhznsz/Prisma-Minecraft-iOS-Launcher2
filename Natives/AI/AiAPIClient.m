@@ -285,7 +285,17 @@ static const NSTimeInterval kChunkThrottleInterval = 0.2;
     NSDictionary *choice = choices[0];
     if (![choice isKindOfClass:[NSDictionary class]]) return;
     NSDictionary *delta = choice[@"delta"];
-    if (![delta isKindOfClass:[NSDictionary class]]) return;
+    if (![delta isKindOfClass:[NSDictionary class]]) {
+        // ★ Task367：兼容部分 OpenAI 兼容网关无视 stream:true 直接回整包
+        //   JSON（choices[].message 形态、无 [DONE]）——旧实现只认 delta，
+        //   这类供应商的回复整包静默丢弃 = 同族"AI 无回复"第二病灶。
+        NSDictionary *ame367_message = choice[@"message"];
+        if ([ame367_message isKindOfClass:[NSDictionary class]]) {
+            delta = ame367_message;
+        } else {
+            return;
+        }
+    }
 
     id content = delta[@"content"];
     NSString *deltaText = nil;
@@ -314,14 +324,21 @@ static const NSTimeInterval kChunkThrottleInterval = 0.2;
 }
 
 - (void)flushPendingDelta {
-    if (self.pendingDelta.length > 0 && self.onChunk) {
+    [self ame367_flushPendingDeltaWithChunk:self.onChunk];
+}
+
+/// ★ Task367：用指定回调块刷出待发增量。完成路径必须传进入流时的回调
+///   快照——didCompleteWithError 先清 self.onChunk 再走收尾管线，若收尾
+///   时直接读 self.onChunk 会拿到 nil，尾窗（节流间隔 ≤200ms）内未刷出
+///   的增量全部静默丢失：短回复（工具执行完后的总结句最典型）整条蒸发，
+///   会话只剩一条空气泡 = 用户实录"AI 执行完成看不到回复"；长回复=结尾
+///   截断。次序铁律：清空回调永远在最后一次增量刷出之后。
+- (void)ame367_flushPendingDeltaWithChunk:(void (^)(NSString *, NSDictionary *))chunk {
+    if (self.pendingDelta.length > 0 && chunk) {
         NSString *delta = [self.pendingDelta copy];
         [self.pendingDelta setString:@""];
-        void (^chunk)(NSString *, NSDictionary *) = self.onChunk;
-        if (chunk) {
-            NSString *safeDelta = delta;
-            dispatch_async(dispatch_get_main_queue(), ^{ chunk(safeDelta, nil); });
-        }
+        NSString *safeDelta = delta;
+        dispatch_async(dispatch_get_main_queue(), ^{ chunk(safeDelta, nil); });
     }
     self.lastChunkFlushTime = [[NSDate date] timeIntervalSince1970];
 }
@@ -380,7 +397,11 @@ static const NSTimeInterval kChunkThrottleInterval = 0.2;
 - (void)URLSession:(NSURLSession *)session task:(NSURLSessionTask *)task didCompleteWithError:(NSError *)error {
     self.streamDone = YES;
 
+    // ★ Task367：先取回调快照再清空属性——收尾管线里最后一次增量刷出必须
+    //   用快照派发（见 ame367_flushPendingDeltaWithChunk 注释）；旧序"先置
+    //   nil 后 flush"把尾窗增量连同回调一并丢弃 = 最终回复不可见根因。
     void (^complete)(NSDictionary *, NSError *) = self.onComplete;
+    void (^chunk)(NSString *, NSDictionary *) = self.onChunk;
     self.onComplete = nil;
     self.onChunk = nil;
 
@@ -390,7 +411,7 @@ static const NSTimeInterval kChunkThrottleInterval = 0.2;
             outError = [NSError errorWithDomain:@"AiAPIClient" code:NSURLErrorCancelled
                                        userInfo:@{NSLocalizedDescriptionKey: localize(@"ai.api.stopped", nil)}];
         }
-        [self flushPendingDelta];
+        [self ame367_flushPendingDeltaWithChunk:chunk];
         if (complete) {
             dispatch_async(dispatch_get_main_queue(), ^{ complete(nil, outError); });
         }
@@ -398,7 +419,7 @@ static const NSTimeInterval kChunkThrottleInterval = 0.2;
     }
 
     if (self.statusCode != 0 && self.statusCode != 200) {
-        [self flushPendingDelta];
+        [self ame367_flushPendingDeltaWithChunk:chunk];
         NSError *apiError = [self errorFromResponseBody];
         if (complete) {
             dispatch_async(dispatch_get_main_queue(), ^{ complete(nil, apiError); });
@@ -421,7 +442,9 @@ static const NSTimeInterval kChunkThrottleInterval = 0.2;
         [self.streamBuffer setString:@""];
         [self processStreamLine:tailLine];
     }
-    [self flushPendingDelta];
+    // ★ Task367：用回调快照刷出尾窗增量（旧版此处读已被清空的 self.onChunk，
+    //   永远 no-op——最终回复的收尾段/短回复全文在此丢失）
+    [self ame367_flushPendingDeltaWithChunk:chunk];
     NSDictionary *fullResponse = @{@"content": [self.fullResponseText copy] ?: @""};
     if (complete) {
         dispatch_async(dispatch_get_main_queue(), ^{ complete(fullResponse, nil); });

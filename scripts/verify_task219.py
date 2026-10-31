@@ -210,7 +210,8 @@ for lang in ["en", "zh-Hans", "zh-Hant", "zh-CN"]:
     keys = set(re.findall(r'^"([^"]+)"\s*=',
                           rd(f"Natives/resources/{lang}.lproj/Localizable.strings"), re.M))
     # ★ Task365 重锚：Task343 3319 → …351 +2 = 3329 → 364 +2（ui.views 权限 name/desc）= 3331 → 365 +8（jit.read/jit.write/game.launch/logs.read 权限 name/desc×4）= 3339
-    check(f"J-{lang} 唯一键 3339（★Task365 重锚：…364 +2 = 3331 → 365 +8 = 3339）", len(keys) == 3339, f"got {len(keys)}")
+    # ★ Task367 重锚：Task366 权限 20→33 组（+13 组 name/desc×4 表 = 66 键）+ ame317.common.cancel 补键 = 3366（task191 同步锚）
+    check(f"J-{lang} 唯一键 3366（★Task367 重锚：…365 = 3339 → 366 +66 权限名述 +1 common.cancel = 3366）", len(keys) == 3366, f"got {len(keys)}")
 check("J-公告 7 条（Task315 同步重锚：6.5.5 侧 region-notice+download-speed 并入，pin 语义保持）",
       len(ann) == 7
       and any(a["id"] == "region-notice-and-download-speed-2026-10-20" for a in ann)

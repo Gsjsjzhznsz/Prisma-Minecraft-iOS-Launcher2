@@ -57,6 +57,9 @@
     @"ame.storage 私有存储；ame.fetch/ame.net.download 网络；ame.fs 启动器沙盒 + "
     @"ame.listFiles 族游戏目录沙盒。\n"
     @"注意：调用未授权 API 会抛异常，可 try/catch 引导用户去插件详情页授权；"
+    @"manifest 的 permissions 必须覆盖代码实际调用的全部 ame.* 域，漏声明=运行时权限拒绝异常"
+    @"（生成代码前先按 API 用量列全权限清单再填入 permissions 参数）；"
+    @"运行环境全局可用 setTimeout/setInterval/clearTimeout/clearInterval 与 console.*；"
     @"每个插件应至少 addLauncherRow 贡献一行让用户可见可点。";
 }
 
