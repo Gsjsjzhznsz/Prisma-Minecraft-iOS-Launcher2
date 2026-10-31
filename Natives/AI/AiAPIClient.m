@@ -23,6 +23,7 @@ static const NSTimeInterval kChunkThrottleInterval = 0.2;
 @property (nonatomic, assign) NSTimeInterval lastChunkFlushTime;
 @property (nonatomic, assign) BOOL streamDone;
 @property (nonatomic, assign) NSInteger statusCode;
+@property (nonatomic, assign) NSTimeInterval ame368_requestStartAt; // ★ Task368：请求出膛时刻（net done 耗时可判读）
 @property (nonatomic, strong) NSMutableString *rawErrorBody; // ★ Task275：非 200 响应原始正文（SSE 管线会丢弃的错误体）
 @end
 
@@ -51,6 +52,8 @@ static const NSTimeInterval kChunkThrottleInterval = 0.2;
                        onChunk:(void (^)(NSString * _Nullable delta, NSDictionary * _Nullable toolCalls))onChunk
                     onComplete:(void (^)(NSDictionary * _Nullable fullResponse, NSError * _Nullable error))onComplete {
     if (!provider || provider.baseURL.length == 0 || provider.model.length == 0) {
+        NSLog(@"[Ame368] net abort provider-incomplete baseURL=%@ model=%@",
+              provider.baseURL.length ? @"set" : @"EMPTY", provider.model.length ? @"set" : @"EMPTY");
         NSError *err = [NSError errorWithDomain:@"AiAPIClient" code:100
                                         userInfo:@{NSLocalizedDescriptionKey: localize(@"ai.api.provider_incomplete", nil)}];
         if (onComplete) {
@@ -76,6 +79,7 @@ static const NSTimeInterval kChunkThrottleInterval = 0.2;
     NSString *urlString = [base stringByAppendingString:@"chat/completions"];
     NSURL *url = [NSURL URLWithString:urlString];
     if (!url) {
+        NSLog(@"[Ame368] net abort invalid-url %@", urlString);
         NSError *err = [NSError errorWithDomain:@"AiAPIClient" code:101
                                         userInfo:@{NSLocalizedDescriptionKey: localize(@"ai.api.invalid_url", nil)}];
         if (onComplete) {
@@ -154,6 +158,7 @@ static const NSTimeInterval kChunkThrottleInterval = 0.2;
     NSError *serializeError = nil;
     request.HTTPBody = [NSJSONSerialization dataWithJSONObject:body options:0 error:&serializeError];
     if (serializeError || !request.HTTPBody) {
+        NSLog(@"[Ame368] net serialize-fail %@", serializeError.localizedDescription ?: @"nil body");
         if (onComplete) {
             dispatch_async(dispatch_get_main_queue(), ^{ onComplete(nil, serializeError); });
         }
@@ -170,6 +175,14 @@ static const NSTimeInterval kChunkThrottleInterval = 0.2;
     }
 
     self.currentTask = [self.session dataTaskWithRequest:request];
+    // ★ Task368：请求出膛留痕——本仓 AI 聊天链路首个“请求真的离开了 App”
+    //   锚点；测试（testConnection）与聊天共用本入口，装机 latestlog 从此
+    //   可直接判读“发了没/发到哪/多大”。留痕只含 host+path/规模/模型名，
+    //   绝不含 apiKey。
+    self.ame368_requestStartAt = [[NSDate date] timeIntervalSince1970];
+    NSLog(@"[Ame368] net dispatch %@ msgs=%lu tools=%lu bodyBytes=%lu model=%@",
+          urlString, (unsigned long)messages.count, (unsigned long)tools.count,
+          (unsigned long)request.HTTPBody.length, provider.model);
     [self.currentTask resume];
 }
 
@@ -396,6 +409,11 @@ static const NSTimeInterval kChunkThrottleInterval = 0.2;
 
 - (void)URLSession:(NSURLSession *)session task:(NSURLSessionTask *)task didCompleteWithError:(NSError *)error {
     self.streamDone = YES;
+    // ★ Task368：网络层收尾留痕（无论成败；耗时/状态码/字节量一站可判读）
+    double ame368_elapsedMs = ([[NSDate date] timeIntervalSince1970] - self.ame368_requestStartAt) * 1000.0;
+    NSLog(@"[Ame368] net done status=%ld bytes=%lu elapsed=%.0fms err=%@",
+          (long)self.statusCode, (unsigned long)self.streamData.length, ame368_elapsedMs,
+          error.localizedDescription ?: @"-");
 
     // ★ Task367：先取回调快照再清空属性——收尾管线里最后一次增量刷出必须
     //   用快照派发（见 ame367_flushPendingDeltaWithChunk 注释）；旧序"先置

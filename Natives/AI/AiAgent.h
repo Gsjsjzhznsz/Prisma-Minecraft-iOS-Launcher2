@@ -33,6 +33,11 @@ NS_ASSUME_NONNULL_BEGIN
 /// 取消当前进行的请求（供停止按钮）
 - (void)stopCurrent;
 
+/// ★ Task368：只读访问器——AI 页（壳 childCache 缓存常驻页）viewDidAppear
+///   状态漂移兜底需要判断 Agent 是否真在跑（输入栏 isSending 与 Agent running
+///   是两套状态，缓存页跨页面驻留后可能漂移失配）。
+- (BOOL)isRunning;
+
 @end
 
 NS_ASSUME_NONNULL_END

@@ -16,6 +16,11 @@
 static const NSInteger kMaxToolRounds = 10;
 /// 同一工具调用最多尝试次数（含失败）
 static const NSInteger kMaxToolAttempts = 3;
+/// ★ Task368：僵死判定阈值——running=YES 但四类在途（流/工具/确认）全部归零
+///   的空窗持续超过此秒数，视为上轮 flow 已死，busy 闸自动放行新消息。
+///   只对“空窗”开火：流在途有 120s 网络超时自愈、工具/确认在途是合法长任务
+///   （大下载/用户阅读确认框），永不误杀。
+static const NSTimeInterval kAme368StallTimeout = 10.0;
 
 /// 工具调用结果已写入会话的消息变更通知名（object=AiSession）
 static NSString * const kAiSessionMessagesDidChangeNotification = @"AiSessionMessagesDidChangeNotification";
@@ -27,6 +32,14 @@ static NSString * const kAiSessionMessagesDidChangeNotification = @"AiSessionMes
 @property (nonatomic, assign) BOOL running;
 @property (nonatomic, strong) NSMutableDictionary<NSString *, NSNumber *> *attempts; // toolCallID -> 已尝试次数
 @property (nonatomic, assign) NSInteger toolRound;                                   // 当前工具轮数
+
+// ★ Task368：在途跟踪 + 僵死检测（busy 闸自愈的判定原料；全部主队列读写——
+//   工具 completion 与确认回调经 AiToolRegistry/AiSafetyManager 统一派主线程）
+@property (nonatomic, assign) BOOL ame368_streamInFlight;   // 流式请求在途
+@property (nonatomic, assign) NSInteger ame368_activeToolCount; // 执行中的工具数
+@property (nonatomic, assign) BOOL ame368_confirmInFlight;  // 等待用户安全确认
+@property (nonatomic, assign) NSTimeInterval ame368_gapSince;   // “无任何在途”空窗起点（0=不在空窗）
+@property (nonatomic, assign) NSTimeInterval ame368_flowStartAt; // 当前 flow 起点（busy 拒绝时留痕时长用）
 @end
 
 @implementation AiAgent
@@ -47,6 +60,39 @@ static NSString * const kAiSessionMessagesDidChangeNotification = @"AiSessionMes
         _attempts = [NSMutableDictionary dictionary];
     }
     return self;
+}
+
+#pragma mark - Task368 在途跟踪 / 僵死检测
+
+- (BOOL)isRunning {
+    return self.running;
+}
+
+/// 当前在途类型（busy 拒绝留痕与僵死判定共用口径）
+- (NSString *)ame368_inFlightKind {
+    if (self.ame368_streamInFlight) return @"stream";
+    if (self.ame368_confirmInFlight) return @"confirm";
+    if (self.ame368_activeToolCount > 0) return @"tool";
+    return @"none";
+}
+
+/// 每次在途状态变化后调用：刷新空窗锚（有在途=清零；无在途=从现在起算）
+- (void)ame368_noteActivity {
+    BOOL ame368_busy = self.ame368_streamInFlight || self.ame368_confirmInFlight
+        || self.ame368_activeToolCount > 0;
+    if (ame368_busy) {
+        self.ame368_gapSince = 0;
+    } else if (self.ame368_gapSince == 0) {
+        self.ame368_gapSince = [[NSDate date] timeIntervalSince1970];
+    }
+}
+
+/// flow 终止/强拆后的在途状态归零
+- (void)ame368_resetInFlight {
+    self.ame368_streamInFlight = NO;
+    self.ame368_confirmInFlight = NO;
+    self.ame368_activeToolCount = 0;
+    self.ame368_gapSince = 0;
 }
 
 /// 会话持久化（每轮工具往返后调用，保证打断/杀进程后 history 完整）
@@ -130,20 +176,44 @@ static NSString * const kAiSessionMessagesDidChangeNotification = @"AiSessionMes
         return;
     }
 
-    // 并发保护：上一个 flow 尚未结束（如工具仍在执行/等待确认）时，直接拒绝新消息
+    // 并发保护：上一个 flow 尚未结束（如工具仍在执行/等待确认）时，直接拒绝新消息。
+    // ★ Task368 僵死自愈：若 running=YES 但流/工具/确认三类在途全部归零且空窗
+    //   已超阈值，判定上轮 flow 已死（老病灶：介于轮次间的静默 return 让 running
+    //   永久悬挂，此后每次发送都被 busy 拒绝 = 用户实录“请求没有发送”且无解释）
+    //   ——自动强拆并放行本次发送；在途非空（真下载/真流/确认框）永不误杀。
     if (self.running) {
-        if (completionHandler) {
-            dispatch_async(dispatch_get_main_queue(), ^{
-                completionHandler([NSError errorWithDomain:@"AiAgent" code:3 userInfo:@{NSLocalizedDescriptionKey: localize(@"ai.agent.busy", nil)}]);
-            });
+        NSTimeInterval ame368_now = [[NSDate date] timeIntervalSince1970];
+        NSString *ame368_inFlight = [self ame368_inFlightKind];
+        BOOL ame368_stalled = [ame368_inFlight isEqualToString:@"none"]
+            && self.ame368_gapSince > 0
+            && (ame368_now - self.ame368_gapSince) > kAme368StallTimeout;
+        NSLog(@"[Ame368] agent busy-gate runningFor=%.0fs inFlight=%@ gap=%.0fs stalled=%@",
+              ame368_now - self.ame368_flowStartAt, ame368_inFlight,
+              self.ame368_gapSince > 0 ? ame368_now - self.ame368_gapSince : 0.0,
+              ame368_stalled ? @"YES" : @"NO");
+        if (!ame368_stalled) {
+            if (completionHandler) {
+                dispatch_async(dispatch_get_main_queue(), ^{
+                    completionHandler([NSError errorWithDomain:@"AiAgent" code:3 userInfo:@{NSLocalizedDescriptionKey: localize(@"ai.agent.busy", nil)}]);
+                });
+            }
+            return;
         }
-        return;
+        NSLog(@"[Ame368] agent stall-break idleFor=%.0fs -> force reset running, accept new message",
+              ame368_now - self.ame368_gapSince);
+        self.running = NO;
+        [self ame368_resetInFlight];
     }
 
     // 初始化循环状态
     self.running = YES;
     self.toolRound = 0;
     [self.attempts removeAllObjects];
+    self.ame368_flowStartAt = [[NSDate date] timeIntervalSince1970];
+    [self ame368_resetInFlight];
+    [self ame368_noteActivity];
+    NSLog(@"[Ame368] agent accept len=%lu histMsgs=%lu",
+          (unsigned long)text.length, (unsigned long)session.messages.count);
 
     // 追加用户消息
     AiMessage *userMessage = [AiMessage messageWithRole:@"user" content:text ?: @""];
@@ -168,7 +238,9 @@ static NSString * const kAiSessionMessagesDidChangeNotification = @"AiSessionMes
         AiMessage *capMsg = [AiMessage messageWithRole:@"assistant" content:localize(@"ai.agent.round_limit", nil)];
         [session.messages addObject:capMsg];
         [self saveSession:session];
+        NSLog(@"[Ame368] agent round-end cap (round=%ld)", (long)self.toolRound);
         self.running = NO;
+        [self ame368_resetInFlight];
         if (completionHandler) completionHandler(nil);
         return;
     }
@@ -212,6 +284,14 @@ static NSString * const kAiSessionMessagesDidChangeNotification = @"AiSessionMes
     assistantMessage.streaming = YES;
     [session.messages addObject:assistantMessage];
 
+    // ★ Task368：轮次出膛留痕（payload/工具/系统提示词规模一站可判读）+
+    //   流在途标记（busy 闸僵死判定的“有在途”原料）
+    NSLog(@"[Ame368] agent round#%ld payloadMsgs=%lu tools=%lu sysBytes=%lu",
+          (long)self.toolRound, (unsigned long)payloadMessages.count,
+          (unsigned long)tools.count, (unsigned long)systemPrompt.length);
+    self.ame368_streamInFlight = YES;
+    [self ame368_noteActivity];
+
     __weak typeof(self) weakSelf = self;
     __block NSMutableDictionary *accToolCalls = [NSMutableDictionary dictionary];
 
@@ -233,6 +313,10 @@ static NSString * const kAiSessionMessagesDidChangeNotification = @"AiSessionMes
         __strong typeof(weakSelf) strongSelf = weakSelf;
         if (!strongSelf) return;
 
+        // ★ Task368：流出膛（无论成败）先清在途标记再走收尾管线
+        strongSelf.ame368_streamInFlight = NO;
+        [strongSelf ame368_noteActivity];
+
         assistantMessage.streaming = NO;
 
         // 停止请求：直接收尾，不触发 completionHandler（UI 已由停止按钮复位）
@@ -243,11 +327,13 @@ static NSString * const kAiSessionMessagesDidChangeNotification = @"AiSessionMes
 
         if (error) {
             // 出错：不追加错误消息到 history，仅 completionHandler 通知 UI 弹错
+            NSLog(@"[Ame368] agent round-end err=%@", error.localizedDescription ?: @"-");
             if (assistantMessage.content.length == 0) {
                 [session.messages removeObject:assistantMessage];
             }
             [strongSelf saveSession:session];
             strongSelf.running = NO;
+            [strongSelf ame368_resetInFlight];
             if (completionHandler) completionHandler(error);
             return;
         }
@@ -266,6 +352,7 @@ static NSString * const kAiSessionMessagesDidChangeNotification = @"AiSessionMes
 
         if (accToolCalls.count > 0) {
             // 进入工具执行阶段
+            NSLog(@"[Ame368] agent round-end toolCalls=%lu", (unsigned long)accToolCalls.count);
             [strongSelf saveSession:session];
             [strongSelf runToolCalls:accToolCalls
                     assistantMessage:assistantMessage
@@ -280,8 +367,11 @@ static NSString * const kAiSessionMessagesDidChangeNotification = @"AiSessionMes
                 //   玻璃背景上不可辨，会被误读为"没有回复"；与错误路径同口径。
                 [session.messages removeObject:assistantMessage];
             }
+            NSLog(@"[Ame368] agent round-end done contentLen=%lu",
+                  (unsigned long)assistantMessage.content.length);
             [strongSelf saveSession:session];
             strongSelf.running = NO;
+            [strongSelf ame368_resetInFlight];
             if (completionHandler) completionHandler(nil);
         }
     }];
@@ -366,7 +456,9 @@ static NSString * const kAiSessionMessagesDidChangeNotification = @"AiSessionMes
         if (!strongSelf || !strongSelf.running) return;
         if (terminalError) {
             // 达到重试上限，以最终错误结束本轮
+            NSLog(@"[Ame368] agent round-end terminalErr=%@", terminalError.localizedDescription ?: @"-");
             strongSelf.running = NO;
+            [strongSelf ame368_resetInFlight];
             if (completionHandler) completionHandler(terminalError);
             return;
         }
@@ -425,11 +517,17 @@ static NSString * const kAiSessionMessagesDidChangeNotification = @"AiSessionMes
         void (^proceed)(void) = ^{
             __strong typeof(weakSelf) ss2 = weakSelf;
             if (!ss2 || !ss2.running) { if (done) done(); return; }
+            // ★ Task368：工具在途 +1（busy 闸僵死判定的“有在途”原料）
+            ss2.ame368_activeToolCount++;
+            [ss2 ame368_noteActivity];
             [[AiToolRegistry sharedRegistry] executeToolNamed:name ?: @""
                                                        params:normalizedParams
                                                    completion:^(NSString * _Nullable result, NSError * _Nullable error) {
                 __strong typeof(weakSelf) ss3 = weakSelf;
                 if (!ss3) { if (done) done(); return; }
+                // ★ Task368：工具出膛 -1（先于一切收尾分支）
+                ss3.ame368_activeToolCount--;
+                [ss3 ame368_noteActivity];
                 NSString *content = result;
                 if (content.length == 0 && error) content = error.localizedDescription;
                 if (content.length == 0) content = localize(@"ai.agent.no_result", nil);
@@ -443,10 +541,15 @@ static NSString * const kAiSessionMessagesDidChangeNotification = @"AiSessionMes
 
         // 安全确认（DangerousWrite 等需确认时阻塞等待用户选择）
         if ([[AiSafetyManager sharedManager] needsUserConfirmationForPermission:tool.permission]) {
+            // ★ Task368：确认在途 +（合法等待：用户阅读确认框期间不参与僵死判定）
+            strongSelf.ame368_confirmInFlight = YES;
+            [strongSelf ame368_noteActivity];
             [[AiSafetyManager sharedManager] requestConfirmationWithTitle:[NSString stringWithFormat:localize(@"ai.agent.confirm_title_fmt", nil), name ?: @""]
                                                                   message:[NSString stringWithFormat:localize(@"ai.agent.confirm_body_fmt", nil), arguments]
                                                               completion:^(BOOL approved) {
                 __strong typeof(weakSelf) ss4 = weakSelf;
+                // ★ Task368：确认出膛（无论批准与否，先于 running 检查清标记）
+                if (ss4) { ss4.ame368_confirmInFlight = NO; [ss4 ame368_noteActivity]; }
                 if (!ss4 || !ss4.running) { if (done) done(); return; }
                 if (!approved) {
                     AiMessage *cancelMsg = [AiMessage toolResultMessageWithContent:localize(@"ai.agent.cancelled_by_user", nil) toolCallID:callID];
@@ -496,8 +599,10 @@ static NSString * const kAiSessionMessagesDidChangeNotification = @"AiSessionMes
 #pragma mark - 停止
 
 - (void)stopCurrent {
+    NSLog(@"[Ame368] agent stop-current (was running=%@)", self.running ? @"YES" : @"NO");
     if (self.client) [self.client stop];
     self.running = NO;
+    [self ame368_resetInFlight];
 }
 
 @end

@@ -19,7 +19,7 @@ static const CGFloat kSendButtonSize = 40.0;
 /// 水平外边距
 static const CGFloat kBarHMargin = 16.0;
 
-@interface AIInputBarView ()
+@interface AIInputBarView () <UITextFieldDelegate>
 @property (nonatomic, strong) UITextField *inputField;
 @property (nonatomic, strong) UIButton *sendButton;
 @property (nonatomic, strong, readwrite) UILabel *modelLabel;
@@ -72,6 +72,10 @@ static const CGFloat kBarHMargin = 16.0;
     self.inputField.autocorrectionType = UITextAutocorrectionTypeDefault;
     self.inputField.enablesReturnKeyAutomatically = YES;
     self.inputField.returnKeyType = UIReturnKeySend;
+    // ★ Task368：键盘“发送”键接线——老实现 returnKeyType 只改了按键文案，
+    //   inputField 从未设 delegate，键盘发送键按下毫无反应（真 bug）。
+    //   textFieldShouldReturn 统一走 sendButtonTapped（发送/停止同一入口）。
+    self.inputField.delegate = self;
     [self.inputField addTarget:self action:@selector(textFieldDidChange) forControlEvents:UIControlEventEditingChanged];
     self.inputField.clearsOnBeginEditing = NO;
     self.inputField.leftViewMode = UITextFieldViewModeAlways;
@@ -132,6 +136,12 @@ static const CGFloat kBarHMargin = 16.0;
         [self.sendButton setImage:[UIImage systemImageNamed:@"arrow.up.circle.fill"] forState:UIControlStateNormal];
         self.sendButton.tintColor = accent;
     }
+    // ★ Task368：退出发送态时同步按钮可用性与文本框实况（清除/清空后不再
+    //   遗留“可点但点了没反应”的陈旧 enabled 态）
+    if (!isSending) {
+        NSString *trimmed = [self.text stringByTrimmingCharactersInSet:[NSCharacterSet whitespaceAndNewlineCharacterSet]];
+        self.sendButton.enabled = trimmed.length > 0;
+    }
 }
 
 - (NSString *)text {
@@ -156,13 +166,26 @@ static const CGFloat kBarHMargin = 16.0;
 
 - (void)sendButtonTapped {
     if (self.isSending) {
+        NSLog(@"[Ame368] ui send-tap -> stop");
         if (self.onStop) self.onStop();
         return;
     }
     NSString *trimmed = [self.text stringByTrimmingCharactersInSet:[NSCharacterSet whitespaceAndNewlineCharacterSet]];
-    if (trimmed.length == 0) return;
+    if (trimmed.length == 0) {
+        NSLog(@"[Ame368] ui send-tap dropped (empty)");
+        return;
+    }
+    NSLog(@"[Ame368] ui send-tap -> send len=%lu", (unsigned long)trimmed.length);
     if (self.onSend) self.onSend(trimmed);
     [self.inputField resignFirstResponder];
+}
+
+#pragma mark - UITextFieldDelegate (Task368 键盘发送键)
+
+- (BOOL)textFieldShouldReturn:(UITextField *)textField {
+    // 键盘“发送”键 = 发送按钮同一路径（发送态下按它 = 停止，与按钮语义一致）
+    [self sendButtonTapped];
+    return NO;
 }
 
 - (void)modelLabelTapped {

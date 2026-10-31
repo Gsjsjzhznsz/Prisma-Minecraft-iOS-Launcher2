@@ -97,10 +97,53 @@ static const NSTimeInterval kUIThrottleInterval = 0.2;
 
 - (void)viewDidAppear:(BOOL)animated {
     [super viewDidAppear:animated];
+
+    // ★ Task368：缓存页状态漂移兑底——本页在壳里被 childCache 常驻缓存，输入栏
+    //   isSending 与 AiAgent 单例 running 是两套状态，跨页面驻留/flow 中途终止后
+    //   可能失配：Agent 空闲但按钮仍卡“停止”态（点击永远走停止，发送水置无声）
+    //   或反向。上屏时强制对齐一次。
+    BOOL ame368_agentRunning = [[AiAgent sharedAgent] isRunning];
+    if (!ame368_agentRunning && self.inputBar.isSending) {
+        NSLog(@"[Ame368] ui drift-fix isSending YES->NO (agent idle)");
+        [self.inputBar setIsSending:NO];
+    } else if (ame368_agentRunning && !self.inputBar.isSending) {
+        NSLog(@"[Ame368] ui drift-fix isSending NO->YES (agent busy)");
+        [self.inputBar setIsSending:YES];
+    }
+    [self ame368_sweepStaleStreaming];
+
     // 进入会话页滚动到底；无动画避免进场跳动。空会话不滚动。
     if (self.session.messages.count > 0) {
         [self scrollToBottomAnimated:NO];
     }
+}
+
+/// ★ Task368：残留流式占位清扫——上次 flow 被杀/崩溃后，会话里可能永久留下
+///   streaming=YES 的占位消息（空内容=幽灵空气泡；有内容=永远“正在生成”观感）。
+///   Agent 空闲时清扫：空内容移除，有内容保留但转正为普通消息。Agent 运行中
+///   跳过（活跃占位正在增长，绝不能碰）。
+- (void)ame368_sweepStaleStreaming {
+    if ([[AiAgent sharedAgent] isRunning]) return;
+    NSMutableArray<AiMessage *> *ame368_drop = nil;
+    NSInteger ame368_converted = 0;
+    for (AiMessage *m in self.session.messages) {
+        if (!m.streaming) continue;
+        if (m.content.length == 0) {
+            if (!ame368_drop) ame368_drop = [NSMutableArray array];
+            [ame368_drop addObject:m];
+        } else {
+            m.streaming = NO;
+            ame368_converted++;
+        }
+    }
+    if (ame368_drop.count == 0 && ame368_converted == 0) return;
+    if (ame368_drop.count > 0) {
+        [self.session.messages removeObjectsInArray:ame368_drop];
+    }
+    NSLog(@"[Ame368] ui stale-streaming swept dropped=%lu converted=%ld",
+          (unsigned long)ame368_drop.count, (long)ame368_converted);
+    [[AiSessionStore sharedStore] updateSession:self.session];
+    [self.tableView reloadData];
 }
 
 #pragma mark - Nav Bar
@@ -362,11 +405,16 @@ static const NSTimeInterval kUIThrottleInterval = 0.2;
 }
 
 - (void)showConfigureHint {
+    UIViewController *ame368_host = [self ame368_presentTarget];
+    if (!ame368_host) {
+        NSLog(@"[Ame368] ui configure-hint FAILED (no usable VC)");
+        return;
+    }
     UIAlertController *alert = [UIAlertController alertControllerWithTitle:localize(@"ame192.ai.no_provider_title", nil)
                                                                     message:localize(@"ame192.ai.no_provider_msg", nil)
                                                              preferredStyle:UIAlertControllerStyleAlert];
     [alert addAction:[UIAlertAction actionWithTitle:localize(@"ame192.ai.ok", nil) style:UIAlertActionStyleDefault handler:nil]];
-    [self presentViewController:alert animated:YES completion:nil];
+    [ame368_host presentViewController:alert animated:YES completion:nil];
 }
 
 - (void)configureAction {
@@ -377,13 +425,36 @@ static const NSTimeInterval kUIThrottleInterval = 0.2;
 
 - (void)handleSend:(NSString *)text {
     NSString *trimmed = [text stringByTrimmingCharactersInSet:[NSCharacterSet whitespaceAndNewlineCharacterSet]];
-    if (trimmed.length == 0) return;
+    if (trimmed.length == 0) {
+        NSLog(@"[Ame368] ui send dropped reason=empty");
+        return;
+    }
 
     AiProvider *provider = [self currentProvider];
     if (!provider) {
+        NSLog(@"[Ame368] ui send rejected reason=no_provider");
         [self showConfigureHint];
         return;
     }
+
+    // ★ Task368：provider 完整性前置校验——老链路把这个检查留给网络层
+    //   （code 100 provider_incomplete），文案笼统且晚一步；这里提前到发送
+    //   入口直接点名，避免“点了发送什么都没发生”的观感。
+    if (provider.baseURL.length == 0 || provider.model.length == 0) {
+        NSLog(@"[Ame368] ui send rejected reason=provider_incomplete baseURL=%@ model=%@",
+              provider.baseURL.length ? @"set" : @"EMPTY",
+              provider.model.length ? @"set" : @"EMPTY");
+        NSError *ame368_inc = [NSError errorWithDomain:@"AiAPIClient" code:100
+                                               userInfo:@{NSLocalizedDescriptionKey: localize(@"ai.api.provider_incomplete", nil)}];
+        [self showErrorAlert:ame368_inc];
+        return;
+    }
+
+    // ★ Task368：发送接受留痕（含服务商/模型/baseURL——测试按钮测的是编辑表单，
+    //   聊天用的是 store 里 selectedProvider，装机日志从此可判读两者是否同一份）
+    NSLog(@"[Ame368] ui send accepted provider=%@ model=%@ baseURL=%@ histMsgs=%lu",
+          provider.name, provider.model, provider.baseURL,
+          (unsigned long)self.session.messages.count);
 
     [self.inputBar clearText];
     [self.inputBar setIsSending:YES];
@@ -535,11 +606,46 @@ static const NSTimeInterval kUIThrottleInterval = 0.2;
 }
 
 - (void)showErrorAlert:(NSError *)error {
+    NSString *ame368_msg = error.localizedDescription ?: localize(@"ame192.ai.unknown_error", nil);
+    NSLog(@"[Ame368] ui error-present %@", ame368_msg);
+    // ★ Task368：呈现宿主兑底——老实现固定从 self present；本页是壳 childCache
+    //   缓存常驻页，转场/被覆盖/不在窗口层级的瞬间 UIKit 会静默拒绝呈现
+    //   （“view is not in the window hierarchy”，无回调无崩溃无提示）＝
+    //   所有错误路径对用户集体哑火的死角。改走 topmost 定位，绝不再静默丢。
+    UIViewController *ame368_host = [self ame368_presentTarget];
+    if (!ame368_host) {
+        NSLog(@"[Ame368] ui error-present FAILED (no usable VC) %@", ame368_msg);
+        return;
+    }
     UIAlertController *alert = [UIAlertController alertControllerWithTitle:localize(@"ame192.ai.request_failed", nil)
-                                                                    message:error.localizedDescription ?: localize(@"ame192.ai.unknown_error", nil)
+                                                                    message:ame368_msg
                                                              preferredStyle:UIAlertControllerStyleAlert];
     [alert addAction:[UIAlertAction actionWithTitle:localize(@"ame192.ai.ok", nil) style:UIAlertActionStyleDefault handler:nil]];
-    [self presentViewController:alert animated:YES completion:nil];
+    [ame368_host presentViewController:alert animated:YES completion:nil];
+}
+
+/// ★ Task368：呈现宿主定位（self 可用优先，否则沿 key window 呈现链找 topmost；
+///   与 AiSafetyManager 同款口径。返回 nil = 全链路不可呈现，调用方留痕兜底）
+- (nullable UIViewController *)ame368_presentTarget {
+    if ([self isViewLoaded] && self.view.window) return self;
+    UIWindow *ame368_keyWindow = nil;
+    if (@available(iOS 13.0, *)) {
+        for (UIWindowScene *ame368_scene in [UIApplication sharedApplication].connectedScenes) {
+            if (ame368_scene.activationState == UISceneActivationStateForegroundActive) {
+                ame368_keyWindow = ame368_scene.windows.firstObject;
+                break;
+            }
+        }
+    }
+    if (!ame368_keyWindow) {
+        ame368_keyWindow = [[UIApplication sharedApplication] windows].firstObject;
+    }
+    if (!ame368_keyWindow) return nil;
+    UIViewController *ame368_top = ame368_keyWindow.rootViewController;
+    while (ame368_top.presentedViewController) {
+        ame368_top = ame368_top.presentedViewController;
+    }
+    return ame368_top;
 }
 
 @end
