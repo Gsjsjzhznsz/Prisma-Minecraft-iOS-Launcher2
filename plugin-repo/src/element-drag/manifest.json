@@ -1,0 +1,15 @@
+{
+  "id": "element-drag",
+  "name": "元素拖拽",
+  "version": "1.0.0",
+  "author": "Prisma",
+  "description": "把启动器界面上的元素拖到顺手的位置：切换目标→拖动→可存布局→一键复位。演示 ui.views 视图操纵家族（高危权限，官方件随启动自动授权）。",
+  "entry": "main.js",
+  "permissions": [
+    "ui.rows",
+    "ui.dialog",
+    "ui.views",
+    "storage"
+  ],
+  "minApi": 1
+}

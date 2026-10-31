@@ -9,6 +9,8 @@
 #import "ZL2ShellViewController.h"   // Task327：页面导航通知契约（ZL2ShellNavigate）
 
 #import <UIKit/UIKit.h>
+#import <objc/runtime.h>   // Task364：pan 累计位移关联对象
+#include <math.h>          // Task364：isfinite 防呆
 
 // ═══════════════════════════════════════════════════════════════════
 // AmePluginBridge 实现（Task 317）
@@ -19,14 +21,47 @@
 //  · fetch 走 NSURLSession 异步，回调切主线程后进 JS；30s 超时
 //  · storage 沙盒 = 插件目录内 storage.json（键值 JSON，4MB 上限防失控）
 //  · 主题令牌覆盖经 ZL2Theme 的插件覆盖表（smoke 目标零新增依赖）
+//  · ★ Task364 视图操纵：句柄注册表 = NSMapTable 强键弱值（视图释放即
+//    查空判 stale）；首改留痕原几何（frame/alpha/hidden）供 reset 还原；
+//    手势回调经 Ame364GestureSink 载体（非 JSExport 类，不进 JSC 面）；
+//    teardown 统一摘手势 + 还原几何，插件卸载零残留
 // ═══════════════════════════════════════════════════════════════════
 
 static const NSUInteger ame317_storageMaxBytes = 4 * 1024 * 1024;
+
+// ★ Task364：手势回调载体（普通 NSObject，非 JSExport——JSC 不见此类；
+//   UIGestureRecognizer target/action 需要常驻对象，JSValue 回调随载体
+//   持有，插件卸载经 teardown 连根摘除）。
+@interface Ame364GestureSink : NSObject
+@property (nonatomic, assign) NSUInteger handle;
+@property (nonatomic, copy) NSString *event;
+@property (nonatomic, strong) JSValue *cb;
+@property (nonatomic, weak) AmePluginBridge *bridge;
+@property (nonatomic, weak) UIGestureRecognizer *gesture;   // ★ 精确摘除：只摘自己挂的
+- (void)ame364_fired:(UIGestureRecognizer *)gr;
+@end
+
+// ★ Task364：sink 实现在主实现之前，跨类调用需前置声明（ARC 下未声明
+//   selector = no known instance method 编译错；Task261 判例同族）
+@interface AmePluginBridge (Ame364Internal)
+- (void)ame364_gestureFired:(UIGestureRecognizer *)gr sink:(Ame364GestureSink *)sink;
+@end
+
+@implementation Ame364GestureSink
+- (void)ame364_fired:(UIGestureRecognizer *)gr {
+    [self.bridge ame364_gestureFired:gr sink:self];
+}
+@end
 
 @interface AmePluginBridge ()
 @property (nonatomic, strong) NSMutableDictionary<NSString *, NSMutableArray<JSValue *> *> *eventTable;
 @property (nonatomic, strong) NSMutableDictionary<NSString *, JSValue *> *rowTable; // rowId → handler
 @property (nonatomic, strong) NSMutableDictionary<NSString *, NSDictionary *> *rowSpecTable;
+// ★ Task364：视图操纵注册表（强键弱值——视图释放后 lookup 即 nil=stale 句柄）
+@property (nonatomic, strong) NSMapTable<NSNumber *, UIView *> *viewTable;
+@property (nonatomic, assign) NSUInteger viewHandleSeed;
+@property (nonatomic, strong) NSMutableDictionary<NSNumber *, NSDictionary *> *viewOriginals; // handle → @{frame,alpha,hidden} 首改留痕
+@property (nonatomic, strong) NSMutableDictionary<NSNumber *, NSMutableArray<Ame364GestureSink *> *> *viewSinks; // handle → 手势载体表
 @end
 
 @implementation AmePluginBridge
@@ -40,6 +75,11 @@ static const NSUInteger ame317_storageMaxBytes = 4 * 1024 * 1024;
         _eventTable = [NSMutableDictionary dictionary];
         _rowTable = [NSMutableDictionary dictionary];
         _rowSpecTable = [NSMutableDictionary dictionary];
+        // ★ Task364：句柄表 = 强 NSNumber 键 + 弱 UIView 值（视图释放即判 stale）
+        _viewTable = [NSMapTable mapTableWithKeyOptions:NSMapTableStrongMemory
+                                          valueOptions:NSMapTableWeakMemory];
+        _viewOriginals = [NSMutableDictionary dictionary];
+        _viewSinks = [NSMutableDictionary dictionary];
     }
     return self;
 }
@@ -709,6 +749,373 @@ static const NSUInteger ame327_fileWriteMax = 4 * 1024 * 1024;
     return [ame327_fm removeItemAtPath:ame327_p error:nil];
 }
 
+#pragma mark - 视图操纵（ui.views，高危，Task364）
+
+static const NSUInteger ame364_findLimitDefault = 24;
+static const NSUInteger ame364_findLimitMax = 64;
+static const NSUInteger ame364_maxHandles = 256;
+static const CGFloat ame364_coordClamp = 100000.0;
+
+/// 禁改名单：游戏渲染面子树（含 SDL/Metal 表面与滚动包裹层）。查询跳过、
+/// 改写/挂手势拒绝——插件碰渲染面 = 游戏黑屏/输入断链，结构性不可触碰。
+static BOOL ame364_isProtectedClass(NSString *cls) {
+    return [cls isEqualToString:@"SurfaceView"]
+        || [cls isEqualToString:@"GameSurfaceView"]
+        || [cls isEqualToString:@"ScrollableSurfaceView"];
+}
+
+/// 元素可读文本（UILabel/UIButton/UITextField/UITextView best-effort）
+static NSString *ame364_bestText(UIView *v) {
+    if ([v isKindOfClass:[UILabel class]]) return ((UILabel *)v).text;
+    if ([v isKindOfClass:[UIButton class]]) return [((UIButton *)v) titleForState:UIControlStateNormal];
+    if ([v isKindOfClass:[UITextField class]]) return ((UITextField *)v).text;
+    if ([v isKindOfClass:[UITextView class]]) return ((UITextView *)v).text;
+    return nil;
+}
+
+/// 视图可读名（匿名容器降级为短类名，NSArray 数组类名等长前缀去掉）
+static NSString *ame364_clsName(UIView *v) {
+    return NSStringFromClass(v.class) ?: @"UIView";
+}
+
+/// 遍历窗列表（只取公开 UIWindow 类 = 排除键盘/特效等私有系统窗）
+- (NSArray<UIWindow *> *)ame364_windows {
+    NSMutableArray<UIWindow *> *out = [NSMutableArray array];
+    for (UIWindowScene *scene in [UIApplication sharedApplication].connectedScenes) {
+        if (scene.activationState != UISceneActivationStateForegroundActive) continue;
+        for (UIWindow *w in scene.windows) {
+            if ([NSStringFromClass(w.class) isEqualToString:@"UIWindow"]) [out addObject:w];
+        }
+    }
+    if (out.count == 0) {
+        for (UIWindow *w in [UIApplication sharedApplication].windows) {
+            if ([NSStringFromClass(w.class) isEqualToString:@"UIWindow"]) [out addObject:w];
+        }
+    }
+    return out;
+}
+
+/// 深度优先收集（pre-order；过滤感知：节点过筛才计入，遍历不截断→limit 是
+/// 匹配数上限不是扫描数上限；禁改名单子树整枝跳过；隐藏视图照收集带标记，
+/// 供"找回来显示"类修复场景；窗内根视图自身不入表——只收子视图）
+- (void)ame364_walk:(UIView *)v windowIndex:(NSUInteger)wi
+              out:(NSMutableArray<NSMutableDictionary *> *)out
+           filter:(NSDictionary *)f
+            limit:(NSUInteger)limit depth:(NSUInteger)depth {
+    if (out.count >= limit || depth > 40) return;
+    NSString *cls = ame364_clsName(v);
+    if (ame364_isProtectedClass(cls)) return;   // 禁改子树整枝剪掉
+    NSString *fCls = [self ame317_string:f[@"cls"]];
+    NSString *fText = [self ame317_string:f[@"text"]];
+    NSString *fIdent = [self ame317_string:f[@"ident"]];
+    id fTag = f[@"tag"];
+    for (UIView *child in v.subviews) {
+        if (out.count >= limit) return;
+        NSString *ccls = ame364_clsName(child);
+        if (ame364_isProtectedClass(ccls)) continue;
+        NSString *text = ame364_bestText(child) ?: @"";
+        // 过滤（cls/text 大小写不敏感子串；ident/tag 精确；无筛键 = 全量浏览）
+        if (fCls.length && [ccls rangeOfString:fCls options:NSCaseInsensitiveSearch].location == NSNotFound) {
+            [self ame364_walk:child windowIndex:wi out:out filter:f limit:limit depth:depth + 1];
+            continue;
+        }
+        if (fText.length && [text rangeOfString:fText options:NSCaseInsensitiveSearch].location == NSNotFound) {
+            [self ame364_walk:child windowIndex:wi out:out filter:f limit:limit depth:depth + 1];
+            continue;
+        }
+        if (fIdent != nil && ![child.accessibilityIdentifier ?: @"" isEqualToString:fIdent]) {
+            [self ame364_walk:child windowIndex:wi out:out filter:f limit:limit depth:depth + 1];
+            continue;
+        }
+        if (fTag != nil && [fTag isKindOfClass:[NSNumber class]]
+            && (double)child.tag != [fTag doubleValue]) {
+            [self ame364_walk:child windowIndex:wi out:out filter:f limit:limit depth:depth + 1];
+            continue;
+        }
+        NSUInteger h = [self ame364_registerView:child];
+        NSMutableDictionary *node = [NSMutableDictionary dictionary];
+        node[@"handle"] = @(h);
+        node[@"cls"] = ccls;
+        node[@"text"] = text;
+        node[@"ident"] = child.accessibilityIdentifier ?: @"";
+        node[@"tag"] = @(child.tag);
+        node[@"frame"] = @{@"x": @(child.frame.origin.x), @"y": @(child.frame.origin.y),
+                           @"w": @(child.frame.size.width), @"h": @(child.frame.size.height)};
+        node[@"alpha"] = @(child.alpha);
+        node[@"hidden"] = @(child.hidden);
+        node[@"enabled"] = @(child.enabled);
+        node[@"win"] = @(wi);
+        [out addObject:node];
+        [self ame364_walk:child windowIndex:wi out:out filter:f limit:limit depth:depth + 1];
+    }
+}
+
+/// 句柄登记（同视图复用既有句柄；容量上限防失控）
+- (NSUInteger)ame364_registerView:(UIView *)v {
+    NSNumber *ame364_existing = nil;
+    for (NSNumber *k in self.viewTable) {
+        if ([self.viewTable objectForKey:k] == v) { ame364_existing = k; break; }
+    }
+    if (ame364_existing) return ame364_existing.unsignedIntegerValue;
+    NSUInteger h = ++self.viewHandleSeed;
+    [self.viewTable setObject:v forKey:@(h)];
+    return h;
+}
+
+/// 句柄取视图（nil = stale：视图已释放或从未登记）
+- (UIView *)ame364_viewForHandle:(double)handle {
+    if (!(handle >= 1) || handle != floor(handle) || handle > (double)ame364_maxHandles * 4096) return nil;
+    return [self.viewTable objectForKey:@((NSUInteger)handle)];
+}
+
+- (NSArray *)viewsFind:(NSDictionary *)filter {
+    if (![self ame317_requirePerm:@"ui.views"]) return nil;
+    if (filter && ![filter isKindOfClass:[NSDictionary class]]) filter = nil;
+    filter = [self ame317_unwrapJs:filter] ?: @{};
+    NSUInteger limit = ame364_findLimitDefault;
+    id fLimit = filter[@"limit"];
+    if ([fLimit isKindOfClass:[NSNumber class]] && fLimit.unsignedIntegerValue > 0) {
+        limit = MIN(fLimit.unsignedIntegerValue, ame364_findLimitMax);
+    }
+    NSMutableArray<NSMutableDictionary *> *out = [NSMutableArray array];
+    NSArray<UIWindow *> *windows = [self ame364_windows];
+    for (NSUInteger wi = 0; wi < windows.count && out.count < limit; wi++) {
+        [self ame364_walk:windows[wi] windowIndex:wi out:out filter:filter limit:limit depth:0];
+    }
+    return [out copy];
+}
+
+/// #RRGGBB / #RRGGBBAA → UIColor（主题令牌同款值域）
+static UIColor *ame364_colorFromString(NSString *s) {
+    if (s.length != 7 && s.length != 9) return nil;
+    if (![s hasPrefix:@"#"]) return nil;
+    unsigned long long v = 0;
+    for (NSUInteger i = 1; i < s.length; i++) {
+        unichar c = [s characterAtIndex:i];
+        unsigned long long d;
+        if (c >= '0' && c <= '9') d = c - '0';
+        else if (c >= 'a' && c <= 'f') d = c - 'a' + 10;
+        else if (c >= 'A' && c <= 'F') d = c - 'A' + 10;
+        else return nil;
+        v = v * 16 + d;
+    }
+    if (s.length == 7) {
+        return [UIColor colorWithRed:((v >> 16) & 0xFF) / 255.0
+                               green:((v >> 8) & 0xFF) / 255.0
+                                blue:(v & 0xFF) / 255.0
+                               alpha:1.0];
+    }
+    return [UIColor colorWithRed:((v >> 24) & 0xFF) / 255.0
+                           green:((v >> 16) & 0xFF) / 255.0
+                            blue:((v >> 8) & 0xFF) / 255.0
+                           alpha:(v & 0xFF) / 255.0];
+}
+
+- (BOOL)viewsApply:(double)handle props:(NSDictionary *)props {
+    if (![self ame317_requirePerm:@"ui.views"]) return NO;
+    UIView *v = [self ame364_viewForHandle:handle];
+    if (!v) {
+        [self ame317_rejectValue:[NSString stringWithFormat:@"stale handle: %g", handle]];
+        return NO;
+    }
+    if (ame364_isProtectedClass(ame364_clsName(v))) {
+        [self ame317_rejectValue:[NSString stringWithFormat:@"protected view: %@", ame364_clsName(v)]];
+        return NO;
+    }
+    props = [self ame317_unwrapJs:props] ?: @{};
+    if (![props isKindOfClass:[NSDictionary class]] || props.count == 0) return NO;
+    NSNumber *n;
+    // 首改留痕（reset 还原基准；只记一次 = 首次改动前状态）
+    NSNumber *hk = @((NSUInteger)handle);
+    if (!self.viewOriginals[hk]) {
+        self.viewOriginals[hk] = @{
+            @"frame": [NSValue valueWithCGRect:v.frame],
+            @"alpha": @(v.alpha),
+            @"hidden": @(v.hidden),
+        };
+    }
+    if ((n = [self ame364_num:props[@"x"]]))  { CGRect f = v.frame; f.origin.x = MAX(-ame364_coordClamp, MIN(ame364_coordClamp, n.doubleValue)); v.frame = f; }
+    if ((n = [self ame364_num:props[@"y"]]))  { CGRect f = v.frame; f.origin.y = MAX(-ame364_coordClamp, MIN(ame364_coordClamp, n.doubleValue)); v.frame = f; }
+    if ((n = [self ame364_num:props[@"w"]]))  { CGRect f = v.frame; f.size.width = MAX(0, MIN(ame364_coordClamp, n.doubleValue)); v.frame = f; }
+    if ((n = [self ame364_num:props[@"h"]]))  { CGRect f = v.frame; f.size.height = MAX(0, MIN(ame364_coordClamp, n.doubleValue)); v.frame = f; }
+    if ((n = [self ame364_num:props[@"alpha"]])) { v.alpha = MAX(0.0, MIN(1.0, n.doubleValue)); }
+    if (props[@"hidden"] != nil) v.hidden = [props[@"hidden"] boolValue];
+    if (props[@"enabled"] != nil) v.enabled = [props[@"enabled"] boolValue];
+    if ((n = [self ame364_num:props[@"cornerRadius"]])) {
+        v.layer.cornerRadius = MAX(0, MIN(200, n.doubleValue));
+        v.layer.masksToBounds = v.layer.cornerRadius > 0 ? YES : v.layer.masksToBounds;
+    }
+    NSString *text = [self ame317_string:props[@"text"]];
+    if (text) {
+        if ([v isKindOfClass:[UILabel class]]) ((UILabel *)v).text = text;
+        else if ([v isKindOfClass:[UIButton class]]) {
+            [((UIButton *)v) setTitle:text forState:UIControlStateNormal];
+            [((UIButton *)v) setTitle:text forState:UIControlStateHighlighted];
+        }
+        else if ([v isKindOfClass:[UITextField class]]) ((UITextField *)v).text = text;
+        else if ([v isKindOfClass:[UITextView class]]) ((UITextView *)v).text = text;
+    }
+    NSString *bg = [self ame317_string:props[@"bg"]];
+    if (bg) {
+        UIColor *c = ame364_colorFromString(bg);
+        if (c) v.backgroundColor = c;
+    }
+    return YES;
+}
+
+/// 有限数字防呆（NaN/Inf/非数值一律 nil）
+- (NSNumber *)ame364_num:(id)raw {
+    if (![raw isKindOfClass:[NSNumber class]]) return nil;
+    double d = [raw doubleValue];
+    if (!isfinite(d)) return nil;
+    return raw;
+}
+
+- (BOOL)viewsOn:(double)handle event:(NSString *)event handler:(JSValue *)cb {
+    if (![self ame317_requirePerm:@"ui.views"]) return NO;
+    UIView *v = [self ame364_viewForHandle:handle];
+    if (!v) {
+        [self ame317_rejectValue:[NSString stringWithFormat:@"stale handle: %g", handle]];
+        return NO;
+    }
+    if (ame364_isProtectedClass(ame364_clsName(v))) {
+        [self ame317_rejectValue:[NSString stringWithFormat:@"protected view: %@", ame364_clsName(v)]];
+        return NO;
+    }
+    if (event.length == 0 || !cb.isObject) return NO;
+    if (![@[@"tap", @"pan", @"longpress", @"swipe"] containsObject:event]) {
+        [self ame317_rejectValue:[NSString stringWithFormat:@"unknown gesture: %@", event]];
+        return NO;
+    }
+    NSNumber *hk = @((NSUInteger)handle);
+    NSMutableArray<Ame364GestureSink *> *sinks = self.viewSinks[hk];
+    if (!sinks) { sinks = [NSMutableArray array]; self.viewSinks[hk] = sinks; }
+    // 同 (handle,event) 复用：换回调不叠手势（重复 on 不产生双触发）
+    for (Ame364GestureSink *old in sinks) {
+        if ([old.event isEqualToString:event]) {
+            old.cb = cb;
+            return YES;
+        }
+    }
+    Ame364GestureSink *sink = [[Ame364GestureSink alloc] init];
+    sink.handle = (NSUInteger)handle;
+    sink.event = event;
+    sink.cb = cb;
+    sink.bridge = self;
+    UIGestureRecognizer *gr = nil;
+    if ([event isEqualToString:@"pan"]) {
+        UIPanGestureRecognizer *p = [[UIPanGestureRecognizer alloc]
+            initWithTarget:sink action:@selector(ame364_fired:)];
+        p.cancelsTouchesInView = YES;   // 拖拽型手势接管触摸（按钮拖动不触发其点击）
+        gr = p;
+    } else if ([event isEqualToString:@"tap"]) {
+        gr = [[UITapGestureRecognizer alloc] initWithTarget:sink action:@selector(ame364_fired:)];
+    } else if ([event isEqualToString:@"longpress"]) {
+        gr = [[UILongPressGestureRecognizer alloc] initWithTarget:sink action:@selector(ame364_fired:)];
+    } else {
+        gr = [[UISwipeGestureRecognizer alloc] initWithTarget:sink action:@selector(ame364_fired:)];
+    }
+    sink.gesture = gr;
+    [v addGestureRecognizer:gr];
+    [sinks addObject:sink];
+    return YES;
+}
+
+/// 手势事件进 JS（增量 dx/dy + 累计 tx/ty + 当前 frame + 窗口坐标 x/y）
+- (void)ame364_gestureFired:(UIGestureRecognizer *)gr sink:(Ame364GestureSink *)sink {
+    UIView *v = gr.view;
+    if (!v) return;
+    NSMutableDictionary *ev = [NSMutableDictionary dictionary];
+    ev[@"type"] = sink.event;
+    CGPoint loc = [gr locationInView:v.window];
+    ev[@"x"] = @(loc.x);
+    ev[@"y"] = @(loc.y);
+    ev[@"frame"] = @{@"x": @(v.frame.origin.x), @"y": @(v.frame.origin.y),
+                     @"w": @(v.frame.size.width), @"h": @(v.frame.size.height)};
+    NSString *state = @"changed";
+    if (gr.state == UIGestureRecognizerStateBegan) state = @"began";
+    else if (gr.state == UIGestureRecognizerStateChanged) state = @"changed";
+    else if (gr.state == UIGestureRecognizerStateEnded) state = @"ended";
+    else if (gr.state == UIGestureRecognizerStateCancelled
+             || gr.state == UIGestureRecognizerStateFailed) state = @"cancelled";
+    ev[@"state"] = state;
+    if ([gr isKindOfClass:[UIPanGestureRecognizer class]]) {
+        UIPanGestureRecognizer *pan = (UIPanGestureRecognizer *)gr;
+        // ★ 窗口坐标系测增量：视图自身随拖动位移，view 坐标系会漂移；
+        //   window 恒定 = dx/dy 就是手指真实位移，拖拽插件零漂移
+        CGPoint delta = [pan translationInView:v.window];
+        // 增量口径：上报后清零，dx/dy = 距上次事件位移（began=0 起点）
+        ev[@"dx"] = @(delta.x);
+        ev[@"dy"] = @(delta.y);
+        // 累计口径：js 侧一般用 start.frame + tx/ty（提示词标准写法），
+        // 这里再给一份自手势起的累计值（OBJC 侧自己累加，began 时清累计器）
+        CGPoint acc = CGPointMake(0, 0);
+        NSValue *av = objc_getAssociatedObject(gr, @selector(ame364_fired:));
+        if (av) acc = av.CGPointValue;
+        if ([state isEqualToString:@"began"]) acc = CGPointMake(0, 0);
+        acc = CGPointMake(acc.x + delta.x, acc.y + delta.y);
+        objc_setAssociatedObject(gr, @selector(ame364_fired:), [NSValue valueWithCGPoint:acc],
+                                 OBJC_ASSOCIATION_RETAIN);
+        ev[@"tx"] = @(acc.x);
+        ev[@"ty"] = @(acc.y);
+        [pan setTranslation:CGPointZero inView:v.window];
+    }
+    if ([gr isKindOfClass:[UISwipeGestureRecognizer class]]) {
+        UISwipeGestureRecognizerDirection d = ((UISwipeGestureRecognizer *)gr).direction;
+        ev[@"direction"] = d == UISwipeGestureRecognizerDirectionUp ? @"up"
+                         : d == UISwipeGestureRecognizerDirectionDown ? @"down"
+                         : d == UISwipeGestureRecognizerDirectionLeft ? @"left" : @"right";
+    }
+    [self ame317_callCallback:sink.cb arguments:@[ev]];
+}
+
+- (BOOL)viewsReset:(double)handle {
+    if (![self ame317_requirePerm:@"ui.views"]) return NO;
+    UIView *v = [self ame364_viewForHandle:handle];
+    NSNumber *hk = @((NSUInteger)handle);
+    if (v) {
+        if (ame364_isProtectedClass(ame364_clsName(v))) return NO;
+        // 只摘本插件挂的手势（sink.gesture 精确指认，不碰他人/系统手势）
+        for (Ame364GestureSink *s in self.viewSinks[hk] ?: @[]) {
+            if (s.gesture) [v removeGestureRecognizer:s.gesture];
+        }
+        // 还原首改前几何
+        NSDictionary *orig = self.viewOriginals[hk];
+        if (orig) {
+            v.frame = [orig[@"frame"] CGRectValue];
+            v.alpha = [orig[@"alpha"] doubleValue];
+            v.hidden = [orig[@"hidden"] boolValue];
+            [self.viewOriginals removeObjectForKey:hk];
+        }
+    }
+    [self.viewSinks removeObjectForKey:hk];
+    return v != nil;
+}
+
+/// 插件卸载：摘全部手势 + 还原全部几何 + 清注册表（teardown 调用）
+- (void)ame364_teardownViews {
+    for (NSNumber *hk in [self.viewSinks allKeys]) {
+        UIView *v = [self.viewTable objectForKey:hk];
+        if (!v) continue;
+        for (Ame364GestureSink *s in self.viewSinks[hk] ?: @[]) {
+            if (s.gesture) [v removeGestureRecognizer:s.gesture];
+        }
+    }
+    for (NSNumber *hk in [self.viewOriginals allKeys]) {
+        UIView *v = [self.viewTable objectForKey:hk];
+        NSDictionary *orig = self.viewOriginals[hk];
+        if (v && orig) {
+            v.frame = [orig[@"frame"] CGRectValue];
+            v.alpha = [orig[@"alpha"] doubleValue];
+            v.hidden = [orig[@"hidden"] boolValue];
+        }
+    }
+    [self.viewSinks removeAllObjects];
+    [self.viewOriginals removeAllObjects];
+    [self.viewTable removeAllObjects];
+    self.viewHandleSeed = 0;
+}
+
 #pragma mark - 内部工具
 
 /// 回调进 JS（主线程；异常吞并记录，绝不让插件异常带崩启动器）
@@ -761,6 +1168,7 @@ static const NSUInteger ame327_fileWriteMax = 4 * 1024 * 1024;
     [self.eventTable removeAllObjects];
     [self.rowTable removeAllObjects];
     [self.rowSpecTable removeAllObjects];
+    [self ame364_teardownViews];   // ★ Task364：摘手势+还原几何，卸载零残留
 }
 
 @end

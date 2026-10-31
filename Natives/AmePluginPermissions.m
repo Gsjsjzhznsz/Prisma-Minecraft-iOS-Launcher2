@@ -79,6 +79,11 @@ NSString *ame317_pluginsRootDir(void) {
             [[AmePluginPermissionItem alloc] initWithId:@"ui.nav"        danger:NO],
             [[AmePluginPermissionItem alloc] initWithId:@"profile.write" danger:YES],
             [[AmePluginPermissionItem alloc] initWithId:@"files.game"    danger:YES],
+            // ★ Task364：视图操纵（用户："插件不是可以随便改启动器任何地方吗"；
+            //   AI 写元素拖拽插件失败的根因 = 桥面无任何视图级 API）。查询并
+            //   操纵启动器界面原生视图（移动/缩放/隐藏/改文字/挂手势），高危：
+            //   越权触碰任意视图可致交互错乱，且游戏渲染面子树在内置禁改名单。
+            [[AmePluginPermissionItem alloc] initWithId:@"ui.views"      danger:YES],
         ];
     });
     return perms;

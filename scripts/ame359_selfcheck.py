@@ -33,8 +33,10 @@ md_m = read("Natives/MarkdownParser.m")
 aiset = read("Natives/AI/AiSettings.m")
 ptool = read("Natives/AI/AiPluginWriterTool.m")
 
-# Task363 提示词域切片：defaultSystemPrompt 方法体（至 ame363 留档注释为止）
-aiset_v4_zone = aiset[aiset.find("+ (NSString *)defaultSystemPrompt {"):]
+# Task363 提示词域切片（★ Task364 重锚：现役 defaultSystemPrompt 已升 v5，
+# 本脚本 E 区断言对象改为 ame364_v4DefaultSystemPrompt 留档（v4 原文），
+# 现役 v5 由 ame364_selfcheck 独立把关）
+aiset_v4_zone = aiset[aiset.find("+ (NSString *)ame364_v4DefaultSystemPrompt {"):]
 aiset_v4_zone = aiset_v4_zone[:aiset_v4_zone.find("/// ★ Task363：v3 默认提示词全文")]
 
 # ══ A [Ame359] header 滚动区 ═════════════════════════════════
@@ -121,11 +123,14 @@ check('D3 助手气泡底改系统自适应（硬编码白 0.08 退役）',
       and "bubbleView.backgroundColor = [UIColor colorWithWhite:1.0 alpha:0.08];" not in cell)
 
 # ══ E [Ame363] AI 提示词插件文档扩容 ═════════════════════
-check('E1 迁移链 v3→v4（ame363_v3 留档 + 版本号 4 + 自适应升级日志）',
+check('E1 迁移链 v3→v4→v5（ame363_v3/ame364_v4 双留档 + 版本号 5 + 两级自适应升级日志）',
       "+ (NSString *)ame363_v3DefaultSystemPrompt {" in aiset
+      and "+ (NSString *)ame364_v4DefaultSystemPrompt {" in aiset
       and "[ame267_saved isEqualToString:[self ame363_v3DefaultSystemPrompt]]" in aiset
-      and "[ame267_d setInteger:4 forKey:kSystemPromptVersionKey];" in aiset
-      and "Task363: v3 default system prompt auto-upgraded to v4" in aiset)
+      and "[ame267_saved isEqualToString:[self ame364_v4DefaultSystemPrompt]]" in aiset
+      and "[ame267_d setInteger:5 forKey:kSystemPromptVersionKey];" in aiset
+      and "Task363: v3 default system prompt auto-upgraded to v4" in aiset
+      and "Task364: v4 default system prompt auto-upgraded to v5" in aiset)
 check('E2 v4 提示词含主题四家族（setThemeToken/Shape/Layout/Structure + shellLayout 值域）',
       "ame.setThemeToken(色令牌表)" in aiset_v4_zone
       and "ame.setThemeShape(形状/字阶表)" in aiset_v4_zone

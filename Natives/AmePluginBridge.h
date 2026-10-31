@@ -60,6 +60,19 @@ NS_ASSUME_NONNULL_BEGIN
 //   "topbar"|"navigationview"} = 壳层导航骨架蓝图，白名单在 ZL2Theme 侧）。
 //   JSExport 协议声明必不可缺（Task332 判例）。
 - (BOOL)setThemeStructure:(NSDictionary *)tokens;
+// ★ Task364：视图操纵家族（ui.views 高危）——用户点题"插件可以随便改启动
+//   器任何地方，AI 写元素拖拽插件都不行"的根因补齐：桥面此前只有主题令牌
+//   （改样式）没有任何视图级 API（找元素/移动/隐藏/挂手势），拖拽类插件
+//   结构性写不出。四方法全部走 ame317_requirePerm:@"ui.views" 执法；句柄
+//   = viewsFind 返回的数字 id（弱引用注册表，视图释放即失效）；游戏渲染
+//   面子树（SurfaceView/GameSurfaceView/ScrollableSurfaceView）内置禁改
+//   名单，查询跳过、改写拒绝。JSExport 协议声明必不可缺（Task332 判例）。
+//   JS 名整形（Task331 规则）：viewsFind / viewsApplyProps /
+//   viewsOnEventHandler / viewsReset。
+- (nullable NSArray *)viewsFind:(NSDictionary *)filter;
+- (BOOL)viewsApply:(double)handle props:(NSDictionary *)props;
+- (BOOL)viewsOn:(double)handle event:(NSString *)event handler:(JSValue *)cb;
+- (BOOL)viewsReset:(double)handle;
 // 空值限定与类接口逐字镜像（NS_ASSUME_NONNULL 区；拒绝时返 nil 的方法
 // 协议侧必须显式 nullable，否则类采纳时 nullability conflict 编译报错）
 - (nullable id)getPref:(NSString *)key;

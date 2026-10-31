@@ -106,6 +106,14 @@ static NSString *ame317_facadeSource(void) {
     "ame.readFile=function(p){return raw.readGameFile(String(p));};"
     "ame.writeFile=function(p,c,ap){return raw.writeGameFileContentAppend(String(p),String(c),!!ap);};"
     "ame.removeFile=function(p){return raw.removeGameFile(String(p));};"
+    // ★ Task364：视图操纵家族（ui.views 高危）——查询/移动/隐藏/改文字/挂
+    //   手势，"插件改启动器任何地方"的兜底能力（拖拽插件的主通路）。
+    //   JS 名整形：viewsFind / viewsApplyProps / viewsOnEventHandler / viewsReset
+    "ame.views={"
+    "find:function(f){return raw.viewsFind(f||{});},"
+    "apply:function(h,p){return raw.viewsApplyProps(Number(h),p||{});},"
+    "on:function(h,ev,fn){return raw.viewsOnEventHandler(Number(h),String(ev||'tap'),fn||function(){});},"
+    "reset:function(h){return raw.viewsReset(Number(h));}};"
     "return ame;"
     "})(ameRaw);";
 }
