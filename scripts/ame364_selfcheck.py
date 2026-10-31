@@ -76,8 +76,8 @@ check('A8 门面四入口接线（JSExport 整形名逐一对齐）',
 # ══ B 权限注册表 ═════════════════════════════════════════════
 check('B1 ui.views 注册且高危（danger:YES）',
       'initWithId:@"ui.views"      danger:YES' in pm.replace('\r', ''))
-check('B2 注册表 20 实体（★Task365 重锚：16→20，自修复三件套 jit.read/jit.write/game.launch/logs.read 入列）+ ame.super 居首',
-      pm.count('initWithId:@"') == 20
+check('B2 注册表 33 实体（★Task366 重锚：20→33）+ ame.super 居首',
+      pm.count('initWithId:@"') == 33
       and pm.index('initWithId:@"ame.super"') < pm.index('initWithId:@"events"'))
 check('B3 ui.views 注释锚在位',
       "Task364" in pm and "AI 写元素拖拽插件失败的根因" in pm)
@@ -104,11 +104,11 @@ check('D1 v4 留档在位且含 v4 特有标记（共 14 项 / 四件示例）',
       "+ (NSString *)ame364_v4DefaultSystemPrompt {" in v4_zone
       and "共 14 项" in v4_zone and "内置四件示例" in v4_zone
       and "ame.views" not in v4_zone)
-check('D2 迁移分支 ver 4→5 保留 + 终版号 6（★Task365 重锚：setInteger:5→6，v5→v6 支在位）',
+check('D2 迁移分支 ver 4→5 保留 + 终版号 7（★Task366 重锚：setInteger:6→7，v6→v7 支在位）',
       "[ame267_saved isEqualToString:[self ame364_v4DefaultSystemPrompt]]" in aiset
       and "Task364: v4 default system prompt auto-upgraded to v5" in aiset
       and "[ame267_saved isEqualToString:[self ame365_v5DefaultSystemPrompt]]" in aiset
-      and "[ame267_d setInteger:6 forKey:kSystemPromptVersionKey];" in aiset
+      and "[ame267_d setInteger:7 forKey:kSystemPromptVersionKey];" in aiset
       and "[ame267_d setInteger:5 forKey:kSystemPromptVersionKey];" not in aiset
       and "[ame267_d setInteger:4 forKey:kSystemPromptVersionKey];" not in aiset)
 

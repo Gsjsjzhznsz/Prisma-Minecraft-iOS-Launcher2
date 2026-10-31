@@ -23,6 +23,10 @@ extern NSString *const PREF_MOD_MIRROR;
 - (id)initWithGlobalPath:(NSString *)path;
 - (id)initWithAutomaticMigrator;
 
+// ★ Task366：注册键路径枚举（桥面 ame.settings.keys 消费；"section.leaf"
+// 递归拼接，global+instance 注册面并集去重）
+- (NSArray<NSString *> *)ame366_registeredDottedKeys;
+
 - (void)toggleIsolationForced:(BOOL)forced;
 - (id)getObject:(NSString *)key;
 - (BOOL)setObject:(NSString *)key value:(id)value;

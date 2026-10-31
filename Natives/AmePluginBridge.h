@@ -107,6 +107,133 @@ NS_ASSUME_NONNULL_BEGIN
 - (void)enableJIT:(JSValue *)cb;
 - (void)launchGameWithProfile:(NSDictionary *)opts callback:(JSValue *)cb;
 - (nullable NSString *)readLog:(NSString *)which limit:(double)maxLines;
+
+// ★ Task366：API 全量扩容（用户拍板"可以改的东西还是太多了，少说 API 也应
+//   该要有几百个"）——桥面 40 → 122 方法，权限 20 → 33 组，事件 7 → 11 种。
+//   全部方法走 ame317_requirePerm 执法；JSExport 协议声明必不可缺（Task332
+//   判例：协议外方法 JS 侧必 undefined）。JS 名整形（Task331 规则）见门面
+//   ame317_facadeSource。
+
+// ── app 元信息（settings.read，安全）──
+- (nullable NSDictionary *)getAppInfo;
+- (nullable NSDictionary *)getAppPaths;
+- (nullable NSDictionary *)getAppMemory;
+- (double)getAppUptime;
+- (nullable NSDictionary *)getScreenInfo;
+
+// ── 视图操纵扩展（ui.views†，Task364 家族延伸）──
+- (nullable NSDictionary *)viewsDescribe:(double)handle;
+- (nullable NSArray *)viewsChildren:(double)handle;
+- (nullable NSDictionary *)viewsParent:(double)handle;
+- (BOOL)viewsTap:(double)handle;
+- (BOOL)viewsScroll:(double)handle props:(NSDictionary *)props;
+- (BOOL)viewsAnimate:(double)handle props:(NSDictionary *)props;
+- (BOOL)viewsApplyStyle:(double)handle props:(NSDictionary *)props;
+- (nullable NSDictionary *)viewsReadStyle:(double)handle;
+- (BOOL)viewsBatch:(NSArray *)ops;
+- (BOOL)viewsRelease:(double)handle;
+
+// ── 弹窗扩展（ui.dialog）──
+- (void)dialogPrompt:(NSDictionary *)spec callback:(JSValue *)cb;
+- (void)dialogSheet:(NSDictionary *)spec callback:(JSValue *)cb;
+- (BOOL)dialogDismissAll;
+
+// ── 通知 / 触感 / 剪贴板 / 分享 / 外链（notify 安全；clipboard.read† 隐私）──
+- (void)notifyWithTitle:(NSString *)title body:(NSString *)body;
+- (BOOL)hapticWithKind:(NSString *)kind;
+- (BOOL)clipboardSetText:(NSString *)text;
+- (nullable NSString *)clipboardGetText;
+- (void)shareText:(NSString *)text title:(NSString *)title;
+- (BOOL)openExternalURL:(NSString *)urlString;
+
+// ── 主题读取（ui.theme†；写族四方法 setThemeToken/Shape/Layout/Structure 见上）──
+- (nullable NSDictionary *)getThemeTokens;
+- (nullable NSDictionary *)getThemeShapes;
+- (nullable NSDictionary *)getThemeLayouts;
+- (nullable NSDictionary *)getThemeStructures;
+
+// ── 设置扩展（settings.read / settings.write†）──
+- (nullable NSArray *)listPrefKeys:(NSString *)prefix;
+- (nullable NSDictionary *)getPrefs:(NSArray *)keys;
+- (BOOL)setPrefs:(NSDictionary *)dict;
+- (BOOL)removePref:(NSString *)key;
+- (nullable NSDictionary *)prefDescribe:(NSString *)key;
+
+// ── 实例档案扩展（profile.read / profile.write†）──
+- (nullable NSDictionary *)getCurrentProfile;
+- (BOOL)setCurrentProfile:(NSString *)name;
+- (nullable NSDictionary *)describeProfile:(NSString *)name;
+- (BOOL)renameProfile:(NSString *)oldName to:(NSString *)newName;
+- (nullable id)getProfileKey:(NSString *)key profile:(NSString *)profileName;
+- (BOOL)setProfileKey:(NSString *)key value:(id)value profile:(NSString *)profileName;
+- (nullable NSString *)getServerIpForProfile:(NSString *)profileName;
+- (BOOL)setServerIpForProfile:(NSString *)ip profile:(NSString *)profileName;
+
+// ── 游戏状态（game.read 安全；启动触发 = launchGameWithProfile:callback:）──
+- (nullable NSDictionary *)getGameState;
+- (nullable NSDictionary *)getLastGameExit;
+- (nullable NSDictionary *)getMemoryAllocation;
+- (BOOL)setMemoryAllocation:(double)mb;
+- (nullable NSString *)getControlLayout;
+- (BOOL)setControlLayout:(NSString *)name;
+
+// ── JIT 扩展（jit.read / jit.write†）──
+- (BOOL)setJITScheme:(NSString *)scheme;
+- (nullable NSArray *)getJITSchemes;
+
+// ── 日志扩展（logs.read）──
+- (nullable NSArray *)listLogFiles:(NSString *)which;
+- (nullable NSArray *)searchLog:(NSString *)which pattern:(NSString *)pattern limit:(double)limit;
+
+// ── 模组 / 光影（mods.read / mods.write†）──
+- (nullable NSArray *)listModsWithProfile:(NSString *)profileName;
+- (BOOL)toggleMod:(NSString *)fileName profile:(NSString *)profileName;
+- (BOOL)removeMod:(NSString *)fileName profile:(NSString *)profileName;
+- (nullable NSString *)getModsFolderForProfile:(NSString *)profileName;
+- (nullable NSArray *)listShadersWithProfile:(NSString *)profileName;
+- (BOOL)toggleShader:(NSString *)fileName profile:(NSString *)profileName;
+- (BOOL)removeShader:(NSString *)fileName profile:(NSString *)profileName;
+
+// ── 存档（worlds.read / worlds.write†）──
+- (nullable NSArray *)listWorldsForProfile:(NSString *)profileName;
+- (nullable NSDictionary *)describeWorld:(NSString *)name profile:(NSString *)profileName;
+- (BOOL)renameWorld:(NSString *)oldName to:(NSString *)newName profile:(NSString *)profileName;
+- (BOOL)removeWorld:(NSString *)name profile:(NSString *)profileName;
+
+// ── 账户（accounts.read；只出元数据（用户名/类型/选中态），凭据字段永不入 JS）──
+- (nullable NSArray *)getAccountList;
+- (nullable NSDictionary *)getCurrentAccount;
+
+// ── 下载历史（downloads.read）──
+- (nullable NSArray *)getDownloadHistory;
+
+// ── AI 一次性问答（ai.call†；自修复闭环主通道：插件探测异常 → 问 AI → 展示/修复）──
+- (void)aiAsk:(NSString *)prompt callback:(JSValue *)cb;
+- (nullable NSDictionary *)getAIStatus;
+
+// ── 触控布局（controls.read / controls.write†；POJAV_HOME/controlmap/*.json）──
+- (nullable NSArray *)listControlLayouts;
+- (nullable NSString *)readControlLayout:(NSString *)name;
+- (BOOL)writeControlLayout:(NSString *)name content:(NSString *)content;
+- (BOOL)removeControlLayout:(NSString *)name;
+
+// ── 启动器沙盒文件面（fs.launcher†；POJAV_HOME 内相对路径，守卫同 files.game）──
+- (nullable NSArray *)fsList:(NSString *)relPath;
+- (nullable NSString *)fsRead:(NSString *)relPath;
+- (BOOL)fsWrite:(NSString *)relPath content:(NSString *)content append:(BOOL)append;
+- (BOOL)fsRemove:(NSString *)relPath;
+- (BOOL)fsExists:(NSString *)relPath;
+- (BOOL)fsMkdir:(NSString *)relPath;
+- (BOOL)fsMove:(NSString *)fromPath to:(NSString *)toPath;
+- (BOOL)fsCopy:(NSString *)fromPath to:(NSString *)toPath;
+- (nullable NSNumber *)fsSize:(NSString *)relPath;
+
+// ── 下载到文件（net† + fs.launcher† 双闸；目标必须落在启动器沙盒内）──
+- (void)downloadWithURL:(NSString *)urlString to:(NSString *)relPath callback:(JSValue *)cb;
+
+// ── 崩溃分析（logs.read；hs_err JVM 崩溃日志）──
+- (nullable NSDictionary *)analyzeLatestHsErr;
+- (nullable NSArray *)listHsErrFiles;
 @end
 
 @interface AmePluginBridge : NSObject <AmePluginBridgeJSExport>

@@ -92,6 +92,21 @@ NSString *ame317_pluginsRootDir(void) {
             [[AmePluginPermissionItem alloc] initWithId:@"jit.write"     danger:YES],
             [[AmePluginPermissionItem alloc] initWithId:@"game.launch"   danger:YES],
             [[AmePluginPermissionItem alloc] initWithId:@"logs.read"     danger:NO],
+            // ★ Task366：API 全量扩容权限组（用户拍板"少说 API 也应该要有几百个"；
+            //   权限 20 → 33 组。安全组读面默认授，写面/隐私面高危默认拒）
+            [[AmePluginPermissionItem alloc] initWithId:@"game.read"     danger:NO],
+            [[AmePluginPermissionItem alloc] initWithId:@"mods.read"     danger:NO],
+            [[AmePluginPermissionItem alloc] initWithId:@"mods.write"    danger:YES],
+            [[AmePluginPermissionItem alloc] initWithId:@"worlds.read"   danger:NO],
+            [[AmePluginPermissionItem alloc] initWithId:@"worlds.write"  danger:YES],
+            [[AmePluginPermissionItem alloc] initWithId:@"accounts.read" danger:NO],
+            [[AmePluginPermissionItem alloc] initWithId:@"downloads.read" danger:NO],
+            [[AmePluginPermissionItem alloc] initWithId:@"controls.read" danger:NO],
+            [[AmePluginPermissionItem alloc] initWithId:@"controls.write" danger:YES],
+            [[AmePluginPermissionItem alloc] initWithId:@"fs.launcher"   danger:YES],
+            [[AmePluginPermissionItem alloc] initWithId:@"ai.call"       danger:YES],
+            [[AmePluginPermissionItem alloc] initWithId:@"notify"        danger:NO],
+            [[AmePluginPermissionItem alloc] initWithId:@"clipboard.read" danger:YES],
         ];
     });
     return perms;

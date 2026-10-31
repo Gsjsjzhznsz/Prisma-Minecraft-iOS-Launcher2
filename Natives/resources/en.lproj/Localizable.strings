@@ -3452,6 +3452,7 @@
 "ame317.bridge.invalid_value" = "[ame] invalid value: %@";
 "ame317.bridge.bad_url" = "[ame] invalid URL";
 "ame317.common.ok" = "OK";
+"ame317.common.cancel" = "Cancel";
 /* Task317 permission groups */
 "ame317.perm.events.name" = "Launcher events";
 "ame317.perm.events.desc" = "Receive launcher events such as app launch, game start/exit, and app foreground/background";
@@ -3537,6 +3538,34 @@
 "ame327.plugin.guide.body" = "1. Effects - tap the rows in this page's \"Plugin rows\" section or Settings - \"Plugin rows\" group to trigger them; they are the features plugins provide.\n2. Permissions - dangerous permissions (network / theme / renderer write / instance manage / game folder) are denied by default; open the plugin detail page and enable them.\n3. AI-written plugins - ask the AI assistant \"write me a plugin\" with your idea; it generates, installs and loads one instantly.";
 "ame317.perm.ame.super.name" = "Full takeover (super)";
 "ame317.perm.ame.super.desc" = "Highest-level grant: the plugin can use ALL launcher APIs and every permission gate passes; all other switches are greyed out while enabled";
+
+// ★ Task366：API 全量扩容权限组（13×name/desc）
+"ame317.perm.game.read.name" = "Query game state";
+"ame317.perm.game.read.desc" = "Query game running state / last exit / memory & control layout";
+"ame317.perm.mods.read.name" = "Read mod list";
+"ame317.perm.mods.read.desc" = "View instance mods & shaders list (file names / enabled / size)";
+"ame317.perm.mods.write.name" = "Modify mods & shaders";
+"ame317.perm.mods.write.desc" = "Toggle / delete mods & shaders (dangerous)";
+"ame317.perm.worlds.read.name" = "Read world list";
+"ame317.perm.worlds.read.desc" = "View instance saves (worlds) list & sizes";
+"ame317.perm.worlds.write.name" = "Modify worlds";
+"ame317.perm.worlds.write.desc" = "Rename / delete saves (dangerous, irreversible)";
+"ame317.perm.accounts.read.name" = "Read account list";
+"ame317.perm.accounts.read.desc" = "View account usernames / types / selection (never credentials)";
+"ame317.perm.downloads.read.name" = "Read download history";
+"ame317.perm.downloads.read.desc" = "View download history records";
+"ame317.perm.controls.read.name" = "Read control layouts";
+"ame317.perm.controls.read.desc" = "View control layout files (controlmap)";
+"ame317.perm.controls.write.name" = "Modify control layouts";
+"ame317.perm.controls.write.desc" = "Create / modify / delete control layout files (dangerous)";
+"ame317.perm.fs.launcher.name" = "Launcher file access";
+"ame317.perm.fs.launcher.desc" = "Read/write files in launcher data dir (dangerous)";
+"ame317.perm.ai.call.name" = "Call AI assistant";
+"ame317.perm.ai.call.desc" = "Plugin sends one-shot AI prompts via current provider (costs quota)";
+"ame317.perm.notify.name" = "Notifications & haptics";
+"ame317.perm.notify.desc" = "Local notifications / haptics / write clipboard / share / open URLs";
+"ame317.perm.clipboard.read.name" = "Read clipboard";
+"ame317.perm.clipboard.read.desc" = "Read device clipboard text (privacy-sensitive, dangerous)";
 "ame333.repo.section_remote" = "Official plugin repo";
 "ame333.repo.section_builtin" = "Bundled plugins";
 "ame333.repo.fetching" = "Fetching plugin repo index…";

@@ -3450,6 +3450,7 @@
 "ame317.bridge.invalid_value" = "[ame] 非法值：%@";
 "ame317.bridge.bad_url" = "[ame] 无效 URL";
 "ame317.common.ok" = "好";
+"ame317.common.cancel" = "取消";
 /* Task317 权限组 */
 "ame317.perm.events.name" = "启动器事件";
 "ame317.perm.events.desc" = "接收启动器启动、游戏开始/退出、前后台切换等事件";
@@ -3535,6 +3536,34 @@
 "ame327.plugin.guide.body" = "1. 效果即用 —— 本页「插件贡献」区与 设置 → 插件功能 区的行就是插件提供的功能，点击即触发。\n2. 权限授权 —— 高危权限（联网/主题/渲染器写入/实例管理/游戏目录）默认拒绝，进插件详情页打开对应开关即可。\n3. AI 写插件 —— 对 AI 助手说「帮我写一个插件」并描述需求，即可自动生成、安装并装载。";
 "ame317.perm.ame.super.name" = "完全接管（超级权限）";
 "ame317.perm.ame.super.desc" = "最高级别授权：插件可调用启动器全部 API 且所有权限闸直接放行；开启期间其余权限开关变灰禁用";
+
+// ★ Task366：API 全量扩容权限组（13×name/desc）
+"ame317.perm.game.read.name" = "查询游戏状态";
+"ame317.perm.game.read.desc" = "查询游戏运行态/末次退出记录/内存与触控布局配置";
+"ame317.perm.mods.read.name" = "读取模组列表";
+"ame317.perm.mods.read.desc" = "查看实例模组与光影列表（文件名/启停态/大小）";
+"ame317.perm.mods.write.name" = "修改模组与光影";
+"ame317.perm.mods.write.desc" = "启停/删除模组与光影（高危，影响下次启动）";
+"ame317.perm.worlds.read.name" = "读取存档列表";
+"ame317.perm.worlds.read.desc" = "查看实例存档（世界）列表与尺寸";
+"ame317.perm.worlds.write.name" = "修改存档";
+"ame317.perm.worlds.write.desc" = "重命名/删除存档（高危，删除不可恢复）";
+"ame317.perm.accounts.read.name" = "读取账户列表";
+"ame317.perm.accounts.read.desc" = "查看账户用户名/类型/选中态（绝不含任何凭据）";
+"ame317.perm.downloads.read.name" = "读取下载历史";
+"ame317.perm.downloads.read.desc" = "查看下载历史记录";
+"ame317.perm.controls.read.name" = "读取触控布局";
+"ame317.perm.controls.read.desc" = "查看触控布局文件（controlmap）";
+"ame317.perm.controls.write.name" = "修改触控布局";
+"ame317.perm.controls.write.desc" = "创建/修改/删除触控布局文件（高危）";
+"ame317.perm.fs.launcher.name" = "启动器文件访问";
+"ame317.perm.fs.launcher.desc" = "读写启动器数据目录内文件（高危，含实例/配置/布局）";
+"ame317.perm.ai.call.name" = "调用 AI 助手";
+"ame317.perm.ai.call.desc" = "插件以当前 AI 供应商发起一次性问答（消耗额度）";
+"ame317.perm.notify.name" = "通知与触感";
+"ame317.perm.notify.desc" = "发送本地通知/触感反馈/写剪贴板/分享文本/打开外部链接";
+"ame317.perm.clipboard.read.name" = "读取剪贴板";
+"ame317.perm.clipboard.read.desc" = "读取设备剪贴板文本（隐私敏感，高危）";
 "ame333.repo.section_remote" = "官方插件仓库";
 "ame333.repo.section_builtin" = "包内预置插件";
 "ame333.repo.fetching" = "正在拉取插件仓库索引…";

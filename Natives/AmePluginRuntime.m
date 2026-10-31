@@ -1,6 +1,7 @@
 #import "AmePluginRuntime.h"
 #import "AmePluginKit.h"
 #import "ZL2Theme.h"   // Task317：主题令牌覆盖钩子（ame317_setPluginThemeTokens）
+#import "ZL2ShellViewController.h"   // ★ Task366：页面切换通知契约（page.changed 事件源）
 
 #import <UIKit/UIKit.h>
 #import <JavaScriptCore/JavaScriptCore.h>
@@ -123,6 +124,122 @@ static NSString *ame317_facadeSource(void) {
     "if(typeof p==='function'){cb=p;p={};}"
     "return raw.launchGameWithProfileCallback(p||{},cb||function(){});};"
     "ame.readLog=function(w,n){return raw.readLogLimit((w===undefined||w===null)?'launcher':String(w),Number(n||200));};"
+    // ★ Task366：API 全量扩容（桥面 40→122 方法；JS 名整形 Task331 规则）
+    "ame.app={"
+    "info:function(){return raw.getAppInfo();},"
+    "paths:function(){return raw.getAppPaths();},"
+    "memory:function(){return raw.getAppMemory();},"
+    "uptime:function(){return raw.getAppUptime();},"
+    "screen:function(){return raw.getScreenInfo();}};"
+    "ame.views.describe=function(h){return raw.viewsDescribe(Number(h));};"
+    "ame.views.children=function(h){return raw.viewsChildren(Number(h));};"
+    "ame.views.parent=function(h){return raw.viewsParent(Number(h));};"
+    "ame.views.tap=function(h){return raw.viewsTap(Number(h));};"
+    "ame.views.scroll=function(h,p){return raw.viewsScrollProps(Number(h),p||{});};"
+    "ame.views.animate=function(h,p){return raw.viewsAnimateProps(Number(h),p||{});};"
+    "ame.views.applyStyle=function(h,p){return raw.viewsApplyStyleProps(Number(h),p||{});};"
+    "ame.views.readStyle=function(h){return raw.viewsReadStyle(Number(h));};"
+    "ame.views.batch=function(a){return raw.viewsBatch(a||[]);};"
+    "ame.views.release=function(h){return raw.viewsRelease(Number(h));};"
+    // ★ Task366：dialog 扩展挂在既有函数上（函数亦对象）——ame.dialog(spec,cb)
+    //   顶层确认弹窗契约被四内置件消费，对象字面量整体覆盖 = 兼容性回归
+    //   （门面冒烟 node 实锤）；prompt/sheet/dismissAll 以函数成员挂载。
+    "ame.dialog.prompt=function(spec,cb){return raw.dialogPromptCallback(spec||{},cb||function(){});};"
+    "ame.dialog.sheet=function(spec,cb){return raw.dialogSheetCallback(spec||{},cb||function(){});};"
+    "ame.dialog.dismissAll=function(){return raw.dialogDismissAll();};"
+    "ame.notify={"
+    "send:function(t,b){return raw.notifyWithTitleBody(String(t||''),String(b||''));},"
+    "haptic:function(k){return raw.hapticWithKind(String(k||'light'));},"
+    "share:function(t,title){return raw.shareTextTitle(String(t||''),String(title||''));},"
+    "openURL:function(u){return raw.openExternalURL(String(u||''));},"
+    "copy:function(t){return raw.clipboardSetText(String(t||''));}};"
+    "ame.clipboard={"
+    "get:function(){return raw.clipboardGetText();},"
+    "set:function(t){return raw.clipboardSetText(String(t||''));}};"
+    "ame.theme={"
+    "setToken:function(t){return raw.setThemeToken(t||{});},"
+    "setShape:function(t){return raw.setThemeShape(t||{});},"
+    "setLayout:function(t){return raw.setThemeLayout(t||{});},"
+    "setStructure:function(t){return raw.setThemeStructure(t||{});},"
+    "getTokens:function(){return raw.getThemeTokens();},"
+    "getShapes:function(){return raw.getThemeShapes();},"
+    "getLayouts:function(){return raw.getThemeLayouts();},"
+    "getStructures:function(){return raw.getThemeStructures();}};"
+    "ame.settings={"
+    "get:function(k){return raw.getPref(String(k));},"
+    "set:function(k,v){return raw.setPrefValue(String(k),v);},"
+    "keys:function(p){return raw.listPrefKeys((p===undefined||p===null)?'':String(p));},"
+    "getMulti:function(a){return raw.getPrefs(a||[]);},"
+    "setMulti:function(d){return raw.setPrefs(d||{});},"
+    "remove:function(k){return raw.removePref(String(k));},"
+    "describe:function(k){return raw.prefDescribe(String(k));}};"
+    "ame.profiles={"
+    "list:function(){return raw.getProfiles();},"
+    "current:function(){return raw.getCurrentProfile();},"
+    "select:function(n){return raw.setCurrentProfile(String(n));},"
+    "describe:function(n){return raw.describeProfile(String(n||''));},"
+    "create:function(o){return raw.createProfile(o||{});},"
+    "remove:function(n){return raw.deleteProfile(String(n));},"
+    "rename:function(o,n){return raw.renameProfileTo(String(o),String(n));},"
+    "getKey:function(k,p){return raw.getProfileKeyProfile(String(k),String(p||''));},"
+    "setKey:function(k,v,p){return raw.setProfileKeyValueProfile(String(k),v,String(p||''));},"
+    "getServerIp:function(p){return raw.getServerIpForProfile(String(p||''));},"
+    "setServerIp:function(ip,p){return raw.setServerIpForProfileProfile(String(ip||''),String(p||''));}};"
+    "ame.game={"
+    "state:function(){return raw.getGameState();},"
+    "lastExit:function(){return raw.getLastGameExit();},"
+    "memory:function(){return raw.getMemoryAllocation();},"
+    "setMemory:function(mb){return raw.setMemoryAllocation(Number(mb||0));},"
+    "controlLayout:function(){return raw.getControlLayout();},"
+    "setControlLayout:function(n){return raw.setControlLayout(String(n||''));}};"
+    "ame.jit.setScheme=function(s){return raw.setJITScheme(String(s));};"
+    "ame.jit.schemes=function(){return raw.getJITSchemes();};"
+    "ame.logs={"
+    "read:function(w,n){return raw.readLogLimit((w===undefined||w===null)?'launcher':String(w),Number(n||200));},"
+    "list:function(w){return raw.listLogFiles(String((w===undefined||w===null)?'launcher':w));},"
+    "search:function(w,p,n){return raw.searchLogPatternLimit(String(w||'launcher'),String(p||''),Number(n||50));}};"
+    "ame.mods={"
+    "list:function(p){return raw.listModsWithProfile(String(p||''));},"
+    "toggle:function(f,p){return raw.toggleModProfile(String(f||''),String(p||''));},"
+    "remove:function(f,p){return raw.removeModProfile(String(f||''),String(p||''));},"
+    "folder:function(p){return raw.getModsFolderForProfile(String(p||''));}};"
+    "ame.shaders={"
+    "list:function(p){return raw.listShadersWithProfile(String(p||''));},"
+    "toggle:function(f,p){return raw.toggleShaderProfile(String(f||''),String(p||''));},"
+    "remove:function(f,p){return raw.removeShaderProfile(String(f||''),String(p||''));}};"
+    "ame.worlds={"
+    "list:function(p){return raw.listWorldsForProfile(String(p||''));},"
+    "describe:function(n,p){return raw.describeWorldProfile(String(n||''),String(p||''));},"
+    "rename:function(o,n,p){return raw.renameWorldToProfile(String(o||''),String(n||''),String(p||''));},"
+    "remove:function(n,p){return raw.removeWorldProfile(String(n||''),String(p||''));}};"
+    "ame.accounts={"
+    "list:function(){return raw.getAccountList();},"
+    "current:function(){return raw.getCurrentAccount();}};"
+    "ame.downloads={"
+    "history:function(){return raw.getDownloadHistory();}};"
+    "ame.ai={"
+    "ask:function(p,cb){return raw.aiAskCallback(String(p||''),cb||function(){});},"
+    "status:function(){return raw.getAIStatus();}};"
+    "ame.controls={"
+    "list:function(){return raw.listControlLayouts();},"
+    "read:function(n){return raw.readControlLayout(String(n||''));},"
+    "write:function(n,c){return raw.writeControlLayoutContent(String(n||''),String(c||''));},"
+    "remove:function(n){return raw.removeControlLayout(String(n||''));}};"
+    "ame.fs={"
+    "list:function(p){return raw.fsList(String(p||'.'));},"
+    "read:function(p){return raw.fsRead(String(p));},"
+    "write:function(p,c,ap){return raw.fsWriteContentAppend(String(p),String(c),!!ap);},"
+    "remove:function(p){return raw.fsRemove(String(p));},"
+    "exists:function(p){return raw.fsExists(String(p));},"
+    "mkdir:function(p){return raw.fsMkdir(String(p));},"
+    "move:function(f,t){return raw.fsMoveTo(String(f),String(t));},"
+    "copy:function(f,t){return raw.fsCopyTo(String(f),String(t));},"
+    "size:function(p){return raw.fsSize(String(p));}};"
+    "ame.net={"
+    "download:function(u,p,cb){return raw.downloadWithURLToCallback(String(u||''),String(p||''),cb||function(){});}};"
+    "ame.crash={"
+    "analyzeLatest:function(){return raw.analyzeLatestHsErr();},"
+    "list:function(){return raw.listHsErrFiles();}};"
     "return ame;"
     "})(ameRaw);";
 }
@@ -889,12 +1006,28 @@ static NSString *ame317_facadeSource(void) {
 
 #pragma mark - 游戏启停 / 前后台接线
 
+// ★ Task366：末次游戏退出记录（game.read；进程内存活，重启即清零）
+static NSDictionary *ame366_lastExitRecord = nil;
+
++ (nullable NSDictionary *)ame366_lastGameExit {
+    return ame366_lastExitRecord;
+}
+
 + (void)notifyGameStarting {
     [self emitEvent:@"game.starting" payload:nil];
 }
 
 + (void)notifyGameExited:(NSInteger)exitCode {
+    ame366_lastExitRecord = @{
+        @"code": @(exitCode),
+        @"time": [NSDate date],
+    };
     [self emitEvent:@"game.exited" payload:@(exitCode)];
+    // ★ Task366：game.crash = game.exited 非零码的语义别名（自修复插件
+    //   订阅更直白：不用自己判退出码；payload 与 game.exited 一致）
+    if (exitCode != 0) {
+        [self emitEvent:@"game.crash" payload:@(exitCode)];
+    }
 }
 
 + (void)notifyAppEnteringForeground {
@@ -932,6 +1065,43 @@ static NSString *ame317_facadeSource(void) {
                 usingBlock:^(NSNotification *_) {
         [wself ame317_dispatchAll:@"profile.listChanged" payload:nil];
     }];
+    // ★ Task366：事件面扩容四路（页面切换 / 账户变更 / 内存告警 + game.crash
+    //   派生自 notifyGameExited；payload 面向 JS 语义整形）
+    [nc addObserverForName:ZL2ShellNavigateNotification
+                    object:nil queue:[NSOperationQueue mainQueue]
+                usingBlock:^(NSNotification *note) {
+        NSDictionary *ui = [note.userInfo isKindOfClass:[NSDictionary class]] ? note.userInfo : @{};
+        NSNumber *idx = [ui[@"index"] isKindOfClass:[NSNumber class]] ? ui[@"index"] : nil;
+        NSArray *names = @[@"home", @"download", @"versions", @"accounts",
+                           @"settings", @"multiplayer", @"ai"];
+        NSString *page = (idx && idx.unsignedIntegerValue < names.count)
+            ? names[idx.unsignedIntegerValue] : @"";
+        [wself ame317_dispatchAll:@"page.changed"
+                          payload:@{@"index": idx ?: @(0), @"page": page}];
+    }];
+    [nc addObserverForName:@"UpdateAccountInfo"
+                    object:nil queue:[NSOperationQueue mainQueue]
+                usingBlock:^(NSNotification *_) {
+        [wself ame317_dispatchAll:@"account.changed" payload:nil];
+    }];
+    [nc addObserverForName:UIApplicationDidReceiveMemoryWarningNotification
+                    object:nil queue:[NSOperationQueue mainQueue]
+                usingBlock:^(NSNotification *_) {
+        [wself ame317_dispatchAll:@"app.lowMemory" payload:nil];
+    }];
+}
+
+// ★ Task366：本插件主题覆盖读取（四族记账表直查；kind 白名单外返回空表）
++ (nullable NSDictionary *)ame366_themeOverrides:(NSString *)kind
+                                       forPlugin:(NSString *)pluginId {
+    if (kind.length == 0 || pluginId.length == 0) return @{};
+    AmePluginRuntime *rt = [self sharedRuntime];
+    NSDictionary *dict = nil;
+    if ([kind isEqualToString:@"tokens"])           dict = rt.themeTokensByPlugin[pluginId];
+    else if ([kind isEqualToString:@"shapes"])      dict = rt.themeShapesByPlugin[pluginId];
+    else if ([kind isEqualToString:@"layouts"])     dict = rt.themeLayoutsByPlugin[pluginId];
+    else if ([kind isEqualToString:@"structures"])  dict = rt.themeStructuresByPlugin[pluginId];
+    return [dict isKindOfClass:[NSDictionary class]] ? dict : @{};
 }
 
 - (void)ame317_dispatchAll:(NSString *)event payload:(id)payload {

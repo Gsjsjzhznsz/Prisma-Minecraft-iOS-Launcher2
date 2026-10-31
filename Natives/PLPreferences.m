@@ -483,6 +483,30 @@ NSString *const PREF_MOD_MIRROR = @"general.mod_mirror";
     return self;
 }
 
+// ★ Task366：注册键路径枚举（递归走嵌套字典；global+instance 并集去重）。
+// 产物形态 = getObject: 的 valueForKeyPath 寻址面（"general.ram_allocation"），
+// 逐键可直接喂 getPrefObject/setPrefObject。
+- (NSArray<NSString *> *)ame366_registeredDottedKeys {
+    NSMutableOrderedSet<NSString *> *out = [NSMutableOrderedSet orderedSet];
+    for (NSDictionary *root in @[self.globalPref ?: @{}, self.instancePref ?: @{}]) {
+        [self ame366_walkKeys:root prefix:@"" into:out];
+    }
+    return [out array];
+}
+
+- (void)ame366_walkKeys:(NSDictionary *)dict prefix:(NSString *)prefix into:(NSMutableOrderedSet<NSString *> *)out {
+    for (NSString *key in dict) {
+        if (![key isKindOfClass:[NSString class]] || key.length == 0) continue;
+        NSString *path = prefix.length ? [NSString stringWithFormat:@"%@.%@", prefix, key] : key;
+        id value = dict[key];
+        if ([value isKindOfClass:[NSDictionary class]]) {
+            [self ame366_walkKeys:value prefix:path into:out];
+        } else {
+            [out addObject:path];
+        }
+    }
+}
+
 - (id)setDefaultsForPref:(NSMutableDictionary *)pref global:(BOOL)global {
     NSMutableDictionary<NSString *, NSMutableDictionary *> *defaults = [PLPreferences defaultPrefForGlobal:global];
     if (!pref) {

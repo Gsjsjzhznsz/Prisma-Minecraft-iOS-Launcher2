@@ -3447,6 +3447,7 @@
 "ame317.bridge.invalid_value" = "[ame] 非法值：%@";
 "ame317.bridge.bad_url" = "[ame] 無效 URL";
 "ame317.common.ok" = "好";
+"ame317.common.cancel" = "取消";
 /* Task317 權限群組 */
 "ame317.perm.events.name" = "啟動器事件";
 "ame317.perm.events.desc" = "接收啟動器啟動、遊戲開始/結束、前景/背景切換等事件";
@@ -3532,6 +3533,34 @@
 "ame327.plugin.guide.body" = "1. 效果即用 —— 本頁「插件貢獻」區與 設定 → 插件功能 區的行就是插件提供的功能，點擊即觸發。\n2. 權限授權 —— 高危權限（聯網/主題/渲染器寫入/實例管理/遊戲目錄）預設拒絕，進插件詳情頁打開對應開關即可。\n3. AI 寫插件 —— 對 AI 助手說「幫我寫一個插件」並描述需求，即可自動生成、安裝並載入。";
 "ame317.perm.ame.super.name" = "完全接管（超級權限）";
 "ame317.perm.ame.super.desc" = "最高級別授權：插件可呼叫啟動器全部 API 且所有權限閘直接放行；開啟期間其餘權限開關變灰停用";
+
+// ★ Task366：API 全量扩容权限组（13×name/desc）
+"ame317.perm.game.read.name" = "查詢遊戲狀態";
+"ame317.perm.game.read.desc" = "查詢遊戲運行態/末次退出記錄/記憶體與觸控佈局配置";
+"ame317.perm.mods.read.name" = "讀取模組列表";
+"ame317.perm.mods.read.desc" = "查看實例模組與光影列表（檔名/啟停態/大小）";
+"ame317.perm.mods.write.name" = "修改模組與光影";
+"ame317.perm.mods.write.desc" = "啟停/刪除模組與光影（高危，影響下次啟動）";
+"ame317.perm.worlds.read.name" = "讀取存檔列表";
+"ame317.perm.worlds.read.desc" = "查看實例存檔（世界）列表與尺寸";
+"ame317.perm.worlds.write.name" = "修改存檔";
+"ame317.perm.worlds.write.desc" = "重新命名/刪除存檔（高危，刪除不可恢復）";
+"ame317.perm.accounts.read.name" = "讀取帳戶列表";
+"ame317.perm.accounts.read.desc" = "查看帳戶使用者名稱/類型/選中態（絕不含任何憑證）";
+"ame317.perm.downloads.read.name" = "讀取下載歷史";
+"ame317.perm.downloads.read.desc" = "查看下載歷史記錄";
+"ame317.perm.controls.read.name" = "讀取觸控佈局";
+"ame317.perm.controls.read.desc" = "查看觸控佈局檔案（controlmap）";
+"ame317.perm.controls.write.name" = "修改觸控佈局";
+"ame317.perm.controls.write.desc" = "建立/修改/刪除觸控佈局檔案（高危）";
+"ame317.perm.fs.launcher.name" = "啟動器檔案存取";
+"ame317.perm.fs.launcher.desc" = "讀寫啟動器資料目錄內檔案（高危，含實例/配置/佈局）";
+"ame317.perm.ai.call.name" = "呼叫 AI 助手";
+"ame317.perm.ai.call.desc" = "外掛以目前 AI 供應商發起一次性問答（消耗額度）";
+"ame317.perm.notify.name" = "通知與觸感";
+"ame317.perm.notify.desc" = "傳送本地通知/觸感回饋/寫剪貼簿/分享文字/開啟外部連結";
+"ame317.perm.clipboard.read.name" = "讀取剪貼簿";
+"ame317.perm.clipboard.read.desc" = "讀取裝置剪貼簿文字（隱私敏感，高危）";
 "ame333.repo.section_remote" = "官方插件倉庫";
 "ame333.repo.section_builtin" = "套件內預置插件";
 "ame333.repo.fetching" = "正在擷取插件倉庫索引…";

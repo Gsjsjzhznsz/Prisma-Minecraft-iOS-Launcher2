@@ -53,6 +53,15 @@ NS_ASSUME_NONNULL_BEGIN
 ///   完成后同样调用：新装件立拿全部声明授权（与首方内置件同语义）。
 + (void)noteRepoOfficialIndex:(nullable NSDictionary<NSString *, NSString *> *)officialVersions;
 
+/// ★ Task366：末次游戏退出记录（桥面 ame.game.lastExit 消费）
+///   {code: NSNumber, time: NSDate}；本次启动尚无退出记录时返回 nil
++ (nullable NSDictionary *)ame366_lastGameExit;
+
+/// ★ Task366：本插件主题覆盖读取（桥面 ame.theme.getTokens 等 get 族消费）
+///   kind ∈ tokens/shapes/layouts/structures；无覆盖返回空字典
++ (nullable NSDictionary *)ame366_themeOverrides:(NSString *)kind
+                                       forPlugin:(NSString *)pluginId;
+
 @end
 
 NS_ASSUME_NONNULL_END

@@ -70,8 +70,8 @@ check('A5 StikDebug 头导入（Task291/294 JIT 面）',
       '#import "StikDebugViewController.h"' in bm)
 
 # ══ B 权限注册表 + i18n ═══════════════════════════════════════
-check('B1 注册表 20 实体（16 + jit.read/jit.write/game.launch/logs.read）+ ame.super 居首',
-      pm.count('initWithId:@"') == 20
+check('B1 注册表 33 实体（★Task366 重锚：20 + 13 扩容组）+ ame.super 居首',
+      pm.count('initWithId:@"') == 33
       and pm.index('initWithId:@"ame.super"') < pm.index('initWithId:@"events"'))
 check('B2 危险位正确（jit.read/log.read 安全；jit.write/game.launch 高危）',
       'initWithId:@"jit.read"      danger:NO' in pm
@@ -82,10 +82,10 @@ i18n_ok = True
 for lang in ["en", "zh-Hans", "zh-Hant", "zh-CN"]:
     t = read(f"Natives/resources/{lang}.lproj/Localizable.strings")
     n = len(re.findall(r'^"ame317\.perm\.[^"]+"\s*=', t, re.M))
-    if n != 40:
+    if n != 66:
         i18n_ok = False
-        check(f'B3 {lang} 权限键 40（20×name/desc）', False, f"got {n}")
-check('B3 四语言权限键各 40（20×name/desc）', i18n_ok)
+        check(f'B3 {lang} 权限键 66（★Task366 重锚：33×name/desc）', False, f"got {n}")
+check('B3 四语言权限键各 66（★Task366 重锚：33×name/desc）', i18n_ok)
 
 # ══ C 提示词 v6 + v5 留档 + 迁移链 ════════════════════════════
 v6_start = aiset.index("+ (NSString *)defaultSystemPrompt {")
@@ -113,7 +113,7 @@ check('C1 v5 留档产出串 == git HEAD v5（逐字节迁移基线铁律）',
       f"archive={len(produced(v5_zone))} head={len(produced(h5))}")
 check('C2 v6 契约+铁律+20 项权限行在位',
       "get_plugin_docs" in produced(v6_zone) and "create_plugin 参数" in produced(v6_zone)
-      and "共 20 项" in produced(v6_zone) and "jit.write†" in produced(v6_zone)
+      and "共 33 项" in produced(v6_zone) and "jit.write†" in produced(v6_zone)
       and "game.launch†" in produced(v6_zone) and "logs.read" in produced(v6_zone))
 check('C3 v6 巨型 API 块确已移出（主题四家族/视图操纵/拖拽写法不再内联）',
       "setThemeToken(色令牌表)" not in produced(v6_zone)
@@ -126,7 +126,7 @@ check('C4 v6 其余章节逐字节不动（安装章/资源章/行为纪律原�
 check('C5 迁移链 v5→v6 支 + 终版号 6（幂等写一次）',
       "[ame267_saved isEqualToString:[self ame365_v5DefaultSystemPrompt]]" in aiset
       and "Task365: v5 default system prompt auto-upgraded to v6" in aiset
-      and "[ame267_d setInteger:6 forKey:kSystemPromptVersionKey];" in aiset
+      and "[ame267_d setInteger:7 forKey:kSystemPromptVersionKey];" in aiset
       and "[ame267_d setInteger:5 forKey:kSystemPromptVersionKey];" not in aiset)
 check('C6 v5 留档体量核（≈v5 全文，未截断）',
       len(produced(v5_zone)) > 5000 and "视图操纵" in produced(v5_zone)
@@ -139,23 +139,23 @@ check('D1 工具注册 + 只读免确认 + 协议实现',
       and 'return @"get_plugin_docs";' in dtool
       and '<AiTool>' in dhead)
 check('D2 文档含自修复三件套全量 API（jit/launch/log 签名与语义）',
-      "ame.jit.state()" in dtool and "setupState:'enabled'|'ready'|'waitingConfiguration'|'unavailable'" in dtool
-      and "ame.jit.enable(function(res){})" in dtool and "res={success:bool, message:string}" in dtool
-      and "ame.launchGame(profile?, function(res){})" in dtool and "res={ok:bool, message:string}" in dtool
+      "ame.jit.state()" in dtool and "setupState ∈ enabled/ready/waitingConfiguration/unavailable" in dtool
+      and "ame.jit.enable(function(res){})" in dtool and "res={success,message}" in dtool
+      and "ame.launchGame(profile?, function(res){})" in dtool and "res={ok,message}" in dtool
       and "ame.readLog(which, lines)" in dtool and "'launcherOld'" in dtool and "'crash'" in dtool)
 check('D3 文档含主题四家族/视图操纵/拖拽标准写法（v5 全量面平移）',
-      "ame.setThemeToken(色令牌表)" in dtool and "ame.setThemeLayout(排版刻度表)" in dtool
-      and "ame.setThemeStructure({shellLayout:'topbar'|'navigationview'})" in dtool
+      "ame.setThemeToken(色令牌表)" in dtool and "ame.theme.setLayout(排版刻度表)" in dtool
+      and "ame.theme.setStructure({shellLayout:'topbar'|'navigationview'})" in dtool
       and "ame.views.apply(h,{x:st.x+ev.tx,y:st.y+ev.ty});" in dtool
       and "SurfaceView/GameSurfaceView/ScrollableSurfaceView" in dtool)
 check('D4 文档含权限 20 项表 + create_plugin 契约 + 官方演示件',
-      "共 20 项" in dtool and "ame.super" in dtool
+      "共 33 项" in dtool and "ame.super" in dtool
       and "create_plugin 参数" in dtool and "(function(){...})();" in dtool
       and "element-drag" in dtool and "launch-counter" in dtool)
-check('D5 create_plugin 描述同步（文档前置铁律 + 20 项权限值域 + 三件套速览）',
-      "get_plugin_docs" in ptool and "jit.read/jit.write/game.launch/logs.read" in ptool
-      and "ame.jit.state()" in ptool and "ame.launchGame(profile?,cb)" in ptool
-      and "ame.readLog(which,lines)" in ptool)
+check('D5 create_plugin 描述同步（文档前置铁律 + ★Task366 33 项权限值域 + 三件套速览）',
+      "get_plugin_docs" in ptool and "jit.read/jit.write/game.read/game.launch/" in ptool
+      and "ame.jit.state/enable/setScheme/schemes" in ptool and "ame.launchGame(profile?,cb)" in ptool
+      and "ame.logs read/list/search" in ptool)
 check('D6 AiAgent 动态注入句（工具能力附录点名 get_plugin_docs）',
       "get_plugin_docs" in agent and "静默失效" in agent)
 
@@ -165,6 +165,7 @@ facade = facade[:facade.index('#pragma mark - 装载 / 卸载')]
 docs_text = produced(dtool)
 doc_top = set(re.findall(r'ame\.([a-zA-Z]+)\s*[\(.=]', docs_text))
 facade_top = set(re.findall(r'ame\.([a-zA-Z]+)\s*=', facade))
+facade_top |= set(re.findall(r'ame\.([a-zA-Z]+)\.', facade))  # ★Task366：命名空间点链成员
 missing_top = sorted(doc_top - facade_top)
 check('E1 文档 ame.* 顶层名 ⊆ 门面顶层名', not missing_top, f"missing={missing_top}")
 doc_ns = {}
@@ -173,8 +174,12 @@ for m in re.finditer(r'ame\.(views|jit|storage)\.([a-zA-Z]+)', docs_text):
 facade_ns = {}
 for ns in ("views", "jit", "storage"):
     blk = re.search(r'ame\.' + ns + r'=\{(.*?)\};', facade, re.S)
+    members = set()
     if blk:
-        facade_ns[ns] = set(re.findall(r'([a-zA-Z]+):function', blk.group(1)))
+        members |= set(re.findall(r'([a-zA-Z]+):function', blk.group(1)))
+    # ★Task366：对象字面量外的点链外挂成员（ame.views.animate=...）
+    members |= set(re.findall(r'ame\.' + ns + r'\.([a-zA-Z]+)\s*=', facade))
+    facade_ns[ns] = members
 ns_missing = {k: sorted(v - facade_ns.get(k, set())) for k, v in doc_ns.items()
               if not v.issubset(facade_ns.get(k, set()))}
 check('E2 文档命名空间成员 ⊆ 门面命名空间成员（views/jit/storage）',

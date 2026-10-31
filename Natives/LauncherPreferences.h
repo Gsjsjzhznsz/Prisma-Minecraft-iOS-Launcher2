@@ -58,6 +58,8 @@ void ame212_migrateHolyGl4es(void);
 /// Task224 分区）在遍历前调用本函数强制落盘一次。
 void ame346_flushGlobalPrefsToDisk(void);
 
+NSArray<NSString *> *ame366_registeredPrefKeys(void);   // ★ Task366：注册键路径枚举
+
 id getPrefObject(NSString *key);
 BOOL getPrefBool(NSString *key);
 float getPrefFloat(NSString *key);

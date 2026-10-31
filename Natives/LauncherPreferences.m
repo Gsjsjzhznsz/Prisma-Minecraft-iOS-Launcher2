@@ -318,6 +318,9 @@ void ame212_migrateHolyGl4es(void) {
     }
 }
 
+NSArray<NSString *> *ame366_registeredPrefKeys(void) {
+    return [pref ame366_registeredDottedKeys];
+}
 id getPrefObject(NSString *key) {
     return [pref getObject:key];
 }

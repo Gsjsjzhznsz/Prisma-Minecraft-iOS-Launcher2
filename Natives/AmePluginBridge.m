@@ -8,10 +8,23 @@
 #import "ZL2Theme.h"    // 主题令牌覆盖钩子
 #import "ZL2ShellViewController.h"   // Task327：页面导航通知契约（ZL2ShellNavigate）
 #import "StikDebugViewController.h"  // ★ Task365：JIT 状态四态/内置轨可用性/开启共享入口
+// ★ Task366：API 全量扩容导入面（模组/光影/下载历史/崩溃分析/AI/运行时互访）
+#import "ModService.h"              // ame264 有效 mods 目录解析（实例隔离感知）
+#import "ShaderService.h"           // shaderpacks 目录
+#import "DownloadHistoryStore.h"    // 下载历史
+#import "CrashAnalyzer.h"           // hs_err JVM 崩溃日志分析
+#import "AI/AiSettings.h"           // AI 供应商选中态
+#import "AI/AiProviderStore.h"      // 供应商存储（selectedProvider）
+#import "AI/AiAPIClient.h"          // 一次性问答通道
+#import "AI/AiProvider.h"
+#import "AI/AiMessage.h"
+#import "AmePluginRuntime.h"        // 末次游戏退出记录 / 主题覆盖读取
+#import <UserNotifications/UserNotifications.h>  // 本地通知（notify 权限）
 
 #import <UIKit/UIKit.h>
 #import <objc/runtime.h>   // Task364：pan 累计位移关联对象
 #include <math.h>          // Task364：isfinite 防呆
+#import <mach/mach.h>      // Task366：phys_footprint（进程内存用量）
 
 // ═══════════════════════════════════════════════════════════════════
 // AmePluginBridge 实现（Task 317）
@@ -79,6 +92,10 @@ static const NSUInteger ame317_storageMaxBytes = 4 * 1024 * 1024;
 @property (nonatomic, assign) NSUInteger viewHandleSeed;
 @property (nonatomic, strong) NSMutableDictionary<NSNumber *, NSDictionary *> *viewOriginals; // handle → @{frame,alpha,hidden} 首改留痕
 @property (nonatomic, strong) NSMutableDictionary<NSNumber *, NSMutableArray<Ame364GestureSink *> *> *viewSinks; // handle → 手势载体表
+// ★ Task366：本插件弹出的 UIAlertController 登记（dialogDismissAll 只关自己的）
+@property (nonatomic, strong) NSHashTable<UIAlertController *> *presentedDialogs;
+// ★ Task366：样式首改留痕（textColor/font/边框——viewsReset 与卸载还原）
+@property (nonatomic, strong) NSMutableDictionary<NSNumber *, NSDictionary *> *viewStyleOriginals;
 @end
 
 @implementation AmePluginBridge
@@ -97,6 +114,8 @@ static const NSUInteger ame317_storageMaxBytes = 4 * 1024 * 1024;
                                           valueOptions:NSMapTableWeakMemory];
         _viewOriginals = [NSMutableDictionary dictionary];
         _viewSinks = [NSMutableDictionary dictionary];
+        _presentedDialogs = [NSHashTable weakObjectsHashTable];
+        _viewStyleOriginals = [NSMutableDictionary dictionary];
     }
     return self;
 }
@@ -1114,6 +1133,18 @@ static UIColor *ame364_colorFromString(NSString *s) {
             v.hidden = [orig[@"hidden"] boolValue];
             [self.viewOriginals removeObjectForKey:hk];
         }
+        // ★ Task366：还原样式首改（textColor/font/边框）
+        NSDictionary *style = self.viewStyleOriginals[hk];
+        if (style) {
+            UIColor *tc = style[@"textColor"];
+            if (tc) [self ame366_setTextColor:tc on:v];
+            UIFont *font = style[@"font"];
+            if (font) [self ame366_setFont:font on:v];
+            v.layer.borderWidth = [style[@"borderWidth"] doubleValue];
+            UIColor *bc = style[@"borderColor"];
+            v.layer.borderColor = bc ? bc.CGColor : nil;
+            [self.viewStyleOriginals removeObjectForKey:hk];
+        }
     }
     [self.viewSinks removeObjectForKey:hk];
     return v != nil;
@@ -1139,6 +1170,7 @@ static UIColor *ame364_colorFromString(NSString *s) {
     }
     [self.viewSinks removeAllObjects];
     [self.viewOriginals removeAllObjects];
+    [self.viewStyleOriginals removeAllObjects];
     [self.viewTable removeAllObjects];
     self.viewHandleSeed = 0;
 }
@@ -1304,7 +1336,1526 @@ static UIColor *ame364_colorFromString(NSString *s) {
     return best;
 }
 
-#pragma mark - 内部工具
+#pragma mark - Task366 app 元信息（settings.read，安全）
+
+- (nullable NSDictionary *)getAppInfo {
+    if (![self ame317_requirePerm:@"settings.read"]) return nil;
+    NSDictionary *info = [NSBundle mainBundle].infoDictionary ?: @{};
+    return @{
+        @"name": info[@"CFBundleDisplayName"] ?: info[@"CFBundleName"] ?: @"Prisma",
+        @"version": info[@"CFBundleShortVersionString"] ?: @"",
+        @"build": info[(NSString *)kCFBundleVersionKey] ?: @"",
+        @"bundleId": info[@"CFBundleIdentifier"] ?: @"",
+        @"iosVersion": [UIDevice currentDevice].systemVersion ?: @"",
+        @"device": [UIDevice currentDevice].model ?: @"",
+        @"darkMode": @([self ame366_isDarkMode]),
+    };
+}
+
+- (nullable NSDictionary *)getAppPaths {
+    if (![self ame317_requirePerm:@"settings.read"]) return nil;
+    const char *home = getenv("POJAV_HOME");
+    const char *game = getenv("POJAV_GAME_DIR");
+    return @{
+        @"home": (home && *home) ? @(home) : @"",
+        @"gameDir": (game && *game) ? @(game) : @"",
+        @"pluginsDir": ame317_pluginsRootDir() ?: @"",
+        @"documents": [NSSearchPathForDirectoriesInDomains(NSDocumentDirectory, NSUserDomainMask, YES) firstObject] ?: @"",
+    };
+}
+
+- (nullable NSDictionary *)getAppMemory {
+    if (![self ame317_requirePerm:@"settings.read"]) return nil;
+    task_vm_info_data_t vmInfo;
+    mach_msg_type_number_t count = TASK_VM_INFO_COUNT;
+    if (task_info(mach_task_self(), TASK_VM_INFO, (task_info_t)&vmInfo, &count) != KERN_SUCCESS) {
+        return nil;
+    }
+    return @{
+        @"usedBytes": @((double)vmInfo.phys_footprint),
+        @"uptimeSeconds": @([[NSProcessInfo processInfo] systemUptime]),
+    };
+}
+
+- (double)getAppUptime {
+    if (![self ame317_requirePerm:@"settings.read"]) return -1;
+    return [[NSProcessInfo processInfo] systemUptime];
+}
+
+- (nullable NSDictionary *)getScreenInfo {
+    if (![self ame317_requirePerm:@"settings.read"]) return nil;
+    UIWindow *w = [self ame317_keyWindow];
+    UIScreen *screen = w.screen ?: [UIScreen mainScreen];
+    return @{
+        @"width": @(screen.bounds.size.width),
+        @"height": @(screen.bounds.size.height),
+        @"scale": @(screen.scale),
+        @"safeAreaTop": @(w.safeAreaInsets.top),
+        @"safeAreaBottom": @(w.safeAreaInsets.bottom),
+    };
+}
+
+- (BOOL)ame366_isDarkMode {
+    return [UITraitCollection currentTraitCollection].userInterfaceStyle == UIUserInterfaceStyleDark;
+}
+
+#pragma mark - Task366 视图操纵扩展（ui.views†）
+
+- (nullable NSDictionary *)viewsDescribe:(double)handle {
+    if (![self ame317_requirePerm:@"ui.views"]) return nil;
+    UIView *v = [self ame364_viewForHandle:handle];
+    if (!v || ame364_isProtectedClass(ame364_clsName(v))) return nil;
+    NSMutableDictionary *node = [NSMutableDictionary dictionary];
+    node[@"handle"] = @(handle);
+    node[@"cls"] = ame364_clsName(v);
+    node[@"text"] = ame364_bestText(v) ?: @"";
+    node[@"ident"] = v.accessibilityIdentifier ?: @"";
+    node[@"tag"] = @(v.tag);
+    node[@"frame"] = @{@"x": @(v.frame.origin.x), @"y": @(v.frame.origin.y),
+                       @"w": @(v.frame.size.width), @"h": @(v.frame.size.height)};
+    node[@"alpha"] = @(v.alpha);
+    node[@"hidden"] = @(v.hidden);
+    node[@"enabled"] = @([v isKindOfClass:[UIControl class]] ? ((UIControl *)v).enabled : YES);
+    node[@"userInteractionEnabled"] = @(v.userInteractionEnabled);
+    node[@"cornerRadius"] = @(v.layer.cornerRadius);
+    node[@"childrenCount"] = @((NSUInteger)v.subviews.count);
+    node[@"gestureCount"] = @((NSUInteger)v.gestureRecognizers.count);
+    NSString *bgHex = [self ame366_hexFromColor:v.backgroundColor];
+    if (bgHex) node[@"bg"] = bgHex;
+    return node;
+}
+
+- (nullable NSArray *)viewsChildren:(double)handle {
+    if (![self ame317_requirePerm:@"ui.views"]) return nil;
+    UIView *v = [self ame364_viewForHandle:handle];
+    if (!v || ame364_isProtectedClass(ame364_clsName(v))) return nil;
+    NSMutableArray *out = [NSMutableArray array];
+    for (UIView *child in v.subviews) {
+        if (out.count >= ame364_findLimitMax) break;
+        if (ame364_isProtectedClass(ame364_clsName(child))) continue;
+        NSUInteger h = [self ame364_registerView:child];
+        [out addObject:@{@"handle": @(h), @"cls": ame364_clsName(child),
+                         @"text": ame364_bestText(child) ?: @"",
+                         @"frame": @{@"x": @(child.frame.origin.x), @"y": @(child.frame.origin.y),
+                                     @"w": @(child.frame.size.width), @"h": @(child.frame.size.height)}}];
+    }
+    return out;
+}
+
+- (nullable NSDictionary *)viewsParent:(double)handle {
+    if (![self ame317_requirePerm:@"ui.views"]) return nil;
+    UIView *v = [self ame364_viewForHandle:handle];
+    if (!v) return nil;
+    UIView *p = v.superview;
+    if (!p || ame364_isProtectedClass(ame364_clsName(p))) return nil;
+    NSUInteger h = [self ame364_registerView:p];
+    return @{@"handle": @(h), @"cls": ame364_clsName(p),
+             @"text": ame364_bestText(p) ?: @""};
+}
+
+- (BOOL)viewsTap:(double)handle {
+    if (![self ame317_requirePerm:@"ui.views"]) return NO;
+    UIView *v = [self ame364_viewForHandle:handle];
+    if (!v || ame364_isProtectedClass(ame364_clsName(v))) return NO;
+    if (![v isKindOfClass:[UIControl class]] || !((UIControl *)v).enabled) return NO;
+    [((UIControl *)v) sendActionsForControlEvents:UIControlEventTouchUpInside];
+    return YES;
+}
+
+- (BOOL)viewsScroll:(double)handle props:(NSDictionary *)props {
+    if (![self ame317_requirePerm:@"ui.views"]) return NO;
+    UIView *v = [self ame364_viewForHandle:handle];
+    if (!v || ame364_isProtectedClass(ame364_clsName(v))) return NO;
+    if (![v isKindOfClass:[UIScrollView class]]) return NO;
+    props = [self ame317_unwrapJs:props] ?: @{};
+    CGPoint offset = ((UIScrollView *)v).contentOffset;
+    NSNumber *n;
+    if ((n = [self ame364_num:props[@"x"]])) offset.x = n.doubleValue;
+    if ((n = [self ame364_num:props[@"y"]])) offset.y = n.doubleValue;
+    BOOL animated = props[@"animated"] == nil ? YES : [props[@"animated"] boolValue];
+    [((UIScrollView *)v) setContentOffset:offset animated:animated];
+    return YES;
+}
+
+- (BOOL)viewsAnimate:(double)handle props:(NSDictionary *)props {
+    if (![self ame317_requirePerm:@"ui.views"]) return NO;
+    UIView *v = [self ame364_viewForHandle:handle];
+    if (!v || ame364_isProtectedClass(ame364_clsName(v))) return NO;
+    props = [self ame317_unwrapJs:props] ?: @{};
+    NSNumber *n;
+    CGRect target = v.frame;
+    BOOL any = NO;
+    if ((n = [self ame364_num:props[@"x"]])) { target.origin.x = MAX(-ame364_coordClamp, MIN(ame364_coordClamp, n.doubleValue)); any = YES; }
+    if ((n = [self ame364_num:props[@"y"]])) { target.origin.y = MAX(-ame364_coordClamp, MIN(ame364_coordClamp, n.doubleValue)); any = YES; }
+    if ((n = [self ame364_num:props[@"w"]])) { target.size.width = MAX(0, MIN(ame364_coordClamp, n.doubleValue)); any = YES; }
+    if ((n = [self ame364_num:props[@"h"]])) { target.size.height = MAX(0, MIN(ame364_coordClamp, n.doubleValue)); any = YES; }
+    CGFloat alpha = v.alpha;
+    if ((n = [self ame364_num:props[@"alpha"]])) { alpha = MAX(0.0, MIN(1.0, n.doubleValue)); any = YES; }
+    if (!any) return NO;
+    double duration = 0.25;
+    if ((n = [self ame364_num:props[@"duration"]])) duration = MAX(0.0, MIN(2.0, n.doubleValue));
+    NSNumber *hk = @((NSUInteger)handle);
+    if (!self.viewOriginals[hk]) {
+        self.viewOriginals[hk] = @{
+            @"frame": [NSValue valueWithCGRect:v.frame],
+            @"alpha": @(v.alpha),
+            @"hidden": @(v.hidden),
+        };
+    }
+    [UIView animateWithDuration:duration animations:^{
+        v.frame = target;
+        v.alpha = alpha;
+    }];
+    return YES;
+}
+
+- (BOOL)viewsApplyStyle:(double)handle props:(NSDictionary *)props {
+    if (![self ame317_requirePerm:@"ui.views"]) return NO;
+    UIView *v = [self ame364_viewForHandle:handle];
+    if (!v || ame364_isProtectedClass(ame364_clsName(v))) return NO;
+    props = [self ame317_unwrapJs:props] ?: @{};
+    if (![props isKindOfClass:[NSDictionary class]] || props.count == 0) return NO;
+    NSNumber *hk = @((NSUInteger)handle);
+    if (!self.viewStyleOriginals[hk]) {
+        // 样式首改留痕（reset/卸载还原基准）
+        NSMutableDictionary *orig = [NSMutableDictionary dictionary];
+        UIColor *curText = [self ame366_textColorOf:v];
+        if (curText) orig[@"textColor"] = curText;
+        UIFont *curFont = [self ame366_fontOf:v];
+        if (curFont) orig[@"font"] = curFont;
+        orig[@"borderWidth"] = @(v.layer.borderWidth);
+        if (v.layer.borderColor) orig[@"borderColor"] = [UIColor colorWithCGColor:v.layer.borderColor];
+        self.viewStyleOriginals[hk] = orig;
+    }
+    BOOL any = NO;
+    NSString *textColor = [self ame317_string:props[@"textColor"]];
+    if (textColor) {
+        UIColor *c = ame364_colorFromString(textColor);
+        if (c) { [self ame366_setTextColor:c on:v]; any = YES; }
+    }
+    NSNumber *n;
+    if ((n = [self ame364_num:props[@"fontSize"]]) || props[@"bold"] != nil) {
+        BOOL bold = [props[@"bold"] boolValue];
+        CGFloat size = n ? n.doubleValue : [self ame366_fontOf:v].pointSize;
+        if (size <= 0) size = 14;
+        UIFont *f = [UIFont systemFontOfSize:size weight:bold ? UIFontWeightSemibold : UIFontWeightRegular];
+        [self ame366_setFont:f on:v];
+        any = YES;
+    }
+    if ((n = [self ame364_num:props[@"borderWidth"]])) {
+        v.layer.borderWidth = MAX(0, MIN(20, n.doubleValue));
+        any = YES;
+    }
+    NSString *borderColor = [self ame317_string:props[@"borderColor"]];
+    if (borderColor) {
+        UIColor *c = ame364_colorFromString(borderColor);
+        if (c) { v.layer.borderColor = c.CGColor; any = YES; }
+    }
+    return any;
+}
+
+- (nullable NSDictionary *)viewsReadStyle:(double)handle {
+    if (![self ame317_requirePerm:@"ui.views"]) return nil;
+    UIView *v = [self ame364_viewForHandle:handle];
+    if (!v || ame364_isProtectedClass(ame364_clsName(v))) return nil;
+    NSMutableDictionary *out = [NSMutableDictionary dictionary];
+    UIColor *tc = [self ame366_textColorOf:v];
+    NSString *tcHex = [self ame366_hexFromColor:tc];
+    if (tcHex) out[@"textColor"] = tcHex;
+    UIFont *f = [self ame366_fontOf:v];
+    if (f) {
+        out[@"fontSize"] = @(f.pointSize);
+        out[@"bold"] = @(([[f fontDescriptor] symbolicTraits] & UIFontDescriptorTraitBold) != 0);
+    }
+    out[@"borderWidth"] = @(v.layer.borderWidth);
+    NSString *bcHex = v.layer.borderColor
+        ? [self ame366_hexFromColor:[UIColor colorWithCGColor:v.layer.borderColor]] : nil;
+    if (bcHex) out[@"borderColor"] = bcHex;
+    out[@"alpha"] = @(v.alpha);
+    out[@"hidden"] = @(v.hidden);
+    return out;
+}
+
+- (BOOL)viewsBatch:(NSArray *)ops {
+    if (![self ame317_requirePerm:@"ui.views"]) return NO;
+    ops = [self ame317_unwrapJs:ops];
+    if (![ops isKindOfClass:[NSArray class]] || ops.count == 0 || ops.count > 64) return NO;
+    BOOL all = YES;
+    for (id raw in ops) {
+        if (![raw isKindOfClass:[NSDictionary class]]) { all = NO; continue; }
+        NSDictionary *op = (NSDictionary *)raw;
+        id hRaw = op[@"handle"];
+        if (![hRaw isKindOfClass:[NSNumber class]]) { all = NO; continue; }
+        UIView *v = [self ame364_viewForHandle:((NSNumber *)hRaw).doubleValue];
+        if (!v || ame364_isProtectedClass(ame364_clsName(v))) { all = NO; continue; }
+        id props = op[@"props"];
+        if (![props isKindOfClass:[NSDictionary class]]) { all = NO; continue; }
+        if (![self ame366_applyProps:v props:props]) all = NO;
+    }
+    return all;
+}
+
+- (BOOL)viewsRelease:(double)handle {
+    if (![self ame317_requirePerm:@"ui.views"]) return NO;
+    NSNumber *hk = @((NSUInteger)handle);
+    UIView *v = [self.viewTable objectForKey:hk];
+    if (!v) return NO;
+    // 语义：仅解除句柄寻址（手势与已落改动保留，teardown 兜底摘除）
+    [self.viewTable removeObjectForKey:hk];
+    return YES;
+}
+
+/// apply 核心复用（viewsApply / viewsBatch 双入口；调用方已过权限+stale+禁改检查）
+- (BOOL)ame366_applyProps:(UIView *)v props:(NSDictionary *)props {
+    if (![props isKindOfClass:[NSDictionary class]] || props.count == 0) return NO;
+    NSNumber *hk = @((NSUInteger)[self ame364_registerView:v]);
+    if (!self.viewOriginals[hk]) {
+        self.viewOriginals[hk] = @{
+            @"frame": [NSValue valueWithCGRect:v.frame],
+            @"alpha": @(v.alpha),
+            @"hidden": @(v.hidden),
+        };
+    }
+    NSNumber *n;
+    if ((n = [self ame364_num:props[@"x"]]))  { CGRect f = v.frame; f.origin.x = MAX(-ame364_coordClamp, MIN(ame364_coordClamp, n.doubleValue)); v.frame = f; }
+    if ((n = [self ame364_num:props[@"y"]]))  { CGRect f = v.frame; f.origin.y = MAX(-ame364_coordClamp, MIN(ame364_coordClamp, n.doubleValue)); v.frame = f; }
+    if ((n = [self ame364_num:props[@"w"]]))  { CGRect f = v.frame; f.size.width = MAX(0, MIN(ame364_coordClamp, n.doubleValue)); v.frame = f; }
+    if ((n = [self ame364_num:props[@"h"]]))  { CGRect f = v.frame; f.size.height = MAX(0, MIN(ame364_coordClamp, n.doubleValue)); v.frame = f; }
+    if ((n = [self ame364_num:props[@"alpha"]])) { v.alpha = MAX(0.0, MIN(1.0, n.doubleValue)); }
+    if (props[@"hidden"] != nil) v.hidden = [props[@"hidden"] boolValue];
+    if (props[@"enabled"] != nil && [v isKindOfClass:[UIControl class]]) {
+        ((UIControl *)v).enabled = [props[@"enabled"] boolValue];
+    }
+    if ((n = [self ame364_num:props[@"cornerRadius"]])) {
+        v.layer.cornerRadius = MAX(0, MIN(200, n.doubleValue));
+        v.layer.masksToBounds = v.layer.cornerRadius > 0 ? YES : v.layer.masksToBounds;
+    }
+    NSString *text = [self ame317_string:props[@"text"]];
+    if (text) {
+        if ([v isKindOfClass:[UILabel class]]) ((UILabel *)v).text = text;
+        else if ([v isKindOfClass:[UIButton class]]) {
+            [((UIButton *)v) setTitle:text forState:UIControlStateNormal];
+            [((UIButton *)v) setTitle:text forState:UIControlStateHighlighted];
+        }
+        else if ([v isKindOfClass:[UITextField class]]) ((UITextField *)v).text = text;
+        else if ([v isKindOfClass:[UITextView class]]) ((UITextView *)v).text = text;
+    }
+    NSString *bg = [self ame317_string:props[@"bg"]];
+    if (bg) {
+        UIColor *c = ame364_colorFromString(bg);
+        if (c) v.backgroundColor = c;
+    }
+    return YES;
+}
+
+/// 文本色读/写（UILabel/UIButton/UITextField/UITextView；其余返回 nil）
+- (nullable UIColor *)ame366_textColorOf:(UIView *)v {
+    if ([v isKindOfClass:[UILabel class]]) return ((UILabel *)v).textColor;
+    if ([v isKindOfClass:[UIButton class]]) return [((UIButton *)v) titleColorForState:UIControlStateNormal];
+    if ([v isKindOfClass:[UITextField class]]) return ((UITextField *)v).textColor;
+    if ([v isKindOfClass:[UITextView class]]) return ((UITextView *)v).textColor;
+    return nil;
+}
+
+- (void)ame366_setTextColor:(UIColor *)c on:(UIView *)v {
+    if ([v isKindOfClass:[UILabel class]]) ((UILabel *)v).textColor = c;
+    else if ([v isKindOfClass:[UIButton class]]) [((UIButton *)v) setTitleColor:c forState:UIControlStateNormal];
+    else if ([v isKindOfClass:[UITextField class]]) ((UITextField *)v).textColor = c;
+    else if ([v isKindOfClass:[UITextView class]]) ((UITextView *)v).textColor = c;
+}
+
+- (nullable UIFont *)ame366_fontOf:(UIView *)v {
+    if ([v isKindOfClass:[UILabel class]]) return ((UILabel *)v).font;
+    if ([v isKindOfClass:[UIButton class]]) return ((UIButton *)v).titleLabel.font;
+    if ([v isKindOfClass:[UITextField class]]) return ((UITextField *)v).font;
+    if ([v isKindOfClass:[UITextView class]]) return ((UITextView *)v).font;
+    return nil;
+}
+
+- (void)ame366_setFont:(UIFont *)f on:(UIView *)v {
+    if ([v isKindOfClass:[UILabel class]]) ((UILabel *)v).font = f;
+    else if ([v isKindOfClass:[UIButton class]]) ((UIButton *)v).titleLabel.font = f;
+    else if ([v isKindOfClass:[UITextField class]]) ((UITextField *)v).font = f;
+    else if ([v isKindOfClass:[UITextView class]]) ((UITextView *)v).font = f;
+}
+
+/// UIColor → #RRGGBB(AA)（读样式用；nil 返回 nil）
+- (nullable NSString *)ame366_hexFromColor:(UIColor *)c {
+    if (!c) return nil;
+    CGFloat r = 0, g = 0, b = 0, a = 0;
+    if (![c getRed:&r green:&g blue:&b alpha:&a]) return nil;
+    if (a >= 0.999) {
+        return [NSString stringWithFormat:@"#%02X%02X%02X",
+                (unsigned int)roundf(r * 255), (unsigned int)roundf(g * 255), (unsigned int)roundf(b * 255)];
+    }
+    return [NSString stringWithFormat:@"#%02X%02X%02X%02X",
+            (unsigned int)roundf(r * 255), (unsigned int)roundf(g * 255),
+            (unsigned int)roundf(b * 255), (unsigned int)roundf(a * 255)];
+}
+
+#pragma mark - Task366 弹窗扩展（ui.dialog）
+
+- (void)dialogPrompt:(NSDictionary *)spec callback:(JSValue *)cb {
+    if (![self ame317_requirePerm:@"ui.dialog"]) return;
+    spec = [self ame317_unwrapJs:spec] ?: @{};
+    NSString *title = [self ame317_string:spec[@"title"]] ?: self.pluginId;
+    NSString *body = [self ame317_string:spec[@"body"]] ?: @"";
+    NSString *placeholder = [self ame317_string:spec[@"placeholder"]] ?: @"";
+    NSString *defaultValue = [self ame317_string:spec[@"value"]] ?: @"";
+    NSString *confirm = [self ame317_string:spec[@"confirm"]] ?: localize(@"ame317.common.ok", nil);
+    NSString *cancel = [self ame317_string:spec[@"cancel"]] ?: localize(@"ame317.common.cancel", nil);
+    dispatch_async(dispatch_get_main_queue(), ^{
+        UIAlertController *alert = [UIAlertController alertControllerWithTitle:title
+                                                                       message:body.length ? body : nil
+                                                                preferredStyle:UIAlertControllerStyleAlert];
+        [alert addTextFieldWithConfigurationHandler:^(UITextField *textField) {
+            textField.placeholder = placeholder;
+            textField.text = defaultValue;
+        }];
+        __weak typeof(self) wself = self;
+        __weak UIAlertController *walert = alert;
+        [walert addAction:[UIAlertAction actionWithTitle:confirm style:UIAlertActionStyleDefault handler:^(UIAlertAction *_) {
+            __strong typeof(wself) sself = wself;
+            NSString *text = walert.textFields.firstObject.text ?: @"";
+            [sself ame317_callCallback:cb arguments:@[text, @YES]];
+        }]];
+        [walert addAction:[UIAlertAction actionWithTitle:cancel style:UIAlertActionStyleCancel handler:^(UIAlertAction *_) {
+            __strong typeof(wself) sself = wself;
+            [sself ame317_callCallback:cb arguments:@[[NSNull null], @NO]];
+        }]];
+        [self ame366_presentDialog:alert];
+    });
+}
+
+- (void)dialogSheet:(NSDictionary *)spec callback:(JSValue *)cb {
+    if (![self ame317_requirePerm:@"ui.dialog"]) return;
+    spec = [self ame317_unwrapJs:spec] ?: @{};
+    NSString *title = [self ame317_string:spec[@"title"]] ?: self.pluginId;
+    NSString *body = [self ame317_string:spec[@"body"]] ?: @"";
+    NSArray *items = [self ame317_unwrapJs:spec[@"items"]];
+    if (![items isKindOfClass:[NSArray class]] || items.count == 0 || items.count > 12) {
+        [self ame317_rejectValue:@"sheet.items 须为 1-12 个字符串"];
+        return;
+    }
+    NSMutableArray<NSString *> *texts = [NSMutableArray array];
+    for (id it in items) {
+        if (![it isKindOfClass:[NSString class]]) {
+            [self ame317_rejectValue:@"sheet.items 元素须为字符串"];
+            return;
+        }
+        [texts addObject:it];
+    }
+    dispatch_async(dispatch_get_main_queue(), ^{
+        __weak typeof(self) wself = self;
+        UIAlertController *sheet = [UIAlertController alertControllerWithTitle:title
+                                                                       message:body.length ? body : nil
+                                                                preferredStyle:UIAlertControllerStyleActionSheet];
+        __weak UIAlertController *wsheet = sheet;
+        [texts enumerateObjectsUsingBlock:^(NSString *label, NSUInteger idx, BOOL *_) {
+            [wsheet addAction:[UIAlertAction actionWithTitle:label style:UIAlertActionStyleDefault handler:^(UIAlertAction *_) {
+                __strong typeof(wself) sself = wself;
+                [sself ame317_callCallback:cb arguments:@[@(idx)]];
+            }]];
+        }];
+        [wsheet addAction:[UIAlertAction actionWithTitle:localize(@"ame317.common.cancel", nil)
+                                                  style:UIAlertActionStyleCancel handler:^(UIAlertAction *_) {
+            __strong typeof(wself) sself = wself;
+            [sself ame317_callCallback:cb arguments:@[@(-1)]];
+        }]];
+        [self ame366_presentDialog:sheet];
+    });
+}
+
+- (BOOL)dialogDismissAll {
+    if (![self ame317_requirePerm:@"ui.dialog"]) return NO;
+    dispatch_async(dispatch_get_main_queue(), ^{
+        for (UIAlertController *vc in [self.presentedDialogs copy]) {
+            if (vc && [vc isKindOfClass:[UIAlertController class]]) {
+                [vc dismissViewControllerAnimated:NO completion:nil];
+            }
+        }
+        [self.presentedDialogs removeAllObjects];
+    });
+    return YES;
+}
+
+/// 弹窗呈现（含 iPad popover 锚点防呆；登记到 presentedDialogs）
+- (void)ame366_presentDialog:(UIAlertController *)alert {
+    UIWindow *window = [self ame317_keyWindow];
+    UIViewController *root = window.rootViewController;
+    while (root.presentedViewController) root = root.presentedViewController;
+    if (!root) return;
+    alert.popoverPresentationController.sourceView = root.view;
+    alert.popoverPresentationController.sourceRect = CGRectMake(root.view.bounds.size.width / 2,
+                                                                root.view.bounds.size.height / 2, 1, 1);
+    alert.popoverPresentationController.permittedArrowDirections = 0;
+    [root presentViewController:alert animated:YES completion:nil];
+    [self.presentedDialogs addObject:alert];
+}
+
+#pragma mark - Task366 通知 / 触感 / 剪贴板 / 分享 / 外链（notify；clipboard.read†）
+
+- (void)notifyWithTitle:(NSString *)title body:(NSString *)body {
+    if (![self ame317_requirePerm:@"notify"]) return;
+    if (title.length == 0 && body.length == 0) return;
+    UNMutableNotificationContent *content = [[UNMutableNotificationContent alloc] init];
+    content.title = [NSString stringWithFormat:@"%@ · %@", self.pluginId, title ?: @""];
+    content.body = body ?: @"";
+    UNNotificationRequest *req = [UNNotificationRequest requestWithIdentifier:
+        [NSString stringWithFormat:@"ame366-%@-%f", self.pluginId, [NSDate date].timeIntervalSince1970]
+        content:content trigger:nil];
+    UNUserNotificationCenter *center = [UNUserNotificationCenter currentNotificationCenter];
+    [center requestAuthorizationWithOptions:(UNAuthorizationOptionAlert | UNAuthorizationOptionSound)
+                          completionHandler:^(BOOL granted, NSError *_) {
+        if (!granted) {
+            NSLog(@"[AmePlugin:%@] 通知未授权（系统设置），通知丢弃", self.pluginId);
+            return;
+        }
+        [center addNotificationRequest:req withCompletionHandler:nil];
+    }];
+}
+
+- (BOOL)hapticWithKind:(NSString *)kind {
+    if (![self ame317_requirePerm:@"notify"]) return NO;
+    if ([kind isEqualToString:@"light"]) {
+        [[UIImpactFeedbackGenerator alloc] initWithFeedbackStyle:UIImpactFeedbackStyleLight].impactOccurred;
+    } else if ([kind isEqualToString:@"medium"]) {
+        [[UIImpactFeedbackGenerator alloc] initWithFeedbackStyle:UIImpactFeedbackStyleMedium].impactOccurred;
+    } else if ([kind isEqualToString:@"heavy"]) {
+        [[UIImpactFeedbackGenerator alloc] initWithFeedbackStyle:UIImpactFeedbackStyleHeavy].impactOccurred;
+    } else if ([kind isEqualToString:@"success"] || [kind isEqualToString:@"warning"] || [kind isEqualToString:@"error"]) {
+        UINotificationFeedbackType t = [kind isEqualToString:@"success"] ? UINotificationFeedbackTypeSuccess
+            : [kind isEqualToString:@"warning"] ? UINotificationFeedbackTypeWarning : UINotificationFeedbackTypeError;
+        UINotificationFeedbackGenerator *gen = [[UINotificationFeedbackGenerator alloc] init];
+        [gen notificationOccurred:t];
+    } else {
+        return NO;
+    }
+    return YES;
+}
+
+- (BOOL)clipboardSetText:(NSString *)text {
+    if (![self ame317_requirePerm:@"notify"]) return NO;
+    if (text.length == 0) return NO;
+    [UIPasteboard generalPasteboard].string = text;
+    return YES;
+}
+
+- (nullable NSString *)clipboardGetText {
+    if (![self ame317_requirePerm:@"clipboard.read"]) return nil;
+    return [UIPasteboard generalPasteboard].string;
+}
+
+- (void)shareText:(NSString *)text title:(NSString *)title {
+    if (![self ame317_requirePerm:@"notify"]) return;
+    if (text.length == 0) return;
+    dispatch_async(dispatch_get_main_queue(), ^{
+        UIActivityViewController *vc = [[UIActivityViewController alloc]
+            initWithActivityItems:@[text] applicationActivities:nil];
+        [self ame366_presentDialogLike:vc];
+    });
+}
+
+- (BOOL)openExternalURL:(NSString *)urlString {
+    if (![self ame317_requirePerm:@"notify"]) return NO;
+    NSURL *url = [NSURL URLWithString:urlString ?: @""];
+    if (!url || (![@[@"http", @"https"] containsObject:url.scheme.lowercaseString])) return NO;
+    dispatch_async(dispatch_get_main_queue(), ^{
+        [[UIApplication sharedApplication] openURL:url options:@{} completionHandler:nil];
+    });
+    return YES;
+}
+
+/// 非弹窗 VC 呈现（分享面板；iPad popover 防呆复用）
+- (void)ame366_presentDialogLike:(UIViewController *)vc {
+    UIWindow *window = [self ame317_keyWindow];
+    UIViewController *root = window.rootViewController;
+    while (root.presentedViewController) root = root.presentedViewController;
+    if (!root) return;
+    vc.popoverPresentationController.sourceView = root.view;
+    vc.popoverPresentationController.sourceRect = CGRectMake(root.view.bounds.size.width / 2,
+                                                             root.view.bounds.size.height / 2, 1, 1);
+    vc.popoverPresentationController.permittedArrowDirections = 0;
+    [root presentViewController:vc animated:YES completion:nil];
+}
+
+#pragma mark - Task366 主题读取（ui.theme†）
+
+- (nullable NSDictionary *)getThemeTokens {
+    if (![self ame317_requirePerm:@"ui.theme"]) return nil;
+    return [AmePluginRuntime ame366_themeOverrides:@"tokens" forPlugin:self.pluginId];
+}
+
+- (nullable NSDictionary *)getThemeShapes {
+    if (![self ame317_requirePerm:@"ui.theme"]) return nil;
+    return [AmePluginRuntime ame366_themeOverrides:@"shapes" forPlugin:self.pluginId];
+}
+
+- (nullable NSDictionary *)getThemeLayouts {
+    if (![self ame317_requirePerm:@"ui.theme"]) return nil;
+    return [AmePluginRuntime ame366_themeOverrides:@"layouts" forPlugin:self.pluginId];
+}
+
+- (nullable NSDictionary *)getThemeStructures {
+    if (![self ame317_requirePerm:@"ui.theme"]) return nil;
+    return [AmePluginRuntime ame366_themeOverrides:@"structures" forPlugin:self.pluginId];
+}
+
+#pragma mark - Task366 设置扩展（settings.read / settings.write†）
+
+- (nullable NSArray *)listPrefKeys:(NSString *)prefix {
+    if (![self ame317_requirePerm:@"settings.read"]) return nil;
+    NSArray *all = ame366_registeredPrefKeys() ?: @[];
+    if (prefix.length == 0) return all;
+    NSMutableArray *out = [NSMutableArray array];
+    for (NSString *k in all) {
+        if ([k hasPrefix:prefix]) [out addObject:k];
+    }
+    return out;
+}
+
+- (nullable NSDictionary *)getPrefs:(NSArray *)keys {
+    if (![self ame317_requirePerm:@"settings.read"]) return nil;
+    keys = [self ame317_unwrapJs:keys];
+    if (![keys isKindOfClass:[NSArray class]] || keys.count == 0 || keys.count > 128) return nil;
+    NSMutableDictionary *out = [NSMutableDictionary dictionary];
+    for (id raw in keys) {
+        if (![raw isKindOfClass:[NSString class]]) continue;
+        if (![self ame317_validPrefKey:raw]) continue;
+        id v = getPrefObject(raw);
+        out[raw] = v ?: [NSNull null];
+    }
+    return out;
+}
+
+- (BOOL)setPrefs:(NSDictionary *)dict {
+    if (![self ame317_requirePerm:@"settings.write"]) return NO;
+    dict = [self ame317_unwrapJs:dict];
+    if (![dict isKindOfClass:[NSDictionary class]] || dict.count == 0 || dict.count > 128) return NO;
+    BOOL all = YES;
+    for (NSString *k in dict) {
+        if (![self ame317_validPrefKey:k] || [k hasPrefix:@"plugin."]) { all = NO; continue; }
+        if (![self ame366_setPrefValue:dict[k] forKey:k]) all = NO;
+    }
+    return all;
+}
+
+/// setPref 值类型分派核心（setPref/setPrefs 复用；调用方已过权限与键校验）
+- (BOOL)ame366_setPrefValue:(id)value forKey:(NSString *)key {
+    if (value == nil || value == [NSNull null]) return NO;
+    if ([value isKindOfClass:[NSString class]]) {
+        setPrefString(key, value);
+        return YES;
+    }
+    if ([value isKindOfClass:[NSNumber class]]) {
+        NSNumber *n = (NSNumber *)value;
+        if (strcmp([n objCType], @encode(BOOL)) == 0 || strcmp([n objCType], @encode(char)) == 0) {
+            setPrefBool(key, n.boolValue);
+        } else if (strcmp([n objCType], @encode(float)) == 0 || strcmp([n objCType], @encode(double)) == 0) {
+            setPrefFloat(key, (float)n.doubleValue);
+        } else {
+            setPrefInt(key, n.integerValue);
+        }
+        return YES;
+    }
+    return NO;
+}
+
+- (BOOL)removePref:(NSString *)key {
+    if (![self ame317_requirePerm:@"settings.write"]) return NO;
+    if (![self ame317_validPrefKey:key] || [key hasPrefix:@"plugin."]) return NO;
+    // setValue:nil forKeyPath 语义 = 从注册字典移除键并落盘（未注册键恒 NO）
+    if (!ame366_registeredPrefKeys() || ![ame366_registeredPrefKeys() containsObject:key]) return NO;
+    setPrefObject(key, nil);
+    return YES;
+}
+
+- (nullable NSDictionary *)prefDescribe:(NSString *)key {
+    if (![self ame317_requirePerm:@"settings.read"]) return nil;
+    if (![self ame317_validPrefKey:key]) return nil;
+    id v = getPrefObject(key);
+    BOOL registered = [ame366_registeredPrefKeys() containsObject:key];
+    NSString *type = @"null";
+    if ([v isKindOfClass:[NSString class]]) type = @"string";
+    else if ([v isKindOfClass:[NSNumber class]]) {
+        NSNumber *n = (NSNumber *)v;
+        if (strcmp([n objCType], @encode(BOOL)) == 0) type = @"bool";
+        else if (strcmp([n objCType], @encode(float)) == 0 || strcmp([n objCType], @encode(double)) == 0) type = @"float";
+        else type = @"int";
+    }
+    return @{@"value": v ?: [NSNull null], @"type": type, @"registered": @(registered)};
+}
+
+#pragma mark - Task366 实例档案扩展（profile.read / profile.write†）
+
+- (nullable NSDictionary *)getCurrentProfile {
+    if (![self ame317_requirePerm:@"profile.read"]) return nil;
+    NSString *name = [PLProfiles current].selectedProfileName ?: @"";
+    NSMutableDictionary *out = [NSMutableDictionary dictionary];
+    out[@"name"] = name;
+    NSDictionary *entry = [PLProfiles current].profiles[name];
+    if ([entry isKindOfClass:[NSDictionary class]]) {
+        for (NSString *k in entry) [out setObject:entry[k] forKey:k];
+    }
+    return out;
+}
+
+- (BOOL)setCurrentProfile:(NSString *)name {
+    if (![self ame317_requirePerm:@"profile.write"]) return NO;
+    if (![self ame327_validProfileName:name]) {
+        [self ame317_rejectValue:name ?: @""];
+        return NO;
+    }
+    if ([PLProfiles current].profiles[name] == nil) {
+        [self ame317_rejectValue:[NSString stringWithFormat:@"profile missing: %@", name]];
+        return NO;
+    }
+    [[PLProfiles current] setSelectedProfileName:name];
+    return YES;
+}
+
+- (nullable NSDictionary *)describeProfile:(NSString *)name {
+    if (![self ame317_requirePerm:@"profile.read"]) return nil;
+    if (![self ame327_validProfileName:name]) return nil;
+    NSDictionary *entry = [PLProfiles current].profiles[name];
+    if (![entry isKindOfClass:[NSDictionary class]]) return nil;
+    NSMutableDictionary *out = [NSMutableDictionary dictionaryWithDictionary:entry];
+    out[@"name"] = name;
+    out[@"selected"] = @([name isEqualToString:[PLProfiles current].selectedProfileName ?: @""]);
+    return out;
+}
+
+- (BOOL)renameProfile:(NSString *)oldName to:(NSString *)newName {
+    if (![self ame317_requirePerm:@"profile.write"]) return NO;
+    if (![self ame327_validProfileName:oldName] || ![self ame327_validProfileName:newName]) {
+        [self ame317_rejectValue:[NSString stringWithFormat:@"rename %@ -> %@", oldName ?: @"", newName ?: @""]];
+        return NO;
+    }
+    if ([oldName isEqualToString:@"(Default)"]) {
+        [self ame317_rejectValue:@"(Default) 拒绝重命名"];
+        return NO;
+    }
+    if ([PLProfiles current].profiles[oldName] == nil) {
+        [self ame317_rejectValue:[NSString stringWithFormat:@"profile missing: %@", oldName]];
+        return NO;
+    }
+    if ([PLProfiles current].profiles[newName] != nil) {
+        [self ame317_rejectValue:[NSString stringWithFormat:@"profile exists: %@", newName]];
+        return NO;
+    }
+    BOOL wasSelected = [oldName isEqualToString:[PLProfiles current].selectedProfileName ?: @""];
+    [[PLProfiles current] applyChanges:^(NSMutableDictionary<NSString *, id> *all) {
+        all[newName] = all[oldName];
+        [all removeObjectForKey:oldName];
+    }];
+    if (wasSelected) [[PLProfiles current] setSelectedProfileName:newName];
+    [[NSNotificationCenter defaultCenter] postNotificationName:@"ReloadProfileList" object:nil];
+    return YES;
+}
+
+- (nullable id)getProfileKey:(NSString *)key profile:(NSString *)profileName {
+    if (![self ame317_requirePerm:@"profile.read"]) return nil;
+    if (![self ame317_validPrefKey:key]) return nil;
+    NSString *name = [self ame366_resolveProfileName:profileName];
+    if (!name) return nil;
+    NSDictionary *entry = [PLProfiles current].profiles[name];
+    if (![entry isKindOfClass:[NSDictionary class]]) return nil;
+    return entry[key];
+}
+
+- (BOOL)setProfileKey:(NSString *)key value:(id)value profile:(NSString *)profileName {
+    if (![self ame317_requirePerm:@"profile.write"]) return NO;
+    if (![self ame317_validPrefKey:key]) return NO;
+    value = [self ame317_unwrapJs:value];
+    // 值域与 setPref 同口径：字符串/数值/布尔（防脏类型污染 profiles.json）
+    if (![value isKindOfClass:[NSString class]] && ![value isKindOfClass:[NSNumber class]]) return NO;
+    NSString *name = [self ame366_resolveProfileName:profileName];
+    if (!name) {
+        [self ame317_rejectValue:[NSString stringWithFormat:@"profile missing: %@", profileName ?: @""]];
+        return NO;
+    }
+    [[PLProfiles current] applyChanges:^(NSMutableDictionary<NSString *, id> *all) {
+        NSMutableDictionary *entry = all[name];
+        if (![entry isKindOfClass:[NSMutableDictionary class]]) {
+            entry = [NSMutableDictionary dictionary];
+            all[name] = entry;
+        }
+        entry[key] = value;
+    }];
+    return YES;
+}
+
+- (nullable NSString *)getServerIpForProfile:(NSString *)profileName {
+    if (![self ame317_requirePerm:@"profile.read"]) return nil;
+    NSString *name = [self ame366_resolveProfileName:profileName];
+    if (!name) return nil;
+    return [[PLProfiles current] serverIpForProfile:name];
+}
+
+- (BOOL)setServerIpForProfile:(NSString *)ip profile:(NSString *)profileName {
+    if (![self ame317_requirePerm:@"profile.write"]) return NO;
+    NSString *name = [self ame366_resolveProfileName:profileName];
+    if (!name) {
+        [self ame317_rejectValue:[NSString stringWithFormat:@"profile missing: %@", profileName ?: @""]];
+        return NO;
+    }
+    [[PLProfiles current] setServerIp:ip ?: @"" forProfile:name];
+    return YES;
+}
+
+/// 实例名解析：空 = 当前选中；不存在 = nil
+- (nullable NSString *)ame366_resolveProfileName:(NSString *)profileName {
+    if (profileName.length == 0) return [PLProfiles current].selectedProfileName;
+    if ([PLProfiles current].profiles[profileName] != nil) return profileName;
+    return nil;
+}
+
+#pragma mark - Task366 游戏状态（game.read 安全）
+
+- (nullable NSDictionary *)getGameState {
+    if (![self ame317_requirePerm:@"game.read"]) return nil;
+    UIWindow *window = [self ame317_keyWindow];
+    UIViewController *root = window.rootViewController;
+    BOOL running = [NSStringFromClass(root.class) isEqualToString:@"SurfaceViewController"];
+    return @{
+        @"running": @(running),
+        @"profile": [PLProfiles current].selectedProfileName ?: @"",
+        @"jit": @(isJITEnabled(NO)),
+    };
+}
+
+- (nullable NSDictionary *)getLastGameExit {
+    if (![self ame317_requirePerm:@"game.read"]) return nil;
+    return [AmePluginRuntime ame366_lastGameExit];
+}
+
+- (nullable NSDictionary *)getMemoryAllocation {
+    if (![self ame317_requirePerm:@"game.read"]) return nil;
+    id v = getPrefObject(@"general.ram_allocation");
+    return @{@"mb": [v isKindOfClass:[NSNumber class]] ? v : @(0),
+             @"note": @"0 = 跟随默认；其余为堆上限 MB（128-8192）"};
+}
+
+- (BOOL)setMemoryAllocation:(double)mb {
+    if (![self ame317_requirePerm:@"settings.write"]) return NO;
+    if (mb != 0 && !(mb >= 128 && mb <= 8192)) {
+        [self ame317_rejectValue:[NSString stringWithFormat:@"ram %g 越界（0 或 128-8192）", mb]];
+        return NO;
+    }
+    setPrefInt(@"general.ram_allocation", (NSInteger)mb);
+    return YES;
+}
+
+- (nullable NSString *)getControlLayout {
+    if (![self ame317_requirePerm:@"game.read"]) return nil;
+    id v = getPrefObject(@"control.default_ctrl");
+    return [v isKindOfClass:[NSString class]] ? v : nil;
+}
+
+- (BOOL)setControlLayout:(NSString *)name {
+    if (![self ame317_requirePerm:@"settings.write"]) return NO;
+    if (name.length == 0 || [name rangeOfString:@"/"].location != NSNotFound ||
+        [name rangeOfString:@".."].location != NSNotFound) return NO;
+    const char *home = getenv("POJAV_HOME");
+    if (!home || !*home) return NO;
+    NSString *layout = [[NSString stringWithUTF8String:home]
+        stringByAppendingPathComponent:[NSString stringWithFormat:@"controlmap/%@.json", name]];
+    if (![NSFileManager.defaultManager fileExistsAtPath:layout]) {
+        [self ame317_rejectValue:[NSString stringWithFormat:@"布局不存在: %@", name]];
+        return NO;
+    }
+    setPrefString(@"control.default_ctrl", name);
+    return YES;
+}
+
+#pragma mark - Task366 JIT 扩展（jit.read / jit.write†）
+
+- (BOOL)setJITScheme:(NSString *)scheme {
+    if (![self ame317_requirePerm:@"jit.write"]) return NO;
+    NSArray *schemes = @[@"auto", @"builtin", @"stikjit", @"sidestore", @"stosdebug", @"jitstreamer"];
+    if (![schemes containsObject:scheme ?: @""]) {
+        [self ame317_rejectValue:[NSString stringWithFormat:@"未知 JIT 方案: %@", scheme ?: @""]];
+        return NO;
+    }
+    setPrefString(@"debug.jit_enabler", scheme);
+    return YES;
+}
+
+- (nullable NSArray *)getJITSchemes {
+    if (![self ame317_requirePerm:@"jit.read"]) return nil;
+    return @[
+        @{@"id": @"auto",       @"note": @"自动选择（推荐）"},
+        @{@"id": @"builtin",    @"note": @"内置轨（iOS 17.4+ 配对文件）"},
+        @{@"id": @"stikjit",    @"note": @"StikJIT app"},
+        @{@"id": @"sidestore",  @"note": @"SideStore JIT"},
+        @{@"id": @"stosdebug",  @"note": @"StOS Debug"},
+        @{@"id": @"jitstreamer", @"note": @"JITStreamer"},
+    ];
+}
+
+#pragma mark - Task366 日志扩展（logs.read）
+
+- (nullable NSArray *)listLogFiles:(NSString *)which {
+    if (![self ame317_requirePerm:@"logs.read"]) return nil;
+    NSString *key = which.length ? which : @"launcher";
+    NSString *home = @(getenv("POJAV_HOME") ?: "");
+    NSString *dir = nil;
+    NSArray *suffixFilter = nil;
+    if ([key isEqualToString:@"launcher"] || [key isEqualToString:@"launcherOld"]) {
+        dir = home;
+        suffixFilter = @[@"latestlog.txt", @"latestlog.old.txt"];
+    } else if ([key isEqualToString:@"game"]) {
+        const char *gd = getenv("POJAV_GAME_DIR");
+        dir = (gd && *gd) ? [[NSString stringWithUTF8String:gd] stringByAppendingPathComponent:@"logs"] : nil;
+        suffixFilter = @[@".log", @".gz"];
+    } else if ([key isEqualToString:@"crash"]) {
+        dir = [self ame365_latestCrashReportPath].stringByDeletingLastPathComponent;
+        suffixFilter = @[@".txt"];
+    } else {
+        [self ame317_rejectValue:[NSString stringWithFormat:@"unknown log: %@", key]];
+        return nil;
+    }
+    if (!dir.length) return nil;
+    NSFileManager *fm = [NSFileManager defaultManager];
+    NSMutableArray *out = [NSMutableArray array];
+    for (NSString *name in [fm contentsOfDirectoryAtPath:dir error:nil] ?: @[]) {
+        BOOL match = NO;
+        for (NSString *suf in suffixFilter ?: @[]) {
+            if ([name hasSuffix:suf] || [name isEqualToString:suf]) { match = YES; break; }
+        }
+        if (!match) continue;
+        NSString *p = [dir stringByAppendingPathComponent:name];
+        NSDictionary *at = [fm attributesOfItemAtPath:p error:nil];
+        [out addObject:@{@"name": name,
+                         @"size": @(at ? (double)[at fileSize] : 0),
+                         @"mtime": at[NSFileModificationDate] ?: [NSNull null]}];
+    }
+    return out;
+}
+
+- (nullable NSArray *)searchLog:(NSString *)which pattern:(NSString *)pattern limit:(double)limit {
+    if (![self ame317_requirePerm:@"logs.read"]) return nil;
+    NSString *text = [self ame366_logTextFor:which];
+    if (!text) return nil;
+    NSRegularExpression *re = [NSRegularExpression regularExpressionWithPattern:pattern ?: @""
+                                                                       options:NSRegularExpressionCaseInsensitive error:nil];
+    if (!re) {
+        [self ame317_rejectValue:[NSString stringWithFormat:@"非法正则: %@", pattern ?: @""]];
+        return nil;
+    }
+    NSUInteger cap = limit >= 1 ? (NSUInteger)MIN(limit, 200) : 50;
+    NSMutableArray *out = [NSMutableArray array];
+    NSArray *lines = [text componentsSeparatedByString:@"\n"];
+    for (NSUInteger i = 0; i < lines.count && out.count < cap; i++) {
+        NSString *line = lines[i];
+        if ([re firstMatchInString:line options:0 range:NSMakeRange(0, line.length)]) {
+            [out addObject:@{@"line": @(i + 1), @"text": line.length > 2000 ? [line substringToIndex:2000] : line}];
+        }
+    }
+    return out;
+}
+
+/// 日志全文读取（readLog/searchLog 共用；4MB 尾读封顶 + 单行 2000 字截断）
+- (nullable NSString *)ame366_logTextFor:(NSString *)which {
+    NSString *key = which.length ? which : @"launcher";
+    NSString *home = @(getenv("POJAV_HOME") ?: "");
+    NSString *path = nil;
+    if ([key isEqualToString:@"launcher"]) {
+        path = home.length ? [home stringByAppendingPathComponent:@"latestlog.txt"] : nil;
+    } else if ([key isEqualToString:@"launcherOld"]) {
+        path = home.length ? [home stringByAppendingPathComponent:@"latestlog.old.txt"] : nil;
+    } else if ([key isEqualToString:@"game"]) {
+        const char *gd = getenv("POJAV_GAME_DIR");
+        path = (gd && *gd) ? [[NSString stringWithUTF8String:gd] stringByAppendingPathComponent:@"logs/latest.log"] : nil;
+    } else if ([key isEqualToString:@"crash"]) {
+        path = [self ame365_latestCrashReportPath];
+    } else {
+        return nil;
+    }
+    if (!path.length) return nil;
+    NSData *data = [NSData dataWithContentsOfFile:path];
+    if (!data || data.length == 0) return nil;
+    if (data.length > 4 * 1024 * 1024) {
+        data = [data subdataWithRange:NSMakeRange(data.length - 4 * 1024 * 1024, 4 * 1024 * 1024)];
+    }
+    return [[NSString alloc] initWithData:data encoding:NSUTF8StringEncoding];
+}
+
+#pragma mark - Task366 模组 / 光影（mods.read / mods.write†）
+
+/// 有效 mods 目录（实例隔离感知；profile 空 = 当前选中）
+- (nullable NSString *)ame366_modsFolderForProfile:(NSString *)profileName {
+    NSString *name = [self ame366_resolveProfileName:profileName];
+    if (!name) return nil;
+    NSString *folder = [[ModService sharedService] ame264_effectiveModsFolderForProfile:name];
+    if (!folder) folder = [[ModService sharedService] ensureModsFolderForProfile:name error:nil];
+    return folder;
+}
+
+/// 有效 shaderpacks 目录
+- (nullable NSString *)ame366_shadersFolderForProfile:(NSString *)profileName {
+    NSString *name = [self ame366_resolveProfileName:profileName];
+    if (!name) return nil;
+    return [[ShaderService sharedService] ensureShadersFolderForProfile:name error:nil];
+}
+
+/// 文件名防穿越（模组/光影/触控布局共用：纯文件名，禁分隔符与 ..）
+- (BOOL)ame366_isPlainFileName:(NSString *)name {
+    if (name.length == 0 || name.length > 255) return NO;
+    if ([name containsString:@"/"] || [name containsString:@"\\"]) return NO;
+    if ([name isEqualToString:@"."] || [name isEqualToString:@".."]) return NO;
+    return YES;
+}
+
+- (nullable NSArray *)listModsWithProfile:(NSString *)profileName {
+    if (![self ame317_requirePerm:@"mods.read"]) return nil;
+    return [self ame366_listFilesInFolder:[self ame366_modsFolderForProfile:profileName]];
+}
+
+- (nullable NSArray *)listShadersWithProfile:(NSString *)profileName {
+    if (![self ame317_requirePerm:@"mods.read"]) return nil;
+    return [self ame366_listFilesInFolder:[self ame366_shadersFolderForProfile:profileName]];
+}
+
+/// 目录文件清单（mods/shaders 通用；.disabled 尾缀 → disabled 标记）
+- (nullable NSArray *)ame366_listFilesInFolder:(NSString *)folder {
+    if (!folder) return nil;
+    NSFileManager *fm = [NSFileManager defaultManager];
+    NSMutableArray *out = [NSMutableArray array];
+    for (NSString *name in [fm contentsOfDirectoryAtPath:folder error:nil] ?: @[]) {
+        if ([name hasPrefix:@"."]) continue;
+        NSString *p = [folder stringByAppendingPathComponent:name];
+        BOOL isDir = NO;
+        if (![fm fileExistsAtPath:p isDirectory:&isDir] || isDir) continue;
+        NSDictionary *at = [fm attributesOfItemAtPath:p error:nil];
+        BOOL disabled = [name.lowercaseString hasSuffix:@".disabled"];
+        [out addObject:@{@"fileName": name,
+                         @"disabled": @(disabled),
+                         @"size": @(at ? (double)[at fileSize] : 0),
+                         @"mtime": at[NSFileModificationDate] ?: [NSNull null]}];
+    }
+    return out;
+}
+
+/// 模组/光影启停（语义与管理页同链：.disabled 重命名制；分服务判型消费各自 selector）
+- (BOOL)ame366_toggleInFolder:(NSString *)folder fileName:(NSString *)fileName kind:(NSString *)kind {
+    if (!folder || ![self ame366_isPlainFileName:fileName]) return NO;
+    NSString *path = [folder stringByAppendingPathComponent:fileName];
+    if (![NSFileManager.defaultManager fileExistsAtPath:path]) {
+        [self ame317_rejectValue:[NSString stringWithFormat:@"%@ 不存在: %@", kind, fileName]];
+        return NO;
+    }
+    BOOL disabled = [fileName.lowercaseString hasSuffix:@".disabled"];
+    BOOL ok = NO;
+    NSError *err = nil;
+    if ([kind isEqualToString:@"mod"]) {
+        ModItem *item = [[ModItem alloc] initWithFilePath:path];
+        item.disabled = disabled;
+        ok = [[ModService sharedService] toggleEnableForMod:item error:&err];
+    } else {
+        ShaderItem *item = [[ShaderItem alloc] initWithFilePath:path];
+        item.disabled = disabled;
+        ok = [[ShaderService sharedService] toggleEnableForShader:item error:&err];
+    }
+    if (!ok && err) [self ame317_rejectValue:err.localizedDescription ?: @"toggle 失败"];
+    return ok;
+}
+
+/// 模组/光影删除（启停同链语义；目录文件皆可删）
+- (BOOL)ame366_removeInFolder:(NSString *)folder fileName:(NSString *)fileName kind:(NSString *)kind {
+    if (!folder || ![self ame366_isPlainFileName:fileName]) return NO;
+    NSString *path = [folder stringByAppendingPathComponent:fileName];
+    if (![NSFileManager.defaultManager fileExistsAtPath:path]) {
+        [self ame317_rejectValue:[NSString stringWithFormat:@"%@ 不存在: %@", kind, fileName]];
+        return NO;
+    }
+    return [NSFileManager.defaultManager removeItemAtPath:path error:nil];
+}
+
+- (BOOL)toggleMod:(NSString *)fileName profile:(NSString *)profileName {
+    if (![self ame317_requirePerm:@"mods.write"]) return NO;
+    return [self ame366_toggleInFolder:[self ame366_modsFolderForProfile:profileName]
+                              fileName:fileName kind:@"mod"];
+}
+
+- (BOOL)removeMod:(NSString *)fileName profile:(NSString *)profileName {
+    if (![self ame317_requirePerm:@"mods.write"]) return NO;
+    return [self ame366_removeInFolder:[self ame366_modsFolderForProfile:profileName]
+                              fileName:fileName kind:@"mod"];
+}
+
+- (nullable NSString *)getModsFolderForProfile:(NSString *)profileName {
+    if (![self ame317_requirePerm:@"mods.read"]) return nil;
+    return [self ame366_modsFolderForProfile:profileName];
+}
+
+- (BOOL)toggleShader:(NSString *)fileName profile:(NSString *)profileName {
+    if (![self ame317_requirePerm:@"mods.write"]) return NO;
+    return [self ame366_toggleInFolder:[self ame366_shadersFolderForProfile:profileName]
+                              fileName:fileName kind:@"shader"];
+}
+
+- (BOOL)removeShader:(NSString *)fileName profile:(NSString *)profileName {
+    if (![self ame317_requirePerm:@"mods.write"]) return NO;
+    return [self ame366_removeInFolder:[self ame366_shadersFolderForProfile:profileName]
+                              fileName:fileName kind:@"shader"];
+}
+
+#pragma mark - Task366 存档（worlds.read / worlds.write†）
+
+- (nullable NSArray *)listWorldsForProfile:(NSString *)profileName {
+    if (![self ame317_requirePerm:@"worlds.read"]) return nil;
+    NSString *saves = [[self ame366_gameDirForProfile:profileName] stringByAppendingPathComponent:@"saves"];
+    if (!saves.length) return nil;
+    NSFileManager *fm = [NSFileManager defaultManager];
+    NSMutableArray *out = [NSMutableArray array];
+    for (NSString *name in [fm contentsOfDirectoryAtPath:saves error:nil] ?: @[]) {
+        if ([name hasPrefix:@"."]) continue;
+        NSString *p = [saves stringByAppendingPathComponent:name];
+        BOOL isDir = NO;
+        if (![fm fileExistsAtPath:p isDirectory:&isDir] || !isDir) continue;
+        NSDictionary *at = [fm attributesOfItemAtPath:p error:nil];
+        [out addObject:@{@"name": name,
+                         @"mtime": at[NSFileModificationDate] ?: [NSNull null],
+                         @"sizeBytes": @([self ame366_recursiveSize:p entries:nil])}];
+    }
+    return out;
+}
+
+- (nullable NSDictionary *)describeWorld:(NSString *)name profile:(NSString *)profileName {
+    if (![self ame317_requirePerm:@"worlds.read"]) return nil;
+    if (![self ame366_isPlainFileName:name]) return nil;
+    NSString *p = [[[self ame366_gameDirForProfile:profileName] stringByAppendingPathComponent:@"saves"]
+                   stringByAppendingPathComponent:name];
+    BOOL isDir = NO;
+    if (!p.length || ![NSFileManager.defaultManager fileExistsAtPath:p isDirectory:&isDir] || !isDir) return nil;
+    NSDictionary *at = [NSFileManager.defaultManager attributesOfItemAtPath:p error:nil];
+    return @{@"name": name,
+             @"hasLevelDat": @([NSFileManager.defaultManager fileExistsAtPath:[p stringByAppendingPathComponent:@"level.dat"]]),
+             @"hasIcon": @([NSFileManager.defaultManager fileExistsAtPath:[p stringByAppendingPathComponent:@"icon.png"]]),
+             @"sizeBytes": @([self ame366_recursiveSize:p entries:nil]),
+             @"mtime": at[NSFileModificationDate] ?: [NSNull null]};
+}
+
+- (BOOL)renameWorld:(NSString *)oldName to:(NSString *)newName profile:(NSString *)profileName {
+    if (![self ame317_requirePerm:@"worlds.write"]) return NO;
+    if (![self ame366_isPlainFileName:oldName] || ![self ame366_isPlainFileName:newName]) return NO;
+    NSString *saves = [[self ame366_gameDirForProfile:profileName] stringByAppendingPathComponent:@"saves"];
+    NSString *from = [saves stringByAppendingPathComponent:oldName];
+    NSString *to = [saves stringByAppendingPathComponent:newName];
+    if (![NSFileManager.defaultManager fileExistsAtPath:from]) {
+        [self ame317_rejectValue:[NSString stringWithFormat:@"存档不存在: %@", oldName]];
+        return NO;
+    }
+    if ([NSFileManager.defaultManager fileExistsAtPath:to]) {
+        [self ame317_rejectValue:[NSString stringWithFormat:@"目标同名存档已存在: %@", newName]];
+        return NO;
+    }
+    BOOL ok = [NSFileManager.defaultManager moveItemAtPath:from toPath:to error:nil];
+    if (ok) [[NSNotificationCenter defaultCenter] postNotificationName:@"ReloadWorldList" object:nil];
+    return ok;
+}
+
+- (BOOL)removeWorld:(NSString *)name profile:(NSString *)profileName {
+    if (![self ame317_requirePerm:@"worlds.write"]) return NO;
+    if (![self ame366_isPlainFileName:name]) return NO;
+    NSString *p = [[[self ame366_gameDirForProfile:profileName] stringByAppendingPathComponent:@"saves"]
+                   stringByAppendingPathComponent:name];
+    BOOL isDir = NO;
+    if (!p.length || ![NSFileManager.defaultManager fileExistsAtPath:p isDirectory:&isDir] || !isDir) {
+        [self ame317_rejectValue:[NSString stringWithFormat:@"存档不存在: %@", name]];
+        return NO;
+    }
+    BOOL ok = [NSFileManager.defaultManager removeItemAtPath:p error:nil];
+    if (ok) [[NSNotificationCenter defaultCenter] postNotificationName:@"ReloadWorldList" object:nil];
+    return ok;
+}
+
+/// 实例游戏目录解析（空/选中 = POJAV_GAME_DIR；指定实例 = profiles 键）
+- (nullable NSString *)ame366_gameDirForProfile:(NSString *)profileName {
+    NSString *selected = [PLProfiles current].selectedProfileName;
+    if (profileName.length == 0 || [profileName isEqualToString:selected]) {
+        const char *gd = getenv("POJAV_GAME_DIR");
+        if (gd && *gd) return [NSString stringWithUTF8String:gd];
+    }
+    NSDictionary *p = [PLProfiles current].profiles[profileName ?: @""];
+    if ([p isKindOfClass:[NSDictionary class]]) {
+        id dir = p[@"gameDir"];
+        if ([dir isKindOfClass:[NSString class]] && dir.length > 0) return dir;
+    }
+    const char *gd2 = getenv("POJAV_GAME_DIR");
+    return (gd2 && *gd2) ? [NSString stringWithUTF8String:gd2] : nil;
+}
+
+/// 递归尺寸（文件 = 自身；目录 = 深度优先；entries 出参可空，容量防呆 20 万项）
+- (double)ame366_recursiveSize:(NSString *)path entries:(NSUInteger *)entries {
+    NSFileManager *fm = [NSFileManager defaultManager];
+    BOOL isDir = NO;
+    if (![fm fileExistsAtPath:path isDirectory:&isDir]) return 0;
+    if (!isDir) return (double)[fm attributesOfItemAtPath:path error:nil].fileSize;
+    if (entries) { (*entries)++; if (*entries > 200000) return 0; }
+    double total = 0;
+    for (NSString *child in [fm contentsOfDirectoryAtPath:path error:nil] ?: @[]) {
+        total += [self ame366_recursiveSize:[path stringByAppendingPathComponent:child] entries:entries];
+    }
+    return total;
+}
+
+#pragma mark - Task366 账户（accounts.read；凭据字段永不入 JS）
+
+- (nullable NSArray *)getAccountList {
+    if (![self ame317_requirePerm:@"accounts.read"]) return nil;
+    return [self ame366_scanAccounts];
+}
+
+- (nullable NSDictionary *)getCurrentAccount {
+    if (![self ame317_requirePerm:@"accounts.read"]) return nil;
+    NSString *sel = nil;
+    id v = getPrefObject(@"internal.selected_account");
+    if ([v isKindOfClass:[NSString class]]) sel = v;
+    if (!sel.length) return nil;
+    for (NSDictionary *acc in [self ame366_scanAccounts] ?: @[]) {
+        if ([acc[@"accountId"] isKindOfClass:[NSString class]] &&
+            [acc[@"accountId"] isEqualToString:sel]) {
+            return acc;
+        }
+    }
+    return nil;
+}
+
+/// 账户元数据扫描（$POJAV_HOME/accounts/*.json；白名单三键，凭据零透出）
+- (nullable NSArray *)ame366_scanAccounts {
+    const char *home = getenv("POJAV_HOME");
+    if (!home || !*home) return nil;
+    NSString *dir = [[NSString stringWithUTF8String:home] stringByAppendingPathComponent:@"accounts"];
+    NSArray *files = [NSFileManager.defaultManager contentsOfDirectoryAtPath:dir error:nil];
+    if (!files) return nil;
+    id sel = getPrefObject(@"internal.selected_account");
+    NSMutableArray *out = [NSMutableArray array];
+    for (NSString *file in files) {
+        if (![file hasSuffix:@".json"]) continue;
+        NSData *data = [NSData dataWithContentsOfFile:[dir stringByAppendingPathComponent:file]];
+        if (!data) continue;
+        id json = [NSJSONSerialization JSONObjectWithData:data options:0 error:nil];
+        if (![json isKindOfClass:[NSDictionary class]]) continue;
+        NSString *accountId = [json[@"accountId"] isKindOfClass:[NSString class]] ? json[@"accountId"] : @"";
+        NSMutableDictionary *item = [NSMutableDictionary dictionary];
+        item[@"accountId"] = accountId;
+        if ([json[@"username"] isKindOfClass:[NSString class]]) item[@"username"] = json[@"username"];
+        item[@"type"] = [json[@"accountType"] isKindOfClass:[NSString class]] ? json[@"accountType"] : @"unknown";
+        item[@"selected"] = @([accountId isKindOfClass:[NSString class]] && [accountId isEqualToString:sel]);
+        [out addObject:item];
+    }
+    return out;
+}
+
+#pragma mark - Task366 下载历史（downloads.read）
+
+- (nullable NSArray *)getDownloadHistory {
+    if (![self ame317_requirePerm:@"downloads.read"]) return nil;
+    NSArray *entries = [[DownloadHistoryStore sharedStore] allEntries] ?: @[];
+    NSUInteger start = entries.count > 100 ? entries.count - 100 : 0;
+    return [entries subarrayWithRange:NSMakeRange(start, entries.count - start)];
+}
+
+#pragma mark - Task366 AI（ai.call†）
+
+- (void)aiAsk:(NSString *)prompt callback:(JSValue *)cb {
+    if (![self ame317_requirePerm:@"ai.call"]) return;
+    if (!cb.isObject) return;
+    if (prompt.length == 0 || prompt.length > 4000) {
+        [self ame317_rejectValue:@"ai.ask prompt 须为 1-4000 字"];
+        return;
+    }
+    AiProvider *provider = [AiProviderStore sharedStore].selectedProvider;
+    if (!provider) {
+        [self ame317_callCallback:cb arguments:@[@{@"ok": @NO,
+            @"error": @"未配置 AI 供应商：请到 AI 页 → 供应商设置 配置后重试"}]];
+        return;
+    }
+    AiAPIClient *client = [[AiAPIClient alloc] init];
+    AiMessage *sys = [AiMessage messageWithRole:@"system"
+        content:@"你是 Prisma 启动器插件的内置 AI 助手。回答精炼、直接可执行，排查类问题优先给出步骤。"];
+    AiMessage *user = [AiMessage messageWithRole:@"user" content:prompt];
+    __weak typeof(self) wself = self;
+    [client streamChatWithProvider:provider messages:@[sys, user] tools:nil onChunk:nil
+        onComplete:^(NSDictionary *fullResponse, NSError *error) {
+        dispatch_async(dispatch_get_main_queue(), ^{
+            __strong typeof(wself) sself = wself;
+            if (!sself) return;
+            if (error) {
+                [sself ame317_callCallback:cb arguments:@[@{@"ok": @NO,
+                    @"error": error.localizedDescription ?: @"AI 请求失败"}]];
+                return;
+            }
+            NSString *text = @"";
+            if ([fullResponse isKindOfClass:[NSDictionary class]] &&
+                [fullResponse[@"content"] isKindOfClass:[NSString class]]) {
+                text = fullResponse[@"content"];
+            }
+            [sself ame317_callCallback:cb arguments:@[@{@"ok": @YES, @"reply": text ?: @""}]];
+        });
+    }];
+}
+
+- (nullable NSDictionary *)getAIStatus {
+    if (![self ame317_requirePerm:@"settings.read"]) return nil;
+    AiProvider *provider = [AiProviderStore sharedStore].selectedProvider;
+    return @{@"configured": @(provider != nil),
+             @"name": provider.name ?: @"",
+             @"model": provider.model ?: @"",
+             @"selectedId": [AiSettings sharedSettings].selectedProviderId ?: @""};
+}
+
+#pragma mark - Task366 触控布局（controls.read / controls.write†）
+
+- (nullable NSArray *)listControlLayouts {
+    if (![self ame317_requirePerm:@"controls.read"]) return nil;
+    const char *home = getenv("POJAV_HOME");
+    if (!home || !*home) return nil;
+    NSString *dir = [[NSString stringWithUTF8String:home] stringByAppendingPathComponent:@"controlmap"];
+    NSFileManager *fm = [NSFileManager defaultManager];
+    NSMutableArray *out = [NSMutableArray array];
+    for (NSString *name in [fm contentsOfDirectoryAtPath:dir error:nil] ?: @[]) {
+        if (![name hasSuffix:@".json"]) continue;
+        NSDictionary *at = [fm attributesOfItemAtPath:[dir stringByAppendingPathComponent:name] error:nil];
+        [out addObject:@{@"name": [name stringByDeletingPathExtension],
+                         @"size": @(at ? (double)[at fileSize] : 0)}];
+    }
+    return out;
+}
+
+- (nullable NSString *)readControlLayout:(NSString *)name {
+    if (![self ame317_requirePerm:@"controls.read"]) return nil;
+    NSString *p = [self ame366_controlLayoutPath:name];
+    if (!p) return nil;
+    NSDictionary *at = [NSFileManager.defaultManager attributesOfItemAtPath:p error:nil];
+    if ([at fileSize] > ame327_fileReadMax) return nil;
+    return [NSString stringWithContentsOfFile:p encoding:NSUTF8StringEncoding error:nil];
+}
+
+- (BOOL)writeControlLayout:(NSString *)name content:(NSString *)content {
+    if (![self ame317_requirePerm:@"controls.write"]) return NO;
+    NSString *p = [self ame366_controlLayoutPath:name];
+    if (!p || content.length > ame327_fileWriteMax) return NO;
+    return [[content dataUsingEncoding:NSUTF8StringEncoding] writeToFile:p atomically:YES];
+}
+
+- (BOOL)removeControlLayout:(NSString *)name {
+    if (![self ame317_requirePerm:@"controls.write"]) return NO;
+    NSString *p = [self ame366_controlLayoutPath:name];
+    if (!p) return NO;
+    return [NSFileManager.defaultManager removeItemAtPath:p error:nil];
+}
+
+- (nullable NSString *)ame366_controlLayoutPath:(NSString *)name {
+    if (![self ame366_isPlainFileName:name]) return nil;
+    if (![name.lowercaseString hasSuffix:@".json"]) name = [name stringByAppendingString:@".json"];
+    const char *home = getenv("POJAV_HOME");
+    if (!home || !*home) return nil;
+    return [[NSString stringWithUTF8String:home]
+        stringByAppendingPathComponent:[NSString stringWithFormat:@"controlmap/%@", name]];
+}
+
+#pragma mark - Task366 启动器沙盒文件面（fs.launcher†；POJAV_HOME 内相对路径）
+
+/// POJAV_HOME 沙盒路径守卫（与 ame327_gamePathFor 同规：禁 ..//绝对路径/symlink 逃逸）
+- (nullable NSString *)ame366_homePathFor:(NSString *)relPath {
+    const char *home = getenv("POJAV_HOME");
+    if (!home || !*home) return nil;
+    NSString *base = [NSString stringWithUTF8String:home];
+    if (relPath.length == 0 || relPath.length > 512) return nil;
+    if ([relPath isEqualToString:@"."]) return base;
+    if ([relPath hasPrefix:@"/"]) return nil;
+    for (NSString *seg in [relPath pathComponents]) {
+        if ([seg isEqualToString:@".."] || seg.length == 0) return nil;
+    }
+    NSString *full = [base stringByAppendingPathComponent:relPath];
+    NSString *resolved = [full stringByResolvingSymlinksInPath];
+    NSString *resolvedBase = [base stringByResolvingSymlinksInPath];
+    if (![resolved hasPrefix:resolvedBase]) return nil;
+    return full;
+}
+
+- (nullable NSArray *)fsList:(NSString *)relPath {
+    if (![self ame317_requirePerm:@"fs.launcher"]) return nil;
+    NSString *dir = [self ame366_homePathFor:relPath ?: @"."];
+    if (!dir) return nil;
+    NSFileManager *fm = [NSFileManager defaultManager];
+    BOOL isDir = NO;
+    if (![fm fileExistsAtPath:dir isDirectory:&isDir] || !isDir) return nil;
+    NSMutableArray *out = [NSMutableArray array];
+    for (NSString *name in [fm contentsOfDirectoryAtPath:dir error:nil] ?: @[]) {
+        if ([name hasPrefix:@"."]) continue;
+        NSString *p = [dir stringByAppendingPathComponent:name];
+        BOOL d = NO;
+        [fm fileExistsAtPath:p isDirectory:&d];
+        NSUInteger sz = d ? 0 : (NSUInteger)[fm attributesOfItemAtPath:p error:nil].fileSize;
+        [out addObject:@{@"name": name, @"isDir": @(d), @"size": @(sz)}];
+    }
+    return out;
+}
+
+- (nullable NSString *)fsRead:(NSString *)relPath {
+    if (![self ame317_requirePerm:@"fs.launcher"]) return nil;
+    NSString *p = [self ame366_homePathFor:relPath ?: @""];
+    if (!p) return nil;
+    NSDictionary *at = [NSFileManager.defaultManager attributesOfItemAtPath:p error:nil];
+    if ([at fileSize] > ame327_fileReadMax) return nil;
+    return [NSString stringWithContentsOfFile:p encoding:NSUTF8StringEncoding error:nil];
+}
+
+- (BOOL)fsWrite:(NSString *)relPath content:(NSString *)content append:(BOOL)append {
+    if (![self ame317_requirePerm:@"fs.launcher"]) return NO;
+    NSString *p = [self ame366_homePathFor:relPath ?: @""];
+    if (!p || content.length > ame327_fileWriteMax) return NO;
+    NSFileManager *fm = [NSFileManager defaultManager];
+    NSString *dir = p.stringByDeletingLastPathComponent;
+    if (![fm fileExistsAtPath:dir]) {
+        [fm createDirectoryAtPath:dir withIntermediateDirectories:YES attributes:nil error:nil];
+    }
+    NSData *data = [content dataUsingEncoding:NSUTF8StringEncoding];
+    if (!data) return NO;
+    if (append && [fm fileExistsAtPath:p]) {
+        NSMutableData *mut = [NSMutableData dataWithContentsOfFile:p] ?: [NSMutableData data];
+        [mut appendData:data];
+        if (mut.length > ame327_fileWriteMax) return NO;
+        return [mut writeToFile:p atomically:YES];
+    }
+    return [data writeToFile:p atomically:YES];
+}
+
+- (BOOL)fsRemove:(NSString *)relPath {
+    if (![self ame317_requirePerm:@"fs.launcher"]) return NO;
+    NSString *p = [self ame366_homePathFor:relPath ?: @""];
+    if (!p) return NO;
+    NSFileManager *fm = [NSFileManager defaultManager];
+    BOOL isDir = NO;
+    if (![fm fileExistsAtPath:p isDirectory:&isDir]) return NO;
+    if (isDir) {
+        NSArray *children = [fm contentsOfDirectoryAtPath:p error:nil];
+        if (children.count > 0) return NO;   // 仅空目录可删（防一键清空）
+    }
+    return [fm removeItemAtPath:p error:nil];
+}
+
+- (BOOL)fsExists:(NSString *)relPath {
+    if (![self ame317_requirePerm:@"fs.launcher"]) return NO;
+    NSString *p = [self ame366_homePathFor:relPath ?: @""];
+    return p && [NSFileManager.defaultManager fileExistsAtPath:p];
+}
+
+- (BOOL)fsMkdir:(NSString *)relPath {
+    if (![self ame317_requirePerm:@"fs.launcher"]) return NO;
+    NSString *p = [self ame366_homePathFor:relPath ?: @""];
+    if (!p) return NO;
+    return [NSFileManager.defaultManager createDirectoryAtPath:p withIntermediateDirectories:YES attributes:nil error:nil];
+}
+
+- (BOOL)fsMove:(NSString *)fromPath to:(NSString *)toPath {
+    if (![self ame317_requirePerm:@"fs.launcher"]) return NO;
+    NSString *from = [self ame366_homePathFor:fromPath ?: @""];
+    NSString *to = [self ame366_homePathFor:toPath ?: @""];
+    if (!from || !to) return NO;
+    if ([NSFileManager.defaultManager fileExistsAtPath:to]) return NO;
+    return [NSFileManager.defaultManager moveItemAtPath:from toPath:to error:nil];
+}
+
+- (BOOL)fsCopy:(NSString *)fromPath to:(NSString *)toPath {
+    if (![self ame317_requirePerm:@"fs.launcher"]) return NO;
+    NSString *from = [self ame366_homePathFor:fromPath ?: @""];
+    NSString *to = [self ame366_homePathFor:toPath ?: @""];
+    if (!from || !to) return NO;
+    if ([NSFileManager.defaultManager fileExistsAtPath:to]) return NO;
+    return [NSFileManager.defaultManager copyItemAtPath:from toPath:to error:nil];
+}
+
+- (nullable NSNumber *)fsSize:(NSString *)relPath {
+    if (![self ame317_requirePerm:@"fs.launcher"]) return nil;
+    NSString *p = [self ame366_homePathFor:relPath ?: @""];
+    if (!p) return nil;
+    NSUInteger entries = 0;
+    double size = [self ame366_recursiveSize:p entries:&entries];
+    if (entries > 200000) return nil;
+    return @(size);
+}
+
+#pragma mark - Task366 下载到文件（net† + fs.launcher† 双闸）
+
+- (void)downloadWithURL:(NSString *)urlString to:(NSString *)relPath callback:(JSValue *)cb {
+    if (![self ame317_requirePerm:@"net"]) return;
+    if (![self ame317_requirePerm:@"fs.launcher"]) return;
+    if (!cb.isObject) return;
+    NSURL *url = [NSURL URLWithString:urlString ?: @""];
+    NSString *dest = [self ame366_homePathFor:relPath ?: @""];
+    if (!url.scheme || !url.host || !dest) {
+        [self ame317_callCallback:cb arguments:@[@{@"ok": @NO, @"error": @"URL 非法或目标路径非法（须为启动器沙盒内相对路径）"}]];
+        return;
+    }
+    __weak typeof(self) wself = self;
+    NSURLSessionDownloadTask *task = [[NSURLSession sharedSession]
+        downloadTaskWithURL:url completionHandler:^(NSURL *location, NSURLResponse *resp, NSError *err) {
+        dispatch_async(dispatch_get_main_queue(), ^{
+            __strong typeof(wself) sself = wself;
+            if (!sself) return;
+            if (err || !location) {
+                [sself ame317_callCallback:cb arguments:@[@{@"ok": @NO,
+                    @"error": err.localizedDescription ?: @"下载失败"}]];
+                return;
+            }
+            NSFileManager *fm = [NSFileManager defaultManager];
+            NSString *dir = dest.stringByDeletingLastPathComponent;
+            if (![fm fileExistsAtPath:dir]) {
+                [fm createDirectoryAtPath:dir withIntermediateDirectories:YES attributes:nil error:nil];
+            }
+            if ([fm fileExistsAtPath:dest]) [fm removeItemAtPath:dest error:nil];
+            BOOL ok = [fm moveItemAtPath:location.path toPath:dest error:nil];
+            [sself ame317_callCallback:cb arguments:@[@{@"ok": @(ok),
+                @"bytes": @((double)[fm attributesOfItemAtPath:dest error:nil].fileSize),
+                @"path": ok ? dest : @""}]];
+        });
+    }];
+    [task resume];
+}
+
+#pragma mark - Task366 崩溃分析（logs.read；hs_err JVM 崩溃日志）
+
+- (nullable NSArray *)listHsErrFiles {
+    if (![self ame317_requirePerm:@"logs.read"]) return nil;
+    NSMutableArray *roots = [NSMutableArray array];
+    const char *gd = getenv("POJAV_GAME_DIR");
+    const char *home = getenv("POJAV_HOME");
+    if (gd && *gd) [roots addObject:[NSString stringWithUTF8String:gd]];
+    if (home && *home) [roots addObject:[NSString stringWithUTF8String:home]];
+    NSFileManager *fm = [NSFileManager defaultManager];
+    NSMutableArray<NSDictionary *> *files = [NSMutableArray array];
+    for (NSString *root in roots) {
+        for (NSString *name in [fm contentsOfDirectoryAtPath:root error:nil] ?: @[]) {
+            if (![name hasPrefix:@"hs_err"] || ![name hasSuffix:@".log"]) continue;
+            NSString *p = [root stringByAppendingPathComponent:name];
+            NSDictionary *at = [fm attributesOfItemAtPath:p error:nil];
+            [files addObject:@{@"name": name, @"path": p,
+                               @"mtime": at[NSFileModificationDate] ?: [NSNull null]}];
+        }
+    }
+    [files sortUsingComparator:^NSComparisonResult(NSDictionary *a, NSDictionary *b) {
+        id am = a[@"mtime"], bm = b[@"mtime"];
+        if (![am isKindOfClass:[NSDate class]] || ![bm isKindOfClass:[NSDate class]]) return NSOrderedSame;
+        return [bm compare:am];
+    }];
+    if (files.count > 20) files = [[files subarrayWithRange:NSMakeRange(0, 20)] mutableCopy];
+    return files;
+}
+
+- (nullable NSDictionary *)analyzeLatestHsErr {
+    if (![self ame317_requirePerm:@"logs.read"]) return nil;
+    NSArray *files = [self listHsErrFiles];
+    NSString *latest = files.firstObject[@"path"];
+    if (![latest isKindOfClass:[NSString class]] || latest.length == 0) return nil;
+    return [CrashAnalyzer analyzeHsErrFile:latest];
+}
+
+#pragma mark - Task366 内部工具
 
 /// 回调进 JS（主线程；异常吞并记录，绝不让插件异常带崩启动器）
 - (void)ame317_callCallback:(JSValue *)cb arguments:(NSArray *)args {
