@@ -843,7 +843,10 @@ static NSString *ame364_clsName(UIView *v) {
                            @"w": @(child.frame.size.width), @"h": @(child.frame.size.height)};
         node[@"alpha"] = @(child.alpha);
         node[@"hidden"] = @(child.hidden);
-        node[@"enabled"] = @(child.enabled);
+        // ★ r1：UIView 无 enabled 属性（CI 编译实锤）——enabled 归 UIControl，
+        //   非 UIControl 容器恒报可点（与 UIKit 语义一致）
+        node[@"enabled"] = @([child isKindOfClass:[UIControl class]]
+                                 ? ((UIControl *)child).enabled : YES);
         node[@"win"] = @(wi);
         [out addObject:node];
         [self ame364_walk:child windowIndex:wi out:out filter:f limit:limit depth:depth + 1];
@@ -852,11 +855,12 @@ static NSString *ame364_clsName(UIView *v) {
 
 /// 句柄登记（同视图复用既有句柄；容量上限防失控）
 - (NSUInteger)ame364_registerView:(UIView *)v {
-    NSNumber *ame364_existing = nil;
-    for (NSNumber *k in self.viewTable) {
-        if ([self.viewTable objectForKey:k] == v) { ame364_existing = k; break; }
+    // ★ r1：NSMapTable 快速枚举是键值混合 id 流（CI 编译实锤：
+    //   unsignedIntegerValue not found on __strong id）——用 keyEnumerator
+    //   只取键，反向比对弱值指针
+    for (NSNumber *k in [self.viewTable keyEnumerator]) {
+        if ([self.viewTable objectForKey:k] == v) return k.unsignedIntegerValue;
     }
-    if (ame364_existing) return ame364_existing.unsignedIntegerValue;
     NSUInteger h = ++self.viewHandleSeed;
     [self.viewTable setObject:v forKey:@(h)];
     return h;
@@ -940,7 +944,10 @@ static UIColor *ame364_colorFromString(NSString *s) {
     if ((n = [self ame364_num:props[@"h"]]))  { CGRect f = v.frame; f.size.height = MAX(0, MIN(ame364_coordClamp, n.doubleValue)); v.frame = f; }
     if ((n = [self ame364_num:props[@"alpha"]])) { v.alpha = MAX(0.0, MIN(1.0, n.doubleValue)); }
     if (props[@"hidden"] != nil) v.hidden = [props[@"hidden"] boolValue];
-    if (props[@"enabled"] != nil) v.enabled = [props[@"enabled"] boolValue];
+    // ★ r1：enabled 写面收窄到 UIControl（UIView 无此属性，CI 编译实锤）
+    if (props[@"enabled"] != nil && [v isKindOfClass:[UIControl class]]) {
+        ((UIControl *)v).enabled = [props[@"enabled"] boolValue];
+    }
     if ((n = [self ame364_num:props[@"cornerRadius"]])) {
         v.layer.cornerRadius = MAX(0, MIN(200, n.doubleValue));
         v.layer.masksToBounds = v.layer.cornerRadius > 0 ? YES : v.layer.masksToBounds;
