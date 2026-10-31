@@ -755,7 +755,10 @@ static NSString *ame317_facadeSource(void) {
         __block NSInteger ame367_seq = 0;
         __weak typeof(self) weakRuntime = self;
 
-        JSValue *ame367_setTimeout = [JSValue valueWithBlock:^double(JSValue *fn, double ms) {
+        // 下标赋值注入（Apple 现代 ObjC-JS 桥标准模式：block 字面量自动转
+        // JS 函数对象；CI r1 实锤 [JSValue valueWithBlock:inContext:] 类方法
+        // 不存在，正解即此模式）
+        ctx[@"setTimeout"] = ^double(JSValue *fn, double ms) {
             if (!fn.isObject) return -1;
             if (!(ms >= 0)) ms = 0;
             if (ms > 300000) ms = 300000;   // 单次 ≤5min 封顶防失控
@@ -764,8 +767,8 @@ static NSString *ame317_facadeSource(void) {
             [weakRuntime ame367_scheduleTimer:fn ms:ms repeat:NO handle:handle
                                        timers:timers pluginId:pluginId context:ctx];
             return (double)handle.integerValue;
-        } inContext:ctx];
-        JSValue *ame367_setInterval = [JSValue valueWithBlock:^double(JSValue *fn, double ms) {
+        };
+        ctx[@"setInterval"] = ^double(JSValue *fn, double ms) {
             if (!fn.isObject) return -1;
             if (!(ms >= 10)) ms = 10;       // 周期下限 10ms
             if (ms > 300000) ms = 300000;
@@ -774,14 +777,13 @@ static NSString *ame317_facadeSource(void) {
             [weakRuntime ame367_scheduleTimer:fn ms:ms repeat:YES handle:handle
                                        timers:timers pluginId:pluginId context:ctx];
             return (double)handle.integerValue;
-        } inContext:ctx];
-        JSValue *ame367_clear = [JSValue valueWithBlock:^void(double handle) {
+        };
+        ctx[@"clearTimeout"] = ^void(double handle) {
             [timers removeObjectForKey:@(handle)];
-        } inContext:ctx];
-        [ctx setObject:ame367_setTimeout forKeyedSubscript:@"setTimeout"];
-        [ctx setObject:ame367_setInterval forKeyedSubscript:@"setInterval"];
-        [ctx setObject:ame367_clear forKeyedSubscript:@"clearTimeout"];
-        [ctx setObject:ame367_clear forKeyedSubscript:@"clearInterval"];
+        };
+        ctx[@"clearInterval"] = ^void(double handle) {
+            [timers removeObjectForKey:@(handle)];
+        };
     }
 
     @try {

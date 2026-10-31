@@ -66,8 +66,8 @@ check('B4 回填仅择长不回退（防非流式路径覆盖流式累积）',
       'ame367_fullText.length > assistantMessage.content.length' in agent)
 
 # ══ C 定时器（AmePluginRuntime） ═════════════════════════════
-check('C1 四个定时器全局注册（setTimeout/setInterval/clearTimeout/clearInterval）',
-      all(f'forKeyedSubscript:@"{g}"' in rt for g in
+check('C1 四个定时器全局注册（下标赋值注入，CI r1 实锤 valueWithBlock:inContext: 不存在）',
+      all(f'ctx[@"{g}"] = ' in rt for g in
           ("setTimeout", "setInterval", "clearTimeout", "clearInterval")))
 check('C2 每插件注册表（装载建表 + 卸载清表）',
       'self.timerRegistries[pluginId] = timers;' in rt and
