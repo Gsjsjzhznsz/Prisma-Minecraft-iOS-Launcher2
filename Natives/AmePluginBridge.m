@@ -878,8 +878,11 @@ static NSString *ame364_clsName(UIView *v) {
     filter = [self ame317_unwrapJs:filter] ?: @{};
     NSUInteger limit = ame364_findLimitDefault;
     id fLimit = filter[@"limit"];
-    if ([fLimit isKindOfClass:[NSNumber class]] && fLimit.unsignedIntegerValue > 0) {
-        limit = MIN(fLimit.unsignedIntegerValue, ame364_findLimitMax);
+    // ★ r2：id 类型不支持属性点语法（CI 编译实锤：property not found on
+    //   __strong id）——判型后显式转 NSNumber 再取值
+    if ([fLimit isKindOfClass:[NSNumber class]]) {
+        NSUInteger ame364_req = [(NSNumber *)fLimit unsignedIntegerValue];
+        if (ame364_req > 0) limit = MIN(ame364_req, ame364_findLimitMax);
     }
     NSMutableArray<NSMutableDictionary *> *out = [NSMutableArray array];
     NSArray<UIWindow *> *windows = [self ame364_windows];
