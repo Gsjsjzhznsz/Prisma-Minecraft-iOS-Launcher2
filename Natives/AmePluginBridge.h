@@ -92,6 +92,21 @@ NS_ASSUME_NONNULL_BEGIN
 - (nullable NSString *)readGameFile:(NSString *)relPath;
 - (BOOL)writeGameFile:(NSString *)relPath content:(NSString *)content append:(BOOL)append;
 - (BOOL)removeGameFile:(NSString *)relPath;
+
+// ★ Task365：自修复三件套（用户点题"特别是 JIT 和游戏启动部分"+"启动器崩溃
+//   用户直接找 AI 修"）。JSExport 协议声明必不可缺（Task332 判例）。JS 名
+//   整形（Task331 规则）：getJITState / enableJIT /
+//   launchGameWithProfileCallback / readLogLimit。
+//   ame.jit.state()（jit.read 安全）→ {enabled,setupState,builtinTrackAvailable,scheme}
+//   ame.jit.enable(cb)（jit.write 高危）→ cb({success,message})（内置轨开启）
+//   ame.launchGame(profile?, cb)（game.launch 高危）→ cb({ok,message})，
+//     走主页完整启动链（版本校验→JIT 门禁→换根启动）；游戏运行中拒绝
+//   ame.readLog(which, lines)（logs.read 安全）→ 日志尾部文本，
+//     which ∈ launcher|launcherOld|game|crash，lines 默认 200 上限 1000
+- (nullable NSDictionary *)getJITState;
+- (void)enableJIT:(JSValue *)cb;
+- (void)launchGameWithProfile:(NSDictionary *)opts callback:(JSValue *)cb;
+- (nullable NSString *)readLog:(NSString *)which limit:(double)maxLines;
 @end
 
 @interface AmePluginBridge : NSObject <AmePluginBridgeJSExport>

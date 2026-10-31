@@ -209,8 +209,8 @@ print("== J. l10n + 公告 ==")
 for lang in ["en", "zh-Hans", "zh-Hant", "zh-CN"]:
     keys = set(re.findall(r'^"([^"]+)"\s*=',
                           rd(f"Natives/resources/{lang}.lproj/Localizable.strings"), re.M))
-    # ★ Task364 重锚：Task343 3319 → 345 +5 = 3324 → 347 +2 = 3326 → 348 +1 = 3327 → 351 +2（no_version/saves_rescued）= 3329 → 364 +2（ui.views 权限 name/desc）= 3331
-    check(f"J-{lang} 唯一键 3331（★Task364 重锚：…351 +2 = 3329 → 364 +2 = 3331）", len(keys) == 3331, f"got {len(keys)}")
+    # ★ Task365 重锚：Task343 3319 → …351 +2 = 3329 → 364 +2（ui.views 权限 name/desc）= 3331 → 365 +8（jit.read/jit.write/game.launch/logs.read 权限 name/desc×4）= 3339
+    check(f"J-{lang} 唯一键 3339（★Task365 重锚：…364 +2 = 3331 → 365 +8 = 3339）", len(keys) == 3339, f"got {len(keys)}")
 check("J-公告 7 条（Task315 同步重锚：6.5.5 侧 region-notice+download-speed 并入，pin 语义保持）",
       len(ann) == 7
       and any(a["id"] == "region-notice-and-download-speed-2026-10-20" for a in ann)

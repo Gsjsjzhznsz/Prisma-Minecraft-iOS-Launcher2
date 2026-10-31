@@ -33,8 +33,10 @@ rt = read("Natives/AmePluginRuntime.m")
 aiset = read("Natives/AI/AiSettings.m")
 ptool = read("Natives/AI/AiPluginWriterTool.m")
 
-# 提示词域切片：v5 defaultSystemPrompt（至 v4 留档注释为止）与 v4 留档
-v5_zone = aiset[aiset.index("+ (NSString *)defaultSystemPrompt {"):]
+# 提示词域切片（★ Task365 重锚：现役 defaultSystemPrompt 已升 v6——【七】章
+# 全量 API 块移出至 get_plugin_docs 工具按需加载，本脚本 C 区断言对象改为
+# ame365_v5DefaultSystemPrompt 留档（v5 原文），现役 v6 由 ame365_selfcheck 独立把关）
+v5_zone = aiset[aiset.index("+ (NSString *)ame365_v5DefaultSystemPrompt {"):]
 v5_zone = v5_zone[:v5_zone.index("/// ★ Task364：v4 默认提示词全文")]
 v4_zone = aiset[aiset.index("+ (NSString *)ame364_v4DefaultSystemPrompt {"):]
 v4_zone = v4_zone[:v4_zone.index("/// ★ Task363：v3 默认提示词全文")]
@@ -74,8 +76,8 @@ check('A8 门面四入口接线（JSExport 整形名逐一对齐）',
 # ══ B 权限注册表 ═════════════════════════════════════════════
 check('B1 ui.views 注册且高危（danger:YES）',
       'initWithId:@"ui.views"      danger:YES' in pm.replace('\r', ''))
-check('B2 注册表 16 实体（14 清单 + ame.super + ui.views）+ ame.super 居首',
-      pm.count('initWithId:@"') == 16
+check('B2 注册表 20 实体（★Task365 重锚：16→20，自修复三件套 jit.read/jit.write/game.launch/logs.read 入列）+ ame.super 居首',
+      pm.count('initWithId:@"') == 20
       and pm.index('initWithId:@"ame.super"') < pm.index('initWithId:@"events"'))
 check('B3 ui.views 注释锚在位',
       "Task364" in pm and "AI 写元素拖拽插件失败的根因" in pm)
@@ -102,21 +104,27 @@ check('D1 v4 留档在位且含 v4 特有标记（共 14 项 / 四件示例）',
       "+ (NSString *)ame364_v4DefaultSystemPrompt {" in v4_zone
       and "共 14 项" in v4_zone and "内置四件示例" in v4_zone
       and "ame.views" not in v4_zone)
-check('D2 迁移分支 ver 4→5（v4 逐字一致即删键回落 v5 + 版本号 setInteger:5）',
+check('D2 迁移分支 ver 4→5 保留 + 终版号 6（★Task365 重锚：setInteger:5→6，v5→v6 支在位）',
       "[ame267_saved isEqualToString:[self ame364_v4DefaultSystemPrompt]]" in aiset
       and "Task364: v4 default system prompt auto-upgraded to v5" in aiset
-      and "[ame267_d setInteger:5 forKey:kSystemPromptVersionKey];" in aiset
+      and "[ame267_saved isEqualToString:[self ame365_v5DefaultSystemPrompt]]" in aiset
+      and "[ame267_d setInteger:6 forKey:kSystemPromptVersionKey];" in aiset
+      and "[ame267_d setInteger:5 forKey:kSystemPromptVersionKey];" not in aiset
       and "[ame267_d setInteger:4 forKey:kSystemPromptVersionKey];" not in aiset)
 
 # ══ E create_plugin 工具描述 ═════════════════════════════════
 check('E1 工具权限清单含 ui.views',
       "events/ui.dialog/ui.rows/ui.theme/ui.views/" in ptool)
-check('E2 工具 ame.views 四入口 + 拖拽标准写法',
-      "ame.views.find({cls?,text?,ident?,tag?,limit?})" in ptool
-      and "ame.views.apply(handle,{x?,y?,w?,h?,alpha?,hidden?,cornerRadius?,text?,bg?,enabled?})" in ptool
-      and "ame.views.on(handle,'tap'|'pan'|'longpress'|'swipe',fn)" in ptool
-      and "ame.views.reset(handle)" in ptool
-      and "ame.views.apply(h,{x:st.x+ev.tx,y:st.y+ev.ty});" in ptool)
+# ★ Task365 重锚：视图操纵四入口与拖拽标准写法随插件 API 块迁移至
+#   get_plugin_docs 文档工具（AiPluginDocsTool.m），E2 断言对象同步改指
+dtool = read("Natives/AI/AiPluginDocsTool.m")
+check('E2 插件文档 ame.views 四入口 + 拖拽标准写法（★Task365 重锚至 AiPluginDocsTool）',
+      "ame.views.find({cls?,text?,ident?,tag?,limit?})" in dtool
+      and "ame.views.apply(handle,{x?,y?,w?,h?,alpha?,hidden?,cornerRadius?,text?,bg?,enabled?})" in dtool
+      and "ame.views.on(handle,'tap'|'pan'|'longpress'|'swipe',function(ev){})" in dtool
+      and "ame.views.reset(handle)" in dtool
+      and "ame.views.apply(h,{x:st.x+ev.tx,y:st.y+ev.ty});" in dtool
+      and "get_plugin_docs" in ptool)
 
 # ══ F 官方仓演示件 ═══════════════════════════════════════════
 try:

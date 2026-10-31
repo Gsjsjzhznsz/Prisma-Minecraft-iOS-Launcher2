@@ -114,6 +114,15 @@ static NSString *ame317_facadeSource(void) {
     "apply:function(h,p){return raw.viewsApplyProps(Number(h),p||{});},"
     "on:function(h,ev,fn){return raw.viewsOnEventHandler(Number(h),String(ev||'tap'),fn||function(){});},"
     "reset:function(h){return raw.viewsReset(Number(h));}};"
+    // ★ Task365：自修复三件套（jit / game.launch / logs.read）——JS 名整形：
+    //   getJITState / enableJIT / launchGameWithProfileCallback / readLogLimit
+    "ame.jit={"
+    "state:function(){return raw.getJITState();},"
+    "enable:function(cb){return raw.enableJIT(cb||function(){});}};"
+    "ame.launchGame=function(p,cb){"
+    "if(typeof p==='function'){cb=p;p={};}"
+    "return raw.launchGameWithProfileCallback(p||{},cb||function(){});};"
+    "ame.readLog=function(w,n){return raw.readLogLimit((w===undefined||w===null)?'launcher':String(w),Number(n||200));};"
     "return ame;"
     "})(ameRaw);";
 }

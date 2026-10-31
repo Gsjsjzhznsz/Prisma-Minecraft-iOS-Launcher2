@@ -84,6 +84,14 @@ NSString *ame317_pluginsRootDir(void) {
             //   操纵启动器界面原生视图（移动/缩放/隐藏/改文字/挂手势），高危：
             //   越权触碰任意视图可致交互错乱，且游戏渲染面子树在内置禁改名单。
             [[AmePluginPermissionItem alloc] initWithId:@"ui.views"      danger:YES],
+            // ★ Task365：自修复三件套（用户点题"整个启动器完全可以修改没有限制，
+            //   特别是 JIT 和游戏启动部分，启动器崩溃用户直接找 AI 修"）——
+            //   JIT 状态查询（安全）/ JIT 开启触发（高危）/ 游戏启动触发（高危）
+            //   / 日志尾部读取（安全，崩溃自诊断的主输入）。
+            [[AmePluginPermissionItem alloc] initWithId:@"jit.read"      danger:NO],
+            [[AmePluginPermissionItem alloc] initWithId:@"jit.write"     danger:YES],
+            [[AmePluginPermissionItem alloc] initWithId:@"game.launch"   danger:YES],
+            [[AmePluginPermissionItem alloc] initWithId:@"logs.read"     danger:NO],
         ];
     });
     return perms;

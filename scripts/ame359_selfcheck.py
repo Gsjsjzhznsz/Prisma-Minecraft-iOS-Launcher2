@@ -32,6 +32,7 @@ md_h = read("Natives/MarkdownParser.h")
 md_m = read("Natives/MarkdownParser.m")
 aiset = read("Natives/AI/AiSettings.m")
 ptool = read("Natives/AI/AiPluginWriterTool.m")
+dtool = read("Natives/AI/AiPluginDocsTool.m")   # ★Task365 重锚新增
 
 # Task363 提示词域切片（★ Task364 重锚：现役 defaultSystemPrompt 已升 v5，
 # 本脚本 E 区断言对象改为 ame364_v4DefaultSystemPrompt 留档（v4 原文），
@@ -123,14 +124,17 @@ check('D3 助手气泡底改系统自适应（硬编码白 0.08 退役）',
       and "bubbleView.backgroundColor = [UIColor colorWithWhite:1.0 alpha:0.08];" not in cell)
 
 # ══ E [Ame363] AI 提示词插件文档扩容 ═════════════════════
-check('E1 迁移链 v3→v4→v5（ame363_v3/ame364_v4 双留档 + 版本号 5 + 两级自适应升级日志）',
+check('E1 迁移链 v3→v4→v5→v6（ame363_v3/ame364_v4/ame365_v5 三留档 + 终版号 6【★Task365 重锚】+ 三级自适应升级日志）',
       "+ (NSString *)ame363_v3DefaultSystemPrompt {" in aiset
       and "+ (NSString *)ame364_v4DefaultSystemPrompt {" in aiset
+      and "+ (NSString *)ame365_v5DefaultSystemPrompt {" in aiset
       and "[ame267_saved isEqualToString:[self ame363_v3DefaultSystemPrompt]]" in aiset
       and "[ame267_saved isEqualToString:[self ame364_v4DefaultSystemPrompt]]" in aiset
-      and "[ame267_d setInteger:5 forKey:kSystemPromptVersionKey];" in aiset
+      and "[ame267_saved isEqualToString:[self ame365_v5DefaultSystemPrompt]]" in aiset
+      and "[ame267_d setInteger:6 forKey:kSystemPromptVersionKey];" in aiset
       and "Task363: v3 default system prompt auto-upgraded to v4" in aiset
-      and "Task364: v4 default system prompt auto-upgraded to v5" in aiset)
+      and "Task364: v4 default system prompt auto-upgraded to v5" in aiset
+      and "Task365: v5 default system prompt auto-upgraded to v6" in aiset)
 check('E2 v4 提示词含主题四家族（setThemeToken/Shape/Layout/Structure + shellLayout 值域）',
       "ame.setThemeToken(色令牌表)" in aiset_v4_zone
       and "ame.setThemeShape(形状/字阶表)" in aiset_v4_zone
@@ -141,9 +145,12 @@ check('E3 v4 提示词含全量 API 面锚点（14 权限+ame.super/色值格式
       and "#RRGGBBAA" in aiset_v4_zone
       and "app.launch / app.foreground / app.background / profile.changed / profile.listChanged / game.starting / game.exited" in aiset_v4_zone
       and "≤2MB" in aiset_v4_zone and "30 秒超时" in aiset_v4_zone)
-check('E4 create_plugin 工具描述对齐（三族主题令牌 + 色值 + 立即生效语义）',
-      "ame.setThemeShape" in ptool and "ame.setThemeLayout" in ptool
-      and "ame.setThemeStructure" in ptool and "#RRGGBBAA" in ptool)
+# ★ Task365 重锚：工具描述大段 API 块已迁至 get_plugin_docs 文档（create_plugin
+#   描述瘦身为契约+速览+文档前置铁律），四族令牌/色值断言改指 AiPluginDocsTool。
+check('E4 插件文档工具对齐（四族主题令牌 + 色值 + create_plugin 契约；★Task365 重锚至 AiPluginDocsTool）',
+      "ame.setThemeShape" in dtool and "ame.setThemeLayout" in dtool
+      and "ame.setThemeStructure" in dtool and "#RRGGBBAA" in dtool
+      and "get_plugin_docs" in ptool)
 check('E5 v4 保留一~六章/行为纪律/openPage 七页（非插件域零回归）',
       "【一、用户想安装 Minecraft 时" in aiset_v4_zone
       and "【行为纪律】" in aiset_v4_zone

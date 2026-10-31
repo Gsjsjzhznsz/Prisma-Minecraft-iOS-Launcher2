@@ -18,6 +18,7 @@
 #import "AiDownloadProbe.h"
 #import "AiInstanceCreator.h"
 #import "AiPluginWriterTool.h"   // Task327：AI 写插件（create_plugin）
+#import "AiPluginDocsTool.h"     // ★ Task365：插件全量 API 参考按需加载（get_plugin_docs）
 
 @implementation AiToolBootstrapper
 
@@ -94,6 +95,12 @@
     // ★ Task327：AI 写插件（create_plugin，ControlledWrite）——对话产出
     //   manifest+main.js，校验落盘+首装授权+即时装载，效果见 设置→插件功能
     [registry registerTool:[[AiPluginWriterTool alloc] init]];
+
+    // ★ Task365：插件全量 API 参考按需加载（get_plugin_docs，ReadOnly 免确认）
+    //   ——用户拍板"单独开个插件提示词，用户说要生成插件 AI 才会看另一个提示词，
+    //   避免太消耗 token"：基础系统提示词只留契约+铁律，全量 ame.* API 面随
+    //   本工具返回文本按需进入上下文（一次会话拉一次，之后随会话历史携带）。
+    [registry registerTool:[[AiPluginDocsTool alloc] init]];
 }
 
 @end

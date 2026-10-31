@@ -3524,6 +3524,14 @@
 "ame317.perm.files.game.desc" = "Read/write/delete files inside the current instance game folder (sandboxed, size-capped, empty folders only)";
 "ame317.perm.ui.views.name" = "UI element control";
 "ame317.perm.ui.views.desc" = "Find and manipulate launcher UI elements: move, resize, hide, retitle, attach gestures (dangerous: can change interface layout)";
+"ame317.perm.jit.read.name" = "Read JIT state";
+"ame317.perm.jit.read.desc" = "Check whether JIT (just-in-time compilation) is enabled and whether the builtin enabling track is available";
+"ame317.perm.jit.write.name" = "Enable JIT";
+"ame317.perm.jit.write.desc" = "Allows the plugin to trigger the builtin JIT enabling flow (requires pairing prerequisites) -- dangerous";
+"ame317.perm.game.launch.name" = "Launch game";
+"ame317.perm.game.launch.desc" = "Allows the plugin to trigger the full game launch flow for the current instance (version check and JIT gate) -- dangerous";
+"ame317.perm.logs.read.name" = "Read logs";
+"ame317.perm.logs.read.desc" = "Read the tail of launcher/game/crash logs (for crash self-diagnosis)";
 "ame327.plugin.rows.title" = "Plugin rows";
 "ame327.plugin.guide.title" = "How to use plugins";
 "ame327.plugin.guide.body" = "1. Effects - tap the rows in this page's \"Plugin rows\" section or Settings - \"Plugin rows\" group to trigger them; they are the features plugins provide.\n2. Permissions - dangerous permissions (network / theme / renderer write / instance manage / game folder) are denied by default; open the plugin detail page and enable them.\n3. AI-written plugins - ask the AI assistant \"write me a plugin\" with your idea; it generates, installs and loads one instantly.";

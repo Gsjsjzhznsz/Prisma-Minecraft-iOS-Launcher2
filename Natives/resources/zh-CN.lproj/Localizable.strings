@@ -3519,6 +3519,14 @@
 "ame317.perm.files.game.desc" = "读写删除当前实例游戏目录内的文件（沙盒限制、大小上限、仅可删空目录）";
 "ame317.perm.ui.views.name" = "界面元素操纵";
 "ame317.perm.ui.views.desc" = "查询并操纵启动器界面元素：移动、缩放、隐藏、改文字、挂手势（高危：可改变界面交互布局）";
+"ame317.perm.jit.read.name" = "读取 JIT 状态";
+"ame317.perm.jit.read.desc" = "查询即时编译（JIT）是否已开启及内置开启轨是否可用";
+"ame317.perm.jit.write.name" = "开启 JIT";
+"ame317.perm.jit.write.desc" = "允许插件触发内置 JIT 开启流程（需要配对文件等前置）——高危";
+"ame317.perm.game.launch.name" = "启动游戏";
+"ame317.perm.game.launch.desc" = "允许插件以当前实例触发完整游戏启动流程（版本校验与 JIT 门禁）——高危";
+"ame317.perm.logs.read.name" = "读取日志";
+"ame317.perm.logs.read.desc" = "读取启动器/游戏/崩溃日志尾部（用于崩溃自诊断）";
 "ame327.plugin.rows.title" = "插件功能";
 "ame327.plugin.guide.title" = "插件使用指南";
 "ame327.plugin.guide.body" = "1. 效果即用 —— 本页「插件贡献」区与 设置 → 插件功能 区的行就是插件提供的功能，点击即触发。\n2. 权限授权 —— 高危权限（联网/主题/渲染器写入/实例管理/游戏目录）默认拒绝，进插件详情页打开对应开关即可。\n3. AI 写插件 —— 对 AI 助手说「帮我写一个插件」并描述需求，即可自动生成、安装并装载。";

@@ -7,6 +7,7 @@
 #import "ZL2M3Kit.h"    // MD3 对话框
 #import "ZL2Theme.h"    // 主题令牌覆盖钩子
 #import "ZL2ShellViewController.h"   // Task327：页面导航通知契约（ZL2ShellNavigate）
+#import "StikDebugViewController.h"  // ★ Task365：JIT 状态四态/内置轨可用性/开启共享入口
 
 #import <UIKit/UIKit.h>
 #import <objc/runtime.h>   // Task364：pan 累计位移关联对象
@@ -45,6 +46,16 @@ static const NSUInteger ame317_storageMaxBytes = 4 * 1024 * 1024;
 //   selector = no known instance method 编译错；Task261 判例同族）
 @interface AmePluginBridge (Ame364Internal)
 - (void)ame364_gestureFired:(UIGestureRecognizer *)gr sink:(Ame364GestureSink *)sink;
+@end
+
+// ★ Task365：私有方法跨类消费前向声明（Task261 判例同族防线——ARC 下未声明
+//   selector = no known instance method 编译错）。主页启动按钮动作 launchButtonTapped
+//   与壳层子页访问器 ame_childForIndex: 均只活在各自 .m，桥面仅经类别声明消费。
+@interface ZL2ShellViewController (Ame365Bridge)
+- (UIViewController *)ame_childForIndex:(NSInteger)index;
+@end
+@interface ZL2HomeViewController (Ame365Bridge)
+- (void)launchButtonTapped;
 @end
 
 @implementation Ame364GestureSink
@@ -1124,6 +1135,167 @@ static UIColor *ame364_colorFromString(NSString *s) {
     [self.viewOriginals removeAllObjects];
     [self.viewTable removeAllObjects];
     self.viewHandleSeed = 0;
+}
+
+#pragma mark - 自修复三件套（jit.read / jit.write / game.launch / logs.read，Task365）
+
+/// JIT 状态（jit.read，安全）：enabled=进程内 isJITEnabled 实测；setupState=
+/// 内置轨四态（enabled/ready/waitingConfiguration/unavailable）；
+/// builtinTrackAvailable=Task294 内置轨可用性（iOS 17.4+ 配对文件在位）；
+/// scheme=debug.jit_enabler 偏好（auto/builtin/stikjit/trollstore/...）。
+- (NSDictionary *)getJITState {
+    if (![self ame317_requirePerm:@"jit.read"]) return nil;
+    NSString *ame365_stateName = nil;
+    switch ([StikDebugViewController ame291_setupState]) {
+        case Ame291JITSetupStateEnabled:                 ame365_stateName = @"enabled"; break;
+        case Ame291JITSetupStateReady:                   ame365_stateName = @"ready"; break;
+        case Ame291JITSetupStateWaitingConfiguration:    ame365_stateName = @"waitingConfiguration"; break;
+        case Ame291JITSetupStateUnavailable:
+        default:                                          ame365_stateName = @"unavailable"; break;
+    }
+    id ame365_scheme = getPrefObject(@"debug.jit_enabler");
+    return @{
+        @"enabled": @(isJITEnabled(NO)),
+        @"setupState": ame365_stateName,
+        @"builtinTrackAvailable": @([StikDebugViewController ame294_builtinTrackAvailable]),
+        @"scheme": [ame365_scheme isKindOfClass:[NSString class]] ? ame365_scheme : @"auto",
+    };
+}
+
+/// 触发内置 JIT 开启（jit.write，高危）：Task294 共享入口（JIT 管理页/
+/// RightPanel/JavaLauncher 三处同源），completion 必达；回调体回主线程后进 JS
+/// （ame317_callCallback 主线程契约）。unavailable/unready 时 message 为可展示
+/// 文案，插件侧应引导用户去 设置 → 调试 配置配对文件/方案。
+- (void)enableJIT:(JSValue *)cb {
+    if (![self ame317_requirePerm:@"jit.write"]) return;
+    if (!cb.isObject) return;
+    dispatch_async(dispatch_get_main_queue(), ^{
+        __weak typeof(self) wself = self;
+        [StikDebugViewController ame294_enableBuiltinJITWithCompletion:^(BOOL success, NSString *message) {
+            __strong typeof(wself) sself = wself;
+            if (!sself) return;
+            [sself ame317_callCallback:cb arguments:@[@{ @"success": @(success),
+                                                         @"message": message ?: @"" }]];
+        }];
+    });
+}
+
+/// 触发游戏启动（game.launch，高危）：主页启动按钮同款全链（版本校验→
+/// 下载/verify→JIT 门禁→换根 SurfaceViewController→launchJVM）；profile
+/// 可选切换当前选中实例（与设置页同源 setSelectedProfileName，
+/// SelectedProfileChanged 广播 → 插件 profile.changed 事件照常）；游戏
+/// 运行中/界面未就绪拒绝。回调 {ok,message} = 接受/拒绝语义（启动结果
+/// 由 game.starting / game.exited 事件覆盖，launchJVM 阻塞至退出不回调）。
+- (void)launchGameWithProfile:(NSDictionary *)opts callback:(JSValue *)cb {
+    if (![self ame317_requirePerm:@"game.launch"]) return;
+    if (!cb.isObject) return;
+    NSDictionary *spec = [self ame317_unwrapJs:opts] ?: @{};
+    void (^ame365_respond)(BOOL, NSString *) = ^(BOOL ok, NSString *msg) {
+        [self ame317_callCallback:cb arguments:@[@{ @"ok": @(ok), @"message": msg ?: @"" }]];
+    };
+    dispatch_async(dispatch_get_main_queue(), ^{
+        NSString *profile = [self ame317_string:spec[@"profile"]];
+        if (profile.length > 0) {
+            if ([PLProfiles current].profiles[profile] == nil) {
+                [self ame317_rejectValue:[NSString stringWithFormat:@"profile missing: %@", profile]];
+                ame365_respond(NO, [NSString stringWithFormat:@"实例档案不存在：%@", profile]);
+                return;
+            }
+            [[PLProfiles current] setSelectedProfileName:profile];
+        }
+        UIWindow *window = [self ame317_keyWindow];
+        UIViewController *root = window.rootViewController;
+        if ([NSStringFromClass(root.class) isEqualToString:@"SurfaceViewController"]) {
+            ame365_respond(NO, @"游戏正在运行，无法重复启动；请先退出游戏。");
+            return;
+        }
+        if (![root isKindOfClass:[ZL2ShellViewController class]]) {
+            ame365_respond(NO, @"启动器界面未就绪（欢迎/引导流程中），请稍后再试。");
+            return;
+        }
+        UIViewController *home = [(ZL2ShellViewController *)root ame_childForIndex:0];
+        if (!home || ![NSStringFromClass(home.class) isEqualToString:@"ZL2HomeViewController"]) {
+            ame365_respond(NO, @"主页未就绪，无法启动游戏。");
+            return;
+        }
+        [(ZL2HomeViewController *)home launchButtonTapped];
+        ame365_respond(YES, @"已进入启动流程（版本校验 → JIT 门禁 → 启动）。启动/退出会以 game.starting / game.exited 事件广播。");
+    });
+}
+
+/// 日志尾部读取（logs.read，安全）：which ∈ launcher（POJAV_HOME/latestlog.txt，
+/// 含游戏 stdout 重定向，诊断首选）/ launcherOld / game（实例 logs/latest.log）/
+/// crash（实例 crash-reports 最新 .txt）。行数上限 1000（默认 200）、单行截断
+/// 2000 字、总量封顶 48KB 保尾。
+- (NSString *)readLog:(NSString *)which limit:(double)maxLines {
+    if (![self ame317_requirePerm:@"logs.read"]) return nil;
+    NSString *key = which.length ? which : @"launcher";
+    NSString *home = @(getenv("POJAV_HOME") ?: "");
+    NSString *path = nil;
+    if ([key isEqualToString:@"launcher"]) {
+        path = home.length ? [home stringByAppendingPathComponent:@"latestlog.txt"] : nil;
+    } else if ([key isEqualToString:@"launcherOld"]) {
+        path = home.length ? [home stringByAppendingPathComponent:@"latestlog.old.txt"] : nil;
+    } else if ([key isEqualToString:@"game"]) {
+        const char *gd = getenv("POJAV_GAME_DIR");
+        path = (gd && *gd) ? [[NSString stringWithUTF8String:gd] stringByAppendingPathComponent:@"logs/latest.log"] : nil;
+    } else if ([key isEqualToString:@"crash"]) {
+        path = [self ame365_latestCrashReportPath];
+    } else {
+        [self ame317_rejectValue:[NSString stringWithFormat:@"unknown log: %@", key]];
+        return nil;
+    }
+    if (path.length == 0) return nil;
+    NSData *data = [NSData dataWithContentsOfFile:path];
+    if (!data || data.length == 0) return nil;
+    if (data.length > 4 * 1024 * 1024) {
+        data = [data subdataWithRange:NSMakeRange(data.length - 4 * 1024 * 1024, 4 * 1024 * 1024)];
+    }
+    NSMutableArray<NSString *> *lines = [NSMutableArray array];
+    NSString *content = [[NSString alloc] initWithData:data encoding:NSUTF8StringEncoding];
+    if (!content) return nil;
+    for (NSString *line in [content componentsSeparatedByString:@"\n"]) {
+        [lines addObject:line.length > 2000 ? [line substringToIndex:2000] : line];
+    }
+    NSUInteger n = 200;
+    if (maxLines >= 1) n = (NSUInteger)MIN((double)maxLines, 1000.0);
+    NSUInteger start = lines.count > n ? lines.count - n : 0;
+    NSMutableString *out = [NSMutableString string];
+    for (NSUInteger i = start; i < lines.count; i++) {
+        [out appendString:lines[i]];
+        [out appendString:@"\n"];
+        if (out.length > 48 * 1024) {
+            // 总量封顶：丢头部保尾部（诊断价值集中在尾段）
+            NSRange cut = [out rangeOfString:@"\n" options:0];
+            if (cut.location != NSNotFound && cut.location < out.length - 1) {
+                [out deleteCharactersInRange:NSMakeRange(0, cut.location + 1)];
+            }
+        }
+    }
+    return out;
+}
+
+/// 最新崩溃报告路径（实例 crash-reports / logs/crash-reports 取 mtime 最新）
+- (NSString *)ame365_latestCrashReportPath {
+    const char *gd = getenv("POJAV_GAME_DIR");
+    if (!gd || !*gd) return nil;
+    NSString *root = [NSString stringWithUTF8String:gd];
+    NSArray *candidates = @[
+        [root stringByAppendingPathComponent:@"logs/crash-reports"],
+        [root stringByAppendingPathComponent:@"crash-reports"],
+    ];
+    NSFileManager *fm = [NSFileManager defaultManager];
+    NSString *best = nil;
+    NSDate *bestDate = nil;
+    for (NSString *dir in candidates) {
+        for (NSString *name in [fm contentsOfDirectoryAtPath:dir error:nil]) {
+            if (![name hasSuffix:@".txt"]) continue;
+            NSString *p = [dir stringByAppendingPathComponent:name];
+            NSDate *d = [fm attributesOfItemAtPath:p error:nil][NSFileModificationDate];
+            if (!bestDate || [d compare:bestDate] == NSOrderedDescending) { bestDate = d; best = p; }
+        }
+    }
+    return best;
 }
 
 #pragma mark - 内部工具

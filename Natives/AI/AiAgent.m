@@ -196,6 +196,7 @@ static NSString * const kAiSessionMessagesDidChangeNotification = @"AiSessionMes
             "安装顺序纪律：必须先装原版再装加载器——调用 install_loader 前先用 list_instances 确认目标实例的原版已装好，未装则先调 install_game_version 装原版，成功后才装加载器，最后才装 Mod；卸载/切换目录同理，先补原版。"
             "这些安装全部自动完成，用户可在下载中心实时查看进度，你无需也不应让用户去下载页手动操作（Forge/NeoForge/OptiFine 除外，它们需要图形安装器）。"
             "你可以并行执行多个工具调用；下载类工具可后台执行（wait=false）后继续做其它事，稍后用 check_downloads 查进度。"
+            "为用户编写或修改插件时：必须先调用 get_plugin_docs 获取插件全量 API 参考（写错 API 名插件会静默失效），再用 create_plugin 落地；启动器界面/启动问题也可用插件自修复。"
             "当用户的请求可以通过这些工具完成时，请主动调用合适的工具去执行，而不是只给出文字建议；也请结合工具返回结果继续推进任务。"];
     }
     if (systemPrompt.length > 0) {
