@@ -896,6 +896,10 @@ target_link_libraries(AngelAuraAmethyst
   "-framework JavaScriptCore"
   "-framework UIKit"
   "-framework UniformTypeIdentifiers"
+  # ★ Task366：插件 notify 权限面（UNUserNotificationCenter 本地通知，
+  #   AmePluginBridge 消费）——run 41176900198 链接实锤：ObjC import 不自动
+  #   链接该框架，缺省 = _OBJC_CLASS_$_UN* 三符号 undefined。
+  "-framework UserNotifications"
   "-framework UnzipKit"
   "-framework WebKit"
   "-weak_framework SafariServices"
