@@ -232,8 +232,8 @@
     @"  internal.isolated（默认 @NO）\n"
     @"  internal.autolaunch_profile（默认 @\"\"）\n"
     @"  internal.internal_launch_on_boot（默认 @NO）\n"
-    @"· 另有括号赋值注册面（不走出厂默认）：debug.jit_enabler（JIT 方案）等，同样 get/set 可寻址。
-· 哨兵键（*.migrated/task211_*/task130_*）只读不写；plugin.* 禁写。java.java_args/java.jvm_preset_custom_args 可注入 JVM 参数；java.allocated_memory/java.auto_ram 管内存；video.renderer/mobileglues.* 管渲染链（下次启动生效）。\n"
+    @"· 另有括号赋值注册面（不走出厂默认）：debug.jit_enabler（JIT 方案）等，同样 get/set 可寻址。\n"
+    @"· 哨兵键（*.migrated/task211_*/task130_*）只读不写；plugin.* 禁写。java.java_args/java.jvm_preset_custom_args 可注入 JVM 参数；java.allocated_memory/java.auto_ram 管内存；video.renderer/mobileglues.* 管渲染链（下次启动生效）。\n"
     @"\n"
     @"【11. 渲染器（renderer.read / renderer.write†）】\n"
     @"· ame.getRenderer() → {renderer,backend,effective,available}；ame.setRenderer({renderer}) 或 ({backend})（backend ∈ mobilegl/mobileglues_gles/mithril；下次启动生效）。\n"
