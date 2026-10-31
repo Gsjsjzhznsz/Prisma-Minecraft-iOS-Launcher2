@@ -778,6 +778,11 @@ add_executable(AngelAuraAmethyst
 
   # Task 327：AI 写插件（create_plugin —— manifest+main.js 生成落盘+授权+装载）
   AI/AiPluginWriterTool.m
+
+  # ★ Task365：插件全量 API 参考按需加载工具（get_plugin_docs —— 插件提示词
+  #   独立化载体；★r2 CI run 41168821938 链接实锤：CMake 显式源清单与
+  #   xcodebuild 目录 glob 双轨不同步，新 .m 漏登 = OBJC_CLASS_$_ undefined）
+  AI/AiPluginDocsTool.m
 )
 
 # Task 83（FSR 独立化）：osm_bridge.mm 与 mgl_fsr.mm（Task119 新增）是仅有的
