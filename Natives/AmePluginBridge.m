@@ -1818,11 +1818,11 @@ static UIColor *ame364_colorFromString(NSString *s) {
 - (BOOL)hapticWithKind:(NSString *)kind {
     if (![self ame317_requirePerm:@"notify"]) return NO;
     if ([kind isEqualToString:@"light"]) {
-        [[UIImpactFeedbackGenerator alloc] initWithFeedbackStyle:UIImpactFeedbackStyleLight].impactOccurred;
+        [[UIImpactFeedbackGenerator alloc] initWithStyle:UIImpactFeedbackStyleLight].impactOccurred;
     } else if ([kind isEqualToString:@"medium"]) {
-        [[UIImpactFeedbackGenerator alloc] initWithFeedbackStyle:UIImpactFeedbackStyleMedium].impactOccurred;
+        [[UIImpactFeedbackGenerator alloc] initWithStyle:UIImpactFeedbackStyleMedium].impactOccurred;
     } else if ([kind isEqualToString:@"heavy"]) {
-        [[UIImpactFeedbackGenerator alloc] initWithFeedbackStyle:UIImpactFeedbackStyleHeavy].impactOccurred;
+        [[UIImpactFeedbackGenerator alloc] initWithStyle:UIImpactFeedbackStyleHeavy].impactOccurred;
     } else if ([kind isEqualToString:@"success"] || [kind isEqualToString:@"warning"] || [kind isEqualToString:@"error"]) {
         UINotificationFeedbackType t = [kind isEqualToString:@"success"] ? UINotificationFeedbackTypeSuccess
             : [kind isEqualToString:@"warning"] ? UINotificationFeedbackTypeWarning : UINotificationFeedbackTypeError;
@@ -2481,7 +2481,7 @@ static UIColor *ame364_colorFromString(NSString *s) {
     NSDictionary *p = [PLProfiles current].profiles[profileName ?: @""];
     if ([p isKindOfClass:[NSDictionary class]]) {
         id dir = p[@"gameDir"];
-        if ([dir isKindOfClass:[NSString class]] && dir.length > 0) return dir;
+        if ([dir isKindOfClass:[NSString class]] && ((NSString *)dir).length > 0) return dir;
     }
     const char *gd2 = getenv("POJAV_GAME_DIR");
     return (gd2 && *gd2) ? [NSString stringWithUTF8String:gd2] : nil;
