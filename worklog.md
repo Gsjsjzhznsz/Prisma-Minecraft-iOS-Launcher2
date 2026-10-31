@@ -4631,3 +4631,11 @@ Stage Summary:
 - 【门禁】ame365_selfcheck 30 断言（A 桥面 5/B 权限 3/C 提示词 6/D 文档 6/E 反向 3/F 接线 4/S 变体 3）全绿；ame364_selfcheck 28/28（B2/E2/D2 重锚至 20 实体与 v5 留档/文档工具）、ame359_selfcheck 28/28（E1 迁移链扩 v3→v4→v5→v6、E4 重锚至文档工具）复绿；存量 task139/240 balanced + task248/250 全零 + task191/verify_task219 3339 锚（J 区重锚 3331→3339）+ ame330 JS 冒烟 7 插件 7 行 expected；verify_task139 引用 Task343 已退役旧壳文件为存量基线失败（与本轮无关）。id 变量点访问静态自扫零残留（Task364 CI 三雷预防）。
 - 用户侧预期（装机锚点）：①对 AI 说"写个元素拖拽插件/做个主题插件"→ AI 先调 get_plugin_docs 再产出插件（日志可证两次工具调用链）；普通问答不再携带全量插件 API（token 可感下降）。②对 AI 说"游戏打不开帮我修"→ AI 可 getJITState 查 JIT 卡点、enableJIT 触发内置开启、readLog 读启动器日志定位、setRenderer/setPref 拨正设置、launchGame 一键重走启动链——自修复闭环不再依赖等更新。③v5 默认提示词存量用户随下次启动自动升 v6（日志 `[AiSettings] Task365: v5 default system prompt auto-upgraded to v6`），自定义过的不受影响。④新权限在插件详情页正常展示（四语言名称/描述），jit.write/game.launch 高危默认拒绝需手动开。
 - 诚实声明：①ame.launchGame 复用主页按钮链，无账号时会切账户管理页（与手点启动语义一致，cb 仍回 ok=true"已进入启动流程"）；launchJVM 阻塞至游戏退出的进程内模型不变，"启动成功"以 game.starting 事件为准。②内置 JIT 开启（jit.write）受 iOS 17.4+/配对文件前置约束，unavailable 态只引导不重试——外置方案（StikDebug/SideStore 等）仍需用户在 设置→调试 选定。③文档工具返回约 4.5K 字符，进入会话后随历史携带到会话结束——比"每条消息都带"省，但不为零成本；会话级缓存语义（一次会话拉一次）靠提示词铁律约束而非强制。
+
+---
+## Task 365-ci——CI 闭环补记（首轮双红 → r1/r2/r2b 三热修 → 双绿 05154eb6）
+- 首轮（4b37c026）run dev 41167536764 / smoke 41167538237 双红：smoke 编译实锤 `@interface ZL2HomeViewController (Ame365Bridge)` cannot find interface declaration——类别声明不前置声明未知类。r1（c964acfb）补 @class 前置。
+- r2 轮（c964acfb）smoke 41168291941 仍红：@class 前置不满足类别定义前提（cannot define category for undefined class + receiver type forward declaration 两连）——r2（0e4f3ab4）正解 = 导入 ZL2HomeViewController.h（纯 UIKit import 无环，launchButtonTapped 仍 .m 私有类别声明照旧）；smoke 随即转绿。
+- dev 轮（0e4f3ab4）run 41168821938 链接红：`_OBJC_CLASS_$_AiPluginDocsTool` undefined——构建双轨不同步（smoke xcodebuild 走 Natives 目录引用自动 glob；dev 走 Natives/CMakeLists.txt 显式源清单），新 .m 漏登清单。r2b（05154eb6）AI/AiPluginDocsTool.m 入列 CMakeLists。
+- 终轮 run dev 41169800582 / smoke 41169801890（05154eb6）双绿一轮终。产物 222.4MB×2 + dSYM 7.1MB 按构建号归档 download/（*_05154eb6.ipa/.tipa + AngelAuraAmethyst.dSYM_05154eb6.zip）。
+- 判例沉淀：①跨类消费私有方法 = 导入真实头（@class 只够消息发送声明不够类别定义）；②本仓新 .m 必须同时落 xcodebuild glob 与 CMakeLists 清单双轨（首轮 smoke 红=编译雷、dev 红=链接雷，两闸各拦一面）。
