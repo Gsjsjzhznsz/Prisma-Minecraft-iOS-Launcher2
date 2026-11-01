@@ -391,14 +391,14 @@ static UIImage *ZL2V13SystemImage(NSString *name, NSString *fallback) {
     _railItems = [NSMutableArray array];
     // (标题, SF 主名, SF 兜底)：ZL2 settingItems 图标语义映射 SF1.x 可用族
     NSArray<NSArray<NSString *> *> *defs = @[
-        @[@"概览",   @"square.grid.2x2",         @"circle.grid.2x2"],
-        @[@"模组",   @"puzzlepiece.extension",   @"puzzlepiece"],
-        @[@"存档",   @"globe",                   @"circle"],
-        @[@"资源包", @"paintbrush",              @"circle"],
-        @[@"光影",   @"lightbulb",               @"circle"],
-        @[@"截图",   @"photo.on.rectangle",      @"photo"],
-        @[@"服务器", @"dns",                     @"network"],
-        @[@"配置",   @"slider.horizontal.3",     @"gearshape"],
+        @[localize(@"ame369.vdet.overview", @"概览"),   @"square.grid.2x2",         @"circle.grid.2x2"],
+        @[localize(@"ame369.common.mods", @"模组"),   @"puzzlepiece.extension",   @"puzzlepiece"],
+        @[localize(@"ame369.common.worlds", @"存档"),   @"globe",                   @"circle"],
+        @[localize(@"ame369.common.resource_packs", @"资源包"), @"paintbrush",              @"circle"],
+        @[localize(@"ame369.common.shaders", @"光影"),   @"lightbulb",               @"circle"],
+        @[localize(@"ame369.vdet.screenshots", @"截图"),   @"photo.on.rectangle",      @"photo"],
+        @[localize(@"ame369.common.servers", @"服务器"), @"dns",                     @"network"],
+        @[localize(@"ame369.vdet.config", @"配置"),   @"slider.horizontal.3",     @"gearshape"],
     ];
     // division 位（ZL2 VersionSettingsScreen.kt L159-168：模组 / 服务器前）
     NSArray<NSNumber *> *divisionMarks = @[@1, @6];

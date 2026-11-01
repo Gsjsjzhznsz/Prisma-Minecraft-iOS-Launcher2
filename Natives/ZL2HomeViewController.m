@@ -245,7 +245,7 @@ static UIImage *ZL2HomeSizedImage(NSString *name, NSString *fallback, CGFloat po
 
         _playLabel = [[UILabel alloc] init];
         // 常量文案先落位再测宽（小钮宽度 = 内容宽的测量依据）
-        _playLabel.text = @"启动";
+        _playLabel.text = localize(@"ame369.home.play", @"启动");
         _playLabel.font = [ZL2Theme fontLabelMedium];
         _playLabel.textColor = [ZL2Theme primary];
         _playLabel.numberOfLines = 1;
@@ -335,7 +335,7 @@ static UIImage *ZL2HomeSizedImage(NSString *name, NSString *fallback, CGFloat po
         if (versionId.length == 0) {
             self.infoLabel.text = localize(@"ame351.instance.no_version", nil);
         } else {
-            self.infoLabel.text = @"该版本无效";
+            self.infoLabel.text = localize(@"ame369.common.invalid_version", @"该版本无效");
         }
         self.infoLabel.textColor = [ZL2Theme error];
     } else {
@@ -370,9 +370,9 @@ static UIImage *ZL2HomeSizedImage(NSString *name, NSString *fallback, CGFloat po
     self.cardBody.layer.borderWidth = isSelected ? 2 : 0;
     self.cardBody.layer.borderColor = [ZL2Theme primaryContainer].CGColor;
 
-    self.cardBody.accessibilityLabel = [NSString stringWithFormat:@"实例 %@，%@",
-                                        profileName, isSelected ? @"当前实例" : @"点按选用"];
-    self.playButton.accessibilityLabel = [NSString stringWithFormat:@"启动 %@",
+    self.cardBody.accessibilityLabel = [NSString stringWithFormat:localize(@"ame369.common.instance_a11y_fmt", @"实例 %@，%@"),
+                                        profileName, isSelected ? localize(@"ame369.home.current_instance", @"当前实例") : localize(@"ame369.home.tap_to_select", @"点按选用")];
+    self.playButton.accessibilityLabel = [NSString stringWithFormat:localize(@"ame369.home.launch_fmt", @"启动 %@"),
                                           profileName];
 }
 
@@ -635,7 +635,7 @@ static UIImage *ZL2HomeSizedImage(NSString *name, NSString *fallback, CGFloat po
     // 刷新小图标（arrow.clockwise，SF1.0）：重拉 PLProfiles 注册表并刷新
     _versionRefreshButton = [self ame_iconButtonWithSymbol:@"arrow.clockwise"
                                                   fallback:@"sync"
-                                                    a11y:@"刷新实例列表"];
+                                                    a11y:localize(@"ame369.home.refresh_instances_a11y", @"刷新实例列表")];
     // 刷新/设置小钮的 block 统一 weak self（钮为 VC 属性持有，强捕自环）
     __weak ZL2HomeViewController *weakSelf = self;
     _versionRefreshButton.ame_action = ^{
@@ -646,7 +646,7 @@ static UIImage *ZL2HomeSizedImage(NSString *name, NSString *fallback, CGFloat po
     // 设置小图标（gearshape，iOS14 符号带旧名 fallback）：壳切版本管理页
     _versionSettingsButton = [self ame_iconButtonWithSymbol:@"gearshape"
                                                    fallback:@"gear"
-                                                       a11y:@"版本管理"];
+                                                       a11y:localize(@"ame369.home.version_manager_a11y", @"版本管理")];
     _versionSettingsButton.ame_action = ^{
         [weakSelf versionSettingsTapped];
     };
@@ -759,7 +759,7 @@ static UIImage *ZL2HomeSizedImage(NSString *name, NSString *fallback, CGFloat po
 
     // —— ④ 停靠边提示（ActionMenuDrag 简化语义的可见性说明）——
     _menuHintLabel = [[UILabel alloc] init];
-    _menuHintLabel.text = @"长按菜单可切换停靠边";
+    _menuHintLabel.text = localize(@"ame369.home.menu_dock_hint", @"长按菜单可切换停靠边");
     _menuHintLabel.font = [ZL2Theme fontLabelMedium];
     _menuHintLabel.textColor = [ZL2Theme onSurfaceVariant];
     _menuHintLabel.textAlignment = NSTextAlignmentCenter;
@@ -909,7 +909,7 @@ static UIImage *ZL2HomeSizedImage(NSString *name, NSString *fallback, CGFloat po
     iconView.userInteractionEnabled = NO;
 
     UILabel *label = [[UILabel alloc] init];
-    label.text = @"没有安装版本";
+    label.text = localize(@"ame369.common.no_versions", @"没有安装版本");
     label.font = [ZL2Theme fontBodyMedium];
     label.textColor = [ZL2Theme onSurfaceVariant];
     label.textAlignment = NSTextAlignmentCenter;
@@ -925,7 +925,7 @@ static UIImage *ZL2HomeSizedImage(NSString *name, NSString *fallback, CGFloat po
     downloadButton.accessibilityTraits = UIAccessibilityTraitButton;
 
     UILabel *downloadLabel = [[UILabel alloc] init];
-    downloadLabel.text = @"去下载";
+    downloadLabel.text = localize(@"ame369.home.go_download", @"去下载");
     downloadLabel.font = [ZL2Theme fontLabelLarge];
     downloadLabel.textColor = [ZL2Theme onPrimary];
     downloadLabel.numberOfLines = 1;
@@ -1279,7 +1279,7 @@ static UIImage *ZL2HomeSizedImage(NSString *name, NSString *fallback, CGFloat po
     [sheetStack addArrangedSubview:
         [self ame_sheetRowWithSymbol:@"checkmark.circle"
                              fallback:@"check.circle"
-                                 text:@"设为当前实例"
+                                 text:localize(@"ame369.home.set_current_instance", @"设为当前实例")
                           destructive:NO
                               action:^{
             [ZL2M3BottomSheet dismissWithContentView:sheetStack];
@@ -1290,7 +1290,7 @@ static UIImage *ZL2HomeSizedImage(NSString *name, NSString *fallback, CGFloat po
     [sheetStack addArrangedSubview:
         [self ame_sheetRowWithSymbol:@"info.circle"
                              fallback:nil
-                                 text:@"打开版本详情"
+                                 text:localize(@"ame369.home.open_version_details", @"打开版本详情")
                           destructive:NO
                               action:^{
             [ZL2M3BottomSheet dismissWithContentView:sheetStack];
@@ -1476,7 +1476,7 @@ static UIImage *ZL2HomeSizedImage(NSString *name, NSString *fallback, CGFloat po
     }
     self.accountNameLabel.text = displayName;
     self.accountTypeLabel.text = typeText;
-    self.accountCard.accessibilityLabel = [NSString stringWithFormat:@"账户：%@", displayName];
+    self.accountCard.accessibilityLabel = [NSString stringWithFormat:localize(@"ame369.home.account_a11y_fmt", @"账户：%@"), displayName];
 
     if (authData) {
         __weak ZL2HomeViewController *weakSelf = self;
@@ -1537,7 +1537,7 @@ static UIImage *ZL2HomeSizedImage(NSString *name, NSString *fallback, CGFloat po
             self.versionIconBg.backgroundColor = [ZL2Theme surfaceVariant];
         }
     } else {
-        self.versionNameLabel.text = @"选择版本";
+        self.versionNameLabel.text = localize(@"ame369.home.select_version", @"选择版本");
         self.versionNameLabel.textColor = [ZL2Theme onSurfaceVariant];
         self.versionLoaderLabel.text = @"";
         UIImage *fallbackIcon = ZL2HomeSystemImage(@"gamecontroller.fill", @"gamecontroller");

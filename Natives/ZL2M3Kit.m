@@ -24,6 +24,7 @@
 //
 
 #import "ZL2M3Kit.h"
+#import "utils.h"
 #import "ZL2Theme.h"
 
 #pragma mark - 私有工具
@@ -86,7 +87,7 @@ static UIViewController *ZL2M3TopmostViewController(void) {
     _scrimControl = [[UIControl alloc] init];
     _scrimControl.backgroundColor = [UIColor colorWithWhite:0.0 alpha:0.32];
     _scrimControl.translatesAutoresizingMaskIntoConstraints = NO;
-    _scrimControl.accessibilityLabel = @"关闭";
+    _scrimControl.accessibilityLabel = localize(@"ame369.m3.close_a11y", @"关闭");
     [_scrimControl addTarget:self
                       action:@selector(ame_scrimTapped)
             forControlEvents:UIControlEventTouchUpInside];
@@ -147,7 +148,7 @@ static UIViewController *ZL2M3TopmostViewController(void) {
         _field.autocapitalizationType = UITextAutocapitalizationTypeNone;
         _field.delegate = self;
         _field.translatesAutoresizingMaskIntoConstraints = NO;
-        _field.accessibilityLabel = @"搜索";
+        _field.accessibilityLabel = localize(@"ame369.common.search", @"搜索");
         [_field addTarget:self
                    action:@selector(ame_editingChanged)
          forControlEvents:UIControlEventEditingChanged];
@@ -457,7 +458,7 @@ static __weak ZL2M3OverlayViewController *_ame_currentDialog = nil;
     [_cardView addSubview:bodyLabel];
 
     UIButton *cancelButton = [UIButton buttonWithType:UIButtonTypeSystem];
-    NSString *cancelText = @"取消";
+    NSString *cancelText = localize(@"ame369.common.cancel", @"取消");
     [cancelButton setTitle:cancelText forState:UIControlStateNormal];
     cancelButton.titleLabel.font = [ZL2Theme fontLabelLarge];
     cancelButton.tintColor = [ZL2Theme primary];

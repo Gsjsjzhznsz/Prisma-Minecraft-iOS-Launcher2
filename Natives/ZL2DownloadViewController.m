@@ -190,10 +190,10 @@ static UIImage *ZL2DownloadSystemImage(NSString *name, NSString *fallback) {
 
     // ZL2 TabMenu downloadsList 顺序（divider 前置语义 = 项自带 division 标记）
     // ★ Task323：+数据包（Prisma1 八类对齐）+ 仓库三件（启动器特有仓库并入）
-    NSArray<NSString *> *titles = @[@"游戏", @"整合包", @"模组", @"资源包",
-                                    @"存档", @"光影包", @"数据包",
-                                    @"按ID搜索", @"收藏",
-                                    @"控件仓库", @"手柄仓库", @"插件仓库"];
+    NSArray<NSString *> *titles = @[localize(@"ame369.dl.tab.games", @"游戏"), localize(@"ame369.dl.tab.modpacks", @"整合包"), localize(@"ame369.common.mods", @"模组"), localize(@"ame369.common.resource_packs", @"资源包"),
+                                    localize(@"ame369.common.worlds", @"存档"), localize(@"ame369.common.shaders", @"光影包"), localize(@"ame369.dl.tab.datapacks", @"数据包"),
+                                    localize(@"ame369.dl.tab.search_by_id", @"按ID搜索"), localize(@"ame369.common.favorites", @"收藏"),
+                                    localize(@"ame369.common.control_repo", @"控件仓库"), localize(@"ame369.common.gamepad_repo", @"手柄仓库"), localize(@"ame369.dl.tab.plugin_repo", @"插件仓库")];
     NSArray<NSString *> *symbols = @[@"gamecontroller", @"archivebox", @"puzzlepiece",
                                      @"paintbrush", @"globe", @"lightbulb", @"doc.text",
                                      @"number", @"heart",
@@ -316,33 +316,33 @@ static UIImage *ZL2DownloadSystemImage(NSString *name, NSString *fallback) {
         }
         case 1: {
             vc = [[ZL2AssetSearchViewController alloc] initWithType:ZL2AssetSearchTypeModpack
-                                                              title:@"整合包"];
+                                                              title:localize(@"ame369.dl.tab.modpacks", @"整合包")];
             break;
         }
         case 2: {
             vc = [[ZL2AssetSearchViewController alloc] initWithType:ZL2AssetSearchTypeMod
-                                                              title:@"模组"];
+                                                              title:localize(@"ame369.common.mods", @"模组")];
             break;
         }
         case 3: {
             vc = [[ZL2AssetSearchViewController alloc] initWithType:ZL2AssetSearchTypeResourcePack
-                                                              title:@"资源包"];
+                                                              title:localize(@"ame369.common.resource_packs", @"资源包")];
             break;
         }
         case 4: {
             vc = [[ZL2AssetSearchViewController alloc] initWithType:ZL2AssetSearchTypeWorld
-                                                              title:@"存档"];
+                                                              title:localize(@"ame369.common.worlds", @"存档")];
             break;
         }
         case 5: {
             vc = [[ZL2AssetSearchViewController alloc] initWithType:ZL2AssetSearchTypeShader
-                                                              title:@"光影包"];
+                                                              title:localize(@"ame369.common.shaders", @"光影包")];
             break;
         }
         case 6: {
             // ★ Task323：数据包（Prisma1 八类对齐；详情/下载链 DataPackService 同源）
             vc = [[ZL2AssetSearchViewController alloc] initWithType:ZL2AssetSearchTypeDataPack
-                                                              title:@"数据包"];
+                                                              title:localize(@"ame369.dl.tab.datapacks", @"数据包")];
             break;
         }
         case 7: {
@@ -358,7 +358,7 @@ static UIImage *ZL2DownloadSystemImage(NSString *name, NSString *fallback) {
             // ★ Task323：控件仓库并入下载中心（启动器特有仓库；设置页同源入口
             //   保留零回归）。仓库页自用 navigationItem 按钮链 → 包 nav 宿主。
             ControlRepoViewController *ame323_repo = [[ControlRepoViewController alloc] init];
-            ame323_repo.title = @"控件仓库";
+            ame323_repo.title = localize(@"ame369.common.control_repo", @"控件仓库");
             UINavigationController *ame323_nav =
                 [[UINavigationController alloc] initWithRootViewController:ame323_repo];
             ame323_nav.edgesForExtendedLayout = UIRectEdgeNone;
@@ -369,7 +369,7 @@ static UIImage *ZL2DownloadSystemImage(NSString *name, NSString *fallback) {
             // ★ Task323：手柄仓库（= 控件仓库手柄分类直达，设置页同口径）
             ControlRepoViewController *ame323_repo = [[ControlRepoViewController alloc] init];
             ame323_repo.initialCategoryIndex = 2;
-            ame323_repo.title = @"手柄仓库";
+            ame323_repo.title = localize(@"ame369.common.gamepad_repo", @"手柄仓库");
             UINavigationController *ame323_nav =
                 [[UINavigationController alloc] initWithRootViewController:ame323_repo];
             ame323_nav.edgesForExtendedLayout = UIRectEdgeNone;

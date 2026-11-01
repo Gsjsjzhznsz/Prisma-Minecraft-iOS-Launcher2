@@ -1109,11 +1109,11 @@ static void ame274_archiveCrashReportAfterL2Present(void) {
     if (ame267_pf.length > 0) [ame267_diag appendFormat:@"Problematic frame: %@", ame267_pf];
     if (ame267_blamed.length > 0) {
         if (ame267_diag.length > 0) [ame267_diag appendString:@"\n"];
-        [ame267_diag appendFormat:@"CrashAnalyzer 归因：%@（渲染器层库）", ame267_blamed];
+        [ame267_diag appendFormat:localize(@"ame369.crashv.analyzer_renderer_fmt", @"CrashAnalyzer 归因：%@（渲染器层库）"), ame267_blamed];
     }
     if (ame267_nf.length > 0) {
         if (ame267_diag.length > 0) [ame267_diag appendString:@"\n"];
-        [ame267_diag appendFormat:@"native 帧：%@", ame267_nf];
+        [ame267_diag appendFormat:localize(@"ame369.crashv.native_frames_fmt", @"native 帧：%@"), ame267_nf];
     }
     if (ame267_diag.length == 0) return;   // hs_err 无可融合结论，维持原分类
 
@@ -1550,7 +1550,7 @@ static NSString *ame274_readFileTail(NSString *path, NSUInteger maxBytes) {
             if (self.ame267_hsErr[@"blamedRenderer"] &&
                 [self.ame267_hsErr[@"blamedRenderer"] isKindOfClass:NSString.class] &&
                 [(NSString *)self.ame267_hsErr[@"blamedRenderer"] length] > 0) {
-                reason = [NSString stringWithFormat:@"%@（CrashAnalyzer 归因：%@）",
+                reason = [NSString stringWithFormat:localize(@"ame369.crashv.reason_analyzer_fmt", @"%@（CrashAnalyzer 归因：%@）"),
                           reason, self.ame267_hsErr[@"blamedRenderer"]];
             }
             break;
@@ -1674,7 +1674,7 @@ static NSString *ame274_readFileTail(NSString *path, NSUInteger maxBytes) {
             [out appendFormat:@"%@\n", lines[i]];
         }
     } else {
-        [out appendString:@"(latestlog.txt 为空或不可读)\n"];   // task250 口径：不裸上键名
+        [out appendString:localize(@"ame369.crashv.latestlog_empty", @"(latestlog.txt 为空或不可读)\n")];   // task250 口径：不裸上键名
     }
     // fatal_trace.txt 全量 + 最新 hs_err 头 4KB（与 readLatestLogForAnalysis 同源）
     NSString *extra = [PLCrashView fatalEvidenceText];

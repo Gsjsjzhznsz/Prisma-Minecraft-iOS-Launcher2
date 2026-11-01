@@ -538,7 +538,7 @@ static UIColor *CFKErrorColor(void) {
         // 垃圾并提示；不新增 l10n 键（计数锚点零波及）。
         [PLPreferences setCurseForgeAPIKey:nil];
         [self loadInitialValue];
-        [self setStatusText:@"✗ 占位/无效的 Key 不予保存（留空即可走免 Key 镜像）" success:NO];
+        [self setStatusText:localize(@"ame369.cfkey.bad_key_save", @"✗ 占位/无效的 Key 不予保存（留空即可走免 Key 镜像）") success:NO];
         return;
     } else {
         [PLPreferences setCurseForgeAPIKey:key];
@@ -566,7 +566,7 @@ static UIColor *CFKErrorColor(void) {
     if (key.length > 0 && [CurseForgeAPI isPlaceholderAPIKey:key]) {
         [PLPreferences setCurseForgeAPIKey:nil];
         [self loadInitialValue];
-        [self setStatusText:@"✗ 占位/无效的 Key 不予测试（留空即可走免 Key 镜像）" success:NO];
+        [self setStatusText:localize(@"ame369.cfkey.bad_key_test", @"✗ 占位/无效的 Key 不予测试（留空即可走免 Key 镜像）") success:NO];
         return;
     }
     [PLPreferences setCurseForgeAPIKey:key.length > 0 ? key : nil];

@@ -320,8 +320,8 @@ static NSString *ame_pages_hexFromColor(UIColor *color) {
     ZL2SettingRowList *rendererRow =
         [[ZL2SettingRowList alloc] initWithTitle:@"" subtitle:nil
                                  options:rendererNames optionKeys:rendererKeys];
-    rendererRow.title = @"渲染器（全局默认）";
-    rendererRow.subtitle = @"各实例可在版本设置的实例页单独覆盖";
+    rendererRow.title = localize(@"ame369.setpg.renderer_global.title", @"渲染器（全局默认）");
+    rendererRow.subtitle = localize(@"ame369.setpg.renderer_global.subtitle", @"各实例可在版本设置的实例页单独覆盖");
     [rendererRow ame_reloadSelectedIndex:currentIdx];
     rendererRow.onSelect = ^(NSInteger index) {
         if (index < 0 || (NSUInteger)index >= rendererKeys.count) return;
@@ -335,8 +335,8 @@ static NSString *ame_pages_hexFromColor(UIColor *color) {
     ZL2SettingRowSlider *resolutionRow =
         [[ZL2SettingRowSlider alloc] initWithTitle:@"" subtitle:nil
                                    minimum:25 maximum:150 suffix:@"%"];
-    resolutionRow.title = @"分辨率缩放";
-    resolutionRow.subtitle = @"渲染分辨率百分比（各实例可单独覆盖）";
+    resolutionRow.title = localize(@"ame369.setpg.resolution_scale", @"分辨率缩放");
+    resolutionRow.subtitle = localize(@"ame369.setpg.resolution_scale.subtitle", @"渲染分辨率百分比（各实例可单独覆盖）");
     [resolutionRow ame_setValue:resolution];
     resolutionRow.onValueChanged = ^(NSInteger value) {
         setPrefFloat(@"video.resolution", (float)value);
@@ -348,8 +348,8 @@ static NSString *ame_pages_hexFromColor(UIColor *color) {
     BOOL fullscreenOn = fullscreenRaw ? [fullscreenRaw boolValue] : YES;
     ZL2SettingRowSwitch *fullscreenRow =
         [[ZL2SettingRowSwitch alloc] initWithTitle:@"" subtitle:nil];
-    fullscreenRow.title = @"全屏输出（外接显示器）";
-    fullscreenRow.subtitle = @"连接外接屏幕时以全屏显示游戏画面";
+    fullscreenRow.title = localize(@"ame369.setpg.fullscreen_external", @"全屏输出（外接显示器）");
+    fullscreenRow.subtitle = localize(@"ame369.setpg.fullscreen_external.subtitle", @"连接外接屏幕时以全屏显示游戏画面");
     [fullscreenRow ame_setOn:fullscreenOn];
     fullscreenRow.onToggle = ^(BOOL on) {
         setPrefBool(@"video.fullscreen_airplay", on);
@@ -572,10 +572,10 @@ static NSString *ame_pages_hexFromColor(UIColor *color) {
     ZL2SettingCardGroup *group2 = [[ZL2SettingCardGroup alloc] init];
     ZL2SettingRowAction *moreRow =
         [[ZL2SettingRowAction alloc] initWithTitle:@"" subtitle:nil];
-    moreRow.title = @"更多视频与图形设置";
-    moreRow.subtitle = @"FSR 档位、MobileGlues、音频等完整分区";
+    moreRow.title = localize(@"ame369.setpg.more_video_graphics", @"更多视频与图形设置");
+    moreRow.subtitle = localize(@"ame369.setpg.more_video_graphics.subtitle", @"FSR 档位、MobileGlues、音频等完整分区");
     moreRow.onTap = ^{
-        [weakSelf ame_push:[[LauncherPreferencesViewController alloc] init] titled:@"更多设置"];
+        [weakSelf ame_push:[[LauncherPreferencesViewController alloc] init] titled:localize(@"ame369.common.more_settings", @"更多设置")];
     };
     [group2 ame_addRow:moreRow];
     [self ame_addGroup:group2];
@@ -619,9 +619,9 @@ static NSString *ame_pages_hexFromColor(UIColor *color) {
     ZL2SettingRowSlider *memoryRow =
         [[ZL2SettingRowSlider alloc] initWithTitle:@"" subtitle:nil
                                    minimum:256 maximum:memoryCap suffix:@"MB"];
-    memoryRow.title = @"内存分配";
+    memoryRow.title = localize(@"ame369.common.memory", @"内存分配");
     memoryRow.subtitle = [NSString stringWithFormat:
-        @"当前实例「%@」的 JVM 堆上限（MB）", profileName];
+        localize(@"ame369.setpg.memory_heap_fmt", @"当前实例「%@」的 JVM 堆上限（MB）"), profileName];
     [memoryRow ame_setValue:memory];
     memoryRow.onValueChanged = ^(NSInteger value) {
         // 与 ProfileSettings.saveSettings 同一写路径：实例字典 + save
@@ -643,7 +643,7 @@ static NSString *ame_pages_hexFromColor(UIColor *color) {
     ZL2SettingRowEnum *presetRow =
         [[ZL2SettingRowEnum alloc] initWithTitle:@"" subtitle:nil options:presetNames];
     presetRow.title = localize(@"preference.title.jvm_preset", nil);
-    presetRow.subtitle = @"GC 策略档位（实例覆写 → 全局 → normal）";
+    presetRow.subtitle = localize(@"ame369.setpg.gc_preset.subtitle", @"GC 策略档位（实例覆写 → 全局 → normal）");
     NSString *preset = ame_pages_stringOr(getPrefObject(@"java.jvm_preset"), @"normal");
     [presetRow ame_reloadSelectedIndex:(NSInteger)[presetKeys indexOfObject:preset]];
     presetRow.onSelect = ^(NSInteger index) {
@@ -658,7 +658,7 @@ static NSString *ame_pages_hexFromColor(UIColor *color) {
                               placeholder:@"-XX:+UseZGC …"
                                      text:ame_pages_stringOr(getPrefObject(@"java.jvm_preset_custom_args"), @"")];
     customArgsRow.title = localize(@"preference.title.jvm_preset_custom_args", nil);
-    customArgsRow.subtitle = @"预设选「自定义」时注入";
+    customArgsRow.subtitle = localize(@"ame369.setpg.custom_args.subtitle", @"预设选「自定义」时注入");
     customArgsRow.onTextChanged = ^(NSString *text) {
         setPrefString(@"java.jvm_preset_custom_args", text);
     };
@@ -670,7 +670,7 @@ static NSString *ame_pages_hexFromColor(UIColor *color) {
                               placeholder:nil
                                      text:ame_pages_stringOr(getPrefObject(@"java.java_args"), @"")];
     javaArgsRow.title = localize(@"preference.title.java_args", nil);
-    javaArgsRow.subtitle = @"附加到启动命令（留空使用默认）";
+    javaArgsRow.subtitle = localize(@"ame369.setpg.java_args.subtitle", @"附加到启动命令（留空使用默认）");
     javaArgsRow.onTextChanged = ^(NSString *text) {
         setPrefString(@"java.java_args", text);
     };
@@ -685,8 +685,8 @@ static NSString *ame_pages_hexFromColor(UIColor *color) {
     // 重算应用，LauncherPreferences 既有契约；重启后完全生效）
     ZL2SettingRowSwitch *isolationRow =
         [[ZL2SettingRowSwitch alloc] initWithTitle:@"" subtitle:nil];
-    isolationRow.title = @"版本隔离";
-    isolationRow.subtitle = @"当前游戏目录使用独立偏好集（重启启动器后完全生效）";
+    isolationRow.title = localize(@"ame369.setpg.version_isolation", @"版本隔离");
+    isolationRow.subtitle = localize(@"ame369.setpg.version_isolation.subtitle", @"当前游戏目录使用独立偏好集（重启启动器后完全生效）");
     [isolationRow ame_setOn:getPrefBool(@"internal.isolated")];
     isolationRow.onToggle = ^(BOOL on) {
         [weakSelf ame_writeInstanceIsolation:on];
@@ -781,10 +781,10 @@ static NSString *ame_pages_hexFromColor(UIColor *color) {
     ZL2SettingCardGroup *group3 = [[ZL2SettingCardGroup alloc] init];
     ZL2SettingRowAction *moreRow =
         [[ZL2SettingRowAction alloc] initWithTitle:@"" subtitle:nil];
-    moreRow.title = @"更多游戏设置";
-    moreRow.subtitle = @"Java 版本、环境变量、调试等完整分区";
+    moreRow.title = localize(@"ame369.setpg.more_game", @"更多游戏设置");
+    moreRow.subtitle = localize(@"ame369.setpg.more_game.subtitle", @"Java 版本、环境变量、调试等完整分区");
     moreRow.onTap = ^{
-        [weakSelf ame_push:[[LauncherPreferencesViewController alloc] init] titled:@"更多设置"];
+        [weakSelf ame_push:[[LauncherPreferencesViewController alloc] init] titled:localize(@"ame369.common.more_settings", @"更多设置")];
     };
     [group3 ame_addRow:moreRow];
     [self ame_addGroup:group3];
@@ -845,7 +845,7 @@ static NSString *ame_pages_hexFromColor(UIColor *color) {
         [[ZL2SettingRowList alloc] initWithTitle:@"" subtitle:nil
                                  options:modeNames optionKeys:@[@"0", @"1", @"2"]];
     modeRow.title = localize(@"preference.touchcontroller.mode.title", nil);
-    modeRow.subtitle = @"TouchController 模组与启动器的通信通道";
+    modeRow.subtitle = localize(@"ame369.setpg.tc_channel.subtitle", @"TouchController 模组与启动器的通信通道");
     // 有效态 = mod_touch_enable && mod_touch_mode（旧页同口径）
     BOOL enabled = getPrefBool(@"control.mod_touch_enable");
     NSInteger mode = getPrefInt(@"control.mod_touch_mode");
@@ -911,7 +911,7 @@ static NSString *ame_pages_hexFromColor(UIColor *color) {
     ZL2SettingRowAction *editorRow =
         [[ZL2SettingRowAction alloc] initWithTitle:@"" subtitle:nil];
     editorRow.title = localize(@"preference.title.custom_controls", nil);
-    editorRow.subtitle = @"全屏画布编辑器（添加/拖动/缩放控件）";
+    editorRow.subtitle = localize(@"ame369.setpg.canvas_editor.subtitle", @"全屏画布编辑器（添加/拖动/缩放控件）");
     editorRow.onTap = ^{
         CustomControlsViewController *editor = [[CustomControlsViewController alloc] init];
         UINavigationController *nav = [[UINavigationController alloc] initWithRootViewController:editor];
@@ -1124,10 +1124,10 @@ static NSString *ame_pages_hexFromColor(UIColor *color) {
     ZL2SettingCardGroup *group2 = [[ZL2SettingCardGroup alloc] init];
     ZL2SettingRowAction *fullRow =
         [[ZL2SettingRowAction alloc] initWithTitle:@"" subtitle:nil];
-    fullRow.title = @"完整触控设置";
-    fullRow.subtitle = @"通信模式说明、关于 TouchController";
+    fullRow.title = localize(@"ame369.setpg.full_touch", @"完整触控设置");
+    fullRow.subtitle = localize(@"ame369.setpg.full_touch.subtitle", @"通信模式说明、关于 TouchController");
     fullRow.onTap = ^{
-        [weakSelf ame_push:[[TouchControllerPreferencesViewController alloc] init] titled:@"触控设置"];
+        [weakSelf ame_push:[[TouchControllerPreferencesViewController alloc] init] titled:localize(@"ame369.setpg.touch_settings", @"触控设置")];
     };
     [group2 ame_addRow:fullRow];
     [self ame_addGroup:group2];
@@ -1443,8 +1443,8 @@ didFinishPickingMediaWithInfo:(NSDictionary<UIImagePickerControllerInfoKey,id> *
     ];
     ZL2SettingRowEnum *typeRow =
         [[ZL2SettingRowEnum alloc] initWithTitle:@"" subtitle:nil options:typeNames];
-    typeRow.title = @"手柄类型";
-    typeRow.subtitle = @"面键图标风格；选任天堂即交换 A/B、X/Y 键面（Switch 布局）";
+    typeRow.title = localize(@"ame369.setpg.gamepad_type", @"手柄类型");
+    typeRow.subtitle = localize(@"ame369.setpg.gamepad_type.subtitle", @"面键图标风格；选任天堂即交换 A/B、X/Y 键面（Switch 布局）");
     NSString *type = ame_pages_stringOr(getPrefObject(@"control.controller_type"), @"xbox");
     [typeRow ame_reloadSelectedIndex:(NSInteger)[typeKeys indexOfObject:type]];
     typeRow.onSelect = ^(NSInteger index) {
@@ -1458,7 +1458,7 @@ didFinishPickingMediaWithInfo:(NSDictionary<UIImagePickerControllerInfoKey,id> *
     ZL2SettingRowAction *mappingRow =
         [[ZL2SettingRowAction alloc] initWithTitle:@"" subtitle:nil];
     mappingRow.title = localize(@"preference.title.default_gamepad_ctrl", nil);
-    mappingRow.subtitle = @"编辑当前映射文件（按键 → 键位）";
+    mappingRow.subtitle = localize(@"ame369.setpg.mapping.subtitle", @"编辑当前映射文件（按键 → 键位）");
     mappingRow.onTap = ^{
         [weakSelf ame_push:[[LauncherPrefContCfgViewController alloc] init]
                    titled:localize(@"preference.title.default_gamepad_ctrl", nil)];
@@ -1470,8 +1470,8 @@ didFinishPickingMediaWithInfo:(NSDictionary<UIImagePickerControllerInfoKey,id> *
     ZL2SettingRowSlider *scrollRow =
         [[ZL2SettingRowSlider alloc] initWithTitle:@"" subtitle:nil
                                    minimum:25 maximum:300 suffix:@"%"];
-    scrollRow.title = @"模拟滚轮速度";
-    scrollRow.subtitle = @"滚动按钮/手柄滚轮键的滚动速度（真滚轮不受影响）";
+    scrollRow.title = localize(@"ame369.setpg.scroll_speed", @"模拟滚轮速度");
+    scrollRow.subtitle = localize(@"ame369.setpg.scroll_speed.subtitle", @"滚动按钮/手柄滚轮键的滚动速度（真滚轮不受影响）");
     scrollRow.onValueChanged = ^(NSInteger value) {
         setPrefFloat(@"control.scroll_speed", (float)value);
     };
@@ -1485,10 +1485,10 @@ didFinishPickingMediaWithInfo:(NSDictionary<UIImagePickerControllerInfoKey,id> *
     ZL2SettingCardGroup *group2 = [[ZL2SettingCardGroup alloc] init];
     ZL2SettingRowAction *moreRow =
         [[ZL2SettingRowAction alloc] initWithTitle:@"" subtitle:nil];
-    moreRow.title = @"更多控制与手柄设置";
-    moreRow.subtitle = @"键位调整、自定义鼠标、陀螺仪等完整分区";
+    moreRow.title = localize(@"ame369.setpg.more_control_gamepad", @"更多控制与手柄设置");
+    moreRow.subtitle = localize(@"ame369.setpg.more_control_gamepad.subtitle", @"键位调整、自定义鼠标、陀螺仪等完整分区");
     moreRow.onTap = ^{
-        [weakSelf ame_push:[[LauncherPreferencesViewController alloc] init] titled:@"更多设置"];
+        [weakSelf ame_push:[[LauncherPreferencesViewController alloc] init] titled:localize(@"ame369.common.more_settings", @"更多设置")];
     };
     [group2 ame_addRow:moreRow];
     [self ame_addGroup:group2];
@@ -1553,8 +1553,8 @@ didPickDocumentsAtURLs:(NSArray<NSURL *> *)urls {
     dispatch_async(dispatch_get_global_queue(QOS_CLASS_USER_INITIATED, 0), ^{
         NSString *report = [FileLayoutService ame316_importExternalLauncherFolder:urls[0] error:nil];
         dispatch_async(dispatch_get_main_queue(), ^{
-            NSString *body = report ?: @"导入失败：无法读取所选文件夹（安全作用域被拒或路径无效）。";
-            [ZL2M3Dialog showTitle:@"导入结果"
+            NSString *body = report ?: localize(@"ame369.setpg.import_failed_body", @"导入失败：无法读取所选文件夹（安全作用域被拒或路径无效）。");
+            [ZL2M3Dialog showTitle:localize(@"ame369.setpg.import_result", @"导入结果")
                               body:body
                       confirmTitle:localize(@"OK", nil)
                        destructive:NO
@@ -1642,7 +1642,7 @@ didPickDocumentsAtURLs:(NSArray<NSURL *> *)urls {
         [[ZL2SettingRowList alloc] initWithTitle:@"" subtitle:nil
                                  options:langNames optionKeys:langCodes];
     languageRow.title = localize(@"i18n_str_2068", nil);
-    languageRow.subtitle = @"切换后界面立即重载（未翻译语言回退并标记）";
+    languageRow.subtitle = localize(@"ame369.setpg.language.subtitle", @"切换后界面立即重载（未翻译语言回退并标记）");
     NSString *language = ame_pages_stringOr(getPrefObject(@"general.app_language"), @"system");
     [languageRow ame_reloadSelectedIndex:(NSInteger)[langCodes indexOfObject:language]];
     languageRow.onSelect = ^(NSInteger index) {
@@ -1663,7 +1663,7 @@ didPickDocumentsAtURLs:(NSArray<NSURL *> *)urls {
         [[ZL2SettingRowList alloc] initWithTitle:@"" subtitle:nil
                                  options:effectNames
                               optionKeys:@[@"blur", @"translucent"]];
-    effectRow.title = @"界面效果";
+    effectRow.title = localize(@"ame369.setpg.interface_effects", @"界面效果");
     effectRow.subtitle = localize(@"background.effect.footer", nil);
     [effectRow ame_reloadSelectedIndex:(bg.uiEffect == BackgroundUIEffectBlur ? 0 : 1)];
     effectRow.onSelect = ^(NSInteger index) {
@@ -1678,7 +1678,7 @@ didPickDocumentsAtURLs:(NSArray<NSURL *> *)urls {
     ZL2SettingRowSlider *opacityRow =
         [[ZL2SettingRowSlider alloc] initWithTitle:@"" subtitle:nil
                                    minimum:10 maximum:100 suffix:@"%"];
-    opacityRow.title = @"背景不透明度";
+    opacityRow.title = localize(@"ame369.setpg.bg_opacity", @"背景不透明度");
     [opacityRow ame_setValue:(NSInteger)round(bg.uiOpacity * 100.0)];
     opacityRow.onValueChanged = ^(NSInteger value) {
         [BackgroundManager sharedManager].uiOpacity = value / 100.0;
@@ -1690,7 +1690,7 @@ didPickDocumentsAtURLs:(NSArray<NSURL *> *)urls {
     ZL2SettingRowSlider *blurRow =
         [[ZL2SettingRowSlider alloc] initWithTitle:@"" subtitle:nil
                                    minimum:0 maximum:100 suffix:@"%"];
-    blurRow.title = @"背景模糊强度";
+    blurRow.title = localize(@"ame369.setpg.bg_blur", @"背景模糊强度");
     [blurRow ame_setValue:(NSInteger)round(bg.blurIntensity * 100.0)];
     blurRow.onValueChanged = ^(NSInteger value) {
         // setter 内部落 Task256 blurUserSet 标记（模糊=0 为真实意图）
@@ -1799,7 +1799,7 @@ didPickDocumentsAtURLs:(NSArray<NSURL *> *)urls {
     ZL2SettingRowAction *resetColorsRow =
         [[ZL2SettingRowAction alloc] initWithTitle:@"" subtitle:nil];
     resetColorsRow.title = localize(@"i18n_str_386", nil);
-    resetColorsRow.subtitle = @"恢复强调色/文字色/卡片色出厂默认";
+    resetColorsRow.subtitle = localize(@"ame369.setpg.reset_colors.subtitle", @"恢复强调色/文字色/卡片色出厂默认");
     resetColorsRow.onTap = ^{
         setPrefObject(@"general.accent_color", @"");
         setPrefObject(@"general.text_color", @"");
@@ -1850,11 +1850,11 @@ didPickDocumentsAtURLs:(NSArray<NSURL *> *)urls {
         localize(@"preference.title.mirror_policy-speed_first", nil),
     ];
     NSDictionary<NSString *, NSString *> *sourceTitles = @{
-        @"download.mod_mirror":           @"模组镜像源",
-        @"download.fileSource":          @"文件下载源",
-        @"download.assetSearchSource":   @"资源搜索源",
-        @"download.assetDownloadSource": @"资源下载源",
-        @"download.modLoaderSource":     @"加载器下载源",
+        @"download.mod_mirror":           localize(@"ame369.setpg.src.mod_mirror", @"模组镜像源"),
+        @"download.fileSource":          localize(@"ame369.setpg.src.file", @"文件下载源"),
+        @"download.assetSearchSource":   localize(@"ame369.setpg.src.asset_search", @"资源搜索源"),
+        @"download.assetDownloadSource": localize(@"ame369.setpg.src.asset_download", @"资源下载源"),
+        @"download.modLoaderSource":     localize(@"ame369.setpg.src.modloader", @"加载器下载源"),
     };
     NSMutableArray<ZL2SettingRowList *> *sourceRows = [NSMutableArray array];
     NSMutableArray<NSString *> *sourceRowKeys = [NSMutableArray array];
@@ -1987,7 +1987,7 @@ didPickDocumentsAtURLs:(NSArray<NSURL *> *)urls {
     ZL2SettingRowAction *eraseDemoRow =
         [[ZL2SettingRowAction alloc] initWithTitle:@"" subtitle:nil];
     eraseDemoRow.title = localize(@"preference.title.erase_demo_data", nil);
-    eraseDemoRow.subtitle = @"删除内置演示账户的全部游戏数据";
+    eraseDemoRow.subtitle = localize(@"ame369.setpg.erase_demo.subtitle", @"删除内置演示账户的全部游戏数据");
     eraseDemoRow.errorState = YES;
     eraseDemoRow.onTap = ^{
         NSString *demoPath = [NSString stringWithFormat:@"%s/.demo", getenv("POJAV_HOME")];
@@ -2011,14 +2011,14 @@ didPickDocumentsAtURLs:(NSArray<NSURL *> *)urls {
     ZL2SettingRowAction *resetWarnRow =
         [[ZL2SettingRowAction alloc] initWithTitle:@"" subtitle:nil];
     resetWarnRow.title = localize(@"preference.title.reset_warnings", nil);
-    resetWarnRow.subtitle = @"重新显示此前永久关闭的安全提示";
+    resetWarnRow.subtitle = localize(@"ame369.setpg.reset_warnings.subtitle", @"重新显示此前永久关闭的安全提示");
     resetWarnRow.onTap = ^{
         resetWarnings();
     };
     ZL2SettingRowAction *resetSetRow =
         [[ZL2SettingRowAction alloc] initWithTitle:@"" subtitle:nil];
     resetSetRow.title = localize(@"preference.title.reset_settings", nil);
-    resetSetRow.subtitle = @"所有自定义首选项恢复出厂";
+    resetSetRow.subtitle = localize(@"ame369.setpg.reset_prefs.subtitle", @"所有自定义首选项恢复出厂");
     resetSetRow.errorState = YES;
     resetSetRow.onTap = ^{
         [ZL2M3Dialog showTitle:localize(@"preference.title.reset_settings", nil)
@@ -2038,37 +2038,37 @@ didPickDocumentsAtURLs:(NSArray<NSURL *> *)urls {
     ZL2SettingCardGroup *group3 = [[ZL2SettingCardGroup alloc] init];
     ZL2SettingRowAction *backgroundRow =
         [[ZL2SettingRowAction alloc] initWithTitle:@"" subtitle:nil];
-    backgroundRow.title = @"背景设置";
+    backgroundRow.title = localize(@"ame369.setpg.background", @"背景设置");
     backgroundRow.onTap = ^{
-        [weakSelf ame_push:[[BackgroundSettingsViewController alloc] init] titled:@"背景设置"];
+        [weakSelf ame_push:[[BackgroundSettingsViewController alloc] init] titled:localize(@"ame369.setpg.background", @"背景设置")];
     };
     ZL2SettingRowAction *galleryRow =
         [[ZL2SettingRowAction alloc] initWithTitle:@"" subtitle:nil];
-    galleryRow.title = @"壁纸画廊";
+    galleryRow.title = localize(@"ame369.setpg.wallpaper_gallery", @"壁纸画廊");
     galleryRow.onTap = ^{
         // 工厂方法返回按设备宽度预配置网格布局的 UICollectionViewController
-        [weakSelf ame_push:[BingWallpaperGalleryViewController galleryController] titled:@"壁纸画廊"];
+        [weakSelf ame_push:[BingWallpaperGalleryViewController galleryController] titled:localize(@"ame369.setpg.wallpaper_gallery", @"壁纸画廊")];
     };
     ZL2SettingRowAction *moreRow =
         [[ZL2SettingRowAction alloc] initWithTitle:@"" subtitle:nil];
-    moreRow.title = @"更多启动器设置";
-    moreRow.subtitle = @"界面缩放、强调色、公告、数据导出等完整分区";
+    moreRow.title = localize(@"ame369.setpg.more_launcher", @"更多启动器设置");
+    moreRow.subtitle = localize(@"ame369.setpg.more_launcher.subtitle", @"界面缩放、强调色、公告、数据导出等完整分区");
     moreRow.onTap = ^{
-        [weakSelf ame_push:[[LauncherPreferencesViewController alloc] init] titled:@"更多设置"];
+        [weakSelf ame_push:[[LauncherPreferencesViewController alloc] init] titled:localize(@"ame369.common.more_settings", @"更多设置")];
     };
     // Task316（文件层桌面/安卓同构）：游戏目录/实例切换入口 + 跨启动器导入
     ZL2SettingRowAction *gameDirRow =
         [[ZL2SettingRowAction alloc] initWithTitle:@"" subtitle:nil];
-    gameDirRow.title = @"游戏目录与实例";
-    gameDirRow.subtitle = @"查看/切换实例目录（instances），切换后重启生效";
+    gameDirRow.title = localize(@"ame369.setpg.gamedir_instances", @"游戏目录与实例");
+    gameDirRow.subtitle = localize(@"ame369.setpg.gamedir_instances.subtitle", @"查看/切换实例目录（instances），切换后重启生效");
     gameDirRow.onTap = ^{
         [weakSelf ame_push:[[LauncherPrefGameDirViewController alloc] init]
                    titled:localize(@"preference.title.game_directory", nil)];
     };
     ZL2SettingRowAction *importRow =
         [[ZL2SettingRowAction alloc] initWithTitle:@"" subtitle:nil];
-    importRow.title = @"导入外部启动器数据";
-    importRow.subtitle = @"识别 .minecraft / HMCL·PCL / MultiMC·Prism / 安卓启动器目录，合入当前实例";
+    importRow.title = localize(@"ame369.setpg.import_external", @"导入外部启动器数据");
+    importRow.subtitle = localize(@"ame369.setpg.import_external.subtitle", @"识别 .minecraft / HMCL·PCL / MultiMC·Prism / 安卓启动器目录，合入当前实例");
     importRow.onTap = ^{
         [weakSelf ame316_pickExternalFolder];
     };
@@ -2327,7 +2327,7 @@ didPickDocumentsAtURLs:(NSArray<NSURL *> *)urls {
             [[ZL2SettingRowList alloc] initWithTitle:@"" subtitle:nil
                                      options:optionNames optionKeys:optionKeys];
         row.title = tagDef[@"title"];
-        row.subtitle = @"未安装匹配运行时时启动链自动回退";
+        row.subtitle = localize(@"ame369.setpg.runtime_fallback.subtitle", @"未安装匹配运行时时启动链自动回退");
         NSString *picked = defaultPicks[tag];
         [row ame_reloadSelectedIndex:
             picked ? (NSInteger)[optionKeys indexOfObject:picked] : 0];
@@ -2356,20 +2356,20 @@ didPickDocumentsAtURLs:(NSArray<NSURL *> *)urls {
         // 空态明确显示（不造假列表）
         ZL2SettingRowAction *emptyRow =
             [[ZL2SettingRowAction alloc] initWithTitle:@"" subtitle:nil];
-        emptyRow.title = @"未发现已安装的 Java 运行时";
-        emptyRow.subtitle = @"内置运行时随启动器分发；可用「完整 Java 管理」导入";
+        emptyRow.title = localize(@"ame369.setpg.no_runtime", @"未发现已安装的 Java 运行时");
+        emptyRow.subtitle = localize(@"ame369.setpg.no_runtime.subtitle", @"内置运行时随启动器分发；可用「完整 Java 管理」导入");
         [group2 ame_addRow:emptyRow];
     } else {
         for (NSDictionary *runtime in runtimes) {
             NSString *title = [runtime[@"internal"] boolValue]
-                ? [NSString stringWithFormat:@"%@（内置）", runtime[@"name"]]
+                ? [NSString stringWithFormat:localize(@"ame369.common.builtin_fmt", @"%@（内置）"), runtime[@"name"]]
                 : runtime[@"name"];
             ZL2SettingRowAction *row =
                 [[ZL2SettingRowAction alloc] initWithTitle:@"" subtitle:nil];
             row.title = title;
             row.subtitle = [NSString stringWithFormat:@"Java %@ · %@",
                                 runtime[@"version"],
-                                [runtime[@"internal"] boolValue] ? @"内置" : @"外部安装"];
+                                [runtime[@"internal"] boolValue] ? localize(@"ame369.common.builtin", @"内置") : localize(@"ame369.common.external", @"外部安装")];
             [group2 ame_addRow:row];
         }
     }
@@ -2380,14 +2380,14 @@ didPickDocumentsAtURLs:(NSArray<NSURL *> *)urls {
     ZL2SettingRowAction *runJarRow =
         [[ZL2SettingRowAction alloc] initWithTitle:@"" subtitle:nil];
     runJarRow.title = localize(@"launcher.menu.execute_jar", nil);
-    runJarRow.subtitle = @"选择 Jar 后经守卫链全屏运行";
+    runJarRow.subtitle = localize(@"ame369.setpg.run_jar.subtitle", @"选择 Jar 后经守卫链全屏运行");
     runJarRow.onTap = ^{
         [weakSelf ame_pickJarFile];
     };
     ZL2SettingRowAction *manageRow =
         [[ZL2SettingRowAction alloc] initWithTitle:@"" subtitle:nil];
-    manageRow.title = @"完整 Java 管理";
-    manageRow.subtitle = @"导入 / 删除运行时、调整分区预选";
+    manageRow.title = localize(@"ame369.setpg.java_manager", @"完整 Java 管理");
+    manageRow.subtitle = localize(@"ame369.setpg.java_manager.subtitle", @"导入 / 删除运行时、调整分区预选");
     manageRow.onTap = ^{
         [weakSelf ame_push:[[LauncherPrefManageJREViewController alloc] init]
                    titled:localize(@"preference.title.manage_runtime", nil)];
@@ -2532,16 +2532,16 @@ didPickDocumentsAtURLs:(NSArray<NSURL *> *)urls {
         // 空态明确显示（controlmap 目录缺失/为空）
         ZL2SettingRowAction *emptyRow =
             [[ZL2SettingRowAction alloc] initWithTitle:@"" subtitle:nil];
-        emptyRow.title = @"未找到控制布局文件";
-        emptyRow.subtitle = @"可从「控件仓库」下载，或用「键位调整」创建";
+        emptyRow.title = localize(@"ame369.setpg.no_control_layout", @"未找到控制布局文件");
+        emptyRow.subtitle = localize(@"ame369.setpg.no_control_layout.subtitle", @"可从「控件仓库」下载，或用「键位调整」创建");
         [group1 ame_addRow:emptyRow];
     } else {
         NSString *current = ame_pages_stringOr(getPrefObject(@"control.default_ctrl"), @"custom.json");
         ZL2SettingRowList *layoutRow =
             [[ZL2SettingRowList alloc] initWithTitle:@"" subtitle:nil
                                      options:layouts optionKeys:layouts];
-        layoutRow.title = @"当前布局";
-        layoutRow.subtitle = @"游戏内屏幕控件布局（controlmap 目录）";
+        layoutRow.title = localize(@"ame369.setpg.current_layout", @"当前布局");
+        layoutRow.subtitle = localize(@"ame369.setpg.current_layout.subtitle", @"游戏内屏幕控件布局（controlmap 目录）");
         NSInteger idx = (NSInteger)[layouts indexOfObject:current];
         [layoutRow ame_reloadSelectedIndex:(idx >= 0 ? idx : 0)];
         layoutRow.onSelect = ^(NSInteger index) {
@@ -2560,8 +2560,8 @@ didPickDocumentsAtURLs:(NSArray<NSURL *> *)urls {
     if (gamepads.count == 0) {
         ZL2SettingRowAction *gpEmptyRow =
             [[ZL2SettingRowAction alloc] initWithTitle:@"" subtitle:nil];
-        gpEmptyRow.title = @"未找到手柄映射文件";
-        gpEmptyRow.subtitle = @"可从「手柄仓库」下载（内建默认同源备份）";
+        gpEmptyRow.title = localize(@"ame369.setpg.no_gamepad_map", @"未找到手柄映射文件");
+        gpEmptyRow.subtitle = localize(@"ame369.setpg.no_gamepad_map.subtitle", @"可从「手柄仓库」下载（内建默认同源备份）");
         gpEmptyRow.onTap = ^{
             ControlRepoViewController *repo = [[ControlRepoViewController alloc] init];
             repo.initialCategoryIndex = 2;  // 直达手柄分类
@@ -2573,8 +2573,8 @@ didPickDocumentsAtURLs:(NSArray<NSURL *> *)urls {
         ZL2SettingRowList *gpRow =
             [[ZL2SettingRowList alloc] initWithTitle:@"" subtitle:nil
                                      options:gamepads optionKeys:gamepads];
-        gpRow.title = @"当前手柄映射";
-        gpRow.subtitle = @"手柄键码映射（controlmap/gamepads 目录）";
+        gpRow.title = localize(@"ame369.setpg.current_gamepad_map", @"当前手柄映射");
+        gpRow.subtitle = localize(@"ame369.setpg.current_gamepad_map.subtitle", @"手柄键码映射（controlmap/gamepads 目录）");
         NSInteger gpIdx = currentGp ? (NSInteger)[gamepads indexOfObject:currentGp] : -1;
         [gpRow ame_reloadSelectedIndex:(gpIdx >= 0 ? gpIdx : 0)];
         gpRow.onSelect = ^(NSInteger index) {
@@ -2585,8 +2585,8 @@ didPickDocumentsAtURLs:(NSArray<NSURL *> *)urls {
     }
     ZL2SettingRowAction *gpRepoRow =
         [[ZL2SettingRowAction alloc] initWithTitle:@"" subtitle:nil];
-    gpRepoRow.title = @"手柄仓库";
-    gpRepoRow.subtitle = @"官方精选/社区手柄映射下载（装完即用）";
+    gpRepoRow.title = localize(@"ame369.common.gamepad_repo", @"手柄仓库");
+    gpRepoRow.subtitle = localize(@"ame369.common.gamepad_repo.subtitle", @"官方精选/社区手柄映射下载（装完即用）");
     gpRepoRow.onTap = ^{
         ControlRepoViewController *repo = [[ControlRepoViewController alloc] init];
         repo.initialCategoryIndex = 2;  // 直达手柄分类
@@ -2600,7 +2600,7 @@ didPickDocumentsAtURLs:(NSArray<NSURL *> *)urls {
     ZL2SettingRowAction *editorRow =
         [[ZL2SettingRowAction alloc] initWithTitle:@"" subtitle:nil];
     editorRow.title = localize(@"preference.title.custom_controls", nil);
-    editorRow.subtitle = @"全屏画布编辑器（添加/拖动/缩放控件）";
+    editorRow.subtitle = localize(@"ame369.setpg.canvas_editor.subtitle", @"全屏画布编辑器（添加/拖动/缩放控件）");
     editorRow.onTap = ^{
         // 旧设置页 openChildPaneAtIndexPath custom_controls 同款：nav 模态
         //（画布编辑器专用，非 push；页内自带关闭钮）
@@ -2611,18 +2611,18 @@ didPickDocumentsAtURLs:(NSArray<NSURL *> *)urls {
     };
     ZL2SettingRowAction *repoRow =
         [[ZL2SettingRowAction alloc] initWithTitle:@"" subtitle:nil];
-    repoRow.title = @"控件仓库";
-    repoRow.subtitle = @"浏览与下载社区控制布局";
+    repoRow.title = localize(@"ame369.common.control_repo", @"控件仓库");
+    repoRow.subtitle = localize(@"ame369.common.control_repo.subtitle", @"浏览与下载社区控制布局");
     repoRow.onTap = ^{
-        [weakSelf ame_push:[[ControlRepoViewController alloc] init] titled:@"控件仓库"];
+        [weakSelf ame_push:[[ControlRepoViewController alloc] init] titled:localize(@"ame369.common.control_repo", @"控件仓库")];
     };
     ZL2SettingRowAction *resetRow =
         [[ZL2SettingRowAction alloc] initWithTitle:@"" subtitle:nil];
-    resetRow.title = @"恢复默认布局";
-    resetRow.subtitle = @"写回出厂布局 custom.json（Task77 口径）";
+    resetRow.title = localize(@"ame369.setpg.reset_layout", @"恢复默认布局");
+    resetRow.subtitle = localize(@"ame369.setpg.reset_layout.subtitle", @"写回出厂布局 custom.json（Task77 口径）");
     resetRow.onTap = ^{
-        [ZL2M3Dialog showTitle:@"恢复默认布局"
-                          body:@"将当前控制布局重置为出厂布局 custom.json，下次进入游戏生效。"
+        [ZL2M3Dialog showTitle:localize(@"ame369.setpg.reset_layout", @"恢复默认布局")
+                          body:localize(@"ame369.setpg.reset_layout.body", @"将当前控制布局重置为出厂布局 custom.json，下次进入游戏生效。")
                   confirmTitle:localize(@"OK", nil)
                    destructive:YES
                     onConfirm:^{
@@ -2637,10 +2637,10 @@ didPickDocumentsAtURLs:(NSArray<NSURL *> *)urls {
     ZL2SettingCardGroup *group3 = [[ZL2SettingCardGroup alloc] init];
     ZL2SettingRowAction *moreRow =
         [[ZL2SettingRowAction alloc] initWithTitle:@"" subtitle:nil];
-    moreRow.title = @"更多控制设置";
-    moreRow.subtitle = @"手柄配置、虚拟鼠标、陀螺仪等完整分区";
+    moreRow.title = localize(@"ame369.setpg.more_control", @"更多控制设置");
+    moreRow.subtitle = localize(@"ame369.setpg.more_control.subtitle", @"手柄配置、虚拟鼠标、陀螺仪等完整分区");
     moreRow.onTap = ^{
-        [weakSelf ame_push:[[LauncherPreferencesViewController alloc] init] titled:@"更多设置"];
+        [weakSelf ame_push:[[LauncherPreferencesViewController alloc] init] titled:localize(@"ame369.common.more_settings", @"更多设置")];
     };
     [group3 ame_addRow:moreRow];
     [self ame_addGroup:group3];
@@ -2701,11 +2701,11 @@ didPickDocumentsAtURLs:(NSArray<NSURL *> *)urls {
     NSString *build = [NSBundle.mainBundle objectForInfoDictionaryKey:@"CFBundleVersion"] ?: version;
     ZL2SettingRowAction *versionRow =
         [[ZL2SettingRowAction alloc] initWithTitle:@"" subtitle:nil];
-    versionRow.title = @"版本号";
+    versionRow.title = localize(@"ame369.setpg.version_no", @"版本号");
     versionRow.detailText = version;
     ZL2SettingRowAction *buildRow =
         [[ZL2SettingRowAction alloc] initWithTitle:@"" subtitle:nil];
-    buildRow.title = @"构建号";
+    buildRow.title = localize(@"ame369.setpg.build_no", @"构建号");
     buildRow.detailText = build;
 
     // 启动时自动检查更新（general.auto_update_check；Task125 语义）
@@ -2722,7 +2722,7 @@ didPickDocumentsAtURLs:(NSArray<NSURL *> *)urls {
     ZL2SettingRowAction *checkRow =
         [[ZL2SettingRowAction alloc] initWithTitle:@"" subtitle:nil];
     checkRow.title = localize(@"preference.title.check_update", nil);
-    checkRow.subtitle = @"GitHub Releases 正式版检查";
+    checkRow.subtitle = localize(@"ame369.setpg.gh_check.subtitle", @"GitHub Releases 正式版检查");
     checkRow.onTap = ^{
         [weakSelf ame_checkForUpdate];
     };
@@ -2734,7 +2734,7 @@ didPickDocumentsAtURLs:(NSArray<NSURL *> *)urls {
     ZL2SettingCardGroup *group2 = [[ZL2SettingCardGroup alloc] init];
     ZL2SettingRowAction *projectRow =
         [[ZL2SettingRowAction alloc] initWithTitle:@"" subtitle:nil];
-    projectRow.title = @"项目主页";
+    projectRow.title = localize(@"ame369.setpg.project_home", @"项目主页");
     projectRow.subtitle = @"https://github.com/Gsjsjzhznsz/Prisma-Minecraft-iOS-Launcher";
     projectRow.onTap = ^{
         [weakSelf ame_openURL:[NSURL URLWithString:
@@ -2751,8 +2751,8 @@ didPickDocumentsAtURLs:(NSArray<NSURL *> *)urls {
     };
     ZL2SettingRowAction *moreRow =
         [[ZL2SettingRowAction alloc] initWithTitle:@"" subtitle:nil];
-    moreRow.title = @"更多关于信息";
-    moreRow.subtitle = @"致谢、许可证、支持我们";
+    moreRow.title = localize(@"ame369.setpg.more_about", @"更多关于信息");
+    moreRow.subtitle = localize(@"ame369.setpg.more_about.subtitle", @"致谢、许可证、支持我们");
     moreRow.onTap = ^{
         [weakSelf ame_push:[[AboutViewController alloc] init]
                    titled:localize(@"about.nav_title", nil)];
@@ -2853,7 +2853,7 @@ didPickDocumentsAtURLs:(NSArray<NSURL *> *)urls {
     ZL2SettingRowAction *providerRow =
         [[ZL2SettingRowAction alloc] initWithTitle:@"" subtitle:nil];
     providerRow.title = localize(@"preference.title.provider_config", nil);
-    providerRow.subtitle = @"配置 API 地址与密钥（OpenAI 兼容协议）";
+    providerRow.subtitle = localize(@"ame369.setpg.ai_provider.subtitle", @"配置 API 地址与密钥（OpenAI 兼容协议）");
     providerRow.onTap = ^{
         AIProviderConfigViewController *vc = [[AIProviderConfigViewController alloc] init];
         UINavigationController *nav = [[UINavigationController alloc] initWithRootViewController:vc];
@@ -2863,7 +2863,7 @@ didPickDocumentsAtURLs:(NSArray<NSURL *> *)urls {
     ZL2SettingRowAction *sessionRow =
         [[ZL2SettingRowAction alloc] initWithTitle:@"" subtitle:nil];
     sessionRow.title = localize(@"preference.title.session_list", nil);
-    sessionRow.subtitle = @"查看与继续历史 AI 对话";
+    sessionRow.subtitle = localize(@"ame369.setpg.ai_sessions.subtitle", @"查看与继续历史 AI 对话");
     sessionRow.onTap = ^{
         AISessionListViewController *vc = [[AISessionListViewController alloc] init];
         UINavigationController *nav = [[UINavigationController alloc] initWithRootViewController:vc];
@@ -2874,7 +2874,7 @@ didPickDocumentsAtURLs:(NSArray<NSURL *> *)urls {
     ZL2SettingRowAction *promptRow =
         [[ZL2SettingRowAction alloc] initWithTitle:@"" subtitle:nil];
     promptRow.title = localize(@"preference.title.system_prompt", nil);
-    promptRow.subtitle = @"自定义注入对话的系统级提示词";
+    promptRow.subtitle = localize(@"ame369.setpg.ai_prompt.subtitle", @"自定义注入对话的系统级提示词");
     promptRow.onTap = ^{
         AISystemPromptEditorViewController *vc = [[AISystemPromptEditorViewController alloc] init];
         UINavigationController *nav = [[UINavigationController alloc] initWithRootViewController:vc];
@@ -2919,7 +2919,7 @@ didPickDocumentsAtURLs:(NSArray<NSURL *> *)urls {
     ZL2SettingRowSwitch *markdownRow =
         [[ZL2SettingRowSwitch alloc] initWithTitle:@"" subtitle:nil];
     markdownRow.title = localize(@"preference.title.markdown_enabled", nil);
-    markdownRow.subtitle = @"AI 回复以 Markdown 格式渲染";
+    markdownRow.subtitle = localize(@"ame369.setpg.ai_markdown.subtitle", @"AI 回复以 Markdown 格式渲染");
     // ★ Ame361：直连 AiSettings（消费方 AiSettings.markdownEnabled 同源）
     [markdownRow ame_setOn:[[AiSettings sharedSettings] markdownEnabled]];
     markdownRow.onToggle = ^(BOOL on) {
@@ -3007,7 +3007,7 @@ didPickDocumentsAtURLs:(NSArray<NSURL *> *)urls {
         ZL2SettingRowSwitch *universalRow =
             [[ZL2SettingRowSwitch alloc] initWithTitle:@"" subtitle:nil];
         universalRow.title = localize(@"preference.title.debug_universal_script_jit", nil);
-        universalRow.subtitle = @"通用 JIT 脚本（TXM 设备实验特性）";
+        universalRow.subtitle = localize(@"ame369.setpg.universal_jit.subtitle", @"通用 JIT 脚本（TXM 设备实验特性）");
         [universalRow ame_setOn:getPrefBool(@"debug.debug_universal_script_jit")];
         universalRow.onToggle = ^(BOOL on) {
             setPrefBool(@"debug.debug_universal_script_jit", on);

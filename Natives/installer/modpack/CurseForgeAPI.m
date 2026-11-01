@@ -1,4 +1,5 @@
 #import "CurseForgeAPI.h"
+#import "utils.h"
 #import "AFNetworking.h"
 #import "PLPreferences.h"
 #import "config.h"
@@ -333,7 +334,7 @@ static NSString *CFA169NormalizeGameVersion(NSString *v) {
     if (statusCode == 403 && [snippet rangeOfString:@"api key"
                                            options:NSCaseInsensitiveSearch].location != NSNotFound) {
         userInfo[NSLocalizedDescriptionKey] =
-            @"CurseForge 拒绝了请求：API Key 缺失或无效（403）。请到「设置 → CurseForge API Key」检查；留空即可自动走免 Key 镜像，无需注册。";
+            localize(@"ame369.cfapi.rejected_403", @"CurseForge 拒绝了请求：API Key 缺失或无效（403）。请到「设置 → CurseForge API Key」检查；留空即可自动走免 Key 镜像，无需注册。");
     }
 
     // 打印诊断日志

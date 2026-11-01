@@ -1236,7 +1236,7 @@ static UIColor *ame364_colorFromString(NSString *s) {
         if (profile.length > 0) {
             if ([PLProfiles current].profiles[profile] == nil) {
                 [self ame317_rejectValue:[NSString stringWithFormat:@"profile missing: %@", profile]];
-                ame365_respond(NO, [NSString stringWithFormat:@"实例档案不存在：%@", profile]);
+                ame365_respond(NO, [NSString stringWithFormat:localize(@"ame369.bridge.profile_missing_fmt", @"实例档案不存在：%@"), profile]);
                 return;
             }
             [[PLProfiles current] setSelectedProfileName:profile];
@@ -1244,20 +1244,20 @@ static UIColor *ame364_colorFromString(NSString *s) {
         UIWindow *window = [self ame317_keyWindow];
         UIViewController *root = window.rootViewController;
         if ([NSStringFromClass(root.class) isEqualToString:@"SurfaceViewController"]) {
-            ame365_respond(NO, @"游戏正在运行，无法重复启动；请先退出游戏。");
+            ame365_respond(NO, localize(@"ame369.bridge.game_running", @"游戏正在运行，无法重复启动；请先退出游戏。"));
             return;
         }
         if (![root isKindOfClass:[ZL2ShellViewController class]]) {
-            ame365_respond(NO, @"启动器界面未就绪（欢迎/引导流程中），请稍后再试。");
+            ame365_respond(NO, localize(@"ame369.bridge.ui_not_ready", @"启动器界面未就绪（欢迎/引导流程中），请稍后再试。"));
             return;
         }
         UIViewController *home = [(ZL2ShellViewController *)root ame_childForIndex:0];
         if (!home || ![NSStringFromClass(home.class) isEqualToString:@"ZL2HomeViewController"]) {
-            ame365_respond(NO, @"主页未就绪，无法启动游戏。");
+            ame365_respond(NO, localize(@"ame369.bridge.home_not_ready", @"主页未就绪，无法启动游戏。"));
             return;
         }
         [(ZL2HomeViewController *)home launchButtonTapped];
-        ame365_respond(YES, @"已进入启动流程（版本校验 → JIT 门禁 → 启动）。启动/退出会以 game.starting / game.exited 事件广播。");
+        ame365_respond(YES, localize(@"ame369.bridge.launch_flow_entered", @"已进入启动流程（版本校验 → JIT 门禁 → 启动）。启动/退出会以 game.starting / game.exited 事件广播。"));
     });
 }
 
@@ -1734,13 +1734,13 @@ static UIColor *ame364_colorFromString(NSString *s) {
     NSString *body = [self ame317_string:spec[@"body"]] ?: @"";
     NSArray *items = [self ame317_unwrapJs:spec[@"items"]];
     if (![items isKindOfClass:[NSArray class]] || items.count == 0 || items.count > 12) {
-        [self ame317_rejectValue:@"sheet.items 须为 1-12 个字符串"];
+        [self ame317_rejectValue:localize(@"ame369.bridge.sheet_items_count", @"sheet.items 须为 1-12 个字符串")];
         return;
     }
     NSMutableArray<NSString *> *texts = [NSMutableArray array];
     for (id it in items) {
         if (![it isKindOfClass:[NSString class]]) {
-            [self ame317_rejectValue:@"sheet.items 元素须为字符串"];
+            [self ame317_rejectValue:localize(@"ame369.bridge.sheet_items_type", @"sheet.items 元素须为字符串")];
             return;
         }
         [texts addObject:it];
@@ -2032,7 +2032,7 @@ static UIColor *ame364_colorFromString(NSString *s) {
         return NO;
     }
     if ([oldName isEqualToString:@"(Default)"]) {
-        [self ame317_rejectValue:@"(Default) 拒绝重命名"];
+        [self ame317_rejectValue:localize(@"ame369.bridge.default_rename_denied", @"(Default) 拒绝重命名")];
         return NO;
     }
     if ([PLProfiles current].profiles[oldName] == nil) {
@@ -2133,13 +2133,13 @@ static UIColor *ame364_colorFromString(NSString *s) {
     if (![self ame317_requirePerm:@"game.read"]) return nil;
     id v = getPrefObject(@"general.ram_allocation");
     return @{@"mb": [v isKindOfClass:[NSNumber class]] ? v : @(0),
-             @"note": @"0 = 跟随默认；其余为堆上限 MB（128-8192）"};
+             @"note": localize(@"ame369.bridge.ram_note", @"0 = 跟随默认；其余为堆上限 MB（128-8192）")};
 }
 
 - (BOOL)setMemoryAllocation:(double)mb {
     if (![self ame317_requirePerm:@"settings.write"]) return NO;
     if (mb != 0 && !(mb >= 128 && mb <= 8192)) {
-        [self ame317_rejectValue:[NSString stringWithFormat:@"ram %g 越界（0 或 128-8192）", mb]];
+        [self ame317_rejectValue:[NSString stringWithFormat:localize(@"ame369.bridge.ram_out_of_range_fmt", @"ram %g 越界（0 或 128-8192）"), mb]];
         return NO;
     }
     setPrefInt(@"general.ram_allocation", (NSInteger)mb);
@@ -2161,7 +2161,7 @@ static UIColor *ame364_colorFromString(NSString *s) {
     NSString *layout = [[NSString stringWithUTF8String:home]
         stringByAppendingPathComponent:[NSString stringWithFormat:@"controlmap/%@.json", name]];
     if (![NSFileManager.defaultManager fileExistsAtPath:layout]) {
-        [self ame317_rejectValue:[NSString stringWithFormat:@"布局不存在: %@", name]];
+        [self ame317_rejectValue:[NSString stringWithFormat:localize(@"ame369.bridge.layout_missing_fmt", @"布局不存在: %@"), name]];
         return NO;
     }
     setPrefString(@"control.default_ctrl", name);
@@ -2174,7 +2174,7 @@ static UIColor *ame364_colorFromString(NSString *s) {
     if (![self ame317_requirePerm:@"jit.write"]) return NO;
     NSArray *schemes = @[@"auto", @"builtin", @"stikjit", @"sidestore", @"stosdebug", @"jitstreamer"];
     if (![schemes containsObject:scheme ?: @""]) {
-        [self ame317_rejectValue:[NSString stringWithFormat:@"未知 JIT 方案: %@", scheme ?: @""]];
+        [self ame317_rejectValue:[NSString stringWithFormat:localize(@"ame369.bridge.unknown_jit_scheme_fmt", @"未知 JIT 方案: %@"), scheme ?: @""]];
         return NO;
     }
     setPrefString(@"debug.jit_enabler", scheme);
@@ -2184,8 +2184,8 @@ static UIColor *ame364_colorFromString(NSString *s) {
 - (nullable NSArray *)getJITSchemes {
     if (![self ame317_requirePerm:@"jit.read"]) return nil;
     return @[
-        @{@"id": @"auto",       @"note": @"自动选择（推荐）"},
-        @{@"id": @"builtin",    @"note": @"内置轨（iOS 17.4+ 配对文件）"},
+        @{@"id": @"auto",       @"note": localize(@"ame369.bridge.jit.auto", @"自动选择（推荐）")},
+        @{@"id": @"builtin",    @"note": localize(@"ame369.bridge.jit.builtin", @"内置轨（iOS 17.4+ 配对文件）")},
         @{@"id": @"stikjit",    @"note": @"StikJIT app"},
         @{@"id": @"sidestore",  @"note": @"SideStore JIT"},
         @{@"id": @"stosdebug",  @"note": @"StOS Debug"},
@@ -2240,7 +2240,7 @@ static UIColor *ame364_colorFromString(NSString *s) {
     NSRegularExpression *re = [NSRegularExpression regularExpressionWithPattern:pattern ?: @""
                                                                        options:NSRegularExpressionCaseInsensitive error:nil];
     if (!re) {
-        [self ame317_rejectValue:[NSString stringWithFormat:@"非法正则: %@", pattern ?: @""]];
+        [self ame317_rejectValue:[NSString stringWithFormat:localize(@"ame369.bridge.invalid_regex_fmt", @"非法正则: %@"), pattern ?: @""]];
         return nil;
     }
     NSUInteger cap = limit >= 1 ? (NSUInteger)MIN(limit, 200) : 50;
@@ -2342,7 +2342,7 @@ static UIColor *ame364_colorFromString(NSString *s) {
     if (!folder || ![self ame366_isPlainFileName:fileName]) return NO;
     NSString *path = [folder stringByAppendingPathComponent:fileName];
     if (![NSFileManager.defaultManager fileExistsAtPath:path]) {
-        [self ame317_rejectValue:[NSString stringWithFormat:@"%@ 不存在: %@", kind, fileName]];
+        [self ame317_rejectValue:[NSString stringWithFormat:localize(@"ame369.bridge.file_missing_fmt", @"%@ 不存在: %@"), kind, fileName]];
         return NO;
     }
     BOOL disabled = [fileName.lowercaseString hasSuffix:@".disabled"];
@@ -2357,7 +2357,7 @@ static UIColor *ame364_colorFromString(NSString *s) {
         item.disabled = disabled;
         ok = [[ShaderService sharedService] toggleEnableForShader:item error:&err];
     }
-    if (!ok && err) [self ame317_rejectValue:err.localizedDescription ?: @"toggle 失败"];
+    if (!ok && err) [self ame317_rejectValue:err.localizedDescription ?: localize(@"ame369.bridge.toggle_failed", @"toggle 失败")];
     return ok;
 }
 
@@ -2366,7 +2366,7 @@ static UIColor *ame364_colorFromString(NSString *s) {
     if (!folder || ![self ame366_isPlainFileName:fileName]) return NO;
     NSString *path = [folder stringByAppendingPathComponent:fileName];
     if (![NSFileManager.defaultManager fileExistsAtPath:path]) {
-        [self ame317_rejectValue:[NSString stringWithFormat:@"%@ 不存在: %@", kind, fileName]];
+        [self ame317_rejectValue:[NSString stringWithFormat:localize(@"ame369.bridge.file_missing_fmt", @"%@ 不存在: %@"), kind, fileName]];
         return NO;
     }
     return [NSFileManager.defaultManager removeItemAtPath:path error:nil];
@@ -2444,11 +2444,11 @@ static UIColor *ame364_colorFromString(NSString *s) {
     NSString *from = [saves stringByAppendingPathComponent:oldName];
     NSString *to = [saves stringByAppendingPathComponent:newName];
     if (![NSFileManager.defaultManager fileExistsAtPath:from]) {
-        [self ame317_rejectValue:[NSString stringWithFormat:@"存档不存在: %@", oldName]];
+        [self ame317_rejectValue:[NSString stringWithFormat:localize(@"ame369.bridge.world_missing_fmt", @"存档不存在: %@"), oldName]];
         return NO;
     }
     if ([NSFileManager.defaultManager fileExistsAtPath:to]) {
-        [self ame317_rejectValue:[NSString stringWithFormat:@"目标同名存档已存在: %@", newName]];
+        [self ame317_rejectValue:[NSString stringWithFormat:localize(@"ame369.bridge.world_exists_fmt", @"目标同名存档已存在: %@"), newName]];
         return NO;
     }
     BOOL ok = [NSFileManager.defaultManager moveItemAtPath:from toPath:to error:nil];
@@ -2463,7 +2463,7 @@ static UIColor *ame364_colorFromString(NSString *s) {
                    stringByAppendingPathComponent:name];
     BOOL isDir = NO;
     if (!p.length || ![NSFileManager.defaultManager fileExistsAtPath:p isDirectory:&isDir] || !isDir) {
-        [self ame317_rejectValue:[NSString stringWithFormat:@"存档不存在: %@", name]];
+        [self ame317_rejectValue:[NSString stringWithFormat:localize(@"ame369.bridge.world_missing_fmt", @"存档不存在: %@"), name]];
         return NO;
     }
     BOOL ok = [NSFileManager.defaultManager removeItemAtPath:p error:nil];
@@ -2564,13 +2564,13 @@ static UIColor *ame364_colorFromString(NSString *s) {
     if (![self ame317_requirePerm:@"ai.call"]) return;
     if (!cb.isObject) return;
     if (prompt.length == 0 || prompt.length > 4000) {
-        [self ame317_rejectValue:@"ai.ask prompt 须为 1-4000 字"];
+        [self ame317_rejectValue:localize(@"ame369.bridge.ask_prompt_len", @"ai.ask prompt 须为 1-4000 字")];
         return;
     }
     AiProvider *provider = [AiProviderStore sharedStore].selectedProvider;
     if (!provider) {
         [self ame317_callCallback:cb arguments:@[@{@"ok": @NO,
-            @"error": @"未配置 AI 供应商：请到 AI 页 → 供应商设置 配置后重试"}]];
+            @"error": localize(@"ame369.bridge.no_ai_provider", @"未配置 AI 供应商：请到 AI 页 → 供应商设置 配置后重试")}]];
         return;
     }
     AiAPIClient *client = [[AiAPIClient alloc] init];
@@ -2585,7 +2585,7 @@ static UIColor *ame364_colorFromString(NSString *s) {
             if (!sself) return;
             if (error) {
                 [sself ame317_callCallback:cb arguments:@[@{@"ok": @NO,
-                    @"error": error.localizedDescription ?: @"AI 请求失败"}]];
+                    @"error": error.localizedDescription ?: localize(@"ame369.bridge.ai_request_failed", @"AI 请求失败")}]];
                 return;
             }
             NSString *text = @"";
@@ -2789,7 +2789,7 @@ static UIColor *ame364_colorFromString(NSString *s) {
     NSURL *url = [NSURL URLWithString:urlString ?: @""];
     NSString *dest = [self ame366_homePathFor:relPath ?: @""];
     if (!url.scheme || !url.host || !dest) {
-        [self ame317_callCallback:cb arguments:@[@{@"ok": @NO, @"error": @"URL 非法或目标路径非法（须为启动器沙盒内相对路径）"}]];
+        [self ame317_callCallback:cb arguments:@[@{@"ok": @NO, @"error": localize(@"ame369.bridge.bad_download_target", @"URL 非法或目标路径非法（须为启动器沙盒内相对路径）")}]];
         return;
     }
     __weak typeof(self) wself = self;
@@ -2800,7 +2800,7 @@ static UIColor *ame364_colorFromString(NSString *s) {
             if (!sself) return;
             if (err || !location) {
                 [sself ame317_callCallback:cb arguments:@[@{@"ok": @NO,
-                    @"error": err.localizedDescription ?: @"下载失败"}]];
+                    @"error": err.localizedDescription ?: localize(@"ame369.common.download_failed", @"下载失败")}]];
                 return;
             }
             NSFileManager *fm = [NSFileManager defaultManager];

@@ -460,7 +460,7 @@ static UIImage *ZL2ShellSystemImage(NSString *name, NSString *fallback) {
 - (void)ame_setProgress:(double)progress count:(NSInteger)count {
     [self.progressView setProgress:(float)progress animated:NO];
     self.countLabel.text = [NSString stringWithFormat:@"%ld", (long)count];
-    self.accessibilityLabel = [NSString stringWithFormat:@"下载任务进行中，共 %ld 个", (long)count];
+    self.accessibilityLabel = [NSString stringWithFormat:localize(@"ame369.shell.dl_tasks_fmt", @"下载任务进行中，共 %ld 个"), (long)count];
 }
 
 @end
@@ -616,7 +616,7 @@ static UIImage *ZL2ShellSystemImage(NSString *name, NSString *fallback) {
     self.leftCluster.alpha = 0.0;
 
     self.backButton = [[ZL2ShellIconButton alloc] initWithSymbol:@"chevron.left" fallback:nil];
-    self.backButton.accessibilityLabel = @"返回";
+    self.backButton.accessibilityLabel = localize(@"ame369.common.back", @"返回");
     __weak typeof(self) weakSelf = self;
     self.backButton.ame_action = ^{
         [weakSelf ame_popCurrentIfPossible];
@@ -624,7 +624,7 @@ static UIImage *ZL2ShellSystemImage(NSString *name, NSString *fallback) {
     [self.leftCluster addArrangedSubview:self.backButton];
 
     self.homeButton = [[ZL2ShellIconButton alloc] initWithSymbol:@"house.fill" fallback:nil];
-    self.homeButton.accessibilityLabel = @"主页";
+    self.homeButton.accessibilityLabel = localize(@"ame369.common.home", @"主页");
     self.homeButton.ame_action = ^{
         [weakSelf showPageAtIndex:0];
     };
@@ -668,7 +668,7 @@ static UIImage *ZL2ShellSystemImage(NSString *name, NSString *fallback) {
     //    endButtons 顺序；版本/账户入口收进主页 ActionMenu，非顶栏项。
     //    Task318：第 5 项 = AI 助手（7.0-UI-8 旧壳退役后入口恢复，页面 6））
     //    pageIndex = -1 表示瞬时动作（文件夹 = 打开文件浏览器，非页面）
-    NSArray<NSString *> *titles = @[@"文件", @"多人联机", @"下载", @"设置",
+    NSArray<NSString *> *titles = @[localize(@"ame369.shell.tab.files", @"文件"), localize(@"ame369.common.multiplayer", @"多人联机"), localize(@"ame369.shell.tab.downloads", @"下载"), localize(@"ame369.shell.tab.settings", @"设置"),
                                     localize(@"ame192.ai.title", nil)];
     NSArray<NSString *> *symbols = @[@"folder.fill",
                                      @"person.2.fill",
@@ -773,8 +773,8 @@ static UIImage *ZL2ShellSystemImage(NSString *name, NSString *fallback) {
 
     // 主导航项（页面序 = 顶栏 RailItem 契约：0 主页 / 1 下载 / 2 版本 /
     // 3 账户 / 5 联机 / 6 AI；4 设置驻底部，-1 文件 = 瞬时动作）
-    NSArray<NSString *> *ame347_titles = @[@"主页", @"下载", @"版本", @"账户",
-                                           @"多人联机", localize(@"ame192.ai.title", nil)];
+    NSArray<NSString *> *ame347_titles = @[localize(@"ame369.common.home", @"主页"), localize(@"ame369.shell.tab.downloads", @"下载"), localize(@"ame369.shell.tab.versions", @"版本"), localize(@"ame369.shell.tab.accounts", @"账户"),
+                                           localize(@"ame369.common.multiplayer", @"多人联机"), localize(@"ame192.ai.title", nil)];
     NSArray<NSString *> *ame347_symbols = @[@"house.fill",
                                             @"arrow.down.circle.fill",
                                             @"shippingbox.fill",
@@ -818,7 +818,7 @@ static UIImage *ZL2ShellSystemImage(NSString *name, NSString *fallback) {
     self.paneFooterStack.translatesAutoresizingMaskIntoConstraints = NO;
     [self.paneWrap addSubview:self.paneFooterStack];
 
-    NSArray<NSString *> *ame347_footerTitles = @[@"设置", @"文件"];
+    NSArray<NSString *> *ame347_footerTitles = @[localize(@"ame369.shell.tab.settings", @"设置"), localize(@"ame369.shell.tab.files", @"文件")];
     NSArray<NSString *> *ame347_footerSymbols = @[@"gearshape.fill", @"folder.fill"];
     NSArray<NSString *> *ame347_footerFallbacks = @[@"gearshape", @"folder"];
     NSArray<NSNumber *> *ame347_footerPages = @[@4, @(-1)];
@@ -860,14 +860,14 @@ static UIImage *ZL2ShellSystemImage(NSString *name, NSString *fallback) {
     [self.view addSubview:self.contentHeader];
 
     self.hamburgerButton = [[ZL2ShellIconButton alloc] initWithSymbol:@"line.3.horizontal" fallback:@"text.justify"];
-    self.hamburgerButton.accessibilityLabel = @"导航";
+    self.hamburgerButton.accessibilityLabel = localize(@"ame369.shell.nav_a11y", @"导航");
     self.hamburgerButton.ame_action = ^{
         [weakSelf ame_setDrawerOpen:!weakSelf.ame347_drawerOpen animated:YES];
     };
     [self.contentHeader addSubview:self.hamburgerButton];
 
     self.navBackButton = [[ZL2ShellIconButton alloc] initWithSymbol:@"chevron.left" fallback:nil];
-    self.navBackButton.accessibilityLabel = @"返回";
+    self.navBackButton.accessibilityLabel = localize(@"ame369.common.back", @"返回");
     self.navBackButton.ame_action = ^{
         [weakSelf ame_popCurrentIfPossible];
     };
@@ -1184,11 +1184,11 @@ static UIImage *ZL2ShellSystemImage(NSString *name, NSString *fallback) {
     }
     // 功能页文案（ZL2 顶栏标题映射表，7.0-UI-14 对齐）
     switch (index) {
-        case 1: return @"下载";
-        case 2: return @"版本";
-        case 3: return @"账户";
-        case 4: return @"设置";
-        case 5: return @"Terracotta | 陶瓦联机";
+        case 1: return localize(@"ame369.shell.tab.downloads", @"下载");
+        case 2: return localize(@"ame369.shell.tab.versions", @"版本");
+        case 3: return localize(@"ame369.shell.tab.accounts", @"账户");
+        case 4: return localize(@"ame369.shell.tab.settings", @"设置");
+        case 5: return localize(@"ame369.shell.tab.terracotta", @"Terracotta | 陶瓦联机");
         default: return @"";
     }
 }

@@ -2933,7 +2933,7 @@ int launchJVM(NSString *accountId, id launchTarget, int width, int height, int m
             NSLog(@"[JavaLauncher] Task355: graphicsApi=prefer_vulkan is only valid with the %@ renderer (active=%@) -- clamped to default (issue #17: dual Vulkan-on-Metal ownership = error -1)",
                   @ RENDERER_NAME_VULKAN, renderer);
             dispatch_async(dispatch_get_main_queue(), ^{
-                [NMToast showMessage:@"Vulkan API 仅支持 MoltenVK 渲染器（其余渲染器会双占用 Metal 设备导致 error -1），本次启动已回退默认图形 API。\nVulkan API requires the MoltenVK renderer (dual Vulkan-on-Metal ownership = error -1); fell back to the default graphics API."];
+                [NMToast showMessage:localize(@"ame369.jvm.vulkan_moltenvk_only", @"Vulkan API 仅支持 MoltenVK 渲染器（其余渲染器会双占用 Metal 设备导致 error -1），本次启动已回退默认图形 API。\nVulkan API requires the MoltenVK renderer (dual Vulkan-on-Metal ownership = error -1); fell back to the default graphics API.")];
             });
             graphicsApi = @"default";
         }

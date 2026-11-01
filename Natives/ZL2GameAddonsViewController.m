@@ -147,7 +147,7 @@
 
     // ① ScreenHeader：游戏版本大字 + 自定义版本名输入框 + 安装钮（ZL2 顶行同构）
     _gameVersionLabel = [[UILabel alloc] init];
-    _gameVersionLabel.text = [NSString stringWithFormat:@"安装 - %@", self.gameVersion];
+    _gameVersionLabel.text = [NSString stringWithFormat:localize(@"ame369.addon.install_page_fmt", @"安装 - %@"), self.gameVersion];
     _gameVersionLabel.font = [ZL2Theme fontTitleLarge];
     _gameVersionLabel.textColor = [ZL2Theme onSurface];
     _gameVersionLabel.numberOfLines = 1;
@@ -155,7 +155,7 @@
     [self.view addSubview:_gameVersionLabel];
 
     _nameField = [[UITextField alloc] init];
-    _nameField.placeholder = [NSString stringWithFormat:@"版本名（默认 %@）", self.gameVersion];
+    _nameField.placeholder = [NSString stringWithFormat:localize(@"ame369.addon.name_placeholder_fmt", @"版本名（默认 %@）"), self.gameVersion];
     _nameField.text = self.gameVersion;
     _nameField.font = [ZL2Theme fontBodyMedium];
     _nameField.textColor = [ZL2Theme onSurface];
@@ -171,14 +171,14 @@
     _nameField.returnKeyType = UIReturnKeyDone;
     _nameField.translatesAutoresizingMaskIntoConstraints = NO;
     _nameField.isAccessibilityElement = YES;
-    _nameField.accessibilityLabel = @"自定义版本名";
+    _nameField.accessibilityLabel = localize(@"ame369.addon.name_a11y", @"自定义版本名");
     [self.view addSubview:_nameField];
 
     _installButton = [[UIControl alloc] init];
     _installButton.layer.cornerRadius = [ZL2Theme radiusS];
     _installButton.translatesAutoresizingMaskIntoConstraints = NO;
     _installButton.isAccessibilityElement = YES;
-    _installButton.accessibilityLabel = @"安装";
+    _installButton.accessibilityLabel = localize(@"ame369.common.install", @"安装");
     [_installButton addTarget:self
                        action:@selector(ame_installTapped)
              forControlEvents:UIControlEventTouchUpInside];
@@ -243,7 +243,7 @@
     // 点击安装原版」：与其出五张注定失败的红字卡，不如明示「无加载器可用，
     // 可直接安装原版」，安装钮永不误导。
     _noLoaderNote = [[UILabel alloc] init];
-    _noLoaderNote.text = @"该版本暂无可用模组加载器，可直接安装原版。";
+    _noLoaderNote.text = localize(@"ame369.addon.no_loader_note", @"该版本暂无可用模组加载器，可直接安装原版。");
     _noLoaderNote.font = [ZL2Theme fontBodyMedium];
     _noLoaderNote.textColor = [ZL2Theme onSurfaceVariant];
     _noLoaderNote.textAlignment = NSTextAlignmentCenter;
@@ -917,8 +917,8 @@
         // 与 Task335 清单 busy 态（恒可点）不同，这是真实的不可中断操作
         self.installButton.userInteractionEnabled = NO;
         self.installButton.alpha = 0.6;
-        self.installLabel.text = @"安装中…";
-        self.installButton.accessibilityLabel = @"安装中";
+        self.installLabel.text = localize(@"ame369.addon.installing_ellipsis", @"安装中…");
+        self.installButton.accessibilityLabel = localize(@"ame369.addon.installing", @"安装中");
         return;
     }
     self.installButton.userInteractionEnabled = YES;
@@ -928,8 +928,8 @@
     // ★ Task335：busy 态不再改安装钮文案 —— 旧版 busy 时按钮长期显示“清单加载中…”
     // （慢源 40s+ 兑底链期间），用户感知“卡在清单加载中”且不敢点（装机投诉原话）。
     // 加载态由各卡自带 spinner 表达；安装钮文案只反映语义（装什么），恒可点。
-    self.installLabel.text = hasSelection ? @"安装"
-                            : @"安装（原版）";
+    self.installLabel.text = hasSelection ? localize(@"ame369.common.install", @"安装")
+                            : localize(@"ame369.addon.install_vanilla", @"安装（原版）");
     self.installButton.accessibilityLabel = self.installLabel.text;
 }
 
@@ -969,12 +969,12 @@
         }
         __weak typeof(self) weakSelf = self;
         NSString *apiNote = installAPI
-            ? [NSString stringWithFormat:@"\n将同时安装 %@ API", vendor] : @"";
+            ? [NSString stringWithFormat:localize(@"ame369.addon.also_install_api_fmt", @"\n将同时安装 %@ API"), vendor] : @"";
         NSString *confirmBody = [NSString stringWithFormat:
-            @"游戏版本 %@\n加载器 %@ %@%@", self.gameVersion, vendor, loaderVer, apiNote];
-        [ZL2M3Dialog showTitle:@"确认安装"
+            localize(@"ame369.addon.confirm_body_fmt", @"游戏版本 %@\n加载器 %@ %@%@"), self.gameVersion, vendor, loaderVer, apiNote];
+        [ZL2M3Dialog showTitle:localize(@"ame369.addon.confirm_install", @"确认安装")
                           body:confirmBody
-                  confirmTitle:@"安装"
+                  confirmTitle:localize(@"ame369.common.install", @"安装")
                     destructive:NO
                      onConfirm:^{
             __strong typeof(weakSelf) s = weakSelf;
@@ -997,16 +997,16 @@
                         postNotificationName:@"ReloadProfileList" object:nil];
                     // Task324：安装成功即时补齐隔离骨架（注册表已隔离 → 六目录可见可即用）
                     [ModService ame324_ensureIsolationSkeletonsAll];
-                    [ZL2M3Dialog showTitle:@"安装完成"
+                    [ZL2M3Dialog showTitle:localize(@"ame369.addon.install_done", @"安装完成")
                                       body:[NSString stringWithFormat:@"%@\n(%@ %@)",
                                             profileId ?: st.gameVersion, vendor, loaderVer]
-                              confirmTitle:@"知道了"
+                              confirmTitle:localize(@"ame369.common.got_it", @"知道了")
                                 destructive:NO
                                  onConfirm:nil onCancel:nil];
                 } else {
-                    [ZL2M3Dialog showTitle:@"安装失败"
-                                      body:error.localizedDescription ?: @"网络异常，可重试。"
-                              confirmTitle:@"知道了"
+                    [ZL2M3Dialog showTitle:localize(@"ame369.addon.install_failed", @"安装失败")
+                                      body:error.localizedDescription ?: localize(@"ame369.addon.err_network_retry", @"网络异常，可重试。")
+                              confirmTitle:localize(@"ame369.common.got_it", @"知道了")
                                 destructive:NO
                                  onConfirm:nil onCancel:nil];
                 }
@@ -1027,11 +1027,11 @@
         NSString *amLoaderVer = (neoforge.length > 0) ? neoforge : forge;
         __weak typeof(self) weakSelf = self;
         NSString *confirmBody = [NSString stringWithFormat:
-            @"游戏版本 %@\n加载器 %@ %@\n（离线安装器直装）",
+            localize(@"ame369.addon.confirm_body_offline_fmt", @"游戏版本 %@\n加载器 %@ %@\n（离线安装器直装）"),
             self.gameVersion, amVendor, amLoaderVer];
-        [ZL2M3Dialog showTitle:@"确认安装"
+        [ZL2M3Dialog showTitle:localize(@"ame369.addon.confirm_install", @"确认安装")
                           body:confirmBody
-                  confirmTitle:@"安装"
+                  confirmTitle:localize(@"ame369.common.install", @"安装")
                     destructive:NO
                      onConfirm:^{
             __strong typeof(weakSelf) s = weakSelf;
@@ -1049,9 +1049,9 @@
                 st.ame336Installing = NO;
                 [st ame_refreshInstallButton];
                 if (!success) {
-                    [ZL2M3Dialog showTitle:@"安装失败"
-                                      body:error.localizedDescription ?: @"安装器下载或解析失败，可重试。"
-                              confirmTitle:@"知道了"
+                    [ZL2M3Dialog showTitle:localize(@"ame369.addon.install_failed", @"安装失败")
+                                      body:error.localizedDescription ?: localize(@"ame369.addon.err_installer_retry", @"安装器下载或解析失败，可重试。")
+                              confirmTitle:localize(@"ame369.common.got_it", @"知道了")
                                 destructive:NO
                                  onConfirm:nil onCancel:nil];
                     return;
@@ -1068,10 +1068,10 @@
                     st.pendingOptiFineGameVersion = profileId ?: versionId;
                     [st ame_installOptiFinePatch];
                 } else {
-                    [ZL2M3Dialog showTitle:@"安装完成"
+                    [ZL2M3Dialog showTitle:localize(@"ame369.addon.install_done", @"安装完成")
                                       body:[NSString stringWithFormat:@"%@\n(%@ %@)",
                                             profileId ?: versionId, amVendor, amLoaderVer]
-                              confirmTitle:@"知道了"
+                              confirmTitle:localize(@"ame369.common.got_it", @"知道了")
                                 destructive:NO
                                  onConfirm:nil onCancel:nil];
                 }
@@ -1096,9 +1096,9 @@
 
 - (void)ame_installVanilla:(NSString *)versionId {
     if (self.activeTask) {
-        [ZL2M3Dialog showTitle:@"任务进行中"
-                          body:@"有安装任务正在进行，请稍候。"
-                  confirmTitle:@"知道了"
+        [ZL2M3Dialog showTitle:localize(@"ame369.addon.task_running", @"任务进行中")
+                          body:localize(@"ame369.addon.task_running_body", @"有安装任务正在进行，请稍候。")
+                  confirmTitle:localize(@"ame369.common.got_it", @"知道了")
                     destructive:NO
                      onConfirm:nil onCancel:nil];
         return;
@@ -1157,15 +1157,15 @@
     if (success) {
         // Task324：原版安装成功即时补齐隔离骨架（上方 profile 已写 gameDir=versions/<id>）
         [ModService ame324_ensureIsolationSkeletonsAll];
-        [ZL2M3Dialog showTitle:@"安装完成"
+        [ZL2M3Dialog showTitle:localize(@"ame369.addon.install_done", @"安装完成")
                           body:self.gameVersion
-                  confirmTitle:@"知道了"
+                  confirmTitle:localize(@"ame369.common.got_it", @"知道了")
                     destructive:NO
                      onConfirm:nil onCancel:nil];
     } else {
-        [ZL2M3Dialog showTitle:@"安装失败"
-                          body:@"下载中断或网络异常，可重试安装。"
-                  confirmTitle:@"知道了"
+        [ZL2M3Dialog showTitle:localize(@"ame369.addon.install_failed", @"安装失败")
+                          body:localize(@"ame369.addon.err_interrupted_retry", @"下载中断或网络异常，可重试安装。")
+                  confirmTitle:localize(@"ame369.common.got_it", @"知道了")
                     destructive:NO
                      onConfirm:nil onCancel:nil];
     }
@@ -1240,7 +1240,7 @@
             am337TryNext = nil;
             safeCompletion(NO, nil, [NSError errorWithDomain:@"ZL2Addons" code:-1
                 userInfo:@{NSLocalizedDescriptionKey:
-                @"安装器下载失败：官方与镜像源均不可达，可切换下载源后重试。"}]);
+                localize(@"ame369.addon.err_all_sources_down", @"安装器下载失败：官方与镜像源均不可达，可切换下载源后重试。")}]);
             return;
         }
         NSURL *u = am337Cands[am337Idx];
@@ -1302,9 +1302,9 @@
     }
     NSArray *parts = [packed componentsSeparatedByString:@"\x1f"];
     if (parts.count < 2) {
-        [ZL2M3Dialog showTitle:@"OptiFine 载荷异常"
-                          body:@"请刷新 OptiFine 清单后重试。"
-                  confirmTitle:@"知道了"
+        [ZL2M3Dialog showTitle:localize(@"ame369.addon.optifine_payload_err", @"OptiFine 载荷异常")
+                          body:localize(@"ame369.addon.optifine_refresh_body", @"请刷新 OptiFine 清单后重试。")
+                  confirmTitle:localize(@"ame369.common.got_it", @"知道了")
                     destructive:NO
                      onConfirm:nil onCancel:nil];
         return;
@@ -1349,10 +1349,10 @@
         if (!jarData) {
             [[DownloadTaskManager sharedManager] updateTaskWithId:taskId stageAtIndex:kStageInstaller status:PLTaskStageStatusFailed];
             [[DownloadTaskManager sharedManager] setTaskWithId:taskId completedWithError:
-                [NSError errorWithDomain:@"OptiFineInstall" code:1 userInfo:@{NSLocalizedDescriptionKey: @"下载失败"}]];
+                [NSError errorWithDomain:@"OptiFineInstall" code:1 userInfo:@{NSLocalizedDescriptionKey: localize(@"ame369.common.download_failed", @"下载失败")}]];
             dispatch_async(dispatch_get_main_queue(), ^{
-                [ZL2M3Dialog showTitle:@"安装失败" body:@"OptiFine 下载失败，请检查网络后重试。"
-                          confirmTitle:@"知道了" destructive:NO onConfirm:nil onCancel:nil];
+                [ZL2M3Dialog showTitle:localize(@"ame369.addon.install_failed", @"安装失败") body:localize(@"ame369.addon.optifine_dl_failed_body", @"OptiFine 下载失败，请检查网络后重试。")
+                          confirmTitle:localize(@"ame369.common.got_it", @"知道了") destructive:NO onConfirm:nil onCancel:nil];
             });
             return;
         }
@@ -1410,11 +1410,11 @@
             [[DownloadTaskManager sharedManager] updateTaskWithId:taskId stageAtIndex:kStageInstall status:PLTaskStageStatusFailed];
             [[DownloadTaskManager sharedManager] setTaskWithId:taskId completedWithError:
                 [NSError errorWithDomain:@"OptiFineInstall" code:3 userInfo:@{NSLocalizedDescriptionKey:
-                    [NSString stringWithFormat:@"父版本 %@ 不存在，请先安装原版。", gameVersion]}]];
+                    [NSString stringWithFormat:localize(@"ame369.addon.parent_missing_fmt", @"父版本 %@ 不存在，请先安装原版。"), gameVersion]}]];
             dispatch_async(dispatch_get_main_queue(), ^{
-                [ZL2M3Dialog showTitle:@"安装失败"
-                                  body:[NSString stringWithFormat:@"父版本 %@ 不存在，请先安装原版。", gameVersion]
-                          confirmTitle:@"知道了" destructive:NO
+                [ZL2M3Dialog showTitle:localize(@"ame369.addon.install_failed", @"安装失败")
+                                  body:[NSString stringWithFormat:localize(@"ame369.addon.parent_missing_fmt", @"父版本 %@ 不存在，请先安装原版。"), gameVersion]
+                          confirmTitle:localize(@"ame369.common.got_it", @"知道了") destructive:NO
                            onConfirm:nil onCancel:nil];
             });
             return;
@@ -1438,9 +1438,9 @@
             s.pendingOptiFineAfterForge = nil;
             [[NSNotificationCenter defaultCenter]
                 postNotificationName:@"ReloadProfileList" object:nil];
-            [ZL2M3Dialog showTitle:@"安装完成"
+            [ZL2M3Dialog showTitle:localize(@"ame369.addon.install_done", @"安装完成")
                               body:currentVersionId
-                      confirmTitle:@"知道了"
+                      confirmTitle:localize(@"ame369.common.got_it", @"知道了")
                         destructive:NO
                          onConfirm:nil onCancel:nil];
         });
@@ -1532,7 +1532,7 @@
     _clearButton = [[UIControl alloc] init];
     _clearButton.translatesAutoresizingMaskIntoConstraints = NO;
     _clearButton.isAccessibilityElement = YES;
-    _clearButton.accessibilityLabel = [NSString stringWithFormat:@"清除%@选择", self.title];
+    _clearButton.accessibilityLabel = [NSString stringWithFormat:localize(@"ame369.addon.clear_selection_fmt", @"清除%@选择"), self.title];
     [_clearButton addTarget:self
                      action:@selector(ame_clearTapped)
            forControlEvents:UIControlEventTouchUpInside];
@@ -1548,7 +1548,7 @@
     _reloadButton = [[UIControl alloc] init];
     _reloadButton.translatesAutoresizingMaskIntoConstraints = NO;
     _reloadButton.isAccessibilityElement = YES;
-    _reloadButton.accessibilityLabel = [NSString stringWithFormat:@"刷新%@清单", self.title];
+    _reloadButton.accessibilityLabel = [NSString stringWithFormat:localize(@"ame369.addon.refresh_list_fmt", @"刷新%@清单"), self.title];
     [_reloadButton addTarget:self
                       action:@selector(ame_reloadTapped)
             forControlEvents:UIControlEventTouchUpInside];
@@ -1605,7 +1605,7 @@
     [_cardView addSubview:_spinner];
 
     _failedLabel = [[UILabel alloc] init];
-    _failedLabel.text = @"清单加载失败，点刷新重试";
+    _failedLabel.text = localize(@"ame369.addon.list_failed_hint", @"清单加载失败，点刷新重试");
     _failedLabel.font = [ZL2Theme fontBodyMedium];
     _failedLabel.textColor = [ZL2Theme error];
     _failedLabel.numberOfLines = 1;
@@ -1681,7 +1681,7 @@
 }
 
 - (void)ame_refreshAppearance {
-    _valueLabel.text = self.selectedItem.length > 0 ? self.selectedItem : @"未选择";
+    _valueLabel.text = self.selectedItem.length > 0 ? self.selectedItem : localize(@"ame369.addon.none_selected", @"未选择");
 
     BOOL hasItems = self.items.count > 0;
     _clearButton.hidden = (self.selectedItem.length == 0);

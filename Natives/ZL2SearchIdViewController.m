@@ -3,6 +3,7 @@
 //
 
 #import "ZL2SearchIdViewController.h"
+#import "utils.h"
 #import "ZL2Theme.h"
 #import "ZL2M3Kit.h"
 #import "ZL2FavoritesStore.h"
@@ -63,11 +64,11 @@
     UILayoutGuide *safe = self.view.safeAreaLayoutGuide;
 
     _idField = [[UITextField alloc] init];
-    _idField.placeholder = @"项目 ID / 别名（slug）";
+    _idField.placeholder = localize(@"ame369.sid.id_placeholder", @"项目 ID / 别名（slug）");
     _idField.font = [ZL2Theme fontBodyMedium];
     _idField.textColor = [ZL2Theme onSurface];
     _idField.attributedPlaceholder =
-        [[NSAttributedString alloc] initWithString:@"项目 ID / 别名（slug）"
+        [[NSAttributedString alloc] initWithString:localize(@"ame369.sid.id_placeholder", @"项目 ID / 别名（slug）")
                                         attributes:@{NSForegroundColorAttributeName: [ZL2Theme onSurfaceVariant]}];
     _idField.backgroundColor = [ZL2Theme surfaceContainer];
     _idField.layer.cornerRadius = [ZL2Theme radiusS];
@@ -80,7 +81,7 @@
     _idField.leftViewMode = UITextFieldViewModeAlways;
     _idField.translatesAutoresizingMaskIntoConstraints = NO;
     _idField.isAccessibilityElement = YES;
-    _idField.accessibilityLabel = @"项目 ID 输入";
+    _idField.accessibilityLabel = localize(@"ame369.sid.id_a11y", @"项目 ID 输入");
     [self.view addSubview:_idField];
 
     // 平台 chips（ZL2 PlatformListLayout 语义：Modrinth / CurseForge 单选）
@@ -129,12 +130,12 @@
     _searchButton.layer.cornerRadius = [ZL2Theme radiusS];
     _searchButton.translatesAutoresizingMaskIntoConstraints = NO;
     _searchButton.isAccessibilityElement = YES;
-    _searchButton.accessibilityLabel = @"查询";
+    _searchButton.accessibilityLabel = localize(@"ame369.sid.lookup", @"查询");
     [_searchButton addTarget:self
                       action:@selector(ame_searchTapped)
             forControlEvents:UIControlEventTouchUpInside];
     UILabel *searchLabel = [[UILabel alloc] init];
-    searchLabel.text = @"查询";
+    searchLabel.text = localize(@"ame369.sid.lookup", @"查询");
     searchLabel.font = [ZL2Theme fontLabelLarge];
     searchLabel.textColor = [ZL2Theme onPrimary];
     searchLabel.translatesAutoresizingMaskIntoConstraints = NO;
@@ -195,7 +196,7 @@
     _favoriteButton = [[UIControl alloc] init];
     _favoriteButton.translatesAutoresizingMaskIntoConstraints = NO;
     _favoriteButton.isAccessibilityElement = YES;
-    _favoriteButton.accessibilityLabel = @"收藏";
+    _favoriteButton.accessibilityLabel = localize(@"ame369.common.favorites", @"收藏");
     [_favoriteButton addTarget:self
                         action:@selector(ame_favoriteTapped)
               forControlEvents:UIControlEventTouchUpInside];
@@ -214,12 +215,12 @@
     _openLinkButton.layer.cornerRadius = [ZL2Theme radiusS];
     _openLinkButton.translatesAutoresizingMaskIntoConstraints = NO;
     _openLinkButton.isAccessibilityElement = YES;
-    _openLinkButton.accessibilityLabel = @"在浏览器打开";
+    _openLinkButton.accessibilityLabel = localize(@"ame369.sid.open_in_browser", @"在浏览器打开");
     [_openLinkButton addTarget:self
                         action:@selector(ame_openLinkTapped)
               forControlEvents:UIControlEventTouchUpInside];
     UILabel *linkLabel = [[UILabel alloc] init];
-    linkLabel.text = @"在浏览器打开项目页";
+    linkLabel.text = localize(@"ame369.sid.open_project_page", @"在浏览器打开项目页");
     linkLabel.font = [ZL2Theme fontLabelLarge];
     linkLabel.textColor = [ZL2Theme primary];
     linkLabel.translatesAutoresizingMaskIntoConstraints = NO;
@@ -236,7 +237,7 @@
     [self.view addSubview:_spinner];
 
     _statusLabel = [[UILabel alloc] init];
-    _statusLabel.text = @"输入项目 ID 或 slug，选择平台后查询";
+    _statusLabel.text = localize(@"ame369.sid.idle_hint", @"输入项目 ID 或 slug，选择平台后查询");
     _statusLabel.font = [ZL2Theme fontBodyLarge];
     _statusLabel.textColor = [ZL2Theme onSurfaceVariant];
     _statusLabel.textAlignment = NSTextAlignmentCenter;
@@ -377,7 +378,7 @@
             if (!s) return;
             [s.spinner stopAnimating];
             if (!response) {
-                s.statusLabel.text = @"查询失败：项目不存在或网络异常";
+                s.statusLabel.text = localize(@"ame369.sid.lookup_failed", @"查询失败：项目不存在或网络异常");
                 s.statusLabel.hidden = NO;
                 return;
             }
@@ -419,9 +420,9 @@
     };
 
     self.titleLabel.text = title;
-    self.authorLabel.text = author.length > 0 ? [NSString stringWithFormat:@"作者：%@", author] : @"";
+    self.authorLabel.text = author.length > 0 ? [NSString stringWithFormat:localize(@"ame369.sid.author_fmt", @"作者：%@"), author] : @"";
     self.descLabel.text = desc;
-    self.downloadsLabel.text = [NSString stringWithFormat:@"下载 %@", downloads];
+    self.downloadsLabel.text = [NSString stringWithFormat:localize(@"ame369.sid.downloads_fmt", @"下载 %@"), downloads];
     self.categoriesLabel.text = [categories componentsJoinedByString:@" · "];
 
     if (iconUrl.length > 0) {

@@ -753,10 +753,10 @@ static UIImage *ZL2V13ThumbnailAtPath(NSString *path, CGFloat maxPixel) {
     [_ameV13_contentStack addArrangedSubview:infoWrap];
 
     // —— 管理按钮组（FlowRow 换行；ZL2 VersionOverViewScreen 管理区同语义）——
-    NSString *renameTitle = @"重命名";
-    NSString *summaryTitle = @"编辑摘要";
-    NSString *openDirTitle = @"打开游戏目录";
-    NSString *deleteTitle = @"删除版本";
+    NSString *renameTitle = localize(@"ame369.common.rename", @"重命名");
+    NSString *summaryTitle = localize(@"ame369.vpage.edit_summary", @"编辑摘要");
+    NSString *openDirTitle = localize(@"ame369.vpage.open_game_dir", @"打开游戏目录");
+    NSString *deleteTitle = localize(@"ame369.vpage.delete_version", @"删除版本");
     UIButton *renameButton = [self ameV13_outlinedButtonWithTitle:renameTitle destructive:NO];
     UIButton *summaryButton = [self ameV13_outlinedButtonWithTitle:summaryTitle destructive:NO];
     UIButton *openDirButton = [self ameV13_outlinedButtonWithTitle:openDirTitle destructive:NO];
@@ -841,7 +841,7 @@ static UIImage *ZL2V13ThumbnailAtPath(NSString *path, CGFloat maxPixel) {
     NSMutableDictionary *profile = [self ameV13_profileDict];
     if (!profile) return;
 
-    NSString *alertTitle = @"重命名实例";
+    NSString *alertTitle = localize(@"ame369.vpage.rename_instance", @"重命名实例");
     UIAlertController *alert = [UIAlertController alertControllerWithTitle:alertTitle
                                                                    message:nil
                                                             preferredStyle:UIAlertControllerStyleAlert];
@@ -895,7 +895,7 @@ static UIImage *ZL2V13ThumbnailAtPath(NSString *path, CGFloat maxPixel) {
     if (!profile) return;
     NSString *current = [profile[@"versionSummary"] isKindOfClass:[NSString class]] ? (NSString *)profile[@"versionSummary"] : @"";
 
-    NSString *alertTitle = @"编辑摘要";
+    NSString *alertTitle = localize(@"ame369.vpage.edit_summary", @"编辑摘要");
     UIAlertController *alert = [UIAlertController alertControllerWithTitle:alertTitle
                                                                    message:nil
                                                             preferredStyle:UIAlertControllerStyleAlert];
@@ -1129,7 +1129,7 @@ static NSString *ZL2V13ModSHA1ForFile(NSString *path) {
                                                      accessibility:localize(@"resman.mods.import", nil)
                                                              action:^{ [wself ameV13_showImportPicker]; }];
 
-    NSString *pageTitle = @"模组";
+    NSString *pageTitle = localize(@"ame369.common.mods", @"模组");
     UIStackView *header = [self ameV13_pageHeaderRowWithTitle:pageTitle
                                                      trailing:@[countLabel, updateButton, selectButton, importButton]];
     _ameV13_contentStack = [self ameV13_installContentSkeleton];
@@ -1333,7 +1333,7 @@ static NSString *ZL2V13ModSHA1ForFile(NSString *path) {
     }
     _ameV13_viewMods = [view copy];
     // 计数徽章 + 清理已不在列表的勾选/徽章态
-    _ameV13_countLabel.text = [NSString stringWithFormat:@"共 %ld 个", (long)_ameV13_viewMods.count];
+    _ameV13_countLabel.text = [NSString stringWithFormat:localize(@"ame369.common.count_fmt", @"共 %ld 个"), (long)_ameV13_viewMods.count];
     [_ameV13_selectedPaths intersectSet:[NSSet setWithArray:[_ameV13_viewMods valueForKeyPath:@"filePath"]]];
     [self ameV13_updateSelectCount];
     [self ameV13_rebuildCards];
@@ -2050,7 +2050,7 @@ static NSString *ZL2V13ModSHA1ForFile(NSString *path) {
                                                              size:32
                                                      accessibility:localize(@"resman.worlds.import", nil)
                                                             action:^{ [self ameV13_showImportPicker]; }];
-    NSString *pageTitle = @"存档";
+    NSString *pageTitle = localize(@"ame369.common.worlds", @"存档");
     UIStackView *header = [self ameV13_pageHeaderRowWithTitle:pageTitle trailing:@[importButton]];
     _ameV13_contentStack = [self ameV13_installContentSkeleton];
     [_ameV13_contentStack addArrangedSubview:header];
@@ -2171,7 +2171,7 @@ static NSString *ZL2V13ModSHA1ForFile(NSString *path) {
     UIControl *renameButton = [self ameV13_iconButtonWithImageName:@"pencil"
                                                           fallback:@"square.and.pencil"
                                                              size:32
-                                                     accessibility:@"重命名"
+                                                     accessibility:localize(@"ame369.common.rename", @"重命名")
                                                             action:^{ [self ameV13_actionRenameSave:folderName path:folderPath]; }];
     UIControl *deleteButton = [self ameV13_iconButtonWithImageName:@"trash"
                                                           fallback:@"trash.fill"
@@ -2187,7 +2187,7 @@ static NSString *ZL2V13ModSHA1ForFile(NSString *path) {
 #pragma mark 存档：重命名 / 删除 / 导入
 
 - (void)ameV13_actionRenameSave:(NSString *)folderName path:(NSString *)path {
-    NSString *alertTitle = @"重命名存档";
+    NSString *alertTitle = localize(@"ame369.vpage.rename_world", @"重命名存档");
     UIAlertController *alert = [UIAlertController alertControllerWithTitle:alertTitle
                                                                    message:nil
                                                             preferredStyle:UIAlertControllerStyleAlert];
@@ -2438,7 +2438,7 @@ static NSString *ZL2V13ModSHA1ForFile(NSString *path) {
         }];
         dispatch_async(dispatch_get_main_queue(), ^{
             self.ameV13_rows = rows;
-            self.ameV13_countLabel.text = [NSString stringWithFormat:@"共 %ld 个", (long)rows.count];
+            self.ameV13_countLabel.text = [NSString stringWithFormat:localize(@"ame369.common.count_fmt", @"共 %ld 个"), (long)rows.count];
             [self ameV13_rebuildCards];
         });
     });
@@ -2474,7 +2474,7 @@ static NSString *ZL2V13ModSHA1ForFile(NSString *path) {
     UIControl *renameButton = [self ameV13_iconButtonWithImageName:@"pencil"
                                                           fallback:@"square.and.pencil"
                                                              size:32
-                                                     accessibility:@"重命名"
+                                                     accessibility:localize(@"ame369.common.rename", @"重命名")
                                                             action:^{
         [weakSelf ameV13_actionRenamePack:rowName path:rowPath];
     }];
@@ -2508,7 +2508,7 @@ static NSString *ZL2V13ModSHA1ForFile(NSString *path) {
 }
 
 - (void)ameV13_actionRenamePack:(NSString *)name path:(NSString *)path {
-    NSString *alertTitle = @"重命名";
+    NSString *alertTitle = localize(@"ame369.common.rename", @"重命名");
     UIAlertController *alert = [UIAlertController alertControllerWithTitle:alertTitle
                                                                    message:nil
                                                             preferredStyle:UIAlertControllerStyleAlert];
@@ -2586,7 +2586,7 @@ static NSString *ZL2V13ModSHA1ForFile(NSString *path) {
 //（7.0-UI-13-r2：.m 内重复 @interface 根除——空体重声明即 duplicate interface 错误）
 
 @implementation ZL2VersionResourcePacksPage
-- (NSString *)ameV13_pageTitle { return @"资源包"; }
+- (NSString *)ameV13_pageTitle { return localize(@"ame369.common.resource_packs", @"资源包"); }
 - (NSString *)ameV13_folderName { return @"resourcepacks"; }
 - (BOOL)ameV13_acceptsDirectories { return YES; }
 - (NSString *)ameV13_emptyText { return localize(@"resman.resourcepacks.empty", nil); }
@@ -2596,7 +2596,7 @@ static NSString *ZL2V13ModSHA1ForFile(NSString *path) {
 @end
 
 @implementation ZL2VersionShadersPage
-- (NSString *)ameV13_pageTitle { return @"光影"; }
+- (NSString *)ameV13_pageTitle { return localize(@"ame369.common.shaders", @"光影"); }
 - (NSString *)ameV13_folderName { return @"shaderpacks"; }
 - (BOOL)ameV13_acceptsDirectories { return NO; }
 - (NSString *)ameV13_emptyText { return localize(@"resman.shaders.empty", nil); }
@@ -2640,7 +2640,7 @@ static NSString *ZL2V13ModSHA1ForFile(NSString *path) {
         [_ameV13_gridView.trailingAnchor constraintEqualToAnchor:self.view.trailingAnchor],
     ]];
 
-    _ameV13_emptyView = [self ameV13_emptyStateWithSymbol:@"photo.on.rectangle" fallback:@"photo" text:@"还没有截图"];
+    _ameV13_emptyView = [self ameV13_emptyStateWithSymbol:@"photo.on.rectangle" fallback:@"photo" text:localize(@"ame369.vpage.no_screenshots", @"还没有截图")];
     _ameV13_emptyView.translatesAutoresizingMaskIntoConstraints = NO;
     _ameV13_emptyView.hidden = YES;
     [self.view addSubview:_ameV13_emptyView];
@@ -2733,9 +2733,9 @@ static NSString *ZL2V13ModSHA1ForFile(NSString *path) {
     UIControl *addButton = [self ameV13_iconButtonWithImageName:@"plus"
                                                        fallback:@"plus.circle.fill"
                                                            size:32
-                                                   accessibility:@"添加服务器"
+                                                   accessibility:localize(@"ame369.vpage.add_server", @"添加服务器")
                                                           action:^{ [self ameV13_actionAddServer]; }];
-    NSString *pageTitle = @"服务器";
+    NSString *pageTitle = localize(@"ame369.common.servers", @"服务器");
     UIStackView *header = [self ameV13_pageHeaderRowWithTitle:pageTitle trailing:@[addButton]];
     _ameV13_contentStack = [self ameV13_installContentSkeleton];
     [_ameV13_contentStack addArrangedSubview:header];
@@ -2769,7 +2769,7 @@ static NSString *ZL2V13ModSHA1ForFile(NSString *path) {
                     if (!nameValue) nameValue = @"";
                     NSString *ipValue = [item stringForKey:@"ip"];
                     if (!ipValue) ipValue = @"";
-                    if (nameValue.length == 0) nameValue = @"未命名服务器";
+                    if (nameValue.length == 0) nameValue = localize(@"ame369.vpage.unnamed_server", @"未命名服务器");
                     [rows addObject:@{
                         @"name": nameValue,
                         @"ip": ipValue,
@@ -2791,7 +2791,7 @@ static NSString *ZL2V13ModSHA1ForFile(NSString *path) {
 - (void)ameV13_rebuildCards {
     [self ameV13_clearStack:_ameV13_cardsStack];
     if (self.ameV13_rows.count == 0) {
-        [_ameV13_cardsStack addArrangedSubview:[self ameV13_emptyStateWithSymbol:@"dns" fallback:@"network" text:@"暂无服务器"]];
+        [_ameV13_cardsStack addArrangedSubview:[self ameV13_emptyStateWithSymbol:@"dns" fallback:@"network" text:localize(@"ame369.vpage.no_servers", @"暂无服务器")]];
         return;
     }
     for (NSUInteger i = 0; i < self.ameV13_rows.count; i++) {
@@ -2808,7 +2808,7 @@ static NSString *ZL2V13ModSHA1ForFile(NSString *path) {
     UIControl *editButton = [self ameV13_iconButtonWithImageName:@"pencil"
                                                         fallback:@"square.and.pencil"
                                                            size:32
-                                                   accessibility:@"编辑"
+                                                   accessibility:localize(@"ame369.common.edit", @"编辑")
                                                           action:^{ [weakSelf ameV13_actionEditServerAtIndex:index]; }];
     UIControl *deleteButton = [self ameV13_iconButtonWithImageName:@"trash"
                                                           fallback:@"trash.fill"
@@ -2833,17 +2833,17 @@ static NSString *ZL2V13ModSHA1ForFile(NSString *path) {
 }
 
 - (void)ameV13_presentServerEditorWithName:(NSString *)name ip:(NSString *)ip index:(NSInteger)index {
-    NSString *alertTitle = (index < 0) ? @"添加服务器" : @"编辑服务器";
+    NSString *alertTitle = (index < 0) ? localize(@"ame369.vpage.add_server", @"添加服务器") : localize(@"ame369.vpage.edit_server", @"编辑服务器");
     UIAlertController *alert = [UIAlertController alertControllerWithTitle:alertTitle
                                                                    message:nil
                                                             preferredStyle:UIAlertControllerStyleAlert];
     [alert addTextFieldWithConfigurationHandler:^(UITextField *textField) {
-        textField.placeholder = @"名称";
+        textField.placeholder = localize(@"ame369.common.name", @"名称");
         textField.text = name;
         textField.clearButtonMode = UITextFieldViewModeWhileEditing;
     }];
     [alert addTextFieldWithConfigurationHandler:^(UITextField *textField) {
-        textField.placeholder = @"IP 地址";
+        textField.placeholder = localize(@"ame369.vpage.ip_address", @"IP 地址");
         textField.text = ip;
         textField.autocapitalizationType = UITextAutocapitalizationTypeNone;
         textField.autocorrectionType = UITextAutocorrectionTypeNo;
@@ -3023,12 +3023,12 @@ static NSString *ZL2V13ModSHA1ForFile(NSString *path) {
 
     // —— 渲染器覆写 RowList ——
     UILabel *rendererHeader = [[UILabel alloc] init];
-    rendererHeader.text = @"渲染器覆写";
+    rendererHeader.text = localize(@"ame369.vpage.renderer_override", @"渲染器覆写");
     rendererHeader.font = [ZL2Theme fontTitleMedium];
     rendererHeader.textColor = [ZL2Theme onSurface];
     rendererHeader.translatesAutoresizingMaskIntoConstraints = NO;
     UILabel *rendererHint = [[UILabel alloc] init];
-    rendererHint.text = @"为本实例覆写渲染器（保存到实例，不影响其他实例）";
+    rendererHint.text = localize(@"ame369.vpage.renderer_override_hint", @"为本实例覆写渲染器（保存到实例，不影响其他实例）");
     rendererHint.font = [ZL2Theme fontLabelMedium];
     rendererHint.textColor = [ZL2Theme onSurfaceVariant];
     rendererHint.numberOfLines = 0;
@@ -3056,7 +3056,7 @@ static NSString *ZL2V13ModSHA1ForFile(NSString *path) {
     [_ameV13_contentStack addArrangedSubview:serverIpWrap];
 
     // —— 完整实例设置（长尾兜底：push 旧 ProfileSettingsViewController）——
-    NSString *fullTitle = @"完整实例设置";
+    NSString *fullTitle = localize(@"ame369.vpage.full_instance_settings", @"完整实例设置");
     UIButton *fullButton = [self ameV13_outlinedButtonWithTitle:fullTitle destructive:NO];
     fullButton.contentEdgeInsets = UIEdgeInsetsMake(12, 12, 12, 12);
     [fullButton addTarget:self action:@selector(ameV13_openFullSettings) forControlEvents:UIControlEventTouchUpInside];
@@ -3074,7 +3074,7 @@ static NSString *ZL2V13ModSHA1ForFile(NSString *path) {
 
 - (UIView *)ameV13_buildMemoryCard {
     UILabel *titleLabel = [[UILabel alloc] init];
-    titleLabel.text = @"内存分配";
+    titleLabel.text = localize(@"ame369.common.memory", @"内存分配");
     titleLabel.font = [ZL2Theme fontTitleMedium];
     titleLabel.textColor = [ZL2Theme onSurface];
     titleLabel.translatesAutoresizingMaskIntoConstraints = NO;
@@ -3093,7 +3093,7 @@ static NSString *ZL2V13ModSHA1ForFile(NSString *path) {
     [_ameV13_memorySlider addTarget:self action:@selector(ameV13_memoryTouchUp) forControlEvents:UIControlEventTouchUpOutside];
 
     UILabel *hintLabel = [[UILabel alloc] init];
-    hintLabel.text = @"拖动调整本实例的 JVM 堆内存（512 MB 起）";
+    hintLabel.text = localize(@"ame369.vpage.memory_hint", @"拖动调整本实例的 JVM 堆内存（512 MB 起）");
     hintLabel.font = [ZL2Theme fontLabelMedium];
     hintLabel.textColor = [ZL2Theme onSurfaceVariant];
     hintLabel.numberOfLines = 0;
@@ -3127,7 +3127,7 @@ static NSString *ZL2V13ModSHA1ForFile(NSString *path) {
 
 - (UIView *)ameV13_buildJavaArgsCard {
     UILabel *titleLabel = [[UILabel alloc] init];
-    titleLabel.text = @"JVM 参数";
+    titleLabel.text = localize(@"ame369.vpage.jvm_args", @"JVM 参数");
     titleLabel.font = [ZL2Theme fontTitleMedium];
     titleLabel.textColor = [ZL2Theme onSurface];
     titleLabel.numberOfLines = 0;
@@ -3150,7 +3150,7 @@ static NSString *ZL2V13ModSHA1ForFile(NSString *path) {
     [_ameV13_javaArgsField addTarget:self action:@selector(ameV13_javaArgsEditingEnded) forControlEvents:UIControlEventEditingDidEnd];
 
     UILabel *hintLabel = [[UILabel alloc] init];
-    hintLabel.text = @"留空回退全局 java.java_args（启动链 PLProfiles 回退口径）";
+    hintLabel.text = localize(@"ame369.vpage.jvm_args_hint", @"留空回退全局 java.java_args（启动链 PLProfiles 回退口径）");
     hintLabel.font = [ZL2Theme fontLabelMedium];
     hintLabel.textColor = [ZL2Theme onSurfaceVariant];
     hintLabel.numberOfLines = 0;
@@ -3235,7 +3235,7 @@ static NSString *ZL2V13ModSHA1ForFile(NSString *path) {
 
 - (UIView *)ameV13_buildServerIpCard {
     UILabel *titleLabel = [[UILabel alloc] init];
-    titleLabel.text = @"服务器地址";
+    titleLabel.text = localize(@"ame369.vpage.server_address", @"服务器地址");
     titleLabel.font = [ZL2Theme fontTitleMedium];
     titleLabel.textColor = [ZL2Theme onSurface];
     titleLabel.numberOfLines = 0;
@@ -3258,7 +3258,7 @@ static NSString *ZL2V13ModSHA1ForFile(NSString *path) {
     [_ameV13_serverIpField addTarget:self action:@selector(ameV13_serverIpEditingEnded) forControlEvents:UIControlEventEditingDidEnd];
 
     UILabel *hintLabel = [[UILabel alloc] init];
-    hintLabel.text = @"FCL 风格：启动后自动加入该服务器，留空则不加入";
+    hintLabel.text = localize(@"ame369.vpage.server_join_hint", @"FCL 风格：启动后自动加入该服务器，留空则不加入");
     hintLabel.font = [ZL2Theme fontLabelMedium];
     hintLabel.textColor = [ZL2Theme onSurfaceVariant];
     hintLabel.numberOfLines = 0;

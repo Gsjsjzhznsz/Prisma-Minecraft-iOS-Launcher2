@@ -185,7 +185,7 @@ static UIImage *ZL2AccountsSystemImage(NSString *name, NSString *fallback) {
     UIImage *refreshImage = ZL2AccountsSystemImage(@"arrow.clockwise", @"arrow.clockwise.circle");
     [_refreshButton setImage:refreshImage forState:UIControlStateNormal];
     _refreshButton.translatesAutoresizingMaskIntoConstraints = NO;
-    _refreshButton.accessibilityLabel = @"刷新账号";
+    _refreshButton.accessibilityLabel = localize(@"ame369.acct.refresh_a11y", @"刷新账号");
     [_refreshButton addTarget:self action:@selector(ame_refreshTapped)
              forControlEvents:UIControlEventTouchUpInside];
     [self addSubview:_refreshButton];
@@ -195,7 +195,7 @@ static UIImage *ZL2AccountsSystemImage(NSString *name, NSString *fallback) {
     [_moreButton setImage:moreImage forState:UIControlStateNormal];
     _moreButton.tintColor = [ZL2Theme onSurfaceVariant];
     _moreButton.translatesAutoresizingMaskIntoConstraints = NO;
-    _moreButton.accessibilityLabel = @"更多操作";
+    _moreButton.accessibilityLabel = localize(@"ame369.common.more_actions", @"更多操作");
     [_moreButton addTarget:self action:@selector(ame_moreTapped)
           forControlEvents:UIControlEventTouchUpInside];
     [self addSubview:_moreButton];
@@ -490,7 +490,7 @@ static UIImage *ZL2AccountsSystemImage(NSString *name, NSString *fallback) {
     _addAccountButton.translatesAutoresizingMaskIntoConstraints = NO;
     _addAccountButton.isAccessibilityElement = YES;
     _addAccountButton.accessibilityTraits = UIAccessibilityTraitButton;
-    _addAccountButton.accessibilityLabel = @"添加账户";
+    _addAccountButton.accessibilityLabel = localize(@"ame369.acct.add_account_a11y", @"添加账户");
 
     UILabel *label = [[UILabel alloc] init];
     label.text = localize(@"login.option.add", @"添加账户");
@@ -536,7 +536,7 @@ static UIImage *ZL2AccountsSystemImage(NSString *name, NSString *fallback) {
     _emptyIconView.translatesAutoresizingMaskIntoConstraints = NO;
 
     _emptyLabel = [[UILabel alloc] init];
-    _emptyLabel.text = @"未找到可用账号";
+    _emptyLabel.text = localize(@"ame369.acct.empty", @"未找到可用账号");
     _emptyLabel.font = [ZL2Theme fontBodyMedium];
     _emptyLabel.textColor = [ZL2Theme onSurfaceVariant];
     _emptyLabel.numberOfLines = 1;
@@ -611,7 +611,7 @@ static UIImage *ZL2AccountsSystemImage(NSString *name, NSString *fallback) {
 // —— ① 视觉卡：当前账号头像/名字/类型（无账号「未登录」，同主页口径）——
 - (void)rebuildIdentityCard {
     BaseAuthenticator *auth = BaseAuthenticator.current;
-    NSString *displayName = @"未登录";
+    NSString *displayName = localize(@"ame369.acct.not_signed_in", @"未登录");
     NSDictionary *authData = nil;
     if (auth && auth.authData) {
         authData = auth.authData;
@@ -627,7 +627,7 @@ static UIImage *ZL2AccountsSystemImage(NSString *name, NSString *fallback) {
     self.identityTypeLabel.hidden = (authData == nil);
     self.identityTypeLabel.text = authData ? [self typeTextForAccountData:authData] : @"";
     self.identityCard.accessibilityLabel =
-        [NSString stringWithFormat:@"当前账户：%@", displayName];
+        [NSString stringWithFormat:localize(@"ame369.acct.current_fmt", @"当前账户：%@"), displayName];
 
     if (authData) {
         // 头像：AvatarManager 三层回退链（profilePicURL → crafatar → minotar，
