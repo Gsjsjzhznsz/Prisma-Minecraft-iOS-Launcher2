@@ -57,8 +57,11 @@ dt_code = strip_code(dt)
 mm = read("Natives/main.m")
 
 # ══ A 线A NavigationView 真可见 + 幽灵字豁免 ═══════════════════
-check('A1 iPad 宽窄态派发缺陷双保险（构建期 contentLeading 即真值 + 首轮无条件派发哨兵）',
-      "self.ame347_contentLeading.constant = ZL2ShellPaneWidth;" in shell_code
+# ★ Task370 重锚：构建期真值形态收敛为 ame376_applyPaneGeometry 统一派发
+#   （Task376 折叠侧边栏参与几何；构建期 [self ame376_applyPaneGeometry:NO]
+#   落位 + 宽窄态哨兵与首轮无条件派发双保险语义原样保留）
+check('A1 iPad 宽窄态派发缺陷双保险（构建期统一派发落位 + 首轮无条件派发哨兵）',
+      "[self ame376_applyPaneGeometry:NO];" in shell_code
       and "!self.ame347_widthClassApplied || ame347_nowRegular != self.ame347_regular" in shell_code
       and "self.ame347_widthClassApplied = YES;" in shell_code
       and "@property(nonatomic, assign) BOOL ame347_widthClassApplied;" in shell)
@@ -129,7 +132,7 @@ if "--selftest" in sys.argv:
             else:
                 print(f"  PASS {vname} probe turned red")
                 rp += 1
-    rcheck("S-A1", [("S-A1", shell_code.replace("self.ame347_contentLeading.constant = ZL2ShellPaneWidth;", ""))])
+    rcheck("S-A1", [("S-A1", shell_code.replace("[self ame376_applyPaneGeometry:NO];", ""))])
     rcheck("S-B1", [("S-B1", shell_code.replace("ame230_setViewTreeStrokeExempt(self.view, YES);", ""))])
     rcheck("S-C4", [("S-C4", mm.replace('[PLProfiles ame349_reconcileOrphanInstancesLogTag:@"startup"]', ""))])
     if rf:

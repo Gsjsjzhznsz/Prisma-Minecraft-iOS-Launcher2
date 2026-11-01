@@ -70,6 +70,7 @@
 
 @interface ZL2GameAddonsViewController () <ZL2AddonCardDelegate, UITextFieldDelegate>
 // 头部
+@property (nonatomic, strong) UIButton *backButton;   // ★ Task374：页面返回钮
 @property (nonatomic, strong) UILabel *gameVersionLabel;
 @property (nonatomic, strong) UITextField *nameField;
 @property (nonatomic, strong) UIControl *installButton;
@@ -146,6 +147,26 @@
     UILayoutGuide *safe = self.view.safeAreaLayoutGuide;
 
     // ① ScreenHeader：游戏版本大字 + 自定义版本名输入框 + 安装钮（ZL2 顶行同构）
+    // ★ Task374：补返回钮（装机 IMG_0545 实锤：本页隐藏导航栏又无自定义返回，
+    //   入页后无路可退）——同款语义 = ZL2Shell navBackButton / 版本详情完成钮
+    //   （pop 优先，无 nav 时 dismiss 兕底）。
+    _backButton = [UIButton buttonWithType:UIButtonTypeSystem];
+    UIImage *ame374_chevron = [UIImage systemImageNamed:@"chevron.left"];
+    if (ame374_chevron) {
+        [_backButton setImage:[ame374_chevron imageWithRenderingMode:UIImageRenderingModeAlwaysTemplate]
+                     forState:UIControlStateNormal];
+    }
+    [_backButton setTitle:localize(@"ame369.common.back", @"返回") forState:UIControlStateNormal];
+    _backButton.titleLabel.font = [ZL2Theme fontLabelLarge];
+    _backButton.tintColor = [ZL2Theme primary];
+    [_backButton setTitleColor:[ZL2Theme primary] forState:UIControlStateNormal];
+    _backButton.contentEdgeInsets = UIEdgeInsetsMake(8, 8, 8, 8);
+    _backButton.translatesAutoresizingMaskIntoConstraints = NO;
+    _backButton.isAccessibilityElement = YES;
+    _backButton.accessibilityLabel = localize(@"ame369.common.back", @"返回");
+    [_backButton addTarget:self action:@selector(ame_goBack) forControlEvents:UIControlEventTouchUpInside];
+    [self.view addSubview:_backButton];
+
     _gameVersionLabel = [[UILabel alloc] init];
     _gameVersionLabel.text = [NSString stringWithFormat:localize(@"ame369.addon.install_page_fmt", @"安装 - %@"), self.gameVersion];
     _gameVersionLabel.font = [ZL2Theme fontTitleLarge];
@@ -262,7 +283,11 @@
 
     [NSLayoutConstraint activateConstraints:@[
         [_gameVersionLabel.topAnchor constraintEqualToAnchor:safe.topAnchor constant:12],
-        [_gameVersionLabel.leadingAnchor constraintEqualToAnchor:safe.leadingAnchor constant:16],
+        // ★ Task374：标题让位返回钮（钮在左，标题右移）
+        [_gameVersionLabel.leadingAnchor constraintEqualToAnchor:_backButton.trailingAnchor constant:2],
+
+        [_backButton.leadingAnchor constraintEqualToAnchor:safe.leadingAnchor constant:4],
+        [_backButton.centerYAnchor constraintEqualToAnchor:_gameVersionLabel.centerYAnchor],
 
         [_nameField.centerYAnchor constraintEqualToAnchor:_gameVersionLabel.centerYAnchor],
         // ★ Task324（IMG_0485 三病根根修·按钮截断）：旧版 nameField 固定 220 +
@@ -931,6 +956,17 @@
     self.installLabel.text = hasSelection ? localize(@"ame369.common.install", @"安装")
                             : localize(@"ame369.addon.install_vanilla", @"安装（原版）");
     self.installButton.accessibilityLabel = self.installLabel.text;
+}
+
+#pragma mark - 返回（Task374）
+
+- (void)ame_goBack {
+    // 同 ZL2VersionDetailViewController ameV13_finish 口径：pop 优先，无 nav 时 dismiss 兕底
+    if (self.navigationController && self.navigationController.viewControllers.count > 1) {
+        [self.navigationController popViewControllerAnimated:YES];
+    } else {
+        [self dismissViewControllerAnimated:YES completion:nil];
+    }
 }
 
 - (void)ame_installTapped {

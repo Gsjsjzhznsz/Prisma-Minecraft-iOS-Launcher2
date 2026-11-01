@@ -2,8 +2,8 @@
 # ame348_selfcheck.py -- Task348 两线门禁（zip 导入深扫救援+文案根修 / fluent-ui v2.3.0 装载即生效）
 # A 线A：导入侧第四段救援（全包深扫 + instances/ 排除 + 内容判定 v1/v2）
 #         + 空包诚实文案（ame348.import.spine_absent 54 表）+ flush 落盘回读验证
-# B 线B：fluent-ui v2.3.0 装载即自动应用（autoApply + silent + optout 语义）
-#         + manifest/index/zip 三方对拍
+# B 线B：fluent-ui v2.4.0 两态开关（Task375 重锚：开=全维度+跟随系统明暗，关=恢复默认；
+#         旧 v2.3.0 四态循环/optout 语义已退役）+ manifest/index/zip 三方对拍
 # D 结构护栏 + --selftest 反向验证（内存注入病灶变体必翻红，零仓内触碰）
 import os, re, sys, io, json, hashlib, zipfile
 
@@ -103,7 +103,7 @@ check('A5 flush 落盘回读验证（空/不可解析当场报警，交导出侧
       and "ame348_chk" in lp
       and "ame346_flushGlobalPrefsToDisk" in lp)
 
-# ══ B 线B fluent-ui v2.3.0 装载即生效 ════════════════════════
+# ══ B 线B fluent-ui v2.4.0 两态开关（Task375 重锚） ═══════════════
 man = json.loads(read("plugin-repo/src/fluent-ui/manifest.json"))
 idx = json.loads(read("plugin-repo/index.json"))
 fe = next((p for p in idx["plugins"] if p["id"] == "fluent-ui"), None)
@@ -113,23 +113,24 @@ zsha = hashlib.sha256(zdata).hexdigest()
 znames = sorted(zipfile.ZipFile(zpath).namelist())
 plugin_js = read("plugin-repo/src/fluent-ui/main.js")
 
-check('B1 v2.3.0 三方对拍（manifest + index 条目 + zip 实算 sha/size + zip 根两文件）',
-      man.get("version") == "2.3.0" and fe and fe.get("version") == "2.3.0"
+check('B1 v2.4.0 三方对拍（manifest + index 条目 + zip 实算 sha/size + zip 根两文件 + settings.read 权限）',
+      man.get("version") == "2.4.0" and fe and fe.get("version") == "2.4.0"
       and fe.get("sha256") == zsha and fe.get("size") == len(zdata)
-      and znames == ["main.js", "manifest.json"])
+      and znames == ["main.js", "manifest.json"]
+      and "settings.read" in man.get("permissions", []))
 
-check('B2 装载即自动应用（autoApply 在位 + addLauncherRow 成功路径末尾调用 + silent 首装补齐）',
-      "function autoApply()" in plugin_js
-      and "  autoApply();" in plugin_js
-      and "function applyPalette(idx, silent)" in plugin_js
-      and "idx >= 0 ? idx : 0" in plugin_js
-      and "palette applied: ' + pal.key + ' (structure+color+shape+layout' + (silent ? ', auto' : '') + ')'" in plugin_js)
+check('B2 两态开关语义（fluent.on 状态 + turnOn/turnOff + 装载期按系统明暗选色板 + legacy 迁移）',
+      "function turnOn(silent)" in plugin_js
+      and "function turnOff()" in plugin_js
+      and "storageSet('fluent.on', 'yes')" in plugin_js
+      and "storageSet('fluent.on', 'no')" in plugin_js
+      and "applyPalette(systemIsDark() ? 1 : 0, silent)" in plugin_js
+      and "function migrateLegacyState()" in plugin_js)
 
-check('B3 optout 语义（恢复默认武装 + 点击行解除 + 自动应用尊重选择）',
-      "storageSet('fluent.optout', 'yes')" in plugin_js
-      and "storageSet('fluent.optout', 'no')" in plugin_js
-      and "storageGet('fluent.optout') === 'yes'" in plugin_js
-      and "auto-apply skipped (user restored default" in plugin_js)
+check('B3 系统明暗读取（ame.info().darkMode 消费 + 失败浅色兜底不炸插件）',
+      "function systemIsDark()" in plugin_js
+      and "info.darkMode" in plugin_js
+      and "ame.setThemeToken(pal.tokens)" in plugin_js)
 
 check('B4 容错纪律保持（五族链独立降级 + autoApply 自身 try-catch 非致命）',
       "ame.setThemeStructure(FLUENT_STRUCTURE)" in plugin_js

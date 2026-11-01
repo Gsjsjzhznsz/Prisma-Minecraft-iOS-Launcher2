@@ -380,7 +380,11 @@ static UIColor *ZL2AssetSourceBadgeColor(NSInteger apiSource) {
             [_downloadsIconView.trailingAnchor constraintEqualToAnchor:_downloadsLabel.leadingAnchor constant:-4],
             [_downloadsIconView.widthAnchor constraintEqualToConstant:13],
             [_downloadsIconView.heightAnchor constraintEqualToConstant:13],
-            [_downloadsLabel.topAnchor constraintEqualToAnchor:_cardView.topAnchor constant:14],
+            // ★ Task373：下载量行铺在来源徽章下方（原 top=card+14 与徽章
+            //   y∈[10,30] 同区 → 装机 IMG_0542 实锤 "↓ 2000万"与 "Modrinth"
+            //   完全重叠成 "2Modrinth万"）。改为锚徽章底部 + 6，右列三层
+            //   （徽章/下载量/收藏）自上而下互不侵入。
+            [_downloadsLabel.topAnchor constraintEqualToAnchor:_sourceBadgeView.bottomAnchor constant:6],
             [_downloadsLabel.trailingAnchor constraintEqualToAnchor:_cardView.trailingAnchor constant:-12],
 
             [_favoriteControl.topAnchor constraintEqualToAnchor:_downloadsLabel.bottomAnchor constant:12],
@@ -398,10 +402,14 @@ static UIColor *ZL2AssetSourceBadgeColor(NSInteger apiSource) {
             [_descLabel.topAnchor constraintEqualToAnchor:titleStack.bottomAnchor constant:5],
             [_descLabel.leadingAnchor constraintEqualToAnchor:_iconView.trailingAnchor constant:12],
             [_descLabel.trailingAnchor constraintLessThanOrEqualToAnchor:_downloadsLabel.leadingAnchor constant:-12],
+            // ★ Task373：描述/标签尾部额外避让收藏钮（IMG_0542 首卡描述长尾
+            //   压进 "♡ 收藏" 区实锤）——双 ≤ 取 min，右列整柱都是文本禁区
+            [_descLabel.trailingAnchor constraintLessThanOrEqualToAnchor:_favoriteControl.leadingAnchor constant:-12],
 
             [_tagsLabel.topAnchor constraintEqualToAnchor:_descLabel.bottomAnchor constant:5],
             [_tagsLabel.leadingAnchor constraintEqualToAnchor:_iconView.trailingAnchor constant:12],
             [_tagsLabel.trailingAnchor constraintLessThanOrEqualToAnchor:_downloadsLabel.leadingAnchor constant:-12],
+            [_tagsLabel.trailingAnchor constraintLessThanOrEqualToAnchor:_favoriteControl.leadingAnchor constant:-12],
             [_tagsLabel.bottomAnchor constraintLessThanOrEqualToAnchor:_cardView.bottomAnchor constant:-10],
         ]];
     }

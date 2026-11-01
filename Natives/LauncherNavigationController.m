@@ -299,6 +299,20 @@ static void *ProgressObserverContext = &ProgressObserverContext;
 
 // Invoked by: startup, instance change event
 - (void)reloadProfileList {
+    // ★ Task370：通知观察者线程收敛 —— 本方法同时是 ReloadProfileList 通知的
+    //   观察者（addObserver:selector:name:object: 同步回调 = 跑在【发布线程】），
+    //   而发布点面里有大量后台线程 post（MCDL Task302 upfront 注册、在线整合包
+    //   导入完成 MinecraftResourceDownloadTask、ModpackImportService 完成链等），
+    //   本方法整链是 UIKit 面（versionPickerView reloadAllComponents / selectRow /
+    //   pickerView:didSelectRow: → 布局引擎）——后台 post 时在工作线程改布局
+    //   引擎 = NSInternalInconsistencyException 闪退（装机 latestlog.old 实锤：
+    //   整合包导入 100% 后 4.5s 'Modifications to the layout engine must not be
+    //   performed from a background thread'）。非主线程一律跳主线程重入，发布侧
+    //   30+ 站点零改动全覆盖。
+    if (![NSThread isMainThread]) {
+        dispatch_async(dispatch_get_main_queue(), ^{ [self reloadProfileList]; });
+        return;
+    }
     // Reload local version list
     [self fetchLocalVersionList];
     // Reload launcher_profiles.json

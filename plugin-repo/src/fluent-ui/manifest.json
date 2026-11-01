@@ -1,15 +1,16 @@
 {
   "id": "fluent-ui",
   "name": "Fluent UI",
-  "version": "2.3.0",
+  "version": "2.4.0",
   "author": "Prisma",
-  "description": "Fluent 2 完整设计语言：NavigationView 左侧导航窗格结构 + 排版/形状/字阶/色板全维度令牌，装载即自动生效",
+  "description": "Fluent 2 两态开关：开=NavigationView 全维度换装（结构/排版/形状/字阶/色板），色板跟随系统明暗；关=恢复默认主题",
   "entry": "main.js",
   "permissions": [
-    "ui.rows",
+    "settings.read",
+    "storage",
     "ui.dialog",
-    "ui.theme",
-    "storage"
+    "ui.rows",
+    "ui.theme"
   ],
   "minApi": 1
 }

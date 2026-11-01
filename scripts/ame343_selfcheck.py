@@ -203,8 +203,8 @@ fl_ok = (all(f"{k}:" in js for k in LAYOUT_KEYS)
          and "ame.setThemeLayout(FLUENT_LAYOUT)" in js
          and "ame.setThemeLayout({})" in js
          and "setThemeLayout failed" in js          # 布局链独立容错
-         and man.get("version") == "2.2.0"
-         and fe and fe.get("version") == "2.2.0"
+         and man.get("version") == "2.4.0"   # ★Task375 顺延：两态开关版
+         and fe and fe.get("version") == "2.4.0"
          and fe.get("sha256") == zsha and fe.get("size") == len(zdata)
          and znames == ["main.js", "manifest.json"])
 check('C6 fluent-ui v2.2.0（FLUENT_LAYOUT 13 键 + 独立容错 + 恢复三族清空 + manifest/index/zip 对拍；★Task347 顺延）', fl_ok)

@@ -381,9 +381,15 @@ static UIImage *ZL2V13SystemImage(NSString *name, NSString *fallback) {
 
 - (void)ameV13_buildBody {
     // 左轨（160pt，顶部起排；division 分隔线同 ZL2 settingItems：模组前 / 服务器前）
+    // ★ Task372：轨项改全宽行 —— "左侧模组等按钮触发点位靠左"修复。
+    //   原形态 = 栈居中(Center) + 项内宽 152 再居中 —— 双层居中虽然几何上
+    //   自洽，但命中面与视觉胶囊/标签之间存在 4pt×2 的隐性边带，iPad 实机
+    //   上手指落点偏左时极易落进边带外的主观空档，用户感知为"要点靠左才中"。
+    //   改为 Fill 全宽行：命中面 = 整列 160pt，视觉内容仍居中不变（胶囊/标签
+    //   锚在项中心），零主观空档；分隔线同步全宽（发丝线全宽 = M3 常态）。
     _railStack = [[UIStackView alloc] init];
     _railStack.axis = UILayoutConstraintAxisVertical;
-    _railStack.alignment = UIStackViewAlignmentCenter;
+    _railStack.alignment = UIStackViewAlignmentFill;
     _railStack.spacing = 2;
     _railStack.translatesAutoresizingMaskIntoConstraints = NO;
     [self.view addSubview:_railStack];
@@ -411,7 +417,8 @@ static UIImage *ZL2V13SystemImage(NSString *name, NSString *fallback) {
             divider.translatesAutoresizingMaskIntoConstraints = NO;
             divider.userInteractionEnabled = NO;
             [_railStack addArrangedSubview:divider];
-            [divider.widthAnchor constraintEqualToConstant:64].active = YES;
+            // ★ Task372：Fill 全宽行下分隔线不再约束内宽（自然铺满轨宽）；
+            //   高度 1 不变，左右留白交给视觉（发丝线全宽不硌眼）
             [divider.heightAnchor constraintEqualToConstant:1].active = YES;
             [_railStack setCustomSpacing:12 afterView:divider];
         }
@@ -424,7 +431,7 @@ static UIImage *ZL2V13SystemImage(NSString *name, NSString *fallback) {
         item.isAccessibilityElement = YES;
         item.accessibilityLabel = def[0];
         [item addTarget:self action:@selector(ameV13_railItemTapped:) forControlEvents:UIControlEventTouchUpInside];
-        [item.widthAnchor constraintEqualToConstant:ZL2V13RailWidth - 8].active = YES;
+        // ★ Task372：不再约束项内宽（Fill 对齐自动铺满 160pt 轨宽 = 命中面即整行）
         [item.heightAnchor constraintEqualToConstant:ZL2V13RailItemSize].active = YES;
         [_railStack addArrangedSubview:item];
         [_railItems addObject:item];

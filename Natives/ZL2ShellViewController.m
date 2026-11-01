@@ -109,6 +109,7 @@ static const CGFloat ZL2ShellAnimateDuration = 0.18;    // 全壳动画时长
 
 // ★ Task347 NavigationView 骨架常量（WinUI 布局溯源：4pt 栅格）
 static const CGFloat ZL2ShellPaneWidth = 280.0;         // 窗格宽（WinUI open 320 紧凑化）
+static const CGFloat ZL2ShellPaneCompactWidth = 64.0;   // ★ Task376 折叠态图标栏宽（WinUI compact）
 static const CGFloat ZL2ShellHeaderHeight = 52.0;       // 大标题内容区头高
 static const CGFloat ZL2ShellRegularMinWidth = 640.0;   // ≥ 此宽常驻窗格（窄屏抽屉）
 
@@ -297,12 +298,14 @@ static UIImage *ZL2ShellSystemImage(NSString *name, NSString *fallback) {
                      fallback:(NSString *)fallback
                     pageIndex:(NSInteger)pageIndex;
 - (void)ame_setSelected:(BOOL)selected;   // 纯状态应用（动画由壳侧统一包裹）
+- (void)ame_setCompact:(BOOL)compact;     // ★ Task376：折叠图标栏态（标签隐藏 + 图标居中）
 @end
 
 @interface ZL2ShellNavItem ()
 @property(nonatomic, strong) UIView *indicator;    // 3×16 选中指示条
 @property(nonatomic, strong) UIImageView *iconView;
 @property(nonatomic, strong) UILabel *label;
+@property(nonatomic, strong) NSLayoutConstraint *ame376_iconLeading; // ★ Task376：紧凑态图标居中驱动
 @end
 
 @implementation ZL2ShellNavItem
@@ -346,8 +349,13 @@ static UIImage *ZL2ShellSystemImage(NSString *name, NSString *fallback) {
             [_indicator.centerYAnchor constraintEqualToAnchor:self.centerYAnchor],
             [_indicator.widthAnchor constraintEqualToConstant:3.0],
             [_indicator.heightAnchor constraintEqualToConstant:16.0],
+        ]];
 
-            [_iconView.leadingAnchor constraintEqualToAnchor:self.leadingAnchor constant:14.0],
+        // ★ Task376：图标前导约束持引用 —— 紧凑态（折叠图标栏）居中驱动
+        NSMutableArray<NSLayoutConstraint *> *ame376_itemConstraints = [NSMutableArray array];
+        _ame376_iconLeading = [_iconView.leadingAnchor constraintEqualToAnchor:self.leadingAnchor constant:14.0];
+        [ame376_itemConstraints addObject:_ame376_iconLeading];
+        [ame376_itemConstraints addObjectsFromArray:@[
             [_iconView.centerYAnchor constraintEqualToAnchor:self.centerYAnchor],
             [_iconView.widthAnchor constraintEqualToConstant:20.0],
             [_iconView.heightAnchor constraintEqualToConstant:20.0],
@@ -359,6 +367,7 @@ static UIImage *ZL2ShellSystemImage(NSString *name, NSString *fallback) {
 
             [self.heightAnchor constraintEqualToConstant:36.0],
         ]];
+        [NSLayoutConstraint activateConstraints:ame376_itemConstraints];
 
         _iconView.tintColor = [ZL2Theme onSurfaceVariant];
         _label.textColor = [ZL2Theme onSurfaceVariant];
@@ -382,6 +391,14 @@ static UIImage *ZL2ShellSystemImage(NSString *name, NSString *fallback) {
     self.label.textColor = tint;
     self.accessibilityTraits = selected ? (UIAccessibilityTraitButton | UIAccessibilityTraitSelected)
                                         : UIAccessibilityTraitButton;
+}
+
+// ★ Task376：折叠图标栏态（WinUI PaneDisplayMode Compact）——标签隐藏、
+// 图标在 52pt 行宽内居中（窗格 64 − 栈内边距 12 = 52，(52−20)/2 = 16）。
+// 选中指示条保留（紧凑态 WinUI 同样保留 SelectionIndicator）。
+- (void)ame_setCompact:(BOOL)compact {
+    self.label.hidden = compact;
+    self.ame376_iconLeading.constant = compact ? 16.0 : 14.0;
 }
 
 @end
@@ -485,6 +502,9 @@ static UIImage *ZL2ShellSystemImage(NSString *name, NSString *fallback) {
 @property(nonatomic, assign) BOOL ame347_navMode;                     // 结构令牌 = navigationview
 @property(nonatomic, assign) BOOL ame347_regular;                     // 宽屏常驻窗格 / 窄屏抽屉
 @property(nonatomic, assign) BOOL ame347_drawerOpen;                  // 窄屏抽屉展开态
+@property(nonatomic, assign) BOOL ame376_paneCollapsed;               // ★ Task376 折叠图标栏态（宽屏）
+@property(nonatomic, strong) NSLayoutConstraint *ame376_paneWidth;    // ★ Task376 窗格宽约束（280↔64 驱动）
+@property(nonatomic, strong) ZL2ShellIconButton *paneToggleButton;    // ★ Task376 窗格开关钮（折叠/抽屉）
 @property(nonatomic, strong) UIView *paneWrap;                        // 左侧导航窗格容器
 @property(nonatomic, strong) UILabel *paneTitle;                      // 窗格头（应用名）
 @property(nonatomic, strong) UIScrollView *paneScroll;
@@ -747,6 +767,23 @@ static UIImage *ZL2ShellSystemImage(NSString *name, NSString *fallback) {
     self.paneWrap.backgroundColor = [ZL2Theme surfaceContainerLow];
     [self.view addSubview:self.paneWrap];
 
+    // ★ Task376：窗格开关钮（WinUI NavigationView 窗格头语义）——宽屏切换
+    //   Expanded(280)↔Compact(64 图标栏)，窄屏切换抽屉；态持久化 NSUserDefaults
+    self.paneToggleButton = [[ZL2ShellIconButton alloc] initWithSymbol:@"sidebar.leading" fallback:@"line.3.horizontal"];
+    self.paneToggleButton.accessibilityLabel = localize(@"ame369.shell.nav_a11y", @"导航");
+    self.paneToggleButton.ame_action = ^{
+        if (weakSelf.ame347_regular) {
+            weakSelf.ame376_paneCollapsed = !weakSelf.ame376_paneCollapsed;
+            [NSUserDefaults.standardUserDefaults setBool:weakSelf.ame376_paneCollapsed
+                                                  forKey:@"ame376.paneCollapsed"];
+            NSLog(@"[Ame376] pane toggled collapsed=%d", weakSelf.ame376_paneCollapsed);
+            [weakSelf ame376_applyPaneGeometry:YES];
+        } else {
+            [weakSelf ame_setDrawerOpen:!weakSelf.ame347_drawerOpen animated:YES];
+        }
+    };
+    [self.paneWrap addSubview:self.paneToggleButton];
+
     self.paneTitle = [[UILabel alloc] init];
     self.paneTitle.translatesAutoresizingMaskIntoConstraints = NO;
     self.paneTitle.font = [ZL2Theme fontTitleMedium];
@@ -899,14 +936,22 @@ static UIImage *ZL2ShellSystemImage(NSString *name, NSString *fallback) {
     // 宽窄态约束一次建全：前导常量由 ame347_applyWidthClass 派发
     self.ame347_paneLeading = [self.paneWrap.leadingAnchor constraintEqualToAnchor:self.view.leadingAnchor];
     self.ame347_contentLeading = [self.container.leadingAnchor constraintEqualToAnchor:self.view.leadingAnchor];
+    // ★ Task376：窗格宽持引用（280↔64 折叠驱动）
+    self.ame376_paneWidth = [self.paneWrap.widthAnchor constraintEqualToConstant:ZL2ShellPaneWidth];
     [NSLayoutConstraint activateConstraints:@[
         self.ame347_paneLeading,
         [self.paneWrap.topAnchor constraintEqualToAnchor:self.view.topAnchor],
         [self.paneWrap.bottomAnchor constraintEqualToAnchor:self.view.bottomAnchor],
-        [self.paneWrap.widthAnchor constraintEqualToConstant:ZL2ShellPaneWidth],
+        self.ame376_paneWidth,
+
+        [self.paneToggleButton.leadingAnchor constraintEqualToAnchor:self.paneWrap.safeAreaLayoutGuide.leadingAnchor constant:8.0],
+        [self.paneToggleButton.centerYAnchor constraintEqualToAnchor:self.paneTitle.centerYAnchor],
+        [self.paneToggleButton.widthAnchor constraintEqualToConstant:32.0],
+        [self.paneToggleButton.heightAnchor constraintEqualToConstant:32.0],
 
         [self.paneTitle.topAnchor constraintEqualToAnchor:self.paneWrap.safeAreaLayoutGuide.topAnchor constant:12.0],
-        [self.paneTitle.leadingAnchor constraintEqualToAnchor:self.paneWrap.leadingAnchor constant:16.0],
+        // ★ Task376：标题让位窗格开关钮
+        [self.paneTitle.leadingAnchor constraintEqualToAnchor:self.paneToggleButton.trailingAnchor constant:6.0],
         [self.paneTitle.trailingAnchor constraintLessThanOrEqualToAnchor:self.paneWrap.trailingAnchor constant:-16.0],
 
         [self.paneScroll.topAnchor constraintEqualToAnchor:self.paneTitle.bottomAnchor constant:8.0],
@@ -977,31 +1022,39 @@ static UIImage *ZL2ShellSystemImage(NSString *name, NSString *fallback) {
     // viewDidLayoutSubviews 必派发一次宽窄态（iPhone 闭合 / iPad 常驻），
     // 且首绘前完成——零可见闪帧。
     self.ame347_regular = YES;
-    // ★ Task349：宽屏几何构建期即为真值。原实现 contentLeading 常量停留在
-    //   创建默认 0，全靠 viewDidLayoutSubviews 的"变化才派发"兜底——而
-    //   ame347_regular 预置 YES 与 iPad 实际宽类相同 → 首轮永不派发 →
-    //   内容区（后 addSubview，z 序在窗格之上）以全宽盖死 NavigationView
-    //   左窗格 = 装机 IMG_0522 实锤"结构令牌应用了但界面没有左窗格"（导航
-    //   全灭：无窗格/无顶栏 rail/无汉堡，用户无路可走）。构建期即落 280pt
-    //   + 首轮无条件派发（ame347_widthClassApplied 哨兵）双保险。
-    self.ame347_contentLeading.constant = ZL2ShellPaneWidth;
-    // ★ Task350：宽屏几何构建期即为真值（与 contentLeading 同款纪律）——
-    //   头前导同步落窗格宽，首绘即无重叠。
-    self.ame350_headerWrapLeading.constant = ZL2ShellPaneWidth;
-    [self ame347_applyDrawerGeometryAnimated:NO];
+    // ★ Task349（历史判例保留）：宽屏几何构建期即为真值 + 首轮无条件派发
+    //   双保险（ame347_widthClassApplied 哨兵）。
+    // ★ Task376：折叠态持久化回读 + 统一几何派发（宽窄 × 折叠 × 抽屉一次落位）
+    self.ame376_paneCollapsed = [NSUserDefaults.standardUserDefaults boolForKey:@"ame376.paneCollapsed"];
+    [self ame376_applyPaneGeometry:NO];
     [self.view setNeedsLayout];
+}
+
+// ★ Task376：窗格几何统一派发（折叠态 × 宽窄态 × 抽屉开合一次落位）——
+//   compact = 宽屏且折叠：窗格 64、内容区/大标题前导随宽、标题隐藏、
+//   导航项转图标栏；宽屏未折叠 = 280 原样；窄屏 = 抽屉语义原样。
+- (void)ame376_applyPaneGeometry:(BOOL)animated {
+    BOOL ame376_compact = self.ame347_regular && self.ame376_paneCollapsed;
+    CGFloat ame376_width = ame376_compact ? ZL2ShellPaneCompactWidth : ZL2ShellPaneWidth;
+    self.ame376_paneWidth.constant = ame376_width;
+    self.ame347_contentLeading.constant = self.ame347_regular ? ame376_width : 0.0;
+    self.ame350_headerWrapLeading.constant = self.ame347_regular ? ame376_width : 0.0;
+    self.paneTitle.hidden = ame376_compact;
+    [self.navItems enumerateObjectsUsingBlock:^(ZL2ShellNavItem *item, NSUInteger idx, BOOL *stop) {
+        [item ame_setCompact:ame376_compact];
+    }];
+    [self ame347_applyDrawerGeometryAnimated:animated];
 }
 
 // 宽窄态派发：宽屏常驻窗格 / 窄屏抽屉（viewDidLayoutSubviews 阈值检测驱动）
 - (void)ame347_applyWidthClass:(BOOL)regular {
     self.ame347_regular = regular;
-    self.ame347_contentLeading.constant = regular ? ZL2ShellPaneWidth : 0.0;
-    // ★ Task350：内容区头前导与内容区同语义派发（宽屏避窗格 / 窄屏全宽）
-    self.ame350_headerWrapLeading.constant = regular ? ZL2ShellPaneWidth : 0.0;
+    // ★ Task376：几何统一收敛到 ame376_applyPaneGeometry（折叠态参与派发；
+    //   跨阈值收窄时 compact 自动解除 = 窗格回 280 抽屉语义）
     if (!regular && self.ame347_drawerOpen) {
         self.ame347_drawerOpen = NO;   // 跨阈值收敛抽屉（旋转/分屏）
     }
-    [self ame347_applyDrawerGeometryAnimated:NO];
+    [self ame376_applyPaneGeometry:NO];
     [self ame_refreshNavShellStateAnimated:NO];
 }
 

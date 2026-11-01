@@ -1165,15 +1165,122 @@ static BOOL ame329_moveEntry(NSFileManager *fm, NSString *src, NSString *dstDir,
 }
 
 // ---------- 扫描模组（核心优化）----------
+// ★ Task371：版本轴多根联合扫描 —— "模组列表加载不出来"根修。
+//   病历（装机 f3854ee latestlog 实锤）：模组管理页对版本轴形态只认单根
+//   （相对 gameDir 按 POJAV_GAME_DIR 展开 = 全局根 Library/Application
+//   Support/minecraft/versions/<vid>/mods，且缺目录即创建 —— 21:57 两条
+//   Created mods directory 全局根日志），而同一版本的真实数据可能落在
+//   实例轴（Task265 download dest 实锤 instances/<id>/versions/<vid>/mods，
+//   JEI 就在那）或 versions/<vid>/game 变体（Forge/Fabric 直装器写入形态）
+//   ——启动链 Task353 已有 ame353_versionRootForProfileName 祖先链口径，
+//   扫描侧没吃 = 装哪儿扫哪儿变成"游戏读 A 页面扫 B"。
+//   修法 = 有序候选根联合扫描（同文件名先到先得去重）：主根（Task219
+//   隔离优先语义不变）→ ame353 版本根两种形态 → 实例轴一跳 glob
+//   （Task353 ZL2VersionIndex ②' 实例树兜底同款纪律）→ 全局根两种形态。
+//   仅新增【读取】面；写入面（Task265 download dest / ensureModsFolder）
+//   分毫不动 = 全新安装零回归。
+- (NSArray<NSString *> *)ame371_scanRootsForProfile:(NSString *)profileName {
+    NSMutableArray<NSString *> *ame371_roots = [NSMutableArray array];
+    void (^ame371_push)(NSString *) = ^(NSString *dir) {
+        if (dir.length == 0) return;
+        NSString *std = [dir stringByStandardizingPath];
+        if (![ame371_roots containsObject:std]) [ame371_roots addObject:std];
+    };
+
+    // ① 主根：Task219 隔离优先解析（可能尚不存在——联合扫描里跳过不存在的根，
+    //   创建语义仍归 ensureModsFolder 专属，扫描绝不造目录）
+    NSString *ame371_primary = [self existingModsFolderForProfile:profileName];
+    if (!ame371_primary) {
+        NSString *ame371_resolved = [self resolveAbsoluteGameDirForProfile:profileName];
+        if (ame371_resolved.length > 0) {
+            NSString *ame371_p = [ame371_resolved stringByAppendingPathComponent:@"mods"];
+            BOOL ame371_isDir = NO;
+            if ([[NSFileManager defaultManager] fileExistsAtPath:ame371_p isDirectory:&ame371_isDir] && ame371_isDir) {
+                ame371_primary = ame371_p;
+            }
+        }
+    }
+    ame371_push(ame371_primary);
+
+    // ② 版本轴候选 vid（latest-* 别名不参与实体定位，ame353 同判据）
+    NSString *ame371_vid = nil;
+    NSDictionary *ame371_prof = PLProfiles.current.profiles[profileName ?: @""];
+    if ([ame371_prof isKindOfClass:[NSDictionary class]]) {
+        NSString *ame371_lv = ame371_prof[@"lastVersionId"];
+        if ([ame371_lv isKindOfClass:[NSString class]] && ame371_lv.length > 0 && ![ame371_lv hasPrefix:@"latest-"]) {
+            ame371_vid = ame371_lv;
+        }
+    }
+
+    if (ame371_vid.length > 0) {
+        NSFileManager *ame371_fm = [NSFileManager defaultManager];
+        BOOL (^ame371_dirExists)(NSString *) = ^BOOL(NSString *p) {
+            BOOL isDir = NO;
+            return [ame371_fm fileExistsAtPath:p isDirectory:&isDir] && isDir;
+        };
+        NSString *(^ame371_modsIn)(NSString *) = ^NSString *(NSString *verDir) {
+            NSString *m = [verDir stringByAppendingPathComponent:@"mods"];
+            return ame371_dirExists(m) ? m : nil;
+        };
+
+        // ③ ame353 版本根（启动链权威口径）两种形态：R/versions/<vid>/ 与
+        //    旧隔离 R/versions/<vid>/game/
+        NSString *ame373_root = [PLProfiles ame353_versionRootForProfileName:profileName];
+        if (ame373_root.length > 0) {
+            NSString *ame371_verDir = [[ame373_root stringByAppendingPathComponent:@"versions"]
+                stringByAppendingPathComponent:ame371_vid];
+            ame371_push(ame371_modsIn(ame371_verDir));
+            ame371_push(ame371_modsIn([ame371_verDir stringByAppendingPathComponent:@"game"]));
+        }
+
+        // ④ 实例轴一跳 sweep：POJAV_HOME/instances/*/versions/<vid>（Task353
+        //    实例树兜底同款一跳纪律；Task265 下载 dest 实锤数据的真实落点）
+        const char *ame371_homeC = getenv("POJAV_HOME");
+        if (ame371_homeC && *ame371_homeC) {
+            NSString *ame371_instances = [[NSString stringWithUTF8String:ame371_homeC]
+                stringByAppendingPathComponent:@"instances"];
+            for (NSString *ame371_inst in [ame371_fm contentsOfDirectoryAtPath:ame371_instances error:nil] ?: @[]) {
+                if ([ame371_inst hasPrefix:@"."]) continue;
+                NSString *ame371_verDir = [[[ame371_instances
+                    stringByAppendingPathComponent:ame371_inst]
+                    stringByAppendingPathComponent:@"versions"]
+                    stringByAppendingPathComponent:ame371_vid];
+                ame371_push(ame371_modsIn(ame371_verDir));
+                ame371_push(ame371_modsIn([ame371_verDir stringByAppendingPathComponent:@"game"]));
+            }
+        }
+
+        // ⑤ 全局根两种形态（历史混居通例 Task322 / 直装器 game 变体）
+        const char *ame371_gameC = getenv("POJAV_GAME_DIR");
+        if (ame371_gameC && *ame371_gameC) {
+            NSString *ame371_verDir = [[[NSString stringWithUTF8String:ame371_gameC]
+                stringByAppendingPathComponent:@"versions"]
+                stringByAppendingPathComponent:ame371_vid];
+            ame371_push(ame371_modsIn(ame371_verDir));
+            ame371_push(ame371_modsIn([ame371_verDir stringByAppendingPathComponent:@"game"]));
+        }
+    }
+    return [ame371_roots copy];
+}
+
 - (void)scanModsForProfile:(NSString *)profileName completion:(ModListHandler)completion {
     dispatch_async(dispatch_get_global_queue(QOS_CLASS_USER_INITIATED, 0), ^{
         // Task219（⑪）：扫描改隔离优先——隔离 profile 只扫隔离目录（缺目录
         // 视为空列表，不再被共享目录的 mod 假装成"已安装"；下载侧同款
         // 语义，装哪儿扫哪儿）。
+        // ★ Task371：改为版本轴多根联合扫描（同文件名先到先得去重）——主根
+        //   语义不变，实例轴/全局根/game 变体补读，见 ame371_scanRootsForProfile。
         NSString *modsFolder = [self ame219_isolationFirstModsFolderForProfile:profileName];
+        NSArray<NSString *> *ame371_roots = [self ame371_scanRootsForProfile:profileName];
         NSMutableArray<ModItem *> *items = [NSMutableArray array];
+        NSMutableSet<NSString *> *ame371_seen = [NSMutableSet set];
+        dispatch_group_t group = dispatch_group_create();
 
-        if (!modsFolder) {
+        if (!modsFolder && ame371_roots.count > 0) {
+            modsFolder = ame371_roots.firstObject;
+        }
+
+        if (!modsFolder || ame371_roots.count == 0) {
             NSLog(@"[ModService] Task265 scan: profile=%@ folder=(nil) jars=0", profileName ?: @"(nil)");
             if (completion) {
                 dispatch_async(dispatch_get_main_queue(), ^{ completion(items); });
@@ -1181,40 +1288,53 @@ static BOOL ame329_moveEntry(NSFileManager *fm, NSString *src, NSString *dstDir,
             return;
         }
 
-        NSArray<NSString *> *contents = [[NSFileManager defaultManager] contentsOfDirectoryAtPath:modsFolder error:nil];
-        dispatch_group_t group = dispatch_group_create();
+        NSFileManager *ame371_fm = [NSFileManager defaultManager];
+        for (NSString *ame371_root in ame371_roots) {
+            NSArray<NSString *> *contents = [ame371_fm contentsOfDirectoryAtPath:ame371_root error:nil];
+            NSUInteger ame371_rootJars = 0;
+            for (NSString *fileName in contents) {
+                if ([fileName.lowercaseString hasSuffix:@".jar"] || [fileName.lowercaseString hasSuffix:@".jar.disabled"]) {
+                    // ★ Task371：同文件名先到先得——主根（游戏实际读取面）优先，
+                    //   其余根只补缺，绝不让次根副本顶掉主根条目
+                    NSString *ame371_key = fileName.lowercaseString;
+                    if ([ame371_seen containsObject:ame371_key]) continue;
+                    [ame371_seen addObject:ame371_key];
+                    ame371_rootJars++;
+                    NSString *fullPath = [ame371_root stringByAppendingPathComponent:fileName];
 
-        for (NSString *fileName in contents) {
-            if ([fileName.lowercaseString hasSuffix:@".jar"] || [fileName.lowercaseString hasSuffix:@".jar.disabled"]) {
-                NSString *fullPath = [modsFolder stringByAppendingPathComponent:fileName];
-
-                // 检查缓存
-                if (![self needsRescanForPath:fullPath]) {
-                    ModItem *cached = [self cachedModForPath:fullPath];
-                    if (cached) {
-                        [items addObject:cached];
-                        continue;
+                    // 检查缓存
+                    if (![self needsRescanForPath:fullPath]) {
+                        ModItem *cached = [self cachedModForPath:fullPath];
+                        if (cached) {
+                            [items addObject:cached];
+                            continue;
+                        }
                     }
+
+                    ModItem *mod = [[ModItem alloc] initWithFilePath:fullPath];
+                    [items addObject:mod];
+
+                    dispatch_group_enter(group);
+                    [self fetchMetadataForMod:mod completion:^(ModItem *populatedMod, NSError *error) {
+                        if (!error) {
+                            [self cacheModItem:populatedMod forPath:fullPath];
+                            [self updateCheckpointForPath:fullPath];
+                        }
+                        dispatch_group_leave(group);
+                    }];
                 }
-
-                ModItem *mod = [[ModItem alloc] initWithFilePath:fullPath];
-                [items addObject:mod];
-
-                dispatch_group_enter(group);
-                [self fetchMetadataForMod:mod completion:^(ModItem *populatedMod, NSError *error) {
-                    if (!error) {
-                        [self cacheModItem:populatedMod forPath:fullPath];
-                        [self updateCheckpointForPath:fullPath];
-                    }
-                    dispatch_group_leave(group);
-                }];
+            }
+            if (ame371_roots.count > 1) {
+                NSLog(@"[Ame371] scan root: profile=%@ root=%@ jars=%lu",
+                      profileName ?: @"(nil)", ame371_root, (unsigned long)ame371_rootJars);
             }
         }
 
         dispatch_group_notify(group, dispatch_get_main_queue(), ^{
             // ★ Task265：扫描结果锚——与 download dest 锚成对，目录错位一轮日志定音
-            NSLog(@"[ModService] Task265 scan: profile=%@ folder=%@ jars=%ld",
-                  profileName ?: @"(nil)", modsFolder, (long)items.count);
+            NSLog(@"[ModService] Task265 scan: profile=%@ folder=%@ jars=%ld (ame371 roots=%lu)",
+                  profileName ?: @"(nil)", modsFolder, (long)items.count,
+                  (unsigned long)ame371_roots.count);
             [items sortUsingComparator:^NSComparisonResult(ModItem *obj1, ModItem *obj2) {
                 NSString *name1 = obj1.displayName ?: obj1.fileName;
                 NSString *name2 = obj2.displayName ?: obj2.fileName;

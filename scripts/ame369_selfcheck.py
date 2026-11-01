@@ -73,7 +73,10 @@ ame369_keys = {k for k in code_keys if k.startswith('ame369.')}
 check("② ame369.* 键四表齐备",
       all(k in TABLES[l] for k in ame369_keys for l in TABLES),
       f"缺: {[k for k in ame369_keys if any(k not in TABLES[l] for l in TABLES)][:8]}")
-check("① ame369 改写点数 == 447", ame369_sites == 447, str(ame369_sites))
+# ★ Task370 重锚：447 → 450（+3 复用站点 = Task374 安装页返回钮 title/a11y 两处
+#   ame369.common.back + Task376 窗格开关钮 a11y ame369.shell.nav_a11y；零移除，
+#   git diff 实证 0 处被移除）
+check("① ame369 改写点数 == 450", ame369_sites == 450, str(ame369_sites))
 
 # 复用站点：4 处 localize(@"ame193.misc.[13]"（内容级匹配——5 个补 import 文件行号整体 +1，行级断言会错位）
 REUSE_EXPECT = {
@@ -136,29 +139,22 @@ for k in sorted(ame369_keys):
         fmt_bad.append(f"{k}: {sets}")
 check("④ ame369 四表格式符一致", len(fmt_bad) == 0, '; '.join(fmt_bad[:6]))
 
-# ── ⑤ 旧候选清零（白名单 = 已定性不翻译的故意跳过点）──
-WHITELIST = {("AmePluginBridge.m", 2578),      # AI 系统提示词（喂 AI，非 UI）
-             ("AmePluginRuntime.m", 520),      # 隔离区诊断 reason
-             ("AmePluginRuntime.m", 544),      # 权限映射日志 note
-             ("AmePluginRuntime.m", 562),      # 隔离区诊断 reason
-             ("AmePluginRuntime.m", 597),      # 诊断日志片段
-             ("JavaLauncher.m", 476),          # JVM 参数内容（非展示文本）
-             ("ZL2SettingPages.m", 1596),      # 语言自名
-             ("ZL2SettingPages.m", 1599),      # 语言自名
-             ("ZL2SettingPages.m", 1600),      # 语言自名
-             ("MultiplayerViewController.m", 2571)}  # 已走 MPLocalized
-cands = json.load(open('/home/z/my-project/scripts/i18n_t369_candidates.json', encoding='utf-8'))
-CJK = re.compile(r'[\u4e00-\u9fff]')
-residual = []
-for c in cands:
-    if (c['file'], c['line']) in WHITELIST:
-        continue
-    p = os.path.join(NAT, c['file'])
-    lines = open(p, encoding='utf-8', errors='replace').read().split('\n')
-    line = lines[c['line'] - 1]
-    if '@"' + c['value'] + '"' in line and 'localize(' not in line:
-        residual.append(f"{c['file']}:{c['line']}")
-check("⑤ 目标站点清零（白名单外）", len(residual) == 0, str(residual[:8]))
+# ── ⑤ 改写站点清零（自包含重锚，Task370 会话）──
+# 原口径：会话工件 /home/z/my-project/scripts/i18n_t369_candidates.json（451 站点
+# (file,line,value) 清单）逐点回查 —— 该工件随沙箱回收丢失，依 worklog「工作区
+# 工件丢失按 archive 记录重建」规则重建为自包含口径：逐 ame369.* 键断言其
+# localize() 消费站点在位（336 新键 × ≥1 站点 = 447 改写面覆盖；4 站点复用
+# ame193.misc 既有键不入本断言）；硬编码 CJK 面由 task248 门禁独立守（0 处）。
+ame369_blob = []
+for dp, dns, fns in os.walk(NAT):
+    rel = os.path.relpath(dp, NAT)
+    if 'external' in rel.split(os.sep): continue
+    for fn in fns:
+        if fn.endswith(('.m', '.mm')):
+            ame369_blob.append(open(os.path.join(dp, fn), encoding='utf-8', errors='replace').read())
+ame369_blob = '\n'.join(ame369_blob)
+no_site = [k for k in sorted(ame369_keys) if ('localize(@"%s"' % k) not in ame369_blob]
+check("⑤ ame369.* 全键 localize 消费站点在位（%d 键）" % len(ame369_keys), len(no_site) == 0, str(no_site[:8]))
 
 # ── ⑥ utils.h 导入 ──
 for f in ["ZL2GameDownloadViewController.m", "ZL2SettingsViewController.m",
