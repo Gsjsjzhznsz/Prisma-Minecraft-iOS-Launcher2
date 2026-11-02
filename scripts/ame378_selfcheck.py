@@ -173,13 +173,16 @@ check("C6 向导引导锚点平移（zl2_shell_topbar_rail 随五瓦片区，coa
       '_quickNavWrap.accessibilityIdentifier = @"zl2_shell_topbar_rail";' in home
       and 'zl2_shell_topbar_rail' not in shell_code)
 
-check("C7 动作接线（下载=1/设置=4/联机=5/AI=6 走壳导航总线；目录 = 文件浏览器 PageSheet 直达）",
+check("C7 动作接线（下载=1/设置=4/联机=5/AI=6 走壳导航总线；目录 = 壳通知接线零直连，smoke 窄链接面零新增类依赖）",
       "[weakSelf ame378_navigateToPage:1];" in home_code
       and "[weakSelf ame378_navigateToPage:4];" in home_code
       and "[weakSelf ame378_navigateToPage:5];" in home_code
       and "[weakSelf ame378_navigateToPage:6];" in home_code
-      and "[FolderBrowserViewController wrappedControllerForPath:" in home_code
-      and 'postNotificationName:@"ZL2ShellNavigate"' in home)
+      and 'postNotificationName:@"ZL2ShellOpenFileManager"' in home
+      and "FolderBrowserViewController" not in home_code
+      and '#import "FolderBrowserViewController.h"' not in home
+      and 'name:@"ZL2ShellOpenFileManager"' in shell
+      and "ame_openFileManagerSheet" in shell_code)
 
 check("C8 i18n 零新增键（复用四表既有键：ame369.shell.tab.* / ame369.common.multiplayer / ame192.ai.title）",
       'localize(@"ame369.shell.tab.files", @"文件")' in home

@@ -487,6 +487,13 @@ static UIImage *ZL2ShellSystemImage(NSString *name, NSString *fallback) {
                                              selector:@selector(ame_taskManagerDidChange:)
                                                  name:DownloadTaskManagerDidUpdateTaskNotification
                                                object:nil];
+    // ★ Task378 r2：目录瓦片接线（主页右侧栏快航 → 文件浏览器 PageSheet）——
+    //   原顶栏文件夹项 ame_openFileManagerSheet 的壳统一承接通道，smoke 预览
+    //   窄链接面零新增类依赖（主页不直连 FolderBrowserViewController）
+    [[NSNotificationCenter defaultCenter] addObserver:self
+                                             selector:@selector(ame_openFileManagerSheet)
+                                                 name:@"ZL2ShellOpenFileManager"
+                                               object:nil];
 
     [self showPageAtIndex:0];
 }

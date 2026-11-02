@@ -62,7 +62,10 @@
 #import "ZL2Theme.h"
 #import "ControlRepoViewController.h"   // ★Task343：控件自动检查更新挂载（旧 Root 壳退役后移防主页）
 #import "ZL2M3Kit.h"                 // ZL2M3BottomSheet（长按卡菜单）
-#import "FolderBrowserViewController.h"   // ★ Task378：目录瓦片直达（原顶栏文件夹项同款 PageSheet）
+// ★ Task378 r2：目录瓦片改走壳通知接线（@"ZL2ShellOpenFileManager"）——有意不
+//   import FolderBrowserViewController.h：ui_fluent_smoke 预览链接窄清单不含
+//   该 TU，直连类符号 = _OBJC_CLASS_$ 未定义链接雷（Task323 ios_uikit_bridge
+//   判例同族）；壳统一接线纪律同款（页面间零直连）。
 #import "authenticator/BaseAuthenticator.h"
 #import "PLProfiles.h"
 #import "AvatarManager.h"            // ame185 头像三层回退链（账户页同款）
@@ -975,14 +978,11 @@ static UIImage *ZL2HomeSizedImage(NSString *name, NSString *fallback, CGFloat po
                                                       userInfo:@{@"index": @(index)}];
 }
 
-/// 目录瓦片直达：文件浏览器 PageSheet（原顶栏文件夹项 ame_openFileManagerSheet 同款）
+/// 目录瓦片直达：壳通知接线（原顶栏文件夹项 ame_openFileManagerSheet 由壳
+/// 统一承接——smoke 预览窄链接面零新增类依赖，Task378 r2）
 - (void)ame378_openFileManagerSheet {
-    const char *ame378_env = getenv("POJAV_GAME_DIR");
-    NSString *ame378_gameDir = ame378_env ? [NSString stringWithUTF8String:ame378_env] : NSHomeDirectory();
-    UINavigationController *ame378_nav = [FolderBrowserViewController wrappedControllerForPath:ame378_gameDir];
-    ame378_nav.modalPresentationStyle = UIModalPresentationPageSheet;
-    UIViewController *ame378_presenter = self.presentedViewController ?: self;
-    [ame378_presenter presentViewController:ame378_nav animated:YES completion:nil];
+    [[NSNotificationCenter defaultCenter] postNotificationName:@"ZL2ShellOpenFileManager"
+                                                        object:nil];
 }
 
 /// 小图标钮工厂：32×32 / 18pt 模板图标（菜单卡内刷新/设置两钮共用）
