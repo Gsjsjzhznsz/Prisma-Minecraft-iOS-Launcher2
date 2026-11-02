@@ -60,8 +60,9 @@ check("A5 标题文案 bundle 显示名回退链（processName 宿主不确定�
       'infoDictionary[@"CFBundleDisplayName"]' in shell
       and 'if (ame379_bundleName.length == 0) ame379_bundleName = @"Prisma Launcher";' in shell)
 
-check("A6 装机自证日志（[Ame379] pane header 落 header/toggle/title frame）",
-      '[Ame379] pane header -- header=%@ toggle=%@ title=%@ titleLen=%lu' in shell)
+check("A6 装机自证日志（[Ame379] pane header 落 header/toggle/tglTrans/title frame + Task383 动作簇自证）",
+      '[Ame379] pane header -- header=%@ toggle=%@ tglTrans=%d title=%@ titleLen=%lu' in shell
+      and '[Ame383] header actions -- stack=%@ btns=%lu' in shell)
 
 check("A7 376 折叠语义逐字保留（几何派发/宽约束/持久化/紧凑宽 64）",
       "ame376_applyPaneGeometry:(BOOL)animated" in shell
@@ -103,13 +104,14 @@ check("C3 事件面第 12 事件（Runtime 订阅通知 → appearance.changed �
       'addObserverForName:@"AmeAppearanceTraitChanged"' in runtime
       and 'ame317_dispatchAll:@"appearance.changed" payload:@{@"dark": @(dark)}]' in runtime)
 
-check("C4 fluent-ui v2.5.0 订阅换板（appearance.changed → applyPalette(dark?1:0)）",
+check("C4 fluent-ui v2.5.1 订阅换板+Task380 同值幂等（appearance.changed → 去重短路 → applyPalette(dark?1:0)）",
       "ame.on('appearance.changed'" in js
-      and "applyPalette(ame379_dark ? 1 : 0, true);" in js
-      and "fluent-ui v2.5.0 loaded" in js)
+      and "lastAppliedDark !== null && ame380_dark === lastAppliedDark" in js
+      and "applyPalette(ame380_dark ? 1 : 0, true);" in js
+      and "fluent-ui v2.5.1 loaded" in js)
 
-check("C5 manifest 2.5.0 + events 权限（订阅闸）",
-      '"version": "2.5.0"' in manifest and '"events"' in manifest)
+check("C5 manifest 2.5.1 + events 权限（订阅闸；★Task380 演进顺延 2.5.0→2.5.1）",
+      '"version": "2.5.1"' in manifest and '"events"' in manifest)
 
 check("C6 插件文档同步（事件 11→12 种 + appearance.changed 条目）",
       "12 种" in docs and "appearance.changed" in docs)
@@ -121,7 +123,7 @@ def _idx_ok():
     zip_path = os.path.join(REPO, "plugin-repo", entry["file"])
     with open(zip_path, "rb") as f:
         blob = f.read()
-    return (entry["version"] == "2.5.0"
+    return (entry["version"] == "2.5.1"
             and entry["size"] == len(blob)
             and entry["sha256"] == hashlib.sha256(blob).hexdigest())
 

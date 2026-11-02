@@ -113,8 +113,8 @@ zsha = hashlib.sha256(zdata).hexdigest()
 znames = sorted(zipfile.ZipFile(zpath).namelist())
 plugin_js = read("plugin-repo/src/fluent-ui/main.js")
 
-check('B1 v2.5.0 三方对拍（manifest + index 条目 + zip 实算 sha/size + zip 根两文件 + settings.read 权限；★Task379 顺延）',
-      man.get("version") == "2.5.0" and fe and fe.get("version") == "2.5.0"
+check('B1 v2.5.1 三方对拍（manifest + index 条目 + zip 实算 sha/size + zip 根两文件 + settings.read 权限；★Task380 顺延 2.5.0→2.5.1 事件去重防回环）',
+      man.get("version") == "2.5.1" and fe and fe.get("version") == "2.5.1"
       and fe.get("sha256") == zsha and fe.get("size") == len(zdata)
       and znames == ["main.js", "manifest.json"]
       and "settings.read" in man.get("permissions", []))
@@ -124,7 +124,8 @@ check('B2 两态开关语义（fluent.on 状态 + turnOn/turnOff + 装载期按�
       and "function turnOff()" in plugin_js
       and "storageSet('fluent.on', 'yes')" in plugin_js
       and "storageSet('fluent.on', 'no')" in plugin_js
-      and "applyPalette(systemIsDark() ? 1 : 0, silent)" in plugin_js
+      and "applyPalette(ame380_dark ? 1 : 0, silent)" in plugin_js
+      and "rememberAppliedDark(ame380_dark)" in plugin_js
       and "function migrateLegacyState()" in plugin_js)
 
 check('B3 系统明暗读取（ame.info().darkMode 消费 + 失败浅色兜底不炸插件）',
