@@ -17,12 +17,12 @@
     {
       "id": "fluent-ui",
       "name": "Fluent UI",
-      "version": "2.5.0",
+      "version": "2.5.1",
       "author": "Prisma",
       "summary": "Fluent 2 两态开关：开=全维度换装+色板跟随系统明暗，关=恢复默认主题",
       "file": "plugins/fluent-ui.zip",
-      "size": 5532,
-      "sha256": "d4c767f59690c1ffd048cce210283de45dd7fad94c1f6c959c1c65cdeed0a26c",
+      "size": 6217,
+      "sha256": "dee165925855bb0c9dad8e4f5a050fe76f0c0525b70bf1d4b137c6bd3cfdec1b",
       "official": true,
       "description": "Fluent 2 两态开关：开=NavigationView 全维度换装（结构/排版/形状/字阶/色板），色板实时跟随系统明暗（appearance.changed）；关=恢复默认主题"
     },

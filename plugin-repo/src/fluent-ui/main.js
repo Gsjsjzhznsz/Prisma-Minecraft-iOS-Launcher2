@@ -1,6 +1,12 @@
 // Task375 fluent-ui v2.4.0 —— 「两态开关 · 跟随系统明暗」版（用户指令：
 // "flUI的开关能不能就2种状态，开和不开，浅色合深色跟随设置"）。
 // ---------------------------------------------------------------------
+// ★ v2.5.1（Task380）：appearance 事件去重——Task346 根重建杠杆每次令牌
+//   应用后整壳重建，新建壳 VC 的首次 trait 解析都会再发一次 appearance.changed
+//   （dark 同值），旧实现无条件全量重应用令牌 → 重建 → 再发事件 = 无限反馈环
+//   （装机 ~10 次/秒全界面拆建、完全不可点击实锤）。根修 = 事件处理器持
+//   lastAppliedDark 进程态，同值事件直接跳过（不落任何令牌）；装载/手开
+//   路径同步登记基线。与原生侧广播去重 + ZL2Theme 重建冷却构成三层防回环。
 // ★ v2.5.0（Task379）：实时跟随系统明暗——订阅 appearance.changed 事件
 //   （Task379 事件面第 12 事件，payload {dark}；原生侧壳层
 //   traitCollectionDidChange 桥接，系统深浅切换与设置页外观偏好切换
@@ -135,6 +141,11 @@
     return storageGet('fluent.on') === 'yes';
   }
 
+  // ★ v2.5.1（Task380）：已应用明暗基线（进程内变量，非持久化）——null = 尚未
+  //   应用过。appearance 事件与装载路径共用：同值跳过 = 幂等，翻转才落令牌。
+  var lastAppliedDark = null;
+  function rememberAppliedDark(dark) { lastAppliedDark = !!dark; }
+
   // ★ Task375：系统明暗读取（ame.info().darkMode；桥面 ame366_isDarkMode）。
   //   读取失败（旧桥/权限缺失）按浅色兜底——不炸插件。
   function systemIsDark() {
@@ -191,7 +202,9 @@
   // ★ Task375：开 = 按当下系统明暗选色板应用。
   function turnOn(silent) {
     storageSet('fluent.on', 'yes');
-    applyPalette(systemIsDark() ? 1 : 0, silent);
+    var ame380_dark = systemIsDark();
+    applyPalette(ame380_dark ? 1 : 0, silent);
+    rememberAppliedDark(ame380_dark);   // ★ v2.5.1：手开路径登记基线（防后续同值事件重放）
   }
 
   // ★ Task375：关 = 恢复默认主题（全部令牌清空），无任何隐藏循环态。
@@ -218,7 +231,11 @@
   function autoApply() {
     try {
       migrateLegacyState();
-      if (isOn()) applyPalette(systemIsDark() ? 1 : 0, true);
+      if (isOn()) {
+        var ame380_dark = systemIsDark();
+        applyPalette(ame380_dark ? 1 : 0, true);
+        rememberAppliedDark(ame380_dark);   // ★ v2.5.1：装载路径登记基线
+      }
       else ame.log('[' + MARK + '] auto-apply skipped (off)');
     } catch (e) {
       ame.log('[' + MARK + '] auto-apply failed (non-fatal): ' + e);
@@ -264,9 +281,17 @@
     ame.on('appearance.changed', function (_ev, payload) {
       try {
         if (!isOn()) return;
-        var ame379_dark = !!(payload && payload.dark);
-        applyPalette(ame379_dark ? 1 : 0, true);
-        ame.log('[' + MARK + '] appearance.changed -> palette ' + (ame379_dark ? 'fluent-dark' : 'fluent-light'));
+        var ame380_dark = !!(payload && payload.dark);
+        // ★ v2.5.1（Task380）：同值事件幂等跳过——新建壳 VC 首次 trait 解析
+        //   与真实翻转在事件面上不可区分，只有值本身可信；同值落令牌即触发
+        //   根重建再发同值事件的死环，故此处必须短路。
+        if (lastAppliedDark !== null && ame380_dark === lastAppliedDark) {
+          ame.log('[' + MARK + '] appearance.changed skipped (dark=' + ame380_dark + ' already applied)');
+          return;
+        }
+        applyPalette(ame380_dark ? 1 : 0, true);
+        rememberAppliedDark(ame380_dark);
+        ame.log('[' + MARK + '] appearance.changed -> palette ' + (ame380_dark ? 'fluent-dark' : 'fluent-light'));
       } catch (e2) {
         ame.log('[' + MARK + '] appearance.changed handler failed (non-fatal): ' + e2);
       }
@@ -277,5 +302,5 @@
 
   autoApply();
 
-  ame.log('[' + MARK + '] fluent-ui v2.5.0 loaded（两态开关：开=NavigationView 全维度换装+色板实时跟随系统明暗，关=恢复默认）');
+  ame.log('[' + MARK + '] fluent-ui v2.5.1 loaded（两态开关：开=NavigationView 全维度换装+色板实时跟随系统明暗，关=恢复默认；Task380 事件去重防回环）');
 })();

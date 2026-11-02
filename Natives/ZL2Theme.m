@@ -160,31 +160,58 @@ static UIFontWeight Ame341WeightFromValue(id v) {
 //   重建，色/形/字/排版四族即时生效。启动期重放路径由 rootViewController
 //   缺席守卫天然跳过（令牌先于首次构建在位，首建即新刻度，无需重建）。
 static BOOL ame346_rebuildScheduled = NO;
+static CFAbsoluteTime ame346_lastRebuildAt = 0.0;
+static BOOL ame346_trailingPending = NO;
+static const CFAbsoluteTime ame346_rebuildMinInterval = 0.4;   // ★ Task380：重建冷却（秒）
+static void ame346_postRootRebuildNow(void) {
+    @try {
+        UIViewController *ame346_root = nil;
+        if (@available(iOS 13.0, *)) {
+            for (UIScene *ame346_scene in UIApplication.sharedApplication.connectedScenes) {
+                if (![ame346_scene isKindOfClass:[UIWindowScene class]]) continue;
+                for (UIWindow *ame346_w in ((UIWindowScene *)ame346_scene).windows) {
+                    if (ame346_w.isKeyWindow) {
+                        ame346_root = ame346_w.rootViewController;
+                        break;
+                    }
+                }
+                if (ame346_root) break;
+            }
+        }
+        if (!ame346_root) return;   // 启动期根未建：重放路径无需重建
+        ame346_lastRebuildAt = CFAbsoluteTimeGetCurrent();
+        [[NSNotificationCenter defaultCenter] postNotificationName:@"AppLanguageChanged" object:nil];
+        NSLog(@"[ZL2Theme] Task346: token change -> root rebuild posted (AppLanguageChanged lever)");
+    } @catch (NSException *ame346_e) {
+        NSLog(@"[ZL2Theme] Task346: root rebuild dispatch exception (%@)", ame346_e);
+    }
+}
+
 static void ame346_requestRootRebuild(void) {
     if (ame346_rebuildScheduled) return;   // 同拍连发合并（连点循环去抖）
     ame346_rebuildScheduled = YES;
     dispatch_async(dispatch_get_main_queue(), ^{
         ame346_rebuildScheduled = NO;
-        @try {
-            UIViewController *ame346_root = nil;
-            if (@available(iOS 13.0, *)) {
-                for (UIScene *ame346_scene in UIApplication.sharedApplication.connectedScenes) {
-                    if (![ame346_scene isKindOfClass:[UIWindowScene class]]) continue;
-                    for (UIWindow *ame346_w in ((UIWindowScene *)ame346_scene).windows) {
-                        if (ame346_w.isKeyWindow) {
-                            ame346_root = ame346_w.rootViewController;
-                            break;
-                        }
-                    }
-                    if (ame346_root) break;
-                }
+        // ★ Task380：最小间隔冷却 + 尾沿补排——Task346 杠杆原语义「每次令牌
+        //   落表即整壳重建」在 Task379 appearance.changed 事件面接入后成为
+        //   反馈环放大器（重建→新壳 VC trait 事件→JS 重应用→再重建，~10 次/
+        //   秒不可点击）。防环三层之一：同拍合并照旧 + 新增 400ms 冷却，冷却
+        //   期内的请求不丢弃而是尾沿补排一次（保证最后一次变更终会落地重建，
+        //   语义无损；配合壳层/JS 双侧去重，稳态下环在第一拍即断）。
+        CFAbsoluteTime ame380_now = CFAbsoluteTimeGetCurrent();
+        CFAbsoluteTime ame380_elapsed = ame380_now - ame346_lastRebuildAt;
+        if (ame346_lastRebuildAt > 0.0 && ame380_elapsed < ame346_rebuildMinInterval) {
+            if (!ame346_trailingPending) {
+                ame346_trailingPending = YES;
+                dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)((ame346_rebuildMinInterval - ame380_elapsed) * NSEC_PER_SEC)),
+                               dispatch_get_main_queue(), ^{
+                    ame346_trailingPending = NO;
+                    ame346_postRootRebuildNow();
+                });
             }
-            if (!ame346_root) return;   // 启动期根未建：重放路径无需重建
-            [[NSNotificationCenter defaultCenter] postNotificationName:@"AppLanguageChanged" object:nil];
-            NSLog(@"[ZL2Theme] Task346: token change -> root rebuild posted (AppLanguageChanged lever)");
-        } @catch (NSException *ame346_e) {
-            NSLog(@"[ZL2Theme] Task346: root rebuild dispatch exception (%@)", ame346_e);
+            return;
         }
+        ame346_postRootRebuildNow();
     });
 }
 

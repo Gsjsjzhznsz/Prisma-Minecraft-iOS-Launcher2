@@ -186,6 +186,20 @@ extern BOOL Amethyst_EnforceSDL3Presentation(void);
 
     [self.window makeKeyAndVisible];
 
+    // ★ Task381：外观三口径自证（用户复诉「记住我在深色模式」而 fluent 装机
+    //   恒亮板 + Ame379 dark=0：装机侧无判读依据无法定读是偏好栈在 light 还是
+    //   系统读取链失真）。从此每次启动必打：pref=偏好值（light/dark/auto）
+    //   window=窗口生效 trait（插件/壳层实际跟随的口径）scene=系统口径
+    //   （window override 不落 scene）——三值联读即可定责：
+    //   pref=light + scene=dark = 用户偏好锁浅（去设置→通用→外观改“跟随系统”）；
+    //   pref=auto + window=light + scene=dark = 才是真检测链 bug。
+    if (@available(iOS 13.0, *)) {
+        NSLog(@"[Ame381] theme resolve: pref=%@ window=%@ scene=%@",
+              getPrefObject(@"general.ui_theme") ?: @"(unset)",
+              (self.window.traitCollection.userInterfaceStyle == UIUserInterfaceStyleDark ? @"dark" : @"light"),
+              (self.window.windowScene.traitCollection.userInterfaceStyle == UIUserInterfaceStyleDark ? @"dark" : @"light"));
+    }
+
     // Task189（强制横屏第三轮）：窗口内容旋转兜底。Task187 移除 Portrait、
     // Task188 声明 UIRequiresFullScreen=true 均在真机无效——LiveContainer 宿主
     // 下窗口模式由【宿主】的 plist 决定，来宾 plist 的方向列表与全屏声明不被
@@ -301,6 +315,11 @@ extern BOOL Amethyst_EnforceSDL3Presentation(void);
         } else {
             self.window.overrideUserInterfaceStyle = UIUserInterfaceStyleDark;
         }
+        // ★ Task381：切换后同步留痕（与 willConnect 三口径同构，见彼处判读表）
+        NSLog(@"[Ame381] theme switched: pref=%@ window=%@ scene=%@",
+              theme,
+              (self.window.traitCollection.userInterfaceStyle == UIUserInterfaceStyleDark ? @"dark" : @"light"),
+              (self.window.windowScene.traitCollection.userInterfaceStyle == UIUserInterfaceStyleDark ? @"dark" : @"light"));
     }
     // Task137：新拟态退役，无需主题广播重绘——外观切换由语义色动态适配。
 }
