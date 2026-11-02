@@ -1,4 +1,4 @@
-#import <objc/runtime.h>   // Task232：外扩描边标记（ame224_applyAdaptiveTextToLabel 在 1160 行区域使用，导入必须前置于此）
+#import <objc/runtime.h>   // Task378：豁免标记兼容 API（ame229/ame230 关联对象，见文件尾部）
 #import "utils.h"
 //
 //  BackgroundManager.m
@@ -51,16 +51,11 @@ static const NSInteger kBackgroundGlassTag = 99993;
 @end
 
 
-// ★ Task232（反馈 #16）：外扩描边标记键——前置定义（ame224_applyAdaptiveTextToLabel
-// 在文件前部使用 objc_setAssociatedObject 打标；实现注释见
-// ame232_swizzledLabelDrawTextInRect 块）。
-static char ame232_OutlineMarkKey;
+// ★ Task378：全局描边字体（Task227~251 链）整体退役，外扩描边标记键/
+//   填充色前置声明随链删除。所有文本回归系统深浅语义色（见文件尾部
+//   Task378 退役说明块）。
 
 @implementation BackgroundManager
-
-// ★ Task250：前置声明（定义在文件尾部描边 swizzle 区；ame224_applyAdaptiveTextToLabel
-//   提前引用）——填充色 = 自定义字体颜色（general.text_color）或白色。
-static UIColor *ame250_globalTextFillColor(void);
 
 + (instancetype)sharedManager {
     static BackgroundManager *shared = nil;
@@ -1283,52 +1278,25 @@ NSNotificationName const Ame223WallpaperChangedNotification = @"Ame223WallpaperC
 // 壁纸变化重算：Ame223WallpaperChangedNotification（复用欢迎页链路）。
 
 + (UIColor *)ame224_adaptiveTextColor {
-    BackgroundManager *ame224_mgr = [BackgroundManager sharedManager];
-    if (![ame224_mgr hasBackground]) {
-        return AmeCardPrimaryTextColor();
-    }
-    return [ame224_mgr ame223_adaptiveTextColor];
+    // ★ Task378：壁纸亮度反色分支退役——恒语义主色（系统深浅自适应）。
+    return AmeCardPrimaryTextColor();
 }
 
 + (UIColor *)ame224_adaptiveSecondaryTextColor {
-    BackgroundManager *ame224_mgr = [BackgroundManager sharedManager];
-    if (![ame224_mgr hasBackground]) {
-        return AmeCardSecondaryTextColor();
-    }
-    return [ame224_mgr ame223_adaptiveSecondaryTextColor];
+    // ★ Task378：壁纸亮度反色分支退役——恒语义次色（系统深浅自适应）。
+    return AmeCardSecondaryTextColor();
 }
 
 + (void)ame224_applyAdaptiveTextToLabel:(UILabel *)label secondary:(BOOL)secondary {
     if (!label) return;
-    // ★ Task226（反馈 #12/#16：壁纸可读性终案——白底黑边全局字体）：
-    // 动态反色（按壁纸亮度翻转文字颜色）实测无效果且用户明确弃用；
-    // 改为常开的白底黑边描边字体：白色填充 + 黑色描边（负 strokeWidth
-    // = 描边 + 填充）+ 软阴影。任何壁纸上文字都可读，无需判定亮度。
-    if ([[BackgroundManager sharedManager] hasBackground]) {
-        // ★ Task250：自定义字体颜色在场时用它作填充（与 setText: 交换同源；
-        //   未设置回白 = 现状）。描边颜色由 drawTextInRect: 按填充亮度自适应。
-        label.textColor = ame250_globalTextFillColor();
-        // ★ Task232（反馈 #16）：同 setText: 交换的改道——CoreText stroke
-        //   与大光晕都向字形内部渗黑（CJK 字腔黑线的构造性来源），
-        //   本入口也改为：染白 + 打标记，描边交给 drawTextInRect: 的
-        //   四方向外扩拷贝（字腔保持纯白）。
-        objc_setAssociatedObject(label, &ame232_OutlineMarkKey,
-                                 @(YES), OBJC_ASSOCIATION_RETAIN_NONATOMIC);
-        // ★ Task232（反馈 #16）：光晕整体退役——零偏移模糊阴影一样向
-        //   字腔（孔洞）里渗黑（“内部黑线”第二来源）；描边职责全部
-        //   交给四方向外扩拷贝。
-        label.layer.shadowOpacity = 0.0;
-        label.layer.shadowRadius = 0.0;
-        label.layer.shadowOffset = CGSizeZero;
-    } else {
-        // 无壁纸：语义色 + 清阴影（原生外观零回归）
-        label.textColor = secondary ? [BackgroundManager ame224_adaptiveSecondaryTextColor]
-                                    : [BackgroundManager ame224_adaptiveTextColor];
-        label.layer.shadowColor = nil;
-        label.layer.shadowOpacity = 0.0;
-        label.layer.shadowRadius = 0.0;
-        label.layer.shadowOffset = CGSizeZero;
-    }
+    // ★ Task378：全局白字黑边/描边标记/阴影写入全部退役——语义色直赋，
+    //   标签不再被改道染白（白黑双重叠根修）。动态令牌自带深浅自适应。
+    label.textColor = secondary ? [BackgroundManager ame224_adaptiveSecondaryTextColor]
+                                : [BackgroundManager ame224_adaptiveTextColor];
+    label.layer.shadowColor = nil;
+    label.layer.shadowOpacity = 0.0;
+    label.layer.shadowRadius = 0.0;
+    label.layer.shadowOffset = CGSizeZero;
 }
 
 + (NSAttributedString *)ame224_adaptiveAttributedTitle:(NSString *)title
@@ -1343,16 +1311,7 @@ NSNotificationName const Ame223WallpaperChangedNotification = @"Ame223WallpaperC
     };
     NSMutableAttributedString *ame224_str =
         [[NSMutableAttributedString alloc] initWithString:(title ?: @"") attributes:ame224_attrs];
-    if (ame224_str.length > 0 && [[BackgroundManager sharedManager] hasBackground]) {
-        NSShadow *ame224_shadow = [[NSShadow alloc] init];
-        ame224_shadow.shadowColor = [[BackgroundManager sharedManager] ame223_wallpaperLuminanceIsDark]
-            ? [UIColor colorWithWhite:0.0 alpha:0.45]
-            : [UIColor colorWithWhite:1.0 alpha:0.55];
-        ame224_shadow.shadowBlurRadius = 1.5;
-        ame224_shadow.shadowOffset = CGSizeMake(0, 1);
-        [ame224_str addAttribute:NSShadowAttributeName value:ame224_shadow
-                            range:NSMakeRange(0, ame224_str.length)];
-    }
+    // ★ Task378：壁纸阴影分支退役——纯语义色富文本（不再按壁纸亮度加阴影）。
     return ame224_str;
 }
 
@@ -1948,26 +1907,27 @@ NSNotificationName const Ame223WallpaperChangedNotification = @"Ame223WallpaperC
 
 @end
 // ============================================================================
-// ★ Task227（反馈 #11：全局白底黑边字体——"我说了许多次了"）：
-// UILabel setText: 方法交换（swizzle）。壁纸在场时，所有 UILabel 的纯文本
-// 一律重写为 白色填充 + 黑色描边（NSStrokeWidth -2.6）+ 软阴影——任何壁
-// 纸上可读，不再依赖各页面逐点接入（此前仅 5 处显式调用 applyAdaptive
-// TextToLabel，覆盖率远低于用户预期）。无壁纸时零干预（原生外观零回归）。
+// ★ Task378（用户："目前绝大部分的文本都显示成了白黑双重叠的样式"）：
+//   全局描边字体（Task227~251 链）整体退役。
 //
-// 边界与防御：
-//   * 只处理纯 setText:（attributedText 直设的富文本不动）；
-//   * 空文本直接透传；
-//   * 壁纸状态每次实时判定（切换壁纸后下一次 setText 自动回到原生）；
-//   * 交换只做一次（+load 中 dispatch_once）。
+//   原机制：UILabel setText: 方法交换（壁纸在场时全部染白 + 打描边标记）
+//   + drawTextInRect: 方法交换（四方向 0.6pt 外扩深色拷贝 + 原色垫底）
+//   + general.text_color 全局染色 + 壁纸亮度反色/阴影——三层叠加即用户
+//   眼中的"白黑双重叠"样式，且使所有页面自行设置的语义色失效。
+//
+//   新规格（用户本轮拍板）：启动器全部 UI 文本颜色回归系统深浅语义分配
+//   ——标题 = 系统主色（浅色黑灰/深色白灰），简介/次级 = 系统次级灰，
+//   不再有任何写死的全局彩色/描边/阴影写入。各页面既有的 ZL2Theme /
+//   AmeTheme 动态令牌（colorWithDynamicProvider）天然承担深浅自适应，
+//   壁纸可读性不再由文本层承担。
+//
+//   兼容面：豁免标记 API（ame229/ame230）保留定义——外部调用点（文件
+//   浏览器/教练标记/欢迎向导/游戏菜单等以 extern 声明引用）零改动；
+//   描边已不存在，标记写入为无害空操作。
 // ============================================================================
-#import <objc/runtime.h>
-#import <objc/message.h>
 
-static void (*ame227_origLabelSetText)(id, SEL, NSString *);
-
-// Task229: per-label opt-out (associated object). Labels placed on solid
-// light surfaces (coach-mark cards, the file browser sheet) must NOT get the
-// white-fill/stroke treatment -- white on a white card reads as blank text.
+// Task229: per-label opt-out 标记（保留定义，兼容既有 extern 调用点；
+// Task378 后描边渲染已退役，本标记不再有读取方 = 无害空操作）。
 static char ame229_StrokeExemptKey;
 void ame229_labelSetStrokeExempt(UILabel *label, BOOL exempt) {
     objc_setAssociatedObject(label, &ame229_StrokeExemptKey,
@@ -1978,271 +1938,9 @@ BOOL ame229_labelIsStrokeExempt(UILabel *label) {
     return v.boolValue;
 }
 
-// ★ Task230（反馈 #12：欢迎界面圆圈焦点介绍空白，复发轮）：视图树级豁免。
-//   Task229 只做了【单标签】豁免（教练标记卡、文件浏览器）；但欢迎向导
-//   的介绍页（step 5，ame222_buildIntroStep）标签用 labelColor 铺在
-//   secondarySystemGroupedBackgroundColor 0.92 的浅色卡上——壁纸在场时
-//   全局 swizzle 把它们染成白字 = 浅底白字隐形 = "圆圈焦点介绍空白"。
-//   向导页面结构动态创建、逐个豁免易漏，提供整树豁免：在容器根视图上
-//   打标，swizzle 沿 superview 链上溯（上限 16 层）命中即豁免。
+// Task230: view-tree opt-out 标记（同上保留定义，兼容空操作）。
 static char ame230_TreeExemptKey;
 void ame230_setViewTreeStrokeExempt(UIView *view, BOOL exempt) {
     objc_setAssociatedObject(view, &ame230_TreeExemptKey,
                              @(exempt), OBJC_ASSOCIATION_RETAIN_NONATOMIC);
 }
-static BOOL ame230_viewTreeIsStrokeExempt(UILabel *label) {
-    UIView *v = (UIView *)label;
-    for (int i = 0; i < 16 && v != nil; ++i) {
-        NSNumber *n = objc_getAssociatedObject(v, &ame230_TreeExemptKey);
-        if (n && n.boolValue) return YES;
-        v = v.superview;
-    }
-    return NO;
-}
-
-// ★ Task232（反馈 #16）：外扩描边标记 + drawTextInRect: 交换。setText: 染白
-//   并打标；本交换在绘制时先画四份 0.6pt 偏移的深色拷贝（字形外侧造边），
-//   再调原实现画白色正文居中盖上。字腔（孔洞）宽度 ≥1.2pt 保持纯白——
-//   CoreText 居中描边与模糊光晕都会向内渗黑，这是“中文字体内部黑线”
-//   连续三轮修不掉的构造性根因。绘制时复核壁纸/豁免状态（壁纸切换后
-//   旧标记的标签立即回到原生外观）。
-static void (*ame232_origLabelDrawTextInRect)(id, SEL, CGRect);
-
-static BOOL ame232_shouldPaintOutline(UILabel *label) {
-    if (![[BackgroundManager sharedManager] hasBackground]) return NO;
-    if (ame229_labelIsStrokeExempt(label)) return NO;
-    if (ame230_viewTreeIsStrokeExempt(label)) return NO;
-    return YES;
-}
-
-/// Task233（反馈 #16 后续：字体双层 / 有地方重叠不上 / 有透明度导致偏黑）：
-/// 把任意颜色提为全不透明（getRed 失败的非 RGB 色回落白色）。半透明白字
-/// （secondary 0.82）下面透出深色描边拷贝 = "字体偏黑"的来源——垫底拷贝
-/// 必须不透明。
-static UIColor *ame233_opaqueColor(UIColor *ame233_c) {
-    if (ame233_c == nil) return [UIColor whiteColor];
-    CGFloat r = 0, g = 0, b = 0, a = 0;
-    if ([ame233_c getRed:&r green:&g blue:&b alpha:&a]) {
-        return [UIColor colorWithRed:r green:g blue:b alpha:1.0];
-    }
-    return [UIColor whiteColor];
-}
-
-/// ★ Task250（反馈 6：深色字体下应自动适配白边，浅色字体下保持现在的黑边）
-///   描边颜色按【实际填充色】的相对亮度自适应：深色填充（如用户自选
-///   general.text_color 深色）→ 白色外扩拷贝；浅色填充 → 黑色外扩拷贝
-///   （现状）。填充色解析失败时回落白色（= 黑边现状，零回归）。
-static UIColor *ame250_outlineColorForFill(UIColor *ame250_fill) {
-    CGFloat r = 0, g = 0, b = 0, a = 0;
-    if ([ame250_fill getRed:&r green:&g blue:&b alpha:&a]) {
-        CGFloat ame250_lum = 0.2126 * r + 0.7152 * g + 0.0722 * b;
-        if (ame250_lum < 0.5) {
-            return [UIColor colorWithWhite:1.0 alpha:0.90];   // 深字 → 白边
-        }
-    }
-    return [UIColor colorWithWhite:0.0 alpha:0.82];           // 浅字 → 黑边（现状）
-}
-
-/// ★ Task250（反馈 5/6）：全局染色的填充色取值——用户设置了
-///   general.text_color 时用它（自定义字体颜色全局生效，不再只覆盖
-///   少数几个手动接线点），未设置回白色（现状）。经 PLPreferences
-///   读值（与其它消费点同源）。
-///   ★ Task251（反馈 6 浅色模式优化）：未设置自定义色的默认值改
-///   【外观动态色】——深色外观 = 白色（现状零回归），浅色外观 =
-///   近黑（0x1C1C1E）：浅色模式下亮壁纸/亮卡面上白字不可读是本轮
-///   截图实槽（IMG_0391）。描边层（ame250_outlineColorForFill）按
-///   填充亮度自适应：近黑填充 → 白边，浅色模式下壁纸文字 = 黑字
-///   白边可读；深色模式维持白字黑边现状。动态 provider 让外观切换
-///   时已铺 label 自动换色，无需逐点刷新。
-static UIColor *ame250_globalTextFillColor(void) {
-    extern id getPrefObject(NSString *key);   // LauncherPreferences.h 同名声明（本 TU 未导入，局部外引）
-    NSString *ame250_hex = getPrefObject(@"general.text_color");
-    if (![ame250_hex isKindOfClass:[NSString class]] || ame250_hex.length == 0) {
-        if (@available(iOS 13.0, *)) {
-            return [UIColor colorWithDynamicProvider:^UIColor *(UITraitCollection *ame250_traits) {
-                if (ame250_traits.userInterfaceStyle == UIUserInterfaceStyleDark) {
-                    return [UIColor whiteColor];
-                }
-                return [UIColor colorWithWhite:0.11 alpha:1.0];   // 0x1C1C1E ≈ 0.11
-            }];
-        }
-        return [UIColor whiteColor];
-    }
-    NSString *ame250_clean = [ame250_hex stringByReplacingOccurrencesOfString:@"#" withString:@""];
-    unsigned int ame250_rgb = 0;
-    if (ame250_clean.length >= 6 && [[NSScanner scannerWithString:ame250_clean] scanHexInt:&ame250_rgb]) {
-        return [UIColor colorWithRed:((ame250_rgb >> 16) & 0xFF) / 255.0
-                               green:((ame250_rgb >> 8) & 0xFF) / 255.0
-                                blue:(ame250_rgb & 0xFF) / 255.0
-                               alpha:1.0];
-    }
-    return [UIColor whiteColor];
-}
-
-// ★ Task243：镜像 label 渲染的声明前置（Task240 CI r3 类目自声明同款先例）
-//   —— UILabel drawTextInRect: 在 UIKit 公开头里无声明，但 IMP 恒在；
-//   自声明后可直接调用（见 swizzle 内 Task243 块注释）。
-@interface UILabel (Ame243DrawTextCompat)
-- (void)drawTextInRect:(CGRect)rect;
-@end
-
-static void ame232_swizzledLabelDrawTextInRect(id self, SEL _cmd, CGRect rect) {
-    @try {
-        NSNumber *ame232_mark = objc_getAssociatedObject(self, &ame232_OutlineMarkKey);
-        if (ame232_mark.boolValue && ame232_shouldPaintOutline((UILabel *)self)) {
-            UILabel *ame232_label = (UILabel *)self;
-            NSAttributedString *ame232_as = ame232_label.attributedText;
-            if (ame232_as.length > 0 && UIGraphicsGetCurrentContext() != NULL) {
-                // ★ Task242（用户："文字重叠问题在一些角落依旧出现，不能自适应吗，
-                //   非要手动适配"）：【镜像 UILabel 渲染】取代 Task233-241 九轮
-                //   手动几何镜像（233 对齐/234 垂直锚定/235 单行缩字/236 多行
-                //   缩字二分/238 ==0 词换行/239 段落继承/241 溢出跳过）。
-                //   结构性定案：深拷贝与垫底不再用 NSAttributedString drawInRect
-                //   手动复刻 UILabel 排版（每轮只修一个分歧点，用户实测仍有角落
-                //   漏网），而是构造【镜像 UILabel】——attributedText 同源 +
-                //   numberOfLines/lineBreakMode/textAlignment/adjustsFontSize
-                //   ToWidth/minimumScaleFactor 全属性镜像，由 UIKit 同一套
-                //   drawTextInRect 内核渲染（textRectForBounds 垂直居中、截断、
-                //   缩字、富文本段落优先全部与本体制画 100% 同源）——
-                //   分歧族从构造上不存在 = 自适应，无需再逐角手修。
-                //   叠序不变：四向 0.6pt 深拷贝 → 不透明原色垫底 → 正文本体
-                //   （orig 实现）。镜像 label 未打描边标记 → 不触发本 swizzle
-                //   递归；attributedText 驱动时 label 级对齐/断行属性被字符串
-                //   段落覆盖，与本体制画语义一致。
-                // ★ Task243（用户装机反馈 IMG_0376：“魔改弹窗毛玻璃依旧没有。
-                //   为什么把液态玻璃改回去了。文字重叠自适应黑边。”）：Task242
-                //   的渲染出口 [mirror.layer renderInContext:] 在真机 iOS 26
-                //   上把满屏描边渲染成【实心黑条】——IMG_0373（Task241 旧
-                //   drawInRect 方案）无黑条、IMG_0376（Task242 唯一变量 =
-                //   renderInContext）满屏黑条，实证定案：新建 label 不在
-                //   window 层级、contentsScale=1，renderInContext 强制的 layer
-                //   display 嵌套在本体制画 ctx（UIKit flipped + 设备 3x scale）
-                //   里产生 contents 管线异常，黑色字形被放大/吞并成实心块。
-                //   修法：保留镜像 label 的【属性镜像】（自适应核心不变），
-                //   渲染出口改为【直接调用镜像 label 的 drawTextInRect:】——
-                //   当前 ctx 正是 UIKit 调用本 swizzle 的同一 flipped 上下文，
-                //   与系统调用 drawTextInRect 的语义约定完全一致；镜像的
-                //   drawTextInRect 经类级 swizzle 入口（mark=nil）落到原生
-                //   IMP = 纯文本绘制，彻底绕开 layer display/contents 管线。
-                //   文字排版同源性（垂直居中/截断/缩字/段落继承）由属性镜像
-                //   + 同一 UIKit 内核保证，与 Task242 设计一致。
-                UIColor *ame242_dark = ame250_outlineColorForFill(ame233_opaqueColor(ame232_label.textColor));   // ★ Task250：边色随填充亮度自适应
-                UIColor *ame242_opaque = ame233_opaqueColor(ame232_label.textColor);
-
-                NSMutableAttributedString *ame242_darkStr =
-                    [[NSMutableAttributedString alloc] initWithAttributedString:ame232_as];
-                NSRange ame242_full = NSMakeRange(0, ame242_darkStr.length);
-                [ame242_darkStr addAttribute:NSForegroundColorAttributeName
-                                       value:ame242_dark
-                                       range:ame242_full];
-
-                NSMutableAttributedString *ame242_backStr =
-                    [[NSMutableAttributedString alloc] initWithAttributedString:ame232_as];
-                [ame242_backStr addAttribute:NSForegroundColorAttributeName
-                                       value:ame242_opaque
-                                       range:ame242_full];
-
-                CGContextRef ame242_ctx = UIGraphicsGetCurrentContext();
-                static const CGPoint ame242_offsets[4] = {
-                    {0.6f, 0.0f}, {-0.6f, 0.0f}, {0.0f, 0.6f}, {0.0f, -0.6f}
-                };
-                // ★ Task243：属性镜像工厂（镜像 label 构造唯一入口，四拷贝
-                //   与垫底共用；未进 window 层级 → 不走 layer display）。
-                UILabel *(^ame243_mirrorWithStr)(NSAttributedString *) = ^UILabel *(NSAttributedString *ame243_str) {
-                    UILabel *ame243_m = [[UILabel alloc] initWithFrame:
-                        CGRectMake(0.0, 0.0, rect.size.width, rect.size.height)];
-                    ame243_m.attributedText = ame243_str;
-                    ame243_m.numberOfLines = ame232_label.numberOfLines;
-                    ame243_m.lineBreakMode = ame232_label.lineBreakMode;
-                    ame243_m.textAlignment = ame232_label.textAlignment;
-                    ame243_m.adjustsFontSizeToFitWidth = ame232_label.adjustsFontSizeToFitWidth;
-                    ame243_m.minimumScaleFactor = ame232_label.minimumScaleFactor;
-                    ame243_m.baselineAdjustment = ame232_label.baselineAdjustment;
-                    ame243_m.userInteractionEnabled = NO;
-                    ame243_m.backgroundColor = nil;
-                    return ame243_m;
-                };
-                for (int ame242_i = 0; ame242_i < 4; ame242_i++) {
-                    UILabel *ame242_mirror = ame243_mirrorWithStr(ame242_darkStr);
-                    CGContextSaveGState(ame242_ctx);
-                    CGContextTranslateCTM(ame242_ctx,
-                                          ame242_offsets[ame242_i].x,
-                                          ame242_offsets[ame242_i].y);
-                    // 直调 drawTextInRect:（类目自声明见文件上方）：经类级
-                    // swizzle（mark=nil）落原生 IMP = 纯文本绘制，无 layer
-                    // display 嵌套（Task242 黑条根因，IMG_0376）。
-                    [ame242_mirror drawTextInRect:rect];
-                    CGContextRestoreGState(ame242_ctx);
-                }
-                UILabel *ame242_backing = ame243_mirrorWithStr(ame242_backStr);
-                [ame242_backing drawTextInRect:rect];
-            }
-        }
-    } @catch (NSException *ame232_e) {
-        // 任何意外（系统私有标签子类等）绝不影响绘制主链
-    }
-    if (ame232_origLabelDrawTextInRect) {
-        ame232_origLabelDrawTextInRect(self, _cmd, rect);
-    }
-}
-
-static void ame227_swizzledLabelSetText(id self, SEL _cmd, NSString *text) {
-    if (!ame227_origLabelSetText) return;
-    ame227_origLabelSetText(self, _cmd, text);
-    @try {
-        if (text.length == 0) return;
-        if (![[BackgroundManager sharedManager] hasBackground]) return;
-        // Task229 (feedback #9): opted-out labels keep their native look.
-        if (ame229_labelIsStrokeExempt((UILabel *)self)) return;
-        // Task230 (feedback #12): view-tree opt-out (welcome wizard & friends).
-        if (ame230_viewTreeIsStrokeExempt((UILabel *)self)) return;
-        // 注：不守卫 attributedText——setText: 之后 attributedText 恒非 nil
-        //（UIKit 把纯文本包装成 attributed 存储），该守卫会跳过一切。
-        // 真正的富文本路径（attributedText 直设）不经 setText:，天然不受
-        // 本交换影响。
-        UILabel *ame227_label = (UILabel *)self;
-        if (ame227_label.font == nil) return;
-        // Task229 (feedback #10: "black lines inside the font"): a negative
-        // NSStrokeWidth paints the stroke ON TOP of the fill with the outline
-        // centered on the glyph edge -- at -2.6 the counters of dense CJK
-        // glyphs (the character 'de' has four enclosed counters) and entire
-        // line-shaped glyphs (the full-width slash) were swallowed into solid
-        // black. Rework: a thinner stroke (-1.6) in a SEMI-TRANSPARENT dark
-        // color reads as a soft dark halo instead of hard black ink, and the
-        // strengthened drop shadow carries most of the contrast duty, so
-        // legibility on busy wallpapers is preserved while interiors stay
-        // clean.
-        // ★ Task232（反馈 #16：中文字体内部黑线，第三轮）：CoreText 负
-        //   strokeWidth 的描边以字形轮廓为中心，内半边吃进密集 CJK 笔画
-        //   间隙；零偏移光晕（radius 2.5）向字腔渗黑——两者都是“内部
-        //   黑线”的构造性来源，调参数修不掉。改道：setText: 只负责把
-        //   文字染白 + 打描边标记；真正的描边由 drawTextInRect: 交换做
-        //   【四方向 0.6pt 外扩深色拷贝 + 原色居中】——边只长在字形
-        //   外侧，字腔保持纯白（详见 ame232_swizzledLabelDrawTextInRect）。
-        ame227_label.textColor = ame250_globalTextFillColor();   // ★ Task250：自定义字体颜色全局染色（未设回白）
-        objc_setAssociatedObject(ame227_label, &ame232_OutlineMarkKey,
-                                 @(YES), OBJC_ASSOCIATION_RETAIN_NONATOMIC);
-        ame227_label.layer.shadowOpacity = 0.0;
-        ame227_label.layer.shadowRadius = 0.0;
-    } @catch (NSException *ame227_e) {
-        // 任何意外（系统私有标签子类等）绝不影响 setText 主链
-    }
-}
-
-@implementation UILabel (Ame227GlobalStrokeFont)
-+ (void)load {
-    static dispatch_once_t ame227_once;
-    dispatch_once(&ame227_once, ^{
-        Method ame227_m = class_getInstanceMethod(self, @selector(setText:));
-        if (ame227_m == NULL) return;
-        ame227_origLabelSetText = (void (*)(id, SEL, NSString *))method_getImplementation(ame227_m);
-        method_setImplementation(ame227_m, (IMP)ame227_swizzledLabelSetText);
-        // ★ Task232（反馈 #16）：外扩描边绘制交换（与 setText: 交换同装）。
-        Method ame232_m = class_getInstanceMethod(self, @selector(drawTextInRect:));
-        if (ame232_m != NULL) {
-            ame232_origLabelDrawTextInRect = (void (*)(id, SEL, CGRect))method_getImplementation(ame232_m);
-            method_setImplementation(ame232_m, (IMP)ame232_swizzledLabelDrawTextInRect);
-        }
-    });
-}
-@end

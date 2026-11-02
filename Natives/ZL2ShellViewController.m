@@ -1,5 +1,15 @@
 //
-// ZL2ShellViewController.m — ZL2 真形态顶栏壳实现（7.0-UI-10-b）
+// ZL2ShellViewController.m — ZL2 壳实现（7.0-UI-10-b 起家；Task378 起默认 bare 壳）
+//
+// 【历史规格存档】以下 TopBar 结构对应注释为 7.0-UI-10-b~377 顶栏形态的
+// 设计文档——★ Task378 起顶栏整体退役（bare 壳），本段仅作溯源存档，
+// 不再描述现役结构。
+//
+// ★ Task378（用户两轮复诉）：①全局文本颜色根修——白黑双重叠（Task227~251
+//   描边字体链）整体退役，全部文本回归系统深浅语义色（BackgroundManager）；
+//   ②顶栏退役——topbar 骨架改 bare 壳（本文件 ame_buildBareShell），五入口
+//   按钮迁移主页右侧栏顶部（ZL2HomeViewController quickNav，2.5x 瓦片，
+//   前三后二）；nav（navigationview）骨架与门禁锚点逐字保留。
 //
 // ZL2 MainScreen.kt 顶栏结构对应（ref/ZalithLauncher2/ZalithLauncher/src/main/
 // java/com/movtery/zalithlauncher/ui/screens/main/MainScreen.kt L168-246 实证）：
@@ -96,13 +106,8 @@ NSString * const ZL2ShellNavigateNotification = @"ZL2ShellNavigate";
 
 #pragma mark - 几何/动画常量（ZL2 TopBar spec 对应）
 
-static const CGFloat ZL2ShellBarContentHeight = 40.0;   // TopBar 40.dp
-static const CGFloat ZL2ShellBarEdgeInset = 12.0;       // 左右 12dp 边距
 static const CGFloat ZL2ShellClusterButtonSize = 32.0;  // 返回/主页钮 32×32
-static const CGFloat ZL2ShellRailItemHeight = 40.0;     // RailItem 高（顶栏全高）
 static const CGFloat ZL2ShellRailItemIconSize = 22.0;   // 图标 22pt
-static const CGFloat ZL2ShellRailItemPadH = 10.0;       // RailItem 横向内边距
-static const CGFloat ZL2ShellRailItemTextGap = 6.0;     // TopBarRailItem Spacer(6.dp)
 static const CGFloat ZL2ShellPillWidth = 120.0;         // 任务胶囊宽 120dp
 static const CGFloat ZL2ShellPillHeight = 28.0;         // 任务胶囊高
 static const CGFloat ZL2ShellAnimateDuration = 0.18;    // 全壳动画时长
@@ -182,108 +187,9 @@ static UIImage *ZL2ShellSystemImage(NSString *name, NSString *fallback) {
 
 @end
 
-#pragma mark - 顶栏 RailItem（TextRailItem 等价：图标恒显 + 选中文字宽度展开）
-
-@interface ZL2ShellRailItem : ZL2ShellTapControl
-@property(nonatomic, assign, readonly) NSInteger pageIndex;
-- (instancetype)initWithTitle:(NSString *)title
-                       symbol:(NSString *)symbol
-                     fallback:(NSString *)fallback
-                    pageIndex:(NSInteger)pageIndex;
-// 纯状态应用（着色 + 宽度/透明度目标值）；动画由壳侧统一包裹
-- (void)ame_setSelected:(BOOL)selected;
-@end
-
-@interface ZL2ShellRailItem ()
-@property(nonatomic, strong) UIImageView *iconView;
-@property(nonatomic, strong) UILabel *label;
-@property(nonatomic, strong) NSLayoutConstraint *labelWidthConstraint;  // 文字宽 0 ↔ 实宽
-@property(nonatomic, strong) NSLayoutConstraint *itemWidthConstraint;   // 整枚宽 42 ↔ 48+文字
-@property(nonatomic, assign) CGFloat textWidth;                         // 选中态文字实宽
-@property(nonatomic, assign) CGFloat collapsedWidth;                    // 未选整枚宽
-@property(nonatomic, assign) CGFloat expandedWidth;                     // 选中整枚宽
-@end
-
-@implementation ZL2ShellRailItem
-
-- (instancetype)initWithTitle:(NSString *)title
-                       symbol:(NSString *)symbol
-                     fallback:(NSString *)fallback
-                    pageIndex:(NSInteger)pageIndex {
-    self = [super initWithFrame:CGRectZero];
-    if (self) {
-        _pageIndex = pageIndex;
-
-        UIImage *image = ZL2ShellSystemImage(symbol, fallback);
-        if (image) image = [image imageWithRenderingMode:UIImageRenderingModeAlwaysTemplate];
-        _iconView = [[UIImageView alloc] initWithImage:image];
-        _iconView.translatesAutoresizingMaskIntoConstraints = NO;
-        _iconView.contentMode = UIViewContentModeScaleAspectFit;
-        _iconView.userInteractionEnabled = NO;
-        [self addSubview:_iconView];
-
-        _label = [[UILabel alloc] init];
-        _label.translatesAutoresizingMaskIntoConstraints = NO;
-        _label.font = [ZL2Theme fontLabelMedium];
-        _label.text = title;
-        _label.numberOfLines = 1;
-        _label.clipsToBounds = YES;  // 未选宽 0 时文字裁剪（AnimatedVisibility 等价裁剪面）
-        _label.userInteractionEnabled = NO;
-        _label.alpha = 0.0;
-        [self addSubview:_label];
-
-        // 几何：单一定宽来源 = itemWidthConstraint；label 只从 icon 尾随 +6
-        // 定位并按宽度约束展开/收起（无 trailing 链，任何宽度组合零冲突）
-        [NSLayoutConstraint activateConstraints:@[
-            [_iconView.leadingAnchor constraintEqualToAnchor:self.leadingAnchor constant:ZL2ShellRailItemPadH],
-            [_iconView.centerYAnchor constraintEqualToAnchor:self.centerYAnchor],
-            [_iconView.widthAnchor constraintEqualToConstant:ZL2ShellRailItemIconSize],
-            [_iconView.heightAnchor constraintEqualToConstant:ZL2ShellRailItemIconSize],
-
-            [_label.leadingAnchor constraintEqualToAnchor:_iconView.trailingAnchor constant:ZL2ShellRailItemTextGap],
-            [_label.centerYAnchor constraintEqualToAnchor:self.centerYAnchor],
-            [_label.heightAnchor constraintLessThanOrEqualToAnchor:self.heightAnchor],
-
-            [self.heightAnchor constraintEqualToConstant:ZL2ShellRailItemHeight],
-        ]];
-
-        _textWidth = ceil([_label sizeThatFits:CGSizeMake(CGFLOAT_MAX, CGFLOAT_MAX)].width);
-        _collapsedWidth = ZL2ShellRailItemPadH + ZL2ShellRailItemIconSize + ZL2ShellRailItemPadH;
-        _expandedWidth = ZL2ShellRailItemPadH + ZL2ShellRailItemIconSize
-                       + ZL2ShellRailItemTextGap + _textWidth + ZL2ShellRailItemPadH;
-
-        _labelWidthConstraint = [_label.widthAnchor constraintEqualToConstant:0.0];
-        _labelWidthConstraint.active = YES;
-        _itemWidthConstraint = [self.widthAnchor constraintEqualToConstant:_collapsedWidth];
-        _itemWidthConstraint.active = YES;
-
-        _iconView.tintColor = [ZL2Theme onSurfaceVariant];
-        _label.textColor = [ZL2Theme onSurfaceVariant];
-
-        self.isAccessibilityElement = YES;
-        self.accessibilityLabel = title;
-        self.accessibilityTraits = UIAccessibilityTraitButton;
-    }
-    return self;
-}
-
-- (void)ame_setSelected:(BOOL)selected {
-    // ZL2 TextRailItem 选中态：secondaryContainer 胶囊底 + onSecondaryContainer
-    // 内容（7.0-UI-14 真机对齐；旧 primary 着色无背景废弃）
-    self.backgroundColor = selected ? [ZL2Theme secondaryContainer] : [UIColor clearColor];
-    self.layer.cornerRadius = self.bounds.size.height > 0 ? self.bounds.size.height / 2.0 : [ZL2Theme radiusXL];
-    self.layer.masksToBounds = YES;
-    UIColor *tint = selected ? [ZL2Theme onSecondaryContainer] : [ZL2Theme onSurfaceVariant];
-    self.labelWidthConstraint.constant = selected ? self.textWidth : 0.0;
-    self.itemWidthConstraint.constant = selected ? self.expandedWidth : self.collapsedWidth;
-    self.label.alpha = selected ? 1.0 : 0.0;
-    self.iconView.tintColor = tint;
-    self.label.textColor = tint;
-    self.accessibilityTraits = selected ? (UIAccessibilityTraitButton | UIAccessibilityTraitSelected)
-                                        : UIAccessibilityTraitButton;
-}
-
-@end
+// ★ Task378：顶栏 RailItem（TextRailItem 等价）随顶栏整体退役——五入口按钮
+//   迁移至主页右侧栏 quickNav 瓦片（见 ZL2HomeViewController）；nav 骨架
+//   导航项 = 下方 ZL2ShellNavItem（Task347/376 语义保留）。
 
 #pragma mark - ★ Task347 NavigationView 窗格导航项（WinUI NavigationViewItem 等价）
 
@@ -485,15 +391,8 @@ static UIImage *ZL2ShellSystemImage(NSString *name, NSString *fallback) {
 #pragma mark - 壳本体
 
 @interface ZL2ShellViewController () <UINavigationControllerDelegate>
-@property(nonatomic, strong) UIView *topBar;                          // safeArea 顶延伸 + 40pt 内容带
-@property(nonatomic, strong) UIStackView *barRow;                     // [左簇 | 标题 | 右簇]
-@property(nonatomic, strong) UIStackView *leftCluster;                // [返回 | 主页]
-@property(nonatomic, strong) ZL2ShellIconButton *backButton;
-@property(nonatomic, strong) ZL2ShellIconButton *homeButton;
-@property(nonatomic, strong) UILabel *titleLabel;
-@property(nonatomic, strong) UIStackView *rightCluster;               // [胶囊 | RailItem×4]
-@property(nonatomic, strong) ZL2ShellTaskPill *taskPill;
-@property(nonatomic, strong) NSArray<ZL2ShellRailItem *> *railItems;  // ZL2 右侧组序：版本/下载/账户/设置
+@property(nonatomic, strong) UIView *topBar;                          // ★ Task378 退役占位（恒 nil；保留声明以兼容 (self.topBar ?: self.contentHeader) 门禁锚点表达式）
+@property(nonatomic, strong) ZL2ShellTaskPill *taskPill;              // 任务胶囊（nav 骨架内容区头专属）
 @property(nonatomic, strong) UIView *container;                       // 子页挂载区
 @property(nonatomic, strong) NSMutableDictionary<NSNumber *, UIViewController *> *childCache;
 @property(nonatomic, assign) NSInteger currentIndex;
@@ -561,8 +460,7 @@ static UIImage *ZL2ShellSystemImage(NSString *name, NSString *fallback) {
     if (self.ame347_navMode) {
         [self ame_buildNavigationViewShell];
     } else {
-        [self ame_buildTopBar];
-        [self ame_buildContainer];
+        [self ame_buildBareShell];   // ★ Task378：顶栏骨架退役 = 无栏 bare 壳
     }
 
     // 通知契约：旧启动链（ShowHomePage）+ FCL 账户契约（ShowAccountManager）
@@ -604,147 +502,23 @@ static UIImage *ZL2ShellSystemImage(NSString *name, NSString *fallback) {
     [[NSNotificationCenter defaultCenter] removeObserver:self];
 }
 
-#pragma mark - 顶栏构建（ZL2 TopBar 等价）
+#pragma mark - ★ Task378 bare 壳构建（顶栏退役：容器直铺 + 子页自带导航栏）
 
-- (void)ame_buildTopBar {
-    self.topBar = [[UIView alloc] init];
-    self.topBar.translatesAutoresizingMaskIntoConstraints = NO;
-    // 顶栏与内容同底色（ZL2 MainScreen 单一 Surface backgroundColor）
-    self.topBar.backgroundColor = [ZL2Theme surface];
-    [self.view addSubview:self.topBar];
-
-    self.barRow = [[UIStackView alloc] init];
-    self.barRow.axis = UILayoutConstraintAxisHorizontal;
-    self.barRow.alignment = UIStackViewAlignmentCenter;
-    self.barRow.distribution = UIStackViewDistributionFill;
-    self.barRow.spacing = 16.0;  // 标题 start = 左簇 end + 16dp
-    // 右簇 end margin 12dp（前导边距由左簇自带，塌缩时标题回到 16pt 位）
-    self.barRow.layoutMargins = UIEdgeInsetsMake(0.0, 0.0, 0.0, ZL2ShellBarEdgeInset);
-    self.barRow.layoutMarginsRelativeArrangement = YES;
-    self.barRow.translatesAutoresizingMaskIntoConstraints = NO;
-    [self.topBar addSubview:self.barRow];
-
-    // 左簇：AnimatedVisibility(!inLauncherScreen) + 12dp 前导（ZL2 Spacer(12.dp)）
-    self.leftCluster = [[UIStackView alloc] init];
-    self.leftCluster.axis = UILayoutConstraintAxisHorizontal;
-    self.leftCluster.alignment = UIStackViewAlignmentCenter;
-    self.leftCluster.spacing = 4.0;  // 返回/主页间距 4
-    self.leftCluster.layoutMargins = UIEdgeInsetsMake(0.0, ZL2ShellBarEdgeInset, 0.0, 0.0);
-    self.leftCluster.layoutMarginsRelativeArrangement = YES;
-    self.leftCluster.translatesAutoresizingMaskIntoConstraints = NO;
-    self.leftCluster.hidden = YES;   // 主页初始态（showPageAtIndex:0 统一同步）
-    self.leftCluster.alpha = 0.0;
-
-    self.backButton = [[ZL2ShellIconButton alloc] initWithSymbol:@"chevron.left" fallback:nil];
-    self.backButton.accessibilityLabel = localize(@"ame369.common.back", @"返回");
-    __weak typeof(self) weakSelf = self;
-    self.backButton.ame_action = ^{
-        [weakSelf ame_popCurrentIfPossible];
-    };
-    [self.leftCluster addArrangedSubview:self.backButton];
-
-    self.homeButton = [[ZL2ShellIconButton alloc] initWithSymbol:@"house.fill" fallback:nil];
-    self.homeButton.accessibilityLabel = localize(@"ame369.common.home", @"主页");
-    self.homeButton.ame_action = ^{
-        [weakSelf showPageAtIndex:0];
-    };
-    [self.leftCluster addArrangedSubview:self.homeButton];
-
-    [self.barRow addArrangedSubview:self.leftCluster];
-
-    // 标题：titleMedium 左对齐；Fill 分布下唯一低 hug 项 → 拉伸占中段，
-    // 右簇恒钉右缘（ZL2 ConstraintLayout 同构）
-    self.titleLabel = [[UILabel alloc] init];
-    self.titleLabel.translatesAutoresizingMaskIntoConstraints = NO;
-    self.titleLabel.font = [ZL2Theme fontTitleMedium];
-    self.titleLabel.textColor = [ZL2Theme onSurface];
-    self.titleLabel.numberOfLines = 1;
-    self.titleLabel.lineBreakMode = NSLineBreakByTruncatingTail;
-    [self.titleLabel setContentHuggingPriority:(UILayoutPriority)249.0
-                                       forAxis:UILayoutConstraintAxisHorizontal];
-    [self.titleLabel setContentCompressionResistancePriority:(UILayoutPriority)749.0
-                                                     forAxis:UILayoutConstraintAxisHorizontal];
-    [self.barRow addArrangedSubview:self.titleLabel];
-
-    // 右簇：trailing 12dp（barRow margin）+ 间距 8dp
-    self.rightCluster = [[UIStackView alloc] init];
-    self.rightCluster.axis = UILayoutConstraintAxisHorizontal;
-    self.rightCluster.alignment = UIStackViewAlignmentCenter;
-    self.rightCluster.spacing = 8.0;
-    self.rightCluster.translatesAutoresizingMaskIntoConstraints = NO;
-    self.rightCluster.accessibilityIdentifier = @"zl2_shell_topbar_rail";   // 7.0-UI-11：向导引导锚点探测
-    [self.barRow addArrangedSubview:self.rightCluster];
-
-    // a) 任务胶囊（AnimatedVisibility：任务运行且未展开时——iOS 无任务菜单
-    //    展开态，仅按 hasActiveTasks 显隐）
-    self.taskPill = [[ZL2ShellTaskPill alloc] init];
-    self.taskPill.translatesAutoresizingMaskIntoConstraints = NO;
-    self.taskPill.ame_action = ^{
-        [weakSelf ame_openTaskProgress];
-    };
-    [self.rightCluster addArrangedSubview:self.taskPill];
-
-    // b) RailItem×5（7.0-UI-14 真机对齐：文件/多人联机/下载/设置，ZL2 MainScreen
-    //    endButtons 顺序；版本/账户入口收进主页 ActionMenu，非顶栏项。
-    //    Task318：第 5 项 = AI 助手（7.0-UI-8 旧壳退役后入口恢复，页面 6））
-    //    pageIndex = -1 表示瞬时动作（文件夹 = 打开文件浏览器，非页面）
-    NSArray<NSString *> *titles = @[localize(@"ame369.shell.tab.files", @"文件"), localize(@"ame369.common.multiplayer", @"多人联机"), localize(@"ame369.shell.tab.downloads", @"下载"), localize(@"ame369.shell.tab.settings", @"设置"),
-                                    localize(@"ame192.ai.title", nil)];
-    NSArray<NSString *> *symbols = @[@"folder.fill",
-                                     @"person.2.fill",
-                                     @"arrow.down.circle.fill",
-                                     @"gearshape.fill",
-                                     @"sparkles"];
-    NSArray<NSString *> *fallbacks = @[@"folder", @"person.2", @"arrow.down", @"gear",
-                                       @"sparkles"];
-    NSArray<NSNumber *> *pageIndexNumbers = @[@(-1), @5, @1, @4, @6];
-    NSMutableArray<ZL2ShellRailItem *> *items = [NSMutableArray array];
-    [titles enumerateObjectsUsingBlock:^(NSString *itemTitle, NSUInteger idx, BOOL *stop) {
-        NSString *fallback = fallbacks[idx];
-        ZL2ShellRailItem *item = [[ZL2ShellRailItem alloc]
-                                     initWithTitle:itemTitle
-                                             symbol:symbols[idx]
-                                           fallback:(fallback.length > 0 ? fallback : nil)
-                                         pageIndex:pageIndexNumbers[idx].integerValue];
-        NSInteger target = pageIndexNumbers[idx].integerValue;
-        item.ame_action = ^{
-            if (target < 0) {
-                // ZL2 文件夹钮 = OpenFileManager 事件（独立文件管理器）；iOS 对应
-                // FolderBrowserViewController（PageSheet，游戏根目录）
-                [weakSelf ame_openFileManagerSheet];
-                return;
-            }
-            [weakSelf showPageAtIndex:target];
-        };
-        [self.rightCluster addArrangedSubview:item];
-        [items addObject:item];
-    }];
-    self.railItems = [items copy];
-
-    [NSLayoutConstraint activateConstraints:@[
-        [self.topBar.leadingAnchor constraintEqualToAnchor:self.view.leadingAnchor],
-        [self.topBar.trailingAnchor constraintEqualToAnchor:self.view.trailingAnchor],
-        [self.topBar.topAnchor constraintEqualToAnchor:self.view.topAnchor],
-        // safeArea 顶部延伸：顶栏底 = safeArea 顶 + 40（iPhone 竖放补状态栏区
-        // 域底色；iPad/横屏 safeTop=0 即 40pt 平顶）
-        [self.topBar.bottomAnchor constraintEqualToAnchor:self.view.safeAreaLayoutGuide.topAnchor
-                                                constant:ZL2ShellBarContentHeight],
-
-        [self.barRow.leadingAnchor constraintEqualToAnchor:self.topBar.leadingAnchor],
-        [self.barRow.trailingAnchor constraintEqualToAnchor:self.topBar.trailingAnchor],
-        [self.barRow.bottomAnchor constraintEqualToAnchor:self.topBar.bottomAnchor],
-        [self.barRow.heightAnchor constraintEqualToConstant:ZL2ShellBarContentHeight],
-    ]];
-}
-
-- (void)ame_buildContainer {
+// 顶栏（ZL2 TopBar：返回/主页左簇 + 标题 + 任务胶囊 + RailItem×5）整体退役：
+//   · 五入口按钮迁移至主页右侧栏顶部（ZL2HomeViewController quickNav 瓦片，
+//     22pt 图标 ×2.5 = 55pt，第一行 文件/下载/设置、第二行 联机/AI）；
+//   · 任务胶囊随顶栏退役（下载进度由下载页/主页侧栏状态行承担）；
+//   · 标题与返回由各子页 UINavigationController 自带导航栏承担（7.0-UI-8
+//     既有约定：子页 push 层系统返回栏本就独立工作，顶栏返回仅为辅助手势）；
+//   · 主页内部自理 safeArea（ActionMenu/内容区挂 safe 锚）；bare 容器全屏直铺。
+- (void)ame_buildBareShell {
     self.container = [[UIView alloc] init];
     self.container.translatesAutoresizingMaskIntoConstraints = NO;
     self.container.backgroundColor = [UIColor clearColor];
     [self.view addSubview:self.container];
 
     [NSLayoutConstraint activateConstraints:@[
-        [self.container.topAnchor constraintEqualToAnchor:self.topBar.bottomAnchor],
+        [self.container.topAnchor constraintEqualToAnchor:self.view.topAnchor],
         [self.container.leadingAnchor constraintEqualToAnchor:self.view.leadingAnchor],
         [self.container.trailingAnchor constraintEqualToAnchor:self.view.trailingAnchor],
         [self.container.bottomAnchor constraintEqualToAnchor:self.view.bottomAnchor],
@@ -1246,20 +1020,6 @@ static UIImage *ZL2ShellSystemImage(NSString *name, NSString *fallback) {
     }
 }
 
-- (void)ame_setTitleText:(NSString *)title {
-    NSString *next = title ?: @"";
-    if ([self.titleLabel.text isEqualToString:next]) return;
-    if (self.titleLabel.window) {
-        // Crossfade 等价（MainScreen.kt title 位）
-        [UIView transitionWithView:self.titleLabel
-                          duration:ZL2ShellAnimateDuration
-                           options:UIViewAnimationOptionTransitionCrossDissolve
-                        animations:^{ self.titleLabel.text = next; }
-                        completion:nil];
-    } else {
-        self.titleLabel.text = next;
-    }
-}
 
 - (void)ame_refreshTopBarStateAnimated:(BOOL)animated {
     // ★ Task347：nav 骨架走等价刷新（窗格选中/大标题/返回汉堡互斥）
@@ -1267,41 +1027,9 @@ static UIImage *ZL2ShellSystemImage(NSString *name, NSString *fallback) {
         [self ame_refreshNavShellStateAnimated:animated];
         return;
     }
-    if (!self.isViewLoaded || self.currentIndex < 0) return;
-    NSInteger index = self.currentIndex;
-
-    UINavigationController *nav = [self ame_currentNav];
-    BOOL clusterVisible = (index != 0);                  // 左簇仅非主页显示
-    BOOL backVisible = (nav.viewControllers.count > 1);  // 可 pop 才有返回钮
-
-    NSString *title = [self ame_titleForIndex:index];
-    if (nav.viewControllers.count > 1) {
-        // 子页 push 态「页名 - 子页名」（MainScreen.kt L358-362 同构）
-        NSString *childTitle = nav.topViewController.title;
-        if (childTitle.length > 0) {
-            title = [NSString stringWithFormat:@"%@ - %@", title, childTitle];
-        }
-    }
-    [self ame_setTitleText:title];
-
-    // AnimatedVisibility 等价：hidden 塌缩（UIStackView）+ alpha + 宽度约束，
-    // 单一动画上下文统一 0.18s
-    void (^apply)(void) = ^{
-        [self.railItems enumerateObjectsUsingBlock:^(ZL2ShellRailItem *item, NSUInteger idx, BOOL *stop) {
-            // 文件项（pageIndex -1）永不选中（瞬时动作，非页面）
-            [item ame_setSelected:(item.pageIndex >= 0 && item.pageIndex == index)];
-        }];
-        self.leftCluster.alpha = clusterVisible ? 1.0 : 0.0;
-        self.leftCluster.hidden = !clusterVisible;
-        self.backButton.alpha = backVisible ? 1.0 : 0.0;
-        self.backButton.hidden = !backVisible;
-        [self.topBar layoutIfNeeded];
-    };
-    if (animated && self.topBar.window) {
-        [UIView animateWithDuration:ZL2ShellAnimateDuration animations:apply];
-    } else {
-        apply();
-    }
+    // ★ Task378：topbar 骨架退役——bare 壳无顶栏态可刷（标题/左簇/RailItem
+    //   选中随顶栏整体移除；子页栈深与标题由各子页 UINavigationController
+    //   自带导航栏呈现，7.0-UI-8 既有约定不变）
 }
 
 - (void)ame_popCurrentIfPossible {
@@ -1314,6 +1042,7 @@ static UIImage *ZL2ShellSystemImage(NSString *name, NSString *fallback) {
 #pragma mark - 任务胶囊
 
 - (void)ame_refreshTaskPill {
+    if (!self.taskPill) return;   // ★ Task378：bare 壳无顶栏 = 无任务胶囊（nav 骨架专属）
     if (!self.isViewLoaded) return;
 
     DownloadTaskManager *manager = [DownloadTaskManager sharedManager];

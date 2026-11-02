@@ -76,7 +76,11 @@ check("② ame369.* 键四表齐备",
 # ★ Task370 重锚：447 → 450（+3 复用站点 = Task374 安装页返回钮 title/a11y 两处
 #   ame369.common.back + Task376 窗格开关钮 a11y ame369.shell.nav_a11y；零移除，
 #   git diff 实证 0 处被移除）
-check("① ame369 改写点数 == 450", ame369_sites == 450, str(ame369_sites))
+# ★ Task378 重锚：450 → 448（顶栏退役净 -2：壳层 RailItem×4 标题/左簇 back+home
+#   共 6 站点随 ame_buildTopBar 删除；同批主页 quickNav 瓦片回填 4 站点
+#   （files/downloads/settings/multiplayer 标签，ame192.ai.title 非 369 键不计），
+#   450-6+4=448，git diff 实证账目吻合）
+check("① ame369 改写点数 == 448", ame369_sites == 448, str(ame369_sites))
 
 # 复用站点：4 处 localize(@"ame193.misc.[13]"（内容级匹配——5 个补 import 文件行号整体 +1，行级断言会错位）
 REUSE_EXPECT = {
