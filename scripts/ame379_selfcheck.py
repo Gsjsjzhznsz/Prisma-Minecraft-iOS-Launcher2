@@ -93,9 +93,10 @@ check("C1 darkMode 读取根修（keyWindow trait；currentTraitCollection 一�
       and "ame366_isDarkMode {" in bridge
       and "return [UITraitCollection currentTraitCollection].userInterfaceStyle == UIUserInterfaceStyleDark;" not in bridge)
 
-check("C2 壳层外观桥（traitCollectionDidChange → AmeAppearanceTraitChanged 通知）",
+check("C2 壳层外观桥（traitCollectionDidChange → AmeAppearanceTraitChanged 通知；★r1 重锚：SDK26 不可见选择器退役改 userInterfaceStyle 直比）",
       '- (void)traitCollectionDidChange:(UITraitCollection *)previousTraitCollection {' in shell
-      and "hasDifferentColorAppearanceComparedTo:previousTraitCollection" in shell
+      and "hasDifferentColorAppearanceComparedTo" not in shell
+      and "if (ame379_style == previousTraitCollection.userInterfaceStyle) return;" in shell
       and 'postNotificationName:@"AmeAppearanceTraitChanged"' in shell)
 
 check("C3 事件面第 12 事件（Runtime 订阅通知 → appearance.changed 派发 {dark}）",
