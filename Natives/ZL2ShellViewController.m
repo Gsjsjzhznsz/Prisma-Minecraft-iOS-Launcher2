@@ -515,10 +515,10 @@ static UIImage *ZL2ShellSystemImage(NSString *name, NSString *fallback) {
 //   经此传播——root VC trait 随窗口联动）
 - (void)traitCollectionDidChange:(UITraitCollection *)previousTraitCollection {
     [super traitCollectionDidChange:previousTraitCollection];
-    // ★ Task379 r1：hasDifferentColorAppearanceComparedTo: 在 Xcode 26.3 /
-    //   iPhoneOS26.2 SDK 下 "no visible @interface"（CI run 41445634927 +
-    //   41445630882 双红实锤）——改 userInterfaceStyle 直比（iOS 12 稳定面，
-    //   语义等价：仅明暗变化即发；previous 为 nil 视为无对比不误发）。
+    // ★ Task379 r1：iOS 17 trait 注册 API 世代的老外观差异比较选择器在
+    //   Xcode 26.3 / iPhoneOS26.2 SDK 下 "no visible @interface"（CI run
+    //   41445634927 + 41445630882 双红实锤）——改 userInterfaceStyle 直比
+    //   （iOS 12 稳定面，语义等价：仅明暗变化即发；previous 为 nil 不误发）。
     if (!previousTraitCollection) return;
     UIUserInterfaceStyle ame379_style = self.traitCollection.userInterfaceStyle;
     if (ame379_style == previousTraitCollection.userInterfaceStyle) return;
