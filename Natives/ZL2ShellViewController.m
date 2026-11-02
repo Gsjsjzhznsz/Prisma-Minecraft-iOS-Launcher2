@@ -421,6 +421,7 @@ static UIImage *ZL2ShellSystemImage(NSString *name, NSString *fallback) {
 @property(nonatomic, assign) BOOL ame347_widthClassApplied;           // ★ Task349：首轮宽窄态必派发哨兵
 @property(nonatomic, strong) NSLayoutConstraint *ame350_headerWrapLeading; // ★ Task350：内容区头前导（宽屏 = 窗格宽，头不再横穿窗格）
 @property(nonatomic, assign) BOOL ame350_layoutLogged;                // ★ Task350：首帧布局自证哨兵
+@property(nonatomic, strong) UIView *ame379_paneHeader;               // ★ Task379：窗格头行容器（固定 32pt，钮/标题不再锚标题 intrinsic 高度）
 @end
 
 @implementation ZL2ShellViewController
@@ -509,6 +510,21 @@ static UIImage *ZL2ShellSystemImage(NSString *name, NSString *fallback) {
     [[NSNotificationCenter defaultCenter] removeObserver:self];
 }
 
+// ★ Task379：外观 trait 变化 → 插件事件面 appearance.changed（fluent 色板
+//   实时跟随系统明暗的桥；窗口 overrideUserInterfaceStyle 偏好切换同样
+//   经此传播——root VC trait 随窗口联动）
+- (void)traitCollectionDidChange:(UITraitCollection *)previousTraitCollection {
+    [super traitCollectionDidChange:previousTraitCollection];
+    if (@available(iOS 12.0, *)) {
+        if (![self.traitCollection hasDifferentColorAppearanceComparedTo:previousTraitCollection]) return;
+    }
+    BOOL ame379_dark = self.traitCollection.userInterfaceStyle == UIUserInterfaceStyleDark;
+    [[NSNotificationCenter defaultCenter] postNotificationName:@"AmeAppearanceTraitChanged"
+                                                        object:nil
+                                                      userInfo:@{@"dark": @(ame379_dark)}];
+    NSLog(@"[Ame379] appearance trait changed dark=%d", ame379_dark);
+}
+
 #pragma mark - ★ Task378 bare 壳构建（顶栏退役：容器直铺 + 子页自带导航栏）
 
 // 顶栏（ZL2 TopBar：返回/主页左簇 + 标题 + 任务胶囊 + RailItem×5）整体退役：
@@ -548,6 +564,13 @@ static UIImage *ZL2ShellSystemImage(NSString *name, NSString *fallback) {
     self.paneWrap.backgroundColor = [ZL2Theme surfaceContainerLow];
     [self.view addSubview:self.paneWrap];
 
+    // ★ Task379：窗格头行容器（固定 32pt 高）——开关钮/标题改锚容器，不再依赖
+    //   标题 intrinsic 高度（装机实锤 paneTitle 零高塌缩→钮悬入状态栏带）
+    self.ame379_paneHeader = [[UIView alloc] init];
+    self.ame379_paneHeader.translatesAutoresizingMaskIntoConstraints = NO;
+    self.ame379_paneHeader.backgroundColor = [UIColor clearColor];
+    [self.paneWrap addSubview:self.ame379_paneHeader];
+
     // ★ Task376：窗格开关钮（WinUI NavigationView 窗格头语义）——宽屏切换
     //   Expanded(280)↔Compact(64 图标栏)，窄屏切换抽屉；态持久化 NSUserDefaults
     self.paneToggleButton = [[ZL2ShellIconButton alloc] initWithSymbol:@"sidebar.leading" fallback:@"line.3.horizontal"];
@@ -563,17 +586,21 @@ static UIImage *ZL2ShellSystemImage(NSString *name, NSString *fallback) {
             [weakSelf ame_setDrawerOpen:!weakSelf.ame347_drawerOpen animated:YES];
         }
     };
-    [self.paneWrap addSubview:self.paneToggleButton];
+    [self.ame379_paneHeader addSubview:self.paneToggleButton];
 
     self.paneTitle = [[UILabel alloc] init];
     self.paneTitle.translatesAutoresizingMaskIntoConstraints = NO;
     self.paneTitle.font = [ZL2Theme fontTitleMedium];
     self.paneTitle.textColor = [ZL2Theme onSurface];
     self.paneTitle.numberOfLines = 1;
-    NSString *ame347_appName = [NSProcessInfo.processInfo.processName length] > 0
-        ? NSProcessInfo.processInfo.processName : @"Prisma Launcher";
-    self.paneTitle.text = ame347_appName;
-    [self.paneWrap addSubview:self.paneTitle];
+    // ★ Task379：标题文案回退链 bundle 显示名优先（processName 在
+    //   LiveContainer 宿主下非确定性；display name = 用户认知的应用名）
+    NSString *ame379_bundleName = [NSBundle mainBundle].infoDictionary[@"CFBundleDisplayName"]
+        ?: [NSBundle mainBundle].infoDictionary[@"CFBundleName"]
+        ?: NSProcessInfo.processInfo.processName;
+    if (ame379_bundleName.length == 0) ame379_bundleName = @"Prisma Launcher";
+    self.paneTitle.text = ame379_bundleName;
+    [self.ame379_paneHeader addSubview:self.paneTitle];
 
     self.paneScroll = [[UIScrollView alloc] init];
     self.paneScroll.translatesAutoresizingMaskIntoConstraints = NO;
@@ -725,17 +752,24 @@ static UIImage *ZL2ShellSystemImage(NSString *name, NSString *fallback) {
         [self.paneWrap.bottomAnchor constraintEqualToAnchor:self.view.bottomAnchor],
         self.ame376_paneWidth,
 
-        [self.paneToggleButton.leadingAnchor constraintEqualToAnchor:self.paneWrap.safeAreaLayoutGuide.leadingAnchor constant:8.0],
-        [self.paneToggleButton.centerYAnchor constraintEqualToAnchor:self.paneTitle.centerYAnchor],
+        // ★ Task379：头行容器几何（固定 32pt 高 + 安全区上 10pt）——钮位与
+        //   滚动区顶从此不依赖标题 intrinsic 高度，零高塌缩类根绝
+        [self.ame379_paneHeader.topAnchor constraintEqualToAnchor:self.paneWrap.safeAreaLayoutGuide.topAnchor constant:10.0],
+        [self.ame379_paneHeader.leadingAnchor constraintEqualToAnchor:self.paneWrap.safeAreaLayoutGuide.leadingAnchor constant:8.0],
+        [self.ame379_paneHeader.trailingAnchor constraintLessThanOrEqualToAnchor:self.paneWrap.trailingAnchor constant:-12.0],
+        [self.ame379_paneHeader.heightAnchor constraintEqualToConstant:32.0],
+
+        [self.paneToggleButton.leadingAnchor constraintEqualToAnchor:self.ame379_paneHeader.leadingAnchor],
+        [self.paneToggleButton.centerYAnchor constraintEqualToAnchor:self.ame379_paneHeader.centerYAnchor],
         [self.paneToggleButton.widthAnchor constraintEqualToConstant:32.0],
         [self.paneToggleButton.heightAnchor constraintEqualToConstant:32.0],
 
-        [self.paneTitle.topAnchor constraintEqualToAnchor:self.paneWrap.safeAreaLayoutGuide.topAnchor constant:12.0],
-        // ★ Task376：标题让位窗格开关钮
+        // ★ Task376：标题让位窗格开关钮（379 起锚头行容器）
         [self.paneTitle.leadingAnchor constraintEqualToAnchor:self.paneToggleButton.trailingAnchor constant:6.0],
-        [self.paneTitle.trailingAnchor constraintLessThanOrEqualToAnchor:self.paneWrap.trailingAnchor constant:-16.0],
+        [self.paneTitle.centerYAnchor constraintEqualToAnchor:self.ame379_paneHeader.centerYAnchor],
+        [self.paneTitle.trailingAnchor constraintLessThanOrEqualToAnchor:self.ame379_paneHeader.trailingAnchor],
 
-        [self.paneScroll.topAnchor constraintEqualToAnchor:self.paneTitle.bottomAnchor constant:8.0],
+        [self.paneScroll.topAnchor constraintEqualToAnchor:self.ame379_paneHeader.bottomAnchor constant:8.0],
         // ★ Task350：滚动区底部外部锚定——原实现仅 top/leading/trailing，frame
         //   高度全靠内容推导（self-sizing scroll view）在装机 iPadOS 27 上塌缩，
         //   clipsToBounds 默认 YES → 六项主导航全灭而 footer（外部锚定完整）
@@ -808,6 +842,9 @@ static UIImage *ZL2ShellSystemImage(NSString *name, NSString *fallback) {
     // ★ Task376：折叠态持久化回读 + 统一几何派发（宽窄 × 折叠 × 抽屉一次落位）
     self.ame376_paneCollapsed = [NSUserDefaults.standardUserDefaults boolForKey:@"ame376.paneCollapsed"];
     [self ame376_applyPaneGeometry:NO];
+    // ★ Task379：头行置顶（滚动区/分隔线/底部栈之后加入层级，头行必须在最上，
+    //   折叠开关钮永不被子覆盖）
+    [self.paneWrap bringSubviewToFront:self.ame379_paneHeader];
     [self.view setNeedsLayout];
 }
 
@@ -891,6 +928,13 @@ static UIImage *ZL2ShellSystemImage(NSString *name, NSString *fallback) {
               NSStringFromCGRect(self.paneStack.frame),
               (unsigned long)self.paneStack.arrangedSubviews.count,
               self.ame347_navMode, self.ame347_regular, self.ame347_drawerOpen);
+        // ★ Task379：窗格头行自证（开关钮可见性装机判读：钮 frame 应在窗格
+        //   顶部可见带内；标题高度塌缩不再影响钮位）
+        NSLog(@"[Ame379] pane header -- header=%@ toggle=%@ title=%@ titleLen=%lu",
+              NSStringFromCGRect(self.ame379_paneHeader.frame),
+              NSStringFromCGRect(self.paneToggleButton.frame),
+              NSStringFromCGRect(self.paneTitle.frame),
+              (unsigned long)self.paneTitle.text.length);
     }
 }
 

@@ -11,7 +11,7 @@
 # S 反向探针：老病灶"固定 self present"清零 / ame367 快照次序不受日志插入扰动 / 密钥零泄漏
 import io, re, sys
 
-REPO = "/home/z/my-project/repo-prisma2"
+REPO = __import__("os").environ.get("AME_REPO") or "/home/z/my-project/repo-prisma2"   # ★Task379：沙箱克隆路径可覆盖（默认口径不变）
 
 def read(p):
     with io.open(REPO + "/" + p, encoding="utf-8", newline="") as f:

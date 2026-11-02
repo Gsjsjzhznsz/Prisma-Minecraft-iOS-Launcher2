@@ -9,7 +9,7 @@
 # S 病灶反向：didCompleteWithError 体内不再有裸 flushPendingDelta / 节流路径保留旧入口
 import io, re, sys
 
-REPO = "/home/z/my-project/repo-prisma2"
+REPO = __import__("os").environ.get("AME_REPO") or "/home/z/my-project/repo-prisma2"   # ★Task379：沙箱克隆路径可覆盖（默认口径不变）
 
 def read(p):
     with io.open(REPO + "/" + p, encoding="utf-8", newline="") as f:

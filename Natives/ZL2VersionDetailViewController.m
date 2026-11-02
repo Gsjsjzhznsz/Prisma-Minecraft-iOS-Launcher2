@@ -438,8 +438,12 @@ static UIImage *ZL2V13SystemImage(NSString *name, NSString *fallback) {
     }
 
     [NSLayoutConstraint activateConstraints:@[
-        [_railStack.leadingAnchor constraintEqualToAnchor:self.view.leadingAnchor constant:8],
-        [_railStack.trailingAnchor constraintEqualToAnchor:self.view.leadingAnchor constant:8 + ZL2V13RailWidth],
+        // ★ Task379：轨列前导对齐页头边距（8→ZL2V13PageMargin）——装机实锤：
+        //   fluent NavigationView 窗格（280pt）右侧轨列贴 8pt 边带，比页头卡
+        //   凸出 8pt = 用户感知"点位偏左"。对齐后轨列与页头卡同线，彻底
+        //   脱离窗格邻接带；命中面仍为整列全宽（372 口径不变）。
+        [_railStack.leadingAnchor constraintEqualToAnchor:self.view.leadingAnchor constant:ZL2V13PageMargin],
+        [_railStack.trailingAnchor constraintEqualToAnchor:self.view.leadingAnchor constant:ZL2V13PageMargin + ZL2V13RailWidth],
         [_railStack.topAnchor constraintEqualToAnchor:_headerCard.bottomAnchor constant:12],
         [_railStack.bottomAnchor constraintLessThanOrEqualToAnchor:self.view.safeAreaLayoutGuide.bottomAnchor constant:-8],
     ]];
@@ -453,7 +457,7 @@ static UIImage *ZL2V13SystemImage(NSString *name, NSString *fallback) {
 
     UILayoutGuide *safe = self.view.safeAreaLayoutGuide;
     [NSLayoutConstraint activateConstraints:@[
-        [_contentContainer.leadingAnchor constraintEqualToAnchor:self.view.leadingAnchor constant:8 + ZL2V13RailWidth + 4],
+        [_contentContainer.leadingAnchor constraintEqualToAnchor:self.view.leadingAnchor constant:ZL2V13PageMargin + ZL2V13RailWidth + 4],
         [_contentContainer.topAnchor constraintEqualToAnchor:_headerCard.bottomAnchor constant:12],
         [_contentContainer.trailingAnchor constraintEqualToAnchor:self.view.trailingAnchor constant:-ZL2V13PageMargin],
         [_contentContainer.bottomAnchor constraintEqualToAnchor:safe.bottomAnchor],

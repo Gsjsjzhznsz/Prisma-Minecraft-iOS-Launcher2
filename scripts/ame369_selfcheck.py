@@ -12,7 +12,7 @@
 import os, re, sys, json
 from collections import defaultdict
 
-REPO = "/home/z/my-project/repo-prisma2"
+REPO = __import__("os").environ.get("AME_REPO") or "/home/z/my-project/repo-prisma2"   # ★Task379：沙箱克隆路径可覆盖（默认口径不变）
 NAT = os.path.join(REPO, 'Natives')
 RES = os.path.join(NAT, 'resources')
 fails = []

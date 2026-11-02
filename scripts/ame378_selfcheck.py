@@ -141,10 +141,11 @@ check("B6 页面切换契约不变（childCache 懒建 + 6 页 + ZL2ShellNavigat
 
 # ══ C 线：五入口按钮迁移主页右侧栏（ZL2HomeViewController） ═══════
 
-check("C1 快航构建器在位 + menuStack 首位调用（先于账号卡入列）",
+check("C1 快航构建器在位 + menuStack 调用（★Task379 重锚：驻版本选择卡之下——用户复诉\"主页原本是右上角的按钮跑到了下面\"，账号卡/版本卡复位右栏顶部，瓦片改随其后；378 原口径\"先于账号卡\"随之退役）",
       "- (void)ame378_buildQuickNav {" in home_code
       and "[self ame378_buildQuickNav];" in home_code
-      and home_code.index("[self ame378_buildQuickNav];") < home_code.index("_accountCard = [[ZL2HomeTapControl alloc] init];"))
+      and home_code.index("[self ame378_buildQuickNav];") > home_code.index("_versionCard = [[ZL2HomeTapControl alloc] init];")
+      and home_code.index("[self ame378_buildQuickNav];") < home_code.index("[_menuStack addArrangedSubview:spacer];"))
 
 check("C2 前三后二行序（第一行 文件/下载/设置，第二行 联机/AI）",
       "@[filesTile, downloadsTile, settingsTile]" in home_code

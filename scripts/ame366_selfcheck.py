@@ -10,7 +10,7 @@
 # S 病灶反向：v7 不含 v6 残留 / JSExport 协议齐全 / raw 名成对存在
 import io, re, sys
 
-REPO = "/home/z/my-project/repo-prisma2"
+REPO = __import__("os").environ.get("AME_REPO") or "/home/z/my-project/repo-prisma2"   # ★Task379：沙箱克隆路径可覆盖（默认口径不变）
 
 def read(p):
     with io.open(REPO + "/" + p, encoding="utf-8", newline="") as f:

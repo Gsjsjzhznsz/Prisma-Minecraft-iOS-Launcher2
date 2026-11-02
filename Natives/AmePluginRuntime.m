@@ -1165,6 +1165,16 @@ static NSDictionary *ame366_lastExitRecord = nil;
                 usingBlock:^(NSNotification *_) {
         [wself ame317_dispatchAll:@"app.lowMemory" payload:nil];
     }];
+    // ★ Task379：appearance.changed（第 12 事件）——壳层 traitCollectionDidChange
+    //   桥接（系统深浅切换 + 设置页外观偏好切换均经窗口 trait 传播到此）；
+    //   payload {dark: bool} 供色板类插件实时跟随系统明暗（fluent-ui v2.5.0）。
+    [nc addObserverForName:@"AmeAppearanceTraitChanged"
+                    object:nil queue:[NSOperationQueue mainQueue]
+                usingBlock:^(NSNotification *note) {
+        NSDictionary *ui = [note.userInfo isKindOfClass:[NSDictionary class]] ? note.userInfo : @{};
+        BOOL dark = [ui[@"dark"] boolValue];
+        [wself ame317_dispatchAll:@"appearance.changed" payload:@{@"dark": @(dark)}];
+    }];
 }
 
 // ★ Task366：本插件主题覆盖读取（四族记账表直查；kind 白名单外返回空表）

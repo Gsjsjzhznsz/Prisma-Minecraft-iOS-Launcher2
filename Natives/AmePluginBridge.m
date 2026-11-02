@@ -1396,7 +1396,23 @@ static UIColor *ame364_colorFromString(NSString *s) {
 }
 
 - (BOOL)ame366_isDarkMode {
-    return [UITraitCollection currentTraitCollection].userInterfaceStyle == UIUserInterfaceStyleDark;
+    // ★ Task379：根修——UITraitCollection.currentTraitCollection 仅在绘制/
+    //   布局上下文内携带真实值，JS 桥调用线程恒 unspecified → 原实现永判
+    //   浅色（装机实锤：系统深色下 fluent 仍应用亮板）。改读 keyWindow 实际
+    //   trait（含 overrideUserInterfaceStyle 偏好联动，与壳层视图同一语义）。
+    UIWindow *ame379_window = nil;
+    for (UIScene *scene in UIApplication.sharedApplication.connectedScenes) {
+        if (![scene isKindOfClass:[UIWindowScene class]]) continue;
+        for (UIWindow *cand in ((UIWindowScene *)scene).windows) {
+            if (cand.isKeyWindow) { ame379_window = cand; break; }
+        }
+        if (ame379_window) break;
+    }
+    if (!ame379_window) ame379_window = UIApplication.sharedApplication.keyWindow;
+    UIUserInterfaceStyle ame379_style = ame379_window
+        ? ame379_window.traitCollection.userInterfaceStyle
+        : [UITraitCollection currentTraitCollection].userInterfaceStyle;
+    return ame379_style == UIUserInterfaceStyleDark;
 }
 
 #pragma mark - Task366 视图操纵扩展（ui.views†）

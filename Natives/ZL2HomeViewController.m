@@ -555,9 +555,10 @@ static UIImage *ZL2HomeSizedImage(NSString *name, NSString *fallback, CGFloat po
     _menuStack.translatesAutoresizingMaskIntoConstraints = NO;
     [_actionMenu addSubview:_menuStack];
 
-    // ★ Task378：五入口快航瓦片最先入列（用户规格：目录/下载/设置 + 联机/AI
-    //   两行瓦片驻右侧栏顶部；账号卡/版本选择卡顺次下移，功能不变）
-    [self ame378_buildQuickNav];
+    // ★ Task379：五入口快航瓦片改驻版本选择卡之下（用户复诉："主页原本是
+    //   右上角的按钮跑到了下面"——Task378 瓦片驻顶把账号卡/版本选择卡挤离
+    //   右栏顶部；本轮复位 = 账号卡/版本卡回右栏顶部原位，瓦片紧随其后，
+    //   前三后二/2.5x 规格不变，启动组仍驻列底）
 
     // —— ① 账号区（单卡内贴顶：头像居中 + 名字/类型居中竖排；点击→账号管理）——
     _accountCard = [[ZL2HomeTapControl alloc] init];
@@ -667,6 +668,10 @@ static UIImage *ZL2HomeSizedImage(NSString *name, NSString *fallback, CGFloat po
         [weakSelf versionSettingsTapped];
     };
     [_versionCard addSubview:_versionSettingsButton];
+
+    // ★ Task379：五入口快航瓦片（顶栏退役承接；驻版本选择卡之下、弹性占位
+    //   之上——账号卡/版本卡复位右栏顶部后，瓦片作为快捷动作区贴随其后）
+    [self ame378_buildQuickNav];
 
     // —— 弹性占位：把启动组压到列底 ——
     UIView *spacer = [[UIView alloc] init];

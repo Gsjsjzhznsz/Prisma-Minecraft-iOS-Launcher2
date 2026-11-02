@@ -1,6 +1,13 @@
 // Task375 fluent-ui v2.4.0 —— 「两态开关 · 跟随系统明暗」版（用户指令：
 // "flUI的开关能不能就2种状态，开和不开，浅色合深色跟随设置"）。
 // ---------------------------------------------------------------------
+// ★ v2.5.0（Task379）：实时跟随系统明暗——订阅 appearance.changed 事件
+//   （Task379 事件面第 12 事件，payload {dark}；原生侧壳层
+//   traitCollectionDidChange 桥接，系统深浅切换与设置页外观偏好切换
+//   均触发）。开态下换板 + 全维令牌重应用即时生效，无需重启；v2.4.0
+//   的"会话中系统明暗切换暂不追踪"限制就此退役。另：Task379 原生侧
+//   darkMode 读取根修（keyWindow trait）后，装载期选色也不再误判。
+// ---------------------------------------------------------------------
 // ★ v2.4.0（Task375）：交互模型从「四态循环 亮→暗→混融→默认」收敛为
 //   「两态开关」：
 //     · 开  —— 应用 Fluent 全维度换装（结构 navigationview + 形 + 字阶 +
@@ -11,9 +18,8 @@
 //              清空。不再有"循环第 4 次恢复默认"的隐藏状态机。
 //   持久化：fluent.on = 'yes'/'no'（旧 fluent.idx/fluent.optout 启动期
 //   一次性迁移：idx>=0 或未 optout → 开）。每次装载按当下系统明暗重选
-//   色板 = 重启后跟随设置；会话中系统明暗切换暂不追踪（插件面无外观
-//   变更事件，Task366 事件面 11 种无 appearance.changed；后续事件面扩
-//   容时补实时跟随）。混融色板（fluent-apple）按"就 2 种状态"口径退役。
+//   色板 = 重启后跟随设置；★ v2.5.0 起会话中实时跟随（appearance.changed）。
+//   混融色板（fluent-apple）按"就 2 种状态"口径退役。
 // ---------------------------------------------------------------------
 // ★ v2.3.0（Task348）：装载即自动应用持久化方案；v2.2.0（Task347）接入
 //   结构令牌承载面（ame.setThemeStructure）——WinUI NavigationView 蓝图：
@@ -221,7 +227,7 @@
 
   try {
     ame.addLauncherRow(
-      { id: 'fluent-ui', title: 'Fluent UI', subtitle: '两态开关 · 色板跟随系统明暗 · NavigationView 左窗格' },
+      { id: 'fluent-ui', title: 'Fluent UI', subtitle: '两态开关 · 色板实时跟随系统明暗 · NavigationView 左窗格' },
       function (rowId) {
         migrateLegacyState();
         var announced = storageGet('fluent.announced') === 'yes';
@@ -230,7 +236,7 @@
           try {
             ame.dialog({
               title: 'Fluent UI',
-              body: 'Fluent 2 完整设计语言换装（真重排版，非 ZL2 主题换色）：\n· 开关只有两态 —— 开 = 应用 Fluent；关 = 恢复默认主题\n· 色板跟随系统外观 —— 系统深色用 Fluent 暗，系统浅色用 Fluent 亮（重启后同样自动跟随）\n· 结构 —— 左侧 NavigationView 导航窗格（WinUI 选中指示条）+ 大标题内容区\n· 排版 —— 控件统一 32pt 线 / 卡片 4pt 栅格 / 胶囊 80×32\n· 形状/字阶 —— 4/8/12pt 圆角 · Fluent2 字阶七档\n每次切换全界面即时重建。',
+              body: 'Fluent 2 完整设计语言换装（真重排版，非 ZL2 主题换色）：\n· 开关只有两态 —— 开 = 应用 Fluent；关 = 恢复默认主题\n· 色板实时跟随系统外观 —— 系统深色用 Fluent 暗，系统浅色用 Fluent 亮；会话中切换系统明暗即时生效，无需重启\n· 结构 —— 左侧 NavigationView 导航窗格（WinUI 选中指示条）+ 大标题内容区\n· 排版 —— 控件统一 32pt 线 / 卡片 4pt 栅格 / 胶囊 80×32\n· 形状/字阶 —— 4/8/12pt 圆角 · Fluent2 字阶七档\n每次切换全界面即时重建。',
               confirm: isOn() ? '保持开启' : '开启 Fluent',
               cancel: isOn() ? '关闭 Fluent' : '关闭'
             }, function (ok) {
@@ -251,7 +257,25 @@
     return;
   }
 
+  // ★ v2.5.0（Task379）：实时跟随系统明暗——开态下 appearance.changed 即
+  //   换板 + 全维令牌重应用（引擎侧 token 变更自带根重建杠杆）。旧引擎
+  //   （无事件面/无此事件）静默降级 = 仅装载期选色（v2.4.0 行为）。
+  try {
+    ame.on('appearance.changed', function (_ev, payload) {
+      try {
+        if (!isOn()) return;
+        var ame379_dark = !!(payload && payload.dark);
+        applyPalette(ame379_dark ? 1 : 0, true);
+        ame.log('[' + MARK + '] appearance.changed -> palette ' + (ame379_dark ? 'fluent-dark' : 'fluent-light'));
+      } catch (e2) {
+        ame.log('[' + MARK + '] appearance.changed handler failed (non-fatal): ' + e2);
+      }
+    });
+  } catch (e) {
+    ame.log('[' + MARK + '] appearance.changed subscribe failed (old engine?): ' + e);
+  }
+
   autoApply();
 
-  ame.log('[' + MARK + '] fluent-ui v2.4.0 loaded（两态开关：开=NavigationView 全维度换装+色板跟随系统明暗，关=恢复默认；色板随装载期系统外观重选）');
+  ame.log('[' + MARK + '] fluent-ui v2.5.0 loaded（两态开关：开=NavigationView 全维度换装+色板实时跟随系统明暗，关=恢复默认）');
 })();

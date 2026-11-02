@@ -58,10 +58,29 @@ static UIColor *AmePluginColorOverride(NSString *token) {
     return nil;
 }
 
+// ★ Task379：插件感知动态色——原先插件覆盖返回【静态色】，而
+//   AppDelegate 启动期（applyGlobalAppearance）预建的 Appearance 代理
+//   （导航栏标题等）捕获的是覆盖前的【动态回退色】，插件换装后不回溯
+//   → 装机实锤：详情页导航栏标题白字白底（IMG_0553）。改为恒返回动态
+//   UIColor，provider 运行时实时查覆盖表：有覆盖 → 取覆盖值（随插件
+//   换板/实时明暗切换即时生效，含预建代理）；无覆盖 → 经典深浅对。
+static UIColor *Ame317_PluginAwareColor(NSString *token, int light, int dark) {
+    return [UIColor colorWithDynamicProvider:^UIColor *_Nonnull(UITraitCollection *traits) {
+        UIColor *ame317_ov = AmePluginColorOverride(token);
+        if (ame317_ov) return [ame317_ov resolvedColorWithTraitCollection:traits];
+        int value = (traits.userInterfaceStyle == UIUserInterfaceStyleDark) ? dark : light;
+        return [UIColor colorWithRed:((value >> 16) & 0xFF) / 255.0
+                               green:((value >> 8) & 0xFF) / 255.0
+                                blue:(value & 0xFF) / 255.0
+                               alpha:1.0];
+    }];
+}
+
 // 宏：getter 一行式覆盖检查（GNU 语句表达式，clang 默认支持）
+// ★ Task379：覆盖分支改走插件感知动态色（provider 内实时查表，预建
+//   Appearance 代理与运行时换板全部正确解析；宏展开语义对调用方透明）
 #define AME317_PLUGIN_COLOR(token, light, dark) \
-    ({ UIColor *ame317_ov = AmePluginColorOverride(@#token); \
-       ame317_ov ? ame317_ov : ZL2ColorLightDark(light, dark); })
+    Ame317_PluginAwareColor(@#token, light, dark)
 
 #pragma mark - Task341 形状/字体覆盖基础设施（自包含，不依赖插件运行时）
 

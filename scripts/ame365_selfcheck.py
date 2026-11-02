@@ -12,7 +12,7 @@
 # S 病灶变体反向比对（必翻红项注入检查）
 import io, re, subprocess, sys
 
-REPO = "/home/z/my-project/repo-prisma2"
+REPO = __import__("os").environ.get("AME_REPO") or "/home/z/my-project/repo-prisma2"   # ★Task379：沙箱克隆路径可覆盖（默认口径不变）
 
 def read(p):
     with io.open(REPO + "/" + p, encoding="utf-8", newline="") as f:
