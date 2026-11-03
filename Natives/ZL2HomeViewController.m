@@ -1841,7 +1841,7 @@ static UIImage *ZL2HomeSizedImage(NSString *name, NSString *fallback, CGFloat po
     [content addSubview:flow];
 
     NSMutableArray<UIView *> *ame393_items = [NSMutableArray array];
-    NSUInteger ame393_selectedIdx = 0;
+    __block NSUInteger ame393_selectedIdx = 0;   // 枚举块内赋值（CI 实锤 r1：缺 __block 编译雷）
     [self.ame_rows enumerateObjectsUsingBlock:^(NSDictionary *row, NSUInteger idx, BOOL *stop) {
         [ame393_items addObject:[self ame393_versionFlowItemForRow:row]];
         if ([row[@"isSelected"] boolValue]) ame393_selectedIdx = idx;

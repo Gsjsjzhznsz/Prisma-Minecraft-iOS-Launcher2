@@ -617,7 +617,7 @@ static UIImage *ZL2AccountsSystemImage(NSString *name, NSString *fallback) {
 //    头像异步取（AvatarManager 三层回退链；nil 保持占位图标）——
 - (void)rebuildFlow {
     NSString *selectedId = [self currentSelectedAccountId];
-    NSUInteger ame393_selectedIdx = 0;
+    __block NSUInteger ame393_selectedIdx = 0;   // 枚举块内赋值（CI 实锤 r1：缺 __block 编译雷）
     NSMutableArray<Ame393FlowItem *> *ame393_items = [NSMutableArray array];
 
     [self.accountList enumerateObjectsUsingBlock:^(NSDictionary *accountData, NSUInteger idx, BOOL *stop) {
