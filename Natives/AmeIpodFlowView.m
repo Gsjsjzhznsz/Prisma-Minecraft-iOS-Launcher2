@@ -11,6 +11,7 @@
 //
 
 #import "AmeIpodFlowView.h"
+#import <math.h>   // lround/fabs/sqrt/fmin（弹簧积分与位相取整）
 
 // 远近衰减系数（iPod 封面流口径；连续插值无跳变）
 static const CGFloat AmeIpodFlowScalePerStep    = 0.15;  // scale = 1 − 0.15×|d|
@@ -20,7 +21,7 @@ static const CGFloat AmeIpodFlowVisibleRange    = 2.4;   // |d| ≤ 此值可见
 static const CGFloat AmeIpodFlowHideRange       = 2.6;   // |d| > 此值隐藏
 static const CGFloat AmeIpodFlowRubberBand      = 0.35;  // 越界拖拽阻尼（回弹）
 static const CGFloat AmeIpodFlowFlickVelocity   = 1400.0; // 惯性判定速度阈值（pt/s）
-static const CGFloat AmeIpodFlowSpringStiffness = 90.0;   // 弹簧刚度（临界阻尼配平）
+static const CGFloat AmeIpodFlowSpringStiffness = 280.0;  // 弹簧刚度（临界阻尼配平；吸附 ~0.35s 收束）
 static const CGFloat AmeIpodFlowSnapEpsilon     = 0.002;  // 吸附收敛判定（步距比）
 static const NSTimeInterval AmeIpodFlowSnapDuration = 0.42; // 程序化滚动时长
 
@@ -270,6 +271,8 @@ static const NSTimeInterval AmeIpodFlowSnapDuration = 0.42; // 程序化滚动�
     NSTimeInterval ame_dt = link.timestamp - self.ame_lastTick;
     self.ame_lastTick = link.timestamp;
     if (ame_dt <= 0.0) ame_dt = 1.0 / 60.0;
+    // dt 尖峰钳制（后台恢复/主线程卡顿恢复时显式积分爆炸防御）
+    if (ame_dt > 0.05) ame_dt = 0.05;
 
     // 临界阻尼弹簧（无过冲；到达即停 = 吸附手感）
     CGFloat ame_gap = self.ame_target - self.ame_offset;
