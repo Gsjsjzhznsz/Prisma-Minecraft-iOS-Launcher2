@@ -937,32 +937,9 @@ if ([section isEqualToString:@"general"]) {
                   [self.tableView reloadData];
               }
             },
-            @{@"key": @"ui_theme",
-              @"title": localize(@"i18n_str_379", nil),
-              @"hasDetail": @YES,
-              @"icon": @"circle.lefthalf.filled",
-              @"type": self.typePickField,
-              @"enableCondition": whenNotInGame,
-              @"pickKeys": @[
-                  @"dark",
-                  @"light",
-                  @"auto"
-              ],
-              @"pickList": @[
-                  localize(@"i18n_str_380", nil),
-                  localize(@"i18n_str_381", nil),
-                  localize(@"i18n_str_382", nil)
-              ],
-              @"action": ^(NSString *value){
-                  // 实时应用主题，发通知由 SceneDelegate 处理。
-                  // 不调用 loadPreferences(YES) 等会重置账号偏好的操作，
-                  // 仅设置 window.overrideUserInterfaceStyle，账号数据不受影响。
-                  // Task161：显式选择标记——SceneDelegate 的一次性迁移
-                  // （历史默认 dark/light → auto）从此对本设备免疫。
-                  setPrefBool(@"general.ui_theme_explicit", YES);
-                  [[NSNotificationCenter defaultCenter] postNotificationName:@"UIThemeChanged" object:value];
-              }
-            },
+            // ★ Task385：ui_theme（深/浅/自动）选择行退役——fui 插件两态开关 =
+            //   全应用唯一明暗模式开关（开 = 跟随系统实时换装，关 = 恢复默认）；
+            //   底层 pref 链（PLPreferences 默认/SceneDelegate 迁移与映射）原样保留。
             @{@"key": @"legacy_compatibility",
               // ★ Task286（PocketJ 对标）：远古版本内存兼容轨总开关
               //   （JavaLauncher launchJVM 消费；默认 ON 见 PLPreferences）
@@ -1051,21 +1028,11 @@ if ([section isEqualToString:@"general"]) {
               @"max": @(130),
               @"enableCondition": whenNotInGame
             },
-            @{@"key": @"ui_layout",
-              @"title": localize(@"i18n_str_376", nil),
-              @"hasDetail": @YES,
-              @"icon": @"rectangle.split.3x3",
-              @"type": self.typePickField,
-              @"enableCondition": whenNotInGame,
-              @"pickKeys": @[
-                  @"vs",
-                  @"card"
-              ],
-              @"pickList": @[
-                  localize(@"i18n_str_377", nil),
-                  localize(@"i18n_str_378", nil)
-              ]
-            },
+            // ★ Task390：ui_layout（界面布局 vs/card）死选项行拔除——general.ui_layout
+            //   偏好自 Task343 起退役（PLPreferences L357 判例：根选择恒 ZL2 壳，
+            //   零消费方），本行写着死偏好、详情页动态拼 preference.detail.ui_layout
+            //   缺键露裸键名 = 存量脏面。连 task250 动态拼键闸与 ame343 A7 词条
+            //   双清口径一并归一。
             @{@"key": @"hidden_sidebar",
               @"hasDetail": @YES,
               @"icon": @"sidebar.leading",

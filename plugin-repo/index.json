@@ -11,20 +11,19 @@
       "summary": "把启动器界面上的元素拖到顺手的位置：切换目标→拖动→可存布局→一键复位。演示 ui.views 视图操纵家族（高危权限，官方件随启动自动授权）。",
       "file": "plugins/element-drag.zip",
       "size": 2789,
-      "sha256": "47ac08e757e8c211423d5e96488714cd15660c3caea726ee9f353775acd16e80",
+      "sha256": "515b78bb5a603576e0c98445a2084c20f37885ab6f0b8ea73463bf7764a8cca2",
       "official": true
     },
     {
       "id": "fluent-ui",
       "name": "Fluent UI",
-      "version": "2.5.1",
+      "version": "2.6.0",
       "author": "Prisma",
       "summary": "Fluent 2 两态开关：开=全维度换装+色板跟随系统明暗，关=恢复默认主题",
       "file": "plugins/fluent-ui.zip",
-      "size": 6217,
-      "sha256": "dee165925855bb0c9dad8e4f5a050fe76f0c0525b70bf1d4b137c6bd3cfdec1b",
-      "official": true,
-      "description": "Fluent 2 两态开关：开=NavigationView 全维度换装（结构/排版/形状/字阶/色板），色板实时跟随系统明暗（appearance.changed）；关=恢复默认主题"
+      "size": 6304,
+      "sha256": "58092a06ad2df20d3231056c9ffe81c6261db023d187d47653576835beef9654",
+      "official": true
     },
     {
       "id": "launch-counter",
@@ -34,7 +33,7 @@
       "summary": "统计游戏启动次数与最近一次退出码，全部数据只存本插件私有存储，不上传。",
       "file": "plugins/launch-counter.zip",
       "size": 1233,
-      "sha256": "6835874d8ac84dcc73f039a0603628ef3c9504fc95cb7fff095313940c464f5b",
+      "sha256": "dd6bb949a52230bd8b4c6c9992c31f51e18d2fb51cf7e7f5ecb0586819bc4d7b",
       "official": true
     },
     {
@@ -45,7 +44,7 @@
       "summary": "联网拉取 Modrinth 下载量前五的模组并在对话框展示。联网属高危权限，首次使用请在插件详情页授权。",
       "file": "plugins/modrinth-hot.zip",
       "size": 1548,
-      "sha256": "96d977d6c3cac13500c7bde9b79498c6dd0b0ec0a2cf144218abc9a26e8bd2a5",
+      "sha256": "6ddc6efd623105a4a16463b55a9d3c0f94269cdd9baf8cee7d6678b0c906c7aa",
       "official": true
     },
     {
@@ -56,7 +55,7 @@
       "summary": "在已安装渲染器之间循环切换并随时查看当前后端。渲染器写入属高危权限，首次切换请在插件详情页授权。",
       "file": "plugins/renderer-quickswitch.zip",
       "size": 1613,
-      "sha256": "ced39cea3323f3db8b44657d26953c14cae87f14d7600a6095849c9a405f47fd",
+      "sha256": "110e2f63e351a091584653e45c63884e3d399669b05ad3b55075ee247e49ef19",
       "official": true
     },
     {
@@ -67,7 +66,7 @@
       "summary": "四套精选配色（日落/森林/海洋/玫瑰）一键换肤，支持循环切换与恢复默认。主题令牌属高危权限，首次使用请在插件详情页授权。",
       "file": "plugins/theme-sunset.zip",
       "size": 2366,
-      "sha256": "4b79980dc2f9605d511583eb393733e393af1ee01c523d33d81789a83f329ae9",
+      "sha256": "f412ee8ded428a4e4459db1051a56a14366ea71e58b916468bdca415088cc285",
       "official": true
     }
   ]

@@ -113,8 +113,8 @@ zsha = hashlib.sha256(zdata).hexdigest()
 znames = sorted(zipfile.ZipFile(zpath).namelist())
 plugin_js = read("plugin-repo/src/fluent-ui/main.js")
 
-check('B1 v2.5.1 三方对拍（manifest + index 条目 + zip 实算 sha/size + zip 根两文件 + settings.read 权限；★Task380 顺延 2.5.0→2.5.1 事件去重防回环）',
-      man.get("version") == "2.5.1" and fe and fe.get("version") == "2.5.1"
+check('B1 v2.6.0 三方对拍（manifest + index 条目 + zip 实算 sha/size + zip 根两文件 + settings.read 权限；★Task380 顺延 2.5.1→2.6.0 事件去重防回环）',
+      man.get("version") == "2.6.0" and fe and fe.get("version") == "2.6.0"
       and fe.get("sha256") == zsha and fe.get("size") == len(zdata)
       and znames == ["main.js", "manifest.json"]
       and "settings.read" in man.get("permissions", []))

@@ -142,8 +142,11 @@ check("D2 显式选择标记键已注册（Setter 硬要求）",
 check("D3 SceneDelegate 历史默认迁移（Task216 重锚：未显式选择设备统一迁回 auto 跟随系统）",
       "if (!getPrefBool(@\"general.ui_theme_explicit\")) {" in sd
       and "migrated to 'auto'" in sd)
-check("D4 显式选择置标记（设置页 pick action）",
-      'setPrefBool(@"general.ui_theme_explicit", YES);' in lpv)
+check("D4 显式选择标记（★Task390 重锚：ui_theme pick 行随「fui 单开关」口径退役（ZL2 设置页 themeRow + 旧 FCL 设置页 ui_theme 行双下线），显式置标记链路随之收敛为存量语义；此处断言退役口径 + 底层链原样）",
+      '@"key": @"ui_theme"' not in lpv
+      and "setPrefBool(@\"general.ui_theme_explicit\", YES);" not in lpv
+      and "themeRow" not in rd("Natives/ZL2SettingPages.m")
+      and "UIThemeChanged" in sd)
 check("D5 SceneDelegate 三档映射保持（light/dark/auto）",
       "UIUserInterfaceStyleLight" in sd and "UIUserInterfaceStyleUnspecified" in sd
       and "UIUserInterfaceStyleDark" in sd)

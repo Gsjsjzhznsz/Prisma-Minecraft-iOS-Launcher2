@@ -298,7 +298,11 @@ static UIImage *ZL2ShellSystemImage(NSString *name, NSString *fallback) {
 - (void)ame_setSelected:(BOOL)selected {
     // WinUI 11 选中语义：指示条 + 中性抬升行底（M3 映射 = surfaceContainerHigh；
     // 内容着色 onSurface 强调）——区别于 ZL2 顶栏 secondaryContainer 胶囊语义
-    self.indicator.hidden = !selected;
+    // ★ Task389：行内指示条退役——指示条上收为壳级共享滑动条
+    //   （ame389_slideIndicator，切换标签时上下滑移到新选中项，WinUI
+    //   SelectionIndicator 动效口径）；行内保留视图占位（零布局影响），
+    //   恒隐藏。行底/着色语义不变。
+    self.indicator.hidden = YES;
     self.backgroundColor = selected ? [ZL2Theme surfaceContainerHigh] : [UIColor clearColor];
     UIColor *tint = selected ? [ZL2Theme onSurface] : [ZL2Theme onSurfaceVariant];
     self.iconView.tintColor = tint;
@@ -430,7 +434,10 @@ static UIImage *ZL2ShellSystemImage(NSString *name, NSString *fallback) {
 @property(nonatomic, strong) NSLayoutConstraint *ame350_headerWrapLeading; // ★ Task350：内容区头前导（宽屏 = 窗格宽，头不再横穿窗格）
 @property(nonatomic, assign) BOOL ame350_layoutLogged;                // ★ Task350：首帧布局自证哨兵
 @property(nonatomic, strong) UIView *ame379_paneHeader;               // ★ Task379：窗格头行容器（固定 32pt，钮/标题不再锚标题 intrinsic 高度）
-@property(nonatomic, strong) UIStackView *ame383_headerActions;      // ★ Task383：内容区头右上角动作簇（ZL2 顶栏右侧口径：文件/下载/账户/设置）
+@property(nonatomic, strong) UIStackView *ame383_headerActions;      // ★ Task383：内容区头右上角动作簇（★ Task386 五钮：文件/联机/下载/设置/AI）
+@property(nonatomic, strong) UIView *ame389_slideIndicator;           // ★ Task389：壳级共享选中指示条（3×16 竖条，切签上下滑移）
+@property(nonatomic, strong) NSLayoutConstraint *ame389_indicatorY;  // ★ Task389：指示条 centerY 常量（= 选中项在 paneStack 内中点 Y）
+@property(nonatomic, strong) NSLayoutConstraint *ame388_toggleLeading; // ★ Task388：折叠开关钮前导（紧凑态居中 16 / 展开态 8）
 @end
 
 @implementation ZL2ShellViewController
@@ -600,6 +607,9 @@ static UIImage *ZL2ShellSystemImage(NSString *name, NSString *fallback) {
     //   Expanded(280)↔Compact(64 图标栏)，窄屏切换抽屉；态持久化 NSUserDefaults
     self.paneToggleButton = [[ZL2ShellIconButton alloc] initWithSymbol:@"sidebar.leading" fallback:@"line.3.horizontal"];
     self.paneToggleButton.accessibilityLabel = localize(@"ame369.shell.nav_a11y", @"导航");
+    // ★ Task388：开关钮前导约束持引用——折叠态（64pt 图标栏）居中驱动
+    //   （32pt 钮在 64pt 窗格内 x=(64-32)/2=16；展开态维持头行 8pt）。
+    //   原实现恒 8pt：折叠态钮贴左，视觉上像被挤/缩——本轮对位。
     self.paneToggleButton.ame_action = ^{
         if (weakSelf.ame347_regular) {
             weakSelf.ame376_paneCollapsed = !weakSelf.ame376_paneCollapsed;
@@ -607,6 +617,15 @@ static UIImage *ZL2ShellSystemImage(NSString *name, NSString *fallback) {
                                                   forKey:@"ame376.paneCollapsed"];
             NSLog(@"[Ame376] pane toggled collapsed=%d", weakSelf.ame376_paneCollapsed);
             [weakSelf ame376_applyPaneGeometry:YES];
+            // ★ Task388：折叠几何自证——开关钮应居中（compact x=16）、首项图标
+            //   恒 20pt（钉死常量约束，无缩放路径）；装机日志对「图标被缩放」
+            //   类复诉一击定读。
+            dispatch_async(dispatch_get_main_queue(), ^{
+                NSLog(@"[Ame388] pane compact=%d toggle=%@ item0=%@",
+                      weakSelf.ame376_paneCollapsed,
+                      NSStringFromCGRect(weakSelf.paneToggleButton.frame),
+                      NSStringFromCGRect(weakSelf.navItems.firstObject.frame));
+            });
         } else {
             [weakSelf ame_setDrawerOpen:!weakSelf.ame347_drawerOpen animated:YES];
         }
@@ -623,7 +642,7 @@ static UIImage *ZL2ShellSystemImage(NSString *name, NSString *fallback) {
     NSString *ame379_bundleName = [NSBundle mainBundle].infoDictionary[@"CFBundleDisplayName"]
         ?: [NSBundle mainBundle].infoDictionary[@"CFBundleName"]
         ?: NSProcessInfo.processInfo.processName;
-    if (ame379_bundleName.length == 0) ame379_bundleName = @"Prisma Launcher";
+    if (ame379_bundleName.length == 0) ame379_bundleName = @"Prisma Ⅱ";
     self.paneTitle.text = ame379_bundleName;
     [self.ame379_paneHeader addSubview:self.paneTitle];
 
@@ -640,6 +659,26 @@ static UIImage *ZL2ShellSystemImage(NSString *name, NSString *fallback) {
     self.paneStack.spacing = 2.0;
     self.paneStack.translatesAutoresizingMaskIntoConstraints = NO;
     [self.paneScroll addSubview:self.paneStack];
+
+    // ---- ★ Task389：壳级共享选中指示条（WinUI SelectionIndicator 动效口径）----
+    //   3×16 圆角竖条驻 paneStack（非 arranged，不参与分布），切换标签时
+    //   centerY 滑移到新选中项中点（0.18s 与整壳动效同拍）；compact/展开同几何。
+    self.ame389_slideIndicator = [[UIView alloc] init];
+    self.ame389_slideIndicator.translatesAutoresizingMaskIntoConstraints = NO;
+    self.ame389_slideIndicator.backgroundColor = [ZL2Theme primary];
+    self.ame389_slideIndicator.layer.cornerRadius = 1.5;
+    self.ame389_slideIndicator.layer.masksToBounds = YES;
+    self.ame389_slideIndicator.hidden = YES;
+    self.ame389_slideIndicator.userInteractionEnabled = NO;
+    [self.paneStack addSubview:self.ame389_slideIndicator];
+    self.ame389_indicatorY = [self.ame389_slideIndicator.centerYAnchor
+                              constraintEqualToAnchor:self.paneStack.topAnchor];
+    [NSLayoutConstraint activateConstraints:@[
+        [self.ame389_slideIndicator.leadingAnchor constraintEqualToAnchor:self.paneStack.leadingAnchor constant:3.0],
+        [self.ame389_slideIndicator.widthAnchor constraintEqualToConstant:3.0],
+        [self.ame389_slideIndicator.heightAnchor constraintEqualToConstant:16.0],
+        self.ame389_indicatorY,
+    ]];
 
     // 主导航项（页面序 = 顶栏 RailItem 契约：0 主页 / 1 下载 / 2 版本 /
     // 3 账户 / 5 联机 / 6 AI；4 设置驻底部，-1 文件 = 瞬时动作）
@@ -712,6 +751,8 @@ static UIImage *ZL2ShellSystemImage(NSString *name, NSString *fallback) {
         [ame347_items addObject:item];
     }];
     self.navItems = [ame347_items copy];
+    // ★ Task389：指示条置顶（项在指示条之后创建，选中行底会盖住指示条）
+    [self.paneStack bringSubviewToFront:self.ame389_slideIndicator];
 
     // ---- 抽屉遮罩（窄屏展开态，点击收起）----
     self.dimOverlay = [[UIControl alloc] init];
@@ -771,11 +812,16 @@ static UIImage *ZL2ShellSystemImage(NSString *name, NSString *fallback) {
     self.ame383_headerActions.translatesAutoresizingMaskIntoConstraints = NO;
     [self.contentHeader addSubview:self.ame383_headerActions];
 
+    // ★ Task386：四钮→五钮（用户复诉「右上角不应该是5个的吗」）——ZL2 顶栏
+    //   右侧组原序回填（本文件头 L52-53 存档口径）：文件夹(瞬时) / 多人联机(5)
+    //   / 下载(1) / 设置(4) / AI 助手(6)。账户不驻簇（账号卡在主页右栏顶部，
+    //   ZL2 顶栏同口径无账户直达）。
     NSArray<NSArray *> *ame383_entries = @[
         @[@"folder.fill", @"folder", localize(@"ame369.shell.tab.files", @"文件"), @(-1)],
+        @[@"person.2.fill", @"person.2", localize(@"ame369.common.multiplayer", @"多人联机"), @(5)],
         @[@"arrow.down.circle.fill", @"arrow.down.circle", localize(@"ame369.shell.tab.downloads", @"下载"), @(1)],
-        @[@"person.crop.circle.fill", @"person.crop.circle", localize(@"ame369.shell.tab.accounts", @"账户"), @(3)],
         @[@"gearshape.fill", @"gearshape", localize(@"ame369.shell.tab.settings", @"设置"), @(4)],
+        @[@"sparkles", @"sparkles", localize(@"ame192.ai.title", nil), @(6)],
     ];
     [ame383_entries enumerateObjectsUsingBlock:^(NSArray *entry, NSUInteger idx, BOOL *stop) {
         ZL2ShellIconButton *ame383_btn = [[ZL2ShellIconButton alloc] initWithSymbol:entry[0] fallback:entry[1]];
@@ -803,6 +849,9 @@ static UIImage *ZL2ShellSystemImage(NSString *name, NSString *fallback) {
     self.ame347_contentLeading = [self.container.leadingAnchor constraintEqualToAnchor:self.view.leadingAnchor];
     // ★ Task376：窗格宽持引用（280↔64 折叠驱动）
     self.ame376_paneWidth = [self.paneWrap.widthAnchor constraintEqualToConstant:ZL2ShellPaneWidth];
+    // ★ Task388：折叠开关钮前导持引用（紧凑态居中 16 / 展开态 8）
+    self.ame388_toggleLeading = [self.paneToggleButton.leadingAnchor
+                                 constraintEqualToAnchor:self.ame379_paneHeader.leadingAnchor];
     [NSLayoutConstraint activateConstraints:@[
         self.ame347_paneLeading,
         [self.paneWrap.topAnchor constraintEqualToAnchor:self.view.topAnchor],
@@ -816,7 +865,7 @@ static UIImage *ZL2ShellSystemImage(NSString *name, NSString *fallback) {
         [self.ame379_paneHeader.trailingAnchor constraintLessThanOrEqualToAnchor:self.paneWrap.trailingAnchor constant:-12.0],
         [self.ame379_paneHeader.heightAnchor constraintEqualToConstant:32.0],
 
-        [self.paneToggleButton.leadingAnchor constraintEqualToAnchor:self.ame379_paneHeader.leadingAnchor],
+        self.ame388_toggleLeading,
         [self.paneToggleButton.centerYAnchor constraintEqualToAnchor:self.ame379_paneHeader.centerYAnchor],
         [self.paneToggleButton.widthAnchor constraintEqualToConstant:32.0],
         [self.paneToggleButton.heightAnchor constraintEqualToConstant:32.0],
@@ -921,6 +970,8 @@ static UIImage *ZL2ShellSystemImage(NSString *name, NSString *fallback) {
     self.ame347_contentLeading.constant = self.ame347_regular ? ame376_width : 0.0;
     self.ame350_headerWrapLeading.constant = self.ame347_regular ? ame376_width : 0.0;
     self.paneTitle.hidden = ame376_compact;
+    // ★ Task388：折叠开关钮居中对位（64pt 图标栏内 x=(64-32)/2=16；展开态头行 8pt）
+    self.ame388_toggleLeading.constant = ame376_compact ? 16.0 : 8.0;
     [self.navItems enumerateObjectsUsingBlock:^(ZL2ShellNavItem *item, NSUInteger idx, BOOL *stop) {
         [item ame_setCompact:ame376_compact];
     }];
@@ -986,6 +1037,8 @@ static UIImage *ZL2ShellSystemImage(NSString *name, NSString *fallback) {
     //   arranged=6、paneStack 高 ≈ 6×36+5×2=226pt；frame 高异常即约束面问题）。
     if (!self.ame350_layoutLogged) {
         self.ame350_layoutLogged = YES;
+        // ★ Task389：首帧指示条同步（item frame 就位后再落 Y，避免首绘在 y=0）
+        [self ame389_syncIndicatorYAnimated:NO];
         NSLog(@"[Ame350] nav shell first layout -- paneScroll=%@ paneStack=%@ arranged=%lu (nav=%d regular=%d drawerOpen=%d)",
               NSStringFromCGRect(self.paneScroll.frame),
               NSStringFromCGRect(self.paneStack.frame),
@@ -1038,6 +1091,35 @@ static UIImage *ZL2ShellSystemImage(NSString *name, NSString *fallback) {
         [UIView animateWithDuration:ZL2ShellAnimateDuration animations:ame347_apply];
     } else {
         ame347_apply();
+    }
+    // ★ Task389：竖条指示器滑移到新选中项（与行底/着色同一动画拍）
+    [self ame389_syncIndicatorYAnimated:animated];
+}
+
+// ★ Task389：壳级共享指示条滑移（WinUI SelectionIndicator 动效）——
+//   centerY 常量 = 选中项在 paneStack 内的中点 Y；无选中项（瞬时页）隐藏。
+- (void)ame389_syncIndicatorYAnimated:(BOOL)animated {
+    if (!self.ame389_slideIndicator || !self.isViewLoaded) return;
+    ZL2ShellNavItem *ame389_target = nil;
+    for (ZL2ShellNavItem *ame389_item in self.navItems) {
+        if (ame389_item.pageIndex >= 0 && ame389_item.pageIndex == self.currentIndex) {
+            ame389_target = ame389_item;
+            break;
+        }
+    }
+    void (^ame389_apply)(void) = ^{
+        if (ame389_target) {
+            self.ame389_slideIndicator.hidden = NO;
+            self.ame389_indicatorY.constant = ame389_target.frame.midY;
+        } else {
+            self.ame389_slideIndicator.hidden = YES;
+        }
+        if (self.paneStack.window) [self.paneStack layoutIfNeeded];
+    };
+    if (animated && self.paneStack.window) {
+        [UIView animateWithDuration:ZL2ShellAnimateDuration animations:ame389_apply];
+    } else {
+        ame389_apply();
     }
 }
 
@@ -1127,8 +1209,9 @@ static UIImage *ZL2ShellSystemImage(NSString *name, NSString *fallback) {
 
 - (NSString *)ame_titleForIndex:(NSInteger)index {
     if (index == 0) {
-        // 主页标题 = ZL2 LAUNCHER_IDENTIFIER（"ZalithLauncher"，真机截图实证）
-        return @"ZalithLauncher";
+        // ★ Task390：主页标题 = 应用名「Prisma Ⅱ」（ZL2 时代 "ZalithLauncher"
+        //   字面退役；窗格头同 CFBundleDisplayName 口径）
+        return @"Prisma Ⅱ";
     }
     // 功能页文案（ZL2 顶栏标题映射表，7.0-UI-14 对齐）
     switch (index) {

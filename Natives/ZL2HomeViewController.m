@@ -404,6 +404,7 @@ static UIImage *ZL2HomeSizedImage(NSString *name, NSString *fallback, CGFloat po
 @property (nonatomic, strong, nullable) NSArray<NSLayoutConstraint *> *ame_sideConstraints;
 @property (nonatomic, assign) BOOL ame_menuOnRight;
 @property (nonatomic, assign) NSInteger lastColumnCount;
+@property (nonatomic, assign) CGFloat lastGridWidth;   // ★ Task387：上次布局网格宽（宽度变化即失效重排）
 
 // —— ActionMenu：账号卡 ——
 @property (nonatomic, strong) ZL2HomeTapControl *accountCard;
@@ -509,10 +510,17 @@ static UIImage *ZL2HomeSizedImage(NSString *name, NSString *fallback, CGFloat po
 
 - (void)viewDidLayoutSubviews {
     [super viewDidLayoutSubviews];
-    // 列数（2/3，窄屏降 1）随网格宽切换：变化时失效布局重取 sizeForItem
-    NSInteger columns = [self ame_columnsForWidth:self.gridView.bounds.size.width];
-    if (columns != self.lastColumnCount) {
+    // ★ Task387：卡片自适应根修——原实现仅在列数（2/3）变化时失效布局，
+    //   右栏/侧栏几何变化（折叠侧边栏、窗口缩放、旋转）导致的同列数宽度
+    //   变化全部漏掉：sizeForItem 持旧宽算卡宽，流式布局把余量聚中 = 两列
+    //   卡中间大空档（IMG_0558 实锤）。本轮改为宽度变化即失效重排，
+    //   卡宽恒 = (网格宽 − 边距 − 间距×(列数−1)) / 列数，吃满可用宽。
+    CGFloat ame387_width = self.gridView.bounds.size.width;
+    NSInteger columns = [self ame_columnsForWidth:ame387_width];
+    BOOL ame387_widthMoved = (fabs(ame387_width - self.lastGridWidth) > 0.5);
+    if (columns != self.lastColumnCount || ame387_widthMoved) {
         self.lastColumnCount = columns;
+        self.lastGridWidth = ame387_width;
         [self.gridView.collectionViewLayout invalidateLayout];
     }
 }
