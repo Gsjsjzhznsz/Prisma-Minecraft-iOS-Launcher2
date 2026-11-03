@@ -1116,7 +1116,7 @@ static UIImage *ZL2ShellSystemImage(NSString *name, NSString *fallback) {
     //   animated=NO 或减弱动态效果时直落）——原实现标题文字瞬变无过渡。
     NSString *ame395_title = [self ame_titleForIndex:ame347_index];
     BOOL ame395_titleAnimate = animated && self.contentHeader.window
-        && !UIAccessibility.isReduceMotionEnabled;
+        && !UIAccessibilityIsReduceMotionEnabled();  // C 函数形态（点语法是 Swift 专属，CI 实锤编译失败）
     if (ame395_titleAnimate && ![self.headerTitle.text isEqualToString:ame395_title]) {
         [UIView transitionWithView:self.headerTitle
                           duration:ZL2ShellAnimateDuration
@@ -1248,7 +1248,7 @@ static UIImage *ZL2ShellSystemImage(NSString *name, NSString *fallback) {
     };
     // ★ Task395：切页 CrossDissolve 补 reduceMotion 尊重（辅助功能“减弱
     //   动态效果”开启时直落无动画，其余场景 0.24s 淡入淡出）
-    BOOL ame395_animate = !UIAccessibility.isReduceMotionEnabled;
+    BOOL ame395_animate = !UIAccessibilityIsReduceMotionEnabled();  // C 函数形态（同上，CI 实锤）
     if (prev && prev.view.superview && ame395_animate) {
         [UIView transitionWithView:self.container
                           duration:ZL2ShellAnimateDuration
