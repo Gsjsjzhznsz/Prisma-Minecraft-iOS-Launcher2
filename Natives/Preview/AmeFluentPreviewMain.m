@@ -148,8 +148,25 @@ NSString *localize(NSString *key, NSString *comment) {
     return p;
 }
 
-- (NSString *)selectedProfileName { return nil; }
-- (NSMutableDictionary *)profiles { return [NSMutableDictionary dictionary]; }
+// ★ Task393：假实例注册表（封面流/主页网格/版本页截图实数据；4 实例 =
+//   封面流同时可见五枚的 4/5 覆盖 + 远近衰减可判读；写 save 落空即安全）
+- (NSString *)selectedProfileName {
+    static NSString *ame393_selected = @"生存存档";
+    return ame393_selected;
+}
+- (NSMutableDictionary *)profiles {
+    static NSMutableDictionary *ame393_profiles = nil;
+    static dispatch_once_t ame393_once;
+    dispatch_once(&ame393_once, ^{
+        ame393_profiles = [@{
+            @"1.21 Fabric":  @{@"lastVersionId": @"fabric-loader-0.16.9-1.21"},
+            @"1.20.4 Forge": @{@"lastVersionId": @"forge-1.20.4"},
+            @"生存存档":      @{@"lastVersionId": @"1.21.4"},
+            @"纯净原版":      @{@"lastVersionId": @"1.8.9"},   // 实体不建 = 无效态判读样本
+        } mutableCopy];
+    });
+    return ame393_profiles;
+}
 - (void)save {}
 
 // 7.0-UI-9-e：版本页缺口方法补齐（viewWillAppear 先 updateCurrent 重拉
@@ -307,6 +324,11 @@ void UIKit_launchMinecraftSurfaceVC(UIWindow *window, NSDictionary *metadata) {
 // 合法值 home/download/versions/accounts/settings（对应槽位 0-4；"组件"
 // Fluent 陈列页已退役），缺省/非法值回落 home。simctl launch 把 bundle id
 // 之后的参数原样追加到进程 argv，NSProcessInfo.arguments 直接可读
+// ★ Task393：-zl2page versionpicker = 主页 + 延迟自动弹出版本选择封面流
+//   （harness 无法模拟点按；经 @"ZL2HomeShowVersionPicker" 总线入口唤起，
+//   生产代码零测试面污染）——截图延时（sleep 4）内弹层已呈现完毕。
+static BOOL AmePreviewAutoVersionPicker = NO;
+
 static NSInteger AmePreviewPageIndexFromLaunchArguments(void) {
     NSArray<NSString *> *args = [[NSProcessInfo processInfo] arguments];
     NSUInteger flagIndex = [args indexOfObject:@"-zl2page"];
@@ -316,7 +338,53 @@ static NSInteger AmePreviewPageIndexFromLaunchArguments(void) {
     if ([page isEqualToString:@"versions"]) return 2;
     if ([page isEqualToString:@"accounts"]) return 3;
     if ([page isEqualToString:@"settings"]) return 4;
+    if ([page isEqualToString:@"versionpicker"]) {
+        AmePreviewAutoVersionPicker = YES;
+        return 0;
+    }
     return 0;
+}
+
+/// ★ Task393：预览沙盒（假账户 + 假版本实体；POJAV_HOME 指向 app 容器内
+/// 临时目录——账户页封面流与版本判定链（ame_isVersionIdValid 的
+/// POJAV_HOME/versions 探测）由此读到实数据；parseJSONFromFile 桩
+/// 同轮升级为真解析）
+static void AmePreviewPrepareSandbox(void) {
+    NSString *home = [NSSearchPathForDirectoriesInDomains(NSDocumentDirectory,
+                                                          NSUserDomainMask, YES).firstObject
+                      stringByAppendingPathComponent:@"preview-home"];
+    [[NSFileManager defaultManager] createDirectoryAtPath:home
+                              withIntermediateDirectories:YES attributes:nil error:nil];
+    setenv("POJAV_HOME", home.fileSystemRepresentation, 1);
+
+    // 假账户 ×4（本地×2 / Microsoft / 第三方——类型文案判读面全覆盖）
+    NSString *accounts = [home stringByAppendingPathComponent:@"accounts"];
+    [[NSFileManager defaultManager] createDirectoryAtPath:accounts
+                              withIntermediateDirectories:YES attributes:nil error:nil];
+    NSDictionary *ame393_accounts = @{
+        @"alex.json":     @{@"accountId": @"alex", @"username": @"Alex", @"accountType": @"local"},
+        @"steve.json":    @{@"accountId": @"steve", @"username": @"Steve", @"accountType": @"local"},
+        @"notchy.json":   @{@"accountId": @"notchy", @"username": @"Notchy", @"xboxGamertag": @"Notchy"},
+        @"herobrine.json":@{@"accountId": @"herobrine", @"username": @"Demo.Herobrine", @"clientToken": @"preview"},
+    };
+    [ame393_accounts enumerateKeysAndObjectsUsingBlock:^(NSString *file, NSDictionary *data, BOOL *stop) {
+        NSString *path = [accounts stringByAppendingPathComponent:file];
+        NSData *json = [NSJSONSerialization dataWithJSONObject:data options:0 error:nil];
+        [json writeToFile:path atomically:YES];
+    }];
+
+    // 假版本实体 ×3（纯净原版 1.8.9 不建 = 无效态判读样本）
+    NSArray *ame393_vids = @[@"fabric-loader-0.16.9-1.21", @"forge-1.20.4", @"1.21.4"];
+    for (NSString *vid in ame393_vids) {
+        NSString *dir = [[home stringByAppendingPathComponent:@"versions"]
+                         stringByAppendingPathComponent:vid];
+        [[NSFileManager defaultManager] createDirectoryAtPath:dir
+                                  withIntermediateDirectories:YES attributes:nil error:nil];
+        NSString *json = [NSString stringWithFormat:@"{\"id\": \"%@\"}", vid];
+        [json writeToFile:[dir stringByAppendingPathComponent:[NSString stringWithFormat:@"%@.json", vid]]
+                atomically:YES encoding:NSUTF8StringEncoding error:nil];
+    }
+}
 }
 
 // 顶栏页名（下标 0-4 与槽位一致；0 = 主页 = CFBundleDisplayName 兜底
@@ -654,6 +722,9 @@ static NSInteger AmePreviewRailSlotForItem(NSUInteger itemIndex) {
 }
 
 - (BOOL)application:(UIApplication *)application didFinishLaunchingWithOptions:(NSDictionary *)launchOptions {
+    // ★ Task393：预览沙盒（假账户/假版本实体 + POJAV_HOME）先行于任何页面
+    AmePreviewPrepareSandbox();
+
     self.window = [[UIWindow alloc] initWithFrame:[UIScreen mainScreen].bounds];
     self.window.backgroundColor = [ZL2Theme surface];
 
@@ -663,6 +734,16 @@ static NSInteger AmePreviewRailSlotForItem(NSUInteger itemIndex) {
 
     self.window.rootViewController = root;
     [self.window makeKeyAndVisible];
+
+    // ★ Task393：-zl2page versionpicker —— 主页就绪后经总线自动弹出版本
+    //   选择封面流（延迟 2.2s 避开首帧布局；截图延时 4s 内弹层已呈现）
+    if (AmePreviewAutoVersionPicker) {
+        dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(2.2 * NSEC_PER_SEC)),
+                       dispatch_get_main_queue(), ^{
+            [[NSNotificationCenter defaultCenter] postNotificationName:@"ZL2HomeShowVersionPicker"
+                                                                object:nil];
+        });
+    }
     return YES;
 }
 

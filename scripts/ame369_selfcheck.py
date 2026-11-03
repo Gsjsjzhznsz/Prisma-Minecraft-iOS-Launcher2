@@ -83,7 +83,10 @@ check("② ame369.* 键四表齐备",
 #   共 6 站点随 ame_buildTopBar 删除；同批主页 quickNav 瓦片回填 4 站点
 #   （files/downloads/settings/multiplayer 标签，ame192.ai.title 非 369 键不计），
 #   450-6+4=448，git diff 实证账目吻合）
-check("① ame369 改写点数 == 452（★Task390 全树口径重锚）", ame369_sites == 452, str(ame369_sites))
+# ★ Task393 重锚：452 → 453（ipod-ui 分支：版本选择封面流条目无效态文案复用
+#   ame369.common.invalid_version 键 +1 站点；账户页动作行 refresh_a11y/
+#   more_actions 两键与退役行视图一拆一建净零）
+check("① ame369 改写点数 == 453（★Task393 重锚：452+1 版本条目无效态）", ame369_sites == 453, str(ame369_sites))
 
 # 复用站点：4 处 localize(@"ame193.misc.[13]"（内容级匹配——5 个补 import 文件行号整体 +1，行级断言会错位）
 REUSE_EXPECT = {

@@ -83,6 +83,7 @@ void UIKit_launchMinecraftSurfaceVC(UIWindow *window, NSDictionary *metadata);
 #import "LauncherPreferences.h" // Task323：profile 覆盖 setPrefString/setPrefInt（旧链同款）
 #import "utils.h"   // localize()
 #import "AmePluginRuntime.h" // ★Task328：插件贡献行计数（主页直达 chip 可见性）
+#import "AmeIpodFlowView.h"  // ★Task393：iPod 式竖排封面流（版本选择弹层）
 
 // KVO 观察上下文（旧链 ProgressObserverContext 同款静态指针判别，防父类/他人混淆）
 static void *ZL2HomeProgressObserverContext = &ZL2HomeProgressObserverContext;
@@ -403,6 +404,10 @@ static UIImage *ZL2HomeSizedImage(NSString *name, NSString *fallback, CGFloat po
 // ★ Task378：五入口快航瓦片（右侧栏顶部：第一行 文件/下载/设置，第二行 联机/AI；
 //   下接账号卡/版本选择卡，功能不变）
 @property (nonatomic, strong) UIStackView *quickNavWrap;
+// ★ Task393：版本选择封面流弹层（版本选择卡点按 = iPod 式竖排选择器，
+//   用户规格 bold plan ②「版本选择也是一样，竖排式的」）
+@property (nonatomic, strong, nullable) AmeIpodFlowView *ame393_versionFlow;
+@property (nonatomic, strong, nullable) UIView *ame393_versionSheetContent;
 // 当前停靠边约束组（换边时整组替换：YES = 停靠右侧）
 @property (nonatomic, strong, nullable) NSArray<NSLayoutConstraint *> *ame_sideConstraints;
 @property (nonatomic, assign) BOOL ame_menuOnRight;
@@ -489,6 +494,12 @@ static UIImage *ZL2HomeSizedImage(NSString *name, NSString *fallback, CGFloat po
     [[NSNotificationCenter defaultCenter] addObserver:self
                                              selector:@selector(profileListDidChange)
                                                  name:@"ReloadProfileList"
+                                               object:nil];
+    // ★ Task393：版本选择弹层总线入口（预览 harness 与外部唤起同口径——
+    //   版本选择卡点按 / 通知直达，双入口同一呈现）
+    [[NSNotificationCenter defaultCenter] addObserver:self
+                                             selector:@selector(ame393_presentVersionPicker)
+                                                 name:@"ZL2HomeShowVersionPicker"
                                                object:nil];
 
     // 长按菜单卡 = 切换 ActionMenu 停靠边（ZL2 ActionMenuDrag 简化等价）
@@ -1777,11 +1788,11 @@ static UIImage *ZL2HomeSizedImage(NSString *name, NSString *fallback, CGFloat po
     [[NSNotificationCenter defaultCenter] postNotificationName:@"ShowAccountManager" object:nil];
 }
 
-// 版本选择卡卡体 = 版本管理页（ZL2 版本选择器语义）
+// 版本选择卡卡体 = ★ Task393 iPod 式竖排选择器（用户规格「版本选择也是
+//   一样，竖排式的」：原直跳版本管理页退役为齿轮钮专属——versionSettingsTapped
+//   仍直达管理页，管理/选择双职能自此分家）
 - (void)versionCardTapped {
-    [[NSNotificationCenter defaultCenter] postNotificationName:@"ZL2ShellNavigate"
-                                                        object:nil
-                                                      userInfo:@{@"index": @2}];
+    [self ame393_presentVersionPicker];
 }
 
 - (void)versionSettingsTapped {
@@ -1794,6 +1805,188 @@ static UIImage *ZL2HomeSizedImage(NSString *name, NSString *fallback, CGFloat po
 - (void)versionRefreshTapped {
     [PLProfiles updateCurrent];
     [self refreshLaunchState];
+}
+
+#pragma mark - ★ Task393 版本选择封面流弹层（iPod 式竖排）
+
+// 弹层呈现：标题 + 封面流（条目 46 高紧凑档——横屏 iPhone 底弹层净空口径；
+// 间隙 10 与账户页同源 = 用户规格「参照实例图标距离实例名称的间隙」）。
+// 拖到哪里就选中哪里：吸附落定即选用该实例并收起弹层（decisive picker
+// 语义；管理/浏览需求仍由齿轮钮直达版本管理页承担）。
+- (void)ame393_presentVersionPicker {
+    if (self.ame393_versionSheetContent) {
+        [self ame393_dismissVersionPicker];
+        return;
+    }
+    if (self.ame_rows.count == 0) return;   // 空注册表不弹（空态卡已引导下载）
+
+    __weak typeof(self) weakSelf = self;
+
+    UIView *content = [[UIView alloc] init];
+    content.backgroundColor = [UIColor clearColor];
+    content.translatesAutoresizingMaskIntoConstraints = NO;
+
+    UILabel *titleLabel = [[UILabel alloc] init];
+    titleLabel.text = localize(@"i18n_str_38", nil);   // 选择版本（四表既有键）
+    titleLabel.font = [ZL2Theme fontTitleMedium];
+    titleLabel.textColor = [ZL2Theme onSurface];
+    titleLabel.textAlignment = NSTextAlignmentCenter;
+    titleLabel.translatesAutoresizingMaskIntoConstraints = NO;
+    [content addSubview:titleLabel];
+
+    AmeIpodFlowView *flow = [[AmeIpodFlowView alloc] init];
+    flow.itemHeight = 46;   // 紧凑档：条目 = 加载器图标 32 + 实例名/信息行
+    flow.translatesAutoresizingMaskIntoConstraints = NO;
+    flow.accessibilityLabel = localize(@"i18n_str_38", nil);
+    [content addSubview:flow];
+
+    NSMutableArray<UIView *> *ame393_items = [NSMutableArray array];
+    NSUInteger ame393_selectedIdx = 0;
+    [self.ame_rows enumerateObjectsUsingBlock:^(NSDictionary *row, NSUInteger idx, BOOL *stop) {
+        [ame393_items addObject:[self ame393_versionFlowItemForRow:row]];
+        if ([row[@"isSelected"] boolValue]) ame393_selectedIdx = idx;
+    }];
+    [flow configureItems:ame393_items];
+    [flow setSelectedIndex:(NSInteger)ame393_selectedIdx animated:NO];
+
+    // 吸附落定（下标变化）→ 选用该实例（版本页 ame_selectProfileNamed: 同款链）
+    flow.onSettle = ^(NSInteger ame393_index) {
+        if (ame393_index >= 0) {
+            [weakSelf ame393_selectProfileAtIndex:(NSUInteger)ame393_index];
+        }
+        // 落定即选用：短暂驻留让远近衰减收束可见，随后弹层收起
+        dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.35 * NSEC_PER_SEC)),
+                       dispatch_get_main_queue(), ^{
+            [weakSelf ame393_dismissVersionPicker];
+        });
+    };
+
+    [NSLayoutConstraint activateConstraints:@[
+        [titleLabel.topAnchor constraintEqualToAnchor:content.topAnchor],
+        [titleLabel.centerXAnchor constraintEqualToAnchor:content.centerXAnchor],
+        [titleLabel.leadingAnchor constraintGreaterThanOrEqualToAnchor:content.leadingAnchor constant:16],
+        [flow.topAnchor constraintEqualToAnchor:titleLabel.bottomAnchor constant:10],
+        [flow.leadingAnchor constraintEqualToAnchor:content.leadingAnchor],
+        [flow.trailingAnchor constraintEqualToAnchor:content.trailingAnchor],
+        [flow.bottomAnchor constraintEqualToAnchor:content.bottomAnchor],
+        [flow.heightAnchor constraintEqualToConstant:flow.viewportHeight],
+    ]];
+
+    self.ame393_versionFlow = flow;
+    self.ame393_versionSheetContent = content;
+    [ZL2M3BottomSheet presentWithContentView:content
+                                  onDismiss:^{
+        weakSelf.ame393_versionFlow = nil;
+        weakSelf.ame393_versionSheetContent = nil;
+    }];
+}
+
+// 选用实例（版本页 ame_selectProfileNamed: 同款链：写 selected + save +
+// post SelectedProfileChanged；本页监听该通知刷新网格与选择卡三态）
+- (void)ame393_selectProfileAtIndex:(NSUInteger)index {
+    if (index >= self.ame_rows.count) return;
+    NSString *profileName = self.ame_rows[index][@"name"];
+    if (![profileName isKindOfClass:[NSString class]] || profileName.length == 0) return;
+    NSString *selected = PLProfiles.current.selectedProfileName;
+    if ([profileName isEqualToString:selected]) return;
+    PLProfiles.current.selectedProfileName = profileName;
+    [PLProfiles.current save];
+    [[NSNotificationCenter defaultCenter] postNotificationName:@"SelectedProfileChanged" object:nil];
+}
+
+// 收起弹层（ scrim 点按由 M3 层自处理，此处只收下 obj 持有面）
+- (void)ame393_dismissVersionPicker {
+    if (!self.ame393_versionSheetContent) return;
+    [ZL2M3BottomSheet dismissWithContentView:self.ame393_versionSheetContent];
+    self.ame393_versionSheetContent = nil;
+    self.ame393_versionFlow = nil;
+}
+
+// ★ Task393：版本条目（封面流同款零装饰：surfaceContainer / radiusL 卡 +
+//   加载器图标 32 + 实例名/信息行横排；图标→名称间隙 10 = 用户规格参照；
+//   信息行/图标兜底与实例卡 ame_configureWithRow 同一语义）
+- (UIView *)ame393_versionFlowItemForRow:(NSDictionary *)row {
+    NSString *profileName = row[@"name"];
+    NSString *versionId = row[@"versionId"];
+    NSString *loader = row[@"loader"];
+    NSString *mcVersion = row[@"mcVersion"];
+    BOOL valid = [row[@"valid"] boolValue];
+
+    UIView *item = [[UIView alloc] init];
+    item.backgroundColor = [ZL2Theme surfaceContainer];
+    item.layer.cornerRadius = [ZL2Theme radiusL];
+    item.layer.masksToBounds = YES;
+
+    UIImageView *iconView = [[UIImageView alloc] init];
+    iconView.contentMode = UIViewContentModeScaleAspectFit;
+    iconView.translatesAutoresizingMaskIntoConstraints = NO;
+    iconView.userInteractionEnabled = NO;
+    [item addSubview:iconView];
+
+    // 实例图标：加载器图标（版本卡同款）；取不到 → gamecontroller 兜底
+    if (loader.length > 0) {
+        [ModLoaderIconHelper configureImageView:iconView
+                                      forLoader:loader
+                                 traitCollection:self.traitCollection];
+    } else {
+        UIImage *fallbackIcon = ZL2HomeSystemImage(@"gamecontroller.fill", @"gamecontroller");
+        iconView.image = [fallbackIcon imageWithRenderingMode:UIImageRenderingModeAlwaysTemplate];
+        iconView.tintColor = [ZL2Theme onSurfaceVariant];
+    }
+
+    UILabel *nameLabel = [[UILabel alloc] init];
+    nameLabel.font = [ZL2Theme fontLabelLarge];
+    nameLabel.textColor = [ZL2Theme onSurface];
+    nameLabel.text = profileName;
+    nameLabel.numberOfLines = 1;
+    nameLabel.lineBreakMode = NSLineBreakByTruncatingTail;
+    nameLabel.translatesAutoresizingMaskIntoConstraints = NO;
+    nameLabel.userInteractionEnabled = NO;
+    [item addSubview:nameLabel];
+
+    UILabel *infoLabel = [[UILabel alloc] init];
+    infoLabel.font = [ZL2Theme fontLabelMedium];
+    infoLabel.textColor = [ZL2Theme onSurfaceVariant];
+    infoLabel.numberOfLines = 1;
+    infoLabel.lineBreakMode = NSLineBreakByTruncatingTail;
+    infoLabel.translatesAutoresizingMaskIntoConstraints = NO;
+    infoLabel.userInteractionEnabled = NO;
+    [item addSubview:infoLabel];
+
+    // 信息行：与实例卡同款三态（无效 = error 色引导文案）
+    if (!valid) {
+        if (versionId.length == 0) {
+            infoLabel.text = localize(@"ame351.instance.no_version", nil);
+        } else {
+            infoLabel.text = localize(@"ame369.common.invalid_version", @"该版本无效");
+        }
+        infoLabel.textColor = [ZL2Theme error];
+    } else {
+        if (mcVersion.length > 0 && loader.length > 0) {
+            infoLabel.text = [NSString stringWithFormat:@"MC %@ · %@",
+                              mcVersion, [ModLoaderIconHelper displayNameForLoader:loader]];
+        } else if (mcVersion.length > 0) {
+            infoLabel.text = [NSString stringWithFormat:@"MC %@", mcVersion];
+        } else if (loader.length > 0) {
+            infoLabel.text = [ModLoaderIconHelper displayNameForLoader:loader];
+        } else {
+            infoLabel.text = @"";
+        }
+    }
+
+    [NSLayoutConstraint activateConstraints:@[
+        [iconView.leadingAnchor constraintEqualToAnchor:item.leadingAnchor constant:16],
+        [iconView.centerYAnchor constraintEqualToAnchor:item.centerYAnchor],
+        [iconView.widthAnchor constraintEqualToConstant:32],
+        [iconView.heightAnchor constraintEqualToConstant:32],
+        [nameLabel.leadingAnchor constraintEqualToAnchor:iconView.trailingAnchor constant:10],
+        [nameLabel.centerYAnchor constraintEqualToAnchor:item.centerYAnchor constant:-8],
+        [nameLabel.trailingAnchor constraintLessThanOrEqualToAnchor:item.trailingAnchor constant:-16],
+        [infoLabel.leadingAnchor constraintEqualToAnchor:nameLabel.leadingAnchor],
+        [infoLabel.centerYAnchor constraintEqualToAnchor:item.centerYAnchor constant:8],
+        [infoLabel.trailingAnchor constraintLessThanOrEqualToAnchor:item.trailingAnchor constant:-16],
+    ]];
+    return item;
 }
 
 #pragma mark - Launch Chain（1:1 旧链语义；历史指针：旧右面板续链段，类已 Task343 退役）
