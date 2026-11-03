@@ -110,7 +110,7 @@ static const CGFloat ZL2ShellClusterButtonSize = 32.0;  // 返回/主页钮 32×
 static const CGFloat ZL2ShellRailItemIconSize = 22.0;   // 图标 22pt
 static const CGFloat ZL2ShellPillWidth = 120.0;         // 任务胶囊宽 120dp
 static const CGFloat ZL2ShellPillHeight = 28.0;         // 任务胶囊高
-static const CGFloat ZL2ShellAnimateDuration = 0.18;    // 全壳动画时长
+static const CGFloat ZL2ShellAnimateDuration = 0.24;    // 全壳动画时长（★Task395：0.18→0.24 淡入淡出感知增强）
 
 // ★ Task347 NavigationView 骨架常量（WinUI 布局溯源：4pt 栅格）
 static const CGFloat ZL2ShellPaneWidth = 280.0;         // 窗格宽（WinUI open 320 紧凑化）
@@ -433,11 +433,12 @@ static UIImage *ZL2ShellSystemImage(NSString *name, NSString *fallback) {
 @property(nonatomic, assign) BOOL ame347_widthClassApplied;           // ★ Task349：首轮宽窄态必派发哨兵
 @property(nonatomic, strong) NSLayoutConstraint *ame350_headerWrapLeading; // ★ Task350：内容区头前导（宽屏 = 窗格宽，头不再横穿窗格）
 @property(nonatomic, assign) BOOL ame350_layoutLogged;                // ★ Task350：首帧布局自证哨兵
+@property(nonatomic, assign) BOOL ame393_bareLogged;                  // ★ Task393：bare 壳首帧动作簇自证哨兵
 @property(nonatomic, strong) UIView *ame379_paneHeader;               // ★ Task379：窗格头行容器（固定 32pt，钮/标题不再锚标题 intrinsic 高度）
-@property(nonatomic, strong) UIStackView *ame383_headerActions;      // ★ Task383：内容区头右上角动作簇（★ Task386 五钮：文件/联机/下载/设置/AI）
+@property(nonatomic, strong) UIStackView *ame383_headerActions;      // ★ Task383/393：右上角动作簇（共享路径；MD3 六钮唯一切换区 / fui 隐藏）
 @property(nonatomic, strong) UIView *ame389_slideIndicator;           // ★ Task389：壳级共享选中指示条（3×16 竖条，切签上下滑移）
 @property(nonatomic, strong) NSLayoutConstraint *ame389_indicatorY;  // ★ Task389：指示条 centerY 常量（= 选中项在 paneStack 内中点 Y）
-@property(nonatomic, strong) NSLayoutConstraint *ame388_toggleLeading; // ★ Task388：折叠开关钮前导（紧凑态居中 16 / 展开态 8）
+@property(nonatomic, strong) NSLayoutConstraint *ame388_toggleLeading; // ★ Task388/394：折叠开关钮前导（恒 8 = 绝对 16 真居中；394 抗压缩根修）
 @end
 
 @implementation ZL2ShellViewController
@@ -480,6 +481,57 @@ static UIImage *ZL2ShellSystemImage(NSString *name, NSString *fallback) {
         [self ame_buildBareShell];   // ★ Task378：顶栏骨架退役 = 无栏 bare 壳
     }
 
+    // ★ Task393：右上角动作簇上收共享路径（用户复诉“md3 界面右上角的切换
+    //   区域不见了”+“fui 应该隐藏右上角的切换区域”）——原实现驻 nav 骨架
+    //   构建内：fui（nav）可见、MD3（bare）整条头区不存在 → MD3 下唯一切换
+    //   入口缺失（快航瓦片退役后彻底无入口）。收敛终态：
+    //   · fui（nav 骨架）：左窗格 = 唯一切换区，本簇 hidden；
+    //   · MD3（bare 壳）：本簇 = 唯一切换区（bare 无窗格），首位补主页钮
+    //     （bare 切出后无窗格可回，主页钮是唯一回程票）；
+    //   · 向导引导锚 zl2_shell_topbar_rail 随簇平移（ame111_findById 语义不变）。
+    __weak typeof(self) weakSelf = self;
+    self.ame383_headerActions = [[UIStackView alloc] init];
+    self.ame383_headerActions.axis = UILayoutConstraintAxisHorizontal;
+    self.ame383_headerActions.alignment = UIStackViewAlignmentCenter;
+    self.ame383_headerActions.spacing = 6.0;
+    self.ame383_headerActions.translatesAutoresizingMaskIntoConstraints = NO;
+    [self.view addSubview:self.ame383_headerActions];
+
+    // ★ Task393：四→六钮——首位 house 主页（bare 回程票，nav 随簇隐藏）；
+    //   其余五钮 ZL2 顶栏右侧组原序（文件(瞬时)/联机(5)/下载(1)/设置(4)/AI(6)）。
+    //   账户不驻簇（账号卡驻主页右栏顶部，ZL2 顶栏同口径无账户直达）。
+    NSArray<NSArray *> *ame383_entries = @[
+        @[@"house.fill", @"house", localize(@"ame369.common.home", @"主页"), @(0)],
+        @[@"folder.fill", @"folder", localize(@"ame369.shell.tab.files", @"文件"), @(-1)],
+        @[@"person.2.fill", @"person.2", localize(@"ame369.common.multiplayer", @"多人联机"), @(5)],
+        @[@"arrow.down.circle.fill", @"arrow.down.circle", localize(@"ame369.shell.tab.downloads", @"下载"), @(1)],
+        @[@"gearshape.fill", @"gearshape", localize(@"ame369.shell.tab.settings", @"设置"), @(4)],
+        @[@"sparkles", @"sparkles", localize(@"ame192.ai.title", nil), @(6)],
+    ];
+    [ame383_entries enumerateObjectsUsingBlock:^(NSArray *entry, NSUInteger idx, BOOL *stop) {
+        ZL2ShellIconButton *ame383_btn = [[ZL2ShellIconButton alloc] initWithSymbol:entry[0] fallback:entry[1]];
+        ame383_btn.accessibilityLabel = entry[2];
+        NSInteger ame383_page = [entry[3] integerValue];
+        ame383_btn.ame_action = ^{
+            [weakSelf ame_setDrawerOpen:NO animated:YES];
+            if (ame383_page < 0) {
+                [weakSelf ame_openFileManagerSheet];   // 文件 = 瞬时动作（窗格 footer 同语义）
+                return;
+            }
+            [weakSelf showPageAtIndex:ame383_page];
+        };
+        [self.ame383_headerActions addArrangedSubview:ame383_btn];
+    }];
+    // 收敛终态显隐：fui（nav）= 簇隐藏（左窗格唯一）；MD3（bare）= 簇常驻。
+    self.ame383_headerActions.hidden = self.ame347_navMode;
+    // 向导引导锚点（quickNav 退役后随簇平移；ame111_findById 全树探测）
+    self.ame383_headerActions.accessibilityIdentifier = @"zl2_shell_topbar_rail";
+    [NSLayoutConstraint activateConstraints:@[
+        [self.ame383_headerActions.trailingAnchor constraintEqualToAnchor:self.view.safeAreaLayoutGuide.trailingAnchor constant:-12.0],
+        // 与 nav 头标题行同高（contentHeader 高 52，标题 centerY = safeTop+26）
+        [self.ame383_headerActions.centerYAnchor constraintEqualToAnchor:self.view.safeAreaLayoutGuide.topAnchor constant:26.0],
+    ]];
+
     // 通知契约：旧启动链（ShowHomePage）+ FCL 账户契约（ShowAccountManager）
     // + ZL2 程序化切页（ZL2ShellNavigate）+ 任务胶囊 / nav 栈深跟随
     [[NSNotificationCenter defaultCenter] addObserver:self
@@ -511,6 +563,11 @@ static UIImage *ZL2ShellSystemImage(NSString *name, NSString *fallback) {
                                              selector:@selector(ame_openFileManagerSheet)
                                                  name:@"ZL2ShellOpenFileManager"
                                                object:nil];
+
+    // ★ Task393：簇置顶（防 container/窗格子级覆盖——bare 容器全屏直铺且
+    //   晚于本簇入列，z 序在本簇之上 = MD3 唯一切换区被盖死不可点，
+    //   Task380 折叠钮被 paneScroll 覆盖判例同族）
+    [self.view bringSubviewToFront:self.ame383_headerActions];
 
     [self showPageAtIndex:0];
 }
@@ -644,6 +701,16 @@ static UIImage *ZL2ShellSystemImage(NSString *name, NSString *fallback) {
         ?: NSProcessInfo.processInfo.processName;
     if (ame379_bundleName.length == 0) ame379_bundleName = @"Prisma Ⅱ";
     self.paneTitle.text = ame379_bundleName;
+    // ★ Task394：折叠态开关钮被挤压根修（装机 [Ame388] 实锤 compact toggle
+    //   = 22×32 而非 32×32）——title.hidden 不解除约束：title.leading =
+    //   toggle.trailing+6 仍拽着，头行可用宽不足时引擎按抗压优先级压缩钮
+    //   本体（750 vs 750 随机压中钮）。根修 = 钮抗压 999（永不缩）+ 标题
+    //   抗压 250（折叠态让位缩到 0 宽，反正 hidden 无视觉）；展开态空间
+    //   充足标题正常显示零影响。
+    [self.paneToggleButton setContentCompressionResistancePriority:999
+                                                          forAxis:UILayoutConstraintAxisHorizontal];
+    [self.paneTitle setContentCompressionResistancePriority:250
+                                                    forAxis:UILayoutConstraintAxisHorizontal];
     [self.ame379_paneHeader addSubview:self.paneTitle];
 
     self.paneScroll = [[UIScrollView alloc] init];
@@ -801,42 +868,8 @@ static UIImage *ZL2ShellSystemImage(NSString *name, NSString *fallback) {
     };
     [self.contentHeader addSubview:self.taskPill];
 
-    // ---- ★ Task383：右上角动作簇（用户复诉「界面不是和 zl2 对齐吗，右上角
-    //     的按钮去哪里了」——ZL2 顶栏右侧常驻 文件/联机/下载/设置 图标簇，
-    //     Task378 顶栏退役后本壳头区右侧空置；本轮按本壳页面口径回填四钮：
-    //     文件=瞬时 Sheet、下载=页 1、账户=页 3、设置=页 4，全宽窄态常驻）
-    self.ame383_headerActions = [[UIStackView alloc] init];
-    self.ame383_headerActions.axis = UILayoutConstraintAxisHorizontal;
-    self.ame383_headerActions.alignment = UIStackViewAlignmentCenter;
-    self.ame383_headerActions.spacing = 6.0;
-    self.ame383_headerActions.translatesAutoresizingMaskIntoConstraints = NO;
-    [self.contentHeader addSubview:self.ame383_headerActions];
-
-    // ★ Task386：四钮→五钮（用户复诉「右上角不应该是5个的吗」）——ZL2 顶栏
-    //   右侧组原序回填（本文件头 L52-53 存档口径）：文件夹(瞬时) / 多人联机(5)
-    //   / 下载(1) / 设置(4) / AI 助手(6)。账户不驻簇（账号卡在主页右栏顶部，
-    //   ZL2 顶栏同口径无账户直达）。
-    NSArray<NSArray *> *ame383_entries = @[
-        @[@"folder.fill", @"folder", localize(@"ame369.shell.tab.files", @"文件"), @(-1)],
-        @[@"person.2.fill", @"person.2", localize(@"ame369.common.multiplayer", @"多人联机"), @(5)],
-        @[@"arrow.down.circle.fill", @"arrow.down.circle", localize(@"ame369.shell.tab.downloads", @"下载"), @(1)],
-        @[@"gearshape.fill", @"gearshape", localize(@"ame369.shell.tab.settings", @"设置"), @(4)],
-        @[@"sparkles", @"sparkles", localize(@"ame192.ai.title", nil), @(6)],
-    ];
-    [ame383_entries enumerateObjectsUsingBlock:^(NSArray *entry, NSUInteger idx, BOOL *stop) {
-        ZL2ShellIconButton *ame383_btn = [[ZL2ShellIconButton alloc] initWithSymbol:entry[0] fallback:entry[1]];
-        ame383_btn.accessibilityLabel = entry[2];
-        NSInteger ame383_page = [entry[3] integerValue];
-        ame383_btn.ame_action = ^{
-            [weakSelf ame_setDrawerOpen:NO animated:YES];
-            if (ame383_page < 0) {
-                [weakSelf ame_openFileManagerSheet];   // 文件 = 瞬时动作（窗格 footer 同语义）
-                return;
-            }
-            [weakSelf showPageAtIndex:ame383_page];
-        };
-        [self.ame383_headerActions addArrangedSubview:ame383_btn];
-    }];
+    // ★ Task393：动作簇（ame383）上收壳层共享路径（viewDidLoad 骨架分支后）——
+    //   本骨架不再重复构建；fui 模式下簇 hidden（左窗格唯一切换区）。
 
     // ---- 内容区 ----
     self.container = [[UIView alloc] init];
@@ -925,13 +958,9 @@ static UIImage *ZL2ShellSystemImage(NSString *name, NSString *fallback) {
         [self.headerTitle.centerYAnchor constraintEqualToAnchor:self.contentHeader.centerYAnchor],
         [self.headerTitle.trailingAnchor constraintLessThanOrEqualToAnchor:self.taskPill.leadingAnchor constant:-12.0],
 
-        // ★ Task383：动作簇驻头区右侧常驻（宽窄态同权）；任务胶囊改锚簇左
-        //   侧（可见时不与簇重叠；隐藏时簇仍贴右缘——旧锚 self 头区右缘会
-        //   因胶囊占位把簇挤左 132pt 空档）
-        [self.ame383_headerActions.trailingAnchor constraintEqualToAnchor:self.contentHeader.safeAreaLayoutGuide.trailingAnchor constant:-12.0],
-        [self.ame383_headerActions.centerYAnchor constraintEqualToAnchor:self.contentHeader.centerYAnchor],
-
-        [self.taskPill.trailingAnchor constraintEqualToAnchor:self.ame383_headerActions.leadingAnchor constant:-12.0],
+        // ★ Task393：动作簇约束随簇上收共享路径（viewDidLoad），nav 骨架
+        //   仅保留任务胶囊锚头区右缘（fui 模式簇隐藏，胶囊贴右缘不重叠）
+        [self.taskPill.trailingAnchor constraintEqualToAnchor:self.contentHeader.safeAreaLayoutGuide.trailingAnchor constant:-12.0],
         [self.taskPill.centerYAnchor constraintEqualToAnchor:self.contentHeader.centerYAnchor],
 
         [self.container.topAnchor constraintEqualToAnchor:self.contentHeader.bottomAnchor],
@@ -970,8 +999,11 @@ static UIImage *ZL2ShellSystemImage(NSString *name, NSString *fallback) {
     self.ame347_contentLeading.constant = self.ame347_regular ? ame376_width : 0.0;
     self.ame350_headerWrapLeading.constant = self.ame347_regular ? ame376_width : 0.0;
     self.paneTitle.hidden = ame376_compact;
-    // ★ Task388：折叠开关钮居中对位（64pt 图标栏内 x=(64-32)/2=16；展开态头行 8pt）
-    self.ame388_toggleLeading.constant = ame376_compact ? 16.0 : 8.0;
+    // ★ Task388/394：折叠开关钮居中对位修正——头行容器 leading=8（相对窗
+    //   格），钮相对头行 constant 8 → 绝对 x=16 = (64−32)/2 真居中（原
+    //   constant 16 实为绝对 24 偏右 8pt，且与标题残留约束叠加被压 22pt）。
+    //   展开态同值（钮驻头行 8pt 汉堡位，Task376 原口径）。
+    self.ame388_toggleLeading.constant = 8.0;
     [self.navItems enumerateObjectsUsingBlock:^(ZL2ShellNavItem *item, NSUInteger idx, BOOL *stop) {
         [item ame_setCompact:ame376_compact];
     }];
@@ -1024,6 +1056,16 @@ static UIImage *ZL2ShellSystemImage(NSString *name, NSString *fallback) {
 
 - (void)viewDidLayoutSubviews {
     [super viewDidLayoutSubviews];
+    // ★ Task393：bare 壳首帧自证（MD3 模式动作簇可判读）——原首帧日志块在
+    //   navMode 门之后，bare 模式（fui 关）零自证输出 = "MD3 右上角钮不见
+    //   了"只能靠猜；本簇 hidden 态也打（hidden=YES + btns=6 即 fui 终态）。
+    if (!self.ame347_navMode && !self.ame393_bareLogged) {
+        self.ame393_bareLogged = YES;
+        NSLog(@"[Ame393] bare header actions -- stack=%@ btns=%lu hidden=%d",
+              NSStringFromCGRect(self.ame383_headerActions.frame),
+              (unsigned long)self.ame383_headerActions.arrangedSubviews.count,
+              (int)self.ame383_headerActions.hidden);
+    }
     if (!self.ame347_navMode) return;
     BOOL ame347_nowRegular = self.view.bounds.size.width >= ZL2ShellRegularMinWidth;
     // ★ Task349：首轮无条件派发（原"变化才派发"在 iPad 上永不点火——预置
@@ -1070,7 +1112,20 @@ static UIImage *ZL2ShellSystemImage(NSString *name, NSString *fallback) {
     UINavigationController *ame347_nav = [self ame_currentNav];
     BOOL ame347_backVisible = (ame347_nav.viewControllers.count > 1);
 
-    [self.headerTitle setText:[self ame_titleForIndex:ame347_index]];
+    // ★ Task395：标题切换淡入淡出（CrossDissolve 0.24s，与切页同拍；
+    //   animated=NO 或减弱动态效果时直落）——原实现标题文字瞬变无过渡。
+    NSString *ame395_title = [self ame_titleForIndex:ame347_index];
+    BOOL ame395_titleAnimate = animated && self.contentHeader.window
+        && !UIAccessibility.isReduceMotionEnabled;
+    if (ame395_titleAnimate && ![self.headerTitle.text isEqualToString:ame395_title]) {
+        [UIView transitionWithView:self.headerTitle
+                          duration:ZL2ShellAnimateDuration
+                           options:UIViewAnimationOptionTransitionCrossDissolve
+                        animations:^{ self.headerTitle.text = ame395_title; }
+                        completion:nil];
+    } else {
+        self.headerTitle.text = ame395_title;
+    }
 
     void (^ame347_apply)(void) = ^{
         [self.navItems enumerateObjectsUsingBlock:^(ZL2ShellNavItem *item, NSUInteger idx, BOOL *stop) {
@@ -1191,7 +1246,10 @@ static UIImage *ZL2ShellSystemImage(NSString *name, NSString *fallback) {
         prev.view.hidden = YES;
         next.view.hidden = NO;
     };
-    if (prev && prev.view.superview) {
+    // ★ Task395：切页 CrossDissolve 补 reduceMotion 尊重（辅助功能“减弱
+    //   动态效果”开启时直落无动画，其余场景 0.24s 淡入淡出）
+    BOOL ame395_animate = !UIAccessibility.isReduceMotionEnabled;
+    if (prev && prev.view.superview && ame395_animate) {
         [UIView transitionWithView:self.container
                           duration:ZL2ShellAnimateDuration
                            options:UIViewAnimationOptionTransitionCrossDissolve

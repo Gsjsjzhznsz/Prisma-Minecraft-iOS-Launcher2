@@ -1400,6 +1400,12 @@ static UIColor *ame364_colorFromString(NSString *s) {
     //   布局上下文内携带真实值，JS 桥调用线程恒 unspecified → 原实现永判
     //   浅色（装机实锤：系统深色下 fluent 仍应用亮板）。改读 keyWindow 实际
     //   trait（含 overrideUserInterfaceStyle 偏好联动，与壳层视图同一语义）。
+    // ★ Task398：装载期兜底加固——插件装载早于 makeKeyAndVisible（装机
+    //   latestlog 00:04:51.119 选板 fluent-light vs 51.13+ theme resolve
+    //   window=dark 实锤），keyWindow 尚未设立 → 原实现直落 currentTrait-
+    //   Collection（非绘制上下文 unspecified→light）= 装载期必误判。补两
+    //   级兜底：scene 内任意 window（已创建未 key 的启动窗口期 trait 同样
+    //   正确）→ 再退 currentTraitCollection（语义最后防线）。
     UIWindow *ame379_window = nil;
     for (UIScene *scene in UIApplication.sharedApplication.connectedScenes) {
         if (![scene isKindOfClass:[UIWindowScene class]]) continue;
@@ -1409,6 +1415,18 @@ static UIColor *ame364_colorFromString(NSString *s) {
         if (ame379_window) break;
     }
     if (!ame379_window) ame379_window = UIApplication.sharedApplication.keyWindow;
+    if (!ame379_window) {
+        // Task398：keyWindow 未设立（装载期窗口就绪前）→ 取首个有 trait 的窗口
+        for (UIScene *scene in UIApplication.sharedApplication.connectedScenes) {
+            if (![scene isKindOfClass:[UIWindowScene class]]) continue;
+            for (UIWindow *cand in ((UIWindowScene *)scene).windows) {
+                if (cand.traitCollection.userInterfaceStyle != UIUserInterfaceStyleUnspecified) {
+                    ame379_window = cand; break;
+                }
+            }
+            if (ame379_window) break;
+        }
+    }
     UIUserInterfaceStyle ame379_style = ame379_window
         ? ame379_window.traitCollection.userInterfaceStyle
         : [UITraitCollection currentTraitCollection].userInterfaceStyle;

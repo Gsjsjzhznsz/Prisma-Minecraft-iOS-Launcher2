@@ -197,6 +197,18 @@ extern BOOL Amethyst_EnforceSDL3Presentation(void);
               getPrefObject(@"general.ui_theme") ?: @"(unset)",
               (self.window.traitCollection.userInterfaceStyle == UIUserInterfaceStyleDark ? @"dark" : @"light"),
               (self.window.windowScene.traitCollection.userInterfaceStyle == UIUserInterfaceStyleDark ? @"dark" : @"light"));
+        // ★ Task398：启动期外观同步广播（无条件一次）——装机 latestlog 实锤：
+        //   插件装载（00:04:51.119 选板 fluent-light）早于窗口就绪（Ame381
+        //   51.13+ 才确认 window=dark），装载期 ame366_isDarkMode 兜底链读不
+        //   到已就绪窗口 → 误判浅色，且 trait 无"变化"壳层永不广播 = 深色设
+        //   备全程亮板无事件可纠正。此处 makeKeyAndVisible 后无条件播一次当
+        //   前明暗：JS 侧 lastAppliedDark 幂等（Task380 同值 skip）保证亮板
+        //   设备零重放、深色设备恰好一次换板；壳重建重复播亦被 JS 幂等吸收。
+        BOOL ame398_dark = (self.window.traitCollection.userInterfaceStyle == UIUserInterfaceStyleDark);
+        [[NSNotificationCenter defaultCenter] postNotificationName:@"AmeAppearanceTraitChanged"
+                                                            object:nil
+                                                          userInfo:@{@"dark": @(ame398_dark)}];
+        NSLog(@"[Ame398] startup appearance sync broadcast dark=%d", ame398_dark);
     }
 
     // Task189（强制横屏第三轮）：窗口内容旋转兜底。Task187 移除 Portrait、

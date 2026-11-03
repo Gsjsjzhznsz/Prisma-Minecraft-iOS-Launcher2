@@ -129,20 +129,26 @@ def _idx_ok():
 
 check("C7 仓库索引同步（index.json version/size/sha256 = 实际 zip）", _idx_ok())
 
-# ══ D 线：主页右栏复位 ═══════════════════════════════════════════
+# ══ D 线：主页右栏列序（★Task393 重锚：快航瓦片退役——同一批页面的切换
+#    入口收敛为壳层右上角动作簇（MD3）/左窗格（fui）各一处，主页右栏回归
+#    账号卡→版本卡→弹性占位→启动组 纯内容列；379 原"瓦片驻版本卡之下"
+#    口径随瓦片退役） ═══════════════════════════════════════════════
 
-check("D1 瓦片构建调用位（版本卡之后、弹性占位之前 = 账号/版本卡复位顶部）",
-      home.index("[self ame378_buildQuickNav];") > home.index("_versionCard = [[ZL2HomeTapControl alloc] init];")
-      and home.index("[self ame378_buildQuickNav];") < home.index("[_menuStack addArrangedSubview:spacer];"))
+check("D1 ★Task393 快航瓦片退役（home 无 quickNav 构建器/属性/常量；右栏回归纯内容列）",
+      "ame378_buildQuickNav" not in home
+      and "quickNavWrap" not in home
+      and "ZL2HomeQuickNav" not in home
+      and "zl2_shell_topbar_rail" not in home)
 
-check("D2 右栏列序（账号卡 → 版本卡 → 瓦片 → 占位 → 启动组）",
+check("D2 ★Task393 右栏列序（账号卡 → 版本卡 → 弹性占位，瓦片位消失）",
       home.index("_accountCard = [[ZL2HomeTapControl alloc] init];")
       < home.index("_versionCard = [[ZL2HomeTapControl alloc] init];")
-      < home.index("[self ame378_buildQuickNav];"))
+      < home.index("[_menuStack addArrangedSubview:spacer];"))
 
-check("D3 五瓦片规格不变（构建器在位；★Task392 重锚：图标减半 55→27.5 一行化，规格细节由 ame378 门禁守）",
-      "- (void)ame378_buildQuickNav {" in home
-      and "ZL2HomeQuickNavIconSize   = 27.5;" in home)
+check("D3 ★Task393 切换入口收敛壳层（动作簇共享路径在位：创建/隐藏语义/引导锚平移/六钮）",
+      "self.ame383_headerActions.hidden = self.ame347_navMode;" in shell
+      and 'self.ame383_headerActions.accessibilityIdentifier = @"zl2_shell_topbar_rail";' in shell
+      and '@[@"house.fill", @"house"' in shell)
 
 # ══ E 线：插件感知动态色（导航栏标题白字白底根修） ════════════════
 

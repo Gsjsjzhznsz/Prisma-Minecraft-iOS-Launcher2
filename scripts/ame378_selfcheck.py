@@ -4,8 +4,9 @@
 #       全部文本回归系统深浅语义色（BackgroundManager）
 # B 线：顶栏退役——topbar 骨架改 bare 壳（ZL2ShellViewController），nav 骨架
 #       与存量门禁锚点逐字保留
-# C 线：五入口按钮迁移主页右侧栏顶部（ZL2HomeViewController quickNav 瓦片，
-#       22pt×2.5=55pt，前三后二，登录卡/版本卡功能不变）
+# C 线：★Task393 五入口快航瓦片退役（同一批页面的切换入口收敛为壳层
+#       右上角动作簇（MD3）/左窗格（fui）各一处；主页右栏回归纯内容列；
+#       壳层动作簇断言驻 ame379 D3，本线守退役零残留 + 卡内通用面）
 # S 结构护栏 + --selftest 反向验证（病灶变体必翻红，零仓内触碰）
 # 口径：字符串内容断言走 raw（string literals 语义）；代码结构断言走
 #       strip_code（ame347/349 判例同款——剥离注释与字符串字面量内容）。
@@ -139,63 +140,42 @@ check("B6 页面切换契约不变（childCache 懒建 + 6 页 + ZL2ShellNavigat
       and "case 6:" in shell_code
       and "ZL2ShellNavigateNotification" in shell_code)
 
-# ══ C 线：五入口按钮迁移主页右侧栏（ZL2HomeViewController） ═══════
+# ══ C 线：★Task393 五入口快航瓦片退役（ZL2HomeViewController） ═══════
 
-check("C1 快航构建器在位 + menuStack 调用（★Task379 重锚：驻版本选择卡之下——用户复诉\"主页原本是右上角的按钮跑到了下面\"，账号卡/版本卡复位右栏顶部，瓦片改随其后；378 原口径\"先于账号卡\"随之退役）",
-      "- (void)ame378_buildQuickNav {" in home_code
-      and "[self ame378_buildQuickNav];" in home_code
-      and home_code.index("[self ame378_buildQuickNav];") > home_code.index("_versionCard = [[ZL2HomeTapControl alloc] init];")
-      and home_code.index("[self ame378_buildQuickNav];") < home_code.index("[_menuStack addArrangedSubview:spacer];"))
+check("C1 ★Task393 快航瓦片整体退役（构建器/工厂/切页辅助/通知辅助/属性/常量 零残留）",
+      "ame378_buildQuickNav" not in home_code
+      and "ame378_quickNavTileWithSymbol" not in home_code
+      and "ame378_navigateToPage" not in home_code
+      and "ame378_openFileManagerSheet" not in home_code
+      and "quickNavWrap" not in home_code
+      and "ZL2HomeQuickNav" not in home)
 
-check("C2 ★Task392 单行×5（用户规格\"改成一行的\"：一行 文件/下载/设置/联机/AI）",
-      "@[filesTile, downloadsTile, settingsTile, multiplayerTile, aiTile]" in home_code
-      and "ame378_row1" not in home_code
-      and "ame378_row2" not in home_code)
+check("C2 ★Task393 退役注释锚在位（收敛终态说明：fui=左窗格唯一 / MD3=壳层动作簇唯一）",
+      "Task393：五入口快航瓦片退役" in home
+      and "fui（nav 骨架）唯一入口 = 左窗格" in home)
 
-check("C3 ★Task392 图标减半规格（用户规格\"缩小两倍\"：图标 27.5 = 55÷2；瓦片高 66.5；间距 6）",
-      "ZL2HomeQuickNavIconSize   = 27.5;" in home
-      and "ZL2HomeQuickNavTileHeight = 66.5;" in home
-      and "ZL2HomeQuickNavGap        = 6;" in home
-      and "ZL2HomeQuickNavIconSize   = 55;" not in home
-      and "[ame378_icon.widthAnchor constraintEqualToConstant:ZL2HomeQuickNavIconSize]," in home_code)
-
-check("C4 对称留白纪律（★Task392 重锚：单行 fillEqually 均分 + 统一间距 + menuStack 对称内边距沿用 + 长标签缩排不截断）",
-      home_code.count("UIStackViewDistributionFillEqually") == 1
-      and "_quickNavWrap.spacing = ZL2HomeQuickNavGap;" in home_code
-      and "ame378_label.minimumScaleFactor = 0.7;" in home_code
-      and "[menu.leadingAnchor constraintEqualToAnchor:self.view.leadingAnchor constant:8]," in home_code
+check("C3 右栏卡内对称留白纪律保留（menu 对称 8pt + menuStack 对称内边距，与瓦片无关的通用面）",
+      "[menu.leadingAnchor constraintEqualToAnchor:self.view.leadingAnchor constant:8]," in home_code
       and "[menu.trailingAnchor constraintEqualToAnchor:self.view.trailingAnchor constant:-8]," in home_code
       and "[_menuStack.leadingAnchor constraintEqualToAnchor:_actionMenu.leadingAnchor constant:ZL2HomeMenuEdgePadding]," in home_code
       and "[_menuStack.trailingAnchor constraintEqualToAnchor:_actionMenu.trailingAnchor constant:-ZL2HomeMenuEdgePadding]," in home_code)
 
-check("C5 着色走系统深浅动态令牌（无写死彩色：图标 onSurface / 标签 onSurfaceVariant）",
-      "ame378_icon.tintColor = [ZL2Theme onSurface];" in home_code
-      and "ame378_label.textColor = [ZL2Theme onSurfaceVariant];" in home_code
-      and "whiteColor" not in home_code[home_code.index("ame378_buildQuickNav"):home_code.index("ame378_openFileManagerSheet")])
+check("C4 ★Task393 向导引导锚点平移（zl2_shell_topbar_rail 随簇驻壳层，home 零残留）",
+      'self.ame383_headerActions.accessibilityIdentifier = @"zl2_shell_topbar_rail";' in shell
+      and "zl2_shell_topbar_rail" not in home)
 
-check("C6 向导引导锚点平移（zl2_shell_topbar_rail 随五瓦片区，coach mark 语义不变）",
-      '_quickNavWrap.accessibilityIdentifier = @"zl2_shell_topbar_rail";' in home
-      and 'zl2_shell_topbar_rail' not in shell_code)
-
-check("C7 动作接线（下载=1/设置=4/联机=5/AI=6 走壳导航总线；目录 = 壳通知接线零直连，smoke 窄链接面零新增类依赖）",
-      "[weakSelf ame378_navigateToPage:1];" in home_code
-      and "[weakSelf ame378_navigateToPage:4];" in home_code
-      and "[weakSelf ame378_navigateToPage:5];" in home_code
-      and "[weakSelf ame378_navigateToPage:6];" in home_code
-      and 'postNotificationName:@"ZL2ShellOpenFileManager"' in home
-      and "FolderBrowserViewController" not in home_code
-      and '#import "FolderBrowserViewController.h"' not in home
-      and 'name:@"ZL2ShellOpenFileManager"' in shell
+check("C5 ★Task393 壳通知观察者保留（ZL2ShellOpenFileManager 承接通道在位，未来复接零改动）",
+      'name:@"ZL2ShellOpenFileManager"' in shell
       and "ame_openFileManagerSheet" in shell_code)
 
-check("C8 i18n 零新增键（复用四表既有键：ame369.shell.tab.* / ame369.common.multiplayer / ame192.ai.title）",
-      'localize(@"ame369.shell.tab.files", @"文件")' in home
-      and 'localize(@"ame369.shell.tab.downloads", @"下载")' in home
-      and 'localize(@"ame369.shell.tab.settings", @"设置")' in home
-      and 'localize(@"ame369.common.multiplayer", @"多人联机")' in home
-      and 'localize(@"ame192.ai.title", nil)' in home)
+check("C6 i18n 零新增键（动作簇同款键驻壳层：ame369.shell.tab.* / ame369.common.multiplayer / ame192.ai.title）",
+      'localize(@"ame369.shell.tab.files", @"文件")' in shell
+      and 'localize(@"ame369.shell.tab.downloads", @"下载")' in shell
+      and 'localize(@"ame369.shell.tab.settings", @"设置")' in shell
+      and 'localize(@"ame369.common.multiplayer", @"多人联机")' in shell
+      and 'localize(@"ame192.ai.title", nil)' in shell)
 
-check("C9 登录卡/版本选择卡功能不变（构建代码与点击链零改动锚）",
+check("C7 登录卡/版本选择卡功能不变（构建代码与点击链零改动锚）",
       "_accountCard = [[ZL2HomeTapControl alloc] init];" in home_code
       and "_versionCard = [[ZL2HomeTapControl alloc] init];" in home_code
       and "accountCardTapped" in home_code
@@ -218,7 +198,7 @@ if "--selftest" in sys.argv:
             print(f"  FAIL {vname} probe did not turn red")
     rcheck("S-A1", bm_code + "ame227_swizzledLabelSetText", "ame227_swizzledLabelSetText" in (bm_code + "ame227_swizzledLabelSetText"))
     rcheck("S-B2", shell_code + "ame_buildTopBar", "ame_buildTopBar" in (shell_code + "ame_buildTopBar"))
-    rcheck("S-C2", home_code + "@[multiplayerTile, downloadsTile, settingsTile]", "@[multiplayerTile, downloadsTile, settingsTile]" in (home_code + "@[multiplayerTile, downloadsTile, settingsTile]"))
+    rcheck("S-C1", home_code + "ame378_buildQuickNav", "ame378_buildQuickNav" in (home_code + "ame378_buildQuickNav"))
     if rf:
         print(f"  SELFTEST FAILED: {rf}")
         sys.exit(1)

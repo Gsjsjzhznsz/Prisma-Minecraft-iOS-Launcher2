@@ -83,7 +83,7 @@ check("② ame369.* 键四表齐备",
 #   共 6 站点随 ame_buildTopBar 删除；同批主页 quickNav 瓦片回填 4 站点
 #   （files/downloads/settings/multiplayer 标签，ame192.ai.title 非 369 键不计），
 #   450-6+4=448，git diff 实证账目吻合）
-check("① ame369 改写点数 == 452（★Task390 全树口径重锚）", ame369_sites == 452, str(ame369_sites))
+check("① ame369 改写点数 == 449（★Task393 重锚：quickNav 瓦片 4 站点退役、壳层动作簇主页钮 +1 站点（ame369.common.home 复用），452−4+1=449）", ame369_sites == 449, str(ame369_sites))
 
 # 复用站点：4 处 localize(@"ame193.misc.[13]"（内容级匹配——5 个补 import 文件行号整体 +1，行级断言会错位）
 REUSE_EXPECT = {

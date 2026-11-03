@@ -58,9 +58,17 @@ static UIImage *ZL2V13SystemImage(NSString *name, NSString *fallback) {
 
 @implementation ZL2VersionDetailNavItem
 
+// ★ Task397：轨项形态重排（用户三次复诉「标签页触发位置靠左」终解）——
+// 原 M3 NavigationRail 形态（图标胶囊+文字上下竖排、整行内居中悬空）在
+// 全宽命中面（Task372）下视觉字形只占行中 ~60pt，行左缘空带也能触发切
+// 换 = 「触发位置比标签靠左」的错位感；且与壳层侧栏（图标+文字横排左
+// 对齐）视觉语言割裂。本轮改横排左对齐：字形起点 = 命中面起点（16pt
+// 边距线上）＝ 所见即所点，与 shell 侧栏同语言；选中态由图标胶囊着色
+// 升级为整行胶囊背景（MD3 NavigationDrawer 语义，全宽命中有视觉支撑）。
 - (instancetype)initWithFrame:(CGRect)frame {
     self = [super initWithFrame:frame];
     if (!self) return self;
+    self.layer.cornerRadius = 14.0;   // Task397：整行胶囊选中底（与卡圆角同族）
     _iconBg = [[UIView alloc] init];
     _iconBg.translatesAutoresizingMaskIntoConstraints = NO;
     _iconBg.layer.cornerRadius = ZL2V13RailCapsuleSize / 2.0;  // 全圆胶囊
@@ -76,32 +84,35 @@ static UIImage *ZL2V13SystemImage(NSString *name, NSString *fallback) {
     _label = [[UILabel alloc] init];
     _label.translatesAutoresizingMaskIntoConstraints = NO;
     _label.font = [ZL2Theme fontLabelMedium];
-    _label.textAlignment = NSTextAlignmentCenter;
+    _label.textAlignment = NSTextAlignmentLeft;   // Task397：左对齐（与图标同列起点语言）
     _label.userInteractionEnabled = NO;
     [self addSubview:_label];
 
     [NSLayoutConstraint activateConstraints:@[
-        [_iconBg.centerXAnchor constraintEqualToAnchor:self.centerXAnchor],
-        [_iconBg.topAnchor constraintEqualToAnchor:self.topAnchor constant:4],
+        // Task397：横排左对齐——图标胶囊 leading 12 / 垂直居中；文字
+        // leading = 胶囊尾 +10 同行居中，字形起点即命中起点
+        [_iconBg.leadingAnchor constraintEqualToAnchor:self.leadingAnchor constant:12.0],
+        [_iconBg.centerYAnchor constraintEqualToAnchor:self.centerYAnchor],
         [_iconBg.widthAnchor constraintEqualToConstant:ZL2V13RailCapsuleSize],
         [_iconBg.heightAnchor constraintEqualToConstant:ZL2V13RailCapsuleSize],
         [_icon.centerXAnchor constraintEqualToAnchor:_iconBg.centerXAnchor],
         [_icon.centerYAnchor constraintEqualToAnchor:_iconBg.centerYAnchor],
         [_icon.widthAnchor constraintEqualToConstant:20],
         [_icon.heightAnchor constraintEqualToConstant:20],
-        [_label.topAnchor constraintEqualToAnchor:_iconBg.bottomAnchor constant:2],
-        [_label.centerXAnchor constraintEqualToAnchor:self.centerXAnchor],
-        [_label.leadingAnchor constraintGreaterThanOrEqualToAnchor:self.leadingAnchor constant:2],
-        [_label.trailingAnchor constraintLessThanOrEqualToAnchor:self.trailingAnchor constant:-2],
-        [_label.bottomAnchor constraintLessThanOrEqualToAnchor:self.bottomAnchor constant:-2],
+        [_label.leadingAnchor constraintEqualToAnchor:_iconBg.trailingAnchor constant:10.0],
+        [_label.centerYAnchor constraintEqualToAnchor:self.centerYAnchor],
+        [_label.trailingAnchor constraintLessThanOrEqualToAnchor:self.trailingAnchor constant:-8.0],
     ]];
     return self;
 }
 
 - (void)ameV13_setSelected:(BOOL)selected {
-    self.iconBg.backgroundColor = selected ? [ZL2Theme primaryContainer] : [UIColor clearColor];
+    // ★ Task397：选中态升级整行胶囊底（全宽命中面的视觉支撑；原图标胶囊
+    // 着色退役——横排左对齐后胶囊底与整行底重复强调）
+    self.backgroundColor = selected ? [ZL2Theme primaryContainer] : [UIColor clearColor];
+    self.iconBg.backgroundColor = [UIColor clearColor];
     self.icon.tintColor = selected ? [ZL2Theme onPrimaryContainer] : [ZL2Theme onSurfaceVariant];
-    self.label.textColor = selected ? [ZL2Theme primary] : [ZL2Theme onSurfaceVariant];
+    self.label.textColor = selected ? [ZL2Theme onPrimaryContainer] : [ZL2Theme onSurfaceVariant];
     self.accessibilityTraits = selected ? UIAccessibilityTraitSelected : UIAccessibilityTraitButton;
 }
 

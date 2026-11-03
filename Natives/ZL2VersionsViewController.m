@@ -792,7 +792,10 @@ static UIImage *ZL2VersionsSystemImage(NSString *name, NSString *fallback) {
     textStack.spacing = 2;
     textStack.translatesAutoresizingMaskIntoConstraints = NO;
 
-    // —— 右列：竖排两枚 32×32 图标钮 ——
+    // —— 右列：横排两枚 32×32 图标钮（★ Task399：竖→横——用户复诉「文字和
+    //   按钮怎么对不齐」装机实锤：齿轮/更多竖叠在行右，齿轮对不上标题、
+    //   省略号对不上副标题，单钮均偏离行中心；横排后与单选圈/图标/文字块
+    //   同一垂直中线，行内元素全部 centerY 对齐）——
     // 设置（gearshape，iOS14 符号带旧名 fallback）→ push 版本设置页
     //（旧 VC editProfile: 同款目标与 init）
     ZL2VersionsTapControl *settingsButton = [self iconButtonWithImageName:@"gearshape"
@@ -817,7 +820,8 @@ static UIImage *ZL2VersionsSystemImage(NSString *name, NSString *fallback) {
     };
 
     UIStackView *rightStack = [[UIStackView alloc] initWithArrangedSubviews:@[settingsButton, moreButton]];
-    rightStack.axis = UILayoutConstraintAxisVertical;
+    // ★ Task399：竖排改横排（对不齐根修，见上注释）
+    rightStack.axis = UILayoutConstraintAxisHorizontal;
     rightStack.alignment = UIStackViewAlignmentCenter;
     rightStack.spacing = 8;
     rightStack.translatesAutoresizingMaskIntoConstraints = NO;

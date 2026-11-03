@@ -1514,6 +1514,12 @@ didFinishPickingMediaWithInfo:(NSDictionary<UIImagePickerControllerInfoKey,id> *
 // 原 ZL2 设置页/旧 FCL 设置页两处原生深/浅/自动选择器一并下线（一页
 // 三开关复诉），底层 pref 链（PLPreferences/SceneDelegate 迁移与映射）
 // 原样保留 = 兼容零风险。
+// ★ Task396：深浅模式选择行恢复（用户复诉「我的深浅主题切换怎么不见了」）——
+// Task385 收敛时把 MD3 侧入口全拔，fui 开关一关即无任何明暗入口 = 删过头。
+// 终态口径：MD3（fui 关）= 本行唯一明暗入口；fui 开 = fui 两态开关唯一
+//（两入口各自模式内各一个，不再同屏叠加）。底层链（PLPreferences/
+// SceneDelegate UIThemeChanged 迁移与映射）原样保留。
+@property (nonatomic, strong) ZL2SettingRowEnum *themeRow;
 @property (nonatomic, strong) ZL2SettingRowList *languageRow;
 @property (nonatomic, strong) ZL2SettingRowList *effectRow;
 @property (nonatomic, strong) ZL2SettingRowSlider *opacityRow;
@@ -1612,10 +1618,29 @@ didPickDocumentsAtURLs:(NSArray<NSURL *> *)urls {
     __weak typeof(self) weakSelf = self;
 
     // --- 组 1：外观 ---
-    // ★ Task385：深浅模式行退役（用户复诉「为什么还会保留 zl2 的右上角模式
-    //   切换，一个页面有3个切换了」）——明暗模式的唯一开关 = fui 插件两态
-    //   开关（开 = 跟随系统浅/深色实时换装，关 = 恢复默认）；外观组保留
-    //   语言/界面效果/透明度/模糊四行。
+    // ★ Task396：深浅模式行恢复（三态：深/浅/跟随系统；general.ui_theme +
+    //   显式选择标记 + UIThemeChanged 通知，Task161 契约原样）——用户上一轮
+    //   复诉的"一页三切换"经 fui 收敛（Task385）与本轮五钮/瓦片收敛后已
+    //   不复存在，本行回填为 MD3 模式唯一明暗入口。
+    NSArray<NSString *> *themeKeys = @[@"dark", @"light", @"auto"];
+    NSArray<NSString *> *themeNames = @[
+        localize(@"i18n_str_380", nil),
+        localize(@"i18n_str_381", nil),
+        localize(@"i18n_str_382", nil),
+    ];
+    ZL2SettingRowEnum *themeRow =
+        [[ZL2SettingRowEnum alloc] initWithTitle:@"" subtitle:nil options:themeNames];
+    themeRow.title = localize(@"i18n_str_379", nil);
+    NSString *theme = ame_pages_stringOr(getPrefObject(@"general.ui_theme"), @"auto");
+    [themeRow ame_reloadSelectedIndex:(NSInteger)[themeKeys indexOfObject:theme]];
+    themeRow.onSelect = ^(NSInteger index) {
+        if (index < 0 || (NSUInteger)index >= themeKeys.count) return;
+        setPrefString(@"general.ui_theme", themeKeys[index]);
+        setPrefBool(@"general.ui_theme_explicit", YES);
+        [[NSNotificationCenter defaultCenter] postNotificationName:@"UIThemeChanged"
+                                                            object:themeKeys[index]];
+    };
+    self.themeRow = themeRow;
 
     // 应用语言（general.app_language；system + 全部内置语言，写后广播重载）
     NSArray<NSString *> *builtinCodes = [ZL2LauncherSettingsPage ame_availableLanguageCodes];
@@ -1688,8 +1713,8 @@ didPickDocumentsAtURLs:(NSArray<NSURL *> *)urls {
     self.blurRow = blurRow;
 
     ZL2SettingCardGroup *group1 = [[ZL2SettingCardGroup alloc] init];
-    // ★ Task385：深浅模式行退役后外观组四行（语言/效果/透明度/模糊）
-    [group1 ame_addRows:@[languageRow, effectRow, opacityRow, blurRow]];
+    // ★ Task396：深浅模式行恢复后外观组五行（深浅/语言/效果/透明度/模糊）
+    [group1 ame_addRows:@[themeRow, languageRow, effectRow, opacityRow, blurRow]];
     [self ame_addGroup:group1];
     // ★ Task328：插件贡献行动态组上移（Task327 挂页尾 = 用户不可达面重现——
     //   四内置插件已装载而用户仍报"没看到任何功能"：组在第 3 屏外）。上移到
@@ -2152,7 +2177,10 @@ didPickDocumentsAtURLs:(NSArray<NSURL *> *)urls {
 }
 
 - (void)ame_refreshState {
-    // ★ Task385：深浅模式行退役，刷新面只剩语言/效果/透明度/模糊
+    // ★ Task396：深浅模式行恢复，刷新面回归 深浅/语言/效果/透明度/模糊
+    NSString *theme = ame_pages_stringOr(getPrefObject(@"general.ui_theme"), @"auto");
+    [self.themeRow ame_reloadSelectedIndex:
+        (NSInteger)[@[@"dark", @"light", @"auto"] indexOfObject:theme]];
     // 语言
     NSArray<NSString *> *langCodes =
         [@[@"system"] arrayByAddingObjectsFromArray:

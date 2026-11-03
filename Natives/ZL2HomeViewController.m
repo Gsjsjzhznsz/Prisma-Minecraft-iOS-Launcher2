@@ -107,14 +107,6 @@ static const CGFloat ZL2HomeAccountCardHeight  = 76;  // 账号卡（48 头像 +
 static const CGFloat ZL2HomeVersionCardHeight  = 68;  // 版本选择卡（40 图标 + 上下 14）
 static const CGFloat ZL2HomeLaunchButtonHeight = 48;  // 大启动钮（ScalingActionButton 48.dp）
 
-// ★ Task378 五入口快航瓦片（顶栏退役承接：壳 RailItem×5 → 本栏顶部）
-// ★ Task392 一行化+图标减半（用户规格 2026-11-03：图标“缩小两倍”+“改成一行的”+
-//   其余 UI 相应改变——55（=22×2.5）→ 27.5（=55÷2），两行 3+2 → 一行×5，
-//   瓦片高 94 → 66.5（10 + 27.5 图标 + 2 + 15 标签 + 12），间距/留白口径不变）
-static const CGFloat ZL2HomeQuickNavIconSize   = 27.5;  // 图标 = 55 ÷ 2（用户规格“缩小两倍”）
-static const CGFloat ZL2HomeQuickNavTileHeight = 66.5;  // 瓦片高（10 + 27.5 图标 + 2 + 15 标签 + 12）
-static const CGFloat ZL2HomeQuickNavGap        = 6;    // 行内统一间距（与两侧行内对称留白同值）
-
 // SF Symbols 取图兜底（本页符号全为 SF1.0 级，均带旧名 fallback；保留兜底
 // 是历史判例纪律：符号名异常时降级到旧名而不是空白）
 static UIImage *ZL2HomeSystemImage(NSString *name, NSString *fallback) {
@@ -400,9 +392,6 @@ static UIImage *ZL2HomeSizedImage(NSString *name, NSString *fallback, CGFloat po
 @property (nonatomic, strong) UIView *emptyStateView;
 @property (nonatomic, strong) UIView *actionMenu;
 @property (nonatomic, strong) UIStackView *menuStack;
-// ★ Task378：五入口快航瓦片（右侧栏顶部：第一行 文件/下载/设置，第二行 联机/AI；
-//   下接账号卡/版本选择卡，功能不变）
-@property (nonatomic, strong) UIStackView *quickNavWrap;
 // 当前停靠边约束组（换边时整组替换：YES = 停靠右侧）
 @property (nonatomic, strong, nullable) NSArray<NSLayoutConstraint *> *ame_sideConstraints;
 @property (nonatomic, assign) BOOL ame_menuOnRight;
@@ -685,9 +674,10 @@ static UIImage *ZL2HomeSizedImage(NSString *name, NSString *fallback, CGFloat po
     };
     [_versionCard addSubview:_versionSettingsButton];
 
-    // ★ Task379：五入口快航瓦片（顶栏退役承接；驻版本选择卡之下、弹性占位
-    //   之上——账号卡/版本卡复位右栏顶部后，瓦片作为快捷动作区贴随其后）
-    [self ame378_buildQuickNav];
+    // ★ Task393：五入口快航瓦片退役（用户收敛终态：同一批页面的切换入口
+    //   只留一处）——fui（nav 骨架）唯一入口 = 左窗格；MD3（bare 壳）唯一
+    //   入口 = 壳层右上角动作簇（ame383，本轮移至共享路径 + 首位补主页钮）。
+    //   主页右栏回归 账号卡→版本卡→弹性占位→启动组 纯内容列。
 
     // —— 弹性占位：把启动组压到列底 ——
     UIView *spacer = [[UIView alloc] init];
@@ -862,143 +852,6 @@ static UIImage *ZL2HomeSizedImage(NSString *name, NSString *fallback, CGFloat po
         [_menuStack.leadingAnchor constraintEqualToAnchor:_actionMenu.leadingAnchor constant:ZL2HomeMenuEdgePadding],
         [_menuStack.trailingAnchor constraintEqualToAnchor:_actionMenu.trailingAnchor constant:-ZL2HomeMenuEdgePadding],
     ]];
-}
-
-#pragma mark - ★ Task378 五入口快航瓦片（顶栏 RailItem×5 承接，驻右侧栏顶部）
-
-/// 快航瓦片区：两行×fillEqually + 统一间距 6——第一行 目录/下载/设置，
-/// 第二行 联机/AI。对称留白纪律（用户规格"每个按钮与就近右侧栏边界的
-/// 距离应保持一致"）：两行共享 menuStack 左右对称 10pt 内边距（与卡内
-/// 其他组件同值），行内 fillEqually 均分 + 6pt 等间距 → 每枚瓦片到就近
-/// 边界（侧栏左右缘/相邻瓦片/行间）距离一致。着色走 ZL2Theme 动态令牌
-/// （系统深浅自适应），无写死颜色。
-- (void)ame378_buildQuickNav {
-    __weak typeof(self) weakSelf = self;
-
-    // 图标沿用顶栏 RailItem×5 原符号（认知连续）；标题复用四表既有键
-    // （ame369.shell.tab.* / ame369.common.multiplayer / ame192.ai.title，零新增 i18n）
-    ZL2HomeTapControl *filesTile =
-        [self ame378_quickNavTileWithSymbol:@"folder.fill"
-                                   fallback:@"folder"
-                                      title:localize(@"ame369.shell.tab.files", @"文件")
-                                     action:^{
-            [weakSelf ame378_openFileManagerSheet];
-        }];
-    ZL2HomeTapControl *downloadsTile =
-        [self ame378_quickNavTileWithSymbol:@"arrow.down.circle.fill"
-                                   fallback:@"arrow.down.circle"
-                                      title:localize(@"ame369.shell.tab.downloads", @"下载")
-                                     action:^{
-            [weakSelf ame378_navigateToPage:1];
-        }];
-    ZL2HomeTapControl *settingsTile =
-        [self ame378_quickNavTileWithSymbol:@"gearshape.fill"
-                                   fallback:@"gearshape"
-                                      title:localize(@"ame369.shell.tab.settings", @"设置")
-                                     action:^{
-            [weakSelf ame378_navigateToPage:4];
-        }];
-    ZL2HomeTapControl *multiplayerTile =
-        [self ame378_quickNavTileWithSymbol:@"person.2.fill"
-                                   fallback:@"person.2"
-                                      title:localize(@"ame369.common.multiplayer", @"多人联机")
-                                     action:^{
-            [weakSelf ame378_navigateToPage:5];
-        }];
-    NSString *ame378_aiTitle = localize(@"ame192.ai.title", nil);
-    if (ame378_aiTitle.length == 0) ame378_aiTitle = @"AI";
-    ZL2HomeTapControl *aiTile =
-        [self ame378_quickNavTileWithSymbol:@"sparkles"
-                                   fallback:@"sparkles"
-                                      title:ame378_aiTitle
-                                     action:^{
-            [weakSelf ame378_navigateToPage:6];
-        }];
-
-    // ★ Task392：五瓦片单行化（用户规格“改成一行的”）——原两行 3+2 拆包退役，
-    //   五瓦片直接一行 fillEqually 均分 + 6pt 等间距（对称留白纪律不变：
-    //   menuStack 左右对称 10pt 内边距同值沿用）。释放的一行纵向空间由
-    //   弹性占位自然吸收（启动组仍钉列底，“其余 UI 相应改变”零结构变动）
-    _quickNavWrap = [[UIStackView alloc] initWithArrangedSubviews:@[filesTile, downloadsTile, settingsTile, multiplayerTile, aiTile]];
-    _quickNavWrap.axis = UILayoutConstraintAxisHorizontal;
-    _quickNavWrap.alignment = UIStackViewAlignmentCenter;
-    _quickNavWrap.distribution = UIStackViewDistributionFillEqually;
-    _quickNavWrap.spacing = ZL2HomeQuickNavGap;
-    _quickNavWrap.translatesAutoresizingMaskIntoConstraints = NO;
-    // 向导引导锚点：沿用原顶栏右簇 id（WelcomeViewController coach mark
-    // ame111_findById 按此 id 探测，顶栏退役后锚定本瓦片区，引导语义不变）
-    _quickNavWrap.accessibilityIdentifier = @"zl2_shell_topbar_rail";
-    [_menuStack addArrangedSubview:_quickNavWrap];
-}
-
-/// 快航瓦片工厂：图标（★ Task392：27.5pt = 55÷2，用户规格“缩小两倍”）+ 标签
-/// 竖排居中。窄屏五行等分后长标签（“多人联机”）按比例缩排优先于截断
-/// （“其余 UI 相应改变”）。点击高亮语义由 ZL2HomeTapControl touchUpInside
-/// 承担（与卡内小钮同源）。
-- (ZL2HomeTapControl *)ame378_quickNavTileWithSymbol:(NSString *)symbol
-                                            fallback:(NSString *)fallback
-                                               title:(NSString *)title
-                                              action:(void (^)(void))action {
-    ZL2HomeTapControl *tile = [[ZL2HomeTapControl alloc] init];
-    tile.backgroundColor = [UIColor clearColor];
-    tile.layer.cornerRadius = [ZL2Theme radiusS];
-    tile.translatesAutoresizingMaskIntoConstraints = NO;
-    tile.isAccessibilityElement = YES;
-    tile.accessibilityTraits = UIAccessibilityTraitButton;
-    tile.accessibilityLabel = title;
-
-    UIImage *ame378_image = ZL2HomeSystemImage(symbol, fallback);
-    if (ame378_image) ame378_image = [ame378_image imageWithRenderingMode:UIImageRenderingModeAlwaysTemplate];
-    UIImageView *ame378_icon = [[UIImageView alloc] initWithImage:ame378_image];
-    ame378_icon.tintColor = [ZL2Theme onSurface];            // 系统深浅自适应主色（标题级）
-    ame378_icon.contentMode = UIViewContentModeScaleAspectFit;
-    ame378_icon.translatesAutoresizingMaskIntoConstraints = NO;
-    ame378_icon.userInteractionEnabled = NO;
-    [tile addSubview:ame378_icon];
-
-    UILabel *ame378_label = [[UILabel alloc] init];
-    ame378_label.font = [ZL2Theme fontLabelMedium];
-    ame378_label.textColor = [ZL2Theme onSurfaceVariant];    // 系统深浅自适应次色（简介级）
-    ame378_label.text = title;
-    ame378_label.numberOfLines = 1;
-    ame378_label.lineBreakMode = NSLineBreakByTruncatingTail;
-    ame378_label.textAlignment = NSTextAlignmentCenter;
-    // ★ Task392：窄屏（iPhone 240pt 栏宽五行等分 ≈ 39pt/瓦）长标签缩排优先：
-    //   0.7 比例下「多人联机」完整可读，不截断；iPad 栏宽（≥300pt）全尺寸。
-    ame378_label.adjustsFontSizeToFitWidth = YES;
-    ame378_label.minimumScaleFactor = 0.7;
-    ame378_label.translatesAutoresizingMaskIntoConstraints = NO;
-    ame378_label.userInteractionEnabled = NO;
-    [tile addSubview:ame378_label];
-
-    [NSLayoutConstraint activateConstraints:@[
-        [tile.heightAnchor constraintEqualToConstant:ZL2HomeQuickNavTileHeight],
-        [ame378_icon.centerXAnchor constraintEqualToAnchor:tile.centerXAnchor],
-        [ame378_icon.topAnchor constraintEqualToAnchor:tile.topAnchor constant:10],
-        [ame378_icon.widthAnchor constraintEqualToConstant:ZL2HomeQuickNavIconSize],
-        [ame378_icon.heightAnchor constraintEqualToConstant:ZL2HomeQuickNavIconSize],
-        [ame378_label.centerXAnchor constraintEqualToAnchor:tile.centerXAnchor],
-        [ame378_label.topAnchor constraintEqualToAnchor:ame378_icon.bottomAnchor constant:2],
-        [ame378_label.leadingAnchor constraintGreaterThanOrEqualToAnchor:tile.leadingAnchor constant:1],
-        [ame378_label.trailingAnchor constraintLessThanOrEqualToAnchor:tile.trailingAnchor constant:-1],
-    ]];
-
-    tile.ame_action = action;
-    return tile;
-}
-
-/// 瓦片切页：壳导航总线同口径（本页既有导航协议，页面间零直连）
-- (void)ame378_navigateToPage:(NSInteger)index {
-    [[NSNotificationCenter defaultCenter] postNotificationName:@"ZL2ShellNavigate"
-                                                        object:nil
-                                                      userInfo:@{@"index": @(index)}];
-}
-
-/// 目录瓦片直达：壳通知接线（原顶栏文件夹项 ame_openFileManagerSheet 由壳
-/// 统一承接——smoke 预览窄链接面零新增类依赖，Task378 r2）
-- (void)ame378_openFileManagerSheet {
-    [[NSNotificationCenter defaultCenter] postNotificationName:@"ZL2ShellOpenFileManager"
-                                                        object:nil];
 }
 
 /// 小图标钮工厂：32×32 / 18pt 模板图标（菜单卡内刷新/设置两钮共用）
