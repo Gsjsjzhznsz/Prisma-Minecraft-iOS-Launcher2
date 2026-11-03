@@ -1110,7 +1110,7 @@ static UIImage *ZL2ShellSystemImage(NSString *name, NSString *fallback) {
     void (^ame389_apply)(void) = ^{
         if (ame389_target) {
             self.ame389_slideIndicator.hidden = NO;
-            self.ame389_indicatorY.constant = ame389_target.frame.midY;
+            self.ame389_indicatorY.constant = CGRectGetMidY(ame389_target.frame);
         } else {
             self.ame389_slideIndicator.hidden = YES;
         }
