@@ -113,7 +113,7 @@ static const NSTimeInterval AmeIpodFlowSnapDuration = 0.42; // 程序化滚动�
                                 ame_centerY + ame_d * ame_pitch - ame_h / 2.0,
                                 ame_w, ame_h);
         item.alpha = ame_alpha;
-        item.zPosition = 100.0 - ame_absd;             // 越近居中越在上层
+        item.layer.zPosition = 100.0 - ame_absd;     // 越近居中越在上层（CI 实锤 r3：zPosition 属 CALayer）
     }];
 }
 
@@ -124,7 +124,7 @@ static const NSTimeInterval AmeIpodFlowSnapDuration = 0.42; // 程序化滚动�
         [item removeFromSuperview];
     }
     [self.ame_items removeAllObjects];
-    [self.ame_stopTicker];
+    [self ame_stopTicker];
 
     for (UIView *item in items) {
         // 条目接管摆位：关闭 AutoLayout 参与（条目内部子视图不受影响）
@@ -295,7 +295,7 @@ static const NSTimeInterval AmeIpodFlowSnapDuration = 0.42; // 程序化滚动�
 /// 落定提交：下标与上次落定不同才回调（拖到哪里选中哪里的提交点）
 - (void)ame_commitSettle {
     NSInteger ame_idx = self.selectedIndex;
-    if (!self.ame_settledIndex || ame_idx != self.ame_settledIdx) {
+    if (!self.ame_hasSettledIdx || ame_idx != self.ame_settledIdx) {
         self.ame_hasSettledIdx = YES;
         self.ame_settledIdx = ame_idx;
         if (self.onSettle) self.onSettle(ame_idx);
@@ -304,20 +304,19 @@ static const NSTimeInterval AmeIpodFlowSnapDuration = 0.42; // 程序化滚动�
 
 #pragma mark - VoiceOver（可调节条目：上下滑逐枚换选）
 
-- (BOOL)accessibilityIncrement {
+// 协议签名为 - (void)（UIAccessibilityAction；CI 实锤 r3 返回类型冲突热修）
+- (void)accessibilityIncrement {
     NSInteger ame_idx = self.selectedIndex;
-    if (ame_idx == NSNotFound || (NSUInteger)(ame_idx + 1) >= self.ame_items.count) return NO;
+    if (ame_idx == NSNotFound || (NSUInteger)(ame_idx + 1) >= self.ame_items.count) return;
     [self setSelectedIndex:ame_idx + 1 animated:YES];
     [self ame_commitSettle];
-    return YES;
 }
 
-- (BOOL)accessibilityDecrement {
+- (void)accessibilityDecrement {
     NSInteger ame_idx = self.selectedIndex;
-    if (ame_idx == NSNotFound || ame_idx <= 0) return NO;
+    if (ame_idx == NSNotFound || ame_idx <= 0) return;
     [self setSelectedIndex:ame_idx - 1 animated:YES];
     [self ame_commitSettle];
-    return YES;
 }
 
 @end
