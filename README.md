@@ -45,7 +45,7 @@
 
 > ⚠️ **服务地区声明 / Region Notice**（Task312）
 >
-> **本启动器不对中国大陆地区用户开放。** Prisma 为社区项目，与 Mojang Studios、Microsoft 及网易（中国大陆地区代理方）均无关联，也**未在中国大陆地区进行分发或提供服务**。启动器会在本机多角度检测（设备地区 / 时区 / 运营商 / 语言 / IP 归属地，互证命中才会触发，探测失败不误伤）疑似大陆用户时弹出「服务地区声明」，提供「我不是大陆用户」按钮，连续 3 次确认后放行。**This launcher is NOT available to users in mainland China** — it is a community project unaffiliated with Mojang Studios, Microsoft, or NetEase, and is not distributed or serviced in mainland China.
+> **本启动器不对中国大陆地区用户开放。** Prisma 为社区项目，与 Mojang Studios、Microsoft 及网易（中国大陆地区代理方）均无关联，也**未在中国大陆地区进行分发或提供服务**。**This launcher is NOT available to users in mainland China** — it is a community project unaffiliated with Mojang Studios, Microsoft, or NetEase, and is not distributed or serviced in mainland China.
 
 ---
 

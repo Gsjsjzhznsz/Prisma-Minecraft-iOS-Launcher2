@@ -108,9 +108,12 @@ static const CGFloat ZL2HomeVersionCardHeight  = 68;  // 版本选择卡（40 �
 static const CGFloat ZL2HomeLaunchButtonHeight = 48;  // 大启动钮（ScalingActionButton 48.dp）
 
 // ★ Task378 五入口快航瓦片（顶栏退役承接：壳 RailItem×5 → 本栏顶部）
-static const CGFloat ZL2HomeQuickNavIconSize   = 55;   // 图标 = 顶栏 RailItem 22pt ×2.5（用户规格“放大二点五倍”）
-static const CGFloat ZL2HomeQuickNavTileHeight = 94;   // 瓦片高（10 + 55 图标 + 2 + 15 标签 + 12）
-static const CGFloat ZL2HomeQuickNavGap        = 6;    // 行内/行间统一间距（与两侧行内对称留白同值）
+// ★ Task392 一行化+图标减半（用户规格 2026-11-03：图标“缩小两倍”+“改成一行的”+
+//   其余 UI 相应改变——55（=22×2.5）→ 27.5（=55÷2），两行 3+2 → 一行×5，
+//   瓦片高 94 → 66.5（10 + 27.5 图标 + 2 + 15 标签 + 12），间距/留白口径不变）
+static const CGFloat ZL2HomeQuickNavIconSize   = 27.5;  // 图标 = 55 ÷ 2（用户规格“缩小两倍”）
+static const CGFloat ZL2HomeQuickNavTileHeight = 66.5;  // 瓦片高（10 + 27.5 图标 + 2 + 15 标签 + 12）
+static const CGFloat ZL2HomeQuickNavGap        = 6;    // 行内统一间距（与两侧行内对称留白同值）
 
 // SF Symbols 取图兜底（本页符号全为 SF1.0 级，均带旧名 fallback；保留兜底
 // 是历史判例纪律：符号名异常时降级到旧名而不是空白）
@@ -550,7 +553,12 @@ static UIImage *ZL2HomeSizedImage(NSString *name, NSString *fallback, CGFloat po
     //（extraLarge 圆角，cardColor = surfaceBright），内部账号区居中贴顶、
     //  版本行+启动钮贴底；旧三张分离小卡废弃
     _actionMenu = [[UIView alloc] init];
-    _actionMenu.backgroundColor = [ZL2Theme surfaceBright];
+    // ★ Task392：卡底 surfaceBright → surfaceContainer（右栏背景“消失”根修）——
+    //   surfaceBright 浅色 = 0xFFF8F6 与页面底 surface 浅色完全同色（9dfe9cfc
+    //   起两令牌浅色恒等，深色才可辨），浅色模式下右栏卡底与页面融为一体 =
+    //   “右侧栏的背景消失了”。surfaceContainer 浅 0xFFE9E4/深 0x291D19
+    //   两态均与页面底可辨，且与实例卡同族（卡片语言一致）。
+    _actionMenu.backgroundColor = [ZL2Theme surfaceContainer];
     _actionMenu.layer.cornerRadius = [ZL2Theme radiusXL];
     _actionMenu.layer.masksToBounds = YES;
     _actionMenu.translatesAutoresizingMaskIntoConstraints = NO;
@@ -907,25 +915,14 @@ static UIImage *ZL2HomeSizedImage(NSString *name, NSString *fallback, CGFloat po
             [weakSelf ame378_navigateToPage:6];
         }];
 
-    // 第一行：目录 / 下载 / 设置（前三）
-    UIStackView *ame378_row1 = [[UIStackView alloc] initWithArrangedSubviews:@[filesTile, downloadsTile, settingsTile]];
-    ame378_row1.axis = UILayoutConstraintAxisHorizontal;
-    ame378_row1.alignment = UIStackViewAlignmentCenter;
-    ame378_row1.distribution = UIStackViewDistributionFillEqually;
-    ame378_row1.spacing = ZL2HomeQuickNavGap;
-    ame378_row1.translatesAutoresizingMaskIntoConstraints = NO;
-
-    // 第二行：联机 / AI（后二）
-    UIStackView *ame378_row2 = [[UIStackView alloc] initWithArrangedSubviews:@[multiplayerTile, aiTile]];
-    ame378_row2.axis = UILayoutConstraintAxisHorizontal;
-    ame378_row2.alignment = UIStackViewAlignmentCenter;
-    ame378_row2.distribution = UIStackViewDistributionFillEqually;
-    ame378_row2.spacing = ZL2HomeQuickNavGap;
-    ame378_row2.translatesAutoresizingMaskIntoConstraints = NO;
-
-    _quickNavWrap = [[UIStackView alloc] initWithArrangedSubviews:@[ame378_row1, ame378_row2]];
-    _quickNavWrap.axis = UILayoutConstraintAxisVertical;
-    _quickNavWrap.alignment = UIStackViewAlignmentFill;
+    // ★ Task392：五瓦片单行化（用户规格“改成一行的”）——原两行 3+2 拆包退役，
+    //   五瓦片直接一行 fillEqually 均分 + 6pt 等间距（对称留白纪律不变：
+    //   menuStack 左右对称 10pt 内边距同值沿用）。释放的一行纵向空间由
+    //   弹性占位自然吸收（启动组仍钉列底，“其余 UI 相应改变”零结构变动）
+    _quickNavWrap = [[UIStackView alloc] initWithArrangedSubviews:@[filesTile, downloadsTile, settingsTile, multiplayerTile, aiTile]];
+    _quickNavWrap.axis = UILayoutConstraintAxisHorizontal;
+    _quickNavWrap.alignment = UIStackViewAlignmentCenter;
+    _quickNavWrap.distribution = UIStackViewDistributionFillEqually;
     _quickNavWrap.spacing = ZL2HomeQuickNavGap;
     _quickNavWrap.translatesAutoresizingMaskIntoConstraints = NO;
     // 向导引导锚点：沿用原顶栏右簇 id（WelcomeViewController coach mark
@@ -934,8 +931,10 @@ static UIImage *ZL2HomeSizedImage(NSString *name, NSString *fallback, CGFloat po
     [_menuStack addArrangedSubview:_quickNavWrap];
 }
 
-/// 快航瓦片工厂：图标（55pt = 顶栏 RailItem 22pt ×2.5）+ 标签竖排居中。
-/// 点击高亮语义由 ZL2HomeTapControl touchUpInside 承担（与卡内小钮同源）。
+/// 快航瓦片工厂：图标（★ Task392：27.5pt = 55÷2，用户规格“缩小两倍”）+ 标签
+/// 竖排居中。窄屏五行等分后长标签（“多人联机”）按比例缩排优先于截断
+/// （“其余 UI 相应改变”）。点击高亮语义由 ZL2HomeTapControl touchUpInside
+/// 承担（与卡内小钮同源）。
 - (ZL2HomeTapControl *)ame378_quickNavTileWithSymbol:(NSString *)symbol
                                             fallback:(NSString *)fallback
                                                title:(NSString *)title
@@ -964,6 +963,10 @@ static UIImage *ZL2HomeSizedImage(NSString *name, NSString *fallback, CGFloat po
     ame378_label.numberOfLines = 1;
     ame378_label.lineBreakMode = NSLineBreakByTruncatingTail;
     ame378_label.textAlignment = NSTextAlignmentCenter;
+    // ★ Task392：窄屏（iPhone 240pt 栏宽五行等分 ≈ 39pt/瓦）长标签缩排优先：
+    //   0.7 比例下「多人联机」完整可读，不截断；iPad 栏宽（≥300pt）全尺寸。
+    ame378_label.adjustsFontSizeToFitWidth = YES;
+    ame378_label.minimumScaleFactor = 0.7;
     ame378_label.translatesAutoresizingMaskIntoConstraints = NO;
     ame378_label.userInteractionEnabled = NO;
     [tile addSubview:ame378_label];
@@ -976,8 +979,8 @@ static UIImage *ZL2HomeSizedImage(NSString *name, NSString *fallback, CGFloat po
         [ame378_icon.heightAnchor constraintEqualToConstant:ZL2HomeQuickNavIconSize],
         [ame378_label.centerXAnchor constraintEqualToAnchor:tile.centerXAnchor],
         [ame378_label.topAnchor constraintEqualToAnchor:ame378_icon.bottomAnchor constant:2],
-        [ame378_label.leadingAnchor constraintGreaterThanOrEqualToAnchor:tile.leadingAnchor constant:2],
-        [ame378_label.trailingAnchor constraintLessThanOrEqualToAnchor:tile.trailingAnchor constant:-2],
+        [ame378_label.leadingAnchor constraintGreaterThanOrEqualToAnchor:tile.leadingAnchor constant:1],
+        [ame378_label.trailingAnchor constraintLessThanOrEqualToAnchor:tile.trailingAnchor constant:-1],
     ]];
 
     tile.ame_action = action;
@@ -1175,16 +1178,18 @@ static UIImage *ZL2HomeSizedImage(NSString *name, NSString *fallback, CGFloat po
     ]];
 
     if (self.ame_menuOnRight) {
-        // [内容区][菜单] —— 菜单贴右
+        // [内容区][菜单] —— 菜单贴右（★ Task392：卡边离屏 8pt——「其边框距离屏幕
+        //   边缘的空隙也要和屏幕一致」：与上下安全区 8pt 同值，四边统一；原左右
+        //   贴边 constant 0 退役。内容区与栏间留白由网格 12pt section inset 承担）
         [constraints addObjectsFromArray:@[
-            [menu.trailingAnchor constraintEqualToAnchor:self.view.trailingAnchor],
+            [menu.trailingAnchor constraintEqualToAnchor:self.view.trailingAnchor constant:-8],
             [content.leadingAnchor constraintEqualToAnchor:self.view.leadingAnchor],
             [content.trailingAnchor constraintEqualToAnchor:menu.leadingAnchor],
         ]];
     } else {
-        // [菜单][内容区] —— 菜单贴左
+        // [菜单][内容区] —— 菜单贴左（★ Task392：同上，四边统一 8pt）
         [constraints addObjectsFromArray:@[
-            [menu.leadingAnchor constraintEqualToAnchor:self.view.leadingAnchor],
+            [menu.leadingAnchor constraintEqualToAnchor:self.view.leadingAnchor constant:8],
             [content.leadingAnchor constraintEqualToAnchor:menu.trailingAnchor],
             [content.trailingAnchor constraintEqualToAnchor:self.view.trailingAnchor],
         ]];

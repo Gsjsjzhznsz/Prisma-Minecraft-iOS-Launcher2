@@ -393,13 +393,6 @@
 "controller_configurator.title.type.nintendo" = "Switch";
 "controller_configurator.title.type.xbox" = "Xbox";
 "controller_configurator.title.type.playstation" = "PlayStation";
-"regiongate.title" = "Teeninduspiirkonna teatis";
-"regiongate.message" = "See käivitaja ei ole saadaval Mandri-Hiina kasutajatele. Tegemist on kogukonnaprojektiga, millel puudub side Mojang Studiosi, Microsofti ega NetEase'iga (Mandri-Hiina kirjastaja), ning seda ei levitata ega teenindata Mandri-Hiinas. Kui te ei ole Mandri-Hiina kasutaja, puudutage jätkamiseks \"Ma ei ole mandri kasutaja\".";
-"regiongate.ack1" = "Teatis 1/3: palun kinnitage oma teeninduspiirkond uuesti.";
-"regiongate.ack2" = "Teatis 2/3: jätkamine tähendab, et kinnitate, et te ei ole Mandri-Hiina kasutaja.";
-"regiongate.ack3" = "Lõplik teatis (3/3): täname kinnitamast. Jätkamine...";
-"regiongate.not_mainland" = "Ma ei ole mandri kasutaja";
-"regiongate.exit" = "Välju";
 
 "controller_configurator.title.current" = "Gamepadi seadistusfail";
 

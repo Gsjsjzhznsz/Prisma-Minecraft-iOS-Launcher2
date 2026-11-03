@@ -508,13 +508,6 @@
 "controller_configurator.title.type.nintendo" = "Switch";
 "controller_configurator.title.type.xbox" = "Xbox";
 "controller_configurator.title.type.playstation" = "PlayStation";
-"regiongate.title" = "Abiso sa Service Region";
-"regiongate.message" = "Hindi available ang launcher na ito sa mga user sa mainland China. Ito ay community project, hindi kaugnay ng Mojang Studios, Microsoft, o NetEase (ang publisher sa mainland China), at hindi ito ikinakalat o siniservisyohan sa mainland China. Kung hindi ka user mula sa mainland China, pindutin ang \"Hindi ako user ng mainland\" para magpatuloy.";
-"regiongate.ack1" = "Abiso 1/3: pakikumpirma muli ang iyong service region.";
-"regiongate.ack2" = "Abiso 2/3: ang pagpapatuloy ay nangangahulugang kinukumpirma mong hindi ka user mula sa mainland China.";
-"regiongate.ack3" = "Panghuling abiso (3/3): salamat sa kumpirmasyon. Magpapatuloy...";
-"regiongate.not_mainland" = "Hindi ako user ng mainland";
-"regiongate.exit" = "Lumabas";
 
 "controller_configurator.title.current" = "File ng configuration ng gamepad";
 

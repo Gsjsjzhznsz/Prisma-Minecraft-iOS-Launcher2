@@ -140,9 +140,9 @@ check("D2 右栏列序（账号卡 → 版本卡 → 瓦片 → 占位 → 启�
       < home.index("_versionCard = [[ZL2HomeTapControl alloc] init];")
       < home.index("[self ame378_buildQuickNav];"))
 
-check("D3 五瓦片规格不变（构建器 + 2.5x/前三后二口径由 ame378 门禁守）",
+check("D3 五瓦片规格不变（构建器在位；★Task392 重锚：图标减半 55→27.5 一行化，规格细节由 ame378 门禁守）",
       "- (void)ame378_buildQuickNav {" in home
-      and "ZL2HomeQuickNavIconSize   = 55;" in home)
+      and "ZL2HomeQuickNavIconSize   = 27.5;" in home)
 
 # ══ E 线：插件感知动态色（导航栏标题白字白底根修） ════════════════
 

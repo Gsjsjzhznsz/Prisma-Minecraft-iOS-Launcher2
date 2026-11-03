@@ -510,13 +510,6 @@
 "controller_configurator.title.type.nintendo" = "Switch";
 "controller_configurator.title.type.xbox" = "Xbox";
 "controller_configurator.title.type.playstation" = "PlayStation";
-"regiongate.title" = "اطلاع‌رسانی منطقه خدمات";
-"regiongate.message" = "این لانچر برای کاربران در چین اصلی در دسترس نیست. این یک پروژهٔ مردمی است و وابستگی به Mojang Studios، Microsoft یا NetEase (ناشر چین اصلی) ندارد و در چین اصلی توزیع یا پشتیبانی نمی‌شود. اگر کاربر چین اصلی نیستید، برای ادامه روی «کاربر چین اصلی نیستم» بزنید.";
-"regiongate.ack1" = "اطلاع‌رسانی ۱/۳: لطفاً منطقه خدمات خود را دوباره تأیید کنید.";
-"regiongate.ack2" = "اطلاع‌رسانی ۲/۳: ادامه دادن به این معناست که تأیید می‌کنید کاربر چین اصلی نیستید.";
-"regiongate.ack3" = "اطلاع‌رسانی نهایی (۳/۳): از تأیید شما سپاسگزاریم. در حال ادامه...";
-"regiongate.not_mainland" = "کاربر چین اصلی نیستم";
-"regiongate.exit" = "خروج";
 
 "controller_configurator.title.current" = "فایل پیکربندی دسته بازی";
 

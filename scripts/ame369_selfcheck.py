@@ -44,10 +44,12 @@ def load_table(lang):
     return rows, parse_bad
 
 TABLES = {}
+# ★ Task392 重锚：键数门槛 3700 → 3690（regiongate.* 7 键随服务地区门全链退役，
+#   3702 - 7 = 3695；门槛语义不变 = 表规模量级哨兵，防误清整表）
 for lang in ['en', 'zh-Hans', 'zh-Hant', 'zh-CN']:
     TABLES[lang], bad = load_table(lang)
     check(f"③ {lang} .strings 全文可解析", len(bad) == 0, f"坏行 {bad[:4]}")
-    check(f"③ {lang} 键数>3700", len(TABLES[lang]) > 3700, str(len(TABLES[lang])))
+    check(f"③ {lang} 键数>3690", len(TABLES[lang]) > 3690, str(len(TABLES[lang])))
 
 # ── 扫代码 localize key ──
 CALL = re.compile(r'localize\s*\(\s*@"((?:[^"\\]|\\.)*)"')

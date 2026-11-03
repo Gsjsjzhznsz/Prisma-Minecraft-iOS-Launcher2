@@ -325,13 +325,6 @@
 "controller_configurator.title.type.nintendo" = "Switch";
 "controller_configurator.title.type.xbox" = "Xbox";
 "controller_configurator.title.type.playstation" = "PlayStation";
-"regiongate.title" = "सेवा क्षेत्र सूचना";
-"regiongate.message" = "यह लॉन्चर मुख्य भूमि चीन के उपयोगकर्ताओं के लिए उपलब्ध नहीं है। यह एक सामुदायिक प्रोजेक्ट है, जो Mojang Studios, Microsoft या NetEase (मुख्य भूमि चीन के प्रकाशक) से संबंधित नहीं है, और इसे मुख्य भूमि चीन में वितरित नहीं किया जाता या सेवा नहीं दी जाती। यदि आप मुख्य भूमि चीन के उपयोगकर्ता नहीं हैं, तो जारी रखने के लिए \"मैं मुख्य भूमि का उपयोगकर्ता नहीं हूँ\" पर टैप करें।";
-"regiongate.ack1" = "सूचना 1/3: कृपया अपना सेवा क्षेत्र फिर से पुष्टि करें।";
-"regiongate.ack2" = "सूचना 2/3: जारी रखने का अर्थ है कि आप पुष्टि करते हैं कि आप मुख्य भूमि चीन के उपयोगकर्ता नहीं हैं।";
-"regiongate.ack3" = "अंतिम सूचना (3/3): पुष्टि के लिए धन्यवाद। जारी रखा जा रहा है...";
-"regiongate.not_mainland" = "मैं मुख्य भूमि का उपयोगकर्ता नहीं हूँ";
-"regiongate.exit" = "बाहर निकलें";
 
 "controller_configurator.title.current" = "गेमपैड कॉन्फ़िगरेशन फ़ाइल";
 

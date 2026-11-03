@@ -147,21 +147,24 @@ check("C1 快航构建器在位 + menuStack 调用（★Task379 重锚：驻版�
       and home_code.index("[self ame378_buildQuickNav];") > home_code.index("_versionCard = [[ZL2HomeTapControl alloc] init];")
       and home_code.index("[self ame378_buildQuickNav];") < home_code.index("[_menuStack addArrangedSubview:spacer];"))
 
-check("C2 前三后二行序（第一行 文件/下载/设置，第二行 联机/AI）",
-      "@[filesTile, downloadsTile, settingsTile]" in home_code
-      and "@[multiplayerTile, aiTile]" in home_code)
+check("C2 ★Task392 单行×5（用户规格\"改成一行的\"：一行 文件/下载/设置/联机/AI）",
+      "@[filesTile, downloadsTile, settingsTile, multiplayerTile, aiTile]" in home_code
+      and "ame378_row1" not in home_code
+      and "ame378_row2" not in home_code)
 
-check("C3 2.5x 放大规格（图标 55 = 顶栏 RailItem 22×2.5；瓦片高 94；间距 6）",
-      "ZL2HomeQuickNavIconSize   = 55;" in home
-      and "ZL2HomeQuickNavTileHeight = 94;" in home
+check("C3 ★Task392 图标减半规格（用户规格\"缩小两倍\"：图标 27.5 = 55÷2；瓦片高 66.5；间距 6）",
+      "ZL2HomeQuickNavIconSize   = 27.5;" in home
+      and "ZL2HomeQuickNavTileHeight = 66.5;" in home
       and "ZL2HomeQuickNavGap        = 6;" in home
+      and "ZL2HomeQuickNavIconSize   = 55;" not in home
       and "[ame378_icon.widthAnchor constraintEqualToConstant:ZL2HomeQuickNavIconSize]," in home_code)
 
-check("C4 对称留白纪律（两行 fillEqually 均分 + 统一间距 + menuStack 对称内边距沿用）",
-      home_code.count("UIStackViewDistributionFillEqually") == 2
-      and home_code.count("ame378_row1.spacing = ZL2HomeQuickNavGap;") == 1
-      and home_code.count("ame378_row2.spacing = ZL2HomeQuickNavGap;") == 1
+check("C4 对称留白纪律（★Task392 重锚：单行 fillEqually 均分 + 统一间距 + menuStack 对称内边距沿用 + 长标签缩排不截断）",
+      home_code.count("UIStackViewDistributionFillEqually") == 1
       and "_quickNavWrap.spacing = ZL2HomeQuickNavGap;" in home_code
+      and "ame378_label.minimumScaleFactor = 0.7;" in home_code
+      and "[menu.leadingAnchor constraintEqualToAnchor:self.view.leadingAnchor constant:8]," in home_code
+      and "[menu.trailingAnchor constraintEqualToAnchor:self.view.trailingAnchor constant:-8]," in home_code
       and "[_menuStack.leadingAnchor constraintEqualToAnchor:_actionMenu.leadingAnchor constant:ZL2HomeMenuEdgePadding]," in home_code
       and "[_menuStack.trailingAnchor constraintEqualToAnchor:_actionMenu.trailingAnchor constant:-ZL2HomeMenuEdgePadding]," in home_code)
 

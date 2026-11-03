@@ -45,7 +45,7 @@
 
 > ⚠️ **Region Notice / 服务地区声明** (Task312)
 >
-> **This launcher is NOT available to users in mainland China.** Prisma is a community project, unaffiliated with Mojang Studios, Microsoft, or NetEase (the mainland China publisher), and is **not distributed or serviced in mainland China**. The app performs on-device multi-angle detection (device region / timezone / carrier / language / IP geolocation — corroborated signals only, probe failures never block) and shows a "Service Region Notice" to suspected mainland users, with an "I am not a mainland user" button; the gate releases after 3 confirmations. **本启动器不对中国大陆地区用户开放。**
+> **This launcher is NOT available to users in mainland China.** Prisma is a community project, unaffiliated with Mojang Studios, Microsoft, or NetEase (the mainland China publisher), and is **not distributed or serviced in mainland China**.  **本启动器不对中国大陆地区用户开放。**
 
 ---
 

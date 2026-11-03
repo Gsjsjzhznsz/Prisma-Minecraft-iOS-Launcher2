@@ -602,13 +602,6 @@
 "custom_controls.repo.download.gamepad.done" = "Mapování gamepadu %@ nainstalováno — vyberte jej v nastavení ovladače";
 "custom_controls.repo.download.gamepad.invalid" = "Neplatný soubor mapování gamepadu";
 "controller_configurator.title.type.nintendo" = "Switch";
-"regiongate.title" = "Oznámení o servisní oblasti";
-"regiongate.message" = "Tento spouštěč není k dispozici uživatelům v pevninské Číně. Jde o komunitní projekt, který nesouvisí s Mojang Studios, Microsoft ani NetEase (vydavatelem pro pevninskou Čínu) a není v pevninské Číně distribuován ani podporován. Pokud nejste uživatel z pevninské Číny, klepněte na „Nejsem uživatel z pevniny“ a pokračujte.";
-"regiongate.ack1" = "Upozornění 1/3: potvrďte prosím svou servisní oblast znovu.";
-"regiongate.ack2" = "Upozornění 2/3: pokračováním potvrzujete, že nejste uživatel z pevninské Číny.";
-"regiongate.ack3" = "Poslední upozornění (3/3): děkujeme za potvrzení. Pokračuje se...";
-"regiongate.not_mainland" = "Nejsem uživatel z pevniny";
-"regiongate.exit" = "Ukončit";
 
 /* Task316 ZL2 filter sync: category filter (dl.asset.*) */
 "dl.asset.filter.category" = "Category";

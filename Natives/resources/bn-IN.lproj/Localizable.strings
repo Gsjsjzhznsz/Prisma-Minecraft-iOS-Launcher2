@@ -323,13 +323,6 @@
 "controller_configurator.title.type.nintendo" = "Switch";
 "controller_configurator.title.type.xbox" = "Xbox";
 "controller_configurator.title.type.playstation" = "PlayStation";
-"regiongate.title" = "পরিষেবা অঞ্চল বিজ্ঞপ্তি";
-"regiongate.message" = "এই লঞ্চারটি মূল ভূখণ্ড চীনের ব্যবহারকারীদের জন্য উপলব্ধ নয়। এটি একটি কমিউনিটি প্রজেক্ট, Mojang Studios, Microsoft বা NetEase-এর (মূল ভূখণ্ড চীনের প্রকাশক) সঙ্গে সম্পর্কিত নয়, এবং মূল ভূখণ্ড চীনে বিতরণ বা পরিষেবা দেওয়া হয় না। আপনি যদি মূল ভূখণ্ড চীনের ব্যবহারকারী না হন, তবে চালিয়ে যেতে 'আমি মূল ভূখণ্ডের ব্যবহারকারী নই' ট্যাপ করুন।";
-"regiongate.ack1" = "বিজ্ঞপ্তি ১/৩: অনুগ্রহ করে আপনার পরিষেবা অঞ্চল আবার নিশ্চিত করুন।";
-"regiongate.ack2" = "বিজ্ঞপ্তি ২/৩: চালিয়ে যাওয়ার অর্থ আপনি নিশ্চিত করছেন যে আপনি মূল ভূখণ্ড চীনের ব্যবহারকারী নন।";
-"regiongate.ack3" = "চূড়ান্ত বিজ্ঞপ্তি (৩/৩): নিশ্চিত করার জন্য ধন্যবাদ। চালিয়ে যাওয়া হচ্ছে...";
-"regiongate.not_mainland" = "আমি মূল ভূখণ্ডের ব্যবহারকারী নই";
-"regiongate.exit" = "প্রস্থান";
 
 "controller_configurator.title.current" = "গেমপ্যাড কনফিগারেশন ফাইল";
 

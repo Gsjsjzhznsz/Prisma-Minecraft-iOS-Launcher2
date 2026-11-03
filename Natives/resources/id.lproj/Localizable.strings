@@ -526,13 +526,6 @@
 "custom_controls.repo.download.gamepad.done" = "Pemetaan gamepad %@ terpasang — pilih di Konfigurasi Kontroler";
 "custom_controls.repo.download.gamepad.invalid" = "Bukan file pemetaan gamepad yang valid";
 "controller_configurator.title.type.nintendo" = "Switch";
-"regiongate.title" = "Pemberitahuan Wilayah Layanan";
-"regiongate.message" = "Launcher ini tidak tersedia untuk pengguna di Tiongkok daratan. Ini adalah proyek komunitas, tidak berafiliasi dengan Mojang Studios, Microsoft, atau NetEase (penerbit untuk Tiongkok daratan), serta tidak didistribusikan atau dilayani di Tiongkok daratan. Jika Anda bukan pengguna dari daratan, ketuk \"Saya bukan pengguna daratan\" untuk melanjutkan.";
-"regiongate.ack1" = "Pemberitahuan 1/3: silakan konfirmasi wilayah layanan Anda sekali lagi.";
-"regiongate.ack2" = "Pemberitahuan 2/3: melanjutkan berarti Anda mengonfirmasi bahwa Anda bukan pengguna Tiongkok daratan.";
-"regiongate.ack3" = "Pemberitahuan terakhir (3/3): terima kasih atas konfirmasinya. Melanjutkan...";
-"regiongate.not_mainland" = "Saya bukan pengguna daratan";
-"regiongate.exit" = "Keluar";
 
 "controller_configurator.title.current" = "File konfigurasi gamepad";
 
