@@ -385,7 +385,6 @@ static void AmePreviewPrepareSandbox(void) {
                 atomically:YES encoding:NSUTF8StringEncoding error:nil];
     }
 }
-}
 
 // 顶栏页名（下标 0-4 与槽位一致；0 = 主页 = CFBundleDisplayName 兜底
 // @"Prisma Launcher"——预览 Info.plist 无 CFBundleDisplayName 键必走兜底）
