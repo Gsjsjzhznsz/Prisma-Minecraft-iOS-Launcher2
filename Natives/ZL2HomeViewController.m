@@ -612,6 +612,11 @@ static UIImage *ZL2HomeSizedImage(NSString *name, NSString *fallback, CGFloat po
         ame401_mask = [[CAShapeLayer alloc] init];
         self.panelBackdrop.layer.mask = ame401_mask;
     }
+    // ★ Task401 r2 实锤（CI smoke 截图整块实心面板）：CAShapeLayer 填充用自身
+    //   fillRule（默认 non-zero），不消费 UIBezierPath 的 usesEvenOddFillRule——
+    //   外矩形与洞同向绕行时洞区 winding=2 照样填满。正解 = shape 层显式
+    //   even-odd（洞区交叉计数 2 = 偶数 → 不填 = alpha 0 = 透启动器背景）。
+    ame401_mask.fillRule = kCAFillRuleEvenOdd;
     ame401_mask.frame = self.panelBackdrop.bounds;
     ame401_mask.path = ame401_path.CGPath;
 }

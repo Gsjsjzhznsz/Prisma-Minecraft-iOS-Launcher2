@@ -149,11 +149,12 @@ check("C1 快航构建器在位 + 顶卡挂接（★Task400 重锚：瓦片卡�
       and home_code.index("[self ame378_buildQuickNav];") > home_code.index("_quickNavCard = [[UIView alloc] init];")
       and home_code.index("[self ame378_buildQuickNav];") < home_code.index("_accountCard = [[UIView alloc] init];"))
 
-check("C2 ★Task401 面板还原+卡窗透明锚（用户规格：保留原来的右边栏整块灰面板，每卡在面板上抠透明窗直透启动器背景，滚动/布局双驱动重抠）",
+check("C2 ★Task401 面板还原+卡窗透明锚（用户规格：保留原来的右边栏整块灰面板，每卡在面板上抠透明窗直透启动器背景，滚动/布局双驱动重抠；r2 实锤：CAShapeLayer 默认 non-zero 会把洞填回——fillRule 必须显式 even-odd）",
       "_panelBackdrop = [[UIView alloc] init];" in home_code
       and "_panelBackdrop.backgroundColor = [ZL2Theme surfaceContainer];" in home_code
       and "- (void)ame_refreshPanelMask {" in home_code
       and "usesEvenOddFillRule = YES;" in home_code
+      and "ame401_mask.fillRule = kCAFillRuleEvenOdd;" in home_code
       and "_menuScrollView.delegate = self;" in home_code)
 
 check("C3 ★Task392 图标减半规格（用户规格\"缩小两倍\"：图标 27.5 = 55÷2；瓦片高 66.5；间距 6）",
