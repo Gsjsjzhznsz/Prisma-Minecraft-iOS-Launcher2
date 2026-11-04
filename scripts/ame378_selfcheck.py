@@ -169,7 +169,7 @@ check("C3 ★Task392 图标减半规格（用户规格\"缩小两倍\"：图标 
       and "ZL2HomeQuickNavIconSize   = 55;" not in home
       and "[ame378_icon.widthAnchor constraintEqualToConstant:ZL2HomeQuickNavIconSize]," in home_code)
 
-check("C4 对称留白纪律（★Task400 重锚：单行 fillEqually 均分 + 统一间距 + 瓦片行四边钉顶卡内缩 8pt（卡片化对称内边距）+ 长标签缩排不截断 + 卡间间隙 = 栏距屏边 8pt 同值 + 栏停靠边四边 8pt 沿用）",
+check("C4 对称留白纪律（★Task400 重锚：单行 fillEqually 均分 + 统一间距 + 瓦片行四边钉顶卡内缩 8pt（卡片化对称内边距）+ 长标签缩排不截断 + 卡间间隙 = 栏距屏边 8pt 同值 + ★Task402 重锚：73c10b7 停靠换边退役 = 右栏固定右侧（content 恒 leading 贴边，menu 恒 trailing -8））",
       home_code.count("UIStackViewDistributionFillEqually") == 1
       and "_quickNavWrap.spacing = ZL2HomeQuickNavGap;" in home_code
       and "ame378_label.minimumScaleFactor = 0.7;" in home_code
@@ -177,7 +177,7 @@ check("C4 对称留白纪律（★Task400 重锚：单行 fillEqually 均分 + �
       and "[_quickNavWrap.leadingAnchor constraintEqualToAnchor:_quickNavCard.leadingAnchor constant:ZL2HomeCardPadding]," in home_code
       and "[_quickNavWrap.trailingAnchor constraintEqualToAnchor:_quickNavCard.trailingAnchor constant:-ZL2HomeCardPadding]," in home_code
       and "_menuStack.spacing = ZL2HomeCardGap;" in home_code
-      and "menu.leadingAnchor constraintEqualToAnchor:self.view.leadingAnchor constant:8]," in home_code
+      and "[content.leadingAnchor constraintEqualToAnchor:self.view.leadingAnchor]," in home_code
       and "menu.trailingAnchor constraintEqualToAnchor:self.view.trailingAnchor constant:-8]," in home_code)
 
 check("C4 向导引导锚点随五瓦片驻主页顶卡（zl2_shell_topbar_rail ★Task401 重锚：五瓦片驻顶=用户规格，向导锚随瓦片行）",

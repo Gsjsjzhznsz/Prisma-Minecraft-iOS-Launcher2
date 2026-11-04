@@ -772,6 +772,14 @@ static UIImage *ZL2HomeSizedImage(NSString *name, NSString *fallback, CGFloat po
     _quickNavCard.isAccessibilityElement = NO;
     [_menuStack addArrangedSubview:_quickNavCard];
     [self ame378_buildQuickNav];
+    // ★ Task402：fui 模式五瓦片卡退役（用户复诉「为什么还是没有隐藏另一个
+    //   标签页切换区域」——fui 开时左窗格=唯一切换区，右上动作簇已随
+    //   navMode 隐藏（393c），本卡是残留的第二切换面；MD3（fui 关）保留
+    //   顶卡 = Task400c 用户规格「五个按钮在顶上」。hidden → menuStack
+    //   arranged 塌缩零占位，面板卡窗经 ame_refreshPanelMask 内建 hidden
+    //   跳过自动重抠为三窗（账户滚轮/版本滚轮/启动组）。
+    _quickNavCard.hidden = [[ZL2Theme ame347_shellLayout]
+        isEqualToString:@"navigationview"];
 
     // —— ② 账户横排封面流卡窗（原头像+名称样式横排五枚，水平拖动选择；
     //      ★ Task401 用户规格「账户是用原来的样式横排五个作列表选择」）——

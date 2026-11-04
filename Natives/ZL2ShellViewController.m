@@ -213,6 +213,7 @@ static UIImage *ZL2ShellSystemImage(NSString *name, NSString *fallback) {
                     pageIndex:(NSInteger)pageIndex;
 - (void)ame_setSelected:(BOOL)selected;   // 纯状态应用（动画由壳侧统一包裹）
 - (void)ame_setCompact:(BOOL)compact;     // ★ Task376：折叠图标栏态（标签隐藏 + 图标居中）
+- (CGRect)ame_iconFrame;                  // ★ Task402：折叠态几何自证读数（[Ame388] 装机日志判读图标真实尺寸）
 @end
 
 @interface ZL2ShellNavItem ()
@@ -220,6 +221,7 @@ static UIImage *ZL2ShellSystemImage(NSString *name, NSString *fallback) {
 @property(nonatomic, strong) UIImageView *iconView;
 @property(nonatomic, strong) UILabel *label;
 @property(nonatomic, strong) NSLayoutConstraint *ame376_iconLeading; // ★ Task376：紧凑态图标居中驱动
+@property(nonatomic, strong) NSLayoutConstraint *ame402_iconSize;    // ★ Task402：图标宽常量（展开 20 / 折叠 26 放大驱动，高度锚 1:1 跟随）
 @end
 
 @implementation ZL2ShellNavItem
@@ -269,10 +271,13 @@ static UIImage *ZL2ShellSystemImage(NSString *name, NSString *fallback) {
         NSMutableArray<NSLayoutConstraint *> *ame376_itemConstraints = [NSMutableArray array];
         _ame376_iconLeading = [_iconView.leadingAnchor constraintEqualToAnchor:self.leadingAnchor constant:14.0];
         [ame376_itemConstraints addObject:_ame376_iconLeading];
+        // ★ Task402：图标宽持引用（ame_setCompact 折叠态 20→26 放大驱动）+
+        //   高度锚 1:1 跟随宽度（单常量驱动两维，无第二常量可漂移）
+        _ame402_iconSize = [_iconView.widthAnchor constraintEqualToConstant:20.0];
+        [_ame402_iconSize setActive:YES];
         [ame376_itemConstraints addObjectsFromArray:@[
             [_iconView.centerYAnchor constraintEqualToAnchor:self.centerYAnchor],
-            [_iconView.widthAnchor constraintEqualToConstant:20.0],
-            [_iconView.heightAnchor constraintEqualToConstant:20.0],
+            [_iconView.heightAnchor constraintEqualToAnchor:_iconView.widthAnchor],
 
             [_label.leadingAnchor constraintEqualToAnchor:_iconView.trailingAnchor constant:14.0],
             [_label.centerYAnchor constraintEqualToAnchor:self.centerYAnchor],
@@ -312,12 +317,22 @@ static UIImage *ZL2ShellSystemImage(NSString *name, NSString *fallback) {
 }
 
 // ★ Task376：折叠图标栏态（WinUI PaneDisplayMode Compact）——标签隐藏、
-// 图标在 52pt 行宽内居中（窗格 64 − 栈内边距 12 = 52，(52−20)/2 = 16）。
+// 图标在 52pt 行宽内居中（窗格 64 − 栈内边距 12 = 52；★Task402 折叠态
+// 图标 26pt，leading 13 = (52−26)/2；展开态 20pt + leading 14 原样式）。
 // 选中指示条保留（紧凑态 WinUI 同样保留 SelectionIndicator）。
 - (void)ame_setCompact:(BOOL)compact {
     self.label.hidden = compact;
-    self.ame376_iconLeading.constant = compact ? 16.0 : 14.0;
+    // ★ Task402：折叠态图标放大根修（用户三轮复诉「折叠图标缩小/偏小」——
+    //   代码侧 20pt 常量恒定无缩放路径实锤，但 20pt 裸字形在 64pt 窄条内
+    //   视觉过小（旁边 32pt 开关钮衬垫更明显）= 观感“图标被缩”。compact
+    //   26pt = 图标栏主元素尺寸，leading 13 = (52−26)/2 重居中；展开态
+    //   20pt + leading 14 原样不动）
+    self.ame402_iconSize.constant = compact ? 26.0 : 20.0;
+    self.ame376_iconLeading.constant = compact ? 13.0 : 14.0;
 }
+
+// ★ Task402：折叠几何自证读数（[Ame388] 日志扩展读数源）
+- (CGRect)ame_iconFrame { return _iconView.frame; }
 
 @end
 
@@ -674,14 +689,15 @@ static UIImage *ZL2ShellSystemImage(NSString *name, NSString *fallback) {
                                                   forKey:@"ame376.paneCollapsed"];
             NSLog(@"[Ame376] pane toggled collapsed=%d", weakSelf.ame376_paneCollapsed);
             [weakSelf ame376_applyPaneGeometry:YES];
-            // ★ Task388：折叠几何自证——开关钮应居中（compact x=16）、首项图标
-            //   恒 20pt（钉死常量约束，无缩放路径）；装机日志对「图标被缩放」
-            //   类复诉一击定读。
+            // ★ Task388：折叠几何自证——开关钮应居中（compact x=16）、首项
+            //   图标折叠态 26pt（★Task402 放大驱动，icon0 读数）；装机日志对
+            //   「图标被缩放」类复诉一击定读。
             dispatch_async(dispatch_get_main_queue(), ^{
-                NSLog(@"[Ame388] pane compact=%d toggle=%@ item0=%@",
+                NSLog(@"[Ame388] pane compact=%d toggle=%@ item0=%@ icon0=%@",
                       weakSelf.ame376_paneCollapsed,
                       NSStringFromCGRect(weakSelf.paneToggleButton.frame),
-                      NSStringFromCGRect(weakSelf.navItems.firstObject.frame));
+                      NSStringFromCGRect(weakSelf.navItems.firstObject.frame),
+                      NSStringFromCGRect([weakSelf.navItems.firstObject ame_iconFrame]));
             });
         } else {
             [weakSelf ame_setDrawerOpen:!weakSelf.ame347_drawerOpen animated:YES];
