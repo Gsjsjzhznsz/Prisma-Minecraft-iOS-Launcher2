@@ -101,13 +101,10 @@ extern NSString * const AFNetworkingOperationFailingURLResponseDataErrorKey;
 // KVO 观察上下文（旧链 ProgressObserverContext 同款静态指针判别，防父类/他人混淆）
 static void *ZL2HomeProgressObserverContext = &ZL2HomeProgressObserverContext;
 
-// ActionMenu 停靠边持久化 key（ZL2 ActionMenuDrag 停靠语义的 iOS 简化等价）
-static NSString * const ZL2HomeMenuSideDefaultsKey = @"zl2.home.actionMenuSide";
-
 // 双栏布局常量（LauncherScreen.kt Row 规格）
-static const CGFloat ZL2HomeMenuWidthRatio   = 0.30;  // 侧菜单 = 容器宽 3/10
-static const CGFloat ZL2HomeMenuWidthMax     = 320;   // 侧菜单宽上限
-static const CGFloat ZL2HomeMenuWidthMin     = 240;   // 侧菜单宽下限
+static const CGFloat ZL2HomeMenuWidthRatio   = 0.28;  // 固定右栏，给实例区保留更多宽度
+static const CGFloat ZL2HomeMenuWidthMax     = 300;
+static const CGFloat ZL2HomeMenuWidthMin     = 220;
 static const CGFloat ZL2HomeGridSpacing      = 6;     // 卡片间距（行/列同值）
 static const CGFloat ZL2HomeGridInsetH       = 12;    // section 左右 inset
 static const CGFloat ZL2HomeGridInsetTop     = 12;    // section 顶 inset
@@ -519,7 +516,6 @@ static UIImage *ZL2HomeSizedImage(NSString *name, NSString *fallback, CGFloat po
 @property (nonatomic, strong) UIStackView *launchStack;
 // 当前停靠边约束组（换边时整组替换：YES = 停靠右侧）
 @property (nonatomic, strong, nullable) NSArray<NSLayoutConstraint *> *ame_sideConstraints;
-@property (nonatomic, assign) BOOL ame_menuOnRight;
 @property (nonatomic, assign) NSInteger lastColumnCount;
 @property (nonatomic, assign) CGFloat lastGridWidth;   // ★ Task387：上次布局网格宽（宽度变化即失效重排）
 
@@ -582,7 +578,6 @@ static UIImage *ZL2HomeSizedImage(NSString *name, NSString *fallback, CGFloat po
     // 复用注册（经典 dataSource 路径；cell 类自带 configure，无 iOS15+ registration）
     [self.gridView registerClass:[ZL2HomeVersionCardCell class]
       forCellWithReuseIdentifier:@"zl2_home_version_card"];
-    [self ame_restoreMenuSide];
     [self ame_applySideConstraintsAnimated:NO];
     [self refreshLaunchState];
 
@@ -607,12 +602,6 @@ static UIImage *ZL2HomeSizedImage(NSString *name, NSString *fallback, CGFloat po
                                                object:nil];
     // ★ Task400：ZL2HomeShowVersionPicker 总线入口随弹层退役（版本滚轮
     //   原地驻右栏，无呈现/收起时序）
-
-    // 长按菜单卡 = 切换 ActionMenu 停靠边（ZL2 ActionMenuDrag 简化等价）
-    UILongPressGestureRecognizer *menuLongPress =
-        [[UILongPressGestureRecognizer alloc] initWithTarget:self
-                                                      action:@selector(ame_handleMenuLongPress:)];
-    [self.actionMenu addGestureRecognizer:menuLongPress];
 
     // 长按实例卡 = M3 底部菜单
     UILongPressGestureRecognizer *cardLongPress =
@@ -916,7 +905,7 @@ static UIImage *ZL2HomeSizedImage(NSString *name, NSString *fallback, CGFloat po
     //    塌缩隐藏 = 零回归）——
     _pluginChipButton = [[UIControl alloc] init];
     _pluginChipButton.backgroundColor = [ZL2Theme surfaceContainerHigh];
-    _pluginChipButton.layer.cornerRadius = [ZL2Theme radiusS];
+    _pluginChipButton.layer.cornerRadius = [ZL2Theme radiusXL];
     _pluginChipButton.translatesAutoresizingMaskIntoConstraints = NO;
     _pluginChipButton.isAccessibilityElement = YES;
     _pluginChipButton.accessibilityTraits = UIAccessibilityTraitButton;
@@ -1133,7 +1122,7 @@ static UIImage *ZL2HomeSizedImage(NSString *name, NSString *fallback, CGFloat po
                                               action:(void (^)(void))action {
     ZL2HomeTapControl *tile = [[ZL2HomeTapControl alloc] init];
     tile.backgroundColor = [UIColor clearColor];
-    tile.layer.cornerRadius = [ZL2Theme radiusS];
+    tile.layer.cornerRadius = [ZL2Theme radiusXL];
     tile.translatesAutoresizingMaskIntoConstraints = NO;
     tile.isAccessibilityElement = YES;
     tile.accessibilityTraits = UIAccessibilityTraitButton;
@@ -1199,7 +1188,7 @@ static UIImage *ZL2HomeSizedImage(NSString *name, NSString *fallback, CGFloat po
                                            a11y:(NSString *)a11y {
     ZL2HomeTapControl *button = [[ZL2HomeTapControl alloc] init];
     button.backgroundColor = [UIColor clearColor];
-    button.layer.cornerRadius = [ZL2Theme radiusS];
+    button.layer.cornerRadius = [ZL2Theme radiusXL];
     button.translatesAutoresizingMaskIntoConstraints = NO;
     button.isAccessibilityElement = YES;
     button.accessibilityTraits = UIAccessibilityTraitButton;
@@ -1285,7 +1274,7 @@ static UIImage *ZL2HomeSizedImage(NSString *name, NSString *fallback, CGFloat po
 
     ZL2HomeTapControl *downloadButton = [[ZL2HomeTapControl alloc] init];
     downloadButton.backgroundColor = [ZL2Theme primary];
-    downloadButton.layer.cornerRadius = [ZL2Theme radiusS];
+    downloadButton.layer.cornerRadius = [ZL2Theme radiusXL];
     downloadButton.translatesAutoresizingMaskIntoConstraints = NO;
     downloadButton.isAccessibilityElement = YES;
     downloadButton.accessibilityTraits = UIAccessibilityTraitButton;
@@ -1332,16 +1321,9 @@ static UIImage *ZL2HomeSizedImage(NSString *name, NSString *fallback, CGFloat po
     ]];
 }
 
-#pragma mark - 停靠边（ActionMenu 左右换边 + 持久化）
+#pragma mark - 固定右栏
 
-/// 恢复持久化停靠边（缺省 = 右侧；脏值回退默认）
-- (void)ame_restoreMenuSide {
-    NSString *side = [[NSUserDefaults standardUserDefaults] stringForKey:ZL2HomeMenuSideDefaultsKey];
-    self.ame_menuOnRight = ![side isEqualToString:@"left"];
-}
-
-/// 重建双栏约束组：ActionMenu 宽 = 容器 3/10（优先级 999）clamp[240, 320]，
-/// 内容区吃余量；停靠左/右只换 leading/trailing 挂接
+/// 重建固定双栏约束：右栏恒靠右，内容区始终位于其左侧。
 - (void)ame_applySideConstraintsAnimated:(BOOL)animated {
     if (self.ame_sideConstraints) {
         [NSLayoutConstraint deactivateConstraints:self.ame_sideConstraints];
@@ -1369,23 +1351,11 @@ static UIImage *ZL2HomeSizedImage(NSString *name, NSString *fallback, CGFloat po
         [content.bottomAnchor constraintEqualToAnchor:safe.bottomAnchor],
     ]];
 
-    if (self.ame_menuOnRight) {
-        // [内容区][菜单] —— 菜单贴右（★ Task392：卡边离屏 8pt——「其边框距离屏幕
-        //   边缘的空隙也要和屏幕一致」：与上下安全区 8pt 同值，四边统一；原左右
-        //   贴边 constant 0 退役。内容区与栏间留白由网格 12pt section inset 承担）
-        [constraints addObjectsFromArray:@[
-            [menu.trailingAnchor constraintEqualToAnchor:self.view.trailingAnchor constant:-8],
-            [content.leadingAnchor constraintEqualToAnchor:self.view.leadingAnchor],
-            [content.trailingAnchor constraintEqualToAnchor:menu.leadingAnchor],
-        ]];
-    } else {
-        // [菜单][内容区] —— 菜单贴左（★ Task392：同上，四边统一 8pt）
-        [constraints addObjectsFromArray:@[
-            [menu.leadingAnchor constraintEqualToAnchor:self.view.leadingAnchor constant:8],
-            [content.leadingAnchor constraintEqualToAnchor:menu.trailingAnchor],
-            [content.trailingAnchor constraintEqualToAnchor:self.view.trailingAnchor],
-        ]];
-    }
+    [constraints addObjectsFromArray:@[
+        [menu.trailingAnchor constraintEqualToAnchor:self.view.trailingAnchor constant:-8],
+        [content.leadingAnchor constraintEqualToAnchor:self.view.leadingAnchor],
+        [content.trailingAnchor constraintEqualToAnchor:menu.leadingAnchor],
+    ]];
 
     [NSLayoutConstraint activateConstraints:constraints];
     self.ame_sideConstraints = constraints;
@@ -1420,14 +1390,6 @@ static UIImage *ZL2HomeSizedImage(NSString *name, NSString *fallback, CGFloat po
     [[NSNotificationCenter defaultCenter] postNotificationName:@"ZL2SettingsSelectPage"
                                                         object:nil
                                                       userInfo:@{@"index": @(4)}];
-}
-
-- (void)ame_handleMenuLongPress:(UILongPressGestureRecognizer *)gesture {
-    if (gesture.state != UIGestureRecognizerStateBegan) return;
-    self.ame_menuOnRight = !self.ame_menuOnRight;
-    [[NSUserDefaults standardUserDefaults] setObject:(self.ame_menuOnRight ? @"right" : @"left")
-                                              forKey:ZL2HomeMenuSideDefaultsKey];
-    [self ame_applySideConstraintsAnimated:YES];
 }
 
 #pragma mark - Grid Datasource / Delegate

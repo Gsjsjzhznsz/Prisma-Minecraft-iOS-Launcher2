@@ -17,9 +17,10 @@
 #import <math.h>   // lround/fabs/sqrt/fmin（弹簧积分与位相取整）
 
 // 远近衰减系数（封面流口径；连续插值无跳变）
-static const CGFloat AmeFlowSelectScalePerStep    = 0.15;  // scale = 1 − 0.15×|d|
-static const CGFloat AmeFlowSelectAlphaPerStep    = 0.32;  // alpha = 1 − 0.32×|d|
-static const CGFloat AmeFlowSelectAlphaFloor      = 0.28;  // 最远可见透明度下限
+// 选中态以“尺寸带动透明度”：更大的条目必然更不透明。衰减刻意收窄，
+// 保留列表的层级而不再像 iPod Cover Flow 一样夸张、跳动。
+static const CGFloat AmeFlowSelectScalePerStep    = 0.09;  // scale = 1 − 0.09×|d|
+static const CGFloat AmeFlowSelectAlphaFloor      = 0.72;  // 拖拽越界时的可读性下限
 static const CGFloat AmeFlowSelectHideRange       = 2.6;   // |d| > 此值隐藏（可见窗 |d| ≤ 2.4，五枚口径）
 static const CGFloat AmeFlowSelectRubberBand      = 0.35;  // 越界拖拽阻尼（回弹）
 static const CGFloat AmeFlowSelectFlickVelocity   = 1400.0; // 惯性判定速度阈值（pt/s）
@@ -115,9 +116,9 @@ static const CGFloat AmeFlowSelectFiveAcrossDivisor = 4.8;
             }
             item.hidden = NO;
 
-            // 远近衰减：选中（d=0）= 正常大小全不透明；越远越小越透明（连续插值）
+            // 尺寸与透明度同源：更大即更不透明，且正反两个方向完全对称。
             CGFloat ame_scale = 1.0 - AmeFlowSelectScalePerStep * ame_absd;
-            CGFloat ame_alpha = 1.0 - AmeFlowSelectAlphaPerStep * ame_absd;
+            CGFloat ame_alpha = ame_scale;
             if (ame_alpha < AmeFlowSelectAlphaFloor) ame_alpha = AmeFlowSelectAlphaFloor;
 
             // 条目手动摆位（帧驱动口径；条目内部子视图仍 AutoLayout）
@@ -146,9 +147,9 @@ static const CGFloat AmeFlowSelectFiveAcrossDivisor = 4.8;
         }
         item.hidden = NO;
 
-        // 远近衰减：选中（d=0）= 正常大小全不透明；越远越小越透明（连续插值）
+        // 尺寸与透明度同源：不再出现“越往上越不透明”的方向性错觉。
         CGFloat ame_scale = 1.0 - AmeFlowSelectScalePerStep * ame_absd;
-        CGFloat ame_alpha = 1.0 - AmeFlowSelectAlphaPerStep * ame_absd;
+        CGFloat ame_alpha = ame_scale;
         if (ame_alpha < AmeFlowSelectAlphaFloor) ame_alpha = AmeFlowSelectAlphaFloor;
 
         // 条目手动摆位（帧驱动口径，见 .h 头注释；条目内部子视图仍 AutoLayout）
