@@ -448,9 +448,7 @@ static UIImage *ZL2ShellSystemImage(NSString *name, NSString *fallback) {
 @property(nonatomic, assign) BOOL ame347_widthClassApplied;           // ★ Task349：首轮宽窄态必派发哨兵
 @property(nonatomic, strong) NSLayoutConstraint *ame350_headerWrapLeading; // ★ Task350：内容区头前导（宽屏 = 窗格宽，头不再横穿窗格）
 @property(nonatomic, assign) BOOL ame350_layoutLogged;                // ★ Task350：首帧布局自证哨兵
-@property(nonatomic, assign) BOOL ame393_bareLogged;                  // ★ Task393：bare 壳首帧动作簇自证哨兵
 @property(nonatomic, strong) UIView *ame379_paneHeader;               // ★ Task379：窗格头行容器（固定 32pt，钮/标题不再锚标题 intrinsic 高度）
-@property(nonatomic, strong) UIStackView *ame383_headerActions;      // ★ Task383/393：右上角动作簇（共享路径；MD3 六钮唯一切换区 / fui 隐藏）
 @property(nonatomic, strong) UIView *ame389_slideIndicator;           // ★ Task389：壳级共享选中指示条（3×16 竖条，切签上下滑移）
 @property(nonatomic, strong) NSLayoutConstraint *ame389_indicatorY;  // ★ Task389：指示条 centerY 常量（= 选中项在 paneStack 内中点 Y）
 @property(nonatomic, strong) NSLayoutConstraint *ame388_toggleLeading; // ★ Task388/394：折叠开关钮前导（恒 8 = 绝对 16 真居中；394 抗压缩根修）
@@ -496,56 +494,7 @@ static UIImage *ZL2ShellSystemImage(NSString *name, NSString *fallback) {
         [self ame_buildBareShell];   // ★ Task378：顶栏骨架退役 = 无栏 bare 壳
     }
 
-    // ★ Task393：右上角动作簇上收共享路径（用户复诉“md3 界面右上角的切换
-    //   区域不见了”+“fui 应该隐藏右上角的切换区域”）——原实现驻 nav 骨架
-    //   构建内：fui（nav）可见、MD3（bare）整条头区不存在 → MD3 下唯一切换
-    //   入口缺失（快航瓦片退役后彻底无入口）。收敛终态：
-    //   · fui（nav 骨架）：左窗格 = 唯一切换区，本簇 hidden；
-    //   · MD3（bare 壳）：本簇 = 唯一切换区（bare 无窗格），首位补主页钮
-    //     （bare 切出后无窗格可回，主页钮是唯一回程票）；
-    //   · 向导引导锚 zl2_shell_topbar_rail 随簇平移（ame111_findById 语义不变）。
-    __weak typeof(self) weakSelf = self;
-    self.ame383_headerActions = [[UIStackView alloc] init];
-    self.ame383_headerActions.axis = UILayoutConstraintAxisHorizontal;
-    self.ame383_headerActions.alignment = UIStackViewAlignmentCenter;
-    self.ame383_headerActions.spacing = 6.0;
-    self.ame383_headerActions.translatesAutoresizingMaskIntoConstraints = NO;
-    [self.view addSubview:self.ame383_headerActions];
-
-    // ★ Task393：四→六钮——首位 house 主页（bare 回程票，nav 随簇隐藏）；
-    //   其余五钮 ZL2 顶栏右侧组原序（文件(瞬时)/联机(5)/下载(1)/设置(4)/AI(6)）。
-    //   账户不驻簇（账号卡驻主页右栏顶部，ZL2 顶栏同口径无账户直达）。
-    NSArray<NSArray *> *ame383_entries = @[
-        @[@"house.fill", @"house", localize(@"ame369.common.home", @"主页"), @(0)],
-        @[@"folder.fill", @"folder", localize(@"ame369.shell.tab.files", @"文件"), @(-1)],
-        @[@"person.2.fill", @"person.2", localize(@"ame369.common.multiplayer", @"多人联机"), @(5)],
-        @[@"arrow.down.circle.fill", @"arrow.down.circle", localize(@"ame369.shell.tab.downloads", @"下载"), @(1)],
-        @[@"gearshape.fill", @"gearshape", localize(@"ame369.shell.tab.settings", @"设置"), @(4)],
-        @[@"sparkles", @"sparkles", localize(@"ame192.ai.title", nil), @(6)],
-    ];
-    [ame383_entries enumerateObjectsUsingBlock:^(NSArray *entry, NSUInteger idx, BOOL *stop) {
-        ZL2ShellIconButton *ame383_btn = [[ZL2ShellIconButton alloc] initWithSymbol:entry[0] fallback:entry[1]];
-        ame383_btn.accessibilityLabel = entry[2];
-        NSInteger ame383_page = [entry[3] integerValue];
-        ame383_btn.ame_action = ^{
-            [weakSelf ame_setDrawerOpen:NO animated:YES];
-            if (ame383_page < 0) {
-                [weakSelf ame_openFileManagerSheet];   // 文件 = 瞬时动作（窗格 footer 同语义）
-                return;
-            }
-            [weakSelf showPageAtIndex:ame383_page];
-        };
-        [self.ame383_headerActions addArrangedSubview:ame383_btn];
-    }];
-    // 收敛终态显隐：fui（nav）= 簇隐藏（左窗格唯一）；MD3（bare）= 簇常驻。
-    self.ame383_headerActions.hidden = self.ame347_navMode;
-    // 向导引导锚点（quickNav 退役后随簇平移；ame111_findById 全树探测）
-    self.ame383_headerActions.accessibilityIdentifier = @"zl2_shell_topbar_rail";
-    [NSLayoutConstraint activateConstraints:@[
-        [self.ame383_headerActions.trailingAnchor constraintEqualToAnchor:self.view.safeAreaLayoutGuide.trailingAnchor constant:-12.0],
-        // 与 nav 头标题行同高（contentHeader 高 52，标题 centerY = safeTop+26）
-        [self.ame383_headerActions.centerYAnchor constraintEqualToAnchor:self.view.safeAreaLayoutGuide.topAnchor constant:26.0],
-    ]];
+    // 右上角快捷入口已移除；主页右栏是五个入口的唯一位置。
 
     // 通知契约：旧启动链（ShowHomePage）+ FCL 账户契约（ShowAccountManager）
     // + ZL2 程序化切页（ZL2ShellNavigate）+ 任务胶囊 / nav 栈深跟随
@@ -578,11 +527,6 @@ static UIImage *ZL2ShellSystemImage(NSString *name, NSString *fallback) {
                                              selector:@selector(ame_openFileManagerSheet)
                                                  name:@"ZL2ShellOpenFileManager"
                                                object:nil];
-
-    // ★ Task393：簇置顶（防 container/窗格子级覆盖——bare 容器全屏直铺且
-    //   晚于本簇入列，z 序在本簇之上 = MD3 唯一切换区被盖死不可点，
-    //   Task380 折叠钮被 paneScroll 覆盖判例同族）
-    [self.view bringSubviewToFront:self.ame383_headerActions];
 
     [self showPageAtIndex:0];
 }
@@ -1072,16 +1016,6 @@ static UIImage *ZL2ShellSystemImage(NSString *name, NSString *fallback) {
 
 - (void)viewDidLayoutSubviews {
     [super viewDidLayoutSubviews];
-    // ★ Task393：bare 壳首帧自证（MD3 模式动作簇可判读）——原首帧日志块在
-    //   navMode 门之后，bare 模式（fui 关）零自证输出 = "MD3 右上角钮不见
-    //   了"只能靠猜；本簇 hidden 态也打（hidden=YES + btns=6 即 fui 终态）。
-    if (!self.ame347_navMode && !self.ame393_bareLogged) {
-        self.ame393_bareLogged = YES;
-        NSLog(@"[Ame393] bare header actions -- stack=%@ btns=%lu hidden=%d",
-              NSStringFromCGRect(self.ame383_headerActions.frame),
-              (unsigned long)self.ame383_headerActions.arrangedSubviews.count,
-              (int)self.ame383_headerActions.hidden);
-    }
     if (!self.ame347_navMode) return;
     BOOL ame347_nowRegular = self.view.bounds.size.width >= ZL2ShellRegularMinWidth;
     // ★ Task349：首轮无条件派发（原"变化才派发"在 iPad 上永不点火——预置
@@ -1104,18 +1038,12 @@ static UIImage *ZL2ShellSystemImage(NSString *name, NSString *fallback) {
               self.ame347_navMode, self.ame347_regular, self.ame347_drawerOpen);
         // ★ Task379：窗格头行自证（开关钮可见性装机判读：钮 frame 应在窗格
         //   顶部可见带内；标题高度塌缩不再影响钮位）
-        // ★ Task382：自证补 tglTrans（translates 应为 0）+ Task383 动作簇
-        //   frame/钮数——装机日志从此对「钮零尺寸」「右上角簇缺失」两类
-        //   回归一击定读，不再靠猜。
         NSLog(@"[Ame379] pane header -- header=%@ toggle=%@ tglTrans=%d title=%@ titleLen=%lu",
               NSStringFromCGRect(self.ame379_paneHeader.frame),
               NSStringFromCGRect(self.paneToggleButton.frame),
               (int)self.paneToggleButton.translatesAutoresizingMaskIntoConstraints,
               NSStringFromCGRect(self.paneTitle.frame),
               (unsigned long)self.paneTitle.text.length);
-        NSLog(@"[Ame383] header actions -- stack=%@ btns=%lu",
-              NSStringFromCGRect(self.ame383_headerActions.frame),
-              (unsigned long)self.ame383_headerActions.arrangedSubviews.count);
     }
 }
 

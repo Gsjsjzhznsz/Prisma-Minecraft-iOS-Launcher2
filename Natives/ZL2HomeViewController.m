@@ -768,6 +768,8 @@ static UIImage *ZL2HomeSizedImage(NSString *name, NSString *fallback, CGFloat po
     //      ★ Task401 卡底透明 = 面板挖洞）——
     _quickNavCard = [[UIView alloc] init];
     _quickNavCard.backgroundColor = [UIColor clearColor];
+    _quickNavCard.layer.cornerRadius = [ZL2Theme radiusXL];
+    _quickNavCard.layer.masksToBounds = YES;
     _quickNavCard.translatesAutoresizingMaskIntoConstraints = NO;
     _quickNavCard.isAccessibilityElement = NO;
     [_menuStack addArrangedSubview:_quickNavCard];
@@ -785,6 +787,8 @@ static UIImage *ZL2HomeSizedImage(NSString *name, NSString *fallback, CGFloat po
     //      ★ Task401 用户规格「账户是用原来的样式横排五个作列表选择」）——
     _accountCard = [[UIView alloc] init];
     _accountCard.backgroundColor = [UIColor clearColor];
+    _accountCard.layer.cornerRadius = [ZL2Theme radiusXL];
+    _accountCard.layer.masksToBounds = YES;
     _accountCard.translatesAutoresizingMaskIntoConstraints = NO;
     _accountCard.isAccessibilityElement = NO;   // 滚轮（adjustable）+ 卡尾钮各自可达
     _accountCard.accessibilityIdentifier = @"zl2_home_account_card";
@@ -824,6 +828,8 @@ static UIImage *ZL2HomeSizedImage(NSString *name, NSString *fallback, CGFloat po
     //      五个正常的实例版本信息高度」）；吸附落定即选用）——
     _versionCard = [[UIView alloc] init];
     _versionCard.backgroundColor = [UIColor clearColor];
+    _versionCard.layer.cornerRadius = [ZL2Theme radiusXL];
+    _versionCard.layer.masksToBounds = YES;
     _versionCard.translatesAutoresizingMaskIntoConstraints = NO;
     _versionCard.isAccessibilityElement = NO;
     _versionCard.accessibilityIdentifier = @"zl2_home_version_card";
@@ -1362,7 +1368,7 @@ static UIImage *ZL2HomeSizedImage(NSString *name, NSString *fallback, CGFloat po
     [constraints addObjectsFromArray:@[
         [menu.trailingAnchor constraintEqualToAnchor:self.view.trailingAnchor constant:-8],
         [content.leadingAnchor constraintEqualToAnchor:self.view.leadingAnchor],
-        [content.trailingAnchor constraintEqualToAnchor:menu.leadingAnchor],
+        [content.trailingAnchor constraintEqualToAnchor:menu.leadingAnchor constant:-8],
     ]];
 
     [NSLayoutConstraint activateConstraints:constraints];

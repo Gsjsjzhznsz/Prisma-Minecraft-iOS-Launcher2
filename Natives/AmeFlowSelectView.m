@@ -19,7 +19,7 @@
 // 远近衰减系数（封面流口径；连续插值无跳变）
 // 选中态以“尺寸带动透明度”：更大的条目必然更不透明。衰减刻意收窄，
 // 保留列表的层级而不再像 iPod Cover Flow 一样夸张、跳动。
-static const CGFloat AmeFlowSelectScalePerStep    = 0.09;  // scale = 1 − 0.09×|d|
+static const CGFloat AmeFlowSelectScalePerStep    = 0.05;  // 轻微层级，避免 Cover Flow 式跳变
 static const CGFloat AmeFlowSelectAlphaFloor      = 0.72;  // 拖拽越界时的可读性下限
 static const CGFloat AmeFlowSelectHideRange       = 2.6;   // |d| > 此值隐藏（可见窗 |d| ≤ 2.4，五枚口径）
 static const CGFloat AmeFlowSelectRubberBand      = 0.35;  // 越界拖拽阻尼（回弹）
