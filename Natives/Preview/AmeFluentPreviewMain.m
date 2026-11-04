@@ -6,7 +6,7 @@
 //   本轮实证：40dp 顶栏 + 内容区，无 rail）+ 横屏（模拟器截图恒横置）：
 //     顶栏：左簇 chevron.left / house.fill 32×32（onSurfaceVariant template，
 //       主页时整簇隐藏）→ 16pt → 页名标题（fontTitleMedium/onSurface；主页 =
-//       CFBundleDisplayName 兜底 @"Prisma Launcher"，其余 = 页名）；右簇
+//       CFBundleDisplayName 兜底 @"Prisma Ⅱ"，其余 = 页名）；右簇
 //       （右缘 12、间距 8）= 任务胶囊（surfaceContainerHigh/radiusXL/高 28/
 //       宽 120：UIProgressView track=outlineVariant bar=primary +
 //       doc.plaintext + 任务数 fontLabelMedium——桩态有活动任务才显示，与
@@ -324,11 +324,8 @@ void UIKit_launchMinecraftSurfaceVC(UIWindow *window, NSDictionary *metadata) {
 // 合法值 home/download/versions/accounts/settings（对应槽位 0-4；"组件"
 // Fluent 陈列页已退役），缺省/非法值回落 home。simctl launch 把 bundle id
 // 之后的参数原样追加到进程 argv，NSProcessInfo.arguments 直接可读
-// ★ Task393：-zl2page versionpicker = 主页 + 延迟自动弹出版本选择封面流
-//   （harness 无法模拟点按；经 @"ZL2HomeShowVersionPicker" 总线入口唤起，
-//   生产代码零测试面污染）——截图延时（sleep 4）内弹层已呈现完毕。
-static BOOL AmePreviewAutoVersionPicker = NO;
-
+// ★ Task400：versionpicker 特例页退役（版本滚轮原地驻主页右栏，主页截图
+//   即含双滚轮；总线/@"ZL2HomeShowVersionPicker" 延迟弹层链一并拆除）
 static NSInteger AmePreviewPageIndexFromLaunchArguments(void) {
     NSArray<NSString *> *args = [[NSProcessInfo processInfo] arguments];
     NSUInteger flagIndex = [args indexOfObject:@"-zl2page"];
@@ -338,10 +335,6 @@ static NSInteger AmePreviewPageIndexFromLaunchArguments(void) {
     if ([page isEqualToString:@"versions"]) return 2;
     if ([page isEqualToString:@"accounts"]) return 3;
     if ([page isEqualToString:@"settings"]) return 4;
-    if ([page isEqualToString:@"versionpicker"]) {
-        AmePreviewAutoVersionPicker = YES;
-        return 0;
-    }
     return 0;
 }
 
@@ -387,13 +380,14 @@ static void AmePreviewPrepareSandbox(void) {
 }
 
 // 顶栏页名（下标 0-4 与槽位一致；0 = 主页 = CFBundleDisplayName 兜底
-// @"Prisma Launcher"——预览 Info.plist 无 CFBundleDisplayName 键必走兜底）
+//   ★ Task400：兜底字面与真机 CFBundleDisplayName 对齐“Prisma Ⅱ”——
+//   原 "Prisma Launcher" 与真机名分叉，截图会被误读为改名）
 static NSString *AmePreviewPageTitle(NSInteger index) {
     static NSArray<NSString *> *titles = nil;
     static dispatch_once_t onceToken;
     dispatch_once(&onceToken, ^{
         NSString *bundleName = [[NSBundle mainBundle] objectForInfoDictionaryKey:@"CFBundleDisplayName"];
-        titles = @[(bundleName ?: @"Prisma Launcher"), @"下载", @"版本", @"账户", @"设置"];
+        titles = @[(bundleName ?: @"Prisma Ⅱ"), @"下载", @"版本", @"账户", @"设置"];
     });
     if (index < 0 || index >= (NSInteger)titles.count) index = 0;
     return titles[index];
@@ -734,15 +728,8 @@ static NSInteger AmePreviewRailSlotForItem(NSUInteger itemIndex) {
     self.window.rootViewController = root;
     [self.window makeKeyAndVisible];
 
-    // ★ Task393：-zl2page versionpicker —— 主页就绪后经总线自动弹出版本
-    //   选择封面流（延迟 2.2s 避开首帧布局；截图延时 4s 内弹层已呈现）
-    if (AmePreviewAutoVersionPicker) {
-        dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(2.2 * NSEC_PER_SEC)),
-                       dispatch_get_main_queue(), ^{
-            [[NSNotificationCenter defaultCenter] postNotificationName:@"ZL2HomeShowVersionPicker"
-                                                                object:nil];
-        });
-    }
+    // ★ Task400：versionpicker 延迟总线弹层块随弹层退役（版本滚轮随主页
+    //   右栏直接呈现，无呈现时序）
     return YES;
 }
 

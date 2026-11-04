@@ -9,12 +9,9 @@
 //   ② 「添加账户」大按钮（44 高，primary 底 onPrimary 前景 fontLabelLarge
 //      radiusS）→ actionSheet 列出旧 AccountListViewController 实际支持的
 //      四种登录方式，逐项进入对应流程（见 .h 头注释）
-//   ③ 账号列表（★ Task393：iPod 式竖排封面流——用户规格 2026-11-03「把所有
-//      账户排成一列，拖到哪里就选中哪里，选中的是正常大小（不要加什么
-//      边框箭头什么乱七八糟的样式），未选中的越远越透明、变小，可以同时
-//      显示五个」：AmeIpodFlowView 承载，条目 = 头像 40 + 用户名/类型横排卡
-//      （surfaceContainer / radiusL，全条目同款零选中装饰）；原行视图
-//      （单选圈/刷新钮/更多钮）退役，刷新/更多动作上收列表下方动作行）
+//   ③ 账号卡列表（每账号一卡：UIControl surfaceContainer / radiusL / 内边距
+//      14，横向 = 单选圈 20pt + 头像 46pt 圆形 + 用户名/类型中列 + 刷新钮
+//      32×32 + 更多钮 32×32）
 //   空态卡：person.crop.circle 68pt onSurfaceVariant + 「未找到可用账号」
 //
 // 行为移植（1:1 旧 AccountListViewController）：
@@ -60,7 +57,6 @@
 // 引头链会让账户页/门禁无谓依赖 shim；定义由真实构建的 libAFNetworking 提供）
 extern NSString * const AFNetworkingOperationFailingURLResponseDataErrorKey;
 #import "utils.h"                 // localize() / parseJSONFromFile()
-#import "AmeIpodFlowView.h"        // ★ Task393：iPod 式竖排封面流（账户列表改版）
 
 #import <AuthenticationServices/AuthenticationServices.h>
 
@@ -95,79 +91,212 @@ static UIImage *ZL2AccountsSystemImage(NSString *name, NSString *fallback) {
     return image;
 }
 
-#pragma mark - Ame393FlowItem（★ Task393 封面流条目：头像 + 名字/类型横排卡）
+// ★ Task400：共享导出（C 符号——主页右栏账户封面流的选中链与本页共用
+//   同一验证集合与第三方判别口径，避免两处各自维护漂移；主页侧只做
+//   前向声明零头文件传递依赖，两 TU 同在 smoke 窄链接清单内）
+NSMutableSet *ZL2AccountsSharedValidatedSet(void) {
+    return ZL2AccountsValidatedSet();
+}
 
-// 用户规格（2026-11-03 bold plan ①）：选中的是正常大小，不加边框/箭头等
-// 任何装饰——条目全部同款（surfaceContainer 卡 + radiusL），选中与未选中
-// 零着色差异，仅由封面流的远近缩放/透明度区分。头像 40 + 名字/类型中列；
-// 刷新/更多动作不再驻条目（小按钮与封面流连续缩放/透明动画冲突），由
-// 列表下方动作行对居中（选中）账户统一承担（见 buildListArea）。
-@interface Ame393FlowItem : UIView
+BOOL ZL2AccountsSharedIsThirdParty(NSDictionary *accountData) {
+    return ZL2AccountsIsThirdParty(accountData);
+}
 
-@property (nonatomic, strong) UIImageView *avatarView;   // 头像 40 圆（异步取图落点）
+
+#pragma mark - ZL2AccountRowView（账号卡行，私有行视图）
+
+// 对标 ZL2 AccountElements AccountItem 卡片解剖（单选圈 + 头像 + 名称/类型
+// 中列 + 刷新/更多右列），规格按本任务布局规格落到 UIKit。行身份由持有方
+// 数组下标索引（无 viewWithTag 状态存取）；行为经 onSelect/onRefresh/onMore
+// 块回调（旧 AME190AccountCardCell ame223_onMenuTapped 块回调同款先例）。
+@interface ZL2AccountRowView : UIControl
+
+@property (nonatomic, strong) UIImageView *radioView;      // 单选圈 circle/circle.fill 20pt
+@property (nonatomic, strong) UIImageView *avatarView;     // 头像 46pt 圆形
 @property (nonatomic, strong) UILabel *nameLabel;          // 用户名 fontLabelLarge
-@property (nonatomic, strong) UILabel *typeLabel;           // 账号类型 fontBodyMedium
+@property (nonatomic, strong) UILabel *typeLabel;          // 账号类型 fontBodyMedium
+@property (nonatomic, strong) UIButton *refreshButton;     // 刷新钮 32×32 arrow.clockwise
+@property (nonatomic, strong) UIButton *moreButton;        // 更多钮 32×32 ellipsis
+@property (nonatomic, strong) UIActivityIndicatorView *spinner; // 忙态占位（替换刷新钮槽位）
+
+@property (nonatomic, copy) void (^onSelect)(void);
+@property (nonatomic, copy) void (^onRefresh)(void);
+@property (nonatomic, copy) void (^onMore)(void);
+
+- (void)configureWithUsername:(NSString *)username
+                     typeText:(NSString *)typeText
+                     selected:(BOOL)selected
+               refreshEnabled:(BOOL)refreshEnabled;
+- (void)setRowBusy:(BOOL)busy;
 
 @end
 
-@implementation Ame393FlowItem
+@implementation ZL2AccountRowView
 
 - (instancetype)initWithFrame:(CGRect)frame {
     self = [super initWithFrame:frame];
     if (self) {
-        self.backgroundColor = [ZL2Theme surfaceContainer];
-        self.layer.cornerRadius = [ZL2Theme radiusL];
-        self.layer.masksToBounds = YES;
-        self.isAccessibilityElement = NO;   // 条目由封面流统一可达（adjustable）
-
-        // —— 头像 40 圆（AvatarManager 异步取图，占位 person.crop.circle.fill）——
-        UIImage *avatarPlaceholder = [ZL2AccountsSystemImage(@"person.crop.circle.fill", @"person.circle.fill")
-            imageWithRenderingMode:UIImageRenderingModeAlwaysTemplate];
-        _avatarView = [[UIImageView alloc] initWithImage:avatarPlaceholder];
-        _avatarView.tintColor = [ZL2Theme onSurfaceVariant];
-        _avatarView.contentMode = UIViewContentModeScaleAspectFill;
-        _avatarView.layer.cornerRadius = 20;   // 40 / 2
-        _avatarView.layer.masksToBounds = YES;
-        _avatarView.translatesAutoresizingMaskIntoConstraints = NO;
-        _avatarView.userInteractionEnabled = NO;
-        [self addSubview:_avatarView];
-
-        // —— 中列：用户名 + 账号类型（原行视图同款字体/色令牌）——
-        _nameLabel = [[UILabel alloc] init];
-        _nameLabel.font = [ZL2Theme fontLabelLarge];
-        _nameLabel.textColor = [ZL2Theme onSurface];
-        _nameLabel.numberOfLines = 1;
-        _nameLabel.lineBreakMode = NSLineBreakByTruncatingTail;
-        _nameLabel.translatesAutoresizingMaskIntoConstraints = NO;
-
-        _typeLabel = [[UILabel alloc] init];
-        _typeLabel.font = [ZL2Theme fontBodyMedium];
-        _typeLabel.textColor = [ZL2Theme onSurfaceVariant];
-        _typeLabel.numberOfLines = 1;
-        _typeLabel.lineBreakMode = NSLineBreakByTruncatingTail;
-        _typeLabel.translatesAutoresizingMaskIntoConstraints = NO;
-
-        UIStackView *textStack = [[UIStackView alloc] init];
-        textStack.axis = UILayoutConstraintAxisVertical;
-        textStack.alignment = UIStackViewAlignmentLeading;
-        textStack.spacing = 2;
-        textStack.translatesAutoresizingMaskIntoConstraints = NO;
-        [textStack addArrangedSubview:_nameLabel];
-        [textStack addArrangedSubview:_typeLabel];
-        [self addSubview:textStack];
-
-        // 条目高 58 由封面流统一钉（viewportHeight 口径）；内部为左右布局
-        [NSLayoutConstraint activateConstraints:@[
-            [_avatarView.leadingAnchor constraintEqualToAnchor:self.leadingAnchor constant:16],
-            [_avatarView.centerYAnchor constraintEqualToAnchor:self.centerYAnchor],
-            [_avatarView.widthAnchor constraintEqualToConstant:40],
-            [_avatarView.heightAnchor constraintEqualToConstant:40],
-            [textStack.leadingAnchor constraintEqualToAnchor:_avatarView.trailingAnchor constant:12],
-            [textStack.centerYAnchor constraintEqualToAnchor:self.centerYAnchor],
-            [textStack.trailingAnchor constraintLessThanOrEqualToAnchor:self.trailingAnchor constant:-16],
-        ]];
+        [self ame_setupRowViews];
     }
     return self;
+}
+
+- (void)ame_setupRowViews {
+    self.translatesAutoresizingMaskIntoConstraints = NO;
+    self.backgroundColor = [ZL2Theme surfaceContainer];
+    self.layer.cornerRadius = [ZL2Theme radiusL];
+    // 行本体不作为单一无障碍元素（否则行内刷新/更多按钮对 VoiceOver 不可达）；
+    // 名称/类型/按钮各自可达（按钮带独立 accessibilityLabel）
+    self.isAccessibilityElement = NO;
+
+    // —— 单选圈（选中 = 当前账号 primary，未选 outline）——
+    _radioView = [[UIImageView alloc] init];
+    _radioView.contentMode = UIViewContentModeScaleAspectFit;
+    _radioView.isAccessibilityElement = NO;
+    _radioView.translatesAutoresizingMaskIntoConstraints = NO;
+    [self addSubview:_radioView];
+
+    // —— 头像（AvatarManager 异步取图，占位 person.crop.circle.fill）——
+    UIImage *avatarPlaceholder = [ZL2AccountsSystemImage(@"person.crop.circle.fill", @"person.circle.fill")
+        imageWithRenderingMode:UIImageRenderingModeAlwaysTemplate];
+    _avatarView = [[UIImageView alloc] initWithImage:avatarPlaceholder];
+    _avatarView.tintColor = [ZL2Theme onSurfaceVariant];
+    _avatarView.contentMode = UIViewContentModeScaleAspectFill;
+    // ★ Task400：MC 头像圆角改超小圆角（用户规格“圆角大小占用正常头像一个
+    //   像素”——1 物理像素 = 1pt ÷ 屏幕 scale；原 23 圆形口径退役）
+    _avatarView.layer.cornerRadius = 1.0 / [UIScreen mainScreen].scale;
+    _avatarView.layer.masksToBounds = YES;
+    _avatarView.isAccessibilityElement = NO;
+    _avatarView.translatesAutoresizingMaskIntoConstraints = NO;
+    [self addSubview:_avatarView];
+
+    // —— 中列：用户名 + 账号类型 ——
+    _nameLabel = [[UILabel alloc] init];
+    _nameLabel.font = [ZL2Theme fontLabelLarge];
+    _nameLabel.textColor = [ZL2Theme onSurface];
+    _nameLabel.numberOfLines = 1;
+    _nameLabel.lineBreakMode = NSLineBreakByTruncatingTail;
+    _nameLabel.translatesAutoresizingMaskIntoConstraints = NO;
+
+    _typeLabel = [[UILabel alloc] init];
+    _typeLabel.font = [ZL2Theme fontBodyMedium];
+    _typeLabel.textColor = [ZL2Theme onSurfaceVariant];
+    _typeLabel.numberOfLines = 1;
+    _typeLabel.lineBreakMode = NSLineBreakByTruncatingTail;
+    _typeLabel.translatesAutoresizingMaskIntoConstraints = NO;
+
+    UIStackView *textStack = [[UIStackView alloc] init];
+    textStack.axis = UILayoutConstraintAxisVertical;
+    textStack.alignment = UIStackViewAlignmentLeading;
+    textStack.spacing = 2;
+    textStack.translatesAutoresizingMaskIntoConstraints = NO;
+    [textStack addArrangedSubview:_nameLabel];
+    [textStack addArrangedSubview:_typeLabel];
+    [self addSubview:textStack];
+
+    // —— 右列：刷新钮（离线禁用 outlineVariant）+ 更多钮 ——
+    _refreshButton = [UIButton buttonWithType:UIButtonTypeSystem];
+    UIImage *refreshImage = ZL2AccountsSystemImage(@"arrow.clockwise", @"arrow.clockwise.circle");
+    [_refreshButton setImage:refreshImage forState:UIControlStateNormal];
+    _refreshButton.translatesAutoresizingMaskIntoConstraints = NO;
+    _refreshButton.accessibilityLabel = localize(@"ame369.acct.refresh_a11y", @"刷新账号");
+    [_refreshButton addTarget:self action:@selector(ame_refreshTapped)
+             forControlEvents:UIControlEventTouchUpInside];
+    [self addSubview:_refreshButton];
+
+    _moreButton = [UIButton buttonWithType:UIButtonTypeSystem];
+    UIImage *moreImage = ZL2AccountsSystemImage(@"ellipsis", @"ellipsis.circle");
+    [_moreButton setImage:moreImage forState:UIControlStateNormal];
+    _moreButton.tintColor = [ZL2Theme onSurfaceVariant];
+    _moreButton.translatesAutoresizingMaskIntoConstraints = NO;
+    _moreButton.accessibilityLabel = localize(@"ame369.common.more_actions", @"更多操作");
+    [_moreButton addTarget:self action:@selector(ame_moreTapped)
+          forControlEvents:UIControlEventTouchUpInside];
+    [self addSubview:_moreButton];
+
+    // —— 忙态指示器（选中/刷新链进行中替换刷新钮槽位，旧链 cell accessory
+    //     加载指示器语义）——
+    _spinner = [[UIActivityIndicatorView alloc] initWithActivityIndicatorStyle:UIActivityIndicatorViewStyleMedium];
+    _spinner.translatesAutoresizingMaskIntoConstraints = NO;
+    _spinner.hidesWhenStopped = YES;
+    _spinner.hidden = YES;
+    [self addSubview:_spinner];
+
+    // 整行点击 = 选用账号（与旧 didSelectRowAtIndexPath 同一条选择链）
+    [self addTarget:self action:@selector(ame_rowTapped)
+   forControlEvents:UIControlEventTouchUpInside];
+
+    [NSLayoutConstraint activateConstraints:@[
+        // 内边距 14（横向）；行高由头像主导（46 + 上下 14）
+        [_radioView.leadingAnchor constraintEqualToAnchor:self.leadingAnchor constant:14],
+        [_radioView.centerYAnchor constraintEqualToAnchor:self.centerYAnchor],
+        [_radioView.widthAnchor constraintEqualToConstant:20],
+        [_radioView.heightAnchor constraintEqualToConstant:20],
+
+        [_avatarView.leadingAnchor constraintEqualToAnchor:_radioView.trailingAnchor constant:12],
+        [_avatarView.centerYAnchor constraintEqualToAnchor:self.centerYAnchor],
+        [_avatarView.widthAnchor constraintEqualToConstant:46],
+        [_avatarView.heightAnchor constraintEqualToConstant:46],
+        [_avatarView.topAnchor constraintGreaterThanOrEqualToAnchor:self.topAnchor constant:14],
+        [_avatarView.bottomAnchor constraintLessThanOrEqualToAnchor:self.bottomAnchor constant:-14],
+
+        [textStack.leadingAnchor constraintEqualToAnchor:_avatarView.trailingAnchor constant:12],
+        [textStack.centerYAnchor constraintEqualToAnchor:self.centerYAnchor],
+        [textStack.trailingAnchor constraintLessThanOrEqualToAnchor:_refreshButton.leadingAnchor constant:-8],
+
+        [_moreButton.trailingAnchor constraintEqualToAnchor:self.trailingAnchor constant:-14],
+        [_moreButton.centerYAnchor constraintEqualToAnchor:self.centerYAnchor],
+        [_moreButton.widthAnchor constraintEqualToConstant:32],
+        [_moreButton.heightAnchor constraintEqualToConstant:32],
+
+        [_refreshButton.trailingAnchor constraintEqualToAnchor:_moreButton.leadingAnchor constant:-4],
+        [_refreshButton.centerYAnchor constraintEqualToAnchor:self.centerYAnchor],
+        [_refreshButton.widthAnchor constraintEqualToConstant:32],
+        [_refreshButton.heightAnchor constraintEqualToConstant:32],
+
+        [_spinner.centerXAnchor constraintEqualToAnchor:_refreshButton.centerXAnchor],
+        [_spinner.centerYAnchor constraintEqualToAnchor:_refreshButton.centerYAnchor],
+    ]];
+    [self.heightAnchor constraintGreaterThanOrEqualToConstant:74].active = YES;
+}
+
+- (void)configureWithUsername:(NSString *)username
+                     typeText:(NSString *)typeText
+                     selected:(BOOL)selected
+               refreshEnabled:(BOOL)refreshEnabled {
+    self.nameLabel.text = username;
+    self.typeLabel.text = typeText;
+
+    UIImage *radio = [ZL2AccountsSystemImage(selected ? @"circle.fill" : @"circle", @"record.circle")
+        imageWithRenderingMode:UIImageRenderingModeAlwaysTemplate];
+    self.radioView.image = radio;
+    self.radioView.tintColor = selected ? [ZL2Theme primary] : [ZL2Theme outline];
+
+    self.refreshButton.enabled = refreshEnabled;
+    self.refreshButton.tintColor = refreshEnabled ? [ZL2Theme primary] : [ZL2Theme outlineVariant];
+}
+
+- (void)setRowBusy:(BOOL)busy {
+    self.refreshButton.hidden = busy;
+    self.refreshButton.enabled = !busy && self.refreshButton.enabled;
+    self.moreButton.enabled = !busy;
+    if (busy) {
+        [self.spinner startAnimating];
+    } else {
+        [self.spinner stopAnimating];
+    }
+}
+
+- (void)ame_rowTapped {
+    if (self.onSelect) self.onSelect();
+}
+
+- (void)ame_refreshTapped {
+    if (self.onRefresh) self.onRefresh();
+}
+
+- (void)ame_moreTapped {
+    if (self.onMore) self.onMore();
 }
 
 @end
@@ -190,12 +319,8 @@ static UIImage *ZL2AccountsSystemImage(NSString *name, NSString *fallback) {
 // ② 添加账号大按钮
 @property (nonatomic, strong) UIControl *addAccountButton;
 
-// ③ 账号列表（★ Task393：iPod 式竖排封面流 + 居中账户动作行）+ 空态
-@property (nonatomic, strong) AmeIpodFlowView *ame393_flowView;
-@property (nonatomic, strong) UIView *ame393_actionsRow;              // 动作行容器（刷新/更多）
-@property (nonatomic, strong) UIButton *ame393_refreshButton;          // 刷新钮 40×40（离线账号禁用）
-@property (nonatomic, strong) UIButton *ame393_moreButton;             // 更多钮 40×40（删除菜单）
-@property (nonatomic, strong) UIActivityIndicatorView *ame393_spinner; // 忙态占刷新钮槽位
+// ③ 账号卡列表 + 空态
+@property (nonatomic, strong) UIStackView *rowsStack;
 @property (nonatomic, strong) UIView *emptyCard;
 @property (nonatomic, strong) UIImageView *emptyIconView;
 @property (nonatomic, strong) UILabel *emptyLabel;
@@ -329,7 +454,7 @@ static UIImage *ZL2AccountsSystemImage(NSString *name, NSString *fallback) {
 
     _identityAvatarView = [[UIImageView alloc] init];
     _identityAvatarView.contentMode = UIViewContentModeScaleAspectFit;
-    _identityAvatarView.layer.cornerRadius = 32;   // 64 / 2
+    _identityAvatarView.layer.cornerRadius = 1.0 / [UIScreen mainScreen].scale;   // ★ Task400：1 物理像素超小圆角（原 32 圆形口径退役）
     _identityAvatarView.layer.masksToBounds = YES;
     _identityAvatarView.translatesAutoresizingMaskIntoConstraints = NO;
 
@@ -403,79 +528,14 @@ static UIImage *ZL2AccountsSystemImage(NSString *name, NSString *fallback) {
     ]];
 }
 
-// ③ 账号列表（★ Task393：iPod 式竖排封面流 + 居中账户动作行）+ 空态卡
-//   用户规格：「把所有账户排成一列，拖到哪里就选中哪里，选中的是正常
-//   大小（不要加什么边框箭头什么乱七八糟的样式），未选中的越远越透明、
-//   变小，可以同时显示五个」——摆位/衰减/拖拽吸附见 AmeIpodFlowView；
-//   动作行（刷新/更多）作用于居中（选中）账户，语义与原行内双钮同源。
+// ③ 账号卡列表（rowsStack，行对象按数组下标索引）+ 空态卡
 - (void)buildListArea {
-    __weak typeof(self) weakSelf = self;
-
-    _ame393_flowView = [[AmeIpodFlowView alloc] init];
-    _ame393_flowView.translatesAutoresizingMaskIntoConstraints = NO;
-    _ame393_flowView.accessibilityLabel = localize(@"login.option.select", @"选择账户");
-    // 拖到哪里就选中哪里：吸附落定且下标变化 → 走原选中链（原整行点击等价）
-    _ame393_flowView.onSettle = ^(NSInteger ame393_index) {
-        if (ame393_index >= 0) [weakSelf selectAccountAtIndex:(NSUInteger)ame393_index];
-    };
-    [_contentStack addArrangedSubview:_ame393_flowView];
-    [NSLayoutConstraint activateConstraints:@[
-        // 同时可见五枚所需视口高（条目 58 + 4 × 步距 68，见 AmeIpodFlowView）
-        [_ame393_flowView.heightAnchor constraintEqualToConstant:_ame393_flowView.viewportHeight],
-    ]];
-
-    // —— 动作行：居中（选中）账户的刷新/更多（原行内双钮上收，40×40 触达面放宽）——
-    _ame393_refreshButton = [UIButton buttonWithType:UIButtonTypeSystem];
-    UIImage *ame393_refreshImage = ZL2AccountsSystemImage(@"arrow.clockwise", @"arrow.clockwise.circle");
-    [_ame393_refreshButton setImage:ame393_refreshImage forState:UIControlStateNormal];
-    _ame393_refreshButton.tintColor = [ZL2Theme primary];
-    _ame393_refreshButton.translatesAutoresizingMaskIntoConstraints = NO;
-    _ame393_refreshButton.accessibilityLabel = localize(@"ame369.acct.refresh_a11y", @"刷新账号");
-    [_ame393_refreshButton addTarget:self
-                              action:@selector(ame393_refreshCenteredAccount)
-                    forControlEvents:UIControlEventTouchUpInside];
-
-    _ame393_moreButton = [UIButton buttonWithType:UIButtonTypeSystem];
-    UIImage *ame393_moreImage = ZL2AccountsSystemImage(@"ellipsis", @"ellipsis.circle");
-    [_ame393_moreButton setImage:ame393_moreImage forState:UIControlStateNormal];
-    _ame393_moreButton.tintColor = [ZL2Theme onSurfaceVariant];
-    _ame393_moreButton.translatesAutoresizingMaskIntoConstraints = NO;
-    _ame393_moreButton.accessibilityLabel = localize(@"ame369.common.more_actions", @"更多操作");
-    [_ame393_moreButton addTarget:self
-                           action:@selector(ame393_moreMenuForCenteredAccount)
-                 forControlEvents:UIControlEventTouchUpInside];
-
-    _ame393_actionsRow = [[UIView alloc] init];
-    _ame393_actionsRow.translatesAutoresizingMaskIntoConstraints = NO;
-    [_contentStack addArrangedSubview:_ame393_actionsRow];
-
-    UIStackView *ame393_buttonStack = [[UIStackView alloc] init];
-    ame393_buttonStack.axis = UILayoutConstraintAxisHorizontal;
-    ame393_buttonStack.alignment = UIStackViewAlignmentCenter;
-    ame393_buttonStack.spacing = 36;
-    ame393_buttonStack.translatesAutoresizingMaskIntoConstraints = NO;
-    [ame393_buttonStack addArrangedSubview:_ame393_refreshButton];
-    [ame393_buttonStack addArrangedSubview:_ame393_moreButton];
-    [_ame393_actionsRow addSubview:ame393_buttonStack];
-
-    // 忙态指示器（选中/刷新链进行中占刷新钮槽位，原行内 spinner 语义上收）
-    _ame393_spinner = [[UIActivityIndicatorView alloc] initWithActivityIndicatorStyle:UIActivityIndicatorViewStyleMedium];
-    _ame393_spinner.translatesAutoresizingMaskIntoConstraints = NO;
-    _ame393_spinner.hidesWhenStopped = YES;
-    _ame393_spinner.hidden = YES;
-    [_ame393_actionsRow addSubview:_ame393_spinner];
-
-    [NSLayoutConstraint activateConstraints:@[
-        [_ame393_refreshButton.widthAnchor constraintEqualToConstant:40],
-        [_ame393_refreshButton.heightAnchor constraintEqualToConstant:40],
-        [_ame393_moreButton.widthAnchor constraintEqualToConstant:40],
-        [_ame393_moreButton.heightAnchor constraintEqualToConstant:40],
-        [_ame393_spinner.centerXAnchor constraintEqualToAnchor:_ame393_refreshButton.centerXAnchor],
-        [_ame393_spinner.centerYAnchor constraintEqualToAnchor:_ame393_refreshButton.centerYAnchor],
-        [ame393_buttonStack.centerXAnchor constraintEqualToAnchor:_ame393_actionsRow.centerXAnchor],
-        [ame393_buttonStack.centerYAnchor constraintEqualToAnchor:_ame393_actionsRow.centerYAnchor],
-        [_ame393_actionsRow.heightAnchor constraintEqualToConstant:44],
-    ]];
+    _rowsStack = [[UIStackView alloc] init];
+    _rowsStack.axis = UILayoutConstraintAxisVertical;
+    _rowsStack.alignment = UIStackViewAlignmentFill;
+    _rowsStack.spacing = 8;
+    _rowsStack.translatesAutoresizingMaskIntoConstraints = NO;
+    [_contentStack addArrangedSubview:_rowsStack];
 
     _emptyCard = [[UIView alloc] init];
     _emptyCard.backgroundColor = [ZL2Theme surfaceContainer];
@@ -555,13 +615,11 @@ static UIImage *ZL2AccountsSystemImage(NSString *name, NSString *fallback) {
     }
 
     [self rebuildIdentityCard];
-    [self rebuildFlow];
+    [self rebuildRows];
 
     BOOL hasAccounts = (self.accountList.count > 0);
     self.emptyCard.hidden = hasAccounts;
-    // ★ Task393：封面流 + 动作行随空态塌缩（原 rowsStack 同语义）
-    self.ame393_flowView.hidden = !hasAccounts;
-    self.ame393_actionsRow.hidden = !hasAccounts;
+    self.rowsStack.hidden = !hasAccounts;
 }
 
 // —— ① 视觉卡：当前账号头像/名字/类型（无账号「未登录」，同主页口径）——
@@ -612,44 +670,51 @@ static UIImage *ZL2AccountsSystemImage(NSString *name, NSString *fallback) {
     }
 }
 
-// —— ③ 封面流重建（★ Task393：条目 = 账户卡，全部同款零选中装饰；
-//    初始落定 = 当前选中账户（accountId 精确比对，同名账户也能正确区分）；
-//    头像异步取（AvatarManager 三层回退链；nil 保持占位图标）——
-- (void)rebuildFlow {
+// —— ③ 行列表重建（旧行全部拆除重建；行身份 = 数组下标）——
+- (void)rebuildRows {
+    for (UIView *sub in _rowsStack.arrangedSubviews) {
+        [_rowsStack removeArrangedSubview:sub];
+        [sub removeFromSuperview];
+    }
+
     NSString *selectedId = [self currentSelectedAccountId];
-    __block NSUInteger ame393_selectedIdx = 0;   // 枚举块内赋值（CI 实锤 r1：缺 __block 编译雷）
-    NSMutableArray<Ame393FlowItem *> *ame393_items = [NSMutableArray array];
+    __weak typeof(self) weakSelf = self;
 
     [self.accountList enumerateObjectsUsingBlock:^(NSDictionary *accountData, NSUInteger idx, BOOL *stop) {
-        Ame393FlowItem *ame393_item = [[Ame393FlowItem alloc] init];
+        ZL2AccountRowView *row = [[ZL2AccountRowView alloc] init];
 
         // 标题 = 账号名（Demo 账户去掉前缀展示，旧 cellForRow 同款）
         NSString *displayName = accountData[@"username"] ?: @"";
         if ([displayName hasPrefix:@"Demo."]) {
             displayName = [displayName substringFromIndex:5];
         }
-        ame393_item.nameLabel.text = displayName;
-        ame393_item.typeLabel.text = [self typeTextForAccountData:accountData];
 
-        if (selectedId.length > 0 && [selectedId isEqualToString:accountData[@"accountId"]]) {
-            ame393_selectedIdx = idx;
-        }
+        // 选中态：accountId 精确比对（同名账户也能正确区分）
+        BOOL isCurrentSelected = (selectedId.length > 0 &&
+                                  [selectedId isEqualToString:accountData[@"accountId"]]);
 
-        [ame393_items addObject:ame393_item];
+        [row configureWithUsername:displayName
+                          typeText:[self typeTextForAccountData:accountData]
+                          selected:isCurrentSelected
+                    refreshEnabled:[self refreshEnabledForAccountData:accountData]];
 
-        // 弱引用条目：取图回调晚到不吊命已拆条目
-        __weak Ame393FlowItem *weakItem = ame393_item;
+        NSInteger capturedIndex = (NSInteger)idx;
+        // 弱引用行对象：onMore 块若强持有 row 会与 row→block 形成环
+        __weak ZL2AccountRowView *weakRow = row;
+        row.onSelect  = ^{ [weakSelf selectAccountAtIndex:capturedIndex]; };
+        row.onRefresh = ^{ [weakSelf refreshAccountAtIndex:capturedIndex]; };
+        row.onMore    = ^{ [weakSelf showAccountMenuForRow:weakRow atIndex:capturedIndex]; };
+
+        [weakSelf.rowsStack addArrangedSubview:row];
+
+        // 头像异步取（AvatarManager 三层回退链；nil 保持占位图标）
         [[AvatarManager sharedManager] ame185_fetchAvatarForAuthData:accountData completion:^(UIImage *image) {
-            if (image && weakItem) {
-                weakItem.avatarView.image = image;   // 默认渲染，圆角裁切
-                weakItem.avatarView.tintColor = nil;
+            if (image && weakRow) {
+                weakRow.avatarView.image = image;   // 默认渲染，圆角裁切
+                weakRow.avatarView.tintColor = nil;
             }
         }];
     }];
-
-    [self.ame393_flowView configureItems:ame393_items];
-    [self.ame393_flowView setSelectedIndex:(NSInteger)ame393_selectedIdx animated:NO];
-    [self ame393_refreshActionState];
 }
 
 // 当前选中账户的 accountId（BaseAuthenticator.current.authData，旧链同款）
@@ -701,51 +766,22 @@ static UIImage *ZL2AccountsSystemImage(NSString *name, NSString *fallback) {
 - (void)setInteractionLocked:(BOOL)locked {
     self.modalInPresentation = locked;
     self.view.userInteractionEnabled = !locked;
-    // ★ Task393：封面流手势锁（拖拽/点按随锁冻结，原行内钮可达性等价）
-    self.ame393_flowView.interactionLocked = locked;
     if (!locked) {
-        [self ame393_setFlowBusy:NO];
+        for (UIView *sub in self.rowsStack.arrangedSubviews) {
+            if ([sub isKindOfClass:[ZL2AccountRowView class]]) {
+                [(ZL2AccountRowView *)sub setRowBusy:NO];
+            }
+        }
     }
 }
 
-// ★ Task393：忙态占位上收动作行（原行内 spinner 槽位语义：选中/刷新链
-//   进行中占刷新钮位；行视图退役后不再按下标定位——忙态恒属居中账户）
-- (void)ame393_setFlowBusy:(BOOL)busy {
-    if (busy) {
-        [self.ame393_spinner startAnimating];
-    } else {
-        [self.ame393_spinner stopAnimating];
+- (void)setRowBusy:(BOOL)busy atIndex:(NSUInteger)index {
+    NSArray *rows = self.rowsStack.arrangedSubviews;
+    if (index >= rows.count) return;
+    UIView *row = rows[index];
+    if ([row isKindOfClass:[ZL2AccountRowView class]]) {
+        [(ZL2AccountRowView *)row setRowBusy:busy];
     }
-    self.ame393_refreshButton.hidden = busy;
-    self.ame393_moreButton.enabled = !busy;
-}
-
-// 动作行刷新钮可用性 = 居中（选中）账户是否在线账号（原行内规则上收：
-// ZL2 AccountElements L350 `accountType != LOCAL` × 本仓判定口径）
-- (void)ame393_refreshActionState {
-    NSInteger ame393_idx = self.ame393_flowView.selectedIndex;
-    BOOL ame393_can = NO;
-    if (self.accountList.count > 0 && ame393_idx >= 0
-        && (NSUInteger)ame393_idx < self.accountList.count) {
-        ame393_can = [self refreshEnabledForAccountData:self.accountList[(NSUInteger)ame393_idx]];
-    }
-    self.ame393_refreshButton.enabled = ame393_can;
-    self.ame393_refreshButton.tintColor = ame393_can ? [ZL2Theme primary] : [ZL2Theme outlineVariant];
-}
-
-// —— 动作行：居中（选中）账户的刷新 / 更多（原行内双钮语义上收）——
-- (void)ame393_refreshCenteredAccount {
-    if (self.ame393_flowView.interactionLocked) return;
-    NSInteger ame393_idx = self.ame393_flowView.selectedIndex;
-    if (ame393_idx < 0 || (NSUInteger)ame393_idx >= self.accountList.count) return;
-    [self refreshAccountAtIndex:(NSUInteger)ame393_idx];
-}
-
-- (void)ame393_moreMenuForCenteredAccount {
-    if (self.ame393_flowView.interactionLocked) return;
-    NSInteger ame393_idx = self.ame393_flowView.selectedIndex;
-    if (ame393_idx < 0 || (NSUInteger)ame393_idx >= self.accountList.count) return;
-    [self ame393_showAccountMenuAtIndex:(NSUInteger)ame393_idx];
 }
 
 // 选中/登录/刷新成功收尾：恢复交互 + 重建列表 + 发 @"UpdateAccountInfo"
@@ -772,7 +808,7 @@ static UIImage *ZL2AccountsSystemImage(NSString *name, NSString *fallback) {
 
     self.modalInPresentation = YES;
     self.view.userInteractionEnabled = NO;
-    [self ame393_setFlowBusy:YES];
+    [self setRowBusy:YES atIndex:index];
 
     if (ZL2AccountsIsThirdParty(accountData)) {
         // 第三方：Task128 zl2 同款 isSessionValidated——本会话已通过服务端
@@ -827,7 +863,7 @@ static UIImage *ZL2AccountsSystemImage(NSString *name, NSString *fallback) {
 
     self.modalInPresentation = YES;
     self.view.userInteractionEnabled = NO;
-    [self ame393_setFlowBusy:YES];
+    [self setRowBusy:YES atIndex:index];
 
     __weak typeof(self) weakSelf = self;
     if (ZL2AccountsIsThirdParty(accountData)) {
@@ -853,7 +889,7 @@ static UIImage *ZL2AccountsSystemImage(NSString *name, NSString *fallback) {
 }
 
 // —— 更多菜单（UIAlertController actionSheet；只移植旧 VC 真实存在的操作）——
-- (void)ame393_showAccountMenuAtIndex:(NSUInteger)index {
+- (void)showAccountMenuForRow:(ZL2AccountRowView *)row atIndex:(NSUInteger)index {
     if (index >= self.accountList.count) return;
     __weak typeof(self) weakSelf = self;
 
@@ -868,9 +904,9 @@ static UIImage *ZL2AccountsSystemImage(NSString *name, NSString *fallback) {
     [sheet addAction:[UIAlertAction actionWithTitle:localize(@"Cancel", nil)
                                               style:UIAlertActionStyleCancel
                                             handler:nil]];
-    // ★ Task393：popover 锚点改动作行更多钮（原行内 moreButton 同语义防御）
-    sheet.popoverPresentationController.sourceView = self.ame393_moreButton;
-    sheet.popoverPresentationController.sourceRect = self.ame393_moreButton.bounds;
+    // iPad/LiveContainer popover 锚点（旧链同款防御）
+    sheet.popoverPresentationController.sourceView = row;
+    sheet.popoverPresentationController.sourceRect = row.moreButton.frame;
     [self presentViewController:sheet animated:YES completion:nil];
 }
 

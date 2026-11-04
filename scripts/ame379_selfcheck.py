@@ -131,14 +131,15 @@ check("C7 仓库索引同步（index.json version/size/sha256 = 实际 zip）", 
 
 # ══ D 线：主页右栏复位 ═══════════════════════════════════════════
 
-check("D1 瓦片构建调用位（版本卡之后、弹性占位之前 = 账号/版本卡复位顶部）",
-      home.index("[self ame378_buildQuickNav];") > home.index("_versionCard = [[ZL2HomeTapControl alloc] init];")
-      and home.index("[self ame378_buildQuickNav];") < home.index("[_menuStack addArrangedSubview:spacer];"))
+check("D1 瓦片构建调用位（★Task400 重锚：五瓦片卡驻右栏顶——用户复诉「五个按钮在顶上，你移到中间干啥」；Task379「瓦片随账号/版本卡之后」与弹性占位口径随卡片化滚动区退役）",
+      home.index("[self ame378_buildQuickNav];") > home.index("_quickNavCard = [[UIView alloc] init];")
+      and home.index("[self ame378_buildQuickNav];") < home.index("_accountFlow = [[AmeIpodFlowView alloc] init];"))
 
-check("D2 右栏列序（账号卡 → 版本卡 → 瓦片 → 占位 → 启动组）",
-      home.index("_accountCard = [[ZL2HomeTapControl alloc] init];")
-      < home.index("_versionCard = [[ZL2HomeTapControl alloc] init];")
-      < home.index("[self ame378_buildQuickNav];"))
+check("D2 右栏列序（★Task400 重锚：瓦片卡 → 账户滚轮卡 → 版本滚轮卡（menuStack arranged 序）+ 启动组卡钉底（滚动区底缘锚启动卡顶 - 卡间隙））",
+      home.index("[_menuStack addArrangedSubview:_quickNavCard];")
+      < home.index("[_menuStack addArrangedSubview:_accountCard];")
+      < home.index("[_menuStack addArrangedSubview:_versionCard];")
+      and "[_menuScrollView.bottomAnchor constraintEqualToAnchor:_launchCard.topAnchor constant:-ZL2HomeCardGap]," in home)
 
 check("D3 五瓦片规格不变（构建器在位；★Task392 重锚：图标减半 55→27.5 一行化，规格细节由 ame378 门禁守）",
       "- (void)ame378_buildQuickNav {" in home
