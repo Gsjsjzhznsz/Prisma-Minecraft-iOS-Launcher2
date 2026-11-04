@@ -1676,7 +1676,8 @@ static UIImage *ZL2HomeSizedImage(NSString *name, NSString *fallback, CGFloat po
     [self ame400_reloadAccountList];
 
     NSString *ame400_selectedId = nil;
-    NSDictionary *ame400_currentData = BaseAuthenticator.current.authData;
+    BaseAuthenticator *ame400_current = BaseAuthenticator.current;   // +current 返回 id，先转型（CI 实锤：.authData 直取编译雷）
+    NSDictionary *ame400_currentData = [ame400_current isKindOfClass:[BaseAuthenticator class]] ? ame400_current.authData : nil;
     if ([ame400_currentData isKindOfClass:[NSDictionary class]]) {
         ame400_selectedId = ame400_currentData[@"accountId"] ?: ame400_currentData[@"username"];
     }
@@ -1834,7 +1835,7 @@ static UIImage *ZL2HomeSizedImage(NSString *name, NSString *fallback, CGFloat po
     ame400_avatar.image = [ame400_placeholder imageWithRenderingMode:UIImageRenderingModeAlwaysTemplate];
     ame400_avatar.tintColor = [ZL2Theme onSurfaceVariant];
     ame400_avatar.contentMode = UIViewContentModeScaleAspectFit;
-    ame400_avatar.isUserInteractionEnabled = NO;
+    ame400_avatar.userInteractionEnabled = NO;
     ame400_avatar.translatesAutoresizingMaskIntoConstraints = NO;
     [ame400_item addSubview:ame400_avatar];
 
@@ -1887,7 +1888,7 @@ static UIImage *ZL2HomeSizedImage(NSString *name, NSString *fallback, CGFloat po
     // ★ Task400：MC 头像 1 物理像素超小圆角（1pt ÷ 屏幕 scale；原圆形口径退役）
     ame400_avatarView.layer.cornerRadius = 1.0 / [UIScreen mainScreen].scale;
     ame400_avatarView.layer.masksToBounds = YES;
-    ame400_avatarView.isUserInteractionEnabled = NO;
+    ame400_avatarView.userInteractionEnabled = NO;
     ame400_avatarView.translatesAutoresizingMaskIntoConstraints = NO;
     [ame400_item addSubview:ame400_avatarView];
 
@@ -1951,7 +1952,7 @@ static UIImage *ZL2HomeSizedImage(NSString *name, NSString *fallback, CGFloat po
     ame400_iconView.image = [ame400_fallback imageWithRenderingMode:UIImageRenderingModeAlwaysTemplate];
     ame400_iconView.tintColor = [ZL2Theme onSurfaceVariant];
     ame400_iconView.contentMode = UIViewContentModeScaleAspectFit;
-    ame400_iconView.isUserInteractionEnabled = NO;
+    ame400_iconView.userInteractionEnabled = NO;
     ame400_iconView.translatesAutoresizingMaskIntoConstraints = NO;
     [ame400_item addSubview:ame400_iconView];
 
