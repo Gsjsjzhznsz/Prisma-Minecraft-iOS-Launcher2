@@ -85,7 +85,7 @@ void UIKit_launchMinecraftSurfaceVC(UIWindow *window, NSDictionary *metadata);
 #import "LauncherPreferences.h" // Task323：profile 覆盖 setPrefString/setPrefInt（旧链同款）
 #import "utils.h"   // localize()
 #import "AmePluginRuntime.h" // ★Task328：插件贡献行计数（主页直达 chip 可见性）
-#import "AmeIpodFlowView.h"  // ★ Task393：iPod 式竖排封面流（★ Task400 起驻主页右栏原地）
+#import "AmeFlowSelectView.h"  // ★ Task393 封面流选择器（★ Task401 更名+横轴化，账户横排/版本竖排双驻主页右栏）
 #import "authenticator/ThirdPartyAuthenticator.h" // ★ Task400：账户滚轮选中链（第三方 refreshToken）
 #import "NMToast.h"  // ★ Task400：选中链 stale 降级非侵入提示（账户页同款）
 
@@ -118,15 +118,20 @@ static const CGFloat ZL2HomeCardMinWidth     = 140;   // 窄屏降列阈值（�
 // ActionMenu 组件高度
 static const CGFloat ZL2HomeLaunchButtonHeight = 48;  // 大启动钮（ScalingActionButton 48.dp）
 
-// ★ Task400：右栏卡片化口径（用户规格第 4 条：右栏各卡（头像/游戏版本/五瓦片/
-//   启动插件钮）视为一个个整体——栏容器背景透明透出启动器背景，卡间间隙 =
-//   右侧栏距屏幕边缘的距离（Task392 四边 8pt 同值），圆角 = 右侧栏圆角
-//   （radiusXL）；第 3 条：五瓦片卡驻顶）
+// ★ Task401：右栏口径（用户规格 2026-11-04 三点纠错）：
+//   ① 保留原来的右边栏（整块面板：surfaceContainer + radiusXL + 四边 8pt，
+//     Task392 原样）——面板不拆除；② 每个卡片区域在面板上抠成透明窗：
+//     卡底透明直透启动器背景（背景白→卡窗即白），卡间间隙 = 栏距屏边
+//     8pt，卡窗圆角 = 右侧栏圆角 radiusXL；③ 账户卡 = 原头像+名称样式
+//     横排五枚封面流（水平拖动选择）；版本卡 = 竖排封面流占五个正常
+//     实例版本信息高度；④ 五瓦片卡驻顶；启动组卡钉底。
 static const CGFloat ZL2HomeCardGap            = 8;   // 卡间间隙 = 栏距屏边 8pt（用户规格）
 static const CGFloat ZL2HomeCardPadding        = 8;   // 卡内边距（与卡间隙同律）
-static const CGFloat ZL2HomeAccountFlowItemH   = 58;  // 账户滚轮条目高（头像 40 横排，账户页封面流同款）
+static const CGFloat ZL2HomeAccountWheelH      = 88;  // 账户横排滚轮视口高（头像 32 + 名称/类型两行 + 上下留白）
+static const CGFloat ZL2HomeAccountEntryAvatar = 32;  // 横排条目头像边长（原头像卡同语言等比缩位）
+static const CGFloat ZL2HomeAccountFlowGapH    = 6;   // 横排条目间隙（五等分槽位均匀留白）
 static const CGFloat ZL2HomeVersionFlowItemH   = 64;  // 版本滚轮条目高（图标 40 + 双行文 =「五个正常的实例版本信息高度」口径）
-static const CGFloat ZL2HomeFlowItemGap        = 10;  // 条目间隙（实例卡图标→名称间隙参照，Task393 用户规格沿用）
+static const CGFloat ZL2HomeFlowItemGap        = 10;  // 竖排条目间隙（实例卡图标→名称间隙参照，Task393 用户规格沿用）
 static const CGFloat ZL2HomeCardFooterHeight   = 32;  // 卡尾动作行钮边长（账户管理/刷新/齿轮）
 
 // ★ Task378 五入口快航瓦片（顶栏退役承接：壳 RailItem×5 → 本栏顶部）
@@ -426,9 +431,12 @@ static UIImage *ZL2HomeSizedImage(NSString *name, NSString *fallback, CGFloat po
 //   「五个按钮在顶上」；一行×5 fillEqually，图标 27.5）
 @property (nonatomic, strong) UIView *quickNavCard;
 @property (nonatomic, strong) UIStackView *quickNavWrap;
-// ★ Task400：右栏卡片化——中段滚动区（瓦片/账户滚轮/版本滚轮三卡，总高
-//   超出屏高时滚动）+ 启动组卡钉底永可见
+// ★ Task400/Task401：右栏卡片化——中段滚动区（瓦片/账户滚轮/版本滚轮三卡，
+//   总高超出屏高时滚动）+ 启动组卡钉底永可见；★ Task401 面板背板（原右边
+//   栏整块灰面板还原体：surfaceContainer + radiusXL，layer.mask 按四卡
+//   窗位抠洞 = 卡窗透出启动器背景）
 @property (nonatomic, strong) UIScrollView *menuScrollView;
+@property (nonatomic, strong) UIView *panelBackdrop;
 @property (nonatomic, strong) UIView *launchCard;
 @property (nonatomic, strong) UIStackView *launchStack;
 // 当前停靠边约束组（换边时整组替换：YES = 停靠右侧）
@@ -437,20 +445,22 @@ static UIImage *ZL2HomeSizedImage(NSString *name, NSString *fallback, CGFloat po
 @property (nonatomic, assign) NSInteger lastColumnCount;
 @property (nonatomic, assign) CGFloat lastGridWidth;   // ★ Task387：上次布局网格宽（宽度变化即失效重排）
 
-// —— ★ Task400：ActionMenu 账户封面流卡（iPod 式原地滚轮，替代原头像+
-//    名称单卡——用户规格第 2 条「用相同方式在原地做出一样的横排效果」）——
+// —— ★ Task400/Task401：ActionMenu 账户封面流卡（原头像+名称卡原地横排
+//    五枚封面流——用户规格「账户是用原来的样式横排五个作列表选择」）——
 @property (nonatomic, strong) UIView *accountCard;
-@property (nonatomic, strong) AmeIpodFlowView *accountFlow;
+@property (nonatomic, strong) AmeFlowSelectView *accountFlow;
 @property (nonatomic, strong) ZL2HomeTapControl *accountManageButton;   // 卡尾账户管理小钮
 @property (nonatomic, strong) UIActivityIndicatorView *accountSpinner; // 选中链忙态占位
 @property (nonatomic, strong) NSMutableArray<NSDictionary *> *ame400_accountList;   // 账户数据源（accounts 目录扫描）
+@property (nonatomic, copy, nullable) NSArray<NSString *> *ame400_accountKeys;      // 上轮条目键序（数据未变则免重建防吸附回跳）
 
-// —— ★ Task400：ActionMenu 版本封面流卡（iPod 式原地滚轮，占五个正常
+// —— ★ Task400/Task401：ActionMenu 版本封面流卡（原地竖排滚轮，占五个正常
 //    实例版本信息高度——用户规格「实例版本也一样改」）——
 @property (nonatomic, strong) UIView *versionCard;
-@property (nonatomic, strong) AmeIpodFlowView *versionFlow;
+@property (nonatomic, strong) AmeFlowSelectView *versionFlow;
 @property (nonatomic, strong) ZL2HomeTapControl *versionRefreshButton;  // 卡尾刷新小钮
 @property (nonatomic, strong) ZL2HomeTapControl *versionSettingsButton; // 卡尾齿轮小钮
+@property (nonatomic, copy, nullable) NSArray<NSString *> *ame400_versionRowNames;  // 上轮行名序（数据未变则免重建防吸附回跳）
 
 // —— ActionMenu：大启动钮 + 状态行 + 停靠提示 ——
 @property (nonatomic, strong) UIControl *launchButton;
@@ -542,6 +552,8 @@ static UIImage *ZL2HomeSizedImage(NSString *name, NSString *fallback, CGFloat po
 
 - (void)viewDidLayoutSubviews {
     [super viewDidLayoutSubviews];
+    // ★ Task401：面板卡窗随布局实时重抠（旋转/换边/滚轮重建后窗口位移动）
+    [self ame_refreshPanelMask];
     // ★ Task387：卡片自适应根修——原实现仅在列数（2/3）变化时失效布局，
     //   右栏/侧栏几何变化（折叠侧边栏、窗口缩放、旋转）导致的同列数宽度
     //   变化全部漏掉：sizeForItem 持旧宽算卡宽，流式布局把余量聚中 = 两列
@@ -554,6 +566,61 @@ static UIImage *ZL2HomeSizedImage(NSString *name, NSString *fallback, CGFloat po
         self.lastColumnCount = columns;
         self.lastGridWidth = ame387_width;
         [self.gridView.collectionViewLayout invalidateLayout];
+    }
+}
+
+#pragma mark - ★ Task401 面板卡窗挖洞（灰面板还原体 + even-odd mask）
+
+// 面板背板重抠：外轮廓 = 面板圆角矩形（radiusXL = 右侧栏圆角），洞 = 四张
+// 卡窗（五瓦片/账户滚轮/版本滚轮/启动组，圆角同 radiusXL）；even-odd 填充
+// 规则下洞区域 alpha = 0 → 灰面在卡窗处透出启动器背景（背景白→卡窗即白）。
+// 卡窗 frame 经 convertRect 取自当前滚动位相，滚动中逐帧重抠（成本 =
+// 五段路径重建，可忽略）。必须在主线程且有尺寸后调用（viewDidLayoutSubviews
+// / scrollViewDidScroll 双驱动保证）。
+- (void)ame_refreshPanelMask {
+    CGSize ame401_size = self.actionMenu.bounds.size;
+    if (ame401_size.width < 1.0 || ame401_size.height < 1.0) return;
+
+    UIBezierPath *ame401_path = [UIBezierPath
+        bezierPathWithRoundedRect:CGRectMake(0, 0, ame401_size.width, ame401_size.height)
+                     cornerRadius:[ZL2Theme radiusXL]];
+
+    CGFloat ame401_radius = [ZL2Theme radiusXL];
+    CGRect ame401_scrollFrame = [self.menuScrollView convertRect:self.menuScrollView.bounds
+                                                          toView:self.actionMenu];
+    NSArray<UIView *> *ame401_cards = @[self.quickNavCard, self.accountCard,
+                                        self.versionCard, self.launchCard];
+    for (UIView *ame401_card in ame401_cards) {
+        if (ame401_card == nil || ame401_card.hidden) continue;
+        CGRect ame401_r = [ame401_card convertRect:ame401_card.bounds
+                                            toView:self.actionMenu];
+        if (ame401_r.size.width < 1.0 || ame401_r.size.height < 1.0) continue;
+        // 卡窗洞与滚动区裁剪相交：滚动出视口的卡不越权吃掉面板边缘灰边
+        //（启动组卡钉底在滚动区外，不相交）
+        if (ame401_card != self.launchCard) {
+            CGRect ame401_clipped = CGRectIntersection(ame401_r, ame401_scrollFrame);
+            if (CGRectIsNull(ame401_clipped)) continue;
+            ame401_r = ame401_clipped;
+        }
+        [ame401_path appendPath:[UIBezierPath bezierPathWithRoundedRect:ame401_r
+                                                           cornerRadius:ame401_radius]];
+    }
+    ame401_path.usesEvenOddFillRule = YES;
+
+    CAShapeLayer *ame401_mask = (CAShapeLayer *)self.panelBackdrop.layer.mask;
+    if (![ame401_mask isKindOfClass:[CAShapeLayer class]]) {
+        ame401_mask = [[CAShapeLayer alloc] init];
+        self.panelBackdrop.layer.mask = ame401_mask;
+    }
+    ame401_mask.frame = self.panelBackdrop.bounds;
+    ame401_mask.path = ame401_path.CGPath;
+}
+
+// ★ Task401：中段滚动时卡窗位相连续变 → 逐帧重抠（网格滚动同样回调本方法，
+// 以 scrollView 身份分流）
+- (void)scrollViewDidScroll:(UIScrollView *)scrollView {
+    if (scrollView == self.menuScrollView) {
+        [self ame_refreshPanelMask];
     }
 }
 
@@ -575,32 +642,39 @@ static UIImage *ZL2HomeSizedImage(NSString *name, NSString *fallback, CGFloat po
     [self ame_buildEmptyState];
 }
 
-/// ActionMenu 竖排（★ Task400 卡片化重构——用户规格第 4 条：「将右边栏的
-///   三个卡片（头像、游戏版本、五个按钮、启动和插件的按钮），视为一个个
-///   整体，将每个卡片的背景透明（而呈现出启动器背景），每个卡片中间都要
-///   留点间隙（右侧栏距离屏幕边缘的距离）和圆角（右侧栏的圆角）」）：
-///   栏容器本体背景退役 → 间隙与四周透出启动器背景；四张独立卡
-///   （surfaceContainer + radiusXL = 右侧栏圆角同款）之间 8pt 间隙
-///   （= Task392 栏距屏幕边缘四边 8pt 同值）：
-///     ① 五瓦片卡（驻顶——用户规格第 3 条「五个按钮在顶上」）
-///     ② 账户封面流卡（iPod 式原地滚轮 = 原头像+名称卡同位横排条目——
-///        用户规格第 2 条「用相同方式在原地做出一样的横排效果」）
-///     ③ 版本封面流卡（iPod 式原地滚轮，占五个正常实例版本信息高度）
-///     ④ 启动组卡（状态行/大启动钮/插件 chip/停靠提示，钉列底永可见）
-///   双滚轮总高（5+5 行）超出屏高时中段滚动区滚动，启动组不受影响；
-///   停靠边只决定整列贴左/贴右。
+/// ActionMenu 竖排（★ Task401 面板还原+卡窗透明——用户规格 2026-11-04：
+///   「保留原来的右边栏，每一个卡片的颜色是透明（透明到启动器背景，
+///   例如背景是白色，右侧栏是灰色，那么透明后就应该是白色）」）：
+///   - 整块灰面板还原（panelBackdrop：surfaceContainer + radiusXL，
+///     Task392 原样口径），不拆除；
+///   - 四张卡区（五瓦片/账户横排滚轮/版本竖排滚轮/启动组）在面板上
+///     抠成透明窗（layer.mask even-odd 挖洞）：卡窗处直透启动器背景
+///     （背景白→卡窗即白），卡窗圆角 = 右侧栏圆角 radiusXL；
+///   - 卡间间隙与面板四周留白同值 8pt（= 栏距屏边距离，用户规格
+///     「每个卡片中间都要留点间隙（右侧栏距离屏幕边缘的距离）」）；
+///   - 面板随滚动/布局实时重抠（scrollViewDidScroll + layoutSubviews）；
+///     ① 五瓦片卡窗（驻顶——用户规格「五个按钮在顶上」）
+///     ② 账户横排滚轮卡窗（原头像+名称样式横排五枚，水平拖动选择）
+///     ③ 版本竖排滚轮卡窗（占五个正常实例版本信息高度）
+///     ④ 启动组卡窗（状态行/大启动钮/插件 chip/停靠提示，钉底永可见）
 - (void)ame_buildActionMenu {
     _actionMenu = [[UIView alloc] init];
-    // ★ Task400：栏容器背景退役（大单卡拆四张独立卡——间隙处透出启动器
-    //   背景；surfaceContainer 填充下沉到各卡，Task392 两态可辨口径不变）
+    // ★ Task401：栏容器透明（灰面板下沉到背板，卡窗挖洞透启动器背景）
     _actionMenu.backgroundColor = [UIColor clearColor];
     _actionMenu.translatesAutoresizingMaskIntoConstraints = NO;
     [self.view addSubview:_actionMenu];
 
-    // —— ④ 启动组卡（钉列底；先建，滚动区底缘锚它）——
+    // —— 面板背板（原右边栏整块灰面板还原体；层 mask 挖四卡窗）——
+    _panelBackdrop = [[UIView alloc] init];
+    _panelBackdrop.backgroundColor = [ZL2Theme surfaceContainer];
+    _panelBackdrop.layer.cornerRadius = [ZL2Theme radiusXL];
+    _panelBackdrop.userInteractionEnabled = NO;
+    _panelBackdrop.translatesAutoresizingMaskIntoConstraints = NO;
+    [_actionMenu addSubview:_panelBackdrop];
+
+    // —— ④ 启动组卡窗（钉底；先建，滚动区底缘锚它；卡底透明 = 挖洞）——
     _launchCard = [[UIView alloc] init];
-    _launchCard.backgroundColor = [ZL2Theme surfaceContainer];
-    _launchCard.layer.cornerRadius = [ZL2Theme radiusXL];   // 右侧栏圆角同款
+    _launchCard.backgroundColor = [UIColor clearColor];
     _launchCard.translatesAutoresizingMaskIntoConstraints = NO;
     [_actionMenu addSubview:_launchCard];
 
@@ -611,11 +685,13 @@ static UIImage *ZL2HomeSizedImage(NSString *name, NSString *fallback, CGFloat po
     _launchStack.translatesAutoresizingMaskIntoConstraints = NO;
     [_launchCard addSubview:_launchStack];
 
-    // —— 中段滚动区（瓦片/账户滚轮/版本滚轮三卡；总高超出时滚动）——
+    // —— 中段滚动区（瓦片/账户滚轮/版本滚轮三卡窗；总高超出时滚动；
+    //    ★ Task401 四边内缩 8pt = 面板四周留灰边与卡间隙同律）——
     _menuScrollView = [[UIScrollView alloc] init];
     _menuScrollView.backgroundColor = [UIColor clearColor];
     _menuScrollView.showsVerticalScrollIndicator = NO;
     _menuScrollView.translatesAutoresizingMaskIntoConstraints = NO;
+    _menuScrollView.delegate = self;   // ★ Task401：滚动时实时重抠面板卡窗
     [_actionMenu addSubview:_menuScrollView];
 
     _menuStack = [[UIStackView alloc] init];
@@ -627,31 +703,27 @@ static UIImage *ZL2HomeSizedImage(NSString *name, NSString *fallback, CGFloat po
 
     __weak ZL2HomeViewController *weakSelf = self;
 
-    // —— ① 五瓦片卡（★ Task400 驻顶：用户规格「五个按钮在顶上」——原
-    //      Task379「瓦片随账号卡/版本卡之后」口径退役）——
+    // —— ① 五瓦片卡窗（★ Task400 驻顶：用户规格「五个按钮在顶上」；
+    //      ★ Task401 卡底透明 = 面板挖洞）——
     _quickNavCard = [[UIView alloc] init];
-    _quickNavCard.backgroundColor = [ZL2Theme surfaceContainer];
-    _quickNavCard.layer.cornerRadius = [ZL2Theme radiusXL];
-    _quickNavCard.layer.masksToBounds = YES;
+    _quickNavCard.backgroundColor = [UIColor clearColor];
     _quickNavCard.translatesAutoresizingMaskIntoConstraints = NO;
     _quickNavCard.isAccessibilityElement = NO;
     [_menuStack addArrangedSubview:_quickNavCard];
     [self ame378_buildQuickNav];
 
-    // —— ② 账户封面流卡（原地滚轮；条目 = 头像 40 + 名称/类型横排 = 原
-    //      头像+名称卡同一呈现语言；吸附落定走原选中链）——
+    // —— ② 账户横排封面流卡窗（原头像+名称样式横排五枚，水平拖动选择；
+    //      ★ Task401 用户规格「账户是用原来的样式横排五个作列表选择」）——
     _accountCard = [[UIView alloc] init];
-    _accountCard.backgroundColor = [ZL2Theme surfaceContainer];
-    _accountCard.layer.cornerRadius = [ZL2Theme radiusXL];
-    _accountCard.layer.masksToBounds = YES;
+    _accountCard.backgroundColor = [UIColor clearColor];
     _accountCard.translatesAutoresizingMaskIntoConstraints = NO;
     _accountCard.isAccessibilityElement = NO;   // 滚轮（adjustable）+ 卡尾钮各自可达
     _accountCard.accessibilityIdentifier = @"zl2_home_account_card";
     [_menuStack addArrangedSubview:_accountCard];
 
-    _accountFlow = [[AmeIpodFlowView alloc] init];
-    _accountFlow.itemHeight = ZL2HomeAccountFlowItemH;
-    _accountFlow.interItemGap = ZL2HomeFlowItemGap;
+    _accountFlow = [[AmeFlowSelectView alloc] init];
+    _accountFlow.axis = AmeFlowSelectAxisHorizontal;   // ★ Task401：横排（水平拖动选择）
+    _accountFlow.interItemGap = ZL2HomeAccountFlowGapH;
     _accountFlow.accessibilityLabel = localize(@"login.option.select", @"选择账户");
     _accountFlow.translatesAutoresizingMaskIntoConstraints = NO;
     [_accountCard addSubview:_accountFlow];
@@ -678,19 +750,18 @@ static UIImage *ZL2HomeSizedImage(NSString *name, NSString *fallback, CGFloat po
         }
     };
 
-    // —— ③ 版本封面流卡（原地滚轮；条目 = 加载器图标 40 + 实例名/信息行；
-    //      高度 = 五个正常实例版本信息行（用户规格「占用的比例算五个正常
-    //      的实例版本信息高度」）；吸附落定即选用）——
+    // —— ③ 版本竖排封面流卡窗（原地滚轮；条目 = 加载器图标 40 + 实例名/
+    //      信息行；高度 = 五个正常实例版本信息行（用户规格「占用的比例算
+    //      五个正常的实例版本信息高度」）；吸附落定即选用）——
     _versionCard = [[UIView alloc] init];
-    _versionCard.backgroundColor = [ZL2Theme surfaceContainer];
-    _versionCard.layer.cornerRadius = [ZL2Theme radiusXL];
-    _versionCard.layer.masksToBounds = YES;
+    _versionCard.backgroundColor = [UIColor clearColor];
     _versionCard.translatesAutoresizingMaskIntoConstraints = NO;
     _versionCard.isAccessibilityElement = NO;
     _versionCard.accessibilityIdentifier = @"zl2_home_version_card";
     [_menuStack addArrangedSubview:_versionCard];
 
-    _versionFlow = [[AmeIpodFlowView alloc] init];
+    _versionFlow = [[AmeFlowSelectView alloc] init];
+    _versionFlow.axis = AmeFlowSelectAxisVertical;   // ★ Task401：竖排（与横排同一套物理）
     _versionFlow.itemHeight = ZL2HomeVersionFlowItemH;
     _versionFlow.interItemGap = ZL2HomeFlowItemGap;
     _versionFlow.accessibilityLabel = localize(@"i18n_str_38", nil);   // 选择版本（四表既有键）
@@ -828,16 +899,24 @@ static UIImage *ZL2HomeSizedImage(NSString *name, NSString *fallback, CGFloat po
     [_launchStack addArrangedSubview:_menuHintLabel];
 
     [NSLayoutConstraint activateConstraints:@[
-        // 中段滚动区：贴栏容器三边；底缘锚启动卡顶（- 卡间隙）
-        [_menuScrollView.topAnchor constraintEqualToAnchor:_actionMenu.topAnchor],
-        [_menuScrollView.leadingAnchor constraintEqualToAnchor:_actionMenu.leadingAnchor],
-        [_menuScrollView.trailingAnchor constraintEqualToAnchor:_actionMenu.trailingAnchor],
+        // ★ Task401 面板背板：钉栏容器四边（面板 = 原右边栏整块灰面板）
+        [_panelBackdrop.topAnchor constraintEqualToAnchor:_actionMenu.topAnchor],
+        [_panelBackdrop.bottomAnchor constraintEqualToAnchor:_actionMenu.bottomAnchor],
+        [_panelBackdrop.leadingAnchor constraintEqualToAnchor:_actionMenu.leadingAnchor],
+        [_panelBackdrop.trailingAnchor constraintEqualToAnchor:_actionMenu.trailingAnchor],
+
+        // 中段滚动区：四边内缩 8pt（面板四周留灰边 = 卡间隙同律，用户规格
+        // 「每个卡片中间都要留点间隙（右侧栏距离屏幕边缘的距离）」）；
+        // 底缘锚启动卡顶（- 卡间隙）
+        [_menuScrollView.topAnchor constraintEqualToAnchor:_actionMenu.topAnchor constant:ZL2HomeCardGap],
+        [_menuScrollView.leadingAnchor constraintEqualToAnchor:_actionMenu.leadingAnchor constant:ZL2HomeCardGap],
+        [_menuScrollView.trailingAnchor constraintEqualToAnchor:_actionMenu.trailingAnchor constant:-ZL2HomeCardGap],
         [_menuScrollView.bottomAnchor constraintEqualToAnchor:_launchCard.topAnchor constant:-ZL2HomeCardGap],
 
-        // 启动卡：贴栏容器两侧与底缘（钉底永可见）
-        [_launchCard.leadingAnchor constraintEqualToAnchor:_actionMenu.leadingAnchor],
-        [_launchCard.trailingAnchor constraintEqualToAnchor:_actionMenu.trailingAnchor],
-        [_launchCard.bottomAnchor constraintEqualToAnchor:_actionMenu.bottomAnchor],
+        // 启动卡：两侧与底缘内缩 8pt（钉底永可见；卡窗四周留灰边同律）
+        [_launchCard.leadingAnchor constraintEqualToAnchor:_actionMenu.leadingAnchor constant:ZL2HomeCardGap],
+        [_launchCard.trailingAnchor constraintEqualToAnchor:_actionMenu.trailingAnchor constant:-ZL2HomeCardGap],
+        [_launchCard.bottomAnchor constraintEqualToAnchor:_actionMenu.bottomAnchor constant:-ZL2HomeCardGap],
 
         // 滚动内容：三边钉 contentLayoutGuide + 底缘 ≥ 内容底（短内容不滚动），
         // 宽 = 视口宽（fill）
@@ -859,11 +938,11 @@ static UIImage *ZL2HomeSizedImage(NSString *name, NSString *fallback, CGFloat po
         [_quickNavWrap.leadingAnchor constraintEqualToAnchor:_quickNavCard.leadingAnchor constant:ZL2HomeCardPadding],
         [_quickNavWrap.trailingAnchor constraintEqualToAnchor:_quickNavCard.trailingAnchor constant:-ZL2HomeCardPadding],
 
-        // ② 账户卡内布局：滚轮（高 = 同时五枚口径）+ 卡尾动作行
+        // ② 账户卡内布局：横排滚轮（高 = 视口定高 88；宽吃满卡内）+ 卡尾动作行
         [_accountFlow.topAnchor constraintEqualToAnchor:_accountCard.topAnchor constant:ZL2HomeCardPadding],
         [_accountFlow.leadingAnchor constraintEqualToAnchor:_accountCard.leadingAnchor constant:ZL2HomeCardPadding],
         [_accountFlow.trailingAnchor constraintEqualToAnchor:_accountCard.trailingAnchor constant:-ZL2HomeCardPadding],
-        [_accountFlow.heightAnchor constraintEqualToConstant:_accountFlow.viewportHeight],
+        [_accountFlow.heightAnchor constraintEqualToConstant:ZL2HomeAccountWheelH],
         [_accountManageButton.topAnchor constraintEqualToAnchor:_accountFlow.bottomAnchor constant:6],
         [_accountManageButton.trailingAnchor constraintEqualToAnchor:_accountCard.trailingAnchor constant:-12],
         [_accountManageButton.widthAnchor constraintEqualToConstant:ZL2HomeCardFooterHeight],
@@ -872,7 +951,7 @@ static UIImage *ZL2HomeSizedImage(NSString *name, NSString *fallback, CGFloat po
         [_accountSpinner.centerXAnchor constraintEqualToAnchor:_accountCard.centerXAnchor],
         [_accountSpinner.centerYAnchor constraintEqualToAnchor:_accountManageButton.centerYAnchor],
 
-        // ③ 版本卡内布局：滚轮（高 = 五个正常实例版本信息行）+ 卡尾动作行
+        // ③ 版本卡内布局：竖排滚轮（高 = 五个正常实例版本信息行）+ 卡尾动作行
         [_versionFlow.topAnchor constraintEqualToAnchor:_versionCard.topAnchor constant:ZL2HomeCardPadding],
         [_versionFlow.leadingAnchor constraintEqualToAnchor:_versionCard.leadingAnchor constant:ZL2HomeCardPadding],
         [_versionFlow.trailingAnchor constraintEqualToAnchor:_versionCard.trailingAnchor constant:-ZL2HomeCardPadding],
@@ -1668,9 +1747,9 @@ static UIImage *ZL2HomeSizedImage(NSString *name, NSString *fallback, CGFloat po
     [self ame_refreshLaunchButton];
 }
 
-// —— 账户封面流（★ Task400：原头像+名称卡原地 iPod 化——数据源扫描与
-//    账户页 reloadAccounts 同口径（Task180 去重/坏文件过滤）；初始落定 =
-//    当前选中账户（accountId 精确比对，同名账户也能正确区分）；无账户 =
+// —— 账户封面流（★ Task400/401：原头像+名称卡原地横排五枚封面流——数据源
+//    扫描与账户页 reloadAccounts 同口径（Task180 去重/坏文件过滤）；初始落定
+//    = 当前选中账户（accountId 精确比对，同名账户也能正确区分）；无账户 =
 //    单条「未登录」占位（登录入口 = 卡尾管理钮 / 无账号点启动续登录链）——
 - (void)ame_refreshAccountCard {
     [self ame400_reloadAccountList];
@@ -1680,6 +1759,26 @@ static UIImage *ZL2HomeSizedImage(NSString *name, NSString *fallback, CGFloat po
     NSDictionary *ame400_currentData = [ame400_current isKindOfClass:[BaseAuthenticator class]] ? ame400_current.authData : nil;
     if ([ame400_currentData isKindOfClass:[NSDictionary class]]) {
         ame400_selectedId = ame400_currentData[@"accountId"] ?: ame400_currentData[@"username"];
+    }
+
+    // ★ Task401：条目键序未变时免重建（只重定位选中）——选中链回扫
+    //   （UpdateAccountInfo）或 viewWillAppear 重入时不再拆建滚轮，
+    //   消除吸附落定后重建复位导致的视觉回跳
+    NSMutableArray<NSString *> *ame400_keys = [NSMutableArray array];
+    for (NSDictionary *ame400_accountData in self.ame400_accountList) {
+        [ame400_keys addObject:ame400_accountData[@"accountId"] ?: ame400_accountData[@"username"] ?: @""];
+    }
+    if (self.ame400_accountKeys != nil
+        && [ame400_keys isEqualToArray:self.ame400_accountKeys]
+        && self.accountFlow.ame_itemsCount == ame400_keys.count) {
+        // 选中定位：找不到当前账户键时回退 0 位（勿把 NSNotFound 铸给 setSelectedIndex）
+        NSInteger ame400_sel = 0;
+        if (ame400_selectedId.length > 0) {
+            NSUInteger ame400_found = [ame400_keys indexOfObject:ame400_selectedId];
+            if (ame400_found != NSNotFound) ame400_sel = (NSInteger)ame400_found;
+        }
+        [self.accountFlow setSelectedIndex:ame400_sel animated:NO];
+        return;
     }
 
     NSMutableArray<UIView *> *ame400_items = [NSMutableArray array];
@@ -1697,15 +1796,35 @@ static UIImage *ZL2HomeSizedImage(NSString *name, NSString *fallback, CGFloat po
         }];
     }
 
+    self.ame400_accountKeys = ame400_keys;
     [self.accountFlow configureItems:ame400_items];
     [self.accountFlow setSelectedIndex:(NSInteger)ame400_selectedIdx animated:NO];
 }
 
-// —— 版本封面流（★ Task400：原版本选择卡原地 iPod 化——占五个正常实例
-//    版本信息高度（用户规格「实例版本也一样改，占用的比例算五个正常的
+// —— 版本封面流（★ Task400/401：原版本选择卡原地竖排封面流——占五个正常
+//    实例版本信息高度（用户规格「实例版本也一样改，占用的比例算五个正常的
 //    实例版本信息高度」）；初始落定 = 当前选中实例；空注册表 = 单条
 //    「选择版本」占位（空态卡引导下载）——
 - (void)ame_refreshVersionCard {
+    // ★ Task401：行名序未变时免重建（只重定位选中）——滚轮落定 → 选用 →
+    //   SelectedProfileChanged 回环刷新时不再拆建滚轮（Task400 实锤回跳
+    //   病灶之一：吸附提交回调内同步全量拆建 = 新条目重置到选中位相），
+    //   选中状态由 setSelectedIndex 程序化定位承接（零视觉跳动）
+    NSMutableArray<NSString *> *ame400_names = [NSMutableArray array];
+    for (NSDictionary *ame400_row in self.ame_rows) {
+        [ame400_names addObject:ame400_row[@"name"] ?: @""];
+    }
+    if (self.ame400_versionRowNames != nil
+        && [ame400_names isEqualToArray:self.ame400_versionRowNames]
+        && self.versionFlow.ame_itemsCount == ame400_names.count) {
+        NSUInteger ame400_selIdx = 0;
+        for (NSUInteger ame400_i = 0; ame400_i < self.ame_rows.count; ame400_i++) {
+            if ([self.ame_rows[ame400_i][@"isSelected"] boolValue]) { ame400_selIdx = ame400_i; break; }
+        }
+        [self.versionFlow setSelectedIndex:(NSInteger)ame400_selIdx animated:NO];
+        return;
+    }
+
     NSMutableArray<UIView *> *ame400_items = [NSMutableArray array];
     __block NSUInteger ame400_selectedIdx = 0;   // 枚举块内赋值（Task393 CI 实锤：缺 __block 编译雷）
 
@@ -1718,6 +1837,7 @@ static UIImage *ZL2HomeSizedImage(NSString *name, NSString *fallback, CGFloat po
         }];
     }
 
+    self.ame400_versionRowNames = ame400_names;
     [self.versionFlow configureItems:ame400_items];
     [self.versionFlow setSelectedIndex:(NSInteger)ame400_selectedIdx animated:NO];
 }
@@ -1826,7 +1946,8 @@ static UIImage *ZL2HomeSizedImage(NSString *name, NSString *fallback, CGFloat po
 }
 
 // 未登录占位条目（原账号卡「未登录」+ 加号占位同款语义；单条不可换选——
-// 滚轮 onSettle 只在下标变化时回调，恒居中零误触）
+// 滚轮 onSettle 只在下标变化时回调，恒居中零误触；★ Task401 横排条目 =
+// 图标上/名称下竖排小卡）
 - (UIView *)ame400_signedOutFlowItem {
     UIView *ame400_item = [[UIView alloc] init];
 
@@ -1840,43 +1961,35 @@ static UIImage *ZL2HomeSizedImage(NSString *name, NSString *fallback, CGFloat po
     [ame400_item addSubview:ame400_avatar];
 
     UILabel *ame400_nameLabel = [[UILabel alloc] init];
-    ame400_nameLabel.font = [ZL2Theme fontLabelLarge];
+    ame400_nameLabel.font = [ZL2Theme fontLabelMedium];
     ame400_nameLabel.textColor = [ZL2Theme onSurface];
     ame400_nameLabel.text = localize(@"i18n_str_357", nil);   // 未登录（旧账号卡同键）
     ame400_nameLabel.numberOfLines = 1;
     ame400_nameLabel.lineBreakMode = NSLineBreakByTruncatingTail;
+    ame400_nameLabel.textAlignment = NSTextAlignmentCenter;
+    ame400_nameLabel.adjustsFontSizeToFitWidth = YES;
+    ame400_nameLabel.minimumScaleFactor = 0.7;
     ame400_nameLabel.translatesAutoresizingMaskIntoConstraints = NO;
     ame400_nameLabel.userInteractionEnabled = NO;
     [ame400_item addSubview:ame400_nameLabel];
 
-    UILabel *ame400_typeLabel = [[UILabel alloc] init];
-    ame400_typeLabel.font = [ZL2Theme fontLabelMedium];
-    ame400_typeLabel.textColor = [ZL2Theme onSurfaceVariant];
-    ame400_typeLabel.text = @"";
-    ame400_typeLabel.numberOfLines = 1;
-    ame400_typeLabel.translatesAutoresizingMaskIntoConstraints = NO;
-    ame400_typeLabel.userInteractionEnabled = NO;
-    [ame400_item addSubview:ame400_typeLabel];
-
     [NSLayoutConstraint activateConstraints:@[
-        [ame400_avatar.leadingAnchor constraintEqualToAnchor:ame400_item.leadingAnchor constant:16],
-        [ame400_avatar.centerYAnchor constraintEqualToAnchor:ame400_item.centerYAnchor],
-        [ame400_avatar.widthAnchor constraintEqualToConstant:40],
-        [ame400_avatar.heightAnchor constraintEqualToConstant:40],
-        [ame400_nameLabel.leadingAnchor constraintEqualToAnchor:ame400_avatar.trailingAnchor constant:10],
-        [ame400_nameLabel.centerYAnchor constraintEqualToAnchor:ame400_item.centerYAnchor constant:-9],
-        [ame400_nameLabel.trailingAnchor constraintLessThanOrEqualToAnchor:ame400_item.trailingAnchor constant:-12],
-        [ame400_typeLabel.leadingAnchor constraintEqualToAnchor:ame400_nameLabel.leadingAnchor],
-        [ame400_typeLabel.centerYAnchor constraintEqualToAnchor:ame400_item.centerYAnchor constant:9],
-        [ame400_typeLabel.trailingAnchor constraintLessThanOrEqualToAnchor:ame400_item.trailingAnchor constant:-12],
+        [ame400_avatar.topAnchor constraintEqualToAnchor:ame400_item.topAnchor constant:10],
+        [ame400_avatar.centerXAnchor constraintEqualToAnchor:ame400_item.centerXAnchor],
+        [ame400_avatar.widthAnchor constraintEqualToConstant:ZL2HomeAccountEntryAvatar],
+        [ame400_avatar.heightAnchor constraintEqualToConstant:ZL2HomeAccountEntryAvatar],
+        [ame400_nameLabel.topAnchor constraintEqualToAnchor:ame400_avatar.bottomAnchor constant:6],
+        [ame400_nameLabel.centerXAnchor constraintEqualToAnchor:ame400_item.centerXAnchor],
+        [ame400_nameLabel.leadingAnchor constraintGreaterThanOrEqualToAnchor:ame400_item.leadingAnchor constant:1],
+        [ame400_nameLabel.trailingAnchor constraintLessThanOrEqualToAnchor:ame400_item.trailingAnchor constant:-1],
     ]];
     return ame400_item;
 }
 
-// 账户条目（★ Task400：横排 = 头像 40 + 名称/类型双行——原右侧栏「头像+
-//   名称」卡同一呈现语言（用户规格「用相同方式在原地做出一样的横排效果」）；
-//   条目底透明（卡面即背景，选中零装饰）；MC 头像圆角 = 1 物理像素超小
-//   圆角（用户规格「圆角大小占用正常头像一个像素」））
+// 账户条目（★ Task401 横排五枚：原头像+名称卡同一呈现语言竖排小卡——
+// 头像上/名称/类型下居中；用户规格「用原来的样式横排五个」；条目底透明
+// （卡窗即背景，选中零装饰）；MC 头像圆角 = 1 物理像素超小圆角（用户
+// 规格「圆角大小占用正常头像一个像素」））
 - (UIView *)ame400_accountFlowItemForData:(NSDictionary *)accountData {
     UIView *ame400_item = [[UIView alloc] init];
 
@@ -1898,11 +2011,15 @@ static UIImage *ZL2HomeSizedImage(NSString *name, NSString *fallback, CGFloat po
     }
 
     UILabel *ame400_nameLabel = [[UILabel alloc] init];
-    ame400_nameLabel.font = [ZL2Theme fontLabelLarge];
+    ame400_nameLabel.font = [ZL2Theme fontLabelMedium];
     ame400_nameLabel.textColor = [ZL2Theme onSurface];
     ame400_nameLabel.text = ame400_displayName;
     ame400_nameLabel.numberOfLines = 1;
     ame400_nameLabel.lineBreakMode = NSLineBreakByTruncatingTail;
+    ame400_nameLabel.textAlignment = NSTextAlignmentCenter;
+    // 窄槽位（五等分 ≈ 45pt）长名缩排优先于截断（Task392 瓦片标签同判例）
+    ame400_nameLabel.adjustsFontSizeToFitWidth = YES;
+    ame400_nameLabel.minimumScaleFactor = 0.7;
     ame400_nameLabel.translatesAutoresizingMaskIntoConstraints = NO;
     ame400_nameLabel.userInteractionEnabled = NO;
     [ame400_item addSubview:ame400_nameLabel];
@@ -1913,21 +2030,26 @@ static UIImage *ZL2HomeSizedImage(NSString *name, NSString *fallback, CGFloat po
     ame400_typeLabel.text = [self ame_typeTextForAccountData:accountData];
     ame400_typeLabel.numberOfLines = 1;
     ame400_typeLabel.lineBreakMode = NSLineBreakByTruncatingTail;
+    ame400_typeLabel.textAlignment = NSTextAlignmentCenter;
+    ame400_typeLabel.adjustsFontSizeToFitWidth = YES;
+    ame400_typeLabel.minimumScaleFactor = 0.7;
     ame400_typeLabel.translatesAutoresizingMaskIntoConstraints = NO;
     ame400_typeLabel.userInteractionEnabled = NO;
     [ame400_item addSubview:ame400_typeLabel];
 
     [NSLayoutConstraint activateConstraints:@[
-        [ame400_avatarView.leadingAnchor constraintEqualToAnchor:ame400_item.leadingAnchor constant:16],
-        [ame400_avatarView.centerYAnchor constraintEqualToAnchor:ame400_item.centerYAnchor],
-        [ame400_avatarView.widthAnchor constraintEqualToConstant:40],
-        [ame400_avatarView.heightAnchor constraintEqualToConstant:40],
-        [ame400_nameLabel.leadingAnchor constraintEqualToAnchor:ame400_avatarView.trailingAnchor constant:10],
-        [ame400_nameLabel.centerYAnchor constraintEqualToAnchor:ame400_item.centerYAnchor constant:-9],
-        [ame400_nameLabel.trailingAnchor constraintLessThanOrEqualToAnchor:ame400_item.trailingAnchor constant:-12],
-        [ame400_typeLabel.leadingAnchor constraintEqualToAnchor:ame400_nameLabel.leadingAnchor],
-        [ame400_typeLabel.centerYAnchor constraintEqualToAnchor:ame400_item.centerYAnchor constant:9],
-        [ame400_typeLabel.trailingAnchor constraintLessThanOrEqualToAnchor:ame400_item.trailingAnchor constant:-12],
+        [ame400_avatarView.topAnchor constraintEqualToAnchor:ame400_item.topAnchor constant:8],
+        [ame400_avatarView.centerXAnchor constraintEqualToAnchor:ame400_item.centerXAnchor],
+        [ame400_avatarView.widthAnchor constraintEqualToConstant:ZL2HomeAccountEntryAvatar],
+        [ame400_avatarView.heightAnchor constraintEqualToConstant:ZL2HomeAccountEntryAvatar],
+        [ame400_nameLabel.topAnchor constraintEqualToAnchor:ame400_avatarView.bottomAnchor constant:4],
+        [ame400_nameLabel.centerXAnchor constraintEqualToAnchor:ame400_item.centerXAnchor],
+        [ame400_nameLabel.leadingAnchor constraintGreaterThanOrEqualToAnchor:ame400_item.leadingAnchor constant:1],
+        [ame400_nameLabel.trailingAnchor constraintLessThanOrEqualToAnchor:ame400_item.trailingAnchor constant:-1],
+        [ame400_typeLabel.topAnchor constraintEqualToAnchor:ame400_nameLabel.bottomAnchor constant:1],
+        [ame400_typeLabel.centerXAnchor constraintEqualToAnchor:ame400_item.centerXAnchor],
+        [ame400_typeLabel.leadingAnchor constraintGreaterThanOrEqualToAnchor:ame400_item.leadingAnchor constant:1],
+        [ame400_typeLabel.trailingAnchor constraintLessThanOrEqualToAnchor:ame400_item.trailingAnchor constant:-1],
     ]];
 
     // 头像异步取（AvatarManager 三层回退链；弱引用条目，回调晚到不吊命已拆条目）

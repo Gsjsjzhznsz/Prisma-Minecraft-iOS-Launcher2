@@ -149,9 +149,12 @@ check("C1 快航构建器在位 + 顶卡挂接（★Task400 重锚：瓦片卡�
       and home_code.index("[self ame378_buildQuickNav];") > home_code.index("_quickNavCard = [[UIView alloc] init];")
       and home_code.index("[self ame378_buildQuickNav];") < home_code.index("_accountCard = [[UIView alloc] init];"))
 
-check("C2 ★Task393 退役注释锚在位（收敛终态说明：fui=左窗格唯一 / MD3=壳层动作簇唯一）",
-      "Task393：五入口快航瓦片退役" in home
-      and "fui（nav 骨架）唯一入口 = 左窗格" in home)
+check("C2 ★Task401 面板还原+卡窗透明锚（用户规格：保留原来的右边栏整块灰面板，每卡在面板上抠透明窗直透启动器背景，滚动/布局双驱动重抠）",
+      "_panelBackdrop = [[UIView alloc] init];" in home_code
+      and "_panelBackdrop.backgroundColor = [ZL2Theme surfaceContainer];" in home_code
+      and "- (void)ame_refreshPanelMask {" in home_code
+      and "usesEvenOddFillRule = YES;" in home_code
+      and "_menuScrollView.delegate = self;" in home_code)
 
 check("C3 ★Task392 图标减半规格（用户规格\"缩小两倍\"：图标 27.5 = 55÷2；瓦片高 66.5；间距 6）",
       "ZL2HomeQuickNavIconSize   = 27.5;" in home
@@ -171,9 +174,12 @@ check("C4 对称留白纪律（★Task400 重锚：单行 fillEqually 均分 + �
       and "menu.leadingAnchor constraintEqualToAnchor:self.view.leadingAnchor constant:8]," in home_code
       and "menu.trailingAnchor constraintEqualToAnchor:self.view.trailingAnchor constant:-8]," in home_code)
 
-check("C4 ★Task393 向导引导锚点平移（zl2_shell_topbar_rail 随簇驻壳层，home 零残留）",
-      'self.ame383_headerActions.accessibilityIdentifier = @"zl2_shell_topbar_rail";' in shell
-      and "zl2_shell_topbar_rail" not in home)
+check("C4 向导引导锚点随五瓦片驻主页顶卡（zl2_shell_topbar_rail ★Task401 重锚：五瓦片驻顶=用户规格，向导锚随瓦片行）",
+      'accessibilityIdentifier = @"zl2_shell_topbar_rail";' in home)
+
+check("C4b 卡窗圆角=右侧栏圆角同源（挖洞路径与背板圆角同 radiusXL 令牌）",
+      home_code.count("bezierPathWithRoundedRect:") >= 2
+      and "_panelBackdrop.layer.cornerRadius = [ZL2Theme radiusXL];" in home_code)
 
 check("C5 ★Task393 壳通知观察者保留（ZL2ShellOpenFileManager 承接通道在位，未来复接零改动）",
       'name:@"ZL2ShellOpenFileManager"' in shell
@@ -186,9 +192,11 @@ check("C6 i18n 零新增键（动作簇同款键驻壳层：ame369.shell.tab.* /
       and 'localize(@"ame369.common.multiplayer", @"多人联机")' in shell
       and 'localize(@"ame192.ai.title", nil)' in shell)
 
-check("C9 账户/版本滚轮卡功能锚（★Task400 重锚：双卡改 AmeIpodFlowView 原地滚轮——落定回调/卡尾钮（账户管理+刷新+齿轮）/a11y id 保留；卡体点击链退役 = 拖拽即选择）",
-      "_accountFlow = [[AmeIpodFlowView alloc] init];" in home_code
-      and "_versionFlow = [[AmeIpodFlowView alloc] init];" in home_code
+check("C9 账户/版本滚轮卡功能锚（★Task401 重锚：双卡改 AmeFlowSelectView 原地封面流——账户横轴（水平拖动）+版本竖轴，落定回调/卡尾钮（账户管理+刷新+齿轮）/a11y id 保留；卡体点击链退役 = 拖拽即选择）",
+      "_accountFlow = [[AmeFlowSelectView alloc] init];" in home_code
+      and "_versionFlow = [[AmeFlowSelectView alloc] init];" in home_code
+      and "_accountFlow.axis = AmeFlowSelectAxisHorizontal;" in home_code
+      and "_versionFlow.axis = AmeFlowSelectAxisVertical;" in home_code
       and "_accountFlow.onSettle = ^(NSInteger ame400_index) {" in home_code
       and "_versionFlow.onSettle = ^(NSInteger ame400_index) {" in home_code
       and "accountCardTapped" in home_code
@@ -196,13 +204,22 @@ check("C9 账户/版本滚轮卡功能锚（★Task400 重锚：双卡改 AmeIpo
       and 'accessibilityIdentifier = @"zl2_home_account_card";' in home
       and 'accessibilityIdentifier = @"zl2_home_version_card";' in home)
 
-check("C10 右栏卡片化口径（★Task400 新立：用户规格第 4 条——栏容器背景透明（呈现启动器背景）+ 四卡 surfaceContainer/radiusXL（右侧栏圆角同款）+ 卡间间隙 8pt（= Task392 栏距屏边四边同值）+ MC 头像 1 物理像素超小圆角）",
+check("C9b 选中可靠链双保险（★Task401 新立：滚动视图 pan 对滚轮 pan 动态让位 + 数据未变免重建守卫——修「只能拖动再回弹」手势竞争与重建吸附回跳双病灶）",
+      ("shouldBeRequiredToFailByGestureRecognizer:" in home_code
+       or "shouldBeRequiredToFailByGestureRecognizer:" in read("Natives/AmeFlowSelectView.m"))
+      and "ame_itemsCount" in home_code
+      and "self.ame400_versionRowNames = ame400_names;" in home_code
+      and "self.ame400_accountKeys = ame400_keys;" in home_code)
+
+check("C10 右栏面板+卡窗口径（★Task401 重锚：用户规格——保留原来的右边栏（背板 surfaceContainer+radiusXL）+ 四卡窗底透明（layer.mask 挖洞直透启动器背景）+ 卡间间隙 8pt（= Task392 栏距屏边四边同值）+ 滚动区内缩/启动组内缩 8pt 四周留灰边）",
       "_actionMenu.backgroundColor = [UIColor clearColor];" in home_code
-      and "_quickNavCard.backgroundColor = [ZL2Theme surfaceContainer];" in home_code
-      and "_accountCard.backgroundColor = [ZL2Theme surfaceContainer];" in home_code
-      and "_versionCard.backgroundColor = [ZL2Theme surfaceContainer];" in home_code
-      and "_launchCard.backgroundColor = [ZL2Theme surfaceContainer];" in home_code
-      and home_code.count("layer.cornerRadius = [ZL2Theme radiusXL];") >= 4
+      and "_panelBackdrop.backgroundColor = [ZL2Theme surfaceContainer];" in home_code
+      and "_quickNavCard.backgroundColor = [UIColor clearColor];" in home_code
+      and "_accountCard.backgroundColor = [UIColor clearColor];" in home_code
+      and "_versionCard.backgroundColor = [UIColor clearColor];" in home_code
+      and "_launchCard.backgroundColor = [UIColor clearColor];" in home_code
+      and "_menuScrollView.topAnchor constraintEqualToAnchor:_actionMenu.topAnchor constant:ZL2HomeCardGap" in home_code
+      and "_launchCard.bottomAnchor constraintEqualToAnchor:_actionMenu.bottomAnchor constant:-ZL2HomeCardGap" in home_code
       and "ZL2HomeCardGap            = 8;" in home
       and "layer.cornerRadius = 1.0 / [UIScreen mainScreen].scale;" in home_code)
 

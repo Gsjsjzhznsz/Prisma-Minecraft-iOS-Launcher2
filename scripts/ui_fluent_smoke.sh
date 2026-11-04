@@ -102,7 +102,7 @@ preview_mode() {
     FluentButton FluentCard FluentListCell FluentTextField
     FluentToast FluentSegmentedControl FluentProgress FluentBanner
     ZL2Theme ZL2RailView ZL2HomeViewController
-    AmeIpodFlowView                   # ★ Task393：iPod 式竖排封面流（账户页/版本选择共用）
+    AmeFlowSelectView                 # ★ Task393 封面流选择器（★ Task401 更名+横轴化：账户横排/版本竖排共用）
     ZL2DownloadViewController ZL2VersionsViewController
     ZL2AccountsViewController ZL2SettingsViewController
     ZL2AssetSearchViewController   # 7.0-UI-10：下载页资产搜索组件（.h+.m，与下载页同轮落地）

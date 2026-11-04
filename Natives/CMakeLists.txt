@@ -518,7 +518,7 @@ add_executable(AngelAuraAmethyst
   # 7.0-UI-9：ZL2 四功能页 M3 重写（下载/版本/账户/设置）
   ZL2DownloadViewController.m
   # ★ Task393：iPod 式竖排封面流（账户页/版本选择共用组件）
-  AmeIpodFlowView.m
+  AmeFlowSelectView.m
   # 7.0-UI-10-a：下载页六类真语义（ZL2 远程搜索列表，替换本地管理器错配）
   ZL2AssetSearchViewController.m
   ZL2VersionsViewController.m

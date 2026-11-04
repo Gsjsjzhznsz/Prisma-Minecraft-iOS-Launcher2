@@ -16,7 +16,7 @@ import os, re, sys
 
 REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 FILES = [
-    "Natives/AmeIpodFlowView.m",
+    "Natives/AmeFlowSelectView.m",
     "Natives/ZL2AccountsViewController.m",
     "Natives/ZL2HomeViewController.m",
     "Natives/Preview/AmeFluentPreviewMain.m",
