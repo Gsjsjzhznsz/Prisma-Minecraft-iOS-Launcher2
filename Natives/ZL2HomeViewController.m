@@ -632,6 +632,15 @@ static UIImage *ZL2HomeSizedImage(NSString *name, NSString *fallback, CGFloat po
     [super viewDidLayoutSubviews];
     // ★ Task401：面板卡窗随布局实时重抠（旋转/换边/滚轮重建后窗口位移动）
     [self ame_refreshPanelMask];
+    // ★ Task401 r5 收敛补触发：r4 smoke 实锤启动窗洞比卡矮 ~26pt（绘制期
+    //   取帧早于栈内 intrinsic 收敛，尾帧后无重绘触发）——布局事务提交后
+    //   异步补两跳重绘，取帧必为收敛终值
+    dispatch_async(dispatch_get_main_queue(), ^{
+        [self.panelBackdrop setNeedsDisplay];
+        dispatch_async(dispatch_get_main_queue(), ^{
+            [self.panelBackdrop setNeedsDisplay];
+        });
+    });
     // ★ Task387：卡片自适应根修——原实现仅在列数（2/3）变化时失效布局，
     //   右栏/侧栏几何变化（折叠侧边栏、窗口缩放、旋转）导致的同列数宽度
     //   变化全部漏掉：sizeForItem 持旧宽算卡宽，流式布局把余量聚中 = 两列
