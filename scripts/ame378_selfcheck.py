@@ -149,12 +149,13 @@ check("C1 快航构建器在位 + 顶卡挂接（★Task400 重锚：瓦片卡�
       and home_code.index("[self ame378_buildQuickNav];") > home_code.index("_quickNavCard = [[UIView alloc] init];")
       and home_code.index("[self ame378_buildQuickNav];") < home_code.index("_accountCard = [[UIView alloc] init];"))
 
-check("C2 ★Task401 面板还原+卡窗透明锚（用户规格：保留原来的右边栏整块灰面板，每卡在面板上抠透明窗直透启动器背景，滚动/布局双驱动重抠；r2 实锤：CAShapeLayer 默认 non-zero 会把洞填回——fillRule 必须显式 even-odd）",
-      "_panelBackdrop = [[UIView alloc] init];" in home_code
-      and "_panelBackdrop.backgroundColor = [ZL2Theme surfaceContainer];" in home_code
+check("C2 ★Task401 面板还原+卡窗透明锚（用户规格：保留原来的右边栏整块灰面板，每卡窗区 even-odd 排除不画=直透启动器背景；r2/r3 实锤：layer.mask+CAShapeLayer 两轮整块实心——drawRect 直画为正解，UIBezierPath.fill 直 honoring usesEvenOddFillRule）",
+      "_panelBackdrop = [[Ame401PanelHolesView alloc] init];" in home_code
+      and "@interface Ame401PanelHolesView : UIView" in home
+      and "- (void)drawRect:(CGRect)rect {" in home_code
+      and "usesEvenOddFillRule = YES;" in home
+      and "resolvedColorWithTraitCollection:" in home_code
       and "- (void)ame_refreshPanelMask {" in home_code
-      and "usesEvenOddFillRule = YES;" in home_code
-      and "ame401_mask.fillRule = kCAFillRuleEvenOdd;" in home_code
       and "_menuScrollView.delegate = self;" in home_code)
 
 check("C3 ★Task392 图标减半规格（用户规格\"缩小两倍\"：图标 27.5 = 55÷2；瓦片高 66.5；间距 6）",
@@ -178,9 +179,10 @@ check("C4 对称留白纪律（★Task400 重锚：单行 fillEqually 均分 + �
 check("C4 向导引导锚点随五瓦片驻主页顶卡（zl2_shell_topbar_rail ★Task401 重锚：五瓦片驻顶=用户规格，向导锚随瓦片行）",
       'accessibilityIdentifier = @"zl2_shell_topbar_rail";' in home)
 
-check("C4b 卡窗圆角=右侧栏圆角同源（挖洞路径与背板圆角同 radiusXL 令牌）",
-      home_code.count("bezierPathWithRoundedRect:") >= 2
-      and "_panelBackdrop.layer.cornerRadius = [ZL2Theme radiusXL];" in home_code)
+check("C4b 卡窗圆角=右侧栏圆角同源（灰棱外轮廓与卡窗路径同 radiusXL 令牌）",
+      "bezierPathWithRoundedRect:self.bounds cornerRadius:ame401_radius" in home
+      and "bezierPathWithRoundedRect:ame401_r" in home
+      and "CGFloat ame401_radius = [ZL2Theme radiusXL];" in home_code)
 
 check("C5 ★Task393 壳通知观察者保留（ZL2ShellOpenFileManager 承接通道在位，未来复接零改动）",
       'name:@"ZL2ShellOpenFileManager"' in shell
@@ -212,9 +214,10 @@ check("C9b 选中可靠链双保险（★Task401 新立：滚动视图 pan 对�
       and "self.ame400_versionRowNames = ame400_names;" in home_code
       and "self.ame400_accountKeys = ame400_keys;" in home_code)
 
-check("C10 右栏面板+卡窗口径（★Task401 重锚：用户规格——保留原来的右边栏（背板 surfaceContainer+radiusXL）+ 四卡窗底透明（layer.mask 挖洞直透启动器背景）+ 卡间间隙 8pt（= Task392 栏距屏边四边同值）+ 滚动区内缩/启动组内缩 8pt 四周留灰边）",
+check("C10 右栏面板+卡窗口径（★Task401 r3 重锚：用户规格——保留原来的右边栏（灰棱视图 drawRect 画 surfaceContainer）+ 四卡窗区 even-odd 排除=直透启动器背景 + 卡间间隙 8pt（= Task392 栏距屏边四边同值）+ 滚动区内缩/启动组内缩 8pt 四周留灰边）",
       "_actionMenu.backgroundColor = [UIColor clearColor];" in home_code
-      and "_panelBackdrop.backgroundColor = [ZL2Theme surfaceContainer];" in home_code
+      and "[[ZL2Theme surfaceContainer]"
+       and "resolvedColorWithTraitCollection:self.traitCollection];" in home_code
       and "_quickNavCard.backgroundColor = [UIColor clearColor];" in home_code
       and "_accountCard.backgroundColor = [UIColor clearColor];" in home_code
       and "_versionCard.backgroundColor = [UIColor clearColor];" in home_code

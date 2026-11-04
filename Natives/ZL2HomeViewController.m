@@ -165,6 +165,66 @@ static UIImage *ZL2HomeSizedImage(NSString *name, NSString *fallback, CGFloat po
     return image;
 }
 
+#pragma mark - ★ Task401 面板灰棱绘制视图（整块灰面板 + 四卡窗 even-odd 排除）
+
+// 职责：把原右边栏整块灰面板画成“只剩灰棱”——外轮廓 = 面板圆角矩形
+//（radiusXL = 右侧栏圆角），四卡窗区域从填充中排除（even-odd）：窗区不画
+// = 透明 = 直透启动器背景（背景白→窗即白）。
+// 实现注：r2 实锤（CI smoke 截图两轮整块实心）layer.mask + CAShapeLayer
+// 在本场景不可靠（shape 层填充规则/挂接时序两不确定面），改用 drawRect
+// 直画 —— UIBezierPath -fill 对 usesEvenOddFillRule 的支持是 CoreGraphics
+// 契约，零中间层；深浅切换经 traitCollectionDidChange 重绘；几何由宿主
+// 每帧喂（ame_setHoleRects：仅变化才重绘，滚动中逐帧调用零压力）。
+@interface Ame401PanelHolesView : UIView
+@end
+
+@implementation Ame401PanelHolesView {
+    NSArray<NSValue *> *_ame401_holes;   // 卡窗矩形（本视图坐标）
+}
+
+- (instancetype)initWithFrame:(CGRect)frame {
+    self = [super initWithFrame:frame];
+    if (self) {
+        self.backgroundColor = [UIColor clearColor];
+        self.userInteractionEnabled = NO;
+        self.contentMode = UIViewContentModeRedraw;
+        self.isAccessibilityElement = NO;
+    }
+    return self;
+}
+
+/// 喂卡窗矩形（本视图坐标；仅变化才重绘——滚动中逐帧调用零压力）
+- (void)ame401_setHoleRects:(NSArray<NSValue *> *)holes {
+    if (_ame401_holes != nil && [_ame401_holes isEqualToArray:holes]) return;
+    _ame401_holes = [holes copy];
+    [self setNeedsDisplay];
+}
+
+- (void)traitCollectionDidChange:(UITraitCollection *)previousTraitCollection {
+    [super traitCollectionDidChange:previousTraitCollection];
+    [self setNeedsDisplay];
+}
+
+- (void)drawRect:(CGRect)rect {
+    CGFloat ame401_radius = [ZL2Theme radiusXL];
+    UIBezierPath *ame401_path = [UIBezierPath
+        bezierPathWithRoundedRect:self.bounds cornerRadius:ame401_radius];
+    for (NSValue *ame401_v in _ame401_holes) {
+        CGRect ame401_r = ame401_v.CGRectValue;
+        if (ame401_r.size.width < 1.0 || ame401_r.size.height < 1.0) continue;
+        [ame401_path appendPath:[UIBezierPath bezierPathWithRoundedRect:ame401_r
+                                                           cornerRadius:ame401_radius]];
+    }
+    ame401_path.usesEvenOddFillRule = YES;
+    // 动态令牌逐 trait 解析（drawRect 无自动深浅跟随，本视图自理）
+    UIColor *ame401_color = [[ZL2Theme surfaceContainer]
+        resolvedColorWithTraitCollection:self.traitCollection];
+    [ame401_color setFill];
+    [ame401_path fill];   // even-odd：窗区交叉计数 2 = 偶数 = 不填 = 透明
+}
+
+@end
+
 #pragma mark - 私有点击控件（block 载荷，零 tag / 零 viewWithTag）
 
 // 通用可点容器：账号卡 / 版本选择卡 / 卡内小按钮 / 弹层行共用。
@@ -432,11 +492,11 @@ static UIImage *ZL2HomeSizedImage(NSString *name, NSString *fallback, CGFloat po
 @property (nonatomic, strong) UIView *quickNavCard;
 @property (nonatomic, strong) UIStackView *quickNavWrap;
 // ★ Task400/Task401：右栏卡片化——中段滚动区（瓦片/账户滚轮/版本滚轮三卡，
-//   总高超出屏高时滚动）+ 启动组卡钉底永可见；★ Task401 面板背板（原右边
-//   栏整块灰面板还原体：surfaceContainer + radiusXL，layer.mask 按四卡
-//   窗位抠洞 = 卡窗透出启动器背景）
+//   总高超出屏高时滚动）+ 启动组卡钉底永可见；★ Task401 面板灰棱视图
+//   （原右边栏整块灰面板还原体：drawRect 画灰棱 + even-odd 排除四卡窗 =
+//   卡窗直透启动器背景，见类注释）
 @property (nonatomic, strong) UIScrollView *menuScrollView;
-@property (nonatomic, strong) UIView *panelBackdrop;
+@property (nonatomic, strong) Ame401PanelHolesView *panelBackdrop;
 @property (nonatomic, strong) UIView *launchCard;
 @property (nonatomic, strong) UIStackView *launchStack;
 // 当前停靠边约束组（换边时整组替换：YES = 停靠右侧）
@@ -569,56 +629,36 @@ static UIImage *ZL2HomeSizedImage(NSString *name, NSString *fallback, CGFloat po
     }
 }
 
-#pragma mark - ★ Task401 面板卡窗挖洞（灰面板还原体 + even-odd mask）
+#pragma mark - ★ Task401 面板卡窗几何（灰棱视图喂矩形）
 
-// 面板背板重抠：外轮廓 = 面板圆角矩形（radiusXL = 右侧栏圆角），洞 = 四张
-// 卡窗（五瓦片/账户滚轮/版本滚轮/启动组，圆角同 radiusXL）；even-odd 填充
-// 规则下洞区域 alpha = 0 → 灰面在卡窗处透出启动器背景（背景白→卡窗即白）。
-// 卡窗 frame 经 convertRect 取自当前滚动位相，滚动中逐帧重抠（成本 =
-// 五段路径重建，可忽略）。必须在主线程且有尺寸后调用（viewDidLayoutSubviews
-// / scrollViewDidScroll 双驱动保证）。
+// 卡窗几何重喂：四卡窗（五瓦片/账户滚轮/版本滚轮/启动组）换算到面板坐标
+//（滚动位相实时）+ 滚动区裁剪相交，交 Ame401PanelHolesView 重绘（仅变化
+// 才重画）。必须在主线程且有尺寸后调用（viewDidLayoutSubviews /
+// scrollViewDidScroll 双驱动保证）。
 - (void)ame_refreshPanelMask {
     CGSize ame401_size = self.actionMenu.bounds.size;
     if (ame401_size.width < 1.0 || ame401_size.height < 1.0) return;
 
-    UIBezierPath *ame401_path = [UIBezierPath
-        bezierPathWithRoundedRect:CGRectMake(0, 0, ame401_size.width, ame401_size.height)
-                     cornerRadius:[ZL2Theme radiusXL]];
-
-    CGFloat ame401_radius = [ZL2Theme radiusXL];
     CGRect ame401_scrollFrame = [self.menuScrollView convertRect:self.menuScrollView.bounds
                                                           toView:self.actionMenu];
+    NSMutableArray<NSValue *> *ame401_rects = [NSMutableArray array];
     NSArray<UIView *> *ame401_cards = @[self.quickNavCard, self.accountCard,
                                         self.versionCard, self.launchCard];
     for (UIView *ame401_card in ame401_cards) {
         if (ame401_card == nil || ame401_card.hidden) continue;
         CGRect ame401_r = [ame401_card convertRect:ame401_card.bounds
-                                            toView:self.actionMenu];
+                                            toView:self.panelBackdrop];
         if (ame401_r.size.width < 1.0 || ame401_r.size.height < 1.0) continue;
-        // 卡窗洞与滚动区裁剪相交：滚动出视口的卡不越权吃掉面板边缘灰边
+        // 卡窗与滚动区裁剪相交：滚动出视口的卡不越权吃掉面板边缘灰边
         //（启动组卡钉底在滚动区外，不相交）
         if (ame401_card != self.launchCard) {
             CGRect ame401_clipped = CGRectIntersection(ame401_r, ame401_scrollFrame);
             if (CGRectIsNull(ame401_clipped)) continue;
             ame401_r = ame401_clipped;
         }
-        [ame401_path appendPath:[UIBezierPath bezierPathWithRoundedRect:ame401_r
-                                                           cornerRadius:ame401_radius]];
+        [ame401_rects addObject:[NSValue valueWithCGRect:ame401_r]];
     }
-    ame401_path.usesEvenOddFillRule = YES;
-
-    CAShapeLayer *ame401_mask = (CAShapeLayer *)self.panelBackdrop.layer.mask;
-    if (![ame401_mask isKindOfClass:[CAShapeLayer class]]) {
-        ame401_mask = [[CAShapeLayer alloc] init];
-        self.panelBackdrop.layer.mask = ame401_mask;
-    }
-    // ★ Task401 r2 实锤（CI smoke 截图整块实心面板）：CAShapeLayer 填充用自身
-    //   fillRule（默认 non-zero），不消费 UIBezierPath 的 usesEvenOddFillRule——
-    //   外矩形与洞同向绕行时洞区 winding=2 照样填满。正解 = shape 层显式
-    //   even-odd（洞区交叉计数 2 = 偶数 → 不填 = alpha 0 = 透启动器背景）。
-    ame401_mask.fillRule = kCAFillRuleEvenOdd;
-    ame401_mask.frame = self.panelBackdrop.bounds;
-    ame401_mask.path = ame401_path.CGPath;
+    [self.panelBackdrop ame401_setHoleRects:ame401_rects];
 }
 
 // ★ Task401：中段滚动时卡窗位相连续变 → 逐帧重抠（网格滚动同样回调本方法，
@@ -669,11 +709,9 @@ static UIImage *ZL2HomeSizedImage(NSString *name, NSString *fallback, CGFloat po
     _actionMenu.translatesAutoresizingMaskIntoConstraints = NO;
     [self.view addSubview:_actionMenu];
 
-    // —— 面板背板（原右边栏整块灰面板还原体；层 mask 挖四卡窗）——
-    _panelBackdrop = [[UIView alloc] init];
-    _panelBackdrop.backgroundColor = [ZL2Theme surfaceContainer];
-    _panelBackdrop.layer.cornerRadius = [ZL2Theme radiusXL];
-    _panelBackdrop.userInteractionEnabled = NO;
+    // —— 面板灰棱视图（原右边栏整块灰面板还原体；drawRect 画灰棱，
+//      四卡窗 even-odd 排除 = 直透启动器背景）——
+    _panelBackdrop = [[Ame401PanelHolesView alloc] init];
     _panelBackdrop.translatesAutoresizingMaskIntoConstraints = NO;
     [_actionMenu addSubview:_panelBackdrop];
 
