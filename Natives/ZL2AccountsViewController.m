@@ -91,6 +91,18 @@ static UIImage *ZL2AccountsSystemImage(NSString *name, NSString *fallback) {
     return image;
 }
 
+// ★ Task400：共享导出（C 符号——主页右栏账户封面流的选中链与本页共用
+//   同一验证集合与第三方判别口径，避免两处各自维护漂移；主页侧只做
+//   前向声明零头文件传递依赖，两 TU 同在 smoke 窄链接清单内）
+NSMutableSet *ZL2AccountsSharedValidatedSet(void) {
+    return ZL2AccountsValidatedSet();
+}
+
+BOOL ZL2AccountsSharedIsThirdParty(NSDictionary *accountData) {
+    return ZL2AccountsIsThirdParty(accountData);
+}
+
+
 #pragma mark - ZL2AccountRowView（账号卡行，私有行视图）
 
 // 对标 ZL2 AccountElements AccountItem 卡片解剖（单选圈 + 头像 + 名称/类型
@@ -150,7 +162,9 @@ static UIImage *ZL2AccountsSystemImage(NSString *name, NSString *fallback) {
     _avatarView = [[UIImageView alloc] initWithImage:avatarPlaceholder];
     _avatarView.tintColor = [ZL2Theme onSurfaceVariant];
     _avatarView.contentMode = UIViewContentModeScaleAspectFill;
-    _avatarView.layer.cornerRadius = 23;   // 46 / 2
+    // ★ Task400：MC 头像圆角改超小圆角（用户规格“圆角大小占用正常头像一个
+    //   像素”——1 物理像素 = 1pt ÷ 屏幕 scale；原 23 圆形口径退役）
+    _avatarView.layer.cornerRadius = 1.0 / [UIScreen mainScreen].scale;
     _avatarView.layer.masksToBounds = YES;
     _avatarView.isAccessibilityElement = NO;
     _avatarView.translatesAutoresizingMaskIntoConstraints = NO;
@@ -440,7 +454,7 @@ static UIImage *ZL2AccountsSystemImage(NSString *name, NSString *fallback) {
 
     _identityAvatarView = [[UIImageView alloc] init];
     _identityAvatarView.contentMode = UIViewContentModeScaleAspectFit;
-    _identityAvatarView.layer.cornerRadius = 32;   // 64 / 2
+    _identityAvatarView.layer.cornerRadius = 1.0 / [UIScreen mainScreen].scale;   // ★ Task400：1 物理像素超小圆角（原 32 圆形口径退役）
     _identityAvatarView.layer.masksToBounds = YES;
     _identityAvatarView.translatesAutoresizingMaskIntoConstraints = NO;
 

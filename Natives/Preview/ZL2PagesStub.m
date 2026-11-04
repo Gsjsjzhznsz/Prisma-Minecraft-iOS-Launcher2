@@ -123,22 +123,46 @@
 
 @implementation ModLoaderIconHelper
 
+// ★ Task393：假注册表实数据判读面（fabric/forge 简单形态识别；真实现仍
+// 走 Natives/ModLoaderIconHelper.m，桩与真实现从不同一二进制）
 + (nullable NSString *)detectLoaderFromVersionId:(NSString *)versionId {
+    if (![versionId isKindOfClass:[NSString class]] || versionId.length == 0) return nil;
+    NSString *ame393_lower = [versionId lowercaseString];
+    if ([ame393_lower containsString:@"fabric"]) return @"fabric";
+    if ([ame393_lower containsString:@"forge"]) return @"forge";
+    if ([ame393_lower containsString:@"quilt"]) return @"quilt";
+    if ([ame393_lower containsString:@"neoforge"]) return @"neoforge";
     return nil;
 }
 
 + (nullable NSString *)displayNameForLoader:(NSString *)loader {
+    if ([loader isEqualToString:@"fabric"]) return @"Fabric";
+    if ([loader isEqualToString:@"forge"]) return @"Forge";
+    if ([loader isEqualToString:@"quilt"]) return @"Quilt";
+    if ([loader isEqualToString:@"neoforge"]) return @"NeoForge";
     return loader;
 }
 
 + (nullable UIImage *)iconImageForLoader:(NSString *)loader
                          traitCollection:(nullable UITraitCollection *)traitCollection {
-    return nil;
+    return nil;   // 图标走 configureImageView 的 SF 符号兜底（预览判读够用）
 }
 
 + (void)configureImageView:(UIImageView *)imageView
                  forLoader:(NSString *)loader
            traitCollection:(nullable UITraitCollection *)traitCollection {
+    // 桩图标：SF 符号兜底（真 PNG 资产链在正式构建；预览判读够用）
+    NSString *ame393_symbol = @"cube.fill";
+    if ([loader isEqualToString:@"forge"] || [loader isEqualToString:@"neoforge"]) {
+        ame393_symbol = @"hammer.fill";
+    } else if ([loader isEqualToString:@"fabric"]) {
+        ame393_symbol = @"wrench.and.screwdriver.fill";
+    }
+    UIImage *ame393_image = [UIImage systemImageNamed:ame393_symbol];
+    if (!ame393_image) ame393_image = [UIImage systemImageNamed:@"cube.fill"];
+    if (ame393_image) {
+        imageView.image = [ame393_image imageWithRenderingMode:UIImageRenderingModeAlwaysTemplate];
+    }
 }
 
 @end
@@ -360,10 +384,14 @@ void setPrefBool(NSString *key, BOOL value) {
 }
 
 // utils.h: NSMutableDictionary* parseJSONFromFile(NSString *path);
-// 预览沙盒无账户文件：恒 nil——消费方对 nil / @{@"NSErrorObject":...} 双态
-// 都有守卫（Task180 读侧兜底），nil → 空账户列表
+// ★ Task393：恒 nil 桩 → 真解析——预览沙盒（AmePreviewPrepareSandbox）注入
+// 假账户文件后，账户页封面流截图可截出实数据条目；文件不存在仍 nil
+// （消费方 Task180 读侧兜底双态守卫原样保留）
 NSMutableDictionary* parseJSONFromFile(NSString *path) {
-    return nil;
+    NSData *data = [NSData dataWithContentsOfFile:path];
+    if (!data) return nil;
+    id json = [NSJSONSerialization JSONObjectWithData:data options:0 error:nil];
+    return [json isKindOfClass:[NSDictionary class]] ? json : nil;
 }
 
 // utils.h: NSError* saveJSONToFile(NSDictionary *dict, NSString *path);

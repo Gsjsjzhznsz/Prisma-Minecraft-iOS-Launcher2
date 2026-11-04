@@ -8,7 +8,8 @@
 #   scripts/ui_fluent_smoke.sh all       # 两者依次（CI 默认）
 #
 # 7.0-UI-10-c：preview 壳为 ZL2 40pt 顶栏镜像 + 横屏（模拟器截图恒横置），
-#   逐页冷启动截图 5 页 × 浅/深两态 = 10 张：
+#   逐页冷启动截图 5 页 × 浅/深两态 = 10 张（★ Task400 -versionpicker：
+#   版本/账户双滚轮原地驻主页右栏，home 即含）：
 #   ame-zl2-{home,download,versions,accounts,settings}-{light,dark}.png
 #   （组件页退役，不再产出 components 组图）
 #
@@ -101,6 +102,7 @@ preview_mode() {
     FluentButton FluentCard FluentListCell FluentTextField
     FluentToast FluentSegmentedControl FluentProgress FluentBanner
     ZL2Theme ZL2RailView ZL2HomeViewController
+    AmeIpodFlowView                   # ★ Task393：iPod 式竖排封面流（账户页/版本选择共用）
     ZL2DownloadViewController ZL2VersionsViewController
     ZL2AccountsViewController ZL2SettingsViewController
     ZL2AssetSearchViewController   # 7.0-UI-10：下载页资产搜索组件（.h+.m，与下载页同轮落地）
@@ -209,6 +211,8 @@ PLIST
   #    随设备/横置方向而定）。桩链路：下载/版本页空注册表空任务（胶囊隐藏/
   #    空态），账户页空沙盒（未登录空列表），设置页静态组卡——均为可验收
   #    的初始视觉。
+  # ★ Task400：versionpicker 专用页退役（版本/账户双滚轮原地驻主页右栏，
+  #    home 截图即含双滚轮——预览沙盒假账户×4/假实例×4 注入不变）
   local pages=(home download versions accounts settings)
   local p page_launch_out
   for p in "${pages[@]}"; do
@@ -269,7 +273,7 @@ PLIST
   done
 
   xcrun simctl terminate "$device" com.prisma-devs.ame-fluent-preview >/dev/null 2>&1 || true
-  echo "== 预览冒烟完成（5 页 × 浅/深 10 张截图即视觉验收：横屏 40pt 顶栏镜像壳 + ZL2Home 大启动按钮/下载 chips/版本空态/账户未登录/设置组卡）=="
+  echo "== 预览冒烟完成（6 页 × 浅/深 12 张截图即视觉验收：横屏 40pt 顶栏镜像壳 + ZL2Home 大启动按钮/下载 chips/版本实数据/账户封面流/设置组卡/版本选择封面流弹层）=="
 }
 
 case "$MODE" in

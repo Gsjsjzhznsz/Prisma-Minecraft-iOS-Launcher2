@@ -227,23 +227,27 @@ jobs:
           grep -nE 'fatal error|Undefined symbols|not found|^ld: ' "$LOG" | head -8 | while IFS= read -r l; do ann "linker $l"; done
           tail -8 "$LOG" | while IFS= read -r l; do ann "tail $l"; done
 
-      - name: Upload regular ipa (iPod UI)
+      # ★ Task400：产物名与主线 development.yml 逐字对齐（用户复诉“给包名
+      #   加个ipod，改回去”——ipod-ui 后缀退役；分支隔离由 workflow 名承担，
+      #   产物命名零分叉）
+      - name: Upload regular ipa
         uses: actions/upload-artifact@v4
         if: success()
         with:
-          name: com.prisma-devs.prisma-${{ matrix.platform_name }}-ipod-ui.ipa
+          name: com.prisma-devs.prisma-${{ matrix.platform_name }}.ipa
           path: artifacts/com.prisma-devs.prisma-*-${{ matrix.platform_name }}.ipa
 
-      - name: Upload regular tipa (iPod UI)
+      - name: Upload regular tipa
         uses: actions/upload-artifact@v4
         if: success()
         with:
-          name: com.prisma-devs.prisma-${{ matrix.platform_name }}-ipod-ui-trollstore.tipa
+          name: com.prisma-devs.prisma-${{ matrix.platform_name }}-trollstore.tipa
           path: artifacts/com.prisma-devs.prisma-*-${{ matrix.platform_name }}-trollstore.tipa
 
   # ★ Task393：UI 冒烟预览（模拟器逐页截图 × 浅/深两态）——iPod 改版面
-  #   （账户页封面流 / 版本选择弹层）装机前先看图：分支上 ui_fluent_smoke.sh
-  #   的页面清单含 versionpicker 预览页，产物随本工作流一并交付。
+  #   装机前先看图：账户页/主页右栏双封面流随主页一并截入，产物随本工作流
+  #   一并交付（★ Task400：滚轮原地化后 versionpicker 专用页退役，
+  #   页清单 6→5；产物名与 ui-smoke.yml 主线对齐）。
   smoke:
     name: iPod UI smoke (syntax + preview)
     runs-on: macos-15
@@ -267,7 +271,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: ame-ipod-ui-preview
+          name: ame-fluent-preview
           path: |
             build/ame-preview/*.png
             build/ame-preview/*.log

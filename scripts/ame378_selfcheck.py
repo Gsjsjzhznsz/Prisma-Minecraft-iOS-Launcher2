@@ -142,23 +142,34 @@ check("B6 页面切换契约不变（childCache 懒建 + 6 页 + ZL2ShellNavigat
 
 # ══ C 线：★Task393 五入口快航瓦片退役（ZL2HomeViewController） ═══════
 
-check("C1 ★Task393 快航瓦片整体退役（构建器/工厂/切页辅助/通知辅助/属性/常量 零残留）",
-      "ame378_buildQuickNav" not in home_code
-      and "ame378_quickNavTileWithSymbol" not in home_code
-      and "ame378_navigateToPage" not in home_code
-      and "ame378_openFileManagerSheet" not in home_code
-      and "quickNavWrap" not in home_code
-      and "ZL2HomeQuickNav" not in home)
+check("C1 快航构建器在位 + 顶卡挂接（★Task400 重锚：瓦片卡驻右栏顶——用户复诉「五个按钮在顶上，你移到中间干啥」；Task379「随账号/版本卡之后」与弹性占位口径随卡片化滚动区退役；构建序 = quickNavCard 建卡 → 瓦片行入驻 → 账户/版本滚轮卡随后）",
+      "- (void)ame378_buildQuickNav {" in home_code
+      and "[self ame378_buildQuickNav];" in home_code
+      and "[_quickNavCard addSubview:_quickNavWrap];" in home_code
+      and home_code.index("[self ame378_buildQuickNav];") > home_code.index("_quickNavCard = [[UIView alloc] init];")
+      and home_code.index("[self ame378_buildQuickNav];") < home_code.index("_accountCard = [[UIView alloc] init];"))
 
 check("C2 ★Task393 退役注释锚在位（收敛终态说明：fui=左窗格唯一 / MD3=壳层动作簇唯一）",
       "Task393：五入口快航瓦片退役" in home
       and "fui（nav 骨架）唯一入口 = 左窗格" in home)
 
-check("C3 右栏卡内对称留白纪律保留（menu 对称 8pt + menuStack 对称内边距，与瓦片无关的通用面）",
-      "[menu.leadingAnchor constraintEqualToAnchor:self.view.leadingAnchor constant:8]," in home_code
-      and "[menu.trailingAnchor constraintEqualToAnchor:self.view.trailingAnchor constant:-8]," in home_code
-      and "[_menuStack.leadingAnchor constraintEqualToAnchor:_actionMenu.leadingAnchor constant:ZL2HomeMenuEdgePadding]," in home_code
-      and "[_menuStack.trailingAnchor constraintEqualToAnchor:_actionMenu.trailingAnchor constant:-ZL2HomeMenuEdgePadding]," in home_code)
+check("C3 ★Task392 图标减半规格（用户规格\"缩小两倍\"：图标 27.5 = 55÷2；瓦片高 66.5；间距 6）",
+      "ZL2HomeQuickNavIconSize   = 27.5;" in home
+      and "ZL2HomeQuickNavTileHeight = 66.5;" in home
+      and "ZL2HomeQuickNavGap        = 6;" in home
+      and "ZL2HomeQuickNavIconSize   = 55;" not in home
+      and "[ame378_icon.widthAnchor constraintEqualToConstant:ZL2HomeQuickNavIconSize]," in home_code)
+
+check("C4 对称留白纪律（★Task400 重锚：单行 fillEqually 均分 + 统一间距 + 瓦片行四边钉顶卡内缩 8pt（卡片化对称内边距）+ 长标签缩排不截断 + 卡间间隙 = 栏距屏边 8pt 同值 + 栏停靠边四边 8pt 沿用）",
+      home_code.count("UIStackViewDistributionFillEqually") == 1
+      and "_quickNavWrap.spacing = ZL2HomeQuickNavGap;" in home_code
+      and "ame378_label.minimumScaleFactor = 0.7;" in home_code
+      and "[_quickNavWrap.topAnchor constraintEqualToAnchor:_quickNavCard.topAnchor constant:ZL2HomeCardPadding]," in home_code
+      and "[_quickNavWrap.leadingAnchor constraintEqualToAnchor:_quickNavCard.leadingAnchor constant:ZL2HomeCardPadding]," in home_code
+      and "[_quickNavWrap.trailingAnchor constraintEqualToAnchor:_quickNavCard.trailingAnchor constant:-ZL2HomeCardPadding]," in home_code
+      and "_menuStack.spacing = ZL2HomeCardGap;" in home_code
+      and "menu.leadingAnchor constraintEqualToAnchor:self.view.leadingAnchor constant:8]," in home_code
+      and "menu.trailingAnchor constraintEqualToAnchor:self.view.trailingAnchor constant:-8]," in home_code)
 
 check("C4 ★Task393 向导引导锚点平移（zl2_shell_topbar_rail 随簇驻壳层，home 零残留）",
       'self.ame383_headerActions.accessibilityIdentifier = @"zl2_shell_topbar_rail";' in shell
@@ -175,13 +186,25 @@ check("C6 i18n 零新增键（动作簇同款键驻壳层：ame369.shell.tab.* /
       and 'localize(@"ame369.common.multiplayer", @"多人联机")' in shell
       and 'localize(@"ame192.ai.title", nil)' in shell)
 
-check("C7 登录卡/版本选择卡功能不变（构建代码与点击链零改动锚）",
-      "_accountCard = [[ZL2HomeTapControl alloc] init];" in home_code
-      and "_versionCard = [[ZL2HomeTapControl alloc] init];" in home_code
+check("C9 账户/版本滚轮卡功能锚（★Task400 重锚：双卡改 AmeIpodFlowView 原地滚轮——落定回调/卡尾钮（账户管理+刷新+齿轮）/a11y id 保留；卡体点击链退役 = 拖拽即选择）",
+      "_accountFlow = [[AmeIpodFlowView alloc] init];" in home_code
+      and "_versionFlow = [[AmeIpodFlowView alloc] init];" in home_code
+      and "_accountFlow.onSettle = ^(NSInteger ame400_index) {" in home_code
+      and "_versionFlow.onSettle = ^(NSInteger ame400_index) {" in home_code
       and "accountCardTapped" in home_code
-      and "versionCardTapped" in home_code
+      and "versionSettingsTapped" in home_code
       and 'accessibilityIdentifier = @"zl2_home_account_card";' in home
       and 'accessibilityIdentifier = @"zl2_home_version_card";' in home)
+
+check("C10 右栏卡片化口径（★Task400 新立：用户规格第 4 条——栏容器背景透明（呈现启动器背景）+ 四卡 surfaceContainer/radiusXL（右侧栏圆角同款）+ 卡间间隙 8pt（= Task392 栏距屏边四边同值）+ MC 头像 1 物理像素超小圆角）",
+      "_actionMenu.backgroundColor = [UIColor clearColor];" in home_code
+      and "_quickNavCard.backgroundColor = [ZL2Theme surfaceContainer];" in home_code
+      and "_accountCard.backgroundColor = [ZL2Theme surfaceContainer];" in home_code
+      and "_versionCard.backgroundColor = [ZL2Theme surfaceContainer];" in home_code
+      and "_launchCard.backgroundColor = [ZL2Theme surfaceContainer];" in home_code
+      and home_code.count("layer.cornerRadius = [ZL2Theme radiusXL];") >= 4
+      and "ZL2HomeCardGap            = 8;" in home
+      and "layer.cornerRadius = 1.0 / [UIScreen mainScreen].scale;" in home_code)
 
 # ══ S 反向探针（--selftest：变体注入必翻红） ═══════════════════════
 
