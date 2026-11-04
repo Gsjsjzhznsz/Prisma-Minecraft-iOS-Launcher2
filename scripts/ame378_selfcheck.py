@@ -149,14 +149,18 @@ check("C1 快航构建器在位 + 顶卡挂接（★Task400 重锚：瓦片卡�
       and home_code.index("[self ame378_buildQuickNav];") > home_code.index("_quickNavCard = [[UIView alloc] init];")
       and home_code.index("[self ame378_buildQuickNav];") < home_code.index("_accountCard = [[UIView alloc] init];"))
 
-check("C2 ★Task401 面板还原+卡窗透明锚（用户规格：保留原来的右边栏整块灰面板，每卡窗区 even-odd 排除不画=直透启动器背景；r2/r3 实锤：layer.mask+CAShapeLayer 两轮整块实心——drawRect 直画为正解，UIBezierPath.fill 直 honoring usesEvenOddFillRule）",
+check("C2 ★Task401 面板还原+卡窗透明锚（用户规格：保留原来的右边栏整块灰面板，每卡窗区 even-odd 排除不画=直透启动器背景；r4 重锚：绘制期自取四卡帧（喂矩形链路两轮 CI smoke 实锤洞恒空退役）+洞为零自诊锚=纯红面板）",
       "_panelBackdrop = [[Ame401PanelHolesView alloc] init];" in home_code
       and "@interface Ame401PanelHolesView : UIView" in home
       and "- (void)drawRect:(CGRect)rect {" in home_code
       and "usesEvenOddFillRule = YES;" in home
       and "resolvedColorWithTraitCollection:" in home_code
       and "- (void)ame_refreshPanelMask {" in home_code
-      and "_menuScrollView.delegate = self;" in home_code)
+      and "_menuScrollView.delegate = self;" in home_code
+      and "- (void)ame401_setHostCards:(NSArray<UIView *> *)cards" in home_code
+      and "convertRect:ame401_card.bounds toView:self]" in home_code
+      and "[UIColor systemRedColor]" in home_code
+      and "[_panelBackdrop ame401_setHostCards:@[_quickNavCard, _accountCard, _versionCard, _launchCard]];" in home_code)
 
 check("C3 ★Task392 图标减半规格（用户规格\"缩小两倍\"：图标 27.5 = 55÷2；瓦片高 66.5；间距 6）",
       "ZL2HomeQuickNavIconSize   = 27.5;" in home

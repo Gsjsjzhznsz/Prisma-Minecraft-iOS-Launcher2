@@ -176,10 +176,12 @@ static UIImage *ZL2HomeSizedImage(NSString *name, NSString *fallback, CGFloat po
 // 契约，零中间层；深浅切换经 traitCollectionDidChange 重绘；几何由宿主
 // 每帧喂（ame_setHoleRects：仅变化才重绘，滚动中逐帧调用零压力）。
 @interface Ame401PanelHolesView : UIView
+/// 挂四卡窗宿主（drawRect 绘制期自取帧——零跨视图喂矩形时序面）
+- (void)ame401_setHostCards:(NSArray<UIView *> *)cards;
 @end
 
 @implementation Ame401PanelHolesView {
-    NSArray<NSValue *> *_ame401_holes;   // 卡窗矩形（本视图坐标）
+    NSArray<UIView *> *_ame401_cards;    // 四卡窗宿主（弱语义由宿主持有保证）
 }
 
 - (instancetype)initWithFrame:(CGRect)frame {
@@ -193,11 +195,14 @@ static UIImage *ZL2HomeSizedImage(NSString *name, NSString *fallback, CGFloat po
     return self;
 }
 
-/// 喂卡窗矩形（本视图坐标；仅变化才重绘——滚动中逐帧调用零压力）
-- (void)ame401_setHoleRects:(NSArray<NSValue *> *)holes {
-    if (_ame401_holes != nil && [_ame401_holes isEqualToArray:holes]) return;
-    _ame401_holes = [holes copy];
+- (void)ame401_setHostCards:(NSArray<UIView *> *)cards {
+    _ame401_cards = [cards copy];
     [self setNeedsDisplay];
+}
+
+- (void)layoutSubviews {
+    [super layoutSubviews];
+    [self setNeedsDisplay];   // 自身几何变化即重绘（滚动中子帧变化由宿主 scrollViewDidScroll 补触发）
 }
 
 - (void)traitCollectionDidChange:(UITraitCollection *)previousTraitCollection {
@@ -206,12 +211,20 @@ static UIImage *ZL2HomeSizedImage(NSString *name, NSString *fallback, CGFloat po
 }
 
 - (void)drawRect:(CGRect)rect {
+    // 自测量：卡窗矩形 = 绘制期直读四卡帧（本视图坐标），不依赖外部喂矩形
+    NSMutableArray<NSValue *> *ame401_holes = [NSMutableArray array];
+    for (UIView *ame401_card in _ame401_cards) {
+        if (ame401_card == nil || ame401_card.hidden || ame401_card.window == nil) continue;
+        CGRect ame401_r = [ame401_card convertRect:ame401_card.bounds toView:self];
+        if (ame401_r.size.width < 1.0 || ame401_r.size.height < 1.0) continue;
+        [ame401_holes addObject:[NSValue valueWithCGRect:ame401_r]];
+    }
+
     CGFloat ame401_radius = [ZL2Theme radiusXL];
     UIBezierPath *ame401_path = [UIBezierPath
         bezierPathWithRoundedRect:self.bounds cornerRadius:ame401_radius];
-    for (NSValue *ame401_v in _ame401_holes) {
+    for (NSValue *ame401_v in ame401_holes) {
         CGRect ame401_r = ame401_v.CGRectValue;
-        if (ame401_r.size.width < 1.0 || ame401_r.size.height < 1.0) continue;
         [ame401_path appendPath:[UIBezierPath bezierPathWithRoundedRect:ame401_r
                                                            cornerRadius:ame401_radius]];
     }
@@ -219,6 +232,11 @@ static UIImage *ZL2HomeSizedImage(NSString *name, NSString *fallback, CGFloat po
     // 动态令牌逐 trait 解析（drawRect 无自动深浅跟随，本视图自理）
     UIColor *ame401_color = [[ZL2Theme surfaceContainer]
         resolvedColorWithTraitCollection:self.traitCollection];
+    // r4 自诊锚：洞为零（帧链路断）= 面板画纯红 —— smoke 截图一眼定位
+    //（正常态恒有四洞；红色只可能出现在帧链路断裂的异常装机上）
+    if (ame401_holes.count == 0 && !CGRectIsEmpty(self.bounds)) {
+        ame401_color = [UIColor systemRedColor];
+    }
     [ame401_color setFill];
     [ame401_path fill];   // even-odd：窗区交叉计数 2 = 偶数 = 不填 = 透明
 }
@@ -658,7 +676,9 @@ static UIImage *ZL2HomeSizedImage(NSString *name, NSString *fallback, CGFloat po
         }
         [ame401_rects addObject:[NSValue valueWithCGRect:ame401_r]];
     }
-    [self.panelBackdrop ame401_setHoleRects:ame401_rects];
+    // r4：喂矩形链路退役（两轮 CI smoke 实锤洞恒空）——绘制期自取帧，
+    // 宿主只负责触发重绘（布局/滚动/滚动位相变化）
+    [self.panelBackdrop setNeedsDisplay];
 }
 
 // ★ Task401：中段滚动时卡窗位相连续变 → 逐帧重抠（网格滚动同样回调本方法，
@@ -1020,6 +1040,9 @@ static UIImage *ZL2HomeSizedImage(NSString *name, NSString *fallback, CGFloat po
         [_launchIconView.widthAnchor constraintEqualToConstant:18],
         [_launchIconView.heightAnchor constraintEqualToConstant:18],
     ]];
+
+    // ★ Task401 r4：面板灰棱视图挂四卡窗宿主（drawRect 绘制期自取帧）
+    [_panelBackdrop ame401_setHostCards:@[_quickNavCard, _accountCard, _versionCard, _launchCard]];
 }
 
 #pragma mark - ★ Task378 五入口快航瓦片（★ Task400 驻右栏顶卡：用户规格「五个按钮在顶上」）
