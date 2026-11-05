@@ -126,7 +126,7 @@ static const CGFloat ZL2HomeCardGap            = 8;   // 卡间间隙 = 栏距�
 static const CGFloat ZL2HomeCardPadding        = 8;   // 卡内边距（与卡间隙同律）
 static const CGFloat ZL2HomeAccountWheelH      = 88;  // 账户横排滚轮视口高（头像 32 + 名称/类型两行 + 上下留白）
 static const CGFloat ZL2HomeAccountEntryAvatar = 32;  // 横排条目头像边长（原头像卡同语言等比缩位）
-static const CGFloat ZL2HomeAccountFlowGapH    = 6;   // 横排条目间隙（五等分槽位均匀留白）
+static const CGFloat ZL2HomeAccountFlowGapH    = 4;   // 横排条目间隙
 static const CGFloat ZL2HomeVersionFlowItemH   = 64;  // 版本滚轮条目高（图标 40 + 双行文 =「五个正常的实例版本信息高度」口径）
 static const CGFloat ZL2HomeFlowItemGap        = 10;  // 竖排条目间隙（实例卡图标→名称间隙参照，Task393 用户规格沿用）
 static const CGFloat ZL2HomeCardFooterHeight   = 32;  // 卡尾动作行钮边长（账户管理/刷新/齿轮）
@@ -525,6 +525,7 @@ static UIImage *ZL2HomeSizedImage(NSString *name, NSString *fallback, CGFloat po
 @property (nonatomic, strong) UIView *accountCard;
 @property (nonatomic, strong) AmeFlowSelectView *accountFlow;
 @property (nonatomic, strong) ZL2HomeTapControl *accountManageButton;   // 卡尾账户管理小钮
+@property (nonatomic, strong) ZL2HomeTapControl *accountDeleteButton;
 @property (nonatomic, strong) UIActivityIndicatorView *accountSpinner; // 选中链忙态占位
 @property (nonatomic, strong) NSMutableArray<NSDictionary *> *ame400_accountList;   // 账户数据源（accounts 目录扫描）
 @property (nonatomic, copy, nullable) NSArray<NSString *> *ame400_accountKeys;      // 上轮条目键序（数据未变则免重建防吸附回跳）
@@ -807,9 +808,15 @@ static UIImage *ZL2HomeSizedImage(NSString *name, NSString *fallback, CGFloat po
                                                  fallback:@"person.crop.circle"
                                                      a11y:localize(@"ame369.shell.tab.accounts", @"账户")];
     _accountManageButton.ame_action = ^{
-        [weakSelf accountCardTapped];
+        [weakSelf ame_requestAccountAction:@"ZL2AccountsRequestAdd"];
     };
     [_accountCard addSubview:_accountManageButton];
+    _accountDeleteButton = [self ame_iconButtonWithSymbol:@"trash" fallback:@"trash.fill"
+                                                     a11y:localize(@"account.menu.delete", @"删除账户")];
+    _accountDeleteButton.ame_action = ^{
+        [weakSelf ame_requestAccountAction:@"ZL2AccountsRequestDeleteCurrent"];
+    };
+    [_accountCard addSubview:_accountDeleteButton];
 
     _accountSpinner = [[UIActivityIndicatorView alloc] initWithActivityIndicatorStyle:UIActivityIndicatorViewStyleMedium];
     _accountSpinner.hidesWhenStopped = YES;
@@ -1020,10 +1027,14 @@ static UIImage *ZL2HomeSizedImage(NSString *name, NSString *fallback, CGFloat po
         [_accountFlow.trailingAnchor constraintEqualToAnchor:_accountCard.trailingAnchor constant:-ZL2HomeCardPadding],
         [_accountFlow.heightAnchor constraintEqualToConstant:ZL2HomeAccountWheelH],
         [_accountManageButton.topAnchor constraintEqualToAnchor:_accountFlow.bottomAnchor constant:6],
-        [_accountManageButton.trailingAnchor constraintEqualToAnchor:_accountCard.trailingAnchor constant:-12],
+        [_accountManageButton.leadingAnchor constraintEqualToAnchor:_accountCard.leadingAnchor constant:12],
         [_accountManageButton.widthAnchor constraintEqualToConstant:ZL2HomeCardFooterHeight],
         [_accountManageButton.heightAnchor constraintEqualToConstant:ZL2HomeCardFooterHeight],
         [_accountManageButton.bottomAnchor constraintEqualToAnchor:_accountCard.bottomAnchor constant:-4],
+        [_accountDeleteButton.trailingAnchor constraintEqualToAnchor:_accountCard.trailingAnchor constant:-12],
+        [_accountDeleteButton.centerYAnchor constraintEqualToAnchor:_accountManageButton.centerYAnchor],
+        [_accountDeleteButton.widthAnchor constraintEqualToConstant:ZL2HomeCardFooterHeight],
+        [_accountDeleteButton.heightAnchor constraintEqualToConstant:ZL2HomeCardFooterHeight],
         [_accountSpinner.centerXAnchor constraintEqualToAnchor:_accountCard.centerXAnchor],
         [_accountSpinner.centerYAnchor constraintEqualToAnchor:_accountManageButton.centerYAnchor],
 
@@ -1137,7 +1148,7 @@ static UIImage *ZL2HomeSizedImage(NSString *name, NSString *fallback, CGFloat po
                                               action:(void (^)(void))action {
     ZL2HomeTapControl *tile = [[ZL2HomeTapControl alloc] init];
     tile.backgroundColor = [UIColor clearColor];
-    tile.layer.cornerRadius = [ZL2Theme radiusXL];
+    tile.layer.cornerRadius = [ZL2Theme radiusM];
     tile.translatesAutoresizingMaskIntoConstraints = NO;
     tile.isAccessibilityElement = YES;
     tile.accessibilityTraits = UIAccessibilityTraitButton;
@@ -1966,6 +1977,11 @@ static UIImage *ZL2HomeSizedImage(NSString *name, NSString *fallback, CGFloat po
 // 账户管理入口（★ Task400：原账号卡点击语义收口至账户卡尾管理小钮）
 - (void)accountCardTapped {
     [[NSNotificationCenter defaultCenter] postNotificationName:@"ShowAccountManager" object:nil];
+}
+
+- (void)ame_requestAccountAction:(NSString *)notification {
+    [[NSNotificationCenter defaultCenter] postNotificationName:@"ZL2ShellNavigate" object:nil userInfo:@{@"index": @3}];
+    [[NSNotificationCenter defaultCenter] postNotificationName:notification object:nil];
 }
 
 // ★ Task400：versionCardTapped 退役（版本滚轮原地驻卡内，拖拽即选择；

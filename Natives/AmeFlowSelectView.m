@@ -19,11 +19,13 @@
 // 远近衰减系数（封面流口径；连续插值无跳变）
 // 选中态以“尺寸带动透明度”：更大的条目必然更不透明。衰减刻意收窄，
 // 保留列表的层级而不再像 iPod Cover Flow 一样夸张、跳动。
-static const CGFloat AmeFlowSelectScalePerStep    = 0.05;  // 轻微层级，避免 Cover Flow 式跳变
-static const CGFloat AmeFlowSelectAlphaFloor      = 0.72;  // 拖拽越界时的可读性下限
+static const CGFloat AmeFlowSelectCenterScale     = 1.50;
+static const CGFloat AmeFlowSelectScalePerStep    = 0.15;
+static const CGFloat AmeFlowSelectAlphaPerStep    = 0.25;
+static const CGFloat AmeFlowSelectAlphaFloor      = 0.25;
 static const CGFloat AmeFlowSelectHideRange       = 2.6;   // |d| > 此值隐藏（可见窗 |d| ≤ 2.4，五枚口径）
 static const CGFloat AmeFlowSelectFlickVelocity   = 1400.0; // 惯性判定速度阈值（pt/s）
-static const CGFloat AmeFlowSelectSpringStiffness = 280.0;  // 弹簧刚度（临界阻尼配平；吸附 ~0.35s 收束）
+static const CGFloat AmeFlowSelectSpringStiffness = 180.0;  // 更柔和的原生滚动式收束
 static const CGFloat AmeFlowSelectSnapEpsilon     = 0.002;  // 吸附收敛判定（步距比）
 static const NSTimeInterval AmeFlowSelectSnapDuration = 0.42; // 程序化滚动时长
 /// 账户横列只保留当前项及相邻两项，避免密集的 iPod Cover Flow 观感。
@@ -117,8 +119,8 @@ static const CGFloat AmeFlowSelectThreeAcrossDivisor = 2.8;
             item.hidden = NO;
 
             // 尺寸与透明度同源：更大即更不透明，且正反两个方向完全对称。
-            CGFloat ame_scale = 1.0 - AmeFlowSelectScalePerStep * ame_absd;
-            CGFloat ame_alpha = ame_scale;
+            CGFloat ame_scale = AmeFlowSelectCenterScale - AmeFlowSelectScalePerStep * ame_absd;
+            CGFloat ame_alpha = 1.0 - AmeFlowSelectAlphaPerStep * ame_absd;
             if (ame_alpha < AmeFlowSelectAlphaFloor) ame_alpha = AmeFlowSelectAlphaFloor;
 
             // 条目手动摆位（帧驱动口径；条目内部子视图仍 AutoLayout）
@@ -149,8 +151,8 @@ static const CGFloat AmeFlowSelectThreeAcrossDivisor = 2.8;
         item.hidden = NO;
 
         // 尺寸与透明度同源：不再出现“越往上越不透明”的方向性错觉。
-        CGFloat ame_scale = 1.0 - AmeFlowSelectScalePerStep * ame_absd;
-        CGFloat ame_alpha = ame_scale;
+        CGFloat ame_scale = AmeFlowSelectCenterScale - AmeFlowSelectScalePerStep * ame_absd;
+        CGFloat ame_alpha = 1.0 - AmeFlowSelectAlphaPerStep * ame_absd;
         if (ame_alpha < AmeFlowSelectAlphaFloor) ame_alpha = AmeFlowSelectAlphaFloor;
 
         // 条目手动摆位（帧驱动口径，见 .h 头注释；条目内部子视图仍 AutoLayout）

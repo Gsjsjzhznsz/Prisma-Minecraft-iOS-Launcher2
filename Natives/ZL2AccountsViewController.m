@@ -353,6 +353,21 @@ BOOL ZL2AccountsSharedIsThirdParty(NSDictionary *accountData) {
                                              selector:@selector(ame_accountsDidChange:)
                                                  name:@"UpdateAccountInfo"
                                                object:nil];
+    [[NSNotificationCenter defaultCenter] addObserver:self selector:@selector(ame_requestAdd)
+                                                 name:@"ZL2AccountsRequestAdd" object:nil];
+    [[NSNotificationCenter defaultCenter] addObserver:self selector:@selector(ame_requestDeleteCurrent)
+                                                 name:@"ZL2AccountsRequestDeleteCurrent" object:nil];
+}
+
+- (void)ame_requestAdd { [self showAddAccountSheet]; }
+
+- (void)ame_requestDeleteCurrent {
+    NSString *currentId = BaseAuthenticator.current.authData[@"accountId"] ?: BaseAuthenticator.current.authData[@"username"];
+    NSUInteger index = [self.accountList indexOfObjectPassingTest:^BOOL(NSDictionary *item, NSUInteger idx, BOOL *stop) {
+        NSString *itemId = item[@"accountId"] ?: item[@"username"];
+        return currentId.length > 0 && [itemId isEqualToString:currentId];
+    }];
+    if (index != NSNotFound) [self confirmDeleteAccountAtIndex:index];
 }
 
 - (void)viewWillAppear:(BOOL)animated {
