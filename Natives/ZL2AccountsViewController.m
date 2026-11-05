@@ -362,7 +362,10 @@ BOOL ZL2AccountsSharedIsThirdParty(NSDictionary *accountData) {
 - (void)ame_requestAdd { [self showAddAccountSheet]; }
 
 - (void)ame_requestDeleteCurrent {
-    NSString *currentId = BaseAuthenticator.current.authData[@"accountId"] ?: BaseAuthenticator.current.authData[@"username"];
+    BaseAuthenticator *current = [BaseAuthenticator.current isKindOfClass:BaseAuthenticator.class]
+        ? BaseAuthenticator.current : nil;
+    NSDictionary *currentData = current.authData;
+    NSString *currentId = currentData[@"accountId"] ?: currentData[@"username"];
     NSUInteger index = [self.accountList indexOfObjectPassingTest:^BOOL(NSDictionary *item, NSUInteger idx, BOOL *stop) {
         NSString *itemId = item[@"accountId"] ?: item[@"username"];
         return currentId.length > 0 && [itemId isEqualToString:currentId];
