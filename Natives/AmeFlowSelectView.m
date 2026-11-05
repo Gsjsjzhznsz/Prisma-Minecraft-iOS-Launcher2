@@ -22,13 +22,12 @@
 static const CGFloat AmeFlowSelectScalePerStep    = 0.05;  // 轻微层级，避免 Cover Flow 式跳变
 static const CGFloat AmeFlowSelectAlphaFloor      = 0.72;  // 拖拽越界时的可读性下限
 static const CGFloat AmeFlowSelectHideRange       = 2.6;   // |d| > 此值隐藏（可见窗 |d| ≤ 2.4，五枚口径）
-static const CGFloat AmeFlowSelectRubberBand      = 0.35;  // 越界拖拽阻尼（回弹）
 static const CGFloat AmeFlowSelectFlickVelocity   = 1400.0; // 惯性判定速度阈值（pt/s）
 static const CGFloat AmeFlowSelectSpringStiffness = 280.0;  // 弹簧刚度（临界阻尼配平；吸附 ~0.35s 收束）
 static const CGFloat AmeFlowSelectSnapEpsilon     = 0.002;  // 吸附收敛判定（步距比）
 static const NSTimeInterval AmeFlowSelectSnapDuration = 0.42; // 程序化滚动时长
-/// 横轴五枚不变式：步距 = 视口宽 ÷ 此值（|d|≤2.4 全部落在视口内）
-static const CGFloat AmeFlowSelectFiveAcrossDivisor = 4.8;
+/// 账户横列只保留当前项及相邻两项，避免密集的 iPod Cover Flow 观感。
+static const CGFloat AmeFlowSelectThreeAcrossDivisor = 2.8;
 
 @interface AmeFlowSelectView () <UIGestureRecognizerDelegate>
 @property (nonatomic, strong) NSMutableArray<UIView *> *ame_items;
@@ -79,10 +78,10 @@ static const CGFloat AmeFlowSelectFiveAcrossDivisor = 4.8;
 
 - (CGFloat)pitch {
     if (self.axis == AmeFlowSelectAxisHorizontal) {
-        // 横轴五枚不变式：视口宽 ÷ 4.8（选中 ±2 枚恒在视口内，无重叠）
+        // 三项视口：当前项与左右相邻项同时可见。
         CGFloat ame_w = CGRectGetWidth(self.bounds);
         if (ame_w < 1.0) return _itemHeight + _interItemGap;   // 未布局兜底
-        return ame_w / AmeFlowSelectFiveAcrossDivisor;
+        return ame_w / AmeFlowSelectThreeAcrossDivisor;
     }
     return self.itemHeight + self.interItemGap;
 }
@@ -99,7 +98,7 @@ static const CGFloat AmeFlowSelectFiveAcrossDivisor = 4.8;
 /// 摆位核心：条目按当前位相连续排布（拖动/惯性每帧调用）
 - (void)ame_layoutItems {
     CGFloat ame_pitch = [self pitch];
-    CGFloat ame_absdMax = AmeFlowSelectHideRange;
+    CGFloat ame_absdMax = (self.axis == AmeFlowSelectAxisHorizontal) ? 1.55 : AmeFlowSelectHideRange;
 
     if (self.axis == AmeFlowSelectAxisHorizontal) {
         CGFloat ame_centerX = CGRectGetMidX(self.bounds);
@@ -107,7 +106,8 @@ static const CGFloat AmeFlowSelectFiveAcrossDivisor = 4.8;
         CGFloat ame_itemW = ame_pitch - self.interItemGap;   // 槽宽 = 步距 − 间隙（不重叠）
 
         [self.ame_items enumerateObjectsUsingBlock:^(UIView *item, NSUInteger i, BOOL *stop) {
-            CGFloat ame_d = (CGFloat)i - self.ame_offset;
+            CGFloat ame_d = remainder((CGFloat)i - self.ame_offset,
+                                      (CGFloat)self.ame_items.count);
             CGFloat ame_absd = fabs(ame_d);
 
             if (ame_absd > ame_absdMax || self.bounds.size.width < 1.0) {
@@ -138,7 +138,8 @@ static const CGFloat AmeFlowSelectFiveAcrossDivisor = 4.8;
     CGFloat ame_half = self.itemHeight / 2.0;
 
     [self.ame_items enumerateObjectsUsingBlock:^(UIView *item, NSUInteger i, BOOL *stop) {
-        CGFloat ame_d = (CGFloat)i - self.ame_offset;
+        CGFloat ame_d = remainder((CGFloat)i - self.ame_offset,
+                                  (CGFloat)self.ame_items.count);
         CGFloat ame_absd = fabs(ame_d);
 
         if (ame_absd > ame_absdMax || self.bounds.size.height < 1.0) {
@@ -203,27 +204,32 @@ static const CGFloat AmeFlowSelectFiveAcrossDivisor = 4.8;
 - (NSInteger)selectedIndex {
     if (self.ame_items.count == 0) return NSNotFound;
     NSInteger ame_idx = (NSInteger)lround((double)self.ame_offset);
-    if (ame_idx < 0) ame_idx = 0;
-    if ((NSUInteger)ame_idx >= self.ame_items.count) ame_idx = (NSInteger)self.ame_items.count - 1;
+    NSInteger ame_count = (NSInteger)self.ame_items.count;
+    ame_idx %= ame_count;
+    if (ame_idx < 0) ame_idx += ame_count;
     return ame_idx;
 }
 
 - (void)setSelectedIndex:(NSInteger)index animated:(BOOL)animated {
     if (self.ame_items.count == 0) return;
-    if (index < 0) index = 0;
-    if ((NSUInteger)index >= self.ame_items.count) index = (NSInteger)self.ame_items.count - 1;
+    NSInteger ame_count = (NSInteger)self.ame_items.count;
+    index %= ame_count;
+    if (index < 0) index += ame_count;
 
     self.ame_hasSettledIdx = YES;
     self.ame_settledIdx = index;
 
+    CGFloat ame_destination = self.ame_offset +
+        remainder((CGFloat)index - self.ame_offset, (CGFloat)ame_count);
     if (!animated || self.window == nil) {
-        self.ame_offset = (CGFloat)index;
-        self.ame_target = (CGFloat)index;
+        self.ame_offset = ame_destination;
+        self.ame_target = ame_destination;
         [self ame_stopTicker];
         [self ame_layoutItems];
         return;
     }
-    self.ame_target = (CGFloat)index;
+    // 选择等价的最近循环位置，0→最后一项与最后一项→0 都只移动一格。
+    self.ame_target = ame_destination;
     self.ame_velocity = 0.0;
     [self ame_startTicker];
 }
@@ -270,15 +276,8 @@ shouldBeRequiredToFailByGestureRecognizer:(UIGestureRecognizer *)otherGestureRec
                 ? [pan translationInView:self].x
                 : [pan translationInView:self].y;
             CGFloat ame_raw = self.ame_dragStartOffset - ame_dDrag / [self pitch];
-            // 越界橡皮筋（两端阻尼回弹）
-            CGFloat ame_max = (CGFloat)(self.ame_items.count - 1);
-            if (ame_raw < 0.0) {
-                self.ame_offset = ame_raw * AmeFlowSelectRubberBand;
-            } else if (ame_raw > ame_max) {
-                self.ame_offset = ame_max + (ame_raw - ame_max) * AmeFlowSelectRubberBand;
-            } else {
-                self.ame_offset = ame_raw;
-            }
+            // 无边界循环：首尾相接，拖过最后一项继续回到第一项。
+            self.ame_offset = ame_raw;
             self.ame_target = self.ame_offset;
             [self ame_layoutItems];
             break;
@@ -292,10 +291,7 @@ shouldBeRequiredToFailByGestureRecognizer:(UIGestureRecognizer *)otherGestureRec
             if (fabs(ame_v) > AmeFlowSelectFlickVelocity) {
                 ame_flick = (ame_v > 0.0) ? -1.0 : 1.0;
             }
-            NSInteger ame_maxIdx = (NSInteger)self.ame_items.count - 1;
             CGFloat ame_dest = round(self.ame_offset) + ame_flick;
-            if (ame_dest < 0.0) ame_dest = 0.0;
-            if (ame_dest > (CGFloat)ame_maxIdx) ame_dest = (CGFloat)ame_maxIdx;
             self.ame_target = ame_dest;
             self.ame_velocity = 0.0;
             [self ame_startTicker];
@@ -315,10 +311,7 @@ shouldBeRequiredToFailByGestureRecognizer:(UIGestureRecognizer *)otherGestureRec
     } else {
         ame_hit = self.ame_offset + (ame_pt.y - CGRectGetMidY(self.bounds)) / [self pitch];
     }
-    NSInteger ame_maxIdx = (NSInteger)self.ame_items.count - 1;
     NSInteger ame_dest = (NSInteger)lround((double)ame_hit);
-    if (ame_dest < 0) ame_dest = 0;
-    if (ame_dest > ame_maxIdx) ame_dest = ame_maxIdx;
     self.ame_target = (CGFloat)ame_dest;
     self.ame_velocity = 0.0;
     [self ame_startTicker];

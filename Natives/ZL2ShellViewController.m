@@ -421,6 +421,8 @@ static UIImage *ZL2ShellSystemImage(NSString *name, NSString *fallback) {
 @property(nonatomic, strong) UIView *topBar;                          // ★ Task378 退役占位（恒 nil；保留声明以兼容 (self.topBar ?: self.contentHeader) 门禁锚点表达式）
 @property(nonatomic, strong) ZL2ShellTaskPill *taskPill;              // 任务胶囊（nav 骨架内容区头专属）
 @property(nonatomic, strong) UIView *container;                       // 子页挂载区
+@property(nonatomic, strong) UIView *persistentRightSidebar;          // 所有页面共用的账户/实例右栏
+@property(nonatomic, strong) NSLayoutConstraint *containerTrailing;
 @property(nonatomic, strong) NSMutableDictionary<NSNumber *, UIViewController *> *childCache;
 @property(nonatomic, assign) NSInteger currentIndex;
 
@@ -588,10 +590,11 @@ static UIImage *ZL2ShellSystemImage(NSString *name, NSString *fallback) {
     self.container.backgroundColor = [UIColor clearColor];
     [self.view addSubview:self.container];
 
+    self.containerTrailing = [self.container.trailingAnchor constraintEqualToAnchor:self.view.trailingAnchor];
     [NSLayoutConstraint activateConstraints:@[
         [self.container.topAnchor constraintEqualToAnchor:self.view.topAnchor],
         [self.container.leadingAnchor constraintEqualToAnchor:self.view.leadingAnchor],
-        [self.container.trailingAnchor constraintEqualToAnchor:self.view.trailingAnchor],
+        self.containerTrailing,
         [self.container.bottomAnchor constraintEqualToAnchor:self.view.bottomAnchor],
     ]];
 }
@@ -840,6 +843,7 @@ static UIImage *ZL2ShellSystemImage(NSString *name, NSString *fallback) {
     // 宽窄态约束一次建全：前导常量由 ame347_applyWidthClass 派发
     self.ame347_paneLeading = [self.paneWrap.leadingAnchor constraintEqualToAnchor:self.view.leadingAnchor];
     self.ame347_contentLeading = [self.container.leadingAnchor constraintEqualToAnchor:self.view.leadingAnchor];
+    self.containerTrailing = [self.container.trailingAnchor constraintEqualToAnchor:self.view.trailingAnchor];
     // ★ Task376：窗格宽持引用（280↔64 折叠驱动）
     self.ame376_paneWidth = [self.paneWrap.widthAnchor constraintEqualToConstant:ZL2ShellPaneWidth];
     // ★ Task388：折叠开关钮前导持引用（紧凑态居中 16 / 展开态 8）
@@ -925,7 +929,7 @@ static UIImage *ZL2ShellSystemImage(NSString *name, NSString *fallback) {
 
         [self.container.topAnchor constraintEqualToAnchor:self.contentHeader.bottomAnchor],
         self.ame347_contentLeading,
-        [self.container.trailingAnchor constraintEqualToAnchor:self.view.trailingAnchor],
+        self.containerTrailing,
         [self.container.bottomAnchor constraintEqualToAnchor:self.view.bottomAnchor],
 
         [self.dimOverlay.topAnchor constraintEqualToAnchor:self.view.topAnchor],
@@ -1185,6 +1189,34 @@ static UIImage *ZL2ShellSystemImage(NSString *name, NSString *fallback) {
     UIViewController *prev = [self ame_currentChild];
 
     [self ame_attachChildIfNeeded:next];
+
+    // 主页首次建成后，把原本仅属于主页的右栏提升到壳层。之后所有子页都
+    // 在它左侧布局，设置页也不会再把账户/实例列表隐藏掉。
+    if (index == 0 && self.persistentRightSidebar == nil &&
+        [next isKindOfClass:[ZL2HomeViewController class]]) {
+        UIView *sidebar = [(ZL2HomeViewController *)next extractPersistentRightSidebar];
+        if (sidebar) {
+            self.persistentRightSidebar = sidebar;
+            sidebar.translatesAutoresizingMaskIntoConstraints = NO;
+            [self.view addSubview:sidebar];
+            [self.containerTrailing setActive:NO];
+            self.containerTrailing = [self.container.trailingAnchor
+                constraintEqualToAnchor:sidebar.leadingAnchor constant:-8.0];
+            NSLayoutConstraint *ratio = [sidebar.widthAnchor
+                constraintEqualToAnchor:self.view.widthAnchor multiplier:0.28];
+            ratio.priority = 999;
+            [NSLayoutConstraint activateConstraints:@[
+                self.containerTrailing,
+                [sidebar.trailingAnchor constraintEqualToAnchor:self.view.safeAreaLayoutGuide.trailingAnchor constant:-8.0],
+                [sidebar.topAnchor constraintEqualToAnchor:self.view.safeAreaLayoutGuide.topAnchor constant:8.0],
+                [sidebar.bottomAnchor constraintEqualToAnchor:self.view.safeAreaLayoutGuide.bottomAnchor constant:-8.0],
+                ratio,
+                [sidebar.widthAnchor constraintGreaterThanOrEqualToConstant:220.0],
+                [sidebar.widthAnchor constraintLessThanOrEqualToConstant:300.0],
+            ]];
+            [self.view bringSubviewToFront:sidebar];
+        }
+    }
 
     void (^apply)(void) = ^{
         prev.view.hidden = YES;

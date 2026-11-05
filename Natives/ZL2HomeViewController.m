@@ -516,6 +516,7 @@ static UIImage *ZL2HomeSizedImage(NSString *name, NSString *fallback, CGFloat po
 @property (nonatomic, strong) UIStackView *launchStack;
 // 当前停靠边约束组（换边时整组替换：YES = 停靠右侧）
 @property (nonatomic, strong, nullable) NSArray<NSLayoutConstraint *> *ame_sideConstraints;
+@property (nonatomic, strong, nullable) NSArray<NSLayoutConstraint *> *ame_embeddedContentConstraints;
 @property (nonatomic, assign) NSInteger lastColumnCount;
 @property (nonatomic, assign) CGFloat lastGridWidth;   // ★ Task387：上次布局网格宽（宽度变化即失效重排）
 
@@ -1336,6 +1337,25 @@ static UIImage *ZL2HomeSizedImage(NSString *name, NSString *fallback, CGFloat po
 }
 
 #pragma mark - 固定右栏
+
+- (UIView *)extractPersistentRightSidebar {
+    if (self.actionMenu == nil || self.actionMenu.superview != self.view) return nil;
+    [NSLayoutConstraint deactivateConstraints:self.ame_sideConstraints];
+    self.ame_sideConstraints = nil;
+
+    // 壳会把子页容器缩到右栏左侧；主页内容在自己的缩窄坐标内填满即可。
+    self.ame_embeddedContentConstraints = @[
+        [self.contentArea.topAnchor constraintEqualToAnchor:self.view.safeAreaLayoutGuide.topAnchor],
+        [self.contentArea.bottomAnchor constraintEqualToAnchor:self.view.safeAreaLayoutGuide.bottomAnchor],
+        [self.contentArea.leadingAnchor constraintEqualToAnchor:self.view.leadingAnchor],
+        [self.contentArea.trailingAnchor constraintEqualToAnchor:self.view.trailingAnchor],
+    ];
+    [NSLayoutConstraint activateConstraints:self.ame_embeddedContentConstraints];
+
+    UIView *sidebar = self.actionMenu;
+    [sidebar removeFromSuperview];
+    return sidebar;
+}
 
 /// 重建固定双栏约束：右栏恒靠右，内容区始终位于其左侧。
 - (void)ame_applySideConstraintsAnimated:(BOOL)animated {
