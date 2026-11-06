@@ -4813,4 +4813,4 @@ Stage Summary:
 - 【门禁】17 门全绿：task139/240 all balanced；task191 3695 表键（−hint +solid 净零）；task248 缺键0/硬编码0/动态键0；task250 裸键 0；verify_task161 56/56；ame330/339(20)/343(24)/348(11)/349(9)/353(14)/365(30)；ame369 ALL PASS（448 重锚）；ame378 23/23；ame379 ALL 25 PASS（A6/D3 重锚）；task393_r3_audit PASS；objc_bracket_scan 全仓 BALANCED（LF/CRLF 复核零拍平）。
 - 【诚实声明】①MD3 纯色取色源 = embermire 动态板 primaryContainer（iOS 无 Material You，ZL2Theme 头注释口径"取 EMBERMIRE 静态板为唯一正确对齐源"，动态=dynamicProvider 跟随系统深浅，非系统壁纸提取——iOS 公开 API 不可提取系统壁纸色）；②纯色壁纸不带模糊/压暗叠加（图片/视频管线专属），UI 效果滑条对纯色无视觉作用（选项保留不灰化）；③折叠/展开字形 ~21/~16pt 视觉（pointSize 26/20 含 SF Symbol 内边距），若预期更大需再反馈；④纯色容器之下 window 底色仍为 systemBackgroundColor（Task129f 装载失败兜底链不变）；⑤bd9e1d9 拆簇/0d97c34 常驻右栏系并行会话执行的用户规格，本轮仅代为补账重锚未回滚其行为。
 - 【Stage Summary（用户侧预期/装机锚点）】①折叠侧边栏图标显著大于展开态（字形 ~21pt vs ~16pt），不再"跟着缩"；②右栏底部「长按菜单可切换停靠边」提示文字消失；③设置→背景新增「MD3 动态取色纯色」行，选中后全屏纯色随系统深浅自动换色（浅=锈橙调容器色/深=暖棕调容器色）；④Bing 壁纸开关默认关（存量已开启用户不受影响）；⑤装机日志锚：[Ame388] icon0={{26, 26}}（折叠态 frame=配置点数同源）、[Ame403] MD3 solid background set (source=md3solid...)。
-- 【CI】run 轮询中（绿后补记闭环）。
+- 【CI 闭环】run 42229559000（b78a16c push 触发）**一轮终绿** completed/success（13:56→14:12Z ~16min，零返工）；产物归档按本 run 下载交付。
