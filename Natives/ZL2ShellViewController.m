@@ -137,6 +137,27 @@ static UIImage *ZL2ShellSystemImageSized(NSString *name, NSString *fallback, CGF
                                                         weight:UIImageSymbolWeightMedium];
     UIImage *image = [UIImage systemImageNamed:name withConfiguration:config];
     if (!image && fallback) image = [UIImage systemImageNamed:fallback withConfiguration:config];
+    // ★Task404 渲染保底：IMG_0572/0573 像素级双图对勘实机存在「同一 26pt 配置
+    // 请求，选中项字形 22pt、未选中项字形仅 11pt」的引擎劈叉（字形不随配置点
+    // 数等比放大 = 403a 看似正确却实机无效的原因）。此处对返回图做尺寸验收：
+    // 最大边 < 请求点数 90% 视为欠尺，改用 UIGraphicsImageRenderer 按请求点数
+    // 栅格化重绘（aspect-fit 居中，device scale）——字形尺寸从此只由本函数的
+    // pointSize 参数决定，不再依赖符号引擎对配置的逐符号响应。
+    CGFloat ame404_maxSide = MAX(image.size.width, image.size.height);
+    if (image && ame404_maxSide > 0 && ame404_maxSide < pointSize * 0.9) {
+        UIGraphicsImageRendererFormat *ame404_fmt = [[UIGraphicsImageRendererFormat alloc] init];
+        ame404_fmt.scale = 0;   // device native scale
+        UIGraphicsImageRenderer *ame404_renderer =
+            [[UIGraphicsImageRenderer alloc] initWithSize:CGSizeMake(pointSize, pointSize)
+                                                   format:ame404_fmt];
+        CGFloat ame404_scale = MIN(pointSize / image.size.width, pointSize / image.size.height);
+        CGFloat ame404_w = image.size.width * ame404_scale;
+        CGFloat ame404_h = image.size.height * ame404_scale;
+        image = [ame404_renderer imageWithActions:^(UIGraphicsImageRendererContext *ame404_ctx) {
+            [image drawInRect:CGRectMake((pointSize - ame404_w) / 2.0, (pointSize - ame404_h) / 2.0,
+                                          ame404_w, ame404_h)];
+        }];
+    }
     return image;
 }
 
@@ -228,6 +249,7 @@ static UIImage *ZL2ShellSystemImageSized(NSString *name, NSString *fallback, CGF
 - (void)ame_setSelected:(BOOL)selected;   // 纯状态应用（动画由壳侧统一包裹）
 - (void)ame_setCompact:(BOOL)compact;     // ★ Task376：折叠图标栏态（标签隐藏 + 图标居中）
 - (CGRect)ame_iconFrame;                  // ★ Task402：折叠态几何自证读数（[Ame388] 装机日志判读图标真实尺寸）
+- (CGFloat)ame_iconImageSize;             // ★ Task404：字形图像宽读数（区分「图像欠尺」与「盒欠尺」的判据）
 - (void)ame_applyIconGlyphSize:(CGFloat)pt; // ★ Task403：字形随尺寸重生成（frame 与符号配置点数同源）
 @end
 
@@ -236,7 +258,7 @@ static UIImage *ZL2ShellSystemImageSized(NSString *name, NSString *fallback, CGF
 @property(nonatomic, strong) UIImageView *iconView;
 @property(nonatomic, strong) UILabel *label;
 @property(nonatomic, strong) NSLayoutConstraint *ame376_iconLeading; // ★ Task376：紧凑态图标居中驱动
-@property(nonatomic, strong) NSLayoutConstraint *ame402_iconSize;    // ★ Task402：图标宽常量（展开 20 / 折叠 26 放大驱动，高度锚 1:1 跟随）
+@property(nonatomic, strong) NSLayoutConstraint *ame402_iconSize;    // ★ Task402/404：图标宽常量（展开 22 / 折叠 30 放大驱动，高度锚 1:1 跟随）
 @property(nonatomic, copy) NSString *ame403_symbolName;     // ★ Task403：符号名留档（折叠/展开切换时按点数重生成字形）
 @property(nonatomic, copy) NSString *ame403_fallbackName;   // ★ Task403：兜底符号名（同上）
 @end
@@ -261,9 +283,9 @@ static UIImage *ZL2ShellSystemImageSized(NSString *name, NSString *fallback, CGF
 
         _ame403_symbolName = symbol;
         _ame403_fallbackName = fallback;
-        // ★ Task403：初始即按 20pt 符号配置取图（裸取图默认配置视觉字形 ~11pt，
-        //   frame 放大不放大字形——IMG_0572 像素级实测根因）
-        UIImage *image = ZL2ShellSystemImageSized(symbol, fallback, 20.0);
+        // ★ Task403/404：初始即按 22pt 符号配置取图（展开态口径；配置欠尺时
+        //   ZL2ShellSystemImageSized 内部栅格化保底）
+        UIImage *image = ZL2ShellSystemImageSized(symbol, fallback, 22.0);
         if (image) image = [image imageWithRenderingMode:UIImageRenderingModeAlwaysTemplate];
         _iconView = [[UIImageView alloc] initWithImage:image];
         _iconView.translatesAutoresizingMaskIntoConstraints = NO;
@@ -294,7 +316,7 @@ static UIImage *ZL2ShellSystemImageSized(NSString *name, NSString *fallback, CGF
         [ame376_itemConstraints addObject:_ame376_iconLeading];
         // ★ Task402：图标宽持引用（ame_setCompact 折叠态 20→26 放大驱动）+
         //   高度锚 1:1 跟随宽度（单常量驱动两维，无第二常量可漂移）
-        _ame402_iconSize = [_iconView.widthAnchor constraintEqualToConstant:20.0];
+        _ame402_iconSize = [_iconView.widthAnchor constraintEqualToConstant:22.0];
         [_ame402_iconSize setActive:YES];
         [ame376_itemConstraints addObjectsFromArray:@[
             [_iconView.centerYAnchor constraintEqualToAnchor:self.centerYAnchor],
@@ -338,8 +360,8 @@ static UIImage *ZL2ShellSystemImageSized(NSString *name, NSString *fallback, CGF
 }
 
 // ★ Task376：折叠图标栏态（WinUI PaneDisplayMode Compact）——标签隐藏、
-// 图标在 52pt 行宽内居中（窗格 64 − 栈内边距 12 = 52；★Task402 折叠态
-// 图标 26pt，leading 13 = (52−26)/2；展开态 20pt + leading 14 原样式）。
+// 图标在 52pt 行宽内居中（窗格 64 − 栈内边距 12 = 52；★Task404 折叠态
+// 图标 30pt，leading 11 = (52−30)/2；展开态 22pt + leading 14 原样式）。
 // 选中指示条保留（紧凑态 WinUI 同样保留 SelectionIndicator）。
 - (void)ame_setCompact:(BOOL)compact {
     self.label.hidden = compact;
@@ -352,16 +374,23 @@ static UIImage *ZL2ShellSystemImageSized(NSString *name, NSString *fallback, CGF
     //   systemImageNamed: 默认配置的 SF Symbol 字形不随 frame 放大（容器
     //   26 / 字形 11 两层皮，frame 根修隔靴搔痒）。本轮字形与 frame 同源
     //   联动重生成（ame_applyIconGlyphSize: ← ame_setCompact 单点驱动）。
-    self.ame402_iconSize.constant = compact ? 26.0 : 20.0;
-    self.ame376_iconLeading.constant = compact ? 13.0 : 14.0;
-    [self ame_applyIconGlyphSize:compact ? 26.0 : 20.0];   // ★Task403：frame 与符号点数同源联动
+    // ★ Task404：折叠 30 / 展开 22 决定性放大（402 frame 26、403 配置 26 两轮实机
+    //   视觉零变化 + 选中 22/未选中 11 劈叉像素实锤——详见 worklog Task404）+ 取图
+    //   函数内栅格化验收保底（欠尺图按请求点数重绘，见 ZL2ShellSystemImageSized）。
+    self.ame402_iconSize.constant = compact ? 30.0 : 22.0;
+    self.ame376_iconLeading.constant = compact ? 11.0 : 14.0;
+    [self ame_applyIconGlyphSize:compact ? 30.0 : 22.0];   // ★Task404：frame 与符号点数同源联动
 }
 
 // ★ Task402：折叠几何自证读数（[Ame388] 日志扩展读数源）
 - (CGRect)ame_iconFrame { return _iconView.frame; }
 
-// ★ Task403：字形随尺寸重生成（SF Symbol 视觉字形由符号配置点数决定，
-//   frame 约束只改容器——折叠 26 / 展开 20 与 ame402_iconSize 同源常量）
+// ★ Task404：字形图像宽读数（判「图像欠尺」vs「盒欠尺」——frame=30 而
+// image 宽=13 即符号引擎欠尺实锤；栅格化保底后应恒 ≈ pointSize）
+- (CGFloat)ame_iconImageSize { return _iconView.image.size.width; }
+
+// ★ Task403/404：字形随尺寸重生成（SF Symbol 视觉字形由符号配置点数决定，
+//   frame 约束只改容器——折叠 30 / 展开 22 与 ame402_iconSize 同源常量）
 - (void)ame_applyIconGlyphSize:(CGFloat)pt {
     UIImage *image = ZL2ShellSystemImageSized(_ame403_symbolName, _ame403_fallbackName, pt);
     if (!image) return;
@@ -679,6 +708,16 @@ static UIImage *ZL2ShellSystemImageSized(NSString *name, NSString *fallback, CGF
                       NSStringFromCGRect(weakSelf.paneToggleButton.frame),
                       NSStringFromCGRect(weakSelf.navItems.firstObject.frame),
                       NSStringFromCGRect([weakSelf.navItems.firstObject ame_iconFrame]));
+                // ★Task404：全栏逐项读数（frame + 图像宽）——「选中 22/未选中 11」
+                //   劈叉装机判据：image 宽 < frame 宽 = 引擎欠尺（栅格化保底应已拦）；
+                //   frame 宽 ≠ 常量 = 约束未达（另查冲突告警）。
+                NSMutableString *ame404 = [NSMutableString string];
+                [weakSelf.navItems enumerateObjectsUsingBlock:^(ZL2ShellNavItem *item, NSUInteger idx, BOOL *stop) {
+                    CGRect ame404_f = [item ame_iconFrame];
+                    [ame404 appendFormat:@"i%ld={{%.0f,%.0f}}img=%.0f ",
+                        (long)idx, ame404_f.size.width, ame404_f.size.height, [item ame_iconImageSize]];
+                }];
+                NSLog(@"[Ame404] rail glyphs %@", ame404);
             });
         } else {
             [weakSelf ame_setDrawerOpen:!weakSelf.ame347_drawerOpen animated:YES];

@@ -3885,6 +3885,7 @@
 "ame369.home.launch_fmt" = "Launch %@";
 "ame369.home.refresh_instances_a11y" = "Refresh instance list";
 "ame369.home.version_manager_a11y" = "Version Manager";
+"ame369.home.menu_dock_hint" = "Long-press the menu to switch dock edge";
 "ame369.home.go_download" = "Download";
 "ame369.home.set_current_instance" = "Set as Current Instance";
 "ame369.home.open_version_details" = "Open Version Details";

@@ -3881,6 +3881,7 @@
 "ame369.home.launch_fmt" = "啟動 %@";
 "ame369.home.refresh_instances_a11y" = "重新整理例項列表";
 "ame369.home.version_manager_a11y" = "版本管理";
+"ame369.home.menu_dock_hint" = "長按選單可切換停靠邊";
 "ame369.home.go_download" = "去下載";
 "ame369.home.set_current_instance" = "設為當前例項";
 "ame369.home.open_version_details" = "開啟版本詳情";

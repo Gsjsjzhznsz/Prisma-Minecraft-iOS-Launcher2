@@ -101,8 +101,13 @@ extern NSString * const AFNetworkingOperationFailingURLResponseDataErrorKey;
 // KVO 观察上下文（旧链 ProgressObserverContext 同款静态指针判别，防父类/他人混淆）
 static void *ZL2HomeProgressObserverContext = &ZL2HomeProgressObserverContext;
 
+// ActionMenu 停靠边持久化 key（ZL2 ActionMenuDrag 停靠语义的 iOS 简化等价）
+// ★Task404 恢复：73c10b7 曾随「固定右栏」退役本键与换边交互，用户复诉
+// 「你怎么把停靠边功能删除了」——长按右栏菜单换停靠边为用户在用功能，原样回滚。
+static NSString * const ZL2HomeMenuSideDefaultsKey = @"zl2.home.actionMenuSide";
+
 // 双栏布局常量（LauncherScreen.kt Row 规格）
-static const CGFloat ZL2HomeMenuWidthRatio   = 0.28;  // 固定右栏，给实例区保留更多宽度
+static const CGFloat ZL2HomeMenuWidthRatio   = 0.28;  // 右栏比例（停靠换边恢复后沿用 73c10b7 收窄值，用户未复诉宽度）
 static const CGFloat ZL2HomeMenuWidthMax     = 300;
 static const CGFloat ZL2HomeMenuWidthMin     = 220;
 static const CGFloat ZL2HomeGridSpacing      = 6;     // 卡片间距（行/列同值）
@@ -514,8 +519,12 @@ static UIImage *ZL2HomeSizedImage(NSString *name, NSString *fallback, CGFloat po
 @property (nonatomic, strong) Ame401PanelHolesView *panelBackdrop;
 @property (nonatomic, strong) UIView *launchCard;
 @property (nonatomic, strong) UIStackView *launchStack;
-// 停靠边约束组（★Task403 换边退役：右栏恒右，整组建卸仅用于重建）
+// 停靠边约束组（★Task404 换边恢复：左右两套挂接整组替换，重建时先卸后立）
 @property (nonatomic, strong, nullable) NSArray<NSLayoutConstraint *> *ame_sideConstraints;
+// 当前停靠边（YES = 右侧；长按右栏菜单切换 + NSUserDefaults 持久化，★Task404 恢复）
+@property (nonatomic, assign) BOOL ame_menuOnRight;
+// 停靠边提示（★Task404 恢复：73c10b7 退役后 b78a16c 摘除的「长按菜单可切换停靠边」，随功能一并回滚）
+@property (nonatomic, strong) UILabel *menuHintLabel;
 @property (nonatomic, strong, nullable) NSArray<NSLayoutConstraint *> *ame_embeddedContentConstraints;
 @property (nonatomic, assign) NSInteger lastColumnCount;
 @property (nonatomic, assign) CGFloat lastGridWidth;   // ★ Task387：上次布局网格宽（宽度变化即失效重排）
@@ -579,6 +588,7 @@ static UIImage *ZL2HomeSizedImage(NSString *name, NSString *fallback, CGFloat po
     // 复用注册（经典 dataSource 路径；cell 类自带 configure，无 iOS15+ registration）
     [self.gridView registerClass:[ZL2HomeVersionCardCell class]
       forCellWithReuseIdentifier:@"zl2_home_version_card"];
+    [self ame_restoreMenuSide];   // ★Task404 恢复：持久化停靠边先行，首帧即落位
     [self ame_applySideConstraintsAnimated:NO];
     [self refreshLaunchState];
 
@@ -603,6 +613,12 @@ static UIImage *ZL2HomeSizedImage(NSString *name, NSString *fallback, CGFloat po
                                                object:nil];
     // ★ Task400：ZL2HomeShowVersionPicker 总线入口随弹层退役（版本滚轮
     //   原地驻右栏，无呈现/收起时序）
+
+    // 长按菜单卡 = 切换 ActionMenu 停靠边（ZL2 ActionMenuDrag 简化等价；★Task404 恢复）
+    UILongPressGestureRecognizer *menuLongPress =
+        [[UILongPressGestureRecognizer alloc] initWithTarget:self
+                                                      action:@selector(ame_handleMenuLongPress:)];
+    [self.actionMenu addGestureRecognizer:menuLongPress];
 
     // 长按实例卡 = M3 底部菜单
     UILongPressGestureRecognizer *cardLongPress =
@@ -936,6 +952,17 @@ static UIImage *ZL2HomeSizedImage(NSString *name, NSString *fallback, CGFloat po
                           action:@selector(ame328_pluginChipTapped)
                 forControlEvents:UIControlEventTouchUpInside];
     [_launchStack addArrangedSubview:_pluginChipButton];
+
+    // 停靠边提示（★Task404 恢复：功能回滚则提示语同步回滚——b78a16c 曾称其
+    // 「谎言提示」只因当时切换代码已先行被 73c10b7 摘除，功能恢复后语句为真）
+    _menuHintLabel = [[UILabel alloc] init];
+    _menuHintLabel.text = localize(@"ame369.home.menu_dock_hint", @"长按菜单可切换停靠边");
+    _menuHintLabel.font = [ZL2Theme fontLabelMedium];
+    _menuHintLabel.textColor = [ZL2Theme onSurfaceVariant];
+    _menuHintLabel.textAlignment = NSTextAlignmentCenter;
+    _menuHintLabel.numberOfLines = 1;
+    _menuHintLabel.translatesAutoresizingMaskIntoConstraints = NO;
+    [_launchStack addArrangedSubview:_menuHintLabel];
 
     UIImage *pluginChipImage = ZL2HomeSizedImage(@"puzzlepiece.extension", @"gearshape", 14);
     _pluginChipIconView = [[UIImageView alloc] initWithImage:[pluginChipImage imageWithRenderingMode:UIImageRenderingModeAlwaysTemplate]];
@@ -1358,7 +1385,16 @@ static UIImage *ZL2HomeSizedImage(NSString *name, NSString *fallback, CGFloat po
     return sidebar;
 }
 
-/// 重建固定双栏约束：右栏恒靠右，内容区始终位于其左侧。
+/// 恢复持久化停靠边（缺省 = 右侧；脏值回退默认。★Task404 恢复原实现）
+- (void)ame_restoreMenuSide {
+    NSString *side = [[NSUserDefaults standardUserDefaults] stringForKey:ZL2HomeMenuSideDefaultsKey];
+    self.ame_menuOnRight = ![side isEqualToString:@"left"];
+}
+
+/// 重建双栏约束组：ActionMenu 宽 = 容器 0.28（优先级 999）clamp[220, 300]，
+/// 内容区吃余量；停靠左/右只换 leading/trailing 挂接（★Task404 恢复双支线，
+/// 对向挂接保留后期追加的 8pt 缝：右支 content.trailing = menu.leading − 8，
+/// 左支镜像 content.leading = menu.trailing + 8）。
 - (void)ame_applySideConstraintsAnimated:(BOOL)animated {
     if (self.ame_sideConstraints) {
         [NSLayoutConstraint deactivateConstraints:self.ame_sideConstraints];
@@ -1386,11 +1422,23 @@ static UIImage *ZL2HomeSizedImage(NSString *name, NSString *fallback, CGFloat po
         [content.bottomAnchor constraintEqualToAnchor:safe.bottomAnchor],
     ]];
 
-    [constraints addObjectsFromArray:@[
-        [menu.trailingAnchor constraintEqualToAnchor:self.view.trailingAnchor constant:-8],
-        [content.leadingAnchor constraintEqualToAnchor:self.view.leadingAnchor],
-        [content.trailingAnchor constraintEqualToAnchor:menu.leadingAnchor constant:-8],
-    ]];
+    if (self.ame_menuOnRight) {
+        // [内容区][菜单] —— 菜单贴右（★ Task392：卡边离屏 8pt——「其边框距离屏幕
+        //   边缘的空隙也要和屏幕一致」：与上下安全区 8pt 同值，四边统一）
+        [constraints addObjectsFromArray:@[
+            [menu.trailingAnchor constraintEqualToAnchor:self.view.trailingAnchor constant:-8],
+            [content.leadingAnchor constraintEqualToAnchor:self.view.leadingAnchor],
+            [content.trailingAnchor constraintEqualToAnchor:menu.leadingAnchor constant:-8],
+        ]];
+    } else {
+        // [菜单][内容区] —— 菜单贴左（★ Task392：同上，四边统一 8pt；★Task404
+        //   恢复原左停靠支线，缝 8pt 与右支镜像）
+        [constraints addObjectsFromArray:@[
+            [menu.leadingAnchor constraintEqualToAnchor:self.view.leadingAnchor constant:8],
+            [content.leadingAnchor constraintEqualToAnchor:menu.trailingAnchor constant:8],
+            [content.trailingAnchor constraintEqualToAnchor:self.view.trailingAnchor],
+        ]];
+    }
 
     [NSLayoutConstraint activateConstraints:constraints];
     self.ame_sideConstraints = constraints;
@@ -1399,6 +1447,16 @@ static UIImage *ZL2HomeSizedImage(NSString *name, NSString *fallback, CGFloat po
         [UIView animateWithDuration:0.22
                           animations:^{ [self.view layoutIfNeeded]; }];
     }
+}
+
+// 长按菜单卡 = 切换 ActionMenu 停靠边 + 持久化（★Task404 恢复原实现）
+- (void)ame_handleMenuLongPress:(UILongPressGestureRecognizer *)gesture {
+    if (gesture.state != UIGestureRecognizerStateBegan) return;
+    self.ame_menuOnRight = !self.ame_menuOnRight;
+    [[NSUserDefaults standardUserDefaults] setObject:(self.ame_menuOnRight ? @"right" : @"left")
+                                              forKey:ZL2HomeMenuSideDefaultsKey];
+    NSLog(@"[Ame404] menu side toggled right=%d", self.ame_menuOnRight);
+    [self ame_applySideConstraintsAnimated:YES];
 }
 
 // ★ Task328：插件 chip 计数刷新——贡献行数（四内置件 = 4）即“插件在跑”
