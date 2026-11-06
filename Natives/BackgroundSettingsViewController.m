@@ -159,7 +159,7 @@
         @[localize(@"i18n_str_57", nil), localize(@"i18n_str_1296", nil), localize(@"i18n_str_1297", nil)],
         @[localize(@"i18n_str_60", nil)],
         @[localize(@"bing.section.header", nil), localize(@"bing.toggle.title", nil), localize(@"bing.gallery.title", nil), localize(@"bing.refresh.title", nil)],
-        @[localize(@"i18n_str_61", nil), localize(@"i18n_str_55", nil)],
+        @[localize(@"i18n_str_61", nil), localize(@"i18n_str_55", nil), localize(@"bg.md3solid.title", nil)],   // ★Task403 第三行 = MD3 动态取色纯色
         @[localize(@"i18n_str_62", nil), localize(@"i18n_str_63", nil)]
     ];
 }
@@ -190,7 +190,7 @@
     return self.sections[section][0];
 }
 
-// Task151：Bing 部分页脚说明（默认开启语义：用户自定义优先，清除背景后自动回到 Bing 每日图）
+// Task151：Bing 部分页脚说明（★Task403 默认关闭语义：用户自定义优先，清除背景后自动回到 Bing 每日图）
 // Task156：section 0 页脚——两个滑块的语义说明（用户反馈“两个百分比不知道
 // 干什么的”：上=透明度（材质不透明程度，越低越透），下=模糊程度（背景高斯
 // 模糊强度，越低越清晰）。Task210：无壁纸时区段整段隐藏，页脚同步隐藏。
@@ -414,6 +414,10 @@
         } else if (indexPath.row == 1) {
             cell.imageView.image = [UIImage systemImageNamed:@"film"];
             cell.accessoryType = [manager hasVideoBackground] ? UITableViewCellAccessoryCheckmark : UITableViewCellAccessoryNone;
+        } else if (indexPath.row == 2) {
+            // ★ Task403：MD3 动态取色纯色（主题令牌角色铺底，动态色随系统深浅自动换）
+            cell.imageView.image = [UIImage systemImageNamed:@"paintpalette"];
+            cell.accessoryType = (manager.currentType == BackgroundTypeSolidColor) ? UITableViewCellAccessoryCheckmark : UITableViewCellAccessoryNone;
         }
     } else if (indexPath.section == 4) {
         if (indexPath.row == 0) {
@@ -557,6 +561,12 @@
             [self selectImageBackground];
         } else if (indexPath.row == 1) {
             [self selectVideoBackground];
+        } else if (indexPath.row == 2) {
+            // ★ Task403：MD3 动态取色纯色壁纸（动态色随系统深浅自动换）
+            __weak typeof(self) weakSelf = self;
+            [manager setMD3SolidBackgroundWithCompletion:^(BOOL success, NSError * _Nullable error) {
+                [weakSelf.tableView reloadData];
+            }];
         }
     } else if (indexPath.section == 4) {
         if (indexPath.row == 0) {

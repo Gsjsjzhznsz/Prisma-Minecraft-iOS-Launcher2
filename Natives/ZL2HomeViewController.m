@@ -8,8 +8,8 @@
 //                                  卡/版本封面流卡（中段滚动区）+ 启动组卡
 //                                  （钉底）；栏容器透明、四卡 surfaceContainer/
 //                                  radiusXL、8pt 卡间隙（iOS 简化：ZL2 的
-//                                  ActionMenu 拖拽换边 → 长按菜单卡切换停靠边 +
-//                                  NSUserDefaults "zl2.home.actionMenuSide" 持久化）
+//                                  ★ Task403 停靠换边退役：右栏恒右，换边
+//                                  选项/提示/持久化键提及一并清零（遗言零残留）
 //   HomeGrid.kt                  → 实例卡网格（2 列 iPhone / 3 列 iPad，
 //                                  间距 6；点卡选实例，卡上播放键 = 选该
 //                                  实例并直接启动；长按 = M3 底部菜单）
@@ -514,7 +514,7 @@ static UIImage *ZL2HomeSizedImage(NSString *name, NSString *fallback, CGFloat po
 @property (nonatomic, strong) Ame401PanelHolesView *panelBackdrop;
 @property (nonatomic, strong) UIView *launchCard;
 @property (nonatomic, strong) UIStackView *launchStack;
-// 当前停靠边约束组（换边时整组替换：YES = 停靠右侧）
+// 停靠边约束组（★Task403 换边退役：右栏恒右，整组建卸仅用于重建）
 @property (nonatomic, strong, nullable) NSArray<NSLayoutConstraint *> *ame_sideConstraints;
 @property (nonatomic, strong, nullable) NSArray<NSLayoutConstraint *> *ame_embeddedContentConstraints;
 @property (nonatomic, assign) NSInteger lastColumnCount;
@@ -538,12 +538,11 @@ static UIImage *ZL2HomeSizedImage(NSString *name, NSString *fallback, CGFloat po
 @property (nonatomic, strong) ZL2HomeTapControl *versionSettingsButton; // 卡尾齿轮小钮
 @property (nonatomic, copy, nullable) NSArray<NSString *> *ame400_versionRowNames;  // 上轮行名序（数据未变则免重建防吸附回跳）
 
-// —— ActionMenu：大启动钮 + 状态行 + 停靠提示 ——
+// —— ActionMenu：大启动钮 + 状态行 ——
 @property (nonatomic, strong) UIControl *launchButton;
 @property (nonatomic, strong) UIImageView *launchIconView;
 @property (nonatomic, strong) UILabel *launchButtonLabel;
 @property (nonatomic, strong) UILabel *launchStatusLabel;  // KVO 百分比行（下载态可见）
-@property (nonatomic, strong) UILabel *menuHintLabel;
 // ★ Task328：插件功能直达 chip（无贡献行时塌缩隐藏，零回归）
 @property (nonatomic, strong) UIControl *pluginChipButton;
 @property (nonatomic, strong) UIImageView *pluginChipIconView;
@@ -721,7 +720,7 @@ static UIImage *ZL2HomeSizedImage(NSString *name, NSString *fallback, CGFloat po
 ///     ① 五瓦片卡窗（驻顶——用户规格「五个按钮在顶上」）
 ///     ② 账户横排滚轮卡窗（原头像+名称样式横排五枚，水平拖动选择）
 ///     ③ 版本竖排滚轮卡窗（占五个正常实例版本信息高度）
-///     ④ 启动组卡窗（状态行/大启动钮/插件 chip/停靠提示，钉底永可见）
+///     ④ 启动组卡窗（状态行/大启动钮/插件 chip，钉底永可见）
 - (void)ame_buildActionMenu {
     _actionMenu = [[UIView alloc] init];
     // ★ Task401：栏容器透明（灰面板下沉到背板，卡窗挖洞透启动器背景）
@@ -971,15 +970,6 @@ static UIImage *ZL2HomeSizedImage(NSString *name, NSString *fallback, CGFloat po
         [_pluginChipButton.trailingAnchor constraintGreaterThanOrEqualToAnchor:pluginChipContent.trailingAnchor constant:12],
     ]];
 
-    // —— 停靠边提示（ActionMenuDrag 简化语义的可见性说明）——
-    _menuHintLabel = [[UILabel alloc] init];
-    _menuHintLabel.text = localize(@"ame369.home.menu_dock_hint", @"长按菜单可切换停靠边");
-    _menuHintLabel.font = [ZL2Theme fontLabelMedium];
-    _menuHintLabel.textColor = [ZL2Theme onSurfaceVariant];
-    _menuHintLabel.textAlignment = NSTextAlignmentCenter;
-    _menuHintLabel.numberOfLines = 1;
-    _menuHintLabel.translatesAutoresizingMaskIntoConstraints = NO;
-    [_launchStack addArrangedSubview:_menuHintLabel];
 
     [NSLayoutConstraint activateConstraints:@[
         // ★ Task401 面板背板：钉栏容器四边（面板 = 原右边栏整块灰面板）

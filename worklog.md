@@ -4792,3 +4792,25 @@ Stage Summary:
 - 【Stage Summary（用户侧预期/装机锚点）】①主页右栏 = 一整块灰面板，面板上四块透明窗（背景白→窗白，窗间灰棱 8pt，四窗圆角同面板）；②账户 = 窗内一排五个头像+名称小卡，左右拖动选中，选中全尺寸无边框；③游戏版本 = 窗内竖排五行滚轮，上下拖动松手即选中（不再回弹）；④五瓦片窗驻顶、启动组窗钉底不变；⑤push main 即自动出 ipa/tipa + 预览截图。
 
 - 【CI 闭环（r2~r5 四轮截图实锤链）】r1（5727a0f6，run 41813125051 smoke 绿）→ **r2**（01f667f3：CAShapeLayer 默认 non-zero 填充洞被填回——fillRule 显式 even-odd，截图仍实心）→ **r3**（5e01e1be：layer.mask 整条路退役，Ame401PanelHolesView drawRect 直画 + 喂矩形，截图仍实心=喂矩形链路洞恒空）→ **r4**（388f42b1：绘制期自测量——drawRect 直读四卡帧 convertRect toView:self + 洞为零纯红自诊锚，push 触发器静默丢失改 dispatch，smoke 绿截图首现白窗：瓦片窗 83pt/账户窗 132pt 精准）→ **r5**（fe07e0d3：布局事务提交后异步补两跳重绘收敛，**终态全对**——整块灰面板+四白窗+8pt 灰棱+窗圆角同面板，深浅两态 pixel 级核验（浅 0xFFE9E4 棱/0xFFF8F6 窗，深 0x291D19 棱/0x1C110E 窗），账户横排 Alex 居中全尺寸/Notchy/Steve 远近衰减；dev run 41823633154 一轮双绿，ipa/tipa/dSYM/截图四产物归档）+ 本地判读教训落档：文本管道显示会吞 `[h` 字节序列（`[holes` 显示成 `oles`），字节级 od 才是真读——本轮因此空转两轮 forensic，CI 截图才是唯一真值源
+
+---
+## Task 402——用户复诉两项（第 10 轮：①「为什么还是没有隐藏另一个标签页切换区域」②「为什么缩小侧边栏连图标都缩小了」）【补卷】
+
+- 【402a fui 切换区收敛缺口】fui 模式下五瓦片卡（quickNavCard，menuStack arranged 子视图）未绑 navMode——393a 删快捷排后 fui 左窗格+右栏顶卡双切换面并存（IMG_0565 实锤）。修复 = addArrangedSubview 后条件 hidden：`_quickNavCard.hidden = [[ZL2Theme ame347_shellLayout] isEqualToString:@"navigationview"];`（壳与主页只读一次 ame347_shellLayout，插件开关后壳重建连带主页重建，时序自洽；Ame401PanelHolesView drawRect/ame_refreshPanelMask 双内建 `card==nil||card.hidden continue` = 五瓦片隐藏后面板卡窗自动重抠三窗，不触"洞为零"纯红自诊锚）。
+- 【402b 折叠图标放大驱动（后经 403a 判定为隔靴搔痒）】NavItem 图标宽持引用 ame402_iconSize（20 常量 + 高锚 1:1 跟随），ame_setCompact 折叠 26 / 展开 20 + leading 13=(52−26)/2；ame_iconFrame 读数 + [Ame388] 日志扩展 icon0=（折叠态应报 {{26,26}}）。
+- 【C4 重锚】并行会话 73c10b7「停靠换边退役」删左停靠死文本断 C4 锚（ame378 C4 咬 menu.leadingAnchor constant:8）→ 重锚「右栏固定右侧」口径（content 恒 leading 贴边 + menu 恒 trailing −8）。
+- 【CI 事故】41855217245 两 job cancelled 非 failed（0 步骤队列取消=人为/并发取消，fe07e0d 重复 run 同款）→ 定性取消事故重派 development.yml；09a2670 自身两 run（41858123615 failure / 41864064189 cancelled）未绿，修复随并行会话后续提交链 9b6fc54→0d97c34→838fef3→38b2aac 全绿在册（最新 42160078708 success，09a2670 为其祖先）。
+- 【诚实声明】①MD3 模式右上动作簇+五瓦片顶卡并存当时有意保留（簇=bare 非主页页面唯一回程票）——后并行会话 bd9e1d9 以「移除主页重复快捷入口」用户规格将簇整体退役（回程票=顶栏返回+窗格首页项，Task403 D3 重锚已按新口径收口）；②fui 首启向导锚 zl2_shell_topbar_rail 随瓦片行隐藏（fui 开时向导高亮指向塌缩位）。
+
+---
+## Task 403——用户复诉四项（第 11 轮：①「为什么还是折叠侧边栏图标跟着缩呀」②「退役无用的遗留代码和选项」③「bing壁纸默认关闭」④「添加md3动态取色纯色壁纸」）
+
+- 【403a 折叠图标字形根修（真根因定音）】IMG_0572 像素级测量（2360×1640 @2x）：折叠态导航图标视觉字形仅 ~11pt（download/person/sparkle 全 11pt 上下），远小于 20pt 约束更远小于 402b 的 26pt frame——裸 `systemImageNamed:` 默认配置的 SF Symbol 字形不随 frame 放大（容器 26 / 字形 11 两层皮，frame 根修隔靴搔痒，三轮复诉真根因）。修复 = ZL2ShellSystemImageSized（UIImageSymbolConfiguration pointSize 联动）+ NavItem 留档 ame403_symbolName/fallbackName + ame_applyIconGlyphSize:（ame_setCompact 单点驱动 26/20，init 初始 20 同口径）——折叠态视觉字形 ~21pt > 展开态 ~16pt，只放大不缩小根除「跟缩」。
+- 【403b 停靠换边退役收尾】73c10b7 只退役了右栏停靠，ActionMenu「长按菜单可切换停靠边」谎言提示整段存活（IMG_0572 仍可见）且实际切换代码已先行消失。本轮摘除：menuHintLabel 属性+构建块、ame369.home.menu_dock_hint 四表死键、.h/.m 头注释与侧约束组过时注释（actionMenuSide 键运行时本就零读写）。
+- 【403c Bing 壁纸默认关】BingWallpaperManager isEnabled 从未写键时 YES→NO（用户指令）；.h/.m 注释、设置页页脚四表（「默认关闭。开启后…」）同步。让位门（hasBackground && !isBingSource）与 SceneDelegate/设置页自动链全走 isEnabled 门=默认关即全链静默。
+- 【403d MD3 动态取色纯色壁纸】BackgroundTypeSolidColor 新型 + setMD3SolidBackgroundWithCompletion:（clear→type/source=md3solid→save→窗口重放→refreshTransparencyForWindowUI，setImageBackground 同款链）+ applySolidColorBackgroundToContainer（tag 99994，动态色铺底）；色源 = ZL2Theme primaryContainer 动态角色（UIColor dynamicProvider 随系统深浅自动换色）；设置页「图片背景」区第三行 + 选中勾态；hasBackground 按类型放行（纯色无 path，否则 Bing 让位门失效会被自动应用覆盖）。
+- 【事故与方法论】①显示层吞字第 5 例+机理闭环：终端输出层吞 `[m` 两字节（`[manager`→`anager`、`[self ame_menuButton]`→同款），repr 不足以辨伪（Task393 判例"一律 hex"再验证：hex 显示文件无损）；手术脚本全程 Python 进程内精确锚点匹配天然免疫。②并行会话未跑门禁实锤+代为补账：stash 基线对照 HEAD(38b2aac) ame369 站点 449（门禁要 454，丢 5 站未补账）+ ame379 A6/D3 双红（bd9e1d9 拆右上动作簇未重锚）——ame369 重锚 448（并行 −5 + 本轮 hint −1，逐字对账仅 menu_dock_hint 一站为本轮所摘）；A6 摘 [Ame383] 子句、D3 重锚「切换入口=左窗格唯一（首页项 house.fill=showPageAtIndex:0）+ 顶栏返回钮辅助回程」（功能无断点，簇退役系用户规格执行）。③手术脚本首跑四表循环 None 行拼接 bug（TypeError）→ git checkout 还原三文件修 line_edit 后干净重跑（无半应用残留）。
+- 【门禁】17 门全绿：task139/240 all balanced；task191 3695 表键（−hint +solid 净零）；task248 缺键0/硬编码0/动态键0；task250 裸键 0；verify_task161 56/56；ame330/339(20)/343(24)/348(11)/349(9)/353(14)/365(30)；ame369 ALL PASS（448 重锚）；ame378 23/23；ame379 ALL 25 PASS（A6/D3 重锚）；task393_r3_audit PASS；objc_bracket_scan 全仓 BALANCED（LF/CRLF 复核零拍平）。
+- 【诚实声明】①MD3 纯色取色源 = embermire 动态板 primaryContainer（iOS 无 Material You，ZL2Theme 头注释口径"取 EMBERMIRE 静态板为唯一正确对齐源"，动态=dynamicProvider 跟随系统深浅，非系统壁纸提取——iOS 公开 API 不可提取系统壁纸色）；②纯色壁纸不带模糊/压暗叠加（图片/视频管线专属），UI 效果滑条对纯色无视觉作用（选项保留不灰化）；③折叠/展开字形 ~21/~16pt 视觉（pointSize 26/20 含 SF Symbol 内边距），若预期更大需再反馈；④纯色容器之下 window 底色仍为 systemBackgroundColor（Task129f 装载失败兜底链不变）；⑤bd9e1d9 拆簇/0d97c34 常驻右栏系并行会话执行的用户规格，本轮仅代为补账重锚未回滚其行为。
+- 【Stage Summary（用户侧预期/装机锚点）】①折叠侧边栏图标显著大于展开态（字形 ~21pt vs ~16pt），不再"跟着缩"；②右栏底部「长按菜单可切换停靠边」提示文字消失；③设置→背景新增「MD3 动态取色纯色」行，选中后全屏纯色随系统深浅自动换色（浅=锈橙调容器色/深=暖棕调容器色）；④Bing 壁纸开关默认关（存量已开启用户不受影响）；⑤装机日志锚：[Ame388] icon0={{26, 26}}（折叠态 frame=配置点数同源）、[Ame403] MD3 solid background set (source=md3solid...)。
+- 【CI】run 轮询中（绿后补记闭环）。

@@ -2100,7 +2100,8 @@
 "bing.status.unsynced" = "Not synced yet";
 "bing.gallery.title" = "Browse Gallery";
 "bing.refresh.title" = "Refresh Now";
-"bing.footer.hint" = "When enabled and no custom wallpaper is set, the Bing daily wallpaper is applied automatically and refreshed every day. Setting a custom wallpaper pauses it; clearing the background brings it back.";
+"bing.footer.hint" = "Off by default. When enabled and no custom wallpaper is set, the Bing daily wallpaper is applied automatically and refreshed every day. Setting a custom wallpaper pauses it; clearing the background brings it back.";
+"bg.md3solid.title" = "MD3 Dynamic Tint (Solid)";
 "background.effect.footer" = "Opacity controls how translucent the UI material is (lower = more wallpaper shows through). Blur Level controls the strength of the background Gaussian blur (lower = sharper background). Both only take effect when UI Effect is set to Blur or Translucent.";
 "bing.gallery.nav.title" = "Bing Gallery";
 "bing.setwallpaper.title" = "Set as Wallpaper";
@@ -3884,7 +3885,6 @@
 "ame369.home.launch_fmt" = "Launch %@";
 "ame369.home.refresh_instances_a11y" = "Refresh instance list";
 "ame369.home.version_manager_a11y" = "Version Manager";
-"ame369.home.menu_dock_hint" = "Long-press the menu to switch dock edge";
 "ame369.home.go_download" = "Download";
 "ame369.home.set_current_instance" = "Set as Current Instance";
 "ame369.home.open_version_details" = "Open Version Details";

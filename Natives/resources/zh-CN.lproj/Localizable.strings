@@ -2096,7 +2096,8 @@
 "bing.status.unsynced" = "尚未同步";
 "bing.gallery.title" = "浏览壁纸库";
 "bing.refresh.title" = "立即刷新";
-"bing.footer.hint" = "开启后，若未设置自定义壁纸，将自动应用 Bing 每日壁纸并每天更新；设置自定义壁纸会暂时停用，清除背景后自动恢复。";
+"bing.footer.hint" = "默认关闭。开启后，若未设置自定义壁纸，将自动应用 Bing 每日壁纸并每天更新；设置自定义壁纸会暂时停用，清除背景后自动恢复。";
+"bg.md3solid.title" = "MD3 动态取色纯色";
 "background.effect.footer" = "上方“透明度”控制界面材质的不透明程度（数值越低，壁纸透出越多）；下方“模糊程度”控制背景高斯模糊的强度（数值越低，背景越清晰）。仅在“UI效果”选择毛玻璃或半透明时生效。";
 "bing.gallery.nav.title" = "Bing 壁纸库";
 "bing.setwallpaper.title" = "设为壁纸";
@@ -3880,7 +3881,6 @@
 "ame369.home.launch_fmt" = "启动 %@";
 "ame369.home.refresh_instances_a11y" = "刷新实例列表";
 "ame369.home.version_manager_a11y" = "版本管理";
-"ame369.home.menu_dock_hint" = "长按菜单可切换停靠边";
 "ame369.home.go_download" = "去下载";
 "ame369.home.set_current_instance" = "设为当前实例";
 "ame369.home.open_version_details" = "打开版本详情";

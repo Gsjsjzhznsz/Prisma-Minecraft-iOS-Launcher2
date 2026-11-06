@@ -14,7 +14,8 @@ NS_ASSUME_NONNULL_BEGIN
 typedef NS_ENUM(NSInteger, BackgroundType) {
     BackgroundTypeNone = 0,
     BackgroundTypeImage,
-    BackgroundTypeVideo
+    BackgroundTypeVideo,
+    BackgroundTypeSolidColor   // ★ Task403：MD3 动态取色纯色（主题令牌角色铺底，随系统深浅动态换色）
 };
 
 typedef NS_ENUM(NSInteger, BackgroundUIEffect) {
@@ -29,6 +30,11 @@ typedef NS_ENUM(NSInteger, BackgroundUIEffect) {
 // Background type
 @property (nonatomic, readonly) BackgroundType currentType;
 @property (nonatomic, readonly, nullable) NSString *currentBackgroundPath;
+
+// ★ Task403：MD3 动态取色纯色壁纸（iOS 无 Material You，取色源 = ZL2Theme
+//  动态色板 primaryContainer 角色，UIColor dynamicProvider 随系统深浅自动换色）
+@property (nonatomic, readonly, nullable) UIColor *currentSolidColor;
+- (void)setMD3SolidBackgroundWithCompletion:(void (^)(BOOL success, NSError * _Nullable error))completion;
 
 // UI effect settings (for custom background)
 @property (nonatomic, assign) BackgroundUIEffect uiEffect;

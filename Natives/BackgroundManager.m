@@ -8,6 +8,7 @@
 //
 
 #import "BackgroundManager.h"
+#import "ZL2Theme.h"   // ★ Task403：MD3 动态取色纯色的色源（primaryContainer 动态角色）
 #import "UIKit+NativeSurface.h"
 #import "LiquidGlassCompat.h"   // Task224（#4）：界面风格（液态玻璃/原生）解析与分层玻璃安装
 #import "AmeLiquidGlassView.h"  // Task288：TG 伪液态玻璃滤镜（整页磨砂材料升级，MVC/TVC 同模式）
@@ -32,6 +33,7 @@ static const NSInteger kBackgroundImageTag = 99998;
 static const NSInteger kBackgroundBlurTag = 99997;
 static const NSInteger kBackgroundDimTag = 99996;
 static const NSInteger kDefaultBackgroundTag = 99995;
+static const NSInteger kSolidBackgroundTag = 99994;   // ★ Task403：MD3 纯色壁纸视图 tag（99997=video 已占用）
 // Task160：模态弹窗页面级毛玻璃底层的 tag（防重复添加/便于移除重铺）
 static const NSInteger kAme160GlassBackdropTag = 99994;
 // Task288：玻璃风格 TG 磨砂层 tag（与 blur 层互斥安装，重建时先拆旧层）
@@ -338,6 +340,9 @@ static const NSInteger kBackgroundGlassTag = 99993;
             case BackgroundTypeVideo:
                 [self applyVideoBackgroundToContainer:container];
                 break;
+            case BackgroundTypeSolidColor:   // ★ Task403：MD3 动态取色纯色
+                [self applySolidColorBackgroundToContainer:container];
+                break;
             default:
                 break;
         }
@@ -388,6 +393,9 @@ static const NSInteger kBackgroundGlassTag = 99993;
                 break;
             case BackgroundTypeVideo:
                 [self applyVideoBackgroundToContainer:container];
+                break;
+            case BackgroundTypeSolidColor:   // ★ Task403：MD3 动态取色纯色
+                [self applySolidColorBackgroundToContainer:container];
                 break;
             default:
                 break;
@@ -1858,6 +1866,47 @@ NSNotificationName const Ame223WallpaperChangedNotification = @"Ame223WallpaperC
     });
 }
 
+#pragma mark - ★ Task403：MD3 动态取色纯色壁纸
+
+// 色源 = ZL2Theme primaryContainer 动态角色（UIColor dynamicProvider 随系统
+// 深浅自动换色；iOS 无 Material You，embermire 动态板即本机唯一「动态取色」
+// 正统源——与主题消费面同源，插件令牌覆盖时壁纸跟着换）。
+- (UIColor *)currentSolidColor {
+    return [ZL2Theme primaryContainer];
+}
+
+- (void)setMD3SolidBackgroundWithCompletion:(void (^)(BOOL success, NSError * _Nullable error))completion {
+    [self clearBackgroundInternal];   // 复位图片/视频/来源（Bing 缓存保留同口径）
+
+    self.currentType = BackgroundTypeSolidColor;
+    self.currentBackgroundPath = nil;
+    self.backgroundSource = @"md3solid";
+    [self saveBackgroundSettings];
+
+    // 与 setImageBackground 同款重放链：容器重建 + 卡面透明度管线刷新
+    if (self.currentSplitVC) {
+        [self applyBackgroundToSplitViewController:self.currentSplitVC];
+    } else if (self.currentWindow) {
+        [self applyBackgroundToWindow:self.currentWindow];
+    }
+    [self refreshTransparencyForWindowUI];
+
+    NSLog(@"[Ame403] MD3 solid background set (source=md3solid, role=primaryContainer, dynamic light/dark)");
+
+    if (completion) completion(YES, nil);
+}
+
+- (void)applySolidColorBackgroundToContainer:(UIView *)container {
+    UIView *existing = [container viewWithTag:kSolidBackgroundTag];
+    if (existing) [existing removeFromSuperview];
+
+    UIView *solidView = [[UIView alloc] initWithFrame:container.bounds];
+    solidView.tag = kSolidBackgroundTag;
+    solidView.autoresizingMask = UIViewAutoresizingFlexibleWidth | UIViewAutoresizingFlexibleHeight;
+    solidView.backgroundColor = self.currentSolidColor;   // 动态色：深浅切换 UIKit 自动重解析
+    [container addSubview:solidView];
+}
+
 - (void)clearBackground {
     [self clearBackgroundInternal];
     [self removeGlobalBackground];
@@ -1885,7 +1934,10 @@ NSNotificationName const Ame223WallpaperChangedNotification = @"Ame223WallpaperC
 #pragma mark - Check Background
 
 - (BOOL)hasBackground {
-    return self.currentType != BackgroundTypeNone && self.currentBackgroundPath != nil;
+    // ★ Task403：纯色壁纸无 path（色彩取自主题令牌），按类型放行——
+    // 否则 Bing 自动应用链（hasBackground 让位门）会盖掉 MD3 纯色壁纸
+    return self.currentType != BackgroundTypeNone
+        && (self.currentType == BackgroundTypeSolidColor || self.currentBackgroundPath != nil);
 }
 
 - (BOOL)hasImageBackground {

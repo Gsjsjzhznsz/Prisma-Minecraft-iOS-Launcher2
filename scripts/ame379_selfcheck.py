@@ -60,9 +60,8 @@ check("A5 标题文案 bundle 显示名回退链（processName 宿主不确定�
       'infoDictionary[@"CFBundleDisplayName"]' in shell
       and 'if (ame379_bundleName.length == 0) ame379_bundleName = @"Prisma Ⅱ";' in shell)
 
-check("A6 装机自证日志（[Ame379] pane header 落 header/toggle/tglTrans/title frame + Task383 动作簇自证）",
-      '[Ame379] pane header -- header=%@ toggle=%@ tglTrans=%d title=%@ titleLen=%lu' in shell
-      and '[Ame383] header actions -- stack=%@ btns=%lu' in shell)
+check("A6 装机自证日志（[Ame379] pane header 落 header/toggle/tglTrans/title frame；★Task403 重锚：[Ame383] 动作簇自证随右上动作簇退役（bd9e1d9 移除主页重复快捷入口，并行会话未跑门禁未补账）一并摘除）",
+      '[Ame379] pane header -- header=%@ toggle=%@ tglTrans=%d title=%@ titleLen=%lu' in shell)
 
 check("A7 376 折叠语义逐字保留（几何派发/宽约束/持久化/紧凑宽 64）",
       "ame376_applyPaneGeometry:(BOOL)animated" in shell
@@ -144,10 +143,9 @@ check("D2 右栏列序（★Task401 重锚：瓦片卡窗 → 账户横排滚轮
       < home.index("[_menuStack addArrangedSubview:_versionCard];")
       and "[_menuScrollView.bottomAnchor constraintEqualToAnchor:_launchCard.topAnchor constant:-ZL2HomeCardGap]," in home)
 
-check("D3 ★Task393 切换入口收敛壳层（动作簇共享路径在位：创建/隐藏语义/引导锚平移/六钮）",
-      "self.ame383_headerActions.hidden = self.ame347_navMode;" in shell
-      and 'self.ame383_headerActions.accessibilityIdentifier = @"zl2_shell_topbar_rail";' in shell
-      and '@[@"house.fill", @"house"' in shell)
+check("D3 ★Task393 切换入口收敛壳层（★Task403 重锚：右上动作簇整体退役=主页重复快捷入口清除（bd9e1d9，用户规格执行）——切换入口收敛为左窗格唯一（首页项 house.fill = showPageAtIndex:0）+ 顶栏返回钮辅助回程，fui/MD3 同一口径）",
+      "self.navBackButton = [[ZL2ShellIconButton alloc] initWithSymbol:@\"chevron.left\" fallback:nil];" in shell
+      and 'ame347_symbols = @[@"house.fill",' in shell)
 
 # ══ E 线：插件感知动态色（导航栏标题白字白底根修） ════════════════
 

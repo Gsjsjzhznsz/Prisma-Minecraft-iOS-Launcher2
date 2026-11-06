@@ -78,13 +78,13 @@ static NSTimeInterval kBingRequestTimeout = 12.0;
     [[NSNotificationCenter defaultCenter] removeObserver:self];
 }
 
-#pragma mark - Enabled Switch（默认开启）
+#pragma mark - Enabled Switch（★Task403 默认关闭）
 
 - (BOOL)isEnabled {
-    // 默认开启：从未写入过该键时视为 YES（registerDefaults 之外的显式默认，
+    // ★Task403 默认关闭：从未写入过该键时视为 NO（registerDefaults 之外的显式默认，
     // 与 loadUISettings 的"越界即默认"同思路，避免依赖 registerDefaults 时序）
     id raw = [[NSUserDefaults standardUserDefaults] objectForKey:kBingEnabledKey];
-    if (raw == nil) return YES;
+    if (raw == nil) return NO;   // ★Task403 默认关闭（用户指令：Bing 壁纸默认关）
     return [raw boolValue];
 }
 
@@ -296,7 +296,7 @@ static NSTimeInterval kBingRequestTimeout = 12.0;
     return YES;
 }
 
-#pragma mark - Auto Refresh & Apply（默认开启主链路）
+#pragma mark - Auto Refresh & Apply（★Task403 默认关闭：isEnabled 默认 NO，开启后才走自动链）
 
 - (void)autoRefreshAndApplyIfEnabled {
     if (!self.isEnabled) return;

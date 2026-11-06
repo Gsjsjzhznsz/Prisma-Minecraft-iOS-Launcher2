@@ -126,6 +126,20 @@ static UIImage *ZL2ShellSystemImage(NSString *name, NSString *fallback) {
     return image;
 }
 
+// ★ Task403：符号配置版取图（视觉字形随 pointSize 重生成）。根因实证
+//（IMG_0572 像素级测量）：裸 systemImageNamed: 默认配置的视觉字形仅 ~11pt，
+// 且 SF Symbol 自带内边距——改 frame 约束（Task402 的 20→26）只放大容器
+// 不放大字形，三轮复诉「折叠图标跟着缩/没变大」的真根因。修法 = frame 与
+// 符号配置点数同源联动（ame_setCompact 单点驱动，无第二常量可漂移）。
+static UIImage *ZL2ShellSystemImageSized(NSString *name, NSString *fallback, CGFloat pointSize) {
+    UIImageSymbolConfiguration *config =
+        [UIImageSymbolConfiguration configurationWithPointSize:pointSize
+                                                        weight:UIImageSymbolWeightMedium];
+    UIImage *image = [UIImage systemImageNamed:name withConfiguration:config];
+    if (!image && fallback) image = [UIImage systemImageNamed:fallback withConfiguration:config];
+    return image;
+}
+
 #pragma mark - 私有点击控件：ame_action block 载荷通道（零 tag / 零 delegate）
 
 @interface ZL2ShellTapControl : UIControl
@@ -214,6 +228,7 @@ static UIImage *ZL2ShellSystemImage(NSString *name, NSString *fallback) {
 - (void)ame_setSelected:(BOOL)selected;   // 纯状态应用（动画由壳侧统一包裹）
 - (void)ame_setCompact:(BOOL)compact;     // ★ Task376：折叠图标栏态（标签隐藏 + 图标居中）
 - (CGRect)ame_iconFrame;                  // ★ Task402：折叠态几何自证读数（[Ame388] 装机日志判读图标真实尺寸）
+- (void)ame_applyIconGlyphSize:(CGFloat)pt; // ★ Task403：字形随尺寸重生成（frame 与符号配置点数同源）
 @end
 
 @interface ZL2ShellNavItem ()
@@ -222,6 +237,8 @@ static UIImage *ZL2ShellSystemImage(NSString *name, NSString *fallback) {
 @property(nonatomic, strong) UILabel *label;
 @property(nonatomic, strong) NSLayoutConstraint *ame376_iconLeading; // ★ Task376：紧凑态图标居中驱动
 @property(nonatomic, strong) NSLayoutConstraint *ame402_iconSize;    // ★ Task402：图标宽常量（展开 20 / 折叠 26 放大驱动，高度锚 1:1 跟随）
+@property(nonatomic, copy) NSString *ame403_symbolName;     // ★ Task403：符号名留档（折叠/展开切换时按点数重生成字形）
+@property(nonatomic, copy) NSString *ame403_fallbackName;   // ★ Task403：兜底符号名（同上）
 @end
 
 @implementation ZL2ShellNavItem
@@ -242,7 +259,11 @@ static UIImage *ZL2ShellSystemImage(NSString *name, NSString *fallback) {
         _indicator.hidden = YES;
         [self addSubview:_indicator];
 
-        UIImage *image = ZL2ShellSystemImage(symbol, fallback);
+        _ame403_symbolName = symbol;
+        _ame403_fallbackName = fallback;
+        // ★ Task403：初始即按 20pt 符号配置取图（裸取图默认配置视觉字形 ~11pt，
+        //   frame 放大不放大字形——IMG_0572 像素级实测根因）
+        UIImage *image = ZL2ShellSystemImageSized(symbol, fallback, 20.0);
         if (image) image = [image imageWithRenderingMode:UIImageRenderingModeAlwaysTemplate];
         _iconView = [[UIImageView alloc] initWithImage:image];
         _iconView.translatesAutoresizingMaskIntoConstraints = NO;
@@ -327,12 +348,25 @@ static UIImage *ZL2ShellSystemImage(NSString *name, NSString *fallback) {
     //   视觉过小（旁边 32pt 开关钮衬垫更明显）= 观感“图标被缩”。compact
     //   26pt = 图标栏主元素尺寸，leading 13 = (52−26)/2 重居中；展开态
     //   20pt + leading 14 原样不动）
+    // ★ Task403 根因升级：IMG_0572 像素级实测折叠态视觉字形仅 ~11pt——裸
+    //   systemImageNamed: 默认配置的 SF Symbol 字形不随 frame 放大（容器
+    //   26 / 字形 11 两层皮，frame 根修隔靴搔痒）。本轮字形与 frame 同源
+    //   联动重生成（ame_applyIconGlyphSize: ← ame_setCompact 单点驱动）。
     self.ame402_iconSize.constant = compact ? 26.0 : 20.0;
     self.ame376_iconLeading.constant = compact ? 13.0 : 14.0;
+    [self ame_applyIconGlyphSize:compact ? 26.0 : 20.0];   // ★Task403：frame 与符号点数同源联动
 }
 
 // ★ Task402：折叠几何自证读数（[Ame388] 日志扩展读数源）
 - (CGRect)ame_iconFrame { return _iconView.frame; }
+
+// ★ Task403：字形随尺寸重生成（SF Symbol 视觉字形由符号配置点数决定，
+//   frame 约束只改容器——折叠 26 / 展开 20 与 ame402_iconSize 同源常量）
+- (void)ame_applyIconGlyphSize:(CGFloat)pt {
+    UIImage *image = ZL2ShellSystemImageSized(_ame403_symbolName, _ame403_fallbackName, pt);
+    if (!image) return;
+    _iconView.image = [image imageWithRenderingMode:UIImageRenderingModeAlwaysTemplate];
+}
 
 @end
 

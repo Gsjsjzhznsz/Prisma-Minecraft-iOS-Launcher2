@@ -87,7 +87,11 @@ check("② ame369.* 键四表齐备",
 #   ame369.common.invalid_version 键 +1 站点；账户页动作行 refresh_a11y/
 #   more_actions 两键与退役行视图一拆一建净零）
 # ★ Task401 merge 重锚：453（ipod-ui 线）+1（main 线 Task393~399 壳层动作簇主页钮站点）= 454
-check("① ame369 改写点数 == 454（双线合并重锚：453+1 壳层动作簇主页钮）", ame369_sites == 454, str(ame369_sites))
+# ★ Task403 重锚：454 − 5 − 1 = 448。−5 = 并行会话 bd9e1d9「移除主页重复快捷
+#   入口」等用户规格提交摘除的站点（未跑门禁未补账，stash 基线对照 HEAD=449
+#   实锤，本轮代为补账）；−1 = 停靠换边谎言提示 ame369.home.menu_dock_hint
+#   随换边退役整体摘除（代码站点与四表键同步清零，遗言零残留）
+check("① ame369 改写点数 == 448（★Task403 重锚：并行会话未补账 −5 + 换边提示退役 −1）", ame369_sites == 448, str(ame369_sites))
 
 # 复用站点：4 处 localize(@"ame193.misc.[13]"（内容级匹配——5 个补 import 文件行号整体 +1，行级断言会错位）
 REUSE_EXPECT = {

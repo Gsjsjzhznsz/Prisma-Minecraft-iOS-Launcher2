@@ -41,7 +41,7 @@ NS_ASSUME_NONNULL_BEGIN
 
 + (instancetype)sharedManager;
 
-/// Bing 每日壁纸总开关（默认开启；持久化于 NSUserDefaults bing_wallpaper_enabled）
+/// Bing 每日壁纸总开关（★Task403 默认关闭；持久化于 NSUserDefaults bing_wallpaper_enabled）
 @property (nonatomic, assign, getter=isEnabled) BOOL enabled;
 
 /// 已缓存的壁纸元数据（最新在前，至多 8 条；来自磁盘缓存，离线可用）

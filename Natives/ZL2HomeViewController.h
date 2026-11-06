@@ -4,7 +4,7 @@
 // 信息架构对标 ZalithLauncher2 LauncherScreen 真结构（告别单列堆叠）：
 //   整体 Row = 左内容区（weight 7）+ 右 ActionMenu（宽 = 容器 3/10，
 //   clamp[240, 320]）；ActionMenu 停靠左/右持久化
-//   （NSUserDefaults "zl2.home.actionMenuSide"，长按菜单卡切换停靠边）。
+//   （★Task403 停靠换边退役：右栏恒右，原换边选项与提示一并清除）。
 //   · ActionMenu（自上而下）：账号卡（48 圆头像 + 用户名 + 类型小字，
 //     点击 → @"ShowAccountManager"；未登录 = 加号占位）→ 版本选择卡
 //     （当前实例名 + 加载器小标签 + 刷新/设置小图标 → @"ZL2ShellNavigate"
