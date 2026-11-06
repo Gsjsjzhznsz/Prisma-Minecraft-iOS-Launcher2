@@ -19,7 +19,7 @@
 // 远近衰减系数（封面流口径；连续插值无跳变）
 // 选中态以“尺寸带动透明度”：更大的条目必然更不透明。衰减刻意收窄，
 // 保留列表的层级而不再像 iPod Cover Flow 一样夸张、跳动。
-static const CGFloat AmeFlowSelectCenterScale     = 1.50;
+static const CGFloat AmeFlowSelectCenterScale     = 1.00;
 static const CGFloat AmeFlowSelectScalePerStep    = 0.15;
 static const CGFloat AmeFlowSelectAlphaPerStep    = 0.25;
 static const CGFloat AmeFlowSelectAlphaFloor      = 0.25;

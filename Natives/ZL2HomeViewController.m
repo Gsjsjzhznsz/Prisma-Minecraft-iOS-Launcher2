@@ -1148,7 +1148,7 @@ static UIImage *ZL2HomeSizedImage(NSString *name, NSString *fallback, CGFloat po
                                               action:(void (^)(void))action {
     ZL2HomeTapControl *tile = [[ZL2HomeTapControl alloc] init];
     tile.backgroundColor = [UIColor clearColor];
-    tile.layer.cornerRadius = [ZL2Theme radiusM];
+    tile.layer.cornerRadius = [ZL2Theme radiusS];
     tile.translatesAutoresizingMaskIntoConstraints = NO;
     tile.isAccessibilityElement = YES;
     tile.accessibilityTraits = UIAccessibilityTraitButton;
