@@ -525,7 +525,7 @@ static UIImage *ZL2HomeSizedImage(NSString *name, NSString *fallback, CGFloat po
 @property (nonatomic, assign) BOOL ame_menuOnRight;
 // 停靠边提示（★Task404 恢复：73c10b7 退役后 b78a16c 摘除的「长按菜单可切换停靠边」，随功能一并回滚）
 @property (nonatomic, strong) UILabel *menuHintLabel;
-@property (nonatomic, strong, nullable) NSArray<NSLayoutConstraint *> *ame_embeddedContentConstraints;
+// ★Task405 退役：ame_embeddedContentConstraints 随提取机制一并拆除（右栏回归主页私有）
 @property (nonatomic, assign) NSInteger lastColumnCount;
 @property (nonatomic, assign) CGFloat lastGridWidth;   // ★ Task387：上次布局网格宽（宽度变化即失效重排）
 
@@ -1366,24 +1366,10 @@ static UIImage *ZL2HomeSizedImage(NSString *name, NSString *fallback, CGFloat po
 
 #pragma mark - 固定右栏
 
-- (UIView *)extractPersistentRightSidebar {
-    if (self.actionMenu == nil || self.actionMenu.superview != self.view) return nil;
-    [NSLayoutConstraint deactivateConstraints:self.ame_sideConstraints];
-    self.ame_sideConstraints = nil;
-
-    // 壳会把子页容器缩到右栏左侧；主页内容在自己的缩窄坐标内填满即可。
-    self.ame_embeddedContentConstraints = @[
-        [self.contentArea.topAnchor constraintEqualToAnchor:self.view.safeAreaLayoutGuide.topAnchor],
-        [self.contentArea.bottomAnchor constraintEqualToAnchor:self.view.safeAreaLayoutGuide.bottomAnchor],
-        [self.contentArea.leadingAnchor constraintEqualToAnchor:self.view.leadingAnchor],
-        [self.contentArea.trailingAnchor constraintEqualToAnchor:self.view.trailingAnchor],
-    ];
-    [NSLayoutConstraint activateConstraints:self.ame_embeddedContentConstraints];
-
-    UIView *sidebar = self.actionMenu;
-    [sidebar removeFromSuperview];
-    return sidebar;
-}
+// ★Task405 退役：extractPersistentRightSidebar（0d97c34 提取机制）整块拆除。
+// 提取会让 actionMenu 脱离主页层级：后续长按换边对 menu 与 self.view 重建的
+// 双支线约束变为跨层级，与壳层 containerTrailing 冲突 = 换边 bug 实体；且常驻
+// 使右栏在子页可见 = 切页不隐藏。退役后换边在主页内自治，约束链同层无冲突。
 
 /// 恢复持久化停靠边（缺省 = 右侧；脏值回退默认。★Task404 恢复原实现）
 - (void)ame_restoreMenuSide {

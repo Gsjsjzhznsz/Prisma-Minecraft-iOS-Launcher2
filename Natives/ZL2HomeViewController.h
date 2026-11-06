@@ -41,9 +41,8 @@ NS_ASSUME_NONNULL_BEGIN
 // 同时重建实例网格（@"SelectedProfileChanged"/@"ReloadProfileList" 同链）。
 - (void)refreshLaunchState;
 
-/// 将主页右栏交由壳持有，使账户/实例列表在设置等页面也持续可见。
-/// 仅可提取一次；返回 nil 表示尚未完成视图构建或已被提取。
-- (nullable UIView *)extractPersistentRightSidebar;
+// ★Task405 退役：extractPersistentRightSidebar 随壳层常驻机制一并拆除——
+// 右栏回归主页私有，切页即随主页视图隐藏（用户第13轮复诉口径）。
 
 @end
 

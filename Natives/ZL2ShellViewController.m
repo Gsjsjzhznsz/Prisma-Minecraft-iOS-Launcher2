@@ -126,39 +126,97 @@ static UIImage *ZL2ShellSystemImage(NSString *name, NSString *fallback) {
     return image;
 }
 
+// ★ Task405：alpha 包围盒自测量——把图栅格化成 1pt=1px 位图后逐像素扫
+// 非透明区（premultiplied 下 alpha=0 ⇒ RGBA 全 0、alpha≥8 ⇒ 至少一字节≥8，
+// 与通道序无关），返回字形实测最大边（pt）。位图不可读/非常规格式安全返回
+// 0 = 调用方原样放行（不劣化于 404）。
+static CGFloat ZL2ShellMeasureGlyphBBox(UIImage *image) {
+    if (image.size.width < 1.0 || image.size.height < 1.0) return 0.0;
+    UIGraphicsImageRendererFormat *ame_fmt = [[UIGraphicsImageRendererFormat alloc] init];
+    ame_fmt.scale = 1.0;   // 1px = 1pt，坐标系直读
+    ame_fmt.opaque = NO;
+    UIGraphicsImageRenderer *ame_renderer =
+        [[UIGraphicsImageRenderer alloc] initWithSize:image.size format:ame_fmt];
+    UIImage *ame_snapshot = [ame_renderer imageWithActions:^(UIGraphicsImageRendererContext *ame_ctx) {
+        [image drawInRect:CGRectMake(0, 0, image.size.width, image.size.height)];
+    }];
+    CGImageRef ame_cg = ame_snapshot.CGImage;
+    if (!ame_cg || CGImageGetBitsPerComponent(ame_cg) != 8) return 0.0;
+    CFDataRef ame_data = CGDataProviderCopyData(CGImageGetDataProvider(ame_cg));
+    if (!ame_data) return 0.0;
+    const UInt8 *ame_bytes = CFDataGetBytePtr(ame_data);
+    size_t ame_w = CGImageGetWidth(ame_cg), ame_h = CGImageGetHeight(ame_cg);
+    size_t ame_bpr = CGImageGetBytesPerRow(ame_cg);
+    size_t ame_bpp = CGImageGetBitsPerPixel(ame_cg) / 8;
+    if (!ame_bytes || ame_bpp < 4) { CFRelease(ame_data); return 0.0; }
+    CGFloat ame_minX = ame_w, ame_minY = ame_h, ame_maxX = -1, ame_maxY = -1;
+    for (size_t y = 0; y < ame_h; y++) {
+        const UInt8 *ame_row = ame_bytes + y * ame_bpr;
+        for (size_t x = 0; x < ame_w; x++) {
+            const UInt8 *ame_px = ame_row + x * ame_bpp;
+            if (ame_px[0] >= 8 || ame_px[1] >= 8 || ame_px[2] >= 8 || ame_px[3] >= 8) {
+                if (x < ame_minX) ame_minX = x;
+                if (x > ame_maxX) ame_maxX = x;
+                if (y < ame_minY) ame_minY = y;
+                if (y > ame_maxY) ame_maxY = y;
+            }
+        }
+    }
+    CFRelease(ame_data);
+    if (ame_maxX < ame_minX || ame_maxY < ame_minY) return 0.0;
+    return MAX(ame_maxX - ame_minX + 1, ame_maxY - ame_minY + 1);
+}
+
+// ★ Task405：字形填充保底。404 验收的是「画布尺寸」——若符号引擎返回
+// 「大画布小字形」（画布达标、字形缩在中间），尺寸闸漏网 = 四轮复诉仍欠
+// 尺的最后一种可能形态。本轮改包围盒验收：字形实测宽 < 请求点数 90% 即
+// 按包围盒等比放大重绘至铺满 pointSize 方形画布（bbox 外全为透明区，溢出
+// 画布的裁剪零损失）——字形视觉尺寸从此只由 pointSize 参数决定，符号引擎
+// 任何形态的欠尺（小画布 / 大画布小字形 / 配置被无视）都逃不掉。
+// ame405_bboxOut 非空时回填字形实测最大边（pt）供 [Ame404] 装机日志判读。
+static UIImage *ZL2ShellForceGlyphFill(UIImage *image, CGFloat pointSize, CGFloat *ame405_bboxOut) {
+    if (!image || pointSize <= 0.0) return image;
+    CGFloat ame_bbox = ZL2ShellMeasureGlyphBBox(image);
+    if (ame405_bboxOut) *ame405_bboxOut = ame_bbox;
+    if (ame_bbox <= 0.0 || ame_bbox >= pointSize * 0.9) return image;   // 达标/测不出：原样放行
+    CGFloat ame_scale = MIN((pointSize * 0.96) / ame_bbox, 4.0);        // 放大上限防病态
+    if (ame_scale <= 1.0) return image;
+    UIGraphicsImageRendererFormat *ame_fmt = [[UIGraphicsImageRendererFormat alloc] init];
+    ame_fmt.scale = 0;   // device native scale
+    UIGraphicsImageRenderer *ame_renderer =
+        [[UIGraphicsImageRenderer alloc] initWithSize:CGSizeMake(pointSize, pointSize)
+                                               format:ame_fmt];
+    CGRect ame_rect = CGRectMake(pointSize / 2.0 - image.size.width * ame_scale / 2.0,
+                                 pointSize / 2.0 - image.size.height * ame_scale / 2.0,
+                                 image.size.width * ame_scale,
+                                 image.size.height * ame_scale);
+    return [ame_renderer imageWithActions:^(UIGraphicsImageRendererContext *ame_ctx) {
+        [image drawInRect:ame_rect];
+    }];
+}
+
 // ★ Task403：符号配置版取图（视觉字形随 pointSize 重生成）。根因实证
 //（IMG_0572 像素级测量）：裸 systemImageNamed: 默认配置的视觉字形仅 ~11pt，
 // 且 SF Symbol 自带内边距——改 frame 约束（Task402 的 20→26）只放大容器
 // 不放大字形，三轮复诉「折叠图标跟着缩/没变大」的真根因。修法 = frame 与
 // 符号配置点数同源联动（ame_setCompact 单点驱动，无第二常量可漂移）。
+// ★ Task405：404 的「画布尺寸验收」升级为包围盒自测量（ZL2ShellForceGlyphFill）。
+static UIImage *ZL2ShellSystemImageSizedEx(NSString *name, NSString *fallback, CGFloat pointSize,
+                                            CGFloat *ame405_bboxOut);
+
 static UIImage *ZL2ShellSystemImageSized(NSString *name, NSString *fallback, CGFloat pointSize) {
+    return ZL2ShellSystemImageSizedEx(name, fallback, pointSize, NULL);
+}
+
+static UIImage *ZL2ShellSystemImageSizedEx(NSString *name, NSString *fallback, CGFloat pointSize,
+                                            CGFloat *ame405_bboxOut) {
     UIImageSymbolConfiguration *config =
         [UIImageSymbolConfiguration configurationWithPointSize:pointSize
                                                         weight:UIImageSymbolWeightMedium];
     UIImage *image = [UIImage systemImageNamed:name withConfiguration:config];
     if (!image && fallback) image = [UIImage systemImageNamed:fallback withConfiguration:config];
-    // ★Task404 渲染保底：IMG_0572/0573 像素级双图对勘实机存在「同一 26pt 配置
-    // 请求，选中项字形 22pt、未选中项字形仅 11pt」的引擎劈叉（字形不随配置点
-    // 数等比放大 = 403a 看似正确却实机无效的原因）。此处对返回图做尺寸验收：
-    // 最大边 < 请求点数 90% 视为欠尺，改用 UIGraphicsImageRenderer 按请求点数
-    // 栅格化重绘（aspect-fit 居中，device scale）——字形尺寸从此只由本函数的
-    // pointSize 参数决定，不再依赖符号引擎对配置的逐符号响应。
-    CGFloat ame404_maxSide = MAX(image.size.width, image.size.height);
-    if (image && ame404_maxSide > 0 && ame404_maxSide < pointSize * 0.9) {
-        UIGraphicsImageRendererFormat *ame404_fmt = [[UIGraphicsImageRendererFormat alloc] init];
-        ame404_fmt.scale = 0;   // device native scale
-        UIGraphicsImageRenderer *ame404_renderer =
-            [[UIGraphicsImageRenderer alloc] initWithSize:CGSizeMake(pointSize, pointSize)
-                                                   format:ame404_fmt];
-        CGFloat ame404_scale = MIN(pointSize / image.size.width, pointSize / image.size.height);
-        CGFloat ame404_w = image.size.width * ame404_scale;
-        CGFloat ame404_h = image.size.height * ame404_scale;
-        image = [ame404_renderer imageWithActions:^(UIGraphicsImageRendererContext *ame404_ctx) {
-            [image drawInRect:CGRectMake((pointSize - ame404_w) / 2.0, (pointSize - ame404_h) / 2.0,
-                                          ame404_w, ame404_h)];
-        }];
-    }
-    return image;
+    if (!image) return nil;
+    return ZL2ShellForceGlyphFill(image, pointSize, ame405_bboxOut);
 }
 
 #pragma mark - 私有点击控件：ame_action block 载荷通道（零 tag / 零 delegate）
@@ -250,6 +308,7 @@ static UIImage *ZL2ShellSystemImageSized(NSString *name, NSString *fallback, CGF
 - (void)ame_setCompact:(BOOL)compact;     // ★ Task376：折叠图标栏态（标签隐藏 + 图标居中）
 - (CGRect)ame_iconFrame;                  // ★ Task402：折叠态几何自证读数（[Ame388] 装机日志判读图标真实尺寸）
 - (CGFloat)ame_iconImageSize;             // ★ Task404：字形图像宽读数（区分「图像欠尺」与「盒欠尺」的判据）
+- (CGFloat)ame_iconGlyphBBox;             // ★ Task405：字形实测包围盒读数（大画布小字形等引擎欠尺形态判读）
 - (void)ame_applyIconGlyphSize:(CGFloat)pt; // ★ Task403：字形随尺寸重生成（frame 与符号配置点数同源）
 @end
 
@@ -261,6 +320,7 @@ static UIImage *ZL2ShellSystemImageSized(NSString *name, NSString *fallback, CGF
 @property(nonatomic, strong) NSLayoutConstraint *ame402_iconSize;    // ★ Task402/404：图标宽常量（展开 22 / 折叠 30 放大驱动，高度锚 1:1 跟随）
 @property(nonatomic, copy) NSString *ame403_symbolName;     // ★ Task403：符号名留档（折叠/展开切换时按点数重生成字形）
 @property(nonatomic, copy) NSString *ame403_fallbackName;   // ★ Task403：兜底符号名（同上）
+@property(nonatomic, assign) CGFloat ame405_glyphBBox;  // ★Task405：最近一次字形实测包围盒（pt）
 @end
 
 @implementation ZL2ShellNavItem
@@ -389,10 +449,15 @@ static UIImage *ZL2ShellSystemImageSized(NSString *name, NSString *fallback, CGF
 // image 宽=13 即符号引擎欠尺实锤；栅格化保底后应恒 ≈ pointSize）
 - (CGFloat)ame_iconImageSize { return _iconView.image.size.width; }
 
+// ★ Task405：字形实测包围盒读数（[Ame404] 日志 bb= 判据：img=画布宽，bb=
+// 字形真实视觉宽——bb≈0.96×img = 405 保底已铺满；bb≪img = 保底未触发另查）
+- (CGFloat)ame_iconGlyphBBox { return _ame405_glyphBBox; }
+
 // ★ Task403/404：字形随尺寸重生成（SF Symbol 视觉字形由符号配置点数决定，
 //   frame 约束只改容器——折叠 30 / 展开 22 与 ame402_iconSize 同源常量）
 - (void)ame_applyIconGlyphSize:(CGFloat)pt {
-    UIImage *image = ZL2ShellSystemImageSized(_ame403_symbolName, _ame403_fallbackName, pt);
+    UIImage *image = ZL2ShellSystemImageSizedEx(_ame403_symbolName, _ame403_fallbackName, pt,
+                                                &_ame405_glyphBBox);   // ★Task405：包围盒随取图回填
     if (!image) return;
     _iconView.image = [image imageWithRenderingMode:UIImageRenderingModeAlwaysTemplate];
 }
@@ -484,7 +549,8 @@ static UIImage *ZL2ShellSystemImageSized(NSString *name, NSString *fallback, CGF
 @property(nonatomic, strong) UIView *topBar;                          // ★ Task378 退役占位（恒 nil；保留声明以兼容 (self.topBar ?: self.contentHeader) 门禁锚点表达式）
 @property(nonatomic, strong) ZL2ShellTaskPill *taskPill;              // 任务胶囊（nav 骨架内容区头专属）
 @property(nonatomic, strong) UIView *container;                       // 子页挂载区
-@property(nonatomic, strong) UIView *persistentRightSidebar;          // 所有页面共用的账户/实例右栏
+// ★Task405 退役：persistentRightSidebar 常驻右栏属性随 0d97c34 提取机制一并拆除
+//（用户第13轮复诉「右侧边栏切页面不会隐藏了」——右栏回归主页私有，切页即随主页隐藏）
 @property(nonatomic, strong) NSLayoutConstraint *containerTrailing;
 @property(nonatomic, strong) NSMutableDictionary<NSNumber *, UIViewController *> *childCache;
 @property(nonatomic, assign) NSInteger currentIndex;
@@ -714,8 +780,9 @@ static UIImage *ZL2ShellSystemImageSized(NSString *name, NSString *fallback, CGF
                 NSMutableString *ame404 = [NSMutableString string];
                 [weakSelf.navItems enumerateObjectsUsingBlock:^(ZL2ShellNavItem *item, NSUInteger idx, BOOL *stop) {
                     CGRect ame404_f = [item ame_iconFrame];
-                    [ame404 appendFormat:@"i%ld={{%.0f,%.0f}}img=%.0f ",
-                        (long)idx, ame404_f.size.width, ame404_f.size.height, [item ame_iconImageSize]];
+                    [ame404 appendFormat:@"i%ld={{%.0f,%.0f}}img=%.0f bb=%.0f ",
+                        (long)idx, ame404_f.size.width, ame404_f.size.height,
+                        [item ame_iconImageSize], [item ame_iconGlyphBBox]];   //★Task405 补 bb 读数
                 }];
                 NSLog(@"[Ame404] rail glyphs %@", ame404);
             });
@@ -1263,33 +1330,12 @@ static UIImage *ZL2ShellSystemImageSized(NSString *name, NSString *fallback, CGF
 
     [self ame_attachChildIfNeeded:next];
 
-    // 主页首次建成后，把原本仅属于主页的右栏提升到壳层。之后所有子页都
-    // 在它左侧布局，设置页也不会再把账户/实例列表隐藏掉。
-    if (index == 0 && self.persistentRightSidebar == nil &&
-        [next isKindOfClass:[ZL2HomeViewController class]]) {
-        UIView *sidebar = [(ZL2HomeViewController *)next extractPersistentRightSidebar];
-        if (sidebar) {
-            self.persistentRightSidebar = sidebar;
-            sidebar.translatesAutoresizingMaskIntoConstraints = NO;
-            [self.view addSubview:sidebar];
-            [self.containerTrailing setActive:NO];
-            self.containerTrailing = [self.container.trailingAnchor
-                constraintEqualToAnchor:sidebar.leadingAnchor constant:-8.0];
-            NSLayoutConstraint *ratio = [sidebar.widthAnchor
-                constraintEqualToAnchor:self.view.widthAnchor multiplier:0.28];
-            ratio.priority = 999;
-            [NSLayoutConstraint activateConstraints:@[
-                self.containerTrailing,
-                [sidebar.trailingAnchor constraintEqualToAnchor:self.view.safeAreaLayoutGuide.trailingAnchor constant:-8.0],
-                [sidebar.topAnchor constraintEqualToAnchor:self.view.safeAreaLayoutGuide.topAnchor constant:8.0],
-                [sidebar.bottomAnchor constraintEqualToAnchor:self.view.safeAreaLayoutGuide.bottomAnchor constant:-8.0],
-                ratio,
-                [sidebar.widthAnchor constraintGreaterThanOrEqualToConstant:220.0],
-                [sidebar.widthAnchor constraintLessThanOrEqualToConstant:300.0],
-            ]];
-            [self.view bringSubviewToFront:sidebar];
-        }
-    }
+    // ★Task405 退役：0d97c34 的「主页右栏提升到壳层常驻」整块拆除——提取后
+    // actionMenu 脱离主页层级，长按换边（ame_applySideConstraintsAnimated:）
+    // 会对已不在主页的 menu 与 self.view 重建跨层级约束，与壳层 containerTrailing
+    // 正面冲突 = 「切换边有bug」实体；且常驻使右栏在全部子页可见 = 「切页面
+    // 不会隐藏」回归。右栏回归主页私有后，切页随主页视图隐藏，换边在主页内
+    // 自治（双支线约束 + 持久化 + 长按手势全部原样）。
 
     void (^apply)(void) = ^{
         prev.view.hidden = YES;
