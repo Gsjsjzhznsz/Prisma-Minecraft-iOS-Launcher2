@@ -2,6 +2,14 @@
 // AmeFlowSelectView.m — ★ Task401：封面流选择器实现（设计契约见 .h 头注释；
 //   原 Task393 竖排组件更名并扩展横轴，交互物理 1:1 保留）
 //
+// ★Task409 恒定尺寸 + 无缝循环槽位复制（第 17 轮复诉四项之三）：
+//   ① 「左侧图标缩小依旧」——旧判例 scale = 1 − 0.15×|d| 整体退役，条目
+//      尺寸不随位相变化（缩放面是图标缩小与标签变窄的共同根因）；
+//   ② 「账号转盘没有无限衔接」——小集合接缝（|d| = 槽数/2 的 remainder
+//      跳变点）落在可视窗内 = 跨越时对侧条目瞬移可见；槽位复制把接缝
+//      推到窗外，副本由宿主 ame_copyFactory 现建，全链映射回逻辑下标；
+//   ③ 窗缘渐隐带：临近可视窗边缘 alpha 线性归零，条目进出窗零突现零突隐。
+//
 // 帧驱动：CADisplayLink 弹簧衰减（offset 逼近 target，临界阻尼）；
 // 摆位：竖轴条目 center.y = 视口中点 + (i − offset) × 步距，横轴条目
 //       center.x 同式；条目按 |d| 缩放/透明（transform 语义经 frame 直算
@@ -16,14 +24,14 @@
 #import "AmeFlowSelectView.h"
 #import <math.h>   // lround/fabs/sqrt/fmin（弹簧积分与位相取整）
 
-// 远近衰减系数（封面流口径；连续插值无跳变）
-// 选中态以“尺寸带动透明度”：更大的条目必然更不透明。衰减刻意收窄，
-// 保留列表的层级而不再像 iPod Cover Flow 一样夸张、跳动。
-static const CGFloat AmeFlowSelectCenterScale     = 1.00;
-static const CGFloat AmeFlowSelectScalePerStep    = 0.15;
+// 远近衰减系数（★Task409 恒定尺寸：缩放系数退役，仅存透明度层级）
+// alpha 渐退保留列表层级；窗缘渐隐带使条目进出可视窗零突现零突隐
+//（接缝复制槽位从窗缘入窗时 alpha≈0 起步渐显，循环衔接视觉无缝）。
 static const CGFloat AmeFlowSelectAlphaPerStep    = 0.25;
 static const CGFloat AmeFlowSelectAlphaFloor      = 0.25;
 static const CGFloat AmeFlowSelectHideRange       = 2.6;   // |d| > 此值隐藏（可见窗 |d| ≤ 2.4，五枚口径）
+static const CGFloat AmeFlowSelectEdgeFadeH       = 1.55;  // ★Task409 横轴可视窗半宽（三项视口同旧口径）
+static const CGFloat AmeFlowSelectEdgeFadeBand    = 0.4;   // ★Task409 窗缘渐隐带宽（步距）
 static const CGFloat AmeFlowSelectFlickVelocity   = 1400.0; // 惯性判定速度阈值（pt/s）
 static const CGFloat AmeFlowSelectSpringStiffness = 180.0;  // 更柔和的原生滚动式收束
 static const CGFloat AmeFlowSelectSnapEpsilon     = 0.002;  // 吸附收敛判定（步距比）
@@ -33,6 +41,11 @@ static const CGFloat AmeFlowSelectThreeAcrossDivisor = 2.8;
 
 @interface AmeFlowSelectView () <UIGestureRecognizerDelegate>
 @property (nonatomic, strong) NSMutableArray<UIView *> *ame_items;
+/// 逻辑条目数（★Task409：ame_items = 槽位 = 逻辑数 × 复制份数；
+/// selectedIndex/onSettle/ame_itemsCount 全链按逻辑下标说话）
+@property (nonatomic, assign) NSUInteger ame_logicalCount;
+/// ★Task409 槽位复制工厂（.h 公开；.m 面重声明 = task393 审计 B 族自洽）
+@property (nonatomic, copy, nullable) UIView *(^ame_copyFactory)(NSUInteger logicalIndex);
 /// 连续位相（居中条目 = round(offset)；拖动/惯性中连续变化）
 @property (nonatomic, assign) CGFloat ame_offset;
 /// 弹簧目标（吸附落点；拖动中 = 拖动位相）
@@ -88,6 +101,26 @@ static const CGFloat AmeFlowSelectThreeAcrossDivisor = 2.8;
     return self.itemHeight + self.interItemGap;
 }
 
+/// ★Task409 可视窗半宽（按轴；ame_layoutItems 隐藏判定与窗缘渐隐共用）
+- (CGFloat)ame_windowHalfRange {
+    return (self.axis == AmeFlowSelectAxisHorizontal)
+        ? AmeFlowSelectEdgeFadeH          // 横轴 1.55（三项视口）
+        : AmeFlowSelectHideRange;         // 竖轴 2.6（五枚视口）
+}
+
+/// ★Task409 需要的槽位复制份数：槽数 > 2×窗半宽 ⇒ remainder 接缝
+/// （|d| = 槽数/2）被推出窗外，跨越跳变不可见 = 无限衔接。
+/// 逻辑数 ≤ 1（无对手条目可衔接）或工厂缺席时单份（旧口径）。
+- (NSUInteger)ame_requiredCopiesForLogicalCount:(NSUInteger)logicalCount {
+    if (logicalCount <= 1 || self.ame_copyFactory == nil) return 1;
+    NSUInteger ame_copies = 1;
+    while ((CGFloat)(ame_copies * logicalCount) <= 2.0 * [self ame_windowHalfRange]
+           && ame_copies < 8) {
+        ame_copies++;
+    }
+    return ame_copies;
+}
+
 - (CGFloat)viewportHeight {
     return self.itemHeight + 4.0 * [self pitch];
 }
@@ -98,9 +131,11 @@ static const CGFloat AmeFlowSelectThreeAcrossDivisor = 2.8;
 }
 
 /// 摆位核心：条目按当前位相连续排布（拖动/惯性每帧调用）
+/// ★Task409 恒定尺寸：条目尺寸 = 视口满尺寸（缩放判例退役）；层级感由
+/// alpha 渐退承接，另加窗缘渐隐带（距窗缘 < 0.4 步距线性归零）。
 - (void)ame_layoutItems {
     CGFloat ame_pitch = [self pitch];
-    CGFloat ame_absdMax = (self.axis == AmeFlowSelectAxisHorizontal) ? 1.55 : AmeFlowSelectHideRange;
+    CGFloat ame_absdMax = [self ame_windowHalfRange];
 
     if (self.axis == AmeFlowSelectAxisHorizontal) {
         CGFloat ame_centerX = CGRectGetMidX(self.bounds);
@@ -116,19 +151,25 @@ static const CGFloat AmeFlowSelectThreeAcrossDivisor = 2.8;
                 item.hidden = YES;
                 return;
             }
-            item.hidden = NO;
 
-            // 尺寸与透明度同源：更大即更不透明，且正反两个方向完全对称。
-            CGFloat ame_scale = AmeFlowSelectCenterScale - AmeFlowSelectScalePerStep * ame_absd;
+            // ★Task409 恒定尺寸：零缩放，图标/标签尺寸全列一致。
             CGFloat ame_alpha = 1.0 - AmeFlowSelectAlphaPerStep * ame_absd;
             if (ame_alpha < AmeFlowSelectAlphaFloor) ame_alpha = AmeFlowSelectAlphaFloor;
+            // 窗缘渐隐带：距窗缘 < 0.4 步距线性归零（进出窗零突现零突隐）。
+            CGFloat ame_edge = ame_absdMax - ame_absd;
+            if (ame_edge < AmeFlowSelectEdgeFadeBand) {
+                ame_alpha *= fmax(0.0, ame_edge / AmeFlowSelectEdgeFadeBand);
+            }
+            if (ame_alpha <= 0.003) {
+                item.hidden = YES;
+                return;
+            }
 
             // 条目手动摆位（帧驱动口径；条目内部子视图仍 AutoLayout）
-            CGFloat ame_h = ame_height * ame_scale;
-            CGFloat ame_w = ame_itemW * ame_scale;
-            item.frame = CGRectMake(ame_centerX + ame_d * ame_pitch - ame_w / 2.0,
-                                    (ame_height - ame_h) / 2.0,
-                                    ame_w, ame_h);
+            item.frame = CGRectMake(ame_centerX + ame_d * ame_pitch - ame_itemW / 2.0,
+                                    0.0,
+                                    ame_itemW, ame_height);
+            item.hidden = NO;
             item.alpha = ame_alpha;
             item.layer.zPosition = 100.0 - ame_absd;     // 越近居中越在上层
         }];
@@ -137,7 +178,6 @@ static const CGFloat AmeFlowSelectThreeAcrossDivisor = 2.8;
 
     CGFloat ame_centerY = CGRectGetMidY(self.bounds);
     CGFloat ame_width = CGRectGetWidth(self.bounds);
-    CGFloat ame_half = self.itemHeight / 2.0;
 
     [self.ame_items enumerateObjectsUsingBlock:^(UIView *item, NSUInteger i, BOOL *stop) {
         CGFloat ame_d = remainder((CGFloat)i - self.ame_offset,
@@ -148,19 +188,24 @@ static const CGFloat AmeFlowSelectThreeAcrossDivisor = 2.8;
             item.hidden = YES;
             return;
         }
-        item.hidden = NO;
 
-        // 尺寸与透明度同源：不再出现“越往上越不透明”的方向性错觉。
-        CGFloat ame_scale = AmeFlowSelectCenterScale - AmeFlowSelectScalePerStep * ame_absd;
+        // ★Task409 恒定尺寸：零缩放（同横轴口径）。
         CGFloat ame_alpha = 1.0 - AmeFlowSelectAlphaPerStep * ame_absd;
         if (ame_alpha < AmeFlowSelectAlphaFloor) ame_alpha = AmeFlowSelectAlphaFloor;
+        CGFloat ame_edge = ame_absdMax - ame_absd;
+        if (ame_edge < AmeFlowSelectEdgeFadeBand) {
+            ame_alpha *= fmax(0.0, ame_edge / AmeFlowSelectEdgeFadeBand);
+        }
+        if (ame_alpha <= 0.003) {
+            item.hidden = YES;
+            return;
+        }
 
         // 条目手动摆位（帧驱动口径，见 .h 头注释；条目内部子视图仍 AutoLayout）
-        CGFloat ame_h = self.itemHeight * ame_scale;
-        CGFloat ame_w = ame_width * ame_scale;
-        item.frame = CGRectMake((ame_width - ame_w) / 2.0,
-                                ame_centerY + ame_d * ame_pitch - ame_h / 2.0,
-                                ame_w, ame_h);
+        item.frame = CGRectMake(0.0,
+                                ame_centerY + ame_d * ame_pitch - self.itemHeight / 2.0,
+                                ame_width, self.itemHeight);
+        item.hidden = NO;
         item.alpha = ame_alpha;
         item.layer.zPosition = 100.0 - ame_absd;     // 越近居中越在上层
     }];
@@ -175,12 +220,35 @@ static const CGFloat AmeFlowSelectThreeAcrossDivisor = 2.8;
     [self.ame_items removeAllObjects];
     [self ame_stopTicker];
 
-    for (UIView *item in items) {
+    // ★Task409 槽位装配：ame_items = 槽位（逻辑数 × 复制份数，整数倍）；
+    // 逻辑条目数 ≤ 2×窗半宽时复制槽位把 remainder 接缝推出窗外（无缝
+    // 循环）；第 2+ 份由宿主 ame_copyFactory 按逻辑下标现建副本，工厂
+    // 缺席/返回 nil 则保留已有整倍数份（退化为少份循环，映射仍自洽）。
+    self.ame_logicalCount = items.count;
+    NSUInteger ame_copies = [self ame_requiredCopiesForLogicalCount:items.count];
+
+    void (^ame_attach)(UIView *) = ^(UIView *ame_v) {
         // 条目接管摆位：关闭 AutoLayout 参与（条目内部子视图不受影响）
-        item.translatesAutoresizingMaskIntoConstraints = YES;
-        item.userInteractionEnabled = NO;
-        [self addSubview:item];
-        [self.ame_items addObject:item];
+        ame_v.translatesAutoresizingMaskIntoConstraints = YES;
+        ame_v.userInteractionEnabled = NO;
+        [self addSubview:ame_v];
+        [self.ame_items addObject:ame_v];
+    };
+    for (UIView *item in items) {
+        ame_attach(item);
+    }
+    for (NSUInteger ame_c = 1; ame_c < ame_copies; ame_c++) {
+        NSMutableArray<UIView *> *ame_copy = [NSMutableArray array];
+        BOOL ame_ok = YES;
+        for (NSUInteger ame_i = 0; ame_i < items.count; ame_i++) {
+            UIView *ame_v = self.ame_copyFactory(ame_i);
+            if (ame_v == nil) { ame_ok = NO; break; }
+            [ame_copy addObject:ame_v];
+        }
+        if (!ame_ok) break;   // 整倍数纪律：残份不入境，逻辑映射不破
+        [ame_copy enumerateObjectsUsingBlock:^(UIView *ame_v, NSUInteger idx, BOOL *stop) {
+            ame_attach(ame_v);
+        }];
     }
 
     if (self.ame_items.count == 0) {
@@ -200,29 +268,47 @@ static const CGFloat AmeFlowSelectThreeAcrossDivisor = 2.8;
 }
 
 - (NSUInteger)ame_itemsCount {
-    return (NSUInteger)self.ame_items.count;
+    return self.ame_logicalCount;   // ★Task409：宿主守卫按逻辑数（非槽位数）
 }
 
 - (NSInteger)selectedIndex {
     if (self.ame_items.count == 0) return NSNotFound;
-    NSInteger ame_idx = (NSInteger)lround((double)self.ame_offset);
-    NSInteger ame_count = (NSInteger)self.ame_items.count;
-    ame_idx %= ame_count;
-    if (ame_idx < 0) ame_idx += ame_count;
-    return ame_idx;
+    NSInteger ame_slot = (NSInteger)lround((double)self.ame_offset);
+    NSInteger ame_slots = (NSInteger)self.ame_items.count;
+    ame_slot %= ame_slots;
+    if (ame_slot < 0) ame_slot += ame_slots;
+    // ★Task409 槽位 → 逻辑下标（槽位序 = 逻辑序循环复制，取模即原像）
+    NSInteger ame_logical = (NSInteger)self.ame_logicalCount;
+    if (ame_logical > 0 && ame_logical < ame_slots) ame_slot %= ame_logical;
+    return ame_slot;
 }
 
 - (void)setSelectedIndex:(NSInteger)index animated:(BOOL)animated {
     if (self.ame_items.count == 0) return;
-    NSInteger ame_count = (NSInteger)self.ame_items.count;
-    index %= ame_count;
-    if (index < 0) index += ame_count;
+    NSInteger ame_logical = (self.ame_logicalCount > 0)
+        ? (NSInteger)self.ame_logicalCount
+        : (NSInteger)self.ame_items.count;
+    index %= ame_logical;
+    if (index < 0) index += ame_logical;
 
     self.ame_hasSettledIdx = YES;
     self.ame_settledIdx = index;
 
-    CGFloat ame_destination = self.ame_offset +
-        remainder((CGFloat)index - self.ame_offset, (CGFloat)ame_count);
+    // ★Task409：等价槽位（index + k×逻辑数）中取相位距当前最近者，
+    // 程序化定位恒走最短弧（0→末项与末项→0 都只移动一格）。
+    CGFloat ame_slots = (CGFloat)self.ame_items.count;
+    NSUInteger ame_copies = (ame_logical > 0) ? (self.ame_items.count / (NSUInteger)ame_logical) : 1;
+    CGFloat ame_bestDelta = 0.0;
+    BOOL ame_first = YES;
+    for (NSUInteger ame_k = 0; ame_k < ame_copies; ame_k++) {
+        CGFloat ame_delta = remainder((CGFloat)(index + (NSInteger)ame_k * ame_logical) - self.ame_offset,
+                                      ame_slots);
+        if (ame_first || fabs(ame_delta) < fabs(ame_bestDelta)) {
+            ame_bestDelta = ame_delta;
+            ame_first = NO;
+        }
+    }
+    CGFloat ame_destination = self.ame_offset + ame_bestDelta;
     if (!animated || self.window == nil) {
         self.ame_offset = ame_destination;
         self.ame_target = ame_destination;
@@ -230,7 +316,6 @@ static const CGFloat AmeFlowSelectThreeAcrossDivisor = 2.8;
         [self ame_layoutItems];
         return;
     }
-    // 选择等价的最近循环位置，0→最后一项与最后一项→0 都只移动一格。
     self.ame_target = ame_destination;
     self.ame_velocity = 0.0;
     [self ame_startTicker];
@@ -379,7 +464,7 @@ shouldBeRequiredToFailByGestureRecognizer:(UIGestureRecognizer *)otherGestureRec
 // 协议签名为 - (void)（UIAccessibilityAction；CI 实锤返回类型冲突热修）
 - (void)accessibilityIncrement {
     NSInteger ame_idx = self.selectedIndex;
-    if (ame_idx == NSNotFound || (NSUInteger)(ame_idx + 1) >= self.ame_items.count) return;
+    if (ame_idx == NSNotFound || (NSInteger)(ame_idx + 1) >= (NSInteger)[self ame_itemsCount]) return;
     [self setSelectedIndex:ame_idx + 1 animated:YES];
     [self ame_commitSettle];
 }

@@ -537,6 +537,7 @@ static UIImage *ZL2HomeSizedImage(NSString *name, NSString *fallback, CGFloat po
 @property (nonatomic, strong, nullable) NSLayoutConstraint *ame_pinDeleteTrailing;   // 删除钮贴右原钉
 @property (nonatomic, strong, nullable) NSLayoutConstraint *ame_pinSettingsTrailing; // 齿轮贴右原钉
 @property (nonatomic, strong, nullable) NSLayoutConstraint *ame_pinRefreshChain;     // 刷新↔齿轮链条原钉
+@property (nonatomic, strong, nullable) NSLayoutConstraint *ame_pinFooterChain;      // ★Task409 管理↔删除相邻链原钉（镜像面必卸，见 ame_applyPanelMirror）
 @property (nonatomic, strong, nullable) NSArray<NSLayoutConstraint *> *ame_mirrorConstraints; // 当前镜像钉组
 @property (nonatomic, assign) BOOL ame_panelMirrorLeft;        // 当前镜像态（幂等闸）
 @property (nonatomic, strong, nullable) UIStackView *ame_launchContentStack;   // 启动钮图标+文案组
@@ -843,6 +844,16 @@ static UIImage *ZL2HomeSizedImage(NSString *name, NSString *fallback, CGFloat po
     _accountFlow.accessibilityLabel = localize(@"login.option.select", @"选择账户");
     _accountFlow.translatesAutoresizingMaskIntoConstraints = NO;
     [_accountCard addSubview:_accountFlow];
+    // ★Task409 无缝循环槽位复制工厂：小集合（如双账号）相位接缝原在窗内
+    // 可见（|d|=1 < 窗半宽 1.55 = 「账号转盘没有无限衔接」实体）；组件自动
+    // 复制槽位推接缝出窗，副本由此按逻辑下标现建像素同款条目（weakSelf 防
+    // 组件→工厂→宿主保留环）。
+    _accountFlow.ame_copyFactory = ^UIView *(NSUInteger ame409_idx) {
+        if (!weakSelf) return nil;
+        if (weakSelf.ame400_accountList.count == 0) return [weakSelf ame400_signedOutFlowItem];
+        return [weakSelf ame400_accountFlowItemForData:
+                    weakSelf.ame400_accountList[ame409_idx % weakSelf.ame400_accountList.count]];
+    };
 
     // 卡尾动作行：账户管理小钮（原账号卡点击语义收口于此）+ 选中链忙态 spinner
     _accountManageButton = [self ame_accountActionButtonWithSymbol:@"person.badge.plus"
@@ -898,6 +909,13 @@ static UIImage *ZL2HomeSizedImage(NSString *name, NSString *fallback, CGFloat po
     _versionFlow.accessibilityLabel = localize(@"i18n_str_38", nil);   // 选择版本（四表既有键）
     _versionFlow.translatesAutoresizingMaskIntoConstraints = NO;
     [_versionCard addSubview:_versionFlow];
+    // ★Task409 槽位复制工厂（同账户流：实例 ≤ 5 枚时竖排接缝 |d|≤2.5 落窗内）
+    _versionFlow.ame_copyFactory = ^UIView *(NSUInteger ame409_idx) {
+        if (!weakSelf) return nil;
+        if (weakSelf.ame_rows.count == 0) return [weakSelf ame400_emptyVersionFlowItem];
+        return [weakSelf ame400_versionFlowItemForRow:
+                    weakSelf.ame_rows[ame409_idx % weakSelf.ame_rows.count]];
+    };
 
     // 卡尾动作行：刷新（重拉注册表）+ 齿轮（版本管理页直达）——原版本卡
     // 内双小钮语义原样平移
@@ -1034,11 +1052,15 @@ static UIImage *ZL2HomeSizedImage(NSString *name, NSString *fallback, CGFloat po
         [_pluginChipButton.trailingAnchor constraintGreaterThanOrEqualToAnchor:pluginChipContent.trailingAnchor constant:12],
     ]];
 
-    // ★Task406 卡尾四钮原钉持引用（ame_applyPanelMirror 换边时整组卸/立）
+    // ★Task406 卡尾四钮原钉持引用（ame_applyPanelMirror 换边时整组卸/立）；
+    // ★Task409 第五钉：管理↔删除相邻链——左停靠镜像把两钮分钉卡两侧后
+    // 此链仍要求相邻 = 超定无解（卡宽=18pt 才可满足）→ AutoLayout 随机
+    // 断钉 = 「镜像显示有问题」实体（管理钮消失/错位），随镜像面同卸同立。
     _ame_pinManageLeading = [_accountManageButton.leadingAnchor constraintEqualToAnchor:_accountCard.leadingAnchor constant:12];
     _ame_pinDeleteTrailing = [_accountDeleteButton.trailingAnchor constraintEqualToAnchor:_accountCard.trailingAnchor constant:-12];
     _ame_pinSettingsTrailing = [_versionSettingsButton.trailingAnchor constraintEqualToAnchor:_versionCard.trailingAnchor constant:-12];
     _ame_pinRefreshChain = [_versionRefreshButton.trailingAnchor constraintEqualToAnchor:_versionSettingsButton.leadingAnchor constant:-4];
+    _ame_pinFooterChain = [_accountManageButton.trailingAnchor constraintEqualToAnchor:_accountDeleteButton.leadingAnchor constant:-6];
 
     [NSLayoutConstraint activateConstraints:@[
         // ★ Task401 面板背板：钉栏容器四边（面板 = 原右边栏整块灰面板）
@@ -1085,8 +1107,8 @@ static UIImage *ZL2HomeSizedImage(NSString *name, NSString *fallback, CGFloat po
         [_accountManageButton.heightAnchor constraintEqualToConstant:ZL2HomeCardFooterHeight],
         [_accountManageButton.bottomAnchor constraintEqualToAnchor:_accountCard.bottomAnchor constant:-4],
         _ame_pinDeleteTrailing,  // ★Task406 删除钮贴右原钉（换边镜像可卸）
-        [_accountManageButton.trailingAnchor constraintEqualToAnchor:_accountDeleteButton.leadingAnchor constant:-6],
         [_accountManageButton.widthAnchor constraintEqualToAnchor:_accountDeleteButton.widthAnchor],
+        _ame_pinFooterChain,   // ★Task409 相邻链原钉化（换边镜像可卸，防超定断钉）
         [_accountDeleteButton.centerYAnchor constraintEqualToAnchor:_accountManageButton.centerYAnchor],
         [_accountDeleteButton.heightAnchor constraintEqualToConstant:ZL2HomeCardFooterHeight],
         [_accountSpinner.centerXAnchor constraintEqualToAnchor:_accountCard.centerXAnchor],
@@ -1490,6 +1512,7 @@ static UIImage *ZL2HomeSizedImage(NSString *name, NSString *fallback, CGFloat po
     if (self.ame_pinDeleteTrailing) [ame_pins addObject:self.ame_pinDeleteTrailing];
     if (self.ame_pinSettingsTrailing) [ame_pins addObject:self.ame_pinSettingsTrailing];
     if (self.ame_pinRefreshChain) [ame_pins addObject:self.ame_pinRefreshChain];
+    if (self.ame_pinFooterChain) [ame_pins addObject:self.ame_pinFooterChain];   // ★Task409 相邻链随镜像面卸/立
     if (ame_pins.count > 0) [NSLayoutConstraint deactivateConstraints:ame_pins];
 
     NSMutableArray<NSLayoutConstraint *> *ame_m = [NSMutableArray array];
@@ -1512,7 +1535,10 @@ static UIImage *ZL2HomeSizedImage(NSString *name, NSString *fallback, CGFloat po
 
     NSLog(@"[Ame406] panel mirror left=%d", ame_left);
 
-    if (ame_left && self.versionFlow.ame_itemsCount > 0) {
+    // ★Task409 对称重建（原 ame_left && 单向条件 = 切回右停靠镜像行永不
+    // 还原，右停靠长期残留图标右挂 = 「镜像显示有问题」实体二）：镜像态
+    // 每次翻转都强制版本条目按当前停靠侧重建。
+    if (self.versionFlow.ame_itemsCount > 0) {
         // 版本条目水平不对称（icon-leading）→ 清免重建守卫强制镜像重建
         // （setSelectedIndex animated:NO 瞬时定位，零动画）
         self.ame400_versionRowNames = nil;

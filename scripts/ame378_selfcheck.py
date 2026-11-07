@@ -236,19 +236,21 @@ check("C10 右栏面板+卡窗口径（★Task408 重锚：3dc220d 四卡实底�
       and "ZL2HomeCardGap            = 8;" in home
       and "layer.cornerRadius = 1.0 / [UIScreen mainScreen].scale;" in home_code)
 
-check("C11 停靠镜像（★Task406：面板停靠左 = 卡尾四钮整组卸/立换钉 + 启动/插件内容组反排 + 版本条目镜像重建（图标右挂/文字右对齐）+ 幂等闸 + [Ame406] 读数）",
+check("C11 停靠镜像（★Task406 ★Task409 重锚：面板停靠左 = 卡尾五钉（四钮原钉+\n      管理↔删除相邻链）整组卸/立换钉 + 启动/插件内容组反排 + 版本条目镜像\n      重建对称化（两侧翻转均强制重建，单向 ame_left 条件退役）+ 幂等闸 + [Ame406] 读数）",
       "ame_applyPanelMirror" in home_code
       and "_ame_pinManageLeading = [_accountManageButton.leadingAnchor" in home_code
       and "_ame_pinDeleteTrailing = [_accountDeleteButton.trailingAnchor" in home_code
       and "_ame_pinSettingsTrailing = [_versionSettingsButton.trailingAnchor" in home_code
       and "_ame_pinRefreshChain = [_versionRefreshButton.trailingAnchor" in home_code
+      and "_ame_pinFooterChain = [_accountManageButton.trailingAnchor" in home_code
       and "self.ame_panelMirrorLeft == ame_left" in home_code
       and "[self.versionSettingsButton.leadingAnchor constraintEqualToAnchor:self.versionCard.leadingAnchor constant:12]" in home_code
       and "ame_setLaunchContentReversed" in home_code
       and "ame_setPluginContentReversed" in home_code
       and "self.ame400_versionRowNames = nil;" in home_code
       and "nameLabel.textAlignment = NSTextAlignmentRight;" in home_code
-      and "if (ame_left && self.versionFlow.ame_itemsCount > 0)" in home_code)
+      and "if (self.versionFlow.ame_itemsCount > 0) {" in home_code
+      and "if (ame_left && self.versionFlow.ame_itemsCount" not in home_code)
 
 check("C12 转盘字体恒定（★Task407：封面流条目随 |d| 缩放时缩字属性令字号泵动\n      = 「转盘转的时候字体自动展开和缩小」根修——账户流三标签（未登录/名称/类型）\n      去 adjustsFontSizeToFitWidth，恒定字号 + TruncatingTail；瓦片标签（静态\n      不随缩放）保留缩字判例；版本轮条目本就恒定口径不动）",
       "ame400_nameLabel.adjustsFontSizeToFitWidth" not in home
@@ -257,10 +259,10 @@ check("C12 转盘字体恒定（★Task407：封面流条目随 |d| 缩放时缩
       and "ame400_nameLabel.lineBreakMode = NSLineBreakByTruncatingTail;" in home
       and "ame400_typeLabel.lineBreakMode = NSLineBreakByTruncatingTail;" in home)
 
-check("C13 构建代际锚（★Task407 立 Task408 推进：关于页版本行追加源码级构建代号\n      ame408_buildTag —— Info.plist 双键静态致装机代际不可辨 = 旧构建滞留循环的\n      结构性盲区，关于页读到 Task408 = 本轮新构建在机）",
-      "ame408_buildTag" in about_code
-      and "Task408" in about
-      and about_code.count("ame408_buildTag") >= 2
+check("C13 构建代际锚（★Task407 立 Task408 推进 Task409 推进：关于页版本行追加源码级构建代号\n      ame409_buildTag —— Info.plist 双键静态致装机代际不可辨 = 旧构建滞留循环的\n      结构性盲区，关于页读到 Task409 = 本轮新构建在机）",
+      "ame409_buildTag" in about_code
+      and "Task409" in about
+      and about_code.count("ame409_buildTag") >= 2
       and "numberOfLines = 0" in about_code)
 
 check("C14 换边恢复+瓦片退役+排序退役（★Task408 第 16 轮复诉三件——3dc220d\n      「重写主页右侧四卡栏」曾拆除换边手势/改死右侧/瓦片改回常显/新增四卡\n      排序长按劫持同面手势：①面板长按换边手势+实现体+持久化恢复回装\n      （镜像随 applySide→applyPanelMirror 链自动生效）；②五瓦片 hidden=YES\n      无条件化（壳左栏/fui 双导航常在 = 主页瓦片为第二重复面）；③排序长按\n      挂接退役（restoreSidebarCardOrder 保留），提示语回原键）",
@@ -273,6 +275,24 @@ check("C14 换边恢复+瓦片退役+排序退役（★Task408 第 16 轮复诉�
       and "action:@selector(handleSidebarReorder:)" not in home_code
       and "restoreSidebarCardOrder" in home_code
       and "ame369.home.menu_dock_hint" in home)
+
+flow = read("Natives/AmeFlowSelectView.m")
+flow_code = strip_code(flow)
+flow_h = read("Natives/AmeFlowSelectView.h")
+
+check("C15 转盘恒定尺寸+无缝循环+镜像钉修复（★Task409 第 17 轮复诉四项之三——\n      ①封面流缩放判例 scale = 1−0.15×|d| 整体退役（左侧图标缩小+字体被边\n      边挤压成省略号双根因），条目尺寸恒定 + 窗缘渐隐带；②槽位复制工厂\n      （小集合接缝推窗：逻辑数≤2×窗半宽时复制，宿主 ame_copyFactory 现建\n      副本，下标全链映射回逻辑数）；③镜像面超定修复：管理↔删除相邻链原钉\n      化随镜像面卸/立 + 版本条目镜像重建对称化（去 ame_left 单向条件））",
+      "AmeFlowSelectCenterScale" not in flow
+      and "AmeFlowSelectScalePerStep" not in flow
+      and "ame_scale" not in flow_code
+      and "AmeFlowSelectEdgeFadeBand" in flow_code
+      and "ame_windowHalfRange" in flow_code
+      and "ame_requiredCopiesForLogicalCount" in flow_code
+      and "[self ame_itemsCount]" in flow_code   # ame_itemsCount = 逻辑数（宿主免重建守卫不破；方括号形式 = task393 B 族审计自洽）
+      and home_code.count("ame_copyFactory") >= 2   # 双流工厂在位
+      and "_ame_pinFooterChain = " in home_code
+      and "if (self.ame_pinFooterChain) [ame_pins addObject:self.ame_pinFooterChain]" in home_code
+      and "if (ame_left && self.versionFlow.ame_itemsCount" not in home_code   # 单向重建条件退役
+      and "if (self.versionFlow.ame_itemsCount > 0) {" in home_code)
 
 # ══ S 反向探针（--selftest：变体注入必翻红） ═══════════════════════
 
@@ -292,7 +312,7 @@ if "--selftest" in sys.argv:
     rcheck("S-C1", home_code + "ame378_buildQuickNav", "ame378_buildQuickNav" in (home_code + "ame378_buildQuickNav"))
     rcheck("S-C12", home_code + "ame400_nameLabel.adjustsFontSizeToFitWidth = YES;",
            "ame400_nameLabel.adjustsFontSizeToFitWidth" in (home_code + "ame400_nameLabel.adjustsFontSizeToFitWidth = YES;"))
-    rcheck("S-C13", about_code + "ame408_buildTag", "ame408_buildTag" in (about_code + "ame408_buildTag"))
+    rcheck("S-C13", about_code + "ame409_buildTag", "ame409_buildTag" in (about_code + "ame409_buildTag"))
     rcheck("S-C14", home_code + "action:@selector(handleSidebarReorder:)",
            "action:@selector(handleSidebarReorder:)" in (home_code + "action:@selector(handleSidebarReorder:)"))
     if rf:
