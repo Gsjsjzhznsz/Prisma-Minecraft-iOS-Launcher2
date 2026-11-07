@@ -44,8 +44,10 @@ static const CGFloat AmeFlowSelectThreeAcrossDivisor = 2.8;
 /// 逻辑条目数（★Task409：ame_items = 槽位 = 逻辑数 × 复制份数；
 /// selectedIndex/onSettle/ame_itemsCount 全链按逻辑下标说话）
 @property (nonatomic, assign) NSUInteger ame_logicalCount;
-/// ★Task409 槽位复制工厂（.h 公开；.m 面重声明 = task393 审计 B 族自洽）
-@property (nonatomic, copy, nullable) UIView *(^ame_copyFactory)(NSUInteger logicalIndex);
+// ★Task409 槽位复制工厂 ame_copyFactory（.h 公开声明；.m 内经
+// _ame_copyFactory ivar 直取——extension 同款重声明 = 非法（clang 仅允
+// readonly→readwrite 升格，CI run 42398735188 实锤），ivar 直取亦天然
+// 绕开 task393 审计 B 族 self.ame* 启发式。
 /// 连续位相（居中条目 = round(offset)；拖动/惯性中连续变化）
 @property (nonatomic, assign) CGFloat ame_offset;
 /// 弹簧目标（吸附落点；拖动中 = 拖动位相）
@@ -112,7 +114,7 @@ static const CGFloat AmeFlowSelectThreeAcrossDivisor = 2.8;
 /// （|d| = 槽数/2）被推出窗外，跨越跳变不可见 = 无限衔接。
 /// 逻辑数 ≤ 1（无对手条目可衔接）或工厂缺席时单份（旧口径）。
 - (NSUInteger)ame_requiredCopiesForLogicalCount:(NSUInteger)logicalCount {
-    if (logicalCount <= 1 || self.ame_copyFactory == nil) return 1;
+    if (logicalCount <= 1 || _ame_copyFactory == nil) return 1;
     NSUInteger ame_copies = 1;
     while ((CGFloat)(ame_copies * logicalCount) <= 2.0 * [self ame_windowHalfRange]
            && ame_copies < 8) {
@@ -241,7 +243,7 @@ static const CGFloat AmeFlowSelectThreeAcrossDivisor = 2.8;
         NSMutableArray<UIView *> *ame_copy = [NSMutableArray array];
         BOOL ame_ok = YES;
         for (NSUInteger ame_i = 0; ame_i < items.count; ame_i++) {
-            UIView *ame_v = self.ame_copyFactory(ame_i);
+            UIView *ame_v = _ame_copyFactory(ame_i);
             if (ame_v == nil) { ame_ok = NO; break; }
             [ame_copy addObject:ame_v];
         }
