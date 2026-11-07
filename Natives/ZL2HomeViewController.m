@@ -525,6 +525,19 @@ static UIImage *ZL2HomeSizedImage(NSString *name, NSString *fallback, CGFloat po
 @property (nonatomic, assign) BOOL ame_menuOnRight;
 // 停靠边提示（★Task404 恢复：73c10b7 退役后 b78a16c 摘除的「长按菜单可切换停靠边」，随功能一并回滚）
 @property (nonatomic, strong) UILabel *menuHintLabel;
+// ★Task406 停靠镜像（第14轮规格「切换停靠边之后转盘和按钮是不是要镜像」）：
+// 面板停靠左 = 卡尾四钮换钉 + 启动钮/插件 chip 内容组反排 + 版本滚轮条目镜像重建。
+// 原钉四约束持引用，换边时整组卸/立（防新旧钉对峙互破）。
+@property (nonatomic, strong, nullable) NSLayoutConstraint *ame_pinManageLeading;    // 管理钮贴左原钉
+@property (nonatomic, strong, nullable) NSLayoutConstraint *ame_pinDeleteTrailing;   // 删除钮贴右原钉
+@property (nonatomic, strong, nullable) NSLayoutConstraint *ame_pinSettingsTrailing; // 齿轮贴右原钉
+@property (nonatomic, strong, nullable) NSLayoutConstraint *ame_pinRefreshChain;     // 刷新↔齿轮链条原钉
+@property (nonatomic, strong, nullable) NSArray<NSLayoutConstraint *> *ame_mirrorConstraints; // 当前镜像钉组
+@property (nonatomic, assign) BOOL ame_panelMirrorLeft;        // 当前镜像态（幂等闸）
+@property (nonatomic, strong, nullable) UIStackView *ame_launchContentStack;   // 启动钮图标+文案组
+@property (nonatomic, strong, nullable) UIStackView *ame_pluginContentStack;   // 插件 chip 图标+文案组
+@property (nonatomic, assign) BOOL ame_launchContentReversed;
+@property (nonatomic, assign) BOOL ame_pluginContentReversed;
 // ★Task405 退役：ame_embeddedContentConstraints 随提取机制一并拆除（右栏回归主页私有）
 @property (nonatomic, assign) NSInteger lastColumnCount;
 @property (nonatomic, assign) CGFloat lastGridWidth;   // ★ Task387：上次布局网格宽（宽度变化即失效重排）
@@ -936,6 +949,7 @@ static UIImage *ZL2HomeSizedImage(NSString *name, NSString *fallback, CGFloat po
     launchContent.spacing = 8;
     launchContent.translatesAutoresizingMaskIntoConstraints = NO;
     launchContent.userInteractionEnabled = NO;
+    _ame_launchContentStack = launchContent;   // ★Task406 换边反排引用
     [_launchButton addSubview:launchContent];
 
     // —— 插件功能直达 chip（★ Task328：插件效果可见性第三刀；无贡献行时
@@ -987,6 +1001,7 @@ static UIImage *ZL2HomeSizedImage(NSString *name, NSString *fallback, CGFloat po
     pluginChipContent.spacing = 6;
     pluginChipContent.translatesAutoresizingMaskIntoConstraints = NO;
     pluginChipContent.userInteractionEnabled = NO;
+    _ame_pluginContentStack = pluginChipContent;   // ★Task406 换边反排引用
     [_pluginChipButton addSubview:pluginChipContent];
 
     [_pluginChipButton.heightAnchor constraintEqualToConstant:34].active = YES;
@@ -996,6 +1011,12 @@ static UIImage *ZL2HomeSizedImage(NSString *name, NSString *fallback, CGFloat po
         [pluginChipContent.leadingAnchor constraintGreaterThanOrEqualToAnchor:_pluginChipButton.leadingAnchor constant:12],
         [_pluginChipButton.trailingAnchor constraintGreaterThanOrEqualToAnchor:pluginChipContent.trailingAnchor constant:12],
     ]];
+
+    // ★Task406 卡尾四钮原钉持引用（ame_applyPanelMirror 换边时整组卸/立）
+    _ame_pinManageLeading = [_accountManageButton.leadingAnchor constraintEqualToAnchor:_accountCard.leadingAnchor constant:12];
+    _ame_pinDeleteTrailing = [_accountDeleteButton.trailingAnchor constraintEqualToAnchor:_accountCard.trailingAnchor constant:-12];
+    _ame_pinSettingsTrailing = [_versionSettingsButton.trailingAnchor constraintEqualToAnchor:_versionCard.trailingAnchor constant:-12];
+    _ame_pinRefreshChain = [_versionRefreshButton.trailingAnchor constraintEqualToAnchor:_versionSettingsButton.leadingAnchor constant:-4];
 
 
     [NSLayoutConstraint activateConstraints:@[
@@ -1044,11 +1065,11 @@ static UIImage *ZL2HomeSizedImage(NSString *name, NSString *fallback, CGFloat po
         [_accountFlow.trailingAnchor constraintEqualToAnchor:_accountCard.trailingAnchor constant:-ZL2HomeCardPadding],
         [_accountFlow.heightAnchor constraintEqualToConstant:ZL2HomeAccountWheelH],
         [_accountManageButton.topAnchor constraintEqualToAnchor:_accountFlow.bottomAnchor constant:6],
-        [_accountManageButton.leadingAnchor constraintEqualToAnchor:_accountCard.leadingAnchor constant:12],
+        _ame_pinManageLeading,   // ★Task406 管理钮贴左原钉（换边镜像可卸）
         [_accountManageButton.widthAnchor constraintEqualToConstant:ZL2HomeCardFooterHeight],
         [_accountManageButton.heightAnchor constraintEqualToConstant:ZL2HomeCardFooterHeight],
         [_accountManageButton.bottomAnchor constraintEqualToAnchor:_accountCard.bottomAnchor constant:-4],
-        [_accountDeleteButton.trailingAnchor constraintEqualToAnchor:_accountCard.trailingAnchor constant:-12],
+        _ame_pinDeleteTrailing,  // ★Task406 删除钮贴右原钉（换边镜像可卸）
         [_accountDeleteButton.centerYAnchor constraintEqualToAnchor:_accountManageButton.centerYAnchor],
         [_accountDeleteButton.widthAnchor constraintEqualToConstant:ZL2HomeCardFooterHeight],
         [_accountDeleteButton.heightAnchor constraintEqualToConstant:ZL2HomeCardFooterHeight],
@@ -1061,11 +1082,11 @@ static UIImage *ZL2HomeSizedImage(NSString *name, NSString *fallback, CGFloat po
         [_versionFlow.trailingAnchor constraintEqualToAnchor:_versionCard.trailingAnchor constant:-ZL2HomeCardPadding],
         [_versionFlow.heightAnchor constraintEqualToConstant:_versionFlow.viewportHeight],
         [_versionSettingsButton.topAnchor constraintEqualToAnchor:_versionFlow.bottomAnchor constant:6],
-        [_versionSettingsButton.trailingAnchor constraintEqualToAnchor:_versionCard.trailingAnchor constant:-12],
+        _ame_pinSettingsTrailing,   // ★Task406 齿轮贴右原钉（换边镜像可卸）
         [_versionSettingsButton.widthAnchor constraintEqualToConstant:ZL2HomeCardFooterHeight],
         [_versionSettingsButton.heightAnchor constraintEqualToConstant:ZL2HomeCardFooterHeight],
         [_versionSettingsButton.bottomAnchor constraintEqualToAnchor:_versionCard.bottomAnchor constant:-4],
-        [_versionRefreshButton.trailingAnchor constraintEqualToAnchor:_versionSettingsButton.leadingAnchor constant:-4],
+        _ame_pinRefreshChain,    // ★Task406 刷新↔齿轮链条原钉（换边镜像可卸）
         [_versionRefreshButton.centerYAnchor constraintEqualToAnchor:_versionSettingsButton.centerYAnchor],
         [_versionRefreshButton.widthAnchor constraintEqualToConstant:ZL2HomeCardFooterHeight],
         [_versionRefreshButton.heightAnchor constraintEqualToConstant:ZL2HomeCardFooterHeight],
@@ -1377,6 +1398,80 @@ static UIImage *ZL2HomeSizedImage(NSString *name, NSString *fallback, CGFloat po
     self.ame_menuOnRight = ![side isEqualToString:@"left"];
 }
 
+/// ★Task406 停靠镜像（第14轮规格「切换停靠边之后转盘和按钮是不是要镜像」）：
+/// 面板停靠左 = 卡尾四钮换钉（管理➕贴右/🗑·⚙贴左/↻贴齿轮右）+ 启动钮与
+/// 插件 chip 内容组反排（图标落尾位）+ 版本滚轮条目镜像重建（图标右挂、
+/// 文字右对齐）。账户横排条目全居中无水平不对称，免重建。幂等：镜像态未
+/// 变直接返回；镜像重钉仅替换卡尾四枚水平钉，纵钉/尺寸钉原样保留。
+- (void)ame_applyPanelMirror {
+    BOOL ame_left = !self.ame_menuOnRight;
+    if (self.ame_panelMirrorLeft == ame_left && self.ame_mirrorConstraints != nil) return;
+    self.ame_panelMirrorLeft = ame_left;
+
+    if (self.ame_mirrorConstraints.count > 0) {
+        [NSLayoutConstraint deactivateConstraints:self.ame_mirrorConstraints];
+    }
+    NSMutableArray<NSLayoutConstraint *> *ame_pins = [NSMutableArray array];
+    if (self.ame_pinManageLeading) [ame_pins addObject:self.ame_pinManageLeading];
+    if (self.ame_pinDeleteTrailing) [ame_pins addObject:self.ame_pinDeleteTrailing];
+    if (self.ame_pinSettingsTrailing) [ame_pins addObject:self.ame_pinSettingsTrailing];
+    if (self.ame_pinRefreshChain) [ame_pins addObject:self.ame_pinRefreshChain];
+    if (ame_pins.count > 0) [NSLayoutConstraint deactivateConstraints:ame_pins];
+
+    NSMutableArray<NSLayoutConstraint *> *ame_m = [NSMutableArray array];
+    if (!ame_left) {
+        // 右停靠 = 原钉复位（引用复立，零新建零对峙）
+        [ame_m addObjectsFromArray:ame_pins];
+    } else {
+        [ame_m addObjectsFromArray:@[
+            [self.accountManageButton.trailingAnchor constraintEqualToAnchor:self.accountCard.trailingAnchor constant:-12],
+            [self.accountDeleteButton.leadingAnchor constraintEqualToAnchor:self.accountCard.leadingAnchor constant:12],
+            [self.versionSettingsButton.leadingAnchor constraintEqualToAnchor:self.versionCard.leadingAnchor constant:12],
+            [self.versionRefreshButton.leadingAnchor constraintEqualToAnchor:self.versionSettingsButton.trailingAnchor constant:4],
+        ]];
+    }
+    [NSLayoutConstraint activateConstraints:ame_m];
+    self.ame_mirrorConstraints = ame_m;
+
+    [self ame_setLaunchContentReversed:ame_left];
+    [self ame_setPluginContentReversed:ame_left];
+
+    NSLog(@"[Ame406] panel mirror left=%d", ame_left);
+
+    if (ame_left && self.versionFlow.ame_itemsCount > 0) {
+        // 版本条目水平不对称（icon-leading）→ 清免重建守卫强制镜像重建
+        // （setSelectedIndex animated:NO 瞬时定位，零动画）
+        self.ame400_versionRowNames = nil;
+        [self ame_refreshVersionCard];
+    }
+}
+
+// 启动钮内容组反排（图标 ↔ 文案换位；约束不动，stack arranged 重排）
+- (void)ame_setLaunchContentReversed:(BOOL)reversed {
+    if (self.ame_launchContentReversed == reversed || self.ame_launchContentStack == nil) return;
+    self.ame_launchContentReversed = reversed;
+    UIView *ame_icon = self.launchIconView;
+    [self.ame_launchContentStack removeArrangedSubview:ame_icon];
+    if (reversed) {
+        [self.ame_launchContentStack addArrangedSubview:ame_icon];
+    } else {
+        [self.ame_launchContentStack insertArrangedSubview:ame_icon atIndex:0];
+    }
+}
+
+// 插件 chip 内容组反排（同上）
+- (void)ame_setPluginContentReversed:(BOOL)reversed {
+    if (self.ame_pluginContentReversed == reversed || self.ame_pluginContentStack == nil) return;
+    self.ame_pluginContentReversed = reversed;
+    UIView *ame_icon = self.pluginChipIconView;
+    [self.ame_pluginContentStack removeArrangedSubview:ame_icon];
+    if (reversed) {
+        [self.ame_pluginContentStack addArrangedSubview:ame_icon];
+    } else {
+        [self.ame_pluginContentStack insertArrangedSubview:ame_icon atIndex:0];
+    }
+}
+
 /// 重建双栏约束组：ActionMenu 宽 = 容器 0.28（优先级 999）clamp[220, 300]，
 /// 内容区吃余量；停靠左/右只换 leading/trailing 挂接（★Task404 恢复双支线，
 /// 对向挂接保留后期追加的 8pt 缝：右支 content.trailing = menu.leading − 8，
@@ -1428,6 +1523,7 @@ static UIImage *ZL2HomeSizedImage(NSString *name, NSString *fallback, CGFloat po
 
     [NSLayoutConstraint activateConstraints:constraints];
     self.ame_sideConstraints = constraints;
+    [self ame_applyPanelMirror];   // ★Task406 卡尾四钮/内容组/版本条目随停靠边镜像
 
     if (animated) {
         [UIView animateWithDuration:0.22
@@ -2218,17 +2314,38 @@ static UIImage *ZL2HomeSizedImage(NSString *name, NSString *fallback, CGFloat po
     ame400_infoLabel.userInteractionEnabled = NO;
     [ame400_item addSubview:ame400_infoLabel];
 
+    BOOL ame_mir = !self.ame_menuOnRight;   // ★Task406 停靠左 = 条目镜像（图标右挂/文字右对齐）
+    NSLayoutConstraint *ame_iconEdge = ame_mir
+        ? [ame400_iconView.trailingAnchor constraintEqualToAnchor:ame400_item.trailingAnchor constant:-14]
+        : [ame400_iconView.leadingAnchor constraintEqualToAnchor:ame400_item.leadingAnchor constant:14];
+    NSLayoutConstraint *ame_nameChain = ame_mir
+        ? [ame400_nameLabel.trailingAnchor constraintEqualToAnchor:ame400_iconView.leadingAnchor constant:-10]
+        : [ame400_nameLabel.leadingAnchor constraintEqualToAnchor:ame400_iconView.trailingAnchor constant:10];
+    NSLayoutConstraint *ame_nameEdge = ame_mir
+        ? [ame400_nameLabel.leadingAnchor constraintGreaterThanOrEqualToAnchor:ame400_item.leadingAnchor constant:14]
+        : [ame400_nameLabel.trailingAnchor constraintLessThanOrEqualToAnchor:ame400_item.trailingAnchor constant:-14];
+    NSLayoutConstraint *ame_infoChain = ame_mir
+        ? [ame400_infoLabel.trailingAnchor constraintEqualToAnchor:ame400_nameLabel.trailingAnchor]
+        : [ame400_infoLabel.leadingAnchor constraintEqualToAnchor:ame400_nameLabel.leadingAnchor];
+    NSLayoutConstraint *ame_infoEdge = ame_mir
+        ? [ame400_infoLabel.leadingAnchor constraintGreaterThanOrEqualToAnchor:ame400_item.leadingAnchor constant:14]
+        : [ame400_infoLabel.trailingAnchor constraintLessThanOrEqualToAnchor:ame400_item.trailingAnchor constant:-14];
+    if (ame_mir) {
+        ame400_nameLabel.textAlignment = NSTextAlignmentRight;
+        ame400_infoLabel.textAlignment = NSTextAlignmentRight;
+    }
+
     [NSLayoutConstraint activateConstraints:@[
-        [ame400_iconView.leadingAnchor constraintEqualToAnchor:ame400_item.leadingAnchor constant:14],
+        ame_iconEdge,
         [ame400_iconView.centerYAnchor constraintEqualToAnchor:ame400_item.centerYAnchor],
         [ame400_iconView.widthAnchor constraintEqualToConstant:40],
         [ame400_iconView.heightAnchor constraintEqualToConstant:40],
-        [ame400_nameLabel.leadingAnchor constraintEqualToAnchor:ame400_iconView.trailingAnchor constant:10],
+        ame_nameChain,
         [ame400_nameLabel.centerYAnchor constraintEqualToAnchor:ame400_item.centerYAnchor constant:-10],
-        [ame400_nameLabel.trailingAnchor constraintLessThanOrEqualToAnchor:ame400_item.trailingAnchor constant:-14],
-        [ame400_infoLabel.leadingAnchor constraintEqualToAnchor:ame400_nameLabel.leadingAnchor],
+        ame_nameEdge,
+        ame_infoChain,
         [ame400_infoLabel.centerYAnchor constraintEqualToAnchor:ame400_item.centerYAnchor constant:10],
-        [ame400_infoLabel.trailingAnchor constraintLessThanOrEqualToAnchor:ame400_item.trailingAnchor constant:-14],
+        ame_infoEdge,
     ]];
     return ame400_item;
 }
@@ -2302,17 +2419,38 @@ static UIImage *ZL2HomeSizedImage(NSString *name, NSString *fallback, CGFloat po
         }
     }
 
+    BOOL ame_mir = !self.ame_menuOnRight;   // ★Task406 停靠左 = 条目镜像（同实条目）
+    NSLayoutConstraint *ame_iconEdge = ame_mir
+        ? [iconView.trailingAnchor constraintEqualToAnchor:ame400_item.trailingAnchor constant:-14]
+        : [iconView.leadingAnchor constraintEqualToAnchor:ame400_item.leadingAnchor constant:14];
+    NSLayoutConstraint *ame_nameChain = ame_mir
+        ? [nameLabel.trailingAnchor constraintEqualToAnchor:iconView.leadingAnchor constant:-10]
+        : [nameLabel.leadingAnchor constraintEqualToAnchor:iconView.trailingAnchor constant:10];
+    NSLayoutConstraint *ame_nameEdge = ame_mir
+        ? [nameLabel.leadingAnchor constraintGreaterThanOrEqualToAnchor:ame400_item.leadingAnchor constant:14]
+        : [nameLabel.trailingAnchor constraintLessThanOrEqualToAnchor:ame400_item.trailingAnchor constant:-14];
+    NSLayoutConstraint *ame_infoChain = ame_mir
+        ? [infoLabel.trailingAnchor constraintEqualToAnchor:nameLabel.trailingAnchor]
+        : [infoLabel.leadingAnchor constraintEqualToAnchor:nameLabel.leadingAnchor];
+    NSLayoutConstraint *ame_infoEdge = ame_mir
+        ? [infoLabel.leadingAnchor constraintGreaterThanOrEqualToAnchor:ame400_item.leadingAnchor constant:14]
+        : [infoLabel.trailingAnchor constraintLessThanOrEqualToAnchor:ame400_item.trailingAnchor constant:-14];
+    if (ame_mir) {
+        nameLabel.textAlignment = NSTextAlignmentRight;
+        infoLabel.textAlignment = NSTextAlignmentRight;
+    }
+
     [NSLayoutConstraint activateConstraints:@[
-        [iconView.leadingAnchor constraintEqualToAnchor:ame400_item.leadingAnchor constant:14],
+        ame_iconEdge,
         [iconView.centerYAnchor constraintEqualToAnchor:ame400_item.centerYAnchor],
         [iconView.widthAnchor constraintEqualToConstant:40],
         [iconView.heightAnchor constraintEqualToConstant:40],
-        [nameLabel.leadingAnchor constraintEqualToAnchor:iconView.trailingAnchor constant:10],
+        ame_nameChain,
         [nameLabel.centerYAnchor constraintEqualToAnchor:ame400_item.centerYAnchor constant:-10],
-        [nameLabel.trailingAnchor constraintLessThanOrEqualToAnchor:ame400_item.trailingAnchor constant:-14],
-        [infoLabel.leadingAnchor constraintEqualToAnchor:nameLabel.leadingAnchor],
+        ame_nameEdge,
+        ame_infoChain,
         [infoLabel.centerYAnchor constraintEqualToAnchor:ame400_item.centerYAnchor constant:10],
-        [infoLabel.trailingAnchor constraintLessThanOrEqualToAnchor:ame400_item.trailingAnchor constant:-14],
+        ame_infoEdge,
     ]];
     return ame400_item;
 }

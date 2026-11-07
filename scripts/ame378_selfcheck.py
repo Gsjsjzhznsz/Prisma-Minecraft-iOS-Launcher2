@@ -234,6 +234,20 @@ check("C10 右栏面板+卡窗口径（★Task401 r3 重锚：用户规格——
       and "ZL2HomeCardGap            = 8;" in home
       and "layer.cornerRadius = 1.0 / [UIScreen mainScreen].scale;" in home_code)
 
+check("C11 停靠镜像（★Task406：面板停靠左 = 卡尾四钮整组卸/立换钉 + 启动/插件内容组反排 + 版本条目镜像重建（图标右挂/文字右对齐）+ 幂等闸 + [Ame406] 读数）",
+      "ame_applyPanelMirror" in home_code
+      and "_ame_pinManageLeading = [_accountManageButton.leadingAnchor" in home_code
+      and "_ame_pinDeleteTrailing = [_accountDeleteButton.trailingAnchor" in home_code
+      and "_ame_pinSettingsTrailing = [_versionSettingsButton.trailingAnchor" in home_code
+      and "_ame_pinRefreshChain = [_versionRefreshButton.trailingAnchor" in home_code
+      and "self.ame_panelMirrorLeft == ame_left" in home_code
+      and "[self.versionSettingsButton.leadingAnchor constraintEqualToAnchor:self.versionCard.leadingAnchor constant:12]" in home_code
+      and "ame_setLaunchContentReversed" in home_code
+      and "ame_setPluginContentReversed" in home_code
+      and "self.ame400_versionRowNames = nil;" in home_code
+      and "nameLabel.textAlignment = NSTextAlignmentRight;" in home_code
+      and "if (ame_left && self.versionFlow.ame_itemsCount > 0)" in home_code)
+
 # ══ S 反向探针（--selftest：变体注入必翻红） ═══════════════════════
 
 if "--selftest" in sys.argv:
