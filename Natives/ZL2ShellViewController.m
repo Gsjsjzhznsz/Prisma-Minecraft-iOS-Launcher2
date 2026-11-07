@@ -850,23 +850,20 @@ static UIImage *ZL2ShellSystemImageSizedEx(NSString *name, NSString *fallback, C
         self.ame389_indicatorY,
     ]];
 
-    // 主导航项（页面序 = 顶栏 RailItem 契约：0 主页 / 1 下载 / 2 版本 /
-    // 3 账户 / 5 联机 / 6 AI；4 设置驻底部，-1 文件 = 瞬时动作）
-    NSArray<NSString *> *ame347_titles = @[localize(@"ame369.common.home", @"主页"), localize(@"ame369.shell.tab.downloads", @"下载"), localize(@"ame369.shell.tab.versions", @"版本"), localize(@"ame369.shell.tab.accounts", @"账户"),
+    // 主导航项（账户管理已由右栏的添加/删除动作取代，页面 3 仅保留为内部流程宿主）。
+    NSArray<NSString *> *ame347_titles = @[localize(@"ame369.common.home", @"主页"), localize(@"ame369.shell.tab.downloads", @"下载"), localize(@"ame369.shell.tab.versions", @"版本"),
                                            localize(@"ame369.common.multiplayer", @"多人联机"), localize(@"ame192.ai.title", nil)];
     NSArray<NSString *> *ame347_symbols = @[@"house.fill",
                                             @"arrow.down.circle.fill",
                                             @"shippingbox.fill",
-                                            @"person.crop.circle.fill",
                                             @"person.2.fill",
                                             @"sparkles"];
     NSArray<NSString *> *ame347_fallbacks = @[@"house",
                                               @"arrow.down.circle",
                                               @"shippingbox",
-                                              @"person.crop.circle",
                                               @"person.2",
                                               @"sparkles"];
-    NSArray<NSNumber *> *ame347_pages = @[@0, @1, @2, @3, @5, @6];
+    NSArray<NSNumber *> *ame347_pages = @[@0, @1, @2, @5, @6];
     NSMutableArray<ZL2ShellNavItem *> *ame347_items = [NSMutableArray array];
     [ame347_titles enumerateObjectsUsingBlock:^(NSString *itemTitle, NSUInteger idx, BOOL *stop) {
         ZL2ShellNavItem *item = [[ZL2ShellNavItem alloc]
@@ -1285,6 +1282,10 @@ static UIImage *ZL2ShellSystemImageSizedEx(NSString *name, NSString *fallback, C
 
 - (void)ame_showAccount {
     [self showPageAtIndex:3];
+    dispatch_async(dispatch_get_main_queue(), ^{
+        [[NSNotificationCenter defaultCenter] postNotificationName:@"ZL2AccountsRequestAdd"
+                                                            object:nil];
+    });
 }
 
 - (void)ame_onNavigate:(NSNotification *)note {

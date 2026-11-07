@@ -359,7 +359,25 @@ BOOL ZL2AccountsSharedIsThirdParty(NSDictionary *accountData) {
                                                  name:@"ZL2AccountsRequestDeleteCurrent" object:nil];
 }
 
-- (void)ame_requestAdd { [self showAddAccountSheet]; }
+- (void)ame_requestAdd {
+    Class chooserClass = NSClassFromString(@"AccountLoginViewController");
+    UIViewController *chooser = chooserClass ? [[chooserClass alloc] init] : nil;
+    if (!chooser) { [self showAddAccountSheet]; return; }
+    __weak typeof(self) weakSelf = self;
+    void (^selection)(NSInteger) = ^(NSInteger type) {
+        [weakSelf.navigationController popViewControllerAnimated:YES];
+        dispatch_async(dispatch_get_main_queue(), ^{
+            switch (type) {
+                case 0: [weakSelf actionLoginMicrosoft]; break;
+                case 1: [weakSelf pushThirdPartyLoginWithMode:ThirdPartyLoginModeLittleSkin]; break;
+                case 2: [weakSelf pushThirdPartyLoginWithMode:ThirdPartyLoginModeCustom]; break;
+                case 3: [weakSelf actionLoginLocal]; break;
+            }
+        });
+    };
+    [chooser setValue:[selection copy] forKey:@"onSelectLoginType"];
+    [self.navigationController pushViewController:chooser animated:YES];
+}
 
 - (void)ame_requestDeleteCurrent {
     BaseAuthenticator *current = [BaseAuthenticator.current isKindOfClass:BaseAuthenticator.class]

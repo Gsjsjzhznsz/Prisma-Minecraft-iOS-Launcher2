@@ -100,6 +100,7 @@ extern NSString * const AFNetworkingOperationFailingURLResponseDataErrorKey;
 
 // KVO 观察上下文（旧链 ProgressObserverContext 同款静态指针判别，防父类/他人混淆）
 static void *ZL2HomeProgressObserverContext = &ZL2HomeProgressObserverContext;
+static NSString * const ZL2SidebarCardOrderDefaultsKey = @"zl2.home.sidebarCardOrder";
 
 // ActionMenu 停靠边持久化 key（ZL2 ActionMenuDrag 停靠语义的 iOS 简化等价）
 // ★Task404 恢复：73c10b7 曾随「固定右栏」退役本键与换边交互，用户复诉
@@ -501,6 +502,9 @@ static UIImage *ZL2HomeSizedImage(NSString *name, NSString *fallback, CGFloat po
 
 @interface ZL2HomeViewController () <UICollectionViewDataSource, UICollectionViewDelegateFlowLayout>
 
+- (void)restoreSidebarCardOrder;
+- (void)saveSidebarCardOrder;
+
 // 双栏根（Row：内容区 weight 7 + ActionMenu 3/10）
 @property (nonatomic, strong) UIView *contentArea;
 @property (nonatomic, strong) UICollectionView *gridView;
@@ -520,6 +524,7 @@ static UIImage *ZL2HomeSizedImage(NSString *name, NSString *fallback, CGFloat po
 @property (nonatomic, strong) UIView *launchCard;
 @property (nonatomic, strong) UIStackView *launchStack;
 // 停靠边约束组（★Task404 换边恢复：左右两套挂接整组替换，重建时先卸后立）
+@property (nonatomic, weak) UIView *draggedSidebarCard;
 @property (nonatomic, strong, nullable) NSArray<NSLayoutConstraint *> *ame_sideConstraints;
 // 当前停靠边（YES = 右侧；长按右栏菜单切换 + NSUserDefaults 持久化，★Task404 恢复）
 @property (nonatomic, assign) BOOL ame_menuOnRight;
@@ -601,7 +606,7 @@ static UIImage *ZL2HomeSizedImage(NSString *name, NSString *fallback, CGFloat po
     // 复用注册（经典 dataSource 路径；cell 类自带 configure，无 iOS15+ registration）
     [self.gridView registerClass:[ZL2HomeVersionCardCell class]
       forCellWithReuseIdentifier:@"zl2_home_version_card"];
-    [self ame_restoreMenuSide];   // ★Task404 恢复：持久化停靠边先行，首帧即落位
+    [self ame_restoreMenuSide];
     [self ame_applySideConstraintsAnimated:NO];
     [self refreshLaunchState];
 
@@ -626,12 +631,6 @@ static UIImage *ZL2HomeSizedImage(NSString *name, NSString *fallback, CGFloat po
                                                object:nil];
     // ★ Task400：ZL2HomeShowVersionPicker 总线入口随弹层退役（版本滚轮
     //   原地驻右栏，无呈现/收起时序）
-
-    // 长按菜单卡 = 切换 ActionMenu 停靠边（ZL2 ActionMenuDrag 简化等价；★Task404 恢复）
-    UILongPressGestureRecognizer *menuLongPress =
-        [[UILongPressGestureRecognizer alloc] initWithTarget:self
-                                                      action:@selector(ame_handleMenuLongPress:)];
-    [self.actionMenu addGestureRecognizer:menuLongPress];
 
     // 长按实例卡 = M3 底部菜单
     UILongPressGestureRecognizer *cardLongPress =
@@ -761,11 +760,15 @@ static UIImage *ZL2HomeSizedImage(NSString *name, NSString *fallback, CGFloat po
 //      四卡窗 even-odd 排除 = 直透启动器背景）——
     _panelBackdrop = [[Ame401PanelHolesView alloc] init];
     _panelBackdrop.translatesAutoresizingMaskIntoConstraints = NO;
+    _panelBackdrop.hidden = YES;
     [_actionMenu addSubview:_panelBackdrop];
 
     // —— ④ 启动组卡窗（钉底；先建，滚动区底缘锚它；卡底透明 = 挖洞）——
     _launchCard = [[UIView alloc] init];
-    _launchCard.backgroundColor = [UIColor clearColor];
+    _launchCard.backgroundColor = [ZL2Theme surfaceContainer];
+    _launchCard.layer.cornerRadius = [ZL2Theme radiusXL];
+    _launchCard.layer.masksToBounds = YES;
+    _launchCard.accessibilityIdentifier = @"zl2.sidebar.launch";
     _launchCard.translatesAutoresizingMaskIntoConstraints = NO;
     [_actionMenu addSubview:_launchCard];
 
@@ -797,11 +800,12 @@ static UIImage *ZL2HomeSizedImage(NSString *name, NSString *fallback, CGFloat po
     // —— ① 五瓦片卡窗（★ Task400 驻顶：用户规格「五个按钮在顶上」；
     //      ★ Task401 卡底透明 = 面板挖洞）——
     _quickNavCard = [[UIView alloc] init];
-    _quickNavCard.backgroundColor = [UIColor clearColor];
+    _quickNavCard.backgroundColor = [ZL2Theme surfaceContainer];
     _quickNavCard.layer.cornerRadius = [ZL2Theme radiusXL];
     _quickNavCard.layer.masksToBounds = YES;
     _quickNavCard.translatesAutoresizingMaskIntoConstraints = NO;
     _quickNavCard.isAccessibilityElement = NO;
+    _quickNavCard.accessibilityIdentifier = @"zl2.sidebar.menu";
     [_menuStack addArrangedSubview:_quickNavCard];
     [self ame378_buildQuickNav];
     // ★ Task402：fui 模式五瓦片卡退役（用户复诉「为什么还是没有隐藏另一个
@@ -810,18 +814,17 @@ static UIImage *ZL2HomeSizedImage(NSString *name, NSString *fallback, CGFloat po
     //   顶卡 = Task400c 用户规格「五个按钮在顶上」。hidden → menuStack
     //   arranged 塌缩零占位，面板卡窗经 ame_refreshPanelMask 内建 hidden
     //   跳过自动重抠为三窗（账户滚轮/版本滚轮/启动组）。
-    _quickNavCard.hidden = [[ZL2Theme ame347_shellLayout]
-        isEqualToString:@"navigationview"];
+    _quickNavCard.hidden = NO;
 
     // —— ② 账户横排封面流卡窗（原头像+名称样式横排五枚，水平拖动选择；
     //      ★ Task401 用户规格「账户是用原来的样式横排五个作列表选择」）——
     _accountCard = [[UIView alloc] init];
-    _accountCard.backgroundColor = [UIColor clearColor];
+    _accountCard.backgroundColor = [ZL2Theme surfaceContainer];
     _accountCard.layer.cornerRadius = [ZL2Theme radiusXL];
     _accountCard.layer.masksToBounds = YES;
     _accountCard.translatesAutoresizingMaskIntoConstraints = NO;
     _accountCard.isAccessibilityElement = NO;   // 滚轮（adjustable）+ 卡尾钮各自可达
-    _accountCard.accessibilityIdentifier = @"zl2_home_account_card";
+    _accountCard.accessibilityIdentifier = @"zl2.sidebar.accounts";
     [_menuStack addArrangedSubview:_accountCard];
 
     _accountFlow = [[AmeFlowSelectView alloc] init];
@@ -832,15 +835,16 @@ static UIImage *ZL2HomeSizedImage(NSString *name, NSString *fallback, CGFloat po
     [_accountCard addSubview:_accountFlow];
 
     // 卡尾动作行：账户管理小钮（原账号卡点击语义收口于此）+ 选中链忙态 spinner
-    _accountManageButton = [self ame_iconButtonWithSymbol:@"person.crop.circle.badge.plus"
-                                                 fallback:@"person.crop.circle"
-                                                     a11y:localize(@"ame369.shell.tab.accounts", @"账户")];
+    _accountManageButton = [self ame_accountActionButtonWithSymbol:@"person.badge.plus"
+                                                          fallback:@"person.crop.circle.badge.plus"
+                                                             title:@"添加账户"];
     _accountManageButton.ame_action = ^{
         [weakSelf ame_requestAccountAction:@"ZL2AccountsRequestAdd"];
     };
     [_accountCard addSubview:_accountManageButton];
-    _accountDeleteButton = [self ame_iconButtonWithSymbol:@"trash" fallback:@"trash.fill"
-                                                     a11y:localize(@"account.menu.delete", @"删除账户")];
+    _accountDeleteButton = [self ame_accountActionButtonWithSymbol:@"person.crop.circle.badge.minus"
+                                                          fallback:@"trash"
+                                                             title:@"删除账户"];
     _accountDeleteButton.ame_action = ^{
         [weakSelf ame_requestAccountAction:@"ZL2AccountsRequestDeleteCurrent"];
     };
@@ -863,13 +867,23 @@ static UIImage *ZL2HomeSizedImage(NSString *name, NSString *fallback, CGFloat po
     //      信息行；高度 = 五个正常实例版本信息行（用户规格「占用的比例算
     //      五个正常的实例版本信息高度」）；吸附落定即选用）——
     _versionCard = [[UIView alloc] init];
-    _versionCard.backgroundColor = [UIColor clearColor];
+    _versionCard.backgroundColor = [ZL2Theme surfaceContainer];
     _versionCard.layer.cornerRadius = [ZL2Theme radiusXL];
     _versionCard.layer.masksToBounds = YES;
     _versionCard.translatesAutoresizingMaskIntoConstraints = NO;
     _versionCard.isAccessibilityElement = NO;
-    _versionCard.accessibilityIdentifier = @"zl2_home_version_card";
+    _versionCard.accessibilityIdentifier = @"zl2.sidebar.instances";
     [_menuStack addArrangedSubview:_versionCard];
+    [_menuStack addArrangedSubview:_launchCard];
+    // 只在卡片自身空白处启动排序，内部按钮与转盘继续接收原有手势。
+    for (UIView *card in @[_quickNavCard, _accountCard, _versionCard, _launchCard]) {
+        UILongPressGestureRecognizer *reorder = [[UILongPressGestureRecognizer alloc]
+            initWithTarget:self action:@selector(handleSidebarReorder:)];
+        reorder.minimumPressDuration = 0.45;
+        reorder.cancelsTouchesInView = NO;
+        [card addGestureRecognizer:reorder];
+    }
+    [self restoreSidebarCardOrder];
 
     _versionFlow = [[AmeFlowSelectView alloc] init];
     _versionFlow.axis = AmeFlowSelectAxisVertical;   // ★ Task401：竖排（与横排同一套物理）
@@ -970,7 +984,7 @@ static UIImage *ZL2HomeSizedImage(NSString *name, NSString *fallback, CGFloat po
     // 停靠边提示（★Task404 恢复：功能回滚则提示语同步回滚——b78a16c 曾称其
     // 「谎言提示」只因当时切换代码已先行被 73c10b7 摘除，功能恢复后语句为真）
     _menuHintLabel = [[UILabel alloc] init];
-    _menuHintLabel.text = localize(@"ame369.home.menu_dock_hint", @"长按菜单可切换停靠边");
+    _menuHintLabel.text = @"长按卡片空白处调整顺序";
     _menuHintLabel.font = [ZL2Theme fontLabelMedium];
     _menuHintLabel.textColor = [ZL2Theme onSurfaceVariant];
     _menuHintLabel.textAlignment = NSTextAlignmentCenter;
@@ -1018,7 +1032,6 @@ static UIImage *ZL2HomeSizedImage(NSString *name, NSString *fallback, CGFloat po
     _ame_pinSettingsTrailing = [_versionSettingsButton.trailingAnchor constraintEqualToAnchor:_versionCard.trailingAnchor constant:-12];
     _ame_pinRefreshChain = [_versionRefreshButton.trailingAnchor constraintEqualToAnchor:_versionSettingsButton.leadingAnchor constant:-4];
 
-
     [NSLayoutConstraint activateConstraints:@[
         // ★ Task401 面板背板：钉栏容器四边（面板 = 原右边栏整块灰面板）
         [_panelBackdrop.topAnchor constraintEqualToAnchor:_actionMenu.topAnchor],
@@ -1032,19 +1045,14 @@ static UIImage *ZL2HomeSizedImage(NSString *name, NSString *fallback, CGFloat po
         [_menuScrollView.topAnchor constraintEqualToAnchor:_actionMenu.topAnchor constant:ZL2HomeCardGap],
         [_menuScrollView.leadingAnchor constraintEqualToAnchor:_actionMenu.leadingAnchor constant:ZL2HomeCardGap],
         [_menuScrollView.trailingAnchor constraintEqualToAnchor:_actionMenu.trailingAnchor constant:-ZL2HomeCardGap],
-        [_menuScrollView.bottomAnchor constraintEqualToAnchor:_launchCard.topAnchor constant:-ZL2HomeCardGap],
-
-        // 启动卡：两侧与底缘内缩 8pt（钉底永可见；卡窗四周留灰边同律）
-        [_launchCard.leadingAnchor constraintEqualToAnchor:_actionMenu.leadingAnchor constant:ZL2HomeCardGap],
-        [_launchCard.trailingAnchor constraintEqualToAnchor:_actionMenu.trailingAnchor constant:-ZL2HomeCardGap],
-        [_launchCard.bottomAnchor constraintEqualToAnchor:_actionMenu.bottomAnchor constant:-ZL2HomeCardGap],
+        [_menuScrollView.bottomAnchor constraintEqualToAnchor:_actionMenu.bottomAnchor constant:-ZL2HomeCardGap],
 
         // 滚动内容：三边钉 contentLayoutGuide + 底缘 ≥ 内容底（短内容不滚动），
         // 宽 = 视口宽（fill）
         [_menuStack.topAnchor constraintEqualToAnchor:_menuScrollView.contentLayoutGuide.topAnchor],
         [_menuStack.leadingAnchor constraintEqualToAnchor:_menuScrollView.contentLayoutGuide.leadingAnchor],
         [_menuStack.trailingAnchor constraintEqualToAnchor:_menuScrollView.contentLayoutGuide.trailingAnchor],
-        [_menuScrollView.contentLayoutGuide.bottomAnchor constraintGreaterThanOrEqualToAnchor:_menuStack.bottomAnchor],
+        [_menuScrollView.contentLayoutGuide.bottomAnchor constraintEqualToAnchor:_menuStack.bottomAnchor],
         [_menuStack.widthAnchor constraintEqualToAnchor:_menuScrollView.frameLayoutGuide.widthAnchor],
 
         // 启动卡内布局（四边 8pt 同律）
@@ -1066,12 +1074,12 @@ static UIImage *ZL2HomeSizedImage(NSString *name, NSString *fallback, CGFloat po
         [_accountFlow.heightAnchor constraintEqualToConstant:ZL2HomeAccountWheelH],
         [_accountManageButton.topAnchor constraintEqualToAnchor:_accountFlow.bottomAnchor constant:6],
         _ame_pinManageLeading,   // ★Task406 管理钮贴左原钉（换边镜像可卸）
-        [_accountManageButton.widthAnchor constraintEqualToConstant:ZL2HomeCardFooterHeight],
         [_accountManageButton.heightAnchor constraintEqualToConstant:ZL2HomeCardFooterHeight],
         [_accountManageButton.bottomAnchor constraintEqualToAnchor:_accountCard.bottomAnchor constant:-4],
         _ame_pinDeleteTrailing,  // ★Task406 删除钮贴右原钉（换边镜像可卸）
+        [_accountManageButton.trailingAnchor constraintEqualToAnchor:_accountDeleteButton.leadingAnchor constant:-6],
+        [_accountManageButton.widthAnchor constraintEqualToAnchor:_accountDeleteButton.widthAnchor],
         [_accountDeleteButton.centerYAnchor constraintEqualToAnchor:_accountManageButton.centerYAnchor],
-        [_accountDeleteButton.widthAnchor constraintEqualToConstant:ZL2HomeCardFooterHeight],
         [_accountDeleteButton.heightAnchor constraintEqualToConstant:ZL2HomeCardFooterHeight],
         [_accountSpinner.centerXAnchor constraintEqualToAnchor:_accountCard.centerXAnchor],
         [_accountSpinner.centerYAnchor constraintEqualToAnchor:_accountManageButton.centerYAnchor],
@@ -1277,6 +1285,49 @@ static UIImage *ZL2HomeSizedImage(NSString *name, NSString *fallback, CGFloat po
     return button;
 }
 
+- (ZL2HomeTapControl *)ame_accountActionButtonWithSymbol:(NSString *)symbol
+                                                 fallback:(NSString *)fallback
+                                                    title:(NSString *)title {
+    ZL2HomeTapControl *button = [[ZL2HomeTapControl alloc] init];
+    button.backgroundColor = [ZL2Theme surfaceContainerHigh];
+    button.layer.cornerRadius = [ZL2Theme radiusS];
+    button.translatesAutoresizingMaskIntoConstraints = NO;
+    button.isAccessibilityElement = YES;
+    button.accessibilityTraits = UIAccessibilityTraitButton;
+    button.accessibilityLabel = title;
+
+    UIImage *image = [ZL2HomeSizedImage(symbol, fallback, 14)
+        imageWithRenderingMode:UIImageRenderingModeAlwaysTemplate];
+    UIImageView *icon = [[UIImageView alloc] initWithImage:image];
+    icon.tintColor = [ZL2Theme onSurface];
+    icon.contentMode = UIViewContentModeScaleAspectFit;
+    icon.translatesAutoresizingMaskIntoConstraints = NO;
+
+    UILabel *label = [[UILabel alloc] init];
+    label.text = title;
+    label.font = [ZL2Theme fontLabelMedium];
+    label.textColor = [ZL2Theme onSurface];
+    label.adjustsFontSizeToFitWidth = YES;
+    label.minimumScaleFactor = 0.75;
+
+    UIStackView *content = [[UIStackView alloc] initWithArrangedSubviews:@[icon, label]];
+    content.axis = UILayoutConstraintAxisHorizontal;
+    content.alignment = UIStackViewAlignmentCenter;
+    content.spacing = 5;
+    content.userInteractionEnabled = NO;
+    content.translatesAutoresizingMaskIntoConstraints = NO;
+    [button addSubview:content];
+    [NSLayoutConstraint activateConstraints:@[
+        [content.centerXAnchor constraintEqualToAnchor:button.centerXAnchor],
+        [content.centerYAnchor constraintEqualToAnchor:button.centerYAnchor],
+        [content.leadingAnchor constraintGreaterThanOrEqualToAnchor:button.leadingAnchor constant:6],
+        [content.trailingAnchor constraintLessThanOrEqualToAnchor:button.trailingAnchor constant:-6],
+        [icon.widthAnchor constraintEqualToConstant:14],
+        [icon.heightAnchor constraintEqualToConstant:14],
+    ]];
+    return button;
+}
+
 /// 内容区：实例卡网格（2 列 iPhone / 3 列 iPad，间距 6，垂直滚动）
 - (void)ame_buildContentArea {
     _contentArea = [[UIView alloc] init];
@@ -1392,10 +1443,10 @@ static UIImage *ZL2HomeSizedImage(NSString *name, NSString *fallback, CGFloat po
 // 双支线约束变为跨层级，与壳层 containerTrailing 冲突 = 换边 bug 实体；且常驻
 // 使右栏在子页可见 = 切页不隐藏。退役后换边在主页内自治，约束链同层无冲突。
 
-/// 恢复持久化停靠边（缺省 = 右侧；脏值回退默认。★Task404 恢复原实现）
+/// 右栏始终固定在右侧；清除旧版本遗留的左侧停靠偏好。
 - (void)ame_restoreMenuSide {
-    NSString *side = [[NSUserDefaults standardUserDefaults] stringForKey:ZL2HomeMenuSideDefaultsKey];
-    self.ame_menuOnRight = ![side isEqualToString:@"left"];
+    self.ame_menuOnRight = YES;
+    [[NSUserDefaults standardUserDefaults] removeObjectForKey:ZL2HomeMenuSideDefaultsKey];
 }
 
 /// ★Task406 停靠镜像（第14轮规格「切换停靠边之后转盘和按钮是不是要镜像」）：
@@ -1529,16 +1580,6 @@ static UIImage *ZL2HomeSizedImage(NSString *name, NSString *fallback, CGFloat po
         [UIView animateWithDuration:0.22
                           animations:^{ [self.view layoutIfNeeded]; }];
     }
-}
-
-// 长按菜单卡 = 切换 ActionMenu 停靠边 + 持久化（★Task404 恢复原实现）
-- (void)ame_handleMenuLongPress:(UILongPressGestureRecognizer *)gesture {
-    if (gesture.state != UIGestureRecognizerStateBegan) return;
-    self.ame_menuOnRight = !self.ame_menuOnRight;
-    [[NSUserDefaults standardUserDefaults] setObject:(self.ame_menuOnRight ? @"right" : @"left")
-                                              forKey:ZL2HomeMenuSideDefaultsKey];
-    NSLog(@"[Ame404] menu side toggled right=%d", self.ame_menuOnRight);
-    [self ame_applySideConstraintsAnimated:YES];
 }
 
 // ★ Task328：插件 chip 计数刷新——贡献行数（四内置件 = 4）即“插件在跑”
@@ -2112,6 +2153,67 @@ static UIImage *ZL2HomeSizedImage(NSString *name, NSString *fallback, CGFloat po
 - (void)ame_requestAccountAction:(NSString *)notification {
     [[NSNotificationCenter defaultCenter] postNotificationName:@"ZL2ShellNavigate" object:nil userInfo:@{@"index": @3}];
     [[NSNotificationCenter defaultCenter] postNotificationName:notification object:nil];
+}
+
+- (void)handleSidebarReorder:(UILongPressGestureRecognizer *)gesture {
+    UIView *card = gesture.view;
+    if (gesture.state == UIGestureRecognizerStateBegan) {
+        CGPoint touch = [gesture locationInView:card];
+        UIView *hit = [card hitTest:touch withEvent:nil];
+        for (UIView *cursor = hit; cursor && cursor != card; cursor = cursor.superview) {
+            if ([cursor isKindOfClass:UIControl.class] ||
+                [cursor isKindOfClass:AmeFlowSelectView.class]) return;
+        }
+        self.draggedSidebarCard = card;
+        [[[UIImpactFeedbackGenerator alloc] initWithStyle:UIImpactFeedbackStyleLight] impactOccurred];
+        return;
+    }
+    if (gesture.state == UIGestureRecognizerStateChanged && self.draggedSidebarCard == card) {
+        CGPoint point = [gesture locationInView:self.menuStack];
+        for (UIView *other in self.menuStack.arrangedSubviews) {
+            if (other == card || other.hidden) continue;
+            if (CGRectContainsPoint(other.frame, point)) {
+                NSUInteger target = [self.menuStack.arrangedSubviews indexOfObject:other];
+                [self.menuStack removeArrangedSubview:card];
+                [self.menuStack insertArrangedSubview:card atIndex:target];
+                [UIView animateWithDuration:0.2 animations:^{ [self.menuStack layoutIfNeeded]; }];
+                [self.panelBackdrop setNeedsDisplay];
+                [self saveSidebarCardOrder];
+                break;
+            }
+        }
+    }
+    if (gesture.state == UIGestureRecognizerStateEnded || gesture.state == UIGestureRecognizerStateCancelled) {
+        self.draggedSidebarCard = nil;
+    }
+}
+
+- (void)restoreSidebarCardOrder {
+    NSArray<NSString *> *saved = [NSUserDefaults.standardUserDefaults
+        stringArrayForKey:ZL2SidebarCardOrderDefaultsKey];
+    if (saved.count != 4) return;
+    NSDictionary<NSString *, UIView *> *cards = @{
+        self.quickNavCard.accessibilityIdentifier: self.quickNavCard,
+        self.accountCard.accessibilityIdentifier: self.accountCard,
+        self.versionCard.accessibilityIdentifier: self.versionCard,
+        self.launchCard.accessibilityIdentifier: self.launchCard,
+    };
+    for (NSUInteger index = 0; index < saved.count; index++) {
+        UIView *card = cards[saved[index]];
+        if (!card) return;
+        [self.menuStack removeArrangedSubview:card];
+        [self.menuStack insertArrangedSubview:card atIndex:index];
+    }
+}
+
+- (void)saveSidebarCardOrder {
+    NSMutableArray<NSString *> *order = [NSMutableArray arrayWithCapacity:4];
+    for (UIView *card in self.menuStack.arrangedSubviews) {
+        if (card.accessibilityIdentifier.length > 0) [order addObject:card.accessibilityIdentifier];
+    }
+    if (order.count == 4) {
+        [NSUserDefaults.standardUserDefaults setObject:order forKey:ZL2SidebarCardOrderDefaultsKey];
+    }
 }
 
 // ★ Task400：versionCardTapped 退役（版本滚轮原地驻卡内，拖拽即选择；
