@@ -2184,8 +2184,9 @@ static UIImage *ZL2HomeSizedImage(NSString *name, NSString *fallback, CGFloat po
     ame400_nameLabel.numberOfLines = 1;
     ame400_nameLabel.lineBreakMode = NSLineBreakByTruncatingTail;
     ame400_nameLabel.textAlignment = NSTextAlignmentCenter;
-    ame400_nameLabel.adjustsFontSizeToFitWidth = YES;
-    ame400_nameLabel.minimumScaleFactor = 0.7;
+    // ★ Task407 转盘字体恒定：条目随封面流 |d| 缩放时标签框同步缩窄，
+    //   adjustsFontSizeToFitWidth 会真实缩小字号 = 「转盘转的时候字体自动
+    //   展开和缩小」。改恒定字号 + TruncatingTail 截断（版本轮条目同口径）。
     ame400_nameLabel.translatesAutoresizingMaskIntoConstraints = NO;
     ame400_nameLabel.userInteractionEnabled = NO;
     [ame400_item addSubview:ame400_nameLabel];
@@ -2234,9 +2235,8 @@ static UIImage *ZL2HomeSizedImage(NSString *name, NSString *fallback, CGFloat po
     ame400_nameLabel.numberOfLines = 1;
     ame400_nameLabel.lineBreakMode = NSLineBreakByTruncatingTail;
     ame400_nameLabel.textAlignment = NSTextAlignmentCenter;
-    // 窄槽位（五等分 ≈ 45pt）长名缩排优先于截断（Task392 瓦片标签同判例）
-    ame400_nameLabel.adjustsFontSizeToFitWidth = YES;
-    ame400_nameLabel.minimumScaleFactor = 0.7;
+    // ★ Task407 转盘字体恒定（原「窄槽位长名缩排优先」判例退役）：封面流
+    //   条目随 |d| 缩放时缩字属性令字号随拖动泵动，恒定字号 + 截断替代。
     ame400_nameLabel.translatesAutoresizingMaskIntoConstraints = NO;
     ame400_nameLabel.userInteractionEnabled = NO;
     [ame400_item addSubview:ame400_nameLabel];
@@ -2248,8 +2248,7 @@ static UIImage *ZL2HomeSizedImage(NSString *name, NSString *fallback, CGFloat po
     ame400_typeLabel.numberOfLines = 1;
     ame400_typeLabel.lineBreakMode = NSLineBreakByTruncatingTail;
     ame400_typeLabel.textAlignment = NSTextAlignmentCenter;
-    ame400_typeLabel.adjustsFontSizeToFitWidth = YES;
-    ame400_typeLabel.minimumScaleFactor = 0.7;
+    // ★ Task407 转盘字体恒定（同 nameLabel：去缩字，恒定字号 + 截断）
     ame400_typeLabel.translatesAutoresizingMaskIntoConstraints = NO;
     ame400_typeLabel.userInteractionEnabled = NO;
     [ame400_item addSubview:ame400_typeLabel];

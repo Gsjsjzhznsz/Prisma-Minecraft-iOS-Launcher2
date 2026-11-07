@@ -61,6 +61,8 @@ shell = read("Natives/ZL2ShellViewController.m")
 shell_code = strip_code(shell)
 home = read("Natives/ZL2HomeViewController.m")
 home_code = strip_code(home)
+about = read("Natives/AboutViewController.m")
+about_code = strip_code(about)
 
 # ══ A 线：全局文本颜色根修（BackgroundManager） ═══════════════════
 
@@ -248,6 +250,19 @@ check("C11 停靠镜像（★Task406：面板停靠左 = 卡尾四钮整组卸/�
       and "nameLabel.textAlignment = NSTextAlignmentRight;" in home_code
       and "if (ame_left && self.versionFlow.ame_itemsCount > 0)" in home_code)
 
+check("C12 转盘字体恒定（★Task407：封面流条目随 |d| 缩放时缩字属性令字号泵动\n      = 「转盘转的时候字体自动展开和缩小」根修——账户流三标签（未登录/名称/类型）\n      去 adjustsFontSizeToFitWidth，恒定字号 + TruncatingTail；瓦片标签（静态\n      不随缩放）保留缩字判例；版本轮条目本就恒定口径不动）",
+      "ame400_nameLabel.adjustsFontSizeToFitWidth" not in home
+      and "ame400_typeLabel.adjustsFontSizeToFitWidth" not in home
+      and "ame378_label.adjustsFontSizeToFitWidth = YES" in home
+      and "ame400_nameLabel.lineBreakMode = NSLineBreakByTruncatingTail;" in home
+      and "ame400_typeLabel.lineBreakMode = NSLineBreakByTruncatingTail;" in home)
+
+check("C13 构建代际锚（★Task407：关于页版本行追加源码级构建代号 ame407_buildTag\n      —— Info.plist 双键静态致装机代际不可辨 = 旧构建滞留循环的结构性盲区，\n      关于页读到 Task407 = 本轮新构建在机）",
+      "ame407_buildTag" in about_code
+      and "Task407" in about
+      and about_code.count("ame407_buildTag") >= 2
+      and "numberOfLines = 0" in about_code)
+
 # ══ S 反向探针（--selftest：变体注入必翻红） ═══════════════════════
 
 if "--selftest" in sys.argv:
@@ -264,10 +279,13 @@ if "--selftest" in sys.argv:
     rcheck("S-A1", bm_code + "ame227_swizzledLabelSetText", "ame227_swizzledLabelSetText" in (bm_code + "ame227_swizzledLabelSetText"))
     rcheck("S-B2", shell_code + "ame_buildTopBar", "ame_buildTopBar" in (shell_code + "ame_buildTopBar"))
     rcheck("S-C1", home_code + "ame378_buildQuickNav", "ame378_buildQuickNav" in (home_code + "ame378_buildQuickNav"))
+    rcheck("S-C12", home_code + "ame400_nameLabel.adjustsFontSizeToFitWidth = YES;",
+           "ame400_nameLabel.adjustsFontSizeToFitWidth" in (home_code + "ame400_nameLabel.adjustsFontSizeToFitWidth = YES;"))
+    rcheck("S-C13", about_code + "ame407_buildTag", "ame407_buildTag" in (about_code + "ame407_buildTag"))
     if rf:
         print(f"  SELFTEST FAILED: {rf}")
         sys.exit(1)
-    print(f"  selftest {rp}/3 probes red as expected")
+    print(f"  selftest {rp}/5 probes red as expected")
 
 print(f"ame378_selfcheck: {passed} passed, {len(fails)} failed")
 if fails:

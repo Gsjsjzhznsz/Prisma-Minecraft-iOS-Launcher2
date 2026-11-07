@@ -17,6 +17,13 @@
 /// 本启动器的 QQ 群号（用户指令：README 与关于页都展示）。
 static NSString *const ame217_qqGroup = @"1126547426";
 
+/// ★ Task407 构建代际锚：Info.plist 双键静态（每代构建关于页版本行同值），
+///   装机代际无从辨认 = 用户实机滞留旧构建多轮复诉的结构性盲区（Task402~406
+///   五轮修复从未装机对勘无门）。版本行追加源码级构建代号，随交付轮次
+///   推进：关于页读到 Task407 = 本轮新构建在机，无此标 = 仍在旧构建。
+///   纯构建标识非用户文案，零 i18n 键（同 [Ame406] 日志锚纪律）。
+static NSString *const ame407_buildTag = @"Task407 · 2026-11-07";
+
 @interface AboutViewController ()
 @property (nonatomic, strong) UIScrollView *scrollView;
 @property (nonatomic, strong) UIStackView *stack;
@@ -117,7 +124,7 @@ static NSString *const ame217_qqGroup = @"1126547426";
     return label;
 }
 
-/// 头部卡：图标 + 名称 + 版本（动态读 Info.plist，双键同值 6.5.5）。
+/// 头部卡：图标 + 名称 + 版本（动态读 Info.plist）+ 构建代际锚（★ Task407）。
 - (void)ame217_buildHeaderCard {
     UIView *card = [self ame217_card];
     UIStackView *inner = [[UIStackView alloc] init];
@@ -160,9 +167,12 @@ static NSString *const ame217_qqGroup = @"1126547426";
 
     NSString *version = [NSBundle.mainBundle objectForInfoDictionaryKey:@"CFBundleShortVersionString"] ?: @"?";
     NSString *build = [NSBundle.mainBundle objectForInfoDictionaryKey:@"CFBundleVersion"] ?: version;
-    self.versionValueLabel = [self ame217_labelText:[NSString stringWithFormat:@"%@ (%@)", version, build]
+    // ★ Task407：版本行追加构建代号（ame407_buildTag），装机代际一眼可验。
+    self.versionValueLabel = [self ame217_labelText:[NSString stringWithFormat:@"%@ (%@)\n%@", version, build, ame407_buildTag]
         font:[UIFont systemFontOfSize:14 weight:UIFontWeightMedium]
         color:[AmeTheme textSecondary]];
+    self.versionValueLabel.numberOfLines = 0;
+    self.versionValueLabel.textAlignment = NSTextAlignmentCenter;
     [inner addArrangedSubview:self.versionValueLabel];
 
     [self ame217_addCard:card inner:inner];
