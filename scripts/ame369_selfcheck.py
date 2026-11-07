@@ -94,7 +94,7 @@ check("② ame369.* 键四表齐备",
 # ★ Task404 重锚：448 + 1 = 449。停靠换边整体恢复（73c10b7 退役 + b78a16c 摘提示
 #   双双回滚，用户复诉「你怎么把停靠边功能删除了」）——menuHintLabel 构建站点
 #   回归 +1，四表键同步回填（en/zh-CN/zh-Hans/zh-Hant 各 +1 = 表键净 +1）
-check("① ame369 改写点数 == 449（★Task404 重锚：停靠换边恢复，提示标签站点回归 +1）", ame369_sites == 449, str(ame369_sites))
+check("① ame369 改写点数 == 447（★Task408 重锚：Task404 基线 449 − 3dc220d 三站点退役（提示语/账户双钮 a11y 改文本钮）+ 换边提示语回装 +1）", ame369_sites == 447, str(ame369_sites))
 
 # 复用站点：4 处 localize(@"ame193.misc.[13]"（内容级匹配——5 个补 import 文件行号整体 +1，行级断言会错位）
 REUSE_EXPECT = {

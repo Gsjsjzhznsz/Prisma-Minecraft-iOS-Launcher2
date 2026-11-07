@@ -632,6 +632,16 @@ static UIImage *ZL2HomeSizedImage(NSString *name, NSString *fallback, CGFloat po
     // ★ Task400：ZL2HomeShowVersionPicker 总线入口随弹层退役（版本滚轮
     //   原地驻右栏，无呈现/收起时序）
 
+    // 长按菜单卡 = 切换 ActionMenu 停靠边（ZL2 ActionMenuDrag 简化等价；
+    // ★Task404 恢复；★Task408 再装——3dc220d「重写主页右侧四卡栏」曾随重写
+    // 拆除本手势并把停靠边改死右侧，用户第 16 轮复诉「停靠边也无法调节」。
+    // 面板任意处长按 0.5s = 换边；排序长按已同轮退役（手势冲突，见 C 线注）。
+    UILongPressGestureRecognizer *menuLongPress =
+        [[UILongPressGestureRecognizer alloc] initWithTarget:self
+                                                      action:@selector(ame_handleMenuLongPress:)];
+    menuLongPress.minimumPressDuration = 0.5;
+    [self.actionMenu addGestureRecognizer:menuLongPress];
+
     // 长按实例卡 = M3 底部菜单
     UILongPressGestureRecognizer *cardLongPress =
         [[UILongPressGestureRecognizer alloc] initWithTarget:self
@@ -808,13 +818,13 @@ static UIImage *ZL2HomeSizedImage(NSString *name, NSString *fallback, CGFloat po
     _quickNavCard.accessibilityIdentifier = @"zl2.sidebar.menu";
     [_menuStack addArrangedSubview:_quickNavCard];
     [self ame378_buildQuickNav];
-    // ★ Task402：fui 模式五瓦片卡退役（用户复诉「为什么还是没有隐藏另一个
-    //   标签页切换区域」——fui 开时左窗格=唯一切换区，右上动作簇已随
-    //   navMode 隐藏（393c），本卡是残留的第二切换面；MD3（fui 关）保留
-    //   顶卡 = Task400c 用户规格「五个按钮在顶上」。hidden → menuStack
-    //   arranged 塌缩零占位，面板卡窗经 ame_refreshPanelMask 内建 hidden
-    //   跳过自动重抠为三窗（账户滚轮/版本滚轮/启动组）。
-    _quickNavCard.hidden = NO;
+    // ★ Task402：五瓦片卡退役（★Task408 无条件化——壳左栏/fui 双导航常在，
+    //   主页瓦片 = 第二重复切换面；用户第 16 轮复诉「又有2个重复的切换标签
+    //   页区域」，3dc220d 曾把本隐绑定改回 hidden = NO 致双导航并存。
+    //   hidden → menuStack arranged 塌缩零占位，卡体与构建器保留（fui 向导锚
+    //   zl2_shell_topbar_rail 挂瓦片行 + ame378 C1/C4 门禁锚在位），面板卡窗
+    //   经 ame_refreshPanelMask 内建 hidden 跳过自动重抠）。
+    _quickNavCard.hidden = YES;
 
     // —— ② 账户横排封面流卡窗（原头像+名称样式横排五枚，水平拖动选择；
     //      ★ Task401 用户规格「账户是用原来的样式横排五个作列表选择」）——
@@ -875,14 +885,10 @@ static UIImage *ZL2HomeSizedImage(NSString *name, NSString *fallback, CGFloat po
     _versionCard.accessibilityIdentifier = @"zl2.sidebar.instances";
     [_menuStack addArrangedSubview:_versionCard];
     [_menuStack addArrangedSubview:_launchCard];
-    // 只在卡片自身空白处启动排序，内部按钮与转盘继续接收原有手势。
-    for (UIView *card in @[_quickNavCard, _accountCard, _versionCard, _launchCard]) {
-        UILongPressGestureRecognizer *reorder = [[UILongPressGestureRecognizer alloc]
-            initWithTarget:self action:@selector(handleSidebarReorder:)];
-        reorder.minimumPressDuration = 0.45;
-        reorder.cancelsTouchesInView = NO;
-        [card addGestureRecognizer:reorder];
-    }
+    // ★Task408 四卡排序长按退役：与面板换边长按同一手势面（排序 0.45s 先行
+    // 劫持 = 用户第 16 轮复诉「停靠边也无法调节」实体），换边以用户明示诉求
+    // 优先；restoreSidebarCardOrder 保留（历史排序仍尊重）；重挂待专属编辑
+    // 模式再议。
     [self restoreSidebarCardOrder];
 
     _versionFlow = [[AmeFlowSelectView alloc] init];
@@ -984,7 +990,9 @@ static UIImage *ZL2HomeSizedImage(NSString *name, NSString *fallback, CGFloat po
     // 停靠边提示（★Task404 恢复：功能回滚则提示语同步回滚——b78a16c 曾称其
     // 「谎言提示」只因当时切换代码已先行被 73c10b7 摘除，功能恢复后语句为真）
     _menuHintLabel = [[UILabel alloc] init];
-    _menuHintLabel.text = @"长按卡片空白处调整顺序";
+    // ★Task408 回滚：3dc220d 曾改文案「长按卡片空白处调整顺序」并配排序长按，
+    // 与换边手势同面冲突（用户第 16 轮复诉「停靠边也无法调节」）；回原键原文案。
+    _menuHintLabel.text = localize(@"ame369.home.menu_dock_hint", @"长按菜单可切换停靠边");
     _menuHintLabel.font = [ZL2Theme fontLabelMedium];
     _menuHintLabel.textColor = [ZL2Theme onSurfaceVariant];
     _menuHintLabel.textAlignment = NSTextAlignmentCenter;
@@ -1443,10 +1451,25 @@ static UIImage *ZL2HomeSizedImage(NSString *name, NSString *fallback, CGFloat po
 // 双支线约束变为跨层级，与壳层 containerTrailing 冲突 = 换边 bug 实体；且常驻
 // 使右栏在子页可见 = 切页不隐藏。退役后换边在主页内自治，约束链同层无冲突。
 
-/// 右栏始终固定在右侧；清除旧版本遗留的左侧停靠偏好。
+/// 恢复持久化停靠边（缺省 = 右侧；脏值回退默认。★Task404 恢复原实现；
+/// ★Task408 再恢复——3dc220d「重写主页右侧四卡栏」曾改死右侧并清除持久化
+/// 键，用户第 16 轮复诉「停靠边也无法调节」。同轮退役四卡排序长按：与换边
+/// 长按同面冲突（排序 0.45s 先行劫持 = 换边实体不可达）；排序持久化读写
+/// 保留（历史排序仍尊重），重挂待专属编辑模式再议）
 - (void)ame_restoreMenuSide {
-    self.ame_menuOnRight = YES;
-    [[NSUserDefaults standardUserDefaults] removeObjectForKey:ZL2HomeMenuSideDefaultsKey];
+    NSString *side = [[NSUserDefaults standardUserDefaults] stringForKey:ZL2HomeMenuSideDefaultsKey];
+    self.ame_menuOnRight = ![side isEqualToString:@"left"];
+}
+
+/// 长按菜单面板 = 切换停靠边（★Task404 原实现原样回装；镜像随
+/// ame_applySideConstraintsAnimated → ame_applyPanelMirror 链自动生效）
+- (void)ame_handleMenuLongPress:(UILongPressGestureRecognizer *)gesture {
+    if (gesture.state != UIGestureRecognizerStateBegan) return;
+    self.ame_menuOnRight = !self.ame_menuOnRight;
+    [[NSUserDefaults standardUserDefaults] setObject:(self.ame_menuOnRight ? @"right" : @"left")
+                                              forKey:ZL2HomeMenuSideDefaultsKey];
+    NSLog(@"[Ame404] menu side toggled right=%d", self.ame_menuOnRight);
+    [self ame_applySideConstraintsAnimated:YES];
 }
 
 /// ★Task406 停靠镜像（第14轮规格「切换停靠边之后转盘和按钮是不是要镜像」）：

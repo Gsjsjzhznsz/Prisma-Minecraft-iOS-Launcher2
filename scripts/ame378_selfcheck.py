@@ -204,7 +204,7 @@ check("C6 i18n 零新增键（动作簇同款键驻壳层：ame369.shell.tab.* /
       and 'localize(@"ame369.common.multiplayer", @"多人联机")' in shell
       and 'localize(@"ame192.ai.title", nil)' in shell)
 
-check("C9 账户/版本滚轮卡功能锚（★Task401 重锚：双卡改 AmeFlowSelectView 原地封面流——账户横轴（水平拖动）+版本竖轴，落定回调/卡尾钮（账户管理+刷新+齿轮）/a11y id 保留；卡体点击链退役 = 拖拽即选择）",
+check("C9 账户/版本滚轮卡功能锚（★Task401 重锚 Task408 重锚：a11y id 随 3dc220d 更名\n      zl2.sidebar.accounts/instances——双卡 AmeFlowSelectView 原地封面流不变，\n      落定回调/卡尾钮（添加/删除账户文本钮+刷新+齿轮）在位；卡体点击链退役 = 拖拽即选择）",
       "_accountFlow = [[AmeFlowSelectView alloc] init];" in home_code
       and "_versionFlow = [[AmeFlowSelectView alloc] init];" in home_code
       and "_accountFlow.axis = AmeFlowSelectAxisHorizontal;" in home_code
@@ -213,8 +213,8 @@ check("C9 账户/版本滚轮卡功能锚（★Task401 重锚：双卡改 AmeFlo
       and "_versionFlow.onSettle = ^(NSInteger ame400_index) {" in home_code
       and "accountCardTapped" in home_code
       and "versionSettingsTapped" in home_code
-      and 'accessibilityIdentifier = @"zl2_home_account_card";' in home
-      and 'accessibilityIdentifier = @"zl2_home_version_card";' in home)
+      and 'accessibilityIdentifier = @"zl2.sidebar.accounts";' in home
+      and 'accessibilityIdentifier = @"zl2.sidebar.instances";' in home)
 
 check("C9b 选中可靠链双保险（★Task401 新立：滚动视图 pan 对滚轮 pan 动态让位 + 数据未变免重建守卫——修「只能拖动再回弹」手势竞争与重建吸附回跳双病灶）",
       ("shouldBeRequiredToFailByGestureRecognizer:" in home_code
@@ -223,16 +223,16 @@ check("C9b 选中可靠链双保险（★Task401 新立：滚动视图 pan 对�
       and "self.ame400_versionRowNames = ame400_names;" in home_code
       and "self.ame400_accountKeys = ame400_keys;" in home_code)
 
-check("C10 右栏面板+卡窗口径（★Task401 r3 重锚：用户规格——保留原来的右边栏（灰棱视图 drawRect 画 surfaceContainer）+ 四卡窗区 even-odd 排除=直透启动器背景 + 卡间间隙 8pt（= Task392 栏距屏边四边同值）+ 滚动区内缩/启动组内缩 8pt 四周留灰边）",
+check("C10 右栏面板+卡窗口径（★Task408 重锚：3dc220d 四卡实底化——卡体 surfaceContainer+radiusXL 实底取代挖洞窗、挖洞背板退役隐藏（Ame401 系代码保留休眠）、滚动区贯穿钉底、启动卡入栈；卡间间隙 8pt 同值不变）",
       "_actionMenu.backgroundColor = [UIColor clearColor];" in home_code
-      and "[[ZL2Theme surfaceContainer]"
-       and "resolvedColorWithTraitCollection:self.traitCollection];" in home_code
-      and "_quickNavCard.backgroundColor = [UIColor clearColor];" in home_code
-      and "_accountCard.backgroundColor = [UIColor clearColor];" in home_code
-      and "_versionCard.backgroundColor = [UIColor clearColor];" in home_code
-      and "_launchCard.backgroundColor = [UIColor clearColor];" in home_code
+      and "_panelBackdrop.hidden = YES;" in home_code
+      and "_quickNavCard.backgroundColor = [ZL2Theme surfaceContainer];" in home
+      and "_accountCard.backgroundColor = [ZL2Theme surfaceContainer];" in home
+      and "_versionCard.backgroundColor = [ZL2Theme surfaceContainer];" in home
+      and "_launchCard.backgroundColor = [ZL2Theme surfaceContainer];" in home
       and "_menuScrollView.topAnchor constraintEqualToAnchor:_actionMenu.topAnchor constant:ZL2HomeCardGap" in home_code
-      and "_launchCard.bottomAnchor constraintEqualToAnchor:_actionMenu.bottomAnchor constant:-ZL2HomeCardGap" in home_code
+      and "_menuScrollView.bottomAnchor constraintEqualToAnchor:_actionMenu.bottomAnchor constant:-ZL2HomeCardGap" in home_code
+      and "[_menuStack addArrangedSubview:_launchCard];" in home_code
       and "ZL2HomeCardGap            = 8;" in home
       and "layer.cornerRadius = 1.0 / [UIScreen mainScreen].scale;" in home_code)
 
@@ -257,11 +257,22 @@ check("C12 转盘字体恒定（★Task407：封面流条目随 |d| 缩放时缩
       and "ame400_nameLabel.lineBreakMode = NSLineBreakByTruncatingTail;" in home
       and "ame400_typeLabel.lineBreakMode = NSLineBreakByTruncatingTail;" in home)
 
-check("C13 构建代际锚（★Task407：关于页版本行追加源码级构建代号 ame407_buildTag\n      —— Info.plist 双键静态致装机代际不可辨 = 旧构建滞留循环的结构性盲区，\n      关于页读到 Task407 = 本轮新构建在机）",
-      "ame407_buildTag" in about_code
-      and "Task407" in about
-      and about_code.count("ame407_buildTag") >= 2
+check("C13 构建代际锚（★Task407 立 Task408 推进：关于页版本行追加源码级构建代号\n      ame408_buildTag —— Info.plist 双键静态致装机代际不可辨 = 旧构建滞留循环的\n      结构性盲区，关于页读到 Task408 = 本轮新构建在机）",
+      "ame408_buildTag" in about_code
+      and "Task408" in about
+      and about_code.count("ame408_buildTag") >= 2
       and "numberOfLines = 0" in about_code)
+
+check("C14 换边恢复+瓦片退役+排序退役（★Task408 第 16 轮复诉三件——3dc220d\n      「重写主页右侧四卡栏」曾拆除换边手势/改死右侧/瓦片改回常显/新增四卡\n      排序长按劫持同面手势：①面板长按换边手势+实现体+持久化恢复回装\n      （镜像随 applySide→applyPanelMirror 链自动生效）；②五瓦片 hidden=YES\n      无条件化（壳左栏/fui 双导航常在 = 主页瓦片为第二重复面）；③排序长按\n      挂接退役（restoreSidebarCardOrder 保留），提示语回原键）",
+      "ame_handleMenuLongPress" in home_code
+      and "[self.actionMenu addGestureRecognizer:menuLongPress]" in home_code
+      and "menuLongPress.minimumPressDuration = 0.5" in home_code
+      and "stringForKey:ZL2HomeMenuSideDefaultsKey" in home_code
+      and "menu side toggled right=%d" in home
+      and "_quickNavCard.hidden = YES;" in home_code
+      and "action:@selector(handleSidebarReorder:)" not in home_code
+      and "restoreSidebarCardOrder" in home_code
+      and "ame369.home.menu_dock_hint" in home)
 
 # ══ S 反向探针（--selftest：变体注入必翻红） ═══════════════════════
 
@@ -281,11 +292,13 @@ if "--selftest" in sys.argv:
     rcheck("S-C1", home_code + "ame378_buildQuickNav", "ame378_buildQuickNav" in (home_code + "ame378_buildQuickNav"))
     rcheck("S-C12", home_code + "ame400_nameLabel.adjustsFontSizeToFitWidth = YES;",
            "ame400_nameLabel.adjustsFontSizeToFitWidth" in (home_code + "ame400_nameLabel.adjustsFontSizeToFitWidth = YES;"))
-    rcheck("S-C13", about_code + "ame407_buildTag", "ame407_buildTag" in (about_code + "ame407_buildTag"))
+    rcheck("S-C13", about_code + "ame408_buildTag", "ame408_buildTag" in (about_code + "ame408_buildTag"))
+    rcheck("S-C14", home_code + "action:@selector(handleSidebarReorder:)",
+           "action:@selector(handleSidebarReorder:)" in (home_code + "action:@selector(handleSidebarReorder:)"))
     if rf:
         print(f"  SELFTEST FAILED: {rf}")
         sys.exit(1)
-    print(f"  selftest {rp}/5 probes red as expected")
+    print(f"  selftest {rp}/6 probes red as expected")
 
 print(f"ame378_selfcheck: {passed} passed, {len(fails)} failed")
 if fails:
