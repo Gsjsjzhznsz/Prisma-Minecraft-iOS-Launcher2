@@ -316,7 +316,7 @@ typedef struct {
 // 单盒六面：面序 [前(+Z) 后(−Z) 左(−X) 右(+X) 上(+Y) 下(−Y)]
 // 每面：position = 舞台中心；transform = 平移(盒心)·面向旋转·平移(半深)。
 static void ZL2SkinPreviewBuildBox(CALayer *ame412_parent,
-                                   CGSize ame412_center,
+                                   CGPoint ame412_center,
                                    ZL2SkinPreviewBox ame412_box,
                                    CGFloat ame412_unit,
                                    UIImage *ame412_skin) {
@@ -361,13 +361,13 @@ static void ZL2SkinPreviewBuildBox(CALayer *ame412_parent,
         CALayer *ame412_face = [CALayer layer];
         ame412_face.bounds = CGRectMake(0, 0, ame412_fw * ame412_unit, ame412_fh * ame412_unit);
         ame412_face.position = ame412_center;
-        ame412_face.isDoubleSided = NO;   // 背面剔除
+        ame412_face.doubleSided = NO;   // 背面剔除（CALayer 属性名无 is 前缀）
         UIImage *ame412_img = ame412_skin ? ZL2SkinPreviewFaceImage(ame412_skin, ame412_box.faces[ame412_i]) : nil;
         if (ame412_img) {
             ame412_face.contents = (id)ame412_img.CGImage;
             ame412_face.contentsGravity = kCAGravityResize;
         } else {
-            ame412_face.backgroundColor = [UIColor colorWithWhite:0.32 alpha:1.0];   // 占位灰面
+            ame412_face.backgroundColor = [UIColor colorWithWhite:0.32 alpha:1.0].CGColor;   // 占位灰面（layer backgroundColor = CGColor）
         }
         CATransform3D ame412_t = CATransform3DMakeTranslation((ame412_x + ame412_offX) * ame412_unit,
                                                               (ame412_y + ame412_offY) * ame412_unit,
@@ -388,8 +388,8 @@ static void ZL2SkinPreviewBuildBox(CALayer *ame412_parent,
     }
     [_ame412_faceLayers removeAllObjects];
 
-    CGSize ame412_center = CGPointMake(CGRectGetMidX(_ame412_stageView.bounds),
-                                       CGRectGetMidY(_ame412_stageView.bounds));
+    CGPoint ame412_center = CGPointMake(CGRectGetMidX(_ame412_stageView.bounds),
+                                        CGRectGetMidY(_ame412_stageView.bounds));
     CGFloat ame412_unit = _ame412_baseUnit;
     if (ame412_unit < 3.0) {
         [self ame412_recomputeBaseUnit];
