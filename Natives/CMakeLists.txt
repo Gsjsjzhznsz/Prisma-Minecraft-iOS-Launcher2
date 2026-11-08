@@ -902,9 +902,10 @@ target_link_libraries(AngelAuraAmethyst
   #   AmePluginBridge 消费）——run 41176900198 链接实锤：ObjC import 不自动
   #   链接该框架，缺省 = _OBJC_CLASS_$_UN* 三符号 undefined。
   "-framework UserNotifications"
-  # ★ Task412：皮肤 3D 预览（SCNView/SCNBox/SCNAction）——Task366 判例：
-  #   ObjC import 不自动链接框架，缺省 = _OBJC_CLASS_$_SCN* undefined
-  "-framework SceneKit"
+  # ★ Task412 复盘：皮肤 3D 预览原案 SceneKit 在 iPhoneOS 26.2 SDK 头分叉
+  #   （lightingModel→lightingModelName / boxWithWidth·rotateByAngle 不识别，
+  #   run 42487051782 实锤）——重写为纯 CALayer CATransform3D 盒体，零 SceneKit
+  #   依赖 = 零 SDK 分叉风险（iOS 26 SceneKit 软弃用风暴规避判例）
   "-framework UnzipKit"
   "-framework WebKit"
   "-weak_framework SafariServices"

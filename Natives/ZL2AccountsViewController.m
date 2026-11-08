@@ -704,12 +704,12 @@ BOOL ZL2AccountsSharedIsThirdParty(NSDictionary *accountData) {
     NSString *ame412_name = nil;
     NSString *ame412_pid = nil;
     if (ame412_data) {
-        id ame412_u = ame412_data[@"username"];
+        NSString *ame412_u = ame412_data[@"username"];   // ★ NSString 声明（id 点语法 .length = run 42487051782 编译错判例）
         if ([ame412_u isKindOfClass:[NSString class]] && ame412_u.length > 0) {
             ame412_name = ([ame412_u hasPrefix:@"Demo."])
                 ? [ame412_u substringFromIndex:5] : ame412_u;
         }
-        id ame412_p = ame412_data[@"profileId"] ?: ame412_data[@"uuid"] ?: ame412_data[@"id"];
+        NSString *ame412_p = ame412_data[@"profileId"] ?: ame412_data[@"uuid"] ?: ame412_data[@"id"];
         if ([ame412_p isKindOfClass:[NSString class]] && ame412_p.length > 0) ame412_pid = ame412_p;
     }
     ZL2SkinPreviewViewController *ame412_vc =

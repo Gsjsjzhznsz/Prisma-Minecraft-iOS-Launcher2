@@ -2,19 +2,24 @@
 // ZL2SkinPreviewViewController.h — ★ Task412 账户页皮肤 3D 预览（第 20 轮复诉⑥
 // 「在账号页面添加皮肤3d预览等功能」）
 //
-// 形态：模态页（黑底 + 顶部标题栏 + SceneKit 视图 + 提示行）。
-// 模型：Minecraft 经典比例盒体（头 8×8×8 / 身 8×12×4 / 臂·腿 4×12×4，
-//       单位高度 32），六面 UV 裁贴自完整皮肤纹理（64×64 新版 / 64×32 旧版
-//       双格式；旧版左臂左腿镜像右臂右腿区域）。
+// 形态：模态页（黑底 + 顶部标题栏 + 3D 模型区 + 提示行）。
+// 渲染：**纯 CALayer CATransform3D 盒体**（头 8×8×8 / 身 8×12×4 / 臂·腿
+//       4×12×4，单位高度 32），六面 UV 裁贴自完整皮肤纹理（64×64 新版 /
+//       64×32 旧版双格式；旧版左臂左腿镜像右臂右腿区域），CADisplayLink
+//       驱动自转 + 拖轨/捏合交互。
+//       ★ 为何不用 SceneKit：iPhoneOS 26.2 SDK 头分叉（SCNMaterial.lightingModel
+//       → lightingModelName / SCNBox boxWithWidth: / SCNAction
+//       rotateByAngle:duration:aroundAxis: 均不识别，run 42487051782 实锤）
+//       —— iOS 26 SceneKit 软弃用风暴规避判例：UIKit/CALayer 面零 SDK
+//       分叉风险，iOS 14.0+ 全版本可编译。
 // 皮肤源（AvatarManager ame185 三层回退链同源判例）：
 //       ①crafatar 按 profileId（正版账号真皮肤）→ ②minotar 按 username
 //       → ③全空 = 占位灰模型 + 不可用提示（零假数据诚实边界）。
 //       磁盘缓存 Library/Caches/skins/<safe>.png（跨会话秒开）。
-// 交互：SCNView allowsCameraControl（单指轨道旋转 / 双指捏合缩放）+
-//       模型自动匀速旋转（SCNAction 无限循环）。
-// 红线：iOS 14.0+（SceneKit SF 级 API）；颜色/字体/圆角一律 ZL2Theme 动态
-//       令牌；无 viewWithTag；无 HardCode 颜色分支（模态底 black = 沉浸
-//       观影面对齐截图查看器黑底判例）。
+// 交互：单指水平拖 = 水平轨道旋转（叠加自转），竖直拖 = 俯仰（钳制），
+//       双指捏合 = 缩放。
+// 红线：iOS 14.0+；颜色/字体/圆角一律 ZL2Theme 动态令牌；模态黑底 =
+//       沉浸观影面（截图查看器黑底判例）。
 //
 
 #import <UIKit/UIKit.h>

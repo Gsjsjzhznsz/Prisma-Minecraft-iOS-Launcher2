@@ -1,13 +1,19 @@
 //
 // ZL2SkinPreviewViewController.m — ★ Task412 账户页皮肤 3D 预览实现（设计
-// 契约见 .h 头注释；第 20 轮复诉⑥「在账号页面添加皮肤3d预览等功能」）
+// 契约见 .h 头注释；第 20 轮复诉⑥）
+//
+// ★ 渲染管线（纯 CALayer，零 SceneKit——iPhoneOS 26.2 SDK 头分叉规避判例）：
+//   场景层（容器 layer）持 sublayerTransform = 透视矩阵（m34 = −1/700）；
+//   模型层 transform 每帧 = RotX(pitch)·RotY(yaw)·Scale(s·S)；六盒体 36 面
+//   为静态子层（transform = 平移(盒心·S)·面向旋转；position = 容器中心），
+//   contents = 皮肤对应区块裁贴 CGImage（顶左原点），isDoubleSided = NO =
+//   背面自动剔除。CADisplayLink 帧驱动自转；拖轨/捏合改 yaw/pitch/scale。
 //
 
 #import "ZL2SkinPreviewViewController.h"
 #import "ZL2Theme.h"
 #import "utils.h"   // localize()
 
-#import <SceneKit/SceneKit.h>
 #import <math.h>
 
 // 皮肤缓存目录（Library/Caches/skins）
@@ -43,29 +49,27 @@ typedef struct {
     CGFloat x, y, w, h;
 } ZL2SkinPreviewRect;
 
-// SCNGeometry(SCNBox) 材质序：0 前(+Z) 1 右(+X) 2 后(−Z) 3 左(−X) 4 上 5 下。
-// 皮肤侧区块按「角色右/左」命名（观察者从角色右侧看 = 世界 −X = 盒体左面），
-// 故盒体右面(+X)贴皮肤「左」区块、盒体左面(−X)贴皮肤「右」区块。
-// 64×64 标准布局（原点左上）：
-//   头 8³：前(8,8) 左(16,8) 后(24,8) 右(0,8) 上(8,0) 下(16,0)
-//   身 8×12×4：前(20,20) 左(28,20) 后(32,20) 右(16,20) 上(20,16) 下(28,16)
-//   右臂 4×12×4：前(44,20) 左(48,20) 后(52,20) 右(40,20) 上(44,16) 下(48,16)
-//   左臂 4×12×4：前(36,52) 左(40,52) 后(44,52) 右(32,52) 上(36,48) 下(40,48)
-//   右腿 4×12×4：前(4,20) 左(8,20) 后(12,20) 右(0,20) 上(4,16) 下(8,16)
-//   左腿 4×12×4：前(20,52) 左(24,52) 后(28,52) 右(16,52) 上(20,48) 下(24,48)
+// 皮肤侧区块按「角色右/左」命名；面表序 = [前 后 左 右 上 下]（与下方
+// ZL2SkinPreviewBuildBox 的六面构建序一致）。64×64 标准布局（原点左上）：
+//   头 8³：前(8,8,8,8) 后(24,8,8,8) 左(16,8,8,8) 右(0,8,8,8) 上(8,0,8,8) 下(16,0,8,8)
+//   身 8×12×4：前(20,20,8,12) 后(32,20,8,12) 左(28,20,4,12) 右(16,20,4,12) 上(20,16,8,4) 下(28,16,8,4)
+//   右臂 4×12×4：前(44,20) 后(52,20) 左(48,20) 右(40,20) 上(44,16) 下(48,16)
+//   左臂 4×12×4：前(36,52) 后(44,52) 左(40,52) 右(32,52) 上(36,48) 下(40,48)
+//   右腿 4×12×4：前(4,20) 后(12,20) 左(8,20) 右(0,20) 上(4,16) 下(8,16)
+//   左腿 4×12×4：前(20,52) 后(28,52) 左(24,52) 右(16,52) 上(20,48) 下(24,48)
 // 64×32 旧版：左臂/左腿整组镜像右臂/右腿区块（ame412_legacy 分支）。
 static const ZL2SkinPreviewRect ZL2SkinPreviewHeadFaces[6] = {
-    {8, 8, 8, 8}, {16, 8, 8, 8}, {24, 8, 8, 8}, {0, 8, 8, 8}, {8, 0, 8, 8}, {16, 0, 8, 8}};
+    {8, 8, 8, 8}, {24, 8, 8, 8}, {16, 8, 8, 8}, {0, 8, 8, 8}, {8, 0, 8, 8}, {16, 0, 8, 8}};
 static const ZL2SkinPreviewRect ZL2SkinPreviewBodyFaces[6] = {
-    {20, 20, 8, 12}, {28, 20, 4, 12}, {32, 20, 8, 12}, {16, 20, 4, 12}, {20, 16, 8, 4}, {28, 16, 8, 4}};
+    {20, 20, 8, 12}, {32, 20, 8, 12}, {28, 20, 4, 12}, {16, 20, 4, 12}, {20, 16, 8, 4}, {28, 16, 8, 4}};
 static const ZL2SkinPreviewRect ZL2SkinPreviewRArmFaces[6] = {
-    {44, 20, 4, 12}, {48, 20, 4, 12}, {52, 20, 4, 12}, {40, 20, 4, 12}, {44, 16, 4, 4}, {48, 16, 4, 4}};
+    {44, 20, 4, 12}, {52, 20, 4, 12}, {48, 20, 4, 12}, {40, 20, 4, 12}, {44, 16, 4, 4}, {48, 16, 4, 4}};
 static const ZL2SkinPreviewRect ZL2SkinPreviewLArmFaces[6] = {
-    {36, 52, 4, 12}, {40, 52, 4, 12}, {44, 52, 4, 12}, {32, 52, 4, 12}, {36, 48, 4, 4}, {40, 48, 4, 4}};
+    {36, 52, 4, 12}, {44, 52, 4, 12}, {40, 52, 4, 12}, {32, 52, 4, 12}, {36, 48, 4, 4}, {40, 48, 4, 4}};
 static const ZL2SkinPreviewRect ZL2SkinPreviewRLegFaces[6] = {
-    {4, 20, 4, 12}, {8, 20, 4, 12}, {12, 20, 4, 12}, {0, 20, 4, 12}, {4, 16, 4, 4}, {8, 16, 4, 4}};
+    {4, 20, 4, 12}, {12, 20, 4, 12}, {8, 20, 4, 12}, {0, 20, 4, 12}, {4, 16, 4, 4}, {8, 16, 4, 4}};
 static const ZL2SkinPreviewRect ZL2SkinPreviewLLegFaces[6] = {
-    {20, 52, 4, 12}, {24, 52, 4, 12}, {28, 52, 4, 12}, {16, 52, 4, 12}, {20, 48, 4, 4}, {24, 48, 4, 4}};
+    {20, 52, 4, 12}, {28, 52, 4, 12}, {24, 52, 4, 12}, {16, 52, 4, 12}, {20, 48, 4, 4}, {24, 48, 4, 4}};
 
 // 区块裁贴子图（皮肤为 64×64 或 64×32；裁剪矩形越界自动求交防炸）
 static UIImage *ZL2SkinPreviewFaceImage(UIImage *skin, ZL2SkinPreviewRect r) {
@@ -86,44 +90,35 @@ static UIImage *ZL2SkinPreviewFaceImage(UIImage *skin, ZL2SkinPreviewRect r) {
     return ame412_face;
 }
 
-// 盒体节点（六面独立裁贴材质；区块缺席面 = 整皮肤占位防黑面）
-static SCNNode *ZL2SkinPreviewBoxNode(UIImage *skin,
-                                      CGFloat ame412_w, CGFloat ame412_h, CGFloat ame412_d,
-                                      const ZL2SkinPreviewRect *ame412_faces) {
-    SCNBox *ame412_box = [SCNBox boxWithWidth:ame412_w height:ame412_h length:ame412_d cornerRadius:0];
-    NSMutableArray<SCNMaterial *> *ame412_materials = [NSMutableArray array];
-    for (NSInteger ame412_i = 0; ame412_i < 6; ame412_i++) {
-        SCNMaterial *ame412_m = [SCNMaterial material];
-        ame412_m.lightingModel = SCNLightingModelConstant;   // 平光 = 皮肤原色直出
-        ame412_m.diffuse.contents = skin;                    // 占位（下行为真实裁贴）
-        ame412_m.diffuse.wrapS = SCNWrapModeClamp;
-        ame412_m.diffuse.wrapT = SCNWrapModeClamp;
-        ame412_m.doubleSided = NO;
-        UIImage *ame412_face = ZL2SkinPreviewFaceImage(skin, ame412_faces[ame412_i]);
-        if (ame412_face) ame412_m.diffuse.contents = ame412_face;
-        [ame412_materials addObject:ame412_m];
-    }
-    ame412_box.materials = ame412_materials;
-    SCNNode *ame412_node = [SCNNode node];
-    ame412_node.geometry = ame412_box;
-    return ame412_node;
-}
-
 #pragma mark - 实现
 
 @interface ZL2SkinPreviewViewController ()
-@property (nonatomic, strong, nullable) SCNNode *ame412_modelHolder;   // 自转轴（皮肤重建不丢动作）
+@property (nonatomic, strong) UIView *ame412_stageView;            // 3D 舞台（透视 sublayerTransform 宿主）
+@property (nonatomic, strong) NSMutableArray<CALayer *> *ame412_faceLayers;   // 盒体面集合（贴图重建时整组拆建）
+@property (nonatomic, strong, nullable) UIImage *ame412_currentSkin;          // 当前皮肤留档（视口变化整组重建）
+@property (nonatomic, assign) CGFloat ame412_yaw;                  // 水平轨道角（rad）
+@property (nonatomic, assign) CGFloat ame412_pitch;                // 俯仰角（rad，钳制 ±0.9）
+@property (nonatomic, assign) CGFloat ame412_userScale;            // 捏合缩放（0.5~2.5）
+@property (nonatomic, strong, nullable) CADisplayLink *ame412_ticker;
+@property (nonatomic, assign) CFTimeInterval ame412_lastTick;
 @end
+
+// 盒体几何参数（单位空间；Y 自足底 0 起算，角色面朝 +Z）
+typedef struct {
+    CGFloat cx, cy, cz;   // 盒心
+    CGFloat w, h, d;      // 尺寸
+    const ZL2SkinPreviewRect *faces;   // 六面区块表
+} ZL2SkinPreviewBox;
 
 @implementation ZL2SkinPreviewViewController {
     NSString *_ame412_username;
     NSString *_ame412_profileId;
-    SCNView *_ame412_sceneView;
     UILabel *_ame412_hintLabel;
     UILabel *_ame412_statusLabel;
     UILabel *_ame412_titleLabel;
     UIControl *_ame412_closeButton;
     UIActivityIndicatorView *_ame412_spinner;
+    CGFloat _ame412_baseUnit;        // 单位→pt 比例（视口自适应，build 时定）
 }
 
 - (instancetype)initWithUsername:(NSString *)username profileId:(NSString *)profileId {
@@ -131,6 +126,9 @@ static SCNNode *ZL2SkinPreviewBoxNode(UIImage *skin,
     if (self) {
         _ame412_username = [username copy];
         _ame412_profileId = [profileId copy];
+        _ame412_yaw = 0.0;
+        _ame412_pitch = 0.0;
+        _ame412_userScale = 1.0;
         self.modalPresentationStyle = UIModalPresentationFormSheet;
     }
     return self;
@@ -143,12 +141,22 @@ static SCNNode *ZL2SkinPreviewBoxNode(UIImage *skin,
     self.view.backgroundColor = [UIColor blackColor];
 
     [self ame412_buildChrome];
-    [self ame412_buildScene];
+    [self ame412_buildStage];
     [self ame412_loadSkin];
 }
 
+- (void)viewDidLayoutSubviews {
+    [super viewDidLayoutSubviews];
+    [self ame412_layoutFaces];   // stage 已 AutoLayout 约束化，此处只管面重建/重摆
+}
+
+- (void)dealloc {
+    [_ame412_ticker invalidate];
+}
+
+#pragma mark - 顶部骨架（标题/关闭/提示/状态/转圈）
+
 - (void)ame412_buildChrome {
-    // 顶部标题行（黑底沉浸面：白字标题 + 关闭钮；截图查看器同款语言）
     _ame412_titleLabel = [[UILabel alloc] init];
     _ame412_titleLabel.text = localize(@"ame412.skin.preview.title", @"皮肤 3D 预览");
     _ame412_titleLabel.font = [ZL2Theme fontTitleMedium];
@@ -217,41 +225,222 @@ static SCNNode *ZL2SkinPreviewBoxNode(UIImage *skin,
     ]];
 }
 
-- (void)ame412_buildScene {
-    _ame412_sceneView = [[SCNView alloc] init];
-    _ame412_sceneView.translatesAutoresizingMaskIntoConstraints = NO;
-    _ame412_sceneView.backgroundColor = [UIColor blackColor];
-    _ame412_sceneView.allowsCameraControl = YES;   // 单指轨道旋转 / 双指捏合缩放
-    _ame412_sceneView.antialiasingMode = SCNAntialiasingModeMultisampling4X;
-    [self.view addSubview:_ame412_sceneView];
+#pragma mark - 3D 舞台与手势
+
+- (void)ame412_buildStage {
+    _ame412_stageView = [[UIView alloc] initWithFrame:self.view.bounds];
+    _ame412_stageView.backgroundColor = [UIColor clearColor];
+    _ame412_stageView.translatesAutoresizingMaskIntoConstraints = NO;
+    [self.view addSubview:_ame412_stageView];
     [NSLayoutConstraint activateConstraints:@[
-        [_ame412_sceneView.topAnchor constraintEqualToAnchor:_ame412_titleLabel.bottomAnchor constant:8.0],
-        [_ame412_sceneView.bottomAnchor constraintEqualToAnchor:_ame412_hintLabel.topAnchor constant:-8.0],
-        [_ame412_sceneView.leadingAnchor constraintEqualToAnchor:self.view.leadingAnchor],
-        [_ame412_sceneView.trailingAnchor constraintEqualToAnchor:self.view.trailingAnchor],
+        [_ame412_stageView.topAnchor constraintEqualToAnchor:_ame412_titleLabel.bottomAnchor constant:8.0],
+        [_ame412_stageView.bottomAnchor constraintEqualToAnchor:_ame412_hintLabel.topAnchor constant:-8.0],
+        [_ame412_stageView.leadingAnchor constraintEqualToAnchor:self.view.leadingAnchor],
+        [_ame412_stageView.trailingAnchor constraintEqualToAnchor:self.view.trailingAnchor],
     ]];
 
-    SCNScene *ame412_scene = [SCNScene scene];
-    ame412_scene.background.contents = [UIColor blackColor];
-    _ame412_sceneView.scene = ame412_scene;
+    // 透视宿主：sublayerTransform 持 m34（CA 经典 3D 盒体技法）
+    CATransform3D ame412_persp = CATransform3DIdentity;
+    ame412_persp.m34 = -1.0 / 700.0;
+    _ame412_stageView.layer.sublayerTransform = ame412_persp;
 
-    SCNCamera *ame412_camera = [SCNCamera camera];
-    ame412_camera.zNear = 0.1;
-    ame412_camera.zFar = 500.0;
-    SCNNode *ame412_cameraNode = [SCNNode node];
-    ame412_cameraNode.camera = ame412_camera;
-    ame412_cameraNode.position = SCNVector3Make(0, 24, 58);
-    [ame412_scene.rootNode addChildNode:ame412_cameraNode];
+    // 手势：拖轨（水平 = yaw、竖直 = pitch）+ 捏合缩放
+    UIPanGestureRecognizer *ame412_pan =
+        [[UIPanGestureRecognizer alloc] initWithTarget:self action:@selector(ame412_handlePan:)];
+    [_ame412_stageView addGestureRecognizer:ame412_pan];
+    UIPinchGestureRecognizer *ame412_pinch =
+        [[UIPinchGestureRecognizer alloc] initWithTarget:self action:@selector(ame412_handlePinch:)];
+    [_ame412_stageView addGestureRecognizer:ame412_pinch];
 
-    // 自转轴节点（皮肤异步到位重建内容，动作持在轴上不丢）
-    SCNNode *ame412_holder = [SCNNode node];
-    [ame412_scene.rootNode addChildNode:ame412_holder];
-    self.ame412_modelHolder = ame412_holder;
-    [ame412_holder runAction:[SCNAction repeatActionForever:
-        [SCNAction rotateByAngle:M_PI * 2.0 duration:16.0 aroundAxis:SCNVector3Make(0, 1, 0)]]];
+    _ame412_faceLayers = [NSMutableArray array];
 
-    // 占位模型先建（皮肤到位即重贴；零空白等待）
+    // 占位灰模型先建（皮肤到位即整组拆建；零空白等待）
     [self ame412_applySkin:nil];
+
+    // 自转帧驱动（CADisplayLink）
+    _ame412_ticker = [CADisplayLink displayLinkWithTarget:self selector:@selector(ame412_tick)];
+    _ame412_ticker.paused = NO;
+    _ame412_lastTick = CACurrentMediaTime();
+    [_ame412_ticker addToRunLoop:[NSRunLoop mainRunLoop] forMode:NSRunLoopCommonModes];
+}
+
+- (void)ame412_handlePan:(UIPanGestureRecognizer *)pan {
+    CGPoint ame412_t = [pan translationInView:_ame412_stageView];
+    [pan setTranslation:CGPointZero inView:_ame412_stageView];
+    _ame412_yaw += ame412_t.x * 0.008;
+    _ame412_pitch += ame412_t.y * 0.008;
+    if (_ame412_pitch > 0.9) _ame412_pitch = 0.9;
+    if (_ame412_pitch < -0.9) _ame412_pitch = -0.9;
+    [self ame412_updateModelTransform];
+}
+
+- (void)ame412_handlePinch:(UIPinchGestureRecognizer *)pinch {
+    _ame412_userScale *= pinch.scale;
+    if (_ame412_userScale < 0.5) _ame412_userScale = 0.5;
+    if (_ame412_userScale > 2.5) _ame412_userScale = 2.5;
+    [pinch setScale:1.0];
+    [self ame412_updateModelTransform];
+}
+
+// 帧驱动：自转 + 重投影
+- (void)ame412_tick {
+    CFTimeInterval ame412_now = CACurrentMediaTime();
+    CGFloat ame412_dt = (CGFloat)(ame412_now - _ame412_lastTick);
+    _ame412_lastTick = ame412_now;
+    if (ame412_dt > 0.1) ame412_dt = 0.1;
+    _ame412_yaw += ame412_dt * 0.35;   // 慢速自转（rad/s）
+    [self ame412_updateModelTransform];
+}
+
+// 模型层每帧 transform = RotX(pitch)·RotY(yaw)·Scale(user·base)
+- (void)ame412_updateModelTransform {
+    CGFloat ame412_s = _ame412_userScale;   // 面几何已按 baseUnit 构建 = 只乘捏合因子
+    CATransform3D ame412_t = CATransform3DMakeRotation(_ame412_pitch, 1.0, 0.0, 0.0);
+    ame412_t = CATransform3DRotate(ame412_t, _ame412_yaw, 0.0, 1.0, 0.0);
+    ame412_t = CATransform3DScale(ame412_t, ame412_s, ame412_s, ame412_s);
+    _ame412_stageView.layer.transform = ame412_t;
+}
+
+// 视口自适应比例（模型高 32 单位 → 视口高的 0.72）
+- (void)ame412_recomputeBaseUnit {
+    CGFloat ame412_h = _ame412_stageView.bounds.size.height;
+    CGFloat ame412_w = _ame412_stageView.bounds.size.width;
+    CGFloat ame412_fit = fmin(ame412_h * 0.72 / 32.0, ame412_w * 0.5 / 16.0);
+    if (ame412_fit < 3.0) ame412_fit = 3.0;
+    _ame412_baseUnit = ame412_fit;
+    [self ame412_updateModelTransform];
+}
+
+#pragma mark - 盒体组装（36 面静态子层）
+
+// 单盒六面：面序 [前(+Z) 后(−Z) 左(−X) 右(+X) 上(+Y) 下(−Y)]
+// 每面：position = 舞台中心；transform = 平移(盒心)·面向旋转·平移(半深)。
+static void ZL2SkinPreviewBuildBox(CALayer *ame412_parent,
+                                   CGSize ame412_center,
+                                   ZL2SkinPreviewBox ame412_box,
+                                   CGFloat ame412_unit,
+                                   UIImage *ame412_skin) {
+    CGFloat ame412_x = ame412_box.cx;
+    CGFloat ame412_y = ame412_box.cy - 16.0;   // 模型 Y 居中（0..32 → −16..16）
+    CGFloat ame412_z = ame412_box.cz;
+    for (NSInteger ame412_i = 0; ame412_i < 6; ame412_i++) {
+        CGFloat ame412_offX = 0, ame412_offY = 0, ame412_offZ = 0;
+        CGFloat ame412_rotY = 0, ame412_rotX = 0;
+        CGFloat ame412_fw = 0, ame412_fh = 0;
+        switch (ame412_i) {
+            case 0:   // 前：面朝 +Z，z + d/2
+                ame412_offZ = ame412_box.d / 2.0; ame412_fw = ame412_box.w; ame412_fh = ame412_box.h;
+                break;
+            case 1: { // 后：RotY(π)，z − d/2
+                ame412_offZ = -ame412_box.d / 2.0; ame412_rotY = (CGFloat)M_PI;
+                ame412_fw = ame412_box.w; ame412_fh = ame412_box.h;
+                break;
+            }
+            case 2: { // 左：面朝 −X，x − w/2
+                ame412_offX = -ame412_box.w / 2.0; ame412_rotY = -(CGFloat)M_PI / 2.0;
+                ame412_fw = ame412_box.d; ame412_fh = ame412_box.h;
+                break;
+            }
+            case 3: { // 右：面朝 +X，x + w/2
+                ame412_offX = ame412_box.w / 2.0; ame412_rotY = (CGFloat)M_PI / 2.0;
+                ame412_fw = ame412_box.d; ame412_fh = ame412_box.h;
+                break;
+            }
+            case 4: { // 上：面朝 +Y，y + h/2
+                ame412_offY = ame412_box.h / 2.0; ame412_rotX = -(CGFloat)M_PI / 2.0;
+                ame412_fw = ame412_box.w; ame412_fh = ame412_box.d;
+                break;
+            }
+            default: { // 下：面朝 −Y，y − h/2
+                ame412_offY = -ame412_box.h / 2.0; ame412_rotX = (CGFloat)M_PI / 2.0;
+                ame412_fw = ame412_box.w; ame412_fh = ame412_box.d;
+                break;
+            }
+        }
+
+        CALayer *ame412_face = [CALayer layer];
+        ame412_face.bounds = CGRectMake(0, 0, ame412_fw * ame412_unit, ame412_fh * ame412_unit);
+        ame412_face.position = ame412_center;
+        ame412_face.isDoubleSided = NO;   // 背面剔除
+        UIImage *ame412_img = ame412_skin ? ZL2SkinPreviewFaceImage(ame412_skin, ame412_box.faces[ame412_i]) : nil;
+        if (ame412_img) {
+            ame412_face.contents = (id)ame412_img.CGImage;
+            ame412_face.contentsGravity = kCAGravityResize;
+        } else {
+            ame412_face.backgroundColor = [UIColor colorWithWhite:0.32 alpha:1.0];   // 占位灰面
+        }
+        CATransform3D ame412_t = CATransform3DMakeTranslation((ame412_x + ame412_offX) * ame412_unit,
+                                                              (ame412_y + ame412_offY) * ame412_unit,
+                                                              (ame412_z + ame412_offZ) * ame412_unit);
+        if (ame412_rotY != 0.0) ame412_t = CATransform3DRotate(ame412_t, ame412_rotY, 0.0, 1.0, 0.0);
+        if (ame412_rotX != 0.0) ame412_t = CATransform3DRotate(ame412_t, ame412_rotX, 1.0, 0.0, 0.0);
+        ame412_face.transform = ame412_t;
+        [ame412_parent addSublayer:ame412_face];
+    }
+}
+
+// 用皮肤整组建模（skin = nil 时灰盒占位；每次整组拆建零残留）
+- (void)ame412_applySkin:(UIImage *)skin {
+    self.ame412_currentSkin = skin;
+    CALayer *ame412_stage = _ame412_stageView.layer;
+    for (CALayer *ame412_sub in [ame412_stage.sublayers copy]) {
+        [ame412_sub removeFromSuperlayer];
+    }
+    [_ame412_faceLayers removeAllObjects];
+
+    CGSize ame412_center = CGPointMake(CGRectGetMidX(_ame412_stageView.bounds),
+                                       CGRectGetMidY(_ame412_stageView.bounds));
+    CGFloat ame412_unit = _ame412_baseUnit;
+    if (ame412_unit < 3.0) {
+        [self ame412_recomputeBaseUnit];
+        ame412_unit = _ame412_baseUnit;
+    }
+
+    if (skin.size.width < 1.0 || skin.size.height < 1.0) {
+        // 占位灰模型（皮肤缺席诚实降级，零假纹理）
+        ZL2SkinPreviewRect ame412_dummy[6] = {{0, 0, 0, 0}, {0, 0, 0, 0}, {0, 0, 0, 0},
+                                              {0, 0, 0, 0}, {0, 0, 0, 0}, {0, 0, 0, 0}};
+        ZL2SkinPreviewBox ame412_box = {0, 16, 0, 10, 32, 6, ame412_dummy};
+        ZL2SkinPreviewBuildBox(ame412_stage, ame412_center, ame412_box, ame412_unit, nil);
+        [_ame412_faceLayers addObjectsFromArray:ame412_stage.sublayers];
+        return;
+    }
+
+    BOOL ame412_legacy = (skin.size.height < 64.0);   // 64×32 旧版 = 左臂左腿镜像右区
+    const ZL2SkinPreviewRect *ame412_lArmF = ame412_legacy ? ZL2SkinPreviewRArmFaces : ZL2SkinPreviewLArmFaces;
+    const ZL2SkinPreviewRect *ame412_lLegF = ame412_legacy ? ZL2SkinPreviewRLegFaces : ZL2SkinPreviewLLegFaces;
+
+    ZL2SkinPreviewBox ame412_boxes[6] = {
+        {0, 28, 0, 8, 8, 8, ZL2SkinPreviewHeadFaces},    // 头（足底 24..32）
+        {0, 18, 0, 8, 12, 4, ZL2SkinPreviewBodyFaces},   // 身（12..24）
+        {-6, 18, 0, 4, 12, 4, ZL2SkinPreviewRArmFaces},  // 右臂（角色右 = −X）
+        {6, 18, 0, 4, 12, 4, ame412_lArmF},              // 左臂
+        {-2, 6, 0, 4, 12, 4, ZL2SkinPreviewRLegFaces},   // 右腿（0..12）
+        {2, 6, 0, 4, 12, 4, ame412_lLegF},               // 左腿
+    };
+    for (NSInteger ame412_i = 0; ame412_i < 6; ame412_i++) {
+        ZL2SkinPreviewBuildBox(ame412_stage, ame412_center, ame412_boxes[ame412_i], ame412_unit, skin);
+    }
+    [_ame412_faceLayers addObjectsFromArray:ame412_stage.sublayers];
+    [self ame412_updateModelTransform];
+}
+
+// 视口变化：unit 随视口自适应 → 整组重建（面几何内含 unit，非纯位移可摆）
+- (void)ame412_layoutFaces {
+    CGFloat ame412_h = _ame412_stageView.bounds.size.height;
+    CGFloat ame412_w = _ame412_stageView.bounds.size.width;
+    CGFloat ame412_fit = fmin(ame412_h * 0.72 / 32.0, ame412_w * 0.5 / 16.0);
+    if (ame412_fit < 3.0) ame412_fit = 3.0;
+    if (fabs(ame412_fit - _ame412_baseUnit) > 0.5) {
+        _ame412_baseUnit = ame412_fit;
+        [self ame412_applySkin:self.ame412_currentSkin];   // 整组重建（unit 变化）
+        return;
+    }
+    CGPoint ame412_center = CGPointMake(CGRectGetMidX(_ame412_stageView.bounds),
+                                        CGRectGetMidY(_ame412_stageView.bounds));
+    for (CALayer *ame412_face in _ame412_faceLayers) {
+        ame412_face.position = ame412_center;
+    }
 }
 
 #pragma mark - 皮肤加载链
@@ -270,9 +459,6 @@ static SCNNode *ZL2SkinPreviewBoxNode(UIImage *skin,
         }
     }
 
-    _ame412_spinner.hidden = NO;
-    [_ame412_spinner startAnimating];
-
     NSMutableArray<NSString *> *ame412_urls = [NSMutableArray array];
     if (_ame412_profileId.length > 0) {
         [ame412_urls addObject:[NSString stringWithFormat:@"https://crafatar.com/skins/%@", _ame412_profileId]];
@@ -281,44 +467,43 @@ static SCNNode *ZL2SkinPreviewBoxNode(UIImage *skin,
         [ame412_urls addObject:[NSString stringWithFormat:@"https://minotar.net/skin/%@", _ame412_username]];
     }
     if (ame412_urls.count == 0) {
+        [self ame412_showUnavailable];
+        return;
+    }
+
+    _ame412_spinner.hidden = NO;
+    [_ame412_spinner startAnimating];
+    [self ame412_tryURLAtIndex:0 urls:ame412_urls cachePath:ame412_cachePath];
+}
+
+// 方法递归回退（block 自捕获 = run 42487051782 保留环警告判例规避）
+- (void)ame412_tryURLAtIndex:(NSUInteger)ame412_idx
+                        urls:(NSArray<NSString *> *)ame412_urls
+                   cachePath:(NSString *)ame412_cachePath {
+    if (ame412_idx >= ame412_urls.count) {
         [_ame412_spinner stopAnimating];
         [self ame412_applySkin:nil];
         [self ame412_showUnavailable];
         return;
     }
-
     __weak typeof(self) wself = self;
-    __block void (^ame412_try)(NSUInteger) = nil;
-    ame412_try = ^(NSUInteger ame412_idx) {
-        if (ame412_idx >= ame412_urls.count) {
-            dispatch_async(dispatch_get_main_queue(), ^{
-                __strong typeof(wself) strongSelf = wself;
-                if (!strongSelf) return;
+    NSURLSessionDataTask *ame412_task =
+        [[NSURLSession sharedSession] dataTaskWithURL:[NSURL URLWithString:ame412_urls[ame412_idx]]
+                                    completionHandler:^(NSData *data, NSURLResponse *response, NSError *error) {
+        UIImage *ame412_image = (data.length > 0 && !error) ? [UIImage imageWithData:data] : nil;
+        dispatch_async(dispatch_get_main_queue(), ^{
+            __strong typeof(wself) strongSelf = wself;
+            if (!strongSelf) return;
+            if (ame412_image) {
+                [data writeToFile:ame412_cachePath atomically:YES];   // 落盘缓存
                 [strongSelf->_ame412_spinner stopAnimating];
-                [strongSelf ame412_applySkin:nil];
-                [strongSelf ame412_showUnavailable];
-            });
-            return;
-        }
-        NSURLSessionDataTask *ame412_task =
-            [[NSURLSession sharedSession] dataTaskWithURL:[NSURL URLWithString:ame412_urls[ame412_idx]]
-                                        completionHandler:^(NSData *data, NSURLResponse *response, NSError *error) {
-            UIImage *ame412_image = (data.length > 0 && !error) ? [UIImage imageWithData:data] : nil;
-            dispatch_async(dispatch_get_main_queue(), ^{
-                __strong typeof(wself) strongSelf = wself;
-                if (!strongSelf) return;
-                if (ame412_image) {
-                    [data writeToFile:ame412_cachePath atomically:YES];   // 落盘缓存
-                    [strongSelf->_ame412_spinner stopAnimating];
-                    [strongSelf ame412_applySkin:ame412_image];
-                } else {
-                    ame412_try(ame412_idx + 1);   // 回退链下一层
-                }
-            });
-        }];
-        [ame412_task resume];
-    };
-    ame412_try(0);
+                [strongSelf ame412_applySkin:ame412_image];
+            } else {
+                [strongSelf ame412_tryURLAtIndex:ame412_idx + 1 urls:ame412_urls cachePath:ame412_cachePath];
+            }
+        });
+    }];
+    [ame412_task resume];
 }
 
 - (void)ame412_showUnavailable {
@@ -328,65 +513,6 @@ static SCNNode *ZL2SkinPreviewBoxNode(UIImage *skin,
 
 - (void)ame412_close {
     [self dismissViewControllerAnimated:YES completion:nil];
-}
-
-#pragma mark - 盒体模型组装
-
-// 用皮肤贴六盒体（skin = nil 时灰色占位；Y 自足底 0 起算，角色面朝 +Z 相机）
-- (void)ame412_applySkin:(UIImage *)skin {
-    SCNNode *ame412_holder = self.ame412_modelHolder;
-    if (!ame412_holder) return;
-
-    for (SCNNode *ame412_child in [ame412_holder.childNodes copy]) {
-        [ame412_child removeFromParentNode];
-    }
-
-    if (skin.size.width < 1.0 || skin.size.height < 1.0) {
-        // 占位灰模型（皮肤缺席诚实降级，零假纹理）
-        SCNBox *ame412_box = [SCNBox boxWithWidth:10 height:32 length:6 cornerRadius:0];
-        SCNMaterial *ame412_m = [SCNMaterial material];
-        ame412_m.lightingModel = SCNLightingModelConstant;
-        ame412_m.diffuse.contents = [UIColor colorWithWhite:0.35 alpha:1.0];
-        ame412_box.materials = @[ame412_m];
-        SCNNode *ame412_placeholder = [SCNNode node];
-        ame412_placeholder.geometry = ame412_box;
-        ame412_placeholder.position = SCNVector3Make(0, 16, 0);
-        [ame412_holder addChildNode:ame412_placeholder];
-        return;
-    }
-
-    BOOL ame412_legacy = (skin.size.height < 64.0);   // 64×32 旧版 = 左臂左腿镜像右区
-    const ZL2SkinPreviewRect *ame412_lArmF = ame412_legacy ? ZL2SkinPreviewRArmFaces : ZL2SkinPreviewLArmFaces;
-    const ZL2SkinPreviewRect *ame412_lLegF = ame412_legacy ? ZL2SkinPreviewRLegFaces : ZL2SkinPreviewLLegFaces;
-
-    SCNNode *ame412_model = [SCNNode node];
-    ame412_model.name = @"ame412_playerModel";
-
-    SCNNode *ame412_head = ZL2SkinPreviewBoxNode(skin, 8, 8, 8, ZL2SkinPreviewHeadFaces);
-    ame412_head.position = SCNVector3Make(0, 28, 0);   // 腿12+身12 → 头底 24，头高 8
-    [ame412_model addChildNode:ame412_head];
-
-    SCNNode *ame412_body = ZL2SkinPreviewBoxNode(skin, 8, 12, 4, ZL2SkinPreviewBodyFaces);
-    ame412_body.position = SCNVector3Make(0, 18, 0);
-    [ame412_model addChildNode:ame412_body];
-
-    // 臂与身同高（肩顶 24，臂长 12 → 中心 18）；角色右手 = 相机视角左侧（−X）
-    SCNNode *ame412_rArm = ZL2SkinPreviewBoxNode(skin, 4, 12, 4, ZL2SkinPreviewRArmFaces);
-    ame412_rArm.position = SCNVector3Make(-6, 18, 0);
-    [ame412_model addChildNode:ame412_rArm];
-    SCNNode *ame412_lArm = ZL2SkinPreviewBoxNode(skin, 4, 12, 4, ame412_lArmF);
-    ame412_lArm.position = SCNVector3Make(6, 18, 0);
-    [ame412_model addChildNode:ame412_lArm];
-
-    // 腿（足底 0 → 中心 6）；内缘贴 x=0 → 中心 ±2
-    SCNNode *ame412_rLeg = ZL2SkinPreviewBoxNode(skin, 4, 12, 4, ZL2SkinPreviewRLegFaces);
-    ame412_rLeg.position = SCNVector3Make(-2, 6, 0);
-    [ame412_model addChildNode:ame412_rLeg];
-    SCNNode *ame412_lLeg = ZL2SkinPreviewBoxNode(skin, 4, 12, 4, ame412_lLegF);
-    ame412_lLeg.position = SCNVector3Make(2, 6, 0);
-    [ame412_model addChildNode:ame412_lLeg];
-
-    [ame412_holder addChildNode:ame412_model];
 }
 
 @end
