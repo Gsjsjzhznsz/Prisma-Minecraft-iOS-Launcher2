@@ -823,15 +823,17 @@ static UIImage *ZL2HomeSizedImage(NSString *name, NSString *fallback, CGFloat po
     //   主页瓦片 = 第二重复切换面（第 16 轮复诉「又有2个重复的切换标签页区域」）。
     // ★ Task410 条件化回归（第 18 轮复诉「md3界面zl2的右上角切换标签页区域
     //   不见了」）：Task378 顶栏退役 + Task408b 无条件退役后，topbar(bare/MD3)
-    //   骨架全屏零导航实体（3dc220d 注释「右上角快捷入口已移除；主页右栏是
-    //   五个入口的唯一位置」的唯一位置也被 408b 摘除）= MD3 模式无任何页面
-    //   切换入口。本卡回归为 bare 骨架的唯一切换区（面板首卡 = 停靠右时屏幕
-    //   右上角）；navigationview(fui) 骨架壳左栏窗格常在，本卡维持退役防双导
-    //   航重复（第 16 轮口径不变）。hidden → arranged 塌缩零占位，卡体与构建
-    //   器保留（fui 向导锚 zl2_shell_topbar_rail 挂瓦片行 + ame378 C1/C4 门禁
-    //   锚在位），面板卡窗经 ame_refreshPanelMask 内建 hidden 跳过自动重抠。
-    _quickNavCard.hidden = [[ZL2Theme ame347_shellLayout]
-                            isEqualToString:@"navigationview"];
+    //   骨架全屏零导航实体 = MD3 模式无任何页面切换入口。本卡回归为 bare 骨架
+    //   的唯一切换区；navigationview(fui) 骨架壳左栏窗格常在，本卡维持退役。
+    // ★ Task411 二度退役（第 19 轮复诉①用户钦定形态 = 「一开始的无文字右上角
+    //   小型的切换按钮」）：壳层 ame411_switcherCluster 悬浮图标胶囊（钉屏幕
+    //   右上角 safeArea、全页面常驻）接棒 bare 全场景唯一切换区——五瓦片
+    //   （有文字大瓦片、驻面板内非屏幕角）与钦定形态不符，且与右上簇并存即
+    //   成双切换面（第 16 轮口径）。无条件 hidden 回归（408 判例），hidden →
+    //   arranged 塌缩零占位，卡体与构建器保留（fui 向导锚 zl2_shell_topbar_rail
+    //   挂瓦片行 + ame378 C1/C4 门禁锚在位），面板卡窗经 ame_refreshPanelMask
+    //   内建 hidden 跳过自动重抠。
+    _quickNavCard.hidden = YES;
 
     // —— ② 账户横排封面流卡窗（原头像+名称样式横排五枚，水平拖动选择；
     //      ★ Task401 用户规格「账户是用原来的样式横排五个作列表选择」）——
