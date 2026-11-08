@@ -105,6 +105,7 @@ preview_mode() {
     AmeFlowSelectView                 # ★ Task393 封面流选择器（★ Task401 更名+横轴化：账户横排/版本竖排共用）
     ZL2DownloadViewController ZL2VersionsViewController
     ZL2AccountsViewController ZL2SettingsViewController
+    ZL2SkinPreviewViewController   # ★Task412：皮肤 3D 预览（账户页入口链接符号，CALayer 盒体零 SceneKit）
     ZL2AssetSearchViewController   # 7.0-UI-10：下载页资产搜索组件（.h+.m，与下载页同轮落地）
     ZL2M3Kit                       # 7.0-UI-12：MD3 功能组件库（搜索/chip/开关/对话框/弹层）
     ZL2GameDownloadViewController  # 7.0-UI-12：游戏 M3 下载页（旧 DownloadViewController 退场）
