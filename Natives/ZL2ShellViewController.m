@@ -297,7 +297,8 @@ static UIImage *ZL2ShellSystemImageSizedEx(NSString *name, NSString *fallback, C
 // 着色 + surfaceContainerHigh 行底胶囊，与 ZL2ShellNavItem 同族语言）。
 @interface ZL2ShellSwitcherButton : ZL2ShellTapControl
 @property(nonatomic, assign, readonly) NSInteger pageIndex;   // -1 = 瞬时动作
-@property(nonatomic, assign, getter = isSelected) BOOL selected;
+// 选中态直接继承 UIControl.selected（getter isSelected）——重声明会抑制
+// 自动 ivar 合成致 _selected 未声明（run 42472682021 编译错判例）
 - (instancetype)initWithSymbol:(NSString *)symbol
                       fallback:(NSString *)fallback
                      pageIndex:(NSInteger)pageIndex;
@@ -343,7 +344,7 @@ static UIImage *ZL2ShellSystemImageSizedEx(NSString *name, NSString *fallback, C
 }
 
 - (void)setSelected:(BOOL)selected {
-    _selected = selected;
+    [super setSelected:selected];   // UIControl 原生存储，零私有 ivar
     self.backgroundColor = selected ? [ZL2Theme surfaceContainerHigh] : [UIColor clearColor];
     for (UIView *ame411_sub in self.subviews) {
         if ([ame411_sub isKindOfClass:[UIImageView class]]) {
