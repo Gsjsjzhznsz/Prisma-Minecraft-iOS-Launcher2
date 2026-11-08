@@ -167,7 +167,7 @@
 
 - (void)fetchProjectInfoForMod:(ModItem *)mod
                     projectType:(NSString *)projectType
-                     completion:(void (^)(NSString *title, NSString *summary, NSString *iconURL, NSString *projectID))completion {
+                     completion:(void (^)(NSString *title, NSString *summary, NSString *iconURL, NSString *projectID, NSNumber *source))completion {
     if (!mod || mod.filePath.length == 0) {
         [self ame412_finishWithDict:completion];   // 参数缺席 = 诚实空回调（单参签名）
         return;
@@ -243,9 +243,10 @@
 }
 
 // 命中源 → 项目详情（Modrinth ame412 / CurseForge ame238，输出 name/summary/icon 同构）
+// ★Task413：source 透传至 completion（页面路由 apiSource 用）
 - (void)ame412_fetchDetailsWithDict:(NSMutableDictionary *)projectDict
                              source:(NSNumber *)source
-                         completion:(void (^)(NSString *title, NSString *summary, NSString *iconURL, NSString *projectID))completion {
+                         completion:(void (^)(NSString *title, NSString *summary, NSString *iconURL, NSString *projectID, NSNumber *source))completion {
     NSString *projectID = [self extractProjectIDFromDict:projectDict source:source];
     if (projectID.length == 0) {
         [self ame412_finishWithDict:completion];
@@ -256,7 +257,7 @@
         NSString *summary = ([info isKindOfClass:[NSDictionary class]] && [info[@"summary"] isKindOfClass:[NSString class]]) ? info[@"summary"] : nil;
         NSString *icon = ([info isKindOfClass:[NSDictionary class]] && [info[@"icon"] isKindOfClass:[NSString class]]) ? info[@"icon"] : nil;
         dispatch_async(dispatch_get_main_queue(), ^{
-            if (completion) completion(title, summary, icon, projectID);
+            if (completion) completion(title, summary, icon, projectID, source);
         });
     };
 
@@ -268,9 +269,9 @@
 }
 
 // 双源全空/详情失败 → 全空诚实回调（页面按缺席降级）
-- (void)ame412_finishWithDict:(void (^)(NSString *title, NSString *summary, NSString *iconURL, NSString *projectID))completion {
+- (void)ame412_finishWithDict:(void (^)(NSString *title, NSString *summary, NSString *iconURL, NSString *projectID, NSNumber *source))completion {
     dispatch_async(dispatch_get_main_queue(), ^{
-        if (completion) completion(nil, nil, nil, nil);
+        if (completion) completion(nil, nil, nil, nil, nil);
     });
 }
 

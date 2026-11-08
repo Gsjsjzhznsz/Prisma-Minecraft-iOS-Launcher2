@@ -49,7 +49,7 @@
 #import "authenticator/BaseAuthenticator.h"
 #import "authenticator/ThirdPartyAuthenticator.h"
 #import "AvatarManager.h"
-#import "ZL2SkinPreviewViewController.h"   // ★Task412 皮肤 3D 预览
+#import "ZL2SkinPreviewView.h"   // ★Task413 账户页内嵌皮肤 3D 预览（独立弹窗 VC 退役）
 #import "ThirdPartyLoginViewController.h"
 #import "NMToast.h"
 #import "LauncherPreferences.h"   // getPrefObject/setPrefObject/getPrefBool/setPrefBool
@@ -316,7 +316,7 @@ BOOL ZL2AccountsSharedIsThirdParty(NSDictionary *accountData) {
 @property (nonatomic, strong) UIImageView *identityAvatarView;
 @property (nonatomic, strong) UILabel *identityNameLabel;
 @property (nonatomic, strong) UILabel *identityTypeLabel;
-@property (nonatomic, strong) UIControl *skinPreviewButton;   // ★Task412 皮肤 3D 预览入口
+@property (nonatomic, strong) ZL2SkinPreviewView *skinPreviewView;   // ★Task413 内嵌皮肤 3D 预览（弹窗 VC 退役）
 
 // ② 添加账号大按钮
 @property (nonatomic, strong) UIControl *addAccountButton;
@@ -481,8 +481,12 @@ BOOL ZL2AccountsSharedIsThirdParty(NSDictionary *accountData) {
     fillWidth.active = YES;
 }
 
-// ① 账户视觉卡：surfaceContainerLow / radiusL，居中竖排（头像 64 + 名字 +
-//    类型）；无账号时头像 person.crop.circle.fill、名字「未登录」、类型隐藏
+// ① 账户视觉卡：surfaceContainerLow / radiusL；★Task413 起横向双栏——
+//    左栏头像 64 + 名字 + 类型（原居中竖排），右栏内嵌皮肤 3D 预览
+//    （第 22 轮复诉⑥「不应该单独一个界面…账号页面有这么多留白，直接在
+//    那里实现」：ZL2SkinPreviewViewController 弹窗退役，预览常驻卡内）；
+//    无账号时预览栏隐藏 + 头像 person.crop.circle.fill、名字「未登录」、
+//    类型隐藏
 - (void)buildIdentityCard {
     _identityCard = [[UIView alloc] init];
     _identityCard.backgroundColor = [ZL2Theme surfaceContainerLow];
@@ -519,52 +523,33 @@ BOOL ZL2AccountsSharedIsThirdParty(NSDictionary *accountData) {
     // 名字与类型之间的次级间距（头像/名字之间保持 12）
     [_identityStack setCustomSpacing:2 afterView:_identityNameLabel];
 
-    // ★Task412 皮肤 3D 预览入口（第 20 轮复诉⑥「在账号页面添加皮肤3d预览」）：
-    // 视觉卡底部小字钮（outlined 语义：描边 + onSurfaceVariant，radiusS），
-    // 无账号态隐藏（rebuildIdentityCard 随 identityTypeLabel 同步显隐）
-    _skinPreviewButton = [[UIControl alloc] init];
-    _skinPreviewButton.translatesAutoresizingMaskIntoConstraints = NO;
-    _skinPreviewButton.isAccessibilityElement = YES;
-    _skinPreviewButton.accessibilityTraits = UIAccessibilityTraitButton;
-    _skinPreviewButton.accessibilityLabel = localize(@"ame412.skin.preview.title", @"皮肤 3D 预览");
-    _skinPreviewButton.layer.cornerRadius = [ZL2Theme radiusS];
-    _skinPreviewButton.layer.borderWidth = 1.0;
-    _skinPreviewButton.layer.borderColor = [ZL2Theme outlineVariant].CGColor;
-    _skinPreviewButton.hidden = YES;
-    [_skinPreviewButton addTarget:self
-                           action:@selector(ame412_openSkinPreview)
-                 forControlEvents:UIControlEventTouchUpInside];
-    UILabel *ame412_btnLabel = [[UILabel alloc] init];
-    ame412_btnLabel.text = localize(@"ame412.skin.preview.button", @"3D 预览");
-    ame412_btnLabel.font = [ZL2Theme fontLabelLarge];
-    ame412_btnLabel.textColor = [ZL2Theme onSurfaceVariant];
-    ame412_btnLabel.numberOfLines = 1;
-    ame412_btnLabel.translatesAutoresizingMaskIntoConstraints = NO;
-    ame412_btnLabel.userInteractionEnabled = NO;
-    [_skinPreviewButton addSubview:ame412_btnLabel];
-    [_skinPreviewButton addConstraints:@[
-        [ame412_btnLabel.leadingAnchor constraintEqualToAnchor:_skinPreviewButton.leadingAnchor constant:14],
-        [ame412_btnLabel.trailingAnchor constraintEqualToAnchor:_skinPreviewButton.trailingAnchor constant:-14],
-        [ame412_btnLabel.topAnchor constraintEqualToAnchor:_skinPreviewButton.topAnchor constant:7],
-        [ame412_btnLabel.bottomAnchor constraintEqualToAnchor:_skinPreviewButton.bottomAnchor constant:-7],
-    ]];
+    // ★Task413 内嵌皮肤 3D 预览（视觉卡右半区，弹窗退役）：无账号态隐藏
+    //   （rebuildIdentityCard 随 identityTypeLabel 同步显隐 + 幂等重配置）
+    _skinPreviewView = [[ZL2SkinPreviewView alloc] initWithFrame:CGRectZero];
+    _skinPreviewView.translatesAutoresizingMaskIntoConstraints = NO;
+    _skinPreviewView.hidden = YES;
 
     [_identityCard addSubview:_identityStack];
-    [_identityCard addSubview:_skinPreviewButton];
+    [_identityCard addSubview:_skinPreviewView];
     [_contentStack addArrangedSubview:_identityCard];
     [NSLayoutConstraint activateConstraints:@[
-        [_identityStack.topAnchor constraintEqualToAnchor:_identityCard.topAnchor constant:20],
+        // 左栏：头像+名字+类型（前导自由，垂直居中；与预览栏保持 ≥12 缝）
+        [_identityStack.topAnchor constraintGreaterThanOrEqualToAnchor:_identityCard.topAnchor constant:20],
         [_identityStack.leadingAnchor constraintGreaterThanOrEqualToAnchor:_identityCard.leadingAnchor constant:16],
-        [_identityStack.trailingAnchor constraintGreaterThanOrEqualToAnchor:_identityCard.trailingAnchor constant:16],
-        [_identityStack.centerXAnchor constraintEqualToAnchor:_identityCard.centerXAnchor],
+        [_identityStack.centerYAnchor constraintEqualToAnchor:_identityCard.centerYAnchor],
 
         [_identityAvatarView.widthAnchor constraintEqualToConstant:64],
         [_identityAvatarView.heightAnchor constraintEqualToConstant:64],
 
-        [_skinPreviewButton.topAnchor constraintEqualToAnchor:_identityStack.bottomAnchor constant:12],
-        [_skinPreviewButton.bottomAnchor constraintEqualToAnchor:_identityCard.bottomAnchor constant:-16],
-        [_skinPreviewButton.centerXAnchor constraintEqualToAnchor:_identityCard.centerXAnchor],
-        [_skinPreviewButton.heightAnchor constraintGreaterThanOrEqualToConstant:30],
+        // 右栏：内嵌 3D 预览（190×224 固定幅面，尾缘 16 / 垂直居中）
+        [_skinPreviewView.trailingAnchor constraintEqualToAnchor:_identityCard.trailingAnchor constant:-16],
+        [_skinPreviewView.centerYAnchor constraintEqualToAnchor:_identityCard.centerYAnchor],
+        [_skinPreviewView.widthAnchor constraintEqualToConstant:190],
+        [_skinPreviewView.heightAnchor constraintEqualToConstant:224],
+
+        // 窄幅防挤：左栏尾缘不侵入预览栏（≥12 缝）+ 卡高下限（两栏并存呼吸）
+        [_identityStack.trailingAnchor constraintLessThanOrEqualToAnchor:_skinPreviewView.leadingAnchor constant:-12],
+        [_identityCard.heightAnchor constraintGreaterThanOrEqualToConstant:256],
     ]];
 }
 
@@ -695,28 +680,6 @@ BOOL ZL2AccountsSharedIsThirdParty(NSDictionary *accountData) {
     self.rowsStack.hidden = !hasAccounts;
 }
 
-// ★Task412 皮肤 3D 预览弹出（第 20 轮复诉⑥）：当前账户 username/profileId
-// 透传（Demo. 前缀剥除口径与显示名一致）；无账号态入口已隐藏不可达。
-- (void)ame412_openSkinPreview {
-    BaseAuthenticator *ame412_auth = [BaseAuthenticator.current isKindOfClass:BaseAuthenticator.class]
-        ? BaseAuthenticator.current : nil;
-    NSDictionary *ame412_data = ame412_auth.authData;
-    NSString *ame412_name = nil;
-    NSString *ame412_pid = nil;
-    if (ame412_data) {
-        NSString *ame412_u = ame412_data[@"username"];   // ★ NSString 声明（id 点语法 .length = run 42487051782 编译错判例）
-        if ([ame412_u isKindOfClass:[NSString class]] && ame412_u.length > 0) {
-            ame412_name = ([ame412_u hasPrefix:@"Demo."])
-                ? [ame412_u substringFromIndex:5] : ame412_u;
-        }
-        NSString *ame412_p = ame412_data[@"profileId"] ?: ame412_data[@"uuid"] ?: ame412_data[@"id"];
-        if ([ame412_p isKindOfClass:[NSString class]] && ame412_p.length > 0) ame412_pid = ame412_p;
-    }
-    ZL2SkinPreviewViewController *ame412_vc =
-        [[ZL2SkinPreviewViewController alloc] initWithUsername:ame412_name profileId:ame412_pid];
-    [self presentViewController:ame412_vc animated:YES completion:nil];
-}
-
 // —— ① 视觉卡：当前账号头像/名字/类型（无账号「未登录」，同主页口径）——
 - (void)rebuildIdentityCard {
     BaseAuthenticator *auth = BaseAuthenticator.current;
@@ -735,7 +698,9 @@ BOOL ZL2AccountsSharedIsThirdParty(NSDictionary *accountData) {
     self.identityNameLabel.text = displayName;
     self.identityTypeLabel.hidden = (authData == nil);
     self.identityTypeLabel.text = authData ? [self typeTextForAccountData:authData] : @"";
-    self.skinPreviewButton.hidden = (authData == nil);   // ★Task412：无账号隐藏预览入口
+    // ★Task413 内嵌预览随账号态显隐 + 幂等重配置（同账号跳过，换账号整组重取）
+    self.skinPreviewView.hidden = (authData == nil);
+    [self.skinPreviewView ame413_configureWithAuthData:authData];
     self.identityCard.accessibilityLabel =
         [NSString stringWithFormat:localize(@"ame369.acct.current_fmt", @"当前账户：%@"), displayName];
 

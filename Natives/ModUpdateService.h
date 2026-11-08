@@ -56,12 +56,17 @@ NS_ASSUME_NONNULL_BEGIN
 /// 诚实边界：零假数据）。
 /// @param mod 本地 Mod item（需有 filePath；fileSHA1 缺席时仅走 CF 指纹源）
 /// @param projectType 项目类型（mod/shader/resourcepack/datapack）
+/// ★Task413：completion 增补 source（1=Modrinth, 2=CurseForge）——第 22 轮
+/// 复诉「模组在线查询回归的模组链接请在启动器完成，直接跳转对应的模组
+/// 列表」：页面凭 source 路由 apiSource 推入内建版本列表页（拿 CF 数字
+/// ID 请求 Modrinth 拉不到版本的 Task247 判例同源）。
 - (void)fetchProjectInfoForMod:(ModItem *)mod
                     projectType:(NSString *)projectType
                      completion:(void (^)(NSString * _Nullable title,
                                           NSString * _Nullable summary,
                                           NSString * _Nullable iconURL,
-                                          NSString * _Nullable projectID))completion;
+                                          NSString * _Nullable projectID,
+                                          NSNumber * _Nullable source))completion;
 
 - (void)checkUpdatesForMods:(NSArray<ModItem *> *)mods
                gameVersion:(NSString *)gameVersion

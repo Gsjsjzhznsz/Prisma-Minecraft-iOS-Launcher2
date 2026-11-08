@@ -196,6 +196,8 @@ static const CGFloat AmeFlowSelectThreeAcrossDivisor = 2.8;
 
             // 条目手动摆位（帧驱动口径；条目内部子视图仍 AutoLayout）
             // ★Task412 镜像：横轴排布向翻转（停靠右 = 向随停靠面）
+            // ★Task413 点按反解同构翻转（镜像排布下 x→位相映射同步反向，
+            //   否则点右侧枚吸到左侧枚 = 镜像只翻一半的残留）
             CGFloat ame_originX = _ame_mirrored
                 ? (ame_centerX - ame_d * ame_pitch - ame_itemW / 2.0)
                 : (ame_centerX + ame_d * ame_pitch - ame_itemW / 2.0);
@@ -405,13 +407,15 @@ shouldBeRequiredToFailByGestureRecognizer:(UIGestureRecognizer *)otherGestureRec
             self.ame_dragStartOffset = self.ame_offset;
             break;
         case UIGestureRecognizerStateChanged: {
+            // ★Task413 手势恒指随（第 22 轮复诉③「转盘镜像搞反了…旋转方向
+            //   不符合左右手」判例）：412c 把拖动向随镜像面翻转 = 镜像侧
+            //   拖下内容上行的「倒拖」体感。左右手定谳：真实转盘无论从
+            //   哪侧握持，拖动方向恒跟手（转盘面在指下同向移动）= 镜像
+            //   只翻几何弧向，手势零翻转（Task412 拖向/惯性向翻转整体退役）。
             CGFloat ame_dDrag = ame_horizontal
                 ? [pan translationInView:self].x
                 : [pan translationInView:self].y;
-            // ★Task412 镜像：拖动向随停靠面翻转（镜像排布下不翻拖向 =
-            //   手指与内容反向的「倒拖」体感）
-            CGFloat ame_signed = _ame_mirrored ? -ame_dDrag : ame_dDrag;
-            CGFloat ame_raw = self.ame_dragStartOffset - ame_signed / [self pitch];
+            CGFloat ame_raw = self.ame_dragStartOffset - ame_dDrag / [self pitch];
             // 无边界循环：首尾相接，拖过最后一项继续回到第一项。
             self.ame_offset = ame_raw;
             self.ame_target = self.ame_offset;
@@ -425,10 +429,9 @@ shouldBeRequiredToFailByGestureRecognizer:(UIGestureRecognizer *)otherGestureRec
                 : [pan velocityInView:self].y;
             CGFloat ame_flick = 0.0;
             if (fabs(ame_v) > AmeFlowSelectFlickVelocity) {
-                // ★Task412 镜像：惯性甩动向同步翻转
-                ame_flick = _ame_mirrored
-                    ? ((ame_v > 0.0) ? 1.0 : -1.0)
-                    : ((ame_v > 0.0) ? -1.0 : 1.0);
+                // ★Task413 甩向恒定（与拖动同口径：跟手，镜像零翻转——
+                //   Task412 甩向翻转随 413 判例整体退役）
+                ame_flick = (ame_v > 0.0) ? -1.0 : 1.0;
             }
             CGFloat ame_dest = round(self.ame_offset) + ame_flick;
             self.ame_target = ame_dest;
@@ -446,7 +449,11 @@ shouldBeRequiredToFailByGestureRecognizer:(UIGestureRecognizer *)otherGestureRec
     // 点按位置 → 位相反解（点哪枚吸哪枚；点居中条目 = 重选自己 = 落定不回调）
     CGFloat ame_hit;
     if (ame_horizontal) {
-        ame_hit = self.ame_offset + (ame_pt.x - CGRectGetMidX(self.bounds)) / [self pitch];
+        // ★Task413 镜像排布点按反解（与横向排布向翻转同构：x→位相映射
+        //   反向，点哪枚吸哪枚在左右停靠两侧同语义）
+        ame_hit = _ame_mirrored
+            ? self.ame_offset - (ame_pt.x - CGRectGetMidX(self.bounds)) / [self pitch]
+            : self.ame_offset + (ame_pt.x - CGRectGetMidX(self.bounds)) / [self pitch];
     } else {
         ame_hit = self.ame_offset + (ame_pt.y - CGRectGetMidY(self.bounds)) / [self pitch];
     }

@@ -147,6 +147,19 @@ static NSString *ame133_skinAvatarPath(NSString *accountId) {
     return [dir stringByAppendingPathComponent:[NSString stringWithFormat:@"skin-%@.png", key]];
 }
 
+// ★Task413 全皮落盘路径（skinfull- 前缀 = 原始全皮 PNG；与 skin- 渲染头像
+// 键空间互不冲突）。类方法公开 = 账户页内嵌预览优先读盘 = 离线真皮。
++ (NSString *)ame413_fullSkinPathForAccountId:(NSString *)accountId {
+    if (![accountId isKindOfClass:NSString.class] || accountId.length == 0) return nil;
+    NSString *docs = [NSSearchPathForDirectoriesInDomains(NSDocumentDirectory, NSUserDomainMask, YES) firstObject];
+    NSString *dir = [docs stringByAppendingPathComponent:@"avatars"];
+    [[NSFileManager defaultManager] createDirectoryAtPath:dir
+                              withIntermediateDirectories:YES
+                                               attributes:nil
+                                                    error:nil];
+    return [dir stringByAppendingPathComponent:[NSString stringWithFormat:@"skinfull-%@.png", accountId]];
+}
+
 /// Task 133：下载真实皮肤 PNG 并本地渲染头像（在后台线程回调）。
 /// 成功返回 file:// URL 字符串，失败返回 nil（调用方走 helm/mc-heads 兜底）。
 /// 注意：skinURL 是 profile 响应里的一次性签名 URL，必须立即下载——
@@ -164,6 +177,14 @@ static void ame133_downloadAndCacheAvatar(NSString *skinURL,
                                   completionHandler:^(NSData *data, NSURLResponse *resp, NSError *error) {
         NSString *result = nil;
         if (data != nil && error == nil) {
+            // ★Task413 全皮持久化（原始 PNG 原字节落盘；账户页内嵌预览与
+            //   后续消费方离线读真皮，不再依赖一次性签名 URL）
+            NSString *ame413_fullPath = [ThirdPartyAuthenticator ame413_fullSkinPathForAccountId:accountId];
+            if (ame413_fullPath) {
+                [data writeToFile:ame413_fullPath atomically:YES];
+                NSLog(@"[ThirdPartyAuthenticator] Task413: full skin persisted %@",
+                      ame413_fullPath.lastPathComponent);
+            }
             UIImage *skin = [UIImage imageWithData:data];
             UIImage *avatar = ame133_renderAvatarFromSkin(skin);
             if (avatar != nil) {

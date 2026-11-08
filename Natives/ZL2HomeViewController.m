@@ -113,7 +113,7 @@ static const CGFloat ZL2HomeMenuWidthMax     = 300;
 static const CGFloat ZL2HomeMenuWidthMin     = 220;
 static const CGFloat ZL2HomeGridSpacing      = 6;     // 卡片间距（行/列同值）
 static const CGFloat ZL2HomeGridInsetH       = 12;    // section 左右 inset
-static const CGFloat ZL2HomeGridInsetTop     = 12;    // section 顶 inset
+static const CGFloat ZL2HomeGridInsetTop     = 28;    // section 顶 inset（★Task413 安全区二轮 12→28：MD3 顶部呼吸带，第 22 轮「顶部安全区不够」）
 static const CGFloat ZL2HomeGridInsetBottom  = 16;    // section 底 inset
 static const CGFloat ZL2HomeCardHeight       = 132;   // 实例卡高
 static const CGFloat ZL2HomeCardMinWidth     = 140;   // 窄屏降列阈值（列宽低于则减列）
@@ -1613,7 +1613,9 @@ static UIImage *ZL2HomeSizedImage(NSString *name, NSString *fallback, CGFloat po
 
         // 纵向：菜单列贴安全区上下（内边距由 menuStack 承担）；
         // 内容区贴安全区上下（网格 inset 承担留白）
-        [menu.topAnchor constraintEqualToAnchor:safe.topAnchor constant:8],
+        // ★Task413 安全区二轮：菜单顶距 8→12（与网格 28 同轮加档；
+        // iPhone 全面屏刘海空间由 safe 布局指南锚点天然涵盖）
+        [menu.topAnchor constraintEqualToAnchor:safe.topAnchor constant:12],
         [menu.bottomAnchor constraintEqualToAnchor:safe.bottomAnchor constant:-8],
         [content.topAnchor constraintEqualToAnchor:safe.topAnchor],
         [content.bottomAnchor constraintEqualToAnchor:safe.bottomAnchor],

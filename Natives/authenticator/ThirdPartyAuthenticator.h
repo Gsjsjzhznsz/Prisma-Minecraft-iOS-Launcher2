@@ -19,6 +19,12 @@ NS_ASSUME_NONNULL_END
 - (void)refreshTokenWithCallback:(Callback)callback;
 - (NSArray *)getJvmArgsForAuthlib;
 
+/// ★Task413 全皮落盘路径（Documents/avatars/skinfull-<accountId>.png；ame133
+/// 链在下载真实皮肤时同步持久化原始全皮 PNG）——账户页内嵌皮肤 3D 预览
+/// 优先读此文件 = 离线真实皮肤（第三方账户不再回退默认 Alex 的根修之一）；
+/// accountId 为空返回 nil（未登录/无账户身份时无盘可读）。
++ (nullable NSString *)ame413_fullSkinPathForAccountId:(nullable NSString *)accountId;
+
 /// Task133 皮肤纹理链的对外入口：重取当前角色的皮肤纹理 → 本地渲染头像 →
 /// saveChanges。★ Task224 起由账号列表在换肤成功后调用（刷新头像与 UI）。
 - (void)fetchProfileTextureWithCallback:(Callback)callback;

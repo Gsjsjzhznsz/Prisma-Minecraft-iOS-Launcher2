@@ -4,7 +4,8 @@
 # 口径：同款拼接行 = 产出字符串逐字节一致）。输出写到 /tmp/ame365_v5_archive.txt
 import subprocess, io, os, sys
 
-REPO = "/home/z/my-project/repo-prisma2"
+import os as _os
+REPO = _os.environ.get("AME_REPO", "/home/z/my-project/repo-prisma2")
 src = subprocess.run(
     ["git", "-C", REPO, "show", "HEAD:Natives/AI/AiSettings.m"],
     capture_output=True, text=True, check=True).stdout.replace("\r\n", "\n")

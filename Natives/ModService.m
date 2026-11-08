@@ -1366,6 +1366,17 @@ static BOOL ame329_moveEntry(NSFileManager *fm, NSString *src, NSString *dstDir,
                         mod.gameVersion = deps[@"minecraft"];
                     }
 
+                    // ★Task413 jar 内链接提取（第 22 轮复诉「模组在线查询回归的
+                    //   模组链接…除非 jar 里面写的链接不是 cf 或者 mod 源的网站
+                    //   才跳转」）：fabric.mod.json contact.homepage 为主页链接
+                    //   源（ModItem.homepage 既有字段首度接线；cardTapped 按
+                    //   cf/modrinth 域分流内跳/外跳）
+                    NSDictionary *contact = json[@"contact"];
+                    if ([contact isKindOfClass:[NSDictionary class]] &&
+                        [contact[@"homepage"] isKindOfClass:[NSString class]]) {
+                        mod.homepage = contact[@"homepage"];
+                    }
+
                     NSString *iconPath = json[@"icon"];
                     if ([iconPath isKindOfClass:[NSString class]]) {
                         NSData *iconData = [self readFileFromJar:mod.filePath entryName:iconPath];
@@ -1398,6 +1409,12 @@ static BOOL ame329_moveEntry(NSFileManager *fm, NSString *src, NSString *dstDir,
                         mod.modDescription = modInfo[@"description"];
                         mod.author = modInfo[@"authors"];
 
+                        // ★Task413 jar 内链接提取（mods.toml displayURL；同上
+                        //   cardTapped 域分流口径）
+                        if ([modInfo[@"displayURL"] isKindOfClass:[NSString class]]) {
+                            mod.homepage = modInfo[@"displayURL"];
+                        }
+
                         NSArray *deps = nil;
                         for (NSString *key in toml) {
                             if ([key hasPrefix:@"dependencies"]) {
@@ -1427,6 +1444,33 @@ static BOOL ame329_moveEntry(NSFileManager *fm, NSString *src, NSString *dstDir,
         } @catch (NSException *exception) {
             NSLog(@"[ModService] CRITICAL: Exception while parsing %@: %@", mod.fileName, exception);
         }
+
+        // ★Task413 旧版 Forge 兼容：mcmod.info 补遗（fabric/neo-toml 均缺席时）
+        //   ——「url」字段 = jar 内主页链接第三源（cardTapped 域分流同口径）；
+        //   元数据主体（名称/图标）仍按旧口径零变动（mcmod 只补链接缺席面）。
+        @try {
+            if (mod.homepage.length == 0) {
+                NSData *mcmodData = [self readFileFromJar:mod.filePath entryName:@"mcmod.info"];
+                if (mcmodData) {
+                    id mcmod = [NSJSONSerialization JSONObjectWithData:mcmodData options:0 error:nil];
+                    NSDictionary *firstMod = nil;
+                    if ([mcmod isKindOfClass:[NSArray class]] && mcmod.count > 0) {
+                        firstMod = mcmod.firstObject;
+                    } else if ([mcmod isKindOfClass:[NSDictionary class]]) {
+                        NSArray *modList = mcmod[@"modList"];
+                        if ([modList isKindOfClass:[NSArray class]] && modList.count > 0) firstMod = modList.firstObject;
+                        else firstMod = mcmod;   // 单对象形态（部分旧 jar）
+                    }
+                    if ([firstMod isKindOfClass:[NSDictionary class]] &&
+                        [firstMod[@"url"] isKindOfClass:[NSString class]]) {
+                        mod.homepage = firstMod[@"url"];
+                    }
+                }
+            }
+        } @catch (NSException *exception) {
+            NSLog(@"[ModService] mcmod.info link probe exception (%@): %@", mod.fileName, exception);
+        }
+
         if (completion) completion(mod, nil);
     });
 }

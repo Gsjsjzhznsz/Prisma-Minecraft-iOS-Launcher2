@@ -523,8 +523,9 @@ add_executable(AngelAuraAmethyst
   ZL2AssetSearchViewController.m
   ZL2VersionsViewController.m
   ZL2AccountsViewController.m
-  # ★ Task412：账户页皮肤 3D 预览（SceneKit 盒体模型，六面 UV 裁贴皮肤纹理）
-  ZL2SkinPreviewViewController.m
+  # ★ Task413：账户页内嵌皮肤 3D 预览视图（纯 CALayer CATransform3D 盒体，
+  #   Y 轴翻转根修 + yggdrasil 真皮链 + slim 模型；412f 独立弹窗 VC 退役）
+  ZL2SkinPreviewView.m
   ZL2SettingsViewController.m
   # 7.0-UI-11：启动链版本索引服务（FindVersionInRemoteList 契约迁出旧壳）
   ZL2VersionIndex.m

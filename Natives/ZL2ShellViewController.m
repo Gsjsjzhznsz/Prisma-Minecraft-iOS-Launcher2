@@ -115,7 +115,7 @@ static const CGFloat ZL2ShellAnimateDuration = 0.24;    // 全壳动画时长（
 // ★ Task347 NavigationView 骨架常量（WinUI 布局溯源：4pt 栅格）
 static const CGFloat ZL2ShellPaneWidth = 280.0;         // 窗格宽（WinUI open 320 紧凑化）
 static const CGFloat ZL2ShellPaneCompactWidth = 64.0;   // ★ Task376 折叠态图标栏宽（WinUI compact）
-static const CGFloat ZL2ShellHeaderHeight = 52.0;       // 大标题内容区头高
+static const CGFloat ZL2ShellHeaderHeight = 64.0;       // 大标题内容区头高（★Task413 安全区二轮 52→64，呼吸带加高一档）
 static const CGFloat ZL2ShellRegularMinWidth = 640.0;   // ≥ 此宽常驻窗格（窄屏抽屉）
 
 // SF Symbols 取图兜底（ZL2HomeViewController 同款静态 helper）：基名优先，
@@ -391,6 +391,7 @@ static UIImage *ZL2ShellSystemImageSizedEx(NSString *name, NSString *fallback, C
 @property(nonatomic, copy) NSString *ame403_symbolName;     // ★ Task403：符号名留档（折叠/展开切换时按点数重生成字形）
 @property(nonatomic, copy) NSString *ame403_fallbackName;   // ★ Task403：兜底符号名（同上）
 @property(nonatomic, assign) CGFloat ame405_glyphBBox;  // ★Task405：最近一次字形实测包围盒（pt）
+@property(nonatomic, assign) CGFloat ame413_appliedGlyphPt; // ★Task413：最近一次已应用字形点数（幂等锁，-1 = 未应用）
 @end
 
 @implementation ZL2ShellNavItem
@@ -537,7 +538,15 @@ static UIImage *ZL2ShellSystemImageSizedEx(NSString *name, NSString *fallback, C
     //   = 居中路径亦二态退役（Task402/403/404/410 历史判例注释留档 git）。
     self.ame402_iconSize.constant = 24.0;   // ★Task412：回档 24 恒定（38 否决）
     self.ame376_iconLeading.constant = 14.0;   // ★Task412：(52−24)/2 恒居中
-    [self ame_applyIconGlyphSize:24.0];   // ★Task412：字形与盒同源恒定（幂等重生成）
+    // ★Task413 字形重生幂等锁（第 22 轮复诉「fui图标依旧被带动调节」）：
+    //   ame376_applyPaneGeometry 在每次宽窄态派发/旋转/分屏阈值穿越都重入
+    //   ame_setCompact，旧实现无条件重生成 SF Symbol 图（ZL2Shell-
+    //   SystemImageSizedEx 重栅格化）= 同值重渲染闪变体感（「被带动」）。
+    //   幂等锁：点数同值直接跳过重生（首应用仍必走 = 初始化路径零回归）。
+    if (_ame413_appliedGlyphPt != 24.0) {
+        [self ame_applyIconGlyphSize:24.0];   // ★Task412：字形与盒同源恒定
+        _ame413_appliedGlyphPt = 24.0;
+    }
 }
 
 // ★ Task402：折叠几何自证读数（[Ame388] 日志扩展读数源）
@@ -906,8 +915,9 @@ static UIImage *ZL2ShellSystemImageSizedEx(NSString *name, NSString *fallback, C
     }];
 
     [NSLayoutConstraint activateConstraints:@[
-        // 钉 safeArea 右上（含横竖屏/分屏自适应），浮于全部子页之上
-        [self.ame411_switcherCluster.topAnchor constraintEqualToAnchor:self.view.safeAreaLayoutGuide.topAnchor constant:8.0],
+        // 钉 safeArea 右上（含横竖屏/分屏/iPhone 刘海自适应），浮于全部子页之上
+        //   ★Task413 安全区二轮：顶距 8→12（MD3 悬浮面呼吸带同档加高）
+        [self.ame411_switcherCluster.topAnchor constraintEqualToAnchor:self.view.safeAreaLayoutGuide.topAnchor constant:12.0],
         [self.ame411_switcherCluster.trailingAnchor constraintEqualToAnchor:self.view.safeAreaLayoutGuide.trailingAnchor constant:-8.0],
         [ame411_stack.topAnchor constraintEqualToAnchor:self.ame411_switcherCluster.topAnchor constant:6.0],
         [ame411_stack.bottomAnchor constraintEqualToAnchor:self.ame411_switcherCluster.bottomAnchor constant:-6.0],
@@ -1232,7 +1242,11 @@ static UIImage *ZL2ShellSystemImageSizedEx(NSString *name, NSString *fallback, C
         [self.paneFooterStack.bottomAnchor constraintEqualToAnchor:self.paneWrap.safeAreaLayoutGuide.bottomAnchor constant:-6.0],
 
         [self.contentHeader.topAnchor constraintEqualToAnchor:self.view.topAnchor],
-        // 与 topBar 同款 safeArea 延伸语义：头底 = safeArea 顶 + 52
+        // 与 topBar 同款 safeArea 延伸语义：头底 = safeArea 顶 + 64
+        //   ★Task413 安全区二轮（第 22 轮复诉①「顶部安全区不够」）：
+        //   ZL2ShellHeaderHeight 52→64，呼吸带加高一档；iPhone 全面屏刘海
+        //   空间由 safeAreaLayoutGuide 锚点天然涵盖（guide.top = 刘海实测
+        //   内缩），头带加高同步增大刘海下内容净距
         [self.contentHeader.bottomAnchor constraintEqualToAnchor:self.view.safeAreaLayoutGuide.topAnchor
                                                         constant:ZL2ShellHeaderHeight],
         // ★ Task350：头前导可变——宽屏 = 窗格宽（280，与内容区对齐，大标题/
@@ -1245,26 +1259,26 @@ static UIImage *ZL2ShellSystemImageSizedEx(NSString *name, NSString *fallback, C
 
         [self.hamburgerButton.leadingAnchor constraintEqualToAnchor:self.contentHeader.safeAreaLayoutGuide.leadingAnchor constant:8.0],
         // ★ Task412 安全区（第 20 轮复诉①「md3界面上面不会留点安全区域」）：
-        //   头内容行 centerY 改锚 safeArea 顶 + 26 = 落在头带下半（52pt 带
-        //   减去状态栏后的可用区居中），不再钻进状态栏带（IMG_0590/0592
-        //   Prisma II/标题顶到状态栏实锤）；头背景面仍全出血铺到状态栏后
-        //   （surface 色延伸视觉零变化）
-        [self.hamburgerButton.centerYAnchor constraintEqualToAnchor:self.view.safeAreaLayoutGuide.topAnchor constant:26.0],
+        //   头内容行 centerY 改锚 safeArea 顶 = 落在头带下半（头带减去状态
+        //   栏后的可用区居中），不再钻进状态栏带（IMG_0590/0592 实锤）；
+        //   头背景面仍全出血铺到状态栏后（surface 色延伸视觉零变化）。
+        //   ★Task413 安全区二轮：+26→+32（头带 64 下居中呼吸）
+        [self.hamburgerButton.centerYAnchor constraintEqualToAnchor:self.view.safeAreaLayoutGuide.topAnchor constant:32.0],
 
         [self.navBackButton.leadingAnchor constraintEqualToAnchor:self.contentHeader.safeAreaLayoutGuide.leadingAnchor constant:8.0],
-        [self.navBackButton.centerYAnchor constraintEqualToAnchor:self.view.safeAreaLayoutGuide.topAnchor constant:26.0],
+        [self.navBackButton.centerYAnchor constraintEqualToAnchor:self.view.safeAreaLayoutGuide.topAnchor constant:32.0],
 
         // ★ Task349：大标题前导改为可变约束——窄屏汉堡/返回钮（32pt 槽位）
         //   与标题同位重叠，由 ame_refreshNavShellStateAnimated 按可见性派发。
         self.ame347_headerLeading = [self.headerTitle.leadingAnchor constraintEqualToAnchor:self.contentHeader.safeAreaLayoutGuide.leadingAnchor constant:16.0],
         self.ame347_headerLeading,
-        [self.headerTitle.centerYAnchor constraintEqualToAnchor:self.view.safeAreaLayoutGuide.topAnchor constant:26.0],
+        [self.headerTitle.centerYAnchor constraintEqualToAnchor:self.view.safeAreaLayoutGuide.topAnchor constant:32.0],
         [self.headerTitle.trailingAnchor constraintLessThanOrEqualToAnchor:self.taskPill.leadingAnchor constant:-12.0],
 
         // ★ Task393：动作簇约束随簇上收共享路径（viewDidLoad），nav 骨架
         //   仅保留任务胶囊锚头区右缘（fui 模式簇隐藏，胶囊贴右缘不重叠）
         [self.taskPill.trailingAnchor constraintEqualToAnchor:self.contentHeader.safeAreaLayoutGuide.trailingAnchor constant:-12.0],
-        [self.taskPill.centerYAnchor constraintEqualToAnchor:self.view.safeAreaLayoutGuide.topAnchor constant:26.0],
+        [self.taskPill.centerYAnchor constraintEqualToAnchor:self.view.safeAreaLayoutGuide.topAnchor constant:32.0],
 
         [self.container.topAnchor constraintEqualToAnchor:self.contentHeader.bottomAnchor],
         self.ame347_contentLeading,

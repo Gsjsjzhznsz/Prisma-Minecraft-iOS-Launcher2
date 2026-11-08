@@ -20,9 +20,9 @@ static NSString *const ame217_qqGroup = @"1126547426";
 /// ★ 构建代际锚（Task407 立，随交付轮次推进）：Info.plist 双键静态（每代构建
 ///   关于页版本行同值），装机代际无从辨认 = 用户实机滞留旧构建多轮复诉的
 ///   结构性盲区（Task402~406 五轮修复从未装机对勘无门）。版本行追加源码级
-///   构建代号：关于页读到 Task412 = 本轮新构建在机，无此标 = 仍在旧构建。
+///   构建代号：关于页读到 Task413 = 本轮新构建在机，无此标 = 仍在旧构建。
 ///   纯构建标识非用户文案，零 i18n 键（同 [Ame406] 日志锚纪律）。
-static NSString *const ame412_buildTag = @"Task412 · 2026-11-08";
+static NSString *const ame413_buildTag = @"Task413 · 2026-11-08";
 
 @interface AboutViewController ()
 @property (nonatomic, strong) UIScrollView *scrollView;
@@ -168,7 +168,7 @@ static NSString *const ame412_buildTag = @"Task412 · 2026-11-08";
     NSString *version = [NSBundle.mainBundle objectForInfoDictionaryKey:@"CFBundleShortVersionString"] ?: @"?";
     NSString *build = [NSBundle.mainBundle objectForInfoDictionaryKey:@"CFBundleVersion"] ?: version;
     // ★ 构建代际锚：版本行追加构建代号（ame412_buildTag），装机代际一眼可验。
-    self.versionValueLabel = [self ame217_labelText:[NSString stringWithFormat:@"%@ (%@)\n%@", version, build, ame412_buildTag]
+    self.versionValueLabel = [self ame217_labelText:[NSString stringWithFormat:@"%@ (%@)\n%@", version, build, ame413_buildTag]
         font:[UIFont systemFontOfSize:14 weight:UIFontWeightMedium]
         color:[AmeTheme textSecondary]];
     self.versionValueLabel.numberOfLines = 0;

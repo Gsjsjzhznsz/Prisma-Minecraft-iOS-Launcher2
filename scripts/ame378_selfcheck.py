@@ -259,10 +259,10 @@ check("C12 转盘字体恒定（★Task407：封面流条目随 |d| 缩放时缩
       and "ame400_nameLabel.lineBreakMode = NSLineBreakByTruncatingTail;" in home
       and "ame400_typeLabel.lineBreakMode = NSLineBreakByTruncatingTail;" in home)
 
-check("C13 构建代际锚（★Task407 立 408/409/410/411 推进 Task412 推进：关于页版本行追加源码级构建代号\n      ame412_buildTag —— Info.plist 双键静态致装机代际不可辨 = 旧构建滞留循环的\n      结构性盲区，关于页读到 Task412 = 本轮新构建在机）",
-      "ame412_buildTag" in about_code
-      and "Task412" in about
-      and about_code.count("ame412_buildTag") >= 2
+check("C13 构建代际锚（★Task407 立 408/409/410/411/412 推进 Task413 推进：关于页版本行追加源码级构建代号\n      ame413_buildTag —— Info.plist 双键静态致装机代际不可辨 = 旧构建滞留循环的\n      结构性盲区，关于页读到 Task413 = 本轮新构建在机）",
+      "ame413_buildTag" in about_code
+      and "Task413" in about
+      and about_code.count("ame413_buildTag") >= 2
       and "numberOfLines = 0" in about_code)
 
 check("C14 换边恢复+瓦片二度退役+排序退役（★Task408 立 ★Task410 重锚 ★Task411 终局——\n      ①面板长按换边手势+实现体+持久化恢复回装（镜像随 applySide→applyPanelMirror\n      链自动生效）；②五瓦片二度退役：★Task411 第 19 轮用户钦定「一开始的无文字\n      右上角小型的切换按钮」= 壳层 ame411_switcherCluster 悬浮图标胶囊（屏幕\n      右上 safeArea 常驻）接棒 bare 全场景唯一切换区，五瓦片（有文字大瓦片）\n      无条件 hidden=「固定形态」收敛（408 判例回归，条件化断言退役）；③排序长按\n      挂接退役（restoreSidebarCardOrder 保留），提示语回原键）",
@@ -318,15 +318,58 @@ check("C17 右上角无文字切换簇回归+rail 图标回档恒定（★Task41
       and "setContentCompressionResistancePriority:UILayoutPriorityRequired forAxis:UILayoutConstraintAxisHorizontal" in shell_code
       and "ZL2ShellRailItemIconSize = 24.0" in shell)
 
-check("C18 转盘镜像+模组行对齐（★Task412 第 20 轮复诉③④——①AmeFlowSelectView\n      ame_mirrored：竖轴弧向外移方向翻转 + 横轴排布/拖动/惯性向翻转，宿主\n      ame_applyPanelMirror 双流挂接（右停靠 = 镜像）；②模组行卡 trailing\n      LessThanOrEqualTo → 等式钉卡缘 + spacer 拥抱 248 独家吸收 = 全列\n      开关/删除右缘垂直对齐（IMG_0593 五行五位置漂移实锤根修））",
+check("C18 转盘镜像+模组行对齐（★Task412 立 ★Task413 重锚——①AmeFlowSelectView\n      ame_mirrored：竖轴弧向外移方向翻转 + 横轴排布向翻转 + 横轴点按反解同构\n      翻转；★Task413 手势恒指随判例：拖动/惯性向翻转整体退役（镜像只翻几何，\n      手势零翻转 = 左右手握持侧拖动恒跟手），宿主 ame_applyPanelMirror 双流\n      挂接（右停靠 = 镜像）；②模组行卡 trailing LessThanOrEqualTo → 等式钉卡缘\n      + spacer 拥抱 248 独家吸收 = 全列开关/删除右缘垂直对齐）",
       "ame_mirrored" in flow_code
       and "setAme_mirrored:" in flow_code
-      and flow_code.count("_ame_mirrored") >= 6   # setter×2 + 横轴排布 + 竖轴外移 + 拖向 + 甩向翻转
+      and flow_code.count("_ame_mirrored") >= 5   # setter×2 + 横轴排布 + 竖轴外移 + 点按反解（拖/甩翻转已退役）
+      and "ame_signed = _ame_mirrored" not in flow_code   # ★Task413 拖向翻转退役零残留
+      and "ame_flick = _ame_mirrored" not in flow_code    # ★Task413 甩向翻转退役零残留
+      and "self.ame_offset - (ame_pt.x" in flow_code       # 横轴镜像点按反解在位
       and "self.accountFlow.ame_mirrored" in home_code
       and "self.versionFlow.ame_mirrored" in home_code
       and "row.trailingAnchor constraintEqualToAnchor:card.trailingAnchor" in vpages
       and "constraintLessThanOrEqualToAnchor:card.trailingAnchor" not in vpages_code
       and "setContentHuggingPriority:248 forAxis:UILayoutConstraintAxisHorizontal" in vpages_code)
+
+shell_h = read("Natives/ZL2ShellViewController.h")
+accounts_code = strip_code(read("Natives/ZL2AccountsViewController.m"))
+skinview = read("Natives/ZL2SkinPreviewView.m")
+skinview_code = strip_code(skinview)
+skinview_raw = skinview   # 字符串字面量断言走 raw（strip_code 剥字面量内容）
+auth3p_code = strip_code(read("Natives/authenticator/ThirdPartyAuthenticator.m"))
+auth3p_raw = read("Natives/authenticator/ThirdPartyAuthenticator.m")
+modupd_code = strip_code(read("Natives/ModUpdateService.m"))
+modsvc_code = strip_code(read("Natives/ModService.m"))
+modsvc_raw = read("Natives/ModService.m")   # 字符串字面量断言走 raw（strip_code 剥字面量内容）
+
+# C19 断言子句化（逐条可读；失败时打印首个未命中子句名）
+ame378_c19 = [
+    ("hdr64", "ZL2ShellHeaderHeight = 64.0" in shell),
+    ("cy32", "safeAreaLayoutGuide.topAnchor constant:32.0]" in shell_code),
+    ("cap12", "safeAreaLayoutGuide.topAnchor constant:12.0]" in shell_code),
+    ("grid28", "ZL2HomeGridInsetTop     = 28" in home),
+    ("glyph-lock", "_ame413_appliedGlyphPt" in shell_code),
+    ("glyph-skip", "ame413_appliedGlyphPt != 24.0" in shell_code),
+    ("source-sig", "NSNumber *source))completion" in modupd_code),   # .m 签名（.h 同增 _Nullable 形态）
+    ("v13-push", "ameV13_pushVersionListWithProjectId" in vpages_code),
+    ("v13-pidmap", "ameV13_projectIdByPath" in vpages_code),
+    ("mvc-import", "ModVersionViewController.h" in vpages),
+    ("svc-contact", 'contact[@"homepage"]' in modsvc_raw),
+    ("svc-mcmod", 'entryName:@"mcmod.info"' in modsvc_raw),
+    ("acct-inline", "ZL2SkinPreviewView" in accounts_code),
+    ("btn-retired", "skinPreviewButton" not in accounts_code),
+    ("y-flip", "-(ame413_box.cy - 16.0)" in skinview_code),          # Y 翻转根修（盒心层空间取负）
+    ("top-face", "ame413_offY = -ame413_box.h / 2.0" in skinview_code),   # 顶面层空间上偏
+    ("slim-arms", "ZL2SkinViewRArmSlimFaces" in skinview_code),      # slim 模型表在位
+    ("yggdrasil", "sessionserver/session/minecraft/profile" in skinview_raw),   # 真皮链（字面量 raw）
+    ("full-skin-path", "ame413_fullSkinPathForAccountId" in auth3p_code),
+    ("full-skin-disk", "skinfull-" in auth3p_raw),   # 全皮落盘（字面量 raw）
+]
+ame378_c19_fail = [n for n, ok in ame378_c19 if not ok]
+if ame378_c19_fail and os.environ.get("AME378_DEBUG"):
+    print("  C19 failing clauses:", ", ".join(ame378_c19_fail))
+check("C19 安全区二轮+模组链接内跳+皮肤预览内嵌真皮链（★Task413 第 22 轮复诉五项——\n      ①安全区二轮：壳头带 64 / 内容行 centerY 32 / 胶囊顶距 12 / 主页网格顶距 28\n      （iPhone 刘海由 safeAreaLayoutGuide 锚点天然涵盖）；②fui 图标字形重生幂等锁\n      （ame413_appliedGlyphPt 同值跳过 = 调节不再带动图标重渲染）；③模组链接内跳：\n      fetchProjectInfoForMod completion 增补 source + ameV13_projectIdByPath 路由 +\n      ModVersionViewController 推入 + jar 链接三源提取（ModService homepage）；\n      ④皮肤预览内嵌：ZL2SkinPreviewView 账户卡右栏 + Y 轴翻转（y_l = −(y_m−16)）\n      + 左右面换位 + slim 模型 + yggdrasil 真皮链 + skinfull-<accountId>.png 全皮落盘）",
+      all(ok for _, ok in ame378_c19))
 
 # ══ S 反向探针（--selftest：变体注入必翻红） ═══════════════════════
 
@@ -346,8 +389,8 @@ if "--selftest" in sys.argv:
     rcheck("S-C1", home_code + "ame378_buildQuickNav", "ame378_buildQuickNav" in (home_code + "ame378_buildQuickNav"))
     rcheck("S-C12", home_code + "ame400_nameLabel.adjustsFontSizeToFitWidth = YES;",
            "ame400_nameLabel.adjustsFontSizeToFitWidth" in (home_code + "ame400_nameLabel.adjustsFontSizeToFitWidth = YES;"))
-    rcheck("S-C13", about_code.replace("ame412_buildTag", "ame411_buildTag"),
-           "ame412_buildTag" not in about_code.replace("ame412_buildTag", "ame411_buildTag"))   # ★Task412 有效化：代标回退变体 → C13 必翻红
+    rcheck("S-C13", about_code.replace("ame413_buildTag", "ame412_buildTag"),
+           "ame413_buildTag" not in about_code.replace("ame413_buildTag", "ame412_buildTag"))   # ★Task413 有效化：代标回退变体 → C13 必翻红
     rcheck("S-C14", home_code + "action:@selector(handleSidebarReorder:)",
            "action:@selector(handleSidebarReorder:)" in (home_code + "action:@selector(handleSidebarReorder:)"))
     # ★Task410 S-C16：弧度常量抹除变体 → C16 必翻红
@@ -358,10 +401,16 @@ if "--selftest" in sys.argv:
                                        "self.ame402_iconSize.constant = 38.0;"),
            "self.ame402_iconSize.constant = 38.0;" in shell_code.replace("self.ame402_iconSize.constant = 24.0;",
                                                                          "self.ame402_iconSize.constant = 38.0;"))
+    # ★Task413 S-C18：拖向翻转回潮变体 → C18 必翻红（手势恒指随判例破坏检出）
+    rcheck("S-C18", flow_code + "CGFloat ame_signed = _ame_mirrored ? -1.0 : 1.0;",
+           "ame_signed = _ame_mirrored" in (flow_code + "CGFloat ame_signed = _ame_mirrored ? -1.0 : 1.0;"))
+    # ★Task413 S-C19：Y 轴翻转抹除变体 → C19 必翻红（IMG_0596 倒置根修破坏检出）
+    rcheck("S-C19", skinview_code.replace("-(ame413_box.cy - 16.0)", "(ame413_box.cy - 16.0)"),
+           "-(ame413_box.cy - 16.0)" not in skinview_code.replace("-(ame413_box.cy - 16.0)", "(ame413_box.cy - 16.0)"))
     if rf:
         print(f"  SELFTEST FAILED: {rf}")
         sys.exit(1)
-    print(f"  selftest {rp}/8 probes red as expected")
+    print(f"  selftest {rp}/10 probes red as expected")
 
 print(f"ame378_selfcheck: {passed} passed, {len(fails)} failed")
 if fails:
