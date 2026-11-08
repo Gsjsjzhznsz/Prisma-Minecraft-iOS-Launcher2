@@ -169,7 +169,7 @@
                     projectType:(NSString *)projectType
                      completion:(void (^)(NSString *title, NSString *summary, NSString *iconURL, NSString *projectID))completion {
     if (!mod || mod.filePath.length == 0) {
-        [self ame412_finishWithDict:nil completion:completion];   // 参数缺席 = 诚实空回调
+        [self ame412_finishWithDict:completion];   // 参数缺席 = 诚实空回调（单参签名）
         return;
     }
 
@@ -251,7 +251,7 @@
         [self ame412_finishWithDict:completion];
         return;
     }
-    void (^ame412_done)(NSDictionary *_Nullable) = ^(NSDictionary *info) {
+    void (^ame412_done)(NSDictionary *_Nullable, NSError *_Nullable) = ^(NSDictionary *info, NSError *err) {
         NSString *title = ([info isKindOfClass:[NSDictionary class]] && [info[@"name"] isKindOfClass:[NSString class]]) ? info[@"name"] : nil;
         NSString *summary = ([info isKindOfClass:[NSDictionary class]] && [info[@"summary"] isKindOfClass:[NSString class]]) ? info[@"summary"] : nil;
         NSString *icon = ([info isKindOfClass:[NSDictionary class]] && [info[@"icon"] isKindOfClass:[NSString class]]) ? info[@"icon"] : nil;
