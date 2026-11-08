@@ -1656,18 +1656,25 @@ static NSString *ZL2V13ModSHA1ForFile(NSString *path) {
     }
     ModItem *ame413_item = viewController.modItem;
     ame413_item.selectedVersionDownloadURL = ame413_primary[@"url"];
-    ame413_item.fileName = [ame413_primary[@"filename"] isKindOfClass:[NSString class]] && ame413_primary[@"filename"].length > 0
-        ? ame413_primary[@"filename"]
-        : [NSString stringWithFormat:@"%@.jar", ame413_item.displayName ?: @"mod"];
+    // ★ NSString 声明先行（id 下标点语法 .length = run 42487051782 编译错判例）
+    NSString *ame413_fname = ame413_primary[@"filename"];
+    if ([ame413_fname isKindOfClass:[NSString class]] && ame413_fname.length > 0) {
+        ame413_item.fileName = ame413_fname;
+    } else {
+        ame413_item.fileName = [NSString stringWithFormat:@"%@.jar", ame413_item.displayName ?: @"mod"];
+    }
     NSDictionary *ame413_hashes = ame413_primary[@"hashes"];
     NSString *ame413_sha1 = ([ame413_hashes isKindOfClass:[NSDictionary class]] &&
                              [ame413_hashes[@"sha1"] isKindOfClass:[NSString class]]) ? ame413_hashes[@"sha1"] : nil;
     __weak typeof(self) wself = self;
     // ModDownloadHandler 契约 = 单参 NSError（nil = 成功；块签名不匹配 = run
     // 42489780261 编译雷判例同源，本地门禁不编译故此处逐字对齐）
+    // ★选择器逐字对齐 .h：downloadMod:toProfile:expectedSHA1:progress:completion:
+    //   （漏 progress: 形参 = run 42499646904 no-visible-interface 编译雷）
     [[ModService sharedService] downloadMod:ame413_item
                                   toProfile:self.ameV13_profileName
                                expectedSHA1:ame413_sha1
+                                   progress:nil
                                  completion:^(NSError * _Nullable error) {
         dispatch_async(dispatch_get_main_queue(), ^{
             __strong typeof(wself) strongSelf = wself;

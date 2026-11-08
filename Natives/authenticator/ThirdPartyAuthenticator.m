@@ -147,9 +147,10 @@ static NSString *ame133_skinAvatarPath(NSString *accountId) {
     return [dir stringByAppendingPathComponent:[NSString stringWithFormat:@"skin-%@.png", key]];
 }
 
-// ★Task413 全皮落盘路径（skinfull- 前缀 = 原始全皮 PNG；与 skin- 渲染头像
-// 键空间互不冲突）。类方法公开 = 账户页内嵌预览优先读盘 = 离线真皮。
-+ (NSString *)ame413_fullSkinPathForAccountId:(NSString *)accountId {
+// ★Task413 全皮落盘路径实现体（C 函数形态；类方法包装在 @implementation 内
+// ——方法体落 @implementation 外 = run 42499646904「missing context for
+// method declaration」编译雷判例）
+static NSString *ame413_fullSkinPathImpl(NSString *accountId) {
     if (![accountId isKindOfClass:NSString.class] || accountId.length == 0) return nil;
     NSString *docs = [NSSearchPathForDirectoriesInDomains(NSDocumentDirectory, NSUserDomainMask, YES) firstObject];
     NSString *dir = [docs stringByAppendingPathComponent:@"avatars"];
@@ -179,7 +180,7 @@ static void ame133_downloadAndCacheAvatar(NSString *skinURL,
         if (data != nil && error == nil) {
             // ★Task413 全皮持久化（原始 PNG 原字节落盘；账户页内嵌预览与
             //   后续消费方离线读真皮，不再依赖一次性签名 URL）
-            NSString *ame413_fullPath = [ThirdPartyAuthenticator ame413_fullSkinPathForAccountId:accountId];
+            NSString *ame413_fullPath = ame413_fullSkinPathImpl(accountId);
             if (ame413_fullPath) {
                 [data writeToFile:ame413_fullPath atomically:YES];
                 NSLog(@"[ThirdPartyAuthenticator] Task413: full skin persisted %@",
@@ -317,6 +318,13 @@ static NSString *ame131_readCredentials(NSString *authserver, NSString *loginIde
 }
 
 @implementation ThirdPartyAuthenticator
+
+// ★Task413 全皮落盘路径公开入口（实现体 = ame413_fullSkinPathImpl C 函数；
+// skinfull- 前缀 = 原始全皮 PNG，与 skin- 渲染头像键空间互不冲突）——
+// 账户页内嵌预览优先读盘 = 离线真皮。
++ (NSString *)ame413_fullSkinPathForAccountId:(NSString *)accountId {
+    return ame413_fullSkinPathImpl(accountId);
+}
 
 // Task 133：存量账户头像自愈——加载时发现 profilePicURL 不是 file:// 形态
 // （旧构建写入的失效 helm/mc-heads URL），后台重取一次。修复上线后用户
