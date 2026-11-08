@@ -819,13 +819,19 @@ static UIImage *ZL2HomeSizedImage(NSString *name, NSString *fallback, CGFloat po
     _quickNavCard.accessibilityIdentifier = @"zl2.sidebar.menu";
     [_menuStack addArrangedSubview:_quickNavCard];
     [self ame378_buildQuickNav];
-    // ★ Task402：五瓦片卡退役（★Task408 无条件化——壳左栏/fui 双导航常在，
-    //   主页瓦片 = 第二重复切换面；用户第 16 轮复诉「又有2个重复的切换标签
-    //   页区域」，3dc220d 曾把本隐绑定改回 hidden = NO 致双导航并存。
-    //   hidden → menuStack arranged 塌缩零占位，卡体与构建器保留（fui 向导锚
-    //   zl2_shell_topbar_rail 挂瓦片行 + ame378 C1/C4 门禁锚在位），面板卡窗
-    //   经 ame_refreshPanelMask 内建 hidden 跳过自动重抠）。
-    _quickNavCard.hidden = YES;
+    // ★ Task402：五瓦片卡退役；★ Task408 无条件化——壳左栏/fui 双导航常在，
+    //   主页瓦片 = 第二重复切换面（第 16 轮复诉「又有2个重复的切换标签页区域」）。
+    // ★ Task410 条件化回归（第 18 轮复诉「md3界面zl2的右上角切换标签页区域
+    //   不见了」）：Task378 顶栏退役 + Task408b 无条件退役后，topbar(bare/MD3)
+    //   骨架全屏零导航实体（3dc220d 注释「右上角快捷入口已移除；主页右栏是
+    //   五个入口的唯一位置」的唯一位置也被 408b 摘除）= MD3 模式无任何页面
+    //   切换入口。本卡回归为 bare 骨架的唯一切换区（面板首卡 = 停靠右时屏幕
+    //   右上角）；navigationview(fui) 骨架壳左栏窗格常在，本卡维持退役防双导
+    //   航重复（第 16 轮口径不变）。hidden → arranged 塌缩零占位，卡体与构建
+    //   器保留（fui 向导锚 zl2_shell_topbar_rail 挂瓦片行 + ame378 C1/C4 门禁
+    //   锚在位），面板卡窗经 ame_refreshPanelMask 内建 hidden 跳过自动重抠。
+    _quickNavCard.hidden = [[ZL2Theme ame347_shellLayout]
+                            isEqualToString:@"navigationview"];
 
     // —— ② 账户横排封面流卡窗（原头像+名称样式横排五枚，水平拖动选择；
     //      ★ Task401 用户规格「账户是用原来的样式横排五个作列表选择」）——

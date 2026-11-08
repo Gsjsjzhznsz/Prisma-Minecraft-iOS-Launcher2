@@ -10,10 +10,17 @@
 //      推到窗外，副本由宿主 ame_copyFactory 现建，全链映射回逻辑下标；
 //   ③ 窗缘渐隐带：临近可视窗边缘 alpha 线性归零，条目进出窗零突现零突隐。
 //
+// ★Task410 转盘弧度恢复（第 18 轮复诉「转盘的弧度怎么不见了」）：409a 退役
+//   缩放后布局成纯直线，转盘观感丧失。弧度改由「位置」承接：条目中心沿
+//   抛物线弧排布（横轴边条目下垂、竖轴边条目外移），条目尺寸全程恒定
+//   （尺寸 = 视口减去两端弧余量，静态常量不随 |d| 变）——407a 字号恒定与
+//   409a 尺寸恒定双口径零回归，缩放类根因零复沾。
+//
 // 帧驱动：CADisplayLink 弹簧衰减（offset 逼近 target，临界阻尼）；
 // 摆位：竖轴条目 center.y = 视口中点 + (i − offset) × 步距，横轴条目
-//       center.x 同式；条目按 |d| 缩放/透明（transform 语义经 frame 直算
-//       + alpha + zPosition，零约束逐帧更新）；
+//       center.x 同式；★Task409 起尺寸恒定（缩放退役），透明度随 |d| 渐退
+//       （transform 语义经 frame 直算 + alpha + zPosition，零约束逐帧更新）；
+//       ★Task410 条目中心叠加抛物线位置弧（尺寸/字号零变化）；
 // 手势：UIPanGestureRecognizer（拖动；末端速度折算惯性弹位；对宿主
 //       UIScrollView 平移具有动态优先权）+
 //       UITapGestureRecognizer（点按非居中条目 = 定点吸附）+
@@ -32,6 +39,9 @@ static const CGFloat AmeFlowSelectAlphaFloor      = 0.25;
 static const CGFloat AmeFlowSelectHideRange       = 2.6;   // |d| > 此值隐藏（可见窗 |d| ≤ 2.4，五枚口径）
 static const CGFloat AmeFlowSelectEdgeFadeH       = 1.55;  // ★Task409 横轴可视窗半宽（三项视口同旧口径）
 static const CGFloat AmeFlowSelectEdgeFadeBand    = 0.4;   // ★Task409 窗缘渐隐带宽（步距）
+// ★Task410 转盘弧度（位置抛物线：边条目最大垂度/外移量，pt；尺寸恒定不随 |d|）
+static const CGFloat AmeFlowSelectArcSagH         = 14.0;  // 横轴垂度
+static const CGFloat AmeFlowSelectArcSagV         = 18.0;  // 竖轴外移垂度
 static const CGFloat AmeFlowSelectFlickVelocity   = 1400.0; // 惯性判定速度阈值（pt/s）
 static const CGFloat AmeFlowSelectSpringStiffness = 180.0;  // 更柔和的原生滚动式收束
 static const CGFloat AmeFlowSelectSnapEpsilon     = 0.002;  // 吸附收敛判定（步距比）
@@ -133,8 +143,10 @@ static const CGFloat AmeFlowSelectThreeAcrossDivisor = 2.8;
 }
 
 /// 摆位核心：条目按当前位相连续排布（拖动/惯性每帧调用）
-/// ★Task409 恒定尺寸：条目尺寸 = 视口满尺寸（缩放判例退役）；层级感由
-/// alpha 渐退承接，另加窗缘渐隐带（距窗缘 < 0.4 步距线性归零）。
+/// ★Task409 恒定尺寸：条目尺寸不随位相变化；层级感由 alpha 渐退承接，
+/// 另加窗缘渐隐带（距窗缘 < 0.4 步距线性归零）。
+/// ★Task410 位置弧：条目中心沿抛物线排布（横向 = 边条目下垂、竖向 = 边
+/// 条目外移），尺寸 = 视口减两端弧余量（静态常量，全程恒定）。
 - (void)ame_layoutItems {
     CGFloat ame_pitch = [self pitch];
     CGFloat ame_absdMax = [self ame_windowHalfRange];
@@ -167,10 +179,18 @@ static const CGFloat AmeFlowSelectThreeAcrossDivisor = 2.8;
                 return;
             }
 
+            // ★Task410 位置弧：垂度抛物线（中心 sag 起步，边条目 2×sag，
+            //   条目高 = 视口高 − 2×sag，两端恰好不出界）；视口过矮时弧退化为直线。
+            CGFloat ame_sag = (ame_height > 2.0 * AmeFlowSelectArcSagH + 8.0)
+                ? AmeFlowSelectArcSagH : 0.0;
+            CGFloat ame_itemH = ame_height - 2.0 * ame_sag;
+            CGFloat ame_arc = (ame_absdMax > 0.0) ? (ame_absd / ame_absdMax) : 0.0;
+            CGFloat ame_yOff = ame_sag + ame_sag * ame_arc * ame_arc;
+
             // 条目手动摆位（帧驱动口径；条目内部子视图仍 AutoLayout）
             item.frame = CGRectMake(ame_centerX + ame_d * ame_pitch - ame_itemW / 2.0,
-                                    0.0,
-                                    ame_itemW, ame_height);
+                                    ame_yOff,
+                                    ame_itemW, ame_itemH);
             item.hidden = NO;
             item.alpha = ame_alpha;
             item.layer.zPosition = 100.0 - ame_absd;     // 越近居中越在上层
@@ -203,10 +223,18 @@ static const CGFloat AmeFlowSelectThreeAcrossDivisor = 2.8;
             return;
         }
 
+        // ★Task410 位置弧：外移抛物线（中心 sag 起步，边条目 2×sag，
+        //   条目宽 = 视口宽 − 2×sag，两端恰好不出界）；视口过窄时弧退化为直线。
+        CGFloat ame_sag = (ame_width > 2.0 * AmeFlowSelectArcSagV + 8.0)
+            ? AmeFlowSelectArcSagV : 0.0;
+        CGFloat ame_itemW = ame_width - 2.0 * ame_sag;
+        CGFloat ame_arc = (ame_absdMax > 0.0) ? (ame_absd / ame_absdMax) : 0.0;
+        CGFloat ame_xOff = ame_sag + ame_sag * ame_arc * ame_arc;
+
         // 条目手动摆位（帧驱动口径，见 .h 头注释；条目内部子视图仍 AutoLayout）
-        item.frame = CGRectMake(0.0,
+        item.frame = CGRectMake(ame_xOff,
                                 ame_centerY + ame_d * ame_pitch - self.itemHeight / 2.0,
-                                ame_width, self.itemHeight);
+                                ame_itemW, self.itemHeight);
         item.hidden = NO;
         item.alpha = ame_alpha;
         item.layer.zPosition = 100.0 - ame_absd;     // 越近居中越在上层

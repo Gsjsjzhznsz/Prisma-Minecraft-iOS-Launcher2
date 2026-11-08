@@ -107,7 +107,7 @@ NSString * const ZL2ShellNavigateNotification = @"ZL2ShellNavigate";
 #pragma mark - 几何/动画常量（ZL2 TopBar spec 对应）
 
 static const CGFloat ZL2ShellClusterButtonSize = 32.0;  // 返回/主页钮 32×32
-static const CGFloat ZL2ShellRailItemIconSize = 22.0;   // 图标 22pt
+static const CGFloat ZL2ShellRailItemIconSize = 24.0;   // 图标 24pt（★Task410 22→24：开关钮图标随 rail 主元素同步放大）
 static const CGFloat ZL2ShellPillWidth = 120.0;         // 任务胶囊宽 120dp
 static const CGFloat ZL2ShellPillHeight = 28.0;         // 任务胶囊高
 static const CGFloat ZL2ShellAnimateDuration = 0.24;    // 全壳动画时长（★Task395：0.18→0.24 淡入淡出感知增强）
@@ -343,9 +343,10 @@ static UIImage *ZL2ShellSystemImageSizedEx(NSString *name, NSString *fallback, C
 
         _ame403_symbolName = symbol;
         _ame403_fallbackName = fallback;
-        // ★ Task403/404：初始即按 22pt 符号配置取图（展开态口径；配置欠尺时
-        //   ZL2ShellSystemImageSized 内部栅格化保底）
-        UIImage *image = ZL2ShellSystemImageSized(symbol, fallback, 22.0);
+        // ★ Task403/404：初始即按展开态点数取图（配置欠尺时
+        //   ZL2ShellSystemImageSized 内部栅格化保底）；★Task410 展开 24pt（22→24，
+        //   第17/18轮复诉「fui插件UI的左侧图标还是缩小」多面放大之一）
+        UIImage *image = ZL2ShellSystemImageSized(symbol, fallback, 24.0);
         if (image) image = [image imageWithRenderingMode:UIImageRenderingModeAlwaysTemplate];
         _iconView = [[UIImageView alloc] initWithImage:image];
         _iconView.translatesAutoresizingMaskIntoConstraints = NO;
@@ -374,9 +375,10 @@ static UIImage *ZL2ShellSystemImageSizedEx(NSString *name, NSString *fallback, C
         NSMutableArray<NSLayoutConstraint *> *ame376_itemConstraints = [NSMutableArray array];
         _ame376_iconLeading = [_iconView.leadingAnchor constraintEqualToAnchor:self.leadingAnchor constant:14.0];
         [ame376_itemConstraints addObject:_ame376_iconLeading];
-        // ★ Task402：图标宽持引用（ame_setCompact 折叠态 20→26 放大驱动）+
+        // ★ Task402：图标宽持引用（ame_setCompact 折叠态放大驱动）+
         //   高度锚 1:1 跟随宽度（单常量驱动两维，无第二常量可漂移）
-        _ame402_iconSize = [_iconView.widthAnchor constraintEqualToConstant:22.0];
+        //   ★Task410 初始 24（展开态新口径，ame_setCompact 随折叠/展开改写）
+        _ame402_iconSize = [_iconView.widthAnchor constraintEqualToConstant:24.0];
         [_ame402_iconSize setActive:YES];
         [ame376_itemConstraints addObjectsFromArray:@[
             [_iconView.centerYAnchor constraintEqualToAnchor:self.centerYAnchor],
@@ -387,7 +389,9 @@ static UIImage *ZL2ShellSystemImageSizedEx(NSString *name, NSString *fallback, C
             [_label.trailingAnchor constraintLessThanOrEqualToAnchor:self.trailingAnchor constant:-12.0],
             [_label.heightAnchor constraintLessThanOrEqualToAnchor:self.heightAnchor],
 
-            [self.heightAnchor constraintEqualToConstant:36.0],
+            // ★Task410 行高 36→44：38pt 折叠图标容不下（44 = 38 + 上下各 3pt
+            //   呼吸；展开态同步加高，行触达面积同步增大）
+            [self.heightAnchor constraintEqualToConstant:44.0],
         ]];
         [NSLayoutConstraint activateConstraints:ame376_itemConstraints];
 
@@ -420,8 +424,8 @@ static UIImage *ZL2ShellSystemImageSizedEx(NSString *name, NSString *fallback, C
 }
 
 // ★ Task376：折叠图标栏态（WinUI PaneDisplayMode Compact）——标签隐藏、
-// 图标在 52pt 行宽内居中（窗格 64 − 栈内边距 12 = 52；★Task404 折叠态
-// 图标 30pt，leading 11 = (52−30)/2；展开态 22pt + leading 14 原样式）。
+// 图标在 52pt 行宽内居中（窗格 64 − 栈内边距 12 = 52；★Task410 折叠态
+// 图标 38pt，leading 7 = (52−38)/2；展开态 24pt + leading 14）。
 // 选中指示条保留（紧凑态 WinUI 同样保留 SelectionIndicator）。
 - (void)ame_setCompact:(BOOL)compact {
     self.label.hidden = compact;
@@ -437,9 +441,13 @@ static UIImage *ZL2ShellSystemImageSizedEx(NSString *name, NSString *fallback, C
     // ★ Task404：折叠 30 / 展开 22 决定性放大（402 frame 26、403 配置 26 两轮实机
     //   视觉零变化 + 选中 22/未选中 11 劈叉像素实锤——详见 worklog Task404）+ 取图
     //   函数内栅格化验收保底（欠尺图按请求点数重绘，见 ZL2ShellSystemImageSized）。
-    self.ame402_iconSize.constant = compact ? 30.0 : 22.0;
-    self.ame376_iconLeading.constant = compact ? 11.0 : 14.0;
-    [self ame_applyIconGlyphSize:compact ? 30.0 : 22.0];   // ★Task404：frame 与符号点数同源联动
+    // ★ Task410 第二轮决定性放大（第17轮「能不能多方面完全解决」+第18轮
+    //   「fui插件UI的左侧图标还是缩小」——404 口径 30pt 在 64pt 窄栏内仍
+    //   视觉偏小）：折叠 30→38（leading 7 = (52−38)/2 重居中）+ 行高 36→44；
+    //   展开 22→24（窄栏外展开行同步 +2）。frame/字形/leading 三同源联动。
+    self.ame402_iconSize.constant = compact ? 38.0 : 24.0;
+    self.ame376_iconLeading.constant = compact ? 7.0 : 14.0;
+    [self ame_applyIconGlyphSize:compact ? 38.0 : 24.0];   // ★Task404：frame 与符号点数同源联动
 }
 
 // ★ Task402：折叠几何自证读数（[Ame388] 日志扩展读数源）
@@ -454,7 +462,8 @@ static UIImage *ZL2ShellSystemImageSizedEx(NSString *name, NSString *fallback, C
 - (CGFloat)ame_iconGlyphBBox { return _ame405_glyphBBox; }
 
 // ★ Task403/404：字形随尺寸重生成（SF Symbol 视觉字形由符号配置点数决定，
-//   frame 约束只改容器——折叠 30 / 展开 22 与 ame402_iconSize 同源常量）
+//   frame 约束只改容器——折叠 38 / 展开 24 与 ame402_iconSize 同源常量，
+//   ★Task410 口径）
 - (void)ame_applyIconGlyphSize:(CGFloat)pt {
     UIImage *image = ZL2ShellSystemImageSizedEx(_ame403_symbolName, _ame403_fallbackName, pt,
                                                 &_ame405_glyphBBox);   // ★Task405：包围盒随取图回填

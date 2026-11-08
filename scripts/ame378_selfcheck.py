@@ -259,19 +259,21 @@ check("C12 转盘字体恒定（★Task407：封面流条目随 |d| 缩放时缩
       and "ame400_nameLabel.lineBreakMode = NSLineBreakByTruncatingTail;" in home
       and "ame400_typeLabel.lineBreakMode = NSLineBreakByTruncatingTail;" in home)
 
-check("C13 构建代际锚（★Task407 立 Task408 推进 Task409 推进：关于页版本行追加源码级构建代号\n      ame409_buildTag —— Info.plist 双键静态致装机代际不可辨 = 旧构建滞留循环的\n      结构性盲区，关于页读到 Task409 = 本轮新构建在机）",
-      "ame409_buildTag" in about_code
-      and "Task409" in about
-      and about_code.count("ame409_buildTag") >= 2
+check("C13 构建代际锚（★Task407 立 Task408 推进 Task409 推进 Task410 推进：关于页版本行追加源码级构建代号\n      ame410_buildTag —— Info.plist 双键静态致装机代际不可辨 = 旧构建滞留循环的\n      结构性盲区，关于页读到 Task410 = 本轮新构建在机）",
+      "ame410_buildTag" in about_code
+      and "Task410" in about
+      and about_code.count("ame410_buildTag") >= 2
       and "numberOfLines = 0" in about_code)
 
-check("C14 换边恢复+瓦片退役+排序退役（★Task408 第 16 轮复诉三件——3dc220d\n      「重写主页右侧四卡栏」曾拆除换边手势/改死右侧/瓦片改回常显/新增四卡\n      排序长按劫持同面手势：①面板长按换边手势+实现体+持久化恢复回装\n      （镜像随 applySide→applyPanelMirror 链自动生效）；②五瓦片 hidden=YES\n      无条件化（壳左栏/fui 双导航常在 = 主页瓦片为第二重复面）；③排序长按\n      挂接退役（restoreSidebarCardOrder 保留），提示语回原键）",
+check("C14 换边恢复+瓦片条件化+排序退役（★Task408 第 16 轮复诉三件 + ★Task410 重锚——3dc220d\n      「重写主页右侧四卡栏」曾拆除换边手势/改死右侧/瓦片改回常显/新增四卡\n      排序长按劫持同面手势：①面板长按换边手势+实现体+持久化恢复回装\n      （镜像随 applySide→applyPanelMirror 链自动生效）；②五瓦片退役条件化\n      （★Task410：bare/MD3 骨架零导航实体回归唯一切换区，navigationview/fui\n      骨架壳左栏常在维持退役防双导航重复）；③排序长按\n      挂接退役（restoreSidebarCardOrder 保留），提示语回原键）",
       "ame_handleMenuLongPress" in home_code
       and "[self.actionMenu addGestureRecognizer:menuLongPress]" in home_code
       and "menuLongPress.minimumPressDuration = 0.5" in home_code
       and "stringForKey:ZL2HomeMenuSideDefaultsKey" in home_code
       and "menu side toggled right=%d" in home
-      and "_quickNavCard.hidden = YES;" in home_code
+      and "_quickNavCard.hidden = [[ZL2Theme ame347_shellLayout]" in home_code
+      and "isEqualToString:@\"navigationview\"];" in home   # 字面量内容断言走 raw（strip_code 剥字符串内容判例）
+      and "_quickNavCard.hidden = YES;" not in home_code
       and "action:@selector(handleSidebarReorder:)" not in home_code
       and "restoreSidebarCardOrder" in home_code
       and "ame369.home.menu_dock_hint" in home)
@@ -294,6 +296,23 @@ check("C15 转盘恒定尺寸+无缝循环+镜像钉修复（★Task409 第 17 �
       and "if (ame_left && self.versionFlow.ame_itemsCount" not in home_code   # 单向重建条件退役
       and "if (self.versionFlow.ame_itemsCount > 0) {" in home_code)
 
+check("C16 转盘弧度恢复（★Task410 第 18 轮复诉「转盘的弧度怎么不见了」——409a 恒定\n      尺寸退役缩放后布局纯直线 = 转盘观感丧失；弧度改由位置承接：双轴条目\n      中心叠加抛物线位置弧（AmeFlowSelectArcSagH/V 常量在位且双轴各自应用\n      一次），条目尺寸全程恒定（= 视口减两端弧余量，静态常量不随 |d|），\n      407a 字号恒定与 409a 尺寸恒定双口径零回归——缩放类根因零复沾）",
+      "AmeFlowSelectArcSagH" in flow
+      and "AmeFlowSelectArcSagV" in flow
+      and flow_code.count("ame_sag + ame_sag * ame_arc * ame_arc") == 2   # 双轴各自应用
+      and "CGFloat ame_yOff" in flow_code
+      and "CGFloat ame_xOff" in flow_code
+      and "AmeFlowSelectCenterScale" not in flow   # 缩放类根因零复沾（C15 同口径复核）
+      and "AmeFlowSelectScalePerStep" not in flow)
+
+check("C17 MD3 切换区回归+rail 图标第二轮放大（★Task410 第 18 轮复诉①②——①五瓦片\n      条件化在位（bare 骨架 hidden=NO 回归唯一切换区 = 面板停靠右时屏幕右上\n      角；fui 骨架 hidden=YES 防第16轮双导航重复）；②壳 rail 图标第二轮决定性\n      放大：折叠 30→38（leading 7 = (52−38)/2 重居中）/ 展开 22→24 / 行高\n      36→44，frame 与字形点数同源联动（Task403/404 判例延续），开关钮图标\n      22→24 随 rail 主元素同步）",
+      "_quickNavCard.hidden = [[ZL2Theme ame347_shellLayout]" in home_code
+      and "compact ? 38.0 : 24.0" in shell_code
+      and "compact ? 7.0 : 14.0" in shell_code
+      and "constraintEqualToConstant:44.0" in shell_code
+      and "ZL2ShellRailItemIconSize = 24.0" in shell
+      and "ZL2ShellSystemImageSized(symbol, fallback, 24.0)" in shell_code)
+
 # ══ S 反向探针（--selftest：变体注入必翻红） ═══════════════════════
 
 if "--selftest" in sys.argv:
@@ -315,10 +334,18 @@ if "--selftest" in sys.argv:
     rcheck("S-C13", about_code + "ame409_buildTag", "ame409_buildTag" in (about_code + "ame409_buildTag"))
     rcheck("S-C14", home_code + "action:@selector(handleSidebarReorder:)",
            "action:@selector(handleSidebarReorder:)" in (home_code + "action:@selector(handleSidebarReorder:)"))
+    # ★Task410 S-C16：弧度常量抹除变体 → C16 必翻红
+    rcheck("S-C16", flow_code.replace("AmeFlowSelectArcSagH", "AmeFlowSelectArcGone"),
+           "AmeFlowSelectArcSagH" not in flow_code.replace("AmeFlowSelectArcSagH", "AmeFlowSelectArcGone"))
+    # ★Task410 S-C17：五瓦片条件化回退无条件隐藏变体 → C17 必翻红
+    rcheck("S-C17", home_code.replace("_quickNavCard.hidden = [[ZL2Theme ame347_shellLayout]",
+                                      "_quickNavCard.hidden = YES; // [[ZL2Theme ame347_shellLayout]"),
+           "_quickNavCard.hidden = [[ZL2Theme ame347_shellLayout]" not in home_code.replace("_quickNavCard.hidden = [[ZL2Theme ame347_shellLayout]",
+                                                                                           "_quickNavCard.hidden = YES; // [[ZL2Theme ame347_shellLayout]"))
     if rf:
         print(f"  SELFTEST FAILED: {rf}")
         sys.exit(1)
-    print(f"  selftest {rp}/6 probes red as expected")
+    print(f"  selftest {rp}/8 probes red as expected")
 
 print(f"ame378_selfcheck: {passed} passed, {len(fails)} failed")
 if fails:
