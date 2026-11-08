@@ -1453,17 +1453,25 @@ static BOOL ame329_moveEntry(NSFileManager *fm, NSString *src, NSString *dstDir,
                 NSData *mcmodData = [self readFileFromJar:mod.filePath entryName:@"mcmod.info"];
                 if (mcmodData) {
                     id mcmod = [NSJSONSerialization JSONObjectWithData:mcmodData options:0 error:nil];
-                    NSDictionary *firstMod = nil;
-                    if ([mcmod isKindOfClass:[NSArray class]] && mcmod.count > 0) {
-                        firstMod = mcmod.firstObject;
+                    // ★ 类型声明先行（id 点语法 count/firstObject = run 42487051782
+                    //   / 42500577120 同族编译雷判例：id 接收者禁点语法）
+                    NSArray *ame413_mcmodList = nil;
+                    if ([mcmod isKindOfClass:[NSArray class]]) {
+                        ame413_mcmodList = mcmod;
                     } else if ([mcmod isKindOfClass:[NSDictionary class]]) {
-                        NSArray *modList = mcmod[@"modList"];
-                        if ([modList isKindOfClass:[NSArray class]] && modList.count > 0) firstMod = modList.firstObject;
-                        else firstMod = mcmod;   // 单对象形态（部分旧 jar）
+                        id ame413_inner = [(NSDictionary *)mcmod objectForKey:@"modList"];
+                        if ([ame413_inner isKindOfClass:[NSArray class]]) {
+                            ame413_mcmodList = ame413_inner;
+                        } else {
+                            ame413_mcmodList = [NSArray arrayWithObject:(NSDictionary *)mcmod];   // 单对象形态
+                        }
                     }
-                    if ([firstMod isKindOfClass:[NSDictionary class]] &&
-                        [firstMod[@"url"] isKindOfClass:[NSString class]]) {
-                        mod.homepage = firstMod[@"url"];
+                    if (ame413_mcmodList.count > 0) {
+                        NSDictionary *firstMod = [ame413_mcmodList objectAtIndex:0];
+                        if ([firstMod isKindOfClass:[NSDictionary class]] &&
+                            [firstMod[@"url"] isKindOfClass:[NSString class]]) {
+                            mod.homepage = firstMod[@"url"];
+                        }
                     }
                 }
             }
