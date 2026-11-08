@@ -90,6 +90,13 @@ typedef NS_ENUM(NSInteger, AmeFlowSelectAxis) {
 /// 锁 = 拖拽/点按不响应，摆位只读）
 @property (nonatomic, assign) BOOL interactionLocked;
 
+/// ★Task412 镜像（第 20 轮复诉③「转盘方向不会镜像」）：面板停靠边切换后
+/// 转盘随停靠面整体镜像——竖轴弧向外移方向翻转（弧面向屏幕外缘）+ 横轴
+/// 排布/拖动/惯性甩动方向翻转（拖动手感与停靠侧同侧化）。NO = 旧口径
+/// （停靠左）。置位后立即重摆位（无需重建条目；条目内容由宿主 406a
+/// 镜像重建链负责，本属性只管几何与手势向）。
+@property (nonatomic, assign) BOOL ame_mirrored;
+
 /// 重建条目（全量拆建；条目视图由调用方构建，本组件接管摆位与生命周期）
 - (void)configureItems:(NSArray<UIView *> *)items;
 

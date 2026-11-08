@@ -3914,3 +3914,9 @@
 "ame369.cfkey.bad_key_save" = "✗ 佔位/無效的 Key 不予儲存（留空即可走免 Key 映象）";
 "ame369.cfkey.bad_key_test" = "✗ 佔位/無效的 Key 不予測試（留空即可走免 Key 映象）";
 "ame369.cfapi.rejected_403" = "CurseForge 拒絕了請求：API Key 缺失或無效（403）。請到「設定 → CurseForge API Key」檢查；留空即可自動走免 Key 映象，無需註冊。";
+
+/* ★ Task412 账戶頁皮膚 3D 預覽 */
+"ame412.skin.preview.button" = "3D 預覽";
+"ame412.skin.preview.title" = "皮膚 3D 預覽";
+"ame412.skin.preview.unavailable" = "皮膚載入失敗，顯示佔位模型";
+"ame412.skin.preview.hint" = "拖曳旋轉 · 捏合縮放";

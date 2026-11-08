@@ -417,7 +417,7 @@ static UIImage *ZL2ShellSystemImageSizedEx(NSString *name, NSString *fallback, C
         //   ZL2ShellSystemImageSized 内部栅格化保底）；★Task411 恒定 38pt
         //   （第 19 轮复诉②用户钦定「你直接固定图标不就行了」= 折叠/展开
         //   单一常量，二态点数切换路径整体退役）
-        UIImage *image = ZL2ShellSystemImageSized(symbol, fallback, 38.0);
+        UIImage *image = ZL2ShellSystemImageSized(symbol, fallback, 24.0);
         if (image) image = [image imageWithRenderingMode:UIImageRenderingModeAlwaysTemplate];
         _iconView = [[UIImageView alloc] initWithImage:image];
         _iconView.translatesAutoresizingMaskIntoConstraints = NO;
@@ -446,15 +446,17 @@ static UIImage *ZL2ShellSystemImageSizedEx(NSString *name, NSString *fallback, C
         NSMutableArray<NSLayoutConstraint *> *ame376_itemConstraints = [NSMutableArray array];
         _ame376_iconLeading = [_iconView.leadingAnchor constraintEqualToAnchor:self.leadingAnchor constant:14.0];
         [ame376_itemConstraints addObject:_ame376_iconLeading];
-        // ★ Task402：图标宽持引用 → ★Task411 恒定单一常量 38（折叠/展开同值
-        //   = 「固定图标」零联动）；高度独立 required 常量（1:1 跟随锚退役 =
-        //   两维零耦合）+ 四轴抗压/抗抱 required 锁死 = AutoLayout 零压缩自由度
-        //   （任何邻居约束都无权压缩/拉伸图标盒，第 19 轮「直接固定图标」判例）
-        _ame402_iconSize = [_iconView.widthAnchor constraintEqualToConstant:38.0];
+        // ★ Task402：图标宽持引用 → ★Task411 恒定单一常量 → ★Task412 回档 24
+        //   （第 20 轮复诉②「为什么现在图标放的更大了」：410b 二轮放大 38pt
+        //   在机被用户实测否决——回档到 24pt 恒定 = 「一开始」展开态口径，
+        //   仍为折叠/展开单一常量零联动）；高度独立 required 常量（1:1 跟随
+        //   锚退役 = 两维零耦合）+ 四轴抗压/抗抱 required 锁死 = AutoLayout
+        //   零压缩自由度（任何邻居约束都无权压缩/拉伸图标盒）
+        _ame402_iconSize = [_iconView.widthAnchor constraintEqualToConstant:24.0];
         [_ame402_iconSize setActive:YES];
         [ame376_itemConstraints addObjectsFromArray:@[
             [_iconView.centerYAnchor constraintEqualToAnchor:self.centerYAnchor],
-            [_iconView.heightAnchor constraintEqualToConstant:38.0],
+            [_iconView.heightAnchor constraintEqualToConstant:24.0],
 
             [_label.leadingAnchor constraintEqualToAnchor:_iconView.trailingAnchor constant:14.0],
             [_label.centerYAnchor constraintEqualToAnchor:self.centerYAnchor],
@@ -529,9 +531,13 @@ static UIImage *ZL2ShellSystemImageSizedEx(NSString *name, NSString *fallback, C
     //   「fui插件UI的左侧图标还是缩小」——404 口径 30pt 在 64pt 窄栏内仍
     //   视觉偏小）：折叠 30→38（leading 7 = (52−38)/2 重居中）+ 行高 36→44；
     //   展开 22→24（窄栏外展开行同步 +2）。frame/字形/leading 三同源联动。
-    self.ame402_iconSize.constant = 38.0;   // ★Task411：全状态恒定（二态常量退役）
-    self.ame376_iconLeading.constant = compact ? 7.0 : 14.0;
-    [self ame_applyIconGlyphSize:38.0];   // ★Task411：字形与盒同源恒定（幂等重生成）
+    // ★ Task412 回档 24（第 20 轮复诉②「为什么现在图标放的更大了」：410b
+    //   二轮放大 38pt 在机被实测否决）：盒/字形单一常量 24 全状态恒定
+    //   （「一开始」展开态口径）；leading 恒 14 = (52−24)/2，折叠/展开同值
+    //   = 居中路径亦二态退役（Task402/403/404/410 历史判例注释留档 git）。
+    self.ame402_iconSize.constant = 24.0;   // ★Task412：回档 24 恒定（38 否决）
+    self.ame376_iconLeading.constant = 14.0;   // ★Task412：(52−24)/2 恒居中
+    [self ame_applyIconGlyphSize:24.0];   // ★Task412：字形与盒同源恒定（幂等重生成）
 }
 
 // ★ Task402：折叠几何自证读数（[Ame388] 日志扩展读数源）
@@ -1238,22 +1244,27 @@ static UIImage *ZL2ShellSystemImageSizedEx(NSString *name, NSString *fallback, C
         [self.contentHeader.trailingAnchor constraintEqualToAnchor:self.view.trailingAnchor],
 
         [self.hamburgerButton.leadingAnchor constraintEqualToAnchor:self.contentHeader.safeAreaLayoutGuide.leadingAnchor constant:8.0],
-        [self.hamburgerButton.centerYAnchor constraintEqualToAnchor:self.contentHeader.centerYAnchor],
+        // ★ Task412 安全区（第 20 轮复诉①「md3界面上面不会留点安全区域」）：
+        //   头内容行 centerY 改锚 safeArea 顶 + 26 = 落在头带下半（52pt 带
+        //   减去状态栏后的可用区居中），不再钻进状态栏带（IMG_0590/0592
+        //   Prisma II/标题顶到状态栏实锤）；头背景面仍全出血铺到状态栏后
+        //   （surface 色延伸视觉零变化）
+        [self.hamburgerButton.centerYAnchor constraintEqualToAnchor:self.view.safeAreaLayoutGuide.topAnchor constant:26.0],
 
         [self.navBackButton.leadingAnchor constraintEqualToAnchor:self.contentHeader.safeAreaLayoutGuide.leadingAnchor constant:8.0],
-        [self.navBackButton.centerYAnchor constraintEqualToAnchor:self.contentHeader.centerYAnchor],
+        [self.navBackButton.centerYAnchor constraintEqualToAnchor:self.view.safeAreaLayoutGuide.topAnchor constant:26.0],
 
         // ★ Task349：大标题前导改为可变约束——窄屏汉堡/返回钮（32pt 槽位）
         //   与标题同位重叠，由 ame_refreshNavShellStateAnimated 按可见性派发。
         self.ame347_headerLeading = [self.headerTitle.leadingAnchor constraintEqualToAnchor:self.contentHeader.safeAreaLayoutGuide.leadingAnchor constant:16.0],
         self.ame347_headerLeading,
-        [self.headerTitle.centerYAnchor constraintEqualToAnchor:self.contentHeader.centerYAnchor],
+        [self.headerTitle.centerYAnchor constraintEqualToAnchor:self.view.safeAreaLayoutGuide.topAnchor constant:26.0],
         [self.headerTitle.trailingAnchor constraintLessThanOrEqualToAnchor:self.taskPill.leadingAnchor constant:-12.0],
 
         // ★ Task393：动作簇约束随簇上收共享路径（viewDidLoad），nav 骨架
         //   仅保留任务胶囊锚头区右缘（fui 模式簇隐藏，胶囊贴右缘不重叠）
         [self.taskPill.trailingAnchor constraintEqualToAnchor:self.contentHeader.safeAreaLayoutGuide.trailingAnchor constant:-12.0],
-        [self.taskPill.centerYAnchor constraintEqualToAnchor:self.contentHeader.centerYAnchor],
+        [self.taskPill.centerYAnchor constraintEqualToAnchor:self.view.safeAreaLayoutGuide.topAnchor constant:26.0],
 
         [self.container.topAnchor constraintEqualToAnchor:self.contentHeader.bottomAnchor],
         self.ame347_contentLeading,

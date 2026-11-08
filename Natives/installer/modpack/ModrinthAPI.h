@@ -24,6 +24,13 @@ NS_ASSUME_NONNULL_BEGIN
 - (void)ame227_fetchProjectTitle:(NSString *)projectID
                        completion:(void (^)(NSString * _Nullable title, NSError * _Nullable error))completion;
 
+/// ★Task412 模组在线信息（第 20 轮复诉⑤「模组信息在线查询替代文件名和
+/// 图标」）：GET /v2/project/{id} 取 title/description/icon_url，输出字典
+/// 与 CurseForgeAPI.ame238_fetchProjectInfo 同形态（name/summary/icon），
+/// 供 ModUpdateService.fetchProjectInfoForMod 双源统一消费。
+- (void)ame412_fetchProjectDetails:(NSString *)projectID
+                        completion:(void (^)(NSDictionary * _Nullable info, NSError * _Nullable error))completion;
+
 - (void)getVersionsForModWithID:(NSString *)modID
                      completion:(void (^)(NSArray<ModVersion *> * _Nullable versions, NSError * _Nullable error))completion;
 

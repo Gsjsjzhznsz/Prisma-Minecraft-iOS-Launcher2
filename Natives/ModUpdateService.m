@@ -163,6 +163,117 @@
     });
 }
 
+#pragma mark - ★Task412 模组在线信息（双源哈希反查 + 项目详情）
+
+- (void)fetchProjectInfoForMod:(ModItem *)mod
+                    projectType:(NSString *)projectType
+                     completion:(void (^)(NSString *title, NSString *summary, NSString *iconURL, NSString *projectID))completion {
+    if (!mod || mod.filePath.length == 0) {
+        [self ame412_finishWithDict:nil completion:completion];   // 参数缺席 = 诚实空回调
+        return;
+    }
+
+    NSObject *lock = [[NSObject alloc] init];
+    __block BOOL resolved = NO;
+    __block BOOL modrinthDone = NO;
+    __block BOOL curseforgeDone = NO;
+    __block NSMutableDictionary *winnerResult = nil;
+    __block NSNumber *winnerSource = nil;
+
+    void (^tryResolve)(NSMutableDictionary *_Nullable, NSNumber *) = ^(NSMutableDictionary *_Nullable result, NSNumber *source) {
+        @synchronized(lock) {
+            if (resolved) return;
+            if (result && result.count > 0) {
+                resolved = YES;
+                winnerResult = result;
+                winnerSource = source;
+            } else if (modrinthDone && curseforgeDone) {
+                resolved = YES;
+            }
+        }
+        BOOL ame412_hit = NO;
+        BOOL ame412_fail = NO;
+        @synchronized(lock) {
+            if (winnerResult && [winnerSource isEqual:source]) {
+                ame412_hit = YES;
+                winnerSource = nil;
+            } else if (resolved && !winnerResult) {
+                ame412_fail = YES;
+            }
+        }
+        if (ame412_hit) {
+            [self ame412_fetchDetailsWithDict:winnerResult source:source completion:completion];
+        } else if (ame412_fail) {
+            [self ame412_finishWithDict:completion];
+        }
+    };
+
+    dispatch_async(self.lookupQueue, ^{
+        @autoreleasepool {
+            NSMutableDictionary *r = nil;
+            if (mod.fileSHA1.length > 0) {
+                @try {
+                    r = [[ModrinthAPI sharedInstance] projectForFileHash:mod.fileSHA1 projectType:projectType];
+                } @catch (NSException *exception) {
+                    r = nil;
+                }
+            }
+            @synchronized(lock) { modrinthDone = YES; }
+            tryResolve(r, @(1));
+        }
+    });
+
+    dispatch_async(self.lookupQueue, ^{
+        @autoreleasepool {
+            NSMutableDictionary *r = nil;
+            if (mod.filePath.length > 0) {
+                @try {
+                    uint32_t fingerprint = [CurseForgeMurmurHash fingerprintForFileAtPath:mod.filePath];
+                    if (fingerprint != 0) {
+                        r = [[CurseForgeAPI sharedInstance] projectForFileHash:@(fingerprint) projectType:projectType];
+                    }
+                } @catch (NSException *exception) {
+                    r = nil;
+                }
+            }
+            @synchronized(lock) { curseforgeDone = YES; }
+            tryResolve(r, @(2));
+        }
+    });
+}
+
+// 命中源 → 项目详情（Modrinth ame412 / CurseForge ame238，输出 name/summary/icon 同构）
+- (void)ame412_fetchDetailsWithDict:(NSMutableDictionary *)projectDict
+                             source:(NSNumber *)source
+                         completion:(void (^)(NSString *title, NSString *summary, NSString *iconURL, NSString *projectID))completion {
+    NSString *projectID = [self extractProjectIDFromDict:projectDict source:source];
+    if (projectID.length == 0) {
+        [self ame412_finishWithDict:completion];
+        return;
+    }
+    void (^ame412_done)(NSDictionary *_Nullable) = ^(NSDictionary *info) {
+        NSString *title = ([info isKindOfClass:[NSDictionary class]] && [info[@"name"] isKindOfClass:[NSString class]]) ? info[@"name"] : nil;
+        NSString *summary = ([info isKindOfClass:[NSDictionary class]] && [info[@"summary"] isKindOfClass:[NSString class]]) ? info[@"summary"] : nil;
+        NSString *icon = ([info isKindOfClass:[NSDictionary class]] && [info[@"icon"] isKindOfClass:[NSString class]]) ? info[@"icon"] : nil;
+        dispatch_async(dispatch_get_main_queue(), ^{
+            if (completion) completion(title, summary, icon, projectID);
+        });
+    };
+
+    if ([source intValue] == 1) {
+        [[ModrinthAPI sharedInstance] ame412_fetchProjectDetails:projectID completion:ame412_done];
+    } else {
+        [[CurseForgeAPI sharedInstance] ame238_fetchProjectInfo:projectID completion:ame412_done];
+    }
+}
+
+// 双源全空/详情失败 → 全空诚实回调（页面按缺席降级）
+- (void)ame412_finishWithDict:(void (^)(NSString *title, NSString *summary, NSString *iconURL, NSString *projectID))completion {
+    dispatch_async(dispatch_get_main_queue(), ^{
+        if (completion) completion(nil, nil, nil, nil);
+    });
+}
+
 #pragma mark - 拉取版本列表并构建结果
 
 - (void)fetchVersionsAndBuildResultWithProjectDict:(NSMutableDictionary *)projectDict

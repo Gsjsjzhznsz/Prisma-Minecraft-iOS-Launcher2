@@ -523,6 +523,8 @@ add_executable(AngelAuraAmethyst
   ZL2AssetSearchViewController.m
   ZL2VersionsViewController.m
   ZL2AccountsViewController.m
+  # ★ Task412：账户页皮肤 3D 预览（SceneKit 盒体模型，六面 UV 裁贴皮肤纹理）
+  ZL2SkinPreviewViewController.m
   ZL2SettingsViewController.m
   # 7.0-UI-11：启动链版本索引服务（FindVersionInRemoteList 契约迁出旧壳）
   ZL2VersionIndex.m
@@ -900,6 +902,9 @@ target_link_libraries(AngelAuraAmethyst
   #   AmePluginBridge 消费）——run 41176900198 链接实锤：ObjC import 不自动
   #   链接该框架，缺省 = _OBJC_CLASS_$_UN* 三符号 undefined。
   "-framework UserNotifications"
+  # ★ Task412：皮肤 3D 预览（SCNView/SCNBox/SCNAction）——Task366 判例：
+  #   ObjC import 不自动链接框架，缺省 = _OBJC_CLASS_$_SCN* undefined
+  "-framework SceneKit"
   "-framework UnzipKit"
   "-framework WebKit"
   "-weak_framework SafariServices"

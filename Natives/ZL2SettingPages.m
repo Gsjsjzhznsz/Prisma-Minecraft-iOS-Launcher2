@@ -238,7 +238,10 @@ static NSString *ame_pages_hexFromColor(UIColor *color) {
     UILayoutGuide *contentLG = scrollView.contentLayoutGuide;
     UILayoutGuide *frameLG = scrollView.frameLayoutGuide;
     [NSLayoutConstraint activateConstraints:@[
-        [scrollView.topAnchor constraintEqualToAnchor:self.view.topAnchor],
+        // ★ Task412 安全区（第 20 轮复诉①「md3界面上面不会留点安全区域」）：
+        //   顶入 safeArea = 大标题不再钻进状态栏带（IMG_0592「设置」实锤）；
+        //   底/侧保持全出血（滚动到底仍是 edge-to-edge）
+        [scrollView.topAnchor constraintEqualToAnchor:self.view.safeAreaLayoutGuide.topAnchor],
         [scrollView.bottomAnchor constraintEqualToAnchor:self.view.bottomAnchor],
         [scrollView.leadingAnchor constraintEqualToAnchor:self.view.leadingAnchor],
         [scrollView.trailingAnchor constraintEqualToAnchor:self.view.trailingAnchor],

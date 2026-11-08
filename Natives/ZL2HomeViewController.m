@@ -1541,6 +1541,14 @@ static UIImage *ZL2HomeSizedImage(NSString *name, NSString *fallback, CGFloat po
     [self ame_setLaunchContentReversed:ame_left];
     [self ame_setPluginContentReversed:ame_left];
 
+    // ★Task412 转盘整体镜像（第 20 轮复诉③「转盘方向不会镜像」）：停靠边
+    // 切换后弧向/拖向/惯性向随停靠面翻转（组件侧 ame_mirrored 只翻几何
+    // 与手势；条目内容镜像仍由 406a 重建链负责，两链合成完整镜像）。
+    // 右停靠 = 镜像（旧口径停靠左 = NO）。
+    BOOL ame_flowMirror = !ame_left;
+    self.accountFlow.ame_mirrored = ame_flowMirror;
+    self.versionFlow.ame_mirrored = ame_flowMirror;
+
     NSLog(@"[Ame406] panel mirror left=%d", ame_left);
 
     // ★Task409 对称重建（原 ame_left && 单向条件 = 切回右停靠镜像行永不

@@ -779,6 +779,37 @@ static NSString *MRAMirrorResolvedURL(NSString *urlString) {
     }];
 }
 
+/// ★Task412：GET /v2/project/{id} 全量项目详情（输出形态与 CF ame238 同构）
+- (void)ame412_fetchProjectDetails:(NSString *)projectID
+                        completion:(void (^)(NSDictionary * _Nullable info, NSError * _Nullable error))completion {
+    if (projectID.length == 0) {
+        if (completion) completion(nil, [NSError errorWithDomain:@"ModrinthAPIError" code:33 userInfo:@{NSLocalizedDescriptionKey: @"no project id"}]);
+        return;
+    }
+    NSString *urlString = [NSString stringWithFormat:@"%@/project/%@", self.baseURL, projectID];
+    NSURL *url = [NSURL URLWithString:urlString];
+    if (!url) {
+        if (completion) completion(nil, [NSError errorWithDomain:@"ModrinthAPIError" code:34 userInfo:@{NSLocalizedDescriptionKey: @"invalid URL"}]);
+        return;
+    }
+    [self ame217_fetchJSONWithURL:url completion:^(id json, NSError *error) {
+        if (![json isKindOfClass:[NSDictionary class]]) {
+            if (completion) completion(nil, error ?: [NSError errorWithDomain:@"ModrinthAPIError" code:35 userInfo:@{NSLocalizedDescriptionKey: @"no project details"}]);
+            return;
+        }
+        NSDictionary *jsonDict = (NSDictionary *)json;
+        NSMutableDictionary *ame412_out = [NSMutableDictionary dictionary];
+        if ([jsonDict[@"title"] isKindOfClass:[NSString class]]) ame412_out[@"name"] = jsonDict[@"title"];
+        if ([jsonDict[@"description"] isKindOfClass:[NSString class]]) ame412_out[@"summary"] = jsonDict[@"description"];
+        if ([jsonDict[@"icon_url"] isKindOfClass:[NSString class]]) ame412_out[@"icon"] = jsonDict[@"icon_url"];
+        if (ame412_out.count > 0) {
+            if (completion) completion(ame412_out, nil);
+        } else {
+            if (completion) completion(nil, [NSError errorWithDomain:@"ModrinthAPIError" code:36 userInfo:@{NSLocalizedDescriptionKey: @"empty project details"}]);
+        }
+    }];
+}
+
 - (void)ame226_fetchLatestVersionForProject:(NSString *)projectID
                                  gameVersion:(NSString *)gameVersion
                                       loader:(NSString *)loader

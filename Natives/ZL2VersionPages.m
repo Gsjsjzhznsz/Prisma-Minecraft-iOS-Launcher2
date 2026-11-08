@@ -464,7 +464,11 @@ static UIImage *ZL2V13ThumbnailAtPath(NSString *path, CGFloat maxPixel) {
         [row.topAnchor constraintEqualToAnchor:card.topAnchor constant:ZL2V13CardPadding],
         [row.bottomAnchor constraintEqualToAnchor:card.bottomAnchor constant:-ZL2V13CardPadding],
         [row.leadingAnchor constraintEqualToAnchor:card.leadingAnchor constant:ZL2V13CardPadding],
-        [row.trailingAnchor constraintLessThanOrEqualToAnchor:card.trailingAnchor constant:-ZL2V13CardPadding],
+        // ★ Task412 对齐根修（第 20 轮复诉④「模组页面ui没有对齐」）：原
+        //   LessThanOrEqualTo = 行宽由内容决定，spacer 永不展开 → 开关/删除
+        //   跟在名字后随行长漂移（IMG_0593 五行五位置实锤）。改等式 = 行尾
+        //   钉卡缘，行内弹性空隙吸收余宽，全列开关/删除右缘垂直对齐。
+        [row.trailingAnchor constraintEqualToAnchor:card.trailingAnchor constant:-ZL2V13CardPadding],
     ]];
 
     // 外壳再包一层竖排，让卡片吃满内容列宽（行内 trailing 由内容撑）
@@ -626,7 +630,9 @@ static UIImage *ZL2V13ThumbnailAtPath(NSString *path, CGFloat maxPixel) {
 - (UIView *)ameV13_spacer {
     UIView *spacer = [[UIView alloc] init];
     spacer.translatesAutoresizingMaskIntoConstraints = NO;
-    [spacer setContentHuggingPriority:249 forAxis:UILayoutConstraintAxisHorizontal];
+    // ★Task412：拥抱 248 < 文本栈 249 = 行宽余量由 spacer 独家吸收
+    //（trailing 等式钉卡后 .fill 分发需要唯一弹性质，平优先级会随机拉伸文本）
+    [spacer setContentHuggingPriority:248 forAxis:UILayoutConstraintAxisHorizontal];
     [spacer setContentCompressionResistancePriority:249 forAxis:UILayoutConstraintAxisHorizontal];
     return spacer;
 }
@@ -1082,6 +1088,9 @@ static NSString *ZL2V13ModSHA1ForFile(NSString *path) {
 @property (nonatomic, strong) NSMutableDictionary<NSString *, NSNumber *> *ameV13_mtimeByPath;
 @property (nonatomic, strong) NSMutableDictionary<NSString *, NSString *> *ameV13_displayNameByPath;
 @property (nonatomic, strong) NSMutableDictionary<NSString *, NSString *> *ameV13_onlineIdByPath;
+// ★Task412 在线信息缓存（第 20 轮复诉⑤「模组信息在线查询替代文件名和图标」）
+@property (nonatomic, strong) NSMutableDictionary<NSString *, NSString *> *ameV13_descByPath;
+@property (nonatomic, strong) NSMutableDictionary<NSString *, UIImage *> *ameV13_iconByPath;
 @property (nonatomic, strong) NSMutableDictionary<NSString *, ModUpdateResult *> *ameV13_updateResults;
 @property (nonatomic, strong) NSMutableSet<NSString *> *ameV13_selectedPaths;
 @property (nonatomic, assign) BOOL ameV13_selectMode;
@@ -1098,6 +1107,8 @@ static NSString *ZL2V13ModSHA1ForFile(NSString *path) {
     _ameV13_mtimeByPath = [NSMutableDictionary dictionary];
     _ameV13_displayNameByPath = [NSMutableDictionary dictionary];
     _ameV13_onlineIdByPath = [NSMutableDictionary dictionary];
+    _ameV13_descByPath = [NSMutableDictionary dictionary];      // ★Task412
+    _ameV13_iconByPath = [NSMutableDictionary dictionary];      // ★Task412
     _ameV13_updateResults = [NSMutableDictionary dictionary];
     _ameV13_selectedPaths = [NSMutableSet set];
     _ameV13_filterChips = [NSMutableArray array];
@@ -1293,6 +1304,35 @@ static NSString *ZL2V13ModSHA1ForFile(NSString *path) {
                     strongSelf.ameV13_onlineIdByPath[item.filePath] = item.onlineID;
                 }
                 [strongSelf ameV13_applyFilter];   // 元数据到位即增量重排（卡片标题升级）
+                // ★Task412 在线信息查询（第 20 轮复诉⑤「模组信息在线查询替代
+                // 文件名和图标还有模组信息」——v1/ZL2 设计回归）：jar 内嵌元数据
+                // 之后再走双源哈希反查（Modrinth SHA1/CF 指纹）拉在线
+                // 名称/介绍/图标；命名/图标/介绍三面升级，缺席面按旧口径降级
+                //（零假数据诚实边界）。并发限流 3（更新检查同刻度判例）。
+                [[ModUpdateService sharedService] fetchProjectInfoForMod:item projectType:@"mod" completion:^(NSString *title, NSString *summary, NSString *iconURL, NSString *projectID) {
+                    dispatch_async(dispatch_get_main_queue(), ^{
+                        __strong typeof(wself) strongSelf2 = wself;
+                        if (!strongSelf2 || !item.filePath.length) return;
+                        if (title.length > 0 && strongSelf2.ameV13_displayNameByPath[item.filePath].length == 0) {
+                            strongSelf2.ameV13_displayNameByPath[item.filePath] = title;   // jar 名缺席时在线名补位
+                        }
+                        if (summary.length > 0) {
+                            strongSelf2.ameV13_descByPath[item.filePath] = summary;
+                        }
+                        [strongSelf2 ameV13_applyFilter];   // 名称/介绍升级重排
+                        if (iconURL.length > 0) {
+                            dispatch_async(dispatch_get_global_queue(QOS_CLASS_UTILITY, 0), ^{
+                                UIImage *ame412_icon = [strongSelf2 ameV13_loadIconForURL:iconURL];
+                                dispatch_async(dispatch_get_main_queue(), ^{
+                                    __strong typeof(wself) strongSelf3 = wself;
+                                    if (!strongSelf3 || !item.filePath.length || !ame412_icon) return;
+                                    strongSelf3.ameV13_iconByPath[item.filePath] = ame412_icon;
+                                    [strongSelf3 ameV13_applyFilter];   // 图标到位重排
+                                });
+                            });
+                        }
+                    });
+                }];
             });
         }];
     }
@@ -1337,6 +1377,22 @@ static NSString *ZL2V13ModSHA1ForFile(NSString *path) {
     [_ameV13_selectedPaths intersectSet:[NSSet setWithArray:[_ameV13_viewMods valueForKeyPath:@"filePath"]]];
     [self ameV13_updateSelectCount];
     [self ameV13_rebuildCards];
+}
+
+// ★Task412 在线图标加载（ModService.iconCachePathForURL 磁盘缓存判例同源；
+// 仅后台线程调用）：缓存命中直读，未命中下载落盘后解图。
+- (nullable UIImage *)ameV13_loadIconForURL:(NSString *)urlString {
+    if (urlString.length == 0) return nil;
+    NSString *ame412_path = [[ModService sharedService] iconCachePathForURL:urlString];
+    NSFileManager *ame412_fm = [NSFileManager defaultManager];
+    if ([ame412_fm fileExistsAtPath:ame412_path]) {
+        UIImage *ame412_cached = [UIImage imageWithContentsOfFile:ame412_path];
+        if (ame412_cached) return ame412_cached;
+    }
+    NSData *ame412_data = [NSData dataWithContentsOfURL:[NSURL URLWithString:urlString]];
+    if (!ame412_data) return nil;
+    [ame412_data writeToFile:ame412_path atomically:YES];
+    return [UIImage imageWithData:ame412_data];
 }
 
 - (NSString *)ameV13_displayNameFor:(ModItem *)mod {
@@ -1388,6 +1444,14 @@ static NSString *ZL2V13ModSHA1ForFile(NSString *path) {
     NSString *sizeText = ZL2V13ByteCount([[[NSFileManager defaultManager]
         attributesOfItemAtPath:mod.filePath error:nil] fileSize]);
     NSMutableArray<NSString *> *detailParts = [NSMutableArray arrayWithObject:sizeText];
+    // ★Task412 模组信息升级：在线介绍（Modrinth description/CF summary）
+    // 截断 60 字符附详情行（文件名/图标/信息三面在线替换的第三面）
+    NSString *ame412_desc = _ameV13_descByPath[mod.filePath];
+    if (ame412_desc.length > 0) {
+        [detailParts addObject:ame412_desc.length > 60
+            ? [NSString stringWithFormat:@"%@…", [ame412_desc substringToIndex:60]]
+            : ame412_desc];
+    }
     if (mod.disabled) [detailParts addObject:localize(@"resman.common.disabled_tag", nil)];
     ModUpdateResult *upd = _ameV13_updateResults[mod.filePath];
     if (upd) {
@@ -1408,7 +1472,22 @@ static NSString *ZL2V13ModSHA1ForFile(NSString *path) {
         [textStack addArrangedSubview:badge];
     }
 
-    UIView *iconBox = [self ameV13_iconBoxWithSymbol:@"puzzlepiece.extension" fallback:@"puzzlepiece" size:48 iconSize:26];
+    // ★Task412 图标升级（第 20 轮复诉⑤）：在线图标（双源查询落缓存）>
+    // jar 内嵌图标（fabric.mod.json icon）> 通用拼图占位（旧口径降级）
+    UIView *iconBox = nil;
+    UIImage *ame412_resolved = _ameV13_iconByPath[mod.filePath] ?: mod.icon;
+    if (ame412_resolved) {
+        UIImageView *ame412_iconView = [[UIImageView alloc] initWithImage:ame412_resolved];
+        ame412_iconView.contentMode = UIViewContentModeScaleAspectFill;
+        ame412_iconView.layer.cornerRadius = 8.0;
+        ame412_iconView.layer.masksToBounds = YES;
+        ame412_iconView.translatesAutoresizingMaskIntoConstraints = NO;
+        [ame412_iconView.widthAnchor constraintEqualToConstant:48.0].active = YES;
+        [ame412_iconView.heightAnchor constraintEqualToConstant:48.0].active = YES;
+        iconBox = ame412_iconView;
+    } else {
+        iconBox = [self ameV13_iconBoxWithSymbol:@"puzzlepiece.extension" fallback:@"puzzlepiece" size:48 iconSize:26];
+    }
     UIView *spacer = [self ameV13_spacer];
 
     if (_ameV13_selectMode) {

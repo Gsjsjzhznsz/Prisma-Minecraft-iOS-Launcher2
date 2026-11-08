@@ -47,6 +47,22 @@ NS_ASSUME_NONNULL_BEGIN
 /// @param projectType 项目类型
 /// @param progress 进度回调（已完成数/总数）
 /// @param completion 全部完成回调（results 数组，每个元素对应一个 mod 的检查结果，无更新的不在数组中）
+/// ★Task412 模组在线信息查询（第 20 轮复诉⑤「以前1代和zl2的模组信息在线
+/// 查询替代这些文件名和图标还有模组信息的设计怎么没了」）：复用更新检查的
+/// 双源哈希反查（Modrinth SHA1 / CurseForge MurmurHash2 指纹抢答）命中项目
+/// 后，再拉项目详情（Modrinth ame412_fetchProjectDetails / CurseForge
+/// ame238_fetchProjectInfo，输出 name/summary/icon 同构字典），主线程回调
+/// title/summary/iconURL/projectID；任一环节失败回调空串（页面按缺席降级，
+/// 诚实边界：零假数据）。
+/// @param mod 本地 Mod item（需有 filePath；fileSHA1 缺席时仅走 CF 指纹源）
+/// @param projectType 项目类型（mod/shader/resourcepack/datapack）
+- (void)fetchProjectInfoForMod:(ModItem *)mod
+                    projectType:(NSString *)projectType
+                     completion:(void (^)(NSString * _Nullable title,
+                                          NSString * _Nullable summary,
+                                          NSString * _Nullable iconURL,
+                                          NSString * _Nullable projectID))completion;
+
 - (void)checkUpdatesForMods:(NSArray<ModItem *> *)mods
                gameVersion:(NSString *)gameVersion
                     loader:(nullable NSString *)loader

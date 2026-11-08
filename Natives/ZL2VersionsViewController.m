@@ -208,7 +208,9 @@ static UIImage *ZL2VersionsSystemImage(NSString *name, NSString *fallback) {
     _scrollView.translatesAutoresizingMaskIntoConstraints = NO;
     [self.view addSubview:_scrollView];
     [NSLayoutConstraint activateConstraints:@[
-        [_scrollView.topAnchor constraintEqualToAnchor:self.view.topAnchor],
+        // ★ Task412 安全区（第 20 轮复诉①）：顶入 safeArea = 内容列不再钻进
+        //   状态栏带（IMG_0592/0593 标题顶到状态栏实锤）；底/侧保持全出血
+        [_scrollView.topAnchor constraintEqualToAnchor:self.view.safeAreaLayoutGuide.topAnchor],
         [_scrollView.bottomAnchor constraintEqualToAnchor:self.view.bottomAnchor],
         [_scrollView.leadingAnchor constraintEqualToAnchor:self.view.leadingAnchor],
         [_scrollView.trailingAnchor constraintEqualToAnchor:self.view.trailingAnchor],
@@ -1287,7 +1289,8 @@ static UIImage *ZL2VersionsSystemImage(NSString *name, NSString *fallback) {
     _emptyLabel.hidden = YES;
 
     [NSLayoutConstraint activateConstraints:@[
-        [_scrollView.topAnchor constraintEqualToAnchor:self.view.topAnchor],
+        // ★ Task412 安全区（第 20 轮复诉①）：顶入 safeArea（IMG_0593 同源）
+        [_scrollView.topAnchor constraintEqualToAnchor:self.view.safeAreaLayoutGuide.topAnchor],
         [_scrollView.bottomAnchor constraintEqualToAnchor:self.view.bottomAnchor],
         [_scrollView.leadingAnchor constraintEqualToAnchor:self.view.leadingAnchor],
         [_scrollView.trailingAnchor constraintEqualToAnchor:self.view.trailingAnchor],

@@ -3918,3 +3918,9 @@
 "ame369.cfkey.bad_key_save" = "✗ Placeholder/invalid keys are not saved (leave empty to use the keyless mirror)";
 "ame369.cfkey.bad_key_test" = "✗ Placeholder/invalid keys are not tested (leave empty to use the keyless mirror)";
 "ame369.cfapi.rejected_403" = "CurseForge rejected the request: API key missing or invalid (403). Check Settings → CurseForge API Key; leave it empty to use the keyless mirror automatically — no registration needed.";
+
+/* ★ Task412 账户页皮肤 3D 预览 */
+"ame412.skin.preview.button" = "3D Preview";
+"ame412.skin.preview.title" = "Skin 3D Preview";
+"ame412.skin.preview.unavailable" = "Skin unavailable, showing placeholder model";
+"ame412.skin.preview.hint" = "Drag to rotate · Pinch to zoom";

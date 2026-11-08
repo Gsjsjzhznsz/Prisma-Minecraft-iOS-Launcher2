@@ -101,6 +101,13 @@ static const CGFloat AmeFlowSelectThreeAcrossDivisor = 2.8;
     [self ame_stopTicker];
 }
 
+// ★Task412 镜像置位后下一帧重摆位（ame_layoutItems 按 _ame_mirrored 翻向）
+- (void)setAme_mirrored:(BOOL)ame_mirrored {
+    if (_ame_mirrored == ame_mirrored) return;
+    _ame_mirrored = ame_mirrored;
+    [self setNeedsLayout];
+}
+
 #pragma mark - 布局
 
 - (CGFloat)pitch {
@@ -188,7 +195,11 @@ static const CGFloat AmeFlowSelectThreeAcrossDivisor = 2.8;
             CGFloat ame_yOff = ame_sag + ame_sag * ame_arc * ame_arc;
 
             // 条目手动摆位（帧驱动口径；条目内部子视图仍 AutoLayout）
-            item.frame = CGRectMake(ame_centerX + ame_d * ame_pitch - ame_itemW / 2.0,
+            // ★Task412 镜像：横轴排布向翻转（停靠右 = 向随停靠面）
+            CGFloat ame_originX = _ame_mirrored
+                ? (ame_centerX - ame_d * ame_pitch - ame_itemW / 2.0)
+                : (ame_centerX + ame_d * ame_pitch - ame_itemW / 2.0);
+            item.frame = CGRectMake(ame_originX,
                                     ame_yOff,
                                     ame_itemW, ame_itemH);
             item.hidden = NO;
@@ -232,7 +243,12 @@ static const CGFloat AmeFlowSelectThreeAcrossDivisor = 2.8;
         CGFloat ame_xOff = ame_sag + ame_sag * ame_arc * ame_arc;
 
         // 条目手动摆位（帧驱动口径，见 .h 头注释；条目内部子视图仍 AutoLayout）
-        item.frame = CGRectMake(ame_xOff,
+        // ★Task412 镜像：竖轴弧向外移方向翻转（x 从右外移改左外移，
+        //   与宿主 406a 条目内容镜像合成完整停靠面镜像）
+        CGFloat ame_originX = _ame_mirrored
+            ? (self.bounds.size.width - ame_xOff - ame_itemW)
+            : ame_xOff;
+        item.frame = CGRectMake(ame_originX,
                                 ame_centerY + ame_d * ame_pitch - self.itemHeight / 2.0,
                                 ame_itemW, self.itemHeight);
         item.hidden = NO;
@@ -392,7 +408,10 @@ shouldBeRequiredToFailByGestureRecognizer:(UIGestureRecognizer *)otherGestureRec
             CGFloat ame_dDrag = ame_horizontal
                 ? [pan translationInView:self].x
                 : [pan translationInView:self].y;
-            CGFloat ame_raw = self.ame_dragStartOffset - ame_dDrag / [self pitch];
+            // ★Task412 镜像：拖动向随停靠面翻转（镜像排布下不翻拖向 =
+            //   手指与内容反向的「倒拖」体感）
+            CGFloat ame_signed = _ame_mirrored ? -ame_dDrag : ame_dDrag;
+            CGFloat ame_raw = self.ame_dragStartOffset - ame_signed / [self pitch];
             // 无边界循环：首尾相接，拖过最后一项继续回到第一项。
             self.ame_offset = ame_raw;
             self.ame_target = self.ame_offset;
@@ -406,7 +425,10 @@ shouldBeRequiredToFailByGestureRecognizer:(UIGestureRecognizer *)otherGestureRec
                 : [pan velocityInView:self].y;
             CGFloat ame_flick = 0.0;
             if (fabs(ame_v) > AmeFlowSelectFlickVelocity) {
-                ame_flick = (ame_v > 0.0) ? -1.0 : 1.0;
+                // ★Task412 镜像：惯性甩动向同步翻转
+                ame_flick = _ame_mirrored
+                    ? ((ame_v > 0.0) ? 1.0 : -1.0)
+                    : ((ame_v > 0.0) ? -1.0 : 1.0);
             }
             CGFloat ame_dest = round(self.ame_offset) + ame_flick;
             self.ame_target = ame_dest;

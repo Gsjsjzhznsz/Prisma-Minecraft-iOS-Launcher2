@@ -259,10 +259,10 @@ check("C12 转盘字体恒定（★Task407：封面流条目随 |d| 缩放时缩
       and "ame400_nameLabel.lineBreakMode = NSLineBreakByTruncatingTail;" in home
       and "ame400_typeLabel.lineBreakMode = NSLineBreakByTruncatingTail;" in home)
 
-check("C13 构建代际锚（★Task407 立 Task408/409/410 推进 Task411 推进：关于页版本行追加源码级构建代号\n      ame411_buildTag —— Info.plist 双键静态致装机代际不可辨 = 旧构建滞留循环的\n      结构性盲区，关于页读到 Task411 = 本轮新构建在机）",
-      "ame411_buildTag" in about_code
-      and "Task411" in about
-      and about_code.count("ame411_buildTag") >= 2
+check("C13 构建代际锚（★Task407 立 408/409/410/411 推进 Task412 推进：关于页版本行追加源码级构建代号\n      ame412_buildTag —— Info.plist 双键静态致装机代际不可辨 = 旧构建滞留循环的\n      结构性盲区，关于页读到 Task412 = 本轮新构建在机）",
+      "ame412_buildTag" in about_code
+      and "Task412" in about
+      and about_code.count("ame412_buildTag") >= 2
       and "numberOfLines = 0" in about_code)
 
 check("C14 换边恢复+瓦片二度退役+排序退役（★Task408 立 ★Task410 重锚 ★Task411 终局——\n      ①面板长按换边手势+实现体+持久化恢复回装（镜像随 applySide→applyPanelMirror\n      链自动生效）；②五瓦片二度退役：★Task411 第 19 轮用户钦定「一开始的无文字\n      右上角小型的切换按钮」= 壳层 ame411_switcherCluster 悬浮图标胶囊（屏幕\n      右上 safeArea 常驻）接棒 bare 全场景唯一切换区，五瓦片（有文字大瓦片）\n      无条件 hidden=「固定形态」收敛（408 判例回归，条件化断言退役）；③排序长按\n      挂接退役（restoreSidebarCardOrder 保留），提示语回原键）",
@@ -280,6 +280,8 @@ check("C14 换边恢复+瓦片二度退役+排序退役（★Task408 立 ★Task
 flow = read("Natives/AmeFlowSelectView.m")
 flow_code = strip_code(flow)
 flow_h = read("Natives/AmeFlowSelectView.h")
+vpages = read("Natives/ZL2VersionPages.m")   # ★Task412 模组行对齐锚读面
+vpages_code = strip_code(vpages)
 
 check("C15 转盘恒定尺寸+无缝循环+镜像钉修复（★Task409 第 17 轮复诉四项之三——\n      ①封面流缩放判例 scale = 1−0.15×|d| 整体退役（左侧图标缩小+字体被边\n      边挤压成省略号双根因），条目尺寸恒定 + 窗缘渐隐带；②槽位复制工厂\n      （小集合接缝推窗：逻辑数≤2×窗半宽时复制，宿主 ame_copyFactory 现建\n      副本，下标全链映射回逻辑数）；③镜像面超定修复：管理↔删除相邻链原钉\n      化随镜像面卸/立 + 版本条目镜像重建对称化（去 ame_left 单向条件））",
       "AmeFlowSelectCenterScale" not in flow
@@ -304,14 +306,27 @@ check("C16 转盘弧度恢复（★Task410 第 18 轮复诉「转盘的弧度怎
       and "AmeFlowSelectCenterScale" not in flow   # 缩放类根因零复沾（C15 同口径复核）
       and "AmeFlowSelectScalePerStep" not in flow)
 
-check("C17 右上角无文字切换簇回归+rail 图标恒定（★Task411 第 19 轮复诉①②——①bare 骨架\n      ame411_switcherCluster 悬浮图标胶囊：六入口（主页/下载/联机/AI/设置/文件）\n      钉 safeArea 右上全页面常驻 + 选中态随 currentIndex 刷新（ame411_refreshSwitcherSelection），\n      fui 骨架不建防双导航重复；②壳 rail 图标恒定单一常量 38（compact ? 38 : 24\n      二态退役 = 用户钦定「直接固定图标」）+ 高度独立 required 常量（宽高两条\n      同值常量零耦合）+ 四轴抗压抗抱死）",
+check("C17 右上角无文字切换簇回归+rail 图标回档恒定（★Task411 立 ★Task412 重锚——①bare 骨架\n      ame411_switcherCluster 悬浮图标胶囊：六入口（主页/下载/联机/AI/设置/文件）\n      钉 safeArea 右上全页面常驻 + 选中态随 currentIndex 刷新（ame411_refreshSwitcherSelection），\n      fui 骨架不建防双导航重复；②壳 rail 图标回档 24pt 恒定单一常量（第 20 轮\n      复诉②「图标放的更大了」= 410b 38pt 二轮放大被实测否决，「一开始」展开态\n      口径回归，仍为折叠/展开单一常量零联动）+ 高度独立 required 常量（宽高两条\n      同值常量零耦合）+ 四轴抗压抗抱死）",
       "ame411_switcherCluster" in shell_code
       and "ame411_refreshSwitcherSelection" in shell_code
-      and shell_code.count("constraintEqualToConstant:38.0") >= 2   # 图标宽+高两条独立 required
+      and shell_code.count("constraintEqualToConstant:24.0") >= 2   # 图标宽+高两条独立 required
+      and "self.ame402_iconSize.constant = 24.0;" in shell_code    # 回档 24 恒定
+      and "constraintEqualToConstant:38.0" not in shell_code       # 38 二轮放大口径零残留
       and "compact ? 38.0 : 24.0" not in shell_code
-      and "ZL2ShellSystemImageSized(symbol, fallback, 38.0)" in shell_code
+      and "compact ? 7.0 : 14.0" not in shell_code                 # 居中路径二态亦退役（恒 14）
+      and "ZL2ShellSystemImageSized(symbol, fallback, 24.0)" in shell_code
       and "setContentCompressionResistancePriority:UILayoutPriorityRequired forAxis:UILayoutConstraintAxisHorizontal" in shell_code
       and "ZL2ShellRailItemIconSize = 24.0" in shell)
+
+check("C18 转盘镜像+模组行对齐（★Task412 第 20 轮复诉③④——①AmeFlowSelectView\n      ame_mirrored：竖轴弧向外移方向翻转 + 横轴排布/拖动/惯性向翻转，宿主\n      ame_applyPanelMirror 双流挂接（右停靠 = 镜像）；②模组行卡 trailing\n      LessThanOrEqualTo → 等式钉卡缘 + spacer 拥抱 248 独家吸收 = 全列\n      开关/删除右缘垂直对齐（IMG_0593 五行五位置漂移实锤根修））",
+      "ame_mirrored" in flow_code
+      and "setAme_mirrored:" in flow_code
+      and flow_code.count("_ame_mirrored") >= 6   # setter×2 + 横轴排布 + 竖轴外移 + 拖向 + 甩向翻转
+      and "self.accountFlow.ame_mirrored" in home_code
+      and "self.versionFlow.ame_mirrored" in home_code
+      and "row.trailingAnchor constraintEqualToAnchor:card.trailingAnchor" in vpages
+      and "constraintLessThanOrEqualToAnchor:card.trailingAnchor" not in vpages_code
+      and "setContentHuggingPriority:248 forAxis:UILayoutConstraintAxisHorizontal" in vpages_code)
 
 # ══ S 反向探针（--selftest：变体注入必翻红） ═══════════════════════
 
@@ -331,18 +346,18 @@ if "--selftest" in sys.argv:
     rcheck("S-C1", home_code + "ame378_buildQuickNav", "ame378_buildQuickNav" in (home_code + "ame378_buildQuickNav"))
     rcheck("S-C12", home_code + "ame400_nameLabel.adjustsFontSizeToFitWidth = YES;",
            "ame400_nameLabel.adjustsFontSizeToFitWidth" in (home_code + "ame400_nameLabel.adjustsFontSizeToFitWidth = YES;"))
-    rcheck("S-C13", about_code.replace("ame411_buildTag", "ame410_buildTag"),
-           "ame411_buildTag" not in about_code.replace("ame411_buildTag", "ame410_buildTag"))   # ★Task411 有效化：代标回退变体 → C13 必翻红
+    rcheck("S-C13", about_code.replace("ame412_buildTag", "ame411_buildTag"),
+           "ame412_buildTag" not in about_code.replace("ame412_buildTag", "ame411_buildTag"))   # ★Task412 有效化：代标回退变体 → C13 必翻红
     rcheck("S-C14", home_code + "action:@selector(handleSidebarReorder:)",
            "action:@selector(handleSidebarReorder:)" in (home_code + "action:@selector(handleSidebarReorder:)"))
     # ★Task410 S-C16：弧度常量抹除变体 → C16 必翻红
     rcheck("S-C16", flow_code.replace("AmeFlowSelectArcSagH", "AmeFlowSelectArcGone"),
            "AmeFlowSelectArcSagH" not in flow_code.replace("AmeFlowSelectArcSagH", "AmeFlowSelectArcGone"))
-    # ★Task411 S-C17：图标二态常量回潮变体 → C17 必翻红（恒定口径破坏检出）
-    rcheck("S-C17", shell_code.replace("self.ame402_iconSize.constant = 38.0;",
-                                       "self.ame402_iconSize.constant = compact ? 38.0 : 24.0;"),
-           "compact ? 38.0 : 24.0" in shell_code.replace("self.ame402_iconSize.constant = 38.0;",
-                                                         "self.ame402_iconSize.constant = compact ? 38.0 : 24.0;"))
+    # ★Task412 S-C17：图标二档常量回潮变体 → C17 必翻红（回档口径破坏检出）
+    rcheck("S-C17", shell_code.replace("self.ame402_iconSize.constant = 24.0;",
+                                       "self.ame402_iconSize.constant = 38.0;"),
+           "self.ame402_iconSize.constant = 38.0;" in shell_code.replace("self.ame402_iconSize.constant = 24.0;",
+                                                                         "self.ame402_iconSize.constant = 38.0;"))
     if rf:
         print(f"  SELFTEST FAILED: {rf}")
         sys.exit(1)
