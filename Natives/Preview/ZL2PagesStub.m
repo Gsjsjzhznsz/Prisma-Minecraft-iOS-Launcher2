@@ -207,9 +207,19 @@
 @end
 
 @interface ThirdPartyAuthenticator : BaseAuthenticator
++ (NSString *)ame413_fullSkinPathForAccountId:(NSString *)accountId;
 @end
 
 @implementation ThirdPartyAuthenticator
+
+// ★Task414 桩补（Task343 r1/Task337 r1 判例同族第 N 例：皮肤工作室 v3 把
+//   skinfull 磁盘链（ame413_fullSkinPathForAccountId 类方法）带进了预览链接
+//   面——run 42643918763/r3 console-accounts 实锤 unrecognized selector sent to
+//   class（Task413 时该调用在未登录态 configure(nil)→loadSkin(nil) 恒达，冒烟
+//   accounts 图实为崩溃后残帧 = 历史绿是假阴性）。空实现 = 离线真皮链走占位
+//   灰模型，预览零崩溃）
++ (NSString *)ame413_fullSkinPathForAccountId:(NSString *)accountId { return nil; }
+
 @end
 
 // ThirdPartyLoginViewController：[[alloc] init] + mode + onLoginComplete
@@ -248,6 +258,14 @@
     dispatch_async(dispatch_get_main_queue(), ^{
         completion(nil);
     });
+}
+
+// ★Task414 设为头像桩（皮肤工作室动作面链接缺口预防：真类方法在
+//   AvatarManager.m；截图流程不触达，空回调 = 头像更新走占位）
+- (void)saveAvatarForAccount:(NSString *)accountName
+                       image:(UIImage *)image
+              withCompletion:(void (^)(BOOL, NSError * _Nullable))completion {
+    if (completion) completion(NO, nil);
 }
 
 @end
