@@ -593,7 +593,7 @@ static NSString *AmePreviewPageTitle(NSInteger index) {
     }
 
     // 五主导航（ame389 镜像：图标 24pt / 行 44 / 选中 surfaceContainerHighest）
-    NSArray *pages = @[@0, @1, @2, @4, @6];
+    NSArray<NSNumber *> *pages = @[@0, @1, @2, @4, @6];   // ★Task414 显式泛型 = id 点语法判例（run 42487051782 族）规避
     NSArray<NSString *> *symbols = @[@"house.fill", @"arrow.down.circle.fill",
                                      @"shippingbox.fill", @"gearshape.fill", @"sparkles"];
     NSMutableArray<UIView *> *items = [NSMutableArray array];
@@ -679,7 +679,7 @@ static NSString *AmePreviewPageTitle(NSInteger index) {
 - (void)ame414_refreshShellForIndex:(NSInteger)index {
     self.headerTitle.text = AmePreviewPageTitle(index);
     // bare 胶囊选中（pages = 0,1,5,6,4,-1）
-    NSArray *capsulePages = @[@0, @1, @5, @6, @4, @(-1)];
+    NSArray<NSNumber *> *capsulePages = @[@0, @1, @5, @6, @4, @(-1)];   // 显式泛型 = id 点语法判例规避
     [self.capsuleButtons enumerateObjectsUsingBlock:^(UIView *btn, NSUInteger i, BOOL *stop) {
         BOOL selected = (capsulePages[i].integerValue == index);
         btn.backgroundColor = selected ? [ZL2Theme surfaceContainerHigh] : [UIColor clearColor];
