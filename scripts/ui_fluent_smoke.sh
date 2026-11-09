@@ -78,6 +78,9 @@ syntax_mode() {
     else
       echo "  ✗ $base"
       cat "$log" || true
+      # ★Task414：失败明细以 ##[error] 直出 = check-run annotations 可读（取证通道，
+      #   run 42643918763 冒烟失败但产物路由 404 取证不可达的教训）
+      sed 's/^/##[error] [syntax] /' "$log" || true
       bad=$((bad + 1))
       FAIL=1
     fi
@@ -121,6 +124,7 @@ preview_mode() {
     if ! xcrun clang -c "${COMMON[@]}" "$NATIVES/$s.m" -o "$OUT/$base.o" 2>"$OUT/compile-$base.log"; then
       echo "  ✗ $s.m 编译失败:"
       cat "$OUT/compile-$base.log" || true
+      sed 's/^/##[error] [preview-compile] /' "$OUT/compile-$base.log" || true
       FAIL=1
       return
     fi
@@ -131,6 +135,7 @@ preview_mode() {
   if ! xcrun clang -c "${COMMON[@]}" "$NATIVES/Preview/AmeFluentPreviewMain.m" -o "$OUT/AmeFluentPreviewMain.o" 2>"$OUT/compile-main.log"; then
     echo "  ✗ harness 编译失败:"
     cat "$OUT/compile-main.log" || true
+    sed 's/^/##[error] [preview-main] /' "$OUT/compile-main.log" || true
     FAIL=1
     return
   fi
@@ -139,6 +144,7 @@ preview_mode() {
   if ! xcrun clang -c "${COMMON[@]}" "$NATIVES/Preview/ZL2PagesStub.m" -o "$OUT/ZL2PagesStub.o" 2>"$OUT/compile-stub.log"; then
     echo "  ✗ ZL2 桩 TU 编译失败:"
     cat "$OUT/compile-stub.log" || true
+    sed 's/^/##[error] [preview-stub] /' "$OUT/compile-stub.log" || true
     FAIL=1
     return
   fi
@@ -156,6 +162,7 @@ preview_mode() {
       "${objs[@]}" "$OUT/AmeFluentPreviewMain.o" "$OUT/ZL2PagesStub.o" 2>"$OUT/link.log"; then
     echo "  ✗ 链接失败:"
     head -80 "$OUT/link.log" || true
+    sed 's/^/##[error] [link] /' "$OUT/link.log" | head -40 || true
     FAIL=1
     return
   fi
@@ -222,6 +229,7 @@ PLIST
       echo "  启动 OK[$p]: $page_launch_out"
     else
       echo "✗ 启动失败[$p]: $page_launch_out"
+      echo "##[error] [launch-$p] $page_launch_out"
       FAIL=1
       return
     fi
@@ -254,6 +262,8 @@ PLIST
       wait "$conpid" 2>/dev/null || true
       echo "── console-pty 直捕[$p]（首 80 行）:"
       head -80 "$OUT/console-$p.log" 2>/dev/null || echo "  （无输出）"
+      # ★Task414：崩溃取证走 annotations（产物路由 404 期间唯一稳定通道）
+      sed 's/^/##[error] [console-'$p'] /' "$OUT/console-$p.log" 2>/dev/null | head -40 || true
       echo "── 模拟器统一日志（ame-fluent 相关，近 4 分钟）:"
       xcrun simctl spawn "$device" log show --last 4m --style compact --predicate 'eventMessage CONTAINS[c] "ame-fluent" OR processImagePath CONTAINS[c] "ame-fluent"' 2>/dev/null | grep -aiE "exit|kill|crash|terminat|launch|bootstrapp|runningboard" | head -30
       FAIL=1
@@ -296,6 +306,7 @@ PLIST
     done
     if [ "$alive2" -ne 1 ]; then
       echo "✗ 存活检查失败[nav/$fp]：launch 成功但进程已亡（启动即崩）"
+      echo "##[error] [alive-nav-$fp] 进程已亡（启动即崩）"
       FAIL=1
       return
     fi
