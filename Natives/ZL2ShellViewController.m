@@ -497,7 +497,12 @@ static UIImage *ZL2ShellSystemImageSizedEx(NSString *name, NSString *fallback, C
     //   SelectionIndicator 动效口径）；行内保留视图占位（零布局影响），
     //   恒隐藏。行底/着色语义不变。
     self.indicator.hidden = YES;
-    self.backgroundColor = selected ? [ZL2Theme surfaceContainerHigh] : [UIColor clearColor];
+    // ★Task414 选中底色 surfaceContainerHigh → Highest（第 23 轮复诉⑥
+    //   「fui左边的侧边栏你要修多久」：fui 暗板 surfaceContainerHigh 28 与
+    //   窗格底 1D 仅差 ~4% 亮度 = 选中态几乎不可辨 IMG_0606 实锤；Highest
+    //   = surface 上最亮容器档，暗板对比翻倍且亮板仍属克制中性抬升，
+    //   WinUI 选中 pill「中性抬升」语义不破）
+    self.backgroundColor = selected ? [ZL2Theme surfaceContainerHighest] : [UIColor clearColor];
     UIColor *tint = selected ? [ZL2Theme onSurface] : [ZL2Theme onSurfaceVariant];
     self.iconView.tintColor = tint;
     self.label.textColor = tint;
@@ -698,6 +703,13 @@ static UIImage *ZL2ShellSystemImageSizedEx(NSString *name, NSString *fallback, C
 @property(nonatomic, strong) UIView *ame411_switcherCluster;          // 悬浮图标胶囊容器
 @property(nonatomic, strong) NSMutableArray<ZL2ShellSwitcherButton *> *ame411_switcherButtons; // 六入口钮
 @property(nonatomic, strong) NSMutableArray<NSNumber *> *ame411_switcherPages;  // 钮→页面索引（-1 = 瞬时）
+// ★Task414 MD3 bare 顶带（第 23 轮复诉④「md3上面的安全区依旧没有，反而fui
+//   插件上面为什么有安全区」：bare 无头带 = 主页网格/右栏几乎贴状态栏，fui
+//   navigationview 有 64pt 头带 = 顶部口径不一致；本带对齐 fui：状态栏区
+//   surface 色全出血 + 头带 64（大标题 + 胶囊同行），容器自带下起，页内容
+//   不再钻状态栏；胶囊入带右上 = 不再压主页右栏顶卡）
+@property(nonatomic, strong) UIView *bareHeaderView;                  // bare 顶带（状态栏区+64 呼吸带）
+@property(nonatomic, strong) UILabel *bareTitleLabel;                 // bare 顶带大标题（fui headerTitle 同源口径）
 @end
 
 @implementation ZL2ShellViewController
@@ -829,6 +841,26 @@ static UIImage *ZL2ShellSystemImageSizedEx(NSString *name, NSString *fallback, C
 //     既有约定：子页 push 层系统返回栏本就独立工作，顶栏返回仅为辅助手势）；
 //   · 主页内部自理 safeArea（ActionMenu/内容区挂 safe 锚）；bare 容器全屏直铺。
 - (void)ame_buildBareShell {
+    // ★ Task411：右上角无文字小型切换簇（bare 唯一切换区，全页面常驻；
+    //   ★Task414 起入带：胶囊仍钉 safeArea 右上 12 = 带内右段，不再压主页右栏顶卡）
+    //   先建胶囊（顶带标题尾缘让位约束引用其 leading，须先存在）
+    [self ame411_buildSwitcherCluster];
+
+    // ★Task414 顶带（对齐 fui contentHeader 口径）：状态栏区 surface 全出血
+    //   + 64pt 呼吸带（大标题行 + 右上胶囊同行），容器自带下起
+    self.bareHeaderView = [[UIView alloc] init];
+    self.bareHeaderView.translatesAutoresizingMaskIntoConstraints = NO;
+    self.bareHeaderView.backgroundColor = [ZL2Theme surface];
+    [self.view addSubview:self.bareHeaderView];
+
+    self.bareTitleLabel = [[UILabel alloc] init];
+    self.bareTitleLabel.translatesAutoresizingMaskIntoConstraints = NO;
+    self.bareTitleLabel.font = [ZL2Theme fontHeadline];
+    self.bareTitleLabel.textColor = [ZL2Theme onSurface];
+    self.bareTitleLabel.numberOfLines = 1;
+    self.bareTitleLabel.lineBreakMode = NSLineBreakByTruncatingTail;
+    [self.bareHeaderView addSubview:self.bareTitleLabel];
+
     self.container = [[UIView alloc] init];
     self.container.translatesAutoresizingMaskIntoConstraints = NO;
     self.container.backgroundColor = [UIColor clearColor];
@@ -836,14 +868,25 @@ static UIImage *ZL2ShellSystemImageSizedEx(NSString *name, NSString *fallback, C
 
     self.containerTrailing = [self.container.trailingAnchor constraintEqualToAnchor:self.view.trailingAnchor];
     [NSLayoutConstraint activateConstraints:@[
-        [self.container.topAnchor constraintEqualToAnchor:self.view.topAnchor],
+        [self.bareHeaderView.topAnchor constraintEqualToAnchor:self.view.topAnchor],
+        [self.bareHeaderView.leadingAnchor constraintEqualToAnchor:self.view.leadingAnchor],
+        [self.bareHeaderView.trailingAnchor constraintEqualToAnchor:self.view.trailingAnchor],
+        // 与 nav 骨架 contentHeader 同款 safeArea 延伸语义：头底 = safeArea 顶 + 64
+        [self.bareHeaderView.bottomAnchor constraintEqualToAnchor:self.view.safeAreaLayoutGuide.topAnchor
+                                                        constant:ZL2ShellHeaderHeight],
+        // 大标题（fui headerTitle 同源几何：centerY = safeArea 顶 + 32）
+        [self.bareTitleLabel.leadingAnchor constraintEqualToAnchor:self.view.safeAreaLayoutGuide.leadingAnchor constant:16.0],
+        [self.bareTitleLabel.centerYAnchor constraintEqualToAnchor:self.view.safeAreaLayoutGuide.topAnchor constant:32.0],
+        // 标题尾缘让位右上胶囊（胶囊 safe+12 入带，与标题同带不重叠）
+        [self.bareTitleLabel.trailingAnchor constraintLessThanOrEqualToAnchor:self.ame411_switcherCluster.leadingAnchor constant:-12.0],
+
+        [self.container.topAnchor constraintEqualToAnchor:self.bareHeaderView.bottomAnchor],
         [self.container.leadingAnchor constraintEqualToAnchor:self.view.leadingAnchor],
         self.containerTrailing,
         [self.container.bottomAnchor constraintEqualToAnchor:self.view.bottomAnchor],
     ]];
-
-    // ★ Task411：右上角无文字小型切换簇（bare 唯一切换区，全页面常驻）
-    [self ame411_buildSwitcherCluster];
+    // 胶囊先建 = 被后加的顶带盖住；入带展示须置于顶带之上
+    [self.view bringSubviewToFront:self.ame411_switcherCluster];
 }
 
 #pragma mark - ★ Task411 bare 右上角无文字小型切换簇
@@ -1601,9 +1644,11 @@ static UIImage *ZL2ShellSystemImageSizedEx(NSString *name, NSString *fallback, C
         [self ame_refreshNavShellStateAnimated:animated];
         return;
     }
-    // ★ Task378：topbar 骨架退役——bare 壳无顶栏态可刷（标题/左簇/RailItem
-    //   选中随顶栏整体移除；子页栈深与标题由各子页 UINavigationController
-    //   自带导航栏呈现，7.0-UI-8 既有约定不变）
+    // ★Task414 bare 顶带大标题（ame_titleForIndex 同源口径：主页 = 应用名，
+    //   子页 = 页名；随 currentIndex 切页刷新）
+    if (self.bareTitleLabel) {
+        self.bareTitleLabel.text = [self ame_titleForIndex:self.currentIndex];
+    }
     // ★ Task411：右上角切换簇选中态刷新（bare 唯一切换区随 currentIndex 同步）
     [self ame411_refreshSwitcherSelection];
 }

@@ -122,8 +122,9 @@ check("B2 顶栏全件退役（TopBar 构建器/容器构建器/RailItem 类/左
       and "barRow" not in shell_code
       and "ame_setTitleText" not in shell_code)
 
-check("B3 容器全屏直铺（bare：top = view.top，子页导航栏自理状态栏延伸）",
-      "[self.container.topAnchor constraintEqualToAnchor:self.view.topAnchor]," in shell_code)
+check("B3 容器顶锚（bare：★Task414 起 top = bareHeaderView.bottom——顶带入列，\n      子页导航栏自理状态栏延伸语义随容器整体下移同源保留）",
+      "[self.container.topAnchor constraintEqualToAnchor:self.view.topAnchor]," in shell_code
+      or "[self.container.topAnchor constraintEqualToAnchor:self.bareHeaderView.bottomAnchor]" in shell_code)
 
 check("B4 存量门禁锚点逐字保留（347 B5/B6 + 349 宽窄哨兵/豁免 + 376 折叠派发）",
       bool(re.search(r"ame_refreshTopBarStateAnimated:\(BOOL\)animated \{\s*// ★ Task347：nav 骨架走等价刷新", shell))
@@ -259,10 +260,10 @@ check("C12 转盘字体恒定（★Task407：封面流条目随 |d| 缩放时缩
       and "ame400_nameLabel.lineBreakMode = NSLineBreakByTruncatingTail;" in home
       and "ame400_typeLabel.lineBreakMode = NSLineBreakByTruncatingTail;" in home)
 
-check("C13 构建代际锚（★Task407 立 408/409/410/411/412 推进 Task413 推进：关于页版本行追加源码级构建代号\n      ame413_buildTag —— Info.plist 双键静态致装机代际不可辨 = 旧构建滞留循环的\n      结构性盲区，关于页读到 Task413 = 本轮新构建在机）",
-      "ame413_buildTag" in about_code
+check("C13 构建代际锚（★Task407 立 408/409/410/411/412 推进 Task414 推进：关于页版本行追加源码级构建代号\n      ame414_buildTag —— Info.plist 双键静态致装机代际不可辨 = 旧构建滞留循环的\n      结构性盲区，关于页读到 Task414 = 本轮新构建在机）",
+      "ame414_buildTag" in about_code
       and "Task413" in about
-      and about_code.count("ame413_buildTag") >= 2
+      and about_code.count("ame414_buildTag") >= 2
       and "numberOfLines = 0" in about_code)
 
 check("C14 换边恢复+瓦片二度退役+排序退役（★Task408 立 ★Task410 重锚 ★Task411 终局——\n      ①面板长按换边手势+实现体+持久化恢复回装（镜像随 applySide→applyPanelMirror\n      链自动生效）；②五瓦片二度退役：★Task411 第 19 轮用户钦定「一开始的无文字\n      右上角小型的切换按钮」= 壳层 ame411_switcherCluster 悬浮图标胶囊（屏幕\n      右上 safeArea 常驻）接棒 bare 全场景唯一切换区，五瓦片（有文字大瓦片）\n      无条件 hidden=「固定形态」收敛（408 判例回归，条件化断言退役）；③排序长按\n      挂接退役（restoreSidebarCardOrder 保留），提示语回原键）",
@@ -371,6 +372,52 @@ if ame378_c19_fail and os.environ.get("AME378_DEBUG"):
 check("C19 安全区二轮+模组链接内跳+皮肤预览内嵌真皮链（★Task413 第 22 轮复诉五项——\n      ①安全区二轮：壳头带 64 / 内容行 centerY 32 / 胶囊顶距 12 / 主页网格顶距 28\n      （iPhone 刘海由 safeAreaLayoutGuide 锚点天然涵盖）；②fui 图标字形重生幂等锁\n      （ame413_appliedGlyphPt 同值跳过 = 调节不再带动图标重渲染）；③模组链接内跳：\n      fetchProjectInfoForMod completion 增补 source + ameV13_projectIdByPath 路由 +\n      ModVersionViewController 推入 + jar 链接三源提取（ModService homepage）；\n      ④皮肤预览内嵌：ZL2SkinPreviewView 账户卡右栏 + Y 轴翻转（y_l = −(y_m−16)）\n      + 左右面换位 + slim 模型 + yggdrasil 真皮链 + skinfull-<accountId>.png 全皮落盘）",
       all(ok for _, ok in ame378_c19))
 
+# ── C20 断言子句化（★Task414 第 23 轮复诉六项——逐条可读） ──
+preview_code = strip_code(read("Natives/Preview/AmeFluentPreviewMain.m"))
+smoke_raw = read("scripts/ui_fluent_smoke.sh")
+
+ame378_c20 = [
+    # ④ MD3 bare 顶带（安全区口径对齐 fui）
+    ("bare-band", "bareHeaderView" in shell_code),
+    ("bare-band-pin", "bareHeaderView.bottomAnchor constraintEqualToAnchor:self.view.safeAreaLayoutGuide.topAnchor" in shell_code),
+    ("bare-title", "bareTitleLabel" in shell_code),
+    ("bare-title-cy", "bareTitleLabel.centerYAnchor constraintEqualToAnchor:self.view.safeAreaLayoutGuide.topAnchor constant:32.0" in shell_code),
+    ("bare-container", "[self.container.topAnchor constraintEqualToAnchor:self.bareHeaderView.bottomAnchor]" in shell_code),
+    ("bare-title-refresh", "[self ame_titleForIndex:self.currentIndex]" in shell_code),
+    # ⑥ fui rail 选中态对比度（Highest 抬升）
+    ("rail-highest", "selected ? [ZL2Theme surfaceContainerHighest] : [UIColor clearColor]" in shell_code),
+    # ① 真 3D 四件套（深度序/光影/透视/跑步）
+    ("depth-sort", "zPosition" in skinview_code),
+    ("face-record", "ZL2SkinViewFace" in skinview_code),
+    ("light-shade", "shade.opacity" in skinview_code),
+    ("walk-swing", "0.55 * sin(_ame414_walkPhase)" in skinview_code),
+    ("persp-480", "-1.0 / 480.0" in skinview_code),
+    ("pivot-rot", "CATransform3DConcat(ame414_tp, ame414_rot)" in skinview_code),
+    # ② 皮肤站控件组 + ③ 衣柜/设为头像/下载
+    ("studio-controls", "ame414_iconButtonWithSymbol" in skinview_code),
+    ("wardrobe-disk", "skinwardrobe" in skinview_raw),
+    ("avatar-set", "saveAvatarForAccount" in skinview_code),
+    ("skin-share", "UIActivityViewController" in skinview_code),
+    # ⑤ 账户页两栏右移（工作室卡 + 880 阈值切幅）
+    ("studio-card", "ame414_buildStudioCard" in accounts_code),
+    ("studio-relayout", "ame414_relayoutStudioForWidth" in accounts_code),
+    ("studio-threshold", "width >= 880.0" in accounts_code),
+    # ⑤ 主页右栏自适应（滚轮 112 + 版本视口收敛）
+    ("wheel-112", "ZL2HomeAccountWheelH      = 112" in home),
+    ("version-adaptive", "ame414_relayoutVersionHeight" in home_code),
+    ("version-height-pin", "_ame414_versionHeight" in home_code),
+    # 预览 harness 双骨架镜像 + 冒烟 nav 轨（「你不会运用预览吗」）
+    ("preview-nav-shell", "ame414_buildNavPane" in preview_code),
+    ("preview-capsule", "ame414_buildCapsule" in preview_code),
+    ("preview-fluent-tokens", "ame317_setPluginThemeTokens" in preview_code),
+    ("smoke-nav-track", "-zl2shell nav -zl2theme fluent-dark" in smoke_raw),
+]
+ame378_c20_fail = [n for n, ok in ame378_c20 if not ok]
+if ame378_c20_fail and os.environ.get("AME378_DEBUG"):
+    print("  C20 failing clauses:", ", ".join(ame378_c20_fail))
+check("C20 MD3顶带+真3D皮肤工作室+右栏自适应+fui rail对比度+预览镜像（★Task414 第 23 轮复诉六项——\n      ④bare 顶带 64/大标题/容器下起/标题随页刷新（安全区口径对齐 fui）；⑥rail 选中底色\n      surfaceContainerHighest；①深度排序 zPosition/逐面光影罩/透视 480/跑步摆动（枢轴\n      RotX）；②③皮肤站控件/衣柜 skinwardrobe/设为头像/下载分享；⑤账户页工作室卡\n      880 阈值切幅 + 主页滚轮 112/版本视口自适应；预览 harness bare/nav 双骨架 + fluent-dark\n      渲染轨 + 冒烟 nav 截图轨）",
+      all(ok for _, ok in ame378_c20))
+
 # ══ S 反向探针（--selftest：变体注入必翻红） ═══════════════════════
 
 if "--selftest" in sys.argv:
@@ -389,8 +436,8 @@ if "--selftest" in sys.argv:
     rcheck("S-C1", home_code + "ame378_buildQuickNav", "ame378_buildQuickNav" in (home_code + "ame378_buildQuickNav"))
     rcheck("S-C12", home_code + "ame400_nameLabel.adjustsFontSizeToFitWidth = YES;",
            "ame400_nameLabel.adjustsFontSizeToFitWidth" in (home_code + "ame400_nameLabel.adjustsFontSizeToFitWidth = YES;"))
-    rcheck("S-C13", about_code.replace("ame413_buildTag", "ame412_buildTag"),
-           "ame413_buildTag" not in about_code.replace("ame413_buildTag", "ame412_buildTag"))   # ★Task413 有效化：代标回退变体 → C13 必翻红
+    rcheck("S-C13", about_code.replace("ame414_buildTag", "ame413_buildTag"),
+           "ame414_buildTag" not in about_code.replace("ame414_buildTag", "ame413_buildTag"))   # ★Task413 有效化：代标回退变体 → C13 必翻红
     rcheck("S-C14", home_code + "action:@selector(handleSidebarReorder:)",
            "action:@selector(handleSidebarReorder:)" in (home_code + "action:@selector(handleSidebarReorder:)"))
     # ★Task410 S-C16：弧度常量抹除变体 → C16 必翻红
@@ -405,6 +452,8 @@ if "--selftest" in sys.argv:
     rcheck("S-C18", flow_code + "CGFloat ame_signed = _ame_mirrored ? -1.0 : 1.0;",
            "ame_signed = _ame_mirrored" in (flow_code + "CGFloat ame_signed = _ame_mirrored ? -1.0 : 1.0;"))
     # ★Task413 S-C19：Y 轴翻转抹除变体 → C19 必翻红（IMG_0596 倒置根修破坏检出）
+    rcheck("S-C20", skinview_code.replace("ame414_f.layer.zPosition", "/*depth-erased*/"),
+           "ame414_f.layer.zPosition" not in skinview_code.replace("ame414_f.layer.zPosition", "/*depth-erased*/"))   # ★Task414 S-C20：深度排序抹除变体 → C20 必翻红
     rcheck("S-C19", skinview_code.replace("-(ame413_box.cy - 16.0)", "(ame413_box.cy - 16.0)"),
            "-(ame413_box.cy - 16.0)" not in skinview_code.replace("-(ame413_box.cy - 16.0)", "(ame413_box.cy - 16.0)"))
     if rf:

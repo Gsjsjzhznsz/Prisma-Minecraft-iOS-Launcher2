@@ -318,6 +318,20 @@ BOOL ZL2AccountsSharedIsThirdParty(NSDictionary *accountData) {
 @property (nonatomic, strong) UILabel *identityTypeLabel;
 @property (nonatomic, strong) ZL2SkinPreviewView *skinPreviewView;   // ★Task413 内嵌皮肤 3D 预览（弹窗 VC 退役）
 
+// ★Task414 皮肤工作室（第 23 轮复诉「有这么多空间还要挤在一起，直接往右边
+//   挪不行吗」：宽幅 ≥880 = 预览迁入右栏工作室卡（320×460，IMG_0607 口径）；
+//   窄幅 = 回视觉卡内嵌 280×300）
+@property (nonatomic, strong) UIView *studioCard;
+@property (nonatomic, strong) NSArray<NSLayoutConstraint *> *ame414_studioPins;    // 工作室钉组（宽幅激活）
+@property (nonatomic, strong) NSArray<NSLayoutConstraint *> *ame414_embeddedPins;  // 视觉卡内嵌钉组（窄幅激活）
+@property (nonatomic, strong) NSArray<NSLayoutConstraint *> *ame414_studioPreviewPins; // 预览在工作室卡内四边钉（宽幅激活，防反复激活堆积）
+@property (nonatomic, strong) NSLayoutConstraint *ame414_previewWidth;   // 内嵌形态预览宽（持引用切换）
+@property (nonatomic, strong) NSLayoutConstraint *ame414_previewHeight;  // 内嵌形态预览高
+@property (nonatomic, strong) NSLayoutConstraint *ame414_cardMinHeight;  // 视觉卡高下限（随形态切换）
+@property (nonatomic, strong) NSLayoutConstraint *ame414_centerOffset;   // 主列 center 偏移（让位右栏）
+@property (nonatomic, strong) NSLayoutConstraint *ame414_fillWidth;      // 999 宽度正定（常量随形态换算）
+@property (nonatomic, assign) BOOL ame414_studioVisible;
+
 // ② 添加账号大按钮
 @property (nonatomic, strong) UIControl *addAccountButton;
 
@@ -359,6 +373,15 @@ BOOL ZL2AccountsSharedIsThirdParty(NSDictionary *accountData) {
                                                  name:@"ZL2AccountsRequestAdd" object:nil];
     [[NSNotificationCenter defaultCenter] addObserver:self selector:@selector(ame_requestDeleteCurrent)
                                                  name:@"ZL2AccountsRequestDeleteCurrent" object:nil];
+    // ★Task414 皮肤工作室「设为头像」回执 → 视觉卡头像即刷
+    [[NSNotificationCenter defaultCenter] addObserver:self selector:@selector(reloadAccounts)
+                                                 name:@"ZL2AccountsReloadAvatar" object:nil];
+}
+
+// ★Task414 切幅派发（工作室卡可见阈值 880：主列 520 + 工作室 320 + 边距缝）
+- (void)viewDidLayoutSubviews {
+    [super viewDidLayoutSubviews];
+    [self ame414_relayoutStudioForWidth:self.scrollView.frameLayoutGuide.layoutFrame.size.width];
 }
 
 - (void)ame_requestAdd {
@@ -457,9 +480,13 @@ BOOL ZL2AccountsSharedIsThirdParty(NSDictionary *accountData) {
     [self buildIdentityCard];
     [self buildAddButton];
     [self buildListArea];
+    [self ame414_buildStudioCard];
 
     UILayoutGuide *contentLG = _scrollView.contentLayoutGuide;
     UILayoutGuide *frameLG = _scrollView.frameLayoutGuide;
+    // ★Task414 主列 center 偏移与 999 宽度正定持引用（工作室可见态换算常量）
+    _ame414_centerOffset = [_contentStack.centerXAnchor constraintEqualToAnchor:frameLG.centerXAnchor];
+    _ame414_centerOffset.active = YES;
     [NSLayoutConstraint activateConstraints:@[
         [_contentStack.topAnchor constraintEqualToAnchor:contentLG.topAnchor constant:16],
         [contentLG.bottomAnchor constraintGreaterThanOrEqualToAnchor:_contentStack.bottomAnchor constant:24],
@@ -467,7 +494,6 @@ BOOL ZL2AccountsSharedIsThirdParty(NSDictionary *accountData) {
         // 与 centerX/<=520 联立自动让位（列居中，不越界）——主页同款
         [_contentStack.leadingAnchor constraintGreaterThanOrEqualToAnchor:contentLG.leadingAnchor constant:20],
         [contentLG.trailingAnchor constraintGreaterThanOrEqualToAnchor:_contentStack.trailingAnchor constant:20],
-        [_contentStack.centerXAnchor constraintEqualToAnchor:frameLG.centerXAnchor],
         // 最大宽 520（spec：widthAnchor <= constant）
         [_contentStack.widthAnchor constraintLessThanOrEqualToConstant:ZL2AccountsContentMaxWidth],
         // 内容不钻状态栏/刘海底下（主页为无 nav 全屏宿主，此条保证观感）
@@ -475,10 +501,10 @@ BOOL ZL2AccountsSharedIsThirdParty(NSDictionary *accountData) {
     ]];
     // 宽度正定（优先级 999）：窄屏占满可用宽（frame-40）；与 <=520 上限联立
     // 后宽屏（iPad 横屏）由求解器收敛到 520（999 误差最小解），centerX 居中
-    NSLayoutConstraint *fillWidth = [_contentStack.widthAnchor constraintEqualToAnchor:frameLG.widthAnchor
-                                                                              constant:-40];
-    fillWidth.priority = 999;
-    fillWidth.active = YES;
+    _ame414_fillWidth = [_contentStack.widthAnchor constraintEqualToAnchor:frameLG.widthAnchor
+                                                                                  constant:-40];
+    _ame414_fillWidth.priority = 999;
+    _ame414_fillWidth.active = YES;
 }
 
 // ① 账户视觉卡：surfaceContainerLow / radiusL；★Task413 起横向双栏——
@@ -532,6 +558,14 @@ BOOL ZL2AccountsSharedIsThirdParty(NSDictionary *accountData) {
     [_identityCard addSubview:_identityStack];
     [_identityCard addSubview:_skinPreviewView];
     [_contentStack addArrangedSubview:_identityCard];
+    // ★Task414 内嵌形态预览尺寸/卡高下限持引用（宽幅工作室态切换常量）
+    _ame414_previewWidth = [_skinPreviewView.widthAnchor constraintEqualToConstant:280];
+    _ame414_previewHeight = [_skinPreviewView.heightAnchor constraintEqualToConstant:300];
+    _ame414_cardMinHeight = [_identityCard.heightAnchor constraintGreaterThanOrEqualToConstant:340];
+    _ame414_embeddedPins = @[
+        [_skinPreviewView.trailingAnchor constraintEqualToAnchor:_identityCard.trailingAnchor constant:-16],
+        [_skinPreviewView.centerYAnchor constraintEqualToAnchor:_identityCard.centerYAnchor],
+    ];
     [NSLayoutConstraint activateConstraints:@[
         // 左栏：头像+名字+类型（前导自由，垂直居中；与预览栏保持 ≥12 缝）
         [_identityStack.topAnchor constraintGreaterThanOrEqualToAnchor:_identityCard.topAnchor constant:20],
@@ -541,16 +575,80 @@ BOOL ZL2AccountsSharedIsThirdParty(NSDictionary *accountData) {
         [_identityAvatarView.widthAnchor constraintEqualToConstant:64],
         [_identityAvatarView.heightAnchor constraintEqualToConstant:64],
 
-        // 右栏：内嵌 3D 预览（190×224 固定幅面，尾缘 16 / 垂直居中）
-        [_skinPreviewView.trailingAnchor constraintEqualToAnchor:_identityCard.trailingAnchor constant:-16],
-        [_skinPreviewView.centerYAnchor constraintEqualToAnchor:_identityCard.centerYAnchor],
-        [_skinPreviewView.widthAnchor constraintEqualToConstant:190],
-        [_skinPreviewView.heightAnchor constraintEqualToConstant:224],
-
-        // 窄幅防挤：左栏尾缘不侵入预览栏（≥12 缝）+ 卡高下限（两栏并存呼吸）
+        // 窄幅防挤：左栏尾缘不侵入预览栏（≥12 缝）
         [_identityStack.trailingAnchor constraintLessThanOrEqualToAnchor:_skinPreviewView.leadingAnchor constant:-12],
-        [_identityCard.heightAnchor constraintGreaterThanOrEqualToConstant:256],
     ]];
+    [NSLayoutConstraint activateConstraints:_ame414_embeddedPins];
+    _ame414_previewWidth.active = YES;
+    _ame414_previewHeight.active = YES;
+    _ame414_cardMinHeight.active = YES;
+}
+
+// ★Task414 皮肤工作室卡（宽幅右栏 320×460；预览全边距 12 钉入，
+//   隐态 hidden + 钉组不激活，切幅在 ame414_relayoutStudioForWidth:）
+- (void)ame414_buildStudioCard {
+    _studioCard = [[UIView alloc] init];
+    _studioCard.backgroundColor = [ZL2Theme surfaceContainerLow];
+    _studioCard.layer.cornerRadius = [ZL2Theme radiusL];
+    _studioCard.translatesAutoresizingMaskIntoConstraints = NO;
+    _studioCard.hidden = YES;
+    _studioCard.isAccessibilityElement = YES;
+    _studioCard.accessibilityLabel = localize(@"ame414.skin.studio.title", @"皮肤工作室");
+    [self.scrollView addSubview:_studioCard];
+
+    UILayoutGuide *frameLG = _scrollView.frameLayoutGuide;
+    NSMutableArray<NSLayoutConstraint *> *ame414_pins = [NSMutableArray array];
+    [ame414_pins addObject:[_studioCard.trailingAnchor constraintEqualToAnchor:frameLG.trailingAnchor constant:-20]];
+    [ame414_pins addObject:[_studioCard.topAnchor constraintEqualToAnchor:_contentStack.topAnchor]];
+    [ame414_pins addObject:[_studioCard.widthAnchor constraintEqualToConstant:320]];
+    [ame414_pins addObject:[_studioCard.heightAnchor constraintEqualToConstant:460]];
+    [ame414_pins addObject:[_contentStack.trailingAnchor constraintLessThanOrEqualToAnchor:_studioCard.leadingAnchor constant:-12]];
+    [ame414_pins addObject:[_scrollView.contentLayoutGuide.bottomAnchor constraintGreaterThanOrEqualToAnchor:_studioCard.bottomAnchor constant:24]];
+    _ame414_studioPins = ame414_pins;   // 激活由切幅逻辑派发
+}
+
+// ★Task414 切幅（viewDidLayoutSubviews 阈值派发；幂等守卫防逐帧重入）
+- (void)ame414_relayoutStudioForWidth:(CGFloat)width {
+    BOOL ame414_want = (width >= 880.0);
+    if (ame414_want == _ame414_studioVisible) return;
+    _ame414_studioVisible = ame414_want;
+    if (ame414_want) {
+        // 宽幅：预览迁入右栏工作室卡（320 宽全边距 12），视觉卡回归纯信息列
+        [NSLayoutConstraint deactivateConstraints:_ame414_embeddedPins];
+        _ame414_previewWidth.active = NO;
+        _ame414_previewHeight.active = NO;
+        _ame414_cardMinHeight.constant = 120;
+        [_skinPreviewView removeFromSuperview];
+        [_studioCard addSubview:_skinPreviewView];
+        if (_ame414_studioPreviewPins == nil) {
+            _ame414_studioPreviewPins = @[
+                [_skinPreviewView.topAnchor constraintEqualToAnchor:_studioCard.topAnchor constant:12],
+                [_skinPreviewView.leadingAnchor constraintEqualToAnchor:_studioCard.leadingAnchor constant:12],
+                [_skinPreviewView.trailingAnchor constraintEqualToAnchor:_studioCard.trailingAnchor constant:-12],
+                [_skinPreviewView.bottomAnchor constraintEqualToAnchor:_studioCard.bottomAnchor constant:-12],
+            ];
+        }
+        [NSLayoutConstraint activateConstraints:_ame414_studioPreviewPins];
+        _studioCard.hidden = NO;
+        [NSLayoutConstraint activateConstraints:_ame414_studioPins];
+        _ame414_centerOffset.constant = -166.0;   // 主列让位右栏（居中于剩余区）
+        _ame414_fillWidth.constant = -372.0;      // frame −40 −320 −12
+    } else {
+        // 窄幅：预览回视觉卡内嵌（280×300），工作室收起
+        [NSLayoutConstraint deactivateConstraints:_ame414_studioPins];
+        if (_ame414_studioPreviewPins) [NSLayoutConstraint deactivateConstraints:_ame414_studioPreviewPins];
+        [_skinPreviewView removeFromSuperview];
+        [_identityCard addSubview:_skinPreviewView];
+        _ame414_previewWidth.constant = 280;
+        _ame414_previewHeight.constant = 300;
+        _ame414_previewWidth.active = YES;
+        _ame414_previewHeight.active = YES;
+        _ame414_cardMinHeight.constant = 340;
+        [NSLayoutConstraint activateConstraints:_ame414_embeddedPins];
+        _studioCard.hidden = YES;
+        _ame414_centerOffset.constant = 0;
+        _ame414_fillWidth.constant = -40;
+    }
 }
 
 // ② 「添加账户」大按钮：44 高 filled 样式（primary 底 onPrimary 前景

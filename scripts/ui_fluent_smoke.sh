@@ -273,8 +273,42 @@ PLIST
     xcrun simctl ui "$device" appearance light >/dev/null 2>&1 || true
   done
 
+  # ── fui NavigationView 镜像轨（★Task414 第 23 轮复诉⑥「你不会运用预览吗」：
+  #    fui 左栏 rail 自本轮起可截图验收——64 折叠窗格 + 图标 24 恒定 + 选中
+  #    surfaceContainerHighest 抬升在 fluent-dark 暗板下的真实观感；工作室/
+  #    账户页暗板同帧覆盖）──
+  local fp
+  for fp in home accounts; do
+    xcrun simctl terminate "$device" com.prisma-devs.ame-fluent-preview >/dev/null 2>&1 || true
+    if page_launch_out="$(xcrun simctl launch "$device" com.prisma-devs.ame-fluent-preview -zl2page "$fp" -zl2shell nav -zl2theme fluent-dark 2>&1)"; then
+      echo "  启动 OK[nav/$fp]: $page_launch_out"
+    else
+      echo "✗ 启动失败[nav/$fp]: $page_launch_out"
+      FAIL=1
+      return
+    fi
+    sleep 4
+    local alive2 fl2
+    alive2=0
+    for fl2 in 1 2 3; do
+      if pgrep -f "AmeFluentPreview.app" >/dev/null 2>&1; then alive2=1; break; fi
+      sleep 1
+    done
+    if [ "$alive2" -ne 1 ]; then
+      echo "✗ 存活检查失败[nav/$fp]：launch 成功但进程已亡（启动即崩）"
+      FAIL=1
+      return
+    fi
+    xcrun simctl ui "$device" appearance dark >/dev/null 2>&1 || true
+    sleep 2
+    xcrun simctl io "$device" screenshot "$OUT/ame-zl2-nav-fluent-$fp-dark.png" >/dev/null 2>&1 \
+      && sips -r 270 "$OUT/ame-zl2-nav-fluent-$fp-dark.png" >/dev/null 2>&1 \
+      && echo "  ✓ 截图[nav/$fp/fluent-dark]: $OUT/ame-zl2-nav-fluent-$fp-dark.png"
+    xcrun simctl ui "$device" appearance light >/dev/null 2>&1 || true
+  done
+
   xcrun simctl terminate "$device" com.prisma-devs.ame-fluent-preview >/dev/null 2>&1 || true
-  echo "== 预览冒烟完成（6 页 × 浅/深 12 张截图即视觉验收：横屏 40pt 顶栏镜像壳 + ZL2Home 大启动按钮/下载 chips/版本实数据/账户封面流/设置组卡/版本选择封面流弹层）=="
+  echo "== 预览冒烟完成（bare 五页浅/深 10 张 + fui nav 镜像 2 张 = 12 张截图即视觉验收：bare 顶带 64+胶囊入带 / ZL2Home 大启动按钮/版本自适应右栏 / 账户页工作室+皮肤预览 / fui 暗板 rail 选中抬升）=="
 }
 
 case "$MODE" in

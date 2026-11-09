@@ -20,8 +20,18 @@
 //     时臂盒 3pt + slim UV 表，否则经典 4pt。
 //
 // 渲染管线（沿用 412f 纯 CALayer 零 SceneKit 判例）：场景层
-// sublayerTransform 透视（m34 −1/700）；36 面静态子层 = 平移(盒心)·面向
-// 旋转·平移(半深)；CADisplayLink 自转；拖轨 yaw/pitch + 捏合缩放。
+// sublayerTransform 透视（m34 −1/480，★Task414 加强）；36 面静态子层 = 平移
+// (盒心)·面向旋转·平移(半深)；CADisplayLink 自转 + 跑步摆动；拖轨 yaw/pitch +
+// 捏合缩放。
+//
+// ★Task414 v3 真三件套（第 23 轮复诉「3d渲染依旧纸片」）：
+//   ① 逐帧 zPosition 深度排序（兄弟层声明序合成 → 深度序 = 遮挡永远正确）；
+//   ② 逐面光影罩（法线 × 左上前光向点积 → 黑罩 opacity 逐帧）；
+//   ③ 跑步动画（四肢绕肩/髋枢轴 RotX 正弦摆动，同侧臂腿反相）。
+// ★Task414 皮肤站控件组（IMG_0607 口径）：跑步/暂停/刷新 + 背景色板三枚 +
+//   左右旋转箭头 + 衣柜（本机 Documents/skinwardrobe，点按即穿/长按移除）+
+//   设为头像（AvatarManager 既有链）+ 下载（系统分享面板）。
+//   本机无服务端 → 皮肤站「举报/点赞」无对端语义诚实不做。
 //
 
 #import <UIKit/UIKit.h>

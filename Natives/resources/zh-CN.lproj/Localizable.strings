@@ -3920,3 +3920,20 @@
 "ame412.skin.preview.title" = "皮肤 3D 预览";
 "ame412.skin.preview.unavailable" = "皮肤加载失败，显示占位模型";
 "ame412.skin.preview.hint" = "拖动旋转 · 捏合缩放";
+
+// ── ★Task414 皮肤工作室（账户页右栏 IMG_0607 口径）──
+"ame414.skin.run" = "跑步";
+"ame414.skin.pause" = "暂停";
+"ame414.skin.refresh" = "刷新皮肤";
+"ame414.skin.spin.left" = "向左旋转";
+"ame414.skin.spin.right" = "向右旋转";
+"ame414.skin.bg" = "预览背景";
+"ame414.skin.wardrobe" = "衣柜";
+"ame414.skin.wardrobe.add" = "添加至衣柜";
+"ame414.skin.wardrobe.added" = "已加入衣柜";
+"ame414.skin.wardrobe.removed" = "已移出衣柜";
+"ame414.skin.avatar.set" = "设为头像";
+"ame414.skin.avatar.done" = "头像已更新";
+"ame414.skin.download" = "下载皮肤";
+"ame414.skin.download.none" = "还没有可保存的皮肤";
+"ame414.skin.studio.title" = "皮肤工作室";

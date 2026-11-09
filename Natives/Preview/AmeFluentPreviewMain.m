@@ -396,37 +396,17 @@ static NSString *AmePreviewPageTitle(NSInteger index) {
 // 顶栏 RailItem 视觉顺序（版本/下载/账户/设置，按 ZL2 TopBar 右簇规格）到
 // 页面槽位的映射：版本→2 / 下载→1 / 账户→3 / 设置→4（home=0 无 RailItem，
 // 由左簇 house 镜像承担）
-static NSInteger AmePreviewRailSlotForItem(NSUInteger itemIndex) {
-    static const NSInteger slots[4] = {2, 1, 3, 4};
-    if (itemIndex >= 4) return -1;
-    return slots[itemIndex];
-}
-
-#pragma mark - ZL2 壳预览控制器（7.0-UI-10-c：40pt 顶栏镜像 + 五槽容器切换）
-
-// 壳真形态镜像（对照并行重写中的 ZL2ShellViewController / ZL2 MainScreen.kt
-// TopBar；纯视觉 1:1、零交互——页面切换仅由 -zl2page 启动参数决定）：
-//   顶栏高 40（背景自 y=0 延伸过顶部 safeArea；ZL2 TopBar height(40.dp)）：
-//     左簇 = [chevron.left][house.fill] 32×32（onSurfaceVariant template；
-//       ZL2 backCenter Row：start 12dp 起步），主页时整簇隐藏；
-//     标题 = fontTitleMedium/onSurface，跟左簇后 16pt（ZL2 title margin 16dp）；
-//     右簇（右缘 12、间距 8，ZL2 endButtons end margin 12dp spacedBy 8dp）=
-//       任务胶囊 + 4 枚 RailItem（构建处逐项注明）。
-//   内容区 = 顶栏下缘起占满剩余空间（五槽：0=ZL2Home 直接嵌；1-4=四功能页
-//   各包 UINavigationController，与壳侧同构；四页 viewWillAppear 自隐藏系统
-//   栏，nav 隐藏后内容直接顶到顶栏下缘不留空隙）。
 @interface AmePreviewShellController : UIViewController
-@property(nonatomic, strong) UIView *barBackground;
-@property(nonatomic, strong) UIStackView *leadingCluster;   // [左簇图标组, 标题]
-@property(nonatomic, strong) UIStackView *leftCluster;      // chevron + house（主页隐藏→折叠）
-@property(nonatomic, strong) UILabel *topBarTitle;
-@property(nonatomic, strong) UIView *taskPill;
-@property(nonatomic, strong) UIProgressView *pillProgress;
-@property(nonatomic, strong) UILabel *pillCount;
-@property(nonatomic, strong) NSArray<UIStackView *> *railItems;
+@property(nonatomic, strong) UIView *barBackground;          // 顶带背景（bare） / 内容区头带（nav）
+@property(nonatomic, strong) UILabel *headerTitle;          // 大标题（双骨架同源）
+@property(nonatomic, strong) UIView *capsuleCluster;        // bare 右上六钮胶囊（ame411 镜像）
+@property(nonatomic, strong) NSArray<UIView *> *capsuleButtons;
+@property(nonatomic, strong) UIView *paneWrap;              // nav 左窗格（64 折叠态）
+@property(nonatomic, strong) NSArray<UIView *> *paneItems;  // nav 主导航项（含选中抬升）
 @property(nonatomic, strong) UIView *container;
 @property(nonatomic, strong) NSMutableDictionary<NSNumber *, UIViewController *> *cache;
 @property(nonatomic, assign) NSInteger currentIndex;
+@property(nonatomic, assign) BOOL ame414_navShell;
 @end
 
 @implementation AmePreviewShellController
@@ -449,201 +429,273 @@ static NSInteger AmePreviewRailSlotForItem(NSUInteger itemIndex) {
     self.cache = [NSMutableDictionary dictionary];
     self.currentIndex = -1;
 
+    // -zl2shell nav → fui NavigationView 镜像（缺省 bare）
+    NSArray<NSString *> *ame414_args = [NSProcessInfo processInfo].arguments;
+    NSUInteger ame414_shellIdx = [ame414_args indexOfObject:@"-zl2shell"];
+    self.ame414_navShell = (ame414_shellIdx != NSNotFound && ame414_shellIdx + 1 < ame414_args.count
+                            && [ame414_args[ame414_shellIdx + 1] isEqualToString:@"nav"]);
+    // -zl2theme fluent-dark → fui 暗板令牌渲染轨（fui 插件 PALETTES[1] 同值）
+    NSUInteger ame414_themeIdx = [ame414_args indexOfObject:@"-zl2theme"];
+    if (ame414_themeIdx != NSNotFound && ame414_themeIdx + 1 < ame414_args.count
+        && [ame414_args[ame414_themeIdx + 1] isEqualToString:@"fluent-dark"]) {
+        [ZL2Theme ame317_setPluginThemeTokens:@"preview-fluent"
+                                       tokens:@{
+            @"primary": @"4CC2FF", @"onPrimary": @"00344E",
+            @"primaryContainer": @"004578", @"onPrimaryContainer": @"B4D6F7",
+            @"secondary": @"6FA8CC", @"onSecondary": @"062033",
+            @"secondaryContainer": @"1A3A54", @"onSecondaryContainer": @"C7E0F4",
+            @"tertiary": @"C1A7E8", @"onTertiary": @"221046",
+            @"tertiaryContainer": @"5D2E8C", @"onTertiaryContainer": @"EAD9FF",
+            @"surface": @"1A1A1A", @"onSurface": @"F5F5F5",
+            @"onSurfaceVariant": @"D4D4D4", @"surfaceVariant": @"262626",
+            @"surfaceContainerLowest": @"111111", @"surfaceContainerLow": @"1D1D1D",
+            @"surfaceContainer": @"222222", @"surfaceContainerHigh": @"282828",
+            @"surfaceContainerHighest": @"2F2F2F", @"surfaceBright": @"3B3B3B",
+            @"outline": @"6B6B6B", @"outlineVariant": @"3D3D3D",
+            @"error": @"FF99A4", @"errorContainer": @"6E1122",
+            @"success": @"6CCB5F", @"warning": @"F7B26A",
+        }];
+        self.view.backgroundColor = [ZL2Theme surface];
+    }
+
     UILayoutGuide *safe = self.view.safeAreaLayoutGuide;
 
-    // ── 顶栏背景：自 y=0 延伸过顶部 safeArea，下缘 = safeTop + 40 ──
+    // ── 顶带背景：自 y=0 延伸过顶部 safeArea，下缘 = safeTop + 64（★Task414）──
     self.barBackground = [[UIView alloc] init];
     self.barBackground.backgroundColor = [ZL2Theme surface];
     self.barBackground.translatesAutoresizingMaskIntoConstraints = NO;
     [self.view addSubview:self.barBackground];
 
-    // ── 左簇（ZL2 backCenter 镜像，纯视觉）：chevron.left + house.fill ──
-    self.leftCluster = [[UIStackView alloc] init];
-    self.leftCluster.axis = UILayoutConstraintAxisHorizontal;
-    self.leftCluster.spacing = 8;
-    self.leftCluster.alignment = UIStackViewAlignmentCenter;
-    self.leftCluster.translatesAutoresizingMaskIntoConstraints = NO;
-    [self.leftCluster addArrangedSubview:[self ame_barIcon:@"chevron.left"]];
-    [self.leftCluster addArrangedSubview:[self ame_barIcon:@"house.fill"]];
+    // ── 大标题（fontHeadline，ame_titleForIndex 同源：主页 = Prisma Ⅱ）──
+    self.headerTitle = [[UILabel alloc] init];
+    self.headerTitle.font = [ZL2Theme fontHeadline];
+    self.headerTitle.textColor = [ZL2Theme onSurface];
+    self.headerTitle.translatesAutoresizingMaskIntoConstraints = NO;
+    [self.view addSubview:self.headerTitle];
 
-    // ── 页名标题 ──
-    self.topBarTitle = [[UILabel alloc] init];
-    self.topBarTitle.font = [ZL2Theme fontTitleMedium];
-    self.topBarTitle.textColor = [ZL2Theme onSurface];
-    self.topBarTitle.translatesAutoresizingMaskIntoConstraints = NO;
-
-    // 前导簇打包（间距 16 = ZL2 标题 margin）：主页时 leftCluster 整簇隐藏，
-    // stack 折叠 → 标题自然滑到簇起点，零约束切换
-    self.leadingCluster = [[UIStackView alloc] init];
-    self.leadingCluster.axis = UILayoutConstraintAxisHorizontal;
-    self.leadingCluster.spacing = 16;
-    self.leadingCluster.alignment = UIStackViewAlignmentCenter;
-    self.leadingCluster.translatesAutoresizingMaskIntoConstraints = NO;
-    [self.leadingCluster addArrangedSubview:self.leftCluster];
-    [self.leadingCluster addArrangedSubview:self.topBarTitle];
-    [self.view addSubview:self.leadingCluster];
-
-    // ── 右簇：任务胶囊 + 4 枚 RailItem（end margin 12 / spacedBy 8）──
-    [self ame_buildTaskPill];
-
-    UIStackView *rightCluster = [[UIStackView alloc] init];
-    rightCluster.axis = UILayoutConstraintAxisHorizontal;
-    rightCluster.spacing = 8;
-    rightCluster.alignment = UIStackViewAlignmentCenter;
-    rightCluster.translatesAutoresizingMaskIntoConstraints = NO;
-    [rightCluster addArrangedSubview:self.taskPill];
-    NSArray<NSString *> *railSymbols = @[@"square.grid.2x2.fill",    // 版本
-                                         @"arrow.down.circle.fill",  // 下载
-                                         @"person.crop.circle.fill", // 账户
-                                         @"gearshape.fill"];         // 设置
-    NSArray<NSString *> *railTitles = @[@"版本", @"下载", @"账户", @"设置"];
-    NSMutableArray<UIStackView *> *items = [NSMutableArray array];
-    for (NSUInteger i = 0; i < railSymbols.count; i++) {
-        UIStackView *item = [self ame_railItemWithSymbol:railSymbols[i]
-                                                   title:railTitles[i]];
-        [items addObject:item];
-        [rightCluster addArrangedSubview:item];
+    if (self.ame414_navShell) {
+        [self ame414_buildNavPane];
+    } else {
+        [self ame414_buildCapsule];
     }
-    self.railItems = items;
-    [self.view addSubview:rightCluster];
 
-    // ── 五槽内容容器：顶栏下缘起占满剩余 ──
+    // ── 五槽内容容器：顶带下缘起占满剩余 ──
     self.container = [[UIView alloc] init];
     self.container.translatesAutoresizingMaskIntoConstraints = NO;
     [self.view addSubview:self.container];
 
-    [NSLayoutConstraint activateConstraints:@[
-        [self.barBackground.leadingAnchor constraintEqualToAnchor:self.view.leadingAnchor],
-        [self.barBackground.trailingAnchor constraintEqualToAnchor:self.view.trailingAnchor],
-        [self.barBackground.topAnchor constraintEqualToAnchor:self.view.topAnchor],
-        [self.barBackground.bottomAnchor constraintEqualToAnchor:safe.topAnchor constant:40],
-        [self.leadingCluster.leadingAnchor constraintEqualToAnchor:safe.leadingAnchor constant:12],
-        [self.leadingCluster.centerYAnchor constraintEqualToAnchor:safe.topAnchor constant:20],
-        [rightCluster.trailingAnchor constraintEqualToAnchor:safe.trailingAnchor constant:-12],
-        [rightCluster.centerYAnchor constraintEqualToAnchor:safe.topAnchor constant:20],
-        [self.container.leadingAnchor constraintEqualToAnchor:self.view.leadingAnchor],
-        [self.container.trailingAnchor constraintEqualToAnchor:self.view.trailingAnchor],
-        [self.container.topAnchor constraintEqualToAnchor:self.barBackground.bottomAnchor],
-        [self.container.bottomAnchor constraintEqualToAnchor:self.view.bottomAnchor],
-    ]];
+    NSMutableArray<NSLayoutConstraint *> *ame414_pins = [NSMutableArray array];
+    CGFloat ame414_headerLead = self.ame414_navShell ? 64.0 : 0.0;
+    [ame414_pins addObject:[self.barBackground.leadingAnchor constraintEqualToAnchor:self.view.leadingAnchor constant:ame414_headerLead]];
+    [ame414_pins addObject:[self.barBackground.trailingAnchor constraintEqualToAnchor:self.view.trailingAnchor]];
+    [ame414_pins addObject:[self.barBackground.topAnchor constraintEqualToAnchor:self.view.topAnchor]];
+    [ame414_pins addObject:[self.barBackground.bottomAnchor constraintEqualToAnchor:safe.topAnchor constant:64]];
+    [ame414_pins addObject:[self.headerTitle.leadingAnchor constraintEqualToAnchor:self.barBackground.leadingAnchor constant:16]];
+    [ame414_pins addObject:[self.headerTitle.centerYAnchor constraintEqualToAnchor:safe.topAnchor constant:32]];
+    [ame414_pins addObject:[self.container.leadingAnchor constraintEqualToAnchor:self.view.leadingAnchor]];
+    [ame414_pins addObject:[self.container.trailingAnchor constraintEqualToAnchor:self.view.trailingAnchor]];
+    [ame414_pins addObject:[self.container.topAnchor constraintEqualToAnchor:self.barBackground.bottomAnchor]];
+    [ame414_pins addObject:[self.container.bottomAnchor constraintEqualToAnchor:self.view.bottomAnchor]];
+    [NSLayoutConstraint activateConstraints:ame414_pins];
 
     // -zl2page 启动参数预选页面（CI 逐页截图；缺省 home）
     [self ame_showIndex:AmePreviewPageIndexFromLaunchArguments()];
 }
 
-// 任务胶囊（ZL2 endButtons 任务条镜像）：surfaceContainerHigh / radiusXL /
-// 高 28 / 宽 120，内含 progress（track=outlineVariant bar=primary）+
-// doc.plaintext + 任务数（fontLabelMedium）。可见性与下载页胶囊同口径 =
-// hasActiveTasks——桩态 manager 无活动任务恒隐藏（主代理集成补活动任务桩后
-// 顶栏与下载页两处同步显现）
-- (void)ame_buildTaskPill {
-    DownloadTaskManager *mgr = [DownloadTaskManager sharedManager];
-    BOOL hasTasks = [mgr hasActiveTasks];
+// ── bare 右上六钮胶囊（ame411_switcherCluster 镜像：safe+12 入带，无文字）──
+- (void)ame414_buildCapsule {
+    self.capsuleCluster = [[UIView alloc] init];
+    self.capsuleCluster.backgroundColor = [ZL2Theme surfaceContainer];
+    self.capsuleCluster.layer.cornerRadius = 26.0;
+    self.capsuleCluster.layer.masksToBounds = NO;
+    self.capsuleCluster.layer.shadowColor = [UIColor blackColor].CGColor;
+    self.capsuleCluster.layer.shadowOpacity = 0.28;
+    self.capsuleCluster.layer.shadowRadius = 8.0;
+    self.capsuleCluster.layer.shadowOffset = CGSizeMake(0, 2);
+    self.capsuleCluster.translatesAutoresizingMaskIntoConstraints = NO;
+    [self.view addSubview:self.capsuleCluster];
 
-    self.taskPill = [[UIView alloc] init];
-    self.taskPill.backgroundColor = [ZL2Theme surfaceContainerHigh];
-    self.taskPill.layer.cornerRadius = [ZL2Theme radiusXL];
-    self.taskPill.layer.masksToBounds = YES;
-    self.taskPill.hidden = !hasTasks;
-    self.taskPill.translatesAutoresizingMaskIntoConstraints = NO;
+    UIStackView *stack = [[UIStackView alloc] init];
+    stack.translatesAutoresizingMaskIntoConstraints = NO;
+    stack.axis = UILayoutConstraintAxisHorizontal;
+    stack.spacing = 2.0;
+    [self.capsuleCluster addSubview:stack];
 
-    UIImage *docImage = [UIImage systemImageNamed:@"doc.plaintext"]
-                            ?: [UIImage systemImageNamed:@"doc.text.fill"];
-    UIImageView *docIcon =
-        [[UIImageView alloc] initWithImage:[docImage imageWithRenderingMode:UIImageRenderingModeAlwaysTemplate]];
-    docIcon.tintColor = [ZL2Theme onSurfaceVariant];
-    docIcon.translatesAutoresizingMaskIntoConstraints = NO;
-    [self.taskPill addSubview:docIcon];
-
-    self.pillProgress = [[UIProgressView alloc] initWithProgressViewStyle:UIProgressViewStyleDefault];
-    self.pillProgress.trackTintColor = [ZL2Theme outlineVariant];
-    self.pillProgress.progressTintColor = [ZL2Theme primary];
-    self.pillProgress.translatesAutoresizingMaskIntoConstraints = NO;
-    [self.taskPill addSubview:self.pillProgress];
-
-    self.pillCount = [[UILabel alloc] init];
-    self.pillCount.font = [ZL2Theme fontLabelMedium];
-    self.pillCount.textColor = [ZL2Theme onSurface];
-    self.pillCount.text = [NSString stringWithFormat:@"%lu", (unsigned long)[mgr allTasks].count];
-    self.pillCount.translatesAutoresizingMaskIntoConstraints = NO;
-    [self.taskPill addSubview:self.pillCount];
-
-    [NSLayoutConstraint activateConstraints:@[
-        [self.taskPill.widthAnchor constraintEqualToConstant:120],
-        [self.taskPill.heightAnchor constraintEqualToConstant:28],
-        [docIcon.leadingAnchor constraintEqualToAnchor:self.taskPill.leadingAnchor constant:10],
-        [docIcon.centerYAnchor constraintEqualToAnchor:self.taskPill.centerYAnchor],
-        [self.pillProgress.leadingAnchor constraintEqualToAnchor:docIcon.trailingAnchor constant:6],
-        [self.pillProgress.trailingAnchor constraintEqualToAnchor:self.pillCount.leadingAnchor constant:-6],
-        [self.pillProgress.centerYAnchor constraintEqualToAnchor:self.taskPill.centerYAnchor],
-        [self.pillProgress.heightAnchor constraintEqualToConstant:3],
-        [self.pillCount.trailingAnchor constraintEqualToAnchor:self.taskPill.trailingAnchor constant:-10],
-        [self.pillCount.centerYAnchor constraintEqualToAnchor:self.taskPill.centerYAnchor],
-    ]];
-
-    if (hasTasks) {
-        double first = [mgr allTasks].firstObject.progress;
-        if (first < 0) first = 0;
-        if (first > 1) first = 1;
-        [self.pillProgress setProgress:(float)first animated:NO];
+    NSArray<NSString *> *symbols = @[@"house.fill", @"arrow.down.circle.fill",
+                                     @"person.2.fill", @"sparkles", @"gearshape.fill", @"folder.fill"];
+    NSMutableArray<UIView *> *buttons = [NSMutableArray array];
+    for (NSString *symbol in symbols) {
+        UIView *btn = [[UIView alloc] init];
+        btn.translatesAutoresizingMaskIntoConstraints = NO;
+        btn.layer.cornerRadius = 12.0;
+        UIImage *img = [UIImage systemImageNamed:symbol];
+        if (img) {
+            img = [img imageWithRenderingMode:UIImageRenderingModeAlwaysTemplate];
+            UIImageView *iv = [[UIImageView alloc] initWithImage:img];
+            iv.tintColor = [ZL2Theme onSurfaceVariant];
+            iv.contentMode = UIViewContentModeScaleAspectFit;
+            iv.translatesAutoresizingMaskIntoConstraints = NO;
+            iv.userInteractionEnabled = NO;
+            [btn addSubview:iv];
+            [NSLayoutConstraint activateConstraints:@[
+                [iv.centerXAnchor constraintEqualToAnchor:btn.centerXAnchor],
+                [iv.centerYAnchor constraintEqualToAnchor:btn.centerYAnchor],
+                [iv.widthAnchor constraintEqualToConstant:24.0],
+                [iv.heightAnchor constraintEqualToConstant:24.0],
+            ]];
+        }
+        [NSLayoutConstraint activateConstraints:@[
+            [btn.widthAnchor constraintEqualToConstant:40.0],
+            [btn.heightAnchor constraintEqualToConstant:40.0],
+        ]];
+        [stack addArrangedSubview:btn];
+        [buttons addObject:btn];
     }
-}
-
-// 左簇图标：32×32 视觉框（ZL2 TopBar IconButton 镜像；纯视觉无交互，非按钮），
-// 字形 22pt template onSurfaceVariant
-- (UIImageView *)ame_barIcon:(NSString *)symbol {
-    UIImageSymbolConfiguration *config = [UIImageSymbolConfiguration configurationWithPointSize:22];
-    UIImage *image = [UIImage systemImageNamed:symbol withConfiguration:config];
-    UIImageView *iconView = [[UIImageView alloc] initWithImage:[image imageWithRenderingMode:UIImageRenderingModeAlwaysTemplate]];
-    iconView.tintColor = [ZL2Theme onSurfaceVariant];
-    iconView.contentMode = UIViewContentModeCenter;
-    iconView.translatesAutoresizingMaskIntoConstraints = NO;
+    self.capsuleButtons = buttons;
     [NSLayoutConstraint activateConstraints:@[
-        [iconView.widthAnchor constraintEqualToConstant:32],
-        [iconView.heightAnchor constraintEqualToConstant:32],
+        [self.capsuleCluster.topAnchor constraintEqualToAnchor:self.view.safeAreaLayoutGuide.topAnchor constant:12.0],
+        [self.capsuleCluster.trailingAnchor constraintEqualToAnchor:self.view.safeAreaLayoutGuide.trailingAnchor constant:-8.0],
+        [stack.topAnchor constraintEqualToAnchor:self.capsuleCluster.topAnchor constant:6.0],
+        [stack.bottomAnchor constraintEqualToAnchor:self.capsuleCluster.bottomAnchor constant:-6.0],
+        [stack.leadingAnchor constraintEqualToAnchor:self.capsuleCluster.leadingAnchor constant:6.0],
+        [stack.trailingAnchor constraintEqualToAnchor:self.capsuleCluster.trailingAnchor constant:-6.0],
+        // 标题尾缘让位胶囊（ame_buildBareShell 同源）
+        [self.headerTitle.trailingAnchor constraintLessThanOrEqualToAnchor:self.capsuleCluster.leadingAnchor constant:-12.0],
     ]];
-    return iconView;
+    [self.view bringSubviewToFront:self.capsuleCluster];
 }
 
-// 顶栏 RailItem（ZL2 TopBarRailItem 镜像，先建未选态；选中态由
-// ame_refreshTopBarForIndex: 套用）：图标 22pt template + 12pt 文字标签
-// （间距 6 = ZL2 TextRailItem 选中标签 spacer；未选中隐藏 → stack 折叠）
-- (UIStackView *)ame_railItemWithSymbol:(NSString *)symbol title:(NSString *)title {
-    UIImageSymbolConfiguration *config = [UIImageSymbolConfiguration configurationWithPointSize:22];
-    UIImage *image = [UIImage systemImageNamed:symbol withConfiguration:config];
-    UIImageView *iconView = [[UIImageView alloc] initWithImage:[image imageWithRenderingMode:UIImageRenderingModeAlwaysTemplate]];
-    iconView.tintColor = [ZL2Theme onSurfaceVariant];
-    iconView.translatesAutoresizingMaskIntoConstraints = NO;
+// ── nav 左窗格（fui NavigationView 折叠态镜像：64 宽 + 选中 Highest 抬升）──
+- (void)ame414_buildNavPane {
+    self.paneWrap = [[UIView alloc] init];
+    self.paneWrap.backgroundColor = [ZL2Theme surfaceContainerLow];
+    self.paneWrap.translatesAutoresizingMaskIntoConstraints = NO;
+    [self.view addSubview:self.paneWrap];
 
-    UILabel *label = [[UILabel alloc] init];
-    label.text = title;
-    label.font = [ZL2Theme fontLabelMedium];
-    label.textColor = [ZL2Theme onSurfaceVariant];
-    label.hidden = YES;
-    label.translatesAutoresizingMaskIntoConstraints = NO;
+    UIImageSymbolConfiguration *config = [UIImageSymbolConfiguration configurationWithPointSize:24];
+    UIView *toggle = [[UIView alloc] init];
+    toggle.translatesAutoresizingMaskIntoConstraints = NO;
+    [self.paneWrap addSubview:toggle];
+    UIImage *tglImg = [UIImage systemImageNamed:@"sidebar.leading" withConfiguration:config];
+    if (tglImg) {
+        UIImageView *iv = [[UIImageView alloc] initWithImage:[tglImg imageWithRenderingMode:UIImageRenderingModeAlwaysTemplate]];
+        iv.tintColor = [ZL2Theme onSurface];
+        iv.contentMode = UIViewContentModeScaleAspectFit;
+        iv.translatesAutoresizingMaskIntoConstraints = NO;
+        iv.userInteractionEnabled = NO;
+        [toggle addSubview:iv];
+        [NSLayoutConstraint activateConstraints:@[
+            [iv.centerXAnchor constraintEqualToAnchor:toggle.centerXAnchor],
+            [iv.centerYAnchor constraintEqualToAnchor:toggle.centerYAnchor],
+            [iv.widthAnchor constraintEqualToConstant:24.0],
+            [iv.heightAnchor constraintEqualToConstant:24.0],
+        ]];
+    }
 
-    UIStackView *item = [[UIStackView alloc] init];
-    item.axis = UILayoutConstraintAxisHorizontal;
-    item.spacing = 6;
-    item.alignment = UIStackViewAlignmentCenter;
-    item.translatesAutoresizingMaskIntoConstraints = NO;
-    [item addArrangedSubview:iconView];
-    [item addArrangedSubview:label];
-    return item;
+    // 五主导航（ame389 镜像：图标 24pt / 行 44 / 选中 surfaceContainerHighest）
+    NSArray *pages = @[@0, @1, @2, @4, @6];
+    NSArray<NSString *> *symbols = @[@"house.fill", @"arrow.down.circle.fill",
+                                     @"shippingbox.fill", @"gearshape.fill", @"sparkles"];
+    NSMutableArray<UIView *> *items = [NSMutableArray array];
+    CGFloat ame414_prevBottomConstant = 0.0;
+    UIView *ame414_prev = nil;
+    for (NSUInteger i = 0; i < symbols.count; i++) {
+        UIView *row = [[UIView alloc] init];
+        row.translatesAutoresizingMaskIntoConstraints = NO;
+        row.layer.cornerRadius = 8.0;
+        row.backgroundColor = [UIColor clearColor];
+        UIImage *img = [UIImage systemImageNamed:symbols[i] withConfiguration:config];
+        if (img) {
+            UIImageView *iv = [[UIImageView alloc] initWithImage:[img imageWithRenderingMode:UIImageRenderingModeAlwaysTemplate]];
+            iv.tag = 100;   // 预览 harness 内部查找（非交互纯视觉；正式壳零 tag 红线不适用于 harness 镜像）
+            iv.contentMode = UIViewContentModeScaleAspectFit;
+            iv.translatesAutoresizingMaskIntoConstraints = NO;
+            iv.userInteractionEnabled = NO;
+            [row addSubview:iv];
+            [NSLayoutConstraint activateConstraints:@[
+                [iv.centerXAnchor constraintEqualToAnchor:row.centerXAnchor],
+                [iv.centerYAnchor constraintEqualToAnchor:row.centerYAnchor],
+                [iv.widthAnchor constraintEqualToConstant:24.0],
+                [iv.heightAnchor constraintEqualToConstant:24.0],
+            ]];
+        }
+        [self.paneWrap addSubview:row];
+        [NSLayoutConstraint activateConstraints:@[
+            [row.widthAnchor constraintEqualToAnchor:self.paneWrap.widthAnchor constant:-12.0],
+            [row.heightAnchor constraintEqualToConstant:44.0],
+            [row.centerXAnchor constraintEqualToAnchor:self.paneWrap.centerXAnchor],
+        ]];
+        if (ame414_prev) {
+            [NSLayoutConstraint activateConstraints:@[
+                [row.topAnchor constraintEqualToAnchor:ame414_prev.bottomAnchor constant:2.0],
+            ]];
+        } else {
+            [NSLayoutConstraint activateConstraints:@[
+                [row.topAnchor constraintEqualToAnchor:toggle.bottomAnchor constant:10.0],
+            ]];
+        }
+        ame414_prev = row;
+        ame414_prevBottomConstant = 0.0;
+        row.tag = pages[i].integerValue;   // 页映射预选态刷新用（harness 内部）
+        [items addObject:row];
+    }
+
+    // 底部固定（设置/文件，同壳 paneFooterStack 口径）
+    UIImage *gearImg = [UIImage systemImageNamed:@"gearshape.fill" withConfiguration:config];
+    UIImage *folderImg = [UIImage systemImageNamed:@"folder.fill" withConfiguration:config];
+    UIImageView *footerA = [[UIImageView alloc] initWithImage:[gearImg imageWithRenderingMode:UIImageRenderingModeAlwaysTemplate]];
+    UIImageView *footerB = [[UIImageView alloc] initWithImage:[folderImg imageWithRenderingMode:UIImageRenderingModeAlwaysTemplate]];
+    for (UIImageView *fv in @[footerA, footerB]) {
+        fv.tintColor = [ZL2Theme onSurfaceVariant];
+        fv.contentMode = UIViewContentModeScaleAspectFit;
+        fv.translatesAutoresizingMaskIntoConstraints = NO;
+        fv.userInteractionEnabled = NO;
+        [self.paneWrap addSubview:fv];
+        [NSLayoutConstraint activateConstraints:@[
+            [fv.centerXAnchor constraintEqualToAnchor:self.paneWrap.centerXAnchor],
+            [fv.widthAnchor constraintEqualToConstant:24.0],
+            [fv.heightAnchor constraintEqualToConstant:24.0],
+        ]];
+    }
+
+    [NSLayoutConstraint activateConstraints:@[
+        [self.paneWrap.topAnchor constraintEqualToAnchor:self.view.topAnchor],
+        [self.paneWrap.bottomAnchor constraintEqualToAnchor:self.view.bottomAnchor],
+        [self.paneWrap.leadingAnchor constraintEqualToAnchor:self.view.leadingAnchor],
+        [self.paneWrap.widthAnchor constraintEqualToConstant:64.0],
+        [toggle.topAnchor constraintEqualToAnchor:self.paneWrap.safeAreaLayoutGuide.topAnchor constant:10.0],
+        [toggle.centerXAnchor constraintEqualToAnchor:self.paneWrap.centerXAnchor],
+        [toggle.widthAnchor constraintEqualToConstant:32.0],
+        [toggle.heightAnchor constraintEqualToConstant:32.0],
+        [footerA.bottomAnchor constraintEqualToAnchor:self.paneWrap.safeAreaLayoutGuide.bottomAnchor constant:-40.0],
+        [footerB.bottomAnchor constraintEqualToAnchor:self.paneWrap.safeAreaLayoutGuide.bottomAnchor constant:-8.0],
+    ]];
+    [self.view bringSubviewToFront:self.paneWrap];
+    self.paneItems = items;
+    (void)ame414_prevBottomConstant;
 }
 
-// 顶栏静态镜像刷新：左簇显隐 + 标题文案 + RailItem 选中态（当前页 primary +
-// 12pt 标签，其余 onSurfaceVariant）。选页仅由启动参数解析后触发一次
-- (void)ame_refreshTopBarForIndex:(NSInteger)index {
-    self.leftCluster.hidden = (index == 0);
-    self.topBarTitle.text = AmePreviewPageTitle(index);
-    [self.railItems enumerateObjectsUsingBlock:^(UIStackView *item, NSUInteger i, BOOL *stop) {
-        BOOL selected = (AmePreviewRailSlotForItem(i) == index);
-        UIImageView *icon = item.arrangedSubviews.firstObject;
-        UILabel *label = (item.arrangedSubviews.count > 1 ? item.arrangedSubviews[1] : nil);
-        icon.tintColor = selected ? [ZL2Theme primary] : [ZL2Theme onSurfaceVariant];
-        label.textColor = icon.tintColor;
-        label.hidden = !selected;
+// 壳态刷新（★Task414 双骨架同源：大标题 + 胶囊/窗格选中态）
+- (void)ame414_refreshShellForIndex:(NSInteger)index {
+    self.headerTitle.text = AmePreviewPageTitle(index);
+    // bare 胶囊选中（pages = 0,1,5,6,4,-1）
+    NSArray *capsulePages = @[@0, @1, @5, @6, @4, @(-1)];
+    [self.capsuleButtons enumerateObjectsUsingBlock:^(UIView *btn, NSUInteger i, BOOL *stop) {
+        BOOL selected = (capsulePages[i].integerValue == index);
+        btn.backgroundColor = selected ? [ZL2Theme surfaceContainerHigh] : [UIColor clearColor];
+        UIImageView *iv = btn.subviews.firstObject;
+        if ([iv isKindOfClass:[UIImageView class]]) {
+            iv.tintColor = selected ? [ZL2Theme primary] : [ZL2Theme onSurfaceVariant];
+        }
+    }];
+    // nav 窗格选中（surfaceContainerHighest 抬升 = ★Task414 对比度根修镜像）
+    [self.paneItems enumerateObjectsUsingBlock:^(UIView *row, NSUInteger i, BOOL *stop) {
+        BOOL selected = (row.tag == index);
+        row.backgroundColor = selected ? [ZL2Theme surfaceContainerHighest] : [UIColor clearColor];
+        UIImageView *iv = [row viewWithTag:100];
+        if ([iv isKindOfClass:[UIImageView class]]) {
+            iv.tintColor = selected ? [ZL2Theme onSurface] : [ZL2Theme onSurfaceVariant];
+        }
     }];
 }
 
@@ -691,7 +743,7 @@ static NSInteger AmePreviewRailSlotForItem(NSUInteger itemIndex) {
     } completion:nil];
 
     self.currentIndex = index;
-    [self ame_refreshTopBarForIndex:index];
+    [self ame414_refreshShellForIndex:index];
 }
 
 @end
@@ -721,7 +773,7 @@ static NSInteger AmePreviewRailSlotForItem(NSUInteger itemIndex) {
     self.window = [[UIWindow alloc] initWithFrame:[UIScreen mainScreen].bounds];
     self.window.backgroundColor = [ZL2Theme surface];
 
-    // 7.0-UI-10-c：根 = ZL2 壳真形态镜像（40pt 顶栏 + 五槽内容区，无 rail；
+    // ★Task414：根 = ZL2 壳真形态镜像（bare 顶带/nav 双骨架 + 五槽内容区；
     // -zl2page 选页 home/download/versions/accounts/settings）
     UIViewController *root = [[AmePreviewShellController alloc] init];
 

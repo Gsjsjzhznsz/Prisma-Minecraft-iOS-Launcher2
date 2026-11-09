@@ -3924,3 +3924,20 @@
 "ame412.skin.preview.title" = "Skin 3D Preview";
 "ame412.skin.preview.unavailable" = "Skin unavailable, showing placeholder model";
 "ame412.skin.preview.hint" = "Drag to rotate · Pinch to zoom";
+
+// ── ★Task414 皮肤工作室（账户页右栏 IMG_0607 口径）──
+"ame414.skin.run" = "Run";
+"ame414.skin.pause" = "Pause";
+"ame414.skin.refresh" = "Refresh skin";
+"ame414.skin.spin.left" = "Rotate left";
+"ame414.skin.spin.right" = "Rotate right";
+"ame414.skin.bg" = "Preview background";
+"ame414.skin.wardrobe" = "Wardrobe";
+"ame414.skin.wardrobe.add" = "Add to wardrobe";
+"ame414.skin.wardrobe.added" = "Added to wardrobe";
+"ame414.skin.wardrobe.removed" = "Removed from wardrobe";
+"ame414.skin.avatar.set" = "Set as avatar";
+"ame414.skin.avatar.done" = "Avatar updated";
+"ame414.skin.download" = "Download skin";
+"ame414.skin.download.none" = "No skin to save yet";
+"ame414.skin.studio.title" = "Skin studio";

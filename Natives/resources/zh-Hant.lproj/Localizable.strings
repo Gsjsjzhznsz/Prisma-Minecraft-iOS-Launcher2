@@ -3920,3 +3920,20 @@
 "ame412.skin.preview.title" = "皮膚 3D 預覽";
 "ame412.skin.preview.unavailable" = "皮膚載入失敗，顯示佔位模型";
 "ame412.skin.preview.hint" = "拖曳旋轉 · 捏合縮放";
+
+// ── ★Task414 皮膚工作室（帳戶頁右欄 IMG_0607 口徑）──
+"ame414.skin.run" = "跑步";
+"ame414.skin.pause" = "暫停";
+"ame414.skin.refresh" = "重新整理皮膚";
+"ame414.skin.spin.left" = "向左旋轉";
+"ame414.skin.spin.right" = "向右旋轉";
+"ame414.skin.bg" = "預覽背景";
+"ame414.skin.wardrobe" = "衣櫃";
+"ame414.skin.wardrobe.add" = "加入衣櫃";
+"ame414.skin.wardrobe.added" = "已加入衣櫃";
+"ame414.skin.wardrobe.removed" = "已移出衣櫃";
+"ame414.skin.avatar.set" = "設為頭像";
+"ame414.skin.avatar.done" = "頭像已更新";
+"ame414.skin.download" = "下載皮膚";
+"ame414.skin.download.none" = "還沒有可儲存的皮膚";
+"ame414.skin.studio.title" = "皮膚工作室";

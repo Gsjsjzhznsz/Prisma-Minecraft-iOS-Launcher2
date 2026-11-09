@@ -62,6 +62,7 @@
 
 #import "ZL2HomeViewController.h"
 #import "ZL2Theme.h"
+#import <math.h>   // ★Task414 ame414_relayoutVersionHeight fmax/fmin
 #import "ControlRepoViewController.h"   // ★Task343：控件自动检查更新挂载（旧 Root 壳退役后移防主页）
 #import "ZL2M3Kit.h"                 // ZL2M3BottomSheet（长按卡菜单）
 // ★ Task378 r2：目录瓦片改走壳通知接线（@"ZL2ShellOpenFileManager"）——有意不
@@ -130,7 +131,7 @@ static const CGFloat ZL2HomeLaunchButtonHeight = 48;  // 大启动钮（ScalingA
 //     实例版本信息高度；④ 五瓦片卡驻顶；启动组卡钉底。
 static const CGFloat ZL2HomeCardGap            = 8;   // 卡间间隙 = 栏距屏边 8pt（用户规格）
 static const CGFloat ZL2HomeCardPadding        = 8;   // 卡内边距（与卡间隙同律）
-static const CGFloat ZL2HomeAccountWheelH      = 88;  // 账户横排滚轮视口高（头像 32 + 名称/类型两行 + 上下留白）
+static const CGFloat ZL2HomeAccountWheelH      = 112;  // ★Task414 账户横排滚轮视口高（88 实测裁名：弧余量 2×14 压条目高 60 < 内容 8+32+4+15+1+15=75 → 名/类型行被视口底缘切半 IMG_0605/0606 实锤；112 → 条目 84 ≥ 75 零裁切）
 static const CGFloat ZL2HomeAccountEntryAvatar = 32;  // 横排条目头像边长（原头像卡同语言等比缩位）
 static const CGFloat ZL2HomeAccountFlowGapH    = 4;   // 横排条目间隙
 static const CGFloat ZL2HomeVersionFlowItemH   = 64;  // 版本滚轮条目高（图标 40 + 双行文 =「五个正常的实例版本信息高度」口径）
@@ -562,6 +563,7 @@ static UIImage *ZL2HomeSizedImage(NSString *name, NSString *fallback, CGFloat po
 //    实例版本信息高度——用户规格「实例版本也一样改」）——
 @property (nonatomic, strong) UIView *versionCard;
 @property (nonatomic, strong) AmeFlowSelectView *versionFlow;
+@property (nonatomic, strong) NSLayoutConstraint *ame414_versionHeight;   // ★Task414 版本滚轮视口高（自适应改写）
 @property (nonatomic, strong) ZL2HomeTapControl *versionRefreshButton;  // 卡尾刷新小钮
 @property (nonatomic, strong) ZL2HomeTapControl *versionSettingsButton; // 卡尾齿轮小钮
 @property (nonatomic, copy, nullable) NSArray<NSString *> *ame400_versionRowNames;  // 上轮行名序（数据未变则免重建防吸附回跳）
@@ -661,6 +663,8 @@ static UIImage *ZL2HomeSizedImage(NSString *name, NSString *fallback, CGFloat po
     [super viewDidLayoutSubviews];
     // ★ Task401：面板卡窗随布局实时重抠（旋转/换边/滚轮重建后窗口位移动）
     [self ame_refreshPanelMask];
+    // ★Task414 右栏自适应：版本滚轮视口高随可用余量收敛（五行下限/全部行上限）
+    [self ame414_relayoutVersionHeight];
     // ★ Task401 r5 收敛补触发：r4 smoke 实锤启动窗洞比卡矮 ~26pt（绘制期
     //   取帧早于栈内 intrinsic 收敛，尾帧后无重绘触发）——布局事务提交后
     //   异步补两跳重绘，取帧必为收敛终值
@@ -686,6 +690,42 @@ static UIImage *ZL2HomeSizedImage(NSString *name, NSString *fallback, CGFloat po
 }
 
 #pragma mark - ★ Task401 面板卡窗几何（灰棱视图喂矩形）
+
+// ★Task414 版本滚轮视口自适应（第 23 轮复诉⑤「右边的侧边栏不会自适应，
+// 下面被挡住了」）：原固定五行视口（=「五个正常实例版本信息高度」口径）在
+// 实例多于五个时恒压住后续行（内滚隐藏 = 「下面被挡住」），且竖余量充足时
+// 启动卡底行被推到屏缘。本修：
+//   下限 = 五行口径（viewportHeight，用户规格永不缩水）；
+//   上限 = 全部行（itemHeight + (n−1)×pitch，满额展示零内滚）；
+//   收敛 = min(上限, 可用余量)——余量 = 滚动区高 − 账户卡 − 启动卡 − 卡间隙
+//   − 版本卡自身内构（padding×2 + footer + 6 + 4）；余量不足时保五行走滚动。
+- (void)ame414_relayoutVersionHeight {
+    if (!_ame414_versionHeight || self.menuScrollView.bounds.size.height < 1.0) return;
+    CGFloat ame414_pitch = ZL2HomeVersionFlowItemH + ZL2HomeFlowItemGap;
+    CGFloat ame414_ideal = _versionFlow.viewportHeight;   // 五行口径下限
+    CGFloat ame414_full = ame414_ideal;
+    NSUInteger ame414_n = self.ame_rows.count;
+    if (ame414_n > 5) {
+        ame414_full = ZL2HomeVersionFlowItemH + (CGFloat)(ame414_n - 1) * ame414_pitch;
+    }
+    if (ame414_full <= ame414_ideal + 0.5) {
+        if (fabs(_ame414_versionHeight.constant - ame414_ideal) > 0.5) _ame414_versionHeight.constant = ame414_ideal;
+        return;
+    }
+    CGFloat ame414_avail = self.menuScrollView.bounds.size.height
+        - _accountCard.frame.size.height
+        - _launchCard.frame.size.height
+        - 2.0 * ZL2HomeCardGap   // 三卡间两道间隙（quickNav 退役塔缩零高）
+        - (2.0 * ZL2HomeCardPadding + ZL2HomeCardFooterHeight + 6.0 + 4.0);   // 版本卡内构
+    CGFloat ame414_target = ame414_full;
+    if (ame414_avail < ame414_full) {
+        ame414_target = fmax(ame414_ideal, fmin(ame414_full, ame414_avail));
+    }
+    if (fabs(_ame414_versionHeight.constant - ame414_target) > 0.5) {
+        _ame414_versionHeight.constant = ame414_target;
+        [self.view setNeedsLayout];
+    }
+}
 
 // 卡窗几何重喂：四卡窗（五瓦片/账户滚轮/版本滚轮/启动组）换算到面板坐标
 //（滚动位相实时）+ 滚动区裁剪相交，交 Ame401PanelHolesView 重绘（仅变化
@@ -1122,11 +1162,13 @@ static UIImage *ZL2HomeSizedImage(NSString *name, NSString *fallback, CGFloat po
         [_accountSpinner.centerXAnchor constraintEqualToAnchor:_accountCard.centerXAnchor],
         [_accountSpinner.centerYAnchor constraintEqualToAnchor:_accountManageButton.centerYAnchor],
 
-        // ③ 版本卡内布局：竖排滚轮（高 = 五个正常实例版本信息行）+ 卡尾动作行
+        // ③ 版本卡内布局：竖排滚轮（★Task414 高度持引用 = 自适应视口：
+        //    五行下限 / 全部行上限 / 可用余量收敛——「右栏不会自适应下面被
+        //    挡住」根修，见 ame414_relayoutVersionHeight）
         [_versionFlow.topAnchor constraintEqualToAnchor:_versionCard.topAnchor constant:ZL2HomeCardPadding],
         [_versionFlow.leadingAnchor constraintEqualToAnchor:_versionCard.leadingAnchor constant:ZL2HomeCardPadding],
         [_versionFlow.trailingAnchor constraintEqualToAnchor:_versionCard.trailingAnchor constant:-ZL2HomeCardPadding],
-        [_versionFlow.heightAnchor constraintEqualToConstant:_versionFlow.viewportHeight],
+        // 高度常量不再在此建（见末尾持引用条目：ame414_relayoutVersionHeight 逐帧改写）
         [_versionSettingsButton.topAnchor constraintEqualToAnchor:_versionFlow.bottomAnchor constant:6],
         _ame_pinSettingsTrailing,   // ★Task406 齿轮贴右原钉（换边镜像可卸）
         [_versionSettingsButton.widthAnchor constraintEqualToConstant:ZL2HomeCardFooterHeight],
@@ -1151,6 +1193,11 @@ static UIImage *ZL2HomeSizedImage(NSString *name, NSString *fallback, CGFloat po
 
     // ★ Task401 r4：面板灰棱视图挂四卡窗宿主（drawRect 绘制期自取帧）
     [_panelBackdrop ame401_setHostCards:@[_quickNavCard, _accountCard, _versionCard, _launchCard]];
+
+    // ★Task414 版本滚轮高度持引用（ame414_relayoutVersionHeight 逐帧改写；
+    //   required 常量 = 唯一高度约束，视口自适应后仍钉卡缘）
+    _ame414_versionHeight = [_versionFlow.heightAnchor constraintEqualToConstant:_versionFlow.viewportHeight];
+    _ame414_versionHeight.active = YES;
 }
 
 #pragma mark - ★ Task378 五入口快航瓦片（★ Task400 驻右栏顶卡：用户规格「五个按钮在顶上」）
