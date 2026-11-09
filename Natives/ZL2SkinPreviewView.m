@@ -1140,7 +1140,7 @@ static const CGFloat AME414_LIGHT_Z =  0.65;
     }
     CGPoint ame413_center = CGPointMake(CGRectGetMidX(_ame413_stageView.bounds),
                                         CGRectGetMidY(_ame413_stageView.bounds));
-    for (CALayer *ame413_face in _ame413_faceLayers) {
+    for (ZL2SkinViewFace *ame413_face in _ame413_faceLayers) {
         ame413_face.layer.position = ame413_center;
     }
 }
@@ -1225,12 +1225,12 @@ static void ZL2SkinViewBuildBox(CALayer *ame413_parent,
         } else {
             ame413_face.backgroundColor = [UIColor colorWithWhite:0.32 alpha:1.0].CGColor;   // 占位灰面
         }
-        // ★Task414 光影罩（面内容之上，opacity 逐帧 = 1−shade）
+        // ★Task414 光影罩（面内容之上，opacity 逐帧 = 1−shade；CALayer 无
+        //   userInteractionEnabled 属性（UIView 专属）= run 42640992511 判例）
         CALayer *ame414_shade = [CALayer layer];
         ame414_shade.frame = ame413_face.bounds;
         ame414_shade.backgroundColor = [UIColor blackColor].CGColor;
         ame414_shade.opacity = 0.0;
-        ame414_shade.userInteractionEnabled = NO;
         [ame413_face addSublayer:ame414_shade];
 
         CATransform3D ame413_t = CATransform3DMakeTranslation((ame413_x + ame413_offX) * ame413_unit,
