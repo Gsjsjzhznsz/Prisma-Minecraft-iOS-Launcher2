@@ -547,8 +547,8 @@ static NSString *AmePreviewPageTitle(NSInteger index) {
     // ★Task416：-zl2pane expanded → 窗格展开态镜像（280 宽 + 文字标签，
     //   图标仍 24pt 恒定 = 折叠不调图标的同帧图证；缺省折叠态 64）
     NSUInteger ame416_paneIdx = [ame414_args indexOfObject:@"-zl2pane"];
-    self.ame416_paneExpanded = (ame416_paneIdx != NSNotFound && ame416_paneIdx + 1 < ame416_args.count
-                                && [ame416_args[ame416_paneIdx + 1] isEqualToString:@"expanded"]);
+    self.ame416_paneExpanded = (ame416_paneIdx != NSNotFound && ame416_paneIdx + 1 < ame414_args.count
+                                && [ame414_args[ame416_paneIdx + 1] isEqualToString:@"expanded"]);
     // -zl2theme fluent-dark → fui 暗板令牌渲染轨（fui 插件 PALETTES[1] 同值）
     NSUInteger ame414_themeIdx = [ame414_args indexOfObject:@"-zl2theme"];
     if (ame414_themeIdx != NSNotFound && ame414_themeIdx + 1 < ame414_args.count
@@ -773,7 +773,6 @@ static NSString *AmePreviewPageTitle(NSInteger index) {
             ]];
         }
         ame414_prev = row;
-        ame414_prevBottomConstant = 0.0;
         row.tag = pages[i].integerValue;   // 页映射预选态刷新用（harness 内部）
         [items addObject:row];
     }
