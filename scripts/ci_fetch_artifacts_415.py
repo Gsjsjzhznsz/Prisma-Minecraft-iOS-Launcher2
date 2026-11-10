@@ -63,6 +63,9 @@ def main():
         dest = os.path.join(outdir, "%s__%s__%s%s" % (name, tag, run_id, ext)) if False else os.path.join(outdir, name + ext)
         if not ext:
             dest = os.path.join(outdir, "%s__%s__%s" % (name, tag, run_id))
+        if os.path.exists(dest) and os.path.getsize(dest) == a["size_in_bytes"]:
+            print("skip %s (already complete)" % os.path.basename(dest))
+            continue
         print("fetching %s (%d bytes) -> %s" % (name, a["size_in_bytes"], os.path.basename(dest)))
         n = fetch_artifact(a["id"], dest)
         print("  ok %d bytes" % n)

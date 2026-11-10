@@ -378,63 +378,49 @@ static NSInteger AmePreviewPageIndexFromLaunchArguments(void) {
 //   装配正确性（前面红/后面蓝/右面绿/左面黄/上面紫/下面青），头白点眼。
 //   双落点：预览缓存 ①（Caches/skins/<id>.png）+ skinfull ②
 //   （Documents/avatars/skinfull-<id>.png）——两段缓存回退链全被真数据覆盖。
+//   ★Task415-r3：表体从嵌套 NSArray<NSArray*> 字面量改 C 结构体表——run
+//   42825176854 实锤嵌套字面量 @[[@(8),...]] 在 CI clang 下 expected
+//   identifier + comma-operator 误报三连（字面量解析歧义），C 表零歧义。
+typedef struct { CGFloat x, y, w, h, r, g, b; } Ame415UVRect;
+
 static void AmePreviewWriteTestSkin(NSString *path) {
+    static const Ame415UVRect ame415_uv[] = {
+        // 头 8³：前/后/右/左/上/下
+        {8, 8, 8, 8, 1.00, 0.10, 0.10}, {24, 8, 8, 8, 0.15, 0.15, 0.95},
+        {0, 8, 8, 8, 0.10, 0.85, 0.10}, {16, 8, 8, 8, 0.95, 0.90, 0.15},
+        {8, 0, 8, 8, 0.90, 0.15, 0.90}, {16, 0, 8, 8, 0.10, 0.90, 0.90},
+        // 身 8×12×4（绿系分面：前后右侧左上下亮度渐变，黑背景可辨）
+        {20, 20, 8, 12, 0.20, 0.75, 0.30}, {32, 20, 8, 12, 0.15, 0.60, 0.25},
+        {16, 20, 4, 12, 0.35, 0.70, 0.40}, {28, 20, 4, 12, 0.10, 0.50, 0.20},
+        {20, 16, 8, 4, 0.50, 0.85, 0.55}, {28, 16, 8, 4, 0.25, 0.65, 0.35},
+        // 右臂（蓝）
+        {44, 20, 4, 12, 0.25, 0.45, 1.0}, {52, 20, 4, 12, 0.25, 0.45, 1.0},
+        {40, 20, 4, 12, 0.25, 0.45, 1.0}, {48, 20, 4, 12, 0.25, 0.45, 1.0},
+        {44, 16, 4, 4, 0.25, 0.45, 1.0}, {48, 16, 4, 4, 0.25, 0.45, 1.0},
+        // 左臂（青）
+        {36, 52, 4, 12, 0.20, 0.80, 0.80}, {44, 52, 4, 12, 0.20, 0.80, 0.80},
+        {32, 52, 4, 12, 0.20, 0.80, 0.80}, {40, 52, 4, 12, 0.20, 0.80, 0.80},
+        {36, 48, 4, 4, 0.20, 0.80, 0.80}, {40, 48, 4, 4, 0.20, 0.80, 0.80},
+        // 右腿（棕）
+        {4, 20, 4, 12, 0.55, 0.36, 0.20}, {12, 20, 4, 12, 0.55, 0.36, 0.20},
+        {0, 20, 4, 12, 0.55, 0.36, 0.20}, {8, 20, 4, 12, 0.55, 0.36, 0.20},
+        {4, 16, 4, 4, 0.55, 0.36, 0.20}, {8, 16, 4, 4, 0.55, 0.36, 0.20},
+        // 左腿（橙）
+        {20, 52, 4, 12, 1.0, 0.60, 0.10}, {28, 52, 4, 12, 1.0, 0.60, 0.10},
+        {16, 52, 4, 12, 1.0, 0.60, 0.10}, {24, 52, 4, 12, 1.0, 0.60, 0.10},
+        {20, 48, 4, 4, 1.0, 0.60, 0.10}, {24, 48, 4, 4, 1.0, 0.60, 0.10},
+    };
     UIGraphicsBeginImageContextWithOptions(CGSizeMake(64, 64), NO, 1.0);
     CGContextRef ctx = UIGraphicsGetCurrentContext();
     if (ctx) {
         CGContextSetFillColorWithColor(ctx, [UIColor colorWithWhite:0.13 alpha:1.0].CGColor);
         CGContextFillRect(ctx, CGRectMake(0, 0, 64, 64));
-        NSArray<NSArray *> *ame415_uv = @[   // @[NSValue(rect), UIColor] ×36
-            // 头 8³：前/后/右/左/上/下
-            @[[@(8), @(8), @(8), @(8)], [UIColor redColor]],
-            @[[@(24), @(8), @(8), @(8)], [UIColor blueColor]],
-            @[[@(0), @(8), @(8), @(8)], [UIColor greenColor]],
-            @[[@(16), @(8), @(8), @(8)], [UIColor yellowColor]],
-            @[[@(8), @(0), @(8), @(8)], [UIColor magentaColor]],
-            @[[@(16), @(0), @(8), @(8)], [UIColor cyanColor]],
-            // 身 8×12×4（绿系分面：前后右侧左上下亮度渐变，黑背景可辨）
-            @[[@(20), @(20), @(8), @(12)], [UIColor colorWithRed:0.20 green:0.75 blue:0.30 alpha:1.0]],
-            @[[@(32), @(20), @(8), @(12)], [UIColor colorWithRed:0.15 green:0.60 blue:0.25 alpha:1.0]],
-            @[[@(16), @(20), @(4), @(12)], [UIColor colorWithRed:0.35 green:0.70 blue:0.40 alpha:1.0]],
-            @[[@(28), @(20), @(4), @(12)], [UIColor colorWithRed:0.10 green:0.50 blue:0.20 alpha:1.0]],
-            @[[@(20), @(16), @(8), @(4)], [UIColor colorWithRed:0.50 green:0.85 blue:0.55 alpha:1.0]],
-            @[[@(28), @(16), @(8), @(4)], [UIColor colorWithRed:0.25 green:0.65 blue:0.35 alpha:1.0]],
-            // 右臂（蓝）
-            @[[@(44), @(20), @(4), @(12)], [UIColor colorWithRed:0.25 green:0.45 blue:1.0 alpha:1.0]],
-            @[[@(52), @(20), @(4), @(12)], [UIColor colorWithRed:0.25 green:0.45 blue:1.0 alpha:1.0]],
-            @[[@(40), @(20), @(4), @(12)], [UIColor colorWithRed:0.25 green:0.45 blue:1.0 alpha:1.0]],
-            @[[@(48), @(20), @(4), @(12)], [UIColor colorWithRed:0.25 green:0.45 blue:1.0 alpha:1.0]],
-            @[[@(44), @(16), @(4), @(4)], [UIColor colorWithRed:0.25 green:0.45 blue:1.0 alpha:1.0]],
-            @[[@(48), @(16), @(4), @(4)], [UIColor colorWithRed:0.25 green:0.45 blue:1.0 alpha:1.0]],
-            // 左臂（青）
-            @[[@(36), @(52), @(4), @(12)], [UIColor colorWithRed:0.2 green:0.8 blue:0.8 alpha:1.0]],
-            @[[@(44), @(52), @(4), @(12)], [UIColor colorWithRed:0.2 green:0.8 blue:0.8 alpha:1.0]],
-            @[[@(32), @(52), @(4), @(12)], [UIColor colorWithRed:0.2 green:0.8 blue:0.8 alpha:1.0]],
-            @[[@(40), @(52), @(4), @(12)], [UIColor colorWithRed:0.2 green:0.8 blue:0.8 alpha:1.0]],
-            @[[@(36), @(48), @(4), @(4)], [UIColor colorWithRed:0.2 green:0.8 blue:0.8 alpha:1.0]],
-            @[[@(40), @(48), @(4), @(4)], [UIColor colorWithRed:0.2 green:0.8 blue:0.8 alpha:1.0]],
-            // 右腿（棕）
-            @[[@(4), @(20), @(4), @(12)], [UIColor colorWithRed:0.55 green:0.36 blue:0.2 alpha:1.0]],
-            @[[@(12), @(20), @(4), @(12)], [UIColor colorWithRed:0.55 green:0.36 blue:0.2 alpha:1.0]],
-            @[[@(0), @(20), @(4), @(12)], [UIColor colorWithRed:0.55 green:0.36 blue:0.2 alpha:1.0]],
-            @[[@(8), @(20), @(4), @(12)], [UIColor colorWithRed:0.55 green:0.36 blue:0.2 alpha:1.0]],
-            @[[@(4), @(16), @(4), @(4)], [UIColor colorWithRed:0.55 green:0.36 blue:0.2 alpha:1.0]],
-            @[[@(8), @(16), @(4), @(4)], [UIColor colorWithRed:0.55 green:0.36 blue:0.2 alpha:1.0]],
-            // 左腿（橙）
-            @[[@(20), @(52), @(4), @(12)], [UIColor orangeColor]],
-            @[[@(28), @(52), @(4), @(12)], [UIColor orangeColor]],
-            @[[@(16), @(52), @(4), @(12)], [UIColor orangeColor]],
-            @[[@(24), @(52), @(4), @(12)], [UIColor orangeColor]],
-            @[[@(20), @(48), @(4), @(4)], [UIColor orangeColor]],
-            @[[@(24), @(48), @(4), @(4)], [UIColor orangeColor]],
-        ];
-        for (NSArray *ame415_entry in ame415_uv) {
-            NSArray *ame415_r = ame415_entry[0];
-            CGContextSetFillColorWithColor(ctx, [(UIColor *)ame415_entry[1] CGColor]);
-            CGContextFillRect(ctx, CGRectMake([ame415_r[0] floatValue], [ame415_r[1] floatValue],
-                                              [ame415_r[2] floatValue], [ame415_r[3] floatValue]));
+        for (NSUInteger ame415_i = 0; ame415_i < sizeof(ame415_uv) / sizeof(ame415_uv[0]); ame415_i++) {
+            const Ame415UVRect *ame415_r = &ame415_uv[ame415_i];
+            CGContextSetRGBFillColor(ctx, ame415_r->r, ame415_r->g, ame415_r->b, 1.0);
+            CGContextFillRect(ctx, CGRectMake(ame415_r->x, ame415_r->y, ame415_r->w, ame415_r->h));
         }
-        // 头前脸白点眼（自证面向：两枚 1×1 深点 (10,12)(13,12)）
+        // 头前脸白点眼（自证面向：两枚 1×1 点 (10,12)(13,12)）
         CGContextSetFillColorWithColor(ctx, [UIColor whiteColor].CGColor);
         CGContextFillRect(ctx, CGRectMake(10, 12, 1, 1));
         CGContextFillRect(ctx, CGRectMake(13, 12, 1, 1));
