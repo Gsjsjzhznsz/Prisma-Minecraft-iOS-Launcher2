@@ -292,8 +292,11 @@ static const CGFloat AME416_WALK_AMP = 0.50;
 - (instancetype)initWithFrame:(CGRect)frame {
     self = [super initWithFrame:frame];
     if (self) {
-        _ame413_yaw = 0.0;
-        _ame413_pitch = 0.0;
+        // ★Task416-r3 皮肤站惯例机位：3/4 视角起步 + 轻微俯视（顶面可见 =
+        //   任意自转相位都带纵深，正/纯侧棱边态不再成为默认首屏/截图相位）
+        _ame413_yaw = -0.60;
+        _ame414_spinTarget = -0.60;
+        _ame413_pitch = -0.18;
         _ame413_userScale = 1.0;
         _ame413_slimModel = NO;
         _ame413_faceLayers = [NSMutableArray array];
