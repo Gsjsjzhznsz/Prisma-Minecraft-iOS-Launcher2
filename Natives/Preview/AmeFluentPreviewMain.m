@@ -109,13 +109,18 @@ NSString *localize(NSString *key, NSString *comment) {
     return hit ?: (comment ?: key);
 }
 
-// BaseAuthenticator 最小桩：预览恒未登录态（launchReady = 登录并启动文案）。
-// 7.0-UI-9-e 补齐账户页消费的缺口方法（setCurrent:/loadSavedName: 类方法 +
-// initWithInput:/loginWithCallback:/refreshTokenWithCallback: 实例方法，
-// 签名对 authenticator/BaseAuthenticator.h；LocalAuthenticator /
-// MicrosoftAuthenticator / ThirdPartyAuthenticator 桩在 ZL2PagesStub.m
-// 以本类为超类锚点子类化，超类方法零重复）
+// BaseAuthenticator 桩（★Task415b 最小真语义）：旧桩 +current 恒 nil = 预览
+//   恒「未登录」→ 皮肤 3D 预览/视觉卡/头像链在 CI 从未渲染（第 23 轮「依旧
+//   纸片」两轮绿灯假阴性的结构性根源之一）。本版：current 惰性读
+//   selected_account 偏好 → POJAV_HOME/accounts/<id>.json → authData 挂真
+//   数据的本地 authenticator（setCurrent:/loadSavedName: 静态存储保持选中链
+//   可写）。签名对 authenticator/BaseAuthenticator.h；LocalAuthenticator /
+//   MicrosoftAuthenticator / ThirdPartyAuthenticator 桩在 ZL2PagesStub.m
+//   以本类为超类锚点子类化，超类方法零重复。
+extern NSMutableDictionary* parseJSONFromFile(NSString *path);   // utils.h 真解析（ZL2PagesStub TU）
+
 @interface BaseAuthenticator : NSObject
+@property (nonatomic, strong) NSMutableDictionary *authData;   // ★Task415b（真头同型）
 + (id)current;
 + (void)setCurrent:(id)auth;
 + (id)loadSavedName:(NSString *)accountId;
@@ -124,10 +129,34 @@ NSString *localize(NSString *key, NSString *comment) {
 - (void)refreshTokenWithCallback:(void (^)(id status, BOOL success))callback;
 @end
 
+static id ame415_current = nil;
+
 @implementation BaseAuthenticator
-+ (id)current { return nil; }
-+ (void)setCurrent:(id)auth {}
-+ (id)loadSavedName:(NSString *)accountId { return nil; }
++ (id)ame415_loadAccount:(NSString *)accountId {
+    if (![accountId isKindOfClass:[NSString class]] || accountId.length == 0) return nil;
+    NSString *ame415_path = [NSString stringWithFormat:@"%s/accounts/%@.json",
+                             getenv("POJAV_HOME"), accountId];
+    NSMutableDictionary *ame415_data = parseJSONFromFile(ame415_path);
+    if (!ame415_data || ame415_data[@"NSErrorObject"] != nil) return nil;
+    BaseAuthenticator *ame415_auth = [[self alloc] init];
+    ame415_auth.authData = ame415_data;
+    return ame415_auth;
+}
++ (id)current {
+    if (ame415_current == nil) {
+        NSString *ame415_saved = getPrefObject(@"internal.selected_account");
+        if ([ame415_saved isKindOfClass:[NSString class]]) {
+            ame415_current = [self ame415_loadAccount:ame415_saved];
+        }
+    }
+    return ame415_current;
+}
++ (void)setCurrent:(id)auth { ame415_current = auth; }
++ (id)loadSavedName:(NSString *)accountId {
+    id ame415_auth = [self ame415_loadAccount:accountId];
+    if (ame415_auth) ame415_current = ame415_auth;
+    return ame415_auth;
+}
 - (id)initWithInput:(NSString *)string { return self; }
 - (void)loginWithCallback:(void (^)(id status, BOOL success))callback {}
 - (void)refreshTokenWithCallback:(void (^)(id status, BOOL success))callback {}

@@ -444,6 +444,7 @@ ame378_c21 = [
     # ③ 预览闭环补盲（CI 首渲 3D 预览 = 用户点名「测试图」的结构性保障）
     ("harness-selected", "internal.selected_account" in preview_raw),
     ("harness-skin", "AmePreviewWriteTestSkin" in preview_code),
+    ("harness-current", "ame415_loadAccount" in preview_code),
     ("stub-skinfull", "skinfull-%@.png" in stub_raw),
 ]
 ame378_c21_fail = [n for n, ok in ame378_c21 if not ok]
