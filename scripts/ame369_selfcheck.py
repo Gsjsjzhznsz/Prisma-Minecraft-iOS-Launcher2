@@ -94,7 +94,12 @@ check("② ame369.* 键四表齐备",
 # ★ Task404 重锚：448 + 1 = 449。停靠换边整体恢复（73c10b7 退役 + b78a16c 摘提示
 #   双双回滚，用户复诉「你怎么把停靠边功能删除了」）——menuHintLabel 构建站点
 #   回归 +1，四表键同步回填（en/zh-CN/zh-Hans/zh-Hant 各 +1 = 表键净 +1）
-check("① ame369 改写点数 == 452（★Task411 重锚：Task408 基线 447 + 右上角无文字小型切换簇复用 5 站点\n      （ame411_switcherCluster 六入口标签 = 主页/下载/多人联机/设置/文件 ame369.* 五键 + ame192.ai.title 一键不计数））", ame369_sites == 452, str(ame369_sites))
+# ★ Task416 重锚：452 + 4 = 456。fui NavigationView 镜像轨展开态（-zl2pane
+#   expanded，第 24 轮复诉「折叠侧边栏会把图标大小也调节了」的折叠/展开
+#   同帧图证）五标签全量复用既有 ame369 四表键（home/downloads/versions/
+#   settings 四 ame369.* 站点 +4，ame192.ai.title 不计数）——零新键零新表，
+#   四表齐备审计自动闭合。
+check("① ame369 改写点数 == 456（★Task416 重锚：Task411 基线 452 + harness 展开态窗格标签复用 4 站点\n      （ame414_buildNavPane 展开态五标签 = home/downloads/versions/settings ame369.* 四键 + ame192.ai.title 不计数））", ame369_sites == 456, str(ame369_sites))
 
 # 复用站点：4 处 localize(@"ame193.misc.[13]"（内容级匹配——5 个补 import 文件行号整体 +1，行级断言会错位）
 REUSE_EXPECT = {

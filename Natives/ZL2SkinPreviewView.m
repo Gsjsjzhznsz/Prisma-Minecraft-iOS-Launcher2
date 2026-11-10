@@ -184,22 +184,23 @@ static UIImage *ZL2SkinViewHeadAvatarImage(UIImage *skin) {
 
 #pragma mark - 盒体几何
 
-// 盒体参数（模型空间；Y 自足底 0 起算、+Y 向上，角色面朝 +Z、角色右 = −X）
-typedef struct {
-    CGFloat cx, cy, cz;   // 盒心
-    CGFloat w, h, d;      // 尺寸
-    const ZL2SkinViewRect *faces;   // 六面区块表 [前 后 右 左 上 下]
-} ZL2SkinViewBox;
-
-// ★Task414 面记录：静态基准（层空间中心/法线/朝向/枢轴）+ 面层/光影罩层
-@interface ZL2SkinViewFace : NSObject
+// ★Task416 面记录（skinview3d 移植版）：CPU 逐面投影 + 画家算法。
+//   corners[4] = 面四角（模型空间、已按 y=16 居中；序 = 纹理 TL/TR/BR/BL）；
+//   pivot = 肢体枢轴（居中模型空间；skinview3d BodyPart 原点换算 y+24→0）；
+//   normal = 面法线（模型空间轴向量）；rect = 皮肤 UV 区块（像素）。
+//   旧 CATransform3D 拼接链（ame_baseT/cx/cy/cz/nx/ny/nz/px/py/pz）整体
+//   退役——拼接序歧义正是 413/414/415 三轮「纸片/乱麻」复发的载体。
+//   ★数组成员用 @public ivar（ObjC @property 不支持 C 数组类型 = CI 编译
+//   必炸雷；C 工厂函数与 ObjC 方法均经 -> 直访，零拷贝语义）
+@interface ZL2SkinViewFace : NSObject {
+@public
+    CGFloat corners[4][3];   // 模型空间四角（居中，TL/TR/BR/BL）
+    CGFloat pivot[3];        // 肢体枢轴（居中模型空间）
+    CGFloat normal[3];       // 面法线（模型空间）
+}
 @property (nonatomic, strong) CALayer *layer;    // 贴图面（shade 为其子层随动）
 @property (nonatomic, strong) CALayer *shade;    // 黑色光影罩（opacity = 1−shade 逐帧）
-@property (nonatomic, assign) CATransform3D ame_baseT;   // 静态基准变换 T(center)·R_face（结构体 = assign 语义）
-@property (nonatomic, assign) CGFloat cx, cy, cz;        // 面中心（层空间 pt，已乘 unit）
-@property (nonatomic, assign) CGFloat nx, ny, nz;        // 面法线（层空间，Y 向下系）
-@property (nonatomic, assign) CGFloat px, py, pz;        // 肢体枢轴（层空间 pt；非肢体 = center）
-@property (nonatomic, assign) CGFloat swingSign;         // 摆动方向（0 = 非肢体）
+@property (nonatomic, assign) CGFloat swingSign;       // 摆动方向（0 = 非肢体）
 @end
 @implementation ZL2SkinViewFace
 @end
@@ -226,10 +227,17 @@ typedef struct {
 }
 @end
 
-// ★Task414 光向（层空间 +Y 向下 → 光来自左上前方）
-static const CGFloat AME414_LIGHT_X = -0.45;
-static const CGFloat AME414_LIGHT_Y = -0.62;
-static const CGFloat AME414_LIGHT_Z =  0.65;
+// ★Task416 光向（模型空间 +Y 向上 → 光来自左上前上方；与旧层空间向量
+//   同一物理光源，Y 分量翻转适配模型空间直算）
+static const CGFloat AME416_LIGHT_X = -0.45;
+static const CGFloat AME416_LIGHT_Y =  0.62;
+static const CGFloat AME416_LIGHT_Z =  0.65;
+// ★Task416 CPU 透视视距（pt；模型对角最大 ~20unit×unit×userScale 远小于
+//   此值，pf 恒有界；stage sublayerTransform m34 同帧退役 = 全链透视唯一源）
+static const CGFloat AME416_CAMERA_D = 900.0;
+// ★Task416 跑步摆幅（415 0.55 微收 = 皮肤站观感口径；walk 默认关 = 开屏
+//   站姿立正，自转慢速展示，跑步钮点按才起摆）
+static const CGFloat AME416_WALK_AMP = 0.50;
 
 #pragma mark - 实现
 
@@ -289,7 +297,9 @@ static const CGFloat AME414_LIGHT_Z =  0.65;
         _ame413_userScale = 1.0;
         _ame413_slimModel = NO;
         _ame413_faceLayers = [NSMutableArray array];
-        _ame414_walkOn = YES;
+        // ★Task416 跑步默认关（开屏站姿立正 + 慢速自转 = 皮肤站口径；415
+        //   开屏即全幅摆动 = 截图任意相位都是四肢交叉乱麻的观感源之一）
+        _ame414_walkOn = NO;
         _ame414_autoSpin = YES;
         _ame414_walkPhase = 0.0;
         _ame414_wardrobeEntries = ZL2SkinWardrobeLoad();
@@ -338,11 +348,11 @@ static const CGFloat AME414_LIGHT_Z =  0.65;
     ]];
     // 顶锚在 buildChrome 接入顶行（buildStage 先于控件构建，顶行不存在）
 
-    // 透视宿主：sublayerTransform 持 m34（CA 经典 3D 盒体技法，412f 判例）
-    //   ★Task414 −1/700 → −1/480：内嵌卡幅面小、弱透视几乎不可辨 = 纸片感
-    CATransform3D ame413_persp = CATransform3DIdentity;
-    ame413_persp.m34 = -1.0 / 480.0;
-    _ame413_stageView.layer.sublayerTransform = ame413_persp;
+    // 透视宿主：★Task416 sublayerTransform m34 退役——透视改为 CPU 逐面
+    //   投影（pf = D/(D−Z)，AME416_CAMERA_D 视距），stage 恒 identity；
+    //   遮挡序 zPosition = 相机 z（大者在前），全链透视/深度唯一源 = 投影
+    //   函数（旧 m34 与 CPU z 混用 = 两套透视口径互相污染的载体）
+    _ame413_stageView.layer.sublayerTransform = CATransform3DIdentity;
 
     // 手势：拖轨（水平 = yaw、竖直 = pitch）+ 捏合缩放
     UIPanGestureRecognizer *ame413_pan =
@@ -1060,84 +1070,104 @@ static const CGFloat AME414_LIGHT_Z =  0.65;
     if (ame414_dirty) [self ame413_updateModelTransform];
 }
 
-// 每帧面级四更新（★Task415a 语义升级）：模型旋转入面（R·T 基准 · 摆动 ·
-// RotModel）+ zPosition 精确深度序（= 旋转后面中心 z）+ 光影罩（法线×光向点积）
+// ★Task416 旋转辅助（模型空间；与 scripts/task416_skin3d_preview.py
+//   rot_y/rot_x 逐公式同源——Python 先行验证通过后落 ObjC）
+static void Ame416RotY(CGFloat th, CGFloat *x, CGFloat *z) {
+    CGFloat ame416_c = cos(th), ame416_s = sin(th);
+    CGFloat ame416_nx = *x * ame416_c + *z * ame416_s;
+    *z = -*x * ame416_s + *z * ame416_c;
+    *x = ame416_nx;
+}
+static void Ame416RotX(CGFloat th, CGFloat *y, CGFloat *z) {
+    CGFloat ame416_c = cos(th), ame416_s = sin(th);
+    CGFloat ame416_ny = *y * ame416_c - *z * ame416_s;
+    *z = *y * ame416_s + *z * ame416_c;
+    *y = ame416_ny;
+}
+
+// 每帧 CPU 逐面投影（★Task416 skinview3d 移植：旧 CATransform3D 拼接链整体
+// 退役）。管线：角点（居中模型空间）→ 肢体摆动（绕枢轴 RotX）→ 全局旋转
+// （yaw 先 pitch 后）→ ×unit×userScale → CPU 透视（pf = D/(D−Z)）→ 屏幕四边
+// 形 → 仿射贴面（position = 投影后面心，transform = 角点解出的仿射）+
+// 画家序（zPosition = 相机 z，大者在前）+ 背面剔除（旋转后法线 nz≤0 隐藏）
+// + 法线明暗罩。舞台恒 identity（sublayerTransform 已退役）= 透视/深度唯一
+// 源在本函数；与 ZL2ShellIconButton 图标常量、装配 UV 表零耦合。
 - (void)ame413_updateModelTransform {
-    // ★Task415a 模型旋转下放进每面变换（舞台恒 identity）：①sublayerTransform
-    //   透视作用于旋转后真实 z = 真透视（旧舞台级旋转下透视冻结在静态 z）；
-    //   ②zPosition = 旋转后面中心 z = 与几何严格同源的精确遮挡序（旧
-    //   +100 偏置/摆动偏置=污染投影的粗糙近似整体退役）；③旋转序 yaw→pitch
-    //   与面记录法线/深度公式严格同源（旧舞台 RotX·RotY 与深度公式 yaw 先
-    //   序相反 = 遮挡微错）。行向量 p·baseT·Swing·RotModel。
-    CGFloat ame413_s = _ame413_userScale;
-    CATransform3D ame414_modelT = CATransform3DMakeRotation(_ame413_yaw, 0.0, 1.0, 0.0);
-    ame414_modelT = CATransform3DRotate(ame414_modelT, _ame413_pitch, 1.0, 0.0, 0.0);
-    ame414_modelT = CATransform3DScale(ame414_modelT, ame413_s, ame413_s, ame413_s);
-
-    CGFloat ame414_cp = cos(_ame413_pitch), ame414_sp = sin(_ame413_pitch);
-    CGFloat ame414_cw = cos(_ame413_yaw), ame414_sw = sin(_ame413_yaw);
-    CGFloat ame414_swing = _ame414_walkOn ? (0.55 * sin(_ame414_walkPhase)) : 0.0;
-
+    CGFloat ame416_unit = _ame413_baseUnit * _ame413_userScale;
+    CGFloat ame416_swing = _ame414_walkOn ? (AME416_WALK_AMP * sin(_ame414_walkPhase)) : 0.0;
+    CGPoint ame416_cen = CGPointMake(CGRectGetMidX(_ame413_stageView.bounds),
+                                     CGRectGetMidY(_ame413_stageView.bounds));
     [CATransaction begin];
     [CATransaction setDisableActions:YES];
     for (ZL2SkinViewFace *ame414_f in _ame413_faceLayers) {
-        CATransform3D ame414_ft = ame414_f.ame_baseT;   // ★415a R·T 基准
-        CGFloat ame414_x = ame414_f.cx, ame414_y = ame414_f.cy, ame414_z = ame414_f.cz;
-        CGFloat ame414_ct = 1.0, ame414_st = 0.0;
-        CGFloat ame414_th = ame414_swing * ame414_f.swingSign;
-        if (ame414_th != 0.0) {
-            ame414_ct = cos(ame414_th); ame414_st = sin(ame414_th);
-            // ★415a 枢轴换序 + 摆动移到模型空间（baseT 之后）：旧
-            //   T(+P)·R·T(−P) 绕反枢轴且作用在面局部空间；正解 =
-            //   p·baseT·T(−P)·R·T(+P)，整肢六面绕同一肩/髋枢轴（P = 模型
-            //   空间 pt，与 baseT 后的模型空间同系）
-            CATransform3D ame414_rot = CATransform3DMakeRotation(ame414_th, 1.0, 0.0, 0.0);
-            CATransform3D ame414_tp = CATransform3DMakeTranslation(-ame414_f.px, -ame414_f.py, -ame414_f.pz);
-            CATransform3D ame414_tn = CATransform3DMakeTranslation(ame414_f.px, ame414_f.py, ame414_f.pz);
-            CATransform3D ame414_swingT = CATransform3DConcat(ame414_tp, ame414_rot);
-            ame414_swingT = CATransform3DConcat(ame414_swingT, ame414_tn);
-            ame414_ft = CATransform3DConcat(ame414_ft, ame414_swingT);
-            // 面中心随摆（模型空间 RotX：y/z 旋 x 不动）
-            CGFloat ame414_dy = ame414_y - ame414_f.py;
-            CGFloat ame414_dz = ame414_z - ame414_f.pz;
-            ame414_y = ame414_f.py + ame414_dy * ame414_ct - ame414_dz * ame414_st;
-            ame414_z = ame414_f.pz + ame414_dy * ame414_st + ame414_dz * ame414_ct;
+        CGFloat ame416_th = ame416_swing * ame414_f.swingSign;
+        CGFloat ame416_ct = cos(ame416_th), ame416_st = sin(ame416_th);
+        // ——法线：随摆 → 随旋（剔除判定 + 明暗共用）——
+        CGFloat ame416_nx = ame414_f->normal[0], ame416_ny = ame414_f->normal[1], ame416_nz = ame414_f->normal[2];
+        if (ame416_th != 0.0) Ame416RotX(ame416_th, &ame416_ny, &ame416_nz);
+        Ame416RotY(_ame413_yaw, &ame416_nx, &ame416_nz);
+        Ame416RotX(_ame413_pitch, &ame416_ny, &ame416_nz);
+        BOOL ame416_backface = (ame416_nz <= 0.0);
+        // ——四角投影——
+        CGFloat ame416_sx[4], ame416_sy[4], ame416_zsum = 0.0;
+        BOOL ame416_ok = YES;
+        for (NSInteger ame416_k = 0; ame416_k < 4; ame416_k++) {
+            CGFloat ame416_vx = ame414_f->corners[ame416_k][0];
+            CGFloat ame416_vy = ame414_f->corners[ame416_k][1];
+            CGFloat ame416_vz = ame414_f->corners[ame416_k][2];
+            if (ame416_th != 0.0) {   // 摆动绕枢轴（RotX）
+                CGFloat ame416_dy = ame416_vy - ame414_f->pivot[1];
+                CGFloat ame416_dz = ame416_vz - ame414_f->pivot[2];
+                ame416_vy = ame414_f->pivot[1] + ame416_dy * ame416_ct - ame416_dz * ame416_st;
+                ame416_vz = ame414_f->pivot[2] + ame416_dy * ame416_st + ame416_dz * ame416_ct;
+            }
+            Ame416RotY(_ame413_yaw, &ame416_vx, &ame416_vz);
+            Ame416RotX(_ame413_pitch, &ame416_vy, &ame416_vz);
+            ame416_vx *= ame416_unit; ame416_vy *= ame416_unit; ame416_vz *= ame416_unit;
+            if (!isfinite(ame416_vx + ame416_vy + ame416_vz)) { ame416_ok = NO; break; }
+            if (ame416_vz > AME416_CAMERA_D * 0.9) ame416_vz = AME416_CAMERA_D * 0.9;   // pf 有界卫兵
+            CGFloat ame416_pf = AME416_CAMERA_D / (AME416_CAMERA_D - ame416_vz);
+            ame416_sx[ame416_k] = ame416_vx * ame416_pf;
+            ame416_sy[ame416_k] = -ame416_vy * ame416_pf;
+            ame416_zsum += ame416_vz;
         }
-        ame414_ft = CATransform3DConcat(ame414_ft, ame414_modelT);   // ★415a 模型旋转入面
-        ame414_f.layer.transform = ame414_ft;
-        // ——深度：yaw 先（M = RotY·RotX 与变换序同源）→ pitch → ×userScale
-        //   （舞台 identity，zPosition 即面在舞台空间的精确 z）——
-        CGFloat ame414_x1 = ame414_x * ame414_cw + ame414_z * ame414_sw;
-        CGFloat ame414_z1 = -ame414_x * ame414_sw + ame414_z * ame414_cw;
-        CGFloat ame414_y2 = ame414_y * ame414_cp - ame414_z1 * ame414_sp;
-        CGFloat ame414_z2 = ame414_y * ame414_sp + ame414_z1 * ame414_cp;
-        ame414_f.layer.zPosition = ame414_z2 * ame413_s;   // ★415a 精确 z（+100/摆动偏置退役）
-        // ——光影：法线随摆随旋 → 光向点积 → 罩透明度——
-        CGFloat ame414_nx = ame414_f.nx, ame414_ny = ame414_f.ny, ame414_nz = ame414_f.nz;
-        if (ame414_th != 0.0) {
-            CGFloat ame414_ny1 = ame414_ny * ame414_ct - ame414_nz * ame414_st;
-            ame414_nz = ame414_ny * ame414_st + ame414_nz * ame414_ct;
-            ame414_ny = ame414_ny1;
+        if (!ame416_ok) continue;
+        ame414_f.layer.hidden = ame416_backface;   // 背面剔除（画家序前置）
+        if (ame416_backface) continue;
+        ame414_f.layer.zPosition = ame416_zsum / 4.0;   // 画家序：远先近后
+        // ——仿射贴面：L0=(-W2,-H2) L1=(+W2,-H2) L3=(-W2,+H2) → P0/P1/P3——
+        CGFloat ame416_w2 = ame414_f.layer.bounds.size.width / 2.0;
+        CGFloat ame416_h2 = ame414_f.layer.bounds.size.height / 2.0;
+        CGFloat ame416_a11 = (ame416_sx[1] - ame416_sx[0]) / (2.0 * ame416_w2);
+        CGFloat ame416_a21 = (ame416_sy[1] - ame416_sy[0]) / (2.0 * ame416_w2);
+        CGFloat ame416_a12 = (ame416_sx[3] - ame416_sx[0]) / (2.0 * ame416_h2);
+        CGFloat ame416_a22 = (ame416_sy[3] - ame416_sy[0]) / (2.0 * ame416_h2);
+        CGFloat ame416_det = ame416_a11 * ame416_a22 - ame416_a12 * ame416_a21;
+        if (!isfinite(ame416_det) || fabs(ame416_det) < 1e-6) {
+            ame414_f.layer.hidden = YES;   // 近棱边退化面隐藏（宽→0）
+            continue;
         }
-        CGFloat ame414_nx1 = ame414_nx * ame414_cw + ame414_nz * ame414_sw;
-        CGFloat ame414_nz1 = -ame414_nx * ame414_sw + ame414_nz * ame414_cw;
-        CGFloat ame414_ny2 = ame414_ny * ame414_cp - ame414_nz1 * ame414_sp;
-        CGFloat ame414_nz2 = ame414_ny * ame414_sp + ame414_nz1 * ame414_cp;
-        CGFloat ame414_len = sqrt(ame414_nx1 * ame414_nx1 + ame414_ny2 * ame414_ny2 + ame414_nz2 * ame414_nz2);
-        if (ame414_len < 0.0001) ame414_len = 1.0;
-        CGFloat ame414_dot = (ame414_nx1 * AME414_LIGHT_X + ame414_ny2 * AME414_LIGHT_Y + ame414_nz2 * AME414_LIGHT_Z) / ame414_len;
-        CGFloat ame414_shade = 0.44 + 0.58 * fmax(0.0, ame414_dot);
-        if (ame414_shade > 1.0) ame414_shade = 1.0;
-        ame414_f.shade.opacity = (1.0 - ame414_shade) * 0.85;
+        CGAffineTransform ame416_aff = CGAffineTransformMake(ame416_a11, ame416_a21, ame416_a12, ame416_a22, 0.0, 0.0);
+        ame414_f.layer.transform = CATransform3DMakeAffineTransform(ame416_aff);
+        ame414_f.layer.position = CGPointMake(
+            ame416_cen.x + ame416_sx[0] + ame416_a11 * ame416_w2 + ame416_a12 * ame416_h2,
+            ame416_cen.y + ame416_sy[0] + ame416_a21 * ame416_w2 + ame416_a22 * ame416_h2);
+        // ——明暗罩：法线 × 光向点积（左上前主光）——
+        CGFloat ame416_len = sqrt(ame416_nx * ame416_nx + ame416_ny * ame416_ny + ame416_nz * ame416_nz);
+        if (ame416_len < 0.0001) ame416_len = 1.0;
+        CGFloat ame416_dot = (ame416_nx * AME416_LIGHT_X + ame416_ny * AME416_LIGHT_Y + ame416_nz * AME416_LIGHT_Z) / ame416_len;
+        CGFloat ame416_shade = 0.44 + 0.58 * fmax(0.0, ame416_dot);
+        if (ame416_shade > 1.0) ame416_shade = 1.0;
+        ame414_f.shade.opacity = (1.0 - ame416_shade) * 0.85;
     }
     [CATransaction commit];
 }
 
-// 视口自适应比例（模型高 32 单位 → 舞台高的 0.78；内嵌卡幅面小，占满些）
+// 视口自适应比例（模型高 32 单位 → 舞台高的 0.74；宽含双臂 16 单位）
 - (void)ame413_recomputeBaseUnit {
     CGFloat ame413_h = _ame413_stageView.bounds.size.height;
     CGFloat ame413_w = _ame413_stageView.bounds.size.width;
-    CGFloat ame413_fit = fmin(ame413_h * 0.78 / 32.0, ame413_w * 0.55 / 16.0);
+    CGFloat ame413_fit = fmin(ame413_h * 0.74 / 32.0, ame413_w * 0.58 / 17.0);
     if (ame413_fit < 2.0) ame413_fit = 2.0;
     _ame413_baseUnit = ame413_fit;
     [self ame413_updateModelTransform];
@@ -1147,151 +1177,98 @@ static const CGFloat AME414_LIGHT_Z =  0.65;
     [super layoutSubviews];
     CGFloat ame413_h = _ame413_stageView.bounds.size.height;
     CGFloat ame413_w = _ame413_stageView.bounds.size.width;
-    CGFloat ame413_fit = fmin(ame413_h * 0.78 / 32.0, ame413_w * 0.55 / 16.0);
+    CGFloat ame413_fit = fmin(ame413_h * 0.74 / 32.0, ame413_w * 0.58 / 17.0);
     if (ame413_fit < 2.0) ame413_fit = 2.0;
     if (fabs(ame413_fit - _ame413_baseUnit) > 0.5) {
         _ame413_baseUnit = ame413_fit;
         [self ame413_applySkin:_ame413_currentSkin];   // unit 变化整组重建
         return;
     }
-    CGPoint ame413_center = CGPointMake(CGRectGetMidX(_ame413_stageView.bounds),
-                                        CGRectGetMidY(_ame413_stageView.bounds));
-    for (ZL2SkinViewFace *ame413_face in _ame413_faceLayers) {
-        ame413_face.layer.position = ame413_center;
-    }
+    [self ame413_updateModelTransform];   // ★Task416 舞台中心随布局重投影
 }
 
-#pragma mark 盒体组装（36 面 + 逐面记录/光影罩）
+#pragma mark 盒体组装（★Task416 skinview3d 装配表：36 面 + 枢轴 + UV）
 
-// 单盒六面（面序 [前(+Z) 后(−Z) 右(−X) 左(+X) 上(+Y) 下(−Y)]）。
-// ★Task413 坐标翻转核心：层空间 +Y 向下（屏幕），模型空间 +Y 向上——
-// 盒心 y_l = −(y_m − 16)；顶面（模型 +Y）offY = −h/2、rotX = +π/2（法线
-// (0,0,1)→(0,−1,0) = 朝屏上），底面反号。横向不变（+X 右、+Z 朝观者）。
-// 逐面横轴向（与展开图接缝核对）：前=恒等、后=rotY(π)（纹理左右镜像 =
-// 背视正确）、右(−X)=rotY(−π/2)（局部 +X→+Z 前缘 = 右脸区右缘 ✓）、
-// 左(+X)=rotY(+π/2)（局部 −X→+Z 前缘 = 左脸区左缘 ✓）。
-// ★Task414 追加：每面记录（层空间中心/法线/枢轴/基准变换）+ 黑色光影罩
-// 子层，供逐帧深度排序 / 光影 / 肢体摆动复算。
-static void ZL2SkinViewBuildBox(CALayer *ame413_parent,
-                                CGPoint ame413_center,
-                                ZL2SkinViewBox ame413_box,
-                                CGFloat ame413_unit,
-                                UIImage *ame413_skin,
-                                NSInteger ame414_partIndex,
-                                CGFloat ame414_pivotYModel,
-                                CGFloat ame414_swingSign,
-                                NSMutableArray<ZL2SkinViewFace *> *ame414_out) {
-    CGFloat ame413_x = ame413_box.cx;
-    CGFloat ame413_y = -(ame413_box.cy - 16.0);   // ★Task413 Y 翻转（模型 0..32 → 层 −16..16 头朝上）
-    CGFloat ame413_z = ame413_box.cz;
-    // ★Task414 肢体枢轴（层空间 pt）：肩/髋模型 Y → 层 Y
-    CGFloat ame414_pivotX = (ame413_box.cx) * ame413_unit;
-    CGFloat ame414_pivotY = -(ame414_pivotYModel - 16.0) * ame413_unit;
-    CGFloat ame414_pivotZ = (ame413_box.cz) * ame413_unit;
+// 单部件六面（面序 [前(+Z) 后(−Z) 右(−X) 左(+X) 上(+Y) 下(−Y)]，与 UV 表序
+// 一致）。每面：面心 = 盒心 + 轴向半尺寸偏移；纹理 u/v 方向向量（模型空间）
+// 与法线取 MC 展开图约定（前=恒等、后=横镜像、右脸 u→−Z、左脸 u→+Z、
+// 上/下面 v→∓Z）；四角按纹理 TL/TR/BR/BL 序落模型空间并按 y=16 居中。
+static void ZL2SkinViewBuildPart(CALayer *ame413_parent,
+                                 CGFloat ame416_cx, CGFloat ame416_cy, CGFloat ame416_cz,
+                                 CGFloat ame416_w, CGFloat ame416_h, CGFloat ame416_d,
+                                 CGFloat ame416_pvx, CGFloat ame416_pvy, CGFloat ame416_pvz,
+                                 CGFloat ame416_swingSign,
+                                 const ZL2SkinViewRect *ame413_faces,
+                                 CGFloat ame413_unit,
+                                 UIImage *ame413_skin,
+                                 NSMutableArray<ZL2SkinViewFace *> *ame414_out) {
+    static const CGFloat AME416_UX[6][3] = {
+        { 1, 0, 0}, {-1, 0, 0}, {0, 0, -1}, {0, 0, 1}, {1, 0, 0}, {1, 0, 0}};
+    static const CGFloat AME416_VY[6][3] = {
+        {0, -1, 0}, {0, -1, 0}, {0, -1, 0}, {0, -1, 0}, {0, 0, 1}, {0, 0, -1}};
+    static const CGFloat AME416_NN[6][3] = {
+        {0, 0, 1}, {0, 0, -1}, {-1, 0, 0}, {1, 0, 0}, {0, 1, 0}, {0, -1, 0}};
+    static const CGFloat AME416_OFF[6][3] = {
+        {0, 0, 1}, {0, 0, -1}, {-1, 0, 0}, {1, 0, 0}, {0, 1, 0}, {0, -1, 0}};
     for (NSInteger ame413_i = 0; ame413_i < 6; ame413_i++) {
-        CGFloat ame413_offX = 0, ame413_offY = 0, ame413_offZ = 0;
-        CGFloat ame413_rotY = 0, ame413_rotX = 0;
-        CGFloat ame413_fw = 0, ame413_fh = 0;
-        CGFloat ame413_nx = 0, ame413_ny = 0, ame413_nz = 0;   // ★Task414 层空间法线
-        switch (ame413_i) {
-            case 0:   // 前：面朝 +Z，z + d/2
-                ame413_offZ = ame413_box.d / 2.0; ame413_fw = ame413_box.w; ame413_fh = ame413_box.h;
-                ame413_nx = 0; ame413_ny = 0; ame413_nz = 1;
-                break;
-            case 1: { // 后：RotY(π)，z − d/2
-                ame413_offZ = -ame413_box.d / 2.0; ame413_rotY = (CGFloat)M_PI;
-                ame413_fw = ame413_box.w; ame413_fh = ame413_box.h;
-                ame413_nx = 0; ame413_ny = 0; ame413_nz = -1;
-                break;
-            }
-            case 2: { // 右（角色右 = −X 侧）：x − w/2
-                ame413_offX = -ame413_box.w / 2.0; ame413_rotY = -(CGFloat)M_PI / 2.0;
-                ame413_fw = ame413_box.d; ame413_fh = ame413_box.h;
-                ame413_nx = -1; ame413_ny = 0; ame413_nz = 0;
-                break;
-            }
-            case 3: { // 左（角色左 = +X 侧）：x + w/2
-                ame413_offX = ame413_box.w / 2.0; ame413_rotY = (CGFloat)M_PI / 2.0;
-                ame413_fw = ame413_box.d; ame413_fh = ame413_box.h;
-                ame413_nx = 1; ame413_ny = 0; ame413_nz = 0;
-                break;
-            }
-            case 4: { // 上（模型 +Y = 屏上）：y − h/2，rotX(+π/2)
-                ame413_offY = -ame413_box.h / 2.0; ame413_rotX = (CGFloat)M_PI / 2.0;
-                ame413_fw = ame413_box.w; ame413_fh = ame413_box.d;
-                ame413_nx = 0; ame413_ny = -1; ame413_nz = 0;
-                break;
-            }
-            default: { // 下（模型 −Y = 屏下）：y + h/2，rotX(−π/2)
-                ame413_offY = ame413_box.h / 2.0; ame413_rotX = -(CGFloat)M_PI / 2.0;
-                ame413_fw = ame413_box.w; ame413_fh = ame413_box.d;
-                ame413_nx = 0; ame413_ny = 1; ame413_nz = 0;
-                break;
-            }
-        }
+        CGFloat ame416_fw = (ame413_i == 2 || ame413_i == 3) ? ame416_d : ame416_w;
+        CGFloat ame416_fh = (ame413_i >= 4) ? ame416_d : ame416_h;
+        CGFloat ame416_fcx = ame416_cx + AME416_OFF[ame413_i][0] * ame416_w / 2.0;
+        CGFloat ame416_fcy = ame416_cy + AME416_OFF[ame413_i][1] * ame416_h / 2.0;
+        CGFloat ame416_fcz = ame416_cz + AME416_OFF[ame413_i][2] * ame416_d / 2.0;
 
         CALayer *ame413_face = [CALayer layer];
-        ame413_face.bounds = CGRectMake(0, 0, ame413_fw * ame413_unit, ame413_fh * ame413_unit);
-        ame413_face.position = ame413_center;
-        ame413_face.doubleSided = NO;   // 背面剔除（CALayer 属性名无 is 前缀）
-        UIImage *ame413_img = ame413_skin ? ZL2SkinViewFaceImage(ame413_skin, ame413_box.faces[ame413_i]) : nil;
+        ame413_face.bounds = CGRectMake(0, 0, ame416_fw * ame413_unit, ame416_fh * ame413_unit);
+        UIImage *ame413_img = ame413_skin ? ZL2SkinViewFaceImage(ame413_skin, ame413_faces[ame413_i]) : nil;
         if (ame413_img) {
             ame413_face.contents = (id)ame413_img.CGImage;
             ame413_face.contentsGravity = kCAGravityResize;
         } else {
             ame413_face.backgroundColor = [UIColor colorWithWhite:0.32 alpha:1.0].CGColor;   // 占位灰面
         }
-        // ★Task414 光影罩（面内容之上，opacity 逐帧 = 1−shade；CALayer 无
+        // 光影罩（面内容之上，opacity 逐帧 = 1−shade；CALayer 无
         //   userInteractionEnabled 属性（UIView 专属）= run 42640992511 判例）
         CALayer *ame414_shade = [CALayer layer];
         ame414_shade.frame = ame413_face.bounds;
         ame414_shade.backgroundColor = [UIColor blackColor].CGColor;
         ame414_shade.opacity = 0.0;
         [ame413_face addSublayer:ame414_shade];
-
-        // ★Task415a 变换序根修（纸片+90°塌线同根）：R 先 T 后（p·R·T）。
-        //   旧序 T·R 把面先挪到偏移位再绕舞台原点旋转——角点 pre-rotation
-        //   z=0，经 RotY 后 x' = x·cosθ，θ=90° 时全部面塌进 x'=0 平面 =
-        //   屏幕中央 1pt 竖线（IMG_0610 实拍），θ=0 时侧面/顶底全部
-        //   edge-on = 只有正面的「纸片」（IMG_0606 实拍）。R·T 后面先在
-        //   原位自转再平移入位，任意 yaw 几何恒成立。
-        CATransform3D ame413_t = CATransform3DIdentity;
-        if (ame413_rotY != 0.0) ame413_t = CATransform3DRotate(ame413_t, ame413_rotY, 0.0, 1.0, 0.0);
-        if (ame413_rotX != 0.0) ame413_t = CATransform3DRotate(ame413_t, ame413_rotX, 1.0, 0.0, 0.0);
-        ame413_t = CATransform3DTranslate(ame413_t, (ame413_x + ame413_offX) * ame413_unit,
-                                          (ame413_y + ame413_offY) * ame413_unit,
-                                          (ame413_z + ame413_offZ) * ame413_unit);
-        ame413_face.transform = ame413_t;
         [ame413_parent addSublayer:ame413_face];
 
-        // ★Task414 面记录（层空间静态基准；枢轴 = 肢体肩/髋，非肢体 = 面自身中心）
+        // 面记录（居中模型空间；投影/摆动/明暗逐帧复算的唯一静态源）
         ZL2SkinViewFace *ame414_rec = [[ZL2SkinViewFace alloc] init];
         ame414_rec.layer = ame413_face;
         ame414_rec.shade = ame414_shade;
-        ame414_rec.ame_baseT = ame413_t;
-        ame414_rec.cx = (ame413_x + ame413_offX) * ame413_unit;
-        ame414_rec.cy = (ame413_y + ame413_offY) * ame413_unit;
-        ame414_rec.cz = (ame413_z + ame413_offZ) * ame413_unit;
-        ame414_rec.nx = ame413_nx;
-        ame414_rec.ny = ame413_ny;
-        ame414_rec.nz = ame413_nz;
-        if (ame414_swingSign != 0.0) {
-            ame414_rec.px = ame414_pivotX;
-            ame414_rec.py = ame414_pivotY;
-            ame414_rec.pz = ame414_pivotZ;
-        } else {
-            ame414_rec.px = ame414_rec.cx;
-            ame414_rec.py = ame414_rec.cy;
-            ame414_rec.pz = ame414_rec.cz;
+        static const NSInteger AME416_SQ[4][2] = {{-1, -1}, {1, -1}, {1, 1}, {-1, 1}};   // TL TR BR BL
+        for (NSInteger ame416_k = 0; ame416_k < 4; ame416_k++) {
+            CGFloat ame416_s = (CGFloat)AME416_SQ[ame416_k][0];
+            CGFloat ame416_t = (CGFloat)AME416_SQ[ame416_k][1];
+            ame414_rec->corners[ame416_k][0] = ame416_fcx
+                + AME416_UX[ame413_i][0] * (ame416_s * ame416_fw / 2.0)
+                + AME416_VY[ame413_i][0] * (ame416_t * ame416_fh / 2.0);
+            ame414_rec->corners[ame416_k][1] = (ame416_fcy
+                + AME416_UX[ame413_i][1] * (ame416_s * ame416_fw / 2.0)
+                + AME416_VY[ame413_i][1] * (ame416_t * ame416_fh / 2.0)) - 16.0;   // ★按 y=16 居中
+            ame414_rec->corners[ame416_k][2] = ame416_fcz
+                + AME416_UX[ame413_i][2] * (ame416_s * ame416_fw / 2.0)
+                + AME416_VY[ame413_i][2] * (ame416_t * ame416_fh / 2.0);
         }
-        ame414_rec.swingSign = ame414_swingSign;
+        ame414_rec->pivot[0] = ame416_pvx;
+        ame414_rec->pivot[1] = ame416_pvy - 16.0;
+        ame414_rec->pivot[2] = ame416_pvz;
+        ame414_rec->normal[0] = AME416_NN[ame413_i][0];
+        ame414_rec->normal[1] = AME416_NN[ame413_i][1];
+        ame414_rec->normal[2] = AME416_NN[ame413_i][2];
+        ame414_rec.swingSign = ame416_swingSign;
         [ame414_out addObject:ame414_rec];
     }
 }
 
 // 用皮肤整组建模（skin = nil 时灰盒占位；每次整组拆建零残留）
-// ★Task414 部件枢轴：臂枢轴 = 肩（模型 y=22）、腿枢轴 = 髋（模型 y=12）；
-// 摆动方向 = 右臂 +1 / 左臂 −1 / 右腿 −1 / 左腿 +1（同侧臂腿反相）。
+// ★Task416 装配表 = skinview3d model.ts 逐值换算（y_sv3d + 24 → 模型 y；
+// y 再 −16 居中在投影侧统一处理）：头 (0,28) 8³ / 身 (0,18) 8×12×4 /
+// 臂 (±armCx,18) pivot(±5,22) / 腿 (±1.9,6) pivot(±1.9,12)；摆动方向 =
+// 右臂 +1 / 左臂 −1 / 右腿 −1 / 左腿 +1（同侧臂腿反相）。
 - (void)ame413_applySkin:(UIImage *)skin {
     _ame413_currentSkin = skin;
     CALayer *ame413_stage = _ame413_stageView.layer;
@@ -1300,8 +1277,6 @@ static void ZL2SkinViewBuildBox(CALayer *ame413_parent,
     }
     [_ame413_faceLayers removeAllObjects];
 
-    CGPoint ame413_center = CGPointMake(CGRectGetMidX(_ame413_stageView.bounds),
-                                        CGRectGetMidY(_ame413_stageView.bounds));
     CGFloat ame413_unit = _ame413_baseUnit;
     if (ame413_unit < 2.0) {
         [self ame413_recomputeBaseUnit];
@@ -1312,9 +1287,8 @@ static void ZL2SkinViewBuildBox(CALayer *ame413_parent,
         // 占位灰模型（皮肤缺席诚实降级，零假纹理）
         ZL2SkinViewRect ame413_dummy[6] = {{0, 0, 0, 0}, {0, 0, 0, 0}, {0, 0, 0, 0},
                                            {0, 0, 0, 0}, {0, 0, 0, 0}, {0, 0, 0, 0}};
-        ZL2SkinViewBox ame413_box = {0, 16, 0, 10, 32, 6, ame413_dummy};
-        ZL2SkinViewBuildBox(ame413_stage, ame413_center, ame413_box, ame413_unit, nil,
-                            0, 16.0, 0.0, _ame413_faceLayers);
+        ZL2SkinViewBuildPart(ame413_stage, 0, 16, 0, 10, 32, 6, 0, 16, 0, 0.0,
+                             ame413_dummy, ame413_unit, nil, _ame413_faceLayers);
         return;
     }
 
@@ -1326,27 +1300,36 @@ static void ZL2SkinViewBuildBox(CALayer *ame413_parent,
     CGFloat ame413_armW = _ame413_slimModel ? 3.0 : 4.0;
     CGFloat ame413_armCx = 4.0 + ame413_armW / 2.0;   // 臂贴身侧：身半宽 4 + 臂半宽
 
-    ZL2SkinViewBox ame413_boxes[6] = {
-        {0, 28, 0, 8, 8, 8, ZL2SkinViewHeadFaces},          // 头（足底 24..32）
-        {0, 18, 0, 8, 12, 4, ZL2SkinViewBodyFaces},         // 身（12..24）
-        {-ame413_armCx, 18, 0, ame413_armW, 12, 4, ame413_rArmF},   // 右臂（角色右 = −X）
-        {ame413_armCx, 18, 0, ame413_armW, 12, 4, ame413_lArmF},    // 左臂
-        {-2, 6, 0, 4, 12, 4, ZL2SkinViewRLegFaces},         // 右腿（0..12）
-        {2, 6, 0, 4, 12, 4, ame413_lLegF},                  // 左腿
+    const ZL2SkinViewRect *ame416_faceTables[6] = {
+        ZL2SkinViewHeadFaces, ZL2SkinViewBodyFaces,
+        ame413_rArmF, ame413_lArmF,
+        ZL2SkinViewRLegFaces, ame413_lLegF,
     };
-    CGFloat ame414_pivots[6] = {22.0, 18.0, 22.0, 22.0, 12.0, 12.0};   // 肩/髋枢轴模型 Y
-    CGFloat ame414_signs[6] = {0.0, 0.0, 1.0, -1.0, -1.0, 1.0};        // 摆动方向（同侧臂腿反相）
+    CGFloat ame416_parts[6][10] = {
+        // cx, cy, cz, w, h, d, pivotX, pivotY, pivotZ, swingSign
+        {0, 28, 0, 8, 8, 8, 0, 24, 0, 0.0},                     // 头（24..32；颈枢轴不摆）
+        {0, 18, 0, 8, 12, 4, 0, 18, 0, 0.0},                    // 身（12..24）
+        {-ame413_armCx, 18, 0, ame413_armW, 12, 4, -5.0, 22.0, 0, 1.0},    // 右臂（肩枢轴）
+        { ame413_armCx, 18, 0, ame413_armW, 12, 4,  5.0, 22.0, 0, -1.0},   // 左臂
+        {-1.9, 6, 0, 4, 12, 4, -1.9, 12.0, 0, -1.0},            // 右腿（髋枢轴）
+        { 1.9, 6, 0, 4, 12, 4,  1.9, 12.0, 0, 1.0},             // 左腿
+    };
     for (NSInteger ame413_i = 0; ame413_i < 6; ame413_i++) {
-        ZL2SkinViewBuildBox(ame413_stage, ame413_center, ame413_boxes[ame413_i], ame413_unit, skin,
-                            ame413_i, ame414_pivots[ame413_i], ame414_signs[ame413_i], _ame413_faceLayers);
+        CGFloat *ame416_p = ame416_parts[ame413_i];
+        ZL2SkinViewBuildPart(ame413_stage,
+                             ame416_p[0], ame416_p[1], ame416_p[2],
+                             ame416_p[3], ame416_p[4], ame416_p[5],
+                             ame416_p[6], ame416_p[7], ame416_p[8], ame416_p[9],
+                             ame416_faceTables[ame413_i], ame413_unit, skin,
+                             _ame413_faceLayers);
     }
     [self ame413_updateModelTransform];
-    // ★Task415a 装配诊断（冒烟 console/预览日志可视：面数应恒 36，非 36 =
+    // ★Task416 装配诊断（冒烟 console/预览日志可视：面数应恒 36，非 36 =
     //   装配残缺；unit/舞台尺寸异常 = 布局面问题，不再盲修）
-    NSLog(@"[ZL2SkinPreview] Task415: skin=%gx%g stage=%.0fx%.0f unit=%.2f faces=%lu slim=%d",
+    NSLog(@"[ZL2SkinPreview] Task416: skin=%gx%g stage=%.0fx%.0f unit=%.2f faces=%lu slim=%d walk=%d",
           skin.size.width, skin.size.height, _ame413_stageView.bounds.size.width,
           _ame413_stageView.bounds.size.height, ame413_unit,
-          (unsigned long)_ame413_faceLayers.count, _ame413_slimModel);
+          (unsigned long)_ame413_faceLayers.count, _ame413_slimModel, _ame414_walkOn);
 }
 
 @end

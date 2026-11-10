@@ -408,13 +408,16 @@ shouldBeRequiredToFailByGestureRecognizer:(UIGestureRecognizer *)otherGestureRec
             break;
         case UIGestureRecognizerStateChanged: {
             // ★Task413 手势恒指随（第 22 轮复诉③「转盘镜像搞反了…旋转方向
-            //   不符合左右手」判例）：412c 把拖动向随镜像面翻转 = 镜像侧
-            //   拖下内容上行的「倒拖」体感。左右手定谳：真实转盘无论从
-            //   哪侧握持，拖动方向恒跟手（转盘面在指下同向移动）= 镜像
-            //   只翻几何弧向，手势零翻转（Task412 拖向/惯性向翻转整体退役）。
-            CGFloat ame_dDrag = ame_horizontal
+            //   不符合左右手」判例）：拖动方向恒跟手（转盘面在指下同向移动）。
+            //   ★Task416 符号定谳（第 24 轮复诉「主页右栏的账号转盘在右边的
+            //   时候方向是反的」实机复现）：镜像几何 item.x = center − d·pitch
+            //   已把 offset→x 映射反向，拖动若零翻转则镜像侧必倒拖 —— 恒指
+            //   随的正确实现 = 位移符号随镜像翻转（镜像侧拖右→offset 增→
+            //   几何右移 = 指下同向）。竖轴 y 映射与镜像无关，恒不翻。
+            CGFloat ame416_sign = (ame_horizontal && _ame_mirrored) ? -1.0 : 1.0;
+            CGFloat ame_dDrag = ame416_sign * (ame_horizontal
                 ? [pan translationInView:self].x
-                : [pan translationInView:self].y;
+                : [pan translationInView:self].y);
             CGFloat ame_raw = self.ame_dragStartOffset - ame_dDrag / [self pitch];
             // 无边界循环：首尾相接，拖过最后一项继续回到第一项。
             self.ame_offset = ame_raw;
@@ -429,9 +432,10 @@ shouldBeRequiredToFailByGestureRecognizer:(UIGestureRecognizer *)otherGestureRec
                 : [pan velocityInView:self].y;
             CGFloat ame_flick = 0.0;
             if (fabs(ame_v) > AmeFlowSelectFlickVelocity) {
-                // ★Task413 甩向恒定（与拖动同口径：跟手，镜像零翻转——
-                //   Task412 甩向翻转随 413 判例整体退役）
-                ame_flick = (ame_v > 0.0) ? -1.0 : 1.0;
+                // ★Task416 甩向与拖动同口径：镜像横轴符号同步翻转（几何反向
+                //   甩向必须反向才能“内容向甩的方向飞”）——竖轴恒不翻。
+                CGFloat ame416_fsign = (ame_horizontal && _ame_mirrored) ? -1.0 : 1.0;
+                ame_flick = ame416_fsign * ((ame_v > 0.0) ? -1.0 : 1.0);
             }
             CGFloat ame_dest = round(self.ame_offset) + ame_flick;
             self.ame_target = ame_dest;

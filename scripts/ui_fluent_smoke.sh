@@ -286,7 +286,9 @@ PLIST
   # ── fui NavigationView 镜像轨（★Task414 第 23 轮复诉⑥「你不会运用预览吗」：
   #    fui 左栏 rail 自本轮起可截图验收——64 折叠窗格 + 图标 24 恒定 + 选中
   #    surfaceContainerHighest 抬升在 fluent-dark 暗板下的真实观感；工作室/
-  #    账户页暗板同帧覆盖）──
+  #    账户页暗板同帧覆盖。★Task416 第 24 轮复诉「折叠侧边栏会把图标大小也
+  #    调节了」：新增展开态镜像轨（-zl2pane expanded = 280 宽 + 标签），折叠
+  #    /展开同帧对比 = 图标 24pt 两态恒定的直接图证）──
   local fp
   for fp in home accounts; do
     xcrun simctl terminate "$device" com.prisma-devs.ame-fluent-preview >/dev/null 2>&1 || true
@@ -318,8 +320,25 @@ PLIST
     xcrun simctl ui "$device" appearance light >/dev/null 2>&1 || true
   done
 
+  # ★Task416 展开态镜像轨（折叠 vs 展开同轮对比：图标 24pt 恒定图证）
   xcrun simctl terminate "$device" com.prisma-devs.ame-fluent-preview >/dev/null 2>&1 || true
-  echo "== 预览冒烟完成（bare 五页浅/深 10 张 + fui nav 镜像 2 张 = 12 张截图即视觉验收：bare 顶带 64+胶囊入带 / ZL2Home 大启动按钮/版本自适应右栏 / 账户页工作室+皮肤预览 / fui 暗板 rail 选中抬升）=="
+  if page_launch_out="$(xcrun simctl launch "$device" com.prisma-devs.ame-fluent-preview -zl2page home -zl2shell nav -zl2theme fluent-dark -zl2pane expanded 2>&1)"; then
+    echo "  启动 OK[nav-expanded/home]: $page_launch_out"
+  else
+    echo "✗ 启动失败[nav-expanded/home]: $page_launch_out"
+    FAIL=1
+    return
+  fi
+  sleep 4
+  xcrun simctl ui "$device" appearance dark >/dev/null 2>&1 || true
+  sleep 2
+  xcrun simctl io "$device" screenshot "$OUT/ame-zl2-nav-fluent-home-expanded-dark.png" >/dev/null 2>&1 \
+    && sips -r 270 "$OUT/ame-zl2-nav-fluent-home-expanded-dark.png" >/dev/null 2>&1 \
+    && echo "  ✓ 截图[nav-expanded/home/fluent-dark]: $OUT/ame-zl2-nav-fluent-home-expanded-dark.png"
+  xcrun simctl ui "$device" appearance light >/dev/null 2>&1 || true
+
+  xcrun simctl terminate "$device" com.prisma-devs.ame-fluent-preview >/dev/null 2>&1 || true
+  echo "== 预览冒烟完成（bare 五页浅/深 10 张 + fui nav 镜像 2 张 + 展开态 1 张 = 13 张截图即视觉验收：bare 顶带 64+胶囊入带 / ZL2Home 大启动按钮/版本自适应右栏 / 账户页工作室+皮肤预览 / fui 暗板 rail 选中抬升 / 折叠vs展开图标恒定对比）=="
 }
 
 case "$MODE" in

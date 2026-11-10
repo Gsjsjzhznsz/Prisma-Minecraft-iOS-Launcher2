@@ -360,8 +360,8 @@ ame378_c19 = [
     ("svc-mcmod", 'entryName:@"mcmod.info"' in modsvc_raw),
     ("acct-inline", "ZL2SkinPreviewView" in accounts_code),
     ("btn-retired", "skinPreviewButton" not in accounts_code),
-    ("y-flip", "-(ame413_box.cy - 16.0)" in skinview_code),          # Y 翻转根修（盒心层空间取负）
-    ("top-face", "ame413_offY = -ame413_box.h / 2.0" in skinview_code),   # 顶面层空间上偏
+    ("y-flip", ") - 16.0;" in skinview_code),          # ★Task416 重锚：模型 y=16 居中（旧 y_l=−(y_m−16) 翻转同语义）
+    ("top-face", "AME416_OFF[ame413_i][1] * ame416_h / 2.0" in skinview_code),   # 顶面轴向偏移
     ("slim-arms", "ZL2SkinViewRArmSlimFaces" in skinview_code),      # slim 模型表在位
     ("yggdrasil", "sessionserver/session/minecraft/profile" in skinview_raw),   # 真皮链（字面量 raw）
     ("full-skin-path", "ame413_fullSkinPathForAccountId" in auth3p_code),
@@ -387,13 +387,13 @@ ame378_c20 = [
     ("bare-title-refresh", "[self ame_titleForIndex:self.currentIndex]" in shell_code),
     # ⑥ fui rail 选中态对比度（Highest 抬升）
     ("rail-highest", "selected ? [ZL2Theme surfaceContainerHighest] : [UIColor clearColor]" in shell_code),
-    # ① 真 3D 四件套（深度序/光影/透视/跑步）
+    # ① 真 3D 四件套（深度序/光影/透视/跑步）★Task416 重锚 CPU 投影引擎
     ("depth-sort", "zPosition" in skinview_code),
     ("face-record", "ZL2SkinViewFace" in skinview_code),
     ("light-shade", "shade.opacity" in skinview_code),
-    ("walk-swing", "0.55 * sin(_ame414_walkPhase)" in skinview_code),
-    ("persp-480", "-1.0 / 480.0" in skinview_code),
-    ("pivot-rot", "CATransform3DConcat(ame414_tp, ame414_rot)" in skinview_code),
+    ("walk-swing", "AME416_WALK_AMP * sin(_ame414_walkPhase)" in skinview_code),
+    ("persp-cpu", "AME416_CAMERA_D" in skinview_code),
+    ("pivot-swing", "ame416_dy * ame416_ct - ame416_dz * ame416_st" in skinview_code),
     # ② 皮肤站控件组 + ③ 衣柜/设为头像/下载
     ("studio-controls", "ame414_iconButtonWithSymbol" in skinview_code),
     ("wardrobe-disk", "skinwardrobe" in skinview_raw),
@@ -424,15 +424,26 @@ preview_raw = read("Natives/Preview/AmeFluentPreviewMain.m")   # 字面量断言
 stub_raw = read("Natives/Preview/ZL2PagesStub.m")
 
 ame378_c21 = [
-    # ① 3D 塌线/纸片同根：面装配 R·T（旧 T·R 绕舞台原点转，yaw=90° 全面塌 x'=0
-    #    = IMG_0610 1pt 竖线；yaw=0 侧/顶底 edge-on = 只有正面的「纸片」）
-    ("rt-order", "ame413_t = CATransform3DTranslate(ame413_t," in skinview_code),
-    ("rt-old-gone", "CATransform3DMakeTranslation((ame413_x + ame413_offX)" not in skinview_code),
-    ("pivot-swap", "CATransform3DMakeTranslation(-ame414_f.px, -ame414_f.py, -ame414_f.pz)" in skinview_code),
-    ("model-in-face", "CATransform3DConcat(ame414_ft, ame414_modelT)" in skinview_code),
-    ("exact-z", "ame414_f.layer.zPosition = ame414_z2 * ame413_s" in skinview_code),
+    # ① 3D 几何核心 ★Task416 skinview3d 移植重锚（CPU 逐面投影 + 画家序 +
+    #    背面剔除 + 居中模型空间；旧 CATransform3D 拼接链整体退役）
+    ("cpu-project", "AME416_CAMERA_D / (AME416_CAMERA_D - ame416_vz)" in skinview_code),
+    ("cat-old-gone", "CATransform3DMakeTranslation((ame413_x + ame413_offX)" not in skinview_code),
+    ("model-center", ") - 16.0;" in skinview_code),
+    ("yaw-then-pitch", "Ame416RotY(_ame413_yaw, &ame416_vx, &ame416_vz);" in skinview_code),
+    ("exact-z", "ame414_f.layer.zPosition = ame416_zsum / 4.0" in skinview_code),
+    ("backface-cull", "ame416_nz <= 0.0" in skinview_code),
+    ("affine-face", "CATransform3DMakeAffineTransform" in skinview_code),
     ("nan-guard", "isfinite(_ame413_yaw)" in skinview_code),
-    ("diag-log", "[ZL2SkinPreview] Task415" in skinview_raw),
+    ("diag-log", "[ZL2SkinPreview] Task416" in skinview_raw),
+    # ④ ★Task416 转盘镜像定谳：极性回归（右停靠=原生/左停靠=镜像）+ 镜像
+    #    几何下拖动/甩向符号同步翻转（恒指随的镜像侧实现）
+    ("flow-mirror-sign", "ame416_sign = (ame_horizontal && _ame_mirrored)" in flow_code),
+    ("flow-flick-sign", "ame416_fsign" in flow_code),
+    ("home-mirror-polarity", "BOOL ame_flowMirror = ame_left;" in home_code),
+    # ⑤ ★Task416 harness 镜像自伤修复：内容随窗格内缩 + 展开态镜像轨
+    ("harness-pane-lead", "ame416_paneLead" in preview_code),
+    ("harness-pane-expanded", "ame416_paneExpanded" in preview_code),
+    ("smoke-expanded", "-zl2pane expanded" in smoke_raw),
     # ② 主页右栏：启动卡钉出滚动区（Task400「钉底永可见」自约束面真正成立）
     ("launch-out-stack", "addArrangedSubview:_launchCard]" not in home_code),
     ("launch-pin", "_launchCard.bottomAnchor constraintEqualToAnchor:_actionMenu.bottomAnchor" in home_code),
@@ -489,14 +500,15 @@ if "--selftest" in sys.argv:
     # ★Task413 S-C19：Y 轴翻转抹除变体 → C19 必翻红（IMG_0596 倒置根修破坏检出）
     rcheck("S-C20", skinview_code.replace("ame414_f.layer.zPosition", "/*depth-erased*/"),
            "ame414_f.layer.zPosition" not in skinview_code.replace("ame414_f.layer.zPosition", "/*depth-erased*/"))   # ★Task414 S-C20：深度排序抹除变体 → C20 必翻红
-    rcheck("S-C19", skinview_code.replace("-(ame413_box.cy - 16.0)", "(ame413_box.cy - 16.0)"),
-           "-(ame413_box.cy - 16.0)" not in skinview_code.replace("-(ame413_box.cy - 16.0)", "(ame413_box.cy - 16.0)"))
-    # ★Task415 S-C21：T·R 装配序回潮变体 → C21 必翻红（IMG_0610 塌线根修破坏检出）
-    rcheck("S-C21", skinview_code.replace("ame413_t = CATransform3DTranslate(ame413_t,",
-                                          "ame413_t = CATransform3DMakeTranslation((ame413_x + ame413_offX) * ame413_unit,"),
-           "ame413_t = CATransform3DMakeTranslation((ame413_x + ame413_offX)" in skinview_code.replace(
-               "ame413_t = CATransform3DTranslate(ame413_t,",
-               "ame413_t = CATransform3DMakeTranslation((ame413_x + ame413_offX) * ame413_unit,"))
+    rcheck("S-C19", skinview_code.replace(") - 16.0;", ") + 16.0;"),
+           ") + 16.0;" in skinview_code.replace(") - 16.0;", ") + 16.0;"))   # ★Task416 S-C19：模型 y=16 居中翻转回潮变体 → C19 必翻红
+    # ★Task415 S-C21 → ★Task416 重锚：CPU 投影旁路回潮变体（sublayerTransform
+    #    m34 复活 = 透视双源）→ C21 必翻红
+    rcheck("S-C21", skinview_code.replace("_ame413_stageView.layer.sublayerTransform = CATransform3DIdentity;",
+                                          "_ame413_stageView.layer.sublayerTransform.m34 = -1.0 / 480.0;"),
+           "sublayerTransform.m34" in skinview_code.replace(
+               "_ame413_stageView.layer.sublayerTransform = CATransform3DIdentity;",
+               "_ame413_stageView.layer.sublayerTransform.m34 = -1.0 / 480.0;"))
     if rf:
         print(f"  SELFTEST FAILED: {rf}")
         sys.exit(1)

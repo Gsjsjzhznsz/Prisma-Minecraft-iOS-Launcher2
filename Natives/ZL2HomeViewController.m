@@ -1607,11 +1607,13 @@ static UIImage *ZL2HomeSizedImage(NSString *name, NSString *fallback, CGFloat po
     [self ame_setLaunchContentReversed:ame_left];
     [self ame_setPluginContentReversed:ame_left];
 
-    // ★Task412 转盘整体镜像（第 20 轮复诉③「转盘方向不会镜像」）：停靠边
-    // 切换后弧向/拖向/惯性向随停靠面翻转（组件侧 ame_mirrored 只翻几何
-    // 与手势；条目内容镜像仍由 406a 重建链负责，两链合成完整镜像）。
-    // 右停靠 = 镜像（旧口径停靠左 = NO）。
-    BOOL ame_flowMirror = !ame_left;
+    // ★Task412→★Task416 极性定谳（第 24 轮复诉「主页右栏的账号转盘在右边
+    // 的时候方向是反的」）：412 把镜像极性做反（右停靠 = YES）——转盘的
+    // 原生几何本就按默认停靠面（右）设计，右停靠镜像 = 无中生有的反向，
+    // 叠加 413 手势零翻转 = 右停靠拖动倒拖实锤。本轮回归物理口径：
+    // 右停靠（默认）= 镜像关（原生几何）；左停靠 = 镜像开（几何翻转）；
+    // 组件侧拖动/甩向符号随镜像同步翻转（Task416 同轮）= 两侧恒指随。
+    BOOL ame_flowMirror = ame_left;
     self.accountFlow.ame_mirrored = ame_flowMirror;
     self.versionFlow.ame_mirrored = ame_flowMirror;
 

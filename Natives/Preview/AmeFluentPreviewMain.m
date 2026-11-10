@@ -516,6 +516,7 @@ static NSString *AmePreviewPageTitle(NSInteger index) {
 @property(nonatomic, strong) NSMutableDictionary<NSNumber *, UIViewController *> *cache;
 @property(nonatomic, assign) NSInteger currentIndex;
 @property(nonatomic, assign) BOOL ame414_navShell;
+@property(nonatomic, assign) BOOL ame416_paneExpanded;   // ★Task416：-zl2pane expanded 展开态镜像（折叠/展开两态同帡对比 = 图标恒定图证）
 @end
 
 @implementation AmePreviewShellController
@@ -543,6 +544,11 @@ static NSString *AmePreviewPageTitle(NSInteger index) {
     NSUInteger ame414_shellIdx = [ame414_args indexOfObject:@"-zl2shell"];
     self.ame414_navShell = (ame414_shellIdx != NSNotFound && ame414_shellIdx + 1 < ame414_args.count
                             && [ame414_args[ame414_shellIdx + 1] isEqualToString:@"nav"]);
+    // ★Task416：-zl2pane expanded → 窗格展开态镜像（280 宽 + 文字标签，
+    //   图标仍 24pt 恒定 = 折叠不调图标的同帧图证；缺省折叠态 64）
+    NSUInteger ame416_paneIdx = [ame414_args indexOfObject:@"-zl2pane"];
+    self.ame416_paneExpanded = (ame416_paneIdx != NSNotFound && ame416_paneIdx + 1 < ame416_args.count
+                                && [ame416_args[ame416_paneIdx + 1] isEqualToString:@"expanded"]);
     // -zl2theme fluent-dark → fui 暗板令牌渲染轨（fui 插件 PALETTES[1] 同值）
     NSUInteger ame414_themeIdx = [ame414_args indexOfObject:@"-zl2theme"];
     if (ame414_themeIdx != NSNotFound && ame414_themeIdx + 1 < ame414_args.count
@@ -594,14 +600,14 @@ static NSString *AmePreviewPageTitle(NSInteger index) {
     [self.view addSubview:self.container];
 
     NSMutableArray<NSLayoutConstraint *> *ame414_pins = [NSMutableArray array];
-    CGFloat ame414_headerLead = self.ame414_navShell ? 64.0 : 0.0;
-    [ame414_pins addObject:[self.barBackground.leadingAnchor constraintEqualToAnchor:self.view.leadingAnchor constant:ame414_headerLead]];
+    CGFloat ame416_paneLead = self.ame414_navShell ? 64.0 : 0.0;   // ★Task416：内容随窗格内缩（旧镜像漏内缩 = 内容滑入窗格底下）
+    [ame414_pins addObject:[self.barBackground.leadingAnchor constraintEqualToAnchor:self.view.leadingAnchor constant:ame416_paneLead]];
     [ame414_pins addObject:[self.barBackground.trailingAnchor constraintEqualToAnchor:self.view.trailingAnchor]];
     [ame414_pins addObject:[self.barBackground.topAnchor constraintEqualToAnchor:self.view.topAnchor]];
     [ame414_pins addObject:[self.barBackground.bottomAnchor constraintEqualToAnchor:safe.topAnchor constant:64]];
     [ame414_pins addObject:[self.headerTitle.leadingAnchor constraintEqualToAnchor:self.barBackground.leadingAnchor constant:16]];
     [ame414_pins addObject:[self.headerTitle.centerYAnchor constraintEqualToAnchor:safe.topAnchor constant:32]];
-    [ame414_pins addObject:[self.container.leadingAnchor constraintEqualToAnchor:self.view.leadingAnchor]];
+    [ame414_pins addObject:[self.container.leadingAnchor constraintEqualToAnchor:self.view.leadingAnchor constant:ame416_paneLead]];
     [ame414_pins addObject:[self.container.trailingAnchor constraintEqualToAnchor:self.view.trailingAnchor]];
     [ame414_pins addObject:[self.container.topAnchor constraintEqualToAnchor:self.barBackground.bottomAnchor]];
     [ame414_pins addObject:[self.container.bottomAnchor constraintEqualToAnchor:self.view.bottomAnchor]];
@@ -674,8 +680,11 @@ static NSString *AmePreviewPageTitle(NSInteger index) {
     [self.view bringSubviewToFront:self.capsuleCluster];
 }
 
-// ── nav 左窗格（fui NavigationView 折叠态镜像：64 宽 + 选中 Highest 抬升）──
+// ── nav 左窗格（fui NavigationView 镜像：折叠 64 / 展开 280 双态；★Task416
+//   图标 24pt 两态恒定 + leading 恒 14 = 折叠不调图标大小的同帧图证）──
 - (void)ame414_buildNavPane {
+    BOOL ame416_expanded = self.ame416_paneExpanded;
+    CGFloat ame416_paneW = ame416_expanded ? 280.0 : 64.0;
     self.paneWrap = [[UIView alloc] init];
     self.paneWrap.backgroundColor = [ZL2Theme surfaceContainerLow];
     self.paneWrap.translatesAutoresizingMaskIntoConstraints = NO;
@@ -701,31 +710,51 @@ static NSString *AmePreviewPageTitle(NSInteger index) {
         ]];
     }
 
-    // 五主导航（ame389 镜像：图标 24pt / 行 44 / 选中 surfaceContainerHighest）
+    // 五主导航（ame389 镜像：图标 24pt 两态恒定 / 行 44 / 选中 Highest 抬升；
+    // 展开态补文字标签 = 真壳 ZL2ShellNavItem 同构）
     NSArray<NSNumber *> *pages = @[@0, @1, @2, @4, @6];   // ★Task414 显式泛型 = id 点语法判例（run 42487051782 族）规避
     NSArray<NSString *> *symbols = @[@"house.fill", @"arrow.down.circle.fill",
                                      @"shippingbox.fill", @"gearshape.fill", @"sparkles"];
+    NSArray<NSString *> *titles = @[localize(@"ame369.common.home", @"主页"), localize(@"ame369.shell.tab.downloads", @"下载"),
+                                    localize(@"ame369.shell.tab.versions", @"版本"), localize(@"ame192.ai.title", @"AI 助手"),
+                                    localize(@"ame369.shell.tab.settings", @"设置")];   // ★Task416 全键复用既有 ame369 四表键（零新键）
     NSMutableArray<UIView *> *items = [NSMutableArray array];
-    CGFloat ame414_prevBottomConstant = 0.0;
     UIView *ame414_prev = nil;
     for (NSUInteger i = 0; i < symbols.count; i++) {
         UIView *row = [[UIView alloc] init];
         row.translatesAutoresizingMaskIntoConstraints = NO;
         row.layer.cornerRadius = 8.0;
         row.backgroundColor = [UIColor clearColor];
+        // ★Task416 图标：leading 恒 14 + 24×24 两态不变（与真壳 ame402 同口径）
         UIImage *img = [UIImage systemImageNamed:symbols[i] withConfiguration:config];
+        UIImageView *ame416_rowIcon = nil;
         if (img) {
-            UIImageView *iv = [[UIImageView alloc] initWithImage:[img imageWithRenderingMode:UIImageRenderingModeAlwaysTemplate]];
-            iv.tag = 100;   // 预览 harness 内部查找（非交互纯视觉；正式壳零 tag 红线不适用于 harness 镜像）
-            iv.contentMode = UIViewContentModeScaleAspectFit;
-            iv.translatesAutoresizingMaskIntoConstraints = NO;
-            iv.userInteractionEnabled = NO;
-            [row addSubview:iv];
+            ame416_rowIcon = [[UIImageView alloc] initWithImage:[img imageWithRenderingMode:UIImageRenderingModeAlwaysTemplate]];
+            ame416_rowIcon.tag = 100;   // 预览 harness 内部查找（非交互纯视觉；正式壳零 tag 红线不适用于 harness 镜像）
+            ame416_rowIcon.tintColor = [ZL2Theme onSurfaceVariant];   // ★Task416：显式着色（默认蓝在暗板失真，真壳 nav 项同口径）
+            ame416_rowIcon.contentMode = UIViewContentModeScaleAspectFit;
+            ame416_rowIcon.translatesAutoresizingMaskIntoConstraints = NO;
+            ame416_rowIcon.userInteractionEnabled = NO;
+            [row addSubview:ame416_rowIcon];
             [NSLayoutConstraint activateConstraints:@[
-                [iv.centerXAnchor constraintEqualToAnchor:row.centerXAnchor],
-                [iv.centerYAnchor constraintEqualToAnchor:row.centerYAnchor],
-                [iv.widthAnchor constraintEqualToConstant:24.0],
-                [iv.heightAnchor constraintEqualToConstant:24.0],
+                [ame416_rowIcon.leadingAnchor constraintEqualToAnchor:row.leadingAnchor constant:14.0],
+                [ame416_rowIcon.centerYAnchor constraintEqualToAnchor:row.centerYAnchor],
+                [ame416_rowIcon.widthAnchor constraintEqualToConstant:24.0],
+                [ame416_rowIcon.heightAnchor constraintEqualToConstant:24.0],
+            ]];
+        }
+        if (ame416_expanded) {
+            UILabel *lb = [[UILabel alloc] init];
+            lb.text = titles[i];
+            lb.font = [ZL2Theme fontBodyMedium];
+            lb.textColor = [ZL2Theme onSurface];
+            lb.translatesAutoresizingMaskIntoConstraints = NO;
+            lb.userInteractionEnabled = NO;
+            [row addSubview:lb];
+            [NSLayoutConstraint activateConstraints:@[
+                [lb.leadingAnchor constraintEqualToAnchor:row.leadingAnchor constant:52.0],
+                [lb.centerYAnchor constraintEqualToAnchor:row.centerYAnchor],
+                [lb.trailingAnchor constraintLessThanOrEqualToAnchor:row.trailingAnchor constant:-12.0],
             ]];
         }
         [self.paneWrap addSubview:row];
@@ -749,7 +778,7 @@ static NSString *AmePreviewPageTitle(NSInteger index) {
         [items addObject:row];
     }
 
-    // 底部固定（设置/文件，同壳 paneFooterStack 口径）
+    // 底部固定（设置/文件，同壳 paneFooterStack 口径；展开态 leading 14 对齐行图标）
     UIImage *gearImg = [UIImage systemImageNamed:@"gearshape.fill" withConfiguration:config];
     UIImage *folderImg = [UIImage systemImageNamed:@"folder.fill" withConfiguration:config];
     UIImageView *footerA = [[UIImageView alloc] initWithImage:[gearImg imageWithRenderingMode:UIImageRenderingModeAlwaysTemplate]];
@@ -761,7 +790,9 @@ static NSString *AmePreviewPageTitle(NSInteger index) {
         fv.userInteractionEnabled = NO;
         [self.paneWrap addSubview:fv];
         [NSLayoutConstraint activateConstraints:@[
-            [fv.centerXAnchor constraintEqualToAnchor:self.paneWrap.centerXAnchor],
+            ame416_expanded
+                ? (NSLayoutConstraint *)[fv.leadingAnchor constraintEqualToAnchor:self.paneWrap.leadingAnchor constant:14.0]
+                : (NSLayoutConstraint *)[fv.centerXAnchor constraintEqualToAnchor:self.paneWrap.centerXAnchor],
             [fv.widthAnchor constraintEqualToConstant:24.0],
             [fv.heightAnchor constraintEqualToConstant:24.0],
         ]];
@@ -771,9 +802,9 @@ static NSString *AmePreviewPageTitle(NSInteger index) {
         [self.paneWrap.topAnchor constraintEqualToAnchor:self.view.topAnchor],
         [self.paneWrap.bottomAnchor constraintEqualToAnchor:self.view.bottomAnchor],
         [self.paneWrap.leadingAnchor constraintEqualToAnchor:self.view.leadingAnchor],
-        [self.paneWrap.widthAnchor constraintEqualToConstant:64.0],
+        [self.paneWrap.widthAnchor constraintEqualToConstant:ame416_paneW],
         [toggle.topAnchor constraintEqualToAnchor:self.paneWrap.safeAreaLayoutGuide.topAnchor constant:10.0],
-        [toggle.centerXAnchor constraintEqualToAnchor:self.paneWrap.centerXAnchor],
+        [toggle.leadingAnchor constraintEqualToAnchor:self.paneWrap.leadingAnchor constant:16.0],
         [toggle.widthAnchor constraintEqualToConstant:32.0],
         [toggle.heightAnchor constraintEqualToConstant:32.0],
         [footerA.bottomAnchor constraintEqualToAnchor:self.paneWrap.safeAreaLayoutGuide.bottomAnchor constant:-40.0],
@@ -781,7 +812,6 @@ static NSString *AmePreviewPageTitle(NSInteger index) {
     ]];
     [self.view bringSubviewToFront:self.paneWrap];
     self.paneItems = items;
-    (void)ame414_prevBottomConstant;
 }
 
 // 壳态刷新（★Task414 双骨架同源：大标题 + 胶囊/窗格选中态）
