@@ -137,12 +137,13 @@ check("D1 瓦片构建调用位（★Task401 重锚：五瓦片卡窗驻右栏�
       home.index("[self ame378_buildQuickNav];") > home.index("_quickNavCard = [[UIView alloc] init];")
       and home.index("[self ame378_buildQuickNav];") < home.index("_accountFlow = [[AmeFlowSelectView alloc] init];"))
 
-check("D2 右栏列序（★Task408 重锚：3dc220d 启动卡入栈——瓦片卡窗（Task408 起 hidden 塌缩）→ 账户横排滚轮卡窗 → 版本竖排滚轮卡窗 → 启动组卡窗（menuStack arranged 序，随栈滚动）+ 滚动区贯穿钉底）",
+check("D2 右栏列序（★Task408 立 ★Task415 重锚：瓦片卡窗（hidden 塌缩）→ 账户横排滚轮卡窗 → 版本竖排滚轮卡窗（menuStack arranged 序，随栈滚动）；启动组卡窗钉出滚动区钉底三钉 = Task400「钉底永可见」自约束面落实 + 滚动区底缘锚启动卡顶）",
       home.index("[_menuStack addArrangedSubview:_quickNavCard];")
       < home.index("[_menuStack addArrangedSubview:_accountCard];")
       < home.index("[_menuStack addArrangedSubview:_versionCard];")
-      < home.index("[_menuStack addArrangedSubview:_launchCard];")
-      and "[_menuScrollView.bottomAnchor constraintEqualToAnchor:_actionMenu.bottomAnchor constant:-ZL2HomeCardGap]," in home)
+      and "[_menuStack addArrangedSubview:_launchCard];" not in home
+      and "[_launchCard.bottomAnchor constraintEqualToAnchor:_actionMenu.bottomAnchor constant:-ZL2HomeCardGap]," in home
+      and "[_menuScrollView.bottomAnchor constraintEqualToAnchor:_launchCard.topAnchor constant:-ZL2HomeCardGap]," in home)
 
 check("D3 ★Task393 切换入口收敛壳层（★Task403 重锚：右上动作簇整体退役=主页重复快捷入口清除（bd9e1d9，用户规格执行）——切换入口收敛为左窗格唯一（首页项 house.fill = showPageAtIndex:0）+ 顶栏返回钮辅助回程，fui/MD3 同一口径）",
       "self.navBackButton = [[ZL2ShellIconButton alloc] initWithSymbol:@\"chevron.left\" fallback:nil];" in shell

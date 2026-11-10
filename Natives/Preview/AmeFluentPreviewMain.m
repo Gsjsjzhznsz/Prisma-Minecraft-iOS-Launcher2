@@ -59,9 +59,11 @@ UIColor *accentColor(void) {
 }
 
 // LauncherPreferences.h 声明：id getPrefObject(NSString *key);
-// 预览环境无偏好存储：返回 nil → 菜单未选中色走 [AmeTheme textSecondary] 默认档
+// ★Task415b 升级：NSUserDefaults 后备（原先恒 nil = 预览链永远「未登录」，
+//   皮肤 3D 预览从未被 CI 渲染过 = 第 23 轮「依旧纸片」假阴性根因之一）。
+//   未设键仍返 nil = 旧消费方（菜单选中色等）零回归。
 id getPrefObject(NSString *key) {
-    return nil;
+    return [[NSUserDefaults standardUserDefaults] objectForKey:key];
 }
 
 // BackgroundManager 最小桩：LauncherMenuViewController 仅消费
@@ -342,6 +344,80 @@ static NSInteger AmePreviewPageIndexFromLaunchArguments(void) {
 /// 临时目录——账户页封面流与版本判定链（ame_isVersionIdValid 的
 /// POJAV_HOME/versions 探测）由此读到实数据；parseJSONFromFile 桩
 /// 同轮升级为真解析）
+// ★Task415b 测试皮肤（64×64 程序化生成，零仓库二进制）：六部位六面调试
+//   色直填 UV 区块（与 ZL2SkinViewFace 表同源）——渲染后预览图自证面向/
+//   装配正确性（前面红/后面蓝/右面绿/左面黄/上面紫/下面青），头白点眼。
+//   双落点：预览缓存 ①（Caches/skins/<id>.png）+ skinfull ②
+//   （Documents/avatars/skinfull-<id>.png）——两段缓存回退链全被真数据覆盖。
+static void AmePreviewWriteTestSkin(NSString *path) {
+    UIGraphicsBeginImageContextWithOptions(CGSizeMake(64, 64), NO, 1.0);
+    CGContextRef ctx = UIGraphicsGetCurrentContext();
+    if (ctx) {
+        CGContextSetFillColorWithColor(ctx, [UIColor colorWithWhite:0.13 alpha:1.0].CGColor);
+        CGContextFillRect(ctx, CGRectMake(0, 0, 64, 64));
+        NSArray<NSArray *> *ame415_uv = @[   // @[NSValue(rect), UIColor] ×36
+            // 头 8³：前/后/右/左/上/下
+            @[[@(8), @(8), @(8), @(8)], [UIColor redColor]],
+            @[[@(24), @(8), @(8), @(8)], [UIColor blueColor]],
+            @[[@(0), @(8), @(8), @(8)], [UIColor greenColor]],
+            @[[@(16), @(8), @(8), @(8)], [UIColor yellowColor]],
+            @[[@(8), @(0), @(8), @(8)], [UIColor magentaColor]],
+            @[[@(16), @(0), @(8), @(8)], [UIColor cyanColor]],
+            // 身 8×12×4（绿系分面：前后右侧左上下亮度渐变，黑背景可辨）
+            @[[@(20), @(20), @(8), @(12)], [UIColor colorWithRed:0.20 green:0.75 blue:0.30 alpha:1.0]],
+            @[[@(32), @(20), @(8), @(12)], [UIColor colorWithRed:0.15 green:0.60 blue:0.25 alpha:1.0]],
+            @[[@(16), @(20), @(4), @(12)], [UIColor colorWithRed:0.35 green:0.70 blue:0.40 alpha:1.0]],
+            @[[@(28), @(20), @(4), @(12)], [UIColor colorWithRed:0.10 green:0.50 blue:0.20 alpha:1.0]],
+            @[[@(20), @(16), @(8), @(4)], [UIColor colorWithRed:0.50 green:0.85 blue:0.55 alpha:1.0]],
+            @[[@(28), @(16), @(8), @(4)], [UIColor colorWithRed:0.25 green:0.65 blue:0.35 alpha:1.0]],
+            // 右臂（蓝）
+            @[[@(44), @(20), @(4), @(12)], [UIColor colorWithRed:0.25 green:0.45 blue:1.0 alpha:1.0]],
+            @[[@(52), @(20), @(4), @(12)], [UIColor colorWithRed:0.25 green:0.45 blue:1.0 alpha:1.0]],
+            @[[@(40), @(20), @(4), @(12)], [UIColor colorWithRed:0.25 green:0.45 blue:1.0 alpha:1.0]],
+            @[[@(48), @(20), @(4), @(12)], [UIColor colorWithRed:0.25 green:0.45 blue:1.0 alpha:1.0]],
+            @[[@(44), @(16), @(4), @(4)], [UIColor colorWithRed:0.25 green:0.45 blue:1.0 alpha:1.0]],
+            @[[@(48), @(16), @(4), @(4)], [UIColor colorWithRed:0.25 green:0.45 blue:1.0 alpha:1.0]],
+            // 左臂（青）
+            @[[@(36), @(52), @(4), @(12)], [UIColor colorWithRed:0.2 green:0.8 blue:0.8 alpha:1.0]],
+            @[[@(44), @(52), @(4), @(12)], [UIColor colorWithRed:0.2 green:0.8 blue:0.8 alpha:1.0]],
+            @[[@(32), @(52), @(4), @(12)], [UIColor colorWithRed:0.2 green:0.8 blue:0.8 alpha:1.0]],
+            @[[@(40), @(52), @(4), @(12)], [UIColor colorWithRed:0.2 green:0.8 blue:0.8 alpha:1.0]],
+            @[[@(36), @(48), @(4), @(4)], [UIColor colorWithRed:0.2 green:0.8 blue:0.8 alpha:1.0]],
+            @[[@(40), @(48), @(4), @(4)], [UIColor colorWithRed:0.2 green:0.8 blue:0.8 alpha:1.0]],
+            // 右腿（棕）
+            @[[@(4), @(20), @(4), @(12)], [UIColor colorWithRed:0.55 green:0.36 blue:0.2 alpha:1.0]],
+            @[[@(12), @(20), @(4), @(12)], [UIColor colorWithRed:0.55 green:0.36 blue:0.2 alpha:1.0]],
+            @[[@(0), @(20), @(4), @(12)], [UIColor colorWithRed:0.55 green:0.36 blue:0.2 alpha:1.0]],
+            @[[@(8), @(20), @(4), @(12)], [UIColor colorWithRed:0.55 green:0.36 blue:0.2 alpha:1.0]],
+            @[[@(4), @(16), @(4), @(4)], [UIColor colorWithRed:0.55 green:0.36 blue:0.2 alpha:1.0]],
+            @[[@(8), @(16), @(4), @(4)], [UIColor colorWithRed:0.55 green:0.36 blue:0.2 alpha:1.0]],
+            // 左腿（橙）
+            @[[@(20), @(52), @(4), @(12)], [UIColor orangeColor]],
+            @[[@(28), @(52), @(4), @(12)], [UIColor orangeColor]],
+            @[[@(16), @(52), @(4), @(12)], [UIColor orangeColor]],
+            @[[@(24), @(52), @(4), @(12)], [UIColor orangeColor]],
+            @[[@(20), @(48), @(4), @(4)], [UIColor orangeColor]],
+            @[[@(24), @(48), @(4), @(4)], [UIColor orangeColor]],
+        ];
+        for (NSArray *ame415_entry in ame415_uv) {
+            NSArray *ame415_r = ame415_entry[0];
+            CGContextSetFillColorWithColor(ctx, [(UIColor *)ame415_entry[1] CGColor]);
+            CGContextFillRect(ctx, CGRectMake([ame415_r[0] floatValue], [ame415_r[1] floatValue],
+                                              [ame415_r[2] floatValue], [ame415_r[3] floatValue]));
+        }
+        // 头前脸白点眼（自证面向：两枚 1×1 深点 (10,12)(13,12)）
+        CGContextSetFillColorWithColor(ctx, [UIColor whiteColor].CGColor);
+        CGContextFillRect(ctx, CGRectMake(10, 12, 1, 1));
+        CGContextFillRect(ctx, CGRectMake(13, 12, 1, 1));
+    }
+    UIImage *ame415_skin = UIGraphicsGetImageFromCurrentImageContext();
+    UIGraphicsEndImageContext();
+    if (ame415_skin) {
+        NSData *ame415_png = UIImagePNGRepresentation(ame415_skin);
+        if (ame415_png.length > 0) [ame415_png writeToFile:path atomically:YES];
+    }
+}
+
 static void AmePreviewPrepareSandbox(void) {
     NSString *home = [NSSearchPathForDirectoriesInDomains(NSDocumentDirectory,
                                                           NSUserDomainMask, YES).firstObject
@@ -365,6 +441,24 @@ static void AmePreviewPrepareSandbox(void) {
         NSData *json = [NSJSONSerialization dataWithJSONObject:data options:0 error:nil];
         [json writeToFile:path atomically:YES];
     }];
+
+    // ★Task415b 选中账户（internal.selected_account → steve）：BaseAuthenticator
+    //   .current 由此加载 steve.json → 账户页视觉卡出真账号 + 皮肤 3D 预览
+    //   首次在 CI 渲染（旧版恒「未登录」= 预览假阴性根因）
+    [[NSUserDefaults standardUserDefaults] setObject:@"steve" forKey:@"internal.selected_account"];
+    // 测试皮肤双落点（缓存①/skinfull②）——预览链两段缓存全真数据覆盖
+    NSString *ame415_caches = [NSSearchPathForDirectoriesInDomains(NSCachesDirectory,
+                                                                  NSUserDomainMask, YES) firstObject];
+    NSString *ame415_skinsDir = [ame415_caches stringByAppendingPathComponent:@"skins"];
+    [[NSFileManager defaultManager] createDirectoryAtPath:ame415_skinsDir
+                              withIntermediateDirectories:YES attributes:nil error:nil];
+    AmePreviewWriteTestSkin([ame415_skinsDir stringByAppendingPathComponent:@"steve.png"]);
+    NSString *ame415_avatars = [NSSearchPathForDirectoriesInDomains(NSDocumentDirectory,
+                                                                   NSUserDomainMask, YES) firstObject];
+    ame415_avatars = [ame415_avatars stringByAppendingPathComponent:@"avatars"];
+    [[NSFileManager defaultManager] createDirectoryAtPath:ame415_avatars
+                              withIntermediateDirectories:YES attributes:nil error:nil];
+    AmePreviewWriteTestSkin([ame415_avatars stringByAppendingPathComponent:@"skinfull-steve.png"]);
 
     // 假版本实体 ×3（纯净原版 1.8.9 不建 = 无效态判读样本）
     NSArray *ame393_vids = @[@"fabric-loader-0.16.9-1.21", @"forge-1.20.4", @"1.21.4"];

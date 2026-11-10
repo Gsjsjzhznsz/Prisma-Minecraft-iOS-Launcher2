@@ -216,9 +216,21 @@
 //   skinfull 磁盘链（ame413_fullSkinPathForAccountId 类方法）带进了预览链接
 //   面——run 42643918763/r3 console-accounts 实锤 unrecognized selector sent to
 //   class（Task413 时该调用在未登录态 configure(nil)→loadSkin(nil) 恒达，冒烟
-//   accounts 图实为崩溃后残帧 = 历史绿是假阴性）。空实现 = 离线真皮链走占位
-//   灰模型，预览零崩溃）
-+ (NSString *)ame413_fullSkinPathForAccountId:(NSString *)accountId { return nil; }
+//   accounts 图实为崩溃后残帧 = 历史绿是假阴性）。
+// ★Task415b 桩体升级为真路径（Documents/avatars/skinfull-<id>.png，与
+//   ame413_fullSkinPathImpl 同径）：沙盒注入的测试皮肤 skinfull 落点由此
+//   命中（恒 nil = skinfull 链永假 → 预览恒占位灰模型 = 假阴性复发）；
+//   accountId 空/无文件照旧 nil（占位灰模型语义保留）。
++ (NSString *)ame413_fullSkinPathForAccountId:(NSString *)accountId {
+    if (![accountId isKindOfClass:NSString.class] || accountId.length == 0) return nil;
+    NSString *ame415_docs = [NSSearchPathForDirectoriesInDomains(NSDocumentDirectory,
+                                                                 NSUserDomainMask, YES) firstObject];
+    NSString *ame415_dir = [ame415_docs stringByAppendingPathComponent:@"avatars"];
+    [[NSFileManager defaultManager] createDirectoryAtPath:ame415_dir
+                              withIntermediateDirectories:YES attributes:nil error:nil];
+    return [ame415_dir stringByAppendingPathComponent:
+            [NSString stringWithFormat:@"skinfull-%@.png", accountId]];
+}
 
 @end
 
@@ -393,8 +405,10 @@ BOOL getPrefBool(NSString *key) {
 }
 
 // LauncherPreferences.h: void setPrefObject(NSString *key, id value);
-// 预览无偏好存储：no-op（选中链 internal.selected_account 写入落空即安全）
+// ★Task415b 升级：NSUserDefaults 后备（与 AmeFluentPreviewMain getPrefObject
+//   同存储——预览内选中/取消选中链写实值，getPrefObject 可回读）
 void setPrefObject(NSString *key, id value) {
+    [[NSUserDefaults standardUserDefaults] setObject:value forKey:key];
 }
 
 // LauncherPreferences.h: void setPrefBool(NSString *key, BOOL value);

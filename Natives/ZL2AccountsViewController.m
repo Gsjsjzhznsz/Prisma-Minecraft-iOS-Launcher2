@@ -601,7 +601,13 @@ BOOL ZL2AccountsSharedIsThirdParty(NSDictionary *accountData) {
     [ame414_pins addObject:[_studioCard.trailingAnchor constraintEqualToAnchor:frameLG.trailingAnchor constant:-20]];
     [ame414_pins addObject:[_studioCard.topAnchor constraintEqualToAnchor:_contentStack.topAnchor]];
     [ame414_pins addObject:[_studioCard.widthAnchor constraintEqualToConstant:320]];
-    [ame414_pins addObject:[_studioCard.heightAnchor constraintEqualToConstant:460]];
+    // ★Task415d 幅面自适应（第 24 轮复诉「依旧压缩」）：高 = 滚动视口 − 48
+    //   （上下各 24 呼吸），clamp[460, 640]——预览随卡增高（unit ∝ 舞台高），
+    //   矮窗仍保 Task414 460 定高下限；三钉随 studioPins 组同切幅启停
+    [ame414_pins addObject:[_studioCard.heightAnchor constraintEqualToAnchor:frameLG.heightAnchor
+                                                                    constant:-48.0]];
+    [ame414_pins addObject:[_studioCard.heightAnchor constraintGreaterThanOrEqualToConstant:460.0]];
+    [ame414_pins addObject:[_studioCard.heightAnchor constraintLessThanOrEqualToConstant:640.0]];
     [ame414_pins addObject:[_contentStack.trailingAnchor constraintLessThanOrEqualToAnchor:_studioCard.leadingAnchor constant:-12]];
     [ame414_pins addObject:[_scrollView.contentLayoutGuide.bottomAnchor constraintGreaterThanOrEqualToAnchor:_studioCard.bottomAnchor constant:24]];
     _ame414_studioPins = ame414_pins;   // 激活由切幅逻辑派发

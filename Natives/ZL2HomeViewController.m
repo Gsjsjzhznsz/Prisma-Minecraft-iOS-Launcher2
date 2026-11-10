@@ -697,8 +697,10 @@ static UIImage *ZL2HomeSizedImage(NSString *name, NSString *fallback, CGFloat po
 // 启动卡底行被推到屏缘。本修：
 //   下限 = 五行口径（viewportHeight，用户规格永不缩水）；
 //   上限 = 全部行（itemHeight + (n−1)×pitch，满额展示零内滚）；
-//   收敛 = min(上限, 可用余量)——余量 = 滚动区高 − 账户卡 − 启动卡 − 卡间隙
-//   − 版本卡自身内构（padding×2 + footer + 6 + 4）；余量不足时保五行走滚动。
+//   收敛 = min(上限, 可用余量)。
+// ★Task415c 二轮：启动卡钉出滚动区后，余量口径改为「滚动视口 − 账户卡 −
+//   卡间间隙 − 版本卡内构」（旧减 _launchCard 帧失效）；矮窗连五行都放不下
+//   时收到三行软下限（滚轮可拖语义无损）——启动卡钉底永可见优先于五行口径。
 - (void)ame414_relayoutVersionHeight {
     if (!_ame414_versionHeight || self.menuScrollView.bounds.size.height < 1.0) return;
     CGFloat ame414_pitch = ZL2HomeVersionFlowItemH + ZL2HomeFlowItemGap;
@@ -712,14 +714,21 @@ static UIImage *ZL2HomeSizedImage(NSString *name, NSString *fallback, CGFloat po
         if (fabs(_ame414_versionHeight.constant - ame414_ideal) > 0.5) _ame414_versionHeight.constant = ame414_ideal;
         return;
     }
+    // ★Task415c 余量重算：启动卡钉出滚动区后视口 = menuScrollView 自身高
+    //   （旧式减 _launchCard 帧的口径随钉底三钉失效）；余量 = 视口 − 账户卡
+    //   − 卡间间隙 − 版本卡内构
     CGFloat ame414_avail = self.menuScrollView.bounds.size.height
         - _accountCard.frame.size.height
-        - _launchCard.frame.size.height
-        - 2.0 * ZL2HomeCardGap   // 三卡间两道间隙（quickNav 退役塔缩零高）
+        - ZL2HomeCardGap   // 账户卡→版本卡间隙（stack spacing 同值）
         - (2.0 * ZL2HomeCardPadding + ZL2HomeCardFooterHeight + 6.0 + 4.0);   // 版本卡内构
     CGFloat ame414_target = ame414_full;
     if (ame414_avail < ame414_full) {
-        ame414_target = fmax(ame414_ideal, fmin(ame414_full, ame414_avail));
+        // ★Task415c 软下限：五行常规下限；连五行都放不下的矮窗收到三行
+        //   （滚轮可拖语义无损），仍优于把启动卡/插件 chip 顶出屏（第 24 轮
+        //   「部分区域都卡在下面」优先级高于五行口径）
+        CGFloat ame414_floor3 = ZL2HomeVersionFlowItemH + 2.0 * ame414_pitch;
+        CGFloat ame414_softFloor = fmax(ame414_floor3, fmin(ame414_ideal, ame414_avail));
+        ame414_target = fmax(ame414_softFloor, fmin(ame414_full, ame414_avail));
     }
     if (fabs(_ame414_versionHeight.constant - ame414_target) > 0.5) {
         _ame414_versionHeight.constant = ame414_target;
@@ -943,7 +952,10 @@ static UIImage *ZL2HomeSizedImage(NSString *name, NSString *fallback, CGFloat po
     _versionCard.isAccessibilityElement = NO;
     _versionCard.accessibilityIdentifier = @"zl2.sidebar.instances";
     [_menuStack addArrangedSubview:_versionCard];
-    [_menuStack addArrangedSubview:_launchCard];
+    // ★Task415c 启动卡钉出滚动区（回归根修）：Task400/401 注释均为「启动组卡
+    //   钉底永可见」，但旧代码把启动卡塞回滚动内容 = 右栏内容超高时启动卡/
+    //   插件 chip 被折叠在滚动下缘（IMG_0608/0609 启动钮下切条实锤）。钉底三
+    //   钉见下方约束块；restoreSidebarCardOrder 同步只排三卡。
     // ★Task408 四卡排序长按退役：与面板换边长按同一手势面（排序 0.45s 先行
     // 劫持 = 用户第 16 轮复诉「停靠边也无法调节」实体），换边以用户明示诉求
     // 优先；restoreSidebarCardOrder 保留（历史排序仍尊重）；重挂待专属编辑
@@ -1119,11 +1131,18 @@ static UIImage *ZL2HomeSizedImage(NSString *name, NSString *fallback, CGFloat po
 
         // 中段滚动区：四边内缩 8pt（面板四周留灰边 = 卡间隙同律，用户规格
         // 「每个卡片中间都要留点间隙（右侧栏距离屏幕边缘的距离）」）；
-        // 底缘锚启动卡顶（- 卡间隙）
+        // ★Task415c 底缘改锚启动卡顶（钉底回归；旧锚 actionMenu 底 = 启动卡
+        //   在滚动内容内被折叠在滚动下缘 = 「部分区域都卡在下面了」实体）
         [_menuScrollView.topAnchor constraintEqualToAnchor:_actionMenu.topAnchor constant:ZL2HomeCardGap],
         [_menuScrollView.leadingAnchor constraintEqualToAnchor:_actionMenu.leadingAnchor constant:ZL2HomeCardGap],
         [_menuScrollView.trailingAnchor constraintEqualToAnchor:_actionMenu.trailingAnchor constant:-ZL2HomeCardGap],
-        [_menuScrollView.bottomAnchor constraintEqualToAnchor:_actionMenu.bottomAnchor constant:-ZL2HomeCardGap],
+        [_menuScrollView.bottomAnchor constraintEqualToAnchor:_launchCard.topAnchor constant:-ZL2HomeCardGap],
+
+        // ★Task415c 启动组卡钉底三钉（相对 actionMenu = 换边镜像零耦合；
+        //   Task400「钉底永可见」语义自此真正在约束面成立）
+        [_launchCard.leadingAnchor constraintEqualToAnchor:_actionMenu.leadingAnchor constant:ZL2HomeCardGap],
+        [_launchCard.trailingAnchor constraintEqualToAnchor:_actionMenu.trailingAnchor constant:-ZL2HomeCardGap],
+        [_launchCard.bottomAnchor constraintEqualToAnchor:_actionMenu.bottomAnchor constant:-ZL2HomeCardGap],
 
         // 滚动内容：三边钉 contentLayoutGuide + 底缘 ≥ 内容底（短内容不滚动），
         // 宽 = 视口宽（fill）
@@ -2305,15 +2324,22 @@ static UIImage *ZL2HomeSizedImage(NSString *name, NSString *fallback, CGFloat po
 - (void)restoreSidebarCardOrder {
     NSArray<NSString *> *saved = [NSUserDefaults.standardUserDefaults
         stringArrayForKey:ZL2SidebarCardOrderDefaultsKey];
-    if (saved.count != 4) return;
+    // ★Task415c 启动卡钉出滚动区后只排三卡（历史四卡存序过滤 launch 键；
+    //   长按排序手势面已随 Task408 退役，本函数仅尊重历史存序）
+    NSMutableArray<NSString *> *ame415_saved = [NSMutableArray array];
+    for (NSString *ame415_key in saved) {
+        if (![ame415_key isEqualToString:self.launchCard.accessibilityIdentifier]) {
+            [ame415_saved addObject:ame415_key];
+        }
+    }
+    if (ame415_saved.count != 3) return;
     NSDictionary<NSString *, UIView *> *cards = @{
         self.quickNavCard.accessibilityIdentifier: self.quickNavCard,
         self.accountCard.accessibilityIdentifier: self.accountCard,
         self.versionCard.accessibilityIdentifier: self.versionCard,
-        self.launchCard.accessibilityIdentifier: self.launchCard,
     };
-    for (NSUInteger index = 0; index < saved.count; index++) {
-        UIView *card = cards[saved[index]];
+    for (NSUInteger index = 0; index < ame415_saved.count; index++) {
+        UIView *card = cards[ame415_saved[index]];
         if (!card) return;
         [self.menuStack removeArrangedSubview:card];
         [self.menuStack insertArrangedSubview:card atIndex:index];

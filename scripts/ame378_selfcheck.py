@@ -224,7 +224,7 @@ check("C9b 选中可靠链双保险（★Task401 新立：滚动视图 pan 对�
       and "self.ame400_versionRowNames = ame400_names;" in home_code
       and "self.ame400_accountKeys = ame400_keys;" in home_code)
 
-check("C10 右栏面板+卡窗口径（★Task408 重锚：3dc220d 四卡实底化——卡体 surfaceContainer+radiusXL 实底取代挖洞窗、挖洞背板退役隐藏（Ame401 系代码保留休眠）、滚动区贯穿钉底、启动卡入栈；卡间间隙 8pt 同值不变）",
+check("C10 右栏面板+卡窗口径（★Task408 立 ★Task415 重锚：四卡实底化保留；滚动区底缘\n      改锚启动卡顶 + 启动卡钉底三钉 = Task400「钉底永可见」自约束面落实（第 24 轮\n      「部分区域都卡在下面」根修），启动卡出栈；卡间间隙 8pt 同值不变）",
       "_actionMenu.backgroundColor = [UIColor clearColor];" in home_code
       and "_panelBackdrop.hidden = YES;" in home_code
       and "_quickNavCard.backgroundColor = [ZL2Theme surfaceContainer];" in home
@@ -232,8 +232,9 @@ check("C10 右栏面板+卡窗口径（★Task408 重锚：3dc220d 四卡实底�
       and "_versionCard.backgroundColor = [ZL2Theme surfaceContainer];" in home
       and "_launchCard.backgroundColor = [ZL2Theme surfaceContainer];" in home
       and "_menuScrollView.topAnchor constraintEqualToAnchor:_actionMenu.topAnchor constant:ZL2HomeCardGap" in home_code
-      and "_menuScrollView.bottomAnchor constraintEqualToAnchor:_actionMenu.bottomAnchor constant:-ZL2HomeCardGap" in home_code
-      and "[_menuStack addArrangedSubview:_launchCard];" in home_code
+      and "_menuScrollView.bottomAnchor constraintEqualToAnchor:_launchCard.topAnchor constant:-ZL2HomeCardGap" in home_code
+      and "_launchCard.bottomAnchor constraintEqualToAnchor:_actionMenu.bottomAnchor constant:-ZL2HomeCardGap" in home_code
+      and "addArrangedSubview:_launchCard]" not in home_code
       and "ZL2HomeCardGap            = 8;" in home
       and "layer.cornerRadius = 1.0 / [UIScreen mainScreen].scale;" in home_code)
 
@@ -260,10 +261,10 @@ check("C12 转盘字体恒定（★Task407：封面流条目随 |d| 缩放时缩
       and "ame400_nameLabel.lineBreakMode = NSLineBreakByTruncatingTail;" in home
       and "ame400_typeLabel.lineBreakMode = NSLineBreakByTruncatingTail;" in home)
 
-check("C13 构建代际锚（★Task407 立 408/409/410/411/412 推进 Task414 推进：关于页版本行追加源码级构建代号\n      ame414_buildTag —— Info.plist 双键静态致装机代际不可辨 = 旧构建滞留循环的\n      结构性盲区，关于页读到 Task414 = 本轮新构建在机）",
-      "ame414_buildTag" in about_code
+check("C13 构建代际锚（★Task407 立 408/409/410/411/412 推进 Task414 推进：关于页版本行追加源码级构建代号\n      ame415_buildTag —— Info.plist 双键静态致装机代际不可辨 = 旧构建滞留循环的\n      结构性盲区，关于页读到 Task414 = 本轮新构建在机）",
+      "ame415_buildTag" in about_code
       and "Task413" in about
-      and about_code.count("ame414_buildTag") >= 2
+      and about_code.count("ame415_buildTag") >= 2
       and "numberOfLines = 0" in about_code)
 
 check("C14 换边恢复+瓦片二度退役+排序退役（★Task408 立 ★Task410 重锚 ★Task411 终局——\n      ①面板长按换边手势+实现体+持久化恢复回装（镜像随 applySide→applyPanelMirror\n      链自动生效）；②五瓦片二度退役：★Task411 第 19 轮用户钦定「一开始的无文字\n      右上角小型的切换按钮」= 壳层 ame411_switcherCluster 悬浮图标胶囊（屏幕\n      右上 safeArea 常驻）接棒 bare 全场景唯一切换区，五瓦片（有文字大瓦片）\n      无条件 hidden=「固定形态」收敛（408 判例回归，条件化断言退役）；③排序长按\n      挂接退役（restoreSidebarCardOrder 保留），提示语回原键）",
@@ -418,6 +419,39 @@ if ame378_c20_fail and os.environ.get("AME378_DEBUG"):
 check("C20 MD3顶带+真3D皮肤工作室+右栏自适应+fui rail对比度+预览镜像（★Task414 第 23 轮复诉六项——\n      ④bare 顶带 64/大标题/容器下起/标题随页刷新（安全区口径对齐 fui）；⑥rail 选中底色\n      surfaceContainerHighest；①深度排序 zPosition/逐面光影罩/透视 480/跑步摆动（枢轴\n      RotX）；②③皮肤站控件/衣柜 skinwardrobe/设为头像/下载分享；⑤账户页工作室卡\n      880 阈值切幅 + 主页滚轮 112/版本视口自适应；预览 harness bare/nav 双骨架 + fluent-dark\n      渲染轨 + 冒烟 nav 截图轨）",
       all(ok for _, ok in ame378_c20))
 
+# ── C21 断言子句化（★Task415 第 24 轮复诉三项——逐条可读） ──
+preview_raw = read("Natives/Preview/AmeFluentPreviewMain.m")   # 字面量断言走 raw
+stub_raw = read("Natives/Preview/ZL2PagesStub.m")
+
+ame378_c21 = [
+    # ① 3D 塌线/纸片同根：面装配 R·T（旧 T·R 绕舞台原点转，yaw=90° 全面塌 x'=0
+    #    = IMG_0610 1pt 竖线；yaw=0 侧/顶底 edge-on = 只有正面的「纸片」）
+    ("rt-order", "ame413_t = CATransform3DTranslate(ame413_t," in skinview_code),
+    ("rt-old-gone", "CATransform3DMakeTranslation((ame413_x + ame413_offX)" not in skinview_code),
+    ("pivot-swap", "CATransform3DMakeTranslation(-ame414_f.px, -ame414_f.py, -ame414_f.pz)" in skinview_code),
+    ("model-in-face", "CATransform3DConcat(ame414_ft, ame414_modelT)" in skinview_code),
+    ("exact-z", "ame414_f.layer.zPosition = ame414_z2 * ame413_s" in skinview_code),
+    ("nan-guard", "isfinite(_ame413_yaw)" in skinview_code),
+    ("diag-log", "[ZL2SkinPreview] Task415" in skinview_raw),
+    # ② 主页右栏：启动卡钉出滚动区（Task400「钉底永可见」自约束面真正成立）
+    ("launch-out-stack", "addArrangedSubview:_launchCard]" not in home_code),
+    ("launch-pin", "_launchCard.bottomAnchor constraintEqualToAnchor:_actionMenu.bottomAnchor" in home_code),
+    ("scroll-anchor-launch", "_menuScrollView.bottomAnchor constraintEqualToAnchor:_launchCard.topAnchor" in home_code),
+    ("floor3-soft", "ame414_floor3" in home_code),
+    # ② 工作室卡幅面自适应（「依旧压缩」：高 = 视口 − 48，clamp[460,640]）
+    ("studio-fill-height", "_studioCard.heightAnchor constraintEqualToAnchor:frameLG.heightAnchor" in accounts_code),
+    ("studio-cap", "constraintLessThanOrEqualToConstant:640.0" in accounts_code),
+    # ③ 预览闭环补盲（CI 首渲 3D 预览 = 用户点名「测试图」的结构性保障）
+    ("harness-selected", "internal.selected_account" in preview_raw),
+    ("harness-skin", "AmePreviewWriteTestSkin" in preview_code),
+    ("stub-skinfull", "skinfull-%@.png" in stub_raw),
+]
+ame378_c21_fail = [n for n, ok in ame378_c21 if not ok]
+if ame378_c21_fail and os.environ.get("AME378_DEBUG"):
+    print("  C21 failing clauses:", ", ".join(ame378_c21_fail))
+check("C21 真3D装配序根修+启动卡钉底回归根修+预览闭环补盲（★Task415 第 24 轮复诉——\n      ①面变换 R·T（纸片+90°塌线同根）+ 摆动枢轴换序 T(−P)R(T+P) + 模型旋转入面\n      （真透视+精确 zPosition）+ NaN 卫兵 + 装配诊断日志；②主页启动卡钉出滚动区\n      三钉 + 版本视口三行软下限 + 工作室卡高度自适应 clamp[460,640]；③harness\n      选中账户 + 测试皮肤双落点 + skinfull 桩真路径 = CI 首渲 3D 预览）",
+      all(ok for _, ok in ame378_c21))
+
 # ══ S 反向探针（--selftest：变体注入必翻红） ═══════════════════════
 
 if "--selftest" in sys.argv:
@@ -436,8 +470,8 @@ if "--selftest" in sys.argv:
     rcheck("S-C1", home_code + "ame378_buildQuickNav", "ame378_buildQuickNav" in (home_code + "ame378_buildQuickNav"))
     rcheck("S-C12", home_code + "ame400_nameLabel.adjustsFontSizeToFitWidth = YES;",
            "ame400_nameLabel.adjustsFontSizeToFitWidth" in (home_code + "ame400_nameLabel.adjustsFontSizeToFitWidth = YES;"))
-    rcheck("S-C13", about_code.replace("ame414_buildTag", "ame413_buildTag"),
-           "ame414_buildTag" not in about_code.replace("ame414_buildTag", "ame413_buildTag"))   # ★Task413 有效化：代标回退变体 → C13 必翻红
+    rcheck("S-C13", about_code.replace("ame415_buildTag", "ame413_buildTag"),
+           "ame415_buildTag" not in about_code.replace("ame415_buildTag", "ame413_buildTag"))   # ★Task413 有效化：代标回退变体 → C13 必翻红
     rcheck("S-C14", home_code + "action:@selector(handleSidebarReorder:)",
            "action:@selector(handleSidebarReorder:)" in (home_code + "action:@selector(handleSidebarReorder:)"))
     # ★Task410 S-C16：弧度常量抹除变体 → C16 必翻红
@@ -456,10 +490,16 @@ if "--selftest" in sys.argv:
            "ame414_f.layer.zPosition" not in skinview_code.replace("ame414_f.layer.zPosition", "/*depth-erased*/"))   # ★Task414 S-C20：深度排序抹除变体 → C20 必翻红
     rcheck("S-C19", skinview_code.replace("-(ame413_box.cy - 16.0)", "(ame413_box.cy - 16.0)"),
            "-(ame413_box.cy - 16.0)" not in skinview_code.replace("-(ame413_box.cy - 16.0)", "(ame413_box.cy - 16.0)"))
+    # ★Task415 S-C21：T·R 装配序回潮变体 → C21 必翻红（IMG_0610 塌线根修破坏检出）
+    rcheck("S-C21", skinview_code.replace("ame413_t = CATransform3DTranslate(ame413_t,",
+                                          "ame413_t = CATransform3DMakeTranslation((ame413_x + ame413_offX) * ame413_unit,"),
+           "ame413_t = CATransform3DMakeTranslation((ame413_x + ame413_offX)" in skinview_code.replace(
+               "ame413_t = CATransform3DTranslate(ame413_t,",
+               "ame413_t = CATransform3DMakeTranslation((ame413_x + ame413_offX) * ame413_unit,"))
     if rf:
         print(f"  SELFTEST FAILED: {rf}")
         sys.exit(1)
-    print(f"  selftest {rp}/10 probes red as expected")
+    print(f"  selftest {rp}/12 probes red as expected")
 
 print(f"ame378_selfcheck: {passed} passed, {len(fails)} failed")
 if fails:
