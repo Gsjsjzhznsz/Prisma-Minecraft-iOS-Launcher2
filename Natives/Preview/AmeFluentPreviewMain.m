@@ -600,7 +600,7 @@ static NSString *AmePreviewPageTitle(NSInteger index) {
     [self.view addSubview:self.container];
 
     NSMutableArray<NSLayoutConstraint *> *ame414_pins = [NSMutableArray array];
-    CGFloat ame416_paneLead = self.ame414_navShell ? 64.0 : 0.0;   // ★Task416：内容随窗格内缩（旧镜像漏内缩 = 内容滑入窗格底下）
+    CGFloat ame416_paneLead = self.ame414_navShell ? (self.ame416_paneExpanded ? 280.0 : 64.0) : 0.0;   // ★Task416：内容随窗格宽内缩（折叠 64/展开 280，旧镜像漏内缩 = 内容滑入窗格底下）
     [ame414_pins addObject:[self.barBackground.leadingAnchor constraintEqualToAnchor:self.view.leadingAnchor constant:ame416_paneLead]];
     [ame414_pins addObject:[self.barBackground.trailingAnchor constraintEqualToAnchor:self.view.trailingAnchor]];
     [ame414_pins addObject:[self.barBackground.topAnchor constraintEqualToAnchor:self.view.topAnchor]];
