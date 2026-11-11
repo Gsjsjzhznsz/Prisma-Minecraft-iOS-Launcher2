@@ -360,7 +360,7 @@ PLIST
     && echo "  ✓ 截图[real/home/fluent-dark]: $OUT/ame-zl2-real-nav-home-dark.png"
   xcrun simctl ui "$device" appearance light >/dev/null 2>&1 || true
   # [Ame417]/[ZL2SkinPreview] 日志取证（真类字形读数 + 3D 装配面数数值直出）
-  xcrun simctl spawn "$device" log show --last 3m --style compact \
+  xcrun simctl spawn "$device" log show --last 12m --style compact \
     --predicate 'eventMessage CONTAINS "Ame417" OR eventMessage CONTAINS "ZL2SkinPreview" OR eventMessage CONTAINS "Ame404"' \
     > "$OUT/ame417-diag.log" 2>/dev/null || true
   grep -aE "Ame417|ZL2SkinPreview|Ame404" "$OUT/ame417-diag.log" | tail -20 || true
@@ -375,7 +375,7 @@ PLIST
   local ipad_udid=""
   ipad_udid="$(xcrun simctl list devices available 2>/dev/null | grep 'iPad' | grep -oE '[0-9A-F-]{36}' | head -1 || true)"
   if [[ -n "${ipad_udid:-}" ]]; then
-    echo "== iPad 仿真腿（UDID: $ipad_udid）=="
+    echo "== iPad leg (UDID: ${ipad_udid}) =="   # ★Task417-r4：纯 ASCII 边界（macOS bash 3.2 多字节名吞并雷：$var）全角）中被吞入变量名 = unbound 假象）
     xcrun simctl boot "$ipad_udid" 2>/dev/null || true
     xcrun simctl bootstatus "$ipad_udid" -b >/dev/null 2>&1 || true
     xcrun simctl install "$ipad_udid" "$app" || { echo "✗ iPad 安装失败（iPad 腿跳过，不阻塞）"; return; }
@@ -390,7 +390,7 @@ PLIST
       if page_launch_out="$(xcrun simctl launch "$ipad_udid" com.prisma-devs.ame-fluent-preview -zl2page $ip_args 2>&1)"; then
         echo "  启动 OK[ipad/$ip_name]: $page_launch_out"
       else
-        echo "✗ 启动失败[ipad/$ip_name]: $page_launch_out（iPad 腿跳过，不阻塞）"
+        echo "✗ 启动失败[ipad/${ip_name}]: ${page_launch_out}（iPad 腿跳过，不阻塞）"
         continue
       fi
       sleep 5

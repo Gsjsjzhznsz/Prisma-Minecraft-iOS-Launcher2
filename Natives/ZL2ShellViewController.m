@@ -1348,18 +1348,25 @@ static UIImage *ZL2ShellSystemImageSizedEx(NSString *name, NSString *fallback, C
     [self.paneWrap bringSubviewToFront:self.ame379_paneHeader];
     [self.view setNeedsLayout];
     // ★Task417 构建期读数（真壳入预览后首次可由 CI 仲裁 rail 字形链：
-    //   frame/画布/包围盒三读数同帧直出——10.3pt vs 探针 20pt 的宿主差异
-    //   一锤定音；构建期常驻，非点按路径，正式 app 仅多一行日志）
+    //   img/bb 与布局无关同步直出；frame 异步 @try 读数——10.3pt vs 探针
+    //   20pt 的宿主差异一锤定音；正式 app 仅多两行日志）
+    NSLog(@"[Ame417] shell rail glyphs: items=%lu i0 img=%.1f bb=%.1f",
+          (unsigned long)self.navItems.count,
+          [self.navItems.firstObject ame_iconImageSize],
+          [self.navItems.firstObject ame_iconGlyphBBox]);
     dispatch_async(dispatch_get_main_queue(), ^{
-        NSMutableString *ame417r = [NSMutableString string];
-        [self.navItems enumerateObjectsUsingBlock:^(ZL2ShellNavItem *ame417_item, NSUInteger ame417_idx, BOOL *stop) {
-            if (ame417_idx > 2) { *stop = YES; return; }
-            CGRect ame417_f = [ame417_item ame_iconFrame];
-            [ame417r appendFormat:@"i%ld f=%.0fx%.0f img=%.1f bb=%.1f ",
-                (long)ame417_idx, ame417_f.size.width, ame417_f.size.height,
-                [ame417_item ame_iconImageSize], [ame417_item ame_iconGlyphBBox]];
-        }];
-        NSLog(@"[Ame417] shell rail build: %@", ame417r);
+        @try {
+            NSMutableString *ame417r = [NSMutableString string];
+            [self.navItems enumerateObjectsUsingBlock:^(ZL2ShellNavItem *ame417_item, NSUInteger ame417_idx, BOOL *stop) {
+                if (ame417_idx > 2) { *stop = YES; return; }
+                CGRect ame417_f = [ame417_item ame_iconFrame];
+                [ame417r appendFormat:@"i%ld f=%.0fx%.0f ",
+                    (long)ame417_idx, ame417_f.size.width, ame417_f.size.height];
+            }];
+            NSLog(@"[Ame417] shell rail frames: %@", ame417r);
+        } @catch (NSException *ame417_ex) {
+            NSLog(@"[Ame417] shell rail frames probe failed: %@", ame417_ex);
+        }
     });
 }
 
