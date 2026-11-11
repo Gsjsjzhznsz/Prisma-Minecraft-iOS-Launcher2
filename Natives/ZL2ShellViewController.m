@@ -1347,6 +1347,20 @@ static UIImage *ZL2ShellSystemImageSizedEx(NSString *name, NSString *fallback, C
     //   折叠开关钮永不被子覆盖）
     [self.paneWrap bringSubviewToFront:self.ame379_paneHeader];
     [self.view setNeedsLayout];
+    // ★Task417 构建期读数（真壳入预览后首次可由 CI 仲裁 rail 字形链：
+    //   frame/画布/包围盒三读数同帧直出——10.3pt vs 探针 20pt 的宿主差异
+    //   一锤定音；构建期常驻，非点按路径，正式 app 仅多一行日志）
+    dispatch_async(dispatch_get_main_queue(), ^{
+        NSMutableString *ame417r = [NSMutableString string];
+        [self.navItems enumerateObjectsUsingBlock:^(ZL2ShellNavItem *ame417_item, NSUInteger ame417_idx, BOOL *stop) {
+            if (ame417_idx > 2) { *stop = YES; return; }
+            CGRect ame417_f = [ame417_item ame_iconFrame];
+            [ame417r appendFormat:@"i%ld f=%.0fx%.0f img=%.1f bb=%.1f ",
+                (long)ame417_idx, ame417_f.size.width, ame417_f.size.height,
+                [ame417_item ame_iconImageSize], [ame417_item ame_iconGlyphBBox]];
+        }];
+        NSLog(@"[Ame417] shell rail build: %@", ame417r);
+    });
 }
 
 // ★ Task376：窗格几何统一派发（折叠态 × 宽窄态 × 抽屉开合一次落位）——

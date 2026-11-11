@@ -199,10 +199,10 @@ PLIST
   codesign --force --sign - "$app" >/dev/null 2>&1 || true
 
   # ── 选模拟器：优先已 booted，其次可用 iPhone ──
-  local device
-  device="$(xcrun simctl list devices booted 2>/dev/null | grep -oE '[0-9A-F-]{36}' | head -1)"
-  if [[ -z "$device" ]]; then
-    device="$(xcrun simctl list devices available | grep 'iPhone' | grep -oE '[0-9A-F-]{36}' | head -1)"
+  local device=""
+  device="$(xcrun simctl list devices booted 2>/dev/null | grep -oE '[0-9A-F-]{36}' | head -1 || true)"
+  if [[ -z "${device:-}" ]]; then
+    device="$(xcrun simctl list devices available 2>/dev/null | grep 'iPhone' | grep -oE '[0-9A-F-]{36}' | head -1 || true)"
   fi
   if [[ -z "$device" ]]; then
     echo "✗ 未找到可用 iPhone 模拟器"
@@ -372,9 +372,9 @@ PLIST
   #    @2x 横屏），而既往冒烟只跑 iPhone 模拟器 = iPad 尺寸类从未被截图验证
   #    ——本轮起 iPad 可用即跑（无可回退跳过，不阻塞门禁）：真壳折叠/展开 +
   #    探针页 + 账户页（写实皮+帽层 3D）四张 iPad 尺寸图 = 尺寸类对勘证据链──
-  local ipad_udid
-  ipad_udid="$(xcrun simctl list devices available | grep 'iPad' | grep -oE '[0-9A-F-]{36}' | head -1)"
-  if [[ -n "$ipad_udid" ]]; then
+  local ipad_udid=""
+  ipad_udid="$(xcrun simctl list devices available 2>/dev/null | grep 'iPad' | grep -oE '[0-9A-F-]{36}' | head -1 || true)"
+  if [[ -n "${ipad_udid:-}" ]]; then
     echo "== iPad 仿真腿（UDID: $ipad_udid）=="
     xcrun simctl boot "$ipad_udid" 2>/dev/null || true
     xcrun simctl bootstatus "$ipad_udid" -b >/dev/null 2>&1 || true
