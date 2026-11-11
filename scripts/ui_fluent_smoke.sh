@@ -214,8 +214,13 @@ PLIST
   codesign --force --sign - "$app" >/dev/null 2>&1 || true
 
   # ── 选模拟器：优先已 booted，其次可用 iPhone ──
+  # ★Task418-r4：优先 Max 机（横屏 956pt ≥ 880 宽幅阈值 = 账户页宽幅
+  #   studio 卡+多行在主腿确定性覆盖，零 sim 窗口化变量）；无 Max 回落任意 iPhone。
   local device=""
   device="$(xcrun simctl list devices booted 2>/dev/null | grep -oE '[0-9A-F-]{36}' | head -1 || true)"
+  if [[ -z "${device:-}" ]]; then
+    device="$(xcrun simctl list devices available 2>/dev/null | grep 'iPhone' | grep 'Max' | grep -oE '[0-9A-F-]{36}' | head -1 || true)"
+  fi
   if [[ -z "${device:-}" ]]; then
     device="$(xcrun simctl list devices available 2>/dev/null | grep 'iPhone' | grep -oE '[0-9A-F-]{36}' | head -1 || true)"
   fi
@@ -390,16 +395,26 @@ PLIST
   #    ——本轮起 iPad 可用即跑（无可回退跳过，不阻塞门禁）：真壳折叠/展开 +
   #    探针页 + 账户页（写实皮+帽层 3D）四张 iPad 尺寸图 = 尺寸类对勘证据链──
   local ipad_udid=""
-  # ★Task418-r2/r3 iPad 选型：iOS 26 sim 新窗口化系统把仅横屏 app 窗口化
-  #   480×320（scene 横/设备不转，canvas 旋转救不了窗口内内容 = r1/r2 四图
-  #   侧躺+窗化实锤，宽幅 ≥880 从未覆盖）；macos-15 镜像 iPad 只存在于 26
-  #   runtime → ★r3 simctl create 现造 iOS 18.6 iPad Pro 12.9（1366×1024pt，
-  #   横屏 frame 1262 ≥ 880 = 宽幅 studio+多行首次真覆盖），失败回落选型器。
-  ipad_udid="$(xcrun simctl create "Ame418 iPad Wide" \
-      "com.apple.CoreSimulator.SimDeviceType.iPad-Pro-12-9-inch-6th-generation" \
-      "com.apple.CoreSimulator.SimRuntime.iOS-18-6" 2>/dev/null || true)"
+  # ★Task418-r2/r3/r4 iPad Wide 现造：iPad sim 默认 Stage Manager 窗口化
+  #   （三轮 480×320 实锤，与 runtime 无关）→ devicetype 动态探测（r3 硬编码
+  #   12.9-inch-6th-gen 在 Xcode 26 清单缺席 = create 静默失败实锤）+ stderr
+  #   落盘存证；仍失败回落选型器（26 窗口化腿仍出图但不覆盖宽幅）。
+  local ame418_dt=""
+  ame418_dt="$(xcrun simctl list devicetypes 2>/dev/null | grep -oE 'com\.apple\.CoreSimulator\.SimDeviceType\.iPad-Pro-[A-Za-z0-9-]+' | head -1 || true)"
+  if [[ -z "${ame418_dt:-}" ]]; then
+    ame418_dt="$(xcrun simctl list devicetypes 2>/dev/null | grep -oE 'com\.apple\.CoreSimulator\.SimDeviceType\.iPad-Air-[A-Za-z0-9-]+' | head -1 || true)"
+  fi
   local ame418_ipad_created=0
-  [[ -n "${ipad_udid:-}" ]] && ame418_ipad_created=1
+  if [[ -n "${ame418_dt:-}" ]]; then
+    ipad_udid="$(xcrun simctl create "Ame418 iPad Wide" "$ame418_dt" \
+        "com.apple.CoreSimulator.SimRuntime.iOS-18-6" 2>"$OUT/ame418_ipad_create.log" || true)"
+    if [[ -n "${ipad_udid:-}" ]]; then
+      ame418_ipad_created=1
+      echo "  iPad Wide created: $ipad_udid ($ame418_dt)"
+    else
+      echo "  ⚠ iPad Wide 创建失败（$ame418_dt）: $(head -c 200 "$OUT/ame418_ipad_create.log" 2>/dev/null || true)"
+    fi
+  fi
   if [[ -z "${ipad_udid:-}" ]]; then
   ipad_udid="$(xcrun simctl list devices available 2>/dev/null | awk '
     /^--/ { rt=$0; next }
