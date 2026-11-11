@@ -366,6 +366,7 @@ static NSInteger AmePreviewPageIndexFromLaunchArguments(void) {
     if ([page isEqualToString:@"versions"]) return 2;
     if ([page isEqualToString:@"accounts"]) return 3;
     if ([page isEqualToString:@"settings"]) return 4;
+    if ([page isEqualToString:@"probe"]) return 7;   // ★Task417 字形阶梯探针页
     return 0;
 }
 
@@ -433,6 +434,108 @@ static void AmePreviewWriteTestSkin(NSString *path) {
     }
 }
 
+// ★Task417 写实风测试皮肤（程序化，零仓库二进制）：Alex/Steve 型
+//   （橙发/绿衣/灰裤）——★含第二层（帽层头发：发顶+后脑+两侧+带锯齿
+//   镜空的前刘海；衣领/袖口）= ZL2SkinPreviewView Task417 外层移植的
+//   直接视觉验证（无外层像素 = alpha 0 透明跳过；真皮肤观感对勘真机
+//   截图）。经典 4 宽臂口径（steve 本型）。
+static void AmePreviewWriteRealisticSkin(NSString *path) {
+    UIGraphicsBeginImageContextWithOptions(CGSizeMake(64, 64), NO, 1.0);
+    CGContextRef ctx = UIGraphicsGetCurrentContext();
+    if (ctx) {
+        // 先清透明（帽层/外层镜像区 = alpha 0）
+        CGContextClearRect(ctx, CGRectMake(0, 0, 64, 64));
+
+        // ── 基础层 ──
+        // 头：脸(8,8) 肤 / 后(24,8) 发 / 右(0,8) 左(16,8) 发 / 顶(8,0) 发 / 底(16,0) 肤
+        CGContextSetRGBFillColor(ctx, 0.91, 0.75, 0.63, 1.0);   // 肤
+        CGContextFillRect(ctx, CGRectMake(8, 8, 8, 8));
+        CGContextFillRect(ctx, CGRectMake(16, 0, 8, 8));
+        CGContextSetRGBFillColor(ctx, 0.78, 0.43, 0.16, 1.0);   // 发
+        CGContextFillRect(ctx, CGRectMake(24, 8, 8, 8));
+        CGContextFillRect(ctx, CGRectMake(0, 8, 8, 8));
+        CGContextFillRect(ctx, CGRectMake(16, 8, 8, 8));
+        CGContextFillRect(ctx, CGRectMake(8, 0, 8, 8));
+        // 五官：眼白×2 + 绿睛×2 + 嘴
+        CGContextSetRGBFillColor(ctx, 1.0, 1.0, 1.0, 1.0);
+        CGContextFillRect(ctx, CGRectMake(10, 12, 1, 1));
+        CGContextFillRect(ctx, CGRectMake(13, 12, 1, 1));
+        CGContextSetRGBFillColor(ctx, 0.27, 0.51, 0.35, 1.0);
+        CGContextFillRect(ctx, CGRectMake(10, 12, 1, 1));
+        CGContextFillRect(ctx, CGRectMake(13, 12, 1, 1));
+        CGContextSetRGBFillColor(ctx, 0.78, 0.51, 0.47, 1.0);
+        CGContextFillRect(ctx, CGRectMake(12, 14, 2, 1));
+        // 身：绿衣（前/后/上/下亮绿，左右侧深绿）
+        CGContextSetRGBFillColor(ctx, 0.35, 0.63, 0.35, 1.0);
+        CGContextFillRect(ctx, CGRectMake(20, 20, 8, 12));
+        CGContextFillRect(ctx, CGRectMake(32, 20, 8, 12));
+        CGContextFillRect(ctx, CGRectMake(20, 16, 8, 4));
+        CGContextFillRect(ctx, CGRectMake(28, 16, 8, 4));
+        CGContextSetRGBFillColor(ctx, 0.27, 0.53, 0.28, 1.0);
+        CGContextFillRect(ctx, CGRectMake(16, 20, 4, 12));
+        CGContextFillRect(ctx, CGRectMake(28, 20, 4, 12));
+        // 臂（绿袖，下四行 = 手）：经典 4 宽
+        CGContextSetRGBFillColor(ctx, 0.35, 0.63, 0.35, 1.0);
+        CGContextFillRect(ctx, CGRectMake(44, 20, 4, 8));
+        CGContextFillRect(ctx, CGRectMake(52, 20, 4, 8));
+        CGContextFillRect(ctx, CGRectMake(44, 16, 4, 4));
+        CGContextFillRect(ctx, CGRectMake(48, 16, 4, 4));
+        CGContextSetRGBFillColor(ctx, 0.27, 0.53, 0.28, 1.0);
+        CGContextFillRect(ctx, CGRectMake(40, 20, 4, 12));
+        CGContextFillRect(ctx, CGRectMake(48, 20, 4, 12));
+        CGContextSetRGBFillColor(ctx, 0.91, 0.75, 0.63, 1.0);   // 手
+        CGContextFillRect(ctx, CGRectMake(44, 28, 4, 4));
+        CGContextFillRect(ctx, CGRectMake(52, 28, 4, 4));
+        // 腿（灰裤 + 深鞋）
+        CGContextSetRGBFillColor(ctx, 0.37, 0.39, 0.43, 1.0);
+        CGContextFillRect(ctx, CGRectMake(4, 20, 4, 12));
+        CGContextFillRect(ctx, CGRectMake(12, 20, 4, 12));
+        CGContextFillRect(ctx, CGRectMake(4, 16, 4, 4));
+        CGContextFillRect(ctx, CGRectMake(8, 16, 4, 4));
+        CGContextFillRect(ctx, CGRectMake(20, 52, 4, 12));
+        CGContextFillRect(ctx, CGRectMake(28, 52, 4, 12));
+        CGContextFillRect(ctx, CGRectMake(20, 48, 4, 4));
+        CGContextFillRect(ctx, CGRectMake(24, 48, 4, 4));
+        CGContextSetRGBFillColor(ctx, 0.27, 0.27, 0.29, 1.0);   // 鞋
+        CGContextFillRect(ctx, CGRectMake(4, 29, 4, 3));
+        CGContextFillRect(ctx, CGRectMake(12, 29, 4, 3));
+        CGContextFillRect(ctx, CGRectMake(20, 61, 4, 3));
+        CGContextFillRect(ctx, CGRectMake(28, 61, 4, 3));
+
+        // ── ★第二层（帽层头发/衣领/袖口 = Task417 外层链直接验证）──
+        // 帽：顶(40,0) 后(56,8) 两侧(32,8)(48,8) 全发
+        CGContextSetRGBFillColor(ctx, 0.80, 0.45, 0.17, 1.0);
+        CGContextFillRect(ctx, CGRectMake(40, 0, 8, 8));
+        CGContextFillRect(ctx, CGRectMake(56, 8, 8, 8));
+        CGContextFillRect(ctx, CGRectMake(32, 8, 8, 8));
+        CGContextFillRect(ctx, CGRectMake(48, 8, 8, 8));
+        // 帽前 = 前刘海：上四行全发 + 第 12 行锯齿（其余 alpha 0 = 镜空）
+        CGContextFillRect(ctx, CGRectMake(40, 8, 8, 4));
+        for (NSInteger ame417_i = 0; ame417_i < 8; ame417_i += 2) {
+            CGContextFillRect(ctx, CGRectMake(40 + ame417_i, 12, 1, 1));
+        }
+        // 帽层侧发垂撮（左右两侧第 1/6 列下衍 5 行）
+        CGContextFillRect(ctx, CGRectMake(33, 8, 1, 5));
+        CGContextFillRect(ctx, CGRectMake(38, 8, 1, 5));
+        CGContextFillRect(ctx, CGRectMake(49, 8, 1, 5));
+        CGContextFillRect(ctx, CGRectMake(54, 8, 1, 5));
+        // 衣领（帽层身前上沿二行，半透明第二行 = alpha 合成可见）
+        CGContextSetRGBFillColor(ctx, 0.27, 0.53, 0.28, 1.0);
+        CGContextFillRect(ctx, CGRectMake(20, 36, 8, 1));
+        CGContextSetRGBFillColor(ctx, 0.27, 0.53, 0.28, 0.55);
+        CGContextFillRect(ctx, CGRectMake(20, 37, 8, 1));
+        // 袖口（右袖外层上沿二行）
+        CGContextSetRGBFillColor(ctx, 0.27, 0.53, 0.28, 0.90);
+        CGContextFillRect(ctx, CGRectMake(44, 32, 4, 2));
+    }
+    UIImage *ame417_skin = UIGraphicsGetImageFromCurrentImageContext();
+    UIGraphicsEndImageContext();
+    if (ame417_skin) {
+        NSData *ame417_png = UIImagePNGRepresentation(ame417_skin);
+        if (ame417_png.length > 0) [ame417_png writeToFile:path atomically:YES];
+    }
+}
+
 static void AmePreviewPrepareSandbox(void) {
     NSString *home = [NSSearchPathForDirectoriesInDomains(NSDocumentDirectory,
                                                           NSUserDomainMask, YES).firstObject
@@ -467,13 +570,17 @@ static void AmePreviewPrepareSandbox(void) {
     NSString *ame415_skinsDir = [ame415_caches stringByAppendingPathComponent:@"skins"];
     [[NSFileManager defaultManager] createDirectoryAtPath:ame415_skinsDir
                               withIntermediateDirectories:YES attributes:nil error:nil];
-    AmePreviewWriteTestSkin([ame415_skinsDir stringByAppendingPathComponent:@"steve.png"]);
+    AmePreviewWriteTestSkin([ame415_skinsDir stringByAppendingPathComponent:@"alex.png"]);
     NSString *ame415_avatars = [NSSearchPathForDirectoriesInDomains(NSDocumentDirectory,
                                                                    NSUserDomainMask, YES) firstObject];
     ame415_avatars = [ame415_avatars stringByAppendingPathComponent:@"avatars"];
     [[NSFileManager defaultManager] createDirectoryAtPath:ame415_avatars
                               withIntermediateDirectories:YES attributes:nil error:nil];
-    AmePreviewWriteTestSkin([ame415_avatars stringByAppendingPathComponent:@"skinfull-steve.png"]);
+    AmePreviewWriteTestSkin([ame415_avatars stringByAppendingPathComponent:@"skinfull-alex.png"]);
+    // ★Task417：选中账户 steve = 写实风皮肤（帽层头发+衣领袖口）——CI accounts
+    //   截图与真机 Alex 型对勘；调试色皮迁至 alex 账户（几何真值对勘保留）
+    AmePreviewWriteRealisticSkin([ame415_skinsDir stringByAppendingPathComponent:@"steve.png"]);
+    AmePreviewWriteRealisticSkin([ame415_avatars stringByAppendingPathComponent:@"skinfull-steve.png"]);
 
     // 假版本实体 ×3（纯净原版 1.8.9 不建 = 无效态判读样本）
     NSArray *ame393_vids = @[@"fabric-loader-0.16.9-1.21", @"forge-1.20.4", @"1.21.4"];
@@ -505,6 +612,73 @@ static NSString *AmePreviewPageTitle(NSInteger index) {
 // 顶栏 RailItem 视觉顺序（版本/下载/账户/设置，按 ZL2 TopBar 右簇规格）到
 // 页面槽位的映射：版本→2 / 下载→1 / 账户→3 / 设置→4（home=0 无 RailItem，
 // 由左簇 house 镜像承担）
+
+#pragma mark - ★Task417 真壳本体预览（镜像不可信教训的结构性终点）
+
+// 真壳类声明（ZL2ShellViewController.m 编入 preview 目标 = 符号在二进制内；
+// 该 TU 内部类 ZL2ShellNavItem 经同名声明直连——字形管线 403/405/412/413
+// 四轮修复的真类首次可在 CI 被渲染验证）。镜像（ame414_buildNavPane）自绘
+// 图标从未经过 ZL2ShellSystemImageSizedEx/ForceGlyphFill——真机 10pt 字形
+// 与 CI 20pt 镜像的两倍差 = 镜像保真度缺口（IMG_0611 像素测量实锤），从此
+// CI 直接渲染真壳本体。
+@interface ZL2ShellViewController : UIViewController
+@end
+
+@interface ZL2ShellNavItem : UIView
+- (instancetype)initWithTitle:(NSString *)title
+                       symbol:(NSString *)symbol
+                     fallback:(NSString *)fallback
+                    pageIndex:(NSInteger)pageIndex;
+- (void)ame_setCompact:(BOOL)compact;
+- (void)ame_setSelected:(BOOL)selected;
+// 404/405 判读面（[Ame404] 日志同源读数；真类字形管线健康度数值直出）
+- (CGFloat)ame_iconImageSize;
+- (CGFloat)ame_iconGlyphBBox;
+@end
+
+// fui 插件四族令牌真路径（main.js PALETTES[1]/FLUENT_SHAPE/FLUENT_LAYOUT/
+// FLUENT_STRUCTURE 逐值同源；ame317/341/343/347 引擎承载面 = 插件运行时
+// 同一 API）。真壳模式（-zl2shell real）与镜像 fluent-dark 轨共用。
+static void AmePreviewApplyFluentTokens(void) {
+    [ZL2Theme ame317_setPluginThemeTokens:@"preview-fluent"
+                                   tokens:@{
+        @"primary": @"4CC2FF", @"onPrimary": @"00344E",
+        @"primaryContainer": @"004578", @"onPrimaryContainer": @"B4D6F7",
+        @"secondary": @"6FA8CC", @"onSecondary": @"062033",
+        @"secondaryContainer": @"1A3A54", @"onSecondaryContainer": @"C7E0F4",
+        @"tertiary": @"C1A7E8", @"onTertiary": @"221046",
+        @"tertiaryContainer": @"5D2E8C", @"onTertiaryContainer": @"EAD9FF",
+        @"surface": @"1A1A1A", @"onSurface": @"F5F5F5",
+        @"onSurfaceVariant": @"D4D4D4", @"surfaceVariant": @"262626",
+        @"surfaceContainerLowest": @"111111", @"surfaceContainerLow": @"1D1D1D",
+        @"surfaceContainer": @"222222", @"surfaceContainerHigh": @"282828",
+        @"surfaceContainerHighest": @"2F2F2F", @"surfaceBright": @"3B3B3B",
+        @"outline": @"6B6B6B", @"outlineVariant": @"3D3D3D",
+        @"error": @"FF99A4", @"errorContainer": @"6E1122",
+        @"success": @"6CCB5F", @"warning": @"F7B26A",
+    }];
+    [ZL2Theme ame341_setPluginThemeShape:@"preview-fluent"
+                                  tokens:@{
+        @"radiusXS": @4, @"radiusS": @4, @"radiusM": @8, @"radiusL": @8, @"radiusXL": @12,
+        @"fontHeadline":    @{@"size": @28, @"weight": @"semibold"},
+        @"fontTitleLarge":  @{@"size": @20, @"weight": @"semibold"},
+        @"fontTitleMedium": @{@"size": @15, @"weight": @"semibold"},
+        @"fontBodyLarge":   @{@"size": @17, @"weight": @"regular"},
+        @"fontBodyMedium":  @{@"size": @15, @"weight": @"regular"},
+        @"fontLabelLarge":  @{@"size": @15, @"weight": @"semibold"},
+        @"fontLabelMedium": @{@"size": @13, @"weight": @"regular"},
+    }];
+    [ZL2Theme ame343_setPluginThemeLayout:@"preview-fluent"
+                                   tokens:@{
+        @"searchBarHeight": @40, @"chipHeight": @32,
+        @"cardMarginV": @4, @"cardMarginH": @16,
+        @"cardInsetX": @16, @"cardInsetTop": @12, @"cardInsetBottom": @12,
+        @"cardContentGap": @6, @"pillMinWidth": @80, @"pillHeight": @32,
+        @"pillGap": @12, @"dialogInset": @24, @"buttonHeight": @32,
+    }];
+    [ZL2Theme ame347_setPluginThemeStructure:@"preview-fluent"
+                                      tokens:@{@"shellLayout": @"navigationview"}];
+}
 @interface AmePreviewShellController : UIViewController
 @property(nonatomic, strong) UIView *barBackground;          // 顶带背景（bare） / 内容区头带（nav）
 @property(nonatomic, strong) UILabel *headerTitle;          // 大标题（双骨架同源）
@@ -539,11 +713,17 @@ static NSString *AmePreviewPageTitle(NSInteger index) {
     self.cache = [NSMutableDictionary dictionary];
     self.currentIndex = -1;
 
-    // -zl2shell nav → fui NavigationView 镜像（缺省 bare）
+    // -zl2shell nav → fui NavigationView 镜像（缺省 bare）；★Task417 real →
+    //   真壳本体（ZL2ShellViewController 实例 + fui 四族令牌真路径）
     NSArray<NSString *> *ame414_args = [NSProcessInfo processInfo].arguments;
     NSUInteger ame414_shellIdx = [ame414_args indexOfObject:@"-zl2shell"];
-    self.ame414_navShell = (ame414_shellIdx != NSNotFound && ame414_shellIdx + 1 < ame414_args.count
-                            && [ame414_args[ame414_shellIdx + 1] isEqualToString:@"nav"]);
+    NSString *ame417_shellMode = (ame414_shellIdx != NSNotFound && ame414_shellIdx + 1 < ame414_args.count)
+        ? ame414_args[ame414_shellIdx + 1] : @"";
+    self.ame414_navShell = [ame417_shellMode isEqualToString:@"nav"];
+    if ([ame417_shellMode isEqualToString:@"real"]) {
+        [self ame417_buildRealShell];
+        return;   // 真壳自带头带/窗格/页面切换，镜像骨架全部跳过
+    }
     // ★Task416：-zl2pane expanded → 窗格展开态镜像（280 宽 + 文字标签，
     //   图标仍 24pt 恒定 = 折叠不调图标的同帧图证；缺省折叠态 64）
     NSUInteger ame416_paneIdx = [ame414_args indexOfObject:@"-zl2pane"];
@@ -553,23 +733,7 @@ static NSString *AmePreviewPageTitle(NSInteger index) {
     NSUInteger ame414_themeIdx = [ame414_args indexOfObject:@"-zl2theme"];
     if (ame414_themeIdx != NSNotFound && ame414_themeIdx + 1 < ame414_args.count
         && [ame414_args[ame414_themeIdx + 1] isEqualToString:@"fluent-dark"]) {
-        [ZL2Theme ame317_setPluginThemeTokens:@"preview-fluent"
-                                       tokens:@{
-            @"primary": @"4CC2FF", @"onPrimary": @"00344E",
-            @"primaryContainer": @"004578", @"onPrimaryContainer": @"B4D6F7",
-            @"secondary": @"6FA8CC", @"onSecondary": @"062033",
-            @"secondaryContainer": @"1A3A54", @"onSecondaryContainer": @"C7E0F4",
-            @"tertiary": @"C1A7E8", @"onTertiary": @"221046",
-            @"tertiaryContainer": @"5D2E8C", @"onTertiaryContainer": @"EAD9FF",
-            @"surface": @"1A1A1A", @"onSurface": @"F5F5F5",
-            @"onSurfaceVariant": @"D4D4D4", @"surfaceVariant": @"262626",
-            @"surfaceContainerLowest": @"111111", @"surfaceContainerLow": @"1D1D1D",
-            @"surfaceContainer": @"222222", @"surfaceContainerHigh": @"282828",
-            @"surfaceContainerHighest": @"2F2F2F", @"surfaceBright": @"3B3B3B",
-            @"outline": @"6B6B6B", @"outlineVariant": @"3D3D3D",
-            @"error": @"FF99A4", @"errorContainer": @"6E1122",
-            @"success": @"6CCB5F", @"warning": @"F7B26A",
-        }];
+        AmePreviewApplyFluentTokens();   // ★Task417：四族令牌真路径共用（镜像轨此前仅色族，现对齐插件全量）
         self.view.backgroundColor = [ZL2Theme surface];
     }
 
@@ -813,7 +977,155 @@ static NSString *AmePreviewPageTitle(NSInteger index) {
     self.paneItems = items;
 }
 
-// 壳态刷新（★Task414 双骨架同源：大标题 + 胶囊/窗格选中态）
+// ── ★Task417 真壳本体模式（-zl2shell real）：fui 四族令牌真路径先行于真壳
+//    viewDidLoad（ame347_shellLayout 构建期消费），折叠态按 -zl2pane 落
+//    ame376.paneCollapsed 偏好（真壳几何派发构建期回读），然后真
+//    ZL2ShellViewController 子 VC 充满 —— CI 截图从此渲染的是真壳真类
+//    真字形管线，而非镜像 ──
+- (void)ame417_buildRealShell {
+    AmePreviewApplyFluentTokens();
+    BOOL ame417_expanded = NO;   // 真机用户态 = 折叠 64 图标栏（IMG_0611 实锤口径）
+    NSArray<NSString *> *ame417_args = [NSProcessInfo processInfo].arguments;
+    NSUInteger ame417_paneIdx = [ame417_args indexOfObject:@"-zl2pane"];
+    if (ame417_paneIdx != NSNotFound && ame417_paneIdx + 1 < ame417_args.count) {
+        ame417_expanded = [ame417_args[ame417_paneIdx + 1] isEqualToString:@"expanded"];
+    }
+    [NSUserDefaults.standardUserDefaults setBool:(!ame417_expanded)
+                                          forKey:@"ame376.paneCollapsed"];
+
+    UIViewController *ame417_shell = [[ZL2ShellViewController alloc] init];
+    [self addChildViewController:ame417_shell];
+    ame417_shell.view.translatesAutoresizingMaskIntoConstraints = NO;
+    [self.view addSubview:ame417_shell.view];
+    [NSLayoutConstraint activateConstraints:@[
+        [ame417_shell.view.leadingAnchor constraintEqualToAnchor:self.view.leadingAnchor],
+        [ame417_shell.view.trailingAnchor constraintEqualToAnchor:self.view.trailingAnchor],
+        [ame417_shell.view.topAnchor constraintEqualToAnchor:self.view.topAnchor],
+        [ame417_shell.view.bottomAnchor constraintEqualToAnchor:self.view.bottomAnchor],
+    ]];
+    [ame417_shell didMoveToParentViewController:self];
+    NSLog(@"[Ame417] real shell hosted (expanded=%d) — real ZL2ShellViewController + fui token path", ame417_expanded);
+}
+
+// ── ★Task417 字形阶梯探针页（-zl2page probe）：真壳字形管线逐级隔离取证
+//    ——裸符号 / 配置 12 / 24 / 38 / 真 ZL2ShellNavItem（compact+expanded），
+//    每档 = 说明签（技术文本零 i18n 面）+ 24×24 发丝框盒（盒尺寸可视）；
+//    [Ame417] 数值日志随行直出（image.size + 真类 bbox 读数 = 与截图双证）。
+//    本页为 harness 专用诊断页，不进壳页槽，正式 app 零影响。──
+- (UIViewController *)ame417_buildProbePage {
+    UIViewController *ame417_vc = [[UIViewController alloc] init];
+    ame417_vc.view.backgroundColor = [ZL2Theme surface];
+
+    UIScrollView *ame417_scroll = [[UIScrollView alloc] init];
+    ame417_scroll.translatesAutoresizingMaskIntoConstraints = NO;
+    [ame417_vc.view addSubview:ame417_scroll];
+
+    UIView *ame417_content = [[UIView alloc] init];
+    ame417_content.translatesAutoresizingMaskIntoConstraints = NO;
+    [ame417_scroll addSubview:ame417_content];
+
+    UILabel *ame417_head = [[UILabel alloc] init];
+    ame417_head.text = @"glyph ladder probe (Task417): bare / config12 / config24 / config38 / real NavItem";
+    ame417_head.font = [UIFont monospacedSystemFontOfSize:11.0 weight:UIFontWeightRegular];
+    ame417_head.textColor = [ZL2Theme onSurfaceVariant];
+    ame417_head.translatesAutoresizingMaskIntoConstraints = NO;
+    [ame417_content addSubview:ame417_head];
+
+    NSMutableArray<NSLayoutConstraint *> *ame417_pins = [NSMutableArray array];
+    [ame417_pins addObject:[ame417_head.topAnchor constraintEqualToAnchor:ame417_content.topAnchor constant:16.0]];
+    [ame417_pins addObject:[ame417_head.leadingAnchor constraintEqualToAnchor:ame417_content.leadingAnchor constant:20.0]];
+
+    struct Ame417ProbeRow { NSString *caption; NSInteger kind; };   // kind: 0 bare 1 cfg12 2 cfg24 3 cfg38 4 real-compact 5 real-expanded
+    UIView *ame417_prev = ame417_head;
+    for (NSInteger ame417_i = 0; ame417_i < 6; ame417_i++) {
+        NSString *ame417_caption = @[@"bare house.fill (no config)",
+                                      @"config pointSize 12",
+                                      @"config pointSize 24",
+                                      @"config pointSize 38",
+                                      @"REAL ZL2ShellNavItem (compact 64)",
+                                      @"REAL ZL2ShellNavItem (expanded 280)"][ame417_i];
+
+        UILabel *ame417_lb = [[UILabel alloc] init];
+        ame417_lb.text = ame417_caption;
+        ame417_lb.font = [UIFont monospacedSystemFontOfSize:12.0 weight:UIFontWeightMedium];
+        ame417_lb.textColor = [ZL2Theme onSurface];
+        ame417_lb.translatesAutoresizingMaskIntoConstraints = NO;
+        [ame417_content addSubview:ame417_lb];
+
+        if (ame417_i <= 3) {
+            // 阶梯档：符号图入 24×24 发丝框盒（盒即 ZL2ShellNavItem 同规格盒）
+            UIImage *ame417_img = nil;
+            if (ame417_i == 0) {
+                ame417_img = [UIImage systemImageNamed:@"house.fill"];
+            } else {
+                CGFloat ame417_pt = (ame417_i == 1) ? 12.0 : (ame417_i == 2) ? 24.0 : 38.0;
+                ame417_img = [UIImage systemImageNamed:@"house.fill"
+                                     withConfiguration:[UIImageSymbolConfiguration
+                                                        configurationWithPointSize:ame417_pt
+                                                                                        weight:UIImageSymbolWeightMedium]];
+                NSLog(@"[Ame417] cfg%g: canvas=%.1fx%.1f", ame417_pt, ame417_img.size.width, ame417_img.size.height);
+            }
+            UIView *ame417_box = [[UIView alloc] init];
+            ame417_box.layer.borderWidth = 0.5;
+            ame417_box.layer.borderColor = [ZL2Theme outlineVariant].CGColor;
+            ame417_box.translatesAutoresizingMaskIntoConstraints = NO;
+            [ame417_content addSubview:ame417_box];
+            UIImageView *ame417_iv = [[UIImageView alloc] initWithImage:ame417_img];
+            ame417_iv.tintColor = [ZL2Theme onSurface];
+            ame417_iv.contentMode = UIViewContentModeCenter;   // 不缩放：字形自然尺寸直出（两倍差判读关键）
+            ame417_iv.translatesAutoresizingMaskIntoConstraints = NO;
+            ame417_iv.userInteractionEnabled = NO;
+            [ame417_box addSubview:ame417_iv];
+            [NSLayoutConstraint activateConstraints:@[
+                [ame417_box.widthAnchor constraintEqualToConstant:24.0],
+                [ame417_box.heightAnchor constraintEqualToConstant:24.0],
+                [ame417_iv.centerXAnchor constraintEqualToAnchor:ame417_box.centerXAnchor],
+                [ame417_iv.centerYAnchor constraintEqualToAnchor:ame417_box.centerYAnchor],
+                [ame417_iv.widthAnchor constraintLessThanOrEqualToConstant:24.0],
+                [ame417_iv.heightAnchor constraintLessThanOrEqualToConstant:24.0],
+            ]];
+            [ame417_pins addObject:[ame417_box.centerYAnchor constraintEqualToAnchor:ame417_lb.centerYAnchor]];
+            [ame417_pins addObject:[ame417_box.leadingAnchor constraintEqualToAnchor:ame417_lb.trailingAnchor constant:16.0]];
+        } else {
+            // 真档：真 ZL2ShellNavItem（真字形管线 + 真盒约束）
+            ZL2ShellNavItem *ame417_item = [[ZL2ShellNavItem alloc]
+                initWithTitle:localize(@"ame369.common.home", @"主页")   // ★Task417 既有键复用（零新键，task248 硬编码零残留）
+                       symbol:@"house.fill" fallback:@"house"
+                    pageIndex:0];
+            [ame417_item ame_setCompact:(ame417_i == 4)];
+            [ame417_item ame_setSelected:YES];
+            ame417_item.translatesAutoresizingMaskIntoConstraints = NO;
+            [ame417_content addSubview:ame417_item];
+            [ame417_pins addObject:[ame417_item.centerYAnchor constraintEqualToAnchor:ame417_lb.centerYAnchor]];
+            [ame417_pins addObject:[ame417_item.leadingAnchor constraintEqualToAnchor:ame417_lb.trailingAnchor constant:16.0]];
+            [ame417_pins addObject:[ame417_item.widthAnchor constraintEqualToConstant:(ame417_i == 4) ? 64.0 : 280.0]];
+            [ame417_pins addObject:[ame417_item.heightAnchor constraintEqualToConstant:44.0]];
+            NSLog(@"[Ame417] real NavItem(%@): imageSize=%.1f glyphBBox=%.1f (盒 24，bbox≪24 = 字形欠尺实锤)",
+                  (ame417_i == 4) ? @"compact" : @"expanded",
+                  [ame417_item ame_iconImageSize], [ame417_item ame_iconGlyphBBox]);
+        }
+
+        [ame417_pins addObject:[ame417_lb.leadingAnchor constraintEqualToAnchor:ame417_content.leadingAnchor constant:20.0]];
+        [ame417_pins addObject:[ame417_lb.topAnchor constraintEqualToAnchor:ame417_prev.bottomAnchor constant:(ame417_i == 0) ? 20.0 : 26.0]];
+        ame417_prev = ame417_lb;
+    }
+    [ame417_pins addObject:[ame417_content.bottomAnchor constraintEqualToAnchor:ame417_prev.bottomAnchor constant:24.0]];
+    [ame417_pins addObject:[ame417_content.trailingAnchor constraintEqualToAnchor:ame417_scroll.trailingAnchor]];
+    [NSLayoutConstraint activateConstraints:ame417_pins];
+    [NSLayoutConstraint activateConstraints:@[
+        [ame417_scroll.topAnchor constraintEqualToAnchor:ame417_vc.view.topAnchor],
+        [ame417_scroll.bottomAnchor constraintEqualToAnchor:ame417_vc.view.bottomAnchor],
+        [ame417_scroll.leadingAnchor constraintEqualToAnchor:ame417_vc.view.leadingAnchor],
+        [ame417_scroll.trailingAnchor constraintEqualToAnchor:ame417_vc.view.trailingAnchor],
+        [ame417_content.topAnchor constraintEqualToAnchor:ame417_scroll.contentLayoutGuide.topAnchor],
+        [ame417_content.bottomAnchor constraintEqualToAnchor:ame417_scroll.contentLayoutGuide.bottomAnchor],
+        [ame417_content.leadingAnchor constraintEqualToAnchor:ame417_scroll.contentLayoutGuide.leadingAnchor],
+        [ame417_content.widthAnchor constraintEqualToAnchor:ame417_scroll.frameLayoutGuide.widthAnchor],
+    ]];
+    return ame417_vc;
+}
+
+
 - (void)ame414_refreshShellForIndex:(NSInteger)index {
     self.headerTitle.text = AmePreviewPageTitle(index);
     // bare 胶囊选中（pages = 0,1,5,6,4,-1）
@@ -855,6 +1167,8 @@ static NSString *AmePreviewPageTitle(NSInteger index) {
                                initWithRootViewController:[[ZL2AccountsViewController alloc] init]]; break;
             case 4: next = [[UINavigationController alloc]
                                initWithRootViewController:[[ZL2SettingsViewController alloc] init]]; break;
+            // ★Task417 字形阶梯探针页（harness 专用诊断页，见方法注）
+            case 7: next = [self ame417_buildProbePage]; break;
             default: return;
         }
         self.cache[@(index)] = next;

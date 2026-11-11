@@ -1572,3 +1572,81 @@ NSString * const DownloadTaskResourceTypeModpack = @"modpack";
 + (NSArray<NSDictionary *> *)allContributedRows { return @[]; }
 + (void)invokeRowTap:(NSString *)rowId { (void)rowId; }
 @end
+
+#pragma mark - ★Task417 真壳本体预览链桩（ZL2ShellViewController TU 编入
+//   preview 目标后新增的链接面符号——壳构建期引用的页类/服务，按本 TU 家法：
+//   手写同名类声明 + 最小真签名实现，不 import 真头，运行时动态绑定）。
+//   真 ZL2VersionDetailViewController 桩在先（Task413 轮，initWithProfileName:）。
+
+// MultiplayerViewController（壳页槽 5 = 多人联机；MultiplayerVCModeLauncher）
+typedef NS_ENUM(NSInteger, MultiplayerVCMode) {
+    MultiplayerVCModeLauncher = 0,
+    MultiplayerVCModeInGame = 1,
+};
+@interface MultiplayerViewController : UIViewController
+- (instancetype)initWithMode:(MultiplayerVCMode)mode;
+@end
+@implementation MultiplayerViewController
+- (instancetype)initWithMode:(MultiplayerVCMode)mode {
+    self = [super init];
+    NSLog(@"[AmeFluentPreview] stub MultiplayerViewController mode=%ld", (long)mode);
+    return self;
+}
+@end
+
+// FolderBrowserViewController（壳页槽 6 = 文件；+wrappedControllerForPath:）
+@interface FolderBrowserViewController : UITableViewController
++ (UINavigationController *)wrappedControllerForPath:(NSString *)path;
+@end
+@implementation FolderBrowserViewController
++ (UINavigationController *)wrappedControllerForPath:(NSString *)path {
+    (void)path;
+    FolderBrowserViewController *vc = [[FolderBrowserViewController alloc] initWithStyle:UITableViewStylePlain];
+    vc.title = @"文件";
+    return [[UINavigationController alloc] initWithRootViewController:vc];
+}
+@end
+
+// AiSession / AiSessionStore / AIViewController（壳页槽 6 = AI 助手）
+@interface AiSession : NSObject
+@end
+@implementation AiSession
+@end
+@interface AiSessionStore : NSObject
++ (instancetype)sharedStore;
+- (nullable AiSession *)lastActiveSession;
+@end
+@implementation AiSessionStore
++ (instancetype)sharedStore {
+    static AiSessionStore *s = nil;
+    static dispatch_once_t onceToken;
+    dispatch_once(&onceToken, ^{ s = [[AiSessionStore alloc] init]; });
+    return s;
+}
+- (nullable AiSession *)lastActiveSession { return nil; }
+@end
+@interface AIViewController : UIViewController
+- (instancetype)initWithSession:(nullable AiSession *)session;
+@end
+@implementation AIViewController
+- (instancetype)initWithSession:(nullable AiSession *)session {
+    self = [super init];
+    NSLog(@"[AmeFluentPreview] stub AIViewController session=%@", session);
+    return self;
+}
+@end
+
+// ZL2VersionIndex（壳 viewDidLoad warmUp 预热；启动链版本索引服务）
+@interface ZL2VersionIndex : NSObject
++ (instancetype)sharedIndex;
+- (void)warmUp;
+@end
+@implementation ZL2VersionIndex
++ (instancetype)sharedIndex {
+    static ZL2VersionIndex *s = nil;
+    static dispatch_once_t onceToken;
+    dispatch_once(&onceToken, ^{ s = [[ZL2VersionIndex alloc] init]; });
+    return s;
+}
+- (void)warmUp { NSLog(@"[AmeFluentPreview] stub ZL2VersionIndex warmUp"); }
+@end

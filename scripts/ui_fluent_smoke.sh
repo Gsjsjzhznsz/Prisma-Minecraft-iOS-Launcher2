@@ -116,6 +116,9 @@ preview_mode() {
     ZL2SearchIdViewController      # 7.0-UI-14：按项目 ID 直查页（下载左轨第 6 项）
     ZL2FavoritesStore              # 7.0-UI-14：收藏仓库（plist 快照，搜索卡心形/收藏页共用）
     installer/FabricUtils          # Task336：Addons 页直装执行器（ame336 页内联安装新依赖）
+    ZL2ShellViewController         # ★Task417：真壳本体入预览（-zl2shell real 真类渲染 +
+                                   #   probe 页真 ZL2ShellNavItem 字形管线；镜像不可信教训的结构性终点：
+                                   #   真机 10pt vs CI 镜像 20pt 两倍差 = 镜像自绘图标从未经过真管线）
   )
   local objs=()
   for s in "${sources[@]}"; do
@@ -206,6 +209,7 @@ PLIST
     FAIL=1
     return
   fi
+  xcrun simctl terminate "$device" com.prisma-devs.ame-fluent-preview >/dev/null 2>&1 || true
   echo "  模拟器 UDID: $device"
 
   xcrun simctl boot "$device" 2>/dev/null || true
@@ -221,7 +225,7 @@ PLIST
   #    的初始视觉。
   # ★ Task400：versionpicker 专用页退役（版本/账户双滚轮原地驻主页右栏，
   #    home 截图即含双滚轮——预览沙盒假账户×4/假实例×4 注入不变）
-  local pages=(home download versions accounts settings)
+  local pages=(home download versions accounts settings probe)   # ★Task417 +probe 字形阶梯探针页
   local p page_launch_out
   for p in "${pages[@]}"; do
     xcrun simctl terminate "$device" com.prisma-devs.ame-fluent-preview >/dev/null 2>&1 || true
@@ -337,8 +341,70 @@ PLIST
     && echo "  ✓ 截图[nav-expanded/home/fluent-dark]: $OUT/ame-zl2-nav-fluent-home-expanded-dark.png"
   xcrun simctl ui "$device" appearance light >/dev/null 2>&1 || true
 
+  # ── ★Task417 真壳本体腿（-zl2shell real）：真 ZL2ShellViewController +
+  #    fui 四族令牌真路径，折叠态（真机用户口径）——CI 截图从此验证真壳
+  #    真字形管线（403/405/412/413 四轮修复首次可被截图仲裁）──
   xcrun simctl terminate "$device" com.prisma-devs.ame-fluent-preview >/dev/null 2>&1 || true
-  echo "== 预览冒烟完成（bare 五页浅/深 10 张 + fui nav 镜像 2 张 + 展开态 1 张 = 13 张截图即视觉验收：bare 顶带 64+胶囊入带 / ZL2Home 大启动按钮/版本自适应右栏 / 账户页工作室+皮肤预览 / fui 暗板 rail 选中抬升 / 折叠vs展开图标恒定对比）=="
+  if page_launch_out="$(xcrun simctl launch "$device" com.prisma-devs.ame-fluent-preview -zl2page home -zl2shell real 2>&1)"; then
+    echo "  启动 OK[real/home]: $page_launch_out"
+  else
+    echo "✗ 启动失败[real/home]: $page_launch_out"
+    FAIL=1
+    return
+  fi
+  sleep 5
+  xcrun simctl ui "$device" appearance dark >/dev/null 2>&1 || true
+  sleep 2
+  xcrun simctl io "$device" screenshot "$OUT/ame-zl2-real-nav-home-dark.png" >/dev/null 2>&1 \
+    && sips -r 270 "$OUT/ame-zl2-real-nav-home-dark.png" >/dev/null 2>&1 \
+    && echo "  ✓ 截图[real/home/fluent-dark]: $OUT/ame-zl2-real-nav-home-dark.png"
+  xcrun simctl ui "$device" appearance light >/dev/null 2>&1 || true
+  # [Ame417]/[ZL2SkinPreview] 日志取证（真类字形读数 + 3D 装配面数数值直出）
+  xcrun simctl spawn "$device" log show --last 3m --style compact \
+    --predicate 'eventMessage CONTAINS "Ame417" OR eventMessage CONTAINS "ZL2SkinPreview" OR eventMessage CONTAINS "Ame404"' \
+    > "$OUT/ame417-diag.log" 2>/dev/null || true
+  grep -aE "Ame417|ZL2SkinPreview|Ame404" "$OUT/ame417-diag.log" | tail -20 || true
+
+  xcrun simctl terminate "$device" com.prisma-devs.ame-fluent-preview >/dev/null 2>&1 || true
+  echo "== 预览冒烟完成（bare 六页浅/深 12 张 + fui nav 镜像 2 张 + 展开态 1 张 + 真壳 1 张 = 16 张截图即视觉验收）=="
+
+  # ── ★Task417 iPad 仿真腿：真机用户是 iPad（IMG_0611/0612 = 1180×820pt
+  #    @2x 横屏），而既往冒烟只跑 iPhone 模拟器 = iPad 尺寸类从未被截图验证
+  #    ——本轮起 iPad 可用即跑（无可回退跳过，不阻塞门禁）：真壳折叠/展开 +
+  #    探针页 + 账户页（写实皮+帽层 3D）四张 iPad 尺寸图 = 尺寸类对勘证据链──
+  local ipad_udid
+  ipad_udid="$(xcrun simctl list devices available | grep 'iPad' | grep -oE '[0-9A-F-]{36}' | head -1)"
+  if [[ -n "$ipad_udid" ]]; then
+    echo "== iPad 仿真腿（UDID: $ipad_udid）=="
+    xcrun simctl boot "$ipad_udid" 2>/dev/null || true
+    xcrun simctl bootstatus "$ipad_udid" -b >/dev/null 2>&1 || true
+    xcrun simctl install "$ipad_udid" "$app" || { echo "✗ iPad 安装失败（iPad 腿跳过，不阻塞）"; return; }
+    local ip
+    for ip in "real-collapsed:home -zl2shell real" \
+              "real-expanded:home -zl2shell real -zl2pane expanded" \
+              "probe:probe" \
+              "accounts:accounts"; do
+      local ip_name="${ip%%:*}"
+      local ip_args="${ip#*:}"
+      xcrun simctl terminate "$ipad_udid" com.prisma-devs.ame-fluent-preview >/dev/null 2>&1 || true
+      if page_launch_out="$(xcrun simctl launch "$ipad_udid" com.prisma-devs.ame-fluent-preview -zl2page $ip_args 2>&1)"; then
+        echo "  启动 OK[ipad/$ip_name]: $page_launch_out"
+      else
+        echo "✗ 启动失败[ipad/$ip_name]: $page_launch_out（iPad 腿跳过，不阻塞）"
+        continue
+      fi
+      sleep 5
+      xcrun simctl ui "$ipad_udid" appearance dark >/dev/null 2>&1 || true
+      sleep 2
+      xcrun simctl io "$ipad_udid" screenshot "$OUT/ame-zl2-$ip_name-ipad-dark.png" >/dev/null 2>&1 \
+        && sips -r 270 "$OUT/ame-zl2-$ip_name-ipad-dark.png" >/dev/null 2>&1 \
+        && echo "  ✓ 截图[ipad/$ip_name]: $OUT/ame-zl2-$ip_name-ipad-dark.png"
+    done
+    xcrun simctl ui "$ipad_udid" appearance light >/dev/null 2>&1 || true
+    xcrun simctl terminate "$ipad_udid" com.prisma-devs.ame-fluent-preview >/dev/null 2>&1 || true
+  else
+    echo "  ⚠ 无可用 iPad 模拟器（iPad 腿跳过）"
+  fi
 }
 
 case "$MODE" in

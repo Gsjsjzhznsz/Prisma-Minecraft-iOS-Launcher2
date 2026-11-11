@@ -434,7 +434,24 @@ ame378_c21 = [
     ("backface-cull", "ame416_nz <= 0.0" in skinview_code),
     ("affine-face", "CATransform3DMakeAffineTransform" in skinview_code),
     ("nan-guard", "isfinite(_ame413_yaw)" in skinview_code),
-    ("diag-log", "[ZL2SkinPreview] Task416" in skinview_raw),
+    ("diag-log", "[ZL2SkinPreview] Task417" in skinview_raw),   # ★Task417 推进（面数 72 诊断）
+    # ⑥ ★Task417 3D 第二层（skinview3d outerLayer 移植：帽/衣/袖/裤 +1.0 全维膨胀，
+    #    同枢轴同摆动；legacy 左区镜像；alpha 镂空经 CALayer 内容合成）
+    ("overlay-uv", "ZL2SkinViewHatFaces[6]" in skinview_code),
+    ("overlay-inflate", "ame416_p[3] + 1.0, ame416_p[4] + 1.0, ame416_p[5] + 1.0" in skinview_code),
+    ("overlay-legacy", "ame417_lPantF = ame413_legacy ? ZL2SkinViewRPantFaces : ZL2SkinViewLPantFaces" in skinview_code),
+    # ⑦ ★Task417 真壳本体入预览（镜像不可信教训的结构性终点：真机 10pt vs
+    #    CI 镜像 20pt 两倍差 = 镜像自绘图标从未经过真字形管线）
+    ("real-shell-host", "ame417_buildRealShell" in preview_code),
+    ("real-navitem", "ZL2ShellNavItem" in preview_code),
+    ("probe-page", "ame417_buildProbePage" in preview_code),
+    ("flu-token-path", "ame347_setPluginThemeStructure" in preview_code),
+    ("realistic-skin", "AmePreviewWriteRealisticSkin" in preview_code),
+    ("smoke-real", "-zl2shell real" in smoke_raw),
+    ("smoke-ipad", "iPad 仿真腿" in smoke_raw),
+    ("stub-shell-symbols", all(s in stub_raw for s in (
+        "MultiplayerViewController", "FolderBrowserViewController",
+        "AIViewController", "AiSessionStore", "ZL2VersionIndex"))),
     # ④ ★Task416 转盘镜像定谳：极性回归（右停靠=原生/左停靠=镜像）+ 镜像
     #    几何下拖动/甩向符号同步翻转（恒指随的镜像侧实现）
     ("flow-mirror-sign", "ame416_sign = (ame_horizontal && _ame_mirrored)" in flow_code),
@@ -502,6 +519,14 @@ if "--selftest" in sys.argv:
            "ame414_f.layer.zPosition" not in skinview_code.replace("ame414_f.layer.zPosition", "/*depth-erased*/"))   # ★Task414 S-C20：深度排序抹除变体 → C20 必翻红
     rcheck("S-C19", skinview_code.replace(") - 16.0;", ") + 16.0;"),
            ") + 16.0;" in skinview_code.replace(") - 16.0;", ") + 16.0;"))   # ★Task416 S-C19：模型 y=16 居中翻转回潮变体 → C19 必翻红
+    # ★Task417 S-C22：第二层装配抹除变体 → C21 overlay-inflate 必翻红
+    rcheck("S-C22a", skinview_code.replace("ame416_p[3] + 1.0, ame416_p[4] + 1.0, ame416_p[5] + 1.0",
+                                           "ame416_p[3], ame416_p[4], ame416_p[5]"),
+           "ame416_p[3] + 1.0" not in skinview_code.replace("ame416_p[3] + 1.0, ame416_p[4] + 1.0, ame416_p[5] + 1.0",
+                                                            "ame416_p[3], ame416_p[4], ame416_p[5]"))
+    # ★Task417 S-C22：真壳预览抹除变体 → C21 real-shell-host 必翻红
+    rcheck("S-C22b", preview_code.replace("ame417_buildRealShell", "ame417_goneShell"),
+           "ame417_buildRealShell" not in preview_code.replace("ame417_buildRealShell", "ame417_goneShell"))
     # ★Task415 S-C21 → ★Task416 重锚：CPU 投影旁路回潮变体（sublayerTransform
     #    m34 复活 = 透视双源）→ C21 必翻红
     rcheck("S-C21", skinview_code.replace("_ame413_stageView.layer.sublayerTransform = CATransform3DIdentity;",

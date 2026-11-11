@@ -144,6 +144,28 @@ static const ZL2SkinViewRect ZL2SkinViewRLegFaces[6] = {
 static const ZL2SkinViewRect ZL2SkinViewLLegFaces[6] = {
     {20, 52, 4, 12}, {28, 52, 4, 12}, {16, 52, 4, 12}, {24, 52, 4, 12}, {20, 48, 4, 4}, {24, 48, 4, 4}};
 
+// ★Task417 第二层 UV（skinview3d outerLayer 同源）：帽 = 头区块 x+32；
+// 衣 = 身区块 y+16；右袖 = 右臂区块 y+16；左袖 = 左臂区块 x+16；
+// 右裤 = 右腿区块 y+16；左裤 = (0,48) 独立区块；slim 前后/上下 3 宽同基础层。
+// 64×32 旧版：帽/衣/右袖/右裤区块在（32..64,0..16）/（16..32,32..48）等带内存在；
+// 左袖/左裤区块不存在 = 镜像右区（与基础层 legacy 分支同口径）。
+static const ZL2SkinViewRect ZL2SkinViewHatFaces[6] = {
+    {40, 8, 8, 8}, {56, 8, 8, 8}, {32, 8, 8, 8}, {48, 8, 8, 8}, {40, 0, 8, 8}, {48, 0, 8, 8}};
+static const ZL2SkinViewRect ZL2SkinViewJacketFaces[6] = {
+    {20, 36, 8, 12}, {32, 36, 8, 12}, {16, 36, 4, 12}, {28, 36, 4, 12}, {20, 32, 8, 4}, {28, 32, 8, 4}};
+static const ZL2SkinViewRect ZL2SkinViewRSleeveFaces[6] = {
+    {44, 36, 4, 12}, {52, 36, 4, 12}, {40, 36, 4, 12}, {48, 36, 4, 12}, {44, 32, 4, 4}, {48, 32, 4, 4}};
+static const ZL2SkinViewRect ZL2SkinViewLSleeveFaces[6] = {
+    {52, 52, 4, 12}, {60, 52, 4, 12}, {48, 52, 4, 12}, {56, 52, 4, 12}, {52, 48, 4, 4}, {56, 48, 4, 4}};
+static const ZL2SkinViewRect ZL2SkinViewRPantFaces[6] = {
+    {4, 36, 4, 12}, {12, 36, 4, 12}, {0, 36, 4, 12}, {8, 36, 4, 12}, {4, 32, 4, 4}, {8, 32, 4, 4}};
+static const ZL2SkinViewRect ZL2SkinViewLPantFaces[6] = {
+    {4, 52, 4, 12}, {12, 52, 4, 12}, {0, 52, 4, 12}, {8, 52, 4, 12}, {4, 48, 4, 4}, {8, 48, 4, 4}};
+static const ZL2SkinViewRect ZL2SkinViewRSleeveSlimFaces[6] = {
+    {44, 36, 3, 12}, {51, 36, 3, 12}, {40, 36, 4, 12}, {48, 36, 4, 12}, {44, 32, 3, 4}, {47, 32, 3, 4}};
+static const ZL2SkinViewRect ZL2SkinViewLSleeveSlimFaces[6] = {
+    {52, 52, 3, 12}, {59, 52, 3, 12}, {48, 52, 4, 12}, {56, 52, 4, 12}, {52, 48, 3, 4}, {55, 48, 3, 4}};
+
 // 区块裁贴子图（皮肤为 64×64 / 64×32 / HD 等比；裁剪矩形越界自动求交防炸）
 static UIImage *ZL2SkinViewFaceImage(UIImage *skin, ZL2SkinViewRect r) {
     if (!skin.CGImage) return nil;
@@ -1326,10 +1348,35 @@ static void ZL2SkinViewBuildPart(CALayer *ame413_parent,
                              ame416_faceTables[ame413_i], ame413_unit, skin,
                              _ame413_faceLayers);
     }
+
+    // ★Task417 第二层（skinview3d outerLayer 移植：帽/衣/袖/裤）：盒体每边
+    //   +0.5 = 全维 +1.0（帽 9³/衣 9×13×5，skinview3d inflate 0.5 逐值同源）；
+    //   同枢轴同摆动符号（袖随臂/裤随腿）；UV = 标准外层区块；发量/帽饰等
+    //   镂空由皮肤纹理 alpha 通道经 CALayer 内容合成天然呈现；画家序 =
+    //   相机 z（帽前 4.5 > 头前 4 / 帽后 −4.5 < 头后 −4，遮挡序自动正确）；
+    //   legacy 64×32：左袖/左裤区块不存在 = 镜像右区（与基础层同口径）。
+    const ZL2SkinViewRect *ame417_rSleeveF = _ame413_slimModel ? ZL2SkinViewRSleeveSlimFaces : ZL2SkinViewRSleeveFaces;
+    const ZL2SkinViewRect *ame417_lSleeveF = ame413_legacy ? ame417_rSleeveF
+                                         : (_ame413_slimModel ? ZL2SkinViewLSleeveSlimFaces : ZL2SkinViewLSleeveFaces);
+    const ZL2SkinViewRect *ame417_lPantF = ame413_legacy ? ZL2SkinViewRPantFaces : ZL2SkinViewLPantFaces;
+    const ZL2SkinViewRect *ame417_overlayTables[6] = {
+        ZL2SkinViewHatFaces, ZL2SkinViewJacketFaces,
+        ame417_rSleeveF, ame417_lSleeveF,
+        ZL2SkinViewRPantFaces, ame417_lPantF,
+    };
+    for (NSInteger ame413_i = 0; ame413_i < 6; ame413_i++) {
+        CGFloat *ame416_p = ame416_parts[ame413_i];
+        ZL2SkinViewBuildPart(ame413_stage,
+                             ame416_p[0], ame416_p[1], ame416_p[2],
+                             ame416_p[3] + 1.0, ame416_p[4] + 1.0, ame416_p[5] + 1.0,
+                             ame416_p[6], ame416_p[7], ame416_p[8], ame416_p[9],
+                             ame417_overlayTables[ame413_i], ame413_unit, skin,
+                             _ame413_faceLayers);
+    }
     [self ame413_updateModelTransform];
-    // ★Task416 装配诊断（冒烟 console/预览日志可视：面数应恒 36，非 36 =
-    //   装配残缺；unit/舞台尺寸异常 = 布局面问题，不再盲修）
-    NSLog(@"[ZL2SkinPreview] Task416: skin=%gx%g stage=%.0fx%.0f unit=%.2f faces=%lu slim=%d walk=%d",
+    // ★Task417 装配诊断（冒烟 console/预览日志可视：面数应恒 72（36 基础
+    //   + 36 第二层），非 72 = 装配残缺；unit/舞台尺寸异常 = 布局面问题）
+    NSLog(@"[ZL2SkinPreview] Task417: skin=%gx%g stage=%.0fx%.0f unit=%.2f faces=%lu slim=%d walk=%d",
           skin.size.width, skin.size.height, _ame413_stageView.bounds.size.width,
           _ame413_stageView.bounds.size.height, ame413_unit,
           (unsigned long)_ame413_faceLayers.count, _ame413_slimModel, _ame414_walkOn);
