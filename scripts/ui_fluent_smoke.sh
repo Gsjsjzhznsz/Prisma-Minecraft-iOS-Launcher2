@@ -249,7 +249,16 @@ PLIST
   local p page_launch_out
   for p in "${pages[@]}"; do
     xcrun simctl terminate "$device" com.prisma-devs.ame-fluent-preview >/dev/null 2>&1 || true
-    if page_launch_out="$(xcrun simctl launch "$device" com.prisma-devs.ame-fluent-preview -zl2page "$p" 2>&1)"; then
+    # ★Task418-r5：accounts 腿 console-pty 直捕（[Ame418] shell-side 帧报告 =
+    #   行高 74 数值仲裁入产物；其余页维持无采捕快路径）
+    local ame418_conpid=""
+    if [[ "$p" == "accounts" ]]; then
+      xcrun simctl launch --console-pty "$device" com.prisma-devs.ame-fluent-preview -zl2page "$p" > "$OUT/console-iphone-$p.log" 2>&1 &
+      ame418_conpid=$!
+    fi
+    if [[ -n "${ame418_conpid:-}" ]]; then
+      sleep 4
+    elif page_launch_out="$(xcrun simctl launch "$device" com.prisma-devs.ame-fluent-preview -zl2page "$p" 2>&1)"; then
       echo "  启动 OK[$p]: $page_launch_out"
     else
       echo "✗ 启动失败[$p]: $page_launch_out"
@@ -304,6 +313,13 @@ PLIST
     xcrun simctl io "$device" screenshot "$OUT/ame-zl2-$p-dark.png" >/dev/null 2>&1 \
       && ame418_orient_landscape "$OUT/ame-zl2-$p-dark.png" \
       && echo "  ✓ 截图[$p/深色]: $OUT/ame-zl2-$p-dark.png"
+    # ★Task418-r5：accounts 采捕进程用毕即收（pty 悬挂 = job 墙钟 cancelled
+    #   r1 判例同源）
+    if [[ -n "${ame418_conpid:-}" ]]; then
+      kill "$ame418_conpid" 2>/dev/null || true
+      wait "$ame418_conpid" 2>/dev/null || true
+      echo "  ✓ console[iphone/$p]: $OUT/console-iphone-$p.log"
+    fi
     xcrun simctl ui "$device" appearance light >/dev/null 2>&1 || true
   done
 
@@ -406,14 +422,21 @@ PLIST
   fi
   local ame418_ipad_created=0
   if [[ -n "${ame418_dt:-}" ]]; then
-    ipad_udid="$(xcrun simctl create "Ame418 iPad Wide" "$ame418_dt" \
-        "com.apple.CoreSimulator.SimRuntime.iOS-18-6" 2>"$OUT/ame418_ipad_create.log" || true)"
-    if [[ -n "${ipad_udid:-}" ]]; then
-      ame418_ipad_created=1
-      echo "  iPad Wide created: $ipad_udid ($ame418_dt)"
-    else
-      echo "  ⚠ iPad Wide 创建失败（$ame418_dt）: $(head -c 200 "$OUT/ame418_ipad_create.log" 2>/dev/null || true)"
-    fi
+    # ★r5：create 失败时错误文本打在 stdout（r4 实锤被当 UDID 用）→ 输出
+    #   必过 UUID 校验才收；M4 系优先（M5/16GB 不兼容 iOS 18.6 = r4 实锤）
+    local ame418_dt_try=""
+    for ame418_dt_try in iPad-Pro-13-inch-M4 iPad-Pro-11-inch-M4 iPad-Pro-12-9-inch-6th-generation iPad-Pro-11-inch-4th-generation iPad-Air-11-inch-M2 iPad-Air-5th-generation; do
+      ipad_udid="$(xcrun simctl create "Ame418 iPad Wide" \
+          "com.apple.CoreSimulator.SimDeviceType.${ame418_dt_try}" \
+          "com.apple.CoreSimulator.SimRuntime.iOS-18-6" 2>"$OUT/ame418_ipad_create.log" || true)"
+      if [[ "${ipad_udid:-}" =~ ^[0-9A-F]{8}-[0-9A-F]{4}-[0-9A-F]{4}-[0-9A-F]{4}-[0-9A-F]{12}$ ]]; then
+        ame418_ipad_created=1
+        echo "  iPad Wide created: $ipad_udid ($ame418_dt_try)"
+        break
+      fi
+      ipad_udid=""
+    done
+    [[ "$ame418_ipad_created" != "1" ]] && echo "  ⚠ iPad Wide 创建失败（所有 devicetype 候选，末错: $(head -c 160 "$OUT/ame418_ipad_create.log" 2>/dev/null || true)）"
   fi
   if [[ -z "${ipad_udid:-}" ]]; then
   ipad_udid="$(xcrun simctl list devices available 2>/dev/null | awk '
