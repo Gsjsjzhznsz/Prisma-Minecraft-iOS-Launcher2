@@ -1636,17 +1636,8 @@ typedef NS_ENUM(NSInteger, MultiplayerVCMode) {
 }
 @end
 
-// ZL2VersionIndex（壳 viewDidLoad warmUp 预热；启动链版本索引服务）
-@interface ZL2VersionIndex : NSObject
-+ (instancetype)sharedIndex;
-- (void)warmUp;
-@end
-@implementation ZL2VersionIndex
-+ (instancetype)sharedIndex {
-    static ZL2VersionIndex *s = nil;
-    static dispatch_once_t onceToken;
-    dispatch_once(&onceToken, ^{ s = [[ZL2VersionIndex alloc] init]; });
-    return s;
-}
-- (void)warmUp { NSLog(@"[AmeFluentPreview] stub ZL2VersionIndex warmUp"); }
-@end
+// ★Task417 注记：ZL2VersionIndex 桩已在此前轮次落地（上 L1365，主实现四方法
+//   含 warmUp/refresh/remoteVersionsWithCompletion:）——真壳链本轮补的
+//   Multiplayer/FolderBrowser/AI 三桩如上，ZL2VersionIndex 不再重复（run
+//   43036193733 duplicate @interface/@implementation 判例：追加桩前先
+//   grep 既有类清单）。
