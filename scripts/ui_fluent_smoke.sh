@@ -390,10 +390,17 @@ PLIST
   #    ——本轮起 iPad 可用即跑（无可回退跳过，不阻塞门禁）：真壳折叠/展开 +
   #    探针页 + 账户页（写实皮+帽层 3D）四张 iPad 尺寸图 = 尺寸类对勘证据链──
   local ipad_udid=""
-  # ★Task418-r2 iPad 选型钉 iOS 18 runtime：iOS 26 sim 新窗口化系统把
-  #   仅横屏 app 窗口化 480×320（scene 横/设备不转，canvas 旋转救不了窗口
-  #   内内容 = r1 四图侧躺+窗化实锤）；iOS 18 全屏旋转语义与真机一致。
-  #   优先级：iOS 1x 块 iPad > 非 26 块 iPad > 兜底首个 iPad。
+  # ★Task418-r2/r3 iPad 选型：iOS 26 sim 新窗口化系统把仅横屏 app 窗口化
+  #   480×320（scene 横/设备不转，canvas 旋转救不了窗口内内容 = r1/r2 四图
+  #   侧躺+窗化实锤，宽幅 ≥880 从未覆盖）；macos-15 镜像 iPad 只存在于 26
+  #   runtime → ★r3 simctl create 现造 iOS 18.6 iPad Pro 12.9（1366×1024pt，
+  #   横屏 frame 1262 ≥ 880 = 宽幅 studio+多行首次真覆盖），失败回落选型器。
+  ipad_udid="$(xcrun simctl create "Ame418 iPad Wide" \
+      "com.apple.CoreSimulator.SimDeviceType.iPad-Pro-12-9-inch-6th-generation" \
+      "com.apple.CoreSimulator.SimRuntime.iOS-18-6" 2>/dev/null || true)"
+  local ame418_ipad_created=0
+  [[ -n "${ipad_udid:-}" ]] && ame418_ipad_created=1
+  if [[ -z "${ipad_udid:-}" ]]; then
   ipad_udid="$(xcrun simctl list devices available 2>/dev/null | awk '
     /^--/ { rt=$0; next }
     /iPad/ {
@@ -405,11 +412,12 @@ PLIST
     }
     END { if (!found && alt != "") print alt }
   ' | head -1)"
+  fi
   if [[ -n "${ipad_udid:-}" ]]; then
     echo "== iPad leg (UDID: ${ipad_udid}) =="   # ★Task417-r4：纯 ASCII 边界（macOS bash 3.2 多字节名吞并雷：$var）全角）中被吞入变量名 = unbound 假象）
     xcrun simctl boot "$ipad_udid" 2>/dev/null || true
     xcrun simctl bootstatus "$ipad_udid" -b >/dev/null 2>&1 || true
-    xcrun simctl install "$ipad_udid" "$app" || { echo "✗ iPad 安装失败（iPad 腿跳过，不阻塞）"; return; }
+    xcrun simctl install "$ipad_udid" "$app" || { echo "✗ iPad 安装失败（iPad 腿跳过，不阻塞）"; xcrun simctl delete "$ipad_udid" 2>/dev/null || true; return; }
     local ip
     for ip in "real-collapsed:home -zl2shell real" \
               "real-expanded:home -zl2shell real -zl2pane expanded" \
@@ -433,6 +441,12 @@ PLIST
     done
     xcrun simctl ui "$ipad_udid" appearance light >/dev/null 2>&1 || true
     xcrun simctl terminate "$ipad_udid" com.prisma-devs.ame-fluent-preview >/dev/null 2>&1 || true
+    xcrun simctl shutdown "$ipad_udid" >/dev/null 2>&1 || true
+    # ★Task418-r3：本轮现造的设备用毕即删（runner 不留残骸；选型器路径的
+    #   预置设备不动）
+    if [[ "$ame418_ipad_created" == "1" ]]; then
+      xcrun simctl delete "$ipad_udid" >/dev/null 2>&1 || true
+    fi
   else
     echo "  ⚠ 无可用 iPad 模拟器（iPad 腿跳过）"
   fi
