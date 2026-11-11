@@ -394,7 +394,7 @@ BOOL ZL2AccountsSharedIsThirdParty(NSDictionary *accountData) {
         ame418_lastLog = ame418_now;
         NSMutableArray<NSString *> *ame418_rowHeights = [NSMutableArray array];
         for (UIView *ame418_row in self.rowsStack.arrangedSubviews) {
-            [ame418_rowHeights appendFormat:@"%.1f", ame418_row.frame.size.height];
+            [ame418_rowHeights addObject:[NSString stringWithFormat:@"%.1f", ame418_row.frame.size.height]];
         }
         NSLog(@"[Ame418] acct frames: view=%.0fx%.0f frameW=%.0f identity=%.1f add=%.1f rowsStack=%.1f studio=%d rows=[%@]",
               self.view.bounds.size.width, self.view.bounds.size.height,
