@@ -1578,6 +1578,14 @@ NSString * const DownloadTaskResourceTypeModpack = @"modpack";
 //   手写同名类声明 + 最小真签名实现，不 import 真头，运行时动态绑定）。
 //   真 ZL2VersionDetailViewController 桩在先（Task413 轮，initWithProfileName:）。
 
+// ★Task417-r2：真壳 viewDidLoad 链接面补桩（run 43039148784 Undefined
+//   symbols _ame230_setViewTreeStrokeExempt 判例——BackgroundManager.m 不在
+//   preview TU 集，按本 TU 家法最小真签名空实现；壁纸描边豁免在预览链无
+//   壁纸管线 = 恒空安全）
+void ame230_setViewTreeStrokeExempt(UIView *view, BOOL exempt) {
+    (void)view; (void)exempt;
+}
+
 // MultiplayerViewController（壳页槽 5 = 多人联机；MultiplayerVCModeLauncher）
 typedef NS_ENUM(NSInteger, MultiplayerVCMode) {
     MultiplayerVCModeLauncher = 0,
