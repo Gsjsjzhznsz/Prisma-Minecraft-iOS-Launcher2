@@ -383,27 +383,34 @@ BOOL ZL2AccountsSharedIsThirdParty(NSDictionary *accountData) {
 }
 
 // ★Task414 切幅派发（工作室卡可见阈值 880：主列 520 + 工作室 320 + 边距缝）
+// ★Task418 帧诊断报告（.h 契约；viewDidLayoutSubviews 节流日志与壳侧直读共用）
+- (NSString *)ame418_frameReport {
+    NSMutableArray<NSString *> *ame418_rowHeights = [NSMutableArray array];
+    for (UIView *ame418_row in self.rowsStack.arrangedSubviews) {
+        [ame418_rowHeights addObject:[NSString stringWithFormat:@"%.1f", ame418_row.frame.size.height]];
+    }
+    return [NSString stringWithFormat:
+        @"view=%.0fx%.0f frameW=%.0f identity=%.1f add=%.1f rowsStack=%.1f studio=%d rows=[%@]",
+        self.view.bounds.size.width, self.view.bounds.size.height,
+        self.scrollView.frameLayoutGuide.layoutFrame.size.width,
+        self.identityCard.frame.size.height,
+        self.addAccountButton.frame.size.height,
+        self.rowsStack.frame.size.height,
+        _ame414_studioVisible,
+        [ame418_rowHeights componentsJoinedByString:@","]];
+}
+
 - (void)viewDidLayoutSubviews {
     [super viewDidLayoutSubviews];
     [self ame414_relayoutStudioForWidth:self.scrollView.frameLayoutGuide.layoutFrame.size.width];
     // ★Task418 账户页帧诊断（行高 372 幻影拉伸的 CI 仲裁面：行应恒 74；
-    //   2s 节流防逐帧刷屏；CI console 采捕后与截图双证）
+    //   2s 节流防逐帧刷屏；CI console 采捕后与截图双证；壳侧另有 1.5s 延迟
+    //   ame418_frameReport 直读 = 主文件日志路径双保险）
     static NSTimeInterval ame418_lastLog = 0.0;
     NSTimeInterval ame418_now = [NSDate date].timeIntervalSince1970;
     if (ame418_now - ame418_lastLog >= 2.0) {
         ame418_lastLog = ame418_now;
-        NSMutableArray<NSString *> *ame418_rowHeights = [NSMutableArray array];
-        for (UIView *ame418_row in self.rowsStack.arrangedSubviews) {
-            [ame418_rowHeights addObject:[NSString stringWithFormat:@"%.1f", ame418_row.frame.size.height]];
-        }
-        NSLog(@"[Ame418] acct frames: view=%.0fx%.0f frameW=%.0f identity=%.1f add=%.1f rowsStack=%.1f studio=%d rows=[%@]",
-              self.view.bounds.size.width, self.view.bounds.size.height,
-              self.scrollView.frameLayoutGuide.layoutFrame.size.width,
-              self.identityCard.frame.size.height,
-              self.addAccountButton.frame.size.height,
-              self.rowsStack.frame.size.height,
-              _ame414_studioVisible,
-              [ame418_rowHeights componentsJoinedByString:@","]);
+        NSLog(@"[Ame418] acct frames: %@", [self ame418_frameReport]);
     }
 }
 

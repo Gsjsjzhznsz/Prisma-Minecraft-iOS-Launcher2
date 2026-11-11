@@ -447,6 +447,10 @@ ame378_c21 = [
     ("kvc-rotate", 'forKey:@"orientation"' in preview_raw),   # 横屏三件套③（UIDevice KVC）
     ("orient-helper", "ame418_orient_landscape" in smoke_raw),   # 截图自动正向（固定 -r 270 退役）
     ("smoke-ipad-pty", "console-ipad-$ip_name.log" in smoke_raw),   # iPad 腿 console-pty 直捕
+    ("smoke-ipad-ios18", "-- iOS 1[0-8]" in smoke_raw),   # ★r2 iPad 选型钉 iOS 18（26 窗口化 480x320 判例）
+    ("shell-side-report", "ame418_frameReport" in preview_code
+        and "- (NSString *)ame418_frameReport" in accounts_code
+        and "ame418_frameReport" in read("Natives/ZL2AccountsViewController.h")),   # ★r2 壳侧帧直读三面齐
     # ⑥ ★Task417 3D 第二层（skinview3d outerLayer 移植：帽/衣/袖/裤 +1.0 全维膨胀，
     #    同枢轴同摆动；legacy 左区镜像；alpha 镂空经 CALayer 内容合成）
     ("overlay-uv", "ZL2SkinViewHatFaces[6]" in skinview_code),

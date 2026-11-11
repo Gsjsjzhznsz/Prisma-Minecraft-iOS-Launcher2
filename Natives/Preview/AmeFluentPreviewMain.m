@@ -1204,6 +1204,22 @@ static void AmePreviewApplyFluentTokens(void) {
 
     self.currentIndex = index;
     [self ame414_refreshShellForIndex:index];
+
+    // ★Task418 账户页壳侧帧直读（装载后 1.5s = 首轮布局完成后）：主文件日志
+    //   路径双保险——r1 实锤 iOS 26 iPad 腿 ZL2AccountsViewController 文件侧
+    //   NSLog 零出现而页面已渲染（[ZL2SkinPreview] 同缺），壳侧读数绕开该
+    //   采捕疑面；正式 app 不经此文件，零影响
+    if (index == 3) {
+        UINavigationController *ame418_acctNav = (UINavigationController *)next;
+        UIViewController *ame418_acct = ame418_acctNav.topViewController;
+        dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(1.5 * NSEC_PER_SEC)),
+                       dispatch_get_main_queue(), ^{
+            if ([ame418_acct isKindOfClass:[ZL2AccountsViewController class]]) {
+                NSLog(@"[Ame418] shell-side report: %@",
+                      [(ZL2AccountsViewController *)ame418_acct ame418_frameReport]);
+            }
+        });
+    }
 }
 
 @end

@@ -390,7 +390,21 @@ PLIST
   #    ——本轮起 iPad 可用即跑（无可回退跳过，不阻塞门禁）：真壳折叠/展开 +
   #    探针页 + 账户页（写实皮+帽层 3D）四张 iPad 尺寸图 = 尺寸类对勘证据链──
   local ipad_udid=""
-  ipad_udid="$(xcrun simctl list devices available 2>/dev/null | grep 'iPad' | grep -oE '[0-9A-F-]{36}' | head -1 || true)"
+  # ★Task418-r2 iPad 选型钉 iOS 18 runtime：iOS 26 sim 新窗口化系统把
+  #   仅横屏 app 窗口化 480×320（scene 横/设备不转，canvas 旋转救不了窗口
+  #   内内容 = r1 四图侧躺+窗化实锤）；iOS 18 全屏旋转语义与真机一致。
+  #   优先级：iOS 1x 块 iPad > 非 26 块 iPad > 兜底首个 iPad。
+  ipad_udid="$(xcrun simctl list devices available 2>/dev/null | awk '
+    /^--/ { rt=$0; next }
+    /iPad/ {
+      if (match($0, /[0-9A-F]{8}-[0-9A-F]{4}-[0-9A-F]{4}-[0-9A-F]{4}-[0-9A-F]{12}/)) {
+        udid = substr($0, RSTART, RLENGTH)
+        if (rt ~ /-- iOS 1[0-8]/ && !found) { print udid; found = 1; exit }
+        if (alt == "" && rt !~ /-- iOS 26/) alt = udid
+      }
+    }
+    END { if (!found && alt != "") print alt }
+  ' | head -1)"
   if [[ -n "${ipad_udid:-}" ]]; then
     echo "== iPad leg (UDID: ${ipad_udid}) =="   # ★Task417-r4：纯 ASCII 边界（macOS bash 3.2 多字节名吞并雷：$var）全角）中被吞入变量名 = unbound 假象）
     xcrun simctl boot "$ipad_udid" 2>/dev/null || true
@@ -407,12 +421,15 @@ PLIST
       # ★Task418：console-pty 直捕（[Ame418] 帧诊断/scene bounds/[ZL2SkinPreview]
       #   装配读数落盘 = 截图+数值双证；Task417-r5 真壳腿判例同款）
       xcrun simctl launch --console-pty "$ipad_udid" com.prisma-devs.ame-fluent-preview -zl2page $ip_args > "$OUT/console-ipad-$ip_name.log" 2>&1 &
+      local ame418_ptypid=$!   # ★Task418-r2：pty 后台进程截后必 kill（r1 实锤：四条 pty 悬挂持住 job → 25min 墙钟 cancelled，脚本本体其实全 success）
       sleep 5
       xcrun simctl ui "$ipad_udid" appearance dark >/dev/null 2>&1 || true
       sleep 2
       xcrun simctl io "$ipad_udid" screenshot "$OUT/ame-zl2-$ip_name-ipad-dark.png" >/dev/null 2>&1 \
         && ame418_orient_landscape "$OUT/ame-zl2-$ip_name-ipad-dark.png" \
         && echo "  ✓ 截图[ipad/$ip_name]: $OUT/ame-zl2-$ip_name-ipad-dark.png"   # ★Task418 固定 -r 270 退役（自动正向：真横屏 canvas 不动/竖 canvas 转正）
+      kill "$ame418_ptypid" 2>/dev/null || true
+      wait "$ame418_ptypid" 2>/dev/null || true
     done
     xcrun simctl ui "$ipad_udid" appearance light >/dev/null 2>&1 || true
     xcrun simctl terminate "$ipad_udid" com.prisma-devs.ame-fluent-preview >/dev/null 2>&1 || true

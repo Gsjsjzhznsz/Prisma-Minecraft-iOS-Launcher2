@@ -48,6 +48,11 @@ NS_ASSUME_NONNULL_BEGIN
 /// 触发；壳侧亦可手动调用）
 - (void)reloadAccounts;
 
+/// ★Task418 帧诊断报告（行高等式 74 的 CI 仲裁面）：返回视觉卡/添加钮/
+/// 行栈/各行帧高单行摘要（壳侧装载后延迟直读 = 主文件日志路径双保险，
+/// r1 实锤：iOS 26 iPad 腿 VC 文件侧 NSLog 零出现而页面已渲染）
+- (NSString *)ame418_frameReport;
+
 @end
 
 NS_ASSUME_NONNULL_END
