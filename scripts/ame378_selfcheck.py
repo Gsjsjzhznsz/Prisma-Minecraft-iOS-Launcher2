@@ -452,6 +452,10 @@ ame378_c21 = [
     ("stub-shell-symbols", all(s in stub_raw for s in (
         "MultiplayerViewController", "FolderBrowserViewController",
         "AIViewController", "AiSessionStore", "ZL2VersionIndex"))),
+    # ⑧ ★Task417-r5 过约束根修（紧凑行 52 = 14+24+14+12 = 64 > 52：隐藏标签链
+    #    压图标到 12×12 → 字形 10pt = 真机四轮「图标被压缩」总根源）
+    ("label-chain-999", "_ame417_labelLead.priority = 999" in shell_code
+        and "_ame417_labelTrail.priority = 999" in shell_code),
     # ④ ★Task416 转盘镜像定谳：极性回归（右停靠=原生/左停靠=镜像）+ 镜像
     #    几何下拖动/甩向符号同步翻转（恒指随的镜像侧实现）
     ("flow-mirror-sign", "ame416_sign = (ame_horizontal && _ame_mirrored)" in flow_code),
@@ -527,6 +531,9 @@ if "--selftest" in sys.argv:
     # ★Task417 S-C22：真壳预览抹除变体 → C21 real-shell-host 必翻红
     rcheck("S-C22b", preview_code.replace("ame417_buildRealShell", "ame417_goneShell"),
            "ame417_buildRealShell" not in preview_code.replace("ame417_buildRealShell", "ame417_goneShell"))
+    # ★Task417 S-C22c：标签链回潮 required 变体 → C21 label-chain-999 必翻红
+    rcheck("S-C22c", shell_code.replace("_ame417_labelLead.priority = 999;", "_ame417_labelLead.priority = 1000;"),
+           "_ame417_labelLead.priority = 999" not in shell_code.replace("_ame417_labelLead.priority = 999;", "_ame417_labelLead.priority = 1000;"))
     # ★Task415 S-C21 → ★Task416 重锚：CPU 投影旁路回潮变体（sublayerTransform
     #    m34 复活 = 透视双源）→ C21 必翻红
     rcheck("S-C21", skinview_code.replace("_ame413_stageView.layer.sublayerTransform = CATransform3DIdentity;",

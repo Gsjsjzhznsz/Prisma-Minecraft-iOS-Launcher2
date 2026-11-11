@@ -187,6 +187,7 @@ preview_mode() {
   <key>CFBundleDevelopmentRegion</key><string>zh_CN</string>
   <key>MinimumOSVersion</key><string>14.0</string>
   <key>UILaunchScreen</key><dict/>
+  <key>UIRequiresFullScreen</key><true/>
   <key>UISupportedInterfaceOrientations</key>
   <array>
     <string>UIInterfaceOrientationPortrait</string>
@@ -345,20 +346,22 @@ PLIST
   #    fui 四族令牌真路径，折叠态（真机用户口径）——CI 截图从此验证真壳
   #    真字形管线（403/405/412/413 四轮修复首次可被截图仲裁）──
   xcrun simctl terminate "$device" com.prisma-devs.ame-fluent-preview >/dev/null 2>&1 || true
-  if page_launch_out="$(xcrun simctl launch "$device" com.prisma-devs.ame-fluent-preview -zl2page home -zl2shell real 2>&1)"; then
-    echo "  启动 OK[real/home]: $page_launch_out"
-  else
-    echo "✗ 启动失败[real/home]: $page_launch_out"
-    FAIL=1
-    return
-  fi
-  sleep 5
+  # ★Task417-r5：console-pty 直捕真壳 stdout/stderr（log show 漏采判例：
+  #   run 169/170/171 三轮 [Ame417] shell 行均未入 sim 日志库，唯探针行入
+  #   = 采样不可靠；console-pty 直捕 = 取证通道确定性，Task414 崩溃取证
+  #   同款通道）
+  xcrun simctl launch --console-pty "$device" com.prisma-devs.ame-fluent-preview -zl2page home -zl2shell real > "$OUT/console-real.log" 2>&1 &
+  local realpid=$!
+  sleep 6
   xcrun simctl ui "$device" appearance dark >/dev/null 2>&1 || true
   sleep 2
   xcrun simctl io "$device" screenshot "$OUT/ame-zl2-real-nav-home-dark.png" >/dev/null 2>&1 \
     && sips -r 270 "$OUT/ame-zl2-real-nav-home-dark.png" >/dev/null 2>&1 \
     && echo "  ✓ 截图[real/home/fluent-dark]: $OUT/ame-zl2-real-nav-home-dark.png"
   xcrun simctl ui "$device" appearance light >/dev/null 2>&1 || true
+  grep -aE "Ame417|Ame404|Ame388" "$OUT/console-real.log" | head -8 || true
+  kill "$realpid" 2>/dev/null || true
+  wait "$realpid" 2>/dev/null || true
   # [Ame417]/[ZL2SkinPreview] 日志取证（真类字形读数 + 3D 装配面数数值直出）
   xcrun simctl spawn "$device" log show --last 12m --style compact \
     --predicate 'eventMessage CONTAINS "Ame417" OR eventMessage CONTAINS "ZL2SkinPreview" OR eventMessage CONTAINS "Ame404"' \

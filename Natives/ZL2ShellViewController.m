@@ -388,6 +388,8 @@ static UIImage *ZL2ShellSystemImageSizedEx(NSString *name, NSString *fallback, C
 @property(nonatomic, strong) UILabel *label;
 @property(nonatomic, strong) NSLayoutConstraint *ame376_iconLeading; // ★ Task376：紧凑态图标居中驱动
 @property(nonatomic, strong) NSLayoutConstraint *ame402_iconSize;    // ★Task402/411：图标宽常量（恒定 38pt 全状态，高度独立常量零耦合）
+@property(nonatomic, strong) NSLayoutConstraint *ame417_labelLead;   // ★Task417：标签 leading（999 可破——紧凑行过约束根修，见 init 注）
+@property(nonatomic, strong) NSLayoutConstraint *ame417_labelTrail;  // ★Task417：标签 trailing（999 可破，同上）
 @property(nonatomic, copy) NSString *ame403_symbolName;     // ★ Task403：符号名留档（折叠/展开切换时按点数重生成字形）
 @property(nonatomic, copy) NSString *ame403_fallbackName;   // ★ Task403：兜底符号名（同上）
 @property(nonatomic, assign) CGFloat ame405_glyphBBox;  // ★Task405：最近一次字形实测包围盒（pt）
@@ -455,13 +457,27 @@ static UIImage *ZL2ShellSystemImageSizedEx(NSString *name, NSString *fallback, C
         //   零压缩自由度（任何邻居约束都无权压缩/拉伸图标盒）
         _ame402_iconSize = [_iconView.widthAnchor constraintEqualToConstant:24.0];
         [_ame402_iconSize setActive:YES];
+        // ★Task417 过约束根修（真机四轮「图标被压缩」+ run 169/171 CI 真壳
+        //   10.3pt 复现的总根源）：紧凑行宽 52 = 图标 leading 14 + 盒 24 +
+        //   标签 gap 14 + 标签 trailing 12 = 64 > 52 —— 隐藏标签的
+        //   leading(=icon.trailing+14) + trailing(≤−12) 双 required 与
+        //   图标盒 24 过约束，引擎为满足标签链把图标压到 52−14−14−12 =
+        //   12×12（29 × 12/34.7 = 10.03pt = IMG_0611 真机 10pt 像素精确
+        //   吻合）；探针行 64 宽有余量、镜像无标签 = 两处永不复现的保真
+        //   库缺口。修 = 标签 leading/trailing 降 999：可见态（展开 280 宽
+        //   行余量充足）永不破 → 零视觉变化；紧凑态（标签隐藏）→ 引擎破
+        //   标签链，图标盒 24 安然（Task411 四轴 required 真正生效）。
+        _ame417_labelLead = [_label.leadingAnchor constraintEqualToAnchor:_iconView.trailingAnchor constant:14.0];
+        _ame417_labelLead.priority = 999;
+        _ame417_labelTrail = [_label.trailingAnchor constraintLessThanOrEqualToAnchor:self.trailingAnchor constant:-12.0];
+        _ame417_labelTrail.priority = 999;
         [ame376_itemConstraints addObjectsFromArray:@[
             [_iconView.centerYAnchor constraintEqualToAnchor:self.centerYAnchor],
             [_iconView.heightAnchor constraintEqualToConstant:24.0],
 
-            [_label.leadingAnchor constraintEqualToAnchor:_iconView.trailingAnchor constant:14.0],
+            _ame417_labelLead,
             [_label.centerYAnchor constraintEqualToAnchor:self.centerYAnchor],
-            [_label.trailingAnchor constraintLessThanOrEqualToAnchor:self.trailingAnchor constant:-12.0],
+            _ame417_labelTrail,
             [_label.heightAnchor constraintLessThanOrEqualToAnchor:self.heightAnchor],
 
             // ★Task410 行高 36→44：38pt 折叠图标容不下（44 = 38 + 上下各 3pt
