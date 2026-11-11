@@ -167,10 +167,15 @@ static const ZL2SkinViewRect ZL2SkinViewLSleeveSlimFaces[6] = {
     {52, 52, 3, 12}, {59, 52, 3, 12}, {48, 52, 4, 12}, {56, 52, 4, 12}, {52, 48, 3, 4}, {55, 48, 3, 4}};
 
 // 区块裁贴子图（皮肤为 64×64 / 64×32 / HD 等比；裁剪矩形越界自动求交防炸）
+// ★Task418 y 标度根修：旧 scaleY = height/64 把 64×32 旧皮的整张展开图压进
+//   上半带（scaleY=0.5）——所有区块读到错位像素：渐变皮看不出错位，但帽/衣/
+//   袖/裤外层区块（y≥32）必然映射到基础层手臂/腿像素 = 每个部位一套 +1 膨胀
+//   的「幽灵盒」= IMG_0619 真机实锤。正确口径：y 与 x 同标度（64×64→1.0 /
+//   64×32→1.0（旧版布局区块全在 y<32）/ HD→等比 width/64）。
 static UIImage *ZL2SkinViewFaceImage(UIImage *skin, ZL2SkinViewRect r) {
     if (!skin.CGImage) return nil;
     CGFloat ame413_scaleX = skin.size.width / 64.0;
-    CGFloat ame413_scaleY = skin.size.height / 64.0;
+    CGFloat ame413_scaleY = ame413_scaleX;   // ★Task418：y 同 x 标度（旧 height/64 退役）
     CGRect ame413_crop = CGRectMake(r.x * ame413_scaleX, r.y * ame413_scaleY,
                                     r.w * ame413_scaleX, r.h * ame413_scaleY);
     CGRect ame413_bounds = CGRectMake(0, 0,
@@ -1248,15 +1253,31 @@ static void ZL2SkinViewBuildPart(CALayer *ame413_parent,
         if (ame413_img) {
             ame413_face.contents = (id)ame413_img.CGImage;
             ame413_face.contentsGravity = kCAGravityResize;
+            // ★Task418 像素锐利：8×8 面纹理在真机 studio 幅面被放大 ~25×
+            //   （unit≈13 → 头前脸 102pt ≈ 204 物理 px），CALayer 默认线性
+            //   放大 = IMG_0619 雾化实锤；Nearest = skinview3d NearestFilter
+            //   同源口径（马赛克像素锐利，MC 观感）
+            ame413_face.magnificationFilter = kCAFilterNearest;
+            ame413_face.minificationFilter = kCAFilterNearest;
         } else {
             ame413_face.backgroundColor = [UIColor colorWithWhite:0.32 alpha:1.0].CGColor;   // 占位灰面
         }
         // 光影罩（面内容之上，opacity 逐帧 = 1−shade；CALayer 无
         //   userInteractionEnabled 属性（UIView 专属）= run 42640992511 判例）
+        //   ★Task418 罩层 alpha 掩膜：外层面纹理透明区不再被黑罩漏染
+        //   （IMG_0619 每部位幽灵暗盒实锤之二：shade 是不透明黑子层，外层
+        //   透明皮像素区照样被罩黑 = 半透明暗雾盒）。掩膜 = 面纹理自身
+        //   alpha 通道；基础层（不透明皮）掩膜全不透 = 视觉零变化。
         CALayer *ame414_shade = [CALayer layer];
         ame414_shade.frame = ame413_face.bounds;
         ame414_shade.backgroundColor = [UIColor blackColor].CGColor;
         ame414_shade.opacity = 0.0;
+        if (ame413_img) {
+            CALayer *ame418_shadeMask = [CALayer layer];
+            ame418_shadeMask.frame = ame414_shade.bounds;
+            ame418_shadeMask.contents = (id)ame413_img.CGImage;
+            ame414_shade.mask = ame418_shadeMask;
+        }
         [ame413_face addSublayer:ame414_shade];
         [ame413_parent addSublayer:ame413_face];
 
@@ -1364,7 +1385,11 @@ static void ZL2SkinViewBuildPart(CALayer *ame413_parent,
         ame417_rSleeveF, ame417_lSleeveF,
         ZL2SkinViewRPantFaces, ame417_lPantF,
     };
-    for (NSInteger ame413_i = 0; ame413_i < 6; ame413_i++) {
+    // ★Task418 旧版诚实降级：64×32 只有帽外层区块（32..64,0..16）真实存在，
+    //   衣/袖/裤外层区块不存在（读到必是基础层像素 = 幽灵盒）；现代 64×64
+    //   六件全建（帽/衣/袖×2/裤×2）。
+    NSInteger ame418_overlayParts = ame413_legacy ? 1 : 6;
+    for (NSInteger ame413_i = 0; ame413_i < ame418_overlayParts; ame413_i++) {
         CGFloat *ame416_p = ame416_parts[ame413_i];
         ZL2SkinViewBuildPart(ame413_stage,
                              ame416_p[0], ame416_p[1], ame416_p[2],
@@ -1374,12 +1399,14 @@ static void ZL2SkinViewBuildPart(CALayer *ame413_parent,
                              _ame413_faceLayers);
     }
     [self ame413_updateModelTransform];
-    // ★Task417 装配诊断（冒烟 console/预览日志可视：面数应恒 72（36 基础
-    //   + 36 第二层），非 72 = 装配残缺；unit/舞台尺寸异常 = 布局面问题）
-    NSLog(@"[ZL2SkinPreview] Task417: skin=%gx%g stage=%.0fx%.0f unit=%.2f faces=%lu slim=%d walk=%d",
+    // ★Task418 装配诊断（冒烟 console/预览日志可视：现代皮面数应恒 72
+    //   （36 基础 + 36 第二层）/ 旧版 42（36 + 帽 6）；unit/舞台尺寸异常 =
+    //   布局面问题）
+    NSLog(@"[ZL2SkinPreview] Task418: skin=%gx%g stage=%.0fx%.0f unit=%.2f faces=%lu slim=%d walk=%d overlayParts=%ld",
           skin.size.width, skin.size.height, _ame413_stageView.bounds.size.width,
           _ame413_stageView.bounds.size.height, ame413_unit,
-          (unsigned long)_ame413_faceLayers.count, _ame413_slimModel, _ame414_walkOn);
+          (unsigned long)_ame413_faceLayers.count, _ame413_slimModel, _ame414_walkOn,
+          (long)ame418_overlayParts);
 }
 
 @end

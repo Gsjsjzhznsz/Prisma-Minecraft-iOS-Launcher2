@@ -37,6 +37,19 @@ ARCH="$(uname -m)"   # arm64（Apple Silicon runner）/ x86_64
 COMMON=(-fobjc-arc -I"$NATIVES" -isysroot "$SDK_SIM" -target "${ARCH}-apple-ios14.0-simulator")
 mkdir -p "$OUT"
 
+# ★Task418 截图自动正向（横屏三件套配套）：canvas 竖（高>宽）→ -r 270 转横
+#   （UI 已真横屏 = 转后正立）；canvas 已横 → 不动。取代 Task417 固定
+#   -r 270（UI 未转时制造假横屏 = iPad 四张侧躺图根因；真横屏后固定反转
+#   又会毁图）。Task417-r4 判例：全 ASCII 标识符（macOS bash 3.2 多字节雷）。
+ame418_orient_landscape() {
+  local ame418_img="$1" ame418_pw ame418_ph
+  ame418_pw="$(sips -g pixelWidth "$ame418_img" 2>/dev/null | awk '/pixelWidth/{print $2}')"
+  ame418_ph="$(sips -g pixelHeight "$ame418_img" 2>/dev/null | awk '/pixelHeight/{print $2}')"
+  if [[ "${ame418_pw:-0}" -gt 0 && "${ame418_ph:-0}" -gt "${ame418_pw:-0}" ]]; then
+    sips -r 270 "$ame418_img" >/dev/null 2>&1 || true
+  fi
+}
+
 # ─────────────────────────────────────────────────────────────
 # syntax 模式：迁移面语法门禁
 #   入选口径 = Natives/ 根目录 .m 且引用了 AmeTheme.h 或 Fluent* 组件
@@ -188,9 +201,10 @@ preview_mode() {
   <key>MinimumOSVersion</key><string>14.0</string>
   <key>UILaunchScreen</key><dict/>
   <key>UIRequiresFullScreen</key><true/>
+  <!-- ★Task418：摘除 Portrait（只横 = iPad 启动必横；Task417 四张 iPad 图
+       竖屏 + sips 反转假横屏的根因之一。仅 harness 生效，主 app 不在此） -->
   <key>UISupportedInterfaceOrientations</key>
   <array>
-    <string>UIInterfaceOrientationPortrait</string>
     <string>UIInterfaceOrientationLandscapeLeft</string>
     <string>UIInterfaceOrientationLandscapeRight</string>
   </array>
@@ -277,13 +291,13 @@ PLIST
     # 截图归正：app 横置渲染于竖屏 framebuffer（LandscapeRight 内容顶边=设备右缘），
     # simctl 抓原生竖屏缓冲 → sips 逆时针 90°（-r 270）归正为真横屏交付图
     xcrun simctl io "$device" screenshot "$OUT/ame-zl2-$p-light.png" >/dev/null 2>&1 \
-      && sips -r 270 "$OUT/ame-zl2-$p-light.png" >/dev/null 2>&1 \
+      && ame418_orient_landscape "$OUT/ame-zl2-$p-light.png" \
       && echo "  ✓ 截图[$p/浅色]: $OUT/ame-zl2-$p-light.png"
 
     xcrun simctl ui "$device" appearance dark >/dev/null 2>&1 || true
     sleep 2
     xcrun simctl io "$device" screenshot "$OUT/ame-zl2-$p-dark.png" >/dev/null 2>&1 \
-      && sips -r 270 "$OUT/ame-zl2-$p-dark.png" >/dev/null 2>&1 \
+      && ame418_orient_landscape "$OUT/ame-zl2-$p-dark.png" \
       && echo "  ✓ 截图[$p/深色]: $OUT/ame-zl2-$p-dark.png"
     xcrun simctl ui "$device" appearance light >/dev/null 2>&1 || true
   done
@@ -320,7 +334,7 @@ PLIST
     xcrun simctl ui "$device" appearance dark >/dev/null 2>&1 || true
     sleep 2
     xcrun simctl io "$device" screenshot "$OUT/ame-zl2-nav-fluent-$fp-dark.png" >/dev/null 2>&1 \
-      && sips -r 270 "$OUT/ame-zl2-nav-fluent-$fp-dark.png" >/dev/null 2>&1 \
+      && ame418_orient_landscape "$OUT/ame-zl2-nav-fluent-$fp-dark.png" \
       && echo "  ✓ 截图[nav/$fp/fluent-dark]: $OUT/ame-zl2-nav-fluent-$fp-dark.png"
     xcrun simctl ui "$device" appearance light >/dev/null 2>&1 || true
   done
@@ -338,7 +352,7 @@ PLIST
   xcrun simctl ui "$device" appearance dark >/dev/null 2>&1 || true
   sleep 2
   xcrun simctl io "$device" screenshot "$OUT/ame-zl2-nav-fluent-home-expanded-dark.png" >/dev/null 2>&1 \
-    && sips -r 270 "$OUT/ame-zl2-nav-fluent-home-expanded-dark.png" >/dev/null 2>&1 \
+    && ame418_orient_landscape "$OUT/ame-zl2-nav-fluent-home-expanded-dark.png" \
     && echo "  ✓ 截图[nav-expanded/home/fluent-dark]: $OUT/ame-zl2-nav-fluent-home-expanded-dark.png"
   xcrun simctl ui "$device" appearance light >/dev/null 2>&1 || true
 
@@ -356,7 +370,7 @@ PLIST
   xcrun simctl ui "$device" appearance dark >/dev/null 2>&1 || true
   sleep 2
   xcrun simctl io "$device" screenshot "$OUT/ame-zl2-real-nav-home-dark.png" >/dev/null 2>&1 \
-    && sips -r 270 "$OUT/ame-zl2-real-nav-home-dark.png" >/dev/null 2>&1 \
+    && ame418_orient_landscape "$OUT/ame-zl2-real-nav-home-dark.png" \
     && echo "  ✓ 截图[real/home/fluent-dark]: $OUT/ame-zl2-real-nav-home-dark.png"
   xcrun simctl ui "$device" appearance light >/dev/null 2>&1 || true
   grep -aE "Ame417|Ame404|Ame388" "$OUT/console-real.log" | head -8 || true
@@ -390,18 +404,15 @@ PLIST
       local ip_name="${ip%%:*}"
       local ip_args="${ip#*:}"
       xcrun simctl terminate "$ipad_udid" com.prisma-devs.ame-fluent-preview >/dev/null 2>&1 || true
-      if page_launch_out="$(xcrun simctl launch "$ipad_udid" com.prisma-devs.ame-fluent-preview -zl2page $ip_args 2>&1)"; then
-        echo "  启动 OK[ipad/$ip_name]: $page_launch_out"
-      else
-        echo "✗ 启动失败[ipad/${ip_name}]: ${page_launch_out}（iPad 腿跳过，不阻塞）"
-        continue
-      fi
+      # ★Task418：console-pty 直捕（[Ame418] 帧诊断/scene bounds/[ZL2SkinPreview]
+      #   装配读数落盘 = 截图+数值双证；Task417-r5 真壳腿判例同款）
+      xcrun simctl launch --console-pty "$ipad_udid" com.prisma-devs.ame-fluent-preview -zl2page $ip_args > "$OUT/console-ipad-$ip_name.log" 2>&1 &
       sleep 5
       xcrun simctl ui "$ipad_udid" appearance dark >/dev/null 2>&1 || true
       sleep 2
       xcrun simctl io "$ipad_udid" screenshot "$OUT/ame-zl2-$ip_name-ipad-dark.png" >/dev/null 2>&1 \
-        && sips -r 270 "$OUT/ame-zl2-$ip_name-ipad-dark.png" >/dev/null 2>&1 \
-        && echo "  ✓ 截图[ipad/$ip_name]: $OUT/ame-zl2-$ip_name-ipad-dark.png"
+        && ame418_orient_landscape "$OUT/ame-zl2-$ip_name-ipad-dark.png" \
+        && echo "  ✓ 截图[ipad/$ip_name]: $OUT/ame-zl2-$ip_name-ipad-dark.png"   # ★Task418 固定 -r 270 退役（自动正向：真横屏 canvas 不动/竖 canvas 转正）
     done
     xcrun simctl ui "$ipad_udid" appearance light >/dev/null 2>&1 || true
     xcrun simctl terminate "$ipad_udid" com.prisma-devs.ame-fluent-preview >/dev/null 2>&1 || true

@@ -695,6 +695,14 @@ static void AmePreviewApplyFluentTokens(void) {
 
 @implementation AmePreviewShellController
 
+// ★Task418 横屏三件套之一（用户点名开发者代码口径）：shouldAutorotate 返
+//   YES——仅重写 supportedInterfaceOrientations 不够（iPad 新 runtime 上
+//   自动旋转引擎不参与 = Task417 四张 iPad 图竖屏实锤），旋转引擎总开关
+//   必须开（7.0-UI-10-c 双侧 MaskLandscape 收敛保留不变）
+- (BOOL)shouldAutorotate {
+    return YES;
+}
+
 // 横屏（7.0-UI-10-c）：有效支持方向 = 本值 ∩ AppDelegate
 // supportedInterfaceOrientationsForWindow（两侧同给 MaskLandscape，
 // 双保险收敛）；呈现首选方向 UIKit 只向 root VC 查询——AppDelegate 无此
@@ -1232,6 +1240,21 @@ static void AmePreviewApplyFluentTokens(void) {
     self.window.rootViewController = root;
     [self.window makeKeyAndVisible];
 
+    // ★Task418 横屏三件套之三（用户点名开发者代码口径）：UIDevice KVC 强转
+    //   （经典 UIDevice orientation 键写法；iOS 16+ 场景化后有
+    //   requestGeometryUpdate 主路径，此处为 iOS 14/15 老路径与首帧前
+    //   预转 belt——旧 runtime 实测有效，新 runtime 静默无害）。
+    //   三件套全貌：①根 VC shouldAutorotate=YES ②AppDelegate 窗口方向
+    //   MaskLandscape（allowRotation 恒 YES 形态：harness 仅横屏设计，无
+    //   push/present 双态需求）③UIDevice KVC + iOS16 geometry 请求双轨。
+    [[UIDevice currentDevice] setValue:@(UIInterfaceOrientationLandscapeRight)
+                                forKey:@"orientation"];
+    dispatch_async(dispatch_get_main_queue(), ^{
+        [[UIDevice currentDevice] setValue:@(UIInterfaceOrientationLandscapeRight)
+                                    forKey:@"orientation"];
+        [UIViewController attemptRotationToDeviceOrientation];
+    });
+
     // ★ Task400：versionpicker 延迟总线弹层块随弹层退役（版本滚轮随主页
     //   右栏直接呈现，无呈现时序）
     return YES;
@@ -1241,6 +1264,9 @@ static void AmePreviewApplyFluentTokens(void) {
 // runtime（CI 26.2 实证）对经典生命周期 app 被弱化——启动仍竖屏。官方正解是
 // 显式请求几何更新（supportedInterfaceOrientations 双侧横屏收敛仍保留，为
 // iOS 14/15 老路径与本请求的合法性背书）。@available 门护，仅 harness 生效。
+// ★Task418 iPad 腿取证加固：Task417 四张 iPad 图仍竖屏（sips -r 270 反转
+//   掩盖 = 假横屏），本轮 error 回调 + 延迟读数双取证（成功与否 CI 日志定谳，
+//   不再静默）；配合 Info.plist 摘除 Portrait（只横 = 启动必横）。
 - (void)applicationDidBecomeActive:(UIApplication *)application {
     if (@available(iOS 16.0, *)) {
         UIWindowScene *scene = self.window.windowScene;
@@ -1251,8 +1277,20 @@ static void AmePreviewApplyFluentTokens(void) {
             UIWindowSceneGeometryPreferencesIOS *prefs =
                 [[UIWindowSceneGeometryPreferencesIOS alloc]
                     initWithInterfaceOrientations:UIInterfaceOrientationMaskLandscape];
-            [scene requestGeometryUpdateWithPreferences:prefs errorHandler:nil];
+            [scene requestGeometryUpdateWithPreferences:prefs
+                 errorHandler:^(NSError *ame418_err) {
+                NSLog(@"[Ame418] geometry request FAILED: %@", ame418_err);
+            }];
             [self.window.rootViewController setNeedsUpdateOfSupportedInterfaceOrientations];
+            // ★Task418 老路径 KVC 同步补一发（新 runtime 无害，老 runtime 生效）
+            [[UIDevice currentDevice] setValue:@(UIInterfaceOrientationLandscapeRight)
+                                    forKey:@"orientation"];
+            dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(1.0 * NSEC_PER_SEC)),
+                           dispatch_get_main_queue(), ^{
+                NSLog(@"[Ame418] scene bounds t+1s: %.0fx%.0f (landscape expected)",
+                      scene.coordinateSpace.bounds.size.width,
+                      scene.coordinateSpace.bounds.size.height);
+            });
         }
     }
 }

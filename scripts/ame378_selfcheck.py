@@ -434,7 +434,19 @@ ame378_c21 = [
     ("backface-cull", "ame416_nz <= 0.0" in skinview_code),
     ("affine-face", "CATransform3DMakeAffineTransform" in skinview_code),
     ("nan-guard", "isfinite(_ame413_yaw)" in skinview_code),
-    ("diag-log", "[ZL2SkinPreview] Task417" in skinview_raw),   # ★Task417 推进（面数 72 诊断）
+    ("diag-log", "[ZL2SkinPreview] Task418" in skinview_raw),   # ★Task418 推进（面数 72/42 + overlayParts 诊断）
+    # ⑨ ★Task418 3D 雾化/幽灵盒/旧版压半根修 + 账户行高幻影拉伸根修 + iPad 真横屏
+    ("nearest-filter", skinview_code.count("kCAFilterNearest") >= 2),   # 放大+缩小双滤镜
+    ("shade-mask", "ame414_shade.mask = ame418_shadeMask" in skinview_code),   # 外层透明区不漏黑
+    ("legacy-y-scale", "CGFloat ame413_scaleY = ame413_scaleX;" in skinview_code),   # 64×32 y 同 x 标度
+    ("legacy-overlay-skip", "ame418_overlayParts = ame413_legacy ? 1 : 6" in skinview_code),   # 旧版仅帽外层
+    ("row-height-eq", "[self.heightAnchor constraintEqualToConstant:74]" in accounts_code),   # 行高等式（≥ 下限退役）
+    ("phantom-shield", accounts_code.count("setContentHuggingPriority:999 forAxis:UILayoutConstraintAxisVertical") >= 3),   # 三吸收者软盾
+    ("frame-diag", "[Ame418] acct frames" in read("Natives/ZL2AccountsViewController.m")),   # 行高幻影拉伸 CI 仲裁日志（字面量走 raw）
+    ("autorotate-yes", "- (BOOL)shouldAutorotate {\n    return YES;\n}" in preview_code),   # 横屏三件套①
+    ("kvc-rotate", 'forKey:@"orientation"' in preview_raw),   # 横屏三件套③（UIDevice KVC）
+    ("orient-helper", "ame418_orient_landscape" in smoke_raw),   # 截图自动正向（固定 -r 270 退役）
+    ("smoke-ipad-pty", "console-ipad-$ip_name.log" in smoke_raw),   # iPad 腿 console-pty 直捕
     # ⑥ ★Task417 3D 第二层（skinview3d outerLayer 移植：帽/衣/袖/裤 +1.0 全维膨胀，
     #    同枢轴同摆动；legacy 左区镜像；alpha 镂空经 CALayer 内容合成）
     ("overlay-uv", "ZL2SkinViewHatFaces[6]" in skinview_code),
@@ -482,7 +494,7 @@ ame378_c21 = [
 ame378_c21_fail = [n for n, ok in ame378_c21 if not ok]
 if ame378_c21_fail and os.environ.get("AME378_DEBUG"):
     print("  C21 failing clauses:", ", ".join(ame378_c21_fail))
-check("C21 真3D装配序根修+启动卡钉底回归根修+预览闭环补盲（★Task415 第 24 轮复诉——\n      ①面变换 R·T（纸片+90°塌线同根）+ 摆动枢轴换序 T(−P)R(T+P) + 模型旋转入面\n      （真透视+精确 zPosition）+ NaN 卫兵 + 装配诊断日志；②主页启动卡钉出滚动区\n      三钉 + 版本视口三行软下限 + 工作室卡高度自适应 clamp[460,640]；③harness\n      选中账户 + 测试皮肤双落点 + skinfull 桩真路径 = CI 首渲 3D 预览）",
+check("C21 真3D装配序根修+启动卡钉底回归根修+预览闭环补盲+雾化幽灵盒行高横屏根修（★Task415~418 递进——\n      ①面变换 R·T / 摆动枢轴 / 模型旋转入面 / NaN 卫兵 / 装配诊断日志；②启动卡钉底三钉 +\n      工作室卡 clamp[460,640]；③harness 选中账户 + 测试皮肤 = CI 首渲；④Task417 overlay+真壳+\n      iPad 腿+r5 紧凑行宽根修；⑤Task418 Nearest 滤镜 + shade 掩膜 + 64×32 y 同 x 标度 +\n      legacy 仅帽外层 + 账户行高等式 74 + hugging 软盾 + [Ame418] 帧诊断 + 横屏三件套 +\n      截图自动正向）",
       all(ok for _, ok in ame378_c21))
 
 # ══ S 反向探针（--selftest：变体注入必翻红） ═══════════════════════

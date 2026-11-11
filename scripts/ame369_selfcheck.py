@@ -99,7 +99,7 @@ check("② ame369.* 键四表齐备",
 #   同帧图证）五标签全量复用既有 ame369 四表键（home/downloads/versions/
 #   settings 四 ame369.* 站点 +4，ame192.ai.title 不计数）——零新键零新表，
 #   四表齐备审计自动闭合。
-check("① ame369 改写点数 == 456（★Task416 重锚：Task411 基线 452 + harness 展开态窗格标签复用 4 站点\n      （ame414_buildNavPane 展开态五标签 = home/downloads/versions/settings ame369.* 四键 + ame192.ai.title 不计数））", ame369_sites == 456, str(ame369_sites))
+check("① ame369 改写点数 == 457（★Task418 复核重锚：Task416 账面 456 → HEAD 实测 457\n      （Task417-r5 紧凑行宽轮新增站点未补账，本轮代补 +1；git stash 双向实测\n      HEAD=工作树=457 实锤，与本轮改动零关））", ame369_sites == 457, str(ame369_sites))
 
 # 复用站点：4 处 localize(@"ame193.misc.[13]"（内容级匹配——5 个补 import 文件行号整体 +1，行级断言会错位）
 REUSE_EXPECT = {

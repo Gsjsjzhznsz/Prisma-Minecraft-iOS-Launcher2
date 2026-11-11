@@ -258,7 +258,11 @@ BOOL ZL2AccountsSharedIsThirdParty(NSDictionary *accountData) {
         [_spinner.centerXAnchor constraintEqualToAnchor:_refreshButton.centerXAnchor],
         [_spinner.centerYAnchor constraintEqualToAnchor:_refreshButton.centerYAnchor],
     ]];
-    [self.heightAnchor constraintGreaterThanOrEqualToConstant:74].active = YES;
+    // ★Task418 行高等式 74（旧 >= 下限可被栈拉伸吞掉：IMG_0619 真机实锤
+    //   行1=372pt / 行2=74pt——Fill 分布把过约束全塞给 hugging 平手的首行；
+    //   等式钉死 = 任何拉伸力都进不了行，若存在将暴露为 AutoLayout 警告
+    //   并由 [Ame418] 帧诊断捕获）
+    [self.heightAnchor constraintEqualToConstant:74].active = YES;
 }
 
 - (void)configureWithUsername:(NSString *)username
@@ -382,6 +386,25 @@ BOOL ZL2AccountsSharedIsThirdParty(NSDictionary *accountData) {
 - (void)viewDidLayoutSubviews {
     [super viewDidLayoutSubviews];
     [self ame414_relayoutStudioForWidth:self.scrollView.frameLayoutGuide.layoutFrame.size.width];
+    // ★Task418 账户页帧诊断（行高 372 幻影拉伸的 CI 仲裁面：行应恒 74；
+    //   2s 节流防逐帧刷屏；CI console 采捕后与截图双证）
+    static NSTimeInterval ame418_lastLog = 0.0;
+    NSTimeInterval ame418_now = [NSDate date].timeIntervalSince1970;
+    if (ame418_now - ame418_lastLog >= 2.0) {
+        ame418_lastLog = ame418_now;
+        NSMutableArray<NSString *> *ame418_rowHeights = [NSMutableArray array];
+        for (UIView *ame418_row in self.rowsStack.arrangedSubviews) {
+            [ame418_rowHeights appendFormat:@"%.1f", ame418_row.frame.size.height];
+        }
+        NSLog(@"[Ame418] acct frames: view=%.0fx%.0f frameW=%.0f identity=%.1f add=%.1f rowsStack=%.1f studio=%d rows=[%@]",
+              self.view.bounds.size.width, self.view.bounds.size.height,
+              self.scrollView.frameLayoutGuide.layoutFrame.size.width,
+              self.identityCard.frame.size.height,
+              self.addAccountButton.frame.size.height,
+              self.rowsStack.frame.size.height,
+              _ame414_studioVisible,
+              [ame418_rowHeights componentsJoinedByString:@","]);
+    }
 }
 
 - (void)ame_requestAdd {
@@ -548,6 +571,10 @@ BOOL ZL2AccountsSharedIsThirdParty(NSDictionary *accountData) {
     [_identityStack addArrangedSubview:_identityTypeLabel];
     // 名字与类型之间的次级间距（头像/名字之间保持 12）
     [_identityStack setCustomSpacing:2 afterView:_identityNameLabel];
+    // ★Task418 防幻影拉伸转移（软盾）：行已等式钉死，把潜在过约束的其他
+    //   纵向吸收者 hugging 抬到 999——软力优先进滚动空白区而非卡/栈；
+    //   硬冲突由 AutoLayout 警告 + [Ame418] 帧诊断暴露
+    [_identityCard setContentHuggingPriority:999 forAxis:UILayoutConstraintAxisVertical];
 
     // ★Task413 内嵌皮肤 3D 预览（视觉卡右半区，弹窗退役）：无账号态隐藏
     //   （rebuildIdentityCard 随 identityTypeLabel 同步显隐 + 幂等重配置）
@@ -680,6 +707,8 @@ BOOL ZL2AccountsSharedIsThirdParty(NSDictionary *accountData) {
     [_addAccountButton addTarget:self
                           action:@selector(showAddAccountSheet)
                 forControlEvents:UIControlEventTouchUpInside];
+    // ★Task418 防幻影拉伸转移（软盾，同 identityCard 口径；高度已有 44 等式）
+    [_addAccountButton setContentHuggingPriority:999 forAxis:UILayoutConstraintAxisVertical];
 
     [_contentStack addArrangedSubview:_addAccountButton];
     [NSLayoutConstraint activateConstraints:@[
@@ -697,6 +726,10 @@ BOOL ZL2AccountsSharedIsThirdParty(NSDictionary *accountData) {
     _rowsStack.alignment = UIStackViewAlignmentFill;
     _rowsStack.spacing = 8;
     _rowsStack.translatesAutoresizingMaskIntoConstraints = NO;
+    // ★Task418 防幻影拉伸转移（软盾）：行栈自身 hugging 999——栈不再被
+    //   过约束拉伸后把多余高度塞给 hugging 平手的首行（IMG_0619 行1=372
+    //   的吸收路径）
+    [_rowsStack setContentHuggingPriority:999 forAxis:UILayoutConstraintAxisVertical];
     [_contentStack addArrangedSubview:_rowsStack];
 
     _emptyCard = [[UIView alloc] init];
