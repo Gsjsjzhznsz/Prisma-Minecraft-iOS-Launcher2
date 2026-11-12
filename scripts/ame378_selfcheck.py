@@ -434,7 +434,7 @@ ame378_c21 = [
     ("backface-cull", "ame416_nz <= 0.0" in skinview_code),
     ("affine-face", "CATransform3DMakeAffineTransform" in skinview_code),
     ("nan-guard", "isfinite(_ame413_yaw)" in skinview_code),
-    ("diag-log", "[ZL2SkinPreview] Task418" in skinview_raw),   # ★Task418 推进（面数 72/42 + overlayParts 诊断）
+    ("diag-log", "[ZL2SkinPreview] Task419" in skinview_raw),   # ★Task419 重锚（cutout/doubleside 诊断）
     # ⑨ ★Task418 3D 雾化/幽灵盒/旧版压半根修 + 账户行高幻影拉伸根修 + iPad 真横屏
     ("nearest-filter", skinview_code.count("kCAFilterNearest") >= 2),   # 放大+缩小双滤镜
     ("shade-mask", "ame414_shade.mask = ame418_shadeMask" in skinview_code),   # 外层透明区不漏黑
@@ -494,11 +494,26 @@ ame378_c21 = [
     ("harness-skin", "AmePreviewWriteTestSkin" in preview_code),
     ("harness-current", "ame415_loadAccount" in preview_code),
     ("stub-skinfull", "skinfull-%@.png" in stub_raw),
+    # ⑩ ★Task419 全息皮语义双修（IMG_0627 两复诉：透明层异常 + 卡片太高）
+    ("base-cutout", "ZL2SkinViewCutoutImage" in skinview_code
+        and "AME419_CUTOUT_MIN" in skinview_code),   # 基础层 α 裁切（skinview3d transparent:false + MC entityCutout）
+    ("cutout-unpremul", "ame419_k = 255.0 / (CGFloat)ame419_a" in skinview_code),   # CG 预乘解色防暗斑
+    ("cutout-base-only", "ame413_img && !ame419_overlay" in skinview_code),   # 外层保真 α（transparent:true）
+    ("overlay-doubleside", "ame419_cull = (ame416_backface && !ame414_f.isOverlay)" in skinview_code),   # 外层双层不剔除
+    ("overlay-flag", "ame414_rec.isOverlay = ame419_overlay" in skinview_code),   # 双层标志贯通装配
+    ("hologram-skin", "AmePreviewWriteHologramSkin" in preview_code
+        and 'setObject:@"herobrine" forKey:@"internal.selected_account"' in preview_raw),   # CI 可视验证面（选中=全息皮；字面量走 raw）
+    # ⑪ ★Task419 视觉卡灌高根修（IMG_0627 实测 451pt）
+    ("studio-eq-999", "ame419_studioEq.priority = 999" in accounts_code),   # 必冲突根修：等式降 999（破约级联源头）
+    ("card-cap", "_ame414_cardCap = [_identityCard.heightAnchor constraintLessThanOrEqualToConstant:200.0]" in accounts_code
+        and "_ame414_cardCap.active = YES" in accounts_code
+        and "_ame414_cardCap.active = NO" in accounts_code),   # 反灌高保险丝（宽幅启窄幅停防 340 冲突）
+    ("frame-diag-419", "studioH=%.1f" in read("Natives/ZL2AccountsViewController.m")),   # 帧诊断补 studio 高（字面量走 raw）
 ]
 ame378_c21_fail = [n for n, ok in ame378_c21 if not ok]
 if ame378_c21_fail and os.environ.get("AME378_DEBUG"):
     print("  C21 failing clauses:", ", ".join(ame378_c21_fail))
-check("C21 真3D装配序根修+启动卡钉底回归根修+预览闭环补盲+雾化幽灵盒行高横屏根修（★Task415~418 递进——\n      ①面变换 R·T / 摆动枢轴 / 模型旋转入面 / NaN 卫兵 / 装配诊断日志；②启动卡钉底三钉 +\n      工作室卡 clamp[460,640]；③harness 选中账户 + 测试皮肤 = CI 首渲；④Task417 overlay+真壳+\n      iPad 腿+r5 紧凑行宽根修；⑤Task418 Nearest 滤镜 + shade 掩膜 + 64×32 y 同 x 标度 +\n      legacy 仅帽外层 + 账户行高等式 74 + hugging 软盾 + [Ame418] 帧诊断 + 横屏三件套 +\n      截图自动正向）",
+check("C21 真3D装配序根修+启动卡钉底回归根修+预览闭环补盲+雾化幽灵盒行高横屏根修+全息皮语义双修（★Task415~419 递进——\n      ①面变换 R·T / 摆动枢轴 / 模型旋转入面 / NaN 卫兵 / 装配诊断日志；②启动卡钉底三钉 +\n      工作室卡 clamp[460,640]；③harness 选中账户 + 测试皮肤 = CI 首渲；④Task417 overlay+真壳+\n      iPad 腿+r5 紧凑行宽根修；⑤Task418 Nearest 滤镜 + shade 掩膜 + 64×32 y 同 x 标度 +\n      legacy 仅帽外层 + 账户行高等式 74 + hugging 软盾 + [Ame418] 帧诊断 + 横屏三件套 +\n      截图自动正向；⑩Task419 基础层 α 裁切 + 外层 DoubleSide + 全息测试皮 CI 可视；\n      ⑪Task419 studio 等式降 999 必冲突根修 + 视觉卡 ≤200 保险丝）",
       all(ok for _, ok in ame378_c21))
 
 # ══ S 反向探针（--selftest：变体注入必翻红） ═══════════════════════
@@ -557,10 +572,22 @@ if "--selftest" in sys.argv:
            "sublayerTransform.m34" in skinview_code.replace(
                "_ame413_stageView.layer.sublayerTransform = CATransform3DIdentity;",
                "_ame413_stageView.layer.sublayerTransform.m34 = -1.0 / 480.0;"))
+    # ★Task419 S-C23a：基础层裁切抹除变体 → C21 base-cutout 必翻红
+    rcheck("S-C23a", skinview_code.replace("ZL2SkinViewCutoutImage", "ZL2SkinViewGoneCutout"),
+           "ZL2SkinViewCutoutImage" not in skinview_code.replace("ZL2SkinViewCutoutImage", "ZL2SkinViewGoneCutout"))
+    # ★Task419 S-C23b：外层双层回潮变体（恒剔除）→ C21 overlay-doubleside 必翻红
+    rcheck("S-C23b", skinview_code.replace("ame419_cull = (ame416_backface && !ame414_f.isOverlay)",
+                                           "ame419_cull = ame416_backface;"),
+           "ame419_cull = (ame416_backface && !ame414_f.isOverlay)" not in skinview_code.replace(
+               "ame419_cull = (ame416_backface && !ame414_f.isOverlay)",
+               "ame419_cull = ame416_backface;"))
+    # ★Task419 S-C23c：studio 等式回潮 required 变体 → C21 studio-eq-999 必翻红
+    rcheck("S-C23c", accounts_code.replace("ame419_studioEq.priority = 999;", "ame419_studioEq.priority = 1000;"),
+           "ame419_studioEq.priority = 999" not in accounts_code.replace("ame419_studioEq.priority = 999;", "ame419_studioEq.priority = 1000;"))
     if rf:
         print(f"  SELFTEST FAILED: {rf}")
         sys.exit(1)
-    print(f"  selftest {rp}/12 probes red as expected")
+    print(f"  selftest {rp}/18 probes red as expected")
 
 print(f"ame378_selfcheck: {passed} passed, {len(fails)} failed")
 if fails:

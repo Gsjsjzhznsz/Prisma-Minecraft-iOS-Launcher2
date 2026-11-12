@@ -332,6 +332,7 @@ BOOL ZL2AccountsSharedIsThirdParty(NSDictionary *accountData) {
 @property (nonatomic, strong) NSLayoutConstraint *ame414_previewWidth;   // 内嵌形态预览宽（持引用切换）
 @property (nonatomic, strong) NSLayoutConstraint *ame414_previewHeight;  // 内嵌形态预览高
 @property (nonatomic, strong) NSLayoutConstraint *ame414_cardMinHeight;  // 视觉卡高下限（随形态切换）
+@property (nonatomic, strong) NSLayoutConstraint *ame414_cardCap;        // ★Task419 视觉卡灌高上限 ≤200（宽幅激活防破约级联再灌高）
 @property (nonatomic, strong) NSLayoutConstraint *ame414_centerOffset;   // 主列 center 偏移（让位右栏）
 @property (nonatomic, strong) NSLayoutConstraint *ame414_fillWidth;      // 999 宽度正定（常量随形态换算）
 @property (nonatomic, assign) BOOL ame414_studioVisible;
@@ -390,13 +391,14 @@ BOOL ZL2AccountsSharedIsThirdParty(NSDictionary *accountData) {
         [ame418_rowHeights addObject:[NSString stringWithFormat:@"%.1f", ame418_row.frame.size.height]];
     }
     return [NSString stringWithFormat:
-        @"view=%.0fx%.0f frameW=%.0f identity=%.1f add=%.1f rowsStack=%.1f studio=%d rows=[%@]",
+        @"view=%.0fx%.0f frameW=%.0f identity=%.1f add=%.1f rowsStack=%.1f studio=%d studioH=%.1f rows=[%@]",
         self.view.bounds.size.width, self.view.bounds.size.height,
         self.scrollView.frameLayoutGuide.layoutFrame.size.width,
         self.identityCard.frame.size.height,
         self.addAccountButton.frame.size.height,
         self.rowsStack.frame.size.height,
         _ame414_studioVisible,
+        self.studioCard.frame.size.height,
         [ame418_rowHeights componentsJoinedByString:@","]];
 }
 
@@ -596,6 +598,11 @@ BOOL ZL2AccountsSharedIsThirdParty(NSDictionary *accountData) {
     _ame414_previewWidth = [_skinPreviewView.widthAnchor constraintEqualToConstant:280];
     _ame414_previewHeight = [_skinPreviewView.heightAnchor constraintEqualToConstant:300];
     _ame414_cardMinHeight = [_identityCard.heightAnchor constraintGreaterThanOrEqualToConstant:340];
+    // ★Task419 反幻影灌高上限（≤200 @999）：studio 必冲突根修后主列恒 hug，
+    //   上限只作为未来任何破约级联的保险丝——内容驱动 158（头像 64+名字+类型
+    //   +20 边距），IMG_0627 的 451pt 灌高从此有硬顶
+    _ame414_cardCap = [_identityCard.heightAnchor constraintLessThanOrEqualToConstant:200.0];
+    _ame414_cardCap.priority = 999;
     _ame414_embeddedPins = @[
         [_skinPreviewView.trailingAnchor constraintEqualToAnchor:_identityCard.trailingAnchor constant:-16],
         [_skinPreviewView.centerYAnchor constraintEqualToAnchor:_identityCard.centerYAnchor],
@@ -616,6 +623,8 @@ BOOL ZL2AccountsSharedIsThirdParty(NSDictionary *accountData) {
     _ame414_previewWidth.active = YES;
     _ame414_previewHeight.active = YES;
     _ame414_cardMinHeight.active = YES;
+    // ★Task419 cap 初始不激活（窄幅 min 340 与 cap 200 会成必冲突；宽幅
+    //   切幅时由 ame414_relayoutStudioForWidth: 激活）
 }
 
 // ★Task414 皮肤工作室卡（宽幅右栏 320×460；预览全边距 12 钉入，
@@ -638,8 +647,15 @@ BOOL ZL2AccountsSharedIsThirdParty(NSDictionary *accountData) {
     // ★Task415d 幅面自适应（第 24 轮复诉「依旧压缩」）：高 = 滚动视口 − 48
     //   （上下各 24 呼吸），clamp[460, 640]——预览随卡增高（unit ∝ 舞台高），
     //   矮窗仍保 Task414 460 定高下限；三钉随 studioPins 组同切幅启停
-    [ame414_pins addObject:[_studioCard.heightAnchor constraintEqualToAnchor:frameLG.heightAnchor
-                                                                    constant:-48.0]];
+    //   ★Task419 必冲突根修（IMG_0627 实锤：视口 820/724 下等式值 772/676 与
+    //   ≤640 同为 required = 数学不可满足，Auto Layout 破约级联把主列唯一
+    //   可伸缩项视觉卡灌到 451pt；Pro Max 视口 392 与 ≥460 同炸同族）——
+    //   等式降 999，求解器恒收敛 min(max(frame−48, 460), 640)，零破约
+    NSLayoutConstraint *ame419_studioEq =
+        [_studioCard.heightAnchor constraintEqualToAnchor:frameLG.heightAnchor
+                                                constant:-48.0];
+    ame419_studioEq.priority = 999;
+    [ame414_pins addObject:ame419_studioEq];
     [ame414_pins addObject:[_studioCard.heightAnchor constraintGreaterThanOrEqualToConstant:460.0]];
     [ame414_pins addObject:[_studioCard.heightAnchor constraintLessThanOrEqualToConstant:640.0]];
     [ame414_pins addObject:[_contentStack.trailingAnchor constraintLessThanOrEqualToAnchor:_studioCard.leadingAnchor constant:-12]];
@@ -673,6 +689,7 @@ BOOL ZL2AccountsSharedIsThirdParty(NSDictionary *accountData) {
         [NSLayoutConstraint activateConstraints:_ame414_studioPins];
         _ame414_centerOffset.constant = -166.0;   // 主列让位右栏（居中于剩余区）
         _ame414_fillWidth.constant = -372.0;      // frame −40 −320 −12
+        _ame414_cardCap.active = YES;             // ★Task419 宽幅开反灌高保险丝
     } else {
         // 窄幅：预览回视觉卡内嵌（280×300），工作室收起
         [NSLayoutConstraint deactivateConstraints:_ame414_studioPins];
@@ -684,6 +701,7 @@ BOOL ZL2AccountsSharedIsThirdParty(NSDictionary *accountData) {
         _ame414_previewWidth.active = YES;
         _ame414_previewHeight.active = YES;
         _ame414_cardMinHeight.constant = 340;
+        _ame414_cardCap.active = NO;              // ★Task419 窄幅关 cap（340 min 优先）
         [NSLayoutConstraint activateConstraints:_ame414_embeddedPins];
         _studioCard.hidden = YES;
         _ame414_centerOffset.constant = 0;

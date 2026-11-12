@@ -190,6 +190,50 @@ static UIImage *ZL2SkinViewFaceImage(UIImage *skin, ZL2SkinViewRect r) {
     return ame413_face;
 }
 
+// ★Task419 基础层 alpha 裁切（skinview3d innerLayer transparent:false + alphaTest
+//   与 MC entityCutout 同语义移植）：全息/虹彩皮肤基础层自带半透明像素，原样
+//   透出 = 整模幽灵化（IMG_0627 真机实锤：身体透底见背景，与皮肤站观感相悖）。
+//   基础层面重建位图：α ≥ 阈值 → 解预乘还原真色后强制不透明；α < 阈值 → 裁掉。
+//   ★CG 位图 rgba 为预乘语义（rgb *= α/255），不解预乘则半透像素变暗斑。
+static const CGFloat AME419_CUTOUT_MIN = 26.0;   // MC entityCutout 0.1 × 255
+
+static UIImage *ZL2SkinViewCutoutImage(UIImage *ame419_src) {
+    if (!ame419_src.CGImage) return nil;
+    size_t ame419_pw = (size_t)CGImageGetWidth(ame419_src.CGImage);
+    size_t ame419_ph = (size_t)CGImageGetHeight(ame419_src.CGImage);
+    if (ame419_pw < 1 || ame419_ph < 1) return nil;
+    NSMutableData *ame419_buf = [NSMutableData dataWithLength:ame419_pw * ame419_ph * 4];
+    CGColorSpaceRef ame419_cs = CGColorSpaceCreateDeviceRGB();
+    CGContextRef ame419_ctx = CGBitmapContextCreate([ame419_buf mutableBytes],
+        ame419_pw, ame419_ph, 8, ame419_pw * 4, ame419_cs,
+        kCGImageAlphaPremultipliedLast | kCGBitmapByteOrder32Big);
+    CGColorSpaceRelease(ame419_cs);
+    if (!ame419_ctx) return nil;
+    CGContextSetInterpolationQuality(ame419_ctx, kCGInterpolationNone);
+    CGContextDrawImage(ame419_ctx, CGRectMake(0, 0, ame419_pw, ame419_ph), ame419_src.CGImage);
+    UInt8 *ame419_px = [ame419_buf mutableBytes];
+    for (size_t ame419_i = 0; ame419_i < ame419_pw * ame419_ph; ame419_i++) {
+        UInt8 *ame419_p = ame419_px + ame419_i * 4;
+        UInt8 ame419_a = ame419_p[3];
+        if (ame419_a >= (UInt8)AME419_CUTOUT_MIN) {
+            CGFloat ame419_k = 255.0 / (CGFloat)ame419_a;   // 解预乘还原真色
+            CGFloat ame419_r = (CGFloat)ame419_p[0] * ame419_k;
+            CGFloat ame419_g = (CGFloat)ame419_p[1] * ame419_k;
+            CGFloat ame419_b = (CGFloat)ame419_p[2] * ame419_k;
+            ame419_p[0] = (UInt8)(ame419_r > 255.0 ? 255.0 : ame419_r);
+            ame419_p[1] = (UInt8)(ame419_g > 255.0 ? 255.0 : ame419_g);
+            ame419_p[2] = (UInt8)(ame419_b > 255.0 ? 255.0 : ame419_b);
+            ame419_p[3] = 255;
+        } else {
+            ame419_p[0] = ame419_p[1] = ame419_p[2] = ame419_p[3] = 0;
+        }
+    }
+    CGImageRef ame419_out = CGBitmapContextCreateImage(ame419_ctx);
+    CGContextRelease(ame419_ctx);
+    if (!ame419_out) return nil;
+    return [UIImage imageWithCGImage:ame419_out];
+}
+
 // ★Task414 设为头像：头部前脸 8×8 原生裁贴（nearest 邻域放大到 ≥256px，
 // 像-素风头像像素锐利）
 static UIImage *ZL2SkinViewHeadAvatarImage(UIImage *skin) {
@@ -228,6 +272,7 @@ static UIImage *ZL2SkinViewHeadAvatarImage(UIImage *skin) {
 @property (nonatomic, strong) CALayer *layer;    // 贴图面（shade 为其子层随动）
 @property (nonatomic, strong) CALayer *shade;    // 黑色光影罩（opacity = 1−shade 逐帧）
 @property (nonatomic, assign) CGFloat swingSign;       // 摆动方向（0 = 非肢体）
+@property (nonatomic, assign) BOOL isOverlay;          // ★Task419 外层标志（DoubleSide 不剔除）
 @end
 @implementation ZL2SkinViewFace
 @end
@@ -1138,6 +1183,10 @@ static void Ame416RotX(CGFloat th, CGFloat *y, CGFloat *z) {
         Ame416RotY(_ame413_yaw, &ame416_nx, &ame416_nz);
         Ame416RotX(_ame413_pitch, &ame416_ny, &ame416_nz);
         BOOL ame416_backface = (ame416_nz <= 0.0);
+        // ★Task419 外层 DoubleSide（skinview3d outerLayer side:DoubleSide 同源）：
+        //   半透明底（全息皮）下透出外层背面镜像渐变 = 真·全息观感；仿射映射
+        //   对负 det 天然输出镜像 = 背面纹理正确；基础层恒 FrontSide 剔除不变
+        BOOL ame419_cull = (ame416_backface && !ame414_f.isOverlay);
         // ——四角投影——
         CGFloat ame416_sx[4], ame416_sy[4], ame416_zsum = 0.0;
         BOOL ame416_ok = YES;
@@ -1162,8 +1211,8 @@ static void Ame416RotX(CGFloat th, CGFloat *y, CGFloat *z) {
             ame416_zsum += ame416_vz;
         }
         if (!ame416_ok) continue;
-        ame414_f.layer.hidden = ame416_backface;   // 背面剔除（画家序前置）
-        if (ame416_backface) continue;
+        ame414_f.layer.hidden = ame419_cull;   // 背面剔除（画家序前置；外层双层不剔）
+        if (ame419_cull) continue;
         ame414_f.layer.zPosition = ame416_zsum / 4.0;   // 画家序：远先近后
         // ——仿射贴面：L0=(-W2,-H2) L1=(+W2,-H2) L3=(-W2,+H2) → P0/P1/P3——
         CGFloat ame416_w2 = ame414_f.layer.bounds.size.width / 2.0;
@@ -1231,6 +1280,7 @@ static void ZL2SkinViewBuildPart(CALayer *ame413_parent,
                                  const ZL2SkinViewRect *ame413_faces,
                                  CGFloat ame413_unit,
                                  UIImage *ame413_skin,
+                                 BOOL ame419_overlay,
                                  NSMutableArray<ZL2SkinViewFace *> *ame414_out) {
     static const CGFloat AME416_UX[6][3] = {
         { 1, 0, 0}, {-1, 0, 0}, {0, 0, -1}, {0, 0, 1}, {1, 0, 0}, {1, 0, 0}};
@@ -1250,6 +1300,11 @@ static void ZL2SkinViewBuildPart(CALayer *ame413_parent,
         CALayer *ame413_face = [CALayer layer];
         ame413_face.bounds = CGRectMake(0, 0, ame416_fw * ame413_unit, ame416_fh * ame413_unit);
         UIImage *ame413_img = ame413_skin ? ZL2SkinViewFaceImage(ame413_skin, ame413_faces[ame413_i]) : nil;
+        // ★Task419 基础层 α 裁切（内层不透明语义 = skinview3d transparent:false）；
+        //   外层保持真 α（transparent:true 半透混合 = 全息彩虹层）
+        if (ame413_img && !ame419_overlay) {
+            ame413_img = ZL2SkinViewCutoutImage(ame413_img);
+        }
         if (ame413_img) {
             ame413_face.contents = (id)ame413_img.CGImage;
             ame413_face.contentsGravity = kCAGravityResize;
@@ -1306,6 +1361,7 @@ static void ZL2SkinViewBuildPart(CALayer *ame413_parent,
         ame414_rec->normal[1] = AME416_NN[ame413_i][1];
         ame414_rec->normal[2] = AME416_NN[ame413_i][2];
         ame414_rec.swingSign = ame416_swingSign;
+        ame414_rec.isOverlay = ame419_overlay;
         [ame414_out addObject:ame414_rec];
     }
 }
@@ -1334,7 +1390,7 @@ static void ZL2SkinViewBuildPart(CALayer *ame413_parent,
         ZL2SkinViewRect ame413_dummy[6] = {{0, 0, 0, 0}, {0, 0, 0, 0}, {0, 0, 0, 0},
                                            {0, 0, 0, 0}, {0, 0, 0, 0}, {0, 0, 0, 0}};
         ZL2SkinViewBuildPart(ame413_stage, 0, 16, 0, 10, 32, 6, 0, 16, 0, 0.0,
-                             ame413_dummy, ame413_unit, nil, _ame413_faceLayers);
+                             ame413_dummy, ame413_unit, nil, NO, _ame413_faceLayers);
         return;
     }
 
@@ -1366,7 +1422,7 @@ static void ZL2SkinViewBuildPart(CALayer *ame413_parent,
                              ame416_p[0], ame416_p[1], ame416_p[2],
                              ame416_p[3], ame416_p[4], ame416_p[5],
                              ame416_p[6], ame416_p[7], ame416_p[8], ame416_p[9],
-                             ame416_faceTables[ame413_i], ame413_unit, skin,
+                             ame416_faceTables[ame413_i], ame413_unit, skin, NO,
                              _ame413_faceLayers);
     }
 
@@ -1395,14 +1451,15 @@ static void ZL2SkinViewBuildPart(CALayer *ame413_parent,
                              ame416_p[0], ame416_p[1], ame416_p[2],
                              ame416_p[3] + 1.0, ame416_p[4] + 1.0, ame416_p[5] + 1.0,
                              ame416_p[6], ame416_p[7], ame416_p[8], ame416_p[9],
-                             ame417_overlayTables[ame413_i], ame413_unit, skin,
+                             ame417_overlayTables[ame413_i], ame413_unit, skin, YES,
                              _ame413_faceLayers);
     }
     [self ame413_updateModelTransform];
     // ★Task418 装配诊断（冒烟 console/预览日志可视：现代皮面数应恒 72
     //   （36 基础 + 36 第二层）/ 旧版 42（36 + 帽 6）；unit/舞台尺寸异常 =
     //   布局面问题）
-    NSLog(@"[ZL2SkinPreview] Task418: skin=%gx%g stage=%.0fx%.0f unit=%.2f faces=%lu slim=%d walk=%d overlayParts=%ld",
+    // ★Task419 装配诊断重锚（cutout=基础层 α 裁切 / doubleside=外层双层）
+    NSLog(@"[ZL2SkinPreview] Task419: skin=%gx%g stage=%.0fx%.0f unit=%.2f faces=%lu slim=%d walk=%d overlayParts=%ld cutout=base-alpha>=26 doubleside=overlay",
           skin.size.width, skin.size.height, _ame413_stageView.bounds.size.width,
           _ame413_stageView.bounds.size.height, ame413_unit,
           (unsigned long)_ame413_faceLayers.count, _ame413_slimModel, _ame414_walkOn,

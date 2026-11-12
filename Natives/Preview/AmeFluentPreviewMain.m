@@ -536,6 +536,70 @@ static void AmePreviewWriteRealisticSkin(NSString *path) {
     }
 }
 
+// ★Task419 全息/虹彩测试皮（IMG_0627 用户皮肤形态：基础层半透淡粉白 +
+//   外层彩虹渐变边 + 胸口透明窗）：CI accounts 截图直接可视验证——
+//   ①基础层 α 裁切后应实体不透底（现状语义 = 幽灵透底）②透明窗应透出
+//   外层背面彩虹（DoubleSide；现状 = 黑洞）③常规写实皮回归对照不变
+static void AmePreviewWriteHologramSkin(NSString *path) {
+    UIGraphicsBeginImageContextWithOptions(CGSizeMake(64, 64), NO, 1.0);
+    CGContextRef ctx = UIGraphicsGetCurrentContext();
+    if (ctx) {
+        CGContextClearRect(ctx, CGRectMake(0, 0, 64, 64));
+        // ── 基础层：淡粉白 α 0.70（★病灶源：半透像素 = 现状幽灵化）──
+        CGContextSetRGBFillColor(ctx, 0.96, 0.88, 0.94, 0.70);
+        CGContextFillRect(ctx, CGRectMake(0, 0, 32, 16));    // 头整带
+        CGContextFillRect(ctx, CGRectMake(16, 16, 24, 16));  // 身带
+        CGContextFillRect(ctx, CGRectMake(40, 16, 16, 16));  // 右臂带
+        CGContextFillRect(ctx, CGRectMake(0, 16, 16, 16));   // 右腿带
+        CGContextFillRect(ctx, CGRectMake(32, 48, 16, 16));  // 左臂带
+        CGContextFillRect(ctx, CGRectMake(16, 48, 16, 16));  // 左腿带
+        // 脸：眼（左蓝右紫）+ 嘴白条（全不透明）
+        CGContextSetRGBFillColor(ctx, 0.27, 0.43, 0.94, 1.0);
+        CGContextFillRect(ctx, CGRectMake(9, 12, 2, 1));
+        CGContextSetRGBFillColor(ctx, 0.67, 0.27, 0.90, 1.0);
+        CGContextFillRect(ctx, CGRectMake(13, 12, 2, 1));
+        CGContextSetRGBFillColor(ctx, 0.98, 0.98, 0.99, 1.0);
+        CGContextFillRect(ctx, CGRectMake(10, 13, 4, 1));
+        CGContextFillRect(ctx, CGRectMake(11, 11, 2, 1));
+        // 胸口透明窗（★DoubleSide 验证：修复后透出外层背面彩虹，现状 = 黑洞）
+        CGContextClearRect(ctx, CGRectMake(21, 21, 6, 7));
+        // ── 外层：彩虹渐变（α 0.60 半透）──
+        CGContextSetRGBFillColor(ctx, 0.62, 0.30, 0.94, 0.60);
+        CGContextFillRect(ctx, CGRectMake(32, 0, 32, 16));   // 帽整带六面
+        CGContextSetRGBFillColor(ctx, 0.90, 0.30, 0.46, 0.60);
+        CGContextFillRect(ctx, CGRectMake(20, 40, 8, 4));    // 衣前下摆
+        CGContextFillRect(ctx, CGRectMake(32, 40, 8, 4));    // 衣后下摆
+        CGContextFillRect(ctx, CGRectMake(16, 44, 8, 2));    // 衣侧下缘
+        CGContextFillRect(ctx, CGRectMake(28, 44, 8, 2));
+        CGContextFillRect(ctx, CGRectMake(20, 32, 8, 4));    // 衣顶
+        CGContextFillRect(ctx, CGRectMake(28, 32, 8, 4));    // 衣底
+        CGContextSetRGBFillColor(ctx, 0.98, 0.72, 0.28, 0.60);
+        CGContextFillRect(ctx, CGRectMake(40, 36, 4, 12));   // 右袖外/内侧
+        CGContextFillRect(ctx, CGRectMake(48, 36, 4, 12));
+        CGContextFillRect(ctx, CGRectMake(44, 32, 4, 4));    // 右袖顶/底
+        CGContextFillRect(ctx, CGRectMake(48, 32, 4, 4));
+        CGContextFillRect(ctx, CGRectMake(52, 52, 4, 12));   // 左袖外/内侧
+        CGContextFillRect(ctx, CGRectMake(60, 52, 4, 12));
+        CGContextFillRect(ctx, CGRectMake(52, 48, 4, 4));    // 左袖顶/底
+        CGContextFillRect(ctx, CGRectMake(56, 48, 4, 4));
+        CGContextSetRGBFillColor(ctx, 0.30, 0.86, 0.42, 0.60);
+        CGContextFillRect(ctx, CGRectMake(0, 36, 4, 12));    // 右裤外/内侧
+        CGContextFillRect(ctx, CGRectMake(8, 36, 4, 12));
+        CGContextFillRect(ctx, CGRectMake(4, 32, 4, 4));     // 右裤顶/底
+        CGContextFillRect(ctx, CGRectMake(8, 32, 4, 4));
+        CGContextFillRect(ctx, CGRectMake(0, 52, 4, 12));    // 左裤外/内侧
+        CGContextFillRect(ctx, CGRectMake(8, 52, 4, 12));
+        CGContextFillRect(ctx, CGRectMake(4, 48, 4, 4));     // 左裤顶/底
+        CGContextFillRect(ctx, CGRectMake(8, 48, 4, 4));
+    }
+    UIImage *ame419_skin = UIGraphicsGetImageFromCurrentImageContext();
+    UIGraphicsEndImageContext();
+    if (ame419_skin) {
+        NSData *ame419_png = UIImagePNGRepresentation(ame419_skin);
+        if (ame419_png.length > 0) [ame419_png writeToFile:path atomically:YES];
+    }
+}
+
 static void AmePreviewPrepareSandbox(void) {
     NSString *home = [NSSearchPathForDirectoriesInDomains(NSDocumentDirectory,
                                                           NSUserDomainMask, YES).firstObject
@@ -563,7 +627,9 @@ static void AmePreviewPrepareSandbox(void) {
     // ★Task415b 选中账户（internal.selected_account → steve）：BaseAuthenticator
     //   .current 由此加载 steve.json → 账户页视觉卡出真账号 + 皮肤 3D 预览
     //   首次在 CI 渲染（旧版恒「未登录」= 预览假阴性根因）
-    [[NSUserDefaults standardUserDefaults] setObject:@"steve" forKey:@"internal.selected_account"];
+    //   ★Task419 改选 herobrine = 全息皮（IMG_0627 形态）：CI accounts 截图
+    //   直接可视验证基础层裁切 + 外层 DoubleSide；steve 写实皮退居回归对照
+    [[NSUserDefaults standardUserDefaults] setObject:@"herobrine" forKey:@"internal.selected_account"];
     // 测试皮肤双落点（缓存①/skinfull②）——预览链两段缓存全真数据覆盖
     NSString *ame415_caches = [NSSearchPathForDirectoriesInDomains(NSCachesDirectory,
                                                                   NSUserDomainMask, YES) firstObject];
@@ -581,6 +647,10 @@ static void AmePreviewPrepareSandbox(void) {
     //   截图与真机 Alex 型对勘；调试色皮迁至 alex 账户（几何真值对勘保留）
     AmePreviewWriteRealisticSkin([ame415_skinsDir stringByAppendingPathComponent:@"steve.png"]);
     AmePreviewWriteRealisticSkin([ame415_avatars stringByAppendingPathComponent:@"skinfull-steve.png"]);
+    // ★Task419：herobrine = 全息皮（半透基础层 + 彩虹外层 + 胸口透明窗）——
+    //   基础层 α 裁切 / 外层 DoubleSide 两大语义修复的 CI 可视验证面
+    AmePreviewWriteHologramSkin([ame415_skinsDir stringByAppendingPathComponent:@"herobrine.png"]);
+    AmePreviewWriteHologramSkin([ame415_avatars stringByAppendingPathComponent:@"skinfull-herobrine.png"]);
 
     // 假版本实体 ×3（纯净原版 1.8.9 不建 = 无效态判读样本）
     NSArray *ame393_vids = @[@"fabric-loader-0.16.9-1.21", @"forge-1.20.4", @"1.21.4"];

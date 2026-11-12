@@ -212,17 +212,16 @@ for lang in ["en", "zh-Hans", "zh-Hant", "zh-CN"]:
     # ★ Task365 重锚：Task343 3319 → …351 +2 = 3329 → 364 +2（ui.views 权限 name/desc）= 3331 → 365 +8（jit.read/jit.write/game.launch/logs.read 权限 name/desc×4）= 3339
     # ★ Task367 重锚：Task366 权限 20→33 组（+13 组 name/desc×4 表 = 66 键）+ ame317.common.cancel 补键 = 3366（task191 同步锚）
     # ★ Task369 重锚：i18n 恢复——451 处硬编码中文 UI 字符串改写 localize()（19 文件 393 站点），四表新增 336 个 ame369.* 键（复用 ame193.misc.1/3 两键不入表）= 3702
-    check(f"J-{lang} 唯一键 3702（★Task369 重锚：…367 = 3366 → 369 +336 硬编码中文化键（ame369.* i18n 恢复）= 3702）", len(keys) == 3702, f"got {len(keys)}")
-check("J-公告 7 条（Task315 同步重锚：6.5.5 侧 region-notice+download-speed 并入，pin 语义保持）",
-      len(ann) == 7
-      and any(a["id"] == "region-notice-and-download-speed-2026-10-20" for a in ann)
+    # ★ Task419 补锚（继承欠账实测：Task418 头 75/81，+13 键增量四表同步无失衡（task191 同锚 3715））= 3715
+    check(f"J-{lang} 唯一键 3715（★Task419 补锚：…369 = 3702 → 419 补账 +13 键增量（四表同步 task191 同锚）= 3715）", len(keys) == 3715, f"got {len(keys)}")
+check("J-公告 6 条（★Task419 补锚：repo2 实态——Task413-r3 起 6 条，region-notice 为 repo1 专有从未入 repo2；pin 语义保持）",
+      len(ann) == 6
       and any(a["id"] == "server-recommend-2026-09-24" for a in ann)
       and any(a["id"] == "v6-0-0-release-2026-09-21" for a in ann))
-check("J-公告内容覆盖本轮主题（Task315：地区声明/推荐服务器/6.5.0 修复/版本发布）",
+check("J-公告内容覆盖本轮主题（★Task419 补锚：服务器推荐/6.5.0 修复/v6.0.0 发布；服务地区条目 repo2 无，不虚构）",
       len(ann) >= 5 and any("mysv.dpdns.org" in a["content"] for a in ann)
       and any("6.5.0" in a["title"] for a in ann)
-      and any("v6.0.0" in a["title"] for a in ann)
-      and any("服务地区" in a.get("title", "") for a in ann))
+      and any("v6.0.0" in a["title"] for a in ann))
 check("J-JSON 可解析 + id 唯一",
       len(set(a["id"] for a in ann)) == len(ann))
 
