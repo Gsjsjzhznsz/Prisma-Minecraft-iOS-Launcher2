@@ -3,8 +3,9 @@ name: UI Fluent smoke (7.0 test repo - frontend preview)
 # 7.0-UI-7：前端专用冒烟——AmeTheme 令牌层 + Fluent 组件库 + 已迁移 VC 的
 # 语法门禁（-fsyntax-only）与模拟器渲染预览（侧栏 Navigation Rail + 8 件套
 # 浅/深两态截图）。
-# 红线：本仓库仅出测试验证，不上传发行版——本 workflow 只有 workflow_dispatch
-# 手动触发，无任何 release 步骤；完整出包仍走 development.yml（同样仅手动）。
+# 红线：本仓库仅出测试验证，不上传发行版——本 workflow 无任何 release 步骤；
+# 触发 = workflow_dispatch 手动 + 窄路径 push 自动（预览/冒烟文件变更）；
+# 完整出包仍走 development.yml（push 自动）。
 
 on:
   workflow_dispatch:
@@ -13,6 +14,16 @@ on:
         description: "smoke mode: syntax / preview / all"
         required: false
         default: "all"
+  # ★Task419 窄路径 push 自动触发：预览 harness / 冒烟脚本 / 本工作流自身
+  #   变更即自动出模拟器截图可视验证（今天 dispatch API 持续 404 的旁路，
+  #   亦是「harness 与真机分叉」类病灶不再漏过的结构性保障；触发面窄 =
+  #   日常推送不烧 macOS 时长）
+  push:
+    branches: [main]
+    paths:
+      - "Natives/Preview/**"
+      - "scripts/ui_fluent_smoke.sh"
+      - ".github/workflows/ui-smoke.yml"
 
 # 与 development.yml 分组隔离：前端冒烟不取消完整构建，反之亦然
 concurrency:
