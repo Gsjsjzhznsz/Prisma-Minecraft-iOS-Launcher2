@@ -261,10 +261,11 @@ check("C12 转盘字体恒定（★Task407：封面流条目随 |d| 缩放时缩
       and "ame400_nameLabel.lineBreakMode = NSLineBreakByTruncatingTail;" in home
       and "ame400_typeLabel.lineBreakMode = NSLineBreakByTruncatingTail;" in home)
 
-check("C13 构建代际锚（★Task407 立 408/409/410/411/412 推进 Task414 推进：关于页版本行追加源码级构建代号\n      ame415_buildTag —— Info.plist 双键静态致装机代际不可辨 = 旧构建滞留循环的\n      结构性盲区，关于页读到 Task414 = 本轮新构建在机）",
+check("C13 构建代际锚（★Task407 立 408/409/410/411/412 推进 Task414 推进 ★Task421 重锚：定义 header 化 = BuildTag.h 单一事实源，预览卡代际角标 ame421_buildChip 与关于页版本行同一字面量双面恒等；\n      Info.plist 双键静态致装机代际不可辨 = 旧构建滞留循环的\n      结构性盲区，角标/关于页任一面板截图即可判代际）",
       "ame415_buildTag" in about_code
-      and "Task413" in about
-      and about_code.count("ame415_buildTag") >= 2
+      and "Task421 · 2026-11-13" in read("Natives/BuildTag.h")
+      and "static NSString *const ame415_buildTag" in read("Natives/BuildTag.h")
+      and '#import "BuildTag.h"' in read("Natives/AboutViewController.m")
       and "numberOfLines = 0" in about_code)
 
 check("C14 换边恢复+瓦片二度退役+排序退役（★Task408 立 ★Task410 重锚 ★Task411 终局——\n      ①面板长按换边手势+实现体+持久化恢复回装（镜像随 applySide→applyPanelMirror\n      链自动生效）；②五瓦片二度退役：★Task411 第 19 轮用户钦定「一开始的无文字\n      右上角小型的切换按钮」= 壳层 ame411_switcherCluster 悬浮图标胶囊（屏幕\n      右上 safeArea 常驻）接棒 bare 全场景唯一切换区，五瓦片（有文字大瓦片）\n      无条件 hidden=「固定形态」收敛（408 判例回归，条件化断言退役）；③排序长按\n      挂接退役（restoreSidebarCardOrder 保留），提示语回原键）",
@@ -434,7 +435,7 @@ ame378_c21 = [
     ("backface-cull", "ame416_nz <= 0.0" in skinview_code),
     ("affine-face", "CATransform3DMakeAffineTransform" in skinview_code),
     ("nan-guard", "isfinite(_ame413_yaw)" in skinview_code),
-    ("diag-log", "[ZL2SkinPreview] Task420" in skinview_raw),   # ★Task420 重锚（cutout/doubleside/source 链诊断）
+    ("diag-log", "[ZL2SkinPreview] Task421" in skinview_raw),   # ★Task421 重锚（cutout/doubleside/source 链诊断 + chip 代际角标）
     # ⑨ ★Task418 3D 雾化/幽灵盒/旧版压半根修 + 账户行高幻影拉伸根修 + iPad 真横屏
     ("nearest-filter", skinview_code.count("kCAFilterNearest") >= 2),   # 放大+缩小双滤镜
     ("shade-mask", "ame414_shade.mask = ame418_shadeMask" in skinview_code),   # 外层透明区不漏黑
@@ -520,11 +521,28 @@ ame378_c21 = [
         and "ZL2SkinViewFileMTime" in skinview_code),   # 皮肤文件指纹入幂等闸（行刷新→预览自动跟随）
     ("avatar-sync", "ame420_skinAvatarPathForAccountId" in skinview_code
         and "ame420_skinAvatarPathForAccountId" in read("Natives/authenticator/ThirdPartyAuthenticator.m")),   # 头像随新（ame133 skin- 键三写）
+    # ⑬ ★Task421 代际角标（旧构建滞留循环结构性根修：IMG_0655/0661 = 416+ 共享
+    #    角点几何数学不可能的臂缝 30~40px = 设备滞留 Task415 代实锤；验锚必须
+    #    长在截图面板自身而非用户从不导航的设置→关于）+ slim 内侧脸 1px UV 修正
+    ("build-tag-header", "Task421 · 2026-11-13" in read("Natives/BuildTag.h")
+        and "static NSString *const ame415_buildTag" in read("Natives/BuildTag.h")),   # 构建代号 header 化单一事实源
+    ("build-tag-import-pair", '#import "BuildTag.h"' in read("Natives/AboutViewController.m")
+        and '#import "BuildTag.h"' in skinview_raw
+        and "NSString *const ame415_buildTag =" not in read("Natives/AboutViewController.m")
+        and "NSString *const ame415_buildTag =" not in skinview_raw),   # 双面同源零本地定义（raw 口径：strip_code 剥字符串字面量，import 行必走 raw）
+    ("build-chip", "_ame421_buildChip" in skinview_code
+        and "_ame421_buildChip.text = ame415_buildTag" in skinview_code
+        and "_ame421_buildChip.userInteractionEnabled = NO" in skinview_code
+        and "_ame421_buildChip.bottomAnchor constraintEqualToAnchor:_ame413_stageView.bottomAnchor" in skinview_code),   # 预览卡右下角常驻代际角标（非交互）
+    ("slim-uv-inner-1px", "{47, 20, 4, 12}" in skinview_code
+        and "{39, 52, 4, 12}" in skinview_code
+        and "{47, 36, 4, 12}" in skinview_code
+        and "{55, 52, 4, 12}" in skinview_code),   # slim 臂/袖内侧脸 side2 = u+depth+width（skinview3d 同源；旧 48/40/48/56 深入背区 1px）
 ]
 ame378_c21_fail = [n for n, ok in ame378_c21 if not ok]
 if ame378_c21_fail and os.environ.get("AME378_DEBUG"):
     print("  C21 failing clauses:", ", ".join(ame378_c21_fail))
-check("C21 真3D装配序根修+启动卡钉底回归根修+预览闭环补盲+雾化幽灵盒行高横屏根修+全息皮语义双修+预览皮肤链根修（★Task415~420 递进——\n      ①面变换 R·T / 摆动枢轴 / 模型旋转入面 / NaN 卫兵 / 装配诊断日志；②启动卡钉底三钉 +\n      工作室卡 clamp[460,640]；③harness 选中账户 + 测试皮肤 = CI 首渲；④Task417 overlay+真壳+\n      iPad 腿+r5 紧凑行宽根修；⑤Task418 Nearest 滤镜 + shade 掩膜 + 64×32 y 同 x 标度 +\n      legacy 仅帽外层 + 账户行高等式 74 + hugging 软盾 + [Ame418] 帧诊断 + 横屏三件套 +\n      截图自动正向；⑩Task419 基础层 α 裁切 + 外层 DoubleSide + 全息测试皮 CI 可视；\n      ⑪Task419 studio 等式降 999 必冲突根修 + 视觉卡 ≤200 保险丝；⑫Task420 皮肤链 mtime\n      取新 + 双根探测 + 真皮回退 + 指纹闸 + 头像随新）",
+check("C21 真3D装配序根修+启动卡钉底回归根修+预览闭环补盲+雾化幽灵盒行高横屏根修+全息皮语义双修+预览皮肤链根修+代际角标（★Task415~421 递进——\n      ①面变换 R·T / 摆动枢轴 / 模型旋转入面 / NaN 卫兵 / 装配诊断日志；②启动卡钉底三钉 +\n      工作室卡 clamp[460,640]；③harness 选中账户 + 测试皮肤 = CI 首渲；④Task417 overlay+真壳+\n      iPad 腿+r5 紧凑行宽根修；⑤Task418 Nearest 滤镜 + shade 掩膜 + 64×32 y 同 x 标度 +\n      legacy 仅帽外层 + 账户行高等式 74 + hugging 软盾 + [Ame418] 帧诊断 + 横屏三件套 +\n      截图自动正向；⑩Task419 基础层 α 裁切 + 外层 DoubleSide + 全息测试皮 CI 可视；\n      ⑪Task419 studio 等式降 999 必冲突根修 + 视觉卡 ≤200 保险丝；⑫Task420 皮肤链 mtime\n      取新 + 双根探测 + 真皮回退 + 指纹闸 + 头像随新；⑬Task421 代际角标 BuildTag.h\n      单一事实源 + slim 内侧脸 1px UV 修正）",
       all(ok for _, ok in ame378_c21))
 
 # ══ S 反向探针（--selftest：变体注入必翻红） ═══════════════════════

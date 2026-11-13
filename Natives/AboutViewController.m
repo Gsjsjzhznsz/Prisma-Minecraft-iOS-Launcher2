@@ -12,6 +12,7 @@
 #import "UpdateChecker.h"
 #import "LauncherPreferences.h"
 #import "utils.h"
+#import "BuildTag.h"   // ★Task421：构建代际单一事实源（ame415_buildTag，与预览卡角标同字面量）
 #import <Photos/Photos.h>  // Task222：赞赏码长按存图
 
 /// 本启动器的 QQ 群号（用户指令：README 与关于页都展示）。
@@ -22,7 +23,10 @@ static NSString *const ame217_qqGroup = @"1126547426";
 ///   结构性盲区（Task402~406 五轮修复从未装机对勘无门）。版本行追加源码级
 ///   构建代号：关于页读到 Task413 = 本轮新构建在机，无此标 = 仍在旧构建。
 ///   纯构建标识非用户文案，零 i18n 键（同 [Ame406] 日志锚纪律）。
-static NSString *const ame415_buildTag = @"Task420 · 2026-11-13";   // ★Task420 代际推进（常量名留档 415 判例，值随轮次；装机验锚 = 设置→关于版本行）
+///   ★Task421 定义迁出（原本文件私有 static → BuildTag.h header 化单一事实
+///   源）：预览卡代际角标 ame421_buildChip 与本页版本行同一字面量，双面
+///   恒等零漂移；冒烟固定清单零改动零链接新依赖（extern 方案需连编
+///   AboutViewController.m = UpdateChecker 符号连坐，header 方案根除）。
 
 @interface AboutViewController ()
 @property (nonatomic, strong) UIScrollView *scrollView;

@@ -31,7 +31,7 @@
 #import "utils.h"   // localize()
 #import "AvatarManager.h"   // ★Task414 设为头像落点（Documents/avatars 既有链）
 #import "authenticator/ThirdPartyAuthenticator.h"   // ★Task413 全皮落盘路径（ame133 链同步持久化）
-
+#import "BuildTag.h"   // ★Task421 代际角标同源常量（ame415_buildTag header 化单一事实源，与关于页版本行同一字面量）
 #import <math.h>
 
 #pragma mark - 缓存路径
@@ -147,10 +147,13 @@ static const ZL2SkinViewRect ZL2SkinViewRArmFaces[6] = {
 static const ZL2SkinViewRect ZL2SkinViewLArmFaces[6] = {
     {36, 52, 4, 12}, {44, 52, 4, 12}, {32, 52, 4, 12}, {40, 52, 4, 12}, {36, 48, 4, 4}, {40, 48, 4, 4}};
 // slim 臂（3 宽：前/后/上/下 3pt，左右侧 4pt——slim 展开图官方口径）
+// ★Task421 内侧脸 x 修 1px：slim u 带内 [侧1 u..u+4][前 u+4..u+7][侧2 u+7..u+11]
+//   [背 u+11..u+14]，skinview3d setUVs 同源（side2 = u+depth+width）——旧表
+//   {48,20}/{40,52} 深入背区 1px（内侧脸左缘采到背区首列），四表同步修正。
 static const ZL2SkinViewRect ZL2SkinViewRArmSlimFaces[6] = {
-    {44, 20, 3, 12}, {51, 20, 3, 12}, {40, 20, 4, 12}, {48, 20, 4, 12}, {44, 16, 3, 4}, {47, 16, 3, 4}};
+    {44, 20, 3, 12}, {51, 20, 3, 12}, {40, 20, 4, 12}, {47, 20, 4, 12}, {44, 16, 3, 4}, {47, 16, 3, 4}};
 static const ZL2SkinViewRect ZL2SkinViewLArmSlimFaces[6] = {
-    {36, 52, 3, 12}, {43, 52, 3, 12}, {32, 52, 4, 12}, {40, 52, 4, 12}, {36, 48, 3, 4}, {39, 48, 3, 4}};
+    {36, 52, 3, 12}, {43, 52, 3, 12}, {32, 52, 4, 12}, {39, 52, 4, 12}, {36, 48, 3, 4}, {39, 48, 3, 4}};
 static const ZL2SkinViewRect ZL2SkinViewRLegFaces[6] = {
     {4, 20, 4, 12}, {12, 20, 4, 12}, {0, 20, 4, 12}, {8, 20, 4, 12}, {4, 16, 4, 4}, {8, 16, 4, 4}};
 static const ZL2SkinViewRect ZL2SkinViewLLegFaces[6] = {
@@ -174,9 +177,9 @@ static const ZL2SkinViewRect ZL2SkinViewRPantFaces[6] = {
 static const ZL2SkinViewRect ZL2SkinViewLPantFaces[6] = {
     {4, 52, 4, 12}, {12, 52, 4, 12}, {0, 52, 4, 12}, {8, 52, 4, 12}, {4, 48, 4, 4}, {8, 48, 4, 4}};
 static const ZL2SkinViewRect ZL2SkinViewRSleeveSlimFaces[6] = {
-    {44, 36, 3, 12}, {51, 36, 3, 12}, {40, 36, 4, 12}, {48, 36, 4, 12}, {44, 32, 3, 4}, {47, 32, 3, 4}};
+    {44, 36, 3, 12}, {51, 36, 3, 12}, {40, 36, 4, 12}, {47, 36, 4, 12}, {44, 32, 3, 4}, {47, 32, 3, 4}};
 static const ZL2SkinViewRect ZL2SkinViewLSleeveSlimFaces[6] = {
-    {52, 52, 3, 12}, {59, 52, 3, 12}, {48, 52, 4, 12}, {56, 52, 4, 12}, {52, 48, 3, 4}, {55, 48, 3, 4}};
+    {52, 52, 3, 12}, {59, 52, 3, 12}, {48, 52, 4, 12}, {55, 52, 4, 12}, {52, 48, 3, 4}, {55, 48, 3, 4}};
 
 // 区块裁贴子图（皮肤为 64×64 / 64×32 / HD 等比；裁剪矩形越界自动求交防炸）
 // ★Task418 y 标度根修：旧 scaleY = height/64 把 64×32 旧皮的整张展开图压进
@@ -363,6 +366,7 @@ static const CGFloat AME416_WALK_AMP = 0.50;
     NSMutableArray<NSString *> *_ame414_wardrobeEntries;     // 衣柜文件名序
     NSLayoutConstraint *_ame414_wardrobeHeight;              // 衣柜条高（空柜塔缩 38↔0）
     NSTimer *_ame414_toastTimer;
+    UILabel *_ame421_buildChip;                              // ★Task421 代际角标（预览卡右下角常驻 = 截图自带代际证据）
     BOOL _ame414_walkOn;                                     // 跑步动画开（默认开）
     NSString *_ame420_skinSource;                            // ★Task420 皮肤来源诊断（local-mtime-newer/yggdrasil-apiroot/yggdrasil-siteroot/fallback-skinfull/mojang-chain/…）
     BOOL _ame414_autoSpin;                                   // 自转开（暂停时停）
@@ -467,6 +471,23 @@ static const CGFloat AME416_WALK_AMP = 0.50;
     _ame413_hintLabel.userInteractionEnabled = NO;
     [self addSubview:_ame413_hintLabel];
 
+    // ★Task421 代际角标（旧构建滞留循环的结构性根修面）：Task417/419/420 三轮
+    //   修复均已推送且 CI 双绿，用户实机截图连续复现旧代观感（IMG_0655/0661
+    //   手臂离位+缝 30~40px = 416+ 共享角点几何数学不可能，Task420 已定谳
+    //   Task415 代签名）——装机验锚设在「设置→关于」用户从不导航，代际证据
+    //   必须长在截图面板自身。角标 = 预览舞台右下角常驻 10pt 半透标签，文本
+    //   = ame415_buildTag（与关于页版本行同一 extern 常量，双面恒等零漂移）；
+    //   用户任何一张预览截图都可判代际：无角标 = 旧构建（装新包），有角标 =
+    //   本轮包在机。纯构建标识零 i18n 键（同关于页纪律），非交互不挡手势。
+    _ame421_buildChip = [[UILabel alloc] init];
+    _ame421_buildChip.text = ame415_buildTag;
+    _ame421_buildChip.font = [UIFont systemFontOfSize:10.0 weight:UIFontWeightSemibold];
+    _ame421_buildChip.textColor = [ZL2Theme onSurfaceVariant];
+    _ame421_buildChip.alpha = 0.60;
+    _ame421_buildChip.textAlignment = NSTextAlignmentRight;
+    _ame421_buildChip.userInteractionEnabled = NO;
+    _ame421_buildChip.translatesAutoresizingMaskIntoConstraints = NO;
+    [self addSubview:_ame421_buildChip];
     _ame413_statusLabel = [[UILabel alloc] init];
     _ame413_statusLabel.font = [ZL2Theme fontBodyMedium];
     _ame413_statusLabel.textColor = [ZL2Theme onSurfaceVariant];
@@ -601,6 +622,11 @@ static const CGFloat AME416_WALK_AMP = 0.50;
         [_ame414_swatchButtons[2].centerYAnchor constraintEqualToAnchor:_ame414_spinLeftButton.centerYAnchor],
 
         // 状态/加载指示居中于舞台
+        // ★Task421 代际角标：舞台右下角常驻（stageView 底 = 衣柜条顶−4 上方，
+        //   不与任何控件/手势重叠；alpha 0.60 半透不抢视觉）
+        [_ame421_buildChip.trailingAnchor constraintEqualToAnchor:_ame413_stageView.trailingAnchor constant:-8.0],
+        [_ame421_buildChip.bottomAnchor constraintEqualToAnchor:_ame413_stageView.bottomAnchor constant:-4.0],
+        [_ame421_buildChip.leadingAnchor constraintGreaterThanOrEqualToAnchor:_ame413_stageView.leadingAnchor constant:8.0],
         [_ame413_statusLabel.centerXAnchor constraintEqualToAnchor:self.centerXAnchor],
         [_ame413_statusLabel.centerYAnchor constraintEqualToAnchor:_ame413_stageView.centerYAnchor],
         [_ame413_statusLabel.leadingAnchor constraintGreaterThanOrEqualToAnchor:self.leadingAnchor constant:12.0],
@@ -1569,11 +1595,11 @@ static void ZL2SkinViewBuildPart(CALayer *ame413_parent,
     //   布局面问题）
     // ★Task420 装配诊断重锚（cutout=基础层 α 裁切 / doubleside=外层双层 /
     //   source=皮肤来源链诊断：IMG_0655「为什么是原版皮肤」的 CI 仲裁面）
-    NSLog(@"[ZL2SkinPreview] Task420: skin=%gx%g stage=%.0fx%.0f unit=%.2f faces=%lu slim=%d walk=%d overlayParts=%ld source=%@ cutout=base-alpha>=26 doubleside=overlay chain=mtime-dualurl-fallback",
+    NSLog(@"[ZL2SkinPreview] Task421: skin=%gx%g stage=%.0fx%.0f unit=%.2f faces=%lu slim=%d walk=%d overlayParts=%ld source=%@ cutout=base-alpha>=26 doubleside=overlay chain=mtime-dualurl-fallback chip=%@",
           skin.size.width, skin.size.height, _ame413_stageView.bounds.size.width,
           _ame413_stageView.bounds.size.height, ame413_unit,
           (unsigned long)_ame413_faceLayers.count, _ame413_slimModel, _ame414_walkOn,
-          (long)ame418_overlayParts, _ame420_skinSource ?: @"-");
+          (long)ame418_overlayParts, _ame420_skinSource ?: @"-", _ame421_buildChip.text ?: @"-");
 }
 
 @end
