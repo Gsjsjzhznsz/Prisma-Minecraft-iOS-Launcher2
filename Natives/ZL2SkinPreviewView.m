@@ -897,7 +897,7 @@ static const CGFloat AME416_WALK_AMP = 0.50;
         ZL2SkinViewFileMTime([[ZL2SkinViewCacheDir()
             stringByAppendingPathComponent:ZL2SkinViewSafeName(
                 ame413_accountId ?: ame413_pid ?: ame413_name ?: @"anonymous")]
-            stringByAppendingPathExtension:@"png"]));
+            stringByAppendingPathExtension:@"png"])];
     NSString *ame413_key = [NSString stringWithFormat:@"%@|%@|%@|%@|%@",
                             ame413_accountId ?: @"-", ame413_pid ?: @"-",
                             ame413_name ?: @"-", ame413_server ?: @"-",
