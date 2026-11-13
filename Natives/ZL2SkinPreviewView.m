@@ -212,6 +212,14 @@ static UIImage *ZL2SkinViewFaceImage(UIImage *skin, ZL2SkinViewRect r) {
 //   ★CG 位图 rgba 为预乘语义（rgb *= α/255），不解预乘则半透像素变暗斑。
 static const CGFloat AME419_CUTOUT_MIN = 26.0;   // MC entityCutout 0.1 × 255
 
+// ★Task422 外层暗罩不透明阈值（IMG_0667 定谳）：黑罩蒙在合成结果上 = 半透像素
+//   区背景贡献被二次压暗（合成 ×(1−α·罩)），躯干两侧缝带 rgb19 < 舞台底 25
+//   实证 = 「还是透明的」残存观感根源；skinview3d AmbientLight3 + 相机
+//   PointLight0.6 无任何黑罩压背景机制 = 半透像素全亮透底。罩语义分级：
+//   α≥180 近不透明像素照常罩（背景贡献 ≤0.29×罩 ≈ 灰阶 2.5 不可感），
+//   α<180 半透区全亮 = sv3d Ambient3 观感；基础层裁切位图 0/255 掩膜不变。
+static const CGFloat AME422_VEIL_MIN_ALPHA = 180.0;
+
 static UIImage *ZL2SkinViewCutoutImage(UIImage *ame419_src) {
     if (!ame419_src.CGImage) return nil;
     size_t ame419_pw = (size_t)CGImageGetWidth(ame419_src.CGImage);
@@ -247,6 +255,41 @@ static UIImage *ZL2SkinViewCutoutImage(UIImage *ame419_src) {
     CGContextRelease(ame419_ctx);
     if (!ame419_out) return nil;
     return [UIImage imageWithCGImage:ame419_out];
+}
+
+// ★Task422 外层罩掩膜位图（与 ZL2SkinViewCutoutImage 同管线）：α ≥
+//   AME422_VEIL_MIN_ALPHA → 不透明；否则全透。掩膜层只用 alpha 通道，RGB
+//   置白保证任意位图语义下掩膜可见性恒由 α 决定（kCAFilterNearest 无关，
+//   掩膜 contentsGravity resize 拉伸到面幅面）。黑罩只压近不透明像素自身，
+//   半透区背景贡献零损伤 = 暗带/暗环根修（scripts/task422_forensic_replica.py
+//   修复前后对比图同公式先行验证）。
+static UIImage *ZL2SkinViewOpaqueMaskImage(UIImage *ame422_src) {
+    if (!ame422_src.CGImage) return nil;
+    size_t ame422_pw = (size_t)CGImageGetWidth(ame422_src.CGImage);
+    size_t ame422_ph = (size_t)CGImageGetHeight(ame422_src.CGImage);
+    if (ame422_pw < 1 || ame422_ph < 1) return nil;
+    NSMutableData *ame422_buf = [NSMutableData dataWithLength:ame422_pw * ame422_ph * 4];
+    CGColorSpaceRef ame422_cs = CGColorSpaceCreateDeviceRGB();
+    CGContextRef ame422_ctx = CGBitmapContextCreate([ame422_buf mutableBytes],
+        ame422_pw, ame422_ph, 8, ame422_pw * 4, ame422_cs,
+        kCGImageAlphaPremultipliedLast | kCGBitmapByteOrder32Big);
+    CGColorSpaceRelease(ame422_cs);
+    if (!ame422_ctx) return nil;
+    CGContextSetInterpolationQuality(ame422_ctx, kCGInterpolationNone);
+    CGContextDrawImage(ame422_ctx, CGRectMake(0, 0, ame422_pw, ame422_ph), ame422_src.CGImage);
+    UInt8 *ame422_px = [ame422_buf mutableBytes];
+    for (size_t ame422_i = 0; ame422_i < ame422_pw * ame422_ph; ame422_i++) {
+        UInt8 *ame422_p = ame422_px + ame422_i * 4;
+        if (ame422_p[3] >= (UInt8)AME422_VEIL_MIN_ALPHA) {
+            ame422_p[0] = ame422_p[1] = ame422_p[2] = ame422_p[3] = 255;
+        } else {
+            ame422_p[0] = ame422_p[1] = ame422_p[2] = ame422_p[3] = 0;
+        }
+    }
+    CGImageRef ame422_out = CGBitmapContextCreateImage(ame422_ctx);
+    CGContextRelease(ame422_ctx);
+    if (!ame422_out) return nil;
+    return [UIImage imageWithCGImage:ame422_out];
 }
 
 // ★Task414 设为头像：头部前脸 8×8 原生裁贴（nearest 邻域放大到 ≥256px，
@@ -611,9 +654,15 @@ static const CGFloat AME416_WALK_AMP = 0.50;
         [_ame414_swatchButtons[0].leadingAnchor constraintGreaterThanOrEqualToAnchor:self.leadingAnchor constant:10.0],
 
         // 动作行：衣柜/头像/下载 左对齐排布，贴底
+        //   ★Task422 竖直补锚（IMG_0667 + harness 双截图定谳）：下载/头像两钮
+        //   此前仅 leading 链无竖直锚 = 垂直欠定 Auto Layout 落 y=0 顶行叠在
+        //   「拖动旋转·捏合缩放」提示上（📥/👤 与提示文字重叠实拍病灶）；
+        //   同排基准 = 衣柜钮（top/bottom 双钉同 28pt 槽位）centerY。
         [_ame414_downloadButton.leadingAnchor constraintEqualToAnchor:self.leadingAnchor constant:10.0],
         [_ame414_avatarButton.leadingAnchor constraintEqualToAnchor:_ame414_downloadButton.trailingAnchor constant:14.0],
         [_ame414_wardrobeAddButton.leadingAnchor constraintEqualToAnchor:_ame414_avatarButton.trailingAnchor constant:14.0],
+        [_ame414_downloadButton.centerYAnchor constraintEqualToAnchor:_ame414_wardrobeAddButton.centerYAnchor],
+        [_ame414_avatarButton.centerYAnchor constraintEqualToAnchor:_ame414_wardrobeAddButton.centerYAnchor],
         [_ame414_wardrobeAddButton.topAnchor constraintEqualToAnchor:_ame414_spinLeftButton.bottomAnchor constant:4.0],
         [_ame414_wardrobeAddButton.bottomAnchor constraintEqualToAnchor:self.bottomAnchor constant:-6.0],
         [_ame414_spinRightButton.centerYAnchor constraintEqualToAnchor:_ame414_spinLeftButton.centerYAnchor],
@@ -1465,7 +1514,12 @@ static void ZL2SkinViewBuildPart(CALayer *ame413_parent,
         if (ame413_img) {
             CALayer *ame418_shadeMask = [CALayer layer];
             ame418_shadeMask.frame = ame414_shade.bounds;
-            ame418_shadeMask.contents = (id)ame413_img.CGImage;
+            // ★Task422 罩掩膜分级：外层 = 近不透明像素（α≥180）才受罩（半透区
+            //   全亮透底 = skinview3d Ambient3 语义，IMG_0667 缝带 rgb19<25 的
+            //   黑罩压背景根修）；基础层 = 裁切位图（0/255 二值）语义不变。
+            UIImage *ame422_maskImg = ame419_overlay
+                ? ZL2SkinViewOpaqueMaskImage(ame413_img) : ame413_img;
+            ame418_shadeMask.contents = (id)ame422_maskImg.CGImage;
             ame414_shade.mask = ame418_shadeMask;
         }
         [ame413_face addSublayer:ame414_shade];
@@ -1595,7 +1649,7 @@ static void ZL2SkinViewBuildPart(CALayer *ame413_parent,
     //   布局面问题）
     // ★Task420 装配诊断重锚（cutout=基础层 α 裁切 / doubleside=外层双层 /
     //   source=皮肤来源链诊断：IMG_0655「为什么是原版皮肤」的 CI 仲裁面）
-    NSLog(@"[ZL2SkinPreview] Task421: skin=%gx%g stage=%.0fx%.0f unit=%.2f faces=%lu slim=%d walk=%d overlayParts=%ld source=%@ cutout=base-alpha>=26 doubleside=overlay chain=mtime-dualurl-fallback chip=%@",
+    NSLog(@"[ZL2SkinPreview] Task422: skin=%gx%g stage=%.0fx%.0f unit=%.2f faces=%lu slim=%d walk=%d overlayParts=%ld source=%@ cutout=base-alpha>=26 veil=overlay-alpha>=180 doubleside=overlay chain=mtime-dualurl-fallback chip=%@",
           skin.size.width, skin.size.height, _ame413_stageView.bounds.size.width,
           _ame413_stageView.bounds.size.height, ame413_unit,
           (unsigned long)_ame413_faceLayers.count, _ame413_slimModel, _ame414_walkOn,

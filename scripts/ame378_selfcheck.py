@@ -261,9 +261,9 @@ check("C12 转盘字体恒定（★Task407：封面流条目随 |d| 缩放时缩
       and "ame400_nameLabel.lineBreakMode = NSLineBreakByTruncatingTail;" in home
       and "ame400_typeLabel.lineBreakMode = NSLineBreakByTruncatingTail;" in home)
 
-check("C13 构建代际锚（★Task407 立 408/409/410/411/412 推进 Task414 推进 ★Task421 重锚：定义 header 化 = BuildTag.h 单一事实源，预览卡代际角标 ame421_buildChip 与关于页版本行同一字面量双面恒等；\n      Info.plist 双键静态致装机代际不可辨 = 旧构建滞留循环的\n      结构性盲区，角标/关于页任一面板截图即可判代际）",
+check("C13 构建代际锚（★Task407 立 408/409/410/411/412 推进 Task414 推进 ★Task421 重锚 ★Task422 推进：定义 header 化 = BuildTag.h 单一事实源，预览卡代际角标 ame421_buildChip 与关于页版本行同一字面量双面恒等；\n      Info.plist 双键静态致装机代际不可辨 = 旧构建滞留循环的\n      结构性盲区，角标/关于页任一面板截图即可判代际）",
       "ame415_buildTag" in about_code
-      and "Task421 · 2026-11-13" in read("Natives/BuildTag.h")
+      and "Task422 · 2026-11-14" in read("Natives/BuildTag.h")
       and "static NSString *const ame415_buildTag" in read("Natives/BuildTag.h")
       and '#import "BuildTag.h"' in read("Natives/AboutViewController.m")
       and "numberOfLines = 0" in about_code)
@@ -435,7 +435,8 @@ ame378_c21 = [
     ("backface-cull", "ame416_nz <= 0.0" in skinview_code),
     ("affine-face", "CATransform3DMakeAffineTransform" in skinview_code),
     ("nan-guard", "isfinite(_ame413_yaw)" in skinview_code),
-    ("diag-log", "[ZL2SkinPreview] Task421" in skinview_raw),   # ★Task421 重锚（cutout/doubleside/source 链诊断 + chip 代际角标）
+    ("diag-log", "[ZL2SkinPreview] Task422" in skinview_raw
+        and "veil=overlay-alpha>=180" in skinview_raw),   # ★Task422 重锚（cutout/veil 分级/doubleside/source 链诊断 + chip 代际角标）
     # ⑨ ★Task418 3D 雾化/幽灵盒/旧版压半根修 + 账户行高幻影拉伸根修 + iPad 真横屏
     ("nearest-filter", skinview_code.count("kCAFilterNearest") >= 2),   # 放大+缩小双滤镜
     ("shade-mask", "ame414_shade.mask = ame418_shadeMask" in skinview_code),   # 外层透明区不漏黑
@@ -524,7 +525,7 @@ ame378_c21 = [
     # ⑬ ★Task421 代际角标（旧构建滞留循环结构性根修：IMG_0655/0661 = 416+ 共享
     #    角点几何数学不可能的臂缝 30~40px = 设备滞留 Task415 代实锤；验锚必须
     #    长在截图面板自身而非用户从不导航的设置→关于）+ slim 内侧脸 1px UV 修正
-    ("build-tag-header", "Task421 · 2026-11-13" in read("Natives/BuildTag.h")
+    ("build-tag-header", "Task422 · 2026-11-14" in read("Natives/BuildTag.h")
         and "static NSString *const ame415_buildTag" in read("Natives/BuildTag.h")),   # 构建代号 header 化单一事实源
     ("build-tag-import-pair", '#import "BuildTag.h"' in read("Natives/AboutViewController.m")
         and '#import "BuildTag.h"' in skinview_raw
@@ -538,11 +539,20 @@ ame378_c21 = [
         and "{39, 52, 4, 12}" in skinview_code
         and "{47, 36, 4, 12}" in skinview_code
         and "{55, 52, 4, 12}" in skinview_code),   # slim 臂/袖内侧脸 side2 = u+depth+width（skinview3d 同源；旧 48/40/48/56 深入背区 1px）
+    # ⑭ ★Task422 半透外层暗罩压背景根修 + 动作行竖直欠定补锚（IMG_0667 定谳：
+    #    缝带 rgb19<舞台底 25 = 黑罩蒙合成二次压暗背景；sv3d Ambient3 无此机制）
+    ("overlay-veil-opaque-only", "AME422_VEIL_MIN_ALPHA" in skinview_code
+        and "ZL2SkinViewOpaqueMaskImage" in skinview_code
+        and "? ZL2SkinViewOpaqueMaskImage(ame413_img) : ame413_img" in skinview_code),   # 外层罩仅近不透明像素（α≥180）
+    ("veil-mask-helper", "ame422_p[3] >= (UInt8)AME422_VEIL_MIN_ALPHA" in skinview_code
+        and "ame422_p[0] = ame422_p[1] = ame422_p[2] = ame422_p[3] = 255" in skinview_code),   # 掩膜位图二值化管线同裁切口径
+    ("action-row-center-y", "_ame414_downloadButton.centerYAnchor constraintEqualToAnchor:_ame414_wardrobeAddButton.centerYAnchor" in skinview_code
+        and "_ame414_avatarButton.centerYAnchor constraintEqualToAnchor:_ame414_wardrobeAddButton.centerYAnchor" in skinview_code),   # 下载/头像钮同排竖直基准（y=0 顶部叠提示文字病灶根修）
 ]
 ame378_c21_fail = [n for n, ok in ame378_c21 if not ok]
 if ame378_c21_fail and os.environ.get("AME378_DEBUG"):
     print("  C21 failing clauses:", ", ".join(ame378_c21_fail))
-check("C21 真3D装配序根修+启动卡钉底回归根修+预览闭环补盲+雾化幽灵盒行高横屏根修+全息皮语义双修+预览皮肤链根修+代际角标（★Task415~421 递进——\n      ①面变换 R·T / 摆动枢轴 / 模型旋转入面 / NaN 卫兵 / 装配诊断日志；②启动卡钉底三钉 +\n      工作室卡 clamp[460,640]；③harness 选中账户 + 测试皮肤 = CI 首渲；④Task417 overlay+真壳+\n      iPad 腿+r5 紧凑行宽根修；⑤Task418 Nearest 滤镜 + shade 掩膜 + 64×32 y 同 x 标度 +\n      legacy 仅帽外层 + 账户行高等式 74 + hugging 软盾 + [Ame418] 帧诊断 + 横屏三件套 +\n      截图自动正向；⑩Task419 基础层 α 裁切 + 外层 DoubleSide + 全息测试皮 CI 可视；\n      ⑪Task419 studio 等式降 999 必冲突根修 + 视觉卡 ≤200 保险丝；⑫Task420 皮肤链 mtime\n      取新 + 双根探测 + 真皮回退 + 指纹闸 + 头像随新；⑬Task421 代际角标 BuildTag.h\n      单一事实源 + slim 内侧脸 1px UV 修正）",
+check("C21 真3D装配序根修+启动卡钉底回归根修+预览闭环补盲+雾化幽灵盒行高横屏根修+全息皮语义双修+预览皮肤链根修+代际角标（★Task415~421 递进——\n      ①面变换 R·T / 摆动枢轴 / 模型旋转入面 / NaN 卫兵 / 装配诊断日志；②启动卡钉底三钉 +\n      工作室卡 clamp[460,640]；③harness 选中账户 + 测试皮肤 = CI 首渲；④Task417 overlay+真壳+\n      iPad 腿+r5 紧凑行宽根修；⑤Task418 Nearest 滤镜 + shade 掩膜 + 64×32 y 同 x 标度 +\n      legacy 仅帽外层 + 账户行高等式 74 + hugging 软盾 + [Ame418] 帧诊断 + 横屏三件套 +\n      截图自动正向；⑩Task419 基础层 α 裁切 + 外层 DoubleSide + 全息测试皮 CI 可视；\n      ⑪Task419 studio 等式降 999 必冲突根修 + 视觉卡 ≤200 保险丝；⑫Task420 皮肤链 mtime\n      取新 + 双根探测 + 真皮回退 + 指纹闸 + 头像随新；⑬Task421 代际角标 BuildTag.h\n      单一事实源 + slim 内侧脸 1px UV 修正；⑭Task422 半透外层暗罩分级（α≥180 才受罩）+ 动作行下载/头像钮竖直补锚）",
       all(ok for _, ok in ame378_c21))
 
 # ══ S 反向探针（--selftest：变体注入必翻红） ═══════════════════════
@@ -613,10 +623,19 @@ if "--selftest" in sys.argv:
     # ★Task419 S-C23c：studio 等式回潮 required 变体 → C21 studio-eq-999 必翻红
     rcheck("S-C23c", accounts_code.replace("ame419_studioEq.priority = 999;", "ame419_studioEq.priority = 1000;"),
            "ame419_studioEq.priority = 999" not in accounts_code.replace("ame419_studioEq.priority = 999;", "ame419_studioEq.priority = 1000;"))
+    # ★Task422 S-C24a：外层罩分级抹除变体（掩膜回退 = 黑罩压背景回潮）→ C21 overlay-veil-opaque-only 必翻红
+    rcheck("S-C24a", skinview_code.replace("? ZL2SkinViewOpaqueMaskImage(ame413_img) : ame413_img", "ame413_img"),
+           "? ZL2SkinViewOpaqueMaskImage(ame413_img) : ame413_img" not in skinview_code.replace(
+               "? ZL2SkinViewOpaqueMaskImage(ame413_img) : ame413_img", "ame413_img"))
+    # ★Task422 S-C24b：动作行竖直锚抹除变体（下载/头像钮回退 y=0 叠提示）→ C21 action-row-center-y 必翻红
+    rcheck("S-C24b", skinview_code.replace(
+               "_ame414_downloadButton.centerYAnchor constraintEqualToAnchor:_ame414_wardrobeAddButton.centerYAnchor", "/*ame422-erased*/"),
+           "_ame414_downloadButton.centerYAnchor" not in skinview_code.replace(
+               "_ame414_downloadButton.centerYAnchor constraintEqualToAnchor:_ame414_wardrobeAddButton.centerYAnchor", "/*ame422-erased*/"))
     if rf:
         print(f"  SELFTEST FAILED: {rf}")
         sys.exit(1)
-    print(f"  selftest {rp}/18 probes red as expected")
+    print(f"  selftest {rp}/20 probes red as expected")
 
 print(f"ame378_selfcheck: {passed} passed, {len(fails)} failed")
 if fails:

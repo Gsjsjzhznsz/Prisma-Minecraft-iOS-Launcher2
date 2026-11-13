@@ -165,8 +165,15 @@ def sample_nearest(img, u, v):
     return img.getpixel((x, y))
 
 
+OVERLAY_VEIL_MIN_ALPHA = 180   # ★Task422：外层暗罩仅作用于近不透明像素
+                               #   （skinview3d Ambient3+Point0.6 无黑罩压背景
+                               #   机制；半透像素蒙黑罩 = 背景 x(1-a·v) < 背景
+                               #   = IMG_0667 躯干两侧暗带 rgb19<25 实证病灶）
+
+
 def render(skin, faces, yaw, pitch, out_path, unit=10.0, size=(560, 780),
-           overlay_alpha_fix=True, bg=(26, 26, 26)):
+           overlay_alpha_fix=True, bg=(26, 26, 26),
+           overlay_veil_opaque_only=False):
     """逐行转写 ame413_updateModelTransform（L1170-1243）+ 画家算法合成。"""
     W, H = size
     canvas = Image.new("RGBA", (W, H), bg + (255,))
@@ -236,7 +243,12 @@ def render(skin, faces, yaw, pitch, out_path, unit=10.0, size=(560, 780),
             shade = 1.0
         dark = (1.0 - shade) * 0.85
         if dark > 0.001:
-            mask = warped.split()[3].point(lambda v: int(v * dark))
+            alpha_ch = warped.split()[3]
+            if overlay_veil_opaque_only and f["overlay"]:
+                # ★Task422：外层罩仅近不透明像素（半透区全亮透底 = sv3d 语义）
+                alpha_ch = alpha_ch.point(
+                    lambda v: 255 if v >= OVERLAY_VEIL_MIN_ALPHA else 0)
+            mask = alpha_ch.point(lambda v: int(v * dark))
             black = Image.new("RGBA", warped.size, (0, 0, 0, 255))
             warped = Image.composite(black, warped, mask)
         if not overlay_alpha_fix:
