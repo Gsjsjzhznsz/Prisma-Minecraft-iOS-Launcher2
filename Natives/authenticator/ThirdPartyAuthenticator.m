@@ -326,6 +326,13 @@ static NSString *ame131_readCredentials(NSString *authserver, NSString *loginIde
     return ame413_fullSkinPathImpl(accountId);
 }
 
+// ★Task420 头像路径公开入口（实现体 = ame133_skinAvatarPath C 函数；
+// skin- 前缀 = ame133 渲染头像 PNG，与 AvatarManager 自定义头像
+// <accountId>.png 键空间互不冲突）——预览链新皮落盘后头像随新。
++ (NSString *)ame420_skinAvatarPathForAccountId:(NSString *)accountId {
+    return ame133_skinAvatarPath(accountId);
+}
+
 // Task 133：存量账户头像自愈——加载时发现 profilePicURL 不是 file:// 形态
 // （旧构建写入的失效 helm/mc-heads URL），后台重取一次。修复上线后用户
 // 无需重新登录即可看到真实皮肤头像；此后皮肤站换肤也在下次启动同步。

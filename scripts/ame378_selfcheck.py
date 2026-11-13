@@ -434,7 +434,7 @@ ame378_c21 = [
     ("backface-cull", "ame416_nz <= 0.0" in skinview_code),
     ("affine-face", "CATransform3DMakeAffineTransform" in skinview_code),
     ("nan-guard", "isfinite(_ame413_yaw)" in skinview_code),
-    ("diag-log", "[ZL2SkinPreview] Task419" in skinview_raw),   # ★Task419 重锚（cutout/doubleside 诊断）
+    ("diag-log", "[ZL2SkinPreview] Task420" in skinview_raw),   # ★Task420 重锚（cutout/doubleside/source 链诊断）
     # ⑨ ★Task418 3D 雾化/幽灵盒/旧版压半根修 + 账户行高幻影拉伸根修 + iPad 真横屏
     ("nearest-filter", skinview_code.count("kCAFilterNearest") >= 2),   # 放大+缩小双滤镜
     ("shade-mask", "ame414_shade.mask = ame418_shadeMask" in skinview_code),   # 外层透明区不漏黑
@@ -509,11 +509,22 @@ ame378_c21 = [
         and "_ame414_cardCap.active = YES" in accounts_code
         and "_ame414_cardCap.active = NO" in accounts_code),   # 反灌高保险丝（宽幅启窄幅停防 340 冲突）
     ("frame-diag-419", "studioH=%.1f" in read("Natives/ZL2AccountsViewController.m")),   # 帧诊断补 studio 高（字面量走 raw）
+    # ⑫ ★Task420 预览皮肤链四处根修（IMG_0655「为什么是原版皮肤，我账号不长这样」
+    #    = 陈旧缓存顶替真皮 + 刷失败不回退 + URL 剥根分叉 + 头像模型同屏矛盾）
+    ("skin-newer", "ame420_newerLocalSkinWithCachePath" in skinview_code
+        and "[ame420_fd compare:ame420_cd] != NSOrderedAscending" in skinview_code),   # 本盘双源 mtime 取新（skinfull 权威）
+    ("dual-url", "ame420_fetchYggdrasilProfileAtIndex" in skinview_code
+        and "yggdrasil-apiroot" in skinview_raw),   # 标准 apiRoot 主查 + 剥根备查（与登录链 ame133 同拼法；字符串字面量走 raw）
+    ("fallback-full", "ame420_fallbackToLocalFullSkin" in skinview_code),   # 网络全败回退 skinfull 真皮（舞台不残留他皮）
+    ("skin-stamp", "ame420_stamp" in skinview_code
+        and "ZL2SkinViewFileMTime" in skinview_code),   # 皮肤文件指纹入幂等闸（行刷新→预览自动跟随）
+    ("avatar-sync", "ame420_skinAvatarPathForAccountId" in skinview_code
+        and "ame420_skinAvatarPathForAccountId" in read("Natives/authenticator/ThirdPartyAuthenticator.m")),   # 头像随新（ame133 skin- 键三写）
 ]
 ame378_c21_fail = [n for n, ok in ame378_c21 if not ok]
 if ame378_c21_fail and os.environ.get("AME378_DEBUG"):
     print("  C21 failing clauses:", ", ".join(ame378_c21_fail))
-check("C21 真3D装配序根修+启动卡钉底回归根修+预览闭环补盲+雾化幽灵盒行高横屏根修+全息皮语义双修（★Task415~419 递进——\n      ①面变换 R·T / 摆动枢轴 / 模型旋转入面 / NaN 卫兵 / 装配诊断日志；②启动卡钉底三钉 +\n      工作室卡 clamp[460,640]；③harness 选中账户 + 测试皮肤 = CI 首渲；④Task417 overlay+真壳+\n      iPad 腿+r5 紧凑行宽根修；⑤Task418 Nearest 滤镜 + shade 掩膜 + 64×32 y 同 x 标度 +\n      legacy 仅帽外层 + 账户行高等式 74 + hugging 软盾 + [Ame418] 帧诊断 + 横屏三件套 +\n      截图自动正向；⑩Task419 基础层 α 裁切 + 外层 DoubleSide + 全息测试皮 CI 可视；\n      ⑪Task419 studio 等式降 999 必冲突根修 + 视觉卡 ≤200 保险丝）",
+check("C21 真3D装配序根修+启动卡钉底回归根修+预览闭环补盲+雾化幽灵盒行高横屏根修+全息皮语义双修+预览皮肤链根修（★Task415~420 递进——\n      ①面变换 R·T / 摆动枢轴 / 模型旋转入面 / NaN 卫兵 / 装配诊断日志；②启动卡钉底三钉 +\n      工作室卡 clamp[460,640]；③harness 选中账户 + 测试皮肤 = CI 首渲；④Task417 overlay+真壳+\n      iPad 腿+r5 紧凑行宽根修；⑤Task418 Nearest 滤镜 + shade 掩膜 + 64×32 y 同 x 标度 +\n      legacy 仅帽外层 + 账户行高等式 74 + hugging 软盾 + [Ame418] 帧诊断 + 横屏三件套 +\n      截图自动正向；⑩Task419 基础层 α 裁切 + 外层 DoubleSide + 全息测试皮 CI 可视；\n      ⑪Task419 studio 等式降 999 必冲突根修 + 视觉卡 ≤200 保险丝；⑫Task420 皮肤链 mtime\n      取新 + 双根探测 + 真皮回退 + 指纹闸 + 头像随新）",
       all(ok for _, ok in ame378_c21))
 
 # ══ S 反向探针（--selftest：变体注入必翻红） ═══════════════════════

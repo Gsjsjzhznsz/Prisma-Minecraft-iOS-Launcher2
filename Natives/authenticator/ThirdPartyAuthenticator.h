@@ -25,6 +25,12 @@ NS_ASSUME_NONNULL_END
 /// accountId 为空返回 nil（未登录/无账户身份时无盘可读）。
 + (nullable NSString *)ame413_fullSkinPathForAccountId:(nullable NSString *)accountId;
 
+/// ★Task420 头像随新：skin-<accountId>.png（ame133 渲染头像）公开路径——
+/// 预览链新皮落盘后同步脸部裁贴 = 头像与模型同源一致（IMG_0655「头像猫娘/
+/// 模型 Alex」同屏矛盾判例的键空间面根修；与 AvatarManager 自定义头像
+/// <accountId>.png 键空间互不冲突）。
++ (nonnull NSString *)ame420_skinAvatarPathForAccountId:(nullable NSString *)accountId;
+
 /// Task133 皮肤纹理链的对外入口：重取当前角色的皮肤纹理 → 本地渲染头像 →
 /// saveChanges。★ Task224 起由账号列表在换肤成功后调用（刷新头像与 UI）。
 - (void)fetchProfileTextureWithCallback:(Callback)callback;

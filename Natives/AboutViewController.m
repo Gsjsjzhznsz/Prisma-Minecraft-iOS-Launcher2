@@ -22,7 +22,7 @@ static NSString *const ame217_qqGroup = @"1126547426";
 ///   结构性盲区（Task402~406 五轮修复从未装机对勘无门）。版本行追加源码级
 ///   构建代号：关于页读到 Task413 = 本轮新构建在机，无此标 = 仍在旧构建。
 ///   纯构建标识非用户文案，零 i18n 键（同 [Ame406] 日志锚纪律）。
-static NSString *const ame415_buildTag = @"Task419 · 2026-11-12";   // ★Task419 代际推进（常量名留档 415 判例，值随轮次；装机验锚 = 设置→关于版本行）
+static NSString *const ame415_buildTag = @"Task420 · 2026-11-13";   // ★Task420 代际推进（常量名留档 415 判例，值随轮次；装机验锚 = 设置→关于版本行）
 
 @interface AboutViewController ()
 @property (nonatomic, strong) UIScrollView *scrollView;

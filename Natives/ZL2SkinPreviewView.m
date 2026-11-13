@@ -59,6 +59,18 @@ static NSString *ZL2SkinViewFullSkinPath(NSString *accountId) {
     return [ThirdPartyAuthenticator ame413_fullSkinPathForAccountId:accountId];
 }
 
+// ★Task420 文件修改时间戳（本盘双源取新仲裁指纹；文件缺席 → "0"）
+static NSString *ZL2SkinViewFileMTime(NSString *path) {
+    if (path.length == 0) return @"0";
+    NSDictionary *ame420_attr = [[NSFileManager defaultManager]
+        attributesOfItemAtPath:path error:nil];
+    NSDate *ame420_date = ame420_attr[NSFileModificationDate];
+    return ame420_date
+        ? [NSString stringWithFormat:@"%lld",
+            (long long)([ame420_date timeIntervalSince1970] * 1000.0)]
+        : @"0";
+}
+
 // 账户名转安全文件名（AvatarManager 判例同款：防路径穿越）
 static NSString *ZL2SkinViewSafeName(NSString *name) {
     if (name.length == 0) return @"anonymous";
@@ -352,6 +364,7 @@ static const CGFloat AME416_WALK_AMP = 0.50;
     NSLayoutConstraint *_ame414_wardrobeHeight;              // 衣柜条高（空柜塔缩 38↔0）
     NSTimer *_ame414_toastTimer;
     BOOL _ame414_walkOn;                                     // 跑步动画开（默认开）
+    NSString *_ame420_skinSource;                            // ★Task420 皮肤来源诊断（local-mtime-newer/yggdrasil-apiroot/yggdrasil-siteroot/fallback-skinfull/mojang-chain/…）
     BOOL _ame414_autoSpin;                                   // 自转开（暂停时停）
     BOOL _ame414_spinLeft;                                   // ← 箭头步进中（顺滑收束）
     CGFloat _ame414_spinTarget;                              // 箭头目标 yaw
@@ -875,9 +888,20 @@ static const CGFloat AME416_WALK_AMP = 0.50;
         NSString *ame413_s = authData[@"authserver"];
         if ([ame413_s isKindOfClass:[NSString class]] && ame413_s.length > 0) ame413_server = ame413_s;
     }
-    NSString *ame413_key = [NSString stringWithFormat:@"%@|%@|%@|%@",
+    // ★Task420 皮肤文件指纹入幂等闸：账户身份未变但 skinfull/缓存被登录链
+    //   （行刷新 ame133）/预览刷新链改写时，预览自动跟随重载——杜绝「账户
+    //   未换 → 闸门拦下 → 舞台残留他皮」（IMG_0655 头像猫娘/模型 Alex 同屏
+    //   矛盾的闸门面成因）。
+    NSString *ame420_stamp = [NSString stringWithFormat:@"%@|%@",
+        ZL2SkinViewFileMTime(ZL2SkinViewFullSkinPath(ame413_accountId)),
+        ZL2SkinViewFileMTime([[ZL2SkinViewCacheDir()
+            stringByAppendingPathComponent:ZL2SkinViewSafeName(
+                ame413_accountId ?: ame413_pid ?: ame413_name ?: @"anonymous")]
+            stringByAppendingPathExtension:@"png"]));
+    NSString *ame413_key = [NSString stringWithFormat:@"%@|%@|%@|%@|%@",
                             ame413_accountId ?: @"-", ame413_pid ?: @"-",
-                            ame413_name ?: @"-", ame413_server ?: @"-"];
+                            ame413_name ?: @"-", ame413_server ?: @"-",
+                            ame420_stamp];
     if ([ame413_key isEqualToString:_ame413_accountKey] && !_ame414_refreshBypass) return;   // 幂等闸
     _ame413_accountKey = [ame413_key copy];
     _ame413_authData = [authData isKindOfClass:[NSDictionary class]] ? authData : nil;
@@ -904,23 +928,22 @@ static const CGFloat AME416_WALK_AMP = 0.50;
         stringByAppendingPathComponent:ZL2SkinViewSafeName(ame413_key ?: @"anonymous")]
         stringByAppendingPathExtension:@"png"];
 
-    // ① 预览缓存（本视图历史命中；刷新键 bypass）
+    // ①★Task420 本盘双源取新（mtime 仲裁）：skinfull = 登录链最后成功认证
+    //   落盘真皮（Documents/avatars/skinfull-<accountId>.png）；缓存 = 预览链
+    //   最近网络刷新产物（Caches/skins/<key>.png）。旧版「先缓存后全皮」固定
+    //   序在「切换角色/换皮后 skinfull 已更新」场景把陈旧缓存顶在真皮前面 =
+    //   IMG_0655 头像猫娘/模型 Alex 同屏矛盾实锤（账户级缓存键 × 角色级内容）。
+    //   mtime 取新 = 两源都是新近真数据的确定性仲裁；并列/仅一源在场 →
+    //   skinfull 优先 = 登录链权威。
+    NSString *ame413_fullPath = ZL2SkinViewFullSkinPath(accountId);
     if (!_ame414_refreshBypass) {
-        UIImage *ame413_cached = [UIImage imageWithContentsOfFile:ame413_cachePath];
-        if (ame413_cached) {
+        UIImage *ame420_local = [self ame420_newerLocalSkinWithCachePath:ame413_cachePath
+                                                               fullPath:ame413_fullPath];
+        if (ame420_local) {
+            _ame420_skinSource = @"local-mtime-newer";
             _ame414_refreshBypass = NO;
-            [self ame413_applySkin:ame413_cached];
+            [self ame413_applySkin:ame420_local];
             return;
-        }
-        // ② skinfull 全皮（ame133 链落盘的原始皮肤 = 离线真皮）
-        NSString *ame413_fullPath = ZL2SkinViewFullSkinPath(accountId);
-        if (ame413_fullPath) {
-            UIImage *ame413_full = [UIImage imageWithContentsOfFile:ame413_fullPath];
-            if (ame413_full.size.width >= 64) {
-                _ame414_refreshBypass = NO;
-                [self ame413_applySkin:ame413_full];
-                return;
-            }
         }
     }
     _ame414_refreshBypass = NO;
@@ -945,7 +968,7 @@ static const CGFloat AME416_WALK_AMP = 0.50;
         [ame413_urls addObject:[NSString stringWithFormat:@"https://minotar.net/skin/%@", username]];
     }
     if (ame413_urls.count == 0) {
-        [self ame413_showUnavailable];
+        [self ame420_fallbackToLocalFullSkin:accountId];
         return;
     }
     _ame413_spinner.hidden = NO;
@@ -953,29 +976,82 @@ static const CGFloat AME416_WALK_AMP = 0.50;
     [self ame413_tryURLAtIndex:0 urls:ame413_urls cachePath:ame413_cachePath];
 }
 
-// 第三方真皮链：<server>sessionserver/session/minecraft/profile/<无连字符UUID>
-// → properties[textures].value（base64）→ textures.SKIN.url（一次性签名 URL
-// 立即下载，Task133 判例）+ metadata.model = slim 细臂模型；
-// 全皮落盘 skinfull-<accountId>.png + 预览缓存双写。
+// ★Task420 本盘双源取新（mtime 仲裁；并列/仅一源在场 → skinfull 优先 = 登录
+//   链权威；1s 容差内并列视为同时写入 → skinfull）。skinfull 合法性同
+//   ame133 口径（width ≥ 64 且 1:1 或 1:2）。
+- (UIImage *)ame420_newerLocalSkinWithCachePath:(NSString *)cachePath
+                                        fullPath:(NSString *)fullPath {
+    UIImage *ame420_cache = (cachePath.length > 0)
+        ? [UIImage imageWithContentsOfFile:cachePath] : nil;
+    UIImage *ame420_full = (fullPath.length > 0)
+        ? [UIImage imageWithContentsOfFile:fullPath] : nil;
+    if (ame420_full.size.width < 64 ||
+        !(ame420_full.size.height == ame420_full.size.width ||
+          ame420_full.size.height * 2 == ame420_full.size.width)) {
+        ame420_full = nil;   // 全皮合法性同 ame133 口径，脏文件当缺席
+    }
+    if (!ame420_cache) return ame420_full;
+    if (!ame420_full) return ame420_cache;
+    NSFileManager *ame420_fm = [NSFileManager defaultManager];
+    NSDate *ame420_cd = [ame420_fm attributesOfItemAtPath:cachePath error:nil][NSFileModificationDate];
+    NSDate *ame420_fd = [ame420_fm attributesOfItemAtPath:fullPath error:nil][NSFileModificationDate];
+    if (ame420_fd && (!ame420_cd || [ame420_fd compare:ame420_cd] != NSOrderedAscending)) {
+        return ame420_full;   // 全皮更新或并列 → 登录链权威
+    }
+    return ame420_cache;
+}
+
+// 第三方真皮链（★Task420 双根探测）：<apiRoot>sessionserver/session/minecraft/
+// profile/<无连字符UUID>（authlib-injector 标准 = 登录链 ame133 同款拼法，
+// 同站同资源）主查；skinURL 空 → 剥 /api/yggdrasil 站点根（Task224 判例兼容）
+// 备查；两根全空 → skinfull 真皮回退。命中 → properties[textures].value
+// （base64）→ textures.SKIN.url（一次性签名 URL 立即下载，Task133 判例）+
+// metadata.model = slim 细臂模型；全皮落盘 + 预览缓存 + 头像随新三写。
 - (void)ame413_fetchYggdrasilSkinWithServer:(NSString *)server
                                    profileId:(NSString *)profileId
                                    accountId:(NSString *)accountId
                                    cachePath:(NSString *)cachePath {
-    NSString *ame413_root = [server copy];
-    NSRange ame413_api = [ame413_root rangeOfString:@"/api/yggdrasil"];
-    if (ame413_api.location != NSNotFound) {
-        ame413_root = [ame413_root substringToIndex:ame413_api.location];   // API Root → 站点根（Task224 判例）
+    NSString *ame420_apiRoot = [server copy];
+    if (![ame420_apiRoot hasSuffix:@"/"]) {
+        ame420_apiRoot = [ame420_apiRoot stringByAppendingString:@"/"];
     }
-    if (![ame413_root hasSuffix:@"/"]) ame413_root = [ame413_root stringByAppendingString:@"/"];
-    NSString *ame413_undashed = [profileId stringByReplacingOccurrencesOfString:@"-" withString:@""];
-    NSString *ame413_profileURL = [NSString stringWithFormat:@"%@sessionserver/session/minecraft/profile/%@",
-                                   ame413_root, ame413_undashed];
+    NSString *ame420_siteRoot = [server copy];
+    NSRange ame420_api = [ame420_siteRoot rangeOfString:@"/api/yggdrasil"];
+    if (ame420_api.location != NSNotFound) {
+        ame420_siteRoot = [ame420_siteRoot substringToIndex:ame420_api.location];
+    }
+    if (![ame420_siteRoot hasSuffix:@"/"]) {
+        ame420_siteRoot = [ame420_siteRoot stringByAppendingString:@"/"];
+    }
+    NSString *ame420_undashed = [profileId stringByReplacingOccurrencesOfString:@"-" withString:@""];
+    NSString *ame420_primary = [NSString stringWithFormat:
+        @"%@sessionserver/session/minecraft/profile/%@", ame420_apiRoot, ame420_undashed];
+    NSString *ame420_fallback = [NSString stringWithFormat:
+        @"%@sessionserver/session/minecraft/profile/%@", ame420_siteRoot, ame420_undashed];
+    [self ame420_fetchYggdrasilProfileAtIndex:0
+                                         urls:@[ame420_primary, ame420_fallback]
+                                    accountId:accountId
+                                    cachePath:cachePath];
+}
 
+// ★Task420 yggdrasil profile 双根逐级回退（方法递归 = run 42487051782 保留环
+//   判例规避；skinURL 空 = 该根 404/未挂载 → 下探；两根全空 = profile 缺席
+//   /皮肤未设 → 真皮回退，舞台绝不残留他皮）。
+- (void)ame420_fetchYggdrasilProfileAtIndex:(NSUInteger)ame420_idx
+                                       urls:(NSArray<NSString *> *)ame420_urls
+                                   accountId:(NSString *)accountId
+                                   cachePath:(NSString *)cachePath {
+    if (ame420_idx >= ame420_urls.count) {
+        [_ame413_spinner stopAnimating];
+        _ame420_skinSource = @"yggdrasil-both-roots-empty";
+        [self ame420_fallbackToLocalFullSkin:accountId];
+        return;
+    }
     _ame413_spinner.hidden = NO;
     [_ame413_spinner startAnimating];
     __weak typeof(self) wself = self;
     NSURLSessionDataTask *ame413_task =
-        [[NSURLSession sharedSession] dataTaskWithURL:[NSURL URLWithString:ame413_profileURL]
+        [[NSURLSession sharedSession] dataTaskWithURL:[NSURL URLWithString:ame420_urls[ame420_idx]]
                                     completionHandler:^(NSData *data, NSURLResponse *response, NSError *error) {
         __strong typeof(wself) strongSelf = wself;
         if (!strongSelf) return;
@@ -1009,10 +1085,14 @@ static const CGFloat AME416_WALK_AMP = 0.50;
             __strong typeof(wself) inner = wself;
             if (!inner) return;
             if (ame413_skinURL.length == 0) {
-                [inner->_ame413_spinner stopAnimating];
-                [inner ame413_showUnavailable];
+                [inner ame420_fetchYggdrasilProfileAtIndex:ame420_idx + 1
+                                                      urls:ame420_urls
+                                                  accountId:accountId
+                                                  cachePath:cachePath];
                 return;
             }
+            inner->_ame420_skinSource = (ame420_idx == 0)
+                ? @"yggdrasil-apiroot" : @"yggdrasil-siteroot";
             [inner ame413_downloadSkinAtURL:ame413_skinURL
                                    accountId:accountId
                                    slim:(ame413_model.length > 0 && [ame413_model isEqualToString:@"slim"])
@@ -1020,6 +1100,21 @@ static const CGFloat AME416_WALK_AMP = 0.50;
         });
     }];
     [ame413_task resume];
+}
+
+// ★Task420 失败回退真皮：网络链全败时舞台绝不残留他皮/陈旧内容——skinfull
+//   在场即回退应用（登录链最后一次成功认证的真皮 = 本地最优真值）；真皮亦
+//   缺席才落「加载失败」占位（灰模诚实降级口径不变）。
+- (void)ame420_fallbackToLocalFullSkin:(NSString *)accountId {
+    NSString *ame420_fullPath = ZL2SkinViewFullSkinPath(accountId);
+    UIImage *ame420_full = (ame420_fullPath.length > 0)
+        ? [UIImage imageWithContentsOfFile:ame420_fullPath] : nil;
+    if (ame420_full.size.width >= 64) {
+        _ame420_skinSource = @"fallback-skinfull";
+        [self ame413_applySkin:ame420_full];
+        return;
+    }
+    [self ame413_showUnavailable];
 }
 
 // 签名 URL 立即下载（延迟即 404，Task133 判例）→ 全皮 + 缓存双写 → 建模
@@ -1045,10 +1140,23 @@ static const CGFloat AME416_WALK_AMP = 0.50;
                 [data writeToFile:cachePath atomically:YES];   // 预览缓存
                 NSString *ame413_fullPath = ZL2SkinViewFullSkinPath(accountId);
                 if (ame413_fullPath) [data writeToFile:ame413_fullPath atomically:YES];   // 全皮落盘（离线真皮）
+                // ★Task420 头像随新：新皮脸部 8×8 落 ame133 skin- 键（
+                //   profilePicURL 指向的本地文件内容更新；AvatarManager 对
+                //   file:// 的后台静默刷新一拍内自愈）= 头像与模型同源一致，
+                //   杜绝 IMG_0655「头像猫娘/模型 Alex」同屏矛盾。
+                UIImage *ame420_face = ZL2SkinViewHeadAvatarImage(ame413_skin);
+                NSString *ame420_avatarPath = [ThirdPartyAuthenticator
+                    ame420_skinAvatarPathForAccountId:accountId];
+                if (ame420_face && ame420_avatarPath.length > 0) {
+                    NSData *ame420_facePNG = UIImagePNGRepresentation(ame420_face);
+                    if (ame420_facePNG.length > 0) {
+                        [ame420_facePNG writeToFile:ame420_avatarPath atomically:YES];
+                    }
+                }
                 inner->_ame413_slimModel = slim;
                 [inner ame413_applySkin:ame413_skin];
             } else {
-                [inner ame413_showUnavailable];
+                [inner ame420_fallbackToLocalFullSkin:accountId];
             }
         });
     }];
@@ -1061,8 +1169,8 @@ static const CGFloat AME416_WALK_AMP = 0.50;
                    cachePath:(NSString *)ame413_cachePath {
     if (ame413_idx >= ame413_urls.count) {
         [_ame413_spinner stopAnimating];
-        [self ame413_applySkin:nil];
-        [self ame413_showUnavailable];
+        _ame420_skinSource = @"mojang-chain-exhausted";
+        [self ame420_fallbackToLocalFullSkin:_ame414_lastAccountId];
         return;
     }
     __weak typeof(self) wself = self;
@@ -1079,6 +1187,7 @@ static const CGFloat AME416_WALK_AMP = 0.50;
             if (ame413_image && ame413_valid) {
                 [data writeToFile:ame413_cachePath atomically:YES];
                 [strongSelf->_ame413_spinner stopAnimating];
+                strongSelf->_ame420_skinSource = @"mojang-chain";
                 [strongSelf ame413_applySkin:ame413_image];
             } else {
                 [strongSelf ame413_tryURLAtIndex:ame413_idx + 1 urls:ame413_urls cachePath:ame413_cachePath];
@@ -1458,12 +1567,13 @@ static void ZL2SkinViewBuildPart(CALayer *ame413_parent,
     // ★Task418 装配诊断（冒烟 console/预览日志可视：现代皮面数应恒 72
     //   （36 基础 + 36 第二层）/ 旧版 42（36 + 帽 6）；unit/舞台尺寸异常 =
     //   布局面问题）
-    // ★Task419 装配诊断重锚（cutout=基础层 α 裁切 / doubleside=外层双层）
-    NSLog(@"[ZL2SkinPreview] Task419: skin=%gx%g stage=%.0fx%.0f unit=%.2f faces=%lu slim=%d walk=%d overlayParts=%ld cutout=base-alpha>=26 doubleside=overlay",
+    // ★Task420 装配诊断重锚（cutout=基础层 α 裁切 / doubleside=外层双层 /
+    //   source=皮肤来源链诊断：IMG_0655「为什么是原版皮肤」的 CI 仲裁面）
+    NSLog(@"[ZL2SkinPreview] Task420: skin=%gx%g stage=%.0fx%.0f unit=%.2f faces=%lu slim=%d walk=%d overlayParts=%ld source=%@ cutout=base-alpha>=26 doubleside=overlay chain=mtime-dualurl-fallback",
           skin.size.width, skin.size.height, _ame413_stageView.bounds.size.width,
           _ame413_stageView.bounds.size.height, ame413_unit,
           (unsigned long)_ame413_faceLayers.count, _ame413_slimModel, _ame414_walkOn,
-          (long)ame418_overlayParts);
+          (long)ame418_overlayParts, _ame420_skinSource ?: @"-");
 }
 
 @end
