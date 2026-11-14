@@ -929,7 +929,7 @@ static const CGFloat AME416_WALK_AMP = 0.50;
 //   方位角 az 以盘心正上为 0 顺时针）
 - (void)ame424_syncPoseUI {
     if (!_ame414_controlsBuilt) return;
-    [_ame424_poseControl setSelectedSegmentIndex:_ame424_poseIndex animated:NO];
+    _ame424_poseControl.selectedSegmentIndex = _ame424_poseIndex;   // iOS14 无 animated 变体（CI 932 编译雷判例）
     CGFloat ame424_r = 12.0 * (1.0 - (_ame424_lightEl - 0.087) / 1.309);   // 5°..80° → 12..0（盘半径 20−旋钮 5−边 3 = 12 内）
     if (ame424_r < 0.0) ame424_r = 0.0;
     if (ame424_r > 12.0) ame424_r = 12.0;
@@ -946,8 +946,8 @@ static const CGFloat AME416_WALK_AMP = 0.50;
         [_ame424_knobLead setActive:YES];
         [_ame424_knobTop setActive:YES];
     }
-    _ame424_brightLabel.text = [NSString stringWithFormat:@"%d%%",
-        (NSInteger)round(_ame424_brightness * 100.0)];
+    _ame424_brightLabel.text = [NSString stringWithFormat:@"%ld%%",
+        (long)round(_ame424_brightness * 100.0)];
 }
 
 // ★Task424 姿态切换（跑步/暂停二钮退役语义收编：站立 = 停摆保自转；
@@ -1167,8 +1167,14 @@ static const CGFloat AME416_WALK_AMP = 0.50;
     UIActivityViewController *ame414_sheet =
         [[UIActivityViewController alloc] initWithActivityItems:@[ame414_url]
                                           applicationActivities:nil];
-    UIViewController *ame414_anchor = self;
-    while (ame414_anchor.parentViewController) ame414_anchor = ame414_anchor.parentViewController;
+    // ★Task424 邻修（CI 1170 警告定谳 = Task414 存量类型混用潜在雷）：UIView
+    //   赋 UIViewController* 且向 UIView 发 parentViewController/present 均为
+    //   未实现选择器 = 点下载钮即崩风险；改走 nextResponder 响应链寻 VC。
+    UIResponder *ame414_responder = self;
+    while (ame414_responder && ![ame414_responder isKindOfClass:[UIViewController class]]) {
+        ame414_responder = [ame414_responder nextResponder];
+    }
+    UIViewController *ame414_anchor = (UIViewController *)ame414_responder;
     ame414_sheet.modalPresentationStyle = UIModalPresentationPopover;
     ame414_sheet.popoverPresentationController.sourceView = _ame414_downloadButton;
     ame414_sheet.popoverPresentationController.sourceRect = _ame414_downloadButton.bounds;
