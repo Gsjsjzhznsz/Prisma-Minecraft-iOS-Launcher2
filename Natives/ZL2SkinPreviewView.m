@@ -61,6 +61,7 @@
 #import "ZL2SkinPreviewView.h"
 #import "ZL2Theme.h"
 #import "utils.h"   // localize()
+#import <QuartzCore/QuartzCore.h>   // ★Task426 CAEmitterLayer 形状常量（kCAEmitterLayerRect；CI 3171 判例）
 #import "AvatarManager.h"   // ★Task414 设为头像落点（Documents/avatars 既有链）
 #import "authenticator/ThirdPartyAuthenticator.h"   // ★Task413 全皮落盘路径（ame133 链同步持久化）
 #import "BuildTag.h"   // ★Task421 代际角标同源常量（ame415_buildTag header 化单一事实源，与关于页版本行同一字面量）
@@ -1156,8 +1157,8 @@ static const NSInteger AME426_WEATHER_SNOW = 2;
                                               action:@selector(ame425_scaleChanged:)
                                                 label:@"ame425.panel.scale"];
     _ame425_scaleVal = [self ame425_valLabel];
-    UIControl *ame426_sMinus = [self ame425_stepButtonWithDelta:-0.1 isContrast:NO];
-    UIControl *ame426_sPlus = [self ame425_stepButtonWithDelta:0.1 isContrast:NO];
+    ZL2SkinViewTapControl *ame426_sMinus = [self ame425_stepButtonWithDelta:-0.1 isContrast:NO];
+    ZL2SkinViewTapControl *ame426_sPlus = [self ame425_stepButtonWithDelta:0.1 isContrast:NO];
     ame426_sMinus.ame414_onTap = ^{ [self ame425_stepScale:-0.1]; };
     ame426_sPlus.ame414_onTap = ^{ [self ame425_stepScale:0.1]; };
     UIStackView *ame426_sRow = [[UIStackView alloc] init];
