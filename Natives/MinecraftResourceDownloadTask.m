@@ -58,6 +58,10 @@ static double ame312_avgKBps(NSInteger idx) {
     return (ame312_stats[idx].bytes / ame312_stats[idx].elapsed) / 1024.0;
 }
 
+// ★Task428 前置声明（r4 根修：原声明位于 :104 首次调用之后——
+//   C99 隐式函数声明 + static 冲突双错；声明上提到首个调用点之前）
+static void ame428_noteThroughputSample(double bytes, double elapsed);
+
 static void ame312_recordThroughput(NSInteger idx, double bytes, double elapsed) {
     // 小文件/瞬时完成样本无统计意义，跳过（SHA 命中/秒下不计）
     if (bytes < 512.0 * 1024.0 || elapsed < 0.5) return;
@@ -100,8 +104,7 @@ static void ame312_recordThroughput(NSInteger idx, double bytes, double elapsed)
 // resume 调用（单文件/批resume/重试）统一改走 ame428_resumeTaskGated。
 // ======================================================================
 
-// ★Task428 前置声明（ame312_recordThroughput 早于本段使用）
-static void ame428_noteThroughputSample(double bytes, double elapsed);
+// ★Task428 前置声明已上提至 ame312_avgKBps 之后（首次调用点之前，r4）
 
 static NSLock *ame428_gate = nil;
 static NSMutableSet<NSURLSessionDownloadTask *> *ame428_inFlight = nil;
