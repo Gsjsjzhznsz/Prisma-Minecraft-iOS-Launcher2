@@ -3964,3 +3964,9 @@
 "ame426.weather.clear" = "晴";
 "ame426.weather.rain" = "雨";
 "ame426.weather.snow" = "雪";
+
+"ame427.fs.enter" = "全屏";
+"ame427.fs.exit" = "退出全屏";
+"ame427.fs.placeholder" = "预览全屏中 · 点击返回";
+"ame427.dim.static" = "固定光照 · 无昼夜循环";
+"ame427.pose.control" = "姿态";

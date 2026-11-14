@@ -261,9 +261,9 @@ check("C12 转盘字体恒定（★Task407：封面流条目随 |d| 缩放时缩
       and "ame400_nameLabel.lineBreakMode = NSLineBreakByTruncatingTail;" in home
       and "ame400_typeLabel.lineBreakMode = NSLineBreakByTruncatingTail;" in home)
 
-check("C13 构建代际锚（★Task407 立 408/409/410/411/412 推进 Task414 推进 ★Task421 重锚 ★Task422/423 推进 ★Task424 推进 ★Task426 推进：定义 header 化 = BuildTag.h 单一事实源，预览卡代际角标 ame421_buildChip 与关于页版本行同一字面量双面恒等；\n      Info.plist 双键静态致装机代际不可辨 = 旧构建滞留循环的\n      结构性盲区，角标/关于页任一面板截图即可判代际）",
+check("C13 构建代际锚（★Task407 立 408/409/410/411/412 推进 Task414 推进 ★Task421 重锚 ★Task422/423 推进 ★Task424 推进 ★Task426 推进 ★Task427 推进：定义 header 化 = BuildTag.h 单一事实源，预览卡代际角标 ame421_buildChip 与关于页版本行同一字面量双面恒等；\n      Info.plist 双键静态致装机代际不可辨 = 旧构建滞留循环的\n      结构性盲区，角标/关于页任一面板截图即可判代际）",
       "ame415_buildTag" in about_code
-      and "Task426 · 2026-11-14" in read("Natives/BuildTag.h")
+      and "Task427 · 2026-11-15" in read("Natives/BuildTag.h")
       and "static NSString *const ame415_buildTag" in read("Natives/BuildTag.h")
       and '#import "BuildTag.h"' in read("Natives/AboutViewController.m")
       and "numberOfLines = 0" in about_code)
@@ -435,7 +435,7 @@ ame378_c21 = [
     ("backface-cull", "ame416_nz <= 0.0" in skinview_code),
     ("affine-face", "CATransform3DMakeAffineTransform" not in skinview_code),   # ★Task426 重锚：仿射贴面退役（精确单应映射替代），两处旧调用均消失
     ("nan-guard", "isfinite(_ame413_yaw)" in skinview_code),
-    ("diag-log", "[ZL2SkinPreview] Task426" in skinview_raw
+    ("diag-log", "[ZL2SkinPreview] Task427" in skinview_raw
         and "veil=overlay-alpha>=180" in skinview_raw
         and "probe=r%ld/l%ld" in skinview_raw
         and "prov=%@" in skinview_raw
@@ -443,7 +443,10 @@ ame378_c21 = [
         and "pose=%ld" in skinview_raw
         and "contrast=" in skinview_raw
         and "world=%ld" in skinview_raw
-        and "persp=homography-exact" in skinview_raw),   # ★Task426 重锚（时间盘/天气/精确单应 + worldFaces 字段）
+        and "persp=homography-exact" in skinview_raw
+        and "panel-scope=left-of-preview" in skinview_raw
+        and "fs=%d" in skinview_raw
+        and "world-grid=20" in skinview_raw),   # ★Task427 重锚（面板范围/姿态图标/全屏/维度固定光照/沙盘/D_world/雾锚定字段）
     # ⑨ ★Task418 3D 雾化/幽灵盒/旧版压半根修 + 账户行高幻影拉伸根修 + iPad 真横屏
     ("nearest-filter", skinview_code.count("kCAFilterNearest") >= 2),   # 放大+缩小双滤镜
     ("shade-mask", "ame414_shade.mask = ame418_shadeMask" in skinview_code),   # 外层透明区不漏黑
@@ -532,7 +535,7 @@ ame378_c21 = [
     # ⑬ ★Task421 代际角标（旧构建滞留循环结构性根修：IMG_0655/0661 = 416+ 共享
     #    角点几何数学不可能的臂缝 30~40px = 设备滞留 Task415 代实锤；验锚必须
     #    长在截图面板自身而非用户从不导航的设置→关于）+ slim 内侧脸 1px UV 修正
-    ("build-tag-header", "Task426 · 2026-11-14" in read("Natives/BuildTag.h")
+    ("build-tag-header", "Task427 · 2026-11-15" in read("Natives/BuildTag.h")
         and "static NSString *const ame415_buildTag" in read("Natives/BuildTag.h")),   # 构建代号 header 化单一事实源
     ("build-tag-import-pair", '#import "BuildTag.h"' in read("Natives/AboutViewController.m")
         and '#import "BuildTag.h"' in skinview_raw
@@ -586,7 +589,10 @@ ame378_c21 = [
         and "亮度拖条退役" in skinview_raw),   # ★Task426 亮度顺日月仰角自动（亮度拖条退役）
     ("pose-segmented", "_ame424_poseControl" in skinview_code
         and "ame424_poseChanged" in skinview_code
-        and 'localize(@"ame424.skin.pose.sneak", @"蹲下")' in skinview_raw),   # 姿态四段（run/pause 二钮退役）
+        and "ame427_poseIconKind" in skinview_code),   # 姿态四段（★Task427 图标化 = 文字标签退役）
+    ("pose-icon-segments", "setImage:[self ame427_poseIconKind:ame427_pi] forSegmentAtIndex:ame427_pi]" in skinview_code
+        and "setWidth:36.0 forSegmentAtIndex:ame427_pi]" in skinview_code
+        and "imageWithRenderingMode:UIImageRenderingModeAlwaysTemplate]" in skinview_code),   # ★Task427 程序化火柴人图标段（顶行 222→148pt 挤压根修）
     ("sneak-preset", "AME424_SNEAK_BODY" in skinview_code
         and "AME424_SNEAK_SINK" in skinview_code),   # 蹲下预置角 + 整体下沉
     ("joint-drag", "_ame424_joint" in skinview_code
@@ -622,8 +628,8 @@ ame378_c21 = [
     #    ④天穹时间盘日月对跖+亮度自动；⑤天气粒子；⑥世界 MC 原版化）
     ("homography-face", "ame426_t.m14 = -ame426_Az / AME416_CAMERA_D" in skinview_code
         and "ame426_t.m44 = 1.0 - ame426_Cz / AME416_CAMERA_D" in skinview_code),   # 精确单应映射 w 行（四角全落点 = 零缝零漂移；仿射 det 隐藏路径退役）
-    ("homography-world", "ame426_t.m14 = -ame426_Az / AME416_CAMERA_D" in skinview_code
-        and skinview_code.count("CATransform3D ame426_t = CATransform3DIdentity;") >= 2),   # 世界块同管线精确单应（模型+世界双写 = 大梯形块畸变根修）
+    ("homography-world", "ame426_t.m14 = -ame426_Az / ame427_D" in skinview_code
+        and skinview_code.count("CATransform3D ame426_t = CATransform3DIdentity;") >= 2),   # 世界块同管线精确单应（★Task427 世界专用视距 D_world = 沙盘+大世界双根修）
     ("celestial-dial", "_ame426_moonKnob" in skinview_code
         and "AME426_TIME_DEFAULT" in skinview_code
         and "AME426_SOUTH_TILT" in skinview_code),   # 天穹时间盘（日月双旋钮对跖 + 轨道南倾）
@@ -638,12 +644,49 @@ ame378_c21 = [
         and "ame426_syncSkyPalette" in skinview_code
         and "ame426_mc" in skinview_code),   # 顶级光影观感（色调映射层 + 天穹插值 + MC 面亮度表）
     ("panel-overlay-page", "ame426_panelTopHost" in skinview_code
-        and "_ame426_dimView" in skinview_code),   # 二级菜单全屏覆罩（宿主上溯 + 暗背景覆盖账号选择菜单）
+        and "_ame426_dimView" in skinview_code),   # 二级菜单覆罩（宿主上溯 + 暗背景）
+    # ⑲ ★Task427 五复诉根修 + 三钦定（IMG_0678：①面板不遮预览 = 只盖预览列以左；
+    #    ②姿态文字太挤 = 图标段；③全屏功能 = 窗级宿主+约束存档；④昼夜原版化
+    #    = 五停靠天穹+晚霞辉光+日色随仰角+雾天穹锚定；⑤末地/下界昼夜样式区分
+    #    = 固定光照+无日月+面板时间盘隐藏；⑥Photon 对标 = 彩色影罩+水面反光；
+    #    ⑦无限世界 = 20×20 高度图立体方块+暴露壁+沙盘+D_world）
+    ("fs-window-host", "ame427_toggleFullscreen" in skinview_code
+        and "ame427_enterFullscreen" in skinview_code
+        and "ame427_exitFullscreen" in skinview_code
+        and "_ame427_fsSavedConstraints" in skinview_code
+        and "_ame427_fsPlaceholder" in skinview_code),   # 全屏 = 窗级宿主 + 占位卡 + 约束存档重激活恢复
+    ("panel-scope-left-of-preview", "convertRect:self.bounds toView:ame426_host" in skinview_code
+        and "ame427_coverW = ame427_pf.origin.x - 8.0" in skinview_code
+        and "ame427_coverW < 220.0" in skinview_code),   # ★面板只盖预览列以左（不遮预览根修）
+    ("dim-static-fixed-light", "_ame424_brightness = 0.95" in skinview_code
+        and "_ame424_brightness = 1.05" in skinview_code
+        and "localize(@\"ame427.dim.static\"" in skinview_raw
+        and "_ame426_dialRowRef.hidden" in skinview_code),   # 末地 0.95/下界 1.05 固定光照 + 面板时间盘/天气段隐藏
+    ("sunset-glow", "_ame426_glowLayer" in skinview_code
+        and "kCAGradientTypeRadial" in skinview_code
+        and "_ame426_glowLayer.startPoint" in skinview_code),   # 晚霞径向辉光（Photon 大气散射近似，太阳屏位跟随）
+    ("sky-5-stop", "locations = @[@0.0, @0.38, @0.62, @0.78, @1.0]" in skinview_code
+        and "ame426_mid[ame427_j] * 0.55 + ame426_bot[ame427_j] * 0.45" in skinview_code),   # 五停靠天穹 + 雾色低空两停靠同源派生（雾-天穹锚定）
+    ("sun-elevation-tint", "0.96 - 0.41 * ame426_warmSun" in skinview_code
+        and "0.78 - 0.56 * ame426_warmSun" in skinview_code),   # 日色随仰角暖化（原版落日橙红）
+    ("water-glint", "ame427_dline = fabs(ame427_fcx - ame427_midX) / 90.0" in skinview_code
+        and "variant:8" in skinview_code),   # 水面反光（太阳反射线高斯 + 半透水贴图）
+    ("world-grid-20", "AME425_GROUND_GRID = 20" in skinview_code
+        and "AME427_DIORAMA = 0.36" in skinview_code
+        and "AME427_D_UNIT_RATIO = 103.0" in skinview_code
+        and "AME427_PF_GUARD = 2.4" in skinview_code
+        and "ame427_terrainAt" in skinview_code),   # 无限世界 = 20×20 高度图 + 沙盘 + D_world + 爆投影卫兵
+    ("heightmap-sides", "ame427_buildSideFaceWithX0" in skinview_code
+        and "ame427_sideTile = 9" in skinview_code
+        and "ame427_sideTile = 10" in skinview_code),   # 阶差暴露壁（grass_side/snow_side 原版资源包分层贴图）
+    ("photonic-tint", "_ame426_shadowTint" in skinview_code
+        and "_ame426_hlTint" in skinview_code
+        and "_ame413_faceLayers" in skinview_code),   # Photon 彩色光照（影随天色/亮随日光色温，事件驱动）
 ]
 ame378_c21_fail = [n for n, ok in ame378_c21 if not ok]
 if ame378_c21_fail and os.environ.get("AME378_DEBUG"):
     print("  C21 failing clauses:", ", ".join(ame378_c21_fail))
-check("C21 真3D装配序根修+启动卡钉底回归根修+预览闭环补盲+雾化幽灵盒行高横屏根修+全息皮语义双修+预览皮肤链根修+代际角标（★Task415~421 递进——\n      ①面变换 R·T / 摆动枢轴 / 模型旋转入面 / NaN 卫兵 / 装配诊断日志；②启动卡钉底三钉 +\n      工作室卡 clamp[460,640]；③harness 选中账户 + 测试皮肤 = CI 首渲；④Task417 overlay+真壳+\n      iPad 腿+r5 紧凑行宽根修；⑤Task418 Nearest 滤镜 + shade 掩膜 + 64×32 y 同 x 标度 +\n      legacy 仅帽外层 + 账户行高等式 74 + hugging 软盾 + [Ame418] 帧诊断 + 横屏三件套 +\n      截图自动正向；⑩Task419 基础层 α 裁切 + 外层 DoubleSide + 全息测试皮 CI 可视；\n      ⑪Task419 studio 等式降 999 必冲突根修 + 视觉卡 ≤200 保险丝；⑫Task420 皮肤链 mtime\n      取新 + 双根探测 + 真皮回退 + 指纹闸 + 头像随新；⑬Task421 代际角标 BuildTag.h\n      单一事实源 + slim 内侧脸 1px UV 修正；⑭Task422 半透外层暗罩分级（α≥180 才受罩）+ 动作行下载/头像钮竖直补锚；\n      ⑮Task423 内容级 slim/classic 判定探针 + 缓存来源 sidecar 降毒 + alex 哨兵禁入）",
+check("C21 真3D装配序根修+启动卡钉底回归根修+预览闭环补盲+雾化幽灵盒行高横屏根修+全息皮语义双修+预览皮肤链根修+代际角标（★Task415~427 递进——\n      ①面变换 R·T / 摆动枢轴 / 模型旋转入面 / NaN 卫兵 / 装配诊断日志；②启动卡钉底三钉 +\n      工作室卡 clamp[460,640]；③harness 选中账户 + 测试皮肤 = CI 首渲；④Task417 overlay+真壳+\n      iPad 腿+r5 紧凑行宽根修；⑤Task418 Nearest 滤镜 + shade 掩膜 + 64×32 y 同 x 标度 +\n      legacy 仅帽外层 + 账户行高等式 74 + hugging 软盾 + [Ame418] 帧诊断 + 横屏三件套 +\n      截图自动正向；⑩Task419 基础层 α 裁切 + 外层 DoubleSide + 全息测试皮 CI 可视；\n      ⑪Task419 studio 等式降 999 必冲突根修 + 视觉卡 ≤200 保险丝；⑫Task420 皮肤链 mtime\n      取新 + 双根探测 + 真皮回退 + 指纹闸 + 头像随新；⑬Task421 代际角标 BuildTag.h\n      单一事实源 + slim 内侧脸 1px UV 修正；⑭Task422 半透外层暗罩分级（α≥180 才受罩）+ 动作行下载/头像钮竖直补锚；\n      ⑮Task423 内容级 slim/classic 判定探针 + 缓存来源 sidecar 降毒 + alex 哨兵禁入；\n      ⑲Task427 面板只盖预览列以左 + 姿态图标段 + 全屏窗级宿主 + 五停靠天穹/晚霞辉光/雾锚定 +\n      维度固定光照 + 水面反光 + 20×20 高度图立体方块/沙盘/D_world/暴露壁）",
       all(ok for _, ok in ame378_c21))
 
 # ══ S 反向探针（--selftest：变体注入必翻红） ═══════════════════════
@@ -768,10 +811,29 @@ if "--selftest" in sys.argv:
     # ★Task426 S-C26h：全屏覆罩抹除变体（面板缩回预览卡内）→ C21 panel-overlay-page 必翻红
     rcheck("S-C26h", skinview_code.replace("ame426_panelTopHost", "ame426_goneHost"),
            "ame426_panelTopHost" not in skinview_code.replace("ame426_panelTopHost", "ame426_goneHost"))
+    # ★Task427 S-C27a：面板范围抹除变体（convertRect 范围根修退役 = 面板重遮预览）→ C21 panel-scope-left-of-preview 必翻红
+    rcheck("S-C27a", skinview_code.replace("ame427_coverW = ame427_pf.origin.x - 8.0;", "/*ame427-scope-erased*/"),
+           "ame427_coverW = ame427_pf.origin.x - 8.0" not in skinview_code.replace(
+               "ame427_coverW = ame427_pf.origin.x - 8.0;", "/*ame427-scope-erased*/"))
+    # ★Task427 S-C27b：全屏宿主抹除变体（窗级迁移/约束存档退役）→ C21 fs-window-host 必翻红
+    rcheck("S-C27b", skinview_code.replace("_ame427_fsSavedConstraints", "_ame427_goneSaved"),
+           "_ame427_fsSavedConstraints" not in skinview_code.replace("_ame427_fsSavedConstraints", "_ame427_goneSaved"))
+    # ★Task427 S-C27c：维度固定光照抹除变体（末地/下界回时间盘亮度 = 昼夜样式混同复潮）→ C21 dim-static-fixed-light 必翻红
+    rcheck("S-C27c", skinview_code.replace("_ame424_brightness = 0.95;", "/*ame427-dim-erased*/"),
+           "_ame424_brightness = 0.95" not in skinview_code.replace("_ame424_brightness = 0.95;", "/*ame427-dim-erased*/"))
+    # ★Task427 S-C27d：晚霞辉光抹除变体（径向渐变退役 = 晨昏无光晕）→ C21 sunset-glow 必翻红
+    rcheck("S-C27d", skinview_code.replace("_ame426_glowLayer", "_ame426_goneGlow"),
+           "_ame426_glowLayer" not in skinview_code.replace("_ame426_glowLayer", "_ame426_goneGlow"))
+    # ★Task427 S-C27e：高度图地形抹除变体（值噪声地形退役 = 平地毯回潮）→ C21 world-grid-20 必翻红
+    rcheck("S-C27e", skinview_code.replace("ame427_terrainAt", "ame427_goneTerrain"),
+           "ame427_terrainAt" not in skinview_code.replace("ame427_terrainAt", "ame427_goneTerrain"))
+    # ★Task427 S-C27f：暴露壁抹除变体（立体方块侧壁退役 = 无高差平面回潮）→ C21 heightmap-sides 必翻红
+    rcheck("S-C27f", skinview_code.replace("ame427_buildSideFaceWithX0", "ame427_goneSide"),
+           "ame427_buildSideFaceWithX0" not in skinview_code.replace("ame427_buildSideFaceWithX0", "ame427_goneSide"))
     if rf:
         print(f"  SELFTEST FAILED: {rf}")
         sys.exit(1)
-    print(f"  selftest {rp}/32 probes red as expected")
+    print(f"  selftest {rp}/38 probes red as expected")
 
 print(f"ame378_selfcheck: {passed} passed, {len(fails)} failed")
 if fails:

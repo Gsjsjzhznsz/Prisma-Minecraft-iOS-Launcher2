@@ -3968,3 +3968,9 @@
 "ame426.weather.clear" = "Clear";
 "ame426.weather.rain" = "Rain";
 "ame426.weather.snow" = "Snow";
+
+"ame427.fs.enter" = "Fullscreen";
+"ame427.fs.exit" = "Exit Fullscreen";
+"ame427.fs.placeholder" = "Preview in fullscreen — tap to return";
+"ame427.dim.static" = "Static light · no day/night cycle";
+"ame427.pose.control" = "Pose";
