@@ -331,7 +331,9 @@ static const NSInteger kAme428ErrBothEndpoints = -1003;
     // 仓内无既有大陆探测（PLMirrorCenter 为测速竞速、无地域判定）→ 任务口径
     // 兜底：Asia/Shanghai 时区 AND（zh 语言 OR CN 区域）。时区条件覆盖大陆，
     // 与语言/区域组合避免海外华语用户被误判（海外默认 mclo.gs 优先）。
-    NSString *tz = [NSTimeZone systemTimeZone].identifier;
+    // ★Task428-r2：NSTimeZone 无 identifier 属性（实名 name——CI run 43640652323
+    //   编译雷，虚构属性族判例）
+    NSString *tz = [NSTimeZone systemTimeZone].name;
     BOOL tzMainland = ([tz isEqualToString:@"Asia/Shanghai"] ||
                        [tz isEqualToString:@"Asia/Urumqi"] ||
                        [tz isEqualToString:@"Asia/Chongqing"] ||

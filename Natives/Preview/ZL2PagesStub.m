@@ -1367,6 +1367,33 @@ typedef NS_ENUM(NSInteger, InlineMessageType) {
 
 @end
 
+// ★Task428（1.2/1.3/1.4）：PLProfiles 版本隔离/扫描族类方法桩——ZL2Home/
+//   ZL2Versions 首屏路径直调（ame_rebuildData/refreshLaunchState），桩缺方法
+//   = 启动即崩（run 43641566045 console-home 实锚：unrecognized selector
+//   ame428_isVersionInstalledPerScan:profile:）。返回值口径：-1 = 零触碰
+//   （自定义路径/latest 别名语义），预览世界无版本目录，全部按"无版本态"降级。
+@interface PLProfiles (Ame428Task428Stubs)
++ (NSString *)ame428_scanRoot;
++ (NSString *)ame428_versionDirForVid:(NSString *)vid;
++ (NSInteger)ame428_effectiveIsolationForVid:(NSString *)vid profile:(NSDictionary *)profile;
++ (BOOL)ame428_isVersionInstalledPerScan:(NSString *)versionId profile:(NSDictionary *)profile;
++ (NSString *)ame428_registerProfileForVid:(NSString *)vid;
++ (NSArray<NSString *> *)ame428_profileNamesReferencingVid:(NSString *)vid;
++ (void)ame428_recordScanCensusOnce:(NSDictionary *)stats;
++ (void)ame428_presentIsolationMoveFlowFrom:(UIViewController *)presenter;
+@end
+
+@implementation PLProfiles (Ame428Task428Stubs)
++ (NSString *)ame428_scanRoot { return nil; }
++ (NSString *)ame428_versionDirForVid:(NSString *)vid { return nil; }
++ (NSInteger)ame428_effectiveIsolationForVid:(NSString *)vid profile:(NSDictionary *)profile { return -1; }
++ (BOOL)ame428_isVersionInstalledPerScan:(NSString *)versionId profile:(NSDictionary *)profile { return NO; }
++ (NSString *)ame428_registerProfileForVid:(NSString *)vid { return nil; }
++ (NSArray<NSString *> *)ame428_profileNamesReferencingVid:(NSString *)vid { return @[]; }
++ (void)ame428_recordScanCensusOnce:(NSDictionary *)stats {}
++ (void)ame428_presentIsolationMoveFlowFrom:(UIViewController *)presenter {}
+@end
+
 #pragma mark - extern 常量桩（7.0-UI-10-f 新增）
 
 // DownloadTaskItem.h 声明（DownloadTaskItem.m L9 原值照抄）。整合包注册任务
