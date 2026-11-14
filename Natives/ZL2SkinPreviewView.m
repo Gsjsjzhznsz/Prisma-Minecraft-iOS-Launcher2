@@ -1783,7 +1783,7 @@ static void ame427_terrainAt(NSInteger bx, NSInteger bz, NSInteger world,
     //   逐帧跟随太阳屏位；透明度 = 晨昏带 × 太阳可见度，事件驱动在
     //   ame426_syncSkyPalette，位置驱动在 ame425_updateWorldTransform）
     _ame426_glowLayer = [CAGradientLayer layer];
-    _ame426_glowLayer.type = kCAGradientTypeRadial;
+    _ame426_glowLayer.type = kCAGradientLayerRadial;   // ★SDK 实名（kCAGradientTypeRadial 非 Apple API = 判例 N+7：虚构常量族再现，clang 建议名即真名）
     _ame426_glowLayer.frame = self.bounds;
     _ame426_glowLayer.startPoint = CGPointMake(0.5, 0.5);
     _ame426_glowLayer.endPoint = CGPointMake(1.0, 1.0);

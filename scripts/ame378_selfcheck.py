@@ -663,8 +663,8 @@ ame378_c21 = [
         and "localize(@\"ame427.dim.static\"" in skinview_raw
         and "_ame426_dialRowRef.hidden" in skinview_code),   # 末地 0.95/下界 1.05 固定光照 + 面板时间盘/天气段隐藏
     ("sunset-glow", "_ame426_glowLayer" in skinview_code
-        and "kCAGradientTypeRadial" in skinview_code
-        and "_ame426_glowLayer.startPoint" in skinview_code),   # 晚霞径向辉光（Photon 大气散射近似，太阳屏位跟随）
+        and "kCAGradientLayerRadial" in skinview_code
+        and "_ame426_glowLayer.startPoint" in skinview_code),   # 晚霞径向辉光（Photon 大气散射近似，太阳屏位跟随；★SDK 实名判例 N+7）
     ("sky-5-stop", "locations = @[@0.0, @0.38, @0.62, @0.78, @1.0]" in skinview_code
         and "ame426_mid[ame427_j] * 0.55 + ame426_bot[ame427_j] * 0.45" in skinview_code),   # 五停靠天穹 + 雾色低空两停靠同源派生（雾-天穹锚定）
     ("sun-elevation-tint", "0.96 - 0.41 * ame426_warmSun" in skinview_code
