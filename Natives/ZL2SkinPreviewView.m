@@ -2417,7 +2417,7 @@ static void Ame416RotX(CGFloat th, CGFloat *y, CGFloat *z) {
     }
     // 脚下软影：脚点 (0,-16,0) + 光向地面偏移（az 同向）→ 投影贴地
     if (_ame425_shadowView) {
-        CGFloat ame425_shx = _ame424_Lx * 8.0, ame425_shz = _ame424_Lz * 8.0;
+        CGFloat ame425_shx = ame424_Lx * 8.0, ame425_shz = ame424_Lz * 8.0;
         CGFloat ame416_vx = ame425_shx, ame416_vy = -16.0, ame416_vz = ame425_shz;
         Ame416RotY(_ame413_yaw, &ame416_vx, &ame416_vz);
         Ame416RotX(_ame413_pitch, &ame416_vy, &ame416_vz);
