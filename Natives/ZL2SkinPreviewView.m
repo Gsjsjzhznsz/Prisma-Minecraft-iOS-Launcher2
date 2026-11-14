@@ -685,6 +685,9 @@ static const CGFloat AME416_WALK_AMP = 0.50;
     [_ame424_poseControl addTarget:self
                             action:@selector(ame424_poseChanged:)
                   forControlEvents:UIControlEventValueChanged];
+    // ★Task424-r2：姿态四段横向抗压 required（与提示语尾链 250 配对 = 窄幅让位链）
+    [_ame424_poseControl setContentCompressionResistancePriority:UILayoutPriorityRequired
+                                                         forAxis:UILayoutConstraintAxisHorizontal];
     [self addSubview:_ame424_poseControl];
     _ame414_refreshButton = [self ame414_iconButtonWithSymbol:@"arrow.clockwise" fallback:nil
                                                         label:@"ame414.skin.refresh"
@@ -802,11 +805,17 @@ static const CGFloat AME416_WALK_AMP = 0.50;
         [_ame414_wardrobeStack.heightAnchor constraintEqualToAnchor:_ame414_wardrobeStrip.heightAnchor],
     ]];
 
+    // ★Task424-r2 窄幅让位（CI run 43591356683 accounts 双图定谳：姿态四段
+    //   标签被提示语挤成「…」全截断）：提示语尾链降优先级 250 让位，
+    //   姿态段横向抗压 required 保真宽，空间紧张时提示语自行截断。
+    NSLayoutConstraint *ame424_hintTrail =
+        [_ame413_hintLabel.trailingAnchor constraintLessThanOrEqualToAnchor:_ame424_poseControl.leadingAnchor constant:-4.0];
+    ame424_hintTrail.priority = 250;
     [NSLayoutConstraint activateConstraints:@[
         // 顶行：提示语左 / 姿态四段 + 刷新右（★Task424 run/pause 退役入四段）
         [_ame413_hintLabel.leadingAnchor constraintEqualToAnchor:self.leadingAnchor constant:10.0],
         [_ame413_hintLabel.centerYAnchor constraintEqualToAnchor:_ame424_poseControl.centerYAnchor],
-        [_ame413_hintLabel.trailingAnchor constraintLessThanOrEqualToAnchor:_ame424_poseControl.leadingAnchor constant:-4.0],
+        ame424_hintTrail,
         [_ame414_refreshButton.trailingAnchor constraintEqualToAnchor:self.trailingAnchor constant:-10.0],
         [_ame424_poseControl.trailingAnchor constraintEqualToAnchor:_ame414_refreshButton.leadingAnchor constant:-6.0],
         [_ame424_poseControl.topAnchor constraintEqualToAnchor:self.topAnchor constant:6.0],
