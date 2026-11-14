@@ -805,12 +805,15 @@ static const CGFloat AME416_WALK_AMP = 0.50;
         [_ame414_wardrobeStack.heightAnchor constraintEqualToAnchor:_ame414_wardrobeStrip.heightAnchor],
     ]];
 
-    // ★Task424-r2 窄幅让位（CI run 43591356683 accounts 双图定谳：姿态四段
-    //   标签被提示语挤成「…」全截断）：提示语尾链降优先级 250 让位，
-    //   姿态段横向抗压 required 保真宽，空间紧张时提示语自行截断。
+    // ★Task424-r2 窄幅让位（CI r1/r2 双图定谳：r1 尾链 required 把姿态段挤成「…」；
+    //   r2 尾链降 250 后提示语不截断改溢出叠到段上）＝ 标准解法双件套：
+    //   尾链 required 定边界 + 提示语横向抗压降 250 → 空间紧张时提示语自行截断，
+    //   姿态段（抗压 required）保真宽。
     NSLayoutConstraint *ame424_hintTrail =
         [_ame413_hintLabel.trailingAnchor constraintLessThanOrEqualToAnchor:_ame424_poseControl.leadingAnchor constant:-4.0];
-    ame424_hintTrail.priority = 250;
+    ame424_hintTrail.priority = UILayoutPriorityRequired;
+    [_ame413_hintLabel setContentCompressionResistancePriority:250
+                                                       forAxis:UILayoutConstraintAxisHorizontal];
     [NSLayoutConstraint activateConstraints:@[
         // 顶行：提示语左 / 姿态四段 + 刷新右（★Task424 run/pause 退役入四段）
         [_ame413_hintLabel.leadingAnchor constraintEqualToAnchor:self.leadingAnchor constant:10.0],
