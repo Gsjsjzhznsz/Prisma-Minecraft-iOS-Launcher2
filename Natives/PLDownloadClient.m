@@ -353,6 +353,12 @@ expectedTotalBytes:(int64_t)expectedTotalBytes {
 /// task → operation 映射（NSLock 保护：didFinishDownloadingToURL 在 delegate 队列同步读取）
 @property (nonatomic, strong) NSMutableDictionary<NSURLSessionTask *, PLDownloadOperation *> *operations;
 @property (nonatomic, strong) NSLock *operationsLock;
+/// ★Task428（4.1）：If-Range 温启双助手（实现见状态机节；类扩展前置声明——
+///   未声明方法被标量表达式消费 = "cannot compile this scalar expression yet"）
+- (BOOL)ame428_armWarmStartForOperation:(PLDownloadOperation *)op;
+- (nullable NSError *)ame428_assembleWarmStartPartForOperation:(PLDownloadOperation *)op
+                                                 prefixBytes:(int64_t)prefix
+                                               readyPartPath:(NSString *)readyPartPath;
 @end
 
 @implementation PLDownloadClient
@@ -526,6 +532,120 @@ expectedTotalBytes:(int64_t)expectedTotalBytes {
 }
 
 #pragma mark - 状态机（仅 stateQueue 调用）
+
+/// ★Task428（4.1）：If-Range 温启布防（无 resumeData 且目的地有旧文件时）。
+/// 返回 YES = 已发 HEAD 探测（ETag/Last-Modified 回调后异步推进首次尝试，
+/// 调用方直接 return 等待）；NO = 无可温启旧文件 → 调用方走 startAttempt
+/// （行为与旧版完全一致）。仅 beginOperation（stateQueue）调用。
+- (BOOL)ame428_armWarmStartForOperation:(PLDownloadOperation *)op {
+    NSDictionary *ame428_attrs = [[NSFileManager defaultManager]
+        attributesOfItemAtPath:op.request.destinationPath error:nil];
+    uint64_t ame428_size = [ame428_attrs[NSFileSize] unsignedLongLongValue];
+    if (ame428_size == 0) return NO;   // 无旧文件/空文件——无可温启
+    op.ame428_pendingWarmStartPrefix = (NSInteger)ame428_size;
+    op.ame428_pendingWarmStartValidator = nil;
+    NSURL *ame428_url = op.request.candidateURLs[op.urlIndex];
+    NSMutableURLRequest *ame428_head = [NSMutableURLRequest requestWithURL:ame428_url];
+    ame428_head.HTTPMethod = @"HEAD";
+    ame428_head.timeoutInterval = 10.0;
+    // PLDownloadClient 为单例，探针短存活——强插 self 无保留环风险
+    NSURLSessionDataTask *ame428_probe = [self.session dataTaskWithRequest:ame428_head
+        completionHandler:^(NSData *ame428_data, NSURLResponse *ame428_resp, NSError *ame428_err) {
+            dispatch_async(self.stateQueue, ^{
+                if (op.state != PLDownloadOperationStateRunning) return;   // 已取消/被取代
+                NSHTTPURLResponse *ame428_http =
+                    [ame428_resp isKindOfClass:[NSHTTPURLResponse class]]
+                        ? (NSHTTPURLResponse *)ame428_resp : nil;
+                // 探测失败/非 2xx → 探测不到验证器：按普通全量下载走
+                if (ame428_err || !ame428_http || ame428_http.statusCode < 200 || ame428_http.statusCode >= 300) {
+                    op.ame428_pendingWarmStartPrefix = 0;
+                    op.ame428_pendingWarmStartValidator = nil;
+                    [self startAttemptForOperation:op];
+                    return;
+                }
+                // ETag 优先，Last-Modified 兜底（响应头字典大小写不敏感查）
+                NSString *ame428_validator = nil;
+                for (NSString *ame428_key in ame428_http.allHeaderFields.allKeys) {
+                    if ([ame428_key caseInsensitiveCompare:@"ETag"] == NSOrderedSame) {
+                        ame428_validator = ame428_http.allHeaderFields[ame428_key];
+                    }
+                }
+                if (ame428_validator.length == 0) {
+                    for (NSString *ame428_key in ame428_http.allHeaderFields.allKeys) {
+                        if ([ame428_key caseInsensitiveCompare:@"Last-Modified"] == NSOrderedSame) {
+                            ame428_validator = ame428_http.allHeaderFields[ame428_key];
+                        }
+                    }
+                }
+                op.ame428_pendingWarmStartValidator = ame428_validator.length > 0 ? ame428_validator : nil;
+                [self startAttemptForOperation:op];
+            });
+        }];
+    [ame428_probe resume];
+    return YES;
+}
+
+/// ★Task428（4.1）：206 拼接——旧文件前 prefix 字节 + 刚落盘的剩余部分 .part
+/// → 临时文件 → 原子替换 readyPartPath。分块拷贝（1 MiB）避免大文件整读。
+/// 失败返回错误（调用方已按失败路径清理重试，与校验失败同语义）。
+- (nullable NSError *)ame428_assembleWarmStartPartForOperation:(PLDownloadOperation *)op
+                                                 prefixBytes:(int64_t)prefix
+                                               readyPartPath:(NSString *)readyPartPath {
+    NSFileManager *ame428_fm = [NSFileManager defaultManager];
+    NSString *ame428_dest = op.request.destinationPath;
+    if (![ame428_fm fileExistsAtPath:ame428_dest]) {
+        return PLDownloadErrorMake(PLDownloadClientErrorCodeFileWriteFailure,
+            @"warm-start prefix source missing", nil);
+    }
+    // ★Task428-r3 注：id 下标点语法不可编译（.length 判例族）——消息语法
+    uint64_t ame428_destSize = [[ame428_fm attributesOfItemAtPath:ame428_dest
+                                                            error:nil][NSFileSize] unsignedLongLongValue];
+    if ((uint64_t)prefix > ame428_destSize) {
+        return PLDownloadErrorMake(PLDownloadClientErrorCodeFileWriteFailure,
+            @"warm-start prefix longer than existing file", nil);
+    }
+    NSString *ame428_tmp = [readyPartPath stringByAppendingString:@".ame428asm"];
+    [ame428_fm removeItemAtPath:ame428_tmp error:nil];
+    if (![ame428_fm createFileAtPath:ame428_tmp contents:nil attributes:nil]) {
+        return PLDownloadErrorMake(PLDownloadClientErrorCodeFileWriteFailure,
+            @"warm-start assembly temp create failed", nil);
+    }
+    NSFileHandle *ame428_out = [NSFileHandle fileHandleForWritingAtPath:ame428_tmp];
+    NSFileHandle *ame428_src = [NSFileHandle fileHandleForReadingAtPath:ame428_dest];
+    NSFileHandle *ame428_part = nil;
+    uint64_t ame428_copied = 0;
+    const NSUInteger ame428_chunk = 1 << 20;   // 1 MiB
+    while (ame428_copied < (uint64_t)prefix && ame428_out && ame428_src) {
+        NSUInteger ame428_want = (NSUInteger)MIN((uint64_t)ame428_chunk, (uint64_t)prefix - ame428_copied);
+        NSData *ame428_blk = [ame428_src readDataOfLength:ame428_want];
+        if (ame428_blk.length == 0) break;   // 源短读（防御）
+        [ame428_out writeData:ame428_blk];
+        ame428_copied += ame428_blk.length;
+    }
+    if (ame428_copied < (uint64_t)prefix) {
+        [ame428_src closeFile]; [ame428_out closeFile];
+        [ame428_fm removeItemAtPath:ame428_tmp error:nil];
+        return PLDownloadErrorMake(PLDownloadClientErrorCodeFileWriteFailure,
+            @"warm-start prefix short read", nil);
+    }
+    [ame428_src closeFile];
+    ame428_part = [NSFileHandle fileHandleForReadingAtPath:readyPartPath];
+    while (ame428_out && ame428_part) {
+        NSData *ame428_blk = [ame428_part readDataOfLength:ame428_chunk];
+        if (ame428_blk.length == 0) break;
+        [ame428_out writeData:ame428_blk];
+    }
+    [ame428_part closeFile];
+    [ame428_out closeFile];
+    [ame428_fm removeItemAtPath:readyPartPath error:nil];
+    NSError *ame428_moveErr = nil;
+    if (![ame428_fm moveItemAtPath:ame428_tmp toPath:readyPartPath error:&ame428_moveErr]) {
+        [ame428_fm removeItemAtPath:ame428_tmp error:nil];
+        return ame428_moveErr ?: PLDownloadErrorMake(PLDownloadClientErrorCodeFileWriteFailure,
+            @"warm-start assembly move failed", nil);
+    }
+    return nil;
+}
 
 /// 操作起点：增量检查 → 磁盘断点恢复 → If-Range 温启探测 → 发起首次尝试
 - (void)beginOperation:(PLDownloadOperation *)op {
