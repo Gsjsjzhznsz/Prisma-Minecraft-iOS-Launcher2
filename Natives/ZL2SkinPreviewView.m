@@ -292,6 +292,76 @@ static UIImage *ZL2SkinViewOpaqueMaskImage(UIImage *ame422_src) {
     return [UIImage imageWithCGImage:ame422_out];
 }
 
+// ★Task423 内容级模型判定（Alex/Steve 双态根修——419-d 落码面收口）：
+//   yggdrasil metadata.model 只在第三方真皮链在场；crafatar/minotar/衣柜/
+//   本盘缓存皮肤零 metadata = 恒 classic UV 表读 slim 内容贴图。IMG_0668
+//   像素实锤（crafatar 默认 Alex 皮 fixture 同款）：slim 展开带背区只有
+//   51..54 列有内容，经典背区 (52,20,4x12) 右半 54..56 = 废弃透明列，
+//   α<26 裁切吃掉 = 背脸只剩 ~1.5~2 列细条（设备 30px/46px@unit≈20 复刻
+//   15px/20px@unit=10 逐像素吻合）+ 臂躯 24~30px 纯背景缝。
+//   判定探针 = 经典展开带专属列 alpha（右臂 x54..55 y20..32 / 左臂
+//   x46..47 y52..64）：slim 展开图这两列恒废弃透明、classic 恒有内容
+//   （minotar-Alex R/L opaque=0→slim；写实皮/Steve 填满→classic）。
+//   64×32 旧版恒 classic（legacy 镜像口径不变）；渲染以内容为准
+//   （UV 必须匹配内容展开带，metadata 仅作诊断日志参考）。
+static BOOL ZL2SkinViewProbeRegionHasOpaque(UIImage *ame423_skin,
+                                            CGFloat ame423_x, CGFloat ame423_y,
+                                            CGFloat ame423_w, CGFloat ame423_h) {
+    if (!ame423_skin.CGImage) return NO;
+    size_t ame423_pw = (size_t)CGImageGetWidth(ame423_skin.CGImage);
+    size_t ame423_ph = (size_t)CGImageGetHeight(ame423_skin.CGImage);
+    if (ame423_pw < 1 || ame423_ph < 1) return NO;
+    CGFloat ame423_s = ame423_pw / 64.0;
+    NSInteger ame423_x0 = (NSInteger)(ame423_x * ame423_s);
+    NSInteger ame423_y0 = (NSInteger)(ame423_y * ame423_s);
+    NSInteger ame423_x1 = (NSInteger)((ame423_x + ame423_w) * ame423_s);
+    NSInteger ame423_y1 = (NSInteger)((ame423_y + ame423_h) * ame423_s);
+    if (ame423_x1 > (NSInteger)ame423_pw) ame423_x1 = (NSInteger)ame423_pw;
+    if (ame423_y1 > (NSInteger)ame423_ph) ame423_y1 = (NSInteger)ame423_ph;
+    if (ame423_x0 >= ame423_x1 || ame423_y0 >= ame423_y1) return NO;   // 64×32 左区越界 = 无探针
+    NSMutableData *ame423_buf = [NSMutableData dataWithLength:ame423_pw * ame423_ph * 4];
+    CGColorSpaceRef ame423_cs = CGColorSpaceCreateDeviceRGB();
+    CGContextRef ame423_ctx = CGBitmapContextCreate([ame423_buf mutableBytes],
+        ame423_pw, ame423_ph, 8, ame423_pw * 4, ame423_cs,
+        kCGImageAlphaPremultipliedLast | kCGBitmapByteOrder32Big);
+    CGColorSpaceRelease(ame423_cs);
+    if (!ame423_ctx) return NO;
+    CGContextSetInterpolationQuality(ame423_ctx, kCGInterpolationNone);
+    CGContextDrawImage(ame423_ctx, CGRectMake(0, 0, ame423_pw, ame423_ph), ame423_skin.CGImage);
+    UInt8 *ame423_px = [ame423_buf mutableBytes];
+    BOOL ame423_found = NO;
+    for (NSInteger ame423_y = ame423_y0; ame423_y < ame423_y1 && !ame423_found; ame423_y++) {
+        for (NSInteger ame423_x = ame423_x0; ame423_x < ame423_x1; ame423_x++) {
+            if (ame423_px[(ame423_y * (NSInteger)ame423_pw + ame423_x) * 4 + 3]
+                >= (UInt8)AME419_CUTOUT_MIN) {
+                ame423_found = YES;
+                break;
+            }
+        }
+    }
+    CGContextRelease(ame423_ctx);
+    return ame423_found;
+}
+
+// 返回 YES = slim（双探针区全透明）；YES 之外恒 classic。ame423_rHas/lHas
+// 出参 = 探针命中标志（诊断日志用；-1 = 该区越界未探）。
+static BOOL ZL2SkinViewDetectSlimModelFromContent(UIImage *ame423_skin,
+                                                  NSInteger *ame423_rHas,
+                                                  NSInteger *ame423_lHas) {
+    if (ame423_rHas) *ame423_rHas = -1;
+    if (ame423_lHas) *ame423_lHas = -1;
+    if (!ame423_skin.CGImage) return NO;
+    CGFloat ame423_w = ame423_skin.size.width;
+    CGFloat ame423_h = ame423_skin.size.height;
+    if (ame423_h < ame423_w) return NO;   // 64×32 旧版恒 classic
+    if (ame423_w < 64.0) return NO;
+    BOOL ame423_r = ZL2SkinViewProbeRegionHasOpaque(ame423_skin, 54.0, 20.0, 2.0, 12.0);
+    BOOL ame423_l = ZL2SkinViewProbeRegionHasOpaque(ame423_skin, 46.0, 52.0, 2.0, 12.0);
+    if (ame423_rHas) *ame423_rHas = ame423_r ? 1 : 0;
+    if (ame423_lHas) *ame423_lHas = ame423_l ? 1 : 0;
+    return (!ame423_r && !ame423_l);   // 双区全空 = slim（任一区有内容 = classic）
+}
+
 // ★Task414 设为头像：头部前脸 8×8 原生裁贴（nearest 邻域放大到 ≥256px，
 // 像-素风头像像素锐利）
 static UIImage *ZL2SkinViewHeadAvatarImage(UIImage *skin) {
@@ -1027,6 +1097,10 @@ static const CGFloat AME416_WALK_AMP = 0.50;
     //   （crafatar/minotar 只认 Mojang，第三方 username 恒回默认 Alex =
     //   IMG_0596「为什么是alex的皮肤」根因，第三方路径禁入）；否则 Mojang/
     //   微软/本地 → crafatar(profileId) → minotar(username)。
+    //   ★Task423 两道禁入补严：①三方 authserver 在场但 profileId 缺失 →
+    //   直接真皮回退（旧口径落进 mojang-chain = crafatar/minotar 恒回默认
+    //   皮毒缓存，IMG_0668 毒源实链）；②alex 哨兵 ...001 与 steve 哨兵同款
+    //   禁入 crafatar（离线默认皮哨兵不是真 UUID，crafatar 只会回默认皮）。
     if (authserver.length > 0 && profileId.length > 0) {
         [self ame413_fetchYggdrasilSkinWithServer:authserver
                                         profileId:profileId
@@ -1034,9 +1108,19 @@ static const CGFloat AME416_WALK_AMP = 0.50;
                                         cachePath:ame413_cachePath];
         return;
     }
+    if (authserver.length > 0) {
+        [_ame413_spinner stopAnimating];
+        _ame420_skinSource = @"yggdrasil-no-profile-fallback";
+        [self ame420_fallbackToLocalFullSkin:accountId];
+        return;
+    }
 
     NSMutableArray<NSString *> *ame413_urls = [NSMutableArray array];
-    if (profileId.length == 36 && ![profileId isEqualToString:@"00000000-0000-0000-0000-000000000000"]) {
+    // ★Task423 哨兵双禁：steve ...000（既有）+ alex ...001（ame224 离线默认皮
+    //   sentinel 同族禁入）——哨兵 UUID 送 crafatar 恒得默认皮毒缓存。
+    if (profileId.length == 36
+        && ![profileId isEqualToString:@"00000000-0000-0000-0000-000000000000"]
+        && ![profileId isEqualToString:@"00000000-0000-0000-0000-000000000001"]) {
         [ame413_urls addObject:[NSString stringWithFormat:@"https://crafatar.com/skins/%@", profileId]];
     }
     if (username.length > 0) {
@@ -1054,6 +1138,21 @@ static const CGFloat AME416_WALK_AMP = 0.50;
 // ★Task420 本盘双源取新（mtime 仲裁；并列/仅一源在场 → skinfull 优先 = 登录
 //   链权威；1s 容差内并列视为同时写入 → skinfull）。skinfull 合法性同
 //   ame133 口径（width ≥ 64 且 1:1 或 1:2）。
+// ★Task423 缓存来源 sidecar 仲裁降毒：IMG_0668 毒源实锤——crafatar 对未知
+//   UUID 恒回默认 Alex（fixture 取证 RArm-back avg α=127）只写账户级缓存
+//   （不写 avatar/skinfull）→ 新鲜 mtime 压过登录链真皮 → 舞台锁死他皮 +
+//   头像真皮同屏矛盾。降毒口径：缓存仅持 sidecar=yggdrasil（签名 URL 真
+//   皮链）才有资格凭 mtime 胜过有效 skinfull；mojang-chain（crafatar/
+//   minotar 用户名回退链）与历史无 sidecar 缓存一律输给有效 skinfull
+//   （Task420 前 yggdrasil 缓存也写 skinfull 同刻 = 零真损）。
+- (NSString *)ame423_cacheProvenanceAtPath:(NSString *)cachePath {
+    if (cachePath.length == 0) return nil;
+    NSString *ame423_srcPath = [cachePath stringByAppendingPathExtension:@"src"];
+    NSData *ame423_d = [NSData dataWithContentsOfFile:ame423_srcPath];
+    NSString *ame423_s = [[NSString alloc] initWithData:ame423_d encoding:NSUTF8StringEncoding];
+    return [ame423_s stringByTrimmingCharactersInSet:[NSCharacterSet whitespaceAndNewlineCharacterSet]];
+}
+
 - (UIImage *)ame420_newerLocalSkinWithCachePath:(NSString *)cachePath
                                         fullPath:(NSString *)fullPath {
     UIImage *ame420_cache = (cachePath.length > 0)
@@ -1067,6 +1166,10 @@ static const CGFloat AME416_WALK_AMP = 0.50;
     }
     if (!ame420_cache) return ame420_full;
     if (!ame420_full) return ame420_cache;
+    // ★Task423 降毒闸：非 yggdrasil 来源缓存（mojang-chain/历史无 sidecar）
+    //   永不压过有效 skinfull = 毒缓存失去 mtime 优势。
+    NSString *ame423_prov = [self ame423_cacheProvenanceAtPath:cachePath];
+    if (![ame423_prov isEqualToString:@"yggdrasil"]) return ame420_full;
     NSFileManager *ame420_fm = [NSFileManager defaultManager];
     NSDate *ame420_cd = [ame420_fm attributesOfItemAtPath:cachePath error:nil][NSFileModificationDate];
     NSDate *ame420_fd = [ame420_fm attributesOfItemAtPath:fullPath error:nil][NSFileModificationDate];
@@ -1213,6 +1316,11 @@ static const CGFloat AME416_WALK_AMP = 0.50;
             [inner->_ame413_spinner stopAnimating];
             if (ame413_valid) {
                 [data writeToFile:cachePath atomically:YES];   // 预览缓存
+                // ★Task423 来源 sidecar：yggdrasil 签名 URL 真皮链 = 唯一
+                //   可凭 mtime 与 skinfull 仲裁的缓存来源（降毒闸白名单）。
+                [[NSString stringWithFormat:@"yggdrasil\n"]
+                    writeToFile:[cachePath stringByAppendingPathExtension:@"src"]
+                     atomically:YES encoding:NSUTF8StringEncoding error:nil];
                 NSString *ame413_fullPath = ZL2SkinViewFullSkinPath(accountId);
                 if (ame413_fullPath) [data writeToFile:ame413_fullPath atomically:YES];   // 全皮落盘（离线真皮）
                 // ★Task420 头像随新：新皮脸部 8×8 落 ame133 skin- 键（
@@ -1261,6 +1369,12 @@ static const CGFloat AME416_WALK_AMP = 0.50;
             if (!strongSelf) return;
             if (ame413_image && ame413_valid) {
                 [data writeToFile:ame413_cachePath atomically:YES];
+                // ★Task423 来源 sidecar：mojang-chain（crafatar/minotar 用户名
+                //   回退链，未知名/未知 UUID 恒回默认皮 = 毒源族）——降毒闸凭
+                //   此永不压过有效 skinfull（IMG_0668 锁死循环根断）。
+                [[NSString stringWithFormat:@"mojang-chain\n"]
+                    writeToFile:[ame413_cachePath stringByAppendingPathExtension:@"src"]
+                     atomically:YES encoding:NSUTF8StringEncoding error:nil];
                 [strongSelf->_ame413_spinner stopAnimating];
                 strongSelf->_ame420_skinSource = @"mojang-chain";
                 [strongSelf ame413_applySkin:ame413_image];
@@ -1584,6 +1698,13 @@ static void ZL2SkinViewBuildPart(CALayer *ame413_parent,
     }
 
     BOOL ame413_legacy = (skin.size.height < skin.size.width);   // 64×32 旧版 = 左臂左腿镜像右区
+    // ★Task423 内容级模型判定（渲染以内容为准）：UV 表必须匹配贴图内容
+    //   展开带——slim 内容皮（crafatar/minotar 默认 Alex、衣柜、缓存零
+    //   metadata 场景）在 classic 表下背脸半列被 α 裁切吃掉 = IMG_0668
+    //   臂细条+缝。metadata（yggdrasil 链）保留在诊断日志作对照。
+    NSInteger ame423_rHas = -1, ame423_lHas = -1;
+    BOOL ame423_metaSlim = _ame413_slimModel;
+    _ame413_slimModel = ZL2SkinViewDetectSlimModelFromContent(skin, &ame423_rHas, &ame423_lHas);
     const ZL2SkinViewRect *ame413_rArmF = _ame413_slimModel ? ZL2SkinViewRArmSlimFaces : ZL2SkinViewRArmFaces;
     const ZL2SkinViewRect *ame413_lArmF = ame413_legacy ? ame413_rArmF
                                         : (_ame413_slimModel ? ZL2SkinViewLArmSlimFaces : ZL2SkinViewLArmFaces);
@@ -1649,11 +1770,30 @@ static void ZL2SkinViewBuildPart(CALayer *ame413_parent,
     //   布局面问题）
     // ★Task420 装配诊断重锚（cutout=基础层 α 裁切 / doubleside=外层双层 /
     //   source=皮肤来源链诊断：IMG_0655「为什么是原版皮肤」的 CI 仲裁面）
-    NSLog(@"[ZL2SkinPreview] Task422: skin=%gx%g stage=%.0fx%.0f unit=%.2f faces=%lu slim=%d walk=%d overlayParts=%ld source=%@ cutout=base-alpha>=26 veil=overlay-alpha>=180 doubleside=overlay chain=mtime-dualurl-fallback chip=%@",
+    // ★Task423 诊断重锚（model=内容判定结果 probe=经典专属列命中 meta=
+    //   yggdrasil metadata 对照 prov=缓存来源 sidecar 仲裁口径）：IMG_0668
+    //   「aelx都有问题」的 CI 仲裁面。
+    NSLog(@"[ZL2SkinPreview] Task423: skin=%gx%g stage=%.0fx%.0f unit=%.2f faces=%lu slim=%d walk=%d overlayParts=%ld source=%@ model=content-slim%d(classic%d) probe=r%ld/l%ld meta=%d cutout=base-alpha>=26 veil=overlay-alpha>=180 doubleside=overlay chain=mtime-dualurl-fallback-prov prov=%@ chip=%@",
           skin.size.width, skin.size.height, _ame413_stageView.bounds.size.width,
           _ame413_stageView.bounds.size.height, ame413_unit,
           (unsigned long)_ame413_faceLayers.count, _ame413_slimModel, _ame414_walkOn,
-          (long)ame418_overlayParts, _ame420_skinSource ?: @"-", _ame421_buildChip.text ?: @"-");
+          (long)ame418_overlayParts, _ame420_skinSource ?: @"-",
+          _ame413_slimModel ? 1 : 0, _ame413_slimModel ? 0 : 1,
+          (long)ame423_rHas, (long)ame423_lHas, ame423_metaSlim ? 1 : 0,
+          [self ame423_cacheProvenanceForDiag] ?: @"-", _ame421_buildChip.text ?: @"-");
+}
+
+// ★Task423 缓存来源 sidecar 读取（诊断 + 仲裁共用；缺省 = 无 sidecar 历史遗留）
+- (NSString *)ame423_cacheProvenanceForDiag {
+    NSString *ame423_key = _ame414_lastAccountId ?: _ame414_lastProfileId ?: _ame414_lastUsername;
+    if (ame423_key.length == 0) return nil;
+    NSString *ame423_cachePath = [[ZL2SkinViewCacheDir()
+        stringByAppendingPathComponent:ZL2SkinViewSafeName(ame423_key)]
+        stringByAppendingPathExtension:@"png"];
+    NSString *ame423_srcPath = [ame423_cachePath stringByAppendingPathExtension:@"src"];
+    NSData *ame423_d = [NSData dataWithContentsOfFile:ame423_srcPath];
+    NSString *ame423_s = [[NSString alloc] initWithData:ame423_d encoding:NSUTF8StringEncoding];
+    return [ame423_s stringByTrimmingCharactersInSet:[NSCharacterSet whitespaceAndNewlineCharacterSet]];
 }
 
 @end
