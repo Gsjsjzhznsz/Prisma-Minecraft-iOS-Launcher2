@@ -205,12 +205,18 @@ static UIImage *ZL2SkinViewFaceImage(UIImage *skin, ZL2SkinViewRect r) {
     return ame413_face;
 }
 
-// ★Task419 基础层 alpha 裁切（skinview3d innerLayer transparent:false + alphaTest
-//   与 MC entityCutout 同语义移植）：全息/虹彩皮肤基础层自带半透明像素，原样
-//   透出 = 整模幽灵化（IMG_0627 真机实锤：身体透底见背景，与皮肤站观感相悖）。
+// ★Task419 基础层 alpha 语义（skinview3d innerLayer 同源）：全息/虹彩皮肤基础
+//   层自带半透明像素，原样透出 = 整模幽灵化（IMG_0627）。
+// ★Task425 阈值根修 26→1（IMG_0671「手臂3d凸起下面是透明的」定谳）：
+//   skinview3d model.ts 亲验（本轮 WebFetch）——innerLayer = MeshStandardMaterial
+//   仅 side:FrontSide，无 transparent 无 alphaTest（= alphaTest 0）→ α≥1 像素
+//   全部保留且以不透明形式绘制；outerLayer 才 alphaTest 1e-5 + DoubleSide。
+//   旧 26（MC entityCutout 0.1×255）把 α∈[1,25] 的淡像素（渐变边缘/柔和阴影/
+//   发梢）裁成透明洞 = 透过外层袖子凸起看到洞后背景；Python 复刻 8 角度右臂
+//   bbox 定量：峰值穿透 37.9% → 阈值 1 后 0~1.6%（边缘抗锯齿残量）。
 //   基础层面重建位图：α ≥ 阈值 → 解预乘还原真色后强制不透明；α < 阈值 → 裁掉。
 //   ★CG 位图 rgba 为预乘语义（rgb *= α/255），不解预乘则半透像素变暗斑。
-static const CGFloat AME419_CUTOUT_MIN = 26.0;   // MC entityCutout 0.1 × 255
+static const CGFloat AME419_CUTOUT_MIN = 1.0;   // ★Task425：skinview3d innerLayer alphaTest 0 同源（α≥1 不透明）
 
 // ★Task422 外层暗罩不透明阈值（IMG_0667 定谳）：黑罩蒙在合成结果上 = 半透像素
 //   区背景贡献被二次压暗（合成 ×(1−α·罩)），躯干两侧缝带 rgb19 < 舞台底 25
@@ -219,7 +225,6 @@ static const CGFloat AME419_CUTOUT_MIN = 26.0;   // MC entityCutout 0.1 × 255
 //   α≥180 近不透明像素照常罩（背景贡献 ≤0.29×罩 ≈ 灰阶 2.5 不可感），
 //   α<180 半透区全亮 = sv3d Ambient3 观感；基础层裁切位图 0/255 掩膜不变。
 static const CGFloat AME422_VEIL_MIN_ALPHA = 180.0;
-
 static UIImage *ZL2SkinViewCutoutImage(UIImage *ame419_src) {
     if (!ame419_src.CGImage) return nil;
     size_t ame419_pw = (size_t)CGImageGetWidth(ame419_src.CGImage);
@@ -399,8 +404,9 @@ static UIImage *ZL2SkinViewHeadAvatarImage(UIImage *skin) {
     CGFloat screenPts[4][2]; // ★Task424 上一帧屏幕四角（自定义关节命中拾取）
     NSInteger partIndex;     // ★Task424 所属部件（0 头/1 身/2 右臂/3 左臂/4 右腿/5 左腿）
 }
-@property (nonatomic, strong) CALayer *layer;    // 贴图面（shade 为其子层随动）
-@property (nonatomic, strong) CALayer *shade;    // 黑色光影罩（opacity = 1−shade 逐帧）
+@property (nonatomic, strong) CALayer *layer;    // 贴图面（shade/hl 为其子层随动）
+@property (nonatomic, strong) CALayer *shade;    // 黑色光影罩（opacity 逐帧 = 黑影 depth）
+@property (nonatomic, strong) CALayer *hl;       // ★Task425 白色亮罩（opacity 逐帧 = highlight）
 @property (nonatomic, assign) CGFloat swingSign;       // 摆动方向（0 = 非肢体）
 @property (nonatomic, assign) BOOL isOverlay;          // ★Task419 外层标志（DoubleSide 不剔除）
 @end
@@ -438,7 +444,7 @@ static UIImage *ZL2SkinViewHeadAvatarImage(UIImage *skin) {
 //   · 罩上限 0.85→0.60（IMG_0669 定谳：0.85 = 全模型 murk 主源，头侧面实测
 //     ×0.524 → 新默认 ×0.756；scripts/task424_light_pose_replica.py 同公式
 //     Python 先行验证：模型区均亮 150.2→166.1）。
-static const CGFloat AME424_VEIL_CAP = 0.60;
+static const CGFloat AME424_VEIL_CAP = 0.60;   // ★Task425 已退役（双罩公式重构取代；常量留档防回潮探针）
 static const CGFloat AME424_BRIGHT_DEFAULT = 1.15;
 static const CGFloat AME424_BRIGHT_MIN = 0.5;
 static const CGFloat AME424_BRIGHT_MAX = 1.5;
@@ -453,13 +459,44 @@ static const CGFloat AME424_SNEAK_SINK = -2.2;    // 整体下沉
 // ★Task424 自定义关节拖拽限位（rad）
 static const CGFloat AME424_JOINT_MAX_XZ = 1.4;
 static const CGFloat AME424_JOINT_MAX_Y = 1.2;
-static const CGFloat AME424_JOINT_GAIN = 0.010;
+static const CGFloat AME424_JOINT_GAIN = 0.020;   // ★Task425 跟手：0.010→0.020（100pt 手程 1 rad 太钝定谳）
 // ★Task416 CPU 透视视距（pt；模型对角最大 ~20unit×unit×userScale 远小于
 //   此值，pf 恒有界；stage sublayerTransform m34 同帧退役 = 全链透视唯一源）
 static const CGFloat AME416_CAMERA_D = 900.0;
 // ★Task416 跑步摆幅（415 0.55 微收 = 皮肤站观感口径；walk 默认关 = 开屏
 //   站姿立正，自转慢速展示，跑步钮点按才起摆）
 static const CGFloat AME416_WALK_AMP = 0.50;
+
+// ★Task425 光影对比系统（用户 IMG_0671「光影程度和质量太低了，隔壁看不出有
+//   光影」定谳 + Python 先行 scripts/task425_replica.py B 组定量）：Task424
+//   旧公式面间罩差仅 ~31 灰阶（floor0.5225+cap0.60+gain0.85 单黑罩，az=90
+//   纯灰模型）= 「看不出光影」实锤。新公式双罩（白亮/黑影分离，面法线×光向
+//   dot 全域）+ 光影强度 c∈[0,2] 拖条（用户钦定第三调节器）：
+//   lit=(dot+1)/2；depth=clamp((1−lit)·1.30·(c/2), 0, 0.88) 黑影罩（dot=-1
+//   → 0.88 深黑 / -0.5 → 0.46 / 0 → 0.23 微暗）；highlight=clamp((dot−0.45)/
+//   0.55,0,1)·0.30·(c/2) 白亮罩（dot=0.9 → 0.245 提亮）；亮度 b 仍双通道
+//   （黑影×clamp(2−b,0.25,1.8) / 白亮×clamp(b,0.25,1.5)）。Python 定量：
+//   c=1.4 面间差 58 灰阶 vs 旧 31 = 1.9×；c=2.0 更大；c=0 = 平光（光影关）。
+//   Task424 VEIL_CAP 0.60 退役（旧「罩上限防 murk」顾虑由公式重构根治：
+//   黑罩只在背光面深、受光面浅，不再全模型均匀压暗）。
+static const CGFloat AME425_CONTRAST_DEFAULT = 1.4;
+static const CGFloat AME425_CONTRAST_MIN = 0.0;
+static const CGFloat AME425_CONTRAST_MAX = 2.0;
+static const CGFloat AME425_DEPTH_K = 1.30;
+static const CGFloat AME425_DEPTH_MAX = 0.88;
+static const CGFloat AME425_HL_K = 0.30;
+static const CGFloat AME425_HL_DOT0 = 0.45;
+static const CGFloat AME425_HL_SPAN = 0.55;
+// ★Task425 世界背景（用户钦定：草地/雪地/末地/地狱 3D 世界预设）：
+//   0..2 = 既有纯色（黑/深灰/浅灰），3..6 = 世界（天空渐变 + 8×8 方块地面
+//   CPU 投影 + 距离雾 + 太阳/月亮 + 脚下软影，全部随模型 yaw/pitch 联动 =
+//   3D 世界实感）。方块 16 单位（模型 32 高 = 2 块）；地面半径 64 单位。
+static const NSInteger AME425_WORLD_PLAINS = 3;
+static const NSInteger AME425_WORLD_SNOW = 4;
+static const NSInteger AME425_WORLD_END = 5;
+static const NSInteger AME425_WORLD_NETHER = 6;
+static const NSInteger AME425_GROUND_GRID = 8;      // 8×8 块
+static const CGFloat AME425_BLOCK_UNIT = 16.0;      // 方块边长（模型单位）
 
 #pragma mark - 实现
 
@@ -496,19 +533,38 @@ static const CGFloat AME416_WALK_AMP = 0.50;
     //   蹲下站立跑步+自定义关节拖拽；跑步/暂停二钮退役入四段姿态控件）——
     UISegmentedControl *_ame424_poseControl;         // 站立/蹲下/跑步/自定义
     NSInteger _ame424_poseIndex;                     // 0 站立 1 蹲下 2 跑步 3 自定义
-    UIControl *_ame424_lightDial;                    // 光位圆盘（视空间 az/el）
-    UIView *_ame424_dialKnob;                        // 盘内方向指示点
-    UISlider *_ame424_brightSlider;                  // 亮度拖条
-    UILabel *_ame424_brightLabel;                    // 亮度百分比
+    // ——★Task424 光影系统控件（旧 40pt 圆盘/110pt 拖条 ivar 退役：
+    //   ★Task425 二级面板大圆盘+满宽拖条接管；az/el/b 语义不变）——
     CGFloat _ame424_lightAz;                         // 光向方位角（rad）
     CGFloat _ame424_lightEl;                         // 光向仰角（rad）
     CGFloat _ame424_brightness;                      // 亮度系数 [0.5,1.5]
     CGFloat _ame424_joint[6][3];                     // 自定义关节角 [rotX,rotZ,rotY]
     NSInteger _ame424_dragPart;                      // 关节拖拽命中部件（-1 = 无）
-    NSLayoutConstraint *_ame424_knobLead;            // 盘内旋钮位置常量（同引用更新）
-    NSLayoutConstraint *_ame424_knobTop;
-    NSMutableArray<UIControl *> *_ame414_swatchButtons;      // 背景色板三枚
-    NSMutableArray<UIView *> *_ame414_swatchDots;            // 色板圆点（选中描边切换）
+    // ——★Task425 光影对比 + 世界背景 + 二级菜单——
+    CGFloat _ame425_contrast;                        // 光影强度 [0,2]（拖条）
+    NSInteger _ame425_world;                         // 0 黑/1 深灰/2 浅灰/3 草地/4 雪地/5 末地/6 地狱
+    UIControl *_ame425_gearButton;                   // 二级菜单入口（底行）
+    UIView *_ame425_panel;                           // 二级菜单浮层面板
+    UIScrollView *_ame425_panelScroll;
+    BOOL _ame425_panelOn;
+    UIView *_ame425_bigDial;                         // 面板内大圆盘（140pt，绝对定位跟手）
+    UIView *_ame425_bigKnob;
+    UISlider *_ame425_brightSlider;                  // 面板内亮度拖条（满宽）
+    UISlider *_ame425_contrastSlider;                // 面板内光影强度拖条
+    UISlider *_ame425_scaleSlider;                   // 面板内模型大小拖条
+    UILabel *_ame425_brightVal;
+    UILabel *_ame425_contrastVal;
+    UILabel *_ame425_scaleVal;
+    NSMutableArray<UIControl *> *_ame425_bgButtons;  // 背景七钮（黑/深灰/浅灰/草地/雪地/末地/地狱）
+    NSMutableArray<UIView *> *_ame425_bgDots;
+    CAGradientLayer *_ame425_skyLayer;               // 世界天空渐变
+    CALayer *_ame425_sunLayer;                       // 太阳/月亮
+    UIView *_ame425_shadowView;                      // 脚下软影
+    NSMutableArray<CALayer *> *_ame425_groundLayers; // 8×8 地面块
+    NSMutableArray<ZL2SkinViewFace *> *_ame425_groundFaces; // 地面面记录（投影复用）
+    NSMutableDictionary<NSNumber *, UIImage *> *_ame425_tileCache; // 方块噪点纹理缓存
+    NSMutableArray<UIControl *> *_ame414_swatchButtons;      // ★Task425 退役（面板七钮接管）
+    NSMutableArray<UIView *> *_ame414_swatchDots;            // ★Task425 退役
     UIScrollView *_ame414_wardrobeStrip;                     // 衣柜缩略条
     UIStackView *_ame414_wardrobeStack;                      // 缩略条内容
     NSMutableArray<NSString *> *_ame414_wardrobeEntries;     // 衣柜文件名序
@@ -542,6 +598,9 @@ static const CGFloat AME416_WALK_AMP = 0.50;
         _ame424_lightAz = AME424_DEF_AZ;
         _ame424_lightEl = AME424_DEF_EL;
         _ame424_brightness = AME424_BRIGHT_DEFAULT;
+        // ★Task425 光影对比初值（Python B 组定量：c=1.4 面间差 58 灰阶 vs 旧 31）
+        _ame425_contrast = AME425_CONTRAST_DEFAULT;
+        _ame425_world = 0;   // 默认黑场（既有判例）
         _ame424_poseIndex = 0;   // 开屏站立（416 判例：站姿立正 + 慢速自转）
         _ame424_dragPart = -1;
         for (NSInteger ame424_i = 0; ame424_i < 6; ame424_i++) {
@@ -693,80 +752,18 @@ static const CGFloat AME416_WALK_AMP = 0.50;
                                                         label:@"ame414.skin.refresh"
                                                        block:^{ [self ame414_refreshTapped]; }];
 
-    // ——★Task424 光影系统控件：光位圆盘 + 亮度拖条（底行左侧，色板/箭头右侧）——
-    _ame424_lightDial = [[UIControl alloc] init];
-    _ame424_lightDial.translatesAutoresizingMaskIntoConstraints = NO;
-    _ame424_lightDial.isAccessibilityElement = YES;
-    _ame424_lightDial.accessibilityLabel = localize(@"ame424.skin.light.dial", @"光位圆盘");
-    _ame424_lightDial.layer.cornerRadius = 20.0;
-    _ame424_lightDial.layer.borderWidth = 1.5;
-    _ame424_lightDial.layer.borderColor = [ZL2Theme outlineVariant].CGColor;
-    _ame424_lightDial.backgroundColor = [UIColor colorWithWhite:0.0 alpha:0.30];
-    UIPanGestureRecognizer *ame424_dialPan =
-        [[UIPanGestureRecognizer alloc] initWithTarget:self
-                                                action:@selector(ame424_dialPanned:)];
-    [_ame424_lightDial addGestureRecognizer:ame424_dialPan];
-    [self addSubview:_ame424_lightDial];
-    _ame424_dialKnob = [[UIView alloc] init];
-    _ame424_dialKnob.translatesAutoresizingMaskIntoConstraints = NO;
-    _ame424_dialKnob.userInteractionEnabled = NO;
-    _ame424_dialKnob.layer.cornerRadius = 5.0;
-    _ame424_dialKnob.backgroundColor = [UIColor colorWithWhite:1.0 alpha:0.95];
-    [_ame424_lightDial addSubview:_ame424_dialKnob];
-    [NSLayoutConstraint activateConstraints:@[
-        [_ame424_dialKnob.widthAnchor constraintEqualToConstant:10.0],
-        [_ame424_dialKnob.heightAnchor constraintEqualToConstant:10.0],
-    ]];
+    // ★Task425 主屏收拢定谳（用户「手机屏幕很小，这么多按钮塞不下，可以使用
+    //   二级菜单」+「调节器都太小了无法细微调节，使用单独的二级菜单方便控制」）：
+    //   Task424 底行（光位圆盘 40 + 亮度拖条 110 + 百分比 40）与色板三枚全部
+    //   退役入二级面板（ame425_buildPanel：大圆盘 120 绝对定位跟手 + 满宽拖条
+    //   + 步进细调 + 背景七钮含四世界）；主屏底行只留 gear 入口 + 旋转箭头
+    //   （高频操作保留），动作行 = 衣柜/头像/下载/gear。
+    _ame425_gearButton = [self ame414_iconButtonWithSymbol:@"slider.horizontal.3"
+                                                   fallback:@"gearshape"
+                                                     label:@"ame425.skin.gear"
+                                                    block:^{ [self ame425_togglePanel]; }];
 
-    _ame424_brightSlider = [[UISlider alloc] init];
-    _ame424_brightSlider.translatesAutoresizingMaskIntoConstraints = NO;
-    _ame424_brightSlider.minimumValue = AME424_BRIGHT_MIN;
-    _ame424_brightSlider.maximumValue = AME424_BRIGHT_MAX;
-    _ame424_brightSlider.value = _ame424_brightness;
-    _ame424_brightSlider.accessibilityLabel = localize(@"ame424.skin.light.brightness", @"亮度");
-    [_ame424_brightSlider addTarget:self
-                             action:@selector(ame424_brightnessChanged:)
-                   forControlEvents:UIControlEventValueChanged];
-    [self addSubview:_ame424_brightSlider];
-
-    _ame424_brightLabel = [[UILabel alloc] init];
-    _ame424_brightLabel.font = [ZL2Theme fontLabelMedium];
-    _ame424_brightLabel.textColor = [ZL2Theme onSurfaceVariant];
-    _ame424_brightLabel.textAlignment = NSTextAlignmentCenter;
-    _ame424_brightLabel.numberOfLines = 1;
-    _ame424_brightLabel.userInteractionEnabled = NO;
-    _ame424_brightLabel.translatesAutoresizingMaskIntoConstraints = NO;
-    [self addSubview:_ame424_brightLabel];
-
-    // ——底行：背景色板三枚 + 左右旋转箭头——
-    NSArray *ame414_swatchColors = @[
-        [UIColor colorWithWhite:0.0 alpha:1.0],
-        [UIColor colorWithWhite:0.16 alpha:1.0],
-        [UIColor colorWithWhite:0.55 alpha:1.0],
-    ];
-    for (NSUInteger ame414_i = 0; ame414_i < ame414_swatchColors.count; ame414_i++) {
-        ZL2SkinViewTapControl *ame414_swatch = [[ZL2SkinViewTapControl alloc] init];
-        ame414_swatch.translatesAutoresizingMaskIntoConstraints = NO;
-        ame414_swatch.isAccessibilityElement = YES;
-        ame414_swatch.accessibilityLabel = localize(@"ame414.skin.bg", @"预览背景");
-        ame414_swatch.layer.cornerRadius = 9.0;
-        ame414_swatch.layer.borderWidth = 1.5;
-        ame414_swatch.layer.borderColor = [ZL2Theme outlineVariant].CGColor;
-        ame414_swatch.backgroundColor = ame414_swatchColors[ame414_i];
-        UIView *ame414_dot = [[UIView alloc] init];
-        ame414_dot.translatesAutoresizingMaskIntoConstraints = NO;
-        ame414_dot.userInteractionEnabled = NO;
-        ame414_dot.layer.cornerRadius = 3.0;
-        ame414_dot.backgroundColor = [ZL2Theme primary];
-        ame414_dot.hidden = (ame414_i != 0);   // 默认黑场选中
-        [ame414_swatch addSubview:ame414_dot];
-        UIColor *ame414_picked = ame414_swatchColors[ame414_i];
-        __weak typeof(self) wself = self;
-        ame414_swatch.ame414_onTap = ^{ [wself ame414_applySwatch:ame414_picked index:ame414_i]; };
-        [self addSubview:ame414_swatch];
-        [_ame414_swatchButtons addObject:ame414_swatch];
-        [_ame414_swatchDots addObject:ame414_dot];
-    }
+    // ——底行：左右旋转箭头（高频保留主屏；色板/圆盘/拖条退役入面板）——
     _ame414_spinLeftButton = [self ame414_iconButtonWithSymbol:@"chevron.left" fallback:nil
                                                          label:@"ame414.skin.spin.left"
                                                         block:^{ [self ame414_spinLeftTapped]; }];
@@ -832,26 +829,12 @@ static const CGFloat AME416_WALK_AMP = 0.50;
         [_ame414_wardrobeStrip.leadingAnchor constraintEqualToAnchor:self.leadingAnchor constant:10.0],
         [_ame414_wardrobeStrip.trailingAnchor constraintEqualToAnchor:self.trailingAnchor constant:-10.0],
 
-        // 底行：★Task424 光位圆盘 + 亮度拖条左 / 色板右 / 箭头右
-        [_ame424_lightDial.leadingAnchor constraintEqualToAnchor:self.leadingAnchor constant:10.0],
-        [_ame424_lightDial.centerYAnchor constraintEqualToAnchor:_ame414_spinLeftButton.centerYAnchor],
-        [_ame424_lightDial.widthAnchor constraintEqualToConstant:40.0],
-        [_ame424_lightDial.heightAnchor constraintEqualToConstant:40.0],
-        [_ame424_brightSlider.leadingAnchor constraintEqualToAnchor:_ame424_lightDial.trailingAnchor constant:8.0],
-        [_ame424_brightSlider.centerYAnchor constraintEqualToAnchor:_ame414_spinLeftButton.centerYAnchor],
-        [_ame424_brightSlider.widthAnchor constraintEqualToConstant:110.0],
-        [_ame424_brightLabel.leadingAnchor constraintEqualToAnchor:_ame424_brightSlider.trailingAnchor constant:6.0],
-        [_ame424_brightLabel.centerYAnchor constraintEqualToAnchor:_ame414_spinLeftButton.centerYAnchor],
-        [_ame424_brightLabel.widthAnchor constraintEqualToConstant:40.0],
+        // 底行：★Task425 收拢 = 仅右旋转箭头（圆盘拖条色板入面板，gear 入动作行）
         [_ame414_spinRightButton.trailingAnchor constraintEqualToAnchor:self.trailingAnchor constant:-10.0],
         [_ame414_spinLeftButton.trailingAnchor constraintEqualToAnchor:_ame414_spinRightButton.leadingAnchor constant:-4.0],
         [_ame414_spinLeftButton.topAnchor constraintEqualToAnchor:_ame414_wardrobeStrip.bottomAnchor constant:4.0],
-        [_ame414_swatchButtons[2].trailingAnchor constraintEqualToAnchor:_ame414_spinLeftButton.leadingAnchor constant:-8.0],
-        [_ame414_swatchButtons[1].trailingAnchor constraintEqualToAnchor:_ame414_swatchButtons[2].leadingAnchor constant:-6.0],
-        [_ame414_swatchButtons[0].trailingAnchor constraintEqualToAnchor:_ame414_swatchButtons[1].leadingAnchor constant:-6.0],
-        [_ame414_swatchButtons[0].leadingAnchor constraintGreaterThanOrEqualToAnchor:_ame424_brightLabel.trailingAnchor constant:8.0],
 
-        // 动作行：衣柜/头像/下载 左对齐排布，贴底
+        // 动作行：衣柜/头像/下载/gear 左对齐排布，贴底
         //   ★Task422 竖直补锚（IMG_0667 + harness 双截图定谳）：下载/头像两钮
         //   此前仅 leading 链无竖直锚 = 垂直欠定 Auto Layout 落 y=0 顶行叠在
         //   「拖动旋转·捏合缩放」提示上（📥/👤 与提示文字重叠实拍病灶）；
@@ -859,14 +842,13 @@ static const CGFloat AME416_WALK_AMP = 0.50;
         [_ame414_downloadButton.leadingAnchor constraintEqualToAnchor:self.leadingAnchor constant:10.0],
         [_ame414_avatarButton.leadingAnchor constraintEqualToAnchor:_ame414_downloadButton.trailingAnchor constant:14.0],
         [_ame414_wardrobeAddButton.leadingAnchor constraintEqualToAnchor:_ame414_avatarButton.trailingAnchor constant:14.0],
+        [_ame425_gearButton.leadingAnchor constraintEqualToAnchor:_ame414_wardrobeAddButton.trailingAnchor constant:14.0],
         [_ame414_downloadButton.centerYAnchor constraintEqualToAnchor:_ame414_wardrobeAddButton.centerYAnchor],
         [_ame414_avatarButton.centerYAnchor constraintEqualToAnchor:_ame414_wardrobeAddButton.centerYAnchor],
+        [_ame425_gearButton.centerYAnchor constraintEqualToAnchor:_ame414_wardrobeAddButton.centerYAnchor],
         [_ame414_wardrobeAddButton.topAnchor constraintEqualToAnchor:_ame414_spinLeftButton.bottomAnchor constant:4.0],
         [_ame414_wardrobeAddButton.bottomAnchor constraintEqualToAnchor:self.bottomAnchor constant:-6.0],
         [_ame414_spinRightButton.centerYAnchor constraintEqualToAnchor:_ame414_spinLeftButton.centerYAnchor],
-        [_ame414_swatchButtons[0].centerYAnchor constraintEqualToAnchor:_ame414_spinLeftButton.centerYAnchor],
-        [_ame414_swatchButtons[1].centerYAnchor constraintEqualToAnchor:_ame414_spinLeftButton.centerYAnchor],
-        [_ame414_swatchButtons[2].centerYAnchor constraintEqualToAnchor:_ame414_spinLeftButton.centerYAnchor],
 
         // 状态/加载指示居中于舞台
         // ★Task421 代际角标：舞台右下角常驻（stageView 底 = 衣柜条顶−4 上方，
@@ -881,20 +863,8 @@ static const CGFloat AME416_WALK_AMP = 0.50;
         [_ame413_spinner.centerXAnchor constraintEqualToAnchor:self.centerXAnchor],
         [_ame413_spinner.centerYAnchor constraintEqualToAnchor:_ame413_stageView.centerYAnchor],
     ]];
-    // 色板圆点居中 + 尺寸（构建期一次性）
-    for (NSUInteger ame414_i = 0; ame414_i < _ame414_swatchButtons.count; ame414_i++) {
-        UIControl *ame414_swatch = _ame414_swatchButtons[ame414_i];
-        UIView *ame414_dot = _ame414_swatchDots[ame414_i];
-        [NSLayoutConstraint activateConstraints:@[
-            [ame414_swatch.widthAnchor constraintEqualToConstant:18.0],
-            [ame414_swatch.heightAnchor constraintEqualToConstant:18.0],
-            [ame414_dot.centerXAnchor constraintEqualToAnchor:ame414_swatch.centerXAnchor],
-            [ame414_dot.centerYAnchor constraintEqualToAnchor:ame414_swatch.centerYAnchor],
-            [ame414_dot.widthAnchor constraintEqualToConstant:6.0],
-            [ame414_dot.heightAnchor constraintEqualToConstant:6.0],
-        ]];
-    }
     _ame414_controlsBuilt = YES;
+    [self ame425_buildPanel];   // ★Task425 二级面板（初建隐藏）
     [self ame424_syncPoseUI];
     [self ame414_rebuildWardrobeStrip];
 }
@@ -936,30 +906,531 @@ static const CGFloat AME416_WALK_AMP = 0.50;
     return ame414_btn;
 }
 
-// ★Task424 姿态/光影 UI 同步（四段选中态 + 盘内旋钮位置 + 亮度百分比；
-//   旋钮位置映射与 Python 复刻 B 组设计稿同源：r = R·(1−(el−5°)/75°)，
-//   方位角 az 以盘心正上为 0 顺时针）
+#pragma mark Task425 二级菜单面板（调节器放大 + 细调 + 背景七选）
+
+// ★Task425 面板构建（初建隐藏；控件全部放大：圆盘 116pt / 满宽拖条 + 步进钮
+//   ±细调；用户「调节器都太小了无法细微调节」根修面）
+- (void)ame425_buildPanel {
+    if (_ame425_panel) return;
+    _ame425_panel = [[UIView alloc] initWithFrame:CGRectZero];
+    _ame425_panel.translatesAutoresizingMaskIntoConstraints = NO;
+    _ame425_panel.hidden = YES;
+    _ame425_panel.layer.cornerRadius = [ZL2Theme radiusM];
+    _ame425_panel.layer.borderWidth = 1.0;
+    _ame425_panel.layer.borderColor = [ZL2Theme outlineVariant].CGColor;
+    _ame425_panel.backgroundColor = [UIColor colorWithWhite:0.11 alpha:0.97];
+    [self addSubview:_ame425_panel];
+
+    UILabel *ame425_title = [[UILabel alloc] init];
+    ame425_title.text = localize(@"ame425.panel.title", @"显示与光影");
+    ame425_title.font = [ZL2Theme fontTitleMedium];
+    ame425_title.textColor = [ZL2Theme onSurface];
+    ame425_title.translatesAutoresizingMaskIntoConstraints = NO;
+    ame425_title.userInteractionEnabled = NO;
+    [_ame425_panel addSubview:ame425_title];
+
+    ZL2SkinViewTapControl *ame425_done = [[ZL2SkinViewTapControl alloc] init];
+    ame425_done.translatesAutoresizingMaskIntoConstraints = NO;
+    ame425_done.isAccessibilityElement = YES;
+    ame425_done.accessibilityLabel = localize(@"ame425.panel.done", @"完成");
+    ame425_done.layer.cornerRadius = 12.0;
+    ame425_done.backgroundColor = [ZL2Theme primary];
+    UILabel *ame425_doneLabel = [[UILabel alloc] init];
+    ame425_doneLabel.text = localize(@"ame425.panel.done", @"完成");
+    ame425_doneLabel.font = [ZL2Theme fontLabelLarge];
+    ame425_doneLabel.textColor = [UIColor whiteColor];
+    ame425_doneLabel.textAlignment = NSTextAlignmentCenter;
+    ame425_doneLabel.translatesAutoresizingMaskIntoConstraints = NO;
+    ame425_doneLabel.userInteractionEnabled = NO;
+    [ame425_done addSubview:ame425_doneLabel];
+    ame425_done.ame414_onTap = ^{ [self ame425_togglePanel]; };
+    [_ame425_panel addSubview:ame425_done];
+
+    // 大圆盘（116pt，绝对定位跟手 = ame425_dialPanned）
+    _ame425_bigDial = [[UIView alloc] init];
+    _ame425_bigDial.translatesAutoresizingMaskIntoConstraints = NO;
+    _ame425_bigDial.layer.cornerRadius = 58.0;
+    _ame425_bigDial.layer.borderWidth = 2.0;
+    _ame425_bigDial.layer.borderColor = [ZL2Theme outlineVariant].CGColor;
+    _ame425_bigDial.backgroundColor = [UIColor colorWithWhite:0.0 alpha:0.35];
+    _ame425_bigDial.isAccessibilityElement = YES;
+    _ame425_bigDial.accessibilityLabel = localize(@"ame424.skin.light.dial", @"光位圆盘");
+    UIPanGestureRecognizer *ame425_dialPan =
+        [[UIPanGestureRecognizer alloc] initWithTarget:self action:@selector(ame425_dialPanned:)];
+    [_ame425_bigDial addGestureRecognizer:ame425_dialPan];
+    [_ame425_panel addSubview:_ame425_bigDial];
+    _ame425_bigKnob = [[UIView alloc] init];
+    _ame425_bigKnob.translatesAutoresizingMaskIntoConstraints = NO;
+    _ame425_bigKnob.userInteractionEnabled = NO;
+    _ame425_bigKnob.layer.cornerRadius = 8.0;
+    _ame425_bigKnob.layer.shadowColor = [UIColor blackColor].CGColor;
+    _ame425_bigKnob.layer.shadowOpacity = 0.5;
+    _ame425_bigKnob.layer.shadowRadius = 3.0;
+    _ame425_bigKnob.layer.shadowOffset = CGSizeMake(0, 1);
+    _ame425_bigKnob.backgroundColor = [UIColor colorWithWhite:1.0 alpha:0.97];
+    [_ame425_bigDial addSubview:_ame425_bigKnob];
+
+    // 拖条三连（亮度/光影强度/模型大小）+ 步进钮 ±0.05 细调
+    _ame425_brightSlider = [self ame425_sliderWithMin:AME424_BRIGHT_MIN max:AME424_BRIGHT_MAX
+                                               action:@selector(ame424_brightnessChanged:)
+                                                 label:@"ame424.skin.light.brightness"];
+    _ame425_contrastSlider = [self ame425_sliderWithMin:AME425_CONTRAST_MIN max:AME425_CONTRAST_MAX
+                                                 action:@selector(ame425_contrastChanged:)
+                                                   label:@"ame425.panel.contrast"];
+    _ame425_scaleSlider = [self ame425_sliderWithMin:0.5 max:2.5
+                                              action:@selector(ame425_scaleChanged:)
+                                                label:@"ame425.panel.scale"];
+    _ame425_brightVal = [self ame425_valLabel];
+    _ame425_contrastVal = [self ame425_valLabel];
+    _ame425_scaleVal = [self ame425_valLabel];
+    UIControl *ame425_bMinus = [self ame425_stepButtonWithDelta:-0.05 isContrast:NO];
+    UIControl *ame425_bPlus = [self ame425_stepButtonWithDelta:0.05 isContrast:NO];
+    UIControl *ame425_cMinus = [self ame425_stepButtonWithDelta:-0.1 isContrast:YES];
+    UIControl *ame425_cPlus = [self ame425_stepButtonWithDelta:0.1 isContrast:YES];
+
+    // 背景七钮（黑/深灰/浅灰/草地/雪地/末地/地狱）
+    _ame425_bgButtons = [NSMutableArray array];
+    _ame425_bgDots = [NSMutableArray array];
+    NSArray *ame425_bgColors = @[
+        [UIColor colorWithWhite:0.0 alpha:1.0],
+        [UIColor colorWithWhite:0.16 alpha:1.0],
+        [UIColor colorWithWhite:0.55 alpha:1.0],
+        [UIColor colorWithRed:0.373 green:0.620 blue:0.267 alpha:1.0],
+        [UIColor colorWithRed:0.910 green:0.933 blue:0.961 alpha:1.0],
+        [UIColor colorWithRed:0.867 green:0.875 blue:0.647 alpha:1.0],
+        [UIColor colorWithRed:0.431 green:0.180 blue:0.157 alpha:1.0],
+    ];
+    NSArray<NSString *> *ame425_bgKeys = @[
+        @"ame414.skin.bg", @"ame414.skin.bg", @"ame414.skin.bg",
+        @"ame425.bg.plains", @"ame425.bg.snow", @"ame425.bg.end", @"ame425.bg.nether",
+    ];
+    for (NSUInteger ame425_i = 0; ame425_i < ame425_bgColors.count; ame425_i++) {
+        ZL2SkinViewTapControl *ame425_bg = [[ZL2SkinViewTapControl alloc] init];
+        ame425_bg.translatesAutoresizingMaskIntoConstraints = NO;
+        ame425_bg.isAccessibilityElement = YES;
+        ame425_bg.accessibilityLabel = localize(ame425_bgKeys[ame425_i], @"背景");
+        ame425_bg.layer.cornerRadius = 14.0;
+        ame425_bg.layer.borderWidth = 1.5;
+        ame425_bg.layer.borderColor = [ZL2Theme outlineVariant].CGColor;
+        ame425_bg.backgroundColor = ame425_bgColors[ame425_i];
+        UIView *ame425_dot = [[UIView alloc] init];
+        ame425_dot.translatesAutoresizingMaskIntoConstraints = NO;
+        ame425_dot.userInteractionEnabled = NO;
+        ame425_dot.layer.cornerRadius = 4.0;
+        ame425_dot.backgroundColor = [ZL2Theme primary];
+        ame425_dot.hidden = (ame425_i != _ame425_world);
+        [ame425_bg addSubview:ame425_dot];
+        ame425_bg.ame414_onTap = ^{ [self ame425_applyBackgroundIndex:(NSInteger)ame425_i]; };
+        [_ame425_panel addSubview:ame425_bg];
+        [_ame425_bgButtons addObject:ame425_bg];
+        [_ame425_bgDots addObject:ame425_dot];
+    }
+
+    [NSLayoutConstraint activateConstraints:@[
+        [_ame425_panel.leadingAnchor constraintEqualToAnchor:self.leadingAnchor constant:8.0],
+        [_ame425_panel.trailingAnchor constraintEqualToAnchor:self.trailingAnchor constant:-8.0],
+        [_ame425_panel.bottomAnchor constraintEqualToAnchor:self.bottomAnchor constant:-6.0],
+        [_ame425_panel.heightAnchor constraintEqualToConstant:252.0],
+
+        [ame425_title.leadingAnchor constraintEqualToAnchor:_ame425_panel.leadingAnchor constant:14.0],
+        [ame425_title.topAnchor constraintEqualToAnchor:_ame425_panel.topAnchor constant:10.0],
+        [ame425_done.trailingAnchor constraintEqualToAnchor:_ame425_panel.trailingAnchor constant:-12.0],
+        [ame425_done.centerYAnchor constraintEqualToAnchor:ame425_title.centerYAnchor],
+        [ame425_done.widthAnchor constraintEqualToConstant:52.0],
+        [ame425_done.heightAnchor constraintEqualToConstant:26.0],
+        [ame425_doneLabel.centerXAnchor constraintEqualToAnchor:ame425_done.centerXAnchor],
+        [ame425_doneLabel.centerYAnchor constraintEqualToAnchor:ame425_done.centerYAnchor],
+
+        [_ame425_bigDial.leadingAnchor constraintEqualToAnchor:_ame425_panel.leadingAnchor constant:14.0],
+        [_ame425_bigDial.topAnchor constraintEqualToAnchor:ame425_title.bottomAnchor constant:8.0],
+        [_ame425_bigDial.widthAnchor constraintEqualToConstant:116.0],
+        [_ame425_bigDial.heightAnchor constraintEqualToConstant:116.0],
+        [_ame425_bigKnob.widthAnchor constraintEqualToConstant:16.0],
+        [_ame425_bigKnob.heightAnchor constraintEqualToConstant:16.0],
+
+        [_ame425_brightSlider.leadingAnchor constraintEqualToAnchor:_ame425_bigDial.trailingAnchor constant:12.0],
+        [_ame425_brightSlider.topAnchor constraintEqualToAnchor:_ame425_bigDial.topAnchor constant:14.0],
+        [_ame425_contrastSlider.leadingAnchor constraintEqualToAnchor:_ame425_brightSlider.leadingAnchor],
+        [_ame425_contrastSlider.topAnchor constraintEqualToAnchor:_ame425_brightSlider.bottomAnchor constant:18.0],
+        [_ame425_brightVal.centerYAnchor constraintEqualToAnchor:_ame425_brightSlider.centerYAnchor],
+        [_ame425_brightVal.leadingAnchor constraintEqualToAnchor:_ame425_brightSlider.trailingAnchor constant:6.0],
+        [_ame425_brightVal.widthAnchor constraintEqualToConstant:44.0],
+        [_ame425_contrastVal.centerYAnchor constraintEqualToAnchor:_ame425_contrastSlider.centerYAnchor],
+        [_ame425_contrastVal.leadingAnchor constraintEqualToAnchor:_ame425_contrastSlider.trailingAnchor constant:6.0],
+        [_ame425_contrastVal.widthAnchor constraintEqualToConstant:44.0],
+        [ame425_bMinus.centerYAnchor constraintEqualToAnchor:_ame425_brightSlider.centerYAnchor],
+        [ame425_bMinus.trailingAnchor constraintEqualToAnchor:_ame425_brightSlider.leadingAnchor constant:-4.0],
+        [ame425_bPlus.centerYAnchor constraintEqualToAnchor:_ame425_brightSlider.centerYAnchor],
+        [ame425_bPlus.leadingAnchor constraintEqualToAnchor:_ame425_brightVal.trailingAnchor constant:4.0],
+        [ame425_cMinus.centerYAnchor constraintEqualToAnchor:_ame425_contrastSlider.centerYAnchor],
+        [ame425_cMinus.trailingAnchor constraintEqualToAnchor:_ame425_contrastSlider.leadingAnchor constant:-4.0],
+        [ame425_cPlus.centerYAnchor constraintEqualToAnchor:_ame425_contrastSlider.centerYAnchor],
+        [ame425_cPlus.leadingAnchor constraintEqualToAnchor:_ame425_contrastVal.trailingAnchor constant:4.0],
+
+        // 背景七钮横排（第二行）
+        [_ame425_bgButtons[0].leadingAnchor constraintEqualToAnchor:_ame425_panel.leadingAnchor constant:14.0],
+        [_ame425_bgButtons[0].topAnchor constraintEqualToAnchor:_ame425_bigDial.bottomAnchor constant:8.0],
+    ]];
+    for (NSUInteger ame425_i = 1; ame425_i < _ame425_bgButtons.count; ame425_i++) {
+        [NSLayoutConstraint activateConstraints:@[
+            [_ame425_bgButtons[ame425_i].leadingAnchor constraintEqualToAnchor:_ame425_bgButtons[ame425_i - 1].trailingAnchor constant:8.0],
+            [_ame425_bgButtons[ame425_i].centerYAnchor constraintEqualToAnchor:_ame425_bgButtons[0].centerYAnchor],
+        ]];
+    }
+    for (NSUInteger ame425_i = 0; ame425_i < _ame425_bgButtons.count; ame425_i++) {
+        UIView *ame425_dot = _ame425_bgDots[ame425_i];
+        [NSLayoutConstraint activateConstraints:@[
+            [_ame425_bgButtons[ame425_i].widthAnchor constraintEqualToConstant:28.0],
+            [_ame425_bgButtons[ame425_i].heightAnchor constraintEqualToConstant:28.0],
+            [ame425_dot.centerXAnchor constraintEqualToAnchor:_ame425_bgButtons[ame425_i].centerXAnchor],
+            [ame425_dot.centerYAnchor constraintEqualToAnchor:_ame425_bgButtons[ame425_i].centerYAnchor],
+            [ame425_dot.widthAnchor constraintEqualToConstant:8.0],
+            [ame425_dot.heightAnchor constraintEqualToConstant:8.0],
+        ]];
+    }
+    [NSLayoutConstraint activateConstraints:@[
+        // 缩放行（第三行）
+        [_ame425_scaleSlider.leadingAnchor constraintEqualToAnchor:_ame425_panel.leadingAnchor constant:14.0],
+        [_ame425_scaleSlider.topAnchor constraintEqualToAnchor:_ame425_bgButtons[0].bottomAnchor constant:12.0],
+        [_ame425_scaleSlider.trailingAnchor constraintEqualToAnchor:_ame425_scaleVal.leadingAnchor constant:-6.0],
+        [_ame425_scaleVal.centerYAnchor constraintEqualToAnchor:_ame425_scaleSlider.centerYAnchor],
+        [_ame425_scaleVal.trailingAnchor constraintEqualToAnchor:_ame425_panel.trailingAnchor constant:-14.0],
+        [_ame425_scaleVal.widthAnchor constraintEqualToConstant:44.0],
+    ]];
+}
+
+// 面板拖条统一形态（iOS14 红线：纯 UISlider，零 UIButton.Configuration）
+- (UISlider *)ame425_sliderWithMin:(float)mn max:(float)mx
+                            action:(SEL)sel
+                             label:(NSString *)labelKey {
+    UISlider *ame425_s = [[UISlider alloc] init];
+    ame425_s.translatesAutoresizingMaskIntoConstraints = NO;
+    ame425_s.minimumValue = mn;
+    ame425_s.maximumValue = mx;
+    ame425_s.accessibilityLabel = localize(labelKey, @"");
+    [ame425_s addTarget:self action:sel forControlEvents:UIControlEventValueChanged];
+    [_ame425_panel addSubview:ame425_s];
+    return ame425_s;
+}
+
+- (UILabel *)ame425_valLabel {
+    UILabel *ame425_l = [[UILabel alloc] init];
+    ame425_l.font = [ZL2Theme fontLabelMedium];
+    ame425_l.textColor = [ZL2Theme onSurfaceVariant];
+    ame425_l.textAlignment = NSTextAlignmentRight;
+    ame425_l.numberOfLines = 1;
+    ame425_l.userInteractionEnabled = NO;
+    ame425_l.translatesAutoresizingMaskIntoConstraints = NO;
+    [_ame425_panel addSubview:ame425_l];
+    return ame425_l;
+}
+
+// ±步进细调钮（26pt；用户「无法细微调节」根修面：亮度 ±0.05 / 光强 ±0.1）
+- (UIControl *)ame425_stepButtonWithDelta:(CGFloat)delta isContrast:(BOOL)isContrast {
+    ZL2SkinViewTapControl *ame425_b = [[ZL2SkinViewTapControl alloc] init];
+    ame425_b.translatesAutoresizingMaskIntoConstraints = NO;
+    ame425_b.isAccessibilityElement = YES;
+    ame425_b.accessibilityLabel = (delta < 0) ? @"-" : @"+";
+    ame425_b.layer.cornerRadius = 6.0;
+    ame425_b.layer.borderWidth = 1.0;
+    ame425_b.layer.borderColor = [ZL2Theme outlineVariant].CGColor;
+    ame425_b.backgroundColor = [UIColor colorWithWhite:0.0 alpha:0.30];
+    UILabel *ame425_l = [[UILabel alloc] init];
+    ame425_l.text = (delta < 0) ? @"−" : @"+";
+    ame425_l.font = [UIFont systemFontOfSize:14.0 weight:UIFontWeightSemibold];
+    ame425_l.textColor = [ZL2Theme onSurface];
+    ame425_l.textAlignment = NSTextAlignmentCenter;
+    ame425_l.translatesAutoresizingMaskIntoConstraints = NO;
+    ame425_l.userInteractionEnabled = NO;
+    [ame425_b addSubview:ame425_l];
+    [NSLayoutConstraint activateConstraints:@[
+        [ame425_b.widthAnchor constraintEqualToConstant:26.0],
+        [ame425_b.heightAnchor constraintEqualToConstant:26.0],
+        [ame425_l.centerXAnchor constraintEqualToAnchor:ame425_b.centerXAnchor],
+        [ame425_l.centerYAnchor constraintEqualToAnchor:ame425_b.centerYAnchor],
+    ]];
+    if (isContrast) {
+        ame425_b.ame414_onTap = ^{ [self ame425_stepContrast:delta]; };
+    } else {
+        ame425_b.ame414_onTap = ^{ [self ame425_stepBrightness:delta]; };
+    }
+    [_ame425_panel addSubview:ame425_b];
+    return ame425_b;
+}
+
+// ★Task424→425 姿态/光影 UI 同步：四段选中态 + 面板大圆盘旋钮 + 三拖条/值标签
+//   + 背景七钮选中点。旋钮映射同 Python 设计稿：r = R·(1−el/90°)（el 5°..80°
+//   → 近缘..盘心），az 以盘心正上为 0 顺时针。
 - (void)ame424_syncPoseUI {
     if (!_ame414_controlsBuilt) return;
     _ame424_poseControl.selectedSegmentIndex = _ame424_poseIndex;   // iOS14 无 animated 变体（CI 932 编译雷判例）
-    CGFloat ame424_r = 12.0 * (1.0 - (_ame424_lightEl - 0.087) / 1.309);   // 5°..80° → 12..0（盘半径 20−旋钮 5−边 3 = 12 内）
-    if (ame424_r < 0.0) ame424_r = 0.0;
-    if (ame424_r > 12.0) ame424_r = 12.0;
-    CGFloat ame424_kx = 15.0 + sin(_ame424_lightAz) * ame424_r - 5.0;
-    CGFloat ame424_ky = 15.0 - cos(_ame424_lightAz) * ame424_r - 5.0;
-    if (_ame424_knobLead.active) {   // ★同引用更新（每次重建约束会移除宽高链，判例式防抖）
-        _ame424_knobLead.constant = ame424_kx;
-        _ame424_knobTop.constant = ame424_ky;
-    } else {
-        _ame424_knobLead = [_ame424_dialKnob.leadingAnchor constraintEqualToAnchor:_ame424_lightDial.leadingAnchor constant:ame424_kx];
-        _ame424_knobTop = [_ame424_dialKnob.topAnchor constraintEqualToAnchor:_ame424_lightDial.topAnchor constant:ame424_ky];
-        _ame424_knobLead.priority = UILayoutPriorityRequired - 1;   // 防与宽高链偶发冲突
-        _ame424_knobTop.priority = UILayoutPriorityRequired - 1;
-        [_ame424_knobLead setActive:YES];
-        [_ame424_knobTop setActive:YES];
+    if (_ame425_bigDial) {
+        // 大圆盘旋钮（r = 58−8(knob)−3(边) = 47 内映射 el 5°..80°）
+        CGFloat ame425_r = 47.0 * (1.0 - (_ame424_lightEl - 0.087) / 1.309);
+        if (ame425_r < 0.0) ame425_r = 0.0;
+        if (ame425_r > 47.0) ame425_r = 47.0;
+        CGFloat ame425_kx = 58.0 + sin(_ame424_lightAz) * ame425_r - 8.0;
+        CGFloat ame425_ky = 58.0 - cos(_ame424_lightAz) * ame425_r - 8.0;
+        CGRect ame425_kf = _ame425_bigKnob.frame;
+        ame425_kf.origin.x = ame425_kx;
+        ame425_kf.origin.y = ame425_ky;
+        _ame425_bigKnob.frame = ame425_kf;   // ★跟手通道：frame 直写（拖拽热路径零约束求解）
+        _ame425_brightSlider.value = (float)_ame424_brightness;
+        _ame425_contrastSlider.value = (float)_ame425_contrast;
+        _ame425_scaleSlider.value = (float)_ame413_userScale;
+        _ame425_brightVal.text = [NSString stringWithFormat:@"%ld%%",
+            (long)round(_ame424_brightness * 100.0)];
+        _ame425_contrastVal.text = [NSString stringWithFormat:@"%ld%%",
+            (long)round(_ame425_contrast * 100.0)];
+        _ame425_scaleVal.text = [NSString stringWithFormat:@"%ld%%",
+            (long)round(_ame413_userScale * 100.0)];
+        for (NSUInteger ame425_i = 0; ame425_i < _ame425_bgDots.count; ame425_i++) {
+            UIView *ame425_dot = _ame425_bgDots[ame425_i];
+            ame425_dot.hidden = ((NSInteger)ame425_i != _ame425_world);
+        }
     }
-    _ame424_brightLabel.text = [NSString stringWithFormat:@"%ld%%",
-        (long)round(_ame424_brightness * 100.0)];
+}
+
+// ★Task425 面板开合（gear 二级菜单入口）
+- (void)ame425_togglePanel {
+    _ame425_panelOn = !_ame425_panelOn;
+    [CATransaction begin];
+    [CATransaction setDisableActions:YES];
+    _ame425_panel.hidden = !_ame425_panelOn;
+    _ame425_panel.alpha = _ame425_panelOn ? 1.0 : 0.0;
+    [CATransaction commit];
+}
+
+// ★Task425 背景/世界切换（0..2 纯色 / 3..6 世界：天空+方块地面+雾+太阳+软影）
+- (void)ame425_applyBackgroundIndex:(NSInteger)idx {
+    if (idx < 0 || idx > 6) return;
+    _ame425_world = idx;
+    if (idx <= 2) {
+        [self ame425_teardownWorldLayers];
+        static const CGFloat ame425_solid[3] = {0.0, 0.16, 0.55};
+        self.backgroundColor = [UIColor colorWithWhite:ame425_solid[idx] alpha:1.0];
+    } else {
+        self.backgroundColor = [UIColor clearColor];
+        [self ame425_buildWorldLayers];
+        [self ame413_updateModelTransform];
+    }
+    [self ame424_syncPoseUI];
+}
+
+// ★Task425 世界层构建：天空渐变（self.layer 最底 insertSublayer）+ 太阳 +
+//   脚下软影 + 8×8 方块地面（面记录复用投影管线，纹理 = 程序化 8×8 噪点 tile）
+- (void)ame425_buildWorldLayers {
+    [self ame425_teardownWorldLayers];
+    NSInteger ame425_w = _ame425_world;
+    // 天空
+    _ame425_skyLayer = [CAGradientLayer layer];
+    _ame425_skyLayer.frame = self.bounds;
+    _ame425_skyLayer.startPoint = CGPointMake(0.5, 0.0);
+    _ame425_skyLayer.endPoint = CGPointMake(0.5, 1.0);
+    UIColor *ame425_top = nil, *ame425_bot = nil, *ame425_fog = nil, *ame425_block = nil;
+    BOOL ame425_sun = NO;
+    [self ame425_worldColors:ame425_w skyTop:&ame425_top skyBot:&ame425_bot fog:&ame425_fog block:&ame425_block sun:&ame425_sun];
+    _ame425_skyLayer.colors = @[(id)ame425_top.CGColor, (id)ame425_bot.CGColor];
+    [self.layer insertSublayer:_ame425_skyLayer atIndex:0];
+    // 太阳（草地/雪地；az/el 同旋钮映射放大 = 圆盘联动；挂 stage 层树
+    //   = 与地面/模型同一坐标系，zPosition 负大 = 永远天空层）
+    if (ame425_sun) {
+        _ame425_sunLayer = [CALayer layer];
+        CGFloat ame425_d = 26.0;
+        _ame425_sunLayer.bounds = CGRectMake(0, 0, ame425_d, ame425_d);
+        _ame425_sunLayer.cornerRadius = ame425_d / 2.0;
+        _ame425_sunLayer.backgroundColor = [UIColor colorWithWhite:1.0 alpha:0.92].CGColor;
+        _ame425_sunLayer.shadowColor = [UIColor colorWithWhite:1.0 alpha:1.0].CGColor;
+        _ame425_sunLayer.shadowOpacity = 0.55;
+        _ame425_sunLayer.shadowRadius = 14.0;
+        _ame425_sunLayer.shadowOffset = CGSizeZero;
+        _ame425_sunLayer.zPosition = -20000.0;
+        [_ame413_stageView.layer addSublayer:_ame425_sunLayer];
+    }
+    // 脚下软影（径向渐变椭圆；位置随光向 az 联动）
+    _ame425_shadowView = [[UIView alloc] initWithFrame:CGRectMake(0, 0, 1, 1)];
+    _ame425_shadowView.userInteractionEnabled = NO;
+    _ame425_shadowView.translatesAutoresizingMaskIntoConstraints = NO;
+    [_ame413_stageView addSubview:_ame425_shadowView];
+    // 地面 8×8 块
+    _ame425_groundLayers = [NSMutableArray array];
+    _ame425_groundFaces = [NSMutableArray array];
+    UIImage *ame425_tile = [self ame425_blockTileForWorld:ame425_w];
+    CGFloat ame425_half = AME425_GROUND_GRID * AME425_BLOCK_UNIT / 2.0;
+    for (NSInteger ame425_i = 0; ame425_i < AME425_GROUND_GRID; ame425_i++) {
+        for (NSInteger ame425_j = 0; ame425_j < AME425_GROUND_GRID; ame425_j++) {
+            CGFloat ame425_x0 = -ame425_half + ame425_i * AME425_BLOCK_UNIT;
+            CGFloat ame425_z0 = -ame425_half + ame425_j * AME425_BLOCK_UNIT;
+            CALayer *ame425_g = [CALayer layer];
+            ame425_g.bounds = CGRectMake(0, 0, AME425_BLOCK_UNIT * 8.0, AME425_BLOCK_UNIT * 8.0);   // 128×128 单位系
+            ame425_g.contents = (id)ame425_tile.CGImage;
+            ame425_g.contentsGravity = kCAGravityResize;
+            ame425_g.magnificationFilter = kCAFilterNearest;
+            ame425_g.minificationFilter = kCAFilterNearest;
+            // 雾子层（远缘融天空地平色；opacity 逐帧按块距）
+            CALayer *ame425_fogLayer = [CALayer layer];
+            ame425_fogLayer.frame = CGRectMake(0, 0, AME425_BLOCK_UNIT * 8, AME425_BLOCK_UNIT * 8);
+            ame425_fogLayer.backgroundColor = ame425_fog.CGColor;
+            ame425_fogLayer.opacity = 0.0;
+            [ame425_g addSublayer:ame425_fogLayer];
+            [_ame413_stageView.layer addSublayer:ame425_g];
+            [_ame425_groundLayers addObject:ame425_g];
+            // 面记录（顶面法线 +Y；corners 按 TL/TR/BR/BL 序 = 纹理四角）
+            ZL2SkinViewFace *ame425_rec = [[ZL2SkinViewFace alloc] init];
+            ame425_rec.layer = ame425_g;
+            ame425_rec.shade = ame425_fogLayer;
+            ame425_rec.hl = nil;
+            ame425_rec.isOverlay = NO;
+            ame425_rec->partIndex = -1;
+            CGFloat ame425_x1 = ame425_x0 + AME425_BLOCK_UNIT;
+            CGFloat ame425_z1 = ame425_z0 + AME425_BLOCK_UNIT;
+            CGFloat ame425_y = -16.0;
+            CGFloat ame425_c[4][2] = {{ame425_x0, ame425_z0}, {ame425_x1, ame425_z0},
+                                      {ame425_x1, ame425_z1}, {ame425_x0, ame425_z1}};
+            for (NSInteger ame425_k = 0; ame425_k < 4; ame425_k++) {
+                ame425_rec->corners[ame425_k][0] = ame425_c[ame425_k][0];
+                ame425_rec->corners[ame425_k][1] = ame425_y;
+                ame425_rec->corners[ame425_k][2] = ame425_c[ame425_k][1];
+            }
+            ame425_rec->normal[0] = 0.0;
+            ame425_rec->normal[1] = 1.0;
+            ame425_rec->normal[2] = 0.0;
+            ame425_rec->pivot[0] = 0.0; ame425_rec->pivot[1] = -16.0; ame425_rec->pivot[2] = 0.0;
+            ame425_rec.swingSign = 0.0;
+            [_ame425_groundFaces addObject:ame425_rec];
+        }
+    }
+}
+
+- (void)ame425_teardownWorldLayers {
+    if (_ame425_skyLayer) { [_ame425_skyLayer removeFromSuperlayer]; _ame425_skyLayer = nil; }
+    if (_ame425_sunLayer) { [_ame425_sunLayer removeFromSuperlayer]; _ame425_sunLayer = nil; }
+    if (_ame425_shadowView) { [_ame425_shadowView removeFromSuperview]; _ame425_shadowView = nil; }
+    for (CALayer *ame425_g in _ame425_groundLayers) [ame425_g removeFromSuperlayer];
+    _ame425_groundLayers = nil;
+    _ame425_groundFaces = nil;
+}
+
+// 世界配色表（0..6 = 黑/深灰/浅灰/草地/雪地/末地/地狱；Python C 组同源）
+- (void)ame425_worldColors:(NSInteger)w
+                    skyTop:(UIColor **)top skyBot:(UIColor **)bot
+                       fog:(UIColor **)fog block:(UIColor **)block sun:(BOOL *)sun {
+    if (sun) *sun = NO;
+    if (top) *top = [UIColor colorWithWhite:0.0 alpha:1.0];
+    if (bot) *bot = [UIColor colorWithWhite:0.0 alpha:1.0];
+    if (fog) *fog = [UIColor colorWithWhite:0.2 alpha:1.0];
+    if (block) *block = [UIColor colorWithWhite:0.3 alpha:1.0];
+    if (w == AME425_WORLD_PLAINS) {
+        if (top) *top = [UIColor colorWithRed:0.376 green:0.627 blue:0.922 alpha:1.0];
+        if (bot) *bot = [UIColor colorWithRed:0.725 green:0.863 blue:0.980 alpha:1.0];
+        if (fog) *fog = [UIColor colorWithRed:0.725 green:0.863 blue:0.980 alpha:1.0];
+        if (block) *block = [UIColor colorWithRed:0.373 green:0.620 blue:0.267 alpha:1.0];
+        if (sun) *sun = YES;
+    } else if (w == AME425_WORLD_SNOW) {
+        if (top) *top = [UIColor colorWithRed:0.588 green:0.725 blue:0.882 alpha:1.0];
+        if (bot) *bot = [UIColor colorWithRed:0.882 green:0.925 blue:0.973 alpha:1.0];
+        if (fog) *fog = [UIColor colorWithRed:0.894 green:0.933 blue:0.973 alpha:1.0];
+        if (block) *block = [UIColor colorWithRed:0.910 green:0.933 blue:0.961 alpha:1.0];
+        if (sun) *sun = YES;
+    } else if (w == AME425_WORLD_END) {
+        if (top) *top = [UIColor colorWithRed:0.031 green:0.024 blue:0.055 alpha:1.0];
+        if (bot) *bot = [UIColor colorWithRed:0.118 green:0.086 blue:0.173 alpha:1.0];
+        if (fog) *fog = [UIColor colorWithRed:0.118 green:0.094 blue:0.173 alpha:1.0];
+        if (block) *block = [UIColor colorWithRed:0.867 green:0.875 blue:0.647 alpha:1.0];
+    } else if (w == AME425_WORLD_NETHER) {
+        if (top) *top = [UIColor colorWithRed:0.149 green:0.031 blue:0.031 alpha:1.0];
+        if (bot) *bot = [UIColor colorWithRed:0.322 green:0.086 blue:0.055 alpha:1.0];
+        if (fog) *fog = [UIColor colorWithRed:0.373 green:0.118 blue:0.071 alpha:1.0];
+        if (block) *block = [UIColor colorWithRed:0.431 green:0.180 blue:0.157 alpha:1.0];
+    }
+}
+
+// 程序化方块噪点纹理（8×8 px 亮度抖动 ±8% = MC 顶面观感；kCAFilterNearest
+// 放大锐利；缓存按世界键）
+- (UIImage *)ame425_blockTileForWorld:(NSInteger)w {
+    NSNumber *ame425_key = @(w);
+    UIImage *ame425_cached = _ame425_tileCache[ame425_key];
+    if (ame425_cached) return ame425_cached;
+    UIColor *ame425_block = nil;
+    [self ame425_worldColors:w skyTop:nil skyBot:nil fog:nil block:&ame425_block sun:nil];
+    CGFloat ame425_r = 1.0, ame425_g = 1.0, ame425_b = 1.0;
+    [ame425_block getRed:&ame425_r green:&ame425_g blue:&ame425_b alpha:NULL];
+    UIGraphicsBeginImageContextWithOptions(CGSizeMake(8, 8), NO, 1.0);
+    CGContextRef ame425_ctx = UIGraphicsGetCurrentContext();
+    if (ame425_ctx) {
+        u_int32_t ame425_seed = (u_int32_t)(w * 733 + 17);
+        for (NSInteger ame425_y = 0; ame425_y < 8; ame425_y++) {
+            for (NSInteger ame425_x = 0; ame425_x < 8; ame425_x++) {
+                ame425_seed = ame425_seed * 1103515245 + 12345;   // LCG 确定性噪点
+                CGFloat ame425_j = ((CGFloat)((ame425_seed >> 16) & 0xFF) / 255.0) * 0.16 - 0.08;
+                CGFloat ame425_v = 1.0 + ame425_j;
+                CGContextSetFillColorWithColor(ame425_ctx, [UIColor
+                    colorWithRed:fmin(1.0, ame425_r * ame425_v)
+                           green:fmin(1.0, ame425_g * ame425_v)
+                            blue:fmin(1.0, ame425_b * ame425_v) alpha:1.0].CGColor);
+                CGContextFillRect(ame425_ctx, CGRectMake(ame425_x, ame425_y, 1, 1));
+            }
+        }
+    }
+    UIImage *ame425_out = UIGraphicsGetImageFromCurrentImageContext();
+    UIGraphicsEndImageContext();
+    if (!_ame425_tileCache) _ame425_tileCache = [NSMutableDictionary dictionary];
+    _ame425_tileCache[ame425_key] = ame425_out;
+    return ame425_out;
+}
+
+// ★Task425 光位大圆盘拖动（★跟手根修：绝对定位——手指位置即光向，atan2
+//   即时反解 az/el，旋钮 frame 直写热路径；旧 Task424 累积 translation 式
+//   「旋钮≠手指」不跟手定谳退役）
+- (void)ame425_dialPanned:(UIPanGestureRecognizer *)pan {
+    if (!_ame425_bigDial) return;
+    CGPoint ame425_p = [pan locationInView:_ame425_bigDial];
+    if (!isfinite(ame425_p.x) || !isfinite(ame425_p.y)) return;
+    CGFloat ame425_dx = ame425_p.x - 58.0;      // 盘心（116/2）
+    CGFloat ame425_dy = ame425_p.y - 58.0;
+    CGFloat ame425_r = sqrt(ame425_dx * ame425_dx + ame425_dy * ame425_dy);
+    if (ame425_r > 47.0) {   // 盘外触点 clamp 到缘（拖拽不脱手）
+        ame425_dx *= 47.0 / ame425_r;
+        ame425_dy *= 47.0 / ame425_r;
+        ame425_r = 47.0;
+    }
+    _ame424_lightAz = atan2(ame425_dx, -ame425_dy);   // 盘心正上 = az 0（旋钮映射同源）
+    _ame424_lightEl = 0.087 + (1.0 - ame425_r / 47.0) * 1.309;   // 缘=5° 掠射 中心=80° 顶光
+    if (_ame424_lightEl > 1.396) _ame424_lightEl = 1.396;
+    if (_ame424_lightEl < 0.087) _ame424_lightEl = 0.087;
+    [self ame424_syncPoseUI];
+    [self ame413_updateModelTransform];
+}
+
+// ★Task425 光影强度拖条（对比度通道 c∈[0,2]；0 = 平光「看不出光影」端点）
+- (void)ame425_contrastChanged:(UISlider *)slider {
+    CGFloat ame425_v = slider.value;
+    if (!isfinite(ame425_v)) return;
+    _ame425_contrast = fmin(AME425_CONTRAST_MAX, fmax(AME425_CONTRAST_MIN, ame425_v));
+    [self ame424_syncPoseUI];
+    [self ame413_updateModelTransform];
+}
+
+// ★Task425 模型大小拖条（0.5..2.5 = 捏合同域精确控制）
+- (void)ame425_scaleChanged:(UISlider *)slider {
+    CGFloat ame425_v = slider.value;
+    if (!isfinite(ame425_v) || ame425_v < 0.05) return;
+    _ame413_userScale = fmin(2.5, fmax(0.5, ame425_v));
+    [self ame424_syncPoseUI];
+    [self ame413_updateModelTransform];
+}
+
+// ★Task425 步进细调（亮度 ±0.05 / 光强 ±0.1；「无法细微调节」根修面）
+- (void)ame425_stepBrightness:(CGFloat)delta {
+    _ame424_brightness = fmin(AME424_BRIGHT_MAX, fmax(AME424_BRIGHT_MIN, _ame424_brightness + delta));
+    [self ame424_syncPoseUI];
+    [self ame413_updateModelTransform];
+}
+
+- (void)ame425_stepContrast:(CGFloat)delta {
+    _ame425_contrast = fmin(AME425_CONTRAST_MAX, fmax(AME425_CONTRAST_MIN, _ame425_contrast + delta));
+    [self ame424_syncPoseUI];
+    [self ame413_updateModelTransform];
 }
 
 // ★Task424 姿态切换（跑步/暂停二钮退役语义收编：站立 = 停摆保自转；
@@ -979,21 +1450,6 @@ static const CGFloat AME416_WALK_AMP = 0.50;
     CGFloat ame424_v = slider.value;
     if (!isfinite(ame424_v)) return;   // 415a NaN 卫兵同族
     _ame424_brightness = fmin(AME424_BRIGHT_MAX, fmax(AME424_BRIGHT_MIN, ame424_v));
-    [self ame424_syncPoseUI];
-    [self ame413_updateModelTransform];
-}
-
-// ★Task424 光位圆盘拖动（dx→方位角、dy→仰角；盘内旋钮随动）
-- (void)ame424_dialPanned:(UIPanGestureRecognizer *)pan {
-    CGPoint ame424_t = [pan translationInView:_ame424_lightDial];
-    [pan setTranslation:CGPointZero inView:_ame424_lightDial];
-    if (!isfinite(ame424_t.x) || !isfinite(ame424_t.y)) return;
-    _ame424_lightAz += ame424_t.x * 0.010;
-    _ame424_lightEl -= ame424_t.y * 0.010;
-    if (_ame424_lightEl > 1.396) _ame424_lightEl = 1.396;    // 80° 顶光上限
-    if (_ame424_lightEl < 0.087) _ame424_lightEl = 0.087;    // 5° 掠射下限
-    if (_ame424_lightAz > M_PI) _ame424_lightAz -= 2.0 * M_PI;
-    if (_ame424_lightAz < -M_PI) _ame424_lightAz += 2.0 * M_PI;
     [self ame424_syncPoseUI];
     [self ame413_updateModelTransform];
 }
@@ -1116,13 +1572,6 @@ static const CGFloat AME416_WALK_AMP = 0.50;
 - (void)ame414_spinRightTapped {
     _ame414_spinTarget += M_PI / 6.0;
     _ame414_spinLeft = NO;
-}
-
-- (void)ame414_applySwatch:(UIColor *)color index:(NSUInteger)idx {
-    self.backgroundColor = color;
-    [_ame414_swatchDots enumerateObjectsUsingBlock:^(UIView *obj, NSUInteger i, BOOL *stop) {
-        obj.hidden = (i != idx);
-    }];
 }
 
 // 添加至衣柜：当前皮肤 PNG 落柜 + 缩略条刷新
@@ -1840,12 +2289,9 @@ static void Ame416RotX(CGFloat th, CGFloat *y, CGFloat *z) {
         ame414_f.layer.position = CGPointMake(
             ame416_cen.x + ame416_sx[0] + ame416_a11 * ame416_w2 + ame416_a12 * ame416_h2,
             ame416_cen.y + ame416_sy[0] + ame416_a21 * ame416_w2 + ame416_a22 * ame416_h2);
-        // ——明暗罩：法线 × 光向点积（★Task424 光影系统：视空间 az/el 光向 +
-        //   亮度双通道 floor/gain + 双面受光）——
-        //   ★Task424-a 双面受光（IMG_0669 定谳根修）：外层背面用未翻转法线算
-        //   明暗 → dot≤0 → 罩顶格 → 黑暗带透过半透外层前面露出（设备实测头
-        //   右侧 20×43px 等背景洞）；THREE.js DoubleSide 对背面自动翻法线
-        //   （gl_FrontFacing）= 背面按正面受光 → 同源修正。
+        // ——明暗罩：法线 × 光向点积（★Task425 光影对比双罩：白亮/黑影分离 +
+        //   光影强度 c 通道 + 亮度双通道；Task424 单黑罩 31 灰阶面间差退役）——
+        //   ★Task424-a 双面受光保留（外层背面翻法线，gl_FrontFacing 同源）。
         CGFloat ame424_snx = ame416_nx, ame424_sny = ame416_ny, ame424_snz = ame416_nz;
         if (ame416_backface && ame414_f.isOverlay) {
             ame424_snx = -ame416_nx; ame424_sny = -ame416_ny; ame424_snz = -ame416_nz;
@@ -1856,17 +2302,155 @@ static void Ame416RotX(CGFloat th, CGFloat *y, CGFloat *z) {
         CGFloat ame416_len = sqrt(ame424_snx * ame424_snx + ame424_sny * ame424_sny + ame424_snz * ame424_snz);
         if (ame416_len < 0.0001) ame416_len = 1.0;
         CGFloat ame416_dot = (ame424_snx * ame424_Lx + ame424_sny * ame424_Ly + ame424_snz * ame424_Lz) / ame416_len;
-        // ★Task424 亮度双通道：floor = clamp(0.44+(b−1)·0.55, 0.12, 0.80)，
-        //   gain = clamp(2−b, 0.25, 1.8)；罩上限 0.85→AME424_VEIL_CAP=0.60
-        CGFloat ame424_floor = 0.44 + (_ame424_brightness - 1.0) * 0.55;
-        if (ame424_floor < 0.12) ame424_floor = 0.12;
-        if (ame424_floor > 0.80) ame424_floor = 0.80;
+        // ★Task425 双罩公式（scripts/task425_replica.py shade425 v2 同源）：
+        //   lit=(dot+1)/2；depth=clamp((1−lit)·1.30·(c/2), 0, 0.88) 黑影罩；
+        //   highlight=clamp((dot−0.45)/0.55,0,1)·0.30·(c/2) 白亮罩；
+        //   亮度 b：黑影×clamp(2−b,0.25,1.8) / 白亮×clamp(b,0.25,1.5)。
+        CGFloat ame425_lit = (ame416_dot + 1.0) / 2.0;
+        CGFloat ame425_c2 = _ame425_contrast / 2.0;
+        CGFloat ame425_depth = (1.0 - ame425_lit) * AME425_DEPTH_K * ame425_c2;
+        if (ame425_depth > AME425_DEPTH_MAX) ame425_depth = AME425_DEPTH_MAX;
+        CGFloat ame425_hlv = fmax(0.0, fmin(1.0, (ame416_dot - AME425_HL_DOT0) / AME425_HL_SPAN))
+            * AME425_HL_K * ame425_c2;
         CGFloat ame424_gain = 2.0 - _ame424_brightness;
         if (ame424_gain < 0.25) ame424_gain = 0.25;
         if (ame424_gain > 1.8) ame424_gain = 1.8;
-        CGFloat ame416_shade = ame424_floor + (1.0 - ame424_floor) * fmax(0.0, ame416_dot);
-        if (ame416_shade > 1.0) ame416_shade = 1.0;
-        ame414_f.shade.opacity = (1.0 - ame416_shade) * AME424_VEIL_CAP * ame424_gain;
+        CGFloat ame425_bgain = _ame424_brightness;
+        if (ame425_bgain < 0.25) ame425_bgain = 0.25;
+        if (ame425_bgain > 1.5) ame425_bgain = 1.5;
+        ame414_f.shade.opacity = ame425_depth * ame424_gain;
+        ame414_f.hl.opacity = ame425_hlv * ame425_bgain;
+    }
+    [CATransaction commit];
+    // ★Task425 世界背景同步（地面块投影/雾/太阳/软影随 yaw/pitch/光向联动；
+    //   同一事务外独立事务 = 地面与模型同帧刷新）
+    [self ame425_updateWorldTransform];
+}
+
+// ★Task425 世界背景逐帧同步：8×8 地面块 CPU 投影（复用模型管线：yaw/pitch →
+//   ×unit → 透视 pf → 仿射贴面）+ 距离雾 + 光影 depth 着色 + 太阳位置（圆盘
+//   az/el 映射放大）+ 脚下软影（光向反方向偏移）。
+- (void)ame425_updateWorldTransform {
+    if (_ame425_groundLayers.count == 0) return;
+    CGFloat ame416_unit = _ame413_baseUnit * _ame413_userScale;
+    CGPoint ame416_cen = CGPointMake(CGRectGetMidX(_ame413_stageView.bounds),
+                                     CGRectGetMidY(_ame413_stageView.bounds));
+    CGFloat ame424_Lx = cos(_ame424_lightEl) * sin(_ame424_lightAz);
+    CGFloat ame424_Ly = sin(_ame424_lightEl);
+    CGFloat ame424_Lz = cos(_ame424_lightEl) * cos(_ame424_lightAz);
+    CGFloat ame425_c2 = _ame425_contrast / 2.0;
+    CGFloat ame424_gain = 2.0 - _ame424_brightness;
+    if (ame424_gain < 0.25) ame424_gain = 0.25;
+    if (ame424_gain > 1.8) ame424_gain = 1.8;
+    CGFloat ame425_half = AME425_GROUND_GRID * AME425_BLOCK_UNIT / 2.0;
+    [CATransaction begin];
+    [CATransaction setDisableActions:YES];
+    for (NSUInteger ame425_i = 0; ame425_i < _ame425_groundFaces.count; ame425_i++) {
+        ZL2SkinViewFace *ame425_f = _ame425_groundFaces[ame425_i];
+        CALayer *ame425_g = _ame425_groundLayers[ame425_i];
+        CGFloat ame416_nx = ame425_f->normal[0], ame416_ny = ame425_f->normal[1], ame416_nz = ame425_f->normal[2];
+        Ame416RotY(_ame413_yaw, &ame416_nx, &ame416_nz);
+        Ame416RotX(_ame413_pitch, &ame416_ny, &ame416_nz);
+        if (ame416_ny <= 0.02) {   // 顶面背向相机（仰视）= 剔除
+            ame425_g.hidden = YES;
+            continue;
+        }
+        ame425_g.hidden = NO;
+        CGFloat ame416_sx[4], ame416_sy[4], ame416_zsum = 0.0;
+        BOOL ame416_ok = YES;
+        for (NSInteger ame416_k = 0; ame416_k < 4; ame416_k++) {
+            CGFloat ame416_vx = ame425_f->corners[ame416_k][0];
+            CGFloat ame416_vy = ame425_f->corners[ame416_k][1];
+            CGFloat ame416_vz = ame425_f->corners[ame416_k][2];
+            Ame416RotY(_ame413_yaw, &ame416_vx, &ame416_vz);
+            Ame416RotX(_ame413_pitch, &ame416_vy, &ame416_vz);
+            ame416_vx *= ame416_unit; ame416_vy *= ame416_unit; ame416_vz *= ame416_unit;
+            if (!isfinite(ame416_vx + ame416_vy + ame416_vz)) { ame416_ok = NO; break; }
+            if (ame416_vz > AME416_CAMERA_D * 0.9) ame416_vz = AME416_CAMERA_D * 0.9;
+            CGFloat ame416_pf = AME416_CAMERA_D / (AME416_CAMERA_D - ame416_vz);
+            ame416_sx[ame416_k] = ame416_vx * ame416_pf;
+            ame416_sy[ame416_k] = -ame416_vy * ame416_pf;
+            ame416_zsum += ame416_vz;
+        }
+        if (!ame416_ok) { ame425_g.hidden = YES; continue; }
+        ame425_g.zPosition = ame416_zsum / 4.0;
+        // 仿射贴面（块层 bounds = 128×128 单位系 → 单位换算在 a 系数内）
+        CGFloat ame425_bw = ame425_g.bounds.size.width / 2.0;
+        CGFloat ame425_bh = ame425_g.bounds.size.height / 2.0;
+        if (ame425_bw < 0.5 || ame425_bh < 0.5) { ame425_g.hidden = YES; continue; }
+        CGFloat ame416_a11 = (ame416_sx[1] - ame416_sx[0]) / (2.0 * ame425_bw);
+        CGFloat ame416_a21 = (ame416_sy[1] - ame416_sy[0]) / (2.0 * ame425_bw);
+        CGFloat ame416_a12 = (ame416_sx[3] - ame416_sx[0]) / (2.0 * ame425_bh);
+        CGFloat ame416_a22 = (ame416_sy[3] - ame416_sy[0]) / (2.0 * ame425_bh);
+        CGFloat ame416_det = ame416_a11 * ame416_a22 - ame416_a12 * ame416_a21;
+        if (!isfinite(ame416_det) || fabs(ame416_det) < 1e-7) {
+            ame425_g.hidden = YES;
+            continue;
+        }
+        ame425_g.transform = CATransform3DMakeAffineTransform(
+            CGAffineTransformMake(ame416_a11, ame416_a21, ame416_a12, ame416_a22, 0.0, 0.0));
+        ame425_g.position = CGPointMake(
+            ame416_cen.x + ame416_sx[0] + ame416_a11 * ame425_bw + ame416_a12 * ame425_bh,
+            ame416_cen.y + ame416_sy[0] + ame416_a21 * ame425_bw + ame416_a22 * ame425_bh);
+        // 着色（顶面法线×光向 depth 项）+ 距离雾（块中心模型距 → 0..0.85）
+        CGFloat ame425_gcx = (ame425_f->corners[0][0] + ame425_f->corners[1][0]
+            + ame425_f->corners[2][0] + ame425_f->corners[3][0]) / 4.0;
+        CGFloat ame425_gcz = (ame425_f->corners[0][2] + ame425_f->corners[1][2]
+            + ame425_f->corners[2][2] + ame425_f->corners[3][2]) / 4.0;
+        CGFloat ame425_dist = sqrt(ame425_gcx * ame425_gcx + ame425_gcz * ame425_gcz) / ame425_half;
+        CGFloat ame425_fogt = pow(fmin(1.0, fmax(0.0, ame425_dist)), 1.6) * 0.85;
+        CGFloat ame425_gdot = (ame416_nx * ame424_Lx + ame416_ny * ame424_Ly + ame416_nz * ame424_Lz);
+        CGFloat ame425_glit = (ame425_gdot + 1.0) / 2.0;
+        CGFloat ame425_gdepth = (1.0 - ame425_glit) * AME425_DEPTH_K * ame425_c2 * 0.55;
+        if (ame425_gdepth > 0.80) ame425_gdepth = 0.80;
+        ame425_f.shade.opacity = fmin(1.0, ame425_fogt + ame425_gdepth * ame424_gain);
+    }
+    // 太阳（草地/雪地）：旋钮映射放大挂天空（R = 舞台短边 0.42）
+    if (_ame425_sunLayer) {
+        CGFloat ame425_w = _ame413_stageView.bounds.size.width;
+        CGFloat ame425_h = _ame413_stageView.bounds.size.height;
+        CGFloat ame425_R = fmin(ame425_w, ame425_h) * 0.42;
+        CGFloat ame425_t = 1.0 - _ame424_lightEl / 1.5708;
+        _ame425_sunLayer.position = CGPointMake(
+            ame425_w / 2.0 + sin(_ame424_lightAz) * ame425_R * ame425_t,
+            ame425_h * 0.40 - cos(_ame424_lightAz) * ame425_R * ame425_t);
+    }
+    // 脚下软影：脚点 (0,-16,0) + 光向地面偏移（az 同向）→ 投影贴地
+    if (_ame425_shadowView) {
+        CGFloat ame425_shx = _ame424_Lx * 8.0, ame425_shz = _ame424_Lz * 8.0;
+        CGFloat ame416_vx = ame425_shx, ame416_vy = -16.0, ame416_vz = ame425_shz;
+        Ame416RotY(_ame413_yaw, &ame416_vx, &ame416_vz);
+        Ame416RotX(_ame413_pitch, &ame416_vy, &ame416_vz);
+        ame416_vx *= ame416_unit; ame416_vy *= ame416_unit; ame416_vz *= ame416_unit;
+        CGFloat ame416_pf = AME416_CAMERA_D / (AME416_CAMERA_D - ame416_vz);
+        CGFloat ame425_shSize = fmax(30.0, ame416_unit * 11.0);
+        _ame425_shadowView.bounds = CGRectMake(0, 0, ame425_shSize, ame425_shSize * 0.62);
+        _ame425_shadowView.layer.cornerRadius = ame425_shSize / 2.0;
+        _ame425_shadowView.center = CGPointMake(
+            ame416_cen.x + ame416_vx * ame416_pf,
+            ame416_cen.y - ame416_vy * ame416_pf);
+        // 径向渐变软影（一次构建缓存；透明度随对比/亮度）
+        if (!_ame425_shadowView.layer.contents) {
+            UIGraphicsBeginImageContextWithOptions(CGSizeMake(96, 60), NO, 1.0);
+            CGContextRef ame425_sctx = UIGraphicsGetCurrentContext();
+            if (ame425_sctx) {
+                CGColorSpaceRef ame425_cs = CGColorSpaceCreateDeviceGray();
+                CGFloat ame425_locs[3] = {0.0, 0.55, 1.0};
+                CGFloat ame425_comps[9] = {0.0, 0.0, 0.35, 0.0, 1.0};
+                CGGradientRef ame425_grad = CGGradientCreateWithColorComponents(
+                    ame425_cs, ame425_comps, ame425_locs, 3);
+                CGContextDrawRadialGradient(ame425_sctx, ame425_grad,
+                    CGPointMake(48, 30), 2.0, CGPointMake(48, 30), 48.0,
+                    kCGGradientDrawsBeforeStartLocation);
+                CGGradientRelease(ame425_grad);
+                CGColorSpaceRelease(ame425_cs);
+            }
+            UIImage *ame425_sim = UIGraphicsGetImageFromCurrentImageContext();
+            UIGraphicsEndImageContext();
+            _ame425_shadowView.layer.contents = (id)ame425_sim.CGImage;
+        }
+        _ame425_shadowView.layer.opacity = fmin(1.0, 0.85 * fmax(0.25, _ame425_contrast));
+        _ame425_shadowView.layer.zPosition = ame416_vz + 1.0;   // 所在位置地面块之上（画家序真值）
     }
     [CATransaction commit];
 }
@@ -1883,6 +2467,9 @@ static void Ame416RotX(CGFloat th, CGFloat *y, CGFloat *z) {
 
 - (void)layoutSubviews {
     [super layoutSubviews];
+    if (_ame425_skyLayer && _ame425_skyLayer.superlayer == self.layer) {
+        _ame425_skyLayer.frame = self.bounds;   // ★Task425 天空随卡幅自适应
+    }
     CGFloat ame413_h = _ame413_stageView.bounds.size.height;
     CGFloat ame413_w = _ame413_stageView.bounds.size.width;
     CGFloat ame413_fit = fmin(ame413_h * 0.74 / 32.0, ame413_w * 0.58 / 17.0);
@@ -1947,7 +2534,7 @@ static void ZL2SkinViewBuildPart(CALayer *ame413_parent,
         } else {
             ame413_face.backgroundColor = [UIColor colorWithWhite:0.32 alpha:1.0].CGColor;   // 占位灰面
         }
-        // 光影罩（面内容之上，opacity 逐帧 = 1−shade；CALayer 无
+        // 光影罩（面内容之上，opacity 逐帧；CALayer 无
         //   userInteractionEnabled 属性（UIView 专属）= run 42640992511 判例）
         //   ★Task418 罩层 alpha 掩膜：外层面纹理透明区不再被黑罩漏染
         //   （IMG_0619 每部位幽灵暗盒实锤之二：shade 是不透明黑子层，外层
@@ -1957,6 +2544,11 @@ static void ZL2SkinViewBuildPart(CALayer *ame413_parent,
         ame414_shade.frame = ame413_face.bounds;
         ame414_shade.backgroundColor = [UIColor blackColor].CGColor;
         ame414_shade.opacity = 0.0;
+        // ★Task425 白色亮罩（highlight：受光面提亮 > 100%；掩膜同 shade）
+        CALayer *ame425_hl = [CALayer layer];
+        ame425_hl.frame = ame413_face.bounds;
+        ame425_hl.backgroundColor = [UIColor whiteColor].CGColor;
+        ame425_hl.opacity = 0.0;
         if (ame413_img) {
             CALayer *ame418_shadeMask = [CALayer layer];
             ame418_shadeMask.frame = ame414_shade.bounds;
@@ -1967,7 +2559,12 @@ static void ZL2SkinViewBuildPart(CALayer *ame413_parent,
                 ? ZL2SkinViewOpaqueMaskImage(ame413_img) : ame413_img;
             ame418_shadeMask.contents = (id)ame422_maskImg.CGImage;
             ame414_shade.mask = ame418_shadeMask;
+            CALayer *ame425_hlMask = [CALayer layer];
+            ame425_hlMask.frame = ame414_shade.bounds;
+            ame425_hlMask.contents = (id)ame422_maskImg.CGImage;
+            ame425_hl.mask = ame425_hlMask;
         }
+        [ame413_face addSublayer:ame425_hl];
         [ame413_face addSublayer:ame414_shade];
         [ame413_parent addSublayer:ame413_face];
 
@@ -1975,6 +2572,7 @@ static void ZL2SkinViewBuildPart(CALayer *ame413_parent,
         ZL2SkinViewFace *ame414_rec = [[ZL2SkinViewFace alloc] init];
         ame414_rec.layer = ame413_face;
         ame414_rec.shade = ame414_shade;
+        ame414_rec.hl = ame425_hl;   // ★Task425 白亮罩
         static const NSInteger AME416_SQ[4][2] = {{-1, -1}, {1, -1}, {1, 1}, {-1, 1}};   // TL TR BR BL
         for (NSInteger ame416_k = 0; ame416_k < 4; ame416_k++) {
             CGFloat ame416_s = (CGFloat)AME416_SQ[ame416_k][0];
@@ -2014,6 +2612,14 @@ static void ZL2SkinViewBuildPart(CALayer *ame413_parent,
         [ame413_sub removeFromSuperlayer];
     }
     [_ame413_faceLayers removeAllObjects];
+    // ★Task425 换肤重建清掉地面/太阳/软影层（stage 清层连带）→ 世界态即建回
+    BOOL ame425_hadWorld = (_ame425_world >= 3);
+    if (ame425_hadWorld) {
+        _ame425_groundLayers = nil;
+        _ame425_groundFaces = nil;
+        _ame425_sunLayer = nil;
+        _ame425_shadowView = nil;
+    }
 
     CGFloat ame413_unit = _ame413_baseUnit;
     if (ame413_unit < 2.0) {
@@ -2098,25 +2704,29 @@ static void ZL2SkinViewBuildPart(CALayer *ame413_parent,
                              ame413_i, _ame413_faceLayers);
     }
     [self ame413_updateModelTransform];
-    // ★Task418 装配诊断（冒烟 console/预览日志可视：现代皮面数应恒 72
-    //   （36 基础 + 36 第二层）/ 旧版 42（36 + 帽 6）；unit/舞台尺寸异常 =
-    //   布局面问题）
+    if (ame425_hadWorld) {
+        [self ame425_buildWorldLayers];   // 世界层重建（模型面已重建完，下一帧投影同帧同步）
+        [self ame425_updateWorldTransform];
+    }
     // ★Task420 装配诊断重锚（cutout=基础层 α 裁切 / doubleside=外层双层 /
     //   source=皮肤来源链诊断：IMG_0655「为什么是原版皮肤」的 CI 仲裁面）
     // ★Task423 诊断重锚（model=内容判定结果 probe=经典专属列命中 meta=
     //   yggdrasil metadata 对照 prov=缓存来源 sidecar 仲裁口径）
-    // ★Task424 诊断重锚（pose/light/bright = 本轮三新面 CI 仲裁字段；
-    //   IMG_0669「还是有地方透明的」双面受光 + 亮度双通道 + 姿态四段）
-    NSLog(@"[ZL2SkinPreview] Task424: skin=%gx%g stage=%.0fx%.0f unit=%.2f faces=%lu slim=%d pose=%ld walk=%d light=az%.2f/el%.2f/b%.2f overlayParts=%ld source=%@ model=content-slim%d(classic%d) probe=r%ld/l%ld meta=%d cutout=base-alpha>=26 veil=overlay-alpha>=180 capscale=veil-cap0.60 twoside=overlay-back-normal-flip doubleside=overlay chain=mtime-dualurl-fallback-prov prov=%@ chip=%@",
+    // ★Task424 诊断重锚（pose/light/bright = 姿态/光向/亮度 CI 仲裁字段）
+    // ★Task425 诊断重锚（cutout1=sv3d-alphaTest0 对齐 / contrast=光影强度 /
+    //   world=世界背景 / panel=二级菜单：IMG_0671 六复诉的 CI 仲裁面）
+    NSLog(@"[ZL2SkinPreview] Task425: skin=%gx%g stage=%.0fx%.0f unit=%.2f faces=%lu slim=%d pose=%ld walk=%d light=az%.2f/el%.2f/b%.2f contrast=%.2f world=%ld overlayParts=%ld source=%@ model=content-slim%d(classic%d) probe=r%ld/l%ld meta=%d cutout=base-alpha>=1-sv3d-parity veil=overlay-alpha>=180 twoside=overlay-back-normal-flip doubleside=overlay chain=mtime-dualurl-fallback-prov prov=%@ panel=%d chip=%@",
           skin.size.width, skin.size.height, _ame413_stageView.bounds.size.width,
           _ame413_stageView.bounds.size.height, ame413_unit,
           (unsigned long)_ame413_faceLayers.count, _ame413_slimModel,
           (long)_ame424_poseIndex, _ame414_walkOn ? 1 : 0,
           _ame424_lightAz, _ame424_lightEl, _ame424_brightness,
+          _ame425_contrast, (long)_ame425_world,
           (long)ame418_overlayParts, _ame420_skinSource ?: @"-",
           _ame413_slimModel ? 1 : 0, _ame413_slimModel ? 0 : 1,
           (long)ame423_rHas, (long)ame423_lHas, ame423_metaSlim ? 1 : 0,
-          [self ame423_cacheProvenanceForDiag] ?: @"-", _ame421_buildChip.text ?: @"-");
+          [self ame423_cacheProvenanceForDiag] ?: @"-",
+          _ame425_panelOn ? 1 : 0, _ame421_buildChip.text ?: @"-");
 }
 
 // ★Task423 缓存来源 sidecar 读取（诊断 + 仲裁共用；缺省 = 无 sidecar 历史遗留）

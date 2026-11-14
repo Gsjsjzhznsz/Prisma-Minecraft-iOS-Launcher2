@@ -3950,3 +3950,12 @@
 "ame424.skin.light.dial" = "Light direction dial";
 "ame424.skin.light.brightness" = "Brightness";
 "ame424.skin.hint.custom" = "Drag joints to pose · long-press to reset";
+"ame425.skin.gear" = "Adjust";
+"ame425.panel.title" = "Display & lighting";
+"ame425.panel.done" = "Done";
+"ame425.panel.contrast" = "Lighting intensity";
+"ame425.panel.scale" = "Model size";
+"ame425.bg.plains" = "Plains";
+"ame425.bg.snow" = "Snow";
+"ame425.bg.end" = "The End";
+"ame425.bg.nether" = "Nether";

@@ -3946,3 +3946,12 @@
 "ame424.skin.light.dial" = "光位圓盤";
 "ame424.skin.light.brightness" = "亮度";
 "ame424.skin.hint.custom" = "拖關節調姿態 · 長按復位";
+"ame425.skin.gear" = "調節";
+"ame425.panel.title" = "顯示與光影";
+"ame425.panel.done" = "完成";
+"ame425.panel.contrast" = "光影強度";
+"ame425.panel.scale" = "模型大小";
+"ame425.bg.plains" = "草地";
+"ame425.bg.snow" = "雪地";
+"ame425.bg.end" = "終界";
+"ame425.bg.nether" = "地獄";

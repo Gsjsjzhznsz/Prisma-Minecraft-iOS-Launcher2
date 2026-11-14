@@ -263,7 +263,7 @@ check("C12 转盘字体恒定（★Task407：封面流条目随 |d| 缩放时缩
 
 check("C13 构建代际锚（★Task407 立 408/409/410/411/412 推进 Task414 推进 ★Task421 重锚 ★Task422/423 推进 ★Task424 推进：定义 header 化 = BuildTag.h 单一事实源，预览卡代际角标 ame421_buildChip 与关于页版本行同一字面量双面恒等；\n      Info.plist 双键静态致装机代际不可辨 = 旧构建滞留循环的\n      结构性盲区，角标/关于页任一面板截图即可判代际）",
       "ame415_buildTag" in about_code
-      and "Task424 · 2026-11-14" in read("Natives/BuildTag.h")
+      and "Task425 · 2026-11-14" in read("Natives/BuildTag.h")
       and "static NSString *const ame415_buildTag" in read("Natives/BuildTag.h")
       and '#import "BuildTag.h"' in read("Natives/AboutViewController.m")
       and "numberOfLines = 0" in about_code)
@@ -435,12 +435,14 @@ ame378_c21 = [
     ("backface-cull", "ame416_nz <= 0.0" in skinview_code),
     ("affine-face", "CATransform3DMakeAffineTransform" in skinview_code),
     ("nan-guard", "isfinite(_ame413_yaw)" in skinview_code),
-    ("diag-log", "[ZL2SkinPreview] Task424" in skinview_raw
+    ("diag-log", "[ZL2SkinPreview] Task425" in skinview_raw
         and "veil=overlay-alpha>=180" in skinview_raw
         and "probe=r%ld/l%ld" in skinview_raw
         and "prov=%@" in skinview_raw
         and "light=az" in skinview_raw
-        and "pose=%ld" in skinview_raw),   # ★Task424 重锚（cutout/veil/model 内容判定/缓存来源 prov + 光影/姿态字段 + chip 代际角标）
+        and "pose=%ld" in skinview_raw
+        and "contrast=" in skinview_raw
+        and "world=%ld" in skinview_raw),   # ★Task425 重锚（cutout1 对齐 sv3d + 光影强度 contrast + 世界 world 字段）
     # ⑨ ★Task418 3D 雾化/幽灵盒/旧版压半根修 + 账户行高幻影拉伸根修 + iPad 真横屏
     ("nearest-filter", skinview_code.count("kCAFilterNearest") >= 2),   # 放大+缩小双滤镜
     ("shade-mask", "ame414_shade.mask = ame418_shadeMask" in skinview_code),   # 外层透明区不漏黑
@@ -529,7 +531,7 @@ ame378_c21 = [
     # ⑬ ★Task421 代际角标（旧构建滞留循环结构性根修：IMG_0655/0661 = 416+ 共享
     #    角点几何数学不可能的臂缝 30~40px = 设备滞留 Task415 代实锤；验锚必须
     #    长在截图面板自身而非用户从不导航的设置→关于）+ slim 内侧脸 1px UV 修正
-    ("build-tag-header", "Task424 · 2026-11-14" in read("Natives/BuildTag.h")
+    ("build-tag-header", "Task425 · 2026-11-14" in read("Natives/BuildTag.h")
         and "static NSString *const ame415_buildTag" in read("Natives/BuildTag.h")),   # 构建代号 header 化单一事实源
     ("build-tag-import-pair", '#import "BuildTag.h"' in read("Natives/AboutViewController.m")
         and '#import "BuildTag.h"' in skinview_raw
@@ -573,14 +575,13 @@ ame378_c21 = [
     #    ③动作系统 = 蹲下/站立/跑步/自定义关节拖拽）
     ("two-sided-light", "ame424_snx = -ame416_nx" in skinview_code
         and "if (ame416_backface && ame414_f.isOverlay) {" in skinview_code),   # 外层背面翻法线（THREE.js gl_FrontFacing 同源）
-    ("brightness-channels", "ame424_floor = 0.44 + (_ame424_brightness - 1.0) * 0.55" in skinview_code
-        and "AME424_VEIL_CAP" in skinview_code
-        and "ame414_f.shade.opacity = (1.0 - ame416_shade) * AME424_VEIL_CAP * ame424_gain" in skinview_code),   # 亮度双通道 floor/gain + 罩上限 0.60
-    ("light-disc", "_ame424_lightDial" in skinview_code
-        and "_ame424_dialKnob" in skinview_code
-        and "ame424_dialPanned" in skinview_code),   # 光位圆盘（dx→az、dy→el）
-    ("brightness-slider", "_ame424_brightSlider" in skinview_code
-        and "ame424_brightnessChanged" in skinview_code),   # 亮度拖条
+    ("brightness-channels", "ame425_depth * ame424_gain" in skinview_code
+        and "ame414_f.hl.opacity = ame425_hlv * ame425_bgain" in skinview_code),   # ★Task425 亮度双通道（黑影×gain / 白亮×bgain）
+    ("light-disc", "_ame425_bigDial" in skinview_code
+        and "_ame425_bigKnob" in skinview_code
+        and "ame425_dialPanned" in skinview_code),   # ★Task425 光位大圆盘（面板版，绝对定位跟手）
+    ("brightness-slider", "_ame425_brightSlider" in skinview_code
+        and "ame424_brightnessChanged" in skinview_code),   # 亮度拖条（面板满宽版）
     ("pose-segmented", "_ame424_poseControl" in skinview_code
         and "ame424_poseChanged" in skinview_code
         and 'localize(@"ame424.skin.pose.sneak", @"蹲下")' in skinview_raw),   # 姿态四段（run/pause 二钮退役）
@@ -589,6 +590,30 @@ ame378_c21 = [
     ("joint-drag", "_ame424_joint" in skinview_code
         and "ame424_partAtPoint" in skinview_code
         and "_ame424_dragPart" in skinview_code),   # 自定义关节拖拽 + 命中拾取
+    # ⑰ ★Task425 六复诉面（IMG_0671：①穿透残留 = α 裁切阈 26 比 sv3d innerLayer
+    #    alphaTest 0 严 26 倍（model.ts 亲验）淡像素成洞；②按钮塞不下 = 二级
+    #    菜单；③调节器太小 = 面板放大+步进；④不跟手 = 圆盘绝对定位+关节增益；
+    #    ⑤光影太弱 = 对比度双罩；⑥预设世界背景四件）
+    ("cutout-sv3d-parity", "AME419_CUTOUT_MIN = 1.0" in skinview_code
+        and "skinview3d model.ts 亲验" in skinview_raw),   # α≥1 全保留（sv3d innerLayer 无 alphaTest 对齐；淡像素不再成洞）
+    ("contrast-channel", "AME425_CONTRAST_DEFAULT = 1.4" in skinview_code
+        and "(1.0 - ame425_lit) * AME425_DEPTH_K * ame425_c2" in skinview_code
+        and "(dot−0.45)" in skinview_raw),   # 光影强度拖条 c∈[0,2] + 对比度双罩公式（Python B 组 58 灰阶 vs 旧 31）
+    ("secondary-panel", "_ame425_panel" in skinview_code
+        and "_ame425_gearButton" in skinview_code
+        and "ame425_togglePanel" in skinview_code
+        and "ame425_buildPanel" in skinview_code),   # 二级菜单面板（主屏收拢：圆盘拖条色板退役入面板）
+    ("panel-fine-step", "ame425_stepBrightness" in skinview_code
+        and "ame425_stepContrast" in skinview_code
+        and "_ame425_scaleSlider" in skinview_code),   # ±步进细调钮 + 模型大小拖条
+    ("dial-absolute", "locationInView:_ame425_bigDial" in skinview_code
+        and "atan2(ame425_dx, -ame425_dy)" in skinview_code),   # 圆盘绝对定位跟手（手指即光向，累积 translation 式退役）
+    ("joint-gain", "AME424_JOINT_GAIN = 0.020" in skinview_code),   # 关节拖拽增益 ×2（不跟手定谳）
+    ("world-backdrop", "AME425_WORLD_PLAINS = 3" in skinview_code
+        and "_ame425_groundFaces" in skinview_code
+        and "_ame425_skyLayer" in skinview_code
+        and "ame425_buildWorldLayers" in skinview_code
+        and "ame425_updateWorldTransform" in skinview_code),   # 世界背景（草地/雪地/末地/地狱：天空+8×8 方块地面+雾+太阳+软影）
 ]
 ame378_c21_fail = [n for n, ok in ame378_c21 if not ok]
 if ame378_c21_fail and os.environ.get("AME378_DEBUG"):
@@ -693,10 +718,19 @@ if "--selftest" in sys.argv:
     # ★Task424 S-C25b：姿态四段抹除变体（run/pause 回潮 = 姿态系统退役）→ C21 pose-segmented 必翻红
     rcheck("S-C25b", skinview_code.replace("ame424_poseChanged", "ame424_poseGone"),
            "ame424_poseChanged" not in skinview_code.replace("ame424_poseChanged", "ame424_poseGone"))
+    # ★Task425 S-C26a：裁切阈值回潮变体（CUTOUT 回 26 = 淡像素成洞复潮）→ C21 cutout-sv3d-parity 必翻红
+    rcheck("S-C26a", skinview_code.replace("AME419_CUTOUT_MIN = 1.0", "AME419_CUTOUT_MIN = 26.0"),
+           "AME419_CUTOUT_MIN = 1.0" not in skinview_code.replace("AME419_CUTOUT_MIN = 1.0", "AME419_CUTOUT_MIN = 26.0"))
+    # ★Task425 S-C26b：二级面板抹除变体（圆盘拖条回主屏 = 塞不下复潮）→ C21 secondary-panel 必翻红
+    rcheck("S-C26b", skinview_code.replace("ame425_buildPanel", "ame425_panelGone"),
+           "ame425_buildPanel" not in skinview_code.replace("ame425_buildPanel", "ame425_panelGone"))
+    # ★Task425 S-C26c：世界背景抹除变体（四世界退役 = 预设背景复潮）→ C21 world-backdrop 必翻红
+    rcheck("S-C26c", skinview_code.replace("ame425_buildWorldLayers", "ame425_worldGone"),
+           "ame425_buildWorldLayers" not in skinview_code.replace("ame425_buildWorldLayers", "ame425_worldGone"))
     if rf:
         print(f"  SELFTEST FAILED: {rf}")
         sys.exit(1)
-    print(f"  selftest {rp}/24 probes red as expected")
+    print(f"  selftest {rp}/27 probes red as expected")
 
 print(f"ame378_selfcheck: {passed} passed, {len(fails)} failed")
 if fails:
