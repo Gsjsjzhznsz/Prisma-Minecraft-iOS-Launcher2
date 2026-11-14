@@ -812,8 +812,10 @@ static void ame428_dosDateTime(NSDate *when, uint16_t *outTime, uint16_t *outDat
 + (NSString *)ame428_prisma2Root {
     const char *ame428_h = getenv("POJAV_HOME");
     if (!ame428_h || !*ame428_h) return nil;
-    return [@([NSString stringWithUTF8String:ame428_h])
-        stringByAppendingPathComponent:@"Prisma2"];
+    // ★Task428-r5：stringWithUTF8String 对非 nil const char* 恒非 nil，但返回类型
+    //   仍是 NSString* 可空 —— 直接构造避免 @(nullable) boxed 非法表达式
+    NSString *ame428_home = [NSString stringWithUTF8String:ame428_h];
+    return [ame428_home stringByAppendingPathComponent:@"Prisma2"];
 }
 
 /// 迁移报告落点：Prisma2/migration_report.txt（12.2：人可读、追加式）。
@@ -967,8 +969,9 @@ static void ame428_dosDateTime(NSDate *when, uint16_t *outTime, uint16_t *outDat
         NSDictionary *ame428_p = ame428_profiles[ame428_key];
         if (![ame428_p isKindOfClass:[NSDictionary class]]) continue;
         id ame428_gd = ame428_p[@"gameDir"];
+        // ★Task428-r5：id 点语法判例族——isinstance 守卫后显式转修（:971）
         BOOL ame428_shared = (![ame428_gd isKindOfClass:[NSString class]] ||
-            ame428_gd.length == 0 ||
+            ((NSString *)ame428_gd).length == 0 ||
             [ame428_gd isEqualToString:@"."] || [ame428_gd isEqualToString:@"./"]);
         if (!ame428_shared) continue;
         id ame428_lp = ame428_p[@"lastPlayed"];
@@ -1042,8 +1045,9 @@ static void ame428_dosDateTime(NSDate *when, uint16_t *outTime, uint16_t *outDat
             ? ame428_p[@"lastVersionId"] : nil;
         if (ame428_vid.length == 0 || [ame428_vid hasPrefix:@"latest-"]) continue;
         id ame428_gd = ame428_p[@"gameDir"];
+        // ★Task428-r5：id 点语法判例族——isinstance 守卫后显式转修（:1046）
         BOOL ame428_shared = (![ame428_gd isKindOfClass:[NSString class]] ||
-            ame428_gd.length == 0 ||
+            ((NSString *)ame428_gd).length == 0 ||
             [ame428_gd isEqualToString:@"."] || [ame428_gd isEqualToString:@"./"]);
         if (!ame428_shared) continue;   // A2/A3：全局档不影响（决策树）
         if ([ame428_seen containsObject:ame428_vid]) continue;
