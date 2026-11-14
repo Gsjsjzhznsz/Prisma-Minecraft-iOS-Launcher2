@@ -432,6 +432,12 @@ static BOOL ame83_fsr_capable_renderer(NSString *renderer) {
 // ★ Task286：button_scale 热重载链终点（实现见 SurfaceViewController+Navigation.m，
 //   Task64 恢复默认控件同款：removeAllButtons + loadCustomControls）
 - (void)loadCustomControls;
+// ★Task428（6.3 手势动作可配置）：手势→鼠标键 / 长按延迟偏好读取
+//   （实现见 surfaceOnClick: 前的 helper 区；viewDidLoad 手势创建处
+//   先于实现调用，故在此前置声明）。
+- (int)ame428_gestureActionForKey:(NSString *)key defaultValue:(int)defaultValue;
+- (int)ame428_mouseButtonForGestureAction:(int)action;
+- (CGFloat)ame428_longPressDelay;
 
 // FPS/内存监控相关（FPS 在 native pojavSwapBuffers 中计数，参照 FCL/ZL2）
 @property(nonatomic) NSTimer *statsTimer;                 // 低频定时器，1s 一次
@@ -1486,6 +1492,11 @@ static NSInteger ame283_lastLandscapeDev = 0;
     self.longPressGesture.delaysTouchesBegan = NO;
     self.longPressGesture.delaysTouchesEnded = NO;
     self.longPressGesture.delegate = self;
+    // ★Task428（6.3）：长按触发延迟可配置——general.gesture_longpress_delay
+    //   （秒，0.2-1.0，默认 0.30）。未写入新键时回退旧键 control.press_duration
+    //   （毫秒），两键优先级见 ame428_longPressDelay；设置变化后经
+    //   applyInGamePreferenceChanges 热应用 / 下次进游戏生效。
+    self.longPressGesture.minimumPressDuration = [self ame428_longPressDelay];
     [self.touchView addGestureRecognizer:self.longPressGesture];
 
     self.longPressTwoGesture = [[UILongPressGestureRecognizer alloc]initWithTarget:self action:@selector(keyboardGesture:)];
@@ -2633,7 +2644,10 @@ static NSInteger ame283_lastLandscapeDev = 0;
 
     self.scrollPanGesture.enabled = self.enableMouseGestures;
     self.doubleTapGesture.enabled = self.enableHotbarGestures;
-    self.longPressGesture.minimumPressDuration = getPrefFloat(@"control.press_duration") / 1000.0;
+    // ★Task428（6.3）：长按延迟读取统一走 ame428_longPressDelay（新键
+    //   general.gesture_longpress_delay 优先，未写入时回退旧键
+    //   control.press_duration）——与手势创建处同一事实源，设置页关闭即热应用。
+    self.longPressGesture.minimumPressDuration = [self ame428_longPressDelay];
 
     [self updateAudioSettings];
     if (@available(iOS 16, tvOS 16, *)) {
@@ -4705,6 +4719,46 @@ static BOOL ame87_mcVersionRequiresTextureBuffer(NSString *mcVersionId) {
     }
 }
 
+#pragma mark - Task428 gesture action helpers
+
+// ★Task428（6.3 手势动作可配置）：读取手势→鼠标键映射偏好。
+//   键契约（与设置 UI 同名键逐字一致）：
+//     general.gesture_tap_action        0=鼠标左键 1=鼠标右键 2=无操作（默认 0）
+//     general.gesture_longpress_action  0=鼠标左键 1=鼠标右键 2=无操作（默认 1）
+//   键缺失（getPrefObject 为 nil）按契约默认；越界值回落默认，不动态拼键。
+- (int)ame428_gestureActionForKey:(NSString *)key defaultValue:(int)defaultValue {
+    id ame428_obj = getPrefObject(key);
+    if (ame428_obj == nil) {
+        return defaultValue;
+    }
+    int ame428_action = [ame428_obj intValue];
+    if (ame428_action < 0 || ame428_action > 2) {
+        return defaultValue;
+    }
+    return ame428_action;
+}
+
+// ★Task428（6.3）：手势动作值 → GLFW 鼠标键常量（0→左键 1→右键；
+//   调用方已先行排除 2=无操作）。
+- (int)ame428_mouseButtonForGestureAction:(int)action {
+    return (action == 1) ? GLFW_MOUSE_BUTTON_RIGHT : GLFW_MOUSE_BUTTON_LEFT;
+}
+
+// ★Task428（6.3）：长按触发延迟（秒）。新键 general.gesture_longpress_delay
+//   （0.2-1.0，契约默认 0.30）优先；未写入时回退旧键 control.press_duration
+//   （毫秒，注册默认 400）——旧设置页两处滑杆不失联，新键一经写入即接管。
+- (CGFloat)ame428_longPressDelay {
+    id ame428_delayObj = getPrefObject(@"general.gesture_longpress_delay");
+    if (ame428_delayObj != nil) {
+        CGFloat ame428_delay = [ame428_delayObj floatValue];
+        if (ame428_delay <= 0) {
+            ame428_delay = 0.30;   // 显式非法值回落契约默认
+        }
+        return clamp(ame428_delay, 0.2, 1.0);
+    }
+    return getPrefFloat(@"control.press_duration") / 1000.0;
+}
+
 - (void)surfaceOnClick:(UITapGestureRecognizer *)sender {
     if (sender.state == UIGestureRecognizerStateBegan || sender.state == UIGestureRecognizerStateEnded){
         if(self.shouldTriggerHaptic) {
@@ -4716,11 +4770,17 @@ static BOOL ame87_mcVersionRequiresTextureBuffer(NSString *mcVersionId) {
     if (sender.state == UIGestureRecognizerStateRecognized) {
         if (currentHotbarSlot == -1) {
             if (!self.enableMouseGestures) return;
-            CallbackBridge_nativeSendMouseButton(isGrabbing == JNI_TRUE ?
-                GLFW_MOUSE_BUTTON_RIGHT : GLFW_MOUSE_BUTTON_LEFT, 1, 0);
+            // ★Task428（6.3）：tap 触发哪个鼠标键改为按偏好分发——
+            //   general.gesture_tap_action：0=左键 down+up 1=右键 down+up
+            //   2=无操作（默认 0）。旧硬编码 isGrabbing?右:左 退役；
+            //   down→up 时序（33ms 抬键）不变，且 down/up 固定同键，
+            //   不再随 isGrabbing 瞬变出现 down/up 异键。
+            int ame428_tapAction = [self ame428_gestureActionForKey:@"general.gesture_tap_action" defaultValue:0];
+            if (ame428_tapAction == 2) return;
+            int ame428_tapButton = [self ame428_mouseButtonForGestureAction:ame428_tapAction];
+            CallbackBridge_nativeSendMouseButton(ame428_tapButton, 1, 0);
             dispatch_after(dispatch_time(DISPATCH_TIME_NOW, 33 * NSEC_PER_MSEC), dispatch_get_main_queue(), ^{
-                CallbackBridge_nativeSendMouseButton(isGrabbing == JNI_TRUE ?
-                    GLFW_MOUSE_BUTTON_RIGHT : GLFW_MOUSE_BUTTON_LEFT, 0, 0);
+                CallbackBridge_nativeSendMouseButton(ame428_tapButton, 0, 0);
             });
         } else {
             CallbackBridge_nativeSendKey(currentHotbarSlot, 0, 1, 0);
@@ -4797,9 +4857,13 @@ static BOOL ame87_mcVersionRequiresTextureBuffer(NSString *mcVersionId) {
     if (sender.state == UIGestureRecognizerStateBegan) {
         self.shouldTriggerClick = NO;
         if (currentHotbarSlot == -1) {
-
-            if (self.enableMouseGestures)
-                CallbackBridge_nativeSendMouseButton(GLFW_MOUSE_BUTTON_LEFT, 1, 0);
+            // ★Task428（6.3）：长按注入键改为按 general.gesture_longpress_action
+            //   分发（0=左键 1=右键 2=无操作，默认 1）。与抬起分支同源读取
+            //   （手势进行中偏好不变），down→up 时序保持不变；热栏 Q 键路径
+            //   与 shouldTriggerClick 抑制等其余逻辑一律不动。
+            int ame428_lpAction = [self ame428_gestureActionForKey:@"general.gesture_longpress_action" defaultValue:1];
+            if (self.enableMouseGestures && ame428_lpAction != 2)
+                CallbackBridge_nativeSendMouseButton([self ame428_mouseButtonForGestureAction:ame428_lpAction], 1, 0);
         } else {
             CallbackBridge_nativeSendKey(GLFW_KEY_Q, 0, 1, 0);
         }
@@ -4809,8 +4873,10 @@ static BOOL ame87_mcVersionRequiresTextureBuffer(NSString *mcVersionId) {
             || sender.state == UIGestureRecognizerStateEnded)
     {
         if (currentHotbarSlot == -1) {
-            if (self.enableMouseGestures)
-                CallbackBridge_nativeSendMouseButton(GLFW_MOUSE_BUTTON_LEFT, 0, 0);
+            // ★Task428（6.3）：抬起与按下同键收尾（分发来源见 Began 分支注释）。
+            int ame428_lpAction = [self ame428_gestureActionForKey:@"general.gesture_longpress_action" defaultValue:1];
+            if (self.enableMouseGestures && ame428_lpAction != 2)
+                CallbackBridge_nativeSendMouseButton([self ame428_mouseButtonForGestureAction:ame428_lpAction], 0, 0);
         } else {
             CallbackBridge_nativeSendKey(GLFW_KEY_Q, 0, 0, 0);
         }

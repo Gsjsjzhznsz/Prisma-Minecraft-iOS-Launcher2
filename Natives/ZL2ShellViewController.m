@@ -99,6 +99,8 @@
 #import "AI/AiSessionStore.h"           //   顶栏 RailItem 第 5 项重挂；旧壳 showAIPage 同参）
 #import "utils.h"                       // Task318：localize（AI 顶栏项文案四表键，缺头=隐式声明雷）
 #import "BackgroundManager.h"            // ★ Task349：壁纸描边字体视图树级豁免（ame230_setViewTreeStrokeExempt）
+#import "ZL2FestivalEffects.h"          // ★Task428：8.2 节日彩蛋复活（当日节日粒子层挂窗 + 问候横幅）
+#import "TouchControllerPreferencesViewController.h"   // ★Task428：6.6 右上角切换簇虚拟按键直达
 
 #include <stdlib.h>
 
@@ -812,6 +814,26 @@ static UIImage *ZL2ShellSystemImageSizedEx(NSString *name, NSString *fallback, C
     [self ame_refreshTopBarStateAnimated:NO];
 }
 
+// ★Task428：8.2 节日彩蛋复活——主壳就绪点挂窗。当日有节日且偏好
+//   general.festival_effects（BOOL 默认 YES）开启时，window 顶层挂
+//   ZL2FestivalEffects 粒子层（雪/雨/烟花/萤火/爱心/蝙蝠；挂载幂等，
+//   重复 appear 零叠加）；顶部问候横幅另行走 ame428_presentFestivalGreeting
+//   （不受特效开关影响——问候是文案层，特效开关只管粒子）。
+- (void)viewDidAppear:(BOOL)animated {
+    [super viewDidAppear:animated];
+    [ZL2FestivalEffects attachToWindow:self.view.window];
+    [self ame428_presentFestivalGreeting];
+}
+
+// ★Task428：游戏换根（ios_uikit_bridge 同步换根 SurfaceViewController）时
+//   粒子视图是 window 直接子视图、不会随旧根视图移除——必须在此显式摘除，
+//   否则雪/烟花会飘进游戏画面。全屏模态覆盖同样触发本回调（粒子暂停，
+//   dismiss 后 viewDidAppear 重新幂等挂回）。
+- (void)viewDidDisappear:(BOOL)animated {
+    [super viewDidDisappear:animated];
+    [ZL2FestivalEffects detach];
+}
+
 - (void)dealloc {
     [[NSNotificationCenter defaultCenter] removeObserver:self];
 }
@@ -941,18 +963,23 @@ static UIImage *ZL2ShellSystemImageSizedEx(NSString *name, NSString *fallback, C
     // ame192.ai.title 窗格判例 fallback nil → 数组容器需非 nil，中文兜底仅防御。
     NSArray<NSString *> *ame411_symbols = @[@"house.fill", @"arrow.down.circle.fill",
                                             @"person.2.fill", @"sparkles",
-                                            @"gearshape.fill", @"folder.fill"];
+                                            @"gearshape.fill", @"folder.fill",
+                                            // ★Task428（6.6）：虚拟按键 / 触控布局直达（瞬时 PageSheet）
+                                            @"hand.tap.fill"];
     NSArray<NSString *> *ame411_fallbacks = @[@"house", @"arrow.down.circle",
                                               @"person.2", @"sparkles",
-                                              @"gearshape", @"folder"];
+                                              @"gearshape", @"folder",
+                                              @"hand.tap"];
     NSArray<NSString *> *ame411_labels = @[localize(@"ame369.common.home", @"主页"),
                                            localize(@"ame369.shell.tab.downloads", @"下载"),
                                            localize(@"ame369.common.multiplayer", @"多人联机"),
                                            localize(@"ame192.ai.title", @"AI 助手"),
                                            localize(@"ame369.shell.tab.settings", @"设置"),
-                                           localize(@"ame369.shell.tab.files", @"文件")];
-    // 页面索引 = 壳页面表（0 主页/1 下载/5 联机/6 AI/4 设置）；-1 = 文件瞬时
-    NSArray<NSNumber *> *ame411_pages = @[@0, @1, @5, @6, @4, @(-1)];
+                                           localize(@"ame369.shell.tab.files", @"文件"),
+                                           localize(@"ame428.shell.virtual_controls", @"虚拟按键")];
+    // 页面索引 = 壳页面表（0 主页/1 下载/5 联机/6 AI/4 设置）；-1 = 文件瞬时；
+    // ★Task428（6.6）：-2 = 虚拟按键布局瞬时（TouchControllerPreferencesViewController）
+    NSArray<NSNumber *> *ame411_pages = @[@0, @1, @5, @6, @4, @(-1), @(-2)];
     self.ame411_switcherButtons = [NSMutableArray array];
     self.ame411_switcherPages = [NSMutableArray array];
     [ame411_symbols enumerateObjectsUsingBlock:^(NSString *ame411_symbol, NSUInteger ame411_idx, BOOL *ame411_stop) {
@@ -962,6 +989,12 @@ static UIImage *ZL2ShellSystemImageSizedEx(NSString *name, NSString *fallback, C
         ame411_btn.accessibilityLabel = ame411_labels[ame411_idx];
         NSInteger ame411_target = ame411_pages[ame411_idx].integerValue;
         ame411_btn.ame_action = ^{
+            // ★Task428（6.6）：虚拟按键 / 触控布局直达（瞬时 PageSheet，落地页与
+            //   游戏内菜单入口同款）
+            if (ame411_target == -2) {
+                [weakSelf ame428_openTouchControllerSheet];
+                return;
+            }
             if (ame411_target < 0) {
                 [weakSelf ame_openFileManagerSheet];   // 文件 = 瞬时 PageSheet
                 return;
@@ -987,6 +1020,16 @@ static UIImage *ZL2ShellSystemImageSizedEx(NSString *name, NSString *fallback, C
 
 // 选中态随 showPageAtIndex 刷新（bare 分支 = ame_refreshTopBarStateAnimated
 // else 路径统一经过；同页幂等自愈路径同样覆盖）
+
+// ★Task428（6.6）：右上角切换簇「虚拟按键 / 触控布局」直达（瞬时 PageSheet；
+//   PDF v5 §6.6 主屏幕工具条快捷入口；落地页与游戏内菜单入口同款
+//   TouchControllerPreferencesViewController）
+- (void)ame428_openTouchControllerSheet {
+    TouchControllerPreferencesViewController *ame428_vc = [[TouchControllerPreferencesViewController alloc] init];
+    UINavigationController *ame428_nav = [[UINavigationController alloc] initWithRootViewController:ame428_vc];
+    ame428_nav.modalPresentationStyle = UIModalPresentationPageSheet;
+    [self presentViewController:ame428_nav animated:YES completion:nil];
+}
 - (void)ame411_refreshSwitcherSelection {
     if (!self.ame411_switcherButtons) return;
     [self.ame411_switcherButtons enumerateObjectsUsingBlock:^(ZL2ShellSwitcherButton *ame411_btn, NSUInteger ame411_idx, BOOL *ame411_stop) {
@@ -1858,6 +1901,67 @@ static UIImage *ZL2ShellSystemImageSizedEx(NSString *name, NSString *fallback, C
 // 为顶栏，数值冻结为 ZL2RailView 同款（iPhone 88 / iPad 104）
 + (CGFloat)railWidthForSizeClass:(UIUserInterfaceIdiom)idiom {
     return (idiom == UIUserInterfaceIdiomPad) ? 104.0 : 88.0;
+}
+
+#pragma mark - ★Task428 8.2 节日问候横幅（顶部胶囊，自动消失）
+
+// 进程级一次性哨兵：问候横幅每次冷启动只弹一次（Task346 根重建杠杆会整壳
+// 重建换新壳实例，实例级哨兵会导致切主题/切语言后同一天二次弹幕）。
+static BOOL sAme428GreetingShownThisLaunch = NO;
+
+// ★Task428：当日有节日 → 顶部胶囊横幅（安全区下 8pt，ZL2Theme 令牌配色，
+//   显示 localize(节日键)——键直接复用既有 i18n_str_324~340 问候文案零新增），
+//   约 5 秒自动消失，出现/消失带 0.25s alpha 动画。壳层无既有顶部横幅/公告位
+//   （Task378 顶栏退役后 bare/nav 两骨架顶部均为内容区头），自建胶囊横幅。
+- (void)ame428_presentFestivalGreeting {
+    if (sAme428GreetingShownThisLaunch) return;
+    sAme428GreetingShownThisLaunch = YES;   // 非节日也置位：当日判定一次即足，避免每次 appear 重算
+    NSString *festivalKey = [ZL2FestivalEffects todayFestivalKey];
+    if (festivalKey.length == 0) return;
+
+    UIView *capsule = [[UIView alloc] init];
+    capsule.translatesAutoresizingMaskIntoConstraints = NO;
+    capsule.backgroundColor = [ZL2Theme surfaceContainerHigh];
+    capsule.layer.cornerRadius = [ZL2Theme radiusXL];   // 胶囊全圆（28 阶）
+    capsule.layer.cornerCurve = kCACornerCurveContinuous;
+    capsule.layer.shadowColor = [UIColor blackColor].CGColor;
+    capsule.layer.shadowOpacity = 0.18;
+    capsule.layer.shadowRadius = 12.0;
+    capsule.layer.shadowOffset = CGSizeMake(0.0, 4.0);
+    capsule.alpha = 0.0;                                 // 入场 0.25s 淡入
+
+    UILabel *label = [[UILabel alloc] init];
+    label.translatesAutoresizingMaskIntoConstraints = NO;
+    label.text = localize(festivalKey, nil);
+    label.font = [ZL2Theme fontTitleMedium];
+    label.textColor = [ZL2Theme onSurface];
+    label.textAlignment = NSTextAlignmentCenter;
+    label.numberOfLines = 2;
+    [capsule addSubview:label];
+    [self.view addSubview:capsule];                      // 壳视图最顶（粒子层在 window 上、若开则飘于其上，无碍阅读）
+
+    UILayoutGuide *safe = self.view.safeAreaLayoutGuide;
+    [NSLayoutConstraint activateConstraints:@[
+        [capsule.topAnchor constraintEqualToAnchor:safe.topAnchor constant:8.0],
+        [capsule.centerXAnchor constraintEqualToAnchor:self.view.centerXAnchor],
+        [capsule.widthAnchor constraintLessThanOrEqualToAnchor:self.view.widthAnchor constant:-32.0],
+        [label.topAnchor constraintEqualToAnchor:capsule.topAnchor constant:10.0],
+        [label.bottomAnchor constraintEqualToAnchor:capsule.bottomAnchor constant:-10.0],
+        [label.leadingAnchor constraintEqualToAnchor:capsule.leadingAnchor constant:18.0],
+        [label.trailingAnchor constraintEqualToAnchor:capsule.trailingAnchor constant:-18.0],
+    ]];
+
+    [UIView animateWithDuration:0.25 animations:^{
+        capsule.alpha = 1.0;
+    }];
+    // 约 5 秒自动消失（0.25s 淡出后移除）
+    dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(5.0 * NSEC_PER_SEC)),
+                   dispatch_get_main_queue(), ^{
+        [UIView animateWithDuration:0.25
+                         animations:^{ capsule.alpha = 0.0; }
+                         completion:^(BOOL finished) { [capsule removeFromSuperview]; }];
+    });
+    NSLog(@"[Task428] festival greeting banner shown (key=%@)", festivalKey);
 }
 
 @end

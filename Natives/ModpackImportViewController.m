@@ -23,6 +23,8 @@
 #import "ModpackExportViewController.h"
 #import "PLProfiles.h"
 #import "UnzipKit.h"
+// ★Task428：格式探测前置层（工作项一 2.2）
+#import "installer/modpack/ModpackConfiguration.h"
 #import <UniformTypeIdentifiers/UniformTypeIdentifiers.h>
 
 @interface ModpackImportViewController () <UITableViewDataSource, UITableViewDelegate, UIDocumentPickerDelegate>
@@ -314,7 +316,20 @@
         }
 
         @try {
-            modpackInfo = [self.importService parseModpackAtURL:parseURL error:&error];
+            // ★Task428（工作项一 2.2）：格式探测前置层——先按特征文件探测：
+            //   新格式（Technic modpack.cfg / FTB webmanifest.json）经 ModpackConfiguration
+            //   归一到中间表示后走既有安装链；既有格式（Modrinth/CurseForge/MultiMC/
+            //   PlainZip/MCBBS）仍交服务层解析；服务层解析失败时换成明确报错文案
+            //   （不再笼统「无效整合包」）。
+            ModpackFormatKind ame428_kind = [ModpackConfiguration ame428_probeFormatAtURL:parseURL];
+            if (ame428_kind == ModpackFormatKindTechnic || ame428_kind == ModpackFormatKindFTB) {
+                modpackInfo = [ModpackConfiguration ame428_modpackInfoForURL:parseURL kind:ame428_kind error:&error];
+            } else {
+                modpackInfo = [self.importService parseModpackAtURL:parseURL error:&error];
+                if (!modpackInfo) {
+                    error = [ModpackConfiguration ame428_unrecognizedFormatError:error];
+                }
+            }
         } @catch (NSException *exception) {
             error = [NSError errorWithDomain:@"ModpackImportError" code:9999
                                     userInfo:@{NSLocalizedDescriptionKey: [NSString stringWithFormat:localize(@"i18n_str_573", nil), exception.reason]}];
@@ -368,15 +383,20 @@
     NSNumber *fileCountNum = modpackInfo[@"fileCount"];
     NSString *fileName = fileURL.lastPathComponent ?: @"";
 
-    // 格式映射成中文
+    // 格式映射成中文（★Task428：technic/ftb 新格式；ame428_displayFormat 优先于安装链内部 format 键）
     NSDictionary *formatLabels = @{
         @"modrinth": @"Modrinth (.mrpack)",
         @"curseforge": @"CurseForge (.zip)",
         @"mcbbs": localize(@"i18n_str_575", nil),
         @"mmc": @"MMC (MultiMC/Prism)",
-        @"plainzip": @"Plain ZIP (.minecraft)"
+        @"plainzip": @"Plain ZIP (.minecraft)",
+        @"technic": @"Technic",
+        @"ftb": @"FTB"
     };
-    NSString *formatLabel = formatLabels[format] ?: format;
+    NSString *ame428_displayFormat = modpackInfo[@"ame428_displayFormat"];
+    NSString *ame428_formatKey = ([ame428_displayFormat isKindOfClass:[NSString class]] && ame428_displayFormat.length > 0)
+        ? ame428_displayFormat : format;
+    NSString *formatLabel = formatLabels[ame428_formatKey] ?: ame428_formatKey;
 
     NSMutableString *message = [NSMutableString string];
     [message appendFormat:localize(@"i18n_str_576", nil), fileName];
@@ -392,7 +412,13 @@
     if (loaderVersion.length > 0) {
         [message appendFormat:@" %@", loaderVersion];
     }
-    [message appendString:@"\n"];
+    [message appendString:@"\n\n"];
+
+    // ★Task428：Technic 本地加载器降级提示（bin/modpack.jar 无法在 iOS 端自动执行）
+    if ([modpackInfo[@"ame428_localLoaderJar"] boolValue]) {
+        [message appendString:localize(@"ame428.import.technic.loaderhint", nil)];
+        [message appendString:@"\n\n"];
+    }
 
     if (modCountNum && modCountNum.integerValue > 0) {
         [message appendFormat:localize(@"i18n_str_582", nil), (long)modCountNum.integerValue];

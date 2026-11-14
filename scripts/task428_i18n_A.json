@@ -1,0 +1,26 @@
+{
+  "ame428.platform.aggregate": {
+    "en": "Aggregate",
+    "zh-Hans": "聚合",
+    "zh-CN": "聚合",
+    "zh-Hant": "聚合"
+  },
+  "ame428.cf.category_fallback": {
+    "en": "This category does not exist on CurseForge; unfiltered results are shown instead.",
+    "zh-Hans": "该分类在 CurseForge 不存在，已回退全部结果",
+    "zh-CN": "该分类在 CurseForge 不存在，已回退全部结果",
+    "zh-Hant": "該分類在 CurseForge 不存在，已回退全部結果"
+  },
+  "ame428.agg.category_fallback": {
+    "en": "This category does not exist on CurseForge; the CurseForge side fell back to unfiltered results.",
+    "zh-Hans": "该分类在 CurseForge 不存在，CF 侧已回退全部结果",
+    "zh-CN": "该分类在 CurseForge 不存在，CF 侧已回退全部结果",
+    "zh-Hant": "該分類在 CurseForge 不存在，CF 側已回退全部結果"
+  },
+  "ame428.cf.category_load_failed": {
+    "en": "Failed to load CurseForge categories; showing generic categories instead.",
+    "zh-Hans": "CurseForge 分类加载失败，已展示通用分类",
+    "zh-CN": "CurseForge 分类加载失败，已展示通用分类",
+    "zh-Hant": "CurseForge 分類載入失敗，已展示通用分類"
+  }
+}

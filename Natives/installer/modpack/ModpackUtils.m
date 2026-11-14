@@ -151,4 +151,109 @@
     NSLog(@"[ModpackUtils] Placeholder version JSON written: %@", versionJsonPath);
 }
 
+#pragma mark - ★Task428：Modrinth SHA1 反查（工作项二 2.3）
+
+/// 单条 sha1 的单发请求（不重试）：2xx → 解析 files[].url（primary 优先）；
+/// 404 → 确定未命中（不换端点）；传输级失败 → nil（由调用方决定是否换镜像补一发）。
++ (nullable NSString *)ame428_singleLookupSHA1:(NSString *)sha1
+                                       apiBase:(NSString *)apiBase {
+    NSString *urlString = [NSString stringWithFormat:@"%@/version_file/%@?algorithm=sha1", apiBase, sha1];
+    NSURL *url = [NSURL URLWithString:urlString];
+    if (!url) return nil;
+
+    NSMutableURLRequest *request = [NSMutableURLRequest requestWithURL:url];
+    request.timeoutInterval = 10.0;
+    [request setValue:@"application/json" forHTTPHeaderField:@"Accept"];
+    // UA 对齐 ModrinthAPI 既有口径（Task263 判例）
+    [request setValue:@"Amethyst-iOS/1.0" forHTTPHeaderField:@"User-Agent"];
+
+    __block NSData *outData = nil;
+    __block NSInteger outStatus = 0;
+    dispatch_semaphore_t done = dispatch_semaphore_create(0);
+    [[[NSURLSession sharedSession] dataTaskWithRequest:request
+        completionHandler:^(NSData *data, NSURLResponse *response, NSError *error) {
+            if (!error && data) {
+                outData = data;
+                outStatus = ([response isKindOfClass:[NSHTTPURLResponse class]])
+                    ? ((NSHTTPURLResponse *)response).statusCode : 0;
+            }
+            dispatch_semaphore_signal(done);
+        }] resume];
+    // 12s 兜底（request.timeoutInterval=10s 已覆盖，防 completion 永不回调）
+    if (dispatch_semaphore_wait(done, dispatch_time(DISPATCH_TIME_NOW, (int64_t)(12.0 * NSEC_PER_SEC))) != 0) {
+        return nil;
+    }
+    if (outStatus < 200 || outStatus >= 300 || outData.length == 0) {
+        return nil;   // 404/5xx/空包体统一按本端点未命中处理
+    }
+
+    id json = [NSJSONSerialization JSONObjectWithData:outData options:0 error:nil];
+    if (![json isKindOfClass:[NSDictionary class]]) return nil;
+    NSArray *filesArr = [json[@"files"] isKindOfClass:[NSArray class]] ? json[@"files"] : @[];
+    // 只读响应里有的字段：primary 条目 url 优先，无 primary 标记回退首条 url
+    NSString *primaryURL = nil;
+    NSString *firstURL = nil;
+    for (NSDictionary *f in filesArr) {
+        if (![f isKindOfClass:[NSDictionary class]]) continue;
+        NSString *u = [f[@"url"] isKindOfClass:[NSString class]] ? f[@"url"] : nil;
+        if (u.length == 0) continue;
+        if (!firstURL) firstURL = u;
+        if ([f[@"primary"] isKindOfClass:[NSNumber class]] && [f[@"primary"] boolValue] && !primaryURL) {
+            primaryURL = u;
+        }
+    }
+    return primaryURL ?: firstURL;
+}
+
++ (NSDictionary<NSString *, NSString *> *)ame428_modrinthDownloadURLsForFiles:(NSArray<NSDictionary *> *)files
+                                                                   concurrency:(NSInteger)concurrency {
+    // ★Task428：并发受控（默认 8）；任何失败静默降级为未命中，不阻断导出
+    if (concurrency <= 0) concurrency = 8;
+    if (concurrency > 16) concurrency = 16;
+
+    // 收集去重后的有效 sha1（40 位 hex）
+    NSMutableOrderedSet<NSString *> *sha1s = [NSMutableOrderedSet orderedSet];
+    for (NSDictionary *f in files) {
+        if (![f isKindOfClass:[NSDictionary class]]) continue;
+        NSString *sha1 = [f[@"sha1"] isKindOfClass:[NSString class]] ? f[@"sha1"] : nil;
+        if (sha1.length == 40) [sha1s addObject:sha1];
+    }
+    if (sha1s.count == 0) return @{};
+
+    NSString *officialBase = @"https://api.modrinth.com/v2";
+    // MCIM 镜像（与 ModrinthAPI Task263 同源端点，只换基地址）
+    NSString *mirrorBase = [NSString stringWithFormat:@"%@/modrinth/v2", PLMirrorMCIMRootURL];
+
+    dispatch_semaphore_t slots = dispatch_semaphore_create((long)concurrency);
+    dispatch_group_t group = dispatch_group_create();
+    dispatch_queue_t queue = dispatch_get_global_queue(QOS_CLASS_UTILITY, 0);
+    NSMutableDictionary<NSString *, NSString *> *hits = [NSMutableDictionary dictionary];
+
+    for (NSString *sha1 in sha1s) {
+        dispatch_group_enter(group);
+        dispatch_semaphore_wait(slots, DISPATCH_TIME_FOREVER);
+        dispatch_async(queue, ^{
+            @autoreleasepool {
+                NSString *url = [self ame428_singleLookupSHA1:sha1 apiBase:officialBase];
+                if (url.length == 0) {
+                    // 官方传输级失败（非 404 判定）时镜像端点补一发
+                    url = [self ame428_singleLookupSHA1:sha1 apiBase:mirrorBase];
+                }
+                if (url.length > 0) {
+                    @synchronized(hits) {
+                        hits[sha1] = url;
+                    }
+                }
+            }
+            dispatch_semaphore_signal(slots);
+            dispatch_group_leave(group);
+        });
+    }
+    dispatch_group_wait(group, DISPATCH_TIME_FOREVER);
+
+    NSLog(@"[Task428] Modrinth SHA-1 reverse lookup: %lu/%lu hit(s)",
+          (unsigned long)hits.count, (unsigned long)sha1s.count);
+    return [hits copy];
+}
+
 @end

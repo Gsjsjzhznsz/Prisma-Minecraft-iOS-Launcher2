@@ -59,6 +59,7 @@
 #import "ios_uikit_bridge.h"
 #import "ALTServerConnection.h"
 #import "ModLoaderIconHelper.h"
+#import "ZL2FavoritesStore.h"   // ★Task428（4.2）：搜索结果卡收藏心形（与 ZL2 搜索卡/收藏页共用单例仓库）
 
 #include <sys/time.h>
 #include <SystemConfiguration/SystemConfiguration.h>
@@ -85,6 +86,11 @@ typedef NS_ENUM(NSInteger, ModernAssetType) {
 @property (nonatomic, strong) UILabel *metaLabel;
 @property (nonatomic, strong) UIStackView *tagsStack;
 @property (nonatomic, strong) UIButton *downloadButton;
+// ★Task428（4.2）：收藏心形钮（下载钮左侧）——交互对齐 ZL2AssetSearchView
+// Controller 搜索卡收藏钮：ZL2FavoritesStore 单例 toggle，状态由页面配置期
+// 写入，点击经 block 回调页面处理（同 ZL2AssetResultCell.onFavorite 模式）
+@property (nonatomic, strong) UIButton *favoriteButton;
+@property (nonatomic, copy, nullable) void (^onFavoriteToggle)(void);
 // 当前资源类型（用于在 prepareForReuse 时重置占位图标与配色）
 @property (nonatomic, assign) ModernAssetType assetType;
 // 缓存当前正在加载图片的 URL，避免复用时旧请求覆盖新请求（cell 复用竞态）
@@ -170,6 +176,28 @@ typedef NS_ENUM(NSInteger, ModernAssetType) {
         [self.downloadButton setContentCompressionResistancePriority:UILayoutPriorityRequired forAxis:UILayoutConstraintAxisHorizontal];
         [self.contentContainer addSubview:self.downloadButton];
 
+        // ----- ★Task428（4.2）：收藏心形钮：下载钮左侧 24x24（ZL2 搜索卡同位
+        //       语义；选中态 heart.fill + 品牌粉，未选 heart + 次级色）-----
+        self.favoriteButton = [UIButton buttonWithType:UIButtonTypeSystem];
+        self.favoriteButton.translatesAutoresizingMaskIntoConstraints = NO;
+        UIImage *ame428_heartSymbol = [UIImage systemImageNamed:@"heart"
+                                              withConfiguration:[UIImageSymbolConfiguration configurationWithPointSize:15 weight:UIFontWeightRegular]];
+        if (!ame428_heartSymbol) {
+            ame428_heartSymbol = [UIImage systemImageNamed:@"heart"];
+        }
+        [self.favoriteButton setImage:ame428_heartSymbol forState:UIControlStateNormal];
+        self.favoriteButton.tintColor = [AmeTheme textSecondary];
+        self.favoriteButton.showsTouchWhenHighlighted = NO;
+        self.favoriteButton.isAccessibilityElement = YES;
+        self.favoriteButton.accessibilityLabel = localize(@"ame369.common.favorites", @"收藏");
+        self.favoriteButton.accessibilityTraits = UIAccessibilityTraitButton;
+        [self.favoriteButton setContentHuggingPriority:UILayoutPriorityRequired forAxis:UILayoutConstraintAxisHorizontal];
+        [self.favoriteButton setContentCompressionResistancePriority:UILayoutPriorityRequired forAxis:UILayoutConstraintAxisHorizontal];
+        [self.favoriteButton addTarget:self
+                                action:@selector(ame428_favoriteTapped)
+                      forControlEvents:UIControlEventTouchUpInside];
+        [self.contentContainer addSubview:self.favoriteButton];
+
         [NSLayoutConstraint activateConstraints:@[
             // FCL marginBottom 10dp / padding 8dp,10dp 等效：上下 3pt + 左右 8pt（紧凑）
             [self.contentContainer.topAnchor constraintEqualToAnchor:self.contentView.topAnchor constant:3],
@@ -184,9 +212,10 @@ typedef NS_ENUM(NSInteger, ModernAssetType) {
             [self.iconView.heightAnchor constraintEqualToConstant:26],
 
             // 标题：紧跟图标右侧 +8，顶部对齐容器顶部 +6
+            // ★Task428（4.2）：右列改为 [收藏钮 | 下载钮]，标题/标签尾部避让收藏钮
             [self.titleLabel.leadingAnchor constraintEqualToAnchor:self.iconView.trailingAnchor constant:8],
             [self.titleLabel.topAnchor constraintEqualToAnchor:self.contentContainer.topAnchor constant:6],
-            [self.titleLabel.trailingAnchor constraintLessThanOrEqualToAnchor:self.downloadButton.leadingAnchor constant:-4],
+            [self.titleLabel.trailingAnchor constraintLessThanOrEqualToAnchor:self.favoriteButton.leadingAnchor constant:-4],
 
             // 第二行 descLabel：紧跟标题下方 +2，左侧对齐标题
             [self.descLabel.leadingAnchor constraintEqualToAnchor:self.titleLabel.leadingAnchor],
@@ -194,9 +223,15 @@ typedef NS_ENUM(NSInteger, ModernAssetType) {
             [self.descLabel.trailingAnchor constraintLessThanOrEqualToAnchor:self.tagsStack.leadingAnchor constant:-4],
             [self.descLabel.bottomAnchor constraintLessThanOrEqualToAnchor:self.contentContainer.bottomAnchor constant:-6],
 
-            // 标签 stack：与 descLabel 同行，右侧紧贴下载按钮
+            // 标签 stack：与 descLabel 同行，右侧紧贴收藏钮
             [self.tagsStack.centerYAnchor constraintEqualToAnchor:self.descLabel.centerYAnchor],
-            [self.tagsStack.trailingAnchor constraintLessThanOrEqualToAnchor:self.downloadButton.leadingAnchor constant:-4],
+            [self.tagsStack.trailingAnchor constraintLessThanOrEqualToAnchor:self.favoriteButton.leadingAnchor constant:-4],
+
+            // 收藏钮：下载钮左侧 -4，垂直居中，24x24
+            [self.favoriteButton.trailingAnchor constraintEqualToAnchor:self.downloadButton.leadingAnchor constant:-4],
+            [self.favoriteButton.centerYAnchor constraintEqualToAnchor:self.contentContainer.centerYAnchor],
+            [self.favoriteButton.widthAnchor constraintEqualToConstant:24],
+            [self.favoriteButton.heightAnchor constraintEqualToConstant:24],
 
             // 下载按钮：右侧 -6，垂直居中，24x24
             [self.downloadButton.trailingAnchor constraintEqualToAnchor:self.contentContainer.trailingAnchor constant:-6],
@@ -226,6 +261,25 @@ typedef NS_ENUM(NSInteger, ModernAssetType) {
     [self.tagsStack.arrangedSubviews makeObjectsPerformSelector:@selector(removeFromSuperview)];
     // 重置下载按钮 target（防止复用后旧 target 残留触发错误下载）
     [self.downloadButton removeTarget:nil action:NULL forControlEvents:UIControlEventAllEvents];
+    // ★Task428（4.2）：收藏钮复位（回调随复用清空 + 视觉态归零，页面重配时重写）
+    self.onFavoriteToggle = nil;
+    [self ame428_setFavorite:NO];
+}
+
+/// ★Task428（4.2）：收藏心形点击 → 页面回调（block 模式，同 ZL2AssetResultCell.onFavorite）
+- (void)ame428_favoriteTapped {
+    if (self.onFavoriteToggle) self.onFavoriteToggle();
+}
+
+/// ★Task428（4.2）：收藏态视觉（heart/heart.fill；选中品牌粉/未选次级色——
+/// 与本页 AssetDetailHeaderView 关注量心形同色系，选中态语义与 ZL2 搜索卡一致）
+- (void)ame428_setFavorite:(BOOL)favorite {
+    UIImage *ame428_heart = [UIImage systemImageNamed:(favorite ? @"heart.fill" : @"heart")];
+    [self.favoriteButton setImage:ame428_heart forState:UIControlStateNormal];
+    self.favoriteButton.tintColor = favorite ? [UIColor systemPinkColor] : [AmeTheme textSecondary];
+    self.favoriteButton.accessibilityLabel = favorite
+        ? localize(@"ame369.asearch.unfavorite", @"取消收藏")
+        : localize(@"ame369.common.favorites", @"收藏");
 }
 
 #pragma mark - 占位图标与配色（按资源类型）
@@ -5715,6 +5769,7 @@ static const NSTimeInterval kAme291MergeWindowSeconds = 7.0 * 24.0 * 3600.0;
         }
         [cell.downloadButton addTarget:self action:@selector(downloadMod:) forControlEvents:UIControlEventTouchUpInside];
         cell.downloadButton.tag = indexPath.row;
+        [self ame428_wireFavoriteOnCell:cell item:mod];   // ★Task428（4.2）
     } else if (tableView == self.shaderTableView) {
         cell = [tableView dequeueReusableCellWithIdentifier:@"ShaderCell" forIndexPath:indexPath];
         NSDictionary *shader = self.shaderList[indexPath.row];
@@ -5726,6 +5781,7 @@ static const NSTimeInterval kAme291MergeWindowSeconds = 7.0 * 24.0 * 3600.0;
         }
         [cell.downloadButton addTarget:self action:@selector(downloadShader:) forControlEvents:UIControlEventTouchUpInside];
         cell.downloadButton.tag = indexPath.row;
+        [self ame428_wireFavoriteOnCell:cell item:shader];   // ★Task428（4.2）
     } else if (tableView == self.resourcepackTableView) {
         cell = [tableView dequeueReusableCellWithIdentifier:@"ResourcepackCell" forIndexPath:indexPath];
         NSDictionary *resourcepack = self.resourcepackList[indexPath.row];
@@ -5737,6 +5793,7 @@ static const NSTimeInterval kAme291MergeWindowSeconds = 7.0 * 24.0 * 3600.0;
         }
         [cell.downloadButton addTarget:self action:@selector(downloadResourcepack:) forControlEvents:UIControlEventTouchUpInside];
         cell.downloadButton.tag = indexPath.row;
+        [self ame428_wireFavoriteOnCell:cell item:resourcepack];   // ★Task428（4.2）
     } else if (tableView == self.datapackTableView) {
         cell = [tableView dequeueReusableCellWithIdentifier:@"DatapackCell" forIndexPath:indexPath];
         NSDictionary *datapack = self.datapackList[indexPath.row];
@@ -5748,12 +5805,14 @@ static const NSTimeInterval kAme291MergeWindowSeconds = 7.0 * 24.0 * 3600.0;
         }
         [cell.downloadButton addTarget:self action:@selector(downloadDatapack:) forControlEvents:UIControlEventTouchUpInside];
         cell.downloadButton.tag = indexPath.row;
+        [self ame428_wireFavoriteOnCell:cell item:datapack];   // ★Task428（4.2）
     } else if (tableView == self.worldTableView) {
         cell = [tableView dequeueReusableCellWithIdentifier:@"WorldCell" forIndexPath:indexPath];
         NSDictionary *world = self.worldList[indexPath.row];
         [cell configureWithWorld:world];
         [cell.downloadButton addTarget:self action:@selector(downloadWorld:) forControlEvents:UIControlEventTouchUpInside];
         cell.downloadButton.tag = indexPath.row;
+        [self ame428_wireFavoriteOnCell:cell item:world];   // ★Task428（4.2）
     } else {
         cell = [tableView dequeueReusableCellWithIdentifier:@"ModpackCell" forIndexPath:indexPath];
         NSDictionary *modpack = self.modpackList[indexPath.row];
@@ -5765,8 +5824,32 @@ static const NSTimeInterval kAme291MergeWindowSeconds = 7.0 * 24.0 * 3600.0;
         }
         [cell.downloadButton addTarget:self action:@selector(installModpack:) forControlEvents:UIControlEventTouchUpInside];
         cell.downloadButton.tag = indexPath.row;
+        [self ame428_wireFavoriteOnCell:cell item:modpack];   // ★Task428（4.2）
     }
     return cell;
+}
+
+/// ★Task428（4.2）：搜索结果卡收藏接线（六表共用）。与 ZL2 搜索卡同语义：
+/// ZL2FavoritesStore 单例 toggle + 快照（platform/projectId/title/description/
+/// imageUrl/author/downloads/projectType）；聚合混排条目按项内 apiSource 分流
+/// （单源下与页面级源恒等）；toggle 后即时回写心形（弱引用 cell 防环）。
+- (void)ame428_wireFavoriteOnCell:(ModernAssetCell *)cell item:(NSDictionary *)item {
+    if (![item isKindOfClass:[NSDictionary class]]) return;
+    NSInteger ame428_source = ([item[@"apiSource"] integerValue] == 2) ? 2 : 1;
+    NSString *ame428_pid = [item[@"id"] isKindOfClass:[NSString class]]
+        ? item[@"id"] : [item[@"id"] description];
+    if (ame428_pid == nil) ame428_pid = @"";
+    [cell ame428_setFavorite:[[ZL2FavoritesStore sharedStore] isFavoritePlatform:ame428_source
+                                                                       projectId:ame428_pid]];
+    __weak ModernAssetCell *ame428_weakCell = cell;
+    cell.onFavoriteToggle = ^{
+        __strong ModernAssetCell *ame428_strongCell = ame428_weakCell;
+        NSMutableDictionary *ame428_snapshot = [item mutableCopy];
+        ame428_snapshot[@"platform"] = @(ame428_source);
+        ame428_snapshot[@"projectId"] = ame428_pid;
+        BOOL ame428_fav = [[ZL2FavoritesStore sharedStore] toggleFavoriteWithProject:ame428_snapshot];
+        [ame428_strongCell ame428_setFavorite:ame428_fav];
+    };
 }
 
 - (void)tableView:(UITableView *)tableView willDisplayCell:(UITableViewCell *)cell forRowAtIndexPath:(NSIndexPath *)indexPath {

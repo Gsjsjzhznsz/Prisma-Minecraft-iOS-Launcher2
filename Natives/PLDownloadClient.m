@@ -201,6 +201,18 @@ static NSError *_Nullable PLDownloadValidateFile(NSString *path, PLDownloadReque
 /// 稳定的 resumeData 存取键（taskIdentifier 或派生值）
 @property (nonatomic, copy) NSString *resolvedTaskIdentifier;
 
+// ---- ★Task428（4.1）：If-Range 温启续传（Range/If-Range 请求头）----
+/// 温启候选前缀字节数（HEAD 探测通过后置位；startAttempt 消费）。仅 stateQueue 访问。
+@property (nonatomic, assign) NSInteger ame428_pendingWarmStartPrefix;
+/// 温启 If-Range 验证器（ETag 或 Last-Modified）。仅 stateQueue 访问。
+@property (nonatomic, copy, nullable) NSString *ame428_pendingWarmStartValidator;
+/// 在途任务的活动温启前缀（startAttempt 置位，handleTaskCompletion 消费）。仅 stateQueue 访问。
+@property (nonatomic, assign) int64_t ame428_warmStartPrefixBytes;
+/// didFinishDownloadingToURL 记录的 HTTP 状态码（delegate 队列写、stateQueue 读；
+/// 与 pendingPartPath/pendingDownloadError 同款时序纪律：didFinish 同步写完，
+/// didCompleteWithError 才把 handleTaskCompletion 派发到 stateQueue）。
+@property (nonatomic, assign) NSInteger ame428_pendingStatusCode;
+
 // ---- 速率统计 ----
 @property (nonatomic, strong, nullable) dispatch_source_t speedTimer;
 /// 自上次采样以来的字节增量（NSLock 保护，参考 ZL2 withSpeedReport 的 AtomicLong 计数器）
@@ -366,8 +378,10 @@ expectedTotalBytes:(int64_t)expectedTotalBytes {
     if (!config) {
         // 默认前台配置：后台会话会被 nsurlsessiond 限流（参照
         // MinecraftResourceDownloadTask / ModService 的结论），前台会话即下即用。
+        // ★Task428（4.1）：8 → 64 容量帽（只升不降的上限，不构成强制并发；
+        //   与 MinecraftResourceDownloadTask 的 ame428 并发对齐同一上限语义）。
         config = [NSURLSessionConfiguration defaultSessionConfiguration];
-        config.HTTPMaximumConnectionsPerHost = 8;
+        config.HTTPMaximumConnectionsPerHost = 64;
         // 60 秒无数据即判定候选故障，尽快切换镜像；总时长放宽以支持大文件
         config.timeoutIntervalForRequest = 60.0;
         config.timeoutIntervalForResource = 86400.0;
@@ -513,7 +527,7 @@ expectedTotalBytes:(int64_t)expectedTotalBytes {
 
 #pragma mark - 状态机（仅 stateQueue 调用）
 
-/// 操作起点：增量检查 → 磁盘断点恢复 → 发起首次尝试
+/// 操作起点：增量检查 → 磁盘断点恢复 → If-Range 温启探测 → 发起首次尝试
 - (void)beginOperation:(PLDownloadOperation *)op {
     // 增量下载（spec Phase 5 / ZL2 思想）：目标文件已存在且校验通过 → 直接成功，
     // 不产生任何网络流量
@@ -535,6 +549,13 @@ expectedTotalBytes:(int64_t)expectedTotalBytes {
         op.pendingResumeData = stored;
         NSLog(@"[PLDownload] Restored resumeData (%llu bytes) for %@",
             (unsigned long long)stored.length, op.request.destinationPath.lastPathComponent);
+    } else if ([self ame428_armWarmStartForOperation:op]) {
+        // ★Task428（4.1）：无 resumeData 但目的地有“存在而不完整/校验不过”的
+        //   旧文件 → 先发 HEAD 取 ETag/Last-Modified，回调后再发首次尝试
+        //   （带 Range/If-Range 请求头；206 续传 / 200 全量重下）。
+        //   探测失败/服务端不支持 → 按普通下载走（ame428_armWarmStart 返回 NO
+        //   时直接 startAttempt，行为与旧版完全一致）。
+        return;
     }
 
     [self startAttemptForOperation:op];
@@ -554,6 +575,28 @@ expectedTotalBytes:(int64_t)expectedTotalBytes {
         op.pendingResumeData = nil; // 一次性消费；失败重试一律从头，保证 delta 语义清晰
         task = [self.session downloadTaskWithResumeData:resumeData];
         NSLog(@"[PLDownload] Attempt (resume) %lu/%lu retry=%lu %@",
+            (unsigned long)(op.urlIndex + 1), (unsigned long)op.request.candidateURLs.count,
+            (unsigned long)op.retryCount, url.host);
+    } else if (op.ame428_pendingWarmStartPrefix > 0) {
+        // ★Task428（4.1）：If-Range 温启——对已存在的旧文件发 Range/If-Range：
+        //   服务端验证器仍匹配 → 206（返回剩余部分，didFinish 落盘后由
+        //   handleTaskCompletion 拼接前缀）；验证器不匹配/不支持 → 200
+        //   （全量重下，与旧版行为一致）。
+        NSMutableURLRequest *ame428_req = [NSMutableURLRequest requestWithURL:url];
+        [ame428_req setValue:[NSString stringWithFormat:@"bytes=%ld-", (long)op.ame428_pendingWarmStartPrefix]
+                      forHTTPHeaderField:@"Range"];
+        if (op.ame428_pendingWarmStartValidator.length > 0) {
+            [ame428_req setValue:op.ame428_pendingWarmStartValidator
+                          forHTTPHeaderField:@"If-Range"];
+        }
+        // 温启的语义验证器是 ETag/Last-Modified；不带缓存策略改写（请求本身
+        // 幂等，与旧版 GET 同源）
+        op.ame428_warmStartPrefixBytes = (int64_t)op.ame428_pendingWarmStartPrefix;
+        op.ame428_pendingWarmStartPrefix = 0;
+        op.ame428_pendingWarmStartValidator = nil;
+        task = [self.session downloadTaskWithRequest:ame428_req];
+        NSLog(@"[PLDownload] Attempt (If-Range warm start, prefix=%ld) %lu/%lu retry=%lu %@",
+            (long)op.ame428_warmStartPrefixBytes,
             (unsigned long)(op.urlIndex + 1), (unsigned long)op.request.candidateURLs.count,
             (unsigned long)op.retryCount, url.host);
     } else {
@@ -627,6 +670,29 @@ expectedTotalBytes:(int64_t)expectedTotalBytes {
             return;
         }
         // 完整性校验：SHA1 → zip EOCD 兜底
+        // ★Task428（4.1）：206 温启拼接——If-Range 命中时 body 只是剩余部分，
+        //   先把旧文件前缀与 .part 拼成完整 .part 再进校验（200 = 全量，无需拼接）。
+        {
+            NSInteger ame428_sc = op.ame428_pendingStatusCode;
+            op.ame428_pendingStatusCode = 0;
+            int64_t ame428_prefix = op.ame428_warmStartPrefixBytes;
+            op.ame428_warmStartPrefixBytes = 0;
+            if (ame428_prefix > 0 && ame428_sc == 206) {
+                NSError *ame428_asmError = [self ame428_assembleWarmStartPartForOperation:op
+                                                                       prefixBytes:ame428_prefix
+                                                                        readyPartPath:readyPartPath];
+                if (ame428_asmError) {
+                    [[NSFileManager defaultManager] removeItemAtPath:readyPartPath error:nil];
+                    [self handleAttemptFailureForOperation:op error:ame428_asmError];
+                    return;
+                }
+                NSLog(@"[PLDownload] If-Range 206 assembled: prefix %lld + remainder -> %@",
+                      ame428_prefix, op.request.destinationPath.lastPathComponent);
+            } else if (ame428_prefix > 0) {
+                NSLog(@"[PLDownload] If-Range got %ld (not 206) -> full body re-download, no assembly",
+                      (long)ame428_sc);
+            }
+        }
         NSError *validationError = PLDownloadValidateFile(readyPartPath, op.request);
         if (validationError) {
             // 校验失败：删除损坏文件并按重试节奏重试（参考现有
@@ -769,6 +835,8 @@ didFinishDownloadingToURL:(NSURL *)location {
     if ([downloadTask.response isKindOfClass:[NSHTTPURLResponse class]]) {
         statusCode = ((NSHTTPURLResponse *)downloadTask.response).statusCode;
     }
+    // ★Task428（4.1）：状态码透传给 stateQueue（handleTaskCompletion 判 206 拼接）
+    op.ame428_pendingStatusCode = statusCode;
     if (statusCode > 0 && (statusCode < 200 || statusCode >= 300)) {
         op.pendingDownloadError = PLDownloadErrorMake(PLDownloadClientErrorCodeNetworkFailure,
             [NSString stringWithFormat:@"HTTP %ld（%@）", (long)statusCode,

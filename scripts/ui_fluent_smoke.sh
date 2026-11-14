@@ -123,6 +123,8 @@ preview_mode() {
     ZL2AccountsViewController ZL2SettingsViewController
     ZL2SkinPreviewView   # ★Task413：账户页内嵌皮肤 3D 预览（ZL2AccountsViewController 引用其类符号，冒烟固定清单缺席 = _OBJC_CLASS_$ 未定义判例；Y 轴翻转根修版）
     ZL2AssetSearchViewController   # 7.0-UI-10：下载页资产搜索组件（.h+.m，与下载页同轮落地）
+    ZL2AggregatedSearchService     # ★Task428（4.3）：聚合档双源并行服务（ZL2AssetSearchViewController
+                                   #   import 它——固定清单缺席 = _OBJC_CLASS_$ 未定义，ZL2SkinPreviewView 判例同族）
     ZL2M3Kit                       # 7.0-UI-12：MD3 功能组件库（搜索/chip/开关/对话框/弹层）
     ZL2GameDownloadViewController  # 7.0-UI-12：游戏 M3 下载页（旧 DownloadViewController 退场）
     ZL2GameAddonsViewController    # 7.0-UI-14：Addons 加载器选择屏（选版后加载器组合+安装分发）
@@ -132,6 +134,8 @@ preview_mode() {
     ZL2ShellViewController         # ★Task417：真壳本体入预览（-zl2shell real 真类渲染 +
                                    #   probe 页真 ZL2ShellNavItem 字形管线；镜像不可信教训的结构性终点：
                                    #   真机 10pt vs CI 镜像 20pt 两倍差 = 镜像自绘图标从未经过真管线）
+    ZL2FestivalEffects            # ★Task428（8.2）：节日粒子层（ZL2ShellViewController import 它；
+                                   #   getPrefObject 桩 = AmeFluentPreviewMain 既有服务桩）
   )
   local objs=()
   for s in "${sources[@]}"; do

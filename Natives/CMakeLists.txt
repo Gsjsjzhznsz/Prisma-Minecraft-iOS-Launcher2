@@ -521,6 +521,11 @@ add_executable(AngelAuraAmethyst
   AmeFlowSelectView.m
   # 7.0-UI-10-a：下载页六类真语义（ZL2 远程搜索列表，替换本地管理器错配）
   ZL2AssetSearchViewController.m
+  # ★ Task428（PDF v5 P0）：聚合搜索服务（双源并行/交错合并/去重降级）+
+  #   节日彩蛋粒子层（CAEmitterLayer 六预设）+ logshare/mclo.gs 双端点日志上传
+  ZL2AggregatedSearchService.m
+  ZL2FestivalEffects.m
+  PLLogShareService.m
   ZL2VersionsViewController.m
   ZL2AccountsViewController.m
   # ★ Task413：账户页内嵌皮肤 3D 预览视图（纯 CALayer CATransform3D 盒体，
@@ -552,6 +557,9 @@ add_executable(AngelAuraAmethyst
   DownloadHistoryViewController.m
   DownloadHistoryStore.m
   PLDownloadClient.m
+  # ★ Task428（PDF v5 §3.3）：游戏完整性校验与补全服务（启动前快速校验/
+  #   交互式校验并补全；JavaLauncher 启动链接入）
+  PLGameIntegrityService.m
   PLMirrorCenter.m
   # Task323：启动续链 JIT 门禁共享助手（ZL2 主页断链根修；RP 状态机 1:1）
   PLJITGate.m

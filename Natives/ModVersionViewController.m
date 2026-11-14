@@ -16,6 +16,7 @@
 #import "NMToast.h"
 #import "AmeTheme.h" // 7.0-UI-3e：Fluent 设计令牌层（Mod 版本页颜色语义化迁移）
 #import "PLMirrorCenter.h" // Task263：依赖详情拉取感知镜像源（旧实现硬编码官方域名）
+#import "ZL2FavoritesStore.h" // ★Task428（4.2）：头部收藏胶囊（与 ZL2 搜索卡/收藏页共用单例仓库）
 
 // ============================================================================
 // 下载源常量（与 ModVersion.apiSource 字段保持一致：1=Modrinth, 2=CurseForge）
@@ -115,6 +116,14 @@ static NSArray<NSDictionary *> *SortOptionItems(void) {
 // 项目详情头部视图（展示项目封面图/标题/作者/下载量/标签/描述，补齐信息显示缺口）
 @property (nonatomic, strong) AssetDetailHeaderView *detailHeaderView;
 
+// ★Task428（4.2）：头部收藏胶囊（ZL2 上游口径：详情页头部收藏；对齐
+// ZL2SearchIdViewController 实现语义——ZL2FavoritesStore 单例 toggle + 即时
+// 刷新选中态。AssetDetailHeaderView 为多版本页共用公共组件不改动，胶囊以
+// 覆盖件挂 header 右上（ZL2 详情头同位；不影响 fittingHeightForWidth 高度链）
+@property (nonatomic, strong, nullable) UIControl *ame428_favoriteCapsule;
+@property (nonatomic, strong, nullable) UIImageView *ame428_favoriteHeartIcon;
+@property (nonatomic, strong, nullable) UILabel *ame428_favoriteLabel;
+
 // ★ Task238（用户：“模组前置能不能像其他启动器一样摆在最上面合理的地方，
 //   下面太不明显”）：前置区从表尾（tableFooterView）上移到【详情头之下、
 //   版本列表之上】——tableHeaderView 已被项目详情头占用，这里用堆叠容器
@@ -204,6 +213,9 @@ static inline NSString *ame267_effectiveTargetProfile(NSString *ame267_target) {
 
     [self updateTableHeaderHeight];
     self.tableView.tableHeaderView = self.detailHeaderView;
+
+    // ★Task428（4.2）：头部收藏胶囊（详情页头部同位；见类扩展属性注释）
+    [self ame428_setupFavoriteCapsule];
 }
 
 /// 重新计算 tableHeaderView 高度并刷新（在 viewDidLayoutSubviews 和描述展开/收起时调用）
@@ -270,6 +282,118 @@ static inline NSString *ame267_effectiveTargetProfile(NSString *ame267_target) {
     if (self.detailHeaderView) {
         [self updateTableHeaderHeight];
     }
+}
+
+// ★Task428（4.2）：回本页时同步收藏态（收藏可能在推入的搜索/ID 查询页变更）
+- (void)viewWillAppear:(BOOL)animated {
+    [super viewWillAppear:animated];
+    [self ame428_refreshFavoriteState];
+}
+
+#pragma mark - ★Task428（4.2）：头部收藏胶囊
+
+/// 建胶囊（幂等；挂 detailHeaderView 右上——ZL2SearchIdViewController 的
+/// favoriteButton 同位语义：收藏 toggle + heart/heart.fill 选中态即时刷新）
+- (void)ame428_setupFavoriteCapsule {
+    if (self.ame428_favoriteCapsule) return;
+    if (!self.detailHeaderView) return;
+
+    UIControl *ame428_capsule = [[UIControl alloc] init];
+    ame428_capsule.translatesAutoresizingMaskIntoConstraints = NO;
+    ame428_capsule.backgroundColor = [AmeTheme fillSubtle];
+    ame428_capsule.layer.cornerRadius = 14;
+    ame428_capsule.layer.cornerCurve = kCACornerCurveContinuous;
+    ame428_capsule.layer.borderWidth = 0.5;
+    ame428_capsule.layer.borderColor = [AmeTheme divider].CGColor;
+    ame428_capsule.isAccessibilityElement = YES;
+    ame428_capsule.accessibilityLabel = localize(@"ame369.common.favorites", @"收藏");
+    ame428_capsule.accessibilityTraits = UIAccessibilityTraitButton;
+    [ame428_capsule addTarget:self
+                       action:@selector(ame428_favoriteTapped)
+             forControlEvents:UIControlEventTouchUpInside];
+
+    UIImageView *ame428_heartIcon = [[UIImageView alloc] initWithImage:
+        [[UIImage systemImageNamed:@"heart"] imageWithRenderingMode:UIImageRenderingModeAlwaysTemplate]];
+    ame428_heartIcon.contentMode = UIViewContentModeScaleAspectFit;
+    ame428_heartIcon.translatesAutoresizingMaskIntoConstraints = NO;
+    ame428_heartIcon.userInteractionEnabled = NO;
+    [ame428_capsule addSubview:ame428_heartIcon];
+
+    UILabel *ame428_label = [[UILabel alloc] init];
+    ame428_label.text = localize(@"ame369.common.favorites", @"收藏");
+    ame428_label.font = [UIFont systemFontOfSize:12 weight:UIFontWeightMedium];
+    ame428_label.textColor = [AmeTheme textPrimary];
+    ame428_label.translatesAutoresizingMaskIntoConstraints = NO;
+    ame428_label.userInteractionEnabled = NO;
+    [ame428_capsule addSubview:ame428_label];
+
+    [self.detailHeaderView addSubview:ame428_capsule];
+    [NSLayoutConstraint activateConstraints:@[
+        // 右上角：对齐 header 卡内容缘（卡内缩 16 + 视觉内缩 16；ZL2 详情头
+        // 收藏钮同位——ZL2SearchIdVC favoriteButton.centerY=icon.centerY 口径）
+        [ame428_capsule.trailingAnchor constraintEqualToAnchor:self.detailHeaderView.trailingAnchor constant:-32],
+        [ame428_capsule.topAnchor constraintEqualToAnchor:self.detailHeaderView.topAnchor constant:30],
+        [ame428_capsule.heightAnchor constraintEqualToConstant:28],
+        [ame428_heartIcon.leadingAnchor constraintEqualToAnchor:ame428_capsule.leadingAnchor constant:10],
+        [ame428_heartIcon.centerYAnchor constraintEqualToAnchor:ame428_capsule.centerYAnchor],
+        [ame428_heartIcon.widthAnchor constraintEqualToConstant:14],
+        [ame428_heartIcon.heightAnchor constraintEqualToConstant:14],
+        [ame428_label.leadingAnchor constraintEqualToAnchor:ame428_heartIcon.trailingAnchor constant:4],
+        [ame428_label.trailingAnchor constraintEqualToAnchor:ame428_capsule.trailingAnchor constant:-10],
+        [ame428_label.centerYAnchor constraintEqualToAnchor:ame428_capsule.centerYAnchor],
+    ]];
+    self.ame428_favoriteCapsule = ame428_capsule;
+    self.ame428_favoriteHeartIcon = ame428_heartIcon;
+    self.ame428_favoriteLabel = ame428_label;
+    [self.detailHeaderView bringSubviewToFront:ame428_capsule];
+    [self ame428_refreshFavoriteState];
+}
+
+/// 收藏态查询（platform = apiSource 收敛 1/2；id = modItem.onlineID）
+- (BOOL)ame428_isFavorite {
+    NSString *ame428_pid = self.modItem.onlineID ?: @"";
+    if (ame428_pid.length == 0) return NO;
+    NSInteger ame428_platform = (self.apiSource == kSourceCurseForge) ? kSourceCurseForge : kSourceModrinth;
+    return [[ZL2FavoritesStore sharedStore] isFavoritePlatform:ame428_platform projectId:ame428_pid];
+}
+
+/// 选中态刷新（heart/heart.fill + 品牌粉选中色——本页 AssetDetailHeaderView
+/// 关注量心形同色系；ZL2SearchIdViewController ame_refreshFavoriteState 同语义）。
+/// onlineID 为空（本地模组防御位）时整钮隐藏——无平台侧项目 id 无从收藏。
+- (void)ame428_refreshFavoriteState {
+    if (!self.ame428_favoriteCapsule) return;
+    NSString *ame428_pid = self.modItem.onlineID ?: @"";
+    self.ame428_favoriteCapsule.hidden = (ame428_pid.length == 0);
+    if (ame428_pid.length == 0) return;
+    BOOL ame428_fav = [self ame428_isFavorite];
+    UIImage *ame428_heart = [UIImage systemImageNamed:(ame428_fav ? @"heart.fill" : @"heart")];
+    self.ame428_favoriteHeartIcon.image = [ame428_heart imageWithRenderingMode:UIImageRenderingModeAlwaysTemplate];
+    self.ame428_favoriteHeartIcon.tintColor = ame428_fav ? [UIColor systemPinkColor] : [AmeTheme textSecondary];
+    self.ame428_favoriteLabel.textColor = ame428_fav ? [UIColor systemPinkColor] : [AmeTheme textPrimary];
+    self.ame428_favoriteCapsule.accessibilityLabel = ame428_fav
+        ? localize(@"ame369.asearch.unfavorite", @"取消收藏")
+        : localize(@"ame369.common.favorites", @"收藏");
+}
+
+/// 点击 toggle（ZL2FavoritesStore 单例，与 ZL2 搜索卡/ID 查询页/收藏页同一份
+/// 数据；快照对齐 allFavorites 消费口径。projectType 取 @"mod"：ModItem 不携
+/// 带类型令牌（本页为模组文件列表页；整合包复用本页时父层 pendingDownloadType
+/// 不透传，收藏页按 mod 路由到本页——已知口径，见任务报告）
+- (void)ame428_favoriteTapped {
+    NSString *ame428_pid = self.modItem.onlineID ?: @"";
+    if (ame428_pid.length == 0) return;
+    NSInteger ame428_platform = (self.apiSource == kSourceCurseForge) ? kSourceCurseForge : kSourceModrinth;
+    NSMutableDictionary *ame428_snapshot = [NSMutableDictionary dictionary];
+    ame428_snapshot[@"platform"] = @(ame428_platform);
+    ame428_snapshot[@"projectId"] = ame428_pid;
+    ame428_snapshot[@"title"] = self.modItem.displayName ?: @"";
+    ame428_snapshot[@"description"] = self.modItem.modDescription ?: @"";
+    ame428_snapshot[@"imageUrl"] = self.modItem.iconURL ?: @"";
+    ame428_snapshot[@"author"] = self.modItem.author ?: @"";
+    ame428_snapshot[@"downloads"] = self.modItem.downloads ?: @0;
+    ame428_snapshot[@"projectType"] = @"mod";
+    [[ZL2FavoritesStore sharedStore] toggleFavoriteWithProject:ame428_snapshot];
+    [self ame428_refreshFavoriteState];
 }
 
 #pragma mark - 侧边筛选面板（参照 FCL/ZL2 水平滚动 chips）

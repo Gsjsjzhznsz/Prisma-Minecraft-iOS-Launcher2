@@ -118,6 +118,7 @@
 #import "ZL2M3Kit.h"
 #import "ZL2VersionIndex.h"
 #import "ModpackImportViewController.h"
+#import "ZL2AggregatedSearchService.h"   // ★Task428（4.3）：聚合档双源并行服务
 
 // ── 7.0-UI-10-f #import 手术配套：API 双源本地最小声明（仅声明，无实现——类
 //    符号 OBJC_CLASS_$_ModrinthAPI / OBJC_CLASS_$_CurseForgeAPI 由预览 harness
@@ -143,6 +144,9 @@
 - (void)searchModWithFilters:(NSDictionary *)filters
                   completion:(void (^)(NSArray * _Nullable results, NSError * _Nullable error))completion;
 @property (nonatomic, assign) NSUInteger lastSearchTotalCount;
+// ★Task428（4.4）：分类失配回退感知（异步搜索路径写侧置位；预览桩未提供，
+// 读侧 respondsToSelector 守卫）
+@property (nonatomic, copy, nullable) NSString *ame428_lastCategoryFallbackSlug;
 - (void)ame227_fetchModTitle:(NSString *)modID
                   completion:(void (^)(NSString * _Nullable title, NSError * _Nullable error))completion;
 - (void)getVersionsForModWithID:(NSString *)modID
@@ -650,13 +654,19 @@ static UIColor *ZL2AssetSourceBadgeColor(NSInteger apiSource) {
 @property (nonatomic, assign) NSInteger currentPage;         // 1-based 页码
 @property (nonatomic, assign) NSUInteger knownTotalCount;    // 搜索响应 total；0 = 总数未知
 @property (nonatomic, copy) NSString *gameVersionFilter;     // nil/空 = 不限版本
-@property (nonatomic, assign) NSInteger platformOverride;    // 0=按下载源偏好 1=Modrinth 2=CurseForge
+@property (nonatomic, assign) NSInteger platformOverride;    // 0=按下载源偏好（★Task428 起聚合为默认档） 1=Modrinth 2=CurseForge 3=聚合
 @property (nonatomic, strong) UIView *versionSheetContent;   // 版本选择弹层内容（展示期持有）
 @property (nonatomic, strong) NSObject *sheetHandler;        // ZL2VersionSheetHandler（弹层期持有）
 @property (nonatomic, copy) NSString *categoryFilter;         // Task316：分类 slug；nil/空 = 不限分类
 @property (nonatomic, strong) UIControl *categoryFieldControl;// Task316：分类字段（ZL2 右栏同位）
 @property (nonatomic, strong) UILabel *categoryFieldValueLabel;
 @property (nonatomic, strong) UIView *categorySheetContent;   // 分类弹层内容（展示期持有）
+
+// ★Task428（4.4）：CF 分类树缓存（源=CurseForge 档右栏分类值域——slug/name
+// 键，后台拉取一次按类型缓存；nil/空 = 未拉取或失败 → 回退 Modrinth 口径表）
+@property (nonatomic, strong, nullable) NSArray<NSDictionary<NSString *, NSString *> *> *ame428_cfCategoryTable;
+@property (nonatomic, copy, nullable) NSString *ame428_cfCategoryType;   // 缓存对应的类型 token
+@property (nonatomic, assign) BOOL ame428_cfCategoryFetchDone;           // 本会话已尝试拉取（防重复打网）
 
 // Task323：加载器筛选（Prisma1 DownloadViewController 侧栏加载器组同语义；
 // 仅模组/整合包类型暴露；值域 = fabric/forge/quilt/neoforge，nil = 不限。
@@ -773,6 +783,12 @@ static UIColor *ZL2AssetSourceBadgeColor(NSInteger apiSource) {
     [self ame_applyFilterPanelAppearance];
     [self ame_refreshEmptyAndLoading];
 
+    // ★Task428（4.4）：CF 起始档（world 强制 CF / 偏好 curseforge）预取 CF
+    //   分类树（右栏分类值域切 CF 口径的数据源；聚合/Modrinth 档不拉）
+    if (!self.favoritesMode) {
+        [self ame428_prefetchCurseForgeCategoryTableIfNeeded];
+    }
+
     if (self.favoritesMode) {
         [self ame_reloadFavorites];
         [[NSNotificationCenter defaultCenter] addObserver:self
@@ -839,12 +855,25 @@ static UIColor *ZL2AssetSourceBadgeColor(NSInteger apiSource) {
 
 // API 来源口径（旧页 apiSourceForType:/currentAPIForTabType: 等价：
 // world 强制 CurseForge——Modrinth 无 project_type:world facet；
-// 其余按 PLPreferences 下载源偏好；1=Modrinth 2=CurseForge）
+// 其余按 PLPreferences 下载源偏好；1=Modrinth 2=CurseForge。
+// ★Task428（4.3）：新增 3=聚合档且为默认档——旧档"聚合只在旧下载页可达，
+// ZL2 主路径不可见"的纠错。platformOverride=0（未显式选择）时仅历史偏好
+// 显式存过 CurseForge 的跟随，其余（modrinth/aggregate/全新安装）一律落
+// 聚合默认；选择项经 ame_applyPlatform: 持久化（含 "aggregate"，旧页同值域）
 - (NSInteger)ame_apiSourceForType {
     if (self.assetType == ZL2AssetSearchTypeWorld) return 2;
-    if (self.platformOverride != 0) return self.platformOverride;
+    if (self.platformOverride == 1) return 1;
+    if (self.platformOverride == 2) return 2;
+    if (self.platformOverride == 3) return 3;
     NSString *source = [PLPreferences currentDownloadSourceForType:[self ame_typeToken]];
-    return [source isEqualToString:@"curseforge"] ? 2 : 1;
+    return [source isEqualToString:@"curseforge"] ? 2 : 3;
+}
+
+// ★Task428（4.3）：聚合档判定（消费 ZL2AggregatedSearchService；收藏页/
+// world 不聚合——world 强制 CurseForge，ame_apiSourceForType 已返回 2）
+- (BOOL)ame_isAggregateMode {
+    if (self.favoritesMode) return NO;
+    return [self ame_apiSourceForType] == 3;
 }
 
 - (id)ame_searchAPI {
@@ -1275,8 +1304,14 @@ static UIColor *ZL2AssetSourceBadgeColor(NSInteger apiSource) {
 - (void)ame_applyFilterPanelAppearance {
     if (!self.platformChipLabel) return;   // buildViews 前/收藏页无面板
     NSInteger source = [self ame_apiSourceForType];
-    self.platformChipLabel.text = (source == 2) ? @"CurseForge" : @"Modrinth";
-    self.platformChipView.backgroundColor = ZL2AssetSourceBadgeColor(source);
+    // ★Task428（4.3）：聚合档 chip——主题主色（非平台品牌色，"双源合并"语义）
+    if (source == 3) {
+        self.platformChipLabel.text = localize(@"ame428.platform.aggregate", @"聚合");
+        self.platformChipView.backgroundColor = [ZL2Theme primary];
+    } else {
+        self.platformChipLabel.text = (source == 2) ? @"CurseForge" : @"Modrinth";
+        self.platformChipView.backgroundColor = ZL2AssetSourceBadgeColor(source);
+    }
     self.platformChipLabel.textColor = [UIColor whiteColor];
 
     NSInteger sortIndex = [self.sortValues indexOfObject:(self.sortField ?: @"")];
@@ -1390,13 +1425,21 @@ static UIColor *ZL2AssetSourceBadgeColor(NSInteger apiSource) {
     });
 }
 
-// 目标平台下拉（Modrinth / CurseForge；选择持久化进下载源偏好并整页重搜；
-// 存档类别 Modrinth 无 world facet，入口已禁用不达此处）
+// 目标平台下拉（★Task428 起三档：聚合（第一项+默认） | Modrinth | CurseForge；
+// 选择持久化进下载源偏好并整页重搜；存档类别 Modrinth 无 world facet，入口
+// 已禁用不达此处）
 - (void)ame_platformTapped {
     __weak typeof(self) weakSelf = self;
     UIAlertController *sheet = [UIAlertController alertControllerWithTitle:localize(@"dl.asset.filter.platform", nil)
                                                                   message:nil
                                                            preferredStyle:UIAlertControllerStyleActionSheet];
+    // ★Task428（4.3）：聚合为第一项（FCL 下载页三态源选择同款）
+    [sheet addAction:[UIAlertAction actionWithTitle:localize(@"ame428.platform.aggregate", @"聚合")
+                                              style:UIAlertActionStyleDefault
+                                            handler:^(UIAlertAction *action) {
+        __strong typeof(weakSelf) strongSelf = weakSelf;
+        [strongSelf ame_applyPlatform:3];
+    }]];
     [sheet addAction:[UIAlertAction actionWithTitle:@"Modrinth"
                                               style:UIAlertActionStyleDefault
                                             handler:^(UIAlertAction *action) {
@@ -1409,7 +1452,9 @@ static UIColor *ZL2AssetSourceBadgeColor(NSInteger apiSource) {
         __strong typeof(weakSelf) strongSelf = weakSelf;
         [strongSelf ame_applyPlatform:2];
     }]];
-    [sheet addAction:[UIAlertAction actionWithTitle:localize(@"i18n_str_84", nil)
+    // ★Task428：取消项改用通用取消键（原 i18n_str_84 是"视频背景已设置"——
+    //   裸键错接，随本方法编辑一并修正）
+    [sheet addAction:[UIAlertAction actionWithTitle:localize(@"resman.common.cancel", nil)
                                               style:UIAlertActionStyleCancel
                                             handler:nil]];
     sheet.popoverPresentationController.sourceView = self.platformControl;
@@ -1418,11 +1463,16 @@ static UIColor *ZL2AssetSourceBadgeColor(NSInteger apiSource) {
 }
 
 - (void)ame_applyPlatform:(NSInteger)platform {
-    if (platform != 1 && platform != 2) return;
+    // ★Task428（4.3）：platform 值域 1=Modrinth 2=CurseForge 3=聚合（持久化
+    //   "aggregate" 与旧下载页 ame291 同值域，双页偏好互通）
+    if (platform != 1 && platform != 2 && platform != 3) return;
     if (platform == self.platformOverride) return;
     self.platformOverride = platform;
-    [PLPreferences setDownloadSource:(platform == 2 ? @"curseforge" : @"modrinth")
+    [PLPreferences setDownloadSource:(platform == 2 ? @"curseforge"
+                                      : (platform == 3 ? @"aggregate" : @"modrinth"))
                             forType:[self ame_typeToken]];
+    // ★Task428（4.4）：切到 CF 档预取 CF 分类树（右栏分类值域切 CF 口径）
+    [self ame428_prefetchCurseForgeCategoryTableIfNeeded];
     [self ame_applyFilterPanelAppearance];
     [self ame_triggerSearchWithQuery:(self.searchQuery ?: @"")];
 }
@@ -1547,12 +1597,23 @@ static UIColor *ZL2AssetSourceBadgeColor(NSInteger apiSource) {
 
     // 分类筛选（Task316：两平台 API 均消费 category 键——Modrinth facets
     // categories:<slug> / CurseForge categories=<id>）
+    // ★Task428（4.4）：CF 异步搜索路径本任务起真正消费该键（ame316 归一解析
+    //   + 失配回退感知）；Modrinth 异步路径暂不消费（ModrinthAPI.m 本轮只读，
+    //   同步路径既有——见任务报告未尽事项）
     if (self.categoryFilter.length > 0) {
         filters[@"category"] = self.categoryFilter;
     }
 
     NSInteger gen = self.requestGeneration;
     __weak typeof(self) weakSelf = self;
+
+    // ★Task428（4.3）：聚合档 → 双源并行服务（交错合并 CF 在前 + 去重 +
+    //   单源降级/分类失配提示；分页 total = 两源之和上界口径）
+    if ([self ame_isAggregateMode]) {
+        [self ame428_loadListAggregateWithFilters:filters generation:gen];
+        return;
+    }
+
     id api = [self ame_searchAPI];
     [api searchModWithFilters:filters
                    completion:^(NSArray * _Nullable results, NSError * _Nullable error) {
@@ -1587,6 +1648,22 @@ static UIColor *ZL2AssetSourceBadgeColor(NSInteger apiSource) {
             } else if (error) {
                 [strongSelf ame_showError:error.localizedDescription];
             }
+
+            // ★Task428（4.4）：CF 单源档分类失配回退提示——请求携带分类筛选但
+            //   ame316 在该 classId 下无映射时，CF 侧已去分类参数回退全部结果，
+            //   不再静默不筛（预览桩未实现该成员时守卫跳过）
+            if ([api isKindOfClass:[CurseForgeAPI class]] && strongSelf.categoryFilter.length > 0) {
+                NSString *ame428_fallback = nil;
+                if ([[CurseForgeAPI sharedInstance] respondsToSelector:@selector(ame428_lastCategoryFallbackSlug)]) {
+                    ame428_fallback = [(CurseForgeAPI *)[CurseForgeAPI sharedInstance] ame428_lastCategoryFallbackSlug];
+                }
+                if (ame428_fallback.length > 0) {
+                    [strongSelf ame428_showTransientNotice:localize(@"ame428.cf.category_fallback",
+                                                                    @"该分类在 CurseForge 不存在，已回退全部结果")
+                                                     title:localize(@"i18n_str_388", @"提示")];
+                }
+            }
+
             [strongSelf ame_refreshEmptyAndLoading];
             [strongSelf ame_updatePaginationUI];
 
@@ -1596,6 +1673,158 @@ static UIColor *ZL2AssetSourceBadgeColor(NSInteger apiSource) {
             }
         });
     }];
+}
+
+#pragma mark - ★Task428（4.3）：聚合档数据加载 + ★Task428（4.4）：CF 分类值域
+
+// 聚合档数据加载（ZL2AggregatedSearchService 消费侧）。完成回调与单源路径
+// 同构：整页替换 + total 驱动页码 + 降级提示 Toast + latest-wins 补发；
+// hasMore 取"任一源满页"；条目自带 apiSource（徽标/路由/收藏快照按条目
+// 自身来源，混排天然正确）。
+- (void)ame428_loadListAggregateWithFilters:(NSDictionary *)filters
+                                 generation:(NSInteger)gen {
+    __weak typeof(self) weakSelf = self;
+    [[ZL2AggregatedSearchService sharedService] searchAggregatedWithFilters:filters
+                                                                completion:^(NSArray<NSDictionary *> * _Nullable merged,
+                                                                             NSUInteger cfTotal,
+                                                                             NSUInteger mrTotal,
+                                                                             BOOL hasMore,
+                                                                             NSError * _Nullable error,
+                                                                             NSString * _Nullable warning) {
+        dispatch_async(dispatch_get_main_queue(), ^{
+            __strong typeof(weakSelf) strongSelf = weakSelf;
+            if (!strongSelf) return;
+            strongSelf.inFlight = NO;
+
+            // 过期响应防护（单源路径同款）：代际不匹配整包丢弃，latest-wins 补发
+            if (gen != strongSelf.requestGeneration) {
+                if (strongSelf.pendingSearchAfterFlight) {
+                    strongSelf.pendingSearchAfterFlight = NO;
+                    [strongSelf ame_loadListWithReset:YES];
+                }
+                return;
+            }
+
+            if (merged) {
+                [strongSelf.results removeAllObjects];
+                [strongSelf.results addObjectsFromArray:merged];
+                strongSelf.hasMore = hasMore;
+                // 总页数 = 两源 total 之和（去重后实际条数略少，上界口径；
+                // 单源失败侧计 0，页码随降级结果收敛）
+                strongSelf.knownTotalCount = cfTotal + mrTotal;
+                [strongSelf.tableView reloadData];
+            } else if (error) {
+                [strongSelf ame_showError:error.localizedDescription];
+            }
+
+            // 降级提示（单源失败 / CF 分类失配回退）：3s 自动消退信息条，
+            // 不整页报错（旧页 ame291_showPartialWarning 同语义）
+            if (warning.length > 0) {
+                [strongSelf ame428_showTransientNotice:warning
+                                                  title:localize(@"ame291.dl.aggregate_partial_title", @"聚合搜索")];
+            }
+
+            [strongSelf ame_refreshEmptyAndLoading];
+            [strongSelf ame_updatePaginationUI];
+
+            if (strongSelf.pendingSearchAfterFlight) {
+                strongSelf.pendingSearchAfterFlight = NO;
+                [strongSelf ame_loadListWithReset:YES];
+            }
+        });
+    }];
+}
+
+// 3s 自动消退信息条（旧页 ame291_showPartialWarning 同款实现；ZL2 系页面
+// 既有 toast/横幅机制 = InlineMessageView——本页 ame_showError/Success 同源）
+- (void)ame428_showTransientNotice:(NSString *)message title:(NSString *)title {
+    if (message.length == 0) return;
+    InlineMessageView *notice = [InlineMessageView showInViewController:self
+                                                                  title:title
+                                                                message:message
+                                                                   type:InlineMessageTypeInfo];
+    dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(3.0 * NSEC_PER_SEC)),
+                   dispatch_get_main_queue(), ^{
+        [notice dismiss];
+    });
+}
+
+// ★Task428（4.4）：分类值域口径——CF 单源档（含 world 强制 CF）用 CF 分类树；
+// Modrinth / 聚合档维持 Modrinth slug 口径（聚合档 CF 侧失配回退 + 提示）
+- (BOOL)ame428_categoryDomainIsCurseForge {
+    return [self ame_apiSourceForType] == 2;
+}
+
+// ★Task428（4.4）：CF 分类树预取（后台一次，按类型缓存；CF 档右栏分类弹层
+// 值域数据源）。拉取失败回退 Modrinth 口径表（存量行为）+ 信息条告知；
+// 本会话已尝试过不再打网（防切档抖动重复请求）。
+- (void)ame428_prefetchCurseForgeCategoryTableIfNeeded {
+    if (self.favoritesMode) return;
+    if (![self ame428_categoryDomainIsCurseForge]) return;
+    NSString *typeToken = [self ame_typeToken];
+    if (self.ame428_cfCategoryFetchDone && [self.ame428_cfCategoryType isEqualToString:typeToken]) {
+        return;
+    }
+    self.ame428_cfCategoryFetchDone = YES;
+    self.ame428_cfCategoryType = typeToken;
+    __weak typeof(self) weakSelf = self;
+    dispatch_async(dispatch_get_global_queue(QOS_CLASS_USER_INITIATED, 0), ^{
+        __strong typeof(weakSelf) strongSelf = weakSelf;
+        if (!strongSelf) return;
+        NSArray<NSDictionary<NSString *, NSString *> *> *ame428_tree =
+            [[ZL2AggregatedSearchService sharedService] curseForgeCategoryListForProjectType:typeToken];
+        dispatch_async(dispatch_get_main_queue(), ^{
+            __strong typeof(weakSelf) strongSelf2 = weakSelf;
+            if (!strongSelf2) return;
+            if (ame428_tree.count > 0) {
+                // 反查本地化展示名（CF slug/name 经 ame316 别名表反向对回
+                // Modrinth 口径表，对得上的用本地化名，否则用 CF 原名）
+                strongSelf2.ame428_cfCategoryTable = [strongSelf2 ame428_localizedCurseForgeCategoryTree:ame428_tree];
+            } else {
+                // 拉取失败（含预览桩无网络层）：回退 Modrinth 口径 + 信息条告知
+                [strongSelf2 ame428_showTransientNotice:localize(@"ame428.cf.category_load_failed",
+                                                                  @"CurseForge 分类加载失败，已展示通用分类")
+                                                  title:localize(@"i18n_str_388", @"提示")];
+            }
+            [strongSelf2 ame_applyFilterPanelAppearance];
+        });
+    });
+}
+
+// ★Task428（4.4）：CF 分类树展示名反查——CF 官方 slug/name 经 ame316 的
+// 别名表反向（vanilla-plus→vanilla+ / world-gen→worldgen；尺寸枚举恒等）
+// 对回 Modrinth 口径表：命中取本地化名，未命中回退 CF 自带 name（英文
+// 原口径）。slug 键保持 CF 官方值（搜索时 ame316 精确解析）。
+- (NSArray<NSDictionary<NSString *, NSString *> *> *)ame428_localizedCurseForgeCategoryTree:(NSArray<NSDictionary<NSString *, NSString *> *> *)cfTree {
+    NSDictionary<NSString *, NSString *> *ame428_reverseAlias = @{
+        @"vanilla-plus": @"vanilla+",
+        @"world-gen": @"worldgen",
+    };
+    // Modrinth 口径 slug → 本地化名（不含 CF 域前置分支的原始表）
+    NSMutableDictionary<NSString *, NSString *> *ame428_mrNames = [NSMutableDictionary dictionary];
+    for (NSDictionary *ame428_entry in [self ame428_modrinthCategoryTable]) {
+        NSString *ame428_slug = [ame428_entry[@"slug"] isKindOfClass:NSString.class] ? ame428_entry[@"slug"] : nil;
+        if (ame428_slug.length == 0) continue;
+        ame428_mrNames[ame428_slug] = [ame428_entry[@"name"] isKindOfClass:NSString.class]
+            ? ame428_entry[@"name"] : ame428_slug;
+    }
+    NSMutableArray<NSDictionary<NSString *, NSString *> *> *ame428_result = [NSMutableArray array];
+    for (NSDictionary<NSString *, NSString *> *ame428_cf in cfTree) {
+        NSString *ame428_slug = ame428_cf[@"slug"];
+        NSString *ame428_name = ame428_cf[@"name"];
+        NSString *ame428_localized = ame428_mrNames[ame428_slug];
+        if (ame428_localized == nil) {
+            NSString *ame428_reversed = ame428_reverseAlias[ame428_slug];
+            if (ame428_reversed.length > 0) {
+                ame428_localized = ame428_mrNames[ame428_reversed];
+            }
+        }
+        [ame428_result addObject:@{
+            @"slug": ame428_slug,
+            @"name": (ame428_localized.length > 0 ? ame428_localized : ame428_name),
+        }];
+    }
+    return ame428_result;
 }
 
 #pragma mark - 页码控制器（ZL2 PageController）
@@ -1820,6 +2049,19 @@ static UIColor *ZL2AssetSourceBadgeColor(NSInteger apiSource) {
 /// 展示名走属性赋值（task248 闸2 仅查 selector 写入点，ZL2SettingPages 先例）；
 /// CurseForge 侧按 name/slug 归一匹配（见 CurseForgeAPI ame316 解析）。
 - (NSArray<NSDictionary *> *)ame_categoryTableForType {
+    // ★Task428（4.4）：分类值域按当前源动态切换——CF 单源档（含 world 强制
+    //   CF）优先展示 CF 分类树（slug=CF 官方口径，ame316 映射/别名表同源；
+    //   已后台拉取缓存）；未拉取/拉取失败回退下方 Modrinth slug 口径表
+    //   （存量行为不变，另出信息条提示）。
+    if ([self ame428_categoryDomainIsCurseForge] && self.ame428_cfCategoryTable.count > 0) {
+        return self.ame428_cfCategoryTable;
+    }
+    return [self ame428_modrinthCategoryTable];
+}
+
+// ★Task428（4.4）：Modrinth 口径原始分类表（ame_categoryTableForType 的
+// 域无关基底；CF 分类树展示名反查也消费本表）
+- (NSArray<NSDictionary *> *)ame428_modrinthCategoryTable {
     NSString *type = nil;
     switch (self.assetType) {
         case ZL2AssetSearchTypeMod:         type = @"mod"; break;
@@ -1829,35 +2071,75 @@ static UIColor *ZL2AssetSourceBadgeColor(NSInteger apiSource) {
         case ZL2AssetSearchTypeWorld:       type = @"world"; break;
         case ZL2AssetSearchTypeDataPack:    type = @"datapack"; break;   // Task323：空表 → 分类字段隐藏
     }
+    // ★Task428：条目改字典形态（@{@"slug":…, @"name":…}）——原数组字面量
+    //   @[slug, name] 与消费端 entry[@"slug"]/entry[@"name"]（objectForKeyed
+    //   Subscript:）不匹配，分类弹层一打开即 unrecognized selector 崩溃
+    //   （Task316 遗留潜伏雷，随 4.4 值域切换一并修复；CF 分类树同为字典
+    //   形态，两口径同构消费）。
     NSDictionary *tables = @{
         @"mod": @[
-            @[@"adventure", localize(@"ame369.asearch.cat.adventure", @"冒险")], @[@"technology", localize(@"ame369.asearch.cat.technology", @"科技")], @[@"magic", localize(@"ame369.asearch.cat.magic", @"魔法")],
-            @[@"utility", localize(@"ame369.asearch.cat.utility", @"实用")], @[@"optimization", localize(@"ame369.asearch.cat.optimization", @"性能优化")], @[@"decoration", localize(@"ame369.asearch.cat.decoration", @"装饰")],
-            @[@"equipment", localize(@"ame369.asearch.cat.equipment", @"装备")], @[@"combat", localize(@"ame369.asearch.cat.combat", @"战斗")], @[@"food", localize(@"ame369.asearch.cat.food", @"食物")],
-            @[@"storage", localize(@"ame369.asearch.cat.storage", @"存储")], @[@"transportation", localize(@"ame369.asearch.cat.transportation", @"运输")], @[@"worldgen", localize(@"ame369.asearch.cat.worldgen", @"世界生成")],
-            @[@"library", localize(@"ame369.asearch.cat.library", @"前置库")], @[@"social", localize(@"ame369.asearch.cat.social", @"社交")], @[@"education", localize(@"ame369.asearch.cat.education", @"教育")],
-            @[@"economy", localize(@"ame369.asearch.cat.economy", @"经济")], @[@"game-mechanics", localize(@"ame369.asearch.cat.game_mechanics", @"游戏机制")], @[@"mobs", localize(@"ame369.asearch.cat.mobs", @"生物")],
+            @{@"slug": @"adventure", @"name": localize(@"ame369.asearch.cat.adventure", @"冒险")},
+            @{@"slug": @"technology", @"name": localize(@"ame369.asearch.cat.technology", @"科技")},
+            @{@"slug": @"magic", @"name": localize(@"ame369.asearch.cat.magic", @"魔法")},
+            @{@"slug": @"utility", @"name": localize(@"ame369.asearch.cat.utility", @"实用")},
+            @{@"slug": @"optimization", @"name": localize(@"ame369.asearch.cat.optimization", @"性能优化")},
+            @{@"slug": @"decoration", @"name": localize(@"ame369.asearch.cat.decoration", @"装饰")},
+            @{@"slug": @"equipment", @"name": localize(@"ame369.asearch.cat.equipment", @"装备")},
+            @{@"slug": @"combat", @"name": localize(@"ame369.asearch.cat.combat", @"战斗")},
+            @{@"slug": @"food", @"name": localize(@"ame369.asearch.cat.food", @"食物")},
+            @{@"slug": @"storage", @"name": localize(@"ame369.asearch.cat.storage", @"存储")},
+            @{@"slug": @"transportation", @"name": localize(@"ame369.asearch.cat.transportation", @"运输")},
+            @{@"slug": @"worldgen", @"name": localize(@"ame369.asearch.cat.worldgen", @"世界生成")},
+            @{@"slug": @"library", @"name": localize(@"ame369.asearch.cat.library", @"前置库")},
+            @{@"slug": @"social", @"name": localize(@"ame369.asearch.cat.social", @"社交")},
+            @{@"slug": @"education", @"name": localize(@"ame369.asearch.cat.education", @"教育")},
+            @{@"slug": @"economy", @"name": localize(@"ame369.asearch.cat.economy", @"经济")},
+            @{@"slug": @"game-mechanics", @"name": localize(@"ame369.asearch.cat.game_mechanics", @"游戏机制")},
+            @{@"slug": @"mobs", @"name": localize(@"ame369.asearch.cat.mobs", @"生物")},
         ],
         @"modpack": @[
-            @[@"adventure", localize(@"ame369.asearch.cat.adventure", @"冒险")], @[@"technology", localize(@"ame369.asearch.cat.technology", @"科技")], @[@"magic", localize(@"ame369.asearch.cat.magic", @"魔法")],
-            @[@"multiplayer", localize(@"ame369.asearch.cat.multiplayer", @"多人")], @[@"quests", localize(@"ame369.asearch.cat.quests", @"任务")], @[@"hardcore", localize(@"ame369.asearch.cat.hardcore", @"硬核")],
-            @[@"vanilla+", localize(@"ame369.asearch.cat.vanilla_plus", @"原版增强")], @[@"map-based", localize(@"ame369.asearch.cat.map_based", @"基于地图")], @[@"horror", localize(@"ame369.asearch.cat.horror", @"恐怖")],
-            @[@"exploration", localize(@"ame369.asearch.cat.exploration", @"探索")], @[@"extra-large", localize(@"ame369.asearch.cat.extra_large", @"超大型")], @[@"lightweight", localize(@"ame369.asearch.cat.lightweight", @"轻量")],
+            @{@"slug": @"adventure", @"name": localize(@"ame369.asearch.cat.adventure", @"冒险")},
+            @{@"slug": @"technology", @"name": localize(@"ame369.asearch.cat.technology", @"科技")},
+            @{@"slug": @"magic", @"name": localize(@"ame369.asearch.cat.magic", @"魔法")},
+            @{@"slug": @"multiplayer", @"name": localize(@"ame369.asearch.cat.multiplayer", @"多人")},
+            @{@"slug": @"quests", @"name": localize(@"ame369.asearch.cat.quests", @"任务")},
+            @{@"slug": @"hardcore", @"name": localize(@"ame369.asearch.cat.hardcore", @"硬核")},
+            @{@"slug": @"vanilla+", @"name": localize(@"ame369.asearch.cat.vanilla_plus", @"原版增强")},
+            @{@"slug": @"map-based", @"name": localize(@"ame369.asearch.cat.map_based", @"基于地图")},
+            @{@"slug": @"horror", @"name": localize(@"ame369.asearch.cat.horror", @"恐怖")},
+            @{@"slug": @"exploration", @"name": localize(@"ame369.asearch.cat.exploration", @"探索")},
+            @{@"slug": @"extra-large", @"name": localize(@"ame369.asearch.cat.extra_large", @"超大型")},
+            @{@"slug": @"lightweight", @"name": localize(@"ame369.asearch.cat.lightweight", @"轻量")},
         ],
         @"resourcepack": @[
-            @[@"16x", @"16x"], @[@"32x", @"32x"], @[@"64x", @"64x"],
-            @[@"128x", @"128x"], @[@"256x", @"256x"], @[@"512x", @"512x"],
-            @[@"vanilla-like", localize(@"ame369.asearch.cat.vanilla_like", @"原版风")], @[@"simplistic", localize(@"ame369.asearch.cat.simplistic", @"简约")], @[@"realistic", localize(@"ame369.asearch.cat.realistic", @"写实")],
-            @[@"fantasy", localize(@"ame369.asearch.cat.fantasy", @"奇幻")], @[@"animated", localize(@"ame369.asearch.cat.animated", @"动态")], @[@"parchment", localize(@"ame369.asearch.cat.parchment", @"羊皮纸")],
+            @{@"slug": @"16x", @"name": @"16x"}, @{@"slug": @"32x", @"name": @"32x"},
+            @{@"slug": @"64x", @"name": @"64x"}, @{@"slug": @"128x", @"name": @"128x"},
+            @{@"slug": @"256x", @"name": @"256x"}, @{@"slug": @"512x", @"name": @"512x"},
+            @{@"slug": @"vanilla-like", @"name": localize(@"ame369.asearch.cat.vanilla_like", @"原版风")},
+            @{@"slug": @"simplistic", @"name": localize(@"ame369.asearch.cat.simplistic", @"简约")},
+            @{@"slug": @"realistic", @"name": localize(@"ame369.asearch.cat.realistic", @"写实")},
+            @{@"slug": @"fantasy", @"name": localize(@"ame369.asearch.cat.fantasy", @"奇幻")},
+            @{@"slug": @"animated", @"name": localize(@"ame369.asearch.cat.animated", @"动态")},
+            @{@"slug": @"parchment", @"name": localize(@"ame369.asearch.cat.parchment", @"羊皮纸")},
         ],
         @"shader": @[
-            @[@"fantasy", localize(@"ame369.asearch.cat.fantasy", @"奇幻")], @[@"realistic", localize(@"ame369.asearch.cat.realistic", @"写实")], @[@"cartoon", localize(@"ame369.asearch.cat.cartoon", @"卡通")],
-            @[@"vanilla", localize(@"ame369.asearch.cat.vanilla_like", @"原版风")], @[@"performance", localize(@"ame369.asearch.cat.performance", @"性能")], @[@"potent", localize(@"ame369.asearch.cat.potent", @"强力")],
-            @[@"colored", localize(@"ame369.asearch.cat.colored", @"彩色")], @[@"screenshot", localize(@"ame369.asearch.cat.screenshot", @"截图")], @[@"semi-realistic", localize(@"ame369.asearch.cat.semi_realistic", @"半写实")],
+            @{@"slug": @"fantasy", @"name": localize(@"ame369.asearch.cat.fantasy", @"奇幻")},
+            @{@"slug": @"realistic", @"name": localize(@"ame369.asearch.cat.realistic", @"写实")},
+            @{@"slug": @"cartoon", @"name": localize(@"ame369.asearch.cat.cartoon", @"卡通")},
+            @{@"slug": @"vanilla", @"name": localize(@"ame369.asearch.cat.vanilla_like", @"原版风")},
+            @{@"slug": @"performance", @"name": localize(@"ame369.asearch.cat.performance", @"性能")},
+            @{@"slug": @"potent", @"name": localize(@"ame369.asearch.cat.potent", @"强力")},
+            @{@"slug": @"colored", @"name": localize(@"ame369.asearch.cat.colored", @"彩色")},
+            @{@"slug": @"screenshot", @"name": localize(@"ame369.asearch.cat.screenshot", @"截图")},
+            @{@"slug": @"semi-realistic", @"name": localize(@"ame369.asearch.cat.semi_realistic", @"半写实")},
         ],
         @"world": @[
-            @[@"adventure", localize(@"ame369.asearch.cat.adventure", @"冒险")], @[@"survival", localize(@"ame369.asearch.cat.survival", @"生存")], @[@"creation", localize(@"ame369.asearch.cat.creation", @"创造")],
-            @[@"parkour", localize(@"ame369.asearch.cat.parkour", @"跑酷")], @[@"puzzle", localize(@"ame369.asearch.cat.puzzle", @"解谜")], @[@"game-map", localize(@"ame369.asearch.cat.game_map", @"游戏地图")],
+            @{@"slug": @"adventure", @"name": localize(@"ame369.asearch.cat.adventure", @"冒险")},
+            @{@"slug": @"survival", @"name": localize(@"ame369.asearch.cat.survival", @"生存")},
+            @{@"slug": @"creation", @"name": localize(@"ame369.asearch.cat.creation", @"创造")},
+            @{@"slug": @"parkour", @"name": localize(@"ame369.asearch.cat.parkour", @"跑酷")},
+            @{@"slug": @"puzzle", @"name": localize(@"ame369.asearch.cat.puzzle", @"解谜")},
+            @{@"slug": @"game-map", @"name": localize(@"ame369.asearch.cat.game_map", @"游戏地图")},
         ],
     };
     return tables[type] ?: @[];
@@ -2112,15 +2394,22 @@ static UIColor *ZL2AssetSourceBadgeColor(NSInteger apiSource) {
                      fallbackSymbol:[symbol stringByAppendingString:@".fill"]];
     }
     // 收藏心形（7.0-UI-14：搜索卡与收藏页共用 toggle，写入 ZL2FavoritesStore）
+    // ★Task428（4.2/4.3）：来源值收敛 1/2（聚合档条目自带 apiSource，缺省
+    //   兜底也归一到 Modrinth，防 3 档位值漏进收藏快照键）
     {
         NSString *pid = item[@"id"] ?: @"";
         NSInteger source = [item[@"apiSource"] isKindOfClass:NSNumber.class]
             ? [item[@"apiSource"] integerValue] : [self ame_apiSourceForType];
+        if (source != 1 && source != 2) source = 1;
         BOOL fav = [[ZL2FavoritesStore sharedStore] isFavoritePlatform:source projectId:pid];
         [cell ame_setFavorite:fav];
     }
     __weak typeof(self) weakSelf = self;
     NSInteger row = indexPath.row;
+    // ★Task428（4.2）：弱引用捕获本 cell——toggle 后即时回写心形选中态
+    //   （对齐 ZL2SearchIdViewController ame_favoriteTapped 后刷新的语义；
+    //   原实现要点后不回刷，心形停在旧态直到滚出复用）
+    __weak ZL2AssetResultCell *ame428_weakCell = cell;
     // 7.0-UI-16：卡面独立下载钮退役（ZL2 真机卡无此件），点卡进版本页由
     // didSelectRow 承担；收藏心形保留（搜索卡与收藏页共用 toggle）
     cell.onFavorite = ^{
@@ -2131,9 +2420,11 @@ static UIColor *ZL2AssetSourceBadgeColor(NSInteger apiSource) {
         NSMutableDictionary *snapshot = [entry mutableCopy];
         NSInteger source = [entry[@"apiSource"] isKindOfClass:NSNumber.class]
             ? [entry[@"apiSource"] integerValue] : [strongSelf ame_apiSourceForType];
+        if (source != 1 && source != 2) source = 1;
         snapshot[@"platform"] = @(source);
         snapshot[@"projectId"] = entry[@"id"] ?: @"";
-        [[ZL2FavoritesStore sharedStore] toggleFavoriteWithProject:snapshot];
+        BOOL ame428_fav = [[ZL2FavoritesStore sharedStore] toggleFavoriteWithProject:snapshot];
+        [ame428_weakCell ame_setFavorite:ame428_fav];
     };
     return cell;
 }
@@ -2164,8 +2455,11 @@ static UIColor *ZL2AssetSourceBadgeColor(NSInteger apiSource) {
     NSDictionary *dict = self.results[index];
 
     // 项内 apiSource 优先（收藏模式按快照平台分流；搜索模式两平台同源）
+    // ★Task428（4.3）：聚合档混排条目自带 apiSource（1/2）；缺省兜底也收敛
+    //   1/2（防 3=聚合档位值漏进版本页 apiSource）
     NSInteger itemSource = [dict[@"apiSource"] isKindOfClass:NSNumber.class]
         ? [dict[@"apiSource"] integerValue] : [self ame_apiSourceForType];
+    if (itemSource != 1 && itemSource != 2) itemSource = 1;
 
     switch (self.assetType) {
         case ZL2AssetSearchTypeMod: {

@@ -81,6 +81,22 @@
 #import <UniformTypeIdentifiers/UniformTypeIdentifiers.h>
 #import <ImageIO/ImageIO.h>
 #import <objc/runtime.h>
+#import "ModpackExportViewController.h"   // ★Task428（1.2）：导出整合包入口行（公开 init API：alloc/init + preselectedProfileName）
+
+// ★Task428（1.2/1.4）：PLProfiles 新增类方法的本地前置声明（PLProfiles.h
+//   不在授权清单内；版本详情页隔离行消费）。签名与 PLProfiles.m 对应，勿漂移。
+@interface PLProfiles (Ame428Task428VPage)
++ (NSInteger)ame428_effectiveIsolationForVid:(NSString *)vid profile:(NSDictionary *)profile;
++ (NSInteger)ame428_effectiveCore:(NSString *)vid profile:(NSDictionary *)profile
+                    forcedOverride:(NSInteger)forcedOverride forcedGlobal:(NSInteger)forcedGlobal;
++ (NSInteger)ame428_overrideForVid:(NSString *)vid;
++ (BOOL)ame428_writeOverride:(NSInteger)override vid:(NSString *)vid;
++ (void)ame428_presentIsolationMoveFlowFrom:(UIViewController *)presenter
+                                        vid:(NSString *)vid
+                                 toIsolated:(BOOL)toIsolated
+                                     reason:(NSString *)reason
+                                  onCommit:(void (^)(void))onCommit;
+@end
 
 #pragma mark - 常量与小工具
 
@@ -684,6 +700,10 @@ static UIImage *ZL2V13ThumbnailAtPath(NSString *path, CGFloat maxPixel) {
 @property (nonatomic, strong) UILabel *ameV13_nameLabel;
 @property (nonatomic, strong) UILabel *ameV13_descLabel;
 @property (nonatomic, strong) UILabel *ameV13_tagLabel;
+// ★Task428（1.2）：版本隔离行（三选）+ 导出整合包入口行
+@property (nonatomic, strong) UILabel *ame428_isoValueLabel;
+@property (nonatomic, strong) UIControl *ame428_isoRowControl;
+@property (nonatomic, strong) UIControl *ame428_exportRowControl;
 @end
 
 @implementation ZL2VersionOverviewPage
@@ -780,11 +800,240 @@ static UIImage *ZL2V13ThumbnailAtPath(NSString *path, CGFloat maxPixel) {
     }
     [_ameV13_contentStack addArrangedSubview:flowRow];
 
+    // —— ★Task428（1.2）：版本隔离行 + 导出整合包入口行 ——
+    //（同页信息卡视觉：surfaceContainer / radiusM / 高 ≥56； UIControl +
+    //   addTarget——沿本页零 block 载荷纪律，动作不带参数即免关联对象）
+    {
+        UILabel *isoTitle = [[UILabel alloc] init];
+        isoTitle.text = localize(@"ame428.iso.row.title", @"版本隔离");
+        isoTitle.font = [ZL2Theme fontTitleMedium];
+        isoTitle.textColor = [ZL2Theme onSurface];
+        isoTitle.translatesAutoresizingMaskIntoConstraints = NO;
+        _ame428_isoValueLabel = [[UILabel alloc] init];
+        _ame428_isoValueLabel.font = [ZL2Theme fontLabelMedium];
+        _ame428_isoValueLabel.textColor = [ZL2Theme onSurfaceVariant];
+        _ame428_isoValueLabel.numberOfLines = 1;
+        _ame428_isoValueLabel.lineBreakMode = NSLineBreakByTruncatingTail;
+        _ame428_isoValueLabel.textAlignment = NSTextAlignmentRight;
+        _ame428_isoValueLabel.translatesAutoresizingMaskIntoConstraints = NO;
+        UIImageView *isoChevron = [[UIImageView alloc] initWithImage:
+            [ZL2V13SystemImage(@"chevron.right", @"chevron.forward") imageWithRenderingMode:UIImageRenderingModeAlwaysTemplate]];
+        isoChevron.tintColor = [ZL2Theme onSurfaceVariant];
+        isoChevron.contentMode = UIViewContentModeScaleAspectFit;
+        isoChevron.translatesAutoresizingMaskIntoConstraints = NO;
+        _ame428_isoRowControl = [[UIControl alloc] init];
+        _ame428_isoRowControl.backgroundColor = [ZL2Theme surfaceContainer];
+        _ame428_isoRowControl.layer.cornerRadius = [ZL2Theme radiusM];
+        _ame428_isoRowControl.translatesAutoresizingMaskIntoConstraints = NO;
+        _ame428_isoRowControl.isAccessibilityElement = YES;
+        _ame428_isoRowControl.accessibilityTraits = UIAccessibilityTraitButton;
+        _ame428_isoRowControl.accessibilityLabel = localize(@"ame428.iso.row.title", @"版本隔离");
+        [_ame428_isoRowControl addSubview:isoTitle];
+        [_ame428_isoRowControl addSubview:_ame428_isoValueLabel];
+        [_ame428_isoRowControl addSubview:isoChevron];
+        [_ame428_isoRowControl addTarget:self
+                                  action:@selector(ame428_isolationRowTapped)
+                        forControlEvents:UIControlEventTouchUpInside];
+        [NSLayoutConstraint activateConstraints:@[
+            [_ame428_isoRowControl.heightAnchor constraintGreaterThanOrEqualToConstant:56],
+            [isoTitle.leadingAnchor constraintEqualToAnchor:_ame428_isoRowControl.leadingAnchor constant:16],
+            [isoTitle.centerYAnchor constraintEqualToAnchor:_ame428_isoRowControl.centerYAnchor],
+            [isoTitle.trailingAnchor constraintLessThanOrEqualToAnchor:_ame428_isoValueLabel.leadingAnchor constant:-8],
+            [_ame428_isoValueLabel.trailingAnchor constraintEqualToAnchor:isoChevron.leadingAnchor constant:-6],
+            [_ame428_isoValueLabel.centerYAnchor constraintEqualToAnchor:_ame428_isoRowControl.centerYAnchor],
+            [_ame428_isoValueLabel.widthAnchor constraintLessThanOrEqualToConstant:180],
+            [isoChevron.trailingAnchor constraintEqualToAnchor:_ame428_isoRowControl.trailingAnchor constant:-14],
+            [isoChevron.centerYAnchor constraintEqualToAnchor:_ame428_isoRowControl.centerYAnchor],
+            [isoChevron.widthAnchor constraintEqualToConstant:18],
+            [isoChevron.heightAnchor constraintEqualToConstant:18],
+        ]];
+
+        UILabel *expTitle = [[UILabel alloc] init];
+        expTitle.text = localize(@"ame428.vpage.export_modpack", @"导出整合包");
+        expTitle.font = [ZL2Theme fontTitleMedium];
+        expTitle.textColor = [ZL2Theme onSurface];
+        expTitle.translatesAutoresizingMaskIntoConstraints = NO;
+        UILabel *expValue = [[UILabel alloc] init];
+        expValue.text = self.ameV13_profileName;
+        expValue.font = [ZL2Theme fontLabelMedium];
+        expValue.textColor = [ZL2Theme onSurfaceVariant];
+        expValue.numberOfLines = 1;
+        expValue.lineBreakMode = NSLineBreakByTruncatingTail;
+        expValue.textAlignment = NSTextAlignmentRight;
+        expValue.translatesAutoresizingMaskIntoConstraints = NO;
+        UIImageView *expChevron = [[UIImageView alloc] initWithImage:
+            [ZL2V13SystemImage(@"square.and.arrow.up", @"action") imageWithRenderingMode:UIImageRenderingModeAlwaysTemplate]];
+        expChevron.tintColor = [ZL2Theme onSurfaceVariant];
+        expChevron.contentMode = UIViewContentModeScaleAspectFit;
+        expChevron.translatesAutoresizingMaskIntoConstraints = NO;
+        _ame428_exportRowControl = [[UIControl alloc] init];
+        _ame428_exportRowControl.backgroundColor = [ZL2Theme surfaceContainer];
+        _ame428_exportRowControl.layer.cornerRadius = [ZL2Theme radiusM];
+        _ame428_exportRowControl.translatesAutoresizingMaskIntoConstraints = NO;
+        _ame428_exportRowControl.isAccessibilityElement = YES;
+        _ame428_exportRowControl.accessibilityTraits = UIAccessibilityTraitButton;
+        _ame428_exportRowControl.accessibilityLabel = localize(@"ame428.vpage.export_modpack", @"导出整合包");
+        [_ame428_exportRowControl addSubview:expTitle];
+        [_ame428_exportRowControl addSubview:expValue];
+        [_ame428_exportRowControl addSubview:expChevron];
+        [_ame428_exportRowControl addTarget:self
+                                    action:@selector(ame428_exportRowTapped)
+                          forControlEvents:UIControlEventTouchUpInside];
+        [NSLayoutConstraint activateConstraints:@[
+            [_ame428_exportRowControl.heightAnchor constraintGreaterThanOrEqualToConstant:56],
+            [expTitle.leadingAnchor constraintEqualToAnchor:_ame428_exportRowControl.leadingAnchor constant:16],
+            [expTitle.centerYAnchor constraintEqualToAnchor:_ame428_exportRowControl.centerYAnchor],
+            [expTitle.trailingAnchor constraintLessThanOrEqualToAnchor:expValue.leadingAnchor constant:-8],
+            [expValue.trailingAnchor constraintEqualToAnchor:expChevron.leadingAnchor constant:-6],
+            [expValue.centerYAnchor constraintEqualToAnchor:_ame428_exportRowControl.centerYAnchor],
+            [expValue.widthAnchor constraintLessThanOrEqualToConstant:180],
+            [expChevron.trailingAnchor constraintEqualToAnchor:_ame428_exportRowControl.trailingAnchor constant:-14],
+            [expChevron.centerYAnchor constraintEqualToAnchor:_ame428_exportRowControl.centerYAnchor],
+            [expChevron.widthAnchor constraintEqualToConstant:18],
+            [expChevron.heightAnchor constraintEqualToConstant:18],
+        ]];
+
+        UIStackView *ame428_rows = [[UIStackView alloc] initWithArrangedSubviews:@[_ame428_isoRowControl, _ame428_exportRowControl]];
+        ame428_rows.axis = UILayoutConstraintAxisVertical;
+        ame428_rows.alignment = UIStackViewAlignmentFill;
+        ame428_rows.spacing = ZL2V13CardSpacing;
+        ame428_rows.translatesAutoresizingMaskIntoConstraints = NO;
+        [_ameV13_contentStack addArrangedSubview:ame428_rows];
+    }
+
     [self ameV13_refreshInfoCard];
+    [self ame428_refreshIsolationRow];
 }
 
 - (void)ameV13_reloadContent {
     [self ameV13_refreshInfoCard];
+    [self ame428_refreshIsolationRow];
+}
+
+#pragma mark - ★Task428（1.2/1.4）：版本隔离行（version.config 三选）+ 导出整合包入口
+
+/// 隔离行值刷新：version.config 实值（0=跟随全局 1=启用 2=禁用）。
+/// A3（自定义实例路径）时行值改为注记文案（决策树：版本级层零触碰）。
+- (void)ame428_refreshIsolationRow {
+    if (!_ame428_isoValueLabel) return;
+    NSMutableDictionary *ame428_prof = [self ameV13_profileDict];
+    NSString *ame428_vid = [ame428_prof[@"lastVersionId"] isKindOfClass:[NSString class]]
+        ? ame428_prof[@"lastVersionId"] : nil;
+    if (ame428_vid.length == 0) {
+        _ame428_isoValueLabel.text = localize(@"ame351.instance.no_version", nil);
+        return;
+    }
+    NSString *ame428_gd = [ame428_prof[@"gameDir"] isKindOfClass:[NSString class]]
+        ? ame428_prof[@"gameDir"] : nil;
+    BOOL ame428_a3 = (ame428_gd.length > 0
+        && ![ame428_gd isEqualToString:@"."]
+        && ![ame428_gd isEqualToString:@"./"]
+        && ![ame428_gd isEqualToString:[NSString stringWithFormat:@"versions/%@", ame428_vid]]
+        && ![ame428_gd isEqualToString:[NSString stringWithFormat:@"versions/%@/game", ame428_vid]]);
+    if (ame428_a3) {
+        _ame428_isoValueLabel.text = localize(@"ame428.iso.row.custom_note", @"自定义路径·不受版本隔离管辖");
+        return;
+    }
+    switch ([PLProfiles ame428_overrideForVid:ame428_vid]) {
+        case 1:
+            _ame428_isoValueLabel.text = localize(@"ame428.iso.row.enable", @"在此版本启用");
+            break;
+        case 2:
+            _ame428_isoValueLabel.text = localize(@"ame428.iso.row.disable", @"在此版本禁用");
+            break;
+        default:
+            _ame428_isoValueLabel.text = localize(@"ame428.iso.row.follow_global", @"跟随全局");
+            break;
+    }
+}
+
+/// 隔离行点按：A3 → 注记弹窗；否则三选 actionSheet（当前项 ✓）。
+/// 选中后先算翻转（决策树前后），翻转 → 共享确认+下沉流（1.4），成功才
+/// 落 version.config；无翻转 → 直接落盘刷新。
+- (void)ame428_isolationRowTapped {
+    NSMutableDictionary *ame428_prof = [self ameV13_profileDict];
+    if (!ame428_prof) return;
+    NSString *ame428_vid = [ame428_prof[@"lastVersionId"] isKindOfClass:[NSString class]]
+        ? ame428_prof[@"lastVersionId"] : nil;
+    if (ame428_vid.length == 0) {
+        [self ameV13_showAlertMessage:localize(@"i18n_str_899", nil)];
+        return;
+    }
+    NSString *ame428_gd = [ame428_prof[@"gameDir"] isKindOfClass:[NSString class]]
+        ? ame428_prof[@"gameDir"] : nil;
+    BOOL ame428_a3 = (ame428_gd.length > 0
+        && ![ame428_gd isEqualToString:@"."]
+        && ![ame428_gd isEqualToString:@"./"]
+        && ![ame428_gd isEqualToString:[NSString stringWithFormat:@"versions/%@", ame428_vid]]
+        && ![ame428_gd isEqualToString:[NSString stringWithFormat:@"versions/%@/game", ame428_vid]]);
+    if (ame428_a3) {
+        [self ameV13_showAlertMessage:localize(@"ame428.iso.row.custom_note", @"自定义路径·不受版本隔离管辖")];
+        return;
+    }
+    NSInteger ame428_cur = [PLProfiles ame428_overrideForVid:ame428_vid];
+    NSString *ame428_follow = (ame428_cur == 0) ? @" ✓" : @"";
+    NSString *ame428_on = (ame428_cur == 1) ? @" ✓" : @"";
+    NSString *ame428_off = (ame428_cur == 2) ? @" ✓" : @"";
+    UIAlertController *ame428_sheet = [UIAlertController
+        alertControllerWithTitle:localize(@"ame428.iso.row.title", @"版本隔离")
+                         message:[NSString stringWithFormat:localize(@"ame428.iso.row.sheet_msg", @"版本 %@ 的游戏数据目录归属（versions/%@/ = 独立；实例根 = 共享）"), ame428_vid, ame428_vid]
+                  preferredStyle:UIAlertControllerStyleActionSheet];
+    [ame428_sheet addAction:[UIAlertAction
+        actionWithTitle:[localize(@"ame428.iso.row.follow_global", @"跟随全局") stringByAppendingString:ame428_follow]
+                  style:UIAlertActionStyleDefault
+                handler:^(__unused UIAlertAction *a) {
+            [self ame428_applyOverride:0 forVid:ame428_vid];
+        }]];
+    [ame428_sheet addAction:[UIAlertAction
+        actionWithTitle:[localize(@"ame428.iso.row.enable", @"在此版本启用") stringByAppendingString:ame428_on]
+                  style:UIAlertActionStyleDefault
+                handler:^(__unused UIAlertAction *a) {
+            [self ame428_applyOverride:1 forVid:ame428_vid];
+        }]];
+    [ame428_sheet addAction:[UIAlertAction
+        actionWithTitle:[localize(@"ame428.iso.row.disable", @"在此版本禁用") stringByAppendingString:ame428_off]
+                  style:UIAlertActionStyleDefault
+                handler:^(__unused UIAlertAction *a) {
+            [self ame428_applyOverride:2 forVid:ame428_vid];
+        }]];
+    [ame428_sheet addAction:[UIAlertAction actionWithTitle:localize(@"resman.common.cancel", nil)
+                                                     style:UIAlertActionStyleCancel handler:nil]];
+    ame428_sheet.popoverPresentationController.sourceView = _ame428_isoRowControl ?: self.view;
+    ame428_sheet.popoverPresentationController.sourceRect = (_ame428_isoRowControl ?: self.view).bounds;
+    [self presentViewController:ame428_sheet animated:YES completion:nil];
+}
+
+/// 落盘 version.config（读-改-写，plist）；翻转 → 先问再动（共享呈现流），
+/// 成功才提交；取消/失败零状态变化。
+- (void)ame428_applyOverride:(NSInteger)newOv forVid:(NSString *)vid {
+    NSDictionary *ame428_prof = [self ameV13_profileDict];
+    NSInteger ame428_before = [PLProfiles ame428_effectiveCore:vid profile:ame428_prof
+        forcedOverride:-1 forcedGlobal:-1];
+    NSInteger ame428_after = [PLProfiles ame428_effectiveCore:vid profile:ame428_prof
+        forcedOverride:newOv forcedGlobal:-1];
+    void (^ame428_commit)(void) = ^{
+        [PLProfiles ame428_writeOverride:newOv vid:vid];
+        [self ame428_refreshIsolationRow];
+        [[NSNotificationCenter defaultCenter] postNotificationName:@"ReloadProfileList" object:nil];
+    };
+    if (ame428_before != ame428_after && (ame428_before == 0 || ame428_before == 1)
+        && (ame428_after == 0 || ame428_after == 1)) {
+        [PLProfiles ame428_presentIsolationMoveFlowFrom:self
+                                                    vid:vid
+                                             toIsolated:(ame428_after == 1)
+                                                 reason:@"version-config"
+                                                onCommit:ame428_commit];
+        return;
+    }
+    ame428_commit();
+}
+
+/// 导出整合包入口行：ModpackExportViewController 公开 init API
+///（alloc/init + preselectedProfileName 预选本实例；nil 时页内自取当前）。
+- (void)ame428_exportRowTapped {
+    ModpackExportViewController *ame428_vc = [[ModpackExportViewController alloc] init];
+    ame428_vc.preselectedProfileName = self.ameV13_profileName;
+    [self.navigationController pushViewController:ame428_vc animated:YES];
 }
 
 - (void)ameV13_refreshInfoCard {

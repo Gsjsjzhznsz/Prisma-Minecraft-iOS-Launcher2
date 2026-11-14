@@ -26,6 +26,29 @@ extern NSString *const CurseForgeResponseSnippetKey;
 /// baseURL 强制落 MCIM 镜像（免 key，实测 200），源对所有人可用。
 + (BOOL)isSourceAvailable;
 
+/// Task316：分类 slug -> CF categoryId（/categories?gameId=432&classId=X 一次
+/// 拉取按 classId 缓存；匹配规则 = CF slug 精确 == 输入，或 CF name 小写 ==
+/// 输入，或别名表命中；全不中返回 nil）。同步网络调用（首次拉取 /categories），
+/// 调用方须在后台线程调用。
+/// ★Task428（4.4）起自 .m 私有转公开：ZL2 聚合搜索服务（分类映射/失配感知）
+/// 与 ZL2 筛选面板（CF 分类树值域）需要跨 TU 消费。
+- (nullable NSNumber *)ame316_categoryIdForSlug:(NSString *)slug classId:(NSInteger)classId;
+
+/// ★Task428（4.4）：CF 官方分类树（/categories?gameId=432&classId=X，与
+/// ame316 同缓存池按 classId 缓存）。返回 @{@"slug":…, @"name":…} 字典数组
+/// （slug 非字符串项跳过，name 缺失时回退 slug）；空数组 = 拉取失败或该
+/// classId 无分类。同步网络调用——调用方须在后台线程调用（ZL2 筛选面板
+/// 源=CurseForge 档的分类值域来源）。
+- (NSArray<NSDictionary<NSString *, NSString *> *> *)ame428_categoryListForClassId:(NSInteger)classId;
+
+/// ★Task428（4.4）：最近一次异步搜索（searchModWithFilters:completion:）的
+/// 分类失配回退 slug：请求携带 @"category" 筛选但 ame316 在对应 classId 下
+/// 无映射时置位，同时去分类参数继续搜索（已回退全部结果）；nil = 无失配
+/// （未带分类筛选 / 映射成功 / 新一次搜索发起时的复位值）。读侧在搜索
+/// completion 内消费（lastSearchTotalCount 同款口径），UI 出「该分类在
+/// CurseForge 不存在，已回退全部结果」提示——不再静默不筛。
+@property (nonatomic, copy, nullable) NSString *ame428_lastCategoryFallbackSlug;
+
 /// Task211：占位 API Key 判定（编译期 NULL 字面量字符串化产物家族，如
 /// "((void *)0)"）。KeyViewController 的预填净化与保存门使用，与 apiKey getter 的
 /// 运行时拒绝共用同一张垃圾表。

@@ -340,6 +340,23 @@
 @implementation TouchControllerPreferencesViewController
 @end
 
+// ★Task428（3.3）：PLGameIntegrityService 桩——ZL2VersionsViewController「校验并
+//   补全游戏文件」入口引用类符号（_OBJC_CLASS_$_），正式构建由
+//   Natives/PLGameIntegrityService.m 提供；预览桩空实现（真实头文件经
+//   ZL2VersionsViewController.m 的 #import 解析，签名一致零漂移）。
+@interface PLGameIntegrityService : NSObject
++ (instancetype)sharedService;
+- (void)preLaunchCheckForCurrentProfile:(void (^)(BOOL ok, NSDictionary<NSString *, id> * _Nullable report))completion;
+- (void)runInteractiveVerifyAndRepairFromViewController:(UIViewController *)presentingVC;
+@end
+
+@implementation PLGameIntegrityService
++ (instancetype)sharedService { return nil; }
+- (void)preLaunchCheckForCurrentProfile:(void (^)(BOOL, NSDictionary<NSString *, id> * _Nullable))completion
+    { if (completion) completion(YES, nil); }
+- (void)runInteractiveVerifyAndRepairFromViewController:(UIViewController *)presentingVC {}
+@end
+
 @interface LauncherPrefGameDirViewController : UIViewController
 @end
 

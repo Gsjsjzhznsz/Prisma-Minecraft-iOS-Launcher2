@@ -4,6 +4,8 @@
 #import "ModService.h"
 #import "external/UnzipKit/UZKArchive.h"
 #import <CommonCrypto/CommonCrypto.h>
+// ★Task428：SHA1 反查补链接（mrpack 组装路径接入，工作项二 2.3）
+#import "installer/modpack/ModpackUtils.h"
 
 @interface ModpackExportService ()
 /// 解析 profile gameDir 为绝对路径（复用 ModService 的逻辑）
@@ -16,6 +18,15 @@
 - (void)addDirectoryToArchive:(UZKArchive *)archive
                       dirPath:(NSString *)dirPath
                   prefixInZip:(NSString *)prefixInZip
+                     progress:(void (^_Nullable)(NSUInteger done, NSUInteger total))progress;
+/// ★Task428：带跳过集合的目录写入变体——命中 SHA1 反查的 mod 不再嵌入
+/// overrides（gameDirRelative 用于把 zip 内相对路径还原成 gameDir 相对路径
+/// 以匹配 skipPaths；两个过滤参数传 nil = 不过滤，等价旧签名）
+- (void)addDirectoryToArchive:(UZKArchive *)archive
+                      dirPath:(NSString *)dirPath
+                  prefixInZip:(NSString *)prefixInZip
+              gameDirRelative:(nullable NSString *)gameDirRelative
+                     skipPaths:(nullable NSSet<NSString *> *)skipPaths
                      progress:(void (^_Nullable)(NSUInteger done, NSUInteger total))progress;
 /// 内部使用：检查取消信号
 - (BOOL)checkCancelledWithError:(NSError **)error;
@@ -320,21 +331,45 @@
         dependencies[@"neoforge"] = loaderVersion;
     }
 
+    // ★Task428（工作项二 2.3）：SHA1 反查补链接（FCL ModrinthModpackExportTask 口径）。
+    // 仅当 mods 目录计入导出时执行（未勾选 mods 时维持既有行为：索引列出、
+    // 不补链、不内嵌，导入侧按缺失元数据跳过）。反查失败静默降级，不阻断导出。
+    NSDictionary<NSString *, NSString *> *ame428_hits = @{};
+    if ((fileOptions & ModpackExportFileMods) && modFiles.count > 0) {
+        progress(0.25, localize(@"ame428.export.lookup", nil));
+        ame428_hits = [ModpackUtils ame428_modrinthDownloadURLsForFiles:modFiles concurrency:8];
+    }
+    // 命中集合（gameDir 相对路径 mods/...）——这些文件不再嵌入 overrides
+    NSMutableSet<NSString *> *ame428_skipEmbed = [NSMutableSet set];
+
     // 构造 files 列表
     NSMutableArray *files = [NSMutableArray new];
     for (NSDictionary *modFile in modFiles) {
         if ([self checkCancelledWithError:error]) return NO;
         NSString *sha512 = [self sha512ForFileAtPath:modFile[@"fullPath"]];
+        // ★Task428：命中 → downloads 写直链；未命中 → 空 downloads（导入侧走 overrides 还原）
+        NSString *ame428_path = [modFile[@"path"] isKindOfClass:[NSString class]] ? modFile[@"path"] : nil;
+        NSString *ame428_sha1 = [modFile[@"sha1"] isKindOfClass:[NSString class]] ? modFile[@"sha1"] : nil;
+        NSString *ame428_url = (ame428_sha1.length == 40) ? ame428_hits[ame428_sha1] : nil;
+        if (![ame428_url isKindOfClass:[NSString class]] || ame428_url.length == 0) {
+            ame428_url = nil;
+        } else if (ame428_path.length > 0) {
+            [ame428_skipEmbed addObject:ame428_path];
+        }
         [files addObject:@{
             @"path": modFile[@"path"],
             @"hashes": @{
                 @"sha1": modFile[@"sha1"],
                 @"sha512": sha512 ?: @""
             },
-            @"downloads": @[],  // 不填下载链接，导入时走 overrides 还原（与 HMCL 导出策略一致）
+            // ★Task428：命中补直链（减包体）；未命中维持既有空 downloads + overrides 嵌入
+            @"downloads": ame428_url ? @[ame428_url] : @[],
             @"fileSize": modFile[@"fileSize"]
         }];
     }
+    NSLog(@"[ModpackExport] Task428: %lu mod(s) resolved to Modrinth links, %lu to be embedded in overrides",
+          (unsigned long)ame428_skipEmbed.count,
+          (unsigned long)(modFiles.count > ame428_skipEmbed.count ? modFiles.count - ame428_skipEmbed.count : 0));
 
     // 构造 modrinth.index.json
     NSDictionary *indexJson = @{
@@ -374,22 +409,43 @@
         return NO;
     }
 
-    // 写入 overrides
+    // ★Task428：overrides 拆分写入——
+    //   1) 先写 mods 以外的目录/文件（fileOptions 剥掉 Mods 位，mods 不再整目录嵌入）；
+    //   2) mods 目录走带跳过集合的 ame428 变体单独写（命中反查的 mod 不嵌入，
+    //      保留 Task222 分批并行读 + 串行写性能口径）。
     if (![self writeOverridesToArchive:archive
                           gameDirAbsolute:gameDirAbsolute
-                            fileOptions:fileOptions
+                            fileOptions:(fileOptions & ~ModpackExportFileMods)
                               zipPrefix:@"overrides"
-                          baseProgress:0.5
-                          progressRange:0.4
+                          baseProgress:0.45
+                          progressRange:0.25
                                 progress:progress
                                   error:error]) {
         return NO;
+    }
+    if (fileOptions & ModpackExportFileMods) {
+        [self addDirectoryToArchive:archive
+                            dirPath:[gameDirAbsolute stringByAppendingPathComponent:@"mods"]
+                        prefixInZip:@"overrides/mods"
+                    gameDirRelative:@"mods"
+                           skipPaths:[ame428_skipEmbed copy]
+                          progress:^(NSUInteger done, NSUInteger total) {
+            double ame428_ratio = (total > 0) ? ((double)done / (double)total) : 1.0;
+            progress(0.70 + 0.20 * ame428_ratio,
+                     [NSString stringWithFormat:localize(@"i18n_str_489", nil), @"overrides", @"mods"]);
+        }];
     }
 
     progress(0.95, localize(@"i18n_str_1259", nil));
     archive = nil;
 
-    progress(1.0, localize(@"i18n_str_1260", nil));
+    // ★Task428：完成文案带反查命中数（0 命中沿用既有文案，进度卡所见即所得）
+    if (ame428_skipEmbed.count > 0) {
+        progress(1.0, [NSString stringWithFormat:localize(@"ame428.export.lookup.done", nil),
+                       (long)ame428_skipEmbed.count]);
+    } else {
+        progress(1.0, localize(@"i18n_str_1260", nil));
+    }
     NSLog(@"[ModpackExport] Modrinth format export completed: %@", destPath);
     return YES;
 }
@@ -821,6 +877,21 @@
                       dirPath:(NSString *)dirPath
                   prefixInZip:(NSString *)prefixInZip
                      progress:(void (^_Nullable)(NSUInteger done, NSUInteger total))progress {
+    // ★Task428：旧签名转发到带过滤的变体（既有调用点零改动；nil = 不过滤）
+    [self addDirectoryToArchive:archive
+                        dirPath:dirPath
+                    prefixInZip:prefixInZip
+                gameDirRelative:nil
+                       skipPaths:nil
+                        progress:progress];
+}
+
+- (void)addDirectoryToArchive:(UZKArchive *)archive
+                      dirPath:(NSString *)dirPath
+                  prefixInZip:(NSString *)prefixInZip
+              gameDirRelative:(nullable NSString *)gameDirRelative
+                     skipPaths:(nullable NSSet<NSString *> *)skipPaths
+                     progress:(void (^_Nullable)(NSUInteger done, NSUInteger total))progress {
     NSFileManager *fileManager = [NSFileManager defaultManager];
 
     // 先统计文件总数（同时收集路径清单，避免二次枚举）
@@ -832,6 +903,11 @@
         NSString *fullPath = [dirPath stringByAppendingPathComponent:relPath];
         BOOL isDir = NO;
         if ([fileManager fileExistsAtPath:fullPath isDirectory:&isDir] && !isDir) {
+            // ★Task428：命中跳过集合（gameDir 相对路径，如 mods/sub/x.jar）不入清单
+            if (gameDirRelative.length > 0 && skipPaths.count > 0) {
+                NSString *gameDirRel = [gameDirRelative stringByAppendingPathComponent:relPath];
+                if ([skipPaths containsObject:gameDirRel]) continue;
+            }
             total++;
             [relPaths addObject:relPath];
         }

@@ -95,6 +95,16 @@ void UIKit_launchMinecraftSurfaceVC(UIWindow *window, NSDictionary *metadata);
 NSMutableSet *ZL2AccountsSharedValidatedSet(void);
 BOOL ZL2AccountsSharedIsThirdParty(NSDictionary *accountData);
 
+// ★Task428（1.3/1.4）：PLProfiles 新增类方法的本地前置声明（PLProfiles.h
+//   不在授权清单内；页面间零直连纪律——扫描口径有效性/注册补登记/有效
+//   隔离解析的宿主 = PLProfiles 模型类）。签名与 PLProfiles.m 对应，勿漂移。
+@interface PLProfiles (Ame428Task428Home)
++ (BOOL)ame428_isVersionInstalledPerScan:(NSString *)versionId profile:(NSDictionary *)profile;
++ (NSString *)ame428_registerProfileForVid:(NSString *)vid;
++ (NSArray<NSString *> *)ame428_profileNamesReferencingVid:(NSString *)vid;
++ (NSInteger)ame428_effectiveIsolationForVid:(NSString *)vid profile:(NSDictionary *)profile;
+@end
+
 // ★ Task400：AFNetworking 错误响应体键（仅消费此一个 extern 常量——账户页
 //   同款判例；定义由真实构建 libAFNetworking / 预览桩 ZL2PagesStub 提供）
 extern NSString * const AFNetworkingOperationFailingURLResponseDataErrorKey;
@@ -1839,7 +1849,12 @@ static UIImage *ZL2HomeSizedImage(NSString *name, NSString *fallback, CGFloat po
             ? [ModpackExportService parseVersionId:versionId] : @{};
         NSString *mcVersion = parsed[@"minecraft"] ?: (ame351_alias ? @"" : versionId);
 
-        BOOL valid = [self ame_isVersionIdValid:versionId forProfile:profile];
+        // ★Task428（1.3）：有效性判定切换扫描口径——「存在且可解析」= 在列
+        //   （旧 ame_isVersionIdValid 只查 fileExists，损坏 json 曾显示“有效”
+        //   却在启动链解析失败；新口径与版本列表/启动链同判据）。路径序
+        //   （Task351/255/256 原序保留）见 PLProfiles.ame428_isVersionInstalled
+        //   PerScan 实现注。
+        BOOL valid = [PLProfiles ame428_isVersionInstalledPerScan:versionId profile:profile];
 
         [rows addObject:@{
             @"name": name,
@@ -2937,6 +2952,22 @@ static UIImage *ZL2HomeSizedImage(NSString *name, NSString *fallback, CGFloat po
     //   注册表失守面由 PLProfiles ame353 last-known-good 锚兜住（对齐窗口内
     //   updateCurrent 读不到新根注册表时回读旧锚，绝不出厂重置误写）。
     //   nil（latest 别名/未装/实体不在）零触碰 = 正常在线解析下载流原样。
+    // ★Task428（1.2）对齐点同步：本块仍是 env 的唯一权威对齐点——
+    //   env 对齐到版本根 R（含 versions/<vid>/ 的目录）；有效隔离=启用时的
+    //   cwd/gameDir 解析（R/versions/<vid>/）在下游 JavaLauncher Task428 块
+    //   （ame97 chdir 之前）消费本块对齐后的 env，env 与 cwd 恒同根 R，
+    //   与既有 state-1 隔离启动流完全同构。
+    // ★Task428（1.3）保险点：扫描在列而注册表无条目的版本在此补登记
+    //   （engage；1.3 第 2 条闭环——“确保扫描结果里的版本在启动链仍能命中
+    //   注册表（缺失的启动前自动补登记，保证互导语义不破）”。选中 profile
+    //   本身必有条目，此处为 belt：无引用时按 gameDir=versions/<vid> 落位，
+    //   与 ame338 恢复流/整合包安装链同款）。
+    if ([versionId isKindOfClass:[NSString class]] && versionId.length > 0
+        && ![versionId hasPrefix:@"latest-"]) {
+        if ([PLProfiles ame428_profileNamesReferencingVid:versionId].count == 0) {
+            [PLProfiles ame428_registerProfileForVid:versionId];
+        }
+    }
     {
         NSString *ame353_root = [PLProfiles ame353_versionRootForProfileName:selectedProfile];
         if (ame353_root.length > 0) {

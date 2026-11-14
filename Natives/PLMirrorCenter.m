@@ -2,7 +2,6 @@
 #import "LauncherPreferences.h"
 
 #pragma mark - 公开常量（全工程唯一定义处）
-
 /// BMCLAPI 镜像根地址
 NSString *const PLMirrorBMCLAPIRootURL = @"https://bmclapi2.bangbang93.com";
 
@@ -506,8 +505,18 @@ static BOOL ame138_probeInFlight[2] = {NO, NO};
     if ([value isKindOfClass:[NSString class]]) {
         if ([value isEqualToString:@"official_first"]) return PLMirrorPolicyOfficialFirst;
         if ([value isEqualToString:@"mirror_first"]) return PLMirrorPolicyMirrorFirst;
-        // Task 138：加载速度快优先（参考 FCL 的下载源测速策略）
-        if ([value isEqualToString:@"speed_first"]) return PLMirrorPolicySpeedFirst;
+        if ([value isEqualToString:@"speed_first"]) {
+            // Task 138：加载速度快优先（参考 FCL 的下载源测速策略）。
+            // ★Task428（4.1 镜像默认档）：speed_first 是 PLPreferences 播种的出厂
+            //   默认值——无法靠“键是否存在”区分默认与用户显式选择。规则：
+            //   ① 未套用过大陆默认档（侧标记无）→ 走大陆网络探测判定并物化；
+            //   ② 已套用过（侧标记在）→ 这是用户套用后亲手选回的值，永久尊重。
+            if ([self ame428_geoDefaultAppliedForKey:key]) {
+                return PLMirrorPolicySpeedFirst;
+            }
+            return [self ame428_applyGeoDefaultForKey:key];
+        }
+        // 非法值 → 旧键回退链 → 大陆默认档（见下方两个兜底段）
     }
 
     // 回退旧键 general.download_source：official → 官方优先，bmclapi / mcim → 镜像优先
@@ -519,8 +528,67 @@ static BOOL ame138_probeInFlight[2] = {NO, NO};
         }
     }
 
-    // 默认官方优先
-    return PLMirrorPolicyOfficialFirst;
+    // ★Task428（4.1）：无任何显式策略（新装/偏好重置）→ 大陆网络探测默认档
+    //   （替代硬编码 official_first）：大陆 → mirror_first，非大陆 → official_first。
+    //   物化后下次读取直接命中上面的值分支，本路径每键仅走一次。
+    return [self ame428_applyGeoDefaultForKey:key ?: @""];
+}
+
+#pragma mark - ★Task428（4.1）：大陆网络探测默认档
+
+/// Task428 侧标记存储（NSUserDefaults，独立于 PLPreferences：未注册键无法经
+/// setPrefObject 写入，且 PLPreferences 重置不应连带丢失该语义）。键形如
+/// ame428.mirrorGeo.applied.<策略键>。
+static NSString *Ame428_GeoFlagKey(NSString *policyKey) {
+    return [NSString stringWithFormat:@"ame428.mirrorGeo.applied.%@", policyKey ?: @"anonymous"];
+}
+
++ (BOOL)ame428_geoDefaultAppliedForKey:(NSString *)policyKey {
+    return [[NSUserDefaults standardUserDefaults] boolForKey:Ame428_GeoFlagKey(policyKey)];
+}
+
+/// 大陆网络探测（PDF v5 §4.1 指定判据）：
+/// NSTimeZone 属 Asia/Shanghai ＋ NSLocale preferredLanguages 含 zh。
+/// 探测结果进程内缓存（每键一次日志）；仓内既有探测（Task138/259 RTT-吞吐量
+/// 竞速、ame312 会话吞吐量见证）均为会话级/下载级，无持久大陆判定，故按
+/// 任务书判据落地。
++ (BOOL)ame428_looksLikeMainlandChina {
+    static NSInteger ame428_cached = -1; // -1 未算；1 是；0 否（进程内缓存）
+    static dispatch_once_t ame428_once;
+    dispatch_once(&ame428_once, ^{
+        BOOL tzHit = NO;
+        NSString *tzName = [NSTimeZone localTimeZone].name ?: @""; // 如 "Asia/Shanghai"
+        if ([tzName rangeOfString:@"Asia/Shanghai"].location != NSNotFound) tzHit = YES;
+        BOOL localeHit = NO;
+        NSArray<NSString *> *langs = [NSLocale preferredLanguages];
+        NSString *first = langs.firstObject ?: @"";
+        if ([first hasPrefix:@"zh"]) localeHit = YES;
+        ame428_cached = (tzHit && localeHit) ? 1 : 0;
+        NSLog(@"[PLMirrorCenter] Task428: mainland probe tz=%@(%d) locale=%@(%d) -> %@",
+              tzName, (int)tzHit, first, (int)localeHit,
+              ame428_cached == 1 ? @"mainland(CN)" : @"non-mainland");
+    });
+    return ame428_cached == 1;
+}
+
+/// 对未显式设置过的策略键套用大陆默认档并物化：
+///   大陆 → mirror_first；非大陆 → official_first。
+/// 物化 = setPrefString(策略键) + 侧标记 YES——此后用户在设置页的任何改动
+/// 永远优先（值不再等于出厂 speed_first，或即便选回 speed_first 也因侧标记
+/// 在场而被尊重）。官方源回退不受影响：mirror_first 的候选序为 [镜像, 官方]。
++ (PLMirrorPolicy)ame428_applyGeoDefaultForKey:(NSString *)policyKey {
+    @synchronized(self) {
+        NSString *derived = [self ame428_looksLikeMainlandChina] ? @"mirror_first" : @"official_first";
+        PLMirrorPolicy policy = [derived isEqualToString:@"mirror_first"]
+            ? PLMirrorPolicyMirrorFirst : PLMirrorPolicyOfficialFirst;
+        if (policyKey.length > 0) {
+            setPrefString(policyKey, derived);
+            [[NSUserDefaults standardUserDefaults] setBool:YES forKey:Ame428_GeoFlagKey(policyKey)];
+        }
+        NSLog(@"[PLMirrorCenter] Task428: geo default tier applied for %@ -> %@ (materialized; user's later explicit choice always wins)",
+              policyKey.length > 0 ? policyKey : @"(no-key)", derived);
+        return policy;
+    }
 }
 
 #pragma mark - Task218 双轨收敛辅助

@@ -1,0 +1,19 @@
+{
+  "ame428.verify.title": {"en": "Verify Game Integrity", "zh-Hans": "校验游戏完整性", "zh-CN": "校验游戏完整性", "zh-Hant": "校驗遊戲完整性"},
+  "ame428.verify.entry": {"en": "Verify & Repair Game Files", "zh-Hans": "校验并补全游戏文件", "zh-CN": "校验并补全游戏文件", "zh-Hant": "校驗並補全遊戲檔案"},
+  "ame428.verify.phase_verify": {"en": "Verifying files…", "zh-Hans": "正在校验文件…", "zh-CN": "正在校验文件…", "zh-Hant": "正在校驗檔案…"},
+  "ame428.verify.phase_repair": {"en": "Repairing missing files…", "zh-Hans": "正在补全缺失文件…", "zh-CN": "正在补全缺失文件…", "zh-Hant": "正在補全缺失檔案…"},
+  "ame428.verify.progress_fmt": {"en": "Verified %lu / %lu", "zh-Hans": "已校验 %lu / %lu", "zh-CN": "已校验 %lu / %lu", "zh-Hant": "已校驗 %lu / %lu"},
+  "ame428.verify.repair_progress_fmt": {"en": "Repaired %lu / %lu", "zh-Hans": "已补全 %lu / %lu", "zh-CN": "已补全 %lu / %lu", "zh-Hant": "已補全 %lu / %lu"},
+  "ame428.verify.summary_fmt": {"en": "Found %lu missing, %lu corrupted; repaired %lu.", "zh-Hans": "发现 %lu 项缺失、%lu 项损坏；已补全 %lu 项。", "zh-CN": "发现 %lu 项缺失、%lu 项损坏；已补全 %lu 项。", "zh-Hant": "發現 %lu 項缺失、%lu 項損壞；已補全 %lu 項。"},
+  "ame428.verify.list_missing": {"en": "Missing files:", "zh-Hans": "缺失文件：", "zh-CN": "缺失文件：", "zh-Hant": "缺失檔案："},
+  "ame428.verify.list_corrupt": {"en": "Corrupted files:", "zh-Hans": "损坏文件：", "zh-CN": "损坏文件：", "zh-Hant": "損壞檔案："},
+  "ame428.verify.list_repair_failed": {"en": "Failed to repair:", "zh-Hans": "以下文件补全失败：", "zh-CN": "以下文件补全失败：", "zh-Hant": "以下檔案補全失敗："},
+  "ame428.verify.more_fmt": {"en": "  …and %lu more\n", "zh-Hans": "  …及其他 %lu 项\n", "zh-CN": "  …及其他 %lu 项\n", "zh-Hant": "  …及其他 %lu 項\n"},
+  "ame428.verify.done_title": {"en": "Verification Complete", "zh-Hans": "校验完成", "zh-CN": "校验完成", "zh-Hant": "校驗完成"},
+  "ame428.verify.all_ok": {"en": "All files are intact. Nothing to repair.", "zh-Hans": "全部文件完好，无需补全。", "zh-CN": "全部文件完好，无需补全。", "zh-Hant": "全部檔案完好，無需補全。"},
+  "ame428.verify.cancelled": {"en": "Verification cancelled.", "zh-Hans": "校验已取消。", "zh-CN": "校验已取消。", "zh-Hant": "校驗已取消。"},
+  "ame428.verify.failed_title": {"en": "Cannot Start Verification", "zh-Hans": "无法启动校验", "zh-CN": "无法启动校验", "zh-Hant": "無法啟動校驗"},
+  "ame428.verify.no_context": {"en": "Could not determine the current version context. Please select an installed version first.", "zh-Hans": "未能确定当前版本上下文，请先选择一个已安装版本。", "zh-CN": "未能确定当前版本上下文，请先选择一个已安装版本。", "zh-Hant": "未能確定當前版本上下文，請先選擇一個已安裝版本。"},
+  "ame428.verify.report_hint_fmt": {"en": "Full report written to %@", "zh-Hans": "完整报告已写入 %@", "zh-CN": "完整报告已写入 %@", "zh-Hant": "完整報告已寫入 %@"}
+}

@@ -30,16 +30,26 @@
 //   更多设置 → LauncherPreferencesViewController
 //
 // ③ 控制屏（旧「触控设置」页顶层项，TouchControllerPreferencesViewController 同键族）
-//   control.mod_touch_mode         通信方式（0 禁用/1 UDP/2 静态库；写入同
+//   control.mod_touch_mode         虚拟按键 / 触控布局（★Task428 6.6 更名：
+//                                  0 禁用/1 UDP/2 静态库；写入同
 //                                  步 mod_touch_enable/mod_touch_user_off
 //                                  哨兵 + java.env_variables UDP 环境变量
-//                                  ——旧页 updateTouchControllerSetting 全链）
+//                                  ——旧页 updateTouchControllerSetting 全链；
+//                                  本组保持控制屏首组/首行）
 //   control.mod_touch_vibrate_enable        震动反馈
 //   control.mod_touch_vibrate_intensity     震动强度（1–3）
 //   control.mod_touch_moveview_enable       移动视角
 //   control.mod_touch_hide_controls         屏蔽启动器控件
+//   general.gesture_tap_action              点击动作（int 0 左/1 右/2 无，默认 0）
+//   general.gesture_longpress_action        长按动作（int 同上，默认 1）
+//   general.gesture_longpress_delay         长按延迟（float 秒 0.2–1.0，默认 0.30）
+//   general.gyro_invert_y                   反转 Y 轴（BOOL 默认 NO）
+//   general.gyro_sample_rate                陀螺仪采样率（float Hz 5–50，默认 20）
+//   general.gyro_smoothing                  陀螺仪平滑强度（int 0–100，默认 30）
+//   ——★Task428 gesture_*/gyro_* 键名契约：并行工程师的运行时手势/陀螺仪
+//     层按同名键读，逐字一致不可改
 //   完整触控设置 → TouchControllerPreferencesViewController（写后 post
-//   TouchControllerSettingsChanged——Task224 广播契约）
+//   TouchControllerSettingsChanged——Task224 广播契约；落地页退役属后续任务）
 //
 // ④ 手柄屏（iOS 真实手柄键族；无造假开关）
 //   control.controller_type        控制器风格（xbox/playstation）
@@ -64,6 +74,23 @@
 //   背景设置 → BackgroundSettingsViewController；壁纸画廊 →
 //   BingWallpaperGalleryViewController；更多设置 → LauncherPreferences
 //   ViewController（ui_layout 行不露出：ZL2 壳唯一）
+//   ★Task428 新行：general.festival_effects 节日彩蛋（BOOL 默认 YES，
+//   ZL2FestivalEffects 消费）；general.download_threads 下载并发数
+//   （int 0=自动 16-64 自适应 / 8-64 手动）；「校验并补全游戏文件」入口 =
+//   PLGameIntegrityService +sharedService/
+//   runInteractiveVerifyAndRepairFromViewController:（运行时软链调用，
+//   头文件由并行工程师实装）
+//   ★Task428 注册注记（Setter 静默丢弃族——Task142/143/230/334 同判例）：
+//   PLPreferences setObject: 只写已注册键。本轮八新键
+//     general.download_threads=@(0)、general.gesture_tap_action=@(0)、
+//     general.gesture_longpress_action=@(1)、
+//     general.gesture_longpress_delay=@(0.30)、general.gyro_invert_y=@(NO)、
+//     general.gyro_sample_rate=@(20.0)、general.gyro_smoothing=@(30)、
+//     general.festival_effects=@(YES)
+//   需在 PLPreferences.m defaultPrefForGlobal: 的 general 节注册
+//   （该文件不在本任务写权内，注册面归并行工程师/主控合流）；注册前
+//   写值会被静默丢弃，读侧缺键回退默认不受影响（本文件读全部已带
+//   getPrefObject 判空默认链）。
 //
 // ⑥ Java 管理屏（LauncherPrefManageJREViewController 同枚举口径）
 //   java.java_homes                默认 Java（@0 字典按 tag：1_16_5_older/
@@ -83,12 +110,20 @@
 //   openChildPaneAtIndexPath 同款 nav 模态呈现）；控件仓库 →
 //   ControlRepoViewController；更多设置 → LauncherPreferencesViewController
 //
-// ⑧ 关于屏
+// ⑧ 关于屏（★Task428 9.1 四块 MD3 重做：关于启动器 / 鸣谢 / 依赖库 /
+//   已加载插件——每块「区头标签 + 连体组卡」，不再 push 老关于页）
 //   CFBundleShortVersionString / CFBundleVersion   版本号 / 构建号
+//   ame415_buildTag（BuildTag.h）构建代际行（Task421 单一事实源同源字面量）
 //   general.auto_update_check      启动时自动检查更新（Task125 语义）
-//   检查更新 = UpdateChecker 正式版检查（AboutViewController ame217 链路
-//   平移：loading 弹窗 + 结果弹窗 + openReleasePage）
-//   项目主页 / QQ 群 / 更多关于信息 → AboutViewController
+//   检查更新 = 复用仓内既有 UpdateChecker 正式版检查（loading 弹窗 +
+//   结果弹窗 + openReleasePage；报告 9.1「既有机制优先复用」口径）
+//   项目主页（二代仓库）/ QQ 群（复制）/ 作者与团队（about.credits.*
+//   原文复用，与 AboutViewController/README 口径一致）
+//   鸣谢块：ZalithLauncher2/PojavLauncher/FCL/HMCL/Modrinth/CurseForge/
+//   BMCLAPI/logshare.cn/PCL（名称+一句话定位；许可信息不确切不写）
+//   依赖库块：AGENTS.md「核心依赖」权威清单八项
+//   已加载插件块：AmePluginManager installedPluginIds + manifestForPlugin
+//   （名称/版本/描述 + AmePluginRuntime isRunning 运行态；空态占位）
 //
 // i18n 纪律（task248 闸2 同源）：触发词方法调用（initWithTitle:/setTitle:
 // 等）所在行禁带 CJK 字面量——行卡标题/副文本一律先构造后经 .title /
@@ -122,9 +157,12 @@
 #import "LauncherPrefManageJREViewController.h"
 #import "ControlRepoViewController.h"
 #import "CustomControlsViewController.h"
-#import "AboutViewController.h"
+// ★Task428：关于页四块重做后不再 push 老关于页（AboutViewController 仍由
+//   欢迎页/旧设置页入口可达），本文件对其的依赖解除，import 随 moreRow 退役
 #import "JavaGUIViewController.h"
 #import "AmePluginRuntime.h"   // Task327：插件贡献行渲染（allContributedRows/invokeRowTap）
+#import "AmePluginManager.h"   // ★Task428：关于页已加载插件块（installedPluginIds/manifestForPlugin 枚举）
+#import "BuildTag.h"           // ★Task428：关于页构建代际行（ame415_buildTag 单一事实源，直接用 static 字面量）
 #import "LiquidGlassCompat.h"  // ★ Ame361：界面风格/缩放/透明度统一走 LGC 中枢（消费方同源）
 #import "AI/AiSettings.h"      // ★ Ame361：AI 安全模式/Markdown 直连 AiSettings（NSUserDefaults 同源）
 
@@ -137,6 +175,14 @@
 #import "DataTransferService.h"
 #import "CurseForgeAPIKeyViewController.h"
 #import "CustomIconManager.h"
+
+// ★Task428（1.2）：PLProfiles 新增类方法的本地前置声明（PLProfiles.h 不在
+//   授权清单内；全局隔离档行消费翻转计算 + 下沉执行）。签名勿漂移。
+@interface PLProfiles (Ame428Task428Settings)
++ (NSArray<NSDictionary *> *)ame428_computeGlobalFlipsFrom:(NSInteger)oldG to:(NSInteger)newG;
++ (NSDictionary *)ame428_executeIsolationDataMoveForVid:(NSString *)vid
+                                            toIsolated:(BOOL)toIsolated reason:(NSString *)reason;
+@end
 
 #import <UniformTypeIdentifiers/UniformTypeIdentifiers.h>
 #import <stdlib.h>
@@ -838,7 +884,11 @@ static NSString *ame_pages_hexFromColor(UIColor *color) {
 - (void)ame_buildGroups {
     __weak typeof(self) weakSelf = self;
 
-    // --- 组 1：TouchController（旧「触控设置」页顶层项，同键族）---
+    // --- 组 1：虚拟按键 / 触控布局（TouchController 组，控制屏首组/首行）---
+    // ★Task428（6.6 入口更名升位）：组首行语义由「通信方式」改为
+    //   「虚拟按键 / 触控布局」（ZL2 上游控制页主入口口径）；旧键
+    //   preference.touchcontroller.mode.title / ame369.setpg.tc_channel.subtitle
+    //   保留不删（「完整触控设置」旧页仍在消费，不动）。
     NSArray<NSString *> *modeNames = @[
         localize(@"preference.touchcontroller.mode.disabled", nil),
         localize(@"preference.touchcontroller.mode.udp", nil),
@@ -847,8 +897,8 @@ static NSString *ame_pages_hexFromColor(UIColor *color) {
     ZL2SettingRowList *modeRow =
         [[ZL2SettingRowList alloc] initWithTitle:@"" subtitle:nil
                                  options:modeNames optionKeys:@[@"0", @"1", @"2"]];
-    modeRow.title = localize(@"preference.touchcontroller.mode.title", nil);
-    modeRow.subtitle = localize(@"ame369.setpg.tc_channel.subtitle", @"TouchController 模组与启动器的通信通道");
+    modeRow.title = localize(@"ame428.control.tc_section", @"虚拟按键 / 触控布局");
+    modeRow.subtitle = localize(@"ame428.control.tc_section.subtitle", @"TouchController 模组通道，驱动游戏内虚拟按键与触控布局（禁用 / UDP / 静态库）");
     // 有效态 = mod_touch_enable && mod_touch_mode（旧页同口径）
     BOOL enabled = getPrefBool(@"control.mod_touch_enable");
     NSInteger mode = getPrefInt(@"control.mod_touch_mode");
@@ -907,6 +957,60 @@ static NSString *ame_pages_hexFromColor(UIColor *color) {
     ZL2SettingCardGroup *group1 = [[ZL2SettingCardGroup alloc] init];
     [group1 ame_addRows:@[modeRow, vibrateRow, intensityRow, moveViewRow, hideControlsRow]];
     [self ame_addGroup:group1];
+
+    // ── ★Task428：触控手势小节（点击/长按动作映射 + 长按延迟；
+    //   general.gesture_* 键名契约由并行工程师的运行时手势层按同名键
+    //   消费，逐字一致不可改；注册要求见文件头 ★Task428 注册注记）──
+    ZL2SettingCardGroup *ame428_gestureGroup = [[ZL2SettingCardGroup alloc] init];
+    NSArray<NSString *> *ame428_gestureOptNames = @[
+        localize(@"ame428.control.gesture.opt.left", @"鼠标左键"),
+        localize(@"ame428.control.gesture.opt.right", @"鼠标右键"),
+        localize(@"ame428.control.gesture.opt.none", @"无操作"),
+    ];
+    NSArray<NSString *> *ame428_gestureOptKeys = @[@"0", @"1", @"2"];
+    // 点击动作（general.gesture_tap_action；int 0=左键 1=右键 2=无操作；默认 0）
+    id ame428_tapRaw = getPrefObject(@"general.gesture_tap_action");
+    NSInteger ame428_tap = ame428_tapRaw ? [ame428_tapRaw intValue] : 0;
+    if (ame428_tap < 0 || ame428_tap > 2) ame428_tap = 0;
+    ZL2SettingRowList *ame428_tapRow =
+        [[ZL2SettingRowList alloc] initWithTitle:@"" subtitle:nil
+                                 options:ame428_gestureOptNames optionKeys:ame428_gestureOptKeys];
+    ame428_tapRow.title = localize(@"ame428.control.gesture.tap", @"点击动作");
+    [ame428_tapRow ame_reloadSelectedIndex:ame428_tap];
+    ame428_tapRow.onSelect = ^(NSInteger index) {
+        setPrefInt(@"general.gesture_tap_action", index);
+    };
+    // 长按动作（general.gesture_longpress_action；默认 1=右键）
+    id ame428_lpRaw = getPrefObject(@"general.gesture_longpress_action");
+    NSInteger ame428_lp = ame428_lpRaw ? [ame428_lpRaw intValue] : 1;
+    if (ame428_lp < 0 || ame428_lp > 2) ame428_lp = 1;
+    ZL2SettingRowList *ame428_lpRow =
+        [[ZL2SettingRowList alloc] initWithTitle:@"" subtitle:nil
+                                 options:ame428_gestureOptNames optionKeys:ame428_gestureOptKeys];
+    ame428_lpRow.title = localize(@"ame428.control.gesture.longpress", @"长按动作");
+    [ame428_lpRow ame_reloadSelectedIndex:ame428_lp];
+    ame428_lpRow.onSelect = ^(NSInteger index) {
+        setPrefInt(@"general.gesture_longpress_action", index);
+    };
+    // 长按延迟（general.gesture_longpress_delay；float 秒 0.2–1.0 默认 0.30；
+    //   整数滑条 2–10 以 0.1s 步进承载，徽章按秒显示）
+    id ame428_delayRaw = getPrefObject(@"general.gesture_longpress_delay");
+    float ame428_delay = ame428_delayRaw ? [ame428_delayRaw floatValue] : 0.30f;
+    if (ame428_delay < 0.2f || ame428_delay > 1.0f) ame428_delay = 0.30f;
+    ZL2SettingRowSlider *ame428_delayRow =
+        [[ZL2SettingRowSlider alloc] initWithTitle:@"" subtitle:nil
+                                   minimum:2 maximum:10 suffix:@""];
+    ame428_delayRow.title = localize(@"ame428.control.gesture.longpress_delay", @"长按延迟");
+    ame428_delayRow.subtitle = localize(@"ame428.control.gesture.longpress_delay.subtitle", @"触发长按动作需按住的时长（秒）");
+    ame428_delayRow.valueTextBlock = ^NSString *(NSInteger value) {
+        return [NSString stringWithFormat:@"%.1f s", (double)value / 10.0];
+    };
+    [ame428_delayRow ame_setValue:(NSInteger)lroundf(ame428_delay * 10.0f)];
+    ame428_delayRow.onValueChanged = ^(NSInteger value) {
+        setPrefFloat(@"general.gesture_longpress_delay", (float)value / 10.0f);
+    };
+    [ame428_gestureGroup ame_addRows:@[ame428_tapRow, ame428_lpRow, ame428_delayRow]];
+    [self ame_addGroup:ame428_gestureGroup];
 
     // ── ★ Task344 旧设置全量迁移：键鼠与控件组（旧 control 分区主体）──
     ZL2SettingCardGroup *kbGroup = [[ZL2SettingCardGroup alloc] init];
@@ -1057,7 +1161,43 @@ static NSString *ame_pages_hexFromColor(UIColor *color) {
         gyroSensRow.onValueChanged = ^(NSInteger value) {
             setPrefFloat(@"control.gyroscope_sensitivity", (float)value);
         };
-        [kbdGroup ame_addRows:@[gyroRow, gyroInvertRow, gyroSensRow]];
+        // ★Task428：陀螺仪补三行（反转 Y / 采样率 / 平滑强度；general.gyro_*
+        //   键名契约由并行工程师的陀螺仪运行时按同名键消费，与既有
+        //   control.gyroscope_* 键族并行不混淆；注册要求见文件头
+        //   ★Task428 注册注记）
+        ZL2SettingRowSwitch *gyroInvertYRow =
+            [[ZL2SettingRowSwitch alloc] initWithTitle:@"" subtitle:nil];
+        gyroInvertYRow.title = localize(@"ame428.control.gyro.invert_y", @"反转 Y 轴");
+        [gyroInvertYRow ame_setOn:getPrefBool(@"general.gyro_invert_y")];
+        gyroInvertYRow.onToggle = ^(BOOL on) {
+            setPrefBool(@"general.gyro_invert_y", on);
+        };
+        // 采样率（general.gyro_sample_rate；float Hz 5–50 默认 20.0）
+        id ame428_rateRaw = getPrefObject(@"general.gyro_sample_rate");
+        float ame428_rate = ame428_rateRaw ? [ame428_rateRaw floatValue] : 20.0f;
+        if (ame428_rate < 5.0f || ame428_rate > 50.0f) ame428_rate = 20.0f;
+        ZL2SettingRowSlider *gyroRateRow =
+            [[ZL2SettingRowSlider alloc] initWithTitle:@"" subtitle:nil
+                                   minimum:5 maximum:50 suffix:@" Hz"];
+        gyroRateRow.title = localize(@"ame428.control.gyro.sample_rate", @"采样率");
+        [gyroRateRow ame_setValue:(NSInteger)lroundf(ame428_rate)];
+        gyroRateRow.onValueChanged = ^(NSInteger value) {
+            setPrefFloat(@"general.gyro_sample_rate", (float)value);
+        };
+        // 平滑强度（general.gyro_smoothing；int 0–100 默认 30）
+        id ame428_smoothRaw = getPrefObject(@"general.gyro_smoothing");
+        NSInteger ame428_smooth = ame428_smoothRaw ? [ame428_smoothRaw intValue] : 30;
+        if (ame428_smooth < 0 || ame428_smooth > 100) ame428_smooth = 30;
+        ZL2SettingRowSlider *gyroSmoothRow =
+            [[ZL2SettingRowSlider alloc] initWithTitle:@"" subtitle:nil
+                                   minimum:0 maximum:100 suffix:@"%"];
+        gyroSmoothRow.title = localize(@"ame428.control.gyro.smoothing", @"平滑强度");
+        [gyroSmoothRow ame_setValue:ame428_smooth];
+        gyroSmoothRow.onValueChanged = ^(NSInteger value) {
+            setPrefInt(@"general.gyro_smoothing", value);
+        };
+        [kbdGroup ame_addRows:@[gyroRow, gyroInvertRow, gyroSensRow,
+                                gyroInvertYRow, gyroRateRow, gyroSmoothRow]];
     }
     [self ame_addGroup:kbdGroup];
 
@@ -1527,6 +1667,8 @@ didFinishPickingMediaWithInfo:(NSDictionary<UIImagePickerControllerInfoKey,id> *
 @property (nonatomic, strong) ZL2SettingRowList *effectRow;
 @property (nonatomic, strong) ZL2SettingRowSlider *opacityRow;
 @property (nonatomic, strong) ZL2SettingRowSlider *blurRow;
+// ★Task428：节日彩蛋开关（切轨刷新引用；general.festival_effects）
+@property (nonatomic, strong) ZL2SettingRowSwitch *festivalRow;
 @property (nonatomic, strong) NSArray<ZL2SettingRowList *> *sourceRows;
 @property (nonatomic, strong) NSArray<NSString *> *sourceRowKeys;   // 与 sourceRows 对齐
 // ★ Task327：插件贡献行动态组（viewWillAppear 重建——插件启停/装载变化即反映）
@@ -1715,9 +1857,25 @@ didPickDocumentsAtURLs:(NSArray<NSURL *> *)urls {
     };
     self.blurRow = blurRow;
 
+    // ★Task428：节日彩蛋（general.festival_effects；BOOL 默认 YES——键缺省
+    //   视为开，ZL2FestivalEffects attachToWindow 消费同口径；注册要求见
+    //   文件头 ★Task428 注册注记）
+    id ame428_festivalRaw = getPrefObject(@"general.festival_effects");
+    BOOL ame428_festivalOn = ame428_festivalRaw ? [ame428_festivalRaw boolValue] : YES;
+    ZL2SettingRowSwitch *festivalRow =
+        [[ZL2SettingRowSwitch alloc] initWithTitle:@"" subtitle:nil];
+    festivalRow.title = localize(@"ame428.festival_effects.title", @"节日彩蛋");
+    festivalRow.subtitle = localize(@"ame428.festival_effects.subtitle", @"节日期间在主界面播放主题特效（雪 / 烟花 / 萤火等）");
+    [festivalRow ame_setOn:ame428_festivalOn];
+    festivalRow.onToggle = ^(BOOL on) {
+        setPrefBool(@"general.festival_effects", on);
+    };
+    self.festivalRow = festivalRow;
+
     ZL2SettingCardGroup *group1 = [[ZL2SettingCardGroup alloc] init];
     // ★ Task396：深浅模式行恢复后外观组五行（深浅/语言/效果/透明度/模糊）
-    [group1 ame_addRows:@[themeRow, languageRow, effectRow, opacityRow, blurRow]];
+    // ★Task428：+ 节日彩蛋行（外观/个性化组第 6 行）
+    [group1 ame_addRows:@[themeRow, languageRow, effectRow, opacityRow, blurRow, festivalRow]];
     [self ame_addGroup:group1];
     // ★ Task328：插件贡献行动态组上移（Task327 挂页尾 = 用户不可达面重现——
     //   四内置插件已装载而用户仍报"没看到任何功能"：组在第 3 屏外）。上移到
@@ -1925,6 +2083,42 @@ didPickDocumentsAtURLs:(NSArray<NSURL *> *)urls {
     shaRow.onToggle = ^(BOOL on) {
         setPrefBool(@"general.check_sha", on);
     };
+    // ★Task428：校验并补全游戏文件（PLGameIntegrityService 契约入口——
+    //   +sharedService / -runInteractiveVerifyAndRepairFromViewController:；
+    //   运行时软链调用，见 ame428_runIntegrityVerify）
+    ZL2SettingRowAction *integrityRow =
+        [[ZL2SettingRowAction alloc] initWithTitle:@"" subtitle:nil];
+    integrityRow.title = localize(@"ame428.integrity.verify", @"校验并补全游戏文件");
+    integrityRow.subtitle = localize(@"ame428.integrity.verify.subtitle", @"对照清单校验当前游戏目录，自动补全缺失或损坏的文件");
+    integrityRow.onTap = ^{
+        [weakSelf ame428_runIntegrityVerify];
+    };
+    // ★Task428（1.2）：全局隔离默认档（general.isolation_default；HMCL 语义
+    //   三态：0=自动 MODDED / 1=始终 ALWAYS / 2=从不 NEVER）。位置按任务书
+    //   放 check_sha/完整性组附近。改档导致某版本有效隔离翻转时走
+    //   确认框 + 一次性下沉（ame428_applyGlobalIsolation…）；取消 = 不改档。
+    //   行值回滚由 ame_reloadSelectedIndex 承接（List 行自带徽章同步）。
+    ZL2SettingRowList *isoRow =
+        [[ZL2SettingRowList alloc] initWithTitle:@"" subtitle:nil
+                                 options:@[
+                                     localize(@"ame428.iso.global.auto", @"自动（有模组/加载器的版本隔离）"),
+                                     localize(@"ame428.iso.global.always", @"始终隔离"),
+                                     localize(@"ame428.iso.global.never", @"从不隔离"),
+                                 ] optionKeys:@[@"0", @"1", @"2"]];
+    isoRow.title = localize(@"ame428.iso.global.title", @"版本隔离默认");
+    isoRow.subtitle = localize(@"ame428.iso.global.subtitle", @"新版本未单独设置时遵循的全局默认；每版本可在版本详情页覆盖");
+    {
+        NSInteger ame428_g = getPrefInt(@"general.isolation_default");
+        if (ame428_g < 0 || ame428_g > 2) ame428_g = 0;
+        [isoRow ame_reloadSelectedIndex:ame428_g];
+    }
+    isoRow.onSelect = ^(NSInteger index) {
+        if (index < 0 || index > 2) return;
+        NSInteger ame428_old = getPrefInt(@"general.isolation_default");
+        if (ame428_old < 0 || ame428_old > 2) ame428_old = 0;
+        if (ame428_old == index) return;
+        [weakSelf ame428_applyGlobalIsolationFrom:ame428_old to:index row:isoRow];
+    };
     // 多线程下载（general.multi_threaded）
     ZL2SettingRowSwitch *mtRow =
         [[ZL2SettingRowSwitch alloc] initWithTitle:@"" subtitle:nil];
@@ -1933,6 +2127,30 @@ didPickDocumentsAtURLs:(NSArray<NSURL *> *)urls {
     [mtRow ame_setOn:getPrefBool(@"general.multi_threaded")];
     mtRow.onToggle = ^(BOOL on) {
         setPrefBool(@"general.multi_threaded", on);
+    };
+    // ★Task428：下载并发数（general.download_threads；int 0=自动（16-64
+    //   自适应）/ 8-64 手动；键名契约由并行工程师的下载引擎按同名键消费；
+    //   注册要求见文件头 ★Task428 注册注记）。
+    //   整数滑条 0-64 承载：0 档徽章显「自动」，1-7 非法档夹到 8。
+    id ame428_threadsRaw = getPrefObject(@"general.download_threads");
+    NSInteger ame428_threads = ame428_threadsRaw ? [ame428_threadsRaw intValue] : 0;
+    if (ame428_threads != 0 && (ame428_threads < 8 || ame428_threads > 64)) ame428_threads = 0;
+    ZL2SettingRowSlider *dlThreadRow =
+        [[ZL2SettingRowSlider alloc] initWithTitle:@"" subtitle:nil
+                                   minimum:0 maximum:64 suffix:@""];
+    dlThreadRow.title = localize(@"ame428.download_threads.title", @"下载并发数");
+    dlThreadRow.subtitle = localize(@"ame428.download_threads.subtitle", @"同时下载的文件数；0 为自动");
+    dlThreadRow.valueTextBlock = ^NSString *(NSInteger value) {
+        if (value <= 0) {
+            return localize(@"ame428.download_threads.auto", @"自动（16-64 自适应）");
+        }
+        if (value < 8) value = 8;   // 1-7 非法档：徽章按实际落值显示
+        return [NSString stringWithFormat:@"%ld", (long)value];
+    };
+    [dlThreadRow ame_setValue:ame428_threads];
+    dlThreadRow.onValueChanged = ^(NSInteger value) {
+        if (value > 0 && value < 8) value = 8;
+        setPrefInt(@"general.download_threads", value);
     };
     // CurseForge API Key（表单页模态，旧页同款）
     ZL2SettingRowAction *cfKeyRow =
@@ -1945,7 +2163,7 @@ didPickDocumentsAtURLs:(NSArray<NSURL *> *)urls {
         nav.modalPresentationStyle = UIModalPresentationFormSheet;
         [weakSelf ame_presentVC:nav];
     };
-    [miscGroup ame_addRows:@[shaRow, mtRow, cfKeyRow]];
+    [miscGroup ame_addRows:@[shaRow, integrityRow, isoRow, mtRow, dlThreadRow, cfKeyRow]];
     // 调试日志（general.debug_logging；游戏会话下轮生效——Task205 口径）
     ZL2SettingRowSwitch *dbgLogRow =
         [[ZL2SettingRowSwitch alloc] initWithTitle:@"" subtitle:nil];
@@ -2204,9 +2422,142 @@ didPickDocumentsAtURLs:(NSArray<NSURL *> *)urls {
         [self.sourceRows[i] ame_reloadSelectedIndex:
             valid ? (NSInteger)[sourceKeys indexOfObject:value] : 2];
     }
+    // ★Task428：节日彩蛋随切轨刷新（键缺省视为开，同建行口径）
+    id ame428_festivalRaw = getPrefObject(@"general.festival_effects");
+    [self.festivalRow ame_setOn:ame428_festivalRaw ? [ame428_festivalRaw boolValue] : YES];
 }
 
 #pragma mark - Task344 旧 general 分区助手（旧 VC 平移）
+
+// ★Task428：校验并补全游戏文件（PLGameIntegrityService 契约：
+//   +sharedService / -runInteractiveVerifyAndRepairFromViewController:）。
+//   头文件由并行工程师实装、主控合流保证存在——此处按运行时软链调用
+//   （NSClassFromString + performSelector），本文件先合入也不依赖
+//   编译期符号；服务未就绪时明确提示而非静默。
+- (void)ame428_runIntegrityVerify {
+    Class ame428_svcClass = NSClassFromString(@"PLGameIntegrityService");
+    if (ame428_svcClass == nil) {
+        [self ame344_showNotice:localize(@"ame428.integrity.unavailable", @"校验服务在当前构建暂不可用")];
+        return;
+    }
+    id ame428_shared = nil;
+    if ([ame428_svcClass respondsToSelector:@selector(sharedService)]) {
+        ame428_shared = [ame428_svcClass performSelector:@selector(sharedService)];
+    }
+    if (ame428_shared != nil &&
+        [ame428_shared respondsToSelector:@selector(runInteractiveVerifyAndRepairFromViewController:)]) {
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Warc-performSelector-leaks"
+        [ame428_shared performSelector:@selector(runInteractiveVerifyAndRepairFromViewController:)
+                              withObject:self];
+#pragma clang diagnostic pop
+    } else {
+        [self ame344_showNotice:localize(@"ame428.integrity.unavailable", @"校验服务在当前构建暂不可用")];
+    }
+}
+
+// ---------------------------------------------------------------------------
+// ★Task428（1.2/1.4）：全局隔离档变更 = 翻转计算 + 确认 + 批量下沉/回迁。
+//   翻转集合来自 PLProfiles ame428_computeGlobalFlips（A1 profile 唯一 vid
+//   集，按 lastPlayed 降序——共享根数据归最近游玩的版本；多版本同时翻转
+//   时第一顺位取得数据，其余执行期自然扑空跳过，迁移报告逐条留痕）。
+//   取消 = 不改档（行值由调用方回滚）；确认 = 进度弹窗 → 后台逐个执行
+//   （快照→copy 全→删源，中途失败恢复）→ 全部完成后才 setPrefInt 落档
+//   + ReloadProfileList（首页/版本页同步刷新）。仅无翻转时静默直改。
+// ---------------------------------------------------------------------------
+- (void)ame428_applyGlobalIsolationFrom:(NSInteger)oldG to:(NSInteger)newG row:(ZL2SettingRowList *)row {
+    if (oldG == newG) return;
+    NSArray<NSDictionary *> *ame428_flips = [PLProfiles ame428_computeGlobalFlipsFrom:oldG to:newG];
+    if (ame428_flips.count == 0) {
+        setPrefInt(@"general.isolation_default", newG);
+        return;
+    }
+    // 确认清单（逐版本：方向 + 将搬移条目）
+    NSMutableArray<NSString *> *ame428_lines = [NSMutableArray array];
+    NSMutableArray<NSString *> *ame428_moving = [NSMutableArray array];
+    for (NSDictionary *ame428_f in ame428_flips) {
+        NSArray<NSString *> *ame428_items = [ame428_f[@"items"] isKindOfClass:[NSArray class]]
+            ? ame428_f[@"items"] : @[];
+        if (ame428_items.count == 0) continue;   // 无候选：无需确认（执行期 noop）
+        [ame428_moving addObject:ame428_f[@"vid"]];
+        NSString *ame428_dir = ([ame428_f[@"to"] integerValue] == 1)
+            ? localize(@"ame428.iso.flip.into", @"移入独立目录")
+            : localize(@"ame428.iso.flip.outof", @"移回实例根目录");
+        [ame428_lines addObject:[NSString stringWithFormat:
+            @"· %@：%@（%@）", ame428_f[@"vid"], ame428_dir,
+            [ame428_items componentsJoinedByString:@", "]]];
+    }
+    if (ame428_moving.count == 0) {
+        setPrefInt(@"general.isolation_default", newG);
+        return;
+    }
+    UIAlertController *ame428_alert = [UIAlertController
+        alertControllerWithTitle:localize(@"ame428.iso.confirm.title", @"确认数据迁移")
+                         message:[NSString stringWithFormat:
+                             @"%@\n\n%@\n%@\n%@",
+                             [NSString stringWithFormat:localize(@"ame428.iso.global.confirm", @"切换全局默认档将使以下版本的有效隔离状态翻转（共 %lu 个）："), (unsigned long)ame428_moving.count],
+                             [ame428_lines componentsJoinedByString:@"\n"],
+                             localize(@"ame428.iso.confirm.snapshot",
+                                 @"每个版本搬移前会先做完整备份（Prisma2/backups/pre-isolation-<版本>-<时间>.zip），中途失败自动恢复，数据不会丢失。"),
+                             localize(@"ame428.iso.confirm.cancel_note", @"取消则不作任何更改。")]
+                          preferredStyle:UIAlertControllerStyleAlert];
+    [ame428_alert addAction:[UIAlertAction actionWithTitle:localize(@"resman.common.cancel", nil)
+                                                     style:UIAlertActionStyleCancel handler:^(__unused UIAlertAction *a) {
+        // 取消：不改档——行徽章回滚到旧值（List 行选中态由 ame_reloadSelectedIndex 同步）
+        NSInteger ame428_cur = getPrefInt(@"general.isolation_default");
+        if (ame428_cur < 0 || ame428_cur > 2) ame428_cur = 0;
+        [row ame_reloadSelectedIndex:ame428_cur];
+    }]];
+    [ame428_alert addAction:[UIAlertAction
+        actionWithTitle:localize(@"ame428.iso.confirm.go", @"开始迁移")
+                  style:UIAlertActionStyleDefault
+                handler:^(__unused UIAlertAction *a) {
+        UIAlertController *ame428_prog = [UIAlertController
+            alertControllerWithTitle:localize(@"ame428.iso.confirm.title", @"确认数据迁移")
+                             message:localize(@"ame428.iso.progress", @"正在迁移游戏数据…")
+                      preferredStyle:UIAlertControllerStyleAlert];
+        dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.35 * NSEC_PER_SEC)),
+                       dispatch_get_main_queue(), ^{
+            [self presentViewController:ame428_prog animated:NO completion:nil];
+        });
+        dispatch_async(dispatch_get_global_queue(QOS_CLASS_USER_INITIATED, 0), ^{
+            NSMutableArray<NSString *> *ame428_failed = [NSMutableArray array];
+            for (NSDictionary *ame428_f in ame428_flips) {
+                NSDictionary *ame428_r = [PLProfiles ame428_executeIsolationDataMoveForVid:ame428_f[@"vid"]
+                    toIsolated:([ame428_f[@"to"] integerValue] == 1)
+                        reason:[NSString stringWithFormat:@"global-default %ld->%ld", (long)oldG, (long)newG]];
+                if (![ame428_r[@"ok"] boolValue]) {
+                    [ame428_failed addObject:[NSString stringWithFormat:@"%@（%@）",
+                        ame428_f[@"vid"], ame428_r[@"error"] ?: @"?"]];
+                }
+            }
+            dispatch_async(dispatch_get_main_queue(), ^{
+                [ame428_prog dismissViewControllerAnimated:NO completion:^{
+                    if (ame428_failed.count == 0) {
+                        setPrefInt(@"general.isolation_default", newG);
+                        [[NSNotificationCenter defaultCenter] postNotificationName:@"ReloadProfileList" object:nil];
+                    } else {
+                        // 有失败：不落档（保持旧档），失败明细入报告 + 弹窗
+                        UIAlertController *ame428_fail = [UIAlertController
+                            alertControllerWithTitle:localize(@"i18n_str_388", nil)
+                                             message:[NSString stringWithFormat:
+                                                 localize(@"ame428.iso.result.failed_fmt",
+                                                     @"迁移未完成，数据已恢复原状：%@"),
+                                                 [ame428_failed componentsJoinedByString:@"; "]]
+                                  preferredStyle:UIAlertControllerStyleAlert];
+                        [ame428_fail addAction:[UIAlertAction actionWithTitle:localize(@"i18n_str_44", nil)
+                                                                         style:UIAlertActionStyleDefault handler:nil]];
+                        [self presentViewController:ame428_fail animated:YES completion:nil];
+                    }
+                    NSInteger ame428_cur = getPrefInt(@"general.isolation_default");
+                    if (ame428_cur < 0 || ame428_cur > 2) ame428_cur = 0;
+                    [row ame_reloadSelectedIndex:ame428_cur];
+                }];
+            });
+        });
+    }]];
+    [self presentViewController:ame428_alert animated:YES completion:nil];
+}
 
 // 自定义颜色选择（旧 openColorPickerForKey 平移；iOS 14+ UIColorPicker）
 - (void)ame344_openColorPickerForKey:(NSString *)fullKey title:(NSString *)title {
@@ -2707,13 +3058,34 @@ didPickDocumentsAtURLs:(NSArray<NSURL *> *)urls {
 
 @implementation ZL2AboutSettingsPage
 
+// ★Task428：区头标签（ame327 插件贡献组同款视觉：fontLabelLarge +
+//   onSurfaceVariant，连体组卡上方独立行）——四块结构每块「区头 + 组卡」；
+//   上一组卡与区头之间 12pt 呼吸、区头与所属组卡之间 4pt（custom spacing
+//   机制与 ZL2SettingsViewController 轨组分隔同款；首块无上一视图则不加）
+- (void)ame428_addSectionHeader:(NSString *)text {
+    UILabel *label = [[UILabel alloc] init];
+    label.text = text;
+    label.font = [ZL2Theme fontLabelLarge];
+    label.textColor = [ZL2Theme onSurfaceVariant];
+    label.translatesAutoresizingMaskIntoConstraints = NO;
+    UIView *ame428_prev = self.groupsStack.arrangedSubviews.lastObject;
+    [self.groupsStack addArrangedSubview:label];
+    if (ame428_prev != nil) {
+        [self.groupsStack setCustomSpacing:12.0 afterView:ame428_prev];
+    }
+    [self.groupsStack setCustomSpacing:4.0 afterView:label];
+}
+
 - (void)ame_buildGroups {
     __weak typeof(self) weakSelf = self;
 
-    // --- 组 1：版本与更新 ---
+    // ════ ★Task428 块 1/4：关于启动器（版本与更新 / 链接 / 作者团队）════
+    [self ame428_addSectionHeader:localize(@"ame428.about.section_launcher", @"关于启动器")];
     ZL2SettingCardGroup *group1 = [[ZL2SettingCardGroup alloc] init];
 
-    // 版本号 / 构建号（只读展示行：onTap nil = 无 chevron 不响应）
+    // 版本号 / 构建号 / 构建代际（只读展示行：onTap nil = 无 chevron 不响应）。
+    //   构建代际 = BuildTag.h ame415_buildTag 同源字面量（Task421 单一事实源，
+    //   与关于老页版本行 / 预览卡角标恒等；static NSString *const 直接用）
     NSString *version = [NSBundle.mainBundle objectForInfoDictionaryKey:@"CFBundleShortVersionString"] ?: @"?";
     NSString *build = [NSBundle.mainBundle objectForInfoDictionaryKey:@"CFBundleVersion"] ?: version;
     ZL2SettingRowAction *versionRow =
@@ -2724,6 +3096,10 @@ didPickDocumentsAtURLs:(NSArray<NSURL *> *)urls {
         [[ZL2SettingRowAction alloc] initWithTitle:@"" subtitle:nil];
     buildRow.title = localize(@"ame369.setpg.build_no", @"构建号");
     buildRow.detailText = build;
+    ZL2SettingRowAction *tagRow =
+        [[ZL2SettingRowAction alloc] initWithTitle:@"" subtitle:nil];
+    tagRow.title = localize(@"ame428.about.buildtag", @"构建代际");
+    tagRow.detailText = ame415_buildTag;
 
     // 启动时自动检查更新（general.auto_update_check；Task125 语义）
     ZL2SettingRowSwitch *autoUpdateRow =
@@ -2735,7 +3111,9 @@ didPickDocumentsAtURLs:(NSArray<NSURL *> *)urls {
     };
     self.autoUpdateRow = autoUpdateRow;
 
-    // 检查更新（AboutViewController ame217 链路平移：正式版检查 + 结果弹窗）
+    // 检查更新（复用仓内既有 UpdateChecker 正式版检查：loading 弹窗 + 结果
+    //   弹窗 + openReleasePage，AboutViewController ame217 链路同源——
+    //   报告 9.1「先找既有更新检查机制，有就复用」口径，零新网络代码）
     ZL2SettingRowAction *checkRow =
         [[ZL2SettingRowAction alloc] initWithTitle:@"" subtitle:nil];
     checkRow.title = localize(@"preference.title.check_update", nil);
@@ -2744,19 +3122,17 @@ didPickDocumentsAtURLs:(NSArray<NSURL *> *)urls {
         [weakSelf ame_checkForUpdate];
     };
 
-    [group1 ame_addRows:@[versionRow, buildRow, autoUpdateRow, checkRow]];
-    [self ame_addGroup:group1];
-
-    // --- 组 2：项目与更多 ---
-    ZL2SettingCardGroup *group2 = [[ZL2SettingCardGroup alloc] init];
+    // 项目主页（打开二代仓库——本仓 README/插件仓库同源地址）
     ZL2SettingRowAction *projectRow =
         [[ZL2SettingRowAction alloc] initWithTitle:@"" subtitle:nil];
     projectRow.title = localize(@"ame369.setpg.project_home", @"项目主页");
-    projectRow.subtitle = @"https://github.com/Gsjsjzhznsz/Prisma-Minecraft-iOS-Launcher";
+    projectRow.subtitle = @"https://github.com/Gsjsjzhznsz/Prisma-Minecraft-iOS-Launcher2";
     projectRow.onTap = ^{
         [weakSelf ame_openURL:[NSURL URLWithString:
-            @"https://github.com/Gsjsjzhznsz/Prisma-Minecraft-iOS-Launcher"]];
+            @"https://github.com/Gsjsjzhznsz/Prisma-Minecraft-iOS-Launcher2"]];
     };
+
+    // QQ 群（复制群号）
     ZL2SettingRowAction *qqRow =
         [[ZL2SettingRowAction alloc] initWithTitle:@"" subtitle:nil];
     qqRow.title = localize(@"about.qq.title", nil);
@@ -2766,20 +3142,110 @@ didPickDocumentsAtURLs:(NSArray<NSURL *> *)urls {
         [UIPasteboard generalPasteboard].string = ame217_qqGroupNumber();
         [weakSelf ame_showNoticeText:localize(@"about.qq.copied", nil)];
     };
-    ZL2SettingRowAction *moreRow =
+
+    // 作者与团队（文案口径 = 老关于页 about.credits.body / about.credits.kxdw
+    //   原文复用，与 AboutViewController / README 一致，零编造）
+    ZL2SettingRowAction *teamRow =
         [[ZL2SettingRowAction alloc] initWithTitle:@"" subtitle:nil];
-    moreRow.title = localize(@"ame369.setpg.more_about", @"更多关于信息");
-    moreRow.subtitle = localize(@"ame369.setpg.more_about.subtitle", @"致谢、许可证、支持我们");
-    moreRow.onTap = ^{
-        [weakSelf ame_push:[[AboutViewController alloc] init]
-                   titled:localize(@"about.nav_title", nil)];
-    };
-    [group2 ame_addRows:@[projectRow, qqRow, moreRow]];
-    [self ame_addGroup:group2];
+    teamRow.title = localize(@"ame428.about.team", @"作者与团队");
+    teamRow.subtitle = localize(@"about.credits.body", nil);
+    ZL2SettingRowAction *kxdwRow =
+        [[ZL2SettingRowAction alloc] initWithTitle:@"" subtitle:nil];
+    kxdwRow.title = localize(@"about.credits.kxdw", nil);
+
+    [group1 ame_addRows:@[versionRow, buildRow, tagRow, autoUpdateRow, checkRow,
+                          projectRow, qqRow, teamRow, kxdwRow]];
+    [self ame_addGroup:group1];
+
+    // ════ ★Task428 块 2/4：鸣谢（连体组卡列表：名称 + 一句话定位；开源
+    //   许可只在确切时才写——本块一律项目定位描述，不写具体许可证）════
+    [self ame428_addSectionHeader:localize(@"ame428.about.section_credits", @"鸣谢")];
+    ZL2SettingCardGroup *creditGroup = [[ZL2SettingCardGroup alloc] init];
+    NSArray<NSArray<NSString *> *> *ame428_credits = @[
+        @[@"ZalithLauncher2", @"ame428.credit.zalith2"],
+        @[@"PojavLauncher",   @"ame428.credit.pojav"],
+        @[@"FCL",             @"ame428.credit.fcl"],
+        @[@"HMCL",            @"ame428.credit.hmcl"],
+        @[@"Modrinth",        @"ame428.credit.modrinth"],
+        @[@"CurseForge",      @"ame428.credit.curseforge"],
+        @[@"BMCLAPI",         @"ame428.credit.bmclapi"],
+        @[@"logshare.cn",     @"ame428.credit.logshare"],
+        @[@"PCL",             @"ame428.credit.pcl"],
+    ];
+    for (NSArray<NSString *> *ame428_credit in ame428_credits) {
+        ZL2SettingRowAction *ame428_creditRow =
+            [[ZL2SettingRowAction alloc] initWithTitle:@"" subtitle:nil];
+        ame428_creditRow.title = ame428_credit[0];
+        ame428_creditRow.subtitle = localize(ame428_credit[1], nil);
+        [creditGroup ame_addRow:ame428_creditRow];
+    }
+    [self ame_addGroup:creditGroup];
+
+    // ════ ★Task428 块 3/4：依赖库（AGENTS.md「核心依赖」权威清单八项；
+    //   图形适配 / AWT 支持 / 其他三族，描述只写仓内已证实的用途）════
+    [self ame428_addSectionHeader:localize(@"ame428.about.section_deps", @"依赖库")];
+    ZL2SettingCardGroup *depGroup = [[ZL2SettingCardGroup alloc] init];
+    NSArray<NSArray<NSString *> *> *ame428_deps = @[
+        @[@"MetalANGLE",      @"ame428.dep.metalangle"],
+        @[@"GL4ES",           @"ame428.dep.gl4es"],
+        @[@"Mesa 3D",         @"ame428.dep.mesa"],
+        @[@"MobileGlues",     @"ame428.dep.mobileglues"],
+        @[@"Caciocavallo",    @"ame428.dep.caciocavallo"],
+        @[@"LWJGL",           @"ame428.dep.lwjgl"],
+        @[@"OpenAL",          @"ame428.dep.openal"],
+        @[@"TouchController", @"ame428.dep.touchcontroller"],
+    ];
+    for (NSArray<NSString *> *ame428_dep in ame428_deps) {
+        ZL2SettingRowAction *ame428_depRow =
+            [[ZL2SettingRowAction alloc] initWithTitle:@"" subtitle:nil];
+        ame428_depRow.title = ame428_dep[0];
+        ame428_depRow.subtitle = localize(ame428_dep[1], nil);
+        [depGroup ame_addRow:ame428_depRow];
+    }
+    [self ame_addGroup:depGroup];
+
+    // ════ ★Task428 块 4/4：已加载插件（AmePluginManager installedPluginIds
+    //   枚举 + manifestForPlugin: 取 manifest：名称/版本/描述三字段逐行展示；
+    //   运行态经 AmePluginRuntime isRunning: 标注；空态明确占位不造假）════
+    [self ame428_addSectionHeader:localize(@"ame428.about.section_plugins", @"已加载插件")];
+    ZL2SettingCardGroup *pluginGroup = [[ZL2SettingCardGroup alloc] init];
+    NSArray<NSString *> *ame428_pluginIds = [AmePluginManager installedPluginIds];
+    if (ame428_pluginIds.count == 0) {
+        ZL2SettingRowAction *emptyRow =
+            [[ZL2SettingRowAction alloc] initWithTitle:@"" subtitle:nil];
+        emptyRow.title = localize(@"ame428.plugin.empty", @"暂无已安装插件");
+        emptyRow.subtitle = localize(@"ame428.plugin.empty.subtitle", @"可在 启动器 → 插件仓库 浏览并一键安装");
+        [pluginGroup ame_addRow:emptyRow];
+    } else {
+        for (NSString *ame428_pid in ame428_pluginIds) {
+            AmePluginManifest *ame428_manifest = [AmePluginManager manifestForPlugin:ame428_pid];
+            NSString *ame428_name = ame_pages_stringOr(ame428_manifest.name, ame428_pid);
+            NSString *ame428_summary = ame_pages_stringOr(ame428_manifest.summary, nil);
+            NSString *ame428_ver = ame_pages_stringOr(ame428_manifest.version, nil);
+            // 尾注：版本 +（运行态，isRunning 实时判定）
+            NSString *ame428_running = localize(@"ame428.plugin.running", @"运行中");
+            NSString *ame428_detail = [AmePluginRuntime isRunning:ame428_pid]
+                ? (ame428_ver.length > 0
+                    ? [NSString stringWithFormat:@"%@ · %@", ame428_ver, ame428_running]
+                    : ame428_running)
+                : ame428_ver;
+            ZL2SettingRowAction *ame428_pluginRow =
+                [[ZL2SettingRowAction alloc] initWithTitle:@"" subtitle:nil];
+            ame428_pluginRow.title = ame428_name;
+            ame428_pluginRow.subtitle = ame428_summary;
+            ame428_pluginRow.detailText = ame428_detail;
+            [pluginGroup ame_addRow:ame428_pluginRow];
+        }
+    }
+    [self ame_addGroup:pluginGroup];
+    // ★Task428：「更多关于信息」push 老关于页（moreRow）退役——四块信息
+    //   本页全量自持；AboutViewController 仍可从欢迎页/旧设置页进入。
 }
 
 - (void)ame_refreshState {
-    [self.autoUpdateRow ame_setOn:getPrefBool(@"general.auto_update_check")];
+    // ★Task428：四块全量重建（插件安装/卸载在外部页发生 → 切轨回来即反映；
+    //   自动检查更新行随重建重读偏好——同控制/游戏屏刷新口径）
+    [self ame_rebuildGroups];
 }
 
 #pragma mark 检查更新（AboutViewController ame217_checkForUpdate 平移）

@@ -61,6 +61,7 @@ static double ame312_avgKBps(NSInteger idx) {
 static void ame312_recordThroughput(NSInteger idx, double bytes, double elapsed) {
     // 小文件/瞬时完成样本无统计意义，跳过（SHA 命中/秒下不计）
     if (bytes < 512.0 * 1024.0 || elapsed < 0.5) return;
+    ame428_noteThroughputSample(bytes, elapsed);   // ★Task428：自适应窗口同源见证（实现见下方 ame428 段，此处前置声明）
     ame312_stats[idx].bytes += bytes;
     ame312_stats[idx].elapsed += elapsed;
     ame312_stats[idx].samples += 1;
@@ -82,6 +83,168 @@ static void ame312_recordThroughput(NSInteger idx, double bytes, double elapsed)
               @"reverting to official candidates for remaining batch",
               kbps, (long)ame312_stats[1].samples);
     }
+}
+
+// ======================================================================
+// ===== ★Task428（4.1）：下载并发对齐（64 上限 + 自适应；PDF v5 §4.1）=====
+// ----------------------------------------------------------------------
+// 偏好键 general.download_threads（int，与设置滑杆同名键——键名逐字一致）：
+//   · 0  = 自动：16-64 按网络/失败率自适应（起步 24 = 旧默认，零回归；
+//          窗口失败率 >10% → -8 地板 16；零失败且吞吐量 ≥64KB/s → +8 上限 64；
+//          零失败但网络慢 → 维持，防“越慢越拼”恶性并发）；
+//   · >0 = 手动固定，钳制 8-64。
+// 会话级 HTTPMaximumConnectionsPerHost 统一拉到 64（只升不降的容量帽，
+// 不构成强制并发——NSURLSession 配置创建后不可改，故实际并发由本闸门
+// 在 resume 点客户端控制，可随自适应动态调整）。
+// 线程安全：状态锁 ame428_gate（NSLock）；resume 收口点 = 本文件全部
+// resume 调用（单文件/批resume/重试）统一改走 ame428_resumeTaskGated。
+// ======================================================================
+
+// ★Task428 前置声明（ame312_recordThroughput 早于本段使用）
+static void ame428_noteThroughputSample(double bytes, double elapsed);
+
+static NSLock *ame428_gate = nil;
+static NSMutableSet<NSURLSessionDownloadTask *> *ame428_inFlight = nil;
+static NSMutableArray<NSURLSessionDownloadTask *> *ame428_pending = nil;
+/// 自动档当前档位（0 = 未初始化 → 首次取 24 = 旧默认，零回归）；
+/// 仅自动档（general.download_threads == 0）参与自适应更新，手动档固定。
+static NSInteger ame428_autoLimit = 0;
+/// 自适应窗口计数（终态任务数 + 吞吐量见证）
+static NSInteger ame428_windowDone = 0;
+static NSInteger ame428_windowFailed = 0;
+static double ame428_windowBytes = 0.0;
+static double ame428_windowElapsed = 0.0;
+/// 窗口大小：每 16 个终态任务评估一次并发档
+static const NSInteger kAme428AdaptiveWindow = 16;
+
+static void ame428_stateInit(void) {
+    static dispatch_once_t ame428_once;
+    dispatch_once(&ame428_once, ^{
+        ame428_gate = [[NSLock alloc] init];
+        ame428_inFlight = [NSMutableSet set];
+        ame428_pending = [NSMutableArray array];
+    });
+}
+
+/// 当前生效上限（锁内调用）：手动档钳 8-64；自动档自适应 16-64（起步 24）。
+/// 每次 gate 读取——偏好滑杆变更对后续任务即时生效。
+static NSInteger ame428_effectiveLimitLocked(void) {
+    NSInteger manual = getPrefInt(@"general.download_threads");
+    if (manual > 0) {
+        return MIN(MAX(manual, 8), 64);
+    }
+    if (ame428_autoLimit == 0) ame428_autoLimit = 24;
+    return MIN(MAX(ame428_autoLimit, 16), 64);
+}
+
+/// 吞吐量样本回喂（ame312_recordThroughput 成功样本处调用）
+static void ame428_noteThroughputSample(double bytes, double elapsed) {
+    ame428_stateInit();
+    [ame428_gate lock];
+    ame428_windowBytes += bytes;
+    ame428_windowElapsed += elapsed;
+    [ame428_gate unlock];
+}
+
+/// 任务终态记账（成功路径 / error 终态 / SHA 终态失败三处调用）。
+/// 每 kAme428AdaptiveWindow 个终态评估一次自动档。
+static void ame428_noteTaskOutcome(BOOL success) {
+    ame428_stateInit();
+    [ame428_gate lock];
+    if (success) ame428_windowDone++; else ame428_windowFailed++;
+    NSInteger done = ame428_windowDone + ame428_windowFailed;
+    if (done >= kAme428AdaptiveWindow) {
+        NSInteger manual = getPrefInt(@"general.download_threads");
+        if (manual <= 0) { // 仅自动档自适应；手动档固定
+            if (ame428_autoLimit == 0) ame428_autoLimit = 24;
+            NSInteger base = ame428_autoLimit;
+            double failureRate = done > 0 ? (double)ame428_windowFailed / (double)done : 0.0;
+            double kbps = ame428_windowElapsed > 0
+                ? (ame428_windowBytes / ame428_windowElapsed) / 1024.0 : 0.0;
+            NSInteger adjusted = base;
+            if (failureRate > 0.10) {
+                adjusted = MAX(base - 8, 16);   // 失败率高 → 收缩
+            } else if (ame428_windowFailed == 0 && kbps >= 64.0) {
+                adjusted = MIN(base + 8, 64);   // 零失败且网络健康 → 扩张
+            }                                // 其余：维持（防“越慢越拼”）
+            ame428_autoLimit = adjusted;
+            NSLog(@"[MCDL] ame428: adaptive window done=%ld fail=%ld (%.0f%%) throughput=%.0fKB/s -> limit %ld -> %ld (auto 16-64)",
+                  (long)done, (long)ame428_windowFailed, failureRate * 100.0, kbps,
+                  (long)base, (long)adjusted);
+        }
+        ame428_windowDone = 0;
+        ame428_windowFailed = 0;
+        ame428_windowBytes = 0.0;
+        ame428_windowElapsed = 0.0;
+    }
+    [ame428_gate unlock];
+}
+
+/// 带（计数闸门的）resume：并发已满则入队等待；空位即时 resume。
+/// 对 nil 安全（SHA 命中/无权限路径 createDownloadTask 返回 nil）。
+static void ame428_resumeTaskGated(NSURLSessionDownloadTask *task) {
+    if (task == nil) return;
+    ame428_stateInit();
+    BOOL resumeNow = NO;
+    NSUInteger pendingAfter = 0;
+    [ame428_gate lock];
+    NSInteger limit = ame428_effectiveLimitLocked();
+    if (ame428_inFlight.count < (NSUInteger)limit) {
+        [ame428_inFlight addObject:task];
+        resumeNow = YES;
+    } else {
+        [ame428_pending addObject:task];
+        pendingAfter = ame428_pending.count;
+    }
+    [ame428_gate unlock];
+    if (resumeNow) {
+        [task resume];
+    } else if (pendingAfter <= 512) {
+        // 队列深度日志限频：仅在前 512 次入队打一条（数千 asset 批次防刷屏）
+        NSLog(@"[MCDL] ame428: concurrency gate queued (pending=%lu)",
+              (unsigned long)pendingAfter);
+    }
+}
+
+/// 任务终态：归还槽位/出队并补位 pending。仅计数过的任务生效；
+/// 在 createDownloadTask 的 completionHandler 顶部调用（覆盖
+/// 成功/error/SHA 失败/用户取消全部路径）。
+static void ame428_taskFinished(NSURLSessionDownloadTask *task) {
+    if (task == nil) return;
+    ame428_stateInit();
+    NSMutableArray *toResume = [NSMutableArray array];
+    [ame428_gate lock];
+    if ([ame428_inFlight containsObject:task]) {
+        [ame428_inFlight removeObject:task];
+        // 补位：把 pending 提到 limit 内
+        NSInteger limit = ame428_effectiveLimitLocked();
+        while (ame428_pending.count > 0 && ame428_inFlight.count < (NSUInteger)limit) {
+            NSURLSessionDownloadTask *next = [ame428_pending firstObject];
+            [ame428_pending removeObjectAtIndex:0];
+            if (next == nil) continue;
+            if (next.state == NSURLSessionTaskStateCanceling || next.state == NSURLSessionTaskStateCompleted) {
+                continue; // 已死任务直接丢弃，不占槽
+            }
+            [ame428_inFlight addObject:next];
+            [toResume addObject:next];
+        }
+    } else {
+        // 从未计数（排队中被取消）：仅出队，无需补位
+        [ame428_pending removeObject:task];
+    }
+    [ame428_gate unlock];
+    for (NSURLSessionDownloadTask *t in toResume) [t resume];
+}
+
+/// 清空待发队列（prepareForDownload / 批次取消/终态收尾时；已计数任务不受影响）
+static void ame428_dropAllPending(void) {
+    ame428_stateInit();
+    [ame428_gate lock];
+    if (ame428_pending.count > 0) {
+        NSLog(@"[MCDL] ame428: dropped %lu queued task(s) (batch teardown)", (unsigned long)ame428_pending.count);
+    }
+    [ame428_pending removeAllObjects];
+    [ame428_gate unlock];
 }
 
 @interface MinecraftResourceDownloadTask ()
@@ -126,10 +289,12 @@ static void ame312_recordThroughput(NSInteger idx, double bytes, double elapsed)
         configuration.timeoutIntervalForRequest = 86400;
         // 参考 FCL（FoldCraftLauncher）和 ZalithLauncher2：高并发下载加速。
         // FCL 在 Java 端使用 OkHttp 的线程池并发下载，本项目对应在 NSURLSession
-        // 层面提升 HTTPMaximumConnectionsPerHost。从 16 提升到 24，加速原版数百个
-        // asset 的并发下载。注意 iOS 系统对单 host 实际并发有调度上限，过高的设置
-        // 会被系统降级，24 是经验值。完整性仍由 SHA1 校验保证。
-        configuration.HTTPMaximumConnectionsPerHost = 24;
+        // 层面提升 HTTPMaximumConnectionsPerHost。
+        // ★Task428（4.1）：24 → 64 容量帽（只升不降的容量上限，不构成强制
+        //   并发）；实际并发由 ame428_resumeTaskGated 客户端闸门按
+        //   general.download_threads（0=自动 16-64 自适应 / >0 手动钳 8-64）
+        //   控制——NSURLSession 配置创建后不可改，自适应只能在 resume 点实现。
+        configuration.HTTPMaximumConnectionsPerHost = 64;
         manager = [[AFURLSessionManager alloc] initWithSessionConfiguration:configuration];
     });
     return manager;
@@ -289,6 +454,9 @@ static void ame312_recordThroughput(NSInteger idx, double bytes, double elapsed)
         [NSFileManager.defaultManager removeItemAtPath:path error:nil];
         return [NSURL fileURLWithPath:path];
     } completionHandler:^(NSURLResponse * _Nonnull response, NSURL * _Nullable filePath, NSError * _Nullable error) {
+        // ★Task428（4.1）：终态收口——归还并发槽位/出队并补位 pending
+        //   （覆盖成功/error/SHA 失败/用户取消全部路径）。
+        ame428_taskFinished(task);
         if (self.progress.cancelled) {
             // Ignore any further errors
         } else if (error != nil) {
@@ -306,12 +474,13 @@ static void ame312_recordThroughput(NSInteger idx, double bytes, double elapsed)
                 // 延迟重试（缩短到 0.5 秒，避免数百个文件重试时累加延迟过长）
                 dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.5 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
                     NSURLSessionDownloadTask *retryTask = [weakSelf createDownloadTask:url size:size sha:sha altName:altName toPath:path retryCount:nextRetry success:success];
-                    if (retryTask) {
-                        [retryTask resume];
-                    }
+                    // ★Task428（4.1）：重试同样过并发闸门（防重试风暴叠加超限）
+                    ame428_resumeTaskGated(retryTask);
                 });
             } else {
                 [weakSelf finishDownloadWithError:error file:name];
+                // ★Task428（4.1）：终态失败记账（自适应窗口）
+                ame428_noteTaskOutcome(NO);
                 // 阶段计数：最终失败的文件也计入完成数（避免计数卡住）
                 [weakSelf mc_recordStageFileFinishedAtPath:path];
                 // 阶段5修复（参照 FCL）：单文件失败后必须手动推进进度，否则父 progress
@@ -343,9 +512,8 @@ static void ame312_recordThroughput(NSInteger idx, double bytes, double elapsed)
                 // SHA 失败重试延迟缩短到 0.3 秒
                 dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.3 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
                     NSURLSessionDownloadTask *retryTask = [weakSelf createDownloadTask:url size:size sha:sha altName:altName toPath:path retryCount:nextRetry success:success];
-                    if (retryTask) {
-                        [retryTask resume];
-                    }
+                    // ★Task428（4.1）：重试同样过并发闸门（防重试风暴叠加超限）
+                    ame428_resumeTaskGated(retryTask);
                 });
             } else {
                 // 阶段5修复（参照 FCL）：SHA1 校验失败也记录到 failedFiles，不取消整批任务
@@ -357,6 +525,8 @@ static void ame312_recordThroughput(NSInteger idx, double bytes, double elapsed)
                 }
                 NSLog(@"[MCDL] SHA1 mismatch for '%@', added to failedFiles (total failed: %lu), other downloads will continue",
                       path.lastPathComponent, (unsigned long)weakSelf.failedFiles.count);
+                // ★Task428（4.1）：SHA 终态失败记账（自适应窗口）
+                ame428_noteTaskOutcome(NO);
                 // 阶段计数：SHA 校验最终失败的文件也计入完成数
                 [weakSelf mc_recordStageFileFinishedAtPath:path];
                 // 阶段5修复：与上面 error 分支一致，推进父 progress 避免卡死
@@ -373,6 +543,8 @@ static void ame312_recordThroughput(NSInteger idx, double bytes, double elapsed)
         } else {
             progress.totalUnitCount = progress.completedUnitCount;
             [self mc_recordStageFileFinishedAtPath:path];
+            // ★Task428（4.1）：成功终态记账（自适应窗口）
+            ame428_noteTaskOutcome(YES);
             // ame312：成功任务回填吞吐量样本（镜像/官方源择路依据，见文件头契约）
             {
                 double ame312_bytes = (double)task.countOfBytesReceived;
@@ -643,7 +815,8 @@ static void ame312_recordThroughput(NSInteger idx, double bytes, double elapsed)
     NSUInteger size = [version[@"size"] unsignedLongLongValue];
 
     NSURLSessionDownloadTask *task = [self createDownloadTask:url size:size sha:sha altName:nil toPath:path success:completionBlock];
-    [task resume];
+    // ★Task428（4.1）：过并发闸门
+    ame428_resumeTaskGated(task);
 }
 
 #pragma mark - Minecraft installation
@@ -663,7 +836,8 @@ static void ame312_recordThroughput(NSInteger idx, double bytes, double elapsed)
         self.metadata[@"assetIndexObj"] = parseJSONFromFile(path);
         success();
     }];
-    [task resume];
+    // ★Task428（4.1）：过并发闸门
+    ame428_resumeTaskGated(task);
 }
 
 - (NSArray *)downloadClientLibraries {
@@ -1058,8 +1232,14 @@ static void ame312_recordThroughput(NSInteger idx, double bytes, double elapsed)
             [manager updateTaskWithId:taskId stageAtIndex:kMCStageIndexAssets progress:-1 message:nil];
             [manager updateTaskWithId:taskId currentStageIndex:kMCStageIndexLibraries];
             [strongSelf mc_reportStageFileCounts];
-            [libTasks makeObjectsPerformSelector:@selector(resume)];
-            [assetTasks makeObjectsPerformSelector:@selector(resume)];
+            // ★Task428（4.1）：批 resume 改走并发闸门（原
+            //   makeObjectsPerformSelector:@selector(resume) 直通无上限）
+            for (NSURLSessionDownloadTask *libTask in libTasks) {
+                ame428_resumeTaskGated(libTask);
+            }
+            for (NSURLSessionDownloadTask *assetTask in assetTasks) {
+                ame428_resumeTaskGated(assetTask);
+            }
             [strongSelf.metadata removeObjectForKey:@"assetIndexObj"];
 
             if (strongSelf.currentDownloadTaskItem) {
@@ -1098,7 +1278,8 @@ static void ame312_recordThroughput(NSInteger idx, double bytes, double elapsed)
         // 消除 ModrinthAPI/CurseForgeAPI submitDownloadTasksFromPackage: 双轨逻辑。
         [self importDownloadedModpackPackage:packagePath];
     }];
-    [task resume];
+    // ★Task428（4.1）：过并发闸门
+    ame428_resumeTaskGated(task);
 }
 
 /// Task 5.10：在线整合包 zip 下载完成后的统一导入入口。
@@ -1163,6 +1344,9 @@ static void ame312_recordThroughput(NSInteger idx, double bytes, double elapsed)
     // 清理单例会话上残留的上一次下载任务（前台会话单例模式下必须清理，
     // 否则上一次失败/取消的 task 残留在会话中可能影响新下载）。
     // 注意：不能 invalidate 单例会话（会破坏后续所有下载），只取消任务。
+    // ★Task428（4.1）：新批次开始，旧批次的待发队列一并清空（其任务
+    //   已由下方 getTasksWithCompletionHandler 按旧 taskId 取消）。
+    ame428_dropAllPending();
     NSString *oldTaskId = self.currentDownloadTaskItem.taskId;
     if (oldTaskId.length > 0) {
         [self.manager.session getTasksWithCompletionHandler:^(NSArray<NSURLSessionDataTask *> *dataTasks,
@@ -1382,6 +1566,9 @@ static void ame312_recordThroughput(NSInteger idx, double bytes, double elapsed)
 }
 
 - (void)finishDownloadWithErrorString:(NSString *)error {
+    // ★Task428（4.1）：批次终态收尾——待发队列清空（下方同 taskId 的
+    //   NSURLSession 任务已逐一取消，其 handler 会自行归还槽位）。
+    ame428_dropAllPending();
     // 阶段上报：整流程失败时把当前阶段标记为 Failed
     if (self.stageReportingEnabled) {
         [self mc_finishAllStagesWithFailure:error ?: localize(@"i18n_str_448", nil)];
@@ -1503,6 +1690,8 @@ static void ame312_recordThroughput(NSInteger idx, double bytes, double elapsed)
             self.currentDownloadTaskItem.state != DownloadTaskStateFailed) {
             [manager setTaskWithId:self.currentDownloadTaskItem.taskId state:DownloadTaskStateCancelled];
         }
+        // ★Task428（4.1）：用户取消——待发队列清空（防僵尸任务补位复活）
+        ame428_dropAllPending();
         [self removeProgressObserver];
         return;
     }

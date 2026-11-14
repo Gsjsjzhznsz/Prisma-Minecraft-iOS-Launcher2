@@ -59,8 +59,44 @@
 }
 */
 
+// ★Task428：6.5 自绘按键触觉反馈（震动盲区修复）——本类静态工具。
+//   现状：震动反馈唯一链路是模组触发的被动震动（SurfaceViewController
+//   triggerVibrationWithKind:，受 control.mod_touch_vibrate_enable 偏好
+//   门控、强度 1-3 分档），启动器自绘虚拟按键的点击路径（本文件
+//   touchesBegan/touchesEnded）此前零触觉。
+//   实现：轻触 began 用 light、触发动作（抬起即按键事件派发处）用
+//   medium；与模组震动同一总开关门控；生成器静态复用（对齐
+//   SurfaceViewController lightHaptic/mediumHaptic 属性式复用模式），
+//   dispatch_once 全布局共享一份、创建时 prepare 预热，绝不随触摸新建。
+//   布局编辑态（isControlModifiable）拖拽定位不属点击反馈场景，不震动。
+//   只加触觉，不改触摸/事件派发逻辑。
++ (void)ame428_fireHaptic:(BOOL)isTrigger {
+    if (isControlModifiable) {
+        return;
+    }
+    if (!getPrefBool(@"control.mod_touch_vibrate_enable")) {
+        return;
+    }
+    static UIImpactFeedbackGenerator *s_ame428_light = nil;
+    static UIImpactFeedbackGenerator *s_ame428_medium = nil;
+    static dispatch_once_t s_ame428_once;
+    dispatch_once(&s_ame428_once, ^{
+        s_ame428_light = [[UIImpactFeedbackGenerator alloc] initWithStyle:UIImpactFeedbackStyleLight];
+        s_ame428_medium = [[UIImpactFeedbackGenerator alloc] initWithStyle:UIImpactFeedbackStyleMedium];
+        [s_ame428_light prepare];
+        [s_ame428_medium prepare];
+    });
+    if (isTrigger) {
+        [s_ame428_medium impactOccurred];
+    } else {
+        [s_ame428_light impactOccurred];
+    }
+}
+
 - (void)touchesBegan:(NSSet *)touches withEvent:(UIEvent *)event {
     [super touchesBegan:touches withEvent:event];
+    // ★Task428（6.5）：轻触反馈（light）——只加触觉，不改下方穿透转发逻辑。
+    [ControlButton ame428_fireHaptic:NO];
     if (!isControlModifiable && [self.properties[@"passThruEnabled"] boolValue]) {
         [currentVC() touchesBegan:touches withEvent:event];
     }
@@ -75,6 +111,10 @@
 
 - (void)touchesEnded:(NSSet *)touches withEvent:(UIEvent *)event {
     [super touchesEnded:touches withEvent:event];
+    // ★Task428（6.5）：触发动作反馈（medium）——抬起即按键事件派发收尾处
+    //   （UIControl 抬起类 TouchUpInside/Outside 目标链尾随本方法；按下类
+    //   TouchDown 已在 began 派发），不改触摸/事件派发逻辑。
+    [ControlButton ame428_fireHaptic:YES];
     if (!isControlModifiable && [self.properties[@"passThruEnabled"] boolValue]) {
         [currentVC() touchesEnded:touches withEvent:event];
     }

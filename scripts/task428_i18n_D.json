@@ -1,0 +1,68 @@
+{
+  "ame428.upload.button": {
+    "en": "Upload & Get Link",
+    "zh-Hans": "上传并获取链接",
+    "zh-CN": "上传并获取链接",
+    "zh-Hant": "上傳並取得連結"
+  },
+  "ame428.upload.uploading": {
+    "en": "Uploading log…",
+    "zh-Hans": "正在上传日志…",
+    "zh-CN": "正在上传日志…",
+    "zh-Hant": "正在上傳日誌…"
+  },
+  "ame428.upload.success": {
+    "en": "Upload successful",
+    "zh-Hans": "上传成功",
+    "zh-CN": "上传成功",
+    "zh-Hant": "上傳成功"
+  },
+  "ame428.upload.copy_link": {
+    "en": "Copy Link",
+    "zh-Hans": "复制链接",
+    "zh-CN": "复制链接",
+    "zh-Hant": "複製連結"
+  },
+  "ame428.upload.open_browser": {
+    "en": "Open in Browser",
+    "zh-Hans": "在浏览器打开",
+    "zh-CN": "在浏览器打开",
+    "zh-Hant": "在瀏覽器開啟"
+  },
+  "ame428.upload.share": {
+    "en": "Share via System…",
+    "zh-Hans": "系统分享",
+    "zh-CN": "系统分享",
+    "zh-Hant": "系統分享"
+  },
+  "ame428.upload.link_copied": {
+    "en": "Link copied to clipboard",
+    "zh-Hans": "链接已复制到剪贴板",
+    "zh-CN": "链接已复制到剪贴板",
+    "zh-Hant": "連結已複製到剪貼簿"
+  },
+  "ame428.upload.failed_title": {
+    "en": "Upload failed",
+    "zh-Hans": "上传失败",
+    "zh-CN": "上传失败",
+    "zh-Hant": "上傳失敗"
+  },
+  "ame428.upload.failed_both": {
+    "en": "Both endpoints (logshare.cn / mclo.gs) are unreachable",
+    "zh-Hans": "logshare.cn 与 mclo.gs 两个上传端点均不可用",
+    "zh-CN": "logshare.cn 与 mclo.gs 两个上传端点均不可用",
+    "zh-Hant": "logshare.cn 與 mclo.gs 兩個上傳端點均無法使用"
+  },
+  "ame428.upload.no_content": {
+    "en": "Log file is empty or missing",
+    "zh-Hans": "日志文件为空或不存在",
+    "zh-CN": "日志文件为空或不存在",
+    "zh-Hant": "日誌檔案為空或不存在"
+  },
+  "ame428.upload.deletion_token_copied": {
+    "en": "Deletion token copied to clipboard — shown only once",
+    "zh-Hans": "删除凭证已复制到剪贴板，仅显示一次",
+    "zh-CN": "删除凭证已复制到剪贴板，仅显示一次",
+    "zh-Hant": "刪除憑證已複製到剪貼簿，僅顯示一次"
+  }
+}

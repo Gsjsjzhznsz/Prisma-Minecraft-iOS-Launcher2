@@ -1,0 +1,224 @@
+{
+  "ame428.import.unrecognized": {
+    "en": "Unrecognized modpack format. Expected one of: Modrinth (.mrpack, modrinth.index.json), CurseForge (manifest.json), MultiMC (mmc-pack.json + instance.cfg), Technic (modpack.cfg), FTB (webmanifest.json), or a plain zip with a .minecraft directory layout.",
+    "zh-Hans": "未识别的整合包格式。应为以下之一：Modrinth（.mrpack，modrinth.index.json）、CurseForge（manifest.json）、MultiMC（mmc-pack.json + instance.cfg）、Technic（modpack.cfg）、FTB（webmanifest.json），或包含 .minecraft 目录结构的纯 zip。",
+    "zh-CN": "未识别的整合包格式。应为以下之一：Modrinth（.mrpack，modrinth.index.json）、CurseForge（manifest.json）、MultiMC（mmc-pack.json + instance.cfg）、Technic（modpack.cfg）、FTB（webmanifest.json），或包含 .minecraft 目录结构的纯 zip。",
+    "zh-Hant": "未識別的整合包格式。應為以下之一：Modrinth（.mrpack，modrinth.index.json）、CurseForge（manifest.json）、MultiMC（mmc-pack.json + instance.cfg）、Technic（modpack.cfg）、FTB（webmanifest.json），或包含 .minecraft 目錄結構的純 zip。"
+  },
+  "ame428.import.technic.loaderhint": {
+    "en": "This Technic pack ships a local loader (bin/modpack.jar). Contents were installed as a plain .minecraft layout; the legacy loader jar cannot be executed automatically on iOS — please install the matching mod loader manually after import.",
+    "zh-Hans": "该 Technic 整合包含本地加载器（bin/modpack.jar）。内容已按纯 .minecraft 结构安装；旧式加载器 jar 无法在 iOS 端自动执行，导入完成后请手动安装对应的模组加载器。",
+    "zh-CN": "该 Technic 整合包含本地加载器（bin/modpack.jar）。内容已按纯 .minecraft 结构安装；旧式加载器 jar 无法在 iOS 端自动执行，导入完成后请手动安装对应的模组加载器。",
+    "zh-Hant": "該 Technic 整合包含本地載入器（bin/modpack.jar）。內容已按純 .minecraft 結構安裝；舊式載入器 jar 無法在 iOS 端自動執行，匯入完成後請手動安裝對應的模組載入器。"
+  },
+  "ame428.import.ftb.malformed": {
+    "en": "The FTB webmanifest.json is not a valid JSON object.",
+    "zh-Hans": "FTB 整合包的 webmanifest.json 不是有效的 JSON 对象。",
+    "zh-CN": "FTB 整合包的 webmanifest.json 不是有效的 JSON 对象。",
+    "zh-Hant": "FTB 整合包的 webmanifest.json 不是有效的 JSON 物件。"
+  },
+  "ame428.import.ftb.empty": {
+    "en": "The FTB webmanifest.json does not embed a file list, and the archive contains no installable .minecraft content (fetching the list from the modpacks.ch API is not supported in this build).",
+    "zh-Hans": "FTB 整合包的 webmanifest.json 未内嵌文件列表，且压缩包内没有可安装的 .minecraft 内容（本版本暂不支持从 modpacks.ch API 在线拉取清单）。",
+    "zh-CN": "FTB 整合包的 webmanifest.json 未内嵌文件列表，且压缩包内没有可安装的 .minecraft 内容（本版本暂不支持从 modpacks.ch API 在线拉取清单）。",
+    "zh-Hant": "FTB 整合包的 webmanifest.json 未內嵌檔案清單，且壓縮包內沒有可安裝的 .minecraft 內容（本版本暫不支援從 modpacks.ch API 線上拉取清單）。"
+  },
+  "ame428.export.step1": {
+    "en": "Format",
+    "zh-Hans": "选择格式",
+    "zh-CN": "选择格式",
+    "zh-Hant": "選擇格式"
+  },
+  "ame428.export.step2": {
+    "en": "Info",
+    "zh-Hans": "填写信息",
+    "zh-CN": "填写信息",
+    "zh-Hant": "填寫資訊"
+  },
+  "ame428.export.step3": {
+    "en": "Files",
+    "zh-Hans": "选择文件",
+    "zh-CN": "选择文件",
+    "zh-Hant": "選擇檔案"
+  },
+  "ame428.export.prev": {
+    "en": "Back",
+    "zh-Hans": "上一步",
+    "zh-CN": "上一步",
+    "zh-Hant": "上一步"
+  },
+  "ame428.export.next": {
+    "en": "Next",
+    "zh-Hans": "下一步",
+    "zh-CN": "下一步",
+    "zh-Hant": "下一步"
+  },
+  "ame428.export.fmt.modrinth.title": {
+    "en": "Modrinth .mrpack",
+    "zh-Hans": "Modrinth .mrpack",
+    "zh-CN": "Modrinth .mrpack",
+    "zh-Hant": "Modrinth .mrpack"
+  },
+  "ame428.export.fmt.modrinth.desc": {
+    "en": "Smallest standard format; during export each local mod is matched on Modrinth by SHA-1 and replaced with a download link when found.",
+    "zh-Hans": "体积最小的标准格式；导出时按 SHA-1 反查 Modrinth，命中的 mod 以下载链接代替内嵌。",
+    "zh-CN": "体积最小的标准格式；导出时按 SHA-1 反查 Modrinth，命中的 mod 以下载链接代替内嵌。",
+    "zh-Hant": "體積最小的標準格式；匯出時按 SHA-1 反查 Modrinth，命中的 mod 以下載連結代替內嵌。"
+  },
+  "ame428.export.fmt.curseforge.title": {
+    "en": "CurseForge .zip (manifest)",
+    "zh-Hans": "CurseForge .zip（manifest）",
+    "zh-CN": "CurseForge .zip（manifest）",
+    "zh-Hant": "CurseForge .zip（manifest）"
+  },
+  "ame428.export.fmt.curseforge.desc": {
+    "en": "manifest.json manifest format, importable by CurseForge-compatible launchers.",
+    "zh-Hans": "manifest.json 清单格式，兼容 CurseForge 系启动器导入。",
+    "zh-CN": "manifest.json 清单格式，兼容 CurseForge 系启动器导入。",
+    "zh-Hant": "manifest.json 清單格式，相容 CurseForge 系啟動器匯入。"
+  },
+  "ame428.export.fmt.mmc.title": {
+    "en": "MultiMC / Prism .zip",
+    "zh-Hans": "MultiMC / Prism .zip",
+    "zh-CN": "MultiMC / Prism .zip",
+    "zh-Hant": "MultiMC / Prism .zip"
+  },
+  "ame428.export.fmt.mmc.desc": {
+    "en": "mmc-pack.json + instance.cfg, importable by MultiMC / Prism Launcher.",
+    "zh-Hans": "mmc-pack.json + instance.cfg，兼容 MultiMC / Prism Launcher 导入。",
+    "zh-CN": "mmc-pack.json + instance.cfg，兼容 MultiMC / Prism Launcher 导入。",
+    "zh-Hant": "mmc-pack.json + instance.cfg，相容 MultiMC / Prism Launcher 匯入。"
+  },
+  "ame428.export.fmt.plainzip.title": {
+    "en": "Plain .zip",
+    "zh-Hans": "纯 .zip",
+    "zh-CN": "纯 .zip",
+    "zh-Hant": "純 .zip"
+  },
+  "ame428.export.fmt.plainzip.desc": {
+    "en": "Packs the .minecraft directory directly, compatible with HMCL / PojavLauncher.",
+    "zh-Hans": "直接打包 .minecraft 目录，兼容 HMCL / PojavLauncher。",
+    "zh-CN": "直接打包 .minecraft 目录，兼容 HMCL / PojavLauncher。",
+    "zh-Hant": "直接打包 .minecraft 目錄，相容 HMCL / PojavLauncher。"
+  },
+  "ame428.export.fmt.linklist.title": {
+    "en": "Link list .txt",
+    "zh-Hans": "链接列表 .txt",
+    "zh-CN": "链接列表 .txt",
+    "zh-Hant": "連結清單 .txt"
+  },
+  "ame428.export.fmt.linklist.desc": {
+    "en": "One mod path and download link per line, the lightweight format FCL imports.",
+    "zh-Hans": "每行一个 mod 路径与下载链接，FCL 可导入的轻量格式。",
+    "zh-CN": "每行一个 mod 路径与下载链接，FCL 可导入的轻量格式。",
+    "zh-Hant": "每行一個 mod 路徑與下載連結，FCL 可匯入的輕量格式。"
+  },
+  "ame428.export.selected": {
+    "en": "Selected",
+    "zh-Hans": "已选",
+    "zh-CN": "已选",
+    "zh-Hant": "已選"
+  },
+  "ame428.export.profile": {
+    "en": "Instance",
+    "zh-Hans": "导出实例",
+    "zh-CN": "导出实例",
+    "zh-Hant": "匯出實例"
+  },
+  "ame428.export.profile.none": {
+    "en": "No instance available — create or import one first.",
+    "zh-Hans": "暂无可用实例——请先创建或导入一个实例。",
+    "zh-CN": "暂无可用实例——请先创建或导入一个实例。",
+    "zh-Hant": "暫無可用實例——請先建立或匯入一個實例。"
+  },
+  "ame428.export.field.name": {
+    "en": "Pack name",
+    "zh-Hans": "整合包名称",
+    "zh-CN": "整合包名称",
+    "zh-Hant": "整合包名稱"
+  },
+  "ame428.export.field.name.ph": {
+    "en": "Defaults to the instance name",
+    "zh-Hans": "默认与实例名一致",
+    "zh-CN": "默认与实例名一致",
+    "zh-Hant": "預設與實例名稱一致"
+  },
+  "ame428.export.field.version": {
+    "en": "Version",
+    "zh-Hans": "版本号",
+    "zh-CN": "版本号",
+    "zh-Hant": "版本號"
+  },
+  "ame428.export.field.version.ph": {
+    "en": "e.g. 1.0",
+    "zh-Hans": "例如 1.0",
+    "zh-CN": "例如 1.0",
+    "zh-Hant": "例如 1.0"
+  },
+  "ame428.export.field.author": {
+    "en": "Author",
+    "zh-Hans": "作者",
+    "zh-CN": "作者",
+    "zh-Hant": "作者"
+  },
+  "ame428.export.field.author.ph": {
+    "en": "Your name",
+    "zh-Hans": "你的名字",
+    "zh-CN": "你的名字",
+    "zh-Hant": "你的名字"
+  },
+  "ame428.export.field.desc": {
+    "en": "Description",
+    "zh-Hans": "描述",
+    "zh-CN": "描述",
+    "zh-Hant": "描述"
+  },
+  "ame428.export.field.desc.ph": {
+    "en": "One line about this pack (optional)",
+    "zh-Hans": "一句话介绍这个整合包（可选）",
+    "zh-CN": "一句话介绍这个整合包（可选）",
+    "zh-Hant": "一句話介紹這個整合包（可選）"
+  },
+  "ame428.export.files.selectall": {
+    "en": "All",
+    "zh-Hans": "全选",
+    "zh-CN": "全选",
+    "zh-Hant": "全選"
+  },
+  "ame428.export.files.invert": {
+    "en": "Invert",
+    "zh-Hans": "反选",
+    "zh-CN": "反选",
+    "zh-Hant": "反選"
+  },
+  "ame428.export.files.count": {
+    "en": "%d file(s) · %@",
+    "zh-Hans": "%d 个文件 · %@",
+    "zh-CN": "%d 个文件 · %@",
+    "zh-Hant": "%d 個檔案 · %@"
+  },
+  "ame428.export.files.none": {
+    "en": "Directory not present — enabling it has no effect",
+    "zh-Hans": "目录不存在，勾选不会生效",
+    "zh-CN": "目录不存在，勾选不会生效",
+    "zh-Hant": "目錄不存在，勾選不會生效"
+  },
+  "ame428.export.files.unsupported": {
+    "en": "Packing this directory is not supported yet",
+    "zh-Hans": "暂不支持打包该目录",
+    "zh-CN": "暂不支持打包该目录",
+    "zh-Hant": "暫不支援打包該目錄"
+  },
+  "ame428.export.lookup": {
+    "en": "Resolving Modrinth download links (SHA-1 lookup)…",
+    "zh-Hans": "正在反查 Modrinth 下载链接（SHA-1）…",
+    "zh-CN": "正在反查 Modrinth 下载链接（SHA-1）…",
+    "zh-Hant": "正在反查 Modrinth 下載連結（SHA-1）…"
+  },
+  "ame428.export.lookup.done": {
+    "en": "Export finished (%ld mod(s) resolved to download links; misses were embedded in overrides)",
+    "zh-Hans": "导出完成（%ld 个 mod 已补直链，未命中的已内嵌进 overrides）",
+    "zh-CN": "导出完成（%ld 个 mod 已补直链，未命中的已内嵌进 overrides）",
+    "zh-Hant": "匯出完成（%ld 個 mod 已補直鏈，未命中的已內嵌進 overrides）"
+  }
+}

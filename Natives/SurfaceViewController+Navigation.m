@@ -20,6 +20,7 @@
 #import "MultiplayerManager.h"
 #import "TerracottaViewController.h"
 #import "TerracottaBridge.h"  // Task222 CI fix: isAvailable 探测（run 37300697020 报 undeclared identifier）
+#import "TouchControllerPreferencesViewController.h"   // ★Task428（6.6）：游戏内菜单「虚拟按键 / 触控布局」直达入口
 #import <objc/runtime.h>
 
 // 暴露 class extension 中的私有属性，供 category 使用
@@ -210,7 +211,8 @@ static UIColor *ame244_snapshotTint(void) {
         @"game.menu.toggle_virtual_mouse",  // 虚拟鼠标开关
         @"game.menu.toggle_keyboard",       // 游戏内键盘
         @"game.menu.resolution",            // 分辨率调整
-        @"game.menu.settings"               // Task232⑰：原为裸英文字串 "Settings"（ localize 找不到键回退原文 = 硬编码残留）
+        @"game.menu.settings",              // Task232⑰：原为裸英文字串 "Settings"（ localize 找不到键回退原文 = 硬编码残留）
+        @"ame428.gamemenu.virtual_controls"  // ★Task428（6.6）：虚拟按键 / 触控布局直达入口（TouchController 设置页）
     ];
 
     // ★ Task237（用户："现在游戏内菜单打开还是就液态玻璃的覆盖层，根本
@@ -293,6 +295,7 @@ static UIColor *ame244_snapshotTint(void) {
         @"keyboard",                              // 游戏内键盘
         @"textformat.size",                       // 分辨率调整
         @"gearshape.fill",                        // 设置
+        @"hand.tap.fill",                         // ★Task428（6.6）：虚拟按键 / 触控布局
     ];
     NSMutableArray<Ame237MenuRow *> *ame237_rows = [NSMutableArray array];
     for (NSUInteger ame237_i = 0; ame237_i < self.menuArray.count; ame237_i++) {
@@ -1142,6 +1145,20 @@ static UIColor *ame244_snapshotTint(void) {
     NSLog(@"[ThemeOps] Task224 in-game settings presented (page sheet + nav wrapper)");
 }
 
+/// ★Task428（6.6 游戏内菜单「虚拟按键 / 触控布局」直达入口）：呈现
+/// TouchControllerPreferencesViewController（触控/虚拟按键行为键族所在
+/// 设置页，如 mod_touch_mode / mod_touch_vibrate_*）。呈现模式沿用
+/// actionOpenPreferences 同款：导航控制器包装 + PageSheet（设置页二级
+/// 推入依赖 navigationController；页面自带 Close 按钮，dismiss 即回游戏）。
+- (void)actionOpenTouchControllerPreferences {
+    [self dismissMenu];
+    TouchControllerPreferencesViewController *vc = [[TouchControllerPreferencesViewController alloc] init];
+    UINavigationController *nav = [[UINavigationController alloc] initWithRootViewController:vc];
+    nav.modalPresentationStyle = UIModalPresentationPageSheet;
+    [self presentViewController:nav animated:YES completion:nil];
+    NSLog(@"[GameMenu] Task428 touch controller preferences presented (page sheet + nav wrapper)");
+}
+
 /// 游戏内打开联机界面（陶瓦联机，与 HMCL/FCL/ZL2 互通）
 ///
 /// 对标 FCL 流程：启动游戏后通过悬浮球菜单进入联机界面，
@@ -1423,6 +1440,9 @@ static UIColor *ame244_snapshotTint(void) {
             break;
         case 10: // 设置
             [self actionOpenPreferences];
+            break;
+        case 11: // ★Task428（6.6）：虚拟按键 / 触控布局（TouchController 设置页直达）
+            [self actionOpenTouchControllerPreferences];
             break;
     }
 }

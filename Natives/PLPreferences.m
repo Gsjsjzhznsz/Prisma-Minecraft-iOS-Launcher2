@@ -25,6 +25,22 @@ NSString *const PREF_MOD_MIRROR = @"general.mod_mirror";
     NSMutableDictionary<NSString *, NSMutableDictionary *> *defaults = @{
         @"general": @{
             @"check_sha": @YES,
+            // ★ Task428（PDF v5 P0 批次）：设置新行/运行时同名键注册（Setter 静默丢弃
+            //   判例家族——未注册键 setObject: 不落盘）。默认值与 ZL2SettingPages.m
+            //   文件头「★Task428 注册注记」逐字对齐。
+            //   下载并发：0=自动（16-64 自适应）；>0 手动 8-64（MinecraftResourceDownloadTask 消费）
+            @"download_threads": @(0),
+            //   手势动作（SurfaceViewController tap/longPress 分发）：0=左键 1=右键 2=无操作
+            @"gesture_tap_action": @(0),
+            @"gesture_longpress_action": @(1),
+            //   长按延迟（秒；未写入时运行时回退旧键 control.press_duration）
+            @"gesture_longpress_delay": @(0.30),
+            //   陀螺仪补齐三参（GyroInput 滑动均值/阈值/Y 反转/采样率）
+            @"gyro_invert_y": @(NO),
+            @"gyro_sample_rate": @(20.0),
+            @"gyro_smoothing": @(30),
+            //   节日彩蛋粒子层总开关（ZL2FestivalEffects 消费；缺省视为开）
+            @"festival_effects": @(YES),
             @"cosmetica": @YES,
             @"debug_logging": @(!CONFIG_RELEASE),
             // Task 125：启动时自动检测更新（默认开；关闭后仅保留手动检查入口）
@@ -373,6 +389,11 @@ NSString *const PREF_MOD_MIRROR = @"general.mod_mirror";
             @"thirdparty_servers": [NSArray new],
             @"translation_notice_dismissed": @NO,
             @"disable_window_rotation_shim": @NO,
+            // ★Task428（1.2 授权行，仅此一行）：全局版本隔离默认档
+            //   （HMCL 语义三态；int 0=自动 MODDED / 1=始终 ALWAYS /
+            //   2=从不 NEVER，默认 0）。读侧 PLProfiles ame428_globalDefault
+            //   （钳 0-2），写侧 ZL2SettingPages 设置行 setPrefInt。
+            @"isolation_default": @(0),
         };
         [defaults[@"general"] addEntriesFromDictionary:general];
 

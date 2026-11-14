@@ -1,0 +1,344 @@
+{
+  "ame428.gp.btn.a": {
+    "en": "Button A",
+    "zh-Hans": "A 键",
+    "zh-CN": "A 键",
+    "zh-Hant": "A 鍵"
+  },
+  "ame428.gp.btn.b": {
+    "en": "Button B",
+    "zh-Hans": "B 键",
+    "zh-CN": "B 键",
+    "zh-Hant": "B 鍵"
+  },
+  "ame428.gp.btn.x": {
+    "en": "Button X",
+    "zh-Hans": "X 键",
+    "zh-CN": "X 键",
+    "zh-Hant": "X 鍵"
+  },
+  "ame428.gp.btn.y": {
+    "en": "Button Y",
+    "zh-Hans": "Y 键",
+    "zh-CN": "Y 键",
+    "zh-Hant": "Y 鍵"
+  },
+  "ame428.gp.btn.lb": {
+    "en": "LB bumper",
+    "zh-Hans": "LB 肩键",
+    "zh-CN": "LB 肩键",
+    "zh-Hant": "LB 肩鍵"
+  },
+  "ame428.gp.btn.rb": {
+    "en": "RB bumper",
+    "zh-Hans": "RB 肩键",
+    "zh-CN": "RB 肩键",
+    "zh-Hant": "RB 肩鍵"
+  },
+  "ame428.gp.btn.lt": {
+    "en": "LT trigger",
+    "zh-Hans": "LT 扳机",
+    "zh-CN": "LT 扳机",
+    "zh-Hant": "LT 扳機"
+  },
+  "ame428.gp.btn.rt": {
+    "en": "RT trigger",
+    "zh-Hans": "RT 扳机",
+    "zh-CN": "RT 扳机",
+    "zh-Hant": "RT 扳機"
+  },
+  "ame428.gp.btn.back": {
+    "en": "BACK",
+    "zh-Hans": "BACK 键",
+    "zh-CN": "BACK 键",
+    "zh-Hant": "BACK 鍵"
+  },
+  "ame428.gp.btn.start": {
+    "en": "START",
+    "zh-Hans": "START 键",
+    "zh-CN": "START 键",
+    "zh-Hant": "START 鍵"
+  },
+  "ame428.gp.btn.l3": {
+    "en": "Left stick click",
+    "zh-Hans": "左摇杆按下",
+    "zh-CN": "左摇杆按下",
+    "zh-Hant": "左搖桿按下"
+  },
+  "ame428.gp.btn.r3": {
+    "en": "Right stick click",
+    "zh-Hans": "右摇杆按下",
+    "zh-CN": "右摇杆按下",
+    "zh-Hant": "右搖桿按下"
+  },
+  "ame428.gp.btn.dpad_up": {
+    "en": "D-pad up",
+    "zh-Hans": "十字键 上",
+    "zh-CN": "十字键 上",
+    "zh-Hant": "十字鍵 上"
+  },
+  "ame428.gp.btn.dpad_down": {
+    "en": "D-pad down",
+    "zh-Hans": "十字键 下",
+    "zh-CN": "十字键 下",
+    "zh-Hant": "十字鍵 下"
+  },
+  "ame428.gp.btn.dpad_left": {
+    "en": "D-pad left",
+    "zh-Hans": "十字键 左",
+    "zh-CN": "十字键 左",
+    "zh-Hant": "十字鍵 左"
+  },
+  "ame428.gp.btn.dpad_right": {
+    "en": "D-pad right",
+    "zh-Hans": "十字键 右",
+    "zh-CN": "十字键 右",
+    "zh-Hant": "十字鍵 右"
+  },
+  "ame428.gp.btn.guide": {
+    "en": "Guide",
+    "zh-Hans": "XBOX 键",
+    "zh-CN": "XBOX 键",
+    "zh-Hant": "XBOX 鍵"
+  },
+  "ame428.gp.capture.hold": {
+    "en": "Hold for about 0.7s to confirm",
+    "zh-Hans": "按住约 0.7 秒完成采集",
+    "zh-CN": "按住约 0.7 秒完成采集",
+    "zh-Hant": "按住約 0.7 秒完成採集"
+  },
+  "ame428.gp.capture.prompt": {
+    "en": "Press the gamepad button to bind to 〈%@〉",
+    "zh-Hans": "按下要绑定到〈%@〉的手柄按键",
+    "zh-CN": "按下要绑定到〈%@〉的手柄按键",
+    "zh-Hant": "按下要綁定到〈%@〉的手柄按鍵"
+  },
+  "ame428.gp.capture.stick": {
+    "en": "Sticks: press the stick click, or tilt the stick fully",
+    "zh-Hans": "摇杆：按下调杆键，或将摇杆推到底",
+    "zh-CN": "摇杆：按下调杆键，或将摇杆推到底",
+    "zh-Hant": "搖桿：按下調桿鍵，或將搖桿推到底"
+  },
+  "ame428.gp.capture.success": {
+    "en": "Bound: %@",
+    "zh-Hans": "已绑定：%@",
+    "zh-CN": "已绑定：%@",
+    "zh-Hant": "已綁定：%@"
+  },
+  "ame428.gp.capture.title": {
+    "en": "Button capture",
+    "zh-Hans": "按下采集",
+    "zh-CN": "按下采集",
+    "zh-Hant": "按下採集"
+  },
+  "ame428.gp.capture.waiting": {
+    "en": "Waiting for gamepad input…",
+    "zh-Hans": "等待手柄输入…",
+    "zh-CN": "等待手柄输入…",
+    "zh-Hant": "等待手柄輸入…"
+  },
+  "ame428.gp.chip.action": {
+    "en": "Action",
+    "zh-Hans": "动作键",
+    "zh-CN": "动作键",
+    "zh-Hant": "動作鍵"
+  },
+  "ame428.gp.chip.all": {
+    "en": "All",
+    "zh-Hans": "全部",
+    "zh-CN": "全部",
+    "zh-Hant": "全部"
+  },
+  "ame428.gp.chip.dpad": {
+    "en": "D-pad",
+    "zh-Hans": "方向键",
+    "zh-CN": "方向键",
+    "zh-Hant": "方向鍵"
+  },
+  "ame428.gp.chip.stick": {
+    "en": "Sticks",
+    "zh-Hans": "摇杆",
+    "zh-CN": "摇杆",
+    "zh-Hant": "搖桿"
+  },
+  "ame428.gp.clear": {
+    "en": "Clear mapping",
+    "zh-Hans": "清除映射",
+    "zh-CN": "清除映射",
+    "zh-Hant": "清除映射"
+  },
+  "ame428.gp.close": {
+    "en": "Close",
+    "zh-Hans": "关闭",
+    "zh-CN": "关闭",
+    "zh-Hant": "關閉"
+  },
+  "ame428.gp.file.dirty": {
+    "en": "Unsaved changes",
+    "zh-Hans": "有未保存的修改",
+    "zh-CN": "有未保存的修改",
+    "zh-Hant": "有未儲存的修改"
+  },
+  "ame428.gp.file.hint": {
+    "en": "Pick a mapping file from controlmap/gamepads",
+    "zh-Hans": "从 controlmap/gamepads 选择映射文件",
+    "zh-CN": "从 controlmap/gamepads 选择映射文件",
+    "zh-Hant": "從 controlmap/gamepads 選擇映射檔案"
+  },
+  "ame428.gp.file.section": {
+    "en": "Mapping file & controller type",
+    "zh-Hans": "映射文件与手柄类型",
+    "zh-CN": "映射文件与手柄类型",
+    "zh-Hant": "映射檔案與手柄類型"
+  },
+  "ame428.gp.file.title": {
+    "en": "Mapping file",
+    "zh-Hans": "映射文件",
+    "zh-CN": "映射文件",
+    "zh-Hant": "映射檔案"
+  },
+  "ame428.gp.filter.empty": {
+    "en": "No controls in this group",
+    "zh-Hans": "该分组暂无控件",
+    "zh-CN": "该分组暂无控件",
+    "zh-Hant": "該分組暫無控件"
+  },
+  "ame428.gp.key.current": {
+    "en": "Current: %@",
+    "zh-Hans": "当前：%@",
+    "zh-CN": "当前：%@",
+    "zh-Hant": "當前：%@"
+  },
+  "ame428.gp.key.group.common": {
+    "en": "Common",
+    "zh-Hans": "常用键",
+    "zh-CN": "常用键",
+    "zh-Hant": "常用鍵"
+  },
+  "ame428.gp.key.group.digits": {
+    "en": "Digits",
+    "zh-Hans": "数字",
+    "zh-CN": "数字",
+    "zh-Hant": "數字"
+  },
+  "ame428.gp.key.group.fn": {
+    "en": "Function keys",
+    "zh-Hans": "功能键",
+    "zh-CN": "功能键",
+    "zh-Hant": "功能鍵"
+  },
+  "ame428.gp.key.group.letters": {
+    "en": "Letters",
+    "zh-Hans": "字母",
+    "zh-CN": "字母",
+    "zh-Hant": "字母"
+  },
+  "ame428.gp.key.group.special": {
+    "en": "Special actions",
+    "zh-Hans": "特殊操作",
+    "zh-CN": "特殊操作",
+    "zh-Hant": "特殊操作"
+  },
+  "ame428.gp.key.none": {
+    "en": "None (unmapped)",
+    "zh-Hans": "无（空映射）",
+    "zh-CN": "无（空映射）",
+    "zh-Hant": "無（空映射）"
+  },
+  "ame428.gp.key.sheet": {
+    "en": "Choose the key to send",
+    "zh-Hans": "选择发送键位",
+    "zh-CN": "选择发送键位",
+    "zh-Hant": "選擇發送鍵位"
+  },
+  "ame428.gp.livehint": {
+    "en": "Press gamepad buttons to light them up (live demo)",
+    "zh-Hans": "按下手柄按键可实时高亮（演示即映射）",
+    "zh-CN": "按下手柄按键可实时高亮（演示即映射）",
+    "zh-Hant": "按下手柄按鍵可實時高亮（演示即映射）"
+  },
+  "ame428.gp.restore": {
+    "en": "Reset to default",
+    "zh-Hans": "恢复默认",
+    "zh-CN": "恢复默认",
+    "zh-Hant": "恢復預設"
+  },
+  "ame428.gp.row.subtitle": {
+    "en": "Trigger: %@ · Sends: %@",
+    "zh-Hans": "触发：%@ · 发送：%@",
+    "zh-CN": "触发：%@ · 发送：%@",
+    "zh-Hant": "觸發：%@ · 發送：%@"
+  },
+  "ame428.gp.schematic.header": {
+    "en": "Mapping overview",
+    "zh-Hans": "映射总览",
+    "zh-CN": "映射总览",
+    "zh-Hant": "映射總覽"
+  },
+  "ame428.gp.spec.menu": {
+    "en": "Open menu",
+    "zh-Hans": "打开菜单",
+    "zh-CN": "打开菜单",
+    "zh-Hant": "打開選單"
+  },
+  "ame428.gp.spec.scrolldown": {
+    "en": "Scroll down",
+    "zh-Hans": "滚轮下",
+    "zh-CN": "滚轮下",
+    "zh-Hant": "滾輪下"
+  },
+  "ame428.gp.spec.scrollup": {
+    "en": "Scroll up",
+    "zh-Hans": "滚轮上",
+    "zh-CN": "滚轮上",
+    "zh-Hant": "滾輪上"
+  },
+  "ame428.gp.spec.virtualmouse": {
+    "en": "Virtual mouse",
+    "zh-Hans": "虚拟鼠标",
+    "zh-CN": "虚拟鼠标",
+    "zh-Hant": "虛擬滑鼠"
+  },
+  "ame428.gp.spec.mousemid": {
+    "en": "Middle click",
+    "zh-Hans": "鼠标中键",
+    "zh-CN": "鼠标中键",
+    "zh-Hant": "滑鼠中鍵"
+  },
+  "ame428.gp.spec.mousesec": {
+    "en": "Right click",
+    "zh-Hans": "鼠标右键",
+    "zh-CN": "鼠标右键",
+    "zh-Hant": "滑鼠右鍵"
+  },
+  "ame428.gp.spec.mousepri": {
+    "en": "Left click",
+    "zh-Hans": "鼠标左键",
+    "zh-CN": "鼠标左键",
+    "zh-Hant": "滑鼠左鍵"
+  },
+  "ame428.gp.spec.togglectrl": {
+    "en": "Toggle controls",
+    "zh-Hans": "切换控件",
+    "zh-CN": "切换控件",
+    "zh-Hant": "切換控件"
+  },
+  "ame428.gp.spec.keyboard": {
+    "en": "Open keyboard",
+    "zh-Hans": "打开键盘",
+    "zh-CN": "打开键盘",
+    "zh-Hant": "打開鍵盤"
+  },
+  "ame428.gp.status.connected": {
+    "en": "Controller connected: %@",
+    "zh-Hans": "已连接手柄：%@",
+    "zh-CN": "已连接手柄：%@",
+    "zh-Hant": "已連接手柄：%@"
+  },
+  "ame428.gp.status.none": {
+    "en": "No controller — tap a row to pick inline",
+    "zh-Hans": "未连接手柄，点按行可用内联选择器",
+    "zh-CN": "未连接手柄，点按行可用内联选择器",
+    "zh-Hant": "未連接手柄，點按行可用內聯選擇器"
+  }
+}

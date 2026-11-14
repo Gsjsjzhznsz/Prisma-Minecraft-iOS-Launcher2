@@ -57,6 +57,33 @@
 #import "ProfileSettingsViewController.h"
 #import "ZL2VersionDetailViewController.h"   // 7.0-UI-13-V：设置钮新目标（ZL2 VersionSettings 容器）
 #import "utils.h"   // localize()
+#import "PLGameIntegrityService.h"   // ★Task428：校验并补全游戏文件（3.3 手动入口）
+
+// ★Task428（1.2/1.3）：PLProfiles 新增类方法的本地前置声明（PLProfiles.h
+//   不在任务授权文件清单内，分类声明 = 零 .h 侵入；签名与 PLProfiles.m
+//   实现逐一对应，勿漂移）。
+@interface PLProfiles (Ame428Task428)
++ (NSInteger)ame428_effectiveIsolationForVid:(NSString *)vid profile:(NSDictionary *)profile;
++ (NSInteger)ame428_effectiveCore:(NSString *)vid profile:(NSDictionary *)profile
+                    forcedOverride:(NSInteger)forcedOverride forcedGlobal:(NSInteger)forcedGlobal;
++ (NSString *)ame428_registerProfileForVid:(NSString *)vid;
++ (NSArray<NSString *> *)ame428_profileNamesReferencingVid:(NSString *)vid;
++ (NSArray<NSDictionary *> *)ame428_computeGlobalFlipsFrom:(NSInteger)oldG to:(NSInteger)newG;
++ (NSDictionary *)ame428_executeIsolationDataMoveForVid:(NSString *)vid
+                                            toIsolated:(BOOL)toIsolated reason:(NSString *)reason;
++ (BOOL)ame428_writeOverride:(NSInteger)override vid:(NSString *)vid;
++ (NSInteger)ame428_overrideForVid:(NSString *)vid;
++ (NSString *)ame428_versionDirForVid:(NSString *)vid;
++ (NSString *)ame428_scanRoot;
++ (void)ame428_recordScanCensusOnce:(NSDictionary *)stats;
++ (NSArray<NSString *> *)ame428_moveCandidatesForVid:(NSString *)vid toIsolated:(BOOL)toIsolated;
++ (void)ame428_presentIsolationMoveFlowFrom:(UIViewController *)presenter
+                                        vid:(NSString *)vid
+                                 toIsolated:(BOOL)toIsolated
+                                     reason:(NSString *)reason
+                                  onCommit:(void (^)(void))onCommit;
++ (BOOL)ame428_isVersionInstalledPerScan:(NSString *)versionId profile:(NSDictionary *)profile;
+@end
 
 // 内容列最大宽（与 ZL2HomeViewController 同款 999 等式宽度方案）
 static const CGFloat ZL2VersionsContentMaxWidth = 520;
@@ -454,52 +481,90 @@ static UIImage *ZL2VersionsSystemImage(NSString *name, NSString *fallback) {
 
 #pragma mark - Data Build
 
-/// 全量重建行模型（loadProfiles 排序同款：键降序）
+/// 全量重建行模型。
+/// ★Task428（1.3）改「扫描即列表」：事实源 = versions/ 目录
+///（<名>/<名>.json 存在且可解析即在列）。吸收 FCL 两细节：
+///   · json 损坏自愈：身份自愈于【目录名】（条目仍入列）+「元数据损坏」
+///     标注（jsonBroken）——不伪造最小合法 JSON（伪造清单会毒化启动链
+///     MRDT 校验；零写入 = 零风险，选实现上最稳的“跳过修复并标注”路线）；
+///   · inheritsFrom 子版本不重复展示：子版本（json 可解析且含
+///     inheritsFrom，且父版本本身在列）并入父版本行（childIds/childCount
+///     字段），不再单独成行；父版本不在列（孤儿子版本）仍独立成行。
+/// 注册表（launcher_profiles.json）保留写入侧角色（PCL/HMCL 互导）；
+/// 扫描版本缺注册条目时在【选用/设置/启动前】engage 补登记
+///（ame428_registerProfileForVid + ZL2Home launchGame 保险点）——
+/// 「列表扫描式但启动仍读注册表」中间态在本提交内闭合。
 - (void)ame_rebuildData {
-    NSMutableDictionary *profiles = PLProfiles.current.profiles;
-    NSMutableArray<NSString *> *keys = [NSMutableArray array];
-    for (NSString *key in profiles.allKeys) {
-        [keys addObject:key];
-    }
-    NSArray<NSString *> *sorted = [keys sortedArrayUsingComparator:^NSComparisonResult(NSString *obj1, NSString *obj2) {
-        return [obj2 compare:obj1];
+    NSArray<NSDictionary *> *ame428_scan = [ZL2VersionsViewController ame428_scanWithOptions:NO];
+    NSDictionary *ame428_profiles = [PLProfiles current].profiles;
+    NSString *ame428_selected = [PLProfiles current].selectedProfileName;
+    NSDictionary *ame428_selectedProfile = [ame428_profiles[ame428_selected] isKindOfClass:[NSDictionary class]]
+        ? ame428_profiles[ame428_selected] : nil;
+
+    // census（12.2：首次全量扫描清查记入迁移报告；真首次由报告内 marker 去重）
+    [PLProfiles ame428_recordScanCensusOnce:@{
+        @"total": @(ame428_scan.count),
+        @"selfHealed": @([ame428_scan filteredArrayUsingPredicate:
+            [NSPredicate predicateWithFormat:@"jsonBroken == YES"]].count),
+        @"jsonMissingExcluded": @([ame428_scan filteredArrayUsingPredicate:
+            [NSPredicate predicateWithFormat:@"jsonState == 0"]].count),
+        @"inheritsExcluded": @([ame428_scan filteredArrayUsingPredicate:
+            [NSPredicate predicateWithFormat:@"inheritsParentListed == YES"]].count),
     }];
 
-    NSString *selected = PLProfiles.current.selectedProfileName;
-    NSMutableArray<NSDictionary *> *rows = [NSMutableArray array];
-    for (NSString *name in sorted) {
-        NSDictionary *profile = profiles[name];
-        if (![profile isKindOfClass:[NSDictionary class]]) continue;
+    // 行构建：条目按 id 降序（沿旧版注册表键降序观感）；json 缺失目录不入列。
+    // 先做 inheritsFrom 并入预演（父 → childIds），再行构建——与遍历序无关。
+    NSMutableDictionary<NSString *, NSMutableArray<NSString *> *> *ame428_kidsByParent = [NSMutableDictionary dictionary];
+    for (NSDictionary *ame428_e in ame428_scan) {
+        if (![ame428_e[@"inheritsParentListed"] boolValue]) continue;
+        NSString *ame428_parentId = ame428_e[@"inheritsFromParent"];
+        if (ame428_parentId.length == 0) continue;
+        NSMutableArray<NSString *> *ame428_kids = ame428_kidsByParent[ame428_parentId];
+        if (!ame428_kids) {
+            ame428_kids = [NSMutableArray array];
+            ame428_kidsByParent[ame428_parentId] = ame428_kids;
+        }
+        [ame428_kids addObject:ame428_e[@"id"]];
+    }
 
-        NSString *versionId = profile[@"lastVersionId"];
-        if (![versionId isKindOfClass:[NSString class]]) versionId = nil;
+    NSMutableArray<NSDictionary *> *ame428_rows = [NSMutableArray array];
+    NSArray<NSDictionary *> *ame428_sorted = [ame428_scan sortedArrayUsingComparator:^NSComparisonResult(NSDictionary *a, NSDictionary *b) {
+        return [b[@"id"] compare:a[@"id"]];
+    }];
+    for (NSDictionary *ame428_e in ame428_sorted) {
+        if ([ame428_e[@"jsonState"] integerValue] == 0) continue;   // json 缺失：无版本身份，不入列
+        if ([ame428_e[@"inheritsParentListed"] boolValue]) continue; // 子版本：并入父行（不重复展示）
+        NSString *ame428_vid = ame428_e[@"id"];
 
-        // ★ Task351：latest 别名占位符不进加载器/MC 版本解析（启动链在线
-        //   解析，信息行留空避免 “MC latest-release” 伪文案）
-        BOOL ame351_alias = [self ame_isLatestAlias:versionId];
+        // 注册表关联（engage 前的未登记版本：显示名 = 版本 id；选用时补登记）
+        NSArray<NSString *> *ame428_refs = [PLProfiles ame428_profileNamesReferencingVid:ame428_vid];
+        NSString *ame428_link = ame428_refs.count > 0 ? ame428_refs.firstObject : nil;
+        NSDictionary *ame428_linkProfile = (ame428_link && [ame428_profiles[ame428_link] isKindOfClass:[NSDictionary class]])
+            ? ame428_profiles[ame428_link] : nil;
 
-        // 加载器 / MC 版本：旧 VC 同款双契约（字符串识别 + parseVersionId 反解）
-        NSString *loader = (versionId && !ame351_alias)
-            ? [ModLoaderIconHelper detectLoaderFromVersionId:versionId] : nil;
-        NSDictionary *parsed = (versionId && !ame351_alias)
-            ? [ModpackExportService parseVersionId:versionId] : @{};
-        NSString *mcVersion = parsed[@"minecraft"] ?: (ame351_alias ? @"" : versionId);
+        BOOL ame428_alias = [self ame_isLatestAlias:ame428_vid];
+        NSString *ame428_loader = (ame428_vid && !ame428_alias)
+            ? [ModLoaderIconHelper detectLoaderFromVersionId:ame428_vid] : nil;
+        NSDictionary *ame428_parsed = (ame428_vid && !ame428_alias)
+            ? [ModpackExportService parseVersionId:ame428_vid] : @{};
+        NSString *ame428_mc = ame428_parsed[@"minecraft"] ?: (ame428_alias ? @"" : ame428_vid);
 
-        // 无效版本：versions/<id>/<id>.json 不存在（路径口径 = 旧 VC
-        // ame256_scanVersionsForCleanup：GAME_DIR 优先、POJAV_HOME 兜底）
-        BOOL valid = [self ame_isVersionIdValid:versionId forProfile:profile];
-
-        [rows addObject:@{
-            @"name": name,
-            @"versionId": versionId ?: @"",
-            @"loader": loader ?: @"",
-            @"mcVersion": mcVersion ?: @"",
-            @"summary": [self ame_formatLastPlayed:profile[@"lastPlayed"]],
-            @"valid": @(valid),
-            @"isSelected": @([name isEqualToString:selected]),
+        [ame428_rows addObject:@{
+            @"name": (ame428_link ?: ame428_vid),                  // 卡片显示名：关联实例名优先
+            @"profileName": (ame428_link ?: @""),                  // engage 动作目标（注册表键）
+            @"registered": @(ame428_link.length > 0),
+            @"versionId": ame428_vid ?: @"",
+            @"loader": ame428_loader ?: @"",
+            @"mcVersion": ame428_mc ?: @"",
+            @"summary": [self ame_formatLastPlayed:ame428_linkProfile[@"lastPlayed"]],
+            @"valid": @([ame428_e[@"jsonState"] integerValue] == 1),
+            @"damaged": @([ame428_e[@"jsonBroken"] boolValue]),
+            @"childIds": (ame428_kidsByParent[ame428_vid] ?: @[]),
+            @"isSelected": @([ame428_selectedProfile[@"lastVersionId"] isKindOfClass:[NSString class]] &&
+                [ame428_selectedProfile[@"lastVersionId"] isEqualToString:ame428_vid]),
         }];
     }
-    self.ame_allRows = rows;
+    self.ame_allRows = ame428_rows;
 }
 
 - (BOOL)ame_isVersionIdValid:(NSString *)versionId {
@@ -656,6 +721,10 @@ static UIImage *ZL2VersionsSystemImage(NSString *name, NSString *fallback) {
     NSString *summary = row[@"summary"];
     NSString *versionId = row[@"versionId"];
     BOOL valid = [row[@"valid"] boolValue];
+    BOOL damaged = [row[@"damaged"] boolValue];
+    BOOL registered = [row[@"registered"] boolValue];
+    NSArray<NSString *> *childIds = [row[@"childIds"] isKindOfClass:[NSArray class]]
+        ? row[@"childIds"] : @[];
     BOOL isSelected = [row[@"isSelected"] boolValue];
 
     ZL2VersionsTapControl *card = [[ZL2VersionsTapControl alloc] init];
@@ -668,10 +737,16 @@ static UIImage *ZL2VersionsSystemImage(NSString *name, NSString *fallback) {
                                valid ? localize(@"ame369.common.valid", @"有效") : localize(@"ame369.common.invalid_version", @"该版本无效")];
 
     // —— 整卡点击 = 选用（ZL2 Surface onClick 同语义；无效版本沿用旧 VC
-    //    口径不拦截——旧 selectProfileNamed 无有效性守卫）——
+    //    口径不拦截——旧 selectProfileNamed 无有效性守卫）。
+    //    ★Task428：未登记版本（扫描在列/注册表无条目）→ engage 补登记
+    //    （含翻转确认+下沉），已登记 → 沿用原选用链 ——
     __weak ZL2VersionsViewController *weakSelf = self;
     card.ame_action = ^{
-        [weakSelf ame_selectProfileNamed:profileName];
+        if (registered) {
+            [weakSelf ame_selectProfileNamed:profileName];
+        } else {
+            [weakSelf ame428_selectVersionRow:row];
+        }
     };
 
     UIStackView *innerRow = [[UIStackView alloc] init];
@@ -752,9 +827,11 @@ static UIImage *ZL2VersionsSystemImage(NSString *name, NSString *fallback) {
         badgeContainer.translatesAutoresizingMaskIntoConstraints = NO;
 
         UILabel *badgeLabel = [[UILabel alloc] init];
-        // ★ Task351：versionId 空 = 未选择版本，区别于“选了但实体缺失”
-        badgeLabel.text = (versionId.length == 0)
-            ? localize(@"ame351.instance.no_version", nil)
+        // ★ Task351：versionId 空 = 未选择版本，区别于“选了但实体缺失”。
+        //    ★Task428：扫描即列表后 !valid 只剩一种成因 = json 损坏（身份
+        //    自愈于目录名，标注待修复，不伪造清单——不阻断选用/修复入口）。
+        badgeLabel.text = (damaged || versionId.length == 0)
+            ? localize(@"ame428.vers.json_damaged", @"元数据损坏")
             : localize(@"ame369.common.invalid_version", @"该版本无效");
         badgeLabel.font = [ZL2Theme fontLabelMedium];
         badgeLabel.textColor = [ZL2Theme error];
@@ -784,6 +861,11 @@ static UIImage *ZL2VersionsSystemImage(NSString *name, NSString *fallback) {
         } else if (loader.length > 0) {
             tagLabel.text = [ModLoaderIconHelper displayNameForLoader:loader];
         }
+        // ★Task428：inheritsFrom 子版本并入展示（父行尾追派生计数）
+        if (childIds.count > 0) {
+            NSString *ame428_kids = [NSString stringWithFormat:localize(@"ame428.vers.children_fmt", @" · %lu 派生版本"), (unsigned long)childIds.count];
+            tagLabel.text = [(tagLabel.text ?: @"") stringByAppendingString:ame428_kids];
+        }
         tagLabel.hidden = (tagLabel.text.length == 0);
         [tagStack addArrangedSubview:tagLabel];
     }
@@ -805,7 +887,12 @@ static UIImage *ZL2VersionsSystemImage(NSString *name, NSString *fallback) {
                                                                      size:32
                                                            accessibility:localize(@"ame369.vers.version_settings", @"版本设置")];
     settingsButton.ame_action = ^{
-        [weakSelf ame_openSettingsForProfile:profileName];
+        // ★Task428：未登记版本 → engage（补登记）后进设置；已登记 → 原链
+        if (registered) {
+            [weakSelf ame_openSettingsForProfile:profileName];
+        } else {
+            [weakSelf ame428_engageSettingsForRow:row];
+        }
     };
 
     // 更多（ellipsis）→ actionSheet：删除（旧 VC deleteProfile: 全链 1:1；
@@ -818,7 +905,13 @@ static UIImage *ZL2VersionsSystemImage(NSString *name, NSString *fallback) {
     // actionSheet 同步弹出窗口期内按钮必然存活
     __weak ZL2VersionsTapControl *weakMoreButton = moreButton;
     moreButton.ame_action = ^{
-        [weakSelf ame_showMoreSheetForProfile:profileName fromView:weakMoreButton];
+        if (registered) {
+            [weakSelf ame_showMoreSheetForProfile:profileName fromView:weakMoreButton];
+        } else {
+            // ★Task428：未登记版本 → 直接删除版本目录（无注册表条目可删；
+            //    沿用清理中心同款确认文案口径）
+            [weakSelf ame428_deleteUnregisteredVersion:row fromView:weakMoreButton];
+        }
     };
 
     UIStackView *rightStack = [[UIStackView alloc] initWithArrangedSubviews:@[settingsButton, moreButton]];
@@ -867,6 +960,95 @@ static UIImage *ZL2VersionsSystemImage(NSString *name, NSString *fallback) {
     [[NSNotificationCenter defaultCenter] postNotificationName:@"SelectedProfileChanged" object:nil];
     [self ame_rebuildData];
     [self ame_rebuildList];
+}
+
+#pragma mark - ★Task428（1.3）：未登记版本的 engage 动作（注册补登记闭环）
+
+/// 未登记版本整卡点击 = engage + 选用。翻转检查：engage 落位
+/// gameDir=versions/<vid>（ame338 恢复流/整合包安装链同款）前后有效隔离
+/// 从否变是时，先走确认框 + 一次性下沉（1.4；先问再动，取消不落任何状态）。
+- (void)ame428_selectVersionRow:(NSDictionary *)row {
+    NSString *vid = row[@"versionId"];
+    if (![vid isKindOfClass:[NSString class]] || vid.length == 0) return;
+    NSInteger ame428_before = [PLProfiles ame428_effectiveIsolationForVid:vid profile:nil];
+    __weak ZL2VersionsViewController *weakSelf = self;
+    void (^ame428_commit)(void) = ^{
+        [PLProfiles ame428_registerProfileForVid:vid];
+        [weakSelf ame_selectProfileNamed:vid];
+        [[NSNotificationCenter defaultCenter] postNotificationName:@"ReloadProfileList" object:nil];
+    };
+    if (ame428_before == 0) {
+        // 注册后（gameDir=versions/<vid>）即隔离——先问再动（1.4；共享呈现流
+        // 宿主 = PLProfiles 模型类，页面间零直连纪律）
+        [PLProfiles ame428_presentIsolationMoveFlowFrom:self
+                                                   vid:vid
+                                            toIsolated:YES
+                                                reason:@"engage-select"
+                                               onCommit:ame428_commit];
+        return;
+    }
+    ame428_commit();
+}
+
+/// 未登记版本设置钮 = engage 后进版本详情（注册表条目是详情页容器身份）。
+- (void)ame428_engageSettingsForRow:(NSDictionary *)row {
+    NSString *vid = row[@"versionId"];
+    if (![vid isKindOfClass:[NSString class]] || vid.length == 0) return;
+    NSInteger ame428_before = [PLProfiles ame428_effectiveIsolationForVid:vid profile:nil];
+    if (ame428_before == 0) {
+        __weak ZL2VersionsViewController *weakSelf = self;
+        [PLProfiles ame428_presentIsolationMoveFlowFrom:self
+                                                   vid:vid
+                                            toIsolated:YES
+                                                reason:@"engage-settings"
+                                               onCommit:^{
+            [weakSelf ame428_openSettingsForVidAfterEngage:vid];
+        }];
+        return;
+    }
+    [self ame428_openSettingsForVidAfterEngage:vid];
+}
+
+- (void)ame428_openSettingsForVidAfterEngage:(NSString *)vid {
+    [PLProfiles ame428_registerProfileForVid:vid];
+    [[NSNotificationCenter defaultCenter] postNotificationName:@"ReloadProfileList" object:nil];
+    [self ame_openSettingsForProfile:vid];
+}
+
+/// 未登记版本更多菜单 = 直接删除版本目录（扫描在列/注册表无条目；无
+/// 引用计数守卫需求——不存任何引用它的 profile）。确认文案沿用清理中心
+/// 「无引用版本」口径（Task242 隔离的 game 目录一并删除）。
+- (void)ame428_deleteUnregisteredVersion:(NSDictionary *)row fromView:(UIView *)sourceView {
+    NSString *vid = row[@"versionId"];
+    if (![vid isKindOfClass:[NSString class]] || vid.length == 0) return;
+    NSString *ame428_dir = [PLProfiles ame428_versionDirForVid:vid];
+    if (ame428_dir.length == 0) return;
+    UIAlertController *confirm = [UIAlertController
+        alertControllerWithTitle:localize(@"vm.scan.title", @"扫描版本")
+                         message:[NSString stringWithFormat:
+                             localize(@"cleanup.orphan_confirm",
+                                 @"删除无引用版本「%@」及其隔离数据目录？（Task242 隔离的 game 目录一并删除，存档不保留）"), vid]
+                          preferredStyle:UIAlertControllerStyleAlert];
+    [confirm addAction:[UIAlertAction actionWithTitle:localize(@"resman.common.cancel", nil)
+                                                style:UIAlertActionStyleCancel handler:nil]];
+    [confirm addAction:[UIAlertAction actionWithTitle:localize(@"i18n_str_306", nil)
+                                                style:UIAlertActionStyleDestructive
+                                              handler:^(__unused UIAlertAction *a) {
+        NSError *ame428_err = nil;
+        if ([NSFileManager.defaultManager removeItemAtPath:ame428_dir error:&ame428_err]) {
+            NSLog(@"[ZL2Versions] Task428: removed unregistered version dir %@ (%@)", vid, ame428_dir);
+        } else {
+            NSLog(@"[ZL2Versions] Task428: failed to remove %@: %@", ame428_dir, ame428_err);
+            [self showAlert:[NSString stringWithFormat:localize(@"i18n_str_1088", nil),
+                ame428_err.localizedDescription ?: @"?"]];
+        }
+        [self ame_rebuildData];
+        [self ame_rebuildList];
+        [[NSNotificationCenter defaultCenter] postNotificationName:@"ReloadProfileList" object:nil];
+    }]];
+    confirm.popoverPresentationController.sourceView = sourceView;
+    confirm.popoverPresentationController.sourceRect = sourceView.bounds;
+    [self presentViewController:confirm animated:YES completion:nil];
 }
 
 /// 版本设置：7.0-UI-13-V 起进 ZL2 版本详情容器（NestedNavKey.VersionSettings
@@ -1009,6 +1191,14 @@ static UIImage *ZL2VersionsSystemImage(NSString *name, NSString *fallback) {
                                               style:UIAlertActionStyleDefault
                                             handler:^(__unused UIAlertAction *a) {
         [self ame338_showCleanup];
+    }]];
+    // ★Task428（3.3 手动入口）：校验并补全游戏文件（HMCL checkGameState 闭环）。
+    //   自包含流程：遮罩进度卡（校验→修复）+ 结果三类清单 + 报告写
+    //   POJAV_HOME/game_integrity_report.txt；补全走 PLDownloadClient 现有队列。
+    [sheet addAction:[UIAlertAction actionWithTitle:localize(@"ame428.verify.entry", nil)
+                                              style:UIAlertActionStyleDefault
+                                            handler:^(__unused UIAlertAction *a) {
+        [[PLGameIntegrityService sharedService] runInteractiveVerifyAndRepairFromViewController:self];
     }]];
     [sheet addAction:[UIAlertAction actionWithTitle:localize(@"resman.common.cancel", nil)
                                               style:UIAlertActionStyleCancel handler:nil]];
@@ -1182,42 +1372,110 @@ static UIImage *ZL2VersionsSystemImage(NSString *name, NSString *fallback) {
 
 /// versions/ 全量扫描（VM ame256_scanVersionsForCleanup 1:1 移植）：
 /// GAME_DIR 优先 / HOME 兜底，引用判定 = 实例 lastVersionId 集合。
+/// ★Task428（1.3）：本体降级为包装（含体积档），扫描核心见
+/// ame428_scanWithOptions:（jsonState 三态 + inheritsFrom 判定）。
 + (NSArray<NSDictionary *> *)ame338_scanInstalledVersions {
-    NSString *versionsDir = [NSString stringWithFormat:@"%s/versions",
-        getenv("POJAV_GAME_DIR") ? getenv("POJAV_GAME_DIR") : getenv("POJAV_HOME")];
-    NSMutableArray<NSDictionary *> *result = [NSMutableArray array];
-    NSArray<NSString *> *entries = [NSFileManager.defaultManager
-        contentsOfDirectoryAtPath:versionsDir error:nil];
-    if (entries.count == 0) return result;
-    NSMutableSet<NSString *> *referenced = [NSMutableSet set];
-    for (NSString *key in PLProfiles.current.profiles) {
-        NSDictionary *p = PLProfiles.current.profiles[key];
-        if ([p isKindOfClass:NSDictionary.class] &&
-            [p[@"lastVersionId"] isKindOfClass:[NSString class]]) {
-            [referenced addObject:p[@"lastVersionId"]];
+    return [self ame428_scanWithOptions:YES];
+}
+
+/// 扫描结果内按 id 取条目（inheritsParentListed 二遍判定用；文件内静态。
+/// 定义先于消费——C 函数需前置可见）。
+static NSDictionary *ame428_byIdLocal(NSArray<NSDictionary *> *list, NSString *vid) {
+    for (NSDictionary *ame428_e in list) {
+        if ([ame428_e[@"id"] isEqualToString:vid]) return ame428_e;
+    }
+    return @{};
+}
+
+/// ★Task428（1.3）：扫描核心——列表事实源（versions/ 目录）。
+/// 每条目键：id / path / jsonState（0=缺失 1=可解析 2=损坏）/ jsonOK
+///（兼容键 = jsonState==1）/ jsonBroken（身份自愈于目录名 = 损坏标注）/
+/// inheritsFromParent（可解析且含 inheritsFrom）/ inheritsParentListed
+///（父版本本身在列——父 jsonState!=0 且非子版本自身循环）/ referenced /
+/// sizeBytes（includeSize=YES 时才有；轻量档跳过递归求积，主线程零卡顿）。
++ (NSArray<NSDictionary *> *)ame428_scanWithOptions:(BOOL)includeSize {
+    NSString *ame428_versionsDir = [[PLProfiles ame428_scanRoot]
+        stringByAppendingPathComponent:@"versions"];
+    NSMutableArray<NSDictionary *> *ame428_result = [NSMutableArray array];
+    NSArray<NSString *> *ame428_entries = [NSFileManager.defaultManager
+        contentsOfDirectoryAtPath:ame428_versionsDir error:nil];
+    if (ame428_entries.count == 0) return ame428_result;
+    NSMutableSet<NSString *> *ame428_referenced = [NSMutableSet set];
+    NSDictionary *ame428_profiles = [PLProfiles current].profiles;
+    for (NSString *ame428_key in ame428_profiles.allKeys) {
+        NSDictionary *ame428_p = ame428_profiles[ame428_key];
+        if ([ame428_p isKindOfClass:NSDictionary.class] &&
+            [ame428_p[@"lastVersionId"] isKindOfClass:[NSString class]]) {
+            [ame428_referenced addObject:ame428_p[@"lastVersionId"]];
         }
     }
-    for (NSString *entry in entries) {
-        NSString *vdir = [versionsDir stringByAppendingPathComponent:entry];
-        BOOL isDir = NO;
-        if (![NSFileManager.defaultManager fileExistsAtPath:vdir isDirectory:&isDir] || !isDir) continue;
-        NSString *jsonPath = [vdir stringByAppendingPathComponent:
-            [NSString stringWithFormat:@"%@.json", entry]];
-        BOOL jsonOK = [NSFileManager.defaultManager fileExistsAtPath:jsonPath];
-        unsigned long long folderSize = 0;
-        [ZL2VersionsViewController ame338_calculateFolderSizeAtPath:vdir size:&folderSize];
-        [result addObject:@{
-            @"id": entry,
-            @"path": vdir,
-            @"jsonOK": @(jsonOK),
-            @"referenced": @([referenced containsObject:entry]),
-            @"sizeBytes": @(folderSize),
+    for (NSString *ame428_entry in ame428_entries) {
+        NSString *ame428_vdir = [ame428_versionsDir stringByAppendingPathComponent:ame428_entry];
+        BOOL ame428_isDir = NO;
+        if (![NSFileManager.defaultManager fileExistsAtPath:ame428_vdir
+                                                 isDirectory:&ame428_isDir] || !ame428_isDir) continue;
+        NSString *ame428_jsonPath = [ame428_vdir stringByAppendingPathComponent:
+            [NSString stringWithFormat:@"%@.json", ame428_entry]];
+        // jsonState 三态（身份 = 目录名；损坏自愈 = 仍入列 + 标注，不伪造清单）
+        NSInteger ame428_jsonState = 0;
+        NSDictionary *ame428_manifest = nil;
+        if ([NSFileManager.defaultManager fileExistsAtPath:ame428_jsonPath]) {
+            NSMutableDictionary *ame428_parsed = parseJSONFromFile(ame428_jsonPath);
+            if ([ame428_parsed isKindOfClass:[NSDictionary class]] && !ame428_parsed[@"NSErrorObject"]) {
+                ame428_jsonState = 1;
+                ame428_manifest = ame428_parsed;
+            } else {
+                ame428_jsonState = 2;   // 存在但不可解析 → 损坏（身份自愈于目录名）
+            }
+        }
+        NSString *ame428_inherits = nil;
+        if (ame428_jsonState == 1 && [ame428_manifest isKindOfClass:[NSDictionary class]]) {
+            id ame428_raw = ame428_manifest[@"inheritsFrom"];
+            if ([ame428_raw isKindOfClass:[NSString class]] &&
+                ame428_raw.length > 0 && ![ame428_raw isEqualToString:ame428_entry]) {
+                ame428_inherits = ame428_raw;
+            }
+        }
+        unsigned long long ame428_folderSize = 0;
+        if (includeSize) {
+            [ZL2VersionsViewController ame338_calculateFolderSizeAtPath:ame428_vdir size:&ame428_folderSize];
+        }
+        [ame428_result addObject:@{
+            @"id": ame428_entry,
+            @"path": ame428_vdir,
+            @"jsonState": @(ame428_jsonState),
+            @"jsonOK": @(ame428_jsonState == 1),
+            @"jsonBroken": @(ame428_jsonState == 2),
+            @"inheritsFromParent": ame428_inherits ?: @"",
+            @"referenced": @([ame428_referenced containsObject:ame428_entry]),
+            @"sizeBytes": @(ame428_folderSize),
         }];
     }
-    [result sortUsingComparator:^NSComparisonResult(NSDictionary *a, NSDictionary *b) {
+    // inheritsParentListed 二遍判定（父必须在列 = jsonState!=0 且父非子版本）。
+    // 索引循环 + replaceObjectAtIndex（fast enumeration 中替换 = 运行时变异崩溃）
+    NSMutableSet<NSString *> *ame428_ids = [NSMutableSet set];
+    for (NSDictionary *ame428_e in ame428_result) [ame428_ids addObject:ame428_e[@"id"]];
+    for (NSUInteger ame428_i = 0; ame428_i < ame428_result.count; ame428_i++) {
+        NSDictionary *ame428_e = ame428_result[ame428_i];
+        NSString *ame428_parent = ame428_e[@"inheritsFromParent"];
+        BOOL ame428_listed = (ame428_parent.length > 0
+            && [ame428_ids containsObject:ame428_parent]
+            && [(ame428_byIdLocal(ame428_result, ame428_parent)[@"jsonState"] ?: @(0)) integerValue] != 0);
+        NSMutableDictionary *ame428_m = [ame428_e mutableCopy];
+        ame428_m[@"inheritsParentListed"] = @(ame428_listed);
+        [ame428_result replaceObjectAtIndex:ame428_i withObject:ame428_m];
+    }
+    [ame428_result sortUsingComparator:^NSComparisonResult(NSDictionary *a, NSDictionary *b) {
         return [a[@"id"] compare:b[@"id"]];
     }];
-    return result;
+    return ame428_result;
+}
+
+/// latest 别名占位符（静态版；本文件消费口径同 Task351 实例版）。
++ (BOOL)ame_isLatestAliasStatic:(NSString *)versionId {
+    return [versionId isEqualToString:@"latest-release"] ||
+           [versionId isEqualToString:@"latest-snapshot"] ||
+           [versionId isEqualToString:@"latest"];
 }
 
 @end

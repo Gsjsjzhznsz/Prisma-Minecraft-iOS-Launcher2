@@ -3,6 +3,8 @@
 #import "AmeNativeMenu.h"   // ★ Task240：菜单全面系统原生 UIMenu 化
 #import "SurfaceViewController.h"
 #import "utils.h"
+#import "PLLogShareService.h"   // ★Task428：5.3 日志上传（logshare.cn/mclo.gs 双端点）
+#import "FluentToast.h"          // ★Task428：上传进度/失败 toast
 
 @interface PLLogOutputView()<UITableViewDataSource, UITableViewDelegate>
 @property(nonatomic) UITableView* logTableView;
@@ -113,6 +115,87 @@ static PLLogOutputView* current;
     [currentVC() presentViewController:activityVC animated:YES completion:nil];
 }
 
+#pragma mark - ★Task428 5.3 日志上传（latestlog.txt → logshare.cn/mclo.gs）
+
+// 「上传并获取链接」钮（图标+文案；UIBarButtonItem customView 形态，图标为
+// PLLogShareService 自绘模板图随系统 tint 着色，观感对齐本页既有系统分享钮）
+- (UIButton *)ame428_uploadBarButtonButton {
+    UIButton *button = [UIButton buttonWithType:UIButtonTypeSystem];
+    [button setImage:[PLLogShareService ame428_uploadIconImage] forState:UIControlStateNormal];
+    [button setTitle:localize(@"ame428.upload.button", nil) forState:UIControlStateNormal];
+    button.titleLabel.font = [UIFont systemFontOfSize:14.0 weight:UIFontWeightMedium];
+    button.contentEdgeInsets = UIEdgeInsetsMake(4.0, 6.0, 4.0, 6.0);
+    button.titleEdgeInsets = UIEdgeInsetsMake(0.0, 4.0, 0.0, 0.0);
+    [button addTarget:self action:@selector(ame428_uploadLatestlog)
+      forControlEvents:UIControlEventTouchUpInside];
+    [button sizeToFit];
+    return button;
+}
+
+// 上传主流程：files = [{latestlog.txt 全文}]（服务内做脱敏/截尾/双端点 failover）
+- (void)ame428_uploadLatestlog {
+    NSArray<NSDictionary<NSString *, NSString *> *> *files = [PLLogShareService ame428_collectLatestlogFile];
+    if (files.count == 0) {
+        [FluentToast showWithTitle:localize(@"ame428.upload.failed_title", nil)
+                             detail:localize(@"ame428.upload.no_content", nil)
+                           variant:FluentToastVariantWarning
+                           duration:3.0];
+        return;
+    }
+    // 进度 toast（duration 0 = 不自动消失，完成时统一收起）
+    [FluentToast showWithTitle:localize(@"ame428.upload.uploading", nil)
+                         detail:nil
+                       variant:FluentToastVariantNeutral
+                       duration:0.0];
+    [[PLLogShareService sharedService] uploadFiles:files
+                                          metadata:[PLLogShareService ame428_buildDefaultMetadata]
+                                        completion:^(BOOL ok, NSString * _Nullable url,
+                                                     NSString * _Nullable rawUrl,
+                                                     NSString * _Nullable deleteToken,
+                                                     NSError * _Nullable error) {
+        // 服务侧已切主线程回调
+        [FluentToast dismiss];
+        if (!ok) {
+            // 失败 toast：主文案 i18n + 端点细节（两端点均失败说明在服务内拼接）
+            [FluentToast showWithTitle:localize(@"ame428.upload.failed_title", nil)
+                                 detail:error.localizedDescription
+                               variant:FluentToastVariantDanger
+                               duration:4.0];
+            return;
+        }
+        [self ame428_presentSuccessMenuForUrl:url];
+    }];
+}
+
+// 成功菜单（复制链接/在浏览器打开/系统分享——仓内既有 AmeNativeMenu 菜单模式）
+- (void)ame428_presentSuccessMenuForUrl:(NSString *)url {
+    [AmeNativeMenu ame240_presentMenuWithTitle:url
+                                     dictItems:@[
+        @{ @"title": localize(@"ame428.upload.copy_link", nil), @"handler": ^{
+            UIPasteboard.generalPasteboard.string = url;
+            [FluentToast showWithTitle:localize(@"ame428.upload.link_copied", nil)
+                                 detail:nil
+                               variant:FluentToastVariantSuccess
+                               duration:2.5];
+        } },
+        @{ @"title": localize(@"ame428.upload.open_browser", nil), @"handler": ^{
+            NSURL *target = [NSURL URLWithString:url];
+            if (target) {
+                [UIApplication.sharedApplication openURL:target
+                                                   options:@{}
+                                         completionHandler:nil];
+            }
+        } },
+        @{ @"title": localize(@"ame428.upload.share", nil), @"handler": ^{
+            UIActivityViewController *activityVC = [[UIActivityViewController alloc]
+                initWithActivityItems:@[url] applicationActivities:nil];
+            activityVC.popoverPresentationController.sourceView = current.navigationBar;
+            activityVC.popoverPresentationController.sourceRect = current.navigationBar.bounds;
+            [currentVC() presentViewController:activityVC animated:YES completion:nil];
+        } },
+    ] sourceView:current.navigationBar];
+}
+
 - (void)actionStartStopLogOutput {
     canAppendToLog = !canAppendToLog;
     UINavigationItem* item = self.navigationBar.items[0];
@@ -214,9 +297,14 @@ static PLLogOutputView* current;
         UINavigationBar *navigationBar = current.navigationBar;
         navigationBar.topItem.title = [NSString stringWithFormat:
             localize(@"game.title.exit_code", nil), code];
-        navigationBar.items[0].leftBarButtonItem = [[UIBarButtonItem alloc]
+        // ★Task428：分享区（退出态左钮簇）——原系统分享钮旁挂「上传并获取链接」
+        //   （图标+文案，样式对齐本页既有分享钮），files = latestlog 全文直传
+        UIBarButtonItem *ame428_shareItem = [[UIBarButtonItem alloc]
             initWithBarButtonSystemItem:UIBarButtonSystemItemAction
             target:current action:@selector(actionShareLatestlog)];
+        UIBarButtonItem *ame428_uploadItem = [[UIBarButtonItem alloc]
+            initWithCustomView:[current ame428_uploadBarButtonButton]];
+        navigationBar.items[0].leftBarButtonItems = @[ame428_shareItem, ame428_uploadItem];
         UIBarButtonItem *exitItem = navigationBar.items[0].rightBarButtonItems[0];
         navigationBar.items[0].rightBarButtonItems = nil;
         navigationBar.items[0].rightBarButtonItem = exitItem;

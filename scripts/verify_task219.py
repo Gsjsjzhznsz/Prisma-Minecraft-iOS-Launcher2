@@ -217,7 +217,8 @@ for lang in ["en", "zh-Hans", "zh-Hant", "zh-CN"]:
     # ★ Task425 重锚：+9 键增量四表同步（ame425 gear/panel.title/done/contrast/scale/bg 四世界 = task191 同锚 3732）= 3732
     # ★ Task426 重锚：+9 键增量四表同步（ame426 dial.caption/time 四态/weather 三段 = task191 同锚 3741）= 3741
     # ★ Task427 重锚：+5 键增量四表同步（ame427 fs 双态/占位/维度固定光照/姿态 a11y = task191 同锚 3746）= 3746
-    check(f"J-{lang} 唯一键 3746（★Task427 重锚：…369 = 3702 → 419 补账 +13 = 3715 → 424 +8 = 3723 → 425 +9 = 3732 → 426 时间盘/天气 +9 = 3741 → 427 全屏/维度固定光照/姿态 a11y +5（四表同步 task191 同锚）= 3746）", len(keys) == 3746, f"got {len(keys)}")
+    # ★ Task428 重锚：+79 键增量四表同步（PDF v5 P0 批次：聚合搜索 4/完整性校验 17/关于页+设置行 46/节日彩蛋与 logshare 上传 11/游戏内菜单入口 1 = task191 同锚 3825）= 3825
+    check(f"J-{lang} 唯一键 3946（★Task428 重锚：…427 +5 = 3746 → 428 PDF v5 P0 批次 +79 = 3825 → 428 P1 批次 +121（版本隔离/手柄向导/整合包格式/壳层入口，四表同步 task191 同锚）= 3946）", len(keys) == 3946, f"got {len(keys)}")
 check("J-公告 6 条（★Task419 补锚：repo2 实态——Task413-r3 起 6 条，region-notice 为 repo1 专有从未入 repo2；pin 语义保持）",
       len(ann) == 6
       and any(a["id"] == "server-recommend-2026-09-24" for a in ann)

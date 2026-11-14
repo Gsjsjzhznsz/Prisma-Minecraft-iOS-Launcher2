@@ -1,0 +1,278 @@
+{
+  "ame428.about.section_launcher": {
+    "en": "About the Launcher",
+    "zh-Hans": "关于启动器",
+    "zh-CN": "关于启动器",
+    "zh-Hant": "關於啟動器"
+  },
+  "ame428.about.buildtag": {
+    "en": "Build Tag",
+    "zh-Hans": "构建代际",
+    "zh-CN": "构建代际",
+    "zh-Hant": "構建代際"
+  },
+  "ame428.about.team": {
+    "en": "Authors & Team",
+    "zh-Hans": "作者与团队",
+    "zh-CN": "作者与团队",
+    "zh-Hant": "作者與團隊"
+  },
+  "ame428.about.section_credits": {
+    "en": "Credits",
+    "zh-Hans": "鸣谢",
+    "zh-CN": "鸣谢",
+    "zh-Hant": "鳴謝"
+  },
+  "ame428.about.section_deps": {
+    "en": "Dependencies",
+    "zh-Hans": "依赖库",
+    "zh-CN": "依赖库",
+    "zh-Hant": "依賴庫"
+  },
+  "ame428.about.section_plugins": {
+    "en": "Loaded Plugins",
+    "zh-Hans": "已加载插件",
+    "zh-CN": "已加载插件",
+    "zh-Hant": "已載入插件"
+  },
+  "ame428.credit.zalith2": {
+    "en": "Android Minecraft launcher; design reference for this app's settings UI and SDL3 embedding",
+    "zh-Hans": "Android 平台 Minecraft 启动器，本应用设置界面与 SDL3 嵌入方案的设计参考",
+    "zh-CN": "Android 平台 Minecraft 启动器，本应用设置界面与 SDL3 嵌入方案的设计参考",
+    "zh-Hant": "Android 平台 Minecraft 啟動器，本應用設定介面與 SDL3 嵌入方案的設計參考"
+  },
+  "ame428.credit.pojav": {
+    "en": "The foundational open-source project for running Minecraft: Java Edition on iOS/Android; origin of this app's lineage",
+    "zh-Hans": "在 iOS/Android 运行 Minecraft: Java Edition 的奠基开源项目，本项目谱系源头",
+    "zh-CN": "在 iOS/Android 运行 Minecraft: Java Edition 的奠基开源项目，本项目谱系源头",
+    "zh-Hant": "在 iOS/Android 執行 Minecraft: Java Edition 的奠基開源專案，本專案譜系源頭"
+  },
+  "ame428.credit.fcl": {
+    "en": "Android Minecraft launcher; design reference for the sign-in form and multiplayer UI",
+    "zh-Hans": "Android 平台 Minecraft 启动器，登录表单与联机界面设计参考",
+    "zh-CN": "Android 平台 Minecraft 启动器，登录表单与联机界面设计参考",
+    "zh-Hant": "Android 平台 Minecraft 啟動器，登入表單與聯機介面設計參考"
+  },
+  "ame428.credit.hmcl": {
+    "en": "Cross-platform open-source Minecraft launcher; multiplayer interop and data import reference",
+    "zh-Hans": "跨平台开源 Minecraft 启动器，联机互通与数据导入兼容参考",
+    "zh-CN": "跨平台开源 Minecraft 启动器，联机互通与数据导入兼容参考",
+    "zh-Hant": "跨平台開源 Minecraft 啟動器，聯機互通與資料匯入相容參考"
+  },
+  "ame428.credit.modrinth": {
+    "en": "Open mod and modpack platform; one of the mod search and download sources",
+    "zh-Hans": "开源模组/整合包平台，模组搜索与下载数据来源之一",
+    "zh-CN": "开源模组/整合包平台，模组搜索与下载数据来源之一",
+    "zh-Hant": "開源模組/整合包平台，模組搜尋與下載資料來源之一"
+  },
+  "ame428.credit.curseforge": {
+    "en": "Mod and modpack platform; one of the mod search and download sources",
+    "zh-Hans": "模组/整合包平台，模组搜索与下载数据来源之一",
+    "zh-CN": "模组/整合包平台，模组搜索与下载数据来源之一",
+    "zh-Hant": "模組/整合包平台，模組搜尋與下載資料來源之一"
+  },
+  "ame428.credit.bmclapi": {
+    "en": "Minecraft mirror distribution service; provider of mirrored download routes",
+    "zh-Hans": "Minecraft 镜像分发服务，下载源镜像线路提供方",
+    "zh-CN": "Minecraft 镜像分发服务，下载源镜像线路提供方",
+    "zh-Hant": "Minecraft 鏡像分發服務，下載源鏡像線路提供方"
+  },
+  "ame428.credit.logshare": {
+    "en": "Online game-log sharing service (mclo.gs mirror); provider of the log upload channel",
+    "zh-Hans": "游戏日志在线分享服务（mclo.gs 镜像），日志上传通道提供方",
+    "zh-CN": "游戏日志在线分享服务（mclo.gs 镜像），日志上传通道提供方",
+    "zh-Hant": "遊戲日誌線上分享服務（mclo.gs 鏡像），日誌上傳通道提供方"
+  },
+  "ame428.credit.pcl": {
+    "en": "Open-source Minecraft launcher for Windows; its directory layout is supported by data import",
+    "zh-Hans": "Windows 平台开源 Minecraft 启动器，数据导入兼容其目录结构",
+    "zh-CN": "Windows 平台开源 Minecraft 启动器，数据导入兼容其目录结构",
+    "zh-Hant": "Windows 平台開源 Minecraft 啟動器，資料匯入相容其目錄結構"
+  },
+  "ame428.dep.metalangle": {
+    "en": "Graphics: Metal to OpenGL ES translation layer",
+    "zh-Hans": "图形适配：Metal 到 OpenGL ES 转换层",
+    "zh-CN": "图形适配：Metal 到 OpenGL ES 转换层",
+    "zh-Hant": "圖形適配：Metal 到 OpenGL ES 轉換層"
+  },
+  "ame428.dep.gl4es": {
+    "en": "Graphics: OpenGL ES to OpenGL translation layer",
+    "zh-Hans": "图形适配：OpenGL ES 到 OpenGL 转换层",
+    "zh-CN": "图形适配：OpenGL ES 到 OpenGL 转换层",
+    "zh-Hant": "圖形適配：OpenGL ES 到 OpenGL 轉換層"
+  },
+  "ame428.dep.mesa": {
+    "en": "Graphics: OpenGL implementation used by the Zink renderer",
+    "zh-Hans": "图形适配：Zink 渲染器使用的 OpenGL 实现",
+    "zh-CN": "图形适配：Zink 渲染器使用的 OpenGL 实现",
+    "zh-Hant": "圖形適配：Zink 渲染器使用的 OpenGL 實作"
+  },
+  "ame428.dep.mobileglues": {
+    "en": "Graphics: multi-backend renderer family (Vulkan / GLES / OpenGL 4.0)",
+    "zh-Hans": "图形适配：多后端渲染器（Vulkan 直连 / GLES / OpenGL 4.0）",
+    "zh-CN": "图形适配：多后端渲染器（Vulkan 直连 / GLES / OpenGL 4.0）",
+    "zh-Hant": "圖形適配：多後端渲染器（Vulkan 直連 / GLES / OpenGL 4.0）"
+  },
+  "ame428.dep.caciocavallo": {
+    "en": "AWT support: pure-Java implementation of Java AWT",
+    "zh-Hans": "AWT 支持：Java AWT 的纯 Java 实现",
+    "zh-CN": "AWT 支持：Java AWT 的纯 Java 实现",
+    "zh-Hant": "AWT 支援：Java AWT 的純 Java 實作"
+  },
+  "ame428.dep.lwjgl": {
+    "en": "Java game development library underlying Minecraft's graphics, audio and input",
+    "zh-Hans": "Java 游戏开发库（Minecraft 图形/音频/输入的底层接口）",
+    "zh-CN": "Java 游戏开发库（Minecraft 图形/音频/输入的底层接口）",
+    "zh-Hant": "Java 遊戲開發庫（Minecraft 圖形/音訊/輸入的底層介面）"
+  },
+  "ame428.dep.openal": {
+    "en": "Audio processing library",
+    "zh-Hans": "音频处理库",
+    "zh-CN": "音频处理库",
+    "zh-Hant": "音訊處理庫"
+  },
+  "ame428.dep.touchcontroller": {
+    "en": "Touch control support (communicates with the TouchController mod)",
+    "zh-Hans": "触屏控制支持（与 TouchController 模组通信）",
+    "zh-CN": "触屏控制支持（与 TouchController 模组通信）",
+    "zh-Hant": "觸控支援（與 TouchController 模組通訊）"
+  },
+  "ame428.plugin.empty": {
+    "en": "No plugins installed",
+    "zh-Hans": "暂无已安装插件",
+    "zh-CN": "暂无已安装插件",
+    "zh-Hant": "暫無已安裝插件"
+  },
+  "ame428.plugin.empty.subtitle": {
+    "en": "Browse and install from Launcher settings \u2192 Plugin Repository",
+    "zh-Hans": "可在 启动器 → 插件仓库 浏览并一键安装",
+    "zh-CN": "可在 启动器 → 插件仓库 浏览并一键安装",
+    "zh-Hant": "可在 啟動器 → 插件倉庫 瀏覽並一鍵安裝"
+  },
+  "ame428.plugin.running": {
+    "en": "Running",
+    "zh-Hans": "运行中",
+    "zh-CN": "运行中",
+    "zh-Hant": "執行中"
+  },
+  "ame428.control.tc_section": {
+    "en": "Virtual Buttons / Touch Layout",
+    "zh-Hans": "虚拟按键 / 触控布局",
+    "zh-CN": "虚拟按键 / 触控布局",
+    "zh-Hant": "虛擬按鍵 / 觸控佈局"
+  },
+  "ame428.control.tc_section.subtitle": {
+    "en": "TouchController mod channel powering in-game virtual buttons and touch layouts (Disabled / UDP / Static lib)",
+    "zh-Hans": "TouchController 模组通道，驱动游戏内虚拟按键与触控布局（禁用 / UDP / 静态库）",
+    "zh-CN": "TouchController 模组通道，驱动游戏内虚拟按键与触控布局（禁用 / UDP / 静态库）",
+    "zh-Hant": "TouchController 模組通道，驅動遊戲內虛擬按鍵與觸控佈局（停用 / UDP / 靜態庫）"
+  },
+  "ame428.control.gesture.tap": {
+    "en": "Tap Action",
+    "zh-Hans": "点击动作",
+    "zh-CN": "点击动作",
+    "zh-Hant": "點擊動作"
+  },
+  "ame428.control.gesture.longpress": {
+    "en": "Long-press Action",
+    "zh-Hans": "长按动作",
+    "zh-CN": "长按动作",
+    "zh-Hant": "長按動作"
+  },
+  "ame428.control.gesture.longpress_delay": {
+    "en": "Long-press Delay",
+    "zh-Hans": "长按延迟",
+    "zh-CN": "长按延迟",
+    "zh-Hant": "長按延遲"
+  },
+  "ame428.control.gesture.longpress_delay.subtitle": {
+    "en": "How long you must hold before the long-press action triggers (seconds)",
+    "zh-Hans": "触发长按动作需按住的时长（秒）",
+    "zh-CN": "触发长按动作需按住的时长（秒）",
+    "zh-Hant": "觸發長按動作需按住的時長（秒）"
+  },
+  "ame428.control.gesture.opt.left": {
+    "en": "Mouse Left Button",
+    "zh-Hans": "鼠标左键",
+    "zh-CN": "鼠标左键",
+    "zh-Hant": "滑鼠左鍵"
+  },
+  "ame428.control.gesture.opt.right": {
+    "en": "Mouse Right Button",
+    "zh-Hans": "鼠标右键",
+    "zh-CN": "鼠标右键",
+    "zh-Hant": "滑鼠右鍵"
+  },
+  "ame428.control.gesture.opt.none": {
+    "en": "No Action",
+    "zh-Hans": "无操作",
+    "zh-CN": "无操作",
+    "zh-Hant": "無操作"
+  },
+  "ame428.control.gyro.invert_y": {
+    "en": "Invert Y Axis",
+    "zh-Hans": "反转 Y 轴",
+    "zh-CN": "反转 Y 轴",
+    "zh-Hant": "反轉 Y 軸"
+  },
+  "ame428.control.gyro.sample_rate": {
+    "en": "Sample Rate",
+    "zh-Hans": "采样率",
+    "zh-CN": "采样率",
+    "zh-Hant": "取樣率"
+  },
+  "ame428.control.gyro.smoothing": {
+    "en": "Smoothing",
+    "zh-Hans": "平滑强度",
+    "zh-CN": "平滑强度",
+    "zh-Hant": "平滑強度"
+  },
+  "ame428.download_threads.title": {
+    "en": "Download Concurrency",
+    "zh-Hans": "下载并发数",
+    "zh-CN": "下载并发数",
+    "zh-Hant": "下載並發數"
+  },
+  "ame428.download_threads.subtitle": {
+    "en": "Number of files downloaded at the same time; 0 = automatic",
+    "zh-Hans": "同时下载的文件数；0 为自动",
+    "zh-CN": "同时下载的文件数；0 为自动",
+    "zh-Hant": "同時下載的檔案數；0 為自動"
+  },
+  "ame428.download_threads.auto": {
+    "en": "Auto (adaptive 16-64)",
+    "zh-Hans": "自动（16-64 自适应）",
+    "zh-CN": "自动（16-64 自适应）",
+    "zh-Hant": "自動（16-64 自適應）"
+  },
+  "ame428.integrity.verify": {
+    "en": "Verify & Repair Game Files",
+    "zh-Hans": "校验并补全游戏文件",
+    "zh-CN": "校验并补全游戏文件",
+    "zh-Hant": "校驗並補全遊戲檔案"
+  },
+  "ame428.integrity.verify.subtitle": {
+    "en": "Check the current game directory against its manifest and re-download missing or corrupted files",
+    "zh-Hans": "对照清单校验当前游戏目录，自动补全缺失或损坏的文件",
+    "zh-CN": "对照清单校验当前游戏目录，自动补全缺失或损坏的文件",
+    "zh-Hant": "對照清單校驗當前遊戲目錄，自動補全缺失或損壞的檔案"
+  },
+  "ame428.integrity.unavailable": {
+    "en": "The verification service is unavailable in this build",
+    "zh-Hans": "校验服务在当前构建暂不可用",
+    "zh-CN": "校验服务在当前构建暂不可用",
+    "zh-Hant": "校驗服務在當前構建暫不可用"
+  },
+  "ame428.festival_effects.title": {
+    "en": "Festival Effects",
+    "zh-Hans": "节日彩蛋",
+    "zh-CN": "节日彩蛋",
+    "zh-Hant": "節日彩蛋"
+  },
+  "ame428.festival_effects.subtitle": {
+    "en": "Play themed effects on the home screen during festivals (snow, fireworks, fireflies and more)",
+    "zh-Hans": "节日期间在主界面播放主题特效（雪 / 烟花 / 萤火等）",
+    "zh-CN": "节日期间在主界面播放主题特效（雪 / 烟花 / 萤火等）",
+    "zh-Hant": "節日期間在主介面播放主題特效（雪 / 煙花 / 螢火等）"
+  }
+}

@@ -99,7 +99,12 @@ check("② ame369.* 键四表齐备",
 #   同帧图证）五标签全量复用既有 ame369 四表键（home/downloads/versions/
 #   settings 四 ame369.* 站点 +4，ame192.ai.title 不计数）——零新键零新表，
 #   四表齐备审计自动闭合。
-check("① ame369 改写点数 == 457（★Task418 复核重锚：Task416 账面 456 → HEAD 实测 457\n      （Task417-r5 紧凑行宽轮新增站点未补账，本轮代补 +1；git stash 双向实测\n      HEAD=工作树=457 实锤，与本轮改动零关））", ame369_sites == 457, str(ame369_sites))
+# ★Task428 重锚：PDF v5 P0 批次复用既有 ame369.* 键的新站点（428-A 搜索页聚合档
+#   复用 ame369.common.favorites/asearch.unfavorite 等、428-C 关于页四块复用
+#   ame369.setpg.* 既有键）——457 → 461（+4 实测站点，git stash 双向核验口径同前）。
+# ★Task428 二段重锚：P1 批次（428-G 手柄向导复用 ame369.setpg.gamepad_type、
+#   428-H 导出向导复用既有键）再 +2 站点 = 463。
+check("① ame369 改写点数 == 463（★Task418 复核重锚 457 → ★Task428 重锚：P0 批次\n      +4（搜索聚合档/关于页四块）→ P1 批次 +2（手柄向导/导出向导复用既有键）= 463）", ame369_sites == 463, str(ame369_sites))
 
 # 复用站点：4 处 localize(@"ame193.misc.[13]"（内容级匹配——5 个补 import 文件行号整体 +1，行级断言会错位）
 REUSE_EXPECT = {

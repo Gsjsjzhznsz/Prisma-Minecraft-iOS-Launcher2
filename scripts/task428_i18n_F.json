@@ -1,0 +1,158 @@
+{
+  "ame428.vers.json_damaged": {
+    "en": "Metadata damaged",
+    "zh-Hans": "元数据损坏",
+    "zh-CN": "元数据损坏",
+    "zh-Hant": "元資料損壞"
+  },
+  "ame428.vers.children_fmt": {
+    "en": " · %lu derived versions",
+    "zh-Hans": " · %lu 派生版本",
+    "zh-CN": " · %lu 派生版本",
+    "zh-Hant": " · %lu 衍生版本"
+  },
+  "ame428.vpage.export_modpack": {
+    "en": "Export Modpack",
+    "zh-Hans": "导出整合包",
+    "zh-CN": "导出整合包",
+    "zh-Hant": "匯出整合包"
+  },
+  "ame428.iso.row.title": {
+    "en": "Version Isolation",
+    "zh-Hans": "版本隔离",
+    "zh-CN": "版本隔离",
+    "zh-Hant": "版本隔離"
+  },
+  "ame428.iso.row.follow_global": {
+    "en": "Follow global",
+    "zh-Hans": "跟随全局",
+    "zh-CN": "跟随全局",
+    "zh-Hant": "跟隨全域"
+  },
+  "ame428.iso.row.enable": {
+    "en": "Enable for this version",
+    "zh-Hans": "在此版本启用",
+    "zh-CN": "在此版本启用",
+    "zh-Hant": "在此版本啟用"
+  },
+  "ame428.iso.row.disable": {
+    "en": "Disable for this version",
+    "zh-Hans": "在此版本禁用",
+    "zh-CN": "在此版本禁用",
+    "zh-Hant": "在此版本停用"
+  },
+  "ame428.iso.row.custom_note": {
+    "en": "Custom path · not governed by version isolation",
+    "zh-Hans": "自定义路径·不受版本隔离管辖",
+    "zh-CN": "自定义路径·不受版本隔离管辖",
+    "zh-Hant": "自訂路徑·不受版本隔離管轄"
+  },
+  "ame428.iso.row.sheet_msg": {
+    "en": "Where version %@ keeps its game data (versions/%@/ = isolated; instance root = shared).",
+    "zh-Hans": "版本 %@ 的游戏数据目录归属（versions/%@/ = 独立；实例根 = 共享）。",
+    "zh-CN": "版本 %@ 的游戏数据目录归属（versions/%@/ = 独立；实例根 = 共享）。",
+    "zh-Hant": "版本 %@ 的遊戲資料目錄歸屬（versions/%@/ = 獨立；實例根 = 共享）。"
+  },
+  "ame428.iso.global.title": {
+    "en": "Version isolation default",
+    "zh-Hans": "版本隔离默认",
+    "zh-CN": "版本隔离默认",
+    "zh-Hant": "版本隔離預設"
+  },
+  "ame428.iso.global.subtitle": {
+    "en": "Global default for versions without a per-version override; each version can override it on its detail page.",
+    "zh-Hans": "新版本未单独设置时遵循的全局默认；每版本可在版本详情页覆盖。",
+    "zh-CN": "新版本未单独设置时遵循的全局默认；每版本可在版本详情页覆盖。",
+    "zh-Hant": "新版本未單獨設定時遵循的全域預設；每版本可在版本詳情頁覆蓋。"
+  },
+  "ame428.iso.global.auto": {
+    "en": "Auto (isolate modded versions)",
+    "zh-Hans": "自动（有模组/加载器的版本隔离）",
+    "zh-CN": "自动（有模组/加载器的版本隔离）",
+    "zh-Hant": "自動（有模組/載入器的版本隔離）"
+  },
+  "ame428.iso.global.always": {
+    "en": "Always isolate",
+    "zh-Hans": "始终隔离",
+    "zh-CN": "始终隔离",
+    "zh-Hant": "始終隔離"
+  },
+  "ame428.iso.global.never": {
+    "en": "Never isolate",
+    "zh-Hans": "从不隔离",
+    "zh-CN": "从不隔离",
+    "zh-Hant": "從不隔離"
+  },
+  "ame428.iso.global.confirm": {
+    "en": "Switching the global default will flip the effective isolation of the following versions (%lu total):",
+    "zh-Hans": "切换全局默认档将使以下版本的有效隔离状态翻转（共 %lu 个）：",
+    "zh-CN": "切换全局默认档将使以下版本的有效隔离状态翻转（共 %lu 个）：",
+    "zh-Hant": "切換全域預設檔將使以下版本的有效隔離狀態翻轉（共 %lu 個）："
+  },
+  "ame428.iso.flip.into": {
+    "en": "move into isolated dir",
+    "zh-Hans": "移入独立目录",
+    "zh-CN": "移入独立目录",
+    "zh-Hant": "移入獨立目錄"
+  },
+  "ame428.iso.flip.outof": {
+    "en": "move back to instance root",
+    "zh-Hans": "移回实例根目录",
+    "zh-CN": "移回实例根目录",
+    "zh-Hant": "移回實例根目錄"
+  },
+  "ame428.iso.confirm.title": {
+    "en": "Confirm data migration",
+    "zh-Hans": "确认数据迁移",
+    "zh-CN": "确认数据迁移",
+    "zh-Hant": "確認資料遷移"
+  },
+  "ame428.iso.confirm.into": {
+    "en": "Game data under the instance root will be moved into this version's isolated directory (versions/%@/).",
+    "zh-Hans": "把实例根目录下的游戏数据移入该版本的独立目录（versions/%@/）。",
+    "zh-CN": "把实例根目录下的游戏数据移入该版本的独立目录（versions/%@/）。",
+    "zh-Hant": "把實例根目錄下的遊戲資料移入該版本的獨立目錄（versions/%@/）。"
+  },
+  "ame428.iso.confirm.outof": {
+    "en": "Game data inside this version's isolated directory (versions/%@/) will be moved back to the instance root.",
+    "zh-Hans": "把该版本独立目录（versions/%@/）里的游戏数据移回实例根目录。",
+    "zh-CN": "把该版本独立目录（versions/%@/）里的游戏数据移回实例根目录。",
+    "zh-Hant": "把該版本獨立目錄（versions/%@/）裡的遊戲資料移回實例根目錄。"
+  },
+  "ame428.iso.confirm.items": {
+    "en": "Will move: %@",
+    "zh-Hans": "将搬移：%@",
+    "zh-CN": "将搬移：%@",
+    "zh-Hant": "將搬移：%@"
+  },
+  "ame428.iso.confirm.snapshot": {
+    "en": "A full backup is taken before moving (Prisma2/backups/pre-isolation-<version>-<time>.zip); failures are rolled back automatically — no data is lost.",
+    "zh-Hans": "搬移前会先做完整备份（Prisma2/backups/pre-isolation-<版本>-<时间>.zip），中途失败自动恢复，数据不会丢失。",
+    "zh-CN": "搬移前会先做完整备份（Prisma2/backups/pre-isolation-<版本>-<时间>.zip），中途失败自动恢复，数据不会丢失。",
+    "zh-Hant": "搬移前會先做完整備份（Prisma2/backups/pre-isolation-<版本>-<時間>.zip），中途失敗自動恢復，資料不會丟失。"
+  },
+  "ame428.iso.confirm.cancel_note": {
+    "en": "Cancelling changes nothing.",
+    "zh-Hans": "取消则不作任何更改。",
+    "zh-CN": "取消则不作任何更改。",
+    "zh-Hant": "取消則不作任何更改。"
+  },
+  "ame428.iso.confirm.go": {
+    "en": "Start migration",
+    "zh-Hans": "开始迁移",
+    "zh-CN": "开始迁移",
+    "zh-Hant": "開始遷移"
+  },
+  "ame428.iso.progress": {
+    "en": "Migrating game data…",
+    "zh-Hans": "正在迁移游戏数据…",
+    "zh-CN": "正在迁移游戏数据…",
+    "zh-Hant": "正在遷移遊戲資料…"
+  },
+  "ame428.iso.result.failed_fmt": {
+    "en": "Migration did not complete; data has been restored: %@",
+    "zh-Hans": "迁移未完成，数据已恢复原状：%@",
+    "zh-CN": "迁移未完成，数据已恢复原状：%@",
+    "zh-Hant": "遷移未完成，資料已恢復原狀：%@"
+  }
+}

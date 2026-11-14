@@ -7,6 +7,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <sys/stat.h>
+#include <time.h>   // ★Task428：selfexit marker 的 ts（time(NULL)）
 #include <unistd.h>
 #include <mach/mach.h>
 #include "utils.h"
@@ -27,6 +28,14 @@
 #import "PLProfiles.h"
 #import "ModService.h"   // Task225：隔离嗅探（与 ModService/ModsManager 同源）
 #import "MinecraftResourceUtils.h"
+#import "PLGameIntegrityService.h"   // ★Task428：启动前游戏完整性校验（3.3，HMCL checkGameState 对标）
+
+// ★Task428（1.2）：PLProfiles 新增类方法的本地前置声明（PLProfiles.h 不在
+//   授权清单内；启动链消费有效隔离解析——单一事实源在 PLProfiles.m，
+//   决策树全文见彼处块注释）。签名勿漂移。
+@interface PLProfiles (Ame428Task428Launch)
++ (NSInteger)ame428_effectiveIsolationForVid:(NSString *)vid profile:(NSDictionary *)profile;
+@end
 
 #define fm NSFileManager.defaultManager
 
@@ -815,6 +824,48 @@ static int ame225_healMissingAssets(NSString *versionId) {
     }
     NSLog(@"[AssetsHeal] Task225 healed %d/%lu missing object(s)", healed, (unsigned long)missing.count);
     return healed;
+}
+
+// ======================================================================
+// ★Task428（3.3 完整性检查重建）：selfexit 会话立桩（Task251/306 同族）。
+// ----------------------------------------------------------------------
+// 语义：$POJAV_HOME/ame428_selfexit.marker 在 JLI_Launch 前立桩（ts/pid/ver），
+// JVM 有序返回（pJLI_Launch 正常归还，main 走完）时清除；进程被 SIGKILL /
+// JVM fatal / 任何未收尾路径杀死时 marker 残留 → 下次启动 PLGameIntegrityService
+// 的判定（见 PLGameIntegrityService.m Ame428LastSessionEndedAbnormally）把本次
+// 校验升级为全量 SHA-1 级；System.exit 路径进程被 _exit(0)（hooked_exit，
+// 本文件不可挂），由 PatchSVC shutdown hook 落盘的 latestlog.selfexit-*.txt
+// 快照（mtime ≥ 立桩 ts）在判定侧兜底为“有序退出”。
+// 文件名/首行格式与 PLGameIntegrityService.m 的 kAme428SelfExitMarkerName
+// 共用约定（首行 "ts=<epoch>"），改动须两侧同步。
+// ======================================================================
+static NSString *ame428_selfExitMarkerPath(void) {
+    const char *ame428_home = getenv("POJAV_HOME");
+    if (!ame428_home || !*ame428_home) return nil;
+    return [@(ame428_home) stringByAppendingPathComponent:@"ame428_selfexit.marker"];
+}
+
+/// 立桩：会话起点（JLI_Launch 前）。已存在则覆盖（上次残留即本次判定的依据，
+/// 在此之前 PLGameIntegrityService 已完成读取）。
+static void ame428_armSelfExitMarker(NSString *versionTag) {
+    NSString *ame428_path = ame428_selfExitMarkerPath();
+    if (ame428_path.length == 0) return;
+    NSString *ame428_body = [NSString stringWithFormat:@"ts=%lld\npid=%d\nver=%@\n",
+        (long long)time(NULL), getpid(), versionTag ?: @"-"];
+    [ame428_body writeToFile:ame428_path
+                   atomically:YES
+                     encoding:NSUTF8StringEncoding error:nil];
+    NSLog(@"[JavaLauncher] Task428: selfexit marker armed (%@)", ame428_path);
+}
+
+/// 清除：JVM 有序返回（pJLI_Launch 归还，Java main 走完、shutdown hooks 已跑）。
+/// 异常路径不清（残留即“上次异常退出”信号，供下次判定升级全量校验）。
+static void ame428_clearSelfExitMarkerOnOrderlyJvmExit(void) {
+    NSString *ame428_path = ame428_selfExitMarkerPath();
+    if (ame428_path.length == 0) return;
+    if ([[NSFileManager defaultManager] removeItemAtPath:ame428_path error:nil]) {
+        NSLog(@"[JavaLauncher] Task428: selfexit marker cleared (JVM returned orderly)");
+    }
 }
 
 static int ame87_disableDesktopDialogMods(NSString *gameDir) {
@@ -2976,6 +3027,67 @@ int launchJVM(NSString *accountId, id launchTarget, int width, int height, int m
             }
         }
 
+        // ★Task428（1.2）：版本级有效隔离——cwd 对齐（1.3 自洽红线闭环点）。
+        //   单一事实源 PLProfiles.ame428_effectiveIsolationForVid（决策树全文
+        //   见 PLProfiles.m 块注释）。本块置于 ame225 嗅探【之后】、
+        //   ame287 Forge 收口【之前】：显式版本级覆盖必须赢过自动嗅探
+        //   （用户意图至高），而 forge URI-safe 收口对最终 gameDir 生效。
+        //   返回值：1=隔离 → gameDir 解析到 <env根>/versions/<vid>/（目录
+        //   不存在则创建；env 根由 ZL2Home Ame353 对齐点保证 = 版本根 R，
+        //   env 与 cwd 恒同根 R——与既有 state-1 隔离启动流完全同构，
+        //   “setenv POJAV_GAME_DIR 对齐”由此成立，无需改写 env 指向）；
+        //   0=共享 → 仅当现 gameDir 恰为 versions/<vid> 形（state-1 被显式
+        //   禁用/ame225 嗅探误中）时重指回实例根；
+        //   -1=自定义实例路径 / latest 别名 → 零触碰（现有各层语义原样）。
+        {
+            NSString *ame428_vid = [launchTarget isKindOfClass:[NSDictionary class]]
+                ? launchTarget[@"id"] : nil;
+            if ([ame428_vid isKindOfClass:[NSString class]] && ame428_vid.length > 0
+                && ![ame428_vid hasPrefix:@"latest-"] && ![ame428_vid isEqualToString:@"latest"]) {
+                NSDictionary *ame428_prof = [PLProfiles.current.profiles
+                    objectForKey:PLProfiles.current.selectedProfileName];
+                NSInteger ame428_eff = [PLProfiles ame428_effectiveIsolationForVid:ame428_vid
+                                                                          profile:ame428_prof];
+                if (ame428_eff == 1 || ame428_eff == 0) {
+                    NSString *ame428_base = @(getenv("POJAV_GAME_DIR") ?: "");
+                    if (ame428_base.length == 0) {
+                        const char *ame428_homeC = getenv("POJAV_HOME");
+                        if (ame428_homeC && *ame428_homeC) {
+                            ame428_base = [NSString stringWithUTF8String:ame428_homeC];
+                        }
+                    }
+                    if (ame428_base.length > 0) {
+                        NSString *ame428_vdir = [[ame428_base stringByAppendingPathComponent:@"versions"]
+                            stringByAppendingPathComponent:ame428_vid];
+                        // 归一比较（符号链接 vs 真实路径：ame275/ame353 两套根形可能
+                        // 同目录异串——stringByStandardizingPath 收敛后再比）
+                        NSString *ame428_gameNorm = [gameDir stringByStandardizingPath];
+                        NSString *ame428_vdirNorm = [ame428_vdir stringByStandardizingPath];
+                        if (ame428_eff == 1) {
+                            // 隔离：目录不存在则创建（首次启用即落位）
+                            BOOL ame428_vdirIsDir = NO;
+                            if (![fm fileExistsAtPath:ame428_vdir isDirectory:&ame428_vdirIsDir] || !ame428_vdirIsDir) {
+                                if ([fm createDirectoryAtPath:ame428_vdir
+                                      withIntermediateDirectories:YES attributes:nil error:nil]) {
+                                    NSLog(@"[JavaLauncher] Task428: isolated gameDir created at %@", ame428_vdir);
+                                }
+                            }
+                            if (![ame428_gameNorm isEqualToString:ame428_vdirNorm]) {
+                                NSLog(@"[JavaLauncher] Task428: effective isolation ON -> gameDir %@ -> %@ (vid=%@)",
+                                      gameDir, ame428_vdir, ame428_vid);
+                                gameDir = ame428_vdir;
+                            }
+                        } else if ([ame428_gameNorm isEqualToString:ame428_vdirNorm]) {
+                            // 显式禁用（或嗅探误中）：仅 versions/<vid> 形重指回实例根
+                            NSLog(@"[JavaLauncher] Task428: effective isolation OFF -> gameDir %@ -> %@ (vid=%@)",
+                                      gameDir, ame428_base, ame428_vid);
+                            gameDir = ame428_base;
+                        }
+                    }
+                }
+            }
+        }
+
         // ★ Task287（PocketJ 对标移植）：Forge URI-safe 游戏根——先于全部
         //   mods 目录扫描与 chdir（Task97 CwdAlign 消费本 gameDir），命中
         //   时同步重指 POJAV_GAME_DIR（headless/JVM 侧消费者同口径）。
@@ -3065,6 +3177,39 @@ int launchJVM(NSString *accountId, id launchTarget, int width, int height, int m
             if (ame225_vid.length > 0) {
                 ame225_healMissingAssets(ame225_vid);
             }
+        }
+
+        // ★Task428（3.3 完整性检查重建）：开关语义纠正——general.check_sha 开启时，
+        // JVM 起跑前调 PLGameIntegrityService 闭环（HMCL checkGameState 对标）：
+        //   · 快速档：版本 jar / libraries（含 inheritsFrom 链）/ assets 索引抽样
+        //     的存在性级校验（0 字节按损坏）；缺损按类型走 PLDownloadClient 补全
+        //    （jar/library 重下、assets 复用 Task225 语义的官方两段式 + 镜像候选链）。
+        //   · 上次会话异常退出（ame428_selfexit.marker 残留且无新 selfexit 快照）
+        //     时服务内部自动升级为全量 SHA-1 级。
+        //   · 预算 20s（服务内部 Deadline），失败/超时只记日志不阻断启动；
+        //     此处以 30s 信号量上界等待其完成回调（在途修复继续后台落盘）。
+        //   · 关闭开关（general.check_sha=NO）时本块整段跳过——下载期 checkSHA
+        //     已按"仅存在性+大小"降级，语义不再互相僭越。
+        if (getPrefBool(@"general.check_sha")) {
+            dispatch_semaphore_t ame428_sem = dispatch_semaphore_create(0);
+            NSDate *ame428_waitUntil = [NSDate dateWithTimeIntervalSinceNow:30.0];
+            [[PLGameIntegrityService sharedService] preLaunchCheckForCurrentProfile:^(BOOL ame428_ok, NSDictionary<NSString *, id> * _Nullable ame428_report) {
+                NSLog(@"[JavaLauncher] Task428: pre-launch check done ok=%d checked=%@ missing=%lu (profile=%@)",
+                      ame428_ok ? 1 : 0,
+                      ame428_report[@"checked"],
+                      (unsigned long)[ame428_report[@"missing"] count],
+                      ame428_report[@"profile"]);
+                dispatch_semaphore_signal(ame428_sem);
+            }];
+            long ame428_wait = dispatch_semaphore_wait(ame428_sem,
+                dispatch_time(DISPATCH_TIME_NOW, (int64_t)([ame428_waitUntil timeIntervalSinceNow] * NSEC_PER_SEC)));
+            if (ame428_wait != 0) {
+                // 30s 上界兜底（服务自身 20s 预算，正常不会走到这里）：
+                // 放行启动，在途修复继续后台落盘，下轮启动命中增量。
+                NSLog(@"[JavaLauncher] Task428: pre-launch check wait timed out (30s cap) -- proceeding, repairs continue in background");
+            }
+        } else {
+            NSLog(@"[JavaLauncher] Task428: general.check_sha OFF -- pre-launch integrity tier skipped (download-time checkSHA stays existence+size only)");
         }
 
         // Task 95：整合包完整性提醒（病历见 ame95_warnIncompleteImport 函数头）
@@ -4402,6 +4547,15 @@ int launchJVM(NSString *accountId, id launchTarget, int width, int height, int m
     //   marker 残留即下次感知依据）。
     ame306_beginGameSessionMarker(NULL);
 
+    // ★Task428（3.3）：selfexit 会话立桩（与 ame306 同点、同一生命周期语义）。
+    //   判定侧消费时机在本次启动的 preLaunchCheck（PLGameIntegrityService），
+    //   早于此处立桩，不会误读本次 marker。版本标签取 launchTarget id。
+    {
+        NSString *ame428_tag = [launchTarget isKindOfClass:[NSDictionary class]]
+            ? [launchTarget[@"id"] description] : [launchTarget description];
+        ame428_armSelfExitMarker(ame428_tag);
+    }
+
     NSLog(@"[Init] Calling JLI_Launch");
 
     // Cr4shed known issue: exit after crash dump,
@@ -4424,7 +4578,10 @@ int launchJVM(NSString *accountId, id launchTarget, int width, int height, int m
     //   （launchHeadlessJVM）不经过此处，Task144 抑制语义零回归。
     ame251_armShutdownForceExitWatchdog();
 
-    return pJLI_Launch(++margc, margv,
+    // ★Task428（3.3）：接住 JLI_Launch 的归还值——JVM 有序返回（Java main
+    //   走完、shutdown hooks 已跑）时清除 selfexit marker；异常路径
+    //   （SIGKILL/JVM fatal）不走到这里，marker 残留即“上次异常退出”信号。
+    int ame428_jliRc = pJLI_Launch(++margc, margv,
                    0, NULL, // sizeof(const_jargs) / sizeof(char *), const_jargs,
                    0, NULL, // sizeof(const_appclasspath) / sizeof(char *), const_appclasspath,
                    // These values are ignored in Java 17, so keep it anyways
@@ -4434,6 +4591,8 @@ int launchJVM(NSString *accountId, id launchTarget, int width, int height, int m
                    "java", "openjdk",
                    /* (const_jargs != NULL) ? JNI_TRUE : */ JNI_FALSE,
                    JNI_TRUE, JNI_FALSE, JNI_TRUE);
+    ame428_clearSelfExitMarkerOnOrderlyJvmExit();
+    return ame428_jliRc;
 }
 
 // ============================================================================

@@ -6,6 +6,8 @@
 #import "BackgroundManager.h"
 #import "AmeTheme.h" // 7.0-UI-3e：Fluent 设计令牌层（崩溃视图颜色语义化迁移）
 #import "CrashAnalyzer.h"
+#import "PLLogShareService.h"   // ★Task428：5.3 日志上传（logshare.cn/mclo.gs 双端点）
+#import "FluentToast.h"          // ★Task428：上传进度/删除凭证/失败 toast
 
 @interface PLCrashView ()
 // 数据
@@ -64,6 +66,7 @@ typedef NS_ENUM(NSInteger, CrashType) {
 @property (nonatomic, strong) UILabel *logPlaceholderLabel;
 @property (nonatomic, strong) UIButton *restartButton;
 @property (nonatomic, strong) UIButton *shareButton;
+@property (nonatomic, strong) UIButton *uploadButton;   // ★Task428：上传并获取链接（分享钮旁）
 @property (nonatomic, strong) UIButton *githubButton;
 @property (nonatomic, strong) UIButton *fullLogButton;
 @property (nonatomic, strong) UIButton *exitButton;
@@ -1262,6 +1265,25 @@ static void ame274_archiveCrashReportAfterL2Present(void) {
                                         action:@selector(shareLog)];
     [container addArrangedSubview:_shareButton];
 
+    // ★Task428：3.5 「上传并获取链接」按钮（分享钮旁；几何/配色逐位对齐上方
+    //   分享钮，但零 SF Symbols——图标走 PLLogShareService 自绘模板图随按钮
+    //   tint 着色）。files = latestlog + fatal_trace + 最新 hs_err 崩溃三件套
+    _uploadButton = [UIButton buttonWithType:UIButtonTypeSystem];
+    _uploadButton.translatesAutoresizingMaskIntoConstraints = NO;
+    _uploadButton.backgroundColor = [AmeTheme fillStrong];
+    _uploadButton.layer.cornerRadius = 12.0;
+    _uploadButton.layer.cornerCurve = kCACornerCurveContinuous;
+    [_uploadButton setTitleColor:[AmeTheme textPrimary] forState:UIControlStateNormal];
+    _uploadButton.titleLabel.font = [UIFont systemFontOfSize:15.0];
+    [_uploadButton setImage:[PLLogShareService ame428_uploadIconImage] forState:UIControlStateNormal];
+    [_uploadButton setTitle:localize(@"ame428.upload.button", nil) forState:UIControlStateNormal];
+    _uploadButton.titleEdgeInsets = UIEdgeInsetsMake(0.0, 8.0, 0.0, 0.0);
+    _uploadButton.imageEdgeInsets = UIEdgeInsetsMake(0.0, -8.0, 0.0, 0.0);
+    [_uploadButton addTarget:self action:@selector(ame428_uploadLogs)
+      forControlEvents:UIControlEventTouchUpInside];
+    [_uploadButton.heightAnchor constraintEqualToConstant:48].active = YES;
+    [container addArrangedSubview:_uploadButton];
+
     // 4. GitHub Issues 按钮
     _githubButton = [self createButtonWithTitle:localize(@"crash.github_issue", @"前往 GitHub Issues")
                                            icon:@"link"
@@ -1609,6 +1631,98 @@ static NSString *ame274_readFileTail(NSString *path, NSUInteger maxBytes) {
     activityVC.popoverPresentationController.sourceRect = CGRectMake(self.view.bounds.size.width / 2, self.view.bounds.size.height / 2, 1, 1);
 
     [self presentViewController:activityVC animated:YES completion:nil];
+}
+
+#pragma mark - ★Task428 5.3 日志上传（崩溃三件套 → logshare.cn/mclo.gs）
+
+// 上传主流程：files = [latestlog, fatal_trace, 最新 hs_err]（存在即带；服务内
+// 做脱敏/截尾/双端点 failover），成功后菜单 + 删除凭证一次性提示
+- (void)ame428_uploadLogs {
+    NSArray<NSDictionary<NSString *, NSString *> *> *files = [PLLogShareService ame428_collectCrashFiles];
+    if (files.count == 0) {
+        [FluentToast showWithTitle:localize(@"ame428.upload.failed_title", nil)
+                             detail:localize(@"ame428.upload.no_content", nil)
+                           variant:FluentToastVariantWarning
+                           duration:3.0];
+        return;
+    }
+    // 进度 toast（duration 0 = 不自动消失，完成时统一收起）
+    [FluentToast showWithTitle:localize(@"ame428.upload.uploading", nil)
+                         detail:nil
+                       variant:FluentToastVariantNeutral
+                       duration:0.0];
+    [[PLLogShareService sharedService] uploadFiles:files
+                                          metadata:[PLLogShareService ame428_buildDefaultMetadata]
+                                        completion:^(BOOL ok, NSString * _Nullable url,
+                                                     NSString * _Nullable rawUrl,
+                                                     NSString * _Nullable deleteToken,
+                                                     NSError * _Nullable error) {
+        // 服务侧已切主线程回调
+        [FluentToast dismiss];
+        if (!ok) {
+            // 失败 toast：主文案 i18n + 端点细节（两端点均失败说明在服务内拼接）
+            [FluentToast showWithTitle:localize(@"ame428.upload.failed_title", nil)
+                                 detail:error.localizedDescription
+                               variant:FluentToastVariantDanger
+                               duration:4.0];
+            return;
+        }
+        // 删除凭证：仅显示一次 + 写剪贴板（logshare.cn 才返回；mclo.gs 无此字段）
+        if (deleteToken.length > 0) {
+            UIPasteboard.generalPasteboard.string = deleteToken;
+            [FluentToast showWithTitle:localize(@"ame428.upload.deletion_token_copied", nil)
+                                 detail:nil
+                               variant:FluentToastVariantSuccess
+                               duration:4.0];
+        }
+        [self ame428_presentUploadSuccessSheetForUrl:url];
+    }];
+}
+
+// 成功菜单（复制链接/在浏览器打开/系统分享——UIAlertController actionSheet，
+// iPad 锚定上传钮）
+- (void)ame428_presentUploadSuccessSheetForUrl:(NSString *)url {
+    UIAlertController *sheet = [UIAlertController
+        alertControllerWithTitle:localize(@"ame428.upload.success", nil)
+                         message:url
+                  preferredStyle:UIAlertControllerStyleActionSheet];
+    [sheet addAction:[UIAlertAction actionWithTitle:localize(@"ame428.upload.copy_link", nil)
+                                              style:UIAlertActionStyleDefault
+                                            handler:^(UIAlertAction *action) {
+        UIPasteboard.generalPasteboard.string = url;
+        [FluentToast showWithTitle:localize(@"ame428.upload.link_copied", nil)
+                             detail:nil
+                           variant:FluentToastVariantSuccess
+                           duration:2.5];
+    }]];
+    [sheet addAction:[UIAlertAction actionWithTitle:localize(@"ame428.upload.open_browser", nil)
+                                              style:UIAlertActionStyleDefault
+                                            handler:^(UIAlertAction *action) {
+        NSURL *target = [NSURL URLWithString:url];
+        if (target) {
+            [UIApplication.sharedApplication openURL:target
+                                               options:@{}
+                                     completionHandler:nil];
+        }
+    }]];
+    [sheet addAction:[UIAlertAction actionWithTitle:localize(@"ame428.upload.share", nil)
+                                              style:UIAlertActionStyleDefault
+                                            handler:^(UIAlertAction *action) {
+        UIActivityViewController *activityVC = [[UIActivityViewController alloc]
+            initWithActivityItems:@[url] applicationActivities:nil];
+        activityVC.popoverPresentationController.sourceView = self.view;
+        activityVC.popoverPresentationController.sourceRect =
+            CGRectMake(self.view.bounds.size.width / 2.0, self.view.bounds.size.height / 2.0, 1.0, 1.0);
+        [self presentViewController:activityVC animated:YES completion:nil];
+    }]];
+    [sheet addAction:[UIAlertAction actionWithTitle:localize(@"Cancel", nil)
+                                              style:UIAlertActionStyleCancel
+                                            handler:nil]];
+    // iPad actionSheet 必须锚定 popover（iPhone 上 popoverPresentationController
+    // 为 nil，置属性为安全 no-op）
+    sheet.popoverPresentationController.sourceView = _uploadButton ?: self.view;
+    sheet.popoverPresentationController.sourceRect = (_uploadButton ? _uploadButton.bounds : self.view.bounds);
+    [self presentViewController:sheet animated:YES completion:nil];
 }
 
 - (void)showFullLog {

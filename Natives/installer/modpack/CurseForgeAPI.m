@@ -517,10 +517,11 @@ static NSString *CFA169NormalizeGameVersion(NSString *v) {
 
 #pragma mark - 项目类型映射
 
-/// Task316：分类 slug -> CF categoryId（/categories?gameId=432&classId=X
-/// 一次拉取按 classId 缓存；匹配规则 = CF slug 精确 == 输入，或 CF name 小写
-/// == 输入，或别名表命中；全不中返回 nil（调用方静默不筛））
-- (NSNumber *)ame316_categoryIdForSlug:(NSString *)slug classId:(NSInteger)classId {
+/// ★Task428（4.4）：Task316 分类缓存池抽出为文件内静态函数——
+/// ame316_categoryIdForSlug:classId:（slug→id 归一匹配）与
+/// ame428_categoryListForClassId:（分类树列举，ZL2 筛选面板 CF 口径值域）
+/// 共用同一份 /categories?gameId=432&classId=X 拉取与按 classId 缓存。
+static NSArray<NSDictionary *> *ame316_cachedCategoriesForClassId(CurseForgeAPI *api, NSInteger classId) {
     static NSMutableDictionary<NSNumber *, NSArray<NSDictionary *> *> *ame316_cache = nil;
     static dispatch_once_t ame316_once;
     dispatch_once(&ame316_once, ^{
@@ -529,13 +530,24 @@ static NSString *CFA169NormalizeGameVersion(NSString *v) {
     NSNumber *cacheKey = @(classId);
     NSArray<NSDictionary *> *categories = ame316_cache[cacheKey];
     if (categories == nil) {
-        NSDictionary *response = [self getEndpoint:@"categories"
+        NSDictionary *response = [api getEndpoint:@"categories"
                                             params:@{@"gameId": @(kCurseForgeGameIDMinecraft),
                                                      @"classId": @(classId)}];
         categories = [response isKindOfClass:NSArray.class] ? response : response[@"data"];
         if (![categories isKindOfClass:NSArray.class]) categories = @[];
         ame316_cache[cacheKey] = categories;
     }
+    return categories;
+}
+
+/// Task316：分类 slug -> CF categoryId（/categories?gameId=432&classId=X
+/// 一次拉取按 classId 缓存；匹配规则 = CF slug 精确 == 输入，或 CF name 小写
+/// == 输入，或别名表命中；全不中返回 nil）
+/// ★Task428（4.4）：匹配失败不再"调用方静默不筛"收场——异步搜索路径
+/// （searchModWithFilters:completion:）消费方经 ame428_lastCategoryFallbackSlug
+/// 感知失配并去分类参数回退继续搜，UI 显式提示已回退全部结果。
+- (NSNumber *)ame316_categoryIdForSlug:(NSString *)slug classId:(NSInteger)classId {
+    NSArray<NSDictionary *> *categories = ame316_cachedCategoriesForClassId(self, classId);
     NSString *needle = slug.lowercaseString;
     NSDictionary<NSString *, NSString *> *aliases = @{
         @"vanilla+": @"vanilla-plus",
@@ -559,8 +571,25 @@ static NSString *CFA169NormalizeGameVersion(NSString *v) {
     if (alias.length > 0 && ![alias isEqualToString:needle]) {
         return [self ame316_categoryIdForSlug:alias classId:classId];
     }
-    NSLog(@"[CurseForgeAPI] Task316: category slug '%@' not matched under classId %ld -- filter skipped", slug, (long)classId);
+    NSLog(@"[CurseForgeAPI] Task316: category slug '%@' not matched under classId %ld -- async path falls back to unfiltered (ame428)", slug, (long)classId);
     return nil;
+}
+
+/// ★Task428（4.4）：CF 官方分类树列举（与 ame316 同缓存池）。ZL2 搜索页
+/// 右栏筛选面板源=CurseForge 档的分类值域（slug=CF 官方口径，name 展示名）。
+- (NSArray<NSDictionary<NSString *, NSString *> *> *)ame428_categoryListForClassId:(NSInteger)classId {
+    NSMutableArray<NSDictionary<NSString *, NSString *> *> *ame428_list = [NSMutableArray array];
+    for (NSDictionary *ame428_raw in ame316_cachedCategoriesForClassId(self, classId)) {
+        if (![ame428_raw isKindOfClass:NSDictionary.class]) continue;
+        NSString *ame428_slug = [ame428_raw[@"slug"] isKindOfClass:NSString.class] ? ame428_raw[@"slug"] : nil;
+        NSString *ame428_name = [ame428_raw[@"name"] isKindOfClass:NSString.class] ? ame428_raw[@"name"] : nil;
+        if (ame428_slug.length == 0) continue;
+        [ame428_list addObject:@{
+            @"slug": ame428_slug,
+            @"name": (ame428_name.length > 0 ? ame428_name : ame428_slug),
+        }];
+    }
+    return ame428_list;
 }
 
 - (NSNumber *)classIDForProjectType:(NSString *)projectType {
@@ -941,7 +970,69 @@ static NSString *CFA169NormalizeGameVersion(NSString *v) {
     NSNumber *offsetNum = filters[@"offset"] ?: @0;
     int offset = [offsetNum intValue];
     NSString *mcVersion = filters[@"mcVersion"] ?: filters[@"version"];
-    
+
+    // ★Task428（4.4）：分类筛选进异步路径。此前仅同步路径
+    // （searchModWithFilters:previousPageResult:）消费 @"category" 键——ZL2
+    // 搜索页与聚合服务走异步路径，分类筛选被静默丢弃。ame316 解析内部是
+    // 同步网络端点（getEndpoint + dispatch_group_wait，首次拉 /categories 后
+    // 按 classId 缓存），不得在调用线程（ZL2 页在主线程发搜索）执行——带
+    // 分类筛选时整体挪后台队列，解析完成后再拼 URL 发请求；失配时置位
+    // ame428_lastCategoryFallbackSlug（调用方 completion 内读取出提示）并去
+    // 分类参数回退继续搜（已回退全部结果，不再静默不筛）。
+    NSString *ame428_category = [filters[@"category"] isKindOfClass:NSString.class] ? filters[@"category"] : nil;
+    self.ame428_lastCategoryFallbackSlug = nil;
+    if (ame428_category.length > 0) {
+        __weak typeof(self) weakSelf = self;
+        dispatch_async(dispatch_get_global_queue(QOS_CLASS_USER_INITIATED, 0), ^{
+            __strong typeof(weakSelf) strongSelf = weakSelf;
+            if (!strongSelf) return;
+            NSNumber *ame428_catId = [strongSelf ame316_categoryIdForSlug:ame428_category
+                                                                  classId:[[strongSelf classIDForProjectType:projectType] integerValue]];
+            if (ame428_catId == nil) {
+                strongSelf.ame428_lastCategoryFallbackSlug = ame428_category;
+            }
+            NSMutableURLRequest *ame428_request = [strongSelf ame428_searchURLRequestWithQuery:query
+                                                                                          limit:limit
+                                                                                         offset:offset
+                                                                                      mcVersion:mcVersion
+                                                                                    projectType:projectType
+                                                                                     categoryId:ame428_catId
+                                                                                        filters:filters];
+            if (!ame428_request) {
+                if (completion) completion(nil, [NSError errorWithDomain:@"CurseForgeAPI" code:1 userInfo:@{NSLocalizedDescriptionKey: @"Invalid URL"}]);
+                return;
+            }
+            [strongSelf ame169_issueSearchRequest:ame428_request attempt:0 projectType:projectType completion:completion];
+        });
+        return;
+    }
+
+    // 无分类筛选：原路径（同步拼 URL 直接发）
+    NSMutableURLRequest *request = [self ame428_searchURLRequestWithQuery:query
+                                                                    limit:limit
+                                                                   offset:offset
+                                                                mcVersion:mcVersion
+                                                              projectType:projectType
+                                                               categoryId:nil
+                                                                  filters:filters];
+    if (!request) {
+        if (completion) completion(nil, [NSError errorWithDomain:@"CurseForgeAPI" code:1 userInfo:@{NSLocalizedDescriptionKey: @"Invalid URL"}]);
+        return;
+    }
+
+    [self ame169_issueSearchRequest:request attempt:0 projectType:projectType completion:completion];
+}
+
+/// ★Task428（4.4）：异步搜索 URL/请求构造（自 searchModWithFilters:completion:
+/// 原地拆出，逻辑逐行保持）——新增 categoryId 参数：非 nil 时拼
+/// &categories=<id>（/mods/search 分类参数，CF 官方值域；同步路径 ame316 同款）。
+- (NSMutableURLRequest *)ame428_searchURLRequestWithQuery:(NSString *)query
+                                                    limit:(int)limit
+                                                   offset:(int)offset
+                                                mcVersion:(NSString *)mcVersion
+                                              projectType:(NSString *)projectType
+                                               categoryId:(NSNumber *)categoryId
+                                                  filters:(NSDictionary *)filters {
     // 构造 URL
     NSMutableString *urlString = [NSMutableString stringWithFormat:@"%@/mods/search?gameId=%ld&classId=%@&pageSize=%d&index=%d",
                                   self.baseURL,
@@ -955,6 +1046,10 @@ static NSString *CFA169NormalizeGameVersion(NSString *v) {
     if (mcVersion.length > 0) {
         // Task169：剥 fabric 构建哈希后缀（"26.3-0a78cefc" -> "26.3"）
         [urlString appendFormat:@"&gameVersion=%@", CFA169NormalizeGameVersion(mcVersion)];
+    }
+    // ★Task428（4.4）：分类参数（categoryId 由 ame316 归一解析；nil = 不带）
+    if (categoryId != nil) {
+        [urlString appendFormat:@"&categories=%@", categoryId.stringValue];
     }
     // Task173：排序 + 加载器参数（用户反馈“CF 列表没有按排序方式排列”）。
     // sortField/sortOrder/modLoaderType 直接拼 URL；值域映射见
@@ -970,13 +1065,10 @@ static NSString *CFA169NormalizeGameVersion(NSString *v) {
             [urlString appendFormat:@"&modLoaderType=%@", ame173_params[@"modLoaderType"]];
         }
     }
-    
+
     NSURL *url = [NSURL URLWithString:urlString];
-    if (!url) {
-        if (completion) completion(nil, [NSError errorWithDomain:@"CurseForgeAPI" code:1 userInfo:@{NSLocalizedDescriptionKey: @"Invalid URL"}]);
-        return;
-    }
-    
+    if (!url) return nil;
+
     NSMutableURLRequest *request = [NSMutableURLRequest requestWithURL:url];
     NSDictionary *headers = [self headers];
     // Task 171：keyless 镜像路径不再拦截（旧：headers==nil -> missingAPIKeyError，
@@ -986,8 +1078,7 @@ static NSString *CFA169NormalizeGameVersion(NSString *v) {
     }
     request.timeoutInterval = 30.0;
     NSLog(@"[CurseForgeAPI] searchModWithFilters starting request: %@", urlString);
-
-    [self ame169_issueSearchRequest:request attempt:0 projectType:projectType completion:completion];
+    return request;
 }
 
 /// Task169：异步搜索请求的实际执行（带网关错误检测 + 一次自动重试）。
