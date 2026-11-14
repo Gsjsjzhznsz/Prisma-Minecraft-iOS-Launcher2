@@ -289,7 +289,9 @@ static NSArray *ame428G_schematicTable(void) {
     static NSArray *table = nil;
     static dispatch_once_t once;
     dispatch_once(&once, ^{
-        NSDictionary *(*E)(int, int, CGRect, CGRect) = ^NSDictionary *(int pid, int shape, CGRect f, CGRect badge) {
+        // ★Task428-r1：block 指针而非 C 函数指针（^ 字面量初始化函数指针 = CI 判例
+        //   家族——本地括号门禁不查类型，新代码面首上 CI 才暴露）
+        NSDictionary * (^E)(int, int, CGRect, CGRect) = ^NSDictionary *(int pid, int shape, CGRect f, CGRect badge) {
             return @{
                 @"id": @(pid),
                 @"shape": @(shape),
@@ -788,7 +790,7 @@ static NSArray *ame428G_schematicTable(void) {
         [self ame428_buildExpandContentOnce];
         _expandBox.hidden = NO;
         CGFloat width = self.bounds.size.width - 32;
-        CGSize fit = [_expandStack systemLayoutSizeFittingSize:CGSizeMake(width, UILayoutFittingSizeCompressed)
+        CGSize fit = [_expandStack systemLayoutSizeFittingSize:CGSizeMake(width, UILayoutFittingCompressedSize.height)
                         withHorizontalFittingPriority:UILayoutPriorityRequired
                               verticalFittingPriority:UILayoutPriorityFittingSizeLevel];
         _expandHeightC.constant = fit.height;

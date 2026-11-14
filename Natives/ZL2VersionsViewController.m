@@ -1431,8 +1431,9 @@ static NSDictionary *ame428_byIdLocal(NSArray<NSDictionary *> *list, NSString *v
         NSString *ame428_inherits = nil;
         if (ame428_jsonState == 1 && [ame428_manifest isKindOfClass:[NSDictionary class]]) {
             id ame428_raw = ame428_manifest[@"inheritsFrom"];
+            // ★Task428-r1：id 上 .length 点语法不可编译——isinstance 守卫后显式转修
             if ([ame428_raw isKindOfClass:[NSString class]] &&
-                ame428_raw.length > 0 && ![ame428_raw isEqualToString:ame428_entry]) {
+                ((NSString *)ame428_raw).length > 0 && ![ame428_raw isEqualToString:ame428_entry]) {
                 ame428_inherits = ame428_raw;
             }
         }

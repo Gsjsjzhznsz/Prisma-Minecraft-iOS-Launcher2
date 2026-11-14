@@ -235,6 +235,7 @@ static const CFTimeInterval kAme428BurstWindow = 0.12;
 
 @interface ZL2FestivalEffectsView : UIView
 - (instancetype)eme428_initWithKind:(ZL2FestivalEffectKind)kind;
+- (instancetype)initWithFrame:(CGRect)frame kind:(ZL2FestivalEffectKind)kind;   // ★Task428-r1：真 init 家族（self 赋值合法域）
 - (void)eme428_burstAtPoint:(CGPoint)point;   // 点击爆发（烟花/爱心/蝙蝠）
 - (void)eme428_tap:(UITapGestureRecognizer *)gesture;
 - (void)eme428_tearDown;
@@ -252,7 +253,14 @@ static const CFTimeInterval kAme428BurstWindow = 0.12;
 @implementation ZL2FestivalEffectsView
 
 - (instancetype)eme428_initWithKind:(ZL2FestivalEffectKind)kind {
-    self = [super initWithFrame:CGRectZero];
+    // ★Task428-r1：self 赋值仅限 init 家族方法——改走 initWithFrame: 入口
+    //   （kind 经关联只读属性注入，语义不变；CI 判例家族：非 init 方法
+    //   内 self = [super init...] 不可编译）
+    return [self initWithFrame:CGRectZero kind:kind];
+}
+
+- (instancetype)initWithFrame:(CGRect)frame kind:(ZL2FestivalEffectKind)kind {
+    self = [super initWithFrame:frame];
     if (self) {
         _eme428_kind = kind;
         self.backgroundColor = UIColor.clearColor;

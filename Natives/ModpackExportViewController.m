@@ -59,9 +59,13 @@
             label.minimumScaleFactor = 0.7;
             [self addSubview:label];
             [labels addObject:label];
-            // 分栏居中：label.centerX = self.width * (i+1)/3（iOS 14 合法锚点算术）
-            [labelConstraints addObject:[label.centerXAnchor constraintEqualToAnchor:self.widthAnchor
-                                                                              multiplier:((CGFloat)(i + 1) / 3.0)]];
+            // 分栏居中：label.centerX = self.width * (i+1)/3
+            // ★Task428-r1：NSLayoutXAxisAnchor 无 multiplier 变体（系统间距除外）——
+            //   回退 NSLayoutConstraint constraintWithItem 经典 API（multiplier 原生支持）
+            [labelConstraints addObject:[NSLayoutConstraint
+                constraintWithItem:label attribute:NSLayoutAttributeCenterX
+                relatedBy:NSLayoutRelationEqual toItem:self attribute:NSLayoutAttributeWidth
+                multiplier:((CGFloat)(i + 1) / 3.0) constant:0.0]];
             [labelConstraints addObject:[label.topAnchor constraintEqualToAnchor:self.topAnchor constant:38]];
             [labelConstraints addObject:[label.heightAnchor constraintLessThanOrEqualToConstant:20]];
         }

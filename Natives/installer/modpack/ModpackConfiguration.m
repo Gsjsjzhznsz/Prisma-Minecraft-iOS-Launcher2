@@ -334,13 +334,15 @@ static NSArray<NSString *> *ame428_plainZipSignatureEntries(void) {
 
     NSString *loader = @"Vanilla";
     NSString *loaderVersion = @"";
-    if ([deps[@"forge"] isKindOfClass:[NSString class]] && deps[@"forge"].length > 0) {
+    // ★Task428-r1：id 上 .length 点语法不可编译（isinstance 守卫后仍为 id _Nullable）
+    //   ——显式 NSString 转修（CI 判例家族：本地括号门禁不查类型域）
+    if ([deps[@"forge"] isKindOfClass:[NSString class]] && ((NSString *)deps[@"forge"]).length > 0) {
         loader = @"Forge"; loaderVersion = deps[@"forge"];
-    } else if ([deps[@"neoforge"] isKindOfClass:[NSString class]] && deps[@"neoforge"].length > 0) {
+    } else if ([deps[@"neoforge"] isKindOfClass:[NSString class]] && ((NSString *)deps[@"neoforge"]).length > 0) {
         loader = @"NeoForge"; loaderVersion = deps[@"neoforge"];
-    } else if ([deps[@"fabric-loader"] isKindOfClass:[NSString class]] && deps[@"fabric-loader"].length > 0) {
+    } else if ([deps[@"fabric-loader"] isKindOfClass:[NSString class]] && ((NSString *)deps[@"fabric-loader"]).length > 0) {
         loader = @"Fabric"; loaderVersion = deps[@"fabric-loader"];
-    } else if ([deps[@"quilt-loader"] isKindOfClass:[NSString class]] && deps[@"quilt-loader"].length > 0) {
+    } else if ([deps[@"quilt-loader"] isKindOfClass:[NSString class]] && ((NSString *)deps[@"quilt-loader"]).length > 0) {
         loader = @"Quilt"; loaderVersion = deps[@"quilt-loader"];
     }
 

@@ -308,7 +308,7 @@ typedef NS_ENUM(NSInteger, Ame428ItemState) {
                             [downloads[@"client"] isKindOfClass:[NSDictionary class]])
         ? downloads[@"client"] : nil;
     if ([client isKindOfClass:[NSDictionary class]] &&
-        [client[@"url"] isKindOfClass:[NSString class]] && client[@"url"].length > 0) {
+        [client[@"url"] isKindOfClass:[NSString class]] && ((NSString *)client[@"url"]).length > 0) {
         return client;
     }
     return nil;
@@ -390,10 +390,11 @@ typedef NS_ENUM(NSInteger, Ame428ItemState) {
         item.url = [artifact[@"url"] isKindOfClass:[NSString class]] ? artifact[@"url"] : nil;
         if (item.url.length == 0) {
             // 无官方 URL：库根字段或 Mojang maven 兜底（Forge 风格安装链同源）
-            NSString *base = ([lib[@"url"] isKindOfClass:[NSString class]] && lib[@"url"].length > 0)
+            // ★Task428-r1：id 下标 .length 点语法不可编译——显式转修
+            NSString *libBase = ([lib[@"url"] isKindOfClass:[NSString class]] && ((NSString *)lib[@"url"]).length > 0)
                 ? [lib[@"url"] stringByReplacingOccurrencesOfString:@"http://" withString:@"https://"]
                 : @"https://libraries.minecraft.net/";
-            item.url = [NSString stringWithFormat:@"%@%@", base, rel];
+            item.url = [NSString stringWithFormat:@"%@%@", libBase, rel];
         }
         [items addObject:item];
     }
@@ -723,8 +724,10 @@ typedef NS_ENUM(NSInteger, Ame428ItemState) {
             NSMutableArray<Ame428CheckItem *> *toRepair = [NSMutableArray array];
             [toRepair addObjectsFromArray:missing];
             [toRepair addObjectsFromArray:corrupt];
-            NSUInteger repairedOK = 0;
-            NSMutableArray<NSString *> *repairFailed = [NSMutableArray array];
+            // ★Task428-r1：block 内自增/NSMutableArray add 需 __block 修饰
+            //   （原裸自动变量在 repair completion block 里不可赋值 = CI 编译雷）
+            __block NSUInteger repairedOK = 0;
+            __block NSMutableArray<NSString *> *repairFailed = [NSMutableArray array];
             if (toRepair.count > 0) {
                 updateUI(localize(@"ame428.verify.phase_repair", nil), 0.0);
                 for (NSUInteger start = 0; start < toRepair.count; start += kAme428RepairBatchSize) {
