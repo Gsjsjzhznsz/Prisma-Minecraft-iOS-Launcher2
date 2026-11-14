@@ -215,7 +215,8 @@ for lang in ["en", "zh-Hans", "zh-Hant", "zh-CN"]:
     # ★ Task419 补锚（继承欠账实测：Task418 头 75/81，+13 键增量四表同步无失衡（task191 同锚 3715））= 3715
     # ★ Task424 重锚：+8 键增量四表同步（ame424 姿态四段/复位/光位圆盘/亮度/自定义提示 = task191 同锚 3723）= 3723
     # ★ Task425 重锚：+9 键增量四表同步（ame425 gear/panel.title/done/contrast/scale/bg 四世界 = task191 同锚 3732）= 3732
-    check(f"J-{lang} 唯一键 3732（★Task425 重锚：…369 = 3702 → 419 补账 +13 = 3715 → 424 +8 = 3723 → 425 二级菜单/光强/世界背景 +9（四表同步 task191 同锚）= 3732）", len(keys) == 3732, f"got {len(keys)}")
+    # ★ Task426 重锚：+9 键增量四表同步（ame426 dial.caption/time 四态/weather 三段 = task191 同锚 3741）= 3741
+    check(f"J-{lang} 唯一键 3741（★Task426 重锚：…369 = 3702 → 419 补账 +13 = 3715 → 424 +8 = 3723 → 425 +9 = 3732 → 426 时间盘/天气 +9（四表同步 task191 同锚）= 3741）", len(keys) == 3741, f"got {len(keys)}")
 check("J-公告 6 条（★Task419 补锚：repo2 实态——Task413-r3 起 6 条，region-notice 为 repo1 专有从未入 repo2；pin 语义保持）",
       len(ann) == 6
       and any(a["id"] == "server-recommend-2026-09-24" for a in ann)

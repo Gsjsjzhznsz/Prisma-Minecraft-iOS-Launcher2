@@ -3959,3 +3959,12 @@
 "ame425.bg.snow" = "Snow";
 "ame425.bg.end" = "The End";
 "ame425.bg.nether" = "Nether";
+"ame426.dial.caption" = "Sun & Moon Orbit";
+"ame426.time.morning" = "Dawn";
+"ame426.time.noon" = "Noon";
+"ame426.time.dusk" = "Dusk";
+"ame426.time.night" = "Midnight";
+"ame426.weather.title" = "Weather";
+"ame426.weather.clear" = "Clear";
+"ame426.weather.rain" = "Rain";
+"ame426.weather.snow" = "Snow";

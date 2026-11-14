@@ -3955,3 +3955,12 @@
 "ame425.bg.snow" = "雪地";
 "ame425.bg.end" = "終界";
 "ame425.bg.nether" = "地獄";
+"ame426.dial.caption" = "日月軌跡 · MC 原版對蹠";
+"ame426.time.morning" = "清晨";
+"ame426.time.noon" = "正午";
+"ame426.time.dusk" = "黃昏";
+"ame426.time.night" = "午夜";
+"ame426.weather.title" = "天氣";
+"ame426.weather.clear" = "晴";
+"ame426.weather.rain" = "雨";
+"ame426.weather.snow" = "雪";

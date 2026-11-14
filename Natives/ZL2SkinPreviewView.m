@@ -21,6 +21,38 @@
 //   ④ 设为头像：头部前脸 8×8 裁贴放大 → AvatarManager saveAvatarForAccount
 //     （Documents/avatars/<account>.png 既有链首位命中）；
 //   ⑤ 下载：皮肤 PNG 系统分享面板（存文件/照片两落点，iPad 锚定按钮防崩）。
+// ★Task426 六复诉根修 + 两钦定升级（IMG_0674/0675/0676 装机实测）：
+//   ①「贴图之间贴合不紧密，跟视角方向有关，特定视角会完全消失或者移动」
+//     = 旧 3 点仿射贴面（P0/P1/P3 拟合、忽略 P2）把透视梯形当平行四边形：
+//     第 4 角各面各自近似 → 相邻面共享边只在 3 角精确 = 缝隙（贴合不紧密）；
+//     畸变量随 yaw 连续变化 = 贴图内容漂移（移动）；大面近掠射 det 越阈整面
+//     隐藏 + 画家序 mean-z 翻转 = 特定视角消失。根修 = 精确单应映射：面内
+//     局部点 (u,v) → P = C'' + u·A + v·B（旋转后缩放空间），透视除法
+//     w = (D−Pz)/D 对 u,v 线性 = 完整单应，CATransform3D w 行（m14/m24/m44）
+//     一次编码 → 四角全部精确落点（共享边逐点恒等 = 零缝），CA 光栅化逐
+//     像素透视正确；det 退化隐藏路径整体退役（仅视平面穿越卫兵）。
+//   ②「二级菜单还是太紧凑，应该覆盖在账号选择菜单的上方」= 面板改全屏
+//     覆罩：宿主上溯（顶层非窗口祖先 = 账户页整页）+ 暗背景点击关闭 +
+//     大幅面控制面板（滚动区内分区：天穹时间盘/天气/光强/模型大小/世界）。
+//   ③「光影质量太低，应该参考顶级光影」= MC 原版面亮度表（顶1.0/南北0.8/
+//     东西0.6/底0.5）补差 + 近似 AO（底0.20/侧0.10）+ 全舞台色调映射层
+//     （晨昏暖橙/深夜冷蓝/雨天灰蓝）+ 影罩改冷色深空蓝（黑改 #0a0f1e 系）。
+//   ④「光向圆屏应该符合 mc 原版月球和太阳相对的位置…亮度顺太阳月亮位置
+//     自动调节，亮度条退役」= 天穹时间盘：time∈[0,1) 一日相位（0=06:00
+//     日出正东），太阳轨道角 φ=time·2π，月 = φ+π 严格对跖（MC 原版相对
+//     位置）；光向 = 轨道平面（东+X—天顶+Y）+ 南向倾角；亮度 = f(日月
+//     仰角) 自动（白天 0.78+0.42·sinφ / 夜 0.60+0.20·sinφm），亮度拖条
+//     与 ±步进退役，圆盘 = 日月双旋钮对跖同盘，atan2 绝对定位跟手。
+//   ⑤「实现下雨（主世界）下雪（雪地背景）的光影和粒子效果」= 天气系统：
+//     晴/雨/雪三段（切世界自动预设：草地=雨、雪地=雪）+ CAEmitterLayer
+//     粒子（雨丝/雪花/地狱余烬/终界浮尘）+ 天光联动（雨 ×0.85 灰蓝罩 /
+//     雪 ×0.95）。
+//   ⑥「世界背景还是太粗糙，应该和 mc 原版效果差不多」= 世界 MC 原版化：
+//     16×16 程序化方块贴图（草/雪/末地石/地狱岩/熔岩双变体）+ 树木（橡树/
+//     云杉：原木+树冠盒体）+ 末地黑曜石柱+水晶 + 地狱熔岩海发光块 + 方块云
+//     （平地/雪地慢漂移）+ 星空层（夜/末地）+ 方形太阳月亮（MC 原版形状，
+//     地平线弧线升落 + 地平线下淡出）+ 三停靠天穹渐变（晨昏昼夜插值）+
+//     地平线雾带；地面/树/云/柱全部走同一精确透视管线。
 // （413 基线全量保留：Y 轴翻转 y_l = −(y_m−16) / 左右面换位 / slim 模型 /
 //   yggdrasil 真皮链 / skinfull 全皮落盘 / 缓存四段回退——ame378 C19 锚点
 //   字节级不动，S-C19 反向探针持续有效。）
@@ -402,7 +434,8 @@ static UIImage *ZL2SkinViewHeadAvatarImage(UIImage *skin) {
     CGFloat pivot[3];        // 肢体枢轴（居中模型空间）
     CGFloat normal[3];       // 面法线（模型空间）
     CGFloat screenPts[4][2]; // ★Task424 上一帧屏幕四角（自定义关节命中拾取）
-    NSInteger partIndex;     // ★Task424 所属部件（0 头/1 身/2 右臂/3 左臂/4 右腿/5 左腿）
+    NSInteger partIndex;     // ★Task424 所属部件（0 头/1 身/2 右臂/3 左臂/4 右腿/5 左腿；★Task426 世界面：-1 地面/-2 立方体道具/-3 云）
+    CGFloat emissive;        // ★Task426 自发光（熔岩/水晶/萤石：罩透明度×(1−emissive)）
 }
 @property (nonatomic, strong) CALayer *layer;    // 贴图面（shade/hl 为其子层随动）
 @property (nonatomic, strong) CALayer *shade;    // 黑色光影罩（opacity 逐帧 = 黑影 depth）
@@ -498,6 +531,24 @@ static const NSInteger AME425_WORLD_NETHER = 6;
 static const NSInteger AME425_GROUND_GRID = 8;      // 8×8 块
 static const CGFloat AME425_BLOCK_UNIT = 16.0;      // 方块边长（模型单位）
 
+// ★Task426 天穹时间盘（用户钦定：光向圆屏 = MC 原版日月相对位置 + 特定位置
+//   光影 + 亮度顺日月自动调节 = 亮度拖条退役）：
+//   time ∈ [0,1) = 一日相位（0.0=06:00 日出正东 → 0.25=正午天顶 → 0.5=18:00
+//   日落正西 → 0.75=午夜月顶）；太阳轨道角 φ = time·2π，月 = φ+π 严格对跖
+//   （MC 原版日月相对位置）；光向 = 轨道平面（东(+X)—天顶(+Y)）+ 南向倾角
+//   （原版正顶光面间差全靠面亮度表，柔和化倾角让侧面也参与 = 顶级光影观感）；
+//   亮度 = f(日月仰角) 自动：白天 b = 0.78+0.42·sinφ（晨 0.78 → 正午 1.20）/
+//   夜 b = 0.60+0.20·sinφm（月光地板）；雨 ×0.85 / 雪 ×0.95。
+static const CGFloat AME426_TIME_DEFAULT = 0.10;    // 晨后暖斜光（默认光影一眼可辨）
+static const CGFloat AME426_SOUTH_TILT = 0.28;      // 轨道南倾（顶光柔和化）
+// ★Task426 天气（用户钦定：主世界下雨/雪地下雪 + 光影粒子联动）：
+//   0 晴 / 1 雨（主世界）/ 2 雪（雪地）；雨 = 天光 ×0.85 + 灰蓝罩 + 雨丝
+//   粒子（CAEmitterLayer）；雪 = 天光 ×0.95 + 雪花粒子；地狱余烬/终界浮尘
+//   = 世界自带的非天气粒子；切换世界自动预设（草地=雨、雪地=雪、余=晴）。
+static const NSInteger AME426_WEATHER_CLEAR = 0;
+static const NSInteger AME426_WEATHER_RAIN = 1;
+static const NSInteger AME426_WEATHER_SNOW = 2;
+
 #pragma mark - 实现
 
 @implementation ZL2SkinPreviewView {
@@ -535,34 +586,46 @@ static const CGFloat AME425_BLOCK_UNIT = 16.0;      // 方块边长（模型单�
     NSInteger _ame424_poseIndex;                     // 0 站立 1 蹲下 2 跑步 3 自定义
     // ——★Task424 光影系统控件（旧 40pt 圆盘/110pt 拖条 ivar 退役：
     //   ★Task425 二级面板大圆盘+满宽拖条接管；az/el/b 语义不变）——
-    CGFloat _ame424_lightAz;                         // 光向方位角（rad）
-    CGFloat _ame424_lightEl;                         // 光向仰角（rad）
-    CGFloat _ame424_brightness;                      // 亮度系数 [0.5,1.5]
+    CGFloat _ame424_lightAz;                         // 光向方位角（rad；★Task426 由时间盘日月位派生，诊断/软影共用）
+    CGFloat _ame424_lightEl;                         // 光向仰角（rad；同上）
+    CGFloat _ame424_brightness;                      // 亮度系数（★Task426 自动：f(日月仰角/天气)，亮度拖条退役）
     CGFloat _ame424_joint[6][3];                     // 自定义关节角 [rotX,rotZ,rotY]
     NSInteger _ame424_dragPart;                      // 关节拖拽命中部件（-1 = 无）
     // ——★Task425 光影对比 + 世界背景 + 二级菜单——
     CGFloat _ame425_contrast;                        // 光影强度 [0,2]（拖条）
     NSInteger _ame425_world;                         // 0 黑/1 深灰/2 浅灰/3 草地/4 雪地/5 末地/6 地狱
     UIControl *_ame425_gearButton;                   // 二级菜单入口（底行）
-    UIView *_ame425_panel;                           // 二级菜单浮层面板
+    UIView *_ame425_panel;                           // 二级菜单面板（★Task426 全屏覆罩：宿主上溯+暗背景）
     UIScrollView *_ame425_panelScroll;
     BOOL _ame425_panelOn;
-    UIView *_ame425_bigDial;                         // 面板内大圆盘（140pt，绝对定位跟手）
-    UIView *_ame425_bigKnob;
-    UISlider *_ame425_brightSlider;                  // 面板内亮度拖条（满宽）
+    UIView *_ame425_bigDial;                         // 面板内天穹时间盘（190pt，★Task426 日月双旋钮对跖同盘）
+    UIView *_ame425_bigKnob;                         // 太阳旋钮（方形暖黄 = MC 原版日形）
     UISlider *_ame425_contrastSlider;                // 面板内光影强度拖条
     UISlider *_ame425_scaleSlider;                   // 面板内模型大小拖条
-    UILabel *_ame425_brightVal;
     UILabel *_ame425_contrastVal;
     UILabel *_ame425_scaleVal;
     NSMutableArray<UIControl *> *_ame425_bgButtons;  // 背景七钮（黑/深灰/浅灰/草地/雪地/末地/地狱）
     NSMutableArray<UIView *> *_ame425_bgDots;
-    CAGradientLayer *_ame425_skyLayer;               // 世界天空渐变
-    CALayer *_ame425_sunLayer;                       // 太阳/月亮
+    CAGradientLayer *_ame425_skyLayer;               // 世界天空渐变（★Task426 三停靠晨昏昼夜插值）
+    CALayer *_ame425_sunLayer;                       // 太阳（★Task426 方形 MC 原版 + 地平线弧线升落）
     UIView *_ame425_shadowView;                      // 脚下软影
     NSMutableArray<CALayer *> *_ame425_groundLayers; // 8×8 地面块
-    NSMutableArray<ZL2SkinViewFace *> *_ame425_groundFaces; // 地面面记录（投影复用）
-    NSMutableDictionary<NSNumber *, UIImage *> *_ame425_tileCache; // 方块噪点纹理缓存
+    NSMutableArray<ZL2SkinViewFace *> *_ame425_groundFaces; // 世界面记录（地面+道具+云；投影复用）
+    NSMutableDictionary<NSNumber *, UIImage *> *_ame425_tileCache; // 方块噪点纹理缓存（★Task426 16×16 双变体）
+    // ——★Task426 天穹时间盘 + 天气 + 世界 MC 原版化——
+    CGFloat _ame426_time;                            // 一日相位 [0,1)（0=06:00 日出正东；0.25 正午/0.5 日落/0.75 午夜）
+    NSInteger _ame426_weather;                       // 0 晴/1 雨/2 雪（切世界自动预设）
+    UISegmentedControl *_ame425_weatherSeg;          // 面板内天气三段（晴/雨/雪）
+    UILabel *_ame425_timeLabel;                      // 面板内时间读数（清晨/正午/黄昏/午夜 + MC 时钟）
+    UILabel *_ame425_timeSub;                        // 面板内时间副读数（MC 原版 HH:MM + 亮度自动读数）
+    CALayer *_ame426_moonLayer;                      // 月亮（方形，与太阳对跖）
+    UIView *_ame426_moonKnob;                        // 面板圆盘月亮旋钮（对跖位）
+    UIView *_ame426_dimView;                         // 全屏覆罩暗背景（点击关闭；覆盖账号选择菜单）
+    CALayer *_ame426_starLayer;                      // 星空（夜晚主世界/雪地 + 末地常驻）
+    CALayer *_ame426_gradeLayer;                     // 全舞台色调映射层（晨昏暖橙/深夜冷蓝/雨天灰蓝）
+    NSMutableArray<CALayer *> *_ame425_cloudLayers;  // 方块云（平地/雪地）
+    NSMutableArray<ZL2SkinViewFace *> *_ame425_cloudFaces;
+    CAEmitterLayer *_ame426_weatherEmitter;          // 雨/雪/地狱余烬/终界浮尘粒子
     NSMutableArray<UIControl *> *_ame414_swatchButtons;      // ★Task425 退役（面板七钮接管）
     NSMutableArray<UIView *> *_ame414_swatchDots;            // ★Task425 退役
     UIScrollView *_ame414_wardrobeStrip;                     // 衣柜缩略条
@@ -601,6 +664,9 @@ static const CGFloat AME425_BLOCK_UNIT = 16.0;      // 方块边长（模型单�
         // ★Task425 光影对比初值（Python B 组定量：c=1.4 面间差 58 灰阶 vs 旧 31）
         _ame425_contrast = AME425_CONTRAST_DEFAULT;
         _ame425_world = 0;   // 默认黑场（既有判例）
+        // ★Task426 天穹时间盘初值（晨后暖斜光 = 默认光影一眼可辨）+ 天气晴
+        _ame426_time = AME426_TIME_DEFAULT;
+        _ame426_weather = AME426_WEATHER_CLEAR;
         _ame424_poseIndex = 0;   // 开屏站立（416 判例：站姿立正 + 慢速自转）
         _ame424_dragPart = -1;
         for (NSInteger ame424_i = 0; ame424_i < 6; ame424_i++) {
@@ -634,6 +700,11 @@ static const CGFloat AME425_BLOCK_UNIT = 16.0;      // 方块边长（模型单�
         _ame413_ticker = nil;
         [_ame414_toastTimer invalidate];
         _ame414_toastTimer = nil;
+        // ★Task426 全屏覆罩面板随视图离窗同步拆卸（防宿主页重建后残留 + 面板
+        //   挂在已释放祖先链上悬空）
+        _ame425_panelOn = NO;
+        [_ame425_panel removeFromSuperview];
+        [_ame426_dimView removeFromSuperview];
     } else if (_ame413_ticker == nil) {
         _ame413_ticker = [CADisplayLink displayLinkWithTarget:self selector:@selector(ame413_tick)];
         _ame413_lastTick = CACurrentMediaTime();
@@ -906,20 +977,25 @@ static const CGFloat AME425_BLOCK_UNIT = 16.0;      // 方块边长（模型单�
     return ame414_btn;
 }
 
-#pragma mark Task425 二级菜单面板（调节器放大 + 细调 + 背景七选）
+#pragma mark Task425/426 二级菜单面板（★Task426 全屏覆罩 + 天穹时间盘 + 天气）
 
-// ★Task425 面板构建（初建隐藏；控件全部放大：圆盘 116pt / 满宽拖条 + 步进钮
-//   ±细调；用户「调节器都太小了无法细微调节」根修面）
+// ★Task426 面板构建（全屏覆罩 = 用户「二级菜单还是太紧凑了，应该覆盖在账号
+//   选择菜单的上方」根修面）：宿主上溯至顶层非窗口祖先（账户页整页），
+//   暗背景 _ame426_dimView 铺满覆盖账号列表 + 大幅面控制面板居中悬浮
+//   （min(页宽−24, 640) × min(页高−24, 660)），滚动区内分区：
+//   天穹时间盘（190pt 日月双旋钮对跖）+ 时间读数 + 天气三段 / 光影强度 /
+//   模型大小 / 世界七钮。亮度拖条退役（ame426_applyAutoBrightness 自动）。
 - (void)ame425_buildPanel {
     if (_ame425_panel) return;
-    _ame425_panel = [[UIView alloc] initWithFrame:CGRectZero];
-    _ame425_panel.translatesAutoresizingMaskIntoConstraints = NO;
-    _ame425_panel.hidden = YES;
-    _ame425_panel.layer.cornerRadius = [ZL2Theme radiusM];
+    _ame425_panel = [[UIView alloc] initWithFrame:CGRectMake(0, 0, 320, 480)];
+    _ame425_panel.layer.cornerRadius = 20.0;
     _ame425_panel.layer.borderWidth = 1.0;
     _ame425_panel.layer.borderColor = [ZL2Theme outlineVariant].CGColor;
-    _ame425_panel.backgroundColor = [UIColor colorWithWhite:0.11 alpha:0.97];
-    [self addSubview:_ame425_panel];
+    _ame425_panel.backgroundColor = [UIColor colorWithWhite:0.09 alpha:0.985];
+    _ame425_panel.layer.shadowColor = [UIColor blackColor].CGColor;
+    _ame425_panel.layer.shadowOpacity = 0.55;
+    _ame425_panel.layer.shadowRadius = 22.0;
+    _ame425_panel.layer.shadowOffset = CGSizeMake(0, 8);
 
     UILabel *ame425_title = [[UILabel alloc] init];
     ame425_title.text = localize(@"ame425.panel.title", @"显示与光影");
@@ -933,7 +1009,7 @@ static const CGFloat AME425_BLOCK_UNIT = 16.0;      // 方块边长（模型单�
     ame425_done.translatesAutoresizingMaskIntoConstraints = NO;
     ame425_done.isAccessibilityElement = YES;
     ame425_done.accessibilityLabel = localize(@"ame425.panel.done", @"完成");
-    ame425_done.layer.cornerRadius = 12.0;
+    ame425_done.layer.cornerRadius = 14.0;
     ame425_done.backgroundColor = [ZL2Theme primary];
     UILabel *ame425_doneLabel = [[UILabel alloc] init];
     ame425_doneLabel.text = localize(@"ame425.panel.done", @"完成");
@@ -946,10 +1022,23 @@ static const CGFloat AME425_BLOCK_UNIT = 16.0;      // 方块边长（模型单�
     ame425_done.ame414_onTap = ^{ [self ame425_togglePanel]; };
     [_ame425_panel addSubview:ame425_done];
 
-    // 大圆盘（116pt，绝对定位跟手 = ame425_dialPanned）
+    _ame425_panelScroll = [[UIScrollView alloc] init];
+    _ame425_panelScroll.translatesAutoresizingMaskIntoConstraints = NO;
+    _ame425_panelScroll.alwaysBounceVertical = YES;
+    _ame425_panelScroll.showsVerticalScrollIndicator = YES;
+    [_ame425_panel addSubview:_ame425_panelScroll];
+
+    // 滚动内容竖排栈（分区：时间盘行 / 光强 / 模型大小 / 世界）
+    UIStackView *ame426_stack = [[UIStackView alloc] init];
+    ame426_stack.axis = UILayoutConstraintAxisVertical;
+    ame426_stack.spacing = 18.0;
+    ame426_stack.translatesAutoresizingMaskIntoConstraints = NO;
+    [_ame425_panelScroll addSubview:ame426_stack];
+
+    // —— 时间盘行：190pt 天穹盘（日月对跖双旋钮）+ 右列（时间读数/天气三段）——
     _ame425_bigDial = [[UIView alloc] init];
     _ame425_bigDial.translatesAutoresizingMaskIntoConstraints = NO;
-    _ame425_bigDial.layer.cornerRadius = 58.0;
+    _ame425_bigDial.layer.cornerRadius = 95.0;
     _ame425_bigDial.layer.borderWidth = 2.0;
     _ame425_bigDial.layer.borderColor = [ZL2Theme outlineVariant].CGColor;
     _ame425_bigDial.backgroundColor = [UIColor colorWithWhite:0.0 alpha:0.35];
@@ -958,37 +1047,133 @@ static const CGFloat AME425_BLOCK_UNIT = 16.0;      // 方块边长（模型单�
     UIPanGestureRecognizer *ame425_dialPan =
         [[UIPanGestureRecognizer alloc] initWithTarget:self action:@selector(ame425_dialPanned:)];
     [_ame425_bigDial addGestureRecognizer:ame425_dialPan];
-    [_ame425_panel addSubview:_ame425_bigDial];
+    // 地平线（盘内水平细线 = 天/地分界；上半天弧 = 太阳路径，下半 = 夜弧）
+    UIView *ame426_horizon = [[UIView alloc] init];
+    ame426_horizon.translatesAutoresizingMaskIntoConstraints = NO;
+    ame426_horizon.backgroundColor = [ZL2Theme onSurfaceVariant];
+    ame426_horizon.alpha = 0.35;
+    ame426_horizon.userInteractionEnabled = NO;
+    [_ame425_bigDial addSubview:ame426_horizon];
     _ame425_bigKnob = [[UIView alloc] init];
     _ame425_bigKnob.translatesAutoresizingMaskIntoConstraints = NO;
     _ame425_bigKnob.userInteractionEnabled = NO;
-    _ame425_bigKnob.layer.cornerRadius = 8.0;
+    _ame425_bigKnob.layer.cornerRadius = 4.0;   // ★Task426 方形旋钮 = MC 原版日形
     _ame425_bigKnob.layer.shadowColor = [UIColor blackColor].CGColor;
     _ame425_bigKnob.layer.shadowOpacity = 0.5;
     _ame425_bigKnob.layer.shadowRadius = 3.0;
     _ame425_bigKnob.layer.shadowOffset = CGSizeMake(0, 1);
-    _ame425_bigKnob.backgroundColor = [UIColor colorWithWhite:1.0 alpha:0.97];
+    _ame425_bigKnob.backgroundColor = [UIColor colorWithRed:1.0 green:0.92 blue:0.55 alpha:0.98];
     [_ame425_bigDial addSubview:_ame425_bigKnob];
+    _ame426_moonKnob = [[UIView alloc] init];
+    _ame426_moonKnob.translatesAutoresizingMaskIntoConstraints = NO;
+    _ame426_moonKnob.userInteractionEnabled = NO;
+    _ame426_moonKnob.layer.cornerRadius = 3.0;
+    _ame426_moonKnob.backgroundColor = [UIColor colorWithRed:0.80 green:0.85 blue:0.95 alpha:0.90];
+    [_ame425_bigDial addSubview:_ame426_moonKnob];
 
-    // 拖条三连（亮度/光影强度/模型大小）+ 步进钮 ±0.05 细调
-    _ame425_brightSlider = [self ame425_sliderWithMin:AME424_BRIGHT_MIN max:AME424_BRIGHT_MAX
-                                               action:@selector(ame424_brightnessChanged:)
-                                                 label:@"ame424.skin.light.brightness"];
+    UIStackView *ame426_timeCol = [[UIStackView alloc] init];
+    ame426_timeCol.axis = UILayoutConstraintAxisVertical;
+    ame426_timeCol.spacing = 8.0;
+    ame426_timeCol.translatesAutoresizingMaskIntoConstraints = NO;
+    UILabel *ame426_dialCap = [[UILabel alloc] init];
+    ame426_dialCap.text = localize(@"ame426.dial.caption", @"日月轨迹 · MC 原版对跖");
+    ame426_dialCap.font = [ZL2Theme fontLabelMedium];
+    ame426_dialCap.textColor = [ZL2Theme onSurfaceVariant];
+    ame426_dialCap.numberOfLines = 1;
+    ame426_dialCap.userInteractionEnabled = NO;
+    ame426_dialCap.translatesAutoresizingMaskIntoConstraints = NO;
+    [ame426_timeCol addArrangedSubview:ame426_dialCap];
+    _ame425_timeLabel = [[UILabel alloc] init];
+    _ame425_timeLabel.font = [UIFont systemFontOfSize:26.0 weight:UIFontWeightBold];
+    _ame425_timeLabel.textColor = [ZL2Theme onSurface];
+    _ame425_timeLabel.numberOfLines = 1;
+    _ame425_timeLabel.userInteractionEnabled = NO;
+    _ame425_timeLabel.translatesAutoresizingMaskIntoConstraints = NO;
+    [ame426_timeCol addArrangedSubview:_ame425_timeLabel];
+    _ame425_timeSub = [[UILabel alloc] init];
+    _ame425_timeSub.font = [ZL2Theme fontBodyMedium];
+    _ame425_timeSub.textColor = [ZL2Theme onSurfaceVariant];
+    _ame425_timeSub.numberOfLines = 2;
+    _ame425_timeSub.userInteractionEnabled = NO;
+    _ame425_timeSub.translatesAutoresizingMaskIntoConstraints = NO;
+    [ame426_timeCol addArrangedSubview:_ame425_timeSub];
+    // 天气三段（晴/雨/雪；主世界雨/雪地雪 = 用户钦定粒子光影联动）
+    _ame425_weatherSeg = [[UISegmentedControl alloc] initWithItems:@[
+        localize(@"ame426.weather.clear", @"晴"),
+        localize(@"ame426.weather.rain", @"雨"),
+        localize(@"ame426.weather.snow", @"雪")]];
+    _ame425_weatherSeg.selectedSegmentIndex = _ame426_weather;
+    _ame425_weatherSeg.translatesAutoresizingMaskIntoConstraints = NO;
+    _ame425_weatherSeg.accessibilityLabel = localize(@"ame426.weather.title", @"天气");
+    [_ame425_weatherSeg addTarget:self
+                           action:@selector(ame426_weatherChanged:)
+                 forControlEvents:UIControlEventValueChanged];
+    [ame426_timeCol addArrangedSubview:_ame425_weatherSeg];
+
+    UIStackView *ame426_dialRow = [[UIStackView alloc] init];
+    ame426_dialRow.axis = UILayoutConstraintAxisHorizontal;
+    ame426_dialRow.spacing = 18.0;
+    ame426_dialRow.alignment = UIStackViewAlignmentTop;
+    ame426_dialRow.translatesAutoresizingMaskIntoConstraints = NO;
+    [_ame425_bigDial.widthAnchor constraintEqualToConstant:190.0].active = YES;
+    [_ame425_bigDial.heightAnchor constraintEqualToConstant:190.0].active = YES;
+    [ame426_dialRow addArrangedSubview:_ame425_bigDial];
+    [ame426_dialRow addArrangedSubview:ame426_timeCol];
+    [ame426_stack addArrangedSubview:ame426_dialRow];
+    [NSLayoutConstraint activateConstraints:@[
+        [ame426_horizon.leadingAnchor constraintEqualToAnchor:_ame425_bigDial.leadingAnchor constant:12.0],
+        [ame426_horizon.trailingAnchor constraintEqualToAnchor:_ame425_bigDial.trailingAnchor constant:-12.0],
+        [ame426_horizon.centerYAnchor constraintEqualToAnchor:_ame425_bigDial.centerYAnchor],
+        [ame426_horizon.heightAnchor constraintEqualToConstant:1.5],
+        [_ame425_bigKnob.widthAnchor constraintEqualToConstant:22.0],
+        [_ame425_bigKnob.heightAnchor constraintEqualToConstant:22.0],
+        [_ame426_moonKnob.widthAnchor constraintEqualToConstant:17.0],
+        [_ame426_moonKnob.heightAnchor constraintEqualToConstant:17.0],
+    ]];
+
+    // —— 光影强度行（满宽拖条 + ±0.1 步进细调；「无法细微调节」根修面保持）——
     _ame425_contrastSlider = [self ame425_sliderWithMin:AME425_CONTRAST_MIN max:AME425_CONTRAST_MAX
                                                  action:@selector(ame425_contrastChanged:)
                                                    label:@"ame425.panel.contrast"];
+    _ame425_contrastVal = [self ame425_valLabel];
+    UIControl *ame425_cMinus = [self ame425_stepButtonWithDelta:-0.1 isContrast:YES];
+    UIControl *ame425_cPlus = [self ame425_stepButtonWithDelta:0.1 isContrast:YES];
+    UIStackView *ame426_cRow = [[UIStackView alloc] init];
+    ame426_cRow.axis = UILayoutConstraintAxisHorizontal;
+    ame426_cRow.spacing = 8.0;
+    ame426_cRow.alignment = UIStackViewAlignmentCenter;
+    ame426_cRow.translatesAutoresizingMaskIntoConstraints = NO;
+    [ame426_cRow addArrangedSubview:ame425_cMinus];
+    [ame426_cRow addArrangedSubview:_ame425_contrastSlider];
+    [_ame425_contrastSlider.widthAnchor constraintGreaterThanOrEqualToConstant:180.0].active = YES;
+    [ame426_cRow addArrangedSubview:_ame425_contrastVal];
+    [ame426_cRow addArrangedSubview:ame425_cPlus];
+    [_ame425_contrastVal.widthAnchor constraintEqualToConstant:44.0].active = YES;
+    [ame426_stack addArrangedSubview:ame426_cRow];
+
+    // —— 模型大小行 ——
     _ame425_scaleSlider = [self ame425_sliderWithMin:0.5 max:2.5
                                               action:@selector(ame425_scaleChanged:)
                                                 label:@"ame425.panel.scale"];
-    _ame425_brightVal = [self ame425_valLabel];
-    _ame425_contrastVal = [self ame425_valLabel];
     _ame425_scaleVal = [self ame425_valLabel];
-    UIControl *ame425_bMinus = [self ame425_stepButtonWithDelta:-0.05 isContrast:NO];
-    UIControl *ame425_bPlus = [self ame425_stepButtonWithDelta:0.05 isContrast:NO];
-    UIControl *ame425_cMinus = [self ame425_stepButtonWithDelta:-0.1 isContrast:YES];
-    UIControl *ame425_cPlus = [self ame425_stepButtonWithDelta:0.1 isContrast:YES];
+    UIControl *ame426_sMinus = [self ame425_stepButtonWithDelta:-0.1 isContrast:NO];
+    UIControl *ame426_sPlus = [self ame425_stepButtonWithDelta:0.1 isContrast:NO];
+    ame426_sMinus.ame414_onTap = ^{ [self ame425_stepScale:-0.1]; };
+    ame426_sPlus.ame414_onTap = ^{ [self ame425_stepScale:0.1]; };
+    UIStackView *ame426_sRow = [[UIStackView alloc] init];
+    ame426_sRow.axis = UILayoutConstraintAxisHorizontal;
+    ame426_sRow.spacing = 8.0;
+    ame426_sRow.alignment = UIStackViewAlignmentCenter;
+    ame426_sRow.translatesAutoresizingMaskIntoConstraints = NO;
+    [ame426_sRow addArrangedSubview:ame426_sMinus];
+    [ame426_sRow addArrangedSubview:_ame425_scaleSlider];
+    [_ame425_scaleSlider.widthAnchor constraintGreaterThanOrEqualToConstant:180.0].active = YES;
+    [ame426_sRow addArrangedSubview:_ame425_scaleVal];
+    [ame426_sRow addArrangedSubview:ame426_sPlus];
+    [_ame425_scaleVal.widthAnchor constraintEqualToConstant:44.0].active = YES;
+    [ame426_stack addArrangedSubview:ame426_sRow];
 
-    // 背景七钮（黑/深灰/浅灰/草地/雪地/末地/地狱）
+    // —— 世界七钮（黑/深灰/浅灰/草地/雪地/末地/地狱；40pt 大钮 + 选中点）——
     _ame425_bgButtons = [NSMutableArray array];
     _ame425_bgDots = [NSMutableArray array];
     NSArray *ame425_bgColors = @[
@@ -1004,12 +1189,17 @@ static const CGFloat AME425_BLOCK_UNIT = 16.0;      // 方块边长（模型单�
         @"ame414.skin.bg", @"ame414.skin.bg", @"ame414.skin.bg",
         @"ame425.bg.plains", @"ame425.bg.snow", @"ame425.bg.end", @"ame425.bg.nether",
     ];
+    UIStackView *ame426_worldRow = [[UIStackView alloc] init];
+    ame426_worldRow.axis = UILayoutConstraintAxisHorizontal;
+    ame426_worldRow.spacing = 10.0;
+    ame426_worldRow.distribution = UIStackViewDistributionFillEqually;
+    ame426_worldRow.translatesAutoresizingMaskIntoConstraints = NO;
     for (NSUInteger ame425_i = 0; ame425_i < ame425_bgColors.count; ame425_i++) {
         ZL2SkinViewTapControl *ame425_bg = [[ZL2SkinViewTapControl alloc] init];
         ame425_bg.translatesAutoresizingMaskIntoConstraints = NO;
         ame425_bg.isAccessibilityElement = YES;
         ame425_bg.accessibilityLabel = localize(ame425_bgKeys[ame425_i], @"背景");
-        ame425_bg.layer.cornerRadius = 14.0;
+        ame425_bg.layer.cornerRadius = 12.0;
         ame425_bg.layer.borderWidth = 1.5;
         ame425_bg.layer.borderColor = [ZL2Theme outlineVariant].CGColor;
         ame425_bg.backgroundColor = ame425_bgColors[ame425_i];
@@ -1018,84 +1208,42 @@ static const CGFloat AME425_BLOCK_UNIT = 16.0;      // 方块边长（模型单�
         ame425_dot.userInteractionEnabled = NO;
         ame425_dot.layer.cornerRadius = 4.0;
         ame425_dot.backgroundColor = [ZL2Theme primary];
-        ame425_dot.hidden = (ame425_i != _ame425_world);
+        ame425_dot.hidden = ((NSInteger)ame425_i != _ame425_world);
         [ame425_bg addSubview:ame425_dot];
         ame425_bg.ame414_onTap = ^{ [self ame425_applyBackgroundIndex:(NSInteger)ame425_i]; };
-        [_ame425_panel addSubview:ame425_bg];
+        [ame426_worldRow addArrangedSubview:ame425_bg];
         [_ame425_bgButtons addObject:ame425_bg];
         [_ame425_bgDots addObject:ame425_dot];
-    }
-
-    [NSLayoutConstraint activateConstraints:@[
-        [_ame425_panel.leadingAnchor constraintEqualToAnchor:self.leadingAnchor constant:8.0],
-        [_ame425_panel.trailingAnchor constraintEqualToAnchor:self.trailingAnchor constant:-8.0],
-        [_ame425_panel.bottomAnchor constraintEqualToAnchor:self.bottomAnchor constant:-6.0],
-        [_ame425_panel.heightAnchor constraintEqualToConstant:252.0],
-
-        [ame425_title.leadingAnchor constraintEqualToAnchor:_ame425_panel.leadingAnchor constant:14.0],
-        [ame425_title.topAnchor constraintEqualToAnchor:_ame425_panel.topAnchor constant:10.0],
-        [ame425_done.trailingAnchor constraintEqualToAnchor:_ame425_panel.trailingAnchor constant:-12.0],
-        [ame425_done.centerYAnchor constraintEqualToAnchor:ame425_title.centerYAnchor],
-        [ame425_done.widthAnchor constraintEqualToConstant:52.0],
-        [ame425_done.heightAnchor constraintEqualToConstant:26.0],
-        [ame425_doneLabel.centerXAnchor constraintEqualToAnchor:ame425_done.centerXAnchor],
-        [ame425_doneLabel.centerYAnchor constraintEqualToAnchor:ame425_done.centerYAnchor],
-
-        [_ame425_bigDial.leadingAnchor constraintEqualToAnchor:_ame425_panel.leadingAnchor constant:14.0],
-        [_ame425_bigDial.topAnchor constraintEqualToAnchor:ame425_title.bottomAnchor constant:8.0],
-        [_ame425_bigDial.widthAnchor constraintEqualToConstant:116.0],
-        [_ame425_bigDial.heightAnchor constraintEqualToConstant:116.0],
-        [_ame425_bigKnob.widthAnchor constraintEqualToConstant:16.0],
-        [_ame425_bigKnob.heightAnchor constraintEqualToConstant:16.0],
-
-        [_ame425_brightSlider.leadingAnchor constraintEqualToAnchor:_ame425_bigDial.trailingAnchor constant:12.0],
-        [_ame425_brightSlider.topAnchor constraintEqualToAnchor:_ame425_bigDial.topAnchor constant:14.0],
-        [_ame425_contrastSlider.leadingAnchor constraintEqualToAnchor:_ame425_brightSlider.leadingAnchor],
-        [_ame425_contrastSlider.topAnchor constraintEqualToAnchor:_ame425_brightSlider.bottomAnchor constant:18.0],
-        [_ame425_brightVal.centerYAnchor constraintEqualToAnchor:_ame425_brightSlider.centerYAnchor],
-        [_ame425_brightVal.leadingAnchor constraintEqualToAnchor:_ame425_brightSlider.trailingAnchor constant:6.0],
-        [_ame425_brightVal.widthAnchor constraintEqualToConstant:44.0],
-        [_ame425_contrastVal.centerYAnchor constraintEqualToAnchor:_ame425_contrastSlider.centerYAnchor],
-        [_ame425_contrastVal.leadingAnchor constraintEqualToAnchor:_ame425_contrastSlider.trailingAnchor constant:6.0],
-        [_ame425_contrastVal.widthAnchor constraintEqualToConstant:44.0],
-        [ame425_bMinus.centerYAnchor constraintEqualToAnchor:_ame425_brightSlider.centerYAnchor],
-        [ame425_bMinus.trailingAnchor constraintEqualToAnchor:_ame425_brightSlider.leadingAnchor constant:-4.0],
-        [ame425_bPlus.centerYAnchor constraintEqualToAnchor:_ame425_brightSlider.centerYAnchor],
-        [ame425_bPlus.leadingAnchor constraintEqualToAnchor:_ame425_brightVal.trailingAnchor constant:4.0],
-        [ame425_cMinus.centerYAnchor constraintEqualToAnchor:_ame425_contrastSlider.centerYAnchor],
-        [ame425_cMinus.trailingAnchor constraintEqualToAnchor:_ame425_contrastSlider.leadingAnchor constant:-4.0],
-        [ame425_cPlus.centerYAnchor constraintEqualToAnchor:_ame425_contrastSlider.centerYAnchor],
-        [ame425_cPlus.leadingAnchor constraintEqualToAnchor:_ame425_contrastVal.trailingAnchor constant:4.0],
-
-        // 背景七钮横排（第二行）
-        [_ame425_bgButtons[0].leadingAnchor constraintEqualToAnchor:_ame425_panel.leadingAnchor constant:14.0],
-        [_ame425_bgButtons[0].topAnchor constraintEqualToAnchor:_ame425_bigDial.bottomAnchor constant:8.0],
-    ]];
-    for (NSUInteger ame425_i = 1; ame425_i < _ame425_bgButtons.count; ame425_i++) {
         [NSLayoutConstraint activateConstraints:@[
-            [_ame425_bgButtons[ame425_i].leadingAnchor constraintEqualToAnchor:_ame425_bgButtons[ame425_i - 1].trailingAnchor constant:8.0],
-            [_ame425_bgButtons[ame425_i].centerYAnchor constraintEqualToAnchor:_ame425_bgButtons[0].centerYAnchor],
-        ]];
-    }
-    for (NSUInteger ame425_i = 0; ame425_i < _ame425_bgButtons.count; ame425_i++) {
-        UIView *ame425_dot = _ame425_bgDots[ame425_i];
-        [NSLayoutConstraint activateConstraints:@[
-            [_ame425_bgButtons[ame425_i].widthAnchor constraintEqualToConstant:28.0],
-            [_ame425_bgButtons[ame425_i].heightAnchor constraintEqualToConstant:28.0],
-            [ame425_dot.centerXAnchor constraintEqualToAnchor:_ame425_bgButtons[ame425_i].centerXAnchor],
-            [ame425_dot.centerYAnchor constraintEqualToAnchor:_ame425_bgButtons[ame425_i].centerYAnchor],
+            [ame425_bg.heightAnchor constraintEqualToConstant:40.0],
+            [ame425_dot.centerXAnchor constraintEqualToAnchor:ame425_bg.centerXAnchor],
+            [ame425_dot.centerYAnchor constraintEqualToAnchor:ame425_bg.centerYAnchor],
             [ame425_dot.widthAnchor constraintEqualToConstant:8.0],
             [ame425_dot.heightAnchor constraintEqualToConstant:8.0],
         ]];
     }
+    [ame426_stack addArrangedSubview:ame426_worldRow];
+
     [NSLayoutConstraint activateConstraints:@[
-        // 缩放行（第三行）
-        [_ame425_scaleSlider.leadingAnchor constraintEqualToAnchor:_ame425_panel.leadingAnchor constant:14.0],
-        [_ame425_scaleSlider.topAnchor constraintEqualToAnchor:_ame425_bgButtons[0].bottomAnchor constant:12.0],
-        [_ame425_scaleSlider.trailingAnchor constraintEqualToAnchor:_ame425_scaleVal.leadingAnchor constant:-6.0],
-        [_ame425_scaleVal.centerYAnchor constraintEqualToAnchor:_ame425_scaleSlider.centerYAnchor],
-        [_ame425_scaleVal.trailingAnchor constraintEqualToAnchor:_ame425_panel.trailingAnchor constant:-14.0],
-        [_ame425_scaleVal.widthAnchor constraintEqualToConstant:44.0],
+        [ame425_title.topAnchor constraintEqualToAnchor:_ame425_panel.topAnchor constant:16.0],
+        [ame425_title.leadingAnchor constraintEqualToAnchor:_ame425_panel.leadingAnchor constant:20.0],
+        [ame425_done.trailingAnchor constraintEqualToAnchor:_ame425_panel.trailingAnchor constant:-16.0],
+        [ame425_done.centerYAnchor constraintEqualToAnchor:ame425_title.centerYAnchor],
+        [ame425_done.widthAnchor constraintEqualToConstant:64.0],
+        [ame425_done.heightAnchor constraintEqualToConstant:32.0],
+        [ame425_doneLabel.centerXAnchor constraintEqualToAnchor:ame425_done.centerXAnchor],
+        [ame425_doneLabel.centerYAnchor constraintEqualToAnchor:ame425_done.centerYAnchor],
+
+        [_ame425_panelScroll.topAnchor constraintEqualToAnchor:ame425_title.bottomAnchor constant:12.0],
+        [_ame425_panelScroll.leadingAnchor constraintEqualToAnchor:_ame425_panel.leadingAnchor constant:16.0],
+        [_ame425_panelScroll.trailingAnchor constraintEqualToAnchor:_ame425_panel.trailingAnchor constant:-16.0],
+        [_ame425_panelScroll.bottomAnchor constraintEqualToAnchor:_ame425_panel.bottomAnchor constant:-14.0],
+
+        [ame426_stack.topAnchor constraintEqualToAnchor:_ame425_panelScroll.contentLayoutGuide.topAnchor],
+        [ame426_stack.bottomAnchor constraintEqualToAnchor:_ame425_panelScroll.contentLayoutGuide.bottomAnchor],
+        [ame426_stack.leadingAnchor constraintEqualToAnchor:_ame425_panelScroll.contentLayoutGuide.leadingAnchor],
+        [ame426_stack.trailingAnchor constraintEqualToAnchor:_ame425_panelScroll.contentLayoutGuide.trailingAnchor],
+        [ame426_stack.widthAnchor constraintEqualToAnchor:_ame425_panelScroll.frameLayoutGuide.widthAnchor],
     ]];
 }
 
@@ -1152,34 +1300,48 @@ static const CGFloat AME425_BLOCK_UNIT = 16.0;      // 方块边长（模型单�
     if (isContrast) {
         ame425_b.ame414_onTap = ^{ [self ame425_stepContrast:delta]; };
     } else {
-        ame425_b.ame414_onTap = ^{ [self ame425_stepBrightness:delta]; };
+        ame425_b.ame414_onTap = ^{ [self ame425_stepScale:delta]; };
     }
     [_ame425_panel addSubview:ame425_b];
     return ame425_b;
 }
 
-// ★Task424→425 姿态/光影 UI 同步：四段选中态 + 面板大圆盘旋钮 + 三拖条/值标签
-//   + 背景七钮选中点。旋钮映射同 Python 设计稿：r = R·(1−el/90°)（el 5°..80°
-//   → 近缘..盘心），az 以盘心正上为 0 顺时针。
+// ★Task424→426 姿态/光影 UI 同步：四段选中态 + 天穹时间盘日月双旋钮（对跖）
+//   + 时间读数（MC 原版时钟：06:00 起算，time·24h）+ 天气三段 + 光强/大小
+//   拖条值 + 背景七钮选中点 + 天穹/色调映射/粒子birth率全联动刷新。
+//   旋钮 = atan2 绝对定位（Task425 跟手判例延续）：sun 位 = 盘心 +
+//   R·(cosφ, −sinφ)，moon = φ+π 对跖。
 - (void)ame424_syncPoseUI {
     if (!_ame414_controlsBuilt) return;
     _ame424_poseControl.selectedSegmentIndex = _ame424_poseIndex;   // iOS14 无 animated 变体（CI 932 编译雷判例）
+    [self ame426_applyAutoBrightness];   // ★Task426 亮度顺日月仰角自动（亮度拖条退役）
     if (_ame425_bigDial) {
-        // 大圆盘旋钮（r = 58−8(knob)−3(边) = 47 内映射 el 5°..80°）
-        CGFloat ame425_r = 47.0 * (1.0 - (_ame424_lightEl - 0.087) / 1.309);
-        if (ame425_r < 0.0) ame425_r = 0.0;
-        if (ame425_r > 47.0) ame425_r = 47.0;
-        CGFloat ame425_kx = 58.0 + sin(_ame424_lightAz) * ame425_r - 8.0;
-        CGFloat ame425_ky = 58.0 - cos(_ame424_lightAz) * ame425_r - 8.0;
+        CGFloat ame426_phi = _ame426_time * 2.0 * M_PI;
+        CGFloat ame426_R = 95.0 - 11.0 - 4.0;   // 80 内映射半径（盘 190/2 − 旋钮半宽 − 边距）
         CGRect ame425_kf = _ame425_bigKnob.frame;
-        ame425_kf.origin.x = ame425_kx;
-        ame425_kf.origin.y = ame425_ky;
+        ame425_kf.origin.x = 95.0 + cos(ame426_phi) * ame426_R - 11.0;
+        ame425_kf.origin.y = 95.0 - sin(ame426_phi) * ame426_R - 11.0;
         _ame425_bigKnob.frame = ame425_kf;   // ★跟手通道：frame 直写（拖拽热路径零约束求解）
-        _ame425_brightSlider.value = (float)_ame424_brightness;
+        CGRect ame426_mkf = _ame426_moonKnob.frame;
+        ame426_mkf.origin.x = 95.0 + cos(ame426_phi + M_PI) * ame426_R - 8.5;
+        ame426_mkf.origin.y = 95.0 - sin(ame426_phi + M_PI) * ame426_R - 8.5;
+        _ame426_moonKnob.frame = ame426_mkf;   // 月 = φ+π 严格对跖（MC 原版日月相对位置）
+        // 时间读数：MC 原版时钟（06:00 起算 + time·24h）+ 时段四态
+        NSInteger ame426_hh = (NSInteger)floor(fmod(6.0 + _ame426_time * 24.0, 24.0));
+        NSInteger ame426_mm = (NSInteger)floor(fmod(_ame426_time * 24.0 * 60.0, 60.0));
+        NSString *ame426_phase;
+        if (_ame426_time < 0.125) ame426_phase = localize(@"ame426.time.morning", @"清晨");
+        else if (_ame426_time < 0.375) ame426_phase = localize(@"ame426.time.noon", @"正午");
+        else if (_ame426_time < 0.5) ame426_phase = localize(@"ame426.time.dusk", @"黄昏");
+        else ame426_phase = localize(@"ame426.time.night", @"午夜");
+        _ame425_timeLabel.text = [NSString stringWithFormat:@"%@ %02ld:%02ld",
+            ame426_phase, (long)ame426_hh % 24, (long)ame426_mm % 60];
+        _ame425_timeSub.text = [NSString stringWithFormat:@"%@ %ld%%",
+            localize(@"ame424.skin.light.brightness", @"亮度"),
+            (long)round(_ame424_brightness * 100.0)];
+        _ame425_weatherSeg.selectedSegmentIndex = _ame426_weather;
         _ame425_contrastSlider.value = (float)_ame425_contrast;
         _ame425_scaleSlider.value = (float)_ame413_userScale;
-        _ame425_brightVal.text = [NSString stringWithFormat:@"%ld%%",
-            (long)round(_ame424_brightness * 100.0)];
         _ame425_contrastVal.text = [NSString stringWithFormat:@"%ld%%",
             (long)round(_ame425_contrast * 100.0)];
         _ame425_scaleVal.text = [NSString stringWithFormat:@"%ld%%",
@@ -1189,19 +1351,74 @@ static const CGFloat AME425_BLOCK_UNIT = 16.0;      // 方块边长（模型单�
             ame425_dot.hidden = ((NSInteger)ame425_i != _ame425_world);
         }
     }
+    [self ame426_syncSkyPalette];   // 天穹三停靠渐变 + 星空/色调映射层随时间/天气/世界
 }
 
-// ★Task425 面板开合（gear 二级菜单入口）
+// ★Task426 面板开合（gear 二级菜单入口；全屏覆罩 = 宿主上溯 + 暗背景 +
+//   居中大面板覆盖账号选择菜单上方）
 - (void)ame425_togglePanel {
+    if (!_ame425_panel) [self ame425_buildPanel];
     _ame425_panelOn = !_ame425_panelOn;
-    [CATransaction begin];
-    [CATransaction setDisableActions:YES];
-    _ame425_panel.hidden = !_ame425_panelOn;
-    _ame425_panel.alpha = _ame425_panelOn ? 1.0 : 0.0;
-    [CATransaction commit];
+    if (_ame425_panelOn) {
+        UIView *ame426_host = [self ame426_panelTopHost];
+        if (!ame426_host) { _ame425_panelOn = NO; return; }
+        if (!_ame426_dimView) {
+            _ame426_dimView = [[UIView alloc] init];
+            _ame426_dimView.backgroundColor = [UIColor colorWithWhite:0.0 alpha:0.45];
+            _ame426_dimView.autoresizingMask = UIViewAutoresizingFlexibleWidth | UIViewAutoresizingFlexibleHeight;
+            ZL2SkinViewTapControl *ame426_dimTap = [[ZL2SkinViewTapControl alloc] initWithFrame:_ame426_dimView.bounds];
+            ame426_dimTap.translatesAutoresizingMaskIntoConstraints = NO;
+            ame426_dimTap.backgroundColor = [UIColor clearColor];
+            ame426_dimTap.ame414_onTap = ^{ [self ame425_togglePanel]; };
+            [_ame426_dimView addSubview:ame426_dimTap];
+            [NSLayoutConstraint activateConstraints:@[
+                [ame426_dimTap.leadingAnchor constraintEqualToAnchor:_ame426_dimView.leadingAnchor],
+                [ame426_dimTap.trailingAnchor constraintEqualToAnchor:_ame426_dimView.trailingAnchor],
+                [ame426_dimTap.topAnchor constraintEqualToAnchor:_ame426_dimView.topAnchor],
+                [ame426_dimTap.bottomAnchor constraintEqualToAnchor:_ame426_dimView.bottomAnchor],
+            ]];
+        }
+        _ame426_dimView.frame = ame426_host.bounds;
+        [ame426_host addSubview:_ame426_dimView];
+        CGFloat ame426_pw = fmin(ame426_host.bounds.size.width - 24.0, 640.0);
+        CGFloat ame426_ph = fmin(ame426_host.bounds.size.height - 24.0, 660.0);
+        if (ame426_pw < 280.0) ame426_pw = fmax(240.0, ame426_host.bounds.size.width - 12.0);
+        if (ame426_ph < 360.0) ame426_ph = fmax(320.0, ame426_host.bounds.size.height - 12.0);
+        _ame425_panel.frame = CGRectMake((ame426_host.bounds.size.width - ame426_pw) / 2.0,
+                                         (ame426_host.bounds.size.height - ame426_ph) / 2.0,
+                                         ame426_pw, ame426_ph);
+        _ame425_panel.autoresizingMask = UIViewAutoresizingFlexibleLeftMargin | UIViewAutoresizingFlexibleRightMargin
+                                       | UIViewAutoresizingFlexibleTopMargin | UIViewAutoresizingFlexibleBottomMargin;
+        [ame426_host addSubview:_ame425_panel];
+        [self ame424_syncPoseUI];
+    } else {
+        [_ame425_panel removeFromSuperview];
+        [_ame426_dimView removeFromSuperview];
+    }
 }
 
-// ★Task425 背景/世界切换（0..2 纯色 / 3..6 世界：天空+方块地面+雾+太阳+软影）
+// ★Task426 宿主上溯：顶层非窗口祖先（账户页整页）= 面板覆盖账号选择菜单
+//   上方的承载面；无宿主（视图未挂窗）= 开合失败诚实回退。
+- (UIView *)ame426_panelTopHost {
+    UIView *ame426_root = self;
+    while (ame426_root.superview && ![ame426_root.superview isKindOfClass:[UIWindow class]]) {
+        ame426_root = ame426_root.superview;
+    }
+    return ame426_root.superview ? ame426_root : nil;
+}
+
+// ★Task426 天气切换（晴/雨/雪；粒子重建 + 天穹/色调刷新）
+- (void)ame426_weatherChanged:(UISegmentedControl *)seg {
+    NSInteger ame426_w = seg.selectedSegmentIndex;
+    if (ame426_w < AME426_WEATHER_CLEAR || ame426_w > AME426_WEATHER_SNOW) return;
+    _ame426_weather = ame426_w;
+    [self ame426_rebuildWeatherEmitter];
+    [self ame424_syncPoseUI];
+    [self ame413_updateModelTransform];
+}
+
+// ★Task425 背景/世界切换（0..2 纯色 / 3..6 世界；★Task426 切世界自动天气
+//   预设：草地=雨（主世界下雨钦定）、雪地=雪、余=晴）
 - (void)ame425_applyBackgroundIndex:(NSInteger)idx {
     if (idx < 0 || idx > 6) return;
     _ame425_world = idx;
@@ -1209,56 +1426,102 @@ static const CGFloat AME425_BLOCK_UNIT = 16.0;      // 方块边长（模型单�
         [self ame425_teardownWorldLayers];
         static const CGFloat ame425_solid[3] = {0.0, 0.16, 0.55};
         self.backgroundColor = [UIColor colorWithWhite:ame425_solid[idx] alpha:1.0];
+        _ame426_weather = AME426_WEATHER_CLEAR;
     } else {
         self.backgroundColor = [UIColor clearColor];
         [self ame425_buildWorldLayers];
         [self ame413_updateModelTransform];
+        _ame426_weather = (idx == AME425_WORLD_PLAINS) ? AME426_WEATHER_RAIN
+                        : (idx == AME425_WORLD_SNOW) ? AME426_WEATHER_SNOW
+                        : AME426_WEATHER_CLEAR;
+        [self ame426_rebuildWeatherEmitter];
     }
     [self ame424_syncPoseUI];
 }
 
-// ★Task425 世界层构建：天空渐变（self.layer 最底 insertSublayer）+ 太阳 +
-//   脚下软影 + 8×8 方块地面（面记录复用投影管线，纹理 = 程序化 8×8 噪点 tile）
+// ★Task426 世界层构建（MC 原版化 = 用户「世界背景还是太粗糙，应该和 mc 原版
+//   效果差不多」根修面）：三停靠天穹渐变（晨昏昼夜插值）+ 星空 + 方形太阳
+//   月亮（地平线弧线升落）+ 16×16 方块贴图地面（草/雪/末地石/地狱岩/熔岩
+//   双变体）+ 道具盒体（橡树/云杉/黑曜石柱+水晶/地狱岩丘）+ 方块云 + 脚下
+//   软影 + 天气粒子；全部走同一精确透视管线（partIndex -1 地面 / -2 道具 /
+//   -3 云）。
 - (void)ame425_buildWorldLayers {
     [self ame425_teardownWorldLayers];
     NSInteger ame425_w = _ame425_world;
-    // 天空
+    BOOL ame425_isWorld = (ame425_w >= AME425_WORLD_PLAINS);
+    _ame425_groundLayers = [NSMutableArray array];
+    _ame425_groundFaces = [NSMutableArray array];
+    _ame425_cloudLayers = [NSMutableArray array];
+    _ame425_cloudFaces = [NSMutableArray array];
+    // 天空（三停靠渐变 = 顶级光影天穹；颜色随时间/天气由 ame426_syncSkyPalette 逐帧事件插值）
     _ame425_skyLayer = [CAGradientLayer layer];
     _ame425_skyLayer.frame = self.bounds;
     _ame425_skyLayer.startPoint = CGPointMake(0.5, 0.0);
-    _ame425_skyLayer.endPoint = CGPointMake(0.5, 1.0);
-    UIColor *ame425_top = nil, *ame425_bot = nil, *ame425_fog = nil, *ame425_block = nil;
-    BOOL ame425_sun = NO;
-    [self ame425_worldColors:ame425_w skyTop:&ame425_top skyBot:&ame425_bot fog:&ame425_fog block:&ame425_block sun:&ame425_sun];
-    _ame425_skyLayer.colors = @[(id)ame425_top.CGColor, (id)ame425_bot.CGColor];
+    _ame425_skyLayer.endPoint = CGPointMake(0.5, 0.72);
+    _ame425_skyLayer.colors = @[(id)[UIColor blackColor].CGColor,
+                                (id)[UIColor blackColor].CGColor,
+                                (id)[UIColor blackColor].CGColor];
     [self.layer insertSublayer:_ame425_skyLayer atIndex:0];
-    // 太阳（草地/雪地；az/el 同旋钮映射放大 = 圆盘联动；挂 stage 层树
-    //   = 与地面/模型同一坐标系，zPosition 负大 = 永远天空层）
-    if (ame425_sun) {
-        _ame425_sunLayer = [CALayer layer];
-        CGFloat ame425_d = 26.0;
-        _ame425_sunLayer.bounds = CGRectMake(0, 0, ame425_d, ame425_d);
-        _ame425_sunLayer.cornerRadius = ame425_d / 2.0;
-        _ame425_sunLayer.backgroundColor = [UIColor colorWithWhite:1.0 alpha:0.92].CGColor;
-        _ame425_sunLayer.shadowColor = [UIColor colorWithWhite:1.0 alpha:1.0].CGColor;
-        _ame425_sunLayer.shadowOpacity = 0.55;
-        _ame425_sunLayer.shadowRadius = 14.0;
-        _ame425_sunLayer.shadowOffset = CGSizeZero;
-        _ame425_sunLayer.zPosition = -20000.0;
-        [_ame413_stageView.layer addSublayer:_ame425_sunLayer];
+    // 星空（夜晚主世界/雪地 + 末地常驻；程序化星点图，alpha 随夜深插值）
+    if (ame425_isWorld && ame425_w != AME425_WORLD_NETHER) {
+        _ame426_starLayer = [CALayer layer];
+        _ame426_starLayer.frame = self.bounds;
+        _ame426_starLayer.contents = (id)[self ame426_buildStarsImage].CGImage;
+        _ame426_starLayer.contentsGravity = kCAGravityResizeAspectFill;
+        _ame426_starLayer.opacity = 0.0;
+        [self.layer insertSublayer:_ame426_starLayer atIndex:1];
     }
+    if (!ame425_isWorld) return;   // 纯色背景（0..2）无世界层
+    // 太阳 + 月亮（★Task426 方形 = MC 原版日/月形；位置 = 天穹弧线由时间驱动）
+    _ame425_sunLayer = [CALayer layer];
+    _ame425_sunLayer.bounds = CGRectMake(0, 0, 34.0, 34.0);
+    _ame425_sunLayer.backgroundColor = [UIColor colorWithRed:1.0 green:0.96 blue:0.78 alpha:0.96].CGColor;
+    _ame425_sunLayer.shadowColor = [UIColor colorWithRed:1.0 green:0.9 blue:0.6 alpha:1.0].CGColor;
+    _ame425_sunLayer.shadowOpacity = 0.55;
+    _ame425_sunLayer.shadowRadius = 16.0;
+    _ame425_sunLayer.shadowOffset = CGSizeZero;
+    _ame425_sunLayer.zPosition = -20000.0;
+    [_ame413_stageView.layer addSublayer:_ame425_sunLayer];
+    _ame426_moonLayer = [CALayer layer];
+    _ame426_moonLayer.bounds = CGRectMake(0, 0, 24.0, 24.0);
+    _ame426_moonLayer.backgroundColor = [UIColor colorWithRed:0.88 green:0.91 blue:0.98 alpha:0.92].CGColor;
+    _ame426_moonLayer.shadowColor = [UIColor colorWithRed:0.8 green:0.86 blue:1.0 alpha:1.0].CGColor;
+    _ame426_moonLayer.shadowOpacity = 0.35;
+    _ame426_moonLayer.shadowRadius = 10.0;
+    _ame426_moonLayer.shadowOffset = CGSizeZero;
+    _ame426_moonLayer.zPosition = -19999.0;
+    [_ame413_stageView.layer addSublayer:_ame426_moonLayer];
+    // 全舞台色调映射层（晨昏暖橙/深夜冷蓝/雨天灰蓝；zPosition 最高 = 罩模型+世界）
+    _ame426_gradeLayer = [CALayer layer];
+    _ame426_gradeLayer.backgroundColor = [UIColor colorWithRed:1.0 green:0.55 blue:0.2 alpha:1.0].CGColor;
+    _ame426_gradeLayer.opacity = 0.0;
+    _ame426_gradeLayer.zPosition = 90000.0;
+    [_ame413_stageView.layer addSublayer:_ame426_gradeLayer];
     // 脚下软影（径向渐变椭圆；位置随光向 az 联动）
     _ame425_shadowView = [[UIView alloc] initWithFrame:CGRectMake(0, 0, 1, 1)];
     _ame425_shadowView.userInteractionEnabled = NO;
     _ame425_shadowView.translatesAutoresizingMaskIntoConstraints = NO;
     [_ame413_stageView addSubview:_ame425_shadowView];
-    // 地面 8×8 块
-    _ame425_groundLayers = [NSMutableArray array];
-    _ame425_groundFaces = [NSMutableArray array];
-    UIImage *ame425_tile = [self ame425_blockTileForWorld:ame425_w];
+    // —— 地面 8×8（16×16 方块贴图；末地 = 岛缘空洞浮岛；地狱 = 熔岩海发光块）——
     CGFloat ame425_half = AME425_GROUND_GRID * AME425_BLOCK_UNIT / 2.0;
     for (NSInteger ame425_i = 0; ame425_i < AME425_GROUND_GRID; ame425_i++) {
         for (NSInteger ame425_j = 0; ame425_j < AME425_GROUND_GRID; ame425_j++) {
+            if (ame425_w == AME425_WORLD_END) {
+                // 末地浮岛：岛缘噪声空洞（半径 3.2+噪声 = 中心完整/边缘残缺）
+                CGFloat ame426_di = (ame425_i - 3.5) * (ame425_i - 3.5)
+                                  + (ame425_j - 3.5) * (ame425_j - 3.5);
+                NSInteger ame426_jit = (NSInteger)((ame425_i * 31 + ame425_j * 17) % 3);
+                if (sqrt(ame426_di) > 3.2 + 0.35 * ame426_jit) continue;
+            }
+            NSInteger ame426_variant = (NSInteger)((ame425_i * 7 + ame425_j * 13) % 2);
+            CGFloat ame426_emissive = 0.0;
+            UIImage *ame425_tile = nil;
+            if (ame425_w == AME425_WORLD_NETHER && ((ame425_i + ame425_j) % 3) == 0) {
+                ame425_tile = [self ame426_tileImageForWorld:ame425_w variant:2];   // 熔岩
+                ame426_emissive = 0.85;
+            } else {
+                ame425_tile = [self ame426_tileImageForWorld:ame425_w variant:ame426_variant];
+            }
             CGFloat ame425_x0 = -ame425_half + ame425_i * AME425_BLOCK_UNIT;
             CGFloat ame425_z0 = -ame425_half + ame425_j * AME425_BLOCK_UNIT;
             CALayer *ame425_g = [CALayer layer];
@@ -1270,7 +1533,7 @@ static const CGFloat AME425_BLOCK_UNIT = 16.0;      // 方块边长（模型单�
             // 雾子层（远缘融天空地平色；opacity 逐帧按块距）
             CALayer *ame425_fogLayer = [CALayer layer];
             ame425_fogLayer.frame = CGRectMake(0, 0, AME425_BLOCK_UNIT * 8, AME425_BLOCK_UNIT * 8);
-            ame425_fogLayer.backgroundColor = ame425_fog.CGColor;
+            ame425_fogLayer.backgroundColor = [self ame426_fogColor].CGColor;
             ame425_fogLayer.opacity = 0.0;
             [ame425_g addSublayer:ame425_fogLayer];
             [_ame413_stageView.layer addSublayer:ame425_g];
@@ -1282,6 +1545,7 @@ static const CGFloat AME425_BLOCK_UNIT = 16.0;      // 方块边长（模型单�
             ame425_rec.hl = nil;
             ame425_rec.isOverlay = NO;
             ame425_rec->partIndex = -1;
+            ame425_rec->emissive = ame426_emissive;
             CGFloat ame425_x1 = ame425_x0 + AME425_BLOCK_UNIT;
             CGFloat ame425_z1 = ame425_z0 + AME425_BLOCK_UNIT;
             CGFloat ame425_y = -16.0;
@@ -1300,104 +1564,310 @@ static const CGFloat AME425_BLOCK_UNIT = 16.0;      // 方块边长（模型单�
             [_ame425_groundFaces addObject:ame425_rec];
         }
     }
+    // —— 世界道具（MC 原版地标；全部盒体六面走同一管线）——
+    if (ame425_w == AME425_WORLD_PLAINS) {
+        // 橡树 ×3：原木 3×7×3 + 树冠 8×5×8（MC 原版橡树比例）
+        [self ame425_buildTreeWithX:-36.0 z:-30.0 trunkTile:3 canopyTile:3 spruce:NO];
+        [self ame425_buildTreeWithX: 32.0 z:-38.0 trunkTile:3 canopyTile:3 spruce:NO];
+        [self ame425_buildTreeWithX: 38.0 z: 28.0 trunkTile:3 canopyTile:3 spruce:NO];
+    } else if (ame425_w == AME425_WORLD_SNOW) {
+        // 云杉 ×2（树冠双层 = 云杉剪影）
+        [self ame425_buildTreeWithX:-34.0 z:-34.0 trunkTile:3 canopyTile:3 spruce:YES];
+        [self ame425_buildTreeWithX: 34.0 z: 30.0 trunkTile:3 canopyTile:3 spruce:YES];
+    } else if (ame425_w == AME425_WORLD_END) {
+        // 黑曜石柱 ×2 + 顶部末影水晶（自发光紫晶）
+        [self ame425_buildPropBoxWithCx:-30.0 cy:-9.0 cz: 22.0 w:4.0 h:14.0 d:4.0
+                                   tile:[self ame426_tileImageForWorld:ame425_w variant:3] emissive:0.0];
+        [self ame425_buildPropBoxWithCx: 30.0 cy:-11.5 cz:-20.0 w:4.0 h:9.0 d:4.0
+                                   tile:[self ame426_tileImageForWorld:ame425_w variant:3] emissive:0.0];
+        [self ame425_buildPropBoxWithCx:-30.0 cy:-0.5 cz: 22.0 w:3.0 h:3.0 d:3.0
+                                   tile:[self ame426_tileImageForWorld:ame425_w variant:4] emissive:0.75];
+        [self ame425_buildPropBoxWithCx: 30.0 cy:-3.5 cz:-20.0 w:3.0 h:3.0 d:3.0
+                                   tile:[self ame426_tileImageForWorld:ame425_w variant:4] emissive:0.75];
+    } else if (ame425_w == AME425_WORLD_NETHER) {
+        // 地狱岩丘 ×2（熔岩海已在地面变体块）
+        [self ame425_buildPropBoxWithCx:-30.0 cy:-14.0 cz:-26.0 w:8.0 h:4.0 d:8.0
+                                   tile:[self ame426_tileImageForWorld:ame425_w variant:1] emissive:0.0];
+        [self ame425_buildPropBoxWithCx: 32.0 cy:-13.0 cz: 28.0 w:6.0 h:6.0 d:6.0
+                                   tile:[self ame426_tileImageForWorld:ame425_w variant:0] emissive:0.0];
+    }
+    // —— 方块云（平地/雪地；快 = MC flat 云；慢漂移 tick 驱动）——
+    if (ame425_w == AME425_WORLD_PLAINS || ame425_w == AME425_WORLD_SNOW) {
+        UIImage *ame426_cloudTile = [self ame426_tileImageForWorld:ame425_w variant:5];
+        CGFloat ame426_cloudSpec[4][3] = {
+            {-46.0, 34.0, -30.0}, {12.0, 38.0, -52.0}, {40.0, 32.0, 18.0}, {-18.0, 40.0, 44.0}};
+        CGFloat ame426_cloudW[4] = {44.0, 60.0, 36.0, 52.0};
+        for (NSInteger ame426_ci = 0; ame426_ci < 4; ame426_ci++) {
+            CGFloat ame426_cw = ame426_cloudW[ame426_ci];
+            CGFloat ame426_cx = ame426_cloudSpec[ame426_ci][0];
+            CGFloat ame426_cyy = ame426_cloudSpec[ame426_ci][1];
+            CGFloat ame426_cz = ame426_cloudSpec[ame426_ci][2];
+            CALayer *ame426_cloud = [CALayer layer];
+            ame426_cloud.bounds = CGRectMake(0, 0, ame426_cw * 8.0, ame426_cw * 8.0);
+            ame426_cloud.contents = (id)ame426_cloudTile.CGImage;
+            ame426_cloud.contentsGravity = kCAGravityResize;
+            ame426_cloud.magnificationFilter = kCAFilterNearest;
+            ame426_cloud.opacity = 0.85;
+            CALayer *ame426_cshade = [CALayer layer];
+            ame426_cshade.frame = CGRectMake(0, 0, ame426_cw * 8.0, ame426_cw * 8.0);
+            ame426_cshade.backgroundColor = [UIColor colorWithRed:0.35 green:0.42 blue:0.60 alpha:1.0].CGColor;
+            ame426_cshade.opacity = 0.0;
+            [ame426_cloud addSublayer:ame426_cshade];
+            [_ame413_stageView.layer addSublayer:ame426_cloud];
+            [_ame425_cloudLayers addObject:ame426_cloud];
+            ZL2SkinViewFace *ame426_crec = [[ZL2SkinViewFace alloc] init];
+            ame426_crec.layer = ame426_cloud;
+            ame426_crec.shade = ame426_cshade;
+            ame426_crec.hl = nil;
+            ame426_crec.isOverlay = NO;
+            ame426_crec->partIndex = -3;
+            ame426_crec->emissive = 0.0;
+            CGFloat ame426_c1[4][2] = {{ame426_cx - ame426_cw/2, ame426_cz - ame426_cw/2},
+                                       {ame426_cx + ame426_cw/2, ame426_cz - ame426_cw/2},
+                                       {ame426_cx + ame426_cw/2, ame426_cz + ame426_cw/2},
+                                       {ame426_cx - ame426_cw/2, ame426_cz + ame426_cw/2}};
+            for (NSInteger ame426_ck = 0; ame426_ck < 4; ame426_ck++) {
+                ame426_crec->corners[ame426_ck][0] = ame426_c1[ame426_ck][0];
+                ame426_crec->corners[ame426_ck][1] = ame426_cyy;
+                ame426_crec->corners[ame426_ck][2] = ame426_c1[ame426_ck][1];
+            }
+            ame426_crec->normal[0] = 0.0; ame426_crec->normal[1] = 1.0; ame426_crec->normal[2] = 0.0;
+            ame426_crec->pivot[0] = 0.0; ame426_crec->pivot[1] = ame426_cyy; ame426_crec->pivot[2] = 0.0;
+            ame426_crec.swingSign = 0.0;
+            [_ame425_cloudFaces addObject:ame426_crec];
+            [_ame425_groundFaces addObject:ame426_crec];   // 同管线逐帧投影（partIndex 分流剔除/着色）
+        }
+    }
+    // 天气/环境粒子（雨丝/雪花/余烬/浮尘）
+    [self ame426_rebuildWeatherEmitter];
+    [self ame426_syncSkyPalette];
+}
+
+// ★Task426 道具盒体（树/柱/水晶/丘通用）：六面同管线（partIndex -2 = 背面
+//   剔除语义随模型基础层；雾+光影 depth 着色同地面；emissive 罩衰减）。
+- (void)ame425_buildPropBoxWithCx:(CGFloat)ame426_cx cy:(CGFloat)ame426_cy cz:(CGFloat)ame426_cz
+                                w:(CGFloat)ame426_w h:(CGFloat)ame426_h d:(CGFloat)ame426_d
+                             tile:(UIImage *)ame426_tile emissive:(CGFloat)ame426_em {
+    static const CGFloat ame426_ux[6][3] = {
+        { 1, 0, 0}, {-1, 0, 0}, {0, 0, -1}, {0, 0, 1}, {1, 0, 0}, {1, 0, 0}};
+    static const CGFloat ame426_vy[6][3] = {
+        {0, -1, 0}, {0, -1, 0}, {0, -1, 0}, {0, -1, 0}, {0, 0, 1}, {0, 0, -1}};
+    static const CGFloat ame426_nn[6][3] = {
+        {0, 0, 1}, {0, 0, -1}, {-1, 0, 0}, {1, 0, 0}, {0, 1, 0}, {0, -1, 0}};
+    static const CGFloat ame426_off[6][3] = {
+        {0, 0, 1}, {0, 0, -1}, {-1, 0, 0}, {1, 0, 0}, {0, 1, 0}, {0, -1, 0}};
+    CGFloat ame426_unit = _ame413_baseUnit;
+    if (ame426_unit < 2.0) ame426_unit = 8.0;
+    for (NSInteger ame426_i = 0; ame426_i < 6; ame426_i++) {
+        CGFloat ame426_fw = (ame426_i == 2 || ame426_i == 3) ? ame426_d : ame426_w;
+        CGFloat ame426_fh = (ame426_i >= 4) ? ame426_d : ame426_h;
+        CGFloat ame426_fcx = ame426_cx + ame426_off[ame426_i][0] * ame426_w / 2.0;
+        CGFloat ame426_fcy = ame426_cy + ame426_off[ame426_i][1] * ame426_h / 2.0;
+        CGFloat ame426_fcz = ame426_cz + ame426_off[ame426_i][2] * ame426_d / 2.0;
+        CALayer *ame426_f = [CALayer layer];
+        ame426_f.bounds = CGRectMake(0, 0, ame426_fw * ame426_unit, ame426_fh * ame426_unit);
+        if (ame426_tile) {
+            ame426_f.contents = (id)ame426_tile.CGImage;
+            ame426_f.contentsGravity = kCAGravityResize;
+            ame426_f.magnificationFilter = kCAFilterNearest;
+            ame426_f.minificationFilter = kCAFilterNearest;
+        } else {
+            ame426_f.backgroundColor = [UIColor colorWithWhite:0.3 alpha:1.0].CGColor;
+        }
+        CALayer *ame426_fog = [CALayer layer];
+        ame426_fog.frame = ame426_f.bounds;
+        ame426_fog.backgroundColor = [self ame426_fogColor].CGColor;
+        ame426_fog.opacity = 0.0;
+        [ame426_f addSublayer:ame426_fog];
+        [_ame413_stageView.layer addSublayer:ame426_f];
+        ZL2SkinViewFace *ame426_rec = [[ZL2SkinViewFace alloc] init];
+        ame426_rec.layer = ame426_f;
+        ame426_rec.shade = ame426_fog;
+        ame426_rec.hl = nil;
+        ame426_rec.isOverlay = NO;
+        ame426_rec->partIndex = -2;
+        ame426_rec->emissive = ame426_em;
+        static const NSInteger ame426_sq[4][2] = {{-1, -1}, {1, -1}, {1, 1}, {-1, 1}};
+        for (NSInteger ame426_k = 0; ame426_k < 4; ame426_k++) {
+            CGFloat ame426_s = (CGFloat)ame426_sq[ame426_k][0];
+            CGFloat ame426_t = (CGFloat)ame426_sq[ame426_k][1];
+            ame426_rec->corners[ame426_k][0] = ame426_fcx
+                + ame426_ux[ame426_i][0] * (ame426_s * ame426_fw / 2.0)
+                + ame426_vy[ame426_i][0] * (ame426_t * ame426_fh / 2.0);
+            ame426_rec->corners[ame426_k][1] = ame426_fcy
+                + ame426_ux[ame426_i][1] * (ame426_s * ame426_fw / 2.0)
+                + ame426_vy[ame426_i][1] * (ame426_t * ame426_fh / 2.0);
+            ame426_rec->corners[ame426_k][2] = ame426_fcz
+                + ame426_ux[ame426_i][2] * (ame426_s * ame426_fw / 2.0)
+                + ame426_vy[ame426_i][2] * (ame426_t * ame426_fh / 2.0);
+        }
+        ame426_rec->normal[0] = ame426_nn[ame426_i][0];
+        ame426_rec->normal[1] = ame426_nn[ame426_i][1];
+        ame426_rec->normal[2] = ame426_nn[ame426_i][2];
+        ame426_rec->pivot[0] = ame426_cx; ame426_rec->pivot[1] = ame426_cy; ame426_rec->pivot[2] = ame426_cz;
+        ame426_rec.swingSign = 0.0;
+        [_ame425_groundFaces addObject:ame426_rec];
+        [_ame425_groundLayers addObject:ame426_f];
+    }
+}
+
+// ★Task426 树（橡树 = 原木+单层树冠；云杉 = 原木+双层收分树冠）
+- (void)ame425_buildTreeWithX:(CGFloat)ame426_x z:(CGFloat)ame426_z
+                   trunkTile:(NSInteger)ame426_tt canopyTile:(NSInteger)ame426_ct spruce:(BOOL)ame426_spruce {
+    NSInteger ame426_w = _ame425_world;
+    UIImage *ame426_trunk = [self ame426_tileImageForWorld:ame426_w variant:(ame426_tt == 3 ? 6 : 0)];
+    UIImage *ame426_leaf = [self ame426_tileImageForWorld:ame426_w variant:(ame426_ct == 3 ? 7 : 1)];
+    if (ame426_spruce) {
+        [self ame425_buildPropBoxWithCx:ame426_x cy:-12.0 cz:ame426_z w:3.0 h:8.0 d:3.0 tile:ame426_trunk emissive:0.0];
+        [self ame425_buildPropBoxWithCx:ame426_x cy:-6.5 cz:ame426_z w:7.0 h:5.0 d:7.0 tile:ame426_leaf emissive:0.0];
+        [self ame425_buildPropBoxWithCx:ame426_x cy:-2.5 cz:ame426_z w:4.0 h:3.0 d:4.0 tile:ame426_leaf emissive:0.0];
+    } else {
+        [self ame425_buildPropBoxWithCx:ame426_x cy:-12.5 cz:ame426_z w:3.0 h:7.0 d:3.0 tile:ame426_trunk emissive:0.0];
+        [self ame425_buildPropBoxWithCx:ame426_x cy:-6.5 cz:ame426_z w:8.0 h:5.0 d:8.0 tile:ame426_leaf emissive:0.0];
+    }
 }
 
 - (void)ame425_teardownWorldLayers {
     if (_ame425_skyLayer) { [_ame425_skyLayer removeFromSuperlayer]; _ame425_skyLayer = nil; }
     if (_ame425_sunLayer) { [_ame425_sunLayer removeFromSuperlayer]; _ame425_sunLayer = nil; }
+    if (_ame426_moonLayer) { [_ame426_moonLayer removeFromSuperlayer]; _ame426_moonLayer = nil; }
+    if (_ame426_starLayer) { [_ame426_starLayer removeFromSuperlayer]; _ame426_starLayer = nil; }
+    if (_ame426_gradeLayer) { [_ame426_gradeLayer removeFromSuperlayer]; _ame426_gradeLayer = nil; }
+    if (_ame426_weatherEmitter) { [_ame426_weatherEmitter removeFromSuperlayer]; _ame426_weatherEmitter = nil; }
     if (_ame425_shadowView) { [_ame425_shadowView removeFromSuperview]; _ame425_shadowView = nil; }
     for (CALayer *ame425_g in _ame425_groundLayers) [ame425_g removeFromSuperlayer];
+    for (CALayer *ame426_c in _ame425_cloudLayers) [ame426_c removeFromSuperlayer];   // ★Task426 云层独立拆卸
     _ame425_groundLayers = nil;
     _ame425_groundFaces = nil;
+    _ame425_cloudLayers = nil;
+    _ame425_cloudFaces = nil;
 }
 
-// 世界配色表（0..6 = 黑/深灰/浅灰/草地/雪地/末地/地狱；Python C 组同源）
-- (void)ame425_worldColors:(NSInteger)w
-                    skyTop:(UIColor **)top skyBot:(UIColor **)bot
-                       fog:(UIColor **)fog block:(UIColor **)block sun:(BOOL *)sun {
-    if (sun) *sun = NO;
-    if (top) *top = [UIColor colorWithWhite:0.0 alpha:1.0];
-    if (bot) *bot = [UIColor colorWithWhite:0.0 alpha:1.0];
-    if (fog) *fog = [UIColor colorWithWhite:0.2 alpha:1.0];
-    if (block) *block = [UIColor colorWithWhite:0.3 alpha:1.0];
-    if (w == AME425_WORLD_PLAINS) {
-        if (top) *top = [UIColor colorWithRed:0.376 green:0.627 blue:0.922 alpha:1.0];
-        if (bot) *bot = [UIColor colorWithRed:0.725 green:0.863 blue:0.980 alpha:1.0];
-        if (fog) *fog = [UIColor colorWithRed:0.725 green:0.863 blue:0.980 alpha:1.0];
-        if (block) *block = [UIColor colorWithRed:0.373 green:0.620 blue:0.267 alpha:1.0];
-        if (sun) *sun = YES;
-    } else if (w == AME425_WORLD_SNOW) {
-        if (top) *top = [UIColor colorWithRed:0.588 green:0.725 blue:0.882 alpha:1.0];
-        if (bot) *bot = [UIColor colorWithRed:0.882 green:0.925 blue:0.973 alpha:1.0];
-        if (fog) *fog = [UIColor colorWithRed:0.894 green:0.933 blue:0.973 alpha:1.0];
-        if (block) *block = [UIColor colorWithRed:0.910 green:0.933 blue:0.961 alpha:1.0];
-        if (sun) *sun = YES;
-    } else if (w == AME425_WORLD_END) {
-        if (top) *top = [UIColor colorWithRed:0.031 green:0.024 blue:0.055 alpha:1.0];
-        if (bot) *bot = [UIColor colorWithRed:0.118 green:0.086 blue:0.173 alpha:1.0];
-        if (fog) *fog = [UIColor colorWithRed:0.118 green:0.094 blue:0.173 alpha:1.0];
-        if (block) *block = [UIColor colorWithRed:0.867 green:0.875 blue:0.647 alpha:1.0];
-    } else if (w == AME425_WORLD_NETHER) {
-        if (top) *top = [UIColor colorWithRed:0.149 green:0.031 blue:0.031 alpha:1.0];
-        if (bot) *bot = [UIColor colorWithRed:0.322 green:0.086 blue:0.055 alpha:1.0];
-        if (fog) *fog = [UIColor colorWithRed:0.373 green:0.118 blue:0.071 alpha:1.0];
-        if (block) *block = [UIColor colorWithRed:0.431 green:0.180 blue:0.157 alpha:1.0];
-    }
+// ★Task426 世界配色表（Python C 组同源；地面块基色 + 雾色 = 地平线地色）。
+//   天穹色 = ame426_syncSkyPalette（时间/天气插值），本表 = 静态基色。
+- (UIColor *)ame426_blockBaseColorForWorld:(NSInteger)w {
+    if (w == AME425_WORLD_PLAINS) return [UIColor colorWithRed:0.373 green:0.620 blue:0.267 alpha:1.0];
+    if (w == AME425_WORLD_SNOW) return [UIColor colorWithRed:0.910 green:0.933 blue:0.961 alpha:1.0];
+    if (w == AME425_WORLD_END) return [UIColor colorWithRed:0.867 green:0.875 blue:0.647 alpha:1.0];
+    if (w == AME425_WORLD_NETHER) return [UIColor colorWithRed:0.431 green:0.180 blue:0.157 alpha:1.0];
+    return [UIColor colorWithWhite:0.3 alpha:1.0];
 }
 
-// 程序化方块噪点纹理（8×8 px 亮度抖动 ±8% = MC 顶面观感；kCAFilterNearest
-// 放大锐利；缓存按世界键）
-- (UIImage *)ame425_blockTileForWorld:(NSInteger)w {
-    NSNumber *ame425_key = @(w);
-    UIImage *ame425_cached = _ame425_tileCache[ame425_key];
-    if (ame425_cached) return ame425_cached;
-    UIColor *ame425_block = nil;
-    [self ame425_worldColors:w skyTop:nil skyBot:nil fog:nil block:&ame425_block sun:nil];
-    CGFloat ame425_r = 1.0, ame425_g = 1.0, ame425_b = 1.0;
-    [ame425_block getRed:&ame425_r green:&ame425_g blue:&ame425_b alpha:NULL];
-    UIGraphicsBeginImageContextWithOptions(CGSizeMake(8, 8), NO, 1.0);
-    CGContextRef ame425_ctx = UIGraphicsGetCurrentContext();
-    if (ame425_ctx) {
-        u_int32_t ame425_seed = (u_int32_t)(w * 733 + 17);
-        for (NSInteger ame425_y = 0; ame425_y < 8; ame425_y++) {
-            for (NSInteger ame425_x = 0; ame425_x < 8; ame425_x++) {
-                ame425_seed = ame425_seed * 1103515245 + 12345;   // LCG 确定性噪点
-                CGFloat ame425_j = ((CGFloat)((ame425_seed >> 16) & 0xFF) / 255.0) * 0.16 - 0.08;
-                CGFloat ame425_v = 1.0 + ame425_j;
-                CGContextSetFillColorWithColor(ame425_ctx, [UIColor
-                    colorWithRed:fmin(1.0, ame425_r * ame425_v)
-                           green:fmin(1.0, ame425_g * ame425_v)
-                            blue:fmin(1.0, ame425_b * ame425_v) alpha:1.0].CGColor);
-                CGContextFillRect(ame425_ctx, CGRectMake(ame425_x, ame425_y, 1, 1));
+- (UIColor *)ame426_fogColor {
+    NSInteger ame425_w = _ame425_world;
+    if (ame425_w == AME425_WORLD_PLAINS) return [UIColor colorWithRed:0.725 green:0.863 blue:0.980 alpha:1.0];
+    if (ame425_w == AME425_WORLD_SNOW) return [UIColor colorWithRed:0.894 green:0.933 blue:0.973 alpha:1.0];
+    if (ame425_w == AME425_WORLD_END) return [UIColor colorWithRed:0.118 green:0.094 blue:0.173 alpha:1.0];
+    if (ame425_w == AME425_WORLD_NETHER) return [UIColor colorWithRed:0.373 green:0.118 blue:0.071 alpha:1.0];
+    return [UIColor colorWithWhite:0.2 alpha:1.0];
+}
+
+// ★Task426 程序化方块贴图（16×16 px = MC 原版纹理分辨率；kCAFilterNearest
+//   放大锐利；双变体 + 特殊变体：2 熔岩 / 3 黑曜石 / 4 水晶 / 5 云 / 6 原木 /
+//   7 树冠；缓存按 world×16+variant 键）
+- (UIImage *)ame426_tileImageForWorld:(NSInteger)w variant:(NSInteger)variant {
+    NSNumber *ame426_key = @(w * 16 + variant);
+    UIImage *ame426_cached = _ame425_tileCache[ame426_key];
+    if (ame426_cached) return ame426_cached;
+    UIGraphicsBeginImageContextWithOptions(CGSizeMake(16, 16), NO, 1.0);
+    CGContextRef ame426_ctx = UIGraphicsGetCurrentContext();
+    if (ame426_ctx) {
+        u_int32_t ame426_seed = (u_int32_t)(w * 733 + variant * 97 + 17);
+        UIColor *ame426_base = [self ame426_blockBaseColorForWorld:w];
+        CGFloat ame426_r = 1.0, ame426_g = 1.0, ame426_b = 1.0;
+        [ame426_base getRed:&ame426_r green:&ame426_g blue:&ame426_b alpha:NULL];
+        if (variant == 2) {          // 熔岩：亮橙底 + 金黄脉络（自发光）
+            ame426_r = 0.98; ame426_g = 0.45; ame426_b = 0.05;
+        } else if (variant == 3) {   // 黑曜石：近黑紫 + 深紫斑
+            ame426_r = 0.09; ame426_g = 0.06; ame426_b = 0.17;
+        } else if (variant == 4) {   // 末影水晶：亮紫白（自发光）
+            ame426_r = 0.90; ame426_g = 0.55; ame426_b = 0.98;
+        } else if (variant == 5) {   // 云：近白絮
+            ame426_r = 0.99; ame426_g = 0.99; ame426_b = 1.0;
+        } else if (variant == 6) {   // 原木：深棕竖纹
+            ame426_r = 0.42; ame426_g = 0.30; ame426_b = 0.17;
+        } else if (variant == 7) {   // 树冠：深绿团簇
+            ame426_r = 0.22; ame426_g = 0.44; ame426_b = 0.16;
+            if (w == AME425_WORLD_SNOW) { ame426_r = 0.16; ame426_g = 0.34; ame426_b = 0.22; }
+        } else if (w == AME425_WORLD_PLAINS && variant == 1) {
+            ame426_r = 0.325; ame426_g = 0.545; ame426_b = 0.235;   // 草地变体二（偏暗）
+        }
+        for (NSInteger ame426_y = 0; ame426_y < 16; ame426_y++) {
+            for (NSInteger ame426_x = 0; ame426_x < 16; ame426_x++) {
+                ame426_seed = ame426_seed * 1103515245 + 12345;   // LCG 确定性噪点
+                CGFloat ame426_n1 = ((CGFloat)((ame426_seed >> 16) & 0xFF) / 255.0);
+                CGFloat ame426_v;
+                if (variant == 2) {
+                    // 熔岩脉络：行列低频混合 + 噪声提亮
+                    CGFloat ame426_vein = sin((ame426_x + ame426_y * 0.7) * 0.9 + ame426_n1 * 2.0) * 0.5 + 0.5;
+                    ame426_v = 0.75 + ame426_vein * 0.45 + ame426_n1 * 0.15;
+                } else if (variant == 6) {
+                    // 原木竖纹：列低频 + 微噪
+                    CGFloat ame426_grain = sin(ame426_x * 2.1) * 0.5 + 0.5;
+                    ame426_v = 0.82 + ame426_grain * 0.28 + ame426_n1 * 0.10;
+                } else if (variant == 3) {
+                    ame426_v = 0.72 + ame426_n1 * 0.85;   // 黑曜石高对比紫斑
+                } else {
+                    ame426_v = 1.0 + (ame426_n1 * 0.20 - 0.10);   // 常规 ±10% 噪点
+                }
+                CGContextSetFillColorWithColor(ame426_ctx, [UIColor
+                    colorWithRed:fmin(1.0, ame426_r * ame426_v)
+                           green:fmin(1.0, ame426_g * ame426_v)
+                            blue:fmin(1.0, ame426_b * ame426_v) alpha:1.0].CGColor);
+                CGContextFillRect(ame426_ctx, CGRectMake(ame426_x, ame426_y, 1, 1));
             }
         }
     }
-    UIImage *ame425_out = UIGraphicsGetImageFromCurrentImageContext();
+    UIImage *ame426_out = UIGraphicsGetImageFromCurrentImageContext();
     UIGraphicsEndImageContext();
     if (!_ame425_tileCache) _ame425_tileCache = [NSMutableDictionary dictionary];
-    _ame425_tileCache[ame425_key] = ame425_out;
-    return ame425_out;
+    _ame425_tileCache[ame426_key] = ame426_out;
+    return ame426_out;
 }
 
-// ★Task425 光位大圆盘拖动（★跟手根修：绝对定位——手指位置即光向，atan2
-//   即时反解 az/el，旋钮 frame 直写热路径；旧 Task424 累积 translation 式
-//   「旋钮≠手指」不跟手定谳退役）
+// ★Task426 星空图（200 星点确定性分布；夜/末地共享）
+- (UIImage *)ame426_buildStarsImage {
+    UIGraphicsBeginImageContextWithOptions(CGSizeMake(240, 160), NO, 1.0);
+    CGContextRef ame426_ctx = UIGraphicsGetCurrentContext();
+    if (ame426_ctx) {
+        u_int32_t ame426_seed = 20261114;
+        CGContextClearRect(ame426_ctx, CGRectMake(0, 0, 240, 160));   // 透明底 = 星点镂空
+        for (NSInteger ame426_i = 0; ame426_i < 200; ame426_i++) {
+            ame426_seed = ame426_seed * 1103515245 + 12345;
+            CGFloat ame426_sx = (CGFloat)((ame426_seed >> 8) & 0xFFFF) / 65535.0 * 240.0;
+            ame426_seed = ame426_seed * 1103515245 + 12345;
+            CGFloat ame426_sy = (CGFloat)((ame426_seed >> 8) & 0xFFFF) / 65535.0 * 160.0;
+            ame426_seed = ame426_seed * 1103515245 + 12345;
+            CGFloat ame426_sb = 0.35 + (CGFloat)((ame426_seed >> 12) & 0xFF) / 255.0 * 0.65;
+            CGFloat ame426_ssize = ((ame426_seed >> 20) & 0x3) == 0 ? 2.0 : 1.0;
+            CGContextSetFillColorWithColor(ame426_ctx, [UIColor colorWithWhite:ame426_sb alpha:1.0].CGColor);
+            CGContextFillRect(ame426_ctx, CGRectMake(ame426_sx, ame426_sy, ame426_ssize, ame426_ssize));
+        }
+    }
+    UIImage *ame426_out = UIGraphicsGetImageFromCurrentImageContext();
+    UIGraphicsEndImageContext();
+    return ame426_out;
+}
+
+// ★Task426 天穹时间盘拖动（★跟手根修延续：绝对定位——手指位置即日月位，
+//   atan2 即时反解轨道角 φ，日月旋钮 frame 直写热路径；Task425 az/el 版
+//   语义退役 = MC 原版日月相对位置钦定面）：盘心右侧 = 日出正东（φ=0），
+//   逆时针上半弧 = 白天（顶=正午），左 = 日落正西，下半弧 = 夜弧（月行）。
 - (void)ame425_dialPanned:(UIPanGestureRecognizer *)pan {
     if (!_ame425_bigDial) return;
     CGPoint ame425_p = [pan locationInView:_ame425_bigDial];
     if (!isfinite(ame425_p.x) || !isfinite(ame425_p.y)) return;
-    CGFloat ame425_dx = ame425_p.x - 58.0;      // 盘心（116/2）
-    CGFloat ame425_dy = ame425_p.y - 58.0;
+    CGFloat ame425_dx = ame425_p.x - 95.0;      // 盘心（190/2）
+    CGFloat ame425_dy = ame425_p.y - 95.0;
     CGFloat ame425_r = sqrt(ame425_dx * ame425_dx + ame425_dy * ame425_dy);
-    if (ame425_r > 47.0) {   // 盘外触点 clamp 到缘（拖拽不脱手）
-        ame425_dx *= 47.0 / ame425_r;
-        ame425_dy *= 47.0 / ame425_r;
-        ame425_r = 47.0;
+    if (ame425_r > 80.0 && ame425_r > 0.001) {   // 盘外触点 clamp 到旋钮环（拖拽不脱手）
+        ame425_dx *= 80.0 / ame425_r;
+        ame425_dy *= 80.0 / ame425_r;
     }
-    _ame424_lightAz = atan2(ame425_dx, -ame425_dy);   // 盘心正上 = az 0（旋钮映射同源）
-    _ame424_lightEl = 0.087 + (1.0 - ame425_r / 47.0) * 1.309;   // 缘=5° 掠射 中心=80° 顶光
-    if (_ame424_lightEl > 1.396) _ame424_lightEl = 1.396;
-    if (_ame424_lightEl < 0.087) _ame424_lightEl = 0.087;
+    CGFloat ame425_phi = atan2(-ame425_dy, ame425_dx);   // 右=0 日出东，逆时针上半=昼
+    CGFloat ame426_t = ame425_phi / (2.0 * M_PI);
+    if (ame426_t < 0.0) ame426_t += 1.0;
+    _ame426_time = fmin(0.9999, fmax(0.0, ame426_t));
     [self ame424_syncPoseUI];
     [self ame413_updateModelTransform];
 }
@@ -1420,9 +1890,10 @@ static const CGFloat AME425_BLOCK_UNIT = 16.0;      // 方块边长（模型单�
     [self ame413_updateModelTransform];
 }
 
-// ★Task425 步进细调（亮度 ±0.05 / 光强 ±0.1；「无法细微调节」根修面）
-- (void)ame425_stepBrightness:(CGFloat)delta {
-    _ame424_brightness = fmin(AME424_BRIGHT_MAX, fmax(AME424_BRIGHT_MIN, _ame424_brightness + delta));
+// ★Task426 步进细调（光强 ±0.1 / 模型大小 ±0.1；「无法细微调节」根修面；
+//   亮度步进随亮度拖条一并退役 = 亮度自动）
+- (void)ame425_stepScale:(CGFloat)delta {
+    _ame413_userScale = fmin(2.5, fmax(0.5, _ame413_userScale + delta));
     [self ame424_syncPoseUI];
     [self ame413_updateModelTransform];
 }
@@ -1445,14 +1916,8 @@ static const CGFloat AME425_BLOCK_UNIT = 16.0;      // 方块边长（模型单�
     [self ame424_syncPoseUI];
 }
 
-// ★Task424 亮度拖条（floor/gain 双通道公式见 AME424 常量区注释）
-- (void)ame424_brightnessChanged:(UISlider *)slider {
-    CGFloat ame424_v = slider.value;
-    if (!isfinite(ame424_v)) return;   // 415a NaN 卫兵同族
-    _ame424_brightness = fmin(AME424_BRIGHT_MAX, fmax(AME424_BRIGHT_MIN, ame424_v));
-    [self ame424_syncPoseUI];
-    [self ame413_updateModelTransform];
-}
+// ★Task424 亮度拖条退役（★Task426：亮度顺日月仰角自动 = ame426_applyAutoBrightness，
+//   拖条与步进整体退役；_ame424_brightness 保留为自动派生值供罩通道使用）
 
 // ★Task424 自定义关节命中拾取：上一帧屏幕四角 AABB（仅基础层面），
 // 含点优先，否则取最近盒心（60pt 阈内）
@@ -2135,6 +2600,19 @@ static const CGFloat AME425_BLOCK_UNIT = 16.0;      // 方块边长（模型单�
         _ame414_walkPhase += ame413_dt * 4.8;   // rad/s（跑步节奏）
         ame414_dirty = YES;
     }
+    // ★Task426 方块云慢漂移（+X 风向；越界环绕 = MC 云永不停止）
+    if (_ame425_cloudFaces.count > 0) {
+        CGFloat ame426_halfSpan = AME425_GROUND_GRID * AME425_BLOCK_UNIT / 2.0 + 30.0;
+        for (ZL2SkinViewFace *ame426_cf in _ame425_cloudFaces) {
+            for (NSInteger ame426_k = 0; ame426_k < 4; ame426_k++) {
+                ame426_cf->corners[ame426_k][0] += ame413_dt * 1.6;
+                if (ame426_cf->corners[ame426_k][0] > ame426_halfSpan) {
+                    ame426_cf->corners[ame426_k][0] -= ame426_halfSpan * 2.0;
+                }
+            }
+        }
+        [self ame425_updateWorldTransform];   // 云动即刷新（模型态不变时也走）
+    }
     // ★Task414 箭头步进收束（左/右 30°，0.12 收敛系数）+ 自转
     CGFloat ame414_delta = _ame414_spinTarget - _ame413_yaw;
     if (fabs(ame414_delta) > 0.002) {
@@ -2163,13 +2641,14 @@ static void Ame416RotX(CGFloat th, CGFloat *y, CGFloat *z) {
     *y = ame416_ny;
 }
 
-// 每帧 CPU 逐面投影（★Task416 skinview3d 移植：旧 CATransform3D 拼接链整体
-// 退役）。管线：角点（居中模型空间）→ 肢体摆动（绕枢轴 RotX）→ 全局旋转
+// 每帧 CPU 逐面投影（★Task416 skinview3d 移植；★Task426 精确透视映射）。
+// 管线：角点（居中模型空间）→ 肢体摆动（绕枢轴 RotX）→ 全局旋转
 // （yaw 先 pitch 后）→ ×unit×userScale → CPU 透视（pf = D/(D−Z)）→ 屏幕四边
-// 形 → 仿射贴面（position = 投影后面心，transform = 角点解出的仿射）+
-// 画家序（zPosition = 相机 z，大者在前）+ 背面剔除（旋转后法线 nz≤0 隐藏）
-// + 法线明暗罩。舞台恒 identity（sublayerTransform 已退役）= 透视/深度唯一
-// 源在本函数；与 ZL2ShellIconButton 图标常量、装配 UV 表零耦合。
+// 形 → ★Task426 精确单应贴面（CATransform3D w 行编码透视除法，四角全落点
+// = 零缝零漂移）+ 画家序（zPosition = 相机 z，大者在前）+ 背面剔除
+// + 法线明暗罩（MC 面亮度表 + AO + 冷色深影）。舞台恒 identity
+// （sublayerTransform 已退役）= 透视/深度唯一源在本函数；
+// 与 ZL2ShellIconButton 图标常量、装配 UV 表零耦合。
 - (void)ame413_updateModelTransform {
     CGFloat ame416_unit = _ame413_baseUnit * _ame413_userScale;
     CGFloat ame416_swing = _ame414_walkOn ? (AME416_WALK_AMP * sin(_ame414_walkPhase)) : 0.0;
@@ -2196,6 +2675,20 @@ static void Ame416RotX(CGFloat th, CGFloat *y, CGFloat *z) {
             ame424_ty[ame424_i] = _ame424_joint[ame424_i][2];
         }
     }
+    // ★Task426 光向 = 天穹时间盘日月位（MC 原版轨道：太阳 φ=time·2π 东升西
+    //   落，月 = φ+π 对跖；南向倾角柔和化）。az/el 派生保留（诊断日志 +
+    //   软影/世界着色共用通道）。
+    CGFloat ame424_Lx = 0.0, ame424_Ly = 0.0, ame424_Lz = 0.0;
+    [self ame426_lightVectorLx:&ame424_Lx Ly:&ame424_Ly Lz:&ame424_Lz elev:nil night:nil];
+    _ame424_lightAz = atan2(ame424_Lx, ame424_Lz);
+    _ame424_lightEl = asin(fmax(-1.0, fmin(1.0, ame424_Ly)));
+    CGFloat ame425_c2 = _ame425_contrast / 2.0;
+    CGFloat ame424_gain = 2.0 - _ame424_brightness;
+    if (ame424_gain < 0.25) ame424_gain = 0.25;
+    if (ame424_gain > 1.8) ame424_gain = 1.8;
+    CGFloat ame425_bgain = _ame424_brightness;
+    if (ame425_bgain < 0.25) ame425_bgain = 0.25;
+    if (ame425_bgain > 1.5) ame425_bgain = 1.5;
     [CATransaction begin];
     [CATransaction setDisableActions:YES];
     for (ZL2SkinViewFace *ame414_f in _ame413_faceLayers) {
@@ -2220,11 +2713,13 @@ static void Ame416RotX(CGFloat th, CGFloat *y, CGFloat *z) {
         Ame416RotX(_ame413_pitch, &ame416_ny, &ame416_nz);
         BOOL ame416_backface = (ame416_nz <= 0.0);
         // ★Task419 外层 DoubleSide（skinview3d outerLayer side:DoubleSide 同源）：
-        //   半透明底（全息皮）下透出外层背面镜像渐变 = 真·全息观感；仿射映射
-        //   对负 det 天然输出镜像 = 背面纹理正确；基础层恒 FrontSide 剔除不变
+        //   半透明底（全息皮）下透出外层背面镜像渐变 = 真·全息观感；单应映射
+        //   对任意四角排布天然成立（背面纹理正确 = 纹理 TL/TR/BR/BL 落角点
+        //   投影位）；基础层恒 FrontSide 剔除不变
         BOOL ame419_cull = (ame416_backface && !ame414_f.isOverlay);
-        // ——四角投影——
+        // ——四角投影（★Task426 捕获旋转后缩放空间 q = 面平面参数化源）——
         CGFloat ame416_sx[4], ame416_sy[4], ame416_zsum = 0.0;
+        CGFloat ame426_q[4][3];
         BOOL ame416_ok = YES;
         for (NSInteger ame416_k = 0; ame416_k < 4; ame416_k++) {
             CGFloat ame416_vx = ame414_f->corners[ame416_k][0];
@@ -2257,6 +2752,9 @@ static void Ame416RotX(CGFloat th, CGFloat *y, CGFloat *z) {
             ame416_vx *= ame416_unit; ame416_vy *= ame416_unit; ame416_vz *= ame416_unit;
             if (!isfinite(ame416_vx + ame416_vy + ame416_vz)) { ame416_ok = NO; break; }
             if (ame416_vz > AME416_CAMERA_D * 0.9) ame416_vz = AME416_CAMERA_D * 0.9;   // pf 有界卫兵
+            ame426_q[ame416_k][0] = ame416_vx;
+            ame426_q[ame416_k][1] = ame416_vy;
+            ame426_q[ame416_k][2] = ame416_vz;
             CGFloat ame416_pf = AME416_CAMERA_D / (AME416_CAMERA_D - ame416_vz);
             ame416_sx[ame416_k] = ame416_vx * ame416_pf;
             ame416_sy[ame416_k] = -ame416_vy * ame416_pf;
@@ -2272,53 +2770,76 @@ static void Ame416RotX(CGFloat th, CGFloat *y, CGFloat *z) {
             ame414_f->screenPts[ame424_k][0] = ame416_sx[ame424_k];
             ame414_f->screenPts[ame424_k][1] = ame416_sy[ame424_k];
         }
-        // ——仿射贴面：L0=(-W2,-H2) L1=(+W2,-H2) L3=(-W2,+H2) → P0/P1/P3——
-        CGFloat ame416_w2 = ame414_f.layer.bounds.size.width / 2.0;
-        CGFloat ame416_h2 = ame414_f.layer.bounds.size.height / 2.0;
-        CGFloat ame416_a11 = (ame416_sx[1] - ame416_sx[0]) / (2.0 * ame416_w2);
-        CGFloat ame416_a21 = (ame416_sy[1] - ame416_sy[0]) / (2.0 * ame416_w2);
-        CGFloat ame416_a12 = (ame416_sx[3] - ame416_sx[0]) / (2.0 * ame416_h2);
-        CGFloat ame416_a22 = (ame416_sy[3] - ame416_sy[0]) / (2.0 * ame416_h2);
-        CGFloat ame416_det = ame416_a11 * ame416_a22 - ame416_a12 * ame416_a21;
-        if (!isfinite(ame416_det) || fabs(ame416_det) < 1e-6) {
-            ame414_f.layer.hidden = YES;   // 近棱边退化面隐藏（宽→0）
+        // ——★Task426 精确透视映射（贴合不紧密/特定视角消失/移动根修）——
+        //   旧 3 点仿射（P0/P1/P3 拟合、忽略 P2）把透视梯形当平行四边形：
+        //   第 4 角各面各自近似 → 相邻面共享边只在 3 角精确 = 缝隙；畸变随
+        //   yaw 漂移 = 贴图移动；近掠射 det 越阈整面隐藏 = 特定视角消失。
+        //   新：面内局部点 (u,v) ∈ ±W2/±H2 → P = C'' + u·A + v·B（A =
+        //   (q1−q0)/2W2, B = (q3−q0)/2H2, C'' = 四角均值 = 旋转后缩放空间），
+        //   透视除法 w = (D−Pz)/D 对 u,v 线性 = 完整单应，CATransform3D w 行
+        //   （m14/m24/m44）一次编码 → 四角全部精确落点（共享边逐点恒等 =
+        //   零缝），CA 光栅化逐像素透视正确；det 退化隐藏路径整体退役。
+        CGFloat ame426_W2 = ame414_f.layer.bounds.size.width / 2.0;
+        CGFloat ame426_H2 = ame414_f.layer.bounds.size.height / 2.0;
+        CGFloat ame426_minW = AME416_CAMERA_D;
+        for (NSInteger ame426_k = 0; ame426_k < 4; ame426_k++) {
+            CGFloat ame426_wk = AME416_CAMERA_D - ame426_q[ame426_k][2];
+            if (ame426_wk < ame426_minW) ame426_minW = ame426_wk;
+        }
+        if (ame426_minW < 2.0 || ame426_W2 < 0.25 || ame426_H2 < 0.25) {
+            ame414_f.layer.hidden = YES;   // 视平面穿越/零幅面卫兵（仿射 det 隐藏路径退役）
             continue;
         }
-        CGAffineTransform ame416_aff = CGAffineTransformMake(ame416_a11, ame416_a21, ame416_a12, ame416_a22, 0.0, 0.0);
-        ame414_f.layer.transform = CATransform3DMakeAffineTransform(ame416_aff);
-        ame414_f.layer.position = CGPointMake(
-            ame416_cen.x + ame416_sx[0] + ame416_a11 * ame416_w2 + ame416_a12 * ame416_h2,
-            ame416_cen.y + ame416_sy[0] + ame416_a21 * ame416_w2 + ame416_a22 * ame416_h2);
-        // ——明暗罩：法线 × 光向点积（★Task425 光影对比双罩：白亮/黑影分离 +
-        //   光影强度 c 通道 + 亮度双通道；Task424 单黑罩 31 灰阶面间差退役）——
+        CGFloat ame426_Ax = (ame426_q[1][0] - ame426_q[0][0]) / (2.0 * ame426_W2);
+        CGFloat ame426_Ay = (ame426_q[1][1] - ame426_q[0][1]) / (2.0 * ame426_W2);
+        CGFloat ame426_Az = (ame426_q[1][2] - ame426_q[0][2]) / (2.0 * ame426_W2);
+        CGFloat ame426_Bx = (ame426_q[3][0] - ame426_q[0][0]) / (2.0 * ame426_H2);
+        CGFloat ame426_By = (ame426_q[3][1] - ame426_q[0][1]) / (2.0 * ame426_H2);
+        CGFloat ame426_Bz = (ame426_q[3][2] - ame426_q[0][2]) / (2.0 * ame426_H2);
+        CGFloat ame426_Cx = (ame426_q[0][0] + ame426_q[1][0] + ame426_q[2][0] + ame426_q[3][0]) / 4.0;
+        CGFloat ame426_Cy = (ame426_q[0][1] + ame426_q[1][1] + ame426_q[2][1] + ame426_q[3][1]) / 4.0;
+        CGFloat ame426_Cz = (ame426_q[0][2] + ame426_q[1][2] + ame426_q[2][2] + ame426_q[3][2]) / 4.0;
+        CATransform3D ame426_t = CATransform3DIdentity;
+        ame426_t.m11 = ame426_Ax;  ame426_t.m21 = ame426_Bx;  ame426_t.m41 = ame426_Cx;
+        ame426_t.m12 = -ame426_Ay; ame426_t.m22 = -ame426_By; ame426_t.m42 = -ame426_Cy;
+        ame426_t.m14 = -ame426_Az / AME416_CAMERA_D;
+        ame426_t.m24 = -ame426_Bz / AME416_CAMERA_D;
+        ame426_t.m44 = 1.0 - ame426_Cz / AME416_CAMERA_D;
+        ame414_f.layer.transform = ame426_t;
+        ame414_f.layer.position = ame416_cen;
+        // ——明暗罩：法线 × 光向点积（★Task425 双罩 + ★Task426 顶级光影三件
+        //   套：MC 原版面亮度表补差 + 近似 AO + 冷色深影；白亮/黑影分离与
+        //   光影强度 c 通道、亮度 b 双通道语义保持）——
+        //   highlight=clamp((dot−0.45)/0.55,0,1)·0.30·(c/2) 白亮罩；
         //   ★Task424-a 双面受光保留（外层背面翻法线，gl_FrontFacing 同源）。
         CGFloat ame424_snx = ame416_nx, ame424_sny = ame416_ny, ame424_snz = ame416_nz;
         if (ame416_backface && ame414_f.isOverlay) {
             ame424_snx = -ame416_nx; ame424_sny = -ame416_ny; ame424_snz = -ame416_nz;
         }
-        CGFloat ame424_Lx = cos(_ame424_lightEl) * sin(_ame424_lightAz);
-        CGFloat ame424_Ly = sin(_ame424_lightEl);
-        CGFloat ame424_Lz = cos(_ame424_lightEl) * cos(_ame424_lightAz);
         CGFloat ame416_len = sqrt(ame424_snx * ame424_snx + ame424_sny * ame424_sny + ame424_snz * ame424_snz);
         if (ame416_len < 0.0001) ame416_len = 1.0;
         CGFloat ame416_dot = (ame424_snx * ame424_Lx + ame424_sny * ame424_Ly + ame424_snz * ame424_Lz) / ame416_len;
         // ★Task425 双罩公式（scripts/task425_replica.py shade425 v2 同源）：
-        //   lit=(dot+1)/2；depth=clamp((1−lit)·1.30·(c/2), 0, 0.88) 黑影罩；
-        //   highlight=clamp((dot−0.45)/0.55,0,1)·0.30·(c/2) 白亮罩；
-        //   亮度 b：黑影×clamp(2−b,0.25,1.8) / 白亮×clamp(b,0.25,1.5)。
+        //   lit=(dot+1)/2；depth=clamp((1−lit)·1.30·(c/2), 0, 0.88) 黑影罩。
         CGFloat ame425_lit = (ame416_dot + 1.0) / 2.0;
-        CGFloat ame425_c2 = _ame425_contrast / 2.0;
+        // ★Task426 MC 原版面亮度表（顶1.0/南北0.8/东西0.6/底0.5）补差 +
+        //   近似 AO（底 0.20/侧 0.10）= 无光面仍有可辨体积分层
+        CGFloat ame426_mc;
+        CGFloat ame426_ao;
+        if (ame424_sny > 0.5) { ame426_mc = 1.0; ame426_ao = 0.0; }
+        else if (ame424_sny < -0.5) { ame426_mc = 0.5; ame426_ao = 0.20; }
+        else if (fabs(ame424_snz) > 0.5) { ame426_mc = 0.8; ame426_ao = 0.10; }
+        else { ame426_mc = 0.6; ame426_ao = 0.10; }
         CGFloat ame425_depth = (1.0 - ame425_lit) * AME425_DEPTH_K * ame425_c2;
+        ame425_depth += (1.0 - ame426_mc) * 0.22 * ame425_c2;   // MC 面亮度表补差
+        ame425_depth *= (1.0 + ame426_ao);                       // 近似 AO（底/侧加深）
         if (ame425_depth > AME425_DEPTH_MAX) ame425_depth = AME425_DEPTH_MAX;
         CGFloat ame425_hlv = fmax(0.0, fmin(1.0, (ame416_dot - AME425_HL_DOT0) / AME425_HL_SPAN))
             * AME425_HL_K * ame425_c2;
-        CGFloat ame424_gain = 2.0 - _ame424_brightness;
-        if (ame424_gain < 0.25) ame424_gain = 0.25;
-        if (ame424_gain > 1.8) ame424_gain = 1.8;
-        CGFloat ame425_bgain = _ame424_brightness;
-        if (ame425_bgain < 0.25) ame425_bgain = 0.25;
-        if (ame425_bgain > 1.5) ame425_bgain = 1.5;
-        ame414_f.shade.opacity = ame425_depth * ame424_gain;
+        if (ame426_mc > 0.99 && ame416_dot > 0.55) ame425_hlv += 0.07 * ame425_c2;   // 顶面日光溢出
+        CGFloat ame426_sh = ame425_depth * ame424_gain;   // ★Task426 夜间自动亮度低至 0.5 → gain 1.5，显式截断防 opacity 越幅
+        if (ame426_sh > 1.0) ame426_sh = 1.0;
+        ame414_f.shade.opacity = ame426_sh;
         ame414_f.hl.opacity = ame425_hlv * ame425_bgain;
     }
     [CATransaction commit];
@@ -2327,36 +2848,44 @@ static void Ame416RotX(CGFloat th, CGFloat *y, CGFloat *z) {
     [self ame425_updateWorldTransform];
 }
 
-// ★Task425 世界背景逐帧同步：8×8 地面块 CPU 投影（复用模型管线：yaw/pitch →
-//   ×unit → 透视 pf → 仿射贴面）+ 距离雾 + 光影 depth 着色 + 太阳位置（圆盘
-//   az/el 映射放大）+ 脚下软影（光向反方向偏移）。
+// ★Task426 世界背景逐帧同步：8×8 地面 + 树/柱/水晶/丘道具 + 方块云全 CPU
+//   投影（复用模型管线：yaw/pitch → ×unit → 透视 pf → ★精确单应映射）+
+//   距离雾 + 光影 depth 着色 + 方形太阳/月亮沿天穹弧线（地平线下淡出）+
+//   星空/色调映射层不透明度 + 脚下软影（光向反方向偏移）+ 粒子层幅面随动。
 - (void)ame425_updateWorldTransform {
     if (_ame425_groundLayers.count == 0) return;
     CGFloat ame416_unit = _ame413_baseUnit * _ame413_userScale;
     CGPoint ame416_cen = CGPointMake(CGRectGetMidX(_ame413_stageView.bounds),
                                      CGRectGetMidY(_ame413_stageView.bounds));
-    CGFloat ame424_Lx = cos(_ame424_lightEl) * sin(_ame424_lightAz);
-    CGFloat ame424_Ly = sin(_ame424_lightEl);
-    CGFloat ame424_Lz = cos(_ame424_lightEl) * cos(_ame424_lightAz);
+    CGFloat ame424_Lx = 0.0, ame424_Ly = 0.0, ame424_Lz = 0.0;
+    [self ame426_lightVectorLx:&ame424_Lx Ly:&ame424_Ly Lz:&ame424_Lz elev:nil night:nil];
     CGFloat ame425_c2 = _ame425_contrast / 2.0;
     CGFloat ame424_gain = 2.0 - _ame424_brightness;
     if (ame424_gain < 0.25) ame424_gain = 0.25;
     if (ame424_gain > 1.8) ame424_gain = 1.8;
-    CGFloat ame425_half = AME425_GROUND_GRID * AME425_BLOCK_UNIT / 2.0;
+    CGFloat ame426_half = AME425_GROUND_GRID * AME425_BLOCK_UNIT / 2.0;
+    CGFloat ame426_day = [self ame426_daylightFactor];
     [CATransaction begin];
     [CATransaction setDisableActions:YES];
     for (NSUInteger ame425_i = 0; ame425_i < _ame425_groundFaces.count; ame425_i++) {
         ZL2SkinViewFace *ame425_f = _ame425_groundFaces[ame425_i];
-        CALayer *ame425_g = _ame425_groundLayers[ame425_i];
+        CALayer *ame425_g = ame425_f.layer;   // ★Task426 直取记录层（groundLayers 不含云/道具全量，索引会错位）
+        NSInteger ame426_kind = ame425_f->partIndex;   // -1 地面/-2 道具/-3 云
         CGFloat ame416_nx = ame425_f->normal[0], ame416_ny = ame425_f->normal[1], ame416_nz = ame425_f->normal[2];
         Ame416RotY(_ame413_yaw, &ame416_nx, &ame416_nz);
         Ame416RotX(_ame413_pitch, &ame416_ny, &ame416_nz);
-        if (ame416_ny <= 0.02) {   // 顶面背向相机（仰视）= 剔除
+        // 剔除分流：地面顶面背向（仰视）剔 / 道具背面剔 / 云 DoubleSide 不剔
+        if (ame426_kind == -1 && ame416_ny <= 0.02) {
+            ame425_g.hidden = YES;
+            continue;
+        }
+        if (ame426_kind == -2 && ame416_nz <= 0.0) {
             ame425_g.hidden = YES;
             continue;
         }
         ame425_g.hidden = NO;
         CGFloat ame416_sx[4], ame416_sy[4], ame416_zsum = 0.0;
+        CGFloat ame426_q[4][3];
         BOOL ame416_ok = YES;
         for (NSInteger ame416_k = 0; ame416_k < 4; ame416_k++) {
             CGFloat ame416_vx = ame425_f->corners[ame416_k][0];
@@ -2367,6 +2896,9 @@ static void Ame416RotX(CGFloat th, CGFloat *y, CGFloat *z) {
             ame416_vx *= ame416_unit; ame416_vy *= ame416_unit; ame416_vz *= ame416_unit;
             if (!isfinite(ame416_vx + ame416_vy + ame416_vz)) { ame416_ok = NO; break; }
             if (ame416_vz > AME416_CAMERA_D * 0.9) ame416_vz = AME416_CAMERA_D * 0.9;
+            ame426_q[ame416_k][0] = ame416_vx;
+            ame426_q[ame416_k][1] = ame416_vy;
+            ame426_q[ame416_k][2] = ame416_vz;
             CGFloat ame416_pf = AME416_CAMERA_D / (AME416_CAMERA_D - ame416_vz);
             ame416_sx[ame416_k] = ame416_vx * ame416_pf;
             ame416_sy[ame416_k] = -ame416_vy * ame416_pf;
@@ -2374,46 +2906,93 @@ static void Ame416RotX(CGFloat th, CGFloat *y, CGFloat *z) {
         }
         if (!ame416_ok) { ame425_g.hidden = YES; continue; }
         ame425_g.zPosition = ame416_zsum / 4.0;
-        // 仿射贴面（块层 bounds = 128×128 单位系 → 单位换算在 a 系数内）
-        CGFloat ame425_bw = ame425_g.bounds.size.width / 2.0;
-        CGFloat ame425_bh = ame425_g.bounds.size.height / 2.0;
-        if (ame425_bw < 0.5 || ame425_bh < 0.5) { ame425_g.hidden = YES; continue; }
-        CGFloat ame416_a11 = (ame416_sx[1] - ame416_sx[0]) / (2.0 * ame425_bw);
-        CGFloat ame416_a21 = (ame416_sy[1] - ame416_sy[0]) / (2.0 * ame425_bw);
-        CGFloat ame416_a12 = (ame416_sx[3] - ame416_sx[0]) / (2.0 * ame425_bh);
-        CGFloat ame416_a22 = (ame416_sy[3] - ame416_sy[0]) / (2.0 * ame425_bh);
-        CGFloat ame416_det = ame416_a11 * ame416_a22 - ame416_a12 * ame416_a21;
-        if (!isfinite(ame416_det) || fabs(ame416_det) < 1e-7) {
+        // ★Task426 精确单应映射（与模型面同公式；大梯形块 = 旧仿射弯曲畸变
+        //   最重灾区，修正后地平线/树/云透视正确）
+        CGFloat ame426_W2 = ame425_g.bounds.size.width / 2.0;
+        CGFloat ame426_H2 = ame425_g.bounds.size.height / 2.0;
+        CGFloat ame426_minW = AME416_CAMERA_D;
+        for (NSInteger ame426_k = 0; ame426_k < 4; ame426_k++) {
+            CGFloat ame426_wk = AME416_CAMERA_D - ame426_q[ame426_k][2];
+            if (ame426_wk < ame426_minW) ame426_minW = ame426_wk;
+        }
+        if (ame426_minW < 2.0 || ame426_W2 < 0.5 || ame426_H2 < 0.5) {
             ame425_g.hidden = YES;
             continue;
         }
-        ame425_g.transform = CATransform3DMakeAffineTransform(
-            CGAffineTransformMake(ame416_a11, ame416_a21, ame416_a12, ame416_a22, 0.0, 0.0));
-        ame425_g.position = CGPointMake(
-            ame416_cen.x + ame416_sx[0] + ame416_a11 * ame425_bw + ame416_a12 * ame425_bh,
-            ame416_cen.y + ame416_sy[0] + ame416_a21 * ame425_bw + ame416_a22 * ame425_bh);
-        // 着色（顶面法线×光向 depth 项）+ 距离雾（块中心模型距 → 0..0.85）
+        CGFloat ame426_Ax = (ame426_q[1][0] - ame426_q[0][0]) / (2.0 * ame426_W2);
+        CGFloat ame426_Ay = (ame426_q[1][1] - ame426_q[0][1]) / (2.0 * ame426_W2);
+        CGFloat ame426_Az = (ame426_q[1][2] - ame426_q[0][2]) / (2.0 * ame426_W2);
+        CGFloat ame426_Bx = (ame426_q[3][0] - ame426_q[0][0]) / (2.0 * ame426_H2);
+        CGFloat ame426_By = (ame426_q[3][1] - ame426_q[0][1]) / (2.0 * ame426_H2);
+        CGFloat ame426_Bz = (ame426_q[3][2] - ame426_q[0][2]) / (2.0 * ame426_H2);
+        CGFloat ame426_Cx = (ame426_q[0][0] + ame426_q[1][0] + ame426_q[2][0] + ame426_q[3][0]) / 4.0;
+        CGFloat ame426_Cy = (ame426_q[0][1] + ame426_q[1][1] + ame426_q[2][1] + ame426_q[3][1]) / 4.0;
+        CGFloat ame426_Cz = (ame426_q[0][2] + ame426_q[1][2] + ame426_q[2][2] + ame426_q[3][2]) / 4.0;
+        CATransform3D ame426_t = CATransform3DIdentity;
+        ame426_t.m11 = ame426_Ax;  ame426_t.m21 = ame426_Bx;  ame426_t.m41 = ame426_Cx;
+        ame426_t.m12 = -ame426_Ay; ame426_t.m22 = -ame426_By; ame426_t.m42 = -ame426_Cy;
+        ame426_t.m14 = -ame426_Az / AME416_CAMERA_D;
+        ame426_t.m24 = -ame426_Bz / AME416_CAMERA_D;
+        ame426_t.m44 = 1.0 - ame426_Cz / AME416_CAMERA_D;
+        ame425_g.transform = ame426_t;
+        ame425_g.position = ame416_cen;
+        // 着色分流：地面/道具 = 距离雾 + 光影 depth（emissive 自发光衰减）；
+        // 云 = 夜暗罩（1−daylight）+ 距离雾
         CGFloat ame425_gcx = (ame425_f->corners[0][0] + ame425_f->corners[1][0]
             + ame425_f->corners[2][0] + ame425_f->corners[3][0]) / 4.0;
         CGFloat ame425_gcz = (ame425_f->corners[0][2] + ame425_f->corners[1][2]
             + ame425_f->corners[2][2] + ame425_f->corners[3][2]) / 4.0;
-        CGFloat ame425_dist = sqrt(ame425_gcx * ame425_gcx + ame425_gcz * ame425_gcz) / ame425_half;
+        CGFloat ame425_dist = sqrt(ame425_gcx * ame425_gcx + ame425_gcz * ame425_gcz) / ame426_half;
         CGFloat ame425_fogt = pow(fmin(1.0, fmax(0.0, ame425_dist)), 1.6) * 0.85;
         CGFloat ame425_gdot = (ame416_nx * ame424_Lx + ame416_ny * ame424_Ly + ame416_nz * ame424_Lz);
         CGFloat ame425_glit = (ame425_gdot + 1.0) / 2.0;
         CGFloat ame425_gdepth = (1.0 - ame425_glit) * AME425_DEPTH_K * ame425_c2 * 0.55;
         if (ame425_gdepth > 0.80) ame425_gdepth = 0.80;
-        ame425_f.shade.opacity = fmin(1.0, ame425_fogt + ame425_gdepth * ame424_gain);
+        CGFloat ame425_gopacity;
+        if (ame426_kind == -3) {
+            ame425_gopacity = (1.0 - ame426_day) * 0.45 + ame425_fogt * 0.5;
+        } else {
+            ame425_gopacity = fmin(1.0, ame425_fogt + ame425_gdepth * ame424_gain)
+                            * (1.0 - ame425_f->emissive);
+        }
+        if (ame425_f.shade) ame425_f.shade.opacity = fmin(1.0, ame425_gopacity);
     }
-    // 太阳（草地/雪地）：旋钮映射放大挂天空（R = 舞台短边 0.42）
-    if (_ame425_sunLayer) {
+    // 方形太阳/月亮沿天穹弧线（φ = time·2π；地平线下淡出 = MC 原版升落观感）
+    if (_ame425_sunLayer || _ame426_moonLayer) {
         CGFloat ame425_w = _ame413_stageView.bounds.size.width;
         CGFloat ame425_h = _ame413_stageView.bounds.size.height;
         CGFloat ame425_R = fmin(ame425_w, ame425_h) * 0.42;
-        CGFloat ame425_t = 1.0 - _ame424_lightEl / 1.5708;
-        _ame425_sunLayer.position = CGPointMake(
-            ame425_w / 2.0 + sin(_ame424_lightAz) * ame425_R * ame425_t,
-            ame425_h * 0.40 - cos(_ame424_lightAz) * ame425_R * ame425_t);
+        CGFloat ame425_horizonY = ame425_h * 0.40;
+        CGFloat ame426_phi = _ame426_time * 2.0 * M_PI;
+        if (_ame425_sunLayer) {
+            CGFloat ame426_sunS = sin(ame426_phi);
+            _ame425_sunLayer.position = CGPointMake(
+                ame425_w / 2.0 + cos(ame426_phi) * ame425_R,
+                ame425_horizonY - ame426_sunS * ame425_R);
+            CGFloat ame426_vis = fmin(1.0, fmax(0.0, ame426_sunS * 4.0));
+            _ame425_sunLayer.opacity = 0.96 * ame426_vis;
+        }
+        if (_ame426_moonLayer) {
+            CGFloat ame426_moonS = sin(ame426_phi + M_PI);
+            _ame426_moonLayer.position = CGPointMake(
+                ame425_w / 2.0 + cos(ame426_phi + M_PI) * ame425_R,
+                ame425_horizonY - ame426_moonS * ame425_R);
+            CGFloat ame426_vis = fmin(1.0, fmax(0.0, ame426_moonS * 4.0));
+            _ame426_moonLayer.opacity = 0.92 * ame426_vis;
+        }
+    }
+    // 色调映射层 + 粒子层幅面随舞台（事件透明度在 ame426_syncSkyPalette）
+    if (_ame426_gradeLayer) {
+        _ame426_gradeLayer.frame = _ame413_stageView.bounds;
+    }
+    if (_ame426_weatherEmitter) {
+        _ame426_weatherEmitter.frame = CGRectMake(0, 0,
+            _ame413_stageView.bounds.size.width, _ame413_stageView.bounds.size.height);
+        _ame426_weatherEmitter.emitterPosition = CGPointMake(
+            _ame413_stageView.bounds.size.width / 2.0,
+            (_ame426_weather == AME426_WEATHER_RAIN || _ame425_world == AME425_WORLD_SNOW
+             || _ame425_world == AME425_WORLD_PLAINS) ? -30.0 : _ame413_stageView.bounds.size.height + 30.0);
+        _ame426_weatherEmitter.emitterSize = CGSizeMake(_ame413_stageView.bounds.size.width * 1.2, 40.0);
     }
     // 脚下软影：脚点 (0,-16,0) + 光向地面偏移（az 同向）→ 投影贴地
     if (_ame425_shadowView) {
@@ -2455,6 +3034,251 @@ static void Ame416RotX(CGFloat th, CGFloat *y, CGFloat *z) {
     [CATransaction commit];
 }
 
+// ★Task426 日月光向（MC 原版轨道）：φ = time·2π；白天（time<0.5）太阳
+//   轨道角 φ∈[0,π]，夜晚月亮 φm = φ−π∈[0,π]（月 = 日对跖 = MC 原版相对
+//   位置）；光向 = cosφ·东(+X) + sinφ·天顶(+Y) + 南向倾角(+Z) 归一化；
+//   elev 出参 = 光源仰角因子 sinφ（亮度自动用）；night 出参 = 夜态。
+- (void)ame426_lightVectorLx:(CGFloat *)lx Ly:(CGFloat *)ly Lz:(CGFloat *)lz
+                        elev:(CGFloat *)elev night:(BOOL *)night {
+    CGFloat ame426_phi = _ame426_time * 2.0 * M_PI;
+    BOOL ame426_isNight = (_ame426_time >= 0.5);
+    CGFloat ame426_mf = ame426_isNight ? (ame426_phi - M_PI) : ame426_phi;
+    CGFloat ame426_vx = cos(ame426_mf);
+    CGFloat ame426_vy = sin(ame426_mf);
+    CGFloat ame426_vz = AME426_SOUTH_TILT;
+    CGFloat ame426_len = sqrt(ame426_vx * ame426_vx + ame426_vy * ame426_vy + ame426_vz * ame426_vz);
+    if (ame426_len < 0.001) ame426_len = 1.0;
+    if (lx) *lx = ame426_vx / ame426_len;
+    if (ly) *ly = ame426_vy / ame426_len;
+    if (lz) *lz = ame426_vz / ame426_len;
+    if (elev) *elev = ame426_vy;   // sin(轨道角) = 仰角因子
+    if (night) *night = ame426_isNight;
+}
+
+// ★Task426 亮度自动（MC 原版光级语义：天光顺太阳/月亮仰角；亮度拖条退役）
+//   白天 b = 0.78+0.42·sinφ（晨 0.78 → 正午 1.20）；夜 b = 0.60+0.20·sinφm
+//   （月光地板）；雨 ×0.85 / 雪 ×0.95；夹持 [0.5,1.5]。
+- (void)ame426_applyAutoBrightness {
+    CGFloat ame426_elev = 0.0;
+    BOOL ame426_night = NO;
+    [self ame426_lightVectorLx:nil Ly:nil Lz:nil elev:&ame426_elev night:&ame426_night];
+    CGFloat ame426_b;
+    if (ame426_night) ame426_b = 0.60 + 0.20 * fmax(0.0, ame426_elev);
+    else ame426_b = 0.78 + 0.42 * fmax(0.0, ame426_elev);
+    if (_ame426_weather == AME426_WEATHER_RAIN) ame426_b *= 0.85;
+    else if (_ame426_weather == AME426_WEATHER_SNOW) ame426_b *= 0.95;
+    _ame424_brightness = fmin(AME424_BRIGHT_MAX, fmax(AME424_BRIGHT_MIN, ame426_b));
+}
+
+// ★Task426 天光因子（1 = 全昼，0 = 深夜；地平线 ±0.12 过渡带平滑）
+- (CGFloat)ame426_daylightFactor {
+    CGFloat ame426_s = sin(_ame426_time * 2.0 * M_PI);
+    return fmin(1.0, fmax(0.0, (ame426_s + 0.12) / 0.5));
+}
+
+// ★Task426 天穹三停靠渐变 + 星空 + 色调映射层（事件驱动：时间/天气/世界变化）
+//   昼夜插值 + 晨昏暖橙混合（|sinφ| 近 0 = 日/月出落地平线）+ 雨天灰蓝降饱和。
+- (void)ame426_syncSkyPalette {
+    if (!_ame425_skyLayer) return;
+    NSInteger ame425_w = _ame425_world;
+    if (ame425_w < AME425_WORLD_PLAINS) return;   // 纯色背景无天穹
+    CGFloat ame426_day = [self ame426_daylightFactor];
+    CGFloat ame426_s = sin(_ame426_time * 2.0 * M_PI);
+    CGFloat ame426_warm = fmax(0.0, 1.0 - fabs(ame426_s) / 0.30) * ame426_day;   // 晨昏带
+    CGFloat ame426_rain = (_ame426_weather == AME426_WEATHER_RAIN) ? 1.0 : 0.0;
+    // 昼/夜三停靠基色（per world）
+    CGFloat ame426_topD[3] = {0.35, 0.55, 0.92}, ame426_topN[3] = {0.02, 0.03, 0.08};
+    CGFloat ame426_midD[3] = {0.55, 0.72, 0.95}, ame426_midN[3] = {0.04, 0.06, 0.14};
+    CGFloat ame426_botD[3] = {0.72, 0.86, 0.98}, ame426_botN[3] = {0.07, 0.10, 0.20};
+    if (ame425_w == AME425_WORLD_SNOW) {
+        ame426_topD[0] = 0.55; ame426_topD[1] = 0.68; ame426_topD[2] = 0.86;
+        ame426_midD[0] = 0.72; ame426_midD[1] = 0.82; ame426_midD[2] = 0.94;
+        ame426_botD[0] = 0.88; ame426_botD[1] = 0.92; ame426_botD[2] = 0.97;
+    } else if (ame425_w == AME425_WORLD_END) {
+        ame426_topD[0] = 0.03; ame426_topD[1] = 0.02; ame426_topD[2] = 0.06;
+        ame426_midD[0] = 0.07; ame426_midD[1] = 0.05; ame426_midD[2] = 0.11;
+        ame426_botD[0] = 0.12; ame426_botD[1] = 0.09; ame426_botD[2] = 0.17;
+        ame426_topN[0] = 0.03; ame426_topN[1] = 0.02; ame426_topN[2] = 0.06;
+        ame426_midN[0] = 0.07; ame426_midN[1] = 0.05; ame426_midN[2] = 0.11;
+        ame426_botN[0] = 0.12; ame426_botN[1] = 0.09; ame426_botN[2] = 0.17;
+    } else if (ame425_w == AME425_WORLD_NETHER) {
+        ame426_topD[0] = 0.15; ame426_topD[1] = 0.03; ame426_topD[2] = 0.03;
+        ame426_midD[0] = 0.24; ame426_midD[1] = 0.06; ame426_midD[2] = 0.04;
+        ame426_botD[0] = 0.35; ame426_botD[1] = 0.11; ame426_botD[2] = 0.07;
+        ame426_topN[0] = 0.15; ame426_topN[1] = 0.03; ame426_topN[2] = 0.03;
+        ame426_midN[0] = 0.24; ame426_midN[1] = 0.06; ame426_midN[2] = 0.04;
+        ame426_botN[0] = 0.35; ame426_botN[1] = 0.11; ame426_botN[2] = 0.07;
+    }
+    CGFloat ame426_top[3], ame426_mid[3], ame426_bot[3];
+    for (NSInteger ame426_i = 0; ame426_i < 3; ame426_i++) {
+        ame426_top[ame426_i] = ame426_topN[ame426_i] + (ame426_topD[ame426_i] - ame426_topN[ame426_i]) * ame426_day;
+        ame426_mid[ame426_i] = ame426_midN[ame426_i] + (ame426_midD[ame426_i] - ame426_midN[ame426_i]) * ame426_day;
+        ame426_bot[ame426_i] = ame426_botN[ame426_i] + (ame426_botD[ame426_i] - ame426_botN[ame426_i]) * ame426_day;
+    }
+    // 晨昏暖橙混合（中/下停靠偏暖 = 日出日落观感）
+    for (NSInteger ame426_i = 0; ame426_i < 3; ame426_i++) {
+        CGFloat ame426_warmTarget = (ame426_i == 1) ? 0.90 : (ame426_i == 2) ? 0.62 : 0.30;
+        CGFloat ame426_mix = ame426_warm * 0.55;
+        ame426_mid[ame426_i] += (ame426_warmTarget - ame426_mid[ame426_i]) * ame426_mix * (ame426_i == 0 ? 0.2 : 1.0);
+        ame426_bot[ame426_i] += (ame426_warmTarget - ame426_bot[ame426_i]) * ame426_mix * (ame426_i == 0 ? 0.2 : 1.0);
+    }
+    // 雨天降饱和压暗（朝灰蓝靠拢）
+    for (NSInteger ame426_i = 0; ame426_i < 3; ame426_i++) {
+        CGFloat ame426_rainTarget[3] = {0.42, 0.47, 0.55};
+        CGFloat ame426_mix = ame426_rain * 0.55 * ame426_day;
+        ame426_top[ame426_i] += (ame426_rainTarget[ame426_i] - ame426_top[ame426_i]) * ame426_mix;
+        ame426_mid[ame426_i] += (ame426_rainTarget[ame426_i] - ame426_mid[ame426_i]) * ame426_mix;
+        ame426_bot[ame426_i] += (ame426_rainTarget[ame426_i] - ame426_bot[ame426_i]) * ame426_mix;
+    }
+    [CATransaction begin];
+    [CATransaction setDisableActions:YES];
+    _ame425_skyLayer.colors = @[
+        (id)[UIColor colorWithRed:ame426_top[0] green:ame426_top[1] blue:ame426_top[2] alpha:1.0].CGColor,
+        (id)[UIColor colorWithRed:ame426_mid[0] green:ame426_mid[1] blue:ame426_mid[2] alpha:1.0].CGColor,
+        (id)[UIColor colorWithRed:ame426_bot[0] green:ame426_bot[1] blue:ame426_bot[2] alpha:1.0].CGColor];
+    if (_ame426_starLayer) {
+        _ame426_starLayer.opacity = (ame425_w == AME425_WORLD_END)
+            ? 0.85 : (1.0 - ame426_day) * 0.9 * (1.0 - ame426_rain * 0.7);
+    }
+    if (_ame426_gradeLayer) {
+        // 色调映射层择主：夜蓝 / 晨昏暖橙 / 雨灰蓝 / 晴零
+        if (ame426_rain > 0.0 && ame426_day > 0.3) {
+            _ame426_gradeLayer.backgroundColor = [UIColor colorWithRed:0.32 green:0.40 blue:0.52 alpha:1.0].CGColor;
+            _ame426_gradeLayer.opacity = 0.12 * ame426_day;
+        } else if (1.0 - ame426_day > ame426_warm) {
+            _ame426_gradeLayer.backgroundColor = [UIColor colorWithRed:0.12 green:0.18 blue:0.38 alpha:1.0].CGColor;
+            _ame426_gradeLayer.opacity = 0.12 * (1.0 - ame426_day);
+        } else if (ame426_warm > 0.02) {
+            _ame426_gradeLayer.backgroundColor = [UIColor colorWithRed:1.0 green:0.55 blue:0.20 alpha:1.0].CGColor;
+            _ame426_gradeLayer.opacity = 0.15 * ame426_warm;
+        } else {
+            _ame426_gradeLayer.opacity = 0.0;
+        }
+    }
+    [CATransaction commit];
+}
+
+// ★Task426 天气/环境粒子（CAEmitterLayer）：主世界雨丝 / 雪地雪花 /
+//   地狱余烬（自上而下反 = 自下而上）/ 终界浮尘；雨雪在天气段控制，
+//   余烬/浮尘 = 世界自带环境粒子。
+- (void)ame426_rebuildWeatherEmitter {
+    if (_ame426_weatherEmitter) { [_ame426_weatherEmitter removeFromSuperlayer]; _ame426_weatherEmitter = nil; }
+    NSInteger ame425_w = _ame425_world;
+    if (ame425_w < AME425_WORLD_PLAINS) return;
+    CGFloat ame426_wStage = fmax(100.0, _ame413_stageView.bounds.size.width);
+    CGFloat ame426_hStage = fmax(100.0, _ame413_stageView.bounds.size.height);
+    CAEmitterLayer *ame426_em = [CAEmitterLayer layer];
+    ame426_em.emitterShape = kCAEmitterLayerRect;
+    ame426_em.frame = CGRectMake(0, 0, ame426_wStage, ame426_hStage);
+    ame426_em.zPosition = 8000.0;   // 模型之上 = 前景天气（MC 雨前后都有，前景观感更强）
+    BOOL ame426_topEmit = NO;
+    if (ame425_w == AME425_WORLD_PLAINS && _ame426_weather == AME426_WEATHER_RAIN) {
+        ame426_topEmit = YES;
+        CAEmitterCell *ame426_rain = [CAEmitterCell emitterCell];
+        ame426_rain.birthRate = 120.0;
+        ame426_rain.lifetime = 1.3;
+        ame426_rain.velocity = 380.0;
+        ame426_rain.velocityRange = 60.0;
+        ame426_rain.yAcceleration = 240.0;
+        ame426_rain.xAcceleration = -14.0;   // 微风斜雨
+        ame426_rain.emissionLongitude = M_PI / 2.0;
+        ame426_rain.scale = 1.0;
+        ame426_rain.scaleRange = 0.35;
+        ame426_rain.contents = (id)[self ame426_particleImageKind:0].CGImage;
+        ame426_rain.color = [UIColor colorWithRed:0.72 green:0.82 blue:0.95 alpha:0.34].CGColor;
+        ame426_em.emitterCells = @[ame426_rain];
+    } else if (ame425_w == AME425_WORLD_SNOW && _ame426_weather == AME426_WEATHER_SNOW) {
+        ame426_topEmit = YES;
+        CAEmitterCell *ame426_snow = [CAEmitterCell emitterCell];
+        ame426_snow.birthRate = 42.0;
+        ame426_snow.lifetime = 4.5;
+        ame426_snow.velocity = 66.0;
+        ame426_snow.velocityRange = 22.0;
+        ame426_snow.yAcceleration = 18.0;
+        ame426_snow.xAcceleration = 8.0;
+        ame426_snow.emissionLongitude = M_PI / 2.0;
+        ame426_snow.emissionLatitude = -0.4;
+        ame426_snow.emissionRange = 0.5;
+        ame426_snow.spin = 0.6;
+        ame426_snow.spinRange = 1.2;
+        ame426_snow.scale = 0.9;
+        ame426_snow.scaleRange = 0.6;
+        ame426_snow.contents = (id)[self ame426_particleImageKind:1].CGImage;
+        ame426_snow.color = [UIColor colorWithWhite:1.0 alpha:0.80].CGColor;
+        ame426_em.emitterCells = @[ame426_snow];
+    } else if (ame425_w == AME425_WORLD_NETHER) {
+        CAEmitterCell *ame426_ember = [CAEmitterCell emitterCell];
+        ame426_ember.birthRate = 15.0;
+        ame426_ember.lifetime = 3.2;
+        ame426_ember.velocity = 46.0;
+        ame426_ember.velocityRange = 18.0;
+        ame426_ember.yAcceleration = -16.0;   // 热浮力向上
+        ame426_ember.emissionLongitude = -M_PI / 2.0;
+        ame426_ember.emissionRange = 0.5;
+        ame426_ember.scale = 0.9;
+        ame426_ember.scaleRange = 0.7;
+        ame426_ember.alphaSpeed = -0.30;
+        ame426_ember.contents = (id)[self ame426_particleImageKind:2].CGImage;
+        ame426_ember.color = [UIColor colorWithRed:1.0 green:0.55 blue:0.15 alpha:0.85].CGColor;
+        ame426_em.emitterCells = @[ame426_ember];
+    } else if (ame425_w == AME425_WORLD_END) {
+        CAEmitterCell *ame426_mote = [CAEmitterCell emitterCell];
+        ame426_mote.birthRate = 9.0;
+        ame426_mote.lifetime = 6.0;
+        ame426_mote.velocity = 6.0;
+        ame426_mote.velocityRange = 4.0;
+        ame426_mote.emissionLongitude = 0.0;
+        ame426_mote.emissionRange = M_PI * 2.0;   // 全向漂浮
+        ame426_mote.scale = 0.9;
+        ame426_mote.scaleRange = 0.6;
+        ame426_mote.alphaSpeed = -0.10;
+        ame426_mote.contents = (id)[self ame426_particleImageKind:3].CGImage;
+        ame426_mote.color = [UIColor colorWithRed:0.80 green:0.55 blue:0.95 alpha:0.55].CGColor;
+        ame426_em.emitterCells = @[ame426_mote];
+    } else {
+        return;   // 晴天零粒子
+    }
+    ame426_em.emitterPosition = CGPointMake(ame426_wStage / 2.0, ame426_topEmit ? -30.0 : ame426_hStage + 30.0);
+    ame426_em.emitterSize = CGSizeMake(ame426_wStage * 1.2, 40.0);
+    [_ame413_stageView.layer addSublayer:ame426_em];
+    _ame426_weatherEmitter = ame426_em;
+}
+
+// ★Task426 粒子贴图（kind 0 雨丝/1 雪花/2 余烬/3 浮尘）
+- (UIImage *)ame426_particleImageKind:(NSInteger)kind {
+    CGFloat ame426_w = (kind == 0) ? 3.0 : (kind == 1) ? 7.0 : 5.0;
+    CGFloat ame426_h = (kind == 0) ? 20.0 : ame426_w;
+    UIGraphicsBeginImageContextWithOptions(CGSizeMake(ame426_w, ame426_h), NO, 1.0);
+    CGContextRef ame426_ctx = UIGraphicsGetCurrentContext();
+    if (ame426_ctx) {
+        if (kind == 0) {
+            // 雨丝：竖向亮线（上下端淡出）
+            CGContextSetFillColorWithColor(ame426_ctx, [UIColor colorWithWhite:1.0 alpha:0.9].CGColor);
+            CGContextFillRect(ame426_ctx, CGRectMake(1.0, 2.0, 1.0, ame426_h - 4.0));
+        } else {
+            CGFloat ame426_cx = ame426_w / 2.0, ame426_cy = ame426_h / 2.0;
+            CGColorSpaceRef ame426_cs = CGColorSpaceCreateDeviceRGB();
+            CGFloat ame426_comps[12] = {1.0, 1.0, 1.0, 0.95, 1.0, 1.0, 1.0, 0.35, 1.0, 1.0, 1.0, 0.0};
+            if (kind == 2) { ame426_comps[0] = 1.0; ame426_comps[1] = 0.6; ame426_comps[2] = 0.15;
+                             ame426_comps[4] = 1.0; ame426_comps[5] = 0.6; ame426_comps[6] = 0.15;
+                             ame426_comps[8] = 1.0; ame426_comps[9] = 0.6; ame426_comps[10] = 0.15; }
+            if (kind == 3) { ame426_comps[0] = 0.85; ame426_comps[1] = 0.60; ame426_comps[2] = 1.0;
+                             ame426_comps[4] = 0.85; ame426_comps[5] = 0.60; ame426_comps[6] = 1.0;
+                             ame426_comps[8] = 0.85; ame426_comps[9] = 0.60; ame426_comps[10] = 1.0; }
+            CGFloat ame426_locs[3] = {0.0, 0.4, 1.0};
+            CGGradientRef ame426_grad = CGGradientCreateWithColorComponents(ame426_cs, ame426_comps, ame426_locs, 3);
+            CGContextDrawRadialGradient(ame426_ctx, ame426_grad,
+                CGPointMake(ame426_cx, ame426_cy), 0.5, CGPointMake(ame426_cx, ame426_cy), ame426_w / 2.0,
+                kCGGradientDrawsBeforeStartLocation);
+            CGGradientRelease(ame426_grad);
+            CGColorSpaceRelease(ame426_cs);
+        }
+    }
+    UIImage *ame426_out = UIGraphicsGetImageFromCurrentImageContext();
+    UIGraphicsEndImageContext();
+    return ame426_out;
+}
+
 // 视口自适应比例（模型高 32 单位 → 舞台高的 0.74；宽含双臂 16 单位）
 - (void)ame413_recomputeBaseUnit {
     CGFloat ame413_h = _ame413_stageView.bounds.size.height;
@@ -2469,6 +3293,9 @@ static void Ame416RotX(CGFloat th, CGFloat *y, CGFloat *z) {
     [super layoutSubviews];
     if (_ame425_skyLayer && _ame425_skyLayer.superlayer == self.layer) {
         _ame425_skyLayer.frame = self.bounds;   // ★Task425 天空随卡幅自适应
+    }
+    if (_ame426_starLayer && _ame426_starLayer.superlayer == self.layer) {
+        _ame426_starLayer.frame = self.bounds;   // ★Task426 星空随卡幅自适应
     }
     CGFloat ame413_h = _ame413_stageView.bounds.size.height;
     CGFloat ame413_w = _ame413_stageView.bounds.size.width;
@@ -2542,7 +3369,9 @@ static void ZL2SkinViewBuildPart(CALayer *ame413_parent,
         //   alpha 通道；基础层（不透明皮）掩膜全不透 = 视觉零变化。
         CALayer *ame414_shade = [CALayer layer];
         ame414_shade.frame = ame413_face.bounds;
-        ame414_shade.backgroundColor = [UIColor blackColor].CGColor;
+        // ★Task426 冷色深影（纯黑改深空蓝 #0a0f1e 系 = 顶级光影阴影色温；
+        //   罩透明度仍逐帧 = depth）
+        ame414_shade.backgroundColor = [UIColor colorWithRed:0.02 green:0.04 blue:0.10 alpha:1.0].CGColor;
         ame414_shade.opacity = 0.0;
         // ★Task425 白色亮罩（highlight：受光面提亮 > 100%；掩膜同 shade）
         CALayer *ame425_hl = [CALayer layer];
@@ -2613,12 +3442,11 @@ static void ZL2SkinViewBuildPart(CALayer *ame413_parent,
     }
     [_ame413_faceLayers removeAllObjects];
     // ★Task425 换肤重建清掉地面/太阳/软影层（stage 清层连带）→ 世界态即建回
+    //   ★Task426 改走 teardown 全量拆卸（星空/月亮/色调层/粒子/云全部入册，
+    //   防 applySkin 局部清层后星空层残留自层树重复叠加）
     BOOL ame425_hadWorld = (_ame425_world >= 3);
     if (ame425_hadWorld) {
-        _ame425_groundLayers = nil;
-        _ame425_groundFaces = nil;
-        _ame425_sunLayer = nil;
-        _ame425_shadowView = nil;
+        [self ame425_teardownWorldLayers];
     }
 
     CGFloat ame413_unit = _ame413_baseUnit;
@@ -2715,12 +3543,16 @@ static void ZL2SkinViewBuildPart(CALayer *ame413_parent,
     // ★Task424 诊断重锚（pose/light/bright = 姿态/光向/亮度 CI 仲裁字段）
     // ★Task425 诊断重锚（cutout1=sv3d-alphaTest0 对齐 / contrast=光影强度 /
     //   world=世界背景 / panel=二级菜单：IMG_0671 六复诉的 CI 仲裁面）
-    NSLog(@"[ZL2SkinPreview] Task425: skin=%gx%g stage=%.0fx%.0f unit=%.2f faces=%lu slim=%d pose=%ld walk=%d light=az%.2f/el%.2f/b%.2f contrast=%.2f world=%ld overlayParts=%ld source=%@ model=content-slim%d(classic%d) probe=r%ld/l%ld meta=%d cutout=base-alpha>=1-sv3d-parity veil=overlay-alpha>=180 twoside=overlay-back-normal-flip doubleside=overlay chain=mtime-dualurl-fallback-prov prov=%@ panel=%d chip=%@",
+    // ★Task426 诊断重锚（time=天穹时间盘相位 / weather=天气 / persp=精确单应
+    //   映射 / worldFaces=世界面数：IMG_0674/0675/0676 六复诉的 CI 仲裁面）
+    NSLog(@"[ZL2SkinPreview] Task426: skin=%gx%g stage=%.0fx%.0f unit=%.2f faces=%lu worldFaces=%lu slim=%d pose=%ld walk=%d light=time%.3f/az%.2f/el%.2f/b%.2f weather=%ld contrast=%.2f world=%ld persp=homography-exact overlayParts=%ld source=%@ model=content-slim%d(classic%d) probe=r%ld/l%ld meta=%d cutout=base-alpha>=1-sv3d-parity veil=overlay-alpha>=180 twoside=overlay-back-normal-flip doubleside=overlay chain=mtime-dualurl-fallback-prov prov=%@ panel=%d chip=%@",
           skin.size.width, skin.size.height, _ame413_stageView.bounds.size.width,
           _ame413_stageView.bounds.size.height, ame413_unit,
-          (unsigned long)_ame413_faceLayers.count, _ame413_slimModel,
+          (unsigned long)_ame413_faceLayers.count,
+          (unsigned long)_ame425_groundFaces.count, _ame413_slimModel,
           (long)_ame424_poseIndex, _ame414_walkOn ? 1 : 0,
-          _ame424_lightAz, _ame424_lightEl, _ame424_brightness,
+          _ame426_time, _ame424_lightAz, _ame424_lightEl, _ame424_brightness,
+          (long)_ame426_weather,
           _ame425_contrast, (long)_ame425_world,
           (long)ame418_overlayParts, _ame420_skinSource ?: @"-",
           _ame413_slimModel ? 1 : 0, _ame413_slimModel ? 0 : 1,
