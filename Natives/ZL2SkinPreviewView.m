@@ -61,7 +61,7 @@
 #import "ZL2SkinPreviewView.h"
 #import "ZL2Theme.h"
 #import "utils.h"   // localize()
-#import <QuartzCore/QuartzCore.h>   // ★Task426 CAEmitterLayer 形状常量（kCAEmitterLayerRect；CI 3171 判例）
+#import <QuartzCore/QuartzCore.h>   // ★Task426 CAEmitterLayer/CAEmitterCell（CI 3171/3172 判例：kCAEmitterLayerRect 常量不存在，shape 合法值 = Point/Line/Circle/CircleOutline）
 #import "AvatarManager.h"   // ★Task414 设为头像落点（Documents/avatars 既有链）
 #import "authenticator/ThirdPartyAuthenticator.h"   // ★Task413 全皮落盘路径（ame133 链同步持久化）
 #import "BuildTag.h"   // ★Task421 代际角标同源常量（ame415_buildTag header 化单一事实源，与关于页版本行同一字面量）
@@ -3169,7 +3169,7 @@ static void Ame416RotX(CGFloat th, CGFloat *y, CGFloat *z) {
     CGFloat ame426_wStage = fmax(100.0, _ame413_stageView.bounds.size.width);
     CGFloat ame426_hStage = fmax(100.0, _ame413_stageView.bounds.size.height);
     CAEmitterLayer *ame426_em = [CAEmitterLayer layer];
-    ame426_em.emitterShape = kCAEmitterLayerRect;
+    ame426_em.emitterShape = kCAEmitterLayerLine;   // ★宽幅条带发射（Rect 常量不存在判例；雨/雪顶部横线，余烬/浮尘底部横线）
     ame426_em.frame = CGRectMake(0, 0, ame426_wStage, ame426_hStage);
     ame426_em.zPosition = 8000.0;   // 模型之上 = 前景天气（MC 雨前后都有，前景观感更强）
     BOOL ame426_topEmit = NO;
