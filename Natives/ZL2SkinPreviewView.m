@@ -396,6 +396,8 @@ static UIImage *ZL2SkinViewHeadAvatarImage(UIImage *skin) {
     CGFloat corners[4][3];   // 模型空间四角（居中，TL/TR/BR/BL）
     CGFloat pivot[3];        // 肢体枢轴（居中模型空间）
     CGFloat normal[3];       // 面法线（模型空间）
+    CGFloat screenPts[4][2]; // ★Task424 上一帧屏幕四角（自定义关节命中拾取）
+    NSInteger partIndex;     // ★Task424 所属部件（0 头/1 身/2 右臂/3 左臂/4 右腿/5 左腿）
 }
 @property (nonatomic, strong) CALayer *layer;    // 贴图面（shade 为其子层随动）
 @property (nonatomic, strong) CALayer *shade;    // 黑色光影罩（opacity = 1−shade 逐帧）
@@ -427,11 +429,31 @@ static UIImage *ZL2SkinViewHeadAvatarImage(UIImage *skin) {
 }
 @end
 
-// ★Task416 光向（模型空间 +Y 向上 → 光来自左上前上方；与旧层空间向量
-//   同一物理光源，Y 分量翻转适配模型空间直算）
-static const CGFloat AME416_LIGHT_X = -0.45;
-static const CGFloat AME416_LIGHT_Y =  0.62;
-static const CGFloat AME416_LIGHT_Z =  0.65;
+// ★Task416 光向基线（已参数化进 Task424 光影系统：az/el 反解自本向量
+//   (−0.45,0.62,0.65)，|L|≈1.0047 → az=−0.606 / el=0.668，默认观感零跳变）
+// ★Task424 光影系统（用户钦定：圆盘调光位 + 亮度拖条）：
+//   · 光向 = 视空间方位角 az / 仰角 el（圆盘内拖动 dx→az、dy→el）；
+//   · 亮度 b∈[0.5,1.5]：背光面下限 floor = clamp(0.44+(b−1)·0.55, 0.12, 0.80)，
+//     罩增益 gain = clamp(2−b, 0.25, 1.8)，默认 1.15；
+//   · 罩上限 0.85→0.60（IMG_0669 定谳：0.85 = 全模型 murk 主源，头侧面实测
+//     ×0.524 → 新默认 ×0.756；scripts/task424_light_pose_replica.py 同公式
+//     Python 先行验证：模型区均亮 150.2→166.1）。
+static const CGFloat AME424_VEIL_CAP = 0.60;
+static const CGFloat AME424_BRIGHT_DEFAULT = 1.15;
+static const CGFloat AME424_BRIGHT_MIN = 0.5;
+static const CGFloat AME424_BRIGHT_MAX = 1.5;
+static const CGFloat AME424_DEF_AZ = -0.606;
+static const CGFloat AME424_DEF_EL = 0.668;
+// ★Task424 蹲下预置角（正 rotX = 肢端向后；Python 复刻 C 组图证）
+static const CGFloat AME424_SNEAK_HEAD = -0.42;   // 头后仰补偿
+static const CGFloat AME424_SNEAK_BODY = 0.30;    // 躯干前倾
+static const CGFloat AME424_SNEAK_ARM = -0.15;    // 臂微前
+static const CGFloat AME424_SNEAK_LEG = -0.35;    // 腿前伸下蹲
+static const CGFloat AME424_SNEAK_SINK = -2.2;    // 整体下沉
+// ★Task424 自定义关节拖拽限位（rad）
+static const CGFloat AME424_JOINT_MAX_XZ = 1.4;
+static const CGFloat AME424_JOINT_MAX_Y = 1.2;
+static const CGFloat AME424_JOINT_GAIN = 0.010;
 // ★Task416 CPU 透视视距（pt；模型对角最大 ~20unit×unit×userScale 远小于
 //   此值，pf 恒有界；stage sublayerTransform m34 同帧退役 = 全链透视唯一源）
 static const CGFloat AME416_CAMERA_D = 900.0;
@@ -464,14 +486,27 @@ static const CGFloat AME416_WALK_AMP = 0.50;
     NSString *_ame414_lastAuthserver;
     BOOL _ame414_refreshBypass;                      // 刷新：绕过两级磁盘缓存直取网络
     // ——★Task414 皮肤站控件与动画态——
-    UIControl *_ame414_runButton;
-    UIControl *_ame414_pauseButton;
     UIControl *_ame414_refreshButton;
     UIControl *_ame414_spinLeftButton;
     UIControl *_ame414_spinRightButton;
     UIControl *_ame414_wardrobeAddButton;
     UIControl *_ame414_avatarButton;
     UIControl *_ame414_downloadButton;
+    // ——★Task424 光影系统 + 姿态系统（用户钦定三件：圆盘调光位/亮度拖条/
+    //   蹲下站立跑步+自定义关节拖拽；跑步/暂停二钮退役入四段姿态控件）——
+    UISegmentedControl *_ame424_poseControl;         // 站立/蹲下/跑步/自定义
+    NSInteger _ame424_poseIndex;                     // 0 站立 1 蹲下 2 跑步 3 自定义
+    UIControl *_ame424_lightDial;                    // 光位圆盘（视空间 az/el）
+    UIView *_ame424_dialKnob;                        // 盘内方向指示点
+    UISlider *_ame424_brightSlider;                  // 亮度拖条
+    UILabel *_ame424_brightLabel;                    // 亮度百分比
+    CGFloat _ame424_lightAz;                         // 光向方位角（rad）
+    CGFloat _ame424_lightEl;                         // 光向仰角（rad）
+    CGFloat _ame424_brightness;                      // 亮度系数 [0.5,1.5]
+    CGFloat _ame424_joint[6][3];                     // 自定义关节角 [rotX,rotZ,rotY]
+    NSInteger _ame424_dragPart;                      // 关节拖拽命中部件（-1 = 无）
+    NSLayoutConstraint *_ame424_knobLead;            // 盘内旋钮位置常量（同引用更新）
+    NSLayoutConstraint *_ame424_knobTop;
     NSMutableArray<UIControl *> *_ame414_swatchButtons;      // 背景色板三枚
     NSMutableArray<UIView *> *_ame414_swatchDots;            // 色板圆点（选中描边切换）
     UIScrollView *_ame414_wardrobeStrip;                     // 衣柜缩略条
@@ -502,6 +537,18 @@ static const CGFloat AME416_WALK_AMP = 0.50;
         _ame413_userScale = 1.0;
         _ame413_slimModel = NO;
         _ame413_faceLayers = [NSMutableArray array];
+        // ★Task424 光影系统初值（az/el 反解自 AME416 光向基线，观感零跳变；
+        //   亮度默认 1.15 = murk 降档不炸纸片感历史判据）
+        _ame424_lightAz = AME424_DEF_AZ;
+        _ame424_lightEl = AME424_DEF_EL;
+        _ame424_brightness = AME424_BRIGHT_DEFAULT;
+        _ame424_poseIndex = 0;   // 开屏站立（416 判例：站姿立正 + 慢速自转）
+        _ame424_dragPart = -1;
+        for (NSInteger ame424_i = 0; ame424_i < 6; ame424_i++) {
+            _ame424_joint[ame424_i][0] = 0.0;
+            _ame424_joint[ame424_i][1] = 0.0;
+            _ame424_joint[ame424_i][2] = 0.0;
+        }
         // ★Task416 跑步默认关（开屏站姿立正 + 慢速自转 = 皮肤站口径；415
         //   开屏即全幅摆动 = 截图任意相位都是四肢交叉乱麻的观感源之一）
         _ame414_walkOn = NO;
@@ -566,6 +613,12 @@ static const CGFloat AME416_WALK_AMP = 0.50;
     UIPinchGestureRecognizer *ame413_pinch =
         [[UIPinchGestureRecognizer alloc] initWithTarget:self action:@selector(ame413_handlePinch:)];
     [_ame413_stageView addGestureRecognizer:ame413_pinch];
+    // ★Task424 自定义姿态长按复位（关节拖拽同一舞台；非自定义态零副作用）
+    UILongPressGestureRecognizer *ame424_long =
+        [[UILongPressGestureRecognizer alloc] initWithTarget:self
+                                                      action:@selector(ame424_stageLongPressed:)];
+    ame424_long.minimumPressDuration = 0.6;
+    [_ame413_stageView addGestureRecognizer:ame424_long];
 
     // 占位灰模型先建（皮肤到位即整组拆建；零空白等待）
     [self ame413_applySkin:nil];
@@ -618,16 +671,69 @@ static const CGFloat AME416_WALK_AMP = 0.50;
     _ame413_spinner.translatesAutoresizingMaskIntoConstraints = NO;
     [self addSubview:_ame413_spinner];
 
-    // ——顶行动作钮（28pt 槽位 20pt 字形，iOS14 零 configuration 判例）——
-    _ame414_runButton = [self ame414_iconButtonWithSymbol:@"figure.run" fallback:nil
-                                                    label:@"ame414.skin.run"
-                                                   block:^{ [self ame414_runTapped]; }];
-    _ame414_pauseButton = [self ame414_iconButtonWithSymbol:@"pause.fill" fallback:nil
-                                                      label:@"ame414.skin.pause"
-                                                     block:^{ [self ame414_pauseTapped]; }];
+    // ——★Task424 姿态四段控件（站立/蹲下/跑步/自定义；跑步/暂停二钮退役入
+    //   本控件 = 同屏四态直选 + 自定义关节拖拽入口；跑步语义 = 既有 walkOn
+    //   正弦摆 AME416_WALK_AMP 链零改动）——
+    _ame424_poseControl = [[UISegmentedControl alloc] initWithItems:@[
+        localize(@"ame424.skin.pose.stand", @"站立"),
+        localize(@"ame424.skin.pose.sneak", @"蹲下"),
+        localize(@"ame424.skin.pose.run", @"跑步"),
+        localize(@"ame424.skin.pose.custom", @"自定义")]];
+    _ame424_poseControl.selectedSegmentIndex = _ame424_poseIndex;
+    _ame424_poseControl.translatesAutoresizingMaskIntoConstraints = NO;
+    _ame424_poseControl.accessibilityLabel = localize(@"ame414.skin.run", @"跑步");
+    [_ame424_poseControl addTarget:self
+                            action:@selector(ame424_poseChanged:)
+                  forControlEvents:UIControlEventValueChanged];
+    [self addSubview:_ame424_poseControl];
     _ame414_refreshButton = [self ame414_iconButtonWithSymbol:@"arrow.clockwise" fallback:nil
                                                         label:@"ame414.skin.refresh"
                                                        block:^{ [self ame414_refreshTapped]; }];
+
+    // ——★Task424 光影系统控件：光位圆盘 + 亮度拖条（底行左侧，色板/箭头右侧）——
+    _ame424_lightDial = [[UIControl alloc] init];
+    _ame424_lightDial.translatesAutoresizingMaskIntoConstraints = NO;
+    _ame424_lightDial.isAccessibilityElement = YES;
+    _ame424_lightDial.accessibilityLabel = localize(@"ame424.skin.light.dial", @"光位圆盘");
+    _ame424_lightDial.layer.cornerRadius = 20.0;
+    _ame424_lightDial.layer.borderWidth = 1.5;
+    _ame424_lightDial.layer.borderColor = [ZL2Theme outlineVariant].CGColor;
+    _ame424_lightDial.backgroundColor = [UIColor colorWithWhite:0.0 alpha:0.30];
+    UIPanGestureRecognizer *ame424_dialPan =
+        [[UIPanGestureRecognizer alloc] initWithTarget:self
+                                                action:@selector(ame424_dialPanned:)];
+    [_ame424_lightDial addGestureRecognizer:ame424_dialPan];
+    [self addSubview:_ame424_lightDial];
+    _ame424_dialKnob = [[UIView alloc] init];
+    _ame424_dialKnob.translatesAutoresizingMaskIntoConstraints = NO;
+    _ame424_dialKnob.userInteractionEnabled = NO;
+    _ame424_dialKnob.layer.cornerRadius = 5.0;
+    _ame424_dialKnob.backgroundColor = [UIColor colorWithWhite:1.0 alpha:0.95];
+    [_ame424_lightDial addSubview:_ame424_dialKnob];
+    [NSLayoutConstraint activateConstraints:@[
+        [_ame424_dialKnob.widthAnchor constraintEqualToConstant:10.0],
+        [_ame424_dialKnob.heightAnchor constraintEqualToConstant:10.0],
+    ]];
+
+    _ame424_brightSlider = [[UISlider alloc] init];
+    _ame424_brightSlider.translatesAutoresizingMaskIntoConstraints = NO;
+    _ame424_brightSlider.minimumValue = AME424_BRIGHT_MIN;
+    _ame424_brightSlider.maximumValue = AME424_BRIGHT_MAX;
+    _ame424_brightSlider.value = _ame424_brightness;
+    _ame424_brightSlider.accessibilityLabel = localize(@"ame424.skin.light.brightness", @"亮度");
+    [_ame424_brightSlider addTarget:self
+                             action:@selector(ame424_brightnessChanged:)
+                   forControlEvents:UIControlEventValueChanged];
+    [self addSubview:_ame424_brightSlider];
+
+    _ame424_brightLabel = [[UILabel alloc] init];
+    _ame424_brightLabel.font = [ZL2Theme fontLabelMedium];
+    _ame424_brightLabel.textColor = [ZL2Theme onSurfaceVariant];
+    _ame424_brightLabel.textAlignment = NSTextAlignmentCenter;
+    _ame424_brightLabel.numberOfLines = 1;
+    _ame424_brightLabel.userInteractionEnabled = NO;
+    _ame424_brightLabel.translatesAutoresizingMaskIntoConstraints = NO;
+    [self addSubview:_ame424_brightLabel];
 
     // ——底行：背景色板三枚 + 左右旋转箭头——
     NSArray *ame414_swatchColors = @[
@@ -697,31 +803,41 @@ static const CGFloat AME416_WALK_AMP = 0.50;
     ]];
 
     [NSLayoutConstraint activateConstraints:@[
-        // 顶行：提示语左 / 三动作钮右
+        // 顶行：提示语左 / 姿态四段 + 刷新右（★Task424 run/pause 退役入四段）
         [_ame413_hintLabel.leadingAnchor constraintEqualToAnchor:self.leadingAnchor constant:10.0],
-        [_ame413_hintLabel.centerYAnchor constraintEqualToAnchor:_ame414_refreshButton.centerYAnchor],
-        [_ame413_hintLabel.trailingAnchor constraintLessThanOrEqualToAnchor:_ame414_runButton.leadingAnchor constant:-4.0],
+        [_ame413_hintLabel.centerYAnchor constraintEqualToAnchor:_ame424_poseControl.centerYAnchor],
+        [_ame413_hintLabel.trailingAnchor constraintLessThanOrEqualToAnchor:_ame424_poseControl.leadingAnchor constant:-4.0],
         [_ame414_refreshButton.trailingAnchor constraintEqualToAnchor:self.trailingAnchor constant:-10.0],
-        [_ame414_pauseButton.trailingAnchor constraintEqualToAnchor:_ame414_refreshButton.leadingAnchor constant:-4.0],
-        [_ame414_runButton.trailingAnchor constraintEqualToAnchor:_ame414_pauseButton.leadingAnchor constant:-4.0],
-        [_ame414_runButton.topAnchor constraintEqualToAnchor:self.topAnchor constant:6.0],
+        [_ame424_poseControl.trailingAnchor constraintEqualToAnchor:_ame414_refreshButton.leadingAnchor constant:-6.0],
+        [_ame424_poseControl.topAnchor constraintEqualToAnchor:self.topAnchor constant:6.0],
+        [_ame424_poseControl.heightAnchor constraintEqualToConstant:28.0],
 
         // 舞台：顶行之下 / 衣柜条之上（顶锚在此接入顶行）
-        [_ame413_stageView.topAnchor constraintEqualToAnchor:_ame414_runButton.bottomAnchor constant:2.0],
+        [_ame413_stageView.topAnchor constraintEqualToAnchor:_ame424_poseControl.bottomAnchor constant:2.0],
         [_ame413_stageView.bottomAnchor constraintEqualToAnchor:_ame414_wardrobeStrip.topAnchor constant:-4.0],
 
         // 衣柜条（空柜塌缩零占位：高度常量持引用 38↔0）
         [_ame414_wardrobeStrip.leadingAnchor constraintEqualToAnchor:self.leadingAnchor constant:10.0],
         [_ame414_wardrobeStrip.trailingAnchor constraintEqualToAnchor:self.trailingAnchor constant:-10.0],
 
-        // 底行：色板左 / 箭头右
+        // 底行：★Task424 光位圆盘 + 亮度拖条左 / 色板右 / 箭头右
+        [_ame424_lightDial.leadingAnchor constraintEqualToAnchor:self.leadingAnchor constant:10.0],
+        [_ame424_lightDial.centerYAnchor constraintEqualToAnchor:_ame414_spinLeftButton.centerYAnchor],
+        [_ame424_lightDial.widthAnchor constraintEqualToConstant:40.0],
+        [_ame424_lightDial.heightAnchor constraintEqualToConstant:40.0],
+        [_ame424_brightSlider.leadingAnchor constraintEqualToAnchor:_ame424_lightDial.trailingAnchor constant:8.0],
+        [_ame424_brightSlider.centerYAnchor constraintEqualToAnchor:_ame414_spinLeftButton.centerYAnchor],
+        [_ame424_brightSlider.widthAnchor constraintEqualToConstant:110.0],
+        [_ame424_brightLabel.leadingAnchor constraintEqualToAnchor:_ame424_brightSlider.trailingAnchor constant:6.0],
+        [_ame424_brightLabel.centerYAnchor constraintEqualToAnchor:_ame414_spinLeftButton.centerYAnchor],
+        [_ame424_brightLabel.widthAnchor constraintEqualToConstant:40.0],
         [_ame414_spinRightButton.trailingAnchor constraintEqualToAnchor:self.trailingAnchor constant:-10.0],
         [_ame414_spinLeftButton.trailingAnchor constraintEqualToAnchor:_ame414_spinRightButton.leadingAnchor constant:-4.0],
         [_ame414_spinLeftButton.topAnchor constraintEqualToAnchor:_ame414_wardrobeStrip.bottomAnchor constant:4.0],
         [_ame414_swatchButtons[2].trailingAnchor constraintEqualToAnchor:_ame414_spinLeftButton.leadingAnchor constant:-8.0],
         [_ame414_swatchButtons[1].trailingAnchor constraintEqualToAnchor:_ame414_swatchButtons[2].leadingAnchor constant:-6.0],
         [_ame414_swatchButtons[0].trailingAnchor constraintEqualToAnchor:_ame414_swatchButtons[1].leadingAnchor constant:-6.0],
-        [_ame414_swatchButtons[0].leadingAnchor constraintGreaterThanOrEqualToAnchor:self.leadingAnchor constant:10.0],
+        [_ame414_swatchButtons[0].leadingAnchor constraintGreaterThanOrEqualToAnchor:_ame424_brightLabel.trailingAnchor constant:8.0],
 
         // 动作行：衣柜/头像/下载 左对齐排布，贴底
         //   ★Task422 竖直补锚（IMG_0667 + harness 双截图定谳）：下载/头像两钮
@@ -767,7 +883,7 @@ static const CGFloat AME416_WALK_AMP = 0.50;
         ]];
     }
     _ame414_controlsBuilt = YES;
-    [self ame414_syncWalkButtons];
+    [self ame424_syncPoseUI];
     [self ame414_rebuildWardrobeStrip];
 }
 
@@ -808,15 +924,144 @@ static const CGFloat AME416_WALK_AMP = 0.50;
     return ame414_btn;
 }
 
-// 跑步/暂停按钮选中态着色（run 开 = primary 字形；pause 开 = primary 字形）
-- (void)ame414_syncWalkButtons {
+// ★Task424 姿态/光影 UI 同步（四段选中态 + 盘内旋钮位置 + 亮度百分比；
+//   旋钮位置映射与 Python 复刻 B 组设计稿同源：r = R·(1−(el−5°)/75°)，
+//   方位角 az 以盘心正上为 0 顺时针）
+- (void)ame424_syncPoseUI {
     if (!_ame414_controlsBuilt) return;
-    [_ame414_runButton.subviews enumerateObjectsUsingBlock:^(__kindof UIView *obj, NSUInteger idx, BOOL *stop) {
-        if ([obj isKindOfClass:[UIImageView class]]) obj.tintColor = _ame414_walkOn ? [ZL2Theme primary] : [ZL2Theme onSurfaceVariant];
-    }];
-    [_ame414_pauseButton.subviews enumerateObjectsUsingBlock:^(__kindof UIView *obj, NSUInteger idx, BOOL *stop) {
-        if ([obj isKindOfClass:[UIImageView class]]) obj.tintColor = _ame414_walkOn ? [ZL2Theme onSurfaceVariant] : [ZL2Theme primary];
-    }];
+    [_ame424_poseControl setSelectedSegmentIndex:_ame424_poseIndex animated:NO];
+    CGFloat ame424_r = 12.0 * (1.0 - (_ame424_lightEl - 0.087) / 1.309);   // 5°..80° → 12..0（盘半径 20−旋钮 5−边 3 = 12 内）
+    if (ame424_r < 0.0) ame424_r = 0.0;
+    if (ame424_r > 12.0) ame424_r = 12.0;
+    CGFloat ame424_kx = 15.0 + sin(_ame424_lightAz) * ame424_r - 5.0;
+    CGFloat ame424_ky = 15.0 - cos(_ame424_lightAz) * ame424_r - 5.0;
+    if (_ame424_knobLead.active) {   // ★同引用更新（每次重建约束会移除宽高链，判例式防抖）
+        _ame424_knobLead.constant = ame424_kx;
+        _ame424_knobTop.constant = ame424_ky;
+    } else {
+        _ame424_knobLead = [_ame424_dialKnob.leadingAnchor constraintEqualToAnchor:_ame424_lightDial.leadingAnchor constant:ame424_kx];
+        _ame424_knobTop = [_ame424_dialKnob.topAnchor constraintEqualToAnchor:_ame424_lightDial.topAnchor constant:ame424_ky];
+        _ame424_knobLead.priority = UILayoutPriorityRequired - 1;   // 防与宽高链偶发冲突
+        _ame424_knobTop.priority = UILayoutPriorityRequired - 1;
+        [_ame424_knobLead setActive:YES];
+        [_ame424_knobTop setActive:YES];
+    }
+    _ame424_brightLabel.text = [NSString stringWithFormat:@"%d%%",
+        (NSInteger)round(_ame424_brightness * 100.0)];
+}
+
+// ★Task424 姿态切换（跑步/暂停二钮退役语义收编：站立 = 停摆保自转；
+//   自定义 = 停自转 + 提示语换关节拖拽口径 + 长按复位）
+- (void)ame424_poseChanged:(UISegmentedControl *)seg {
+    _ame424_poseIndex = seg.selectedSegmentIndex;
+    _ame414_walkOn = (_ame424_poseIndex == 2);   // 跑步 = 既有正弦摆链
+    _ame414_autoSpin = (_ame424_poseIndex != 3); // 自定义停自转防拖拽干扰
+    _ame413_hintLabel.text = (_ame424_poseIndex == 3)
+        ? localize(@"ame424.skin.hint.custom", @"拖关节调姿态 · 长按复位")
+        : localize(@"ame412.skin.preview.hint", @"拖动旋转 · 捏合缩放");
+    [self ame424_syncPoseUI];
+}
+
+// ★Task424 亮度拖条（floor/gain 双通道公式见 AME424 常量区注释）
+- (void)ame424_brightnessChanged:(UISlider *)slider {
+    CGFloat ame424_v = slider.value;
+    if (!isfinite(ame424_v)) return;   // 415a NaN 卫兵同族
+    _ame424_brightness = fmin(AME424_BRIGHT_MAX, fmax(AME424_BRIGHT_MIN, ame424_v));
+    [self ame424_syncPoseUI];
+    [self ame413_updateModelTransform];
+}
+
+// ★Task424 光位圆盘拖动（dx→方位角、dy→仰角；盘内旋钮随动）
+- (void)ame424_dialPanned:(UIPanGestureRecognizer *)pan {
+    CGPoint ame424_t = [pan translationInView:_ame424_lightDial];
+    [pan setTranslation:CGPointZero inView:_ame424_lightDial];
+    if (!isfinite(ame424_t.x) || !isfinite(ame424_t.y)) return;
+    _ame424_lightAz += ame424_t.x * 0.010;
+    _ame424_lightEl -= ame424_t.y * 0.010;
+    if (_ame424_lightEl > 1.396) _ame424_lightEl = 1.396;    // 80° 顶光上限
+    if (_ame424_lightEl < 0.087) _ame424_lightEl = 0.087;    // 5° 掠射下限
+    if (_ame424_lightAz > M_PI) _ame424_lightAz -= 2.0 * M_PI;
+    if (_ame424_lightAz < -M_PI) _ame424_lightAz += 2.0 * M_PI;
+    [self ame424_syncPoseUI];
+    [self ame413_updateModelTransform];
+}
+
+// ★Task424 自定义关节命中拾取：上一帧屏幕四角 AABB（仅基础层面），
+// 含点优先，否则取最近盒心（60pt 阈内）
+- (NSInteger)ame424_partAtPoint:(CGPoint)ame424_p {
+    // screenPts 存的是「舞台中心相对偏移」（与投影 sy=-vy 同系），拾取点先转同系
+    CGPoint ame424_q = CGPointMake(ame424_p.x - CGRectGetMidX(_ame413_stageView.bounds),
+                                   ame424_p.y - CGRectGetMidY(_ame413_stageView.bounds));
+    NSInteger ame424_hit = -1;
+    CGFloat ame424_best = 60.0 * 60.0;
+    for (ZL2SkinViewFace *ame414_f in _ame413_faceLayers) {
+        if (ame414_f.isOverlay || ame414_f.layer.hidden) continue;
+        CGFloat ame424_x0 = ame414_f->screenPts[0][0], ame424_x1 = ame414_f->screenPts[0][0];
+        CGFloat ame424_y0 = ame414_f->screenPts[0][1], ame424_y1 = ame414_f->screenPts[0][1];
+        for (NSInteger ame424_k = 1; ame424_k < 4; ame424_k++) {
+            ame424_x0 = fmin(ame424_x0, ame414_f->screenPts[ame424_k][0]);
+            ame424_x1 = fmax(ame424_x1, ame414_f->screenPts[ame424_k][0]);
+            ame424_y0 = fmin(ame424_y0, ame414_f->screenPts[ame424_k][1]);
+            ame424_y1 = fmax(ame424_y1, ame414_f->screenPts[ame424_k][1]);
+        }
+        CGFloat ame424_cx = (ame424_x0 + ame424_x1) / 2.0;
+        CGFloat ame424_cy = (ame424_y0 + ame424_y1) / 2.0;
+        CGFloat ame424_d = (ame424_q.x - ame424_cx) * (ame424_q.x - ame424_cx)
+                         + (ame424_q.y - ame424_cy) * (ame424_q.y - ame424_cy);
+        BOOL ame424_inside = ame424_q.x >= ame424_x0 && ame424_q.x <= ame424_x1
+                          && ame424_q.y >= ame424_y0 && ame424_q.y <= ame424_y1;
+        if (ame424_inside || ame424_d < ame424_best) {
+            ame424_best = ame424_inside ? 0.0 : ame424_d;
+            ame424_hit = ame414_f->partIndex;
+        }
+    }
+    return ame424_hit;
+}
+
+// ★Task424 自定义关节拖拽（竖直→rotX；水平→头 rotY / 其余 rotZ；
+//   空白处拖动 = 旋转模型沿用既有轨道）
+- (void)ame424_applyJointDrag:(UIPanGestureRecognizer *)pan {
+    CGPoint ame424_t = [pan translationInView:_ame413_stageView];
+    [pan setTranslation:CGPointZero inView:_ame413_stageView];
+    if (!isfinite(ame424_t.x) || !isfinite(ame424_t.y)) return;
+    if (pan.state == UIGestureRecognizerStateBegan) {
+        _ame424_dragPart = [self ame424_partAtPoint:[pan locationInView:_ame413_stageView]];
+    }
+    if (_ame424_dragPart < 0 || pan.state == UIGestureRecognizerStateEnded
+        || pan.state == UIGestureRecognizerStateCancelled) {
+        if (_ame424_dragPart < 0) {
+            _ame413_yaw += ame424_t.x * 0.008;
+            _ame413_pitch += ame424_t.y * 0.008;
+            if (_ame413_pitch > 0.9) _ame413_pitch = 0.9;
+            if (_ame413_pitch < -0.9) _ame413_pitch = -0.9;
+            _ame414_spinTarget = _ame413_yaw;
+        }
+        if (pan.state != UIGestureRecognizerStateChanged) _ame424_dragPart = -1;
+        [self ame413_updateModelTransform];
+        return;
+    }
+    CGFloat ame424_dx = fmax(-AME424_JOINT_MAX_XZ,
+        fmin(AME424_JOINT_MAX_XZ, _ame424_joint[_ame424_dragPart][0] + ame424_t.y * AME424_JOINT_GAIN));
+    CGFloat ame424_dz = fmax(-AME424_JOINT_MAX_Y,
+        fmin(AME424_JOINT_MAX_Y, _ame424_joint[_ame424_dragPart][1] + ame424_t.x * AME424_JOINT_GAIN));
+    CGFloat ame424_dy = fmax(-AME424_JOINT_MAX_Y,
+        fmin(AME424_JOINT_MAX_Y, _ame424_joint[_ame424_dragPart][2] + ame424_t.x * AME424_JOINT_GAIN));
+    _ame424_joint[_ame424_dragPart][0] = ame424_dx;
+    _ame424_joint[_ame424_dragPart][1] = (_ame424_dragPart == 0) ? _ame424_joint[_ame424_dragPart][1] : ame424_dz;
+    _ame424_joint[_ame424_dragPart][2] = (_ame424_dragPart == 0) ? ame424_dy : _ame424_joint[_ame424_dragPart][2];
+    [self ame413_updateModelTransform];
+}
+
+// ★Task424 长按复位关节（自定义模式；其余姿态零副作用）
+- (void)ame424_stageLongPressed:(UILongPressGestureRecognizer *)lp {
+    if (lp.state != UIGestureRecognizerStateBegan || _ame424_poseIndex != 3) return;
+    for (NSInteger ame424_i = 0; ame424_i < 6; ame424_i++) {
+        _ame424_joint[ame424_i][0] = 0.0;
+        _ame424_joint[ame424_i][1] = 0.0;
+        _ame424_joint[ame424_i][2] = 0.0;
+    }
+    [self ame413_updateModelTransform];
+    [self ame414_toast:localize(@"ame424.skin.pose.reset", @"姿态已复位")];
 }
 
 // 操作回执（statusLabel 2 秒自熄，零新增弹层依赖）
@@ -836,19 +1081,7 @@ static const CGFloat AME416_WALK_AMP = 0.50;
     _ame413_statusLabel.text = nil;
 }
 
-#pragma mark 皮肤站动作（★Task414）
-
-- (void)ame414_runTapped {
-    _ame414_walkOn = YES;
-    _ame414_autoSpin = YES;
-    [self ame414_syncWalkButtons];
-}
-
-- (void)ame414_pauseTapped {
-    _ame414_walkOn = NO;
-    _ame414_autoSpin = NO;
-    [self ame414_syncWalkButtons];
-}
+#pragma mark 皮肤站动作（★Task414 + ★Task424 姿态/光影）
 
 // 刷新 = 绕过两级磁盘缓存直取网络重拉（yggdrasil 签名 URL / crafatar / minotar）
 - (void)ame414_refreshTapped {
@@ -1394,6 +1627,11 @@ static const CGFloat AME416_WALK_AMP = 0.50;
 #pragma mark 手势与帧驱动
 
 - (void)ame413_handlePan:(UIPanGestureRecognizer *)pan {
+    // ★Task424 自定义模式 = 关节拖拽优先（命中部件）；空白处仍旋转模型
+    if (_ame424_poseIndex == 3) {
+        [self ame424_applyJointDrag:pan];
+        return;
+    }
     CGPoint ame413_t = [pan translationInView:_ame413_stageView];
     [pan setTranslation:CGPointZero inView:_ame413_stageView];
     if (!isfinite(ame413_t.x) || !isfinite(ame413_t.y)) return;   // ★415a NaN 卫兵
@@ -1470,14 +1708,47 @@ static void Ame416RotX(CGFloat th, CGFloat *y, CGFloat *z) {
     CGFloat ame416_swing = _ame414_walkOn ? (AME416_WALK_AMP * sin(_ame414_walkPhase)) : 0.0;
     CGPoint ame416_cen = CGPointMake(CGRectGetMidX(_ame413_stageView.bounds),
                                      CGRectGetMidY(_ame413_stageView.bounds));
+    // ★Task424 姿态系统：每部件关节角（跑步 = 既有正弦摆链零改动；蹲下 =
+    //   预置角 + 整体下沉；自定义 = _ame424_joint 直控）
+    CGFloat ame424_rx[6] = {0, 0, 0, 0, 0, 0};
+    CGFloat ame424_tz[6] = {0, 0, 0, 0, 0, 0};
+    CGFloat ame424_ty[6] = {0, 0, 0, 0, 0, 0};
+    CGFloat ame424_yoff[6] = {0, 0, 0, 0, 0, 0};
+    if (_ame424_poseIndex == 1) {   // 蹲下（AME424_SNEAK_* 预置角）
+        ame424_rx[0] = AME424_SNEAK_HEAD;
+        ame424_rx[1] = AME424_SNEAK_BODY;
+        ame424_rx[2] = AME424_SNEAK_ARM;
+        ame424_rx[3] = AME424_SNEAK_ARM;
+        ame424_rx[4] = AME424_SNEAK_LEG;
+        ame424_rx[5] = AME424_SNEAK_LEG;
+        for (NSInteger ame424_i = 0; ame424_i < 6; ame424_i++) ame424_yoff[ame424_i] = AME424_SNEAK_SINK;
+    } else if (_ame424_poseIndex == 3) {   // 自定义关节
+        for (NSInteger ame424_i = 0; ame424_i < 6; ame424_i++) {
+            ame424_rx[ame424_i] = _ame424_joint[ame424_i][0];
+            ame424_tz[ame424_i] = _ame424_joint[ame424_i][1];
+            ame424_ty[ame424_i] = _ame424_joint[ame424_i][2];
+        }
+    }
     [CATransaction begin];
     [CATransaction setDisableActions:YES];
     for (ZL2SkinViewFace *ame414_f in _ame413_faceLayers) {
-        CGFloat ame416_th = ame416_swing * ame414_f.swingSign;
+        NSInteger ame424_part = ame414_f->partIndex;
+        CGFloat ame416_th = (_ame424_poseIndex == 1 || _ame424_poseIndex == 3)
+            ? ame424_rx[ame424_part]                                   // 蹲下/自定义 = 关节角
+            : ame416_swing * ame414_f.swingSign;                       // 站立/跑步 = 既有摆链
+        CGFloat ame416_tz = ame424_tz[ame424_part];
+        CGFloat ame416_ty = ame424_ty[ame424_part];
         CGFloat ame416_ct = cos(ame416_th), ame416_st = sin(ame416_th);
-        // ——法线：随摆 → 随旋（剔除判定 + 明暗共用）——
+        CGFloat ame416_cz2 = cos(ame416_tz), ame416_sz2 = sin(ame416_tz);
+        // ——法线：关节（rotY→rotX→rotZ）→ 随旋（剔除判定 + 明暗共用）——
         CGFloat ame416_nx = ame414_f->normal[0], ame416_ny = ame414_f->normal[1], ame416_nz = ame414_f->normal[2];
+        if (ame416_ty != 0.0) Ame416RotY(ame416_ty, &ame416_nx, &ame416_nz);
         if (ame416_th != 0.0) Ame416RotX(ame416_th, &ame416_ny, &ame416_nz);
+        if (ame416_tz != 0.0) {
+            CGFloat ame424_tnx = ame416_nx * ame416_cz2 - ame416_ny * ame416_sz2;
+            ame416_ny = ame416_nx * ame416_sz2 + ame416_ny * ame416_cz2;
+            ame416_nx = ame424_tnx;
+        }
         Ame416RotY(_ame413_yaw, &ame416_nx, &ame416_nz);
         Ame416RotX(_ame413_pitch, &ame416_ny, &ame416_nz);
         BOOL ame416_backface = (ame416_nz <= 0.0);
@@ -1492,11 +1763,27 @@ static void Ame416RotX(CGFloat th, CGFloat *y, CGFloat *z) {
             CGFloat ame416_vx = ame414_f->corners[ame416_k][0];
             CGFloat ame416_vy = ame414_f->corners[ame416_k][1];
             CGFloat ame416_vz = ame414_f->corners[ame416_k][2];
+            if (ame416_ty != 0.0) {   // ★Task424 关节 rotY（头转）绕枢轴
+                CGFloat ame424_dx = ame416_vx - ame414_f->pivot[0];
+                CGFloat ame424_dz2 = ame416_vz - ame414_f->pivot[2];
+                Ame416RotY(ame416_ty, &ame424_dx, &ame424_dz2);
+                ame416_vx = ame414_f->pivot[0] + ame424_dx;
+                ame416_vz = ame414_f->pivot[2] + ame424_dz2;
+            }
             if (ame416_th != 0.0) {   // 摆动绕枢轴（RotX）
                 CGFloat ame416_dy = ame416_vy - ame414_f->pivot[1];
                 CGFloat ame416_dz = ame416_vz - ame414_f->pivot[2];
                 ame416_vy = ame414_f->pivot[1] + ame416_dy * ame416_ct - ame416_dz * ame416_st;
                 ame416_vz = ame414_f->pivot[2] + ame416_dy * ame416_st + ame416_dz * ame416_ct;
+            }
+            if (ame416_tz != 0.0) {   // ★Task424 关节 rotZ（臂侧展）绕枢轴
+                CGFloat ame424_dx2 = ame416_vx - ame414_f->pivot[0];
+                CGFloat ame424_dy2 = ame416_vy - ame414_f->pivot[1];
+                ame416_vx = ame414_f->pivot[0] + ame424_dx2 * ame416_cz2 - ame424_dy2 * ame416_sz2;
+                ame416_vy = ame414_f->pivot[1] + ame424_dx2 * ame416_sz2 + ame424_dy2 * ame416_cz2;
+            }
+            if (ame424_yoff[ame424_part] != 0.0) {   // ★Task424 蹲下整体下沉（位移不影响法线）
+                ame416_vy += ame424_yoff[ame424_part];
             }
             Ame416RotY(_ame413_yaw, &ame416_vx, &ame416_vz);
             Ame416RotX(_ame413_pitch, &ame416_vy, &ame416_vz);
@@ -1512,6 +1799,12 @@ static void Ame416RotX(CGFloat th, CGFloat *y, CGFloat *z) {
         ame414_f.layer.hidden = ame419_cull;   // 背面剔除（画家序前置；外层双层不剔）
         if (ame419_cull) continue;
         ame414_f.layer.zPosition = ame416_zsum / 4.0;   // 画家序：远先近后
+        // ★Task424 屏幕四角存档（自定义关节命中拾取用；忽略全模平移，
+        //   舞台居中偏移拾取时补回）
+        for (NSInteger ame424_k = 0; ame424_k < 4; ame424_k++) {
+            ame414_f->screenPts[ame424_k][0] = ame416_sx[ame424_k];
+            ame414_f->screenPts[ame424_k][1] = ame416_sy[ame424_k];
+        }
         // ——仿射贴面：L0=(-W2,-H2) L1=(+W2,-H2) L3=(-W2,+H2) → P0/P1/P3——
         CGFloat ame416_w2 = ame414_f.layer.bounds.size.width / 2.0;
         CGFloat ame416_h2 = ame414_f.layer.bounds.size.height / 2.0;
@@ -1529,13 +1822,33 @@ static void Ame416RotX(CGFloat th, CGFloat *y, CGFloat *z) {
         ame414_f.layer.position = CGPointMake(
             ame416_cen.x + ame416_sx[0] + ame416_a11 * ame416_w2 + ame416_a12 * ame416_h2,
             ame416_cen.y + ame416_sy[0] + ame416_a21 * ame416_w2 + ame416_a22 * ame416_h2);
-        // ——明暗罩：法线 × 光向点积（左上前主光）——
-        CGFloat ame416_len = sqrt(ame416_nx * ame416_nx + ame416_ny * ame416_ny + ame416_nz * ame416_nz);
+        // ——明暗罩：法线 × 光向点积（★Task424 光影系统：视空间 az/el 光向 +
+        //   亮度双通道 floor/gain + 双面受光）——
+        //   ★Task424-a 双面受光（IMG_0669 定谳根修）：外层背面用未翻转法线算
+        //   明暗 → dot≤0 → 罩顶格 → 黑暗带透过半透外层前面露出（设备实测头
+        //   右侧 20×43px 等背景洞）；THREE.js DoubleSide 对背面自动翻法线
+        //   （gl_FrontFacing）= 背面按正面受光 → 同源修正。
+        CGFloat ame424_snx = ame416_nx, ame424_sny = ame416_ny, ame424_snz = ame416_nz;
+        if (ame416_backface && ame414_f.isOverlay) {
+            ame424_snx = -ame416_nx; ame424_sny = -ame416_ny; ame424_snz = -ame416_nz;
+        }
+        CGFloat ame424_Lx = cos(_ame424_lightEl) * sin(_ame424_lightAz);
+        CGFloat ame424_Ly = sin(_ame424_lightEl);
+        CGFloat ame424_Lz = cos(_ame424_lightEl) * cos(_ame424_lightAz);
+        CGFloat ame416_len = sqrt(ame424_snx * ame424_snx + ame424_sny * ame424_sny + ame424_snz * ame424_snz);
         if (ame416_len < 0.0001) ame416_len = 1.0;
-        CGFloat ame416_dot = (ame416_nx * AME416_LIGHT_X + ame416_ny * AME416_LIGHT_Y + ame416_nz * AME416_LIGHT_Z) / ame416_len;
-        CGFloat ame416_shade = 0.44 + 0.58 * fmax(0.0, ame416_dot);
+        CGFloat ame416_dot = (ame424_snx * ame424_Lx + ame424_sny * ame424_Ly + ame424_snz * ame424_Lz) / ame416_len;
+        // ★Task424 亮度双通道：floor = clamp(0.44+(b−1)·0.55, 0.12, 0.80)，
+        //   gain = clamp(2−b, 0.25, 1.8)；罩上限 0.85→AME424_VEIL_CAP=0.60
+        CGFloat ame424_floor = 0.44 + (_ame424_brightness - 1.0) * 0.55;
+        if (ame424_floor < 0.12) ame424_floor = 0.12;
+        if (ame424_floor > 0.80) ame424_floor = 0.80;
+        CGFloat ame424_gain = 2.0 - _ame424_brightness;
+        if (ame424_gain < 0.25) ame424_gain = 0.25;
+        if (ame424_gain > 1.8) ame424_gain = 1.8;
+        CGFloat ame416_shade = ame424_floor + (1.0 - ame424_floor) * fmax(0.0, ame416_dot);
         if (ame416_shade > 1.0) ame416_shade = 1.0;
-        ame414_f.shade.opacity = (1.0 - ame416_shade) * 0.85;
+        ame414_f.shade.opacity = (1.0 - ame416_shade) * AME424_VEIL_CAP * ame424_gain;
     }
     [CATransaction commit];
 }
@@ -1579,6 +1892,7 @@ static void ZL2SkinViewBuildPart(CALayer *ame413_parent,
                                  CGFloat ame413_unit,
                                  UIImage *ame413_skin,
                                  BOOL ame419_overlay,
+                                 NSInteger ame424_partIndex,
                                  NSMutableArray<ZL2SkinViewFace *> *ame414_out) {
     static const CGFloat AME416_UX[6][3] = {
         { 1, 0, 0}, {-1, 0, 0}, {0, 0, -1}, {0, 0, 1}, {1, 0, 0}, {1, 0, 0}};
@@ -1665,6 +1979,7 @@ static void ZL2SkinViewBuildPart(CALayer *ame413_parent,
         ame414_rec->normal[2] = AME416_NN[ame413_i][2];
         ame414_rec.swingSign = ame416_swingSign;
         ame414_rec.isOverlay = ame419_overlay;
+        ame414_rec->partIndex = ame424_partIndex;   // ★Task424 部件索引（姿态/拾取共用）
         [ame414_out addObject:ame414_rec];
     }
 }
@@ -1693,7 +2008,7 @@ static void ZL2SkinViewBuildPart(CALayer *ame413_parent,
         ZL2SkinViewRect ame413_dummy[6] = {{0, 0, 0, 0}, {0, 0, 0, 0}, {0, 0, 0, 0},
                                            {0, 0, 0, 0}, {0, 0, 0, 0}, {0, 0, 0, 0}};
         ZL2SkinViewBuildPart(ame413_stage, 0, 16, 0, 10, 32, 6, 0, 16, 0, 0.0,
-                             ame413_dummy, ame413_unit, nil, NO, _ame413_faceLayers);
+                             ame413_dummy, ame413_unit, nil, NO, 1, _ame413_faceLayers);
         return;
     }
 
@@ -1733,7 +2048,7 @@ static void ZL2SkinViewBuildPart(CALayer *ame413_parent,
                              ame416_p[3], ame416_p[4], ame416_p[5],
                              ame416_p[6], ame416_p[7], ame416_p[8], ame416_p[9],
                              ame416_faceTables[ame413_i], ame413_unit, skin, NO,
-                             _ame413_faceLayers);
+                             ame413_i, _ame413_faceLayers);
     }
 
     // ★Task417 第二层（skinview3d outerLayer 移植：帽/衣/袖/裤）：盒体每边
@@ -1762,7 +2077,7 @@ static void ZL2SkinViewBuildPart(CALayer *ame413_parent,
                              ame416_p[3] + 1.0, ame416_p[4] + 1.0, ame416_p[5] + 1.0,
                              ame416_p[6], ame416_p[7], ame416_p[8], ame416_p[9],
                              ame417_overlayTables[ame413_i], ame413_unit, skin, YES,
-                             _ame413_faceLayers);
+                             ame413_i, _ame413_faceLayers);
     }
     [self ame413_updateModelTransform];
     // ★Task418 装配诊断（冒烟 console/预览日志可视：现代皮面数应恒 72
@@ -1771,12 +2086,15 @@ static void ZL2SkinViewBuildPart(CALayer *ame413_parent,
     // ★Task420 装配诊断重锚（cutout=基础层 α 裁切 / doubleside=外层双层 /
     //   source=皮肤来源链诊断：IMG_0655「为什么是原版皮肤」的 CI 仲裁面）
     // ★Task423 诊断重锚（model=内容判定结果 probe=经典专属列命中 meta=
-    //   yggdrasil metadata 对照 prov=缓存来源 sidecar 仲裁口径）：IMG_0668
-    //   「aelx都有问题」的 CI 仲裁面。
-    NSLog(@"[ZL2SkinPreview] Task423: skin=%gx%g stage=%.0fx%.0f unit=%.2f faces=%lu slim=%d walk=%d overlayParts=%ld source=%@ model=content-slim%d(classic%d) probe=r%ld/l%ld meta=%d cutout=base-alpha>=26 veil=overlay-alpha>=180 doubleside=overlay chain=mtime-dualurl-fallback-prov prov=%@ chip=%@",
+    //   yggdrasil metadata 对照 prov=缓存来源 sidecar 仲裁口径）
+    // ★Task424 诊断重锚（pose/light/bright = 本轮三新面 CI 仲裁字段；
+    //   IMG_0669「还是有地方透明的」双面受光 + 亮度双通道 + 姿态四段）
+    NSLog(@"[ZL2SkinPreview] Task424: skin=%gx%g stage=%.0fx%.0f unit=%.2f faces=%lu slim=%d pose=%ld walk=%d light=az%.2f/el%.2f/b%.2f overlayParts=%ld source=%@ model=content-slim%d(classic%d) probe=r%ld/l%ld meta=%d cutout=base-alpha>=26 veil=overlay-alpha>=180 capscale=veil-cap0.60 twoside=overlay-back-normal-flip doubleside=overlay chain=mtime-dualurl-fallback-prov prov=%@ chip=%@",
           skin.size.width, skin.size.height, _ame413_stageView.bounds.size.width,
           _ame413_stageView.bounds.size.height, ame413_unit,
-          (unsigned long)_ame413_faceLayers.count, _ame413_slimModel, _ame414_walkOn,
+          (unsigned long)_ame413_faceLayers.count, _ame413_slimModel,
+          (long)_ame424_poseIndex, _ame414_walkOn ? 1 : 0,
+          _ame424_lightAz, _ame424_lightEl, _ame424_brightness,
           (long)ame418_overlayParts, _ame420_skinSource ?: @"-",
           _ame413_slimModel ? 1 : 0, _ame413_slimModel ? 0 : 1,
           (long)ame423_rHas, (long)ame423_lHas, ame423_metaSlim ? 1 : 0,

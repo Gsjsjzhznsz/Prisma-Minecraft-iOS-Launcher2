@@ -261,9 +261,9 @@ check("C12 转盘字体恒定（★Task407：封面流条目随 |d| 缩放时缩
       and "ame400_nameLabel.lineBreakMode = NSLineBreakByTruncatingTail;" in home
       and "ame400_typeLabel.lineBreakMode = NSLineBreakByTruncatingTail;" in home)
 
-check("C13 构建代际锚（★Task407 立 408/409/410/411/412 推进 Task414 推进 ★Task421 重锚 ★Task422/423 推进：定义 header 化 = BuildTag.h 单一事实源，预览卡代际角标 ame421_buildChip 与关于页版本行同一字面量双面恒等；\n      Info.plist 双键静态致装机代际不可辨 = 旧构建滞留循环的\n      结构性盲区，角标/关于页任一面板截图即可判代际）",
+check("C13 构建代际锚（★Task407 立 408/409/410/411/412 推进 Task414 推进 ★Task421 重锚 ★Task422/423 推进 ★Task424 推进：定义 header 化 = BuildTag.h 单一事实源，预览卡代际角标 ame421_buildChip 与关于页版本行同一字面量双面恒等；\n      Info.plist 双键静态致装机代际不可辨 = 旧构建滞留循环的\n      结构性盲区，角标/关于页任一面板截图即可判代际）",
       "ame415_buildTag" in about_code
-      and "Task423 · 2026-11-14" in read("Natives/BuildTag.h")
+      and "Task424 · 2026-11-14" in read("Natives/BuildTag.h")
       and "static NSString *const ame415_buildTag" in read("Natives/BuildTag.h")
       and '#import "BuildTag.h"' in read("Natives/AboutViewController.m")
       and "numberOfLines = 0" in about_code)
@@ -435,10 +435,12 @@ ame378_c21 = [
     ("backface-cull", "ame416_nz <= 0.0" in skinview_code),
     ("affine-face", "CATransform3DMakeAffineTransform" in skinview_code),
     ("nan-guard", "isfinite(_ame413_yaw)" in skinview_code),
-    ("diag-log", "[ZL2SkinPreview] Task423" in skinview_raw
+    ("diag-log", "[ZL2SkinPreview] Task424" in skinview_raw
         and "veil=overlay-alpha>=180" in skinview_raw
         and "probe=r%ld/l%ld" in skinview_raw
-        and "prov=%@" in skinview_raw),   # ★Task423 重锚（cutout/veil/model 内容判定/缓存来源 prov + chip 代际角标）
+        and "prov=%@" in skinview_raw
+        and "light=az" in skinview_raw
+        and "pose=%ld" in skinview_raw),   # ★Task424 重锚（cutout/veil/model 内容判定/缓存来源 prov + 光影/姿态字段 + chip 代际角标）
     # ⑨ ★Task418 3D 雾化/幽灵盒/旧版压半根修 + 账户行高幻影拉伸根修 + iPad 真横屏
     ("nearest-filter", skinview_code.count("kCAFilterNearest") >= 2),   # 放大+缩小双滤镜
     ("shade-mask", "ame414_shade.mask = ame418_shadeMask" in skinview_code),   # 外层透明区不漏黑
@@ -527,7 +529,7 @@ ame378_c21 = [
     # ⑬ ★Task421 代际角标（旧构建滞留循环结构性根修：IMG_0655/0661 = 416+ 共享
     #    角点几何数学不可能的臂缝 30~40px = 设备滞留 Task415 代实锤；验锚必须
     #    长在截图面板自身而非用户从不导航的设置→关于）+ slim 内侧脸 1px UV 修正
-    ("build-tag-header", "Task423 · 2026-11-14" in read("Natives/BuildTag.h")
+    ("build-tag-header", "Task424 · 2026-11-14" in read("Natives/BuildTag.h")
         and "static NSString *const ame415_buildTag" in read("Natives/BuildTag.h")),   # 构建代号 header 化单一事实源
     ("build-tag-import-pair", '#import "BuildTag.h"' in read("Natives/AboutViewController.m")
         and '#import "BuildTag.h"' in skinview_raw
@@ -566,6 +568,27 @@ ame378_c21 = [
         and "★Task423 降毒闸" in skinview_raw),   # 非 yggdrasil 缓存永不压过有效 skinfull（语义锚走注释 raw 口径）
     ("sentinel-alex-guard", '@"00000000-0000-0000-0000-000000000001"' in skinview_raw
         and '@"yggdrasil-no-profile-fallback"' in skinview_raw),   # alex 哨兵禁入 crafatar + 三方无 profileId 禁入 mojang-chain（全字面量走 raw 口径）
+    # ⑯ ★Task424 三新面（IMG_0669/0670 三复诉：①穿透残留 = 外层背面未翻法线
+    #    黑暗带 + 罩上限 0.85 全模型 murk；②光影系统 = 圆盘调光位 + 亮度拖条；
+    #    ③动作系统 = 蹲下/站立/跑步/自定义关节拖拽）
+    ("two-sided-light", "ame424_snx = -ame416_nx" in skinview_code
+        and "if (ame416_backface && ame414_f.isOverlay) {" in skinview_code),   # 外层背面翻法线（THREE.js gl_FrontFacing 同源）
+    ("brightness-channels", "ame424_floor = 0.44 + (_ame424_brightness - 1.0) * 0.55" in skinview_code
+        and "AME424_VEIL_CAP" in skinview_code
+        and "ame414_f.shade.opacity = (1.0 - ame416_shade) * AME424_VEIL_CAP * ame424_gain" in skinview_code),   # 亮度双通道 floor/gain + 罩上限 0.60
+    ("light-disc", "_ame424_lightDial" in skinview_code
+        and "_ame424_dialKnob" in skinview_code
+        and "ame424_dialPanned" in skinview_code),   # 光位圆盘（dx→az、dy→el）
+    ("brightness-slider", "_ame424_brightSlider" in skinview_code
+        and "ame424_brightnessChanged" in skinview_code),   # 亮度拖条
+    ("pose-segmented", "_ame424_poseControl" in skinview_code
+        and "ame424_poseChanged" in skinview_code
+        and 'localize(@"ame424.skin.pose.sneak", @"蹲下")' in skinview_raw),   # 姿态四段（run/pause 二钮退役）
+    ("sneak-preset", "AME424_SNEAK_BODY" in skinview_code
+        and "AME424_SNEAK_SINK" in skinview_code),   # 蹲下预置角 + 整体下沉
+    ("joint-drag", "_ame424_joint" in skinview_code
+        and "ame424_partAtPoint" in skinview_code
+        and "_ame424_dragPart" in skinview_code),   # 自定义关节拖拽 + 命中拾取
 ]
 ame378_c21_fail = [n for n, ok in ame378_c21 if not ok]
 if ame378_c21_fail and os.environ.get("AME378_DEBUG"):
@@ -662,10 +685,18 @@ if "--selftest" in sys.argv:
                'if (![ame423_prov isEqualToString:@"yggdrasil"]) return ame420_full;', "/*ame423-deweight-erased*/"),
            'ame423_prov isEqualToString:@"yggdrasil"' not in skinview_code.replace(
                'if (![ame423_prov isEqualToString:@"yggdrasil"]) return ame420_full;', "/*ame423-deweight-erased*/"))
+    # ★Task424 S-C25a：双面受光抹除变体（背面翻法线退役 = 黑暗带回潮）→ C21 two-sided-light 必翻红
+    rcheck("S-C25a", skinview_code.replace(
+               "ame424_snx = -ame416_nx; ame424_sny = -ame416_ny; ame424_snz = -ame416_nz;", "/*ame424-twoside-erased*/"),
+           "ame424_snx = -ame416_nx" not in skinview_code.replace(
+               "ame424_snx = -ame416_nx; ame424_sny = -ame416_ny; ame424_snz = -ame416_nz;", "/*ame424-twoside-erased*/"))
+    # ★Task424 S-C25b：姿态四段抹除变体（run/pause 回潮 = 姿态系统退役）→ C21 pose-segmented 必翻红
+    rcheck("S-C25b", skinview_code.replace("ame424_poseChanged", "ame424_poseGone"),
+           "ame424_poseChanged" not in skinview_code.replace("ame424_poseChanged", "ame424_poseGone"))
     if rf:
         print(f"  SELFTEST FAILED: {rf}")
         sys.exit(1)
-    print(f"  selftest {rp}/22 probes red as expected")
+    print(f"  selftest {rp}/24 probes red as expected")
 
 print(f"ame378_selfcheck: {passed} passed, {len(fails)} failed")
 if fails:

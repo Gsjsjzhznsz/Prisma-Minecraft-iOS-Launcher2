@@ -3937,3 +3937,12 @@
 "ame414.skin.download" = "下載皮膚";
 "ame414.skin.download.none" = "還沒有可儲存的皮膚";
 "ame414.skin.studio.title" = "皮膚工作室";
+
+"ame424.skin.pose.stand" = "站立";
+"ame424.skin.pose.sneak" = "蹲下";
+"ame424.skin.pose.run" = "跑步";
+"ame424.skin.pose.custom" = "自訂";
+"ame424.skin.pose.reset" = "姿態已復位";
+"ame424.skin.light.dial" = "光位圓盤";
+"ame424.skin.light.brightness" = "亮度";
+"ame424.skin.hint.custom" = "拖關節調姿態 · 長按復位";

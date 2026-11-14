@@ -3940,3 +3940,12 @@
 "ame414.skin.download" = "下载皮肤";
 "ame414.skin.download.none" = "还没有可保存的皮肤";
 "ame414.skin.studio.title" = "皮肤工作室";
+
+"ame424.skin.pose.stand" = "站立";
+"ame424.skin.pose.sneak" = "蹲下";
+"ame424.skin.pose.run" = "跑步";
+"ame424.skin.pose.custom" = "自定义";
+"ame424.skin.pose.reset" = "姿态已复位";
+"ame424.skin.light.dial" = "光位圆盘";
+"ame424.skin.light.brightness" = "亮度";
+"ame424.skin.hint.custom" = "拖关节调姿态 · 长按复位";

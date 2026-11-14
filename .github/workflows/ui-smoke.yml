@@ -23,6 +23,8 @@ on:
     paths:
       - "Natives/Preview/**"
       - "Natives/BuildTag.h"        # ★Task421：代际角标常量（预览卡渲染面；tag 变更即重出冒烟截图 = CI 代际证据自动更新）
+      - "Natives/ZL2SkinPreviewView.m"   # ★Task424：预览本体渲染/控件面（光影盘/亮度条/姿态四段首上 CI 可视验证）
+      - "Natives/resources/**"      # ★Task424：姿态/光影 i18n 键上屏面（冒烟截图即四表可视仲裁）
       - "scripts/ui_fluent_smoke.sh"
       - ".github/workflows/ui-smoke.yml"
 

@@ -3941,3 +3941,12 @@
 "ame414.skin.download" = "Download skin";
 "ame414.skin.download.none" = "No skin to save yet";
 "ame414.skin.studio.title" = "Skin studio";
+
+"ame424.skin.pose.stand" = "Stand";
+"ame424.skin.pose.sneak" = "Sneak";
+"ame424.skin.pose.run" = "Run";
+"ame424.skin.pose.custom" = "Custom";
+"ame424.skin.pose.reset" = "Pose reset";
+"ame424.skin.light.dial" = "Light direction dial";
+"ame424.skin.light.brightness" = "Brightness";
+"ame424.skin.hint.custom" = "Drag joints to pose · long-press to reset";
