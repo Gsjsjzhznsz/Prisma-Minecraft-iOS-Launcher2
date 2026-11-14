@@ -3,7 +3,7 @@
 """Task427 CI 轮询：development + ui-smoke 双工作流至终态。"""
 import json, subprocess, sys, time, urllib.request
 
-COMMIT = "0a277dd"
+COMMIT = "c9ee071"
 TOKEN = open("/home/z/my-project/.gh_token").read().strip()
 REPO = "Gsjsjzhznsz/Prisma-Minecraft-iOS-Launcher2"
 HDR = {"Authorization": "token " + TOKEN, "Accept": "application/vnd.github+json",
