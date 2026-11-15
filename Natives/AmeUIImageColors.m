@@ -82,6 +82,18 @@ static UIColor *Ame429EnsureContrast(UIColor *color) {
 
 #pragma mark - 实现
 
+// ★Task429-r2 热修（smoke run 43688039883 实录：.h readonly 六属性 .m 直赋
+//   assignment to readonly property × 8）——类扩展 readwrite 重声明标准形
+//   （对外只读、对内可写）。
+@interface AmeUIImageColors ()
+@property (nonatomic, strong, nullable) UIColor *background;
+@property (nonatomic, strong, nullable) UIColor *primary;
+@property (nonatomic, strong, nullable) UIColor *secondary;
+@property (nonatomic, strong, nullable) UIColor *detail;
+@property (nonatomic, assign) BOOL isDarkBackground;
+@property (nonatomic, assign) BOOL feasible;
+@end
+
 @implementation AmeUIImageColors
 
 - (instancetype)init {
