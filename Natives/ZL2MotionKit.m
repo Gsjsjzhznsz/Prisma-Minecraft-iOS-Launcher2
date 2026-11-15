@@ -201,6 +201,7 @@ static UIImpactFeedbackGenerator *s_ame429ImpactLight = nil;
 static UIImpactFeedbackGenerator *s_ame429ImpactMedium = nil;
 static dispatch_once_t s_ame429ImpactOnce;
 static dispatch_once_t s_ame429EngineOnce;
+static BOOL s_ame429CoreHapticsAvailable = NO;
 
 @implementation ZL2MotionHaptics
 
@@ -220,12 +221,11 @@ static dispatch_once_t s_ame429EngineOnce;
 //   （原 setIsAutoShutdownEnabled: 系虚构族）；state/CHHapticEngineStateRunning
 //   两符号同样未声明——停止态重启简化为每次 startAndReturnError:（幂等）。
 + (BOOL)ame429_supportsCoreHaptics {
-    __block BOOL supported = NO;
     dispatch_once(&s_ame429EngineOnce, ^{
         NSError *initError = nil;
         CHHapticEngine *probe = [[CHHapticEngine alloc] initAndReturnError:&initError];
-        supported = (probe != nil);
-        if (!supported) {
+        s_ame429CoreHapticsAvailable = (probe != nil);
+        if (!s_ame429CoreHapticsAvailable) {
             NSLog(@"[ZL2Motion] Task429 CoreHaptics engine unavailable: %@ — fallback to UIImpactFeedbackGenerator",
                   initError);
         } else {
@@ -234,7 +234,7 @@ static dispatch_once_t s_ame429EngineOnce;
             s_ame429HapticEngine.autoShutdownEnabled = NO;
         }
     });
-    return supported;
+    return s_ame429CoreHapticsAvailable;
 }
 
 // 引擎懒加载 + 停止态重启（失败 NSLog + NO = 调用方走降级）
@@ -256,6 +256,8 @@ static dispatch_once_t s_ame429EngineOnce;
     if (!started) {
         NSLog(@"[ZL2Motion] Task429 CHHapticEngine start failed: %@ — fallback to UIImpactFeedbackGenerator",
               startError);
+        s_ame429CoreHapticsAvailable = NO;
+        s_ame429HapticEngine = nil;
         return NO;
     }
     return YES;

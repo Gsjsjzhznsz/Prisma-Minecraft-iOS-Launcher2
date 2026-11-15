@@ -1075,7 +1075,10 @@ static id ame429_listElementForNode(UIView *node) {
     for (NSMutableDictionary *drawerData in drawerList) {
         UIView *drawerView = [self ame429_viewForDrawerData:drawerData];
         if (drawerView != nil) [self.canvas addSubview:drawerView];
-        for (NSMutableDictionary *subProps in drawerData[@"buttonProperties"]) {
+        id subButtons = drawerData[@"buttonProperties"];
+        if (![subButtons isKindOfClass:[NSArray class]]) continue;
+        for (NSMutableDictionary *subProps in (NSArray *)subButtons) {
+            if (![subProps isKindOfClass:[NSMutableDictionary class]]) continue;
             UIView *subView = [self ame429_viewForProperties:subProps];
             if (subView != nil) [self.canvas addSubview:subView];
         }
@@ -1192,7 +1195,10 @@ static id ame429_listElementForNode(UIView *node) {
     }
     for (NSMutableDictionary *drawerData in drawerList) {
         ame429_applyStyleToProperties(drawerData[@"properties"], params);
-        for (NSMutableDictionary *subProps in drawerData[@"buttonProperties"]) {
+        id subButtons = drawerData[@"buttonProperties"];
+        if (![subButtons isKindOfClass:[NSArray class]]) continue;
+        for (NSMutableDictionary *subProps in (NSArray *)subButtons) {
+            if (![subProps isKindOfClass:[NSMutableDictionary class]]) continue;
             ame429_applyStyleToProperties(subProps, params);
         }
     }

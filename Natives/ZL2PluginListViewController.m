@@ -2,6 +2,7 @@
 #import "AmePluginKit.h"
 #import "ZL2Theme.h"
 #import "ZL2M3Kit.h"
+#import "PLRendererPluginService.h"
 #import "utils.h" // localize
 
 #import <UniformTypeIdentifiers/UniformTypeIdentifiers.h>
@@ -518,9 +519,29 @@ didPickDocumentsAtURLs:(NSArray<NSURL *> *)urls {
         AmePluginManifest *m = nil;
         AmePluginInstallResult code =
             [AmePluginManager installFromZip:url.path outManifest:&m];
+        NSString *rendererId = nil;
+        BOOL rendererPackage = NO;
+        if (code == AmePluginInstallErrBadSchema || code == AmePluginInstallErrBadEntry) {
+            AmePluginInstallResult rendererCode =
+                [PLRendererPluginService installRendererPluginFromZip:url.path outId:&rendererId];
+            if (rendererCode == AmePluginInstallOK) {
+                code = rendererCode;
+                rendererPackage = YES;
+            }
+        }
         [url stopAccessingSecurityScopedResource];
         dispatch_async(dispatch_get_main_queue(), ^{
-            [wself ame317_installDidFinish:code manifest:m];
+            if (rendererPackage) {
+                [wself ame317_reload];
+                [ZL2M3Dialog showTitle:rendererId ?: localize(@"ame317.common.ok", @"完成")
+                                   body:localize(@"ame429.renderer.installed", @"渲染器插件已安装并启用")
+                           confirmTitle:localize(@"ame317.common.ok", @"确定")
+                            destructive:NO
+                             onConfirm:nil
+                              onCancel:nil];
+            } else {
+                [wself ame317_installDidFinish:code manifest:m];
+            }
         });
     });
 }

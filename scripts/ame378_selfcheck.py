@@ -752,6 +752,21 @@ check("C31 ★Task429 旧账清账（v2-2.2 UpdateChecker repoName=Prisma-Minecr
       and "[weakSelf showProfilePicker];" in ex
       and "weakSelf.fileOptions |= bit;" in ex)
 
+editor_code = strip_code(read("Natives/ZL2ControlLayoutEditorViewController.m"))
+asset_code = strip_code(read("Natives/ZL2AssetSearchViewController.m"))
+plugin_code = strip_code(read("Natives/ZL2PluginListViewController.m"))
+renderer_code = strip_code(read("Natives/PLRendererPluginService.m"))
+motion_code = strip_code(read("Natives/ZL2MotionKit.m"))
+check("C32 ★Task430 第七版热修包（三崩点 + 两竞态）：损坏抽屉数组守卫、收藏快照捕获、"
+      "渲染器 ZIP 二次分流、内置引导 dispatch_once、CoreHaptics 首败粘滞降级",
+      editor_code.count("[subButtons isKindOfClass:[NSArray class]]") >= 2
+      and "NSDictionary *favoriteEntry = [item copy]" in read("Natives/ZL2AssetSearchViewController.m")
+      and "strongSelf.results[row]" not in asset_code
+      and "installRendererPluginFromZip:url.path outId:&rendererId" in plugin_code
+      and "dispatch_once(&pl429_once" in renderer_code
+      and "s_ame429CoreHapticsAvailable = NO" in motion_code
+      and "s_ame429HapticEngine = nil" in motion_code)
+
 # ══ S 反向探针（--selftest：变体注入必翻红） ═══════════════════════
 
 if "--selftest" in sys.argv:

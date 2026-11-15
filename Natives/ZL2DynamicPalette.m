@@ -44,6 +44,7 @@ static NSString * const Ame429LegacyAccentColorKey = @"general.accent_color";
 @interface ZL2DynamicPalette ()
 @property (nonatomic, readwrite, assign) NSInteger themeMode;
 @property (nonatomic, readwrite, assign) NSInteger paletteStyle;
+@property (nonatomic, assign) NSUInteger wallpaperChangeGeneration;
 @end
 
 @implementation ZL2DynamicPalette
@@ -136,8 +137,15 @@ static void Ame429PaletteBootstrapTrampoline(void) {
 - (void)ame429_wallpaperDidChange {
     // 仅跟随背景模式有语义（其余模式与壁纸无关联，零操作）
     if (self.themeMode != Ame429ThemeModeFollowWall) return;
-    [self ame429_pushOverlay:nil];                       // 旧壁纸覆盖先撤（保底 embermire）
-    [self ame429_extractFromWallpaperAsync];             // 新壁纸后台重取色，完成后补推
+    // 壁纸滑条会连续广播：保留现有色板，尾沿 180ms 只取最后一帧，避免每 tick
+    // 主线程解码以及先撤覆盖造成的 embermire 闪回。
+    NSUInteger generation = ++self.wallpaperChangeGeneration;
+    dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.18 * NSEC_PER_SEC)),
+                   dispatch_get_main_queue(), ^{
+        if (generation != self.wallpaperChangeGeneration ||
+            self.themeMode != Ame429ThemeModeFollowWall) return;
+        [self ame429_extractFromWallpaperAsync];
+    });
 }
 
 #pragma mark - 通知回调

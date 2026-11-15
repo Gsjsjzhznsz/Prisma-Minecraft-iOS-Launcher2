@@ -2415,7 +2415,7 @@ static UIColor *ZL2AssetSourceBadgeColor(NSInteger apiSource) {
         [cell ame_setFavorite:fav];
     }
     __weak typeof(self) weakSelf = self;
-    NSInteger row = indexPath.row;
+    NSDictionary *favoriteEntry = [item copy];
     // ★Task428（4.2）：弱引用捕获本 cell——toggle 后即时回写心形选中态
     //   （对齐 ZL2SearchIdViewController ame_favoriteTapped 后刷新的语义；
     //   原实现要点后不回刷，心形停在旧态直到滚出复用）
@@ -2425,7 +2425,7 @@ static UIColor *ZL2AssetSourceBadgeColor(NSInteger apiSource) {
     cell.onFavorite = ^{
         __strong typeof(weakSelf) strongSelf = weakSelf;
         if (!strongSelf) return;
-        NSDictionary *entry = strongSelf.results[row];
+        NSDictionary *entry = favoriteEntry;
         if (![entry isKindOfClass:[NSDictionary class]]) return;
         NSMutableDictionary *snapshot = [entry mutableCopy];
         NSInteger source = [entry[@"apiSource"] isKindOfClass:NSNumber.class]

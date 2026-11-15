@@ -1172,10 +1172,23 @@ static UIImage *ZL2V13ThumbnailAtPath(NSString *path, CGFloat maxPixel) {
 /// ★Task429 S1：链式弹层呈现（前一张 UIAlertController 动作点按后其退场动画
 /// 仍在飞行，直接 present = "presentation in progress" 竞态——Task428 全局档
 /// 行 / ProfileSettingsViewController 同款 0.35s 延迟窗口判例，统一收口）。
+- (void)ame430_presentAfterDismiss:(UIAlertController *)vc attempt:(NSUInteger)attempt {
+    if (!self.view.window) return;
+    if (self.presentedViewController || self.transitionCoordinator) {
+        if (attempt >= 5) return;
+        dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.18 * NSEC_PER_SEC)),
+                       dispatch_get_main_queue(), ^{
+            [self ame430_presentAfterDismiss:vc attempt:attempt + 1];
+        });
+        return;
+    }
+    [self presentViewController:vc animated:YES completion:nil];
+}
+
 - (void)ame429_s1_presentAfterDismiss:(UIAlertController *)vc {
     dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.35 * NSEC_PER_SEC)),
                    dispatch_get_main_queue(), ^{
-        [self presentViewController:vc animated:YES completion:nil];
+        [self ame430_presentAfterDismiss:vc attempt:0];
     });
 }
 

@@ -511,9 +511,8 @@ static NSDictionary *kPL429SeedBuiltinDriverConfig(void) {
 /// （Task326 heal 同族）：内置档自动启用——启用仅新增渲染器列表档位，
 /// 不改写用户当前选中渲染器，无越权面。
 + (void)pl429_bootstrapBuiltinRendererPackages {
-    static BOOL pl429_done = NO;
-    if (pl429_done) return;
-    pl429_done = YES;
+    static dispatch_once_t pl429_once;
+    dispatch_once(&pl429_once, ^{
     NSFileManager *fm = [NSFileManager defaultManager];
     NSString *bundleRoot = [[NSBundle mainBundle].resourcePath
         stringByAppendingPathComponent:kPL429BundleBuiltinDir];
@@ -599,6 +598,7 @@ static NSDictionary *kPL429SeedBuiltinDriverConfig(void) {
         NSLog(@"[Ame429] builtin renderer bootstrap install: %@ (driver=%@, dylib binding=%@, chain: manifest->scan->inject->UI tier)",
               pid, manifest[kPL429ManifestDriverType], manifest[kPL429ManifestDylib]);
     }
+    });
 }
 
 @end
