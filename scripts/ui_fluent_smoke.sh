@@ -245,9 +245,9 @@ preview_mode() {
     ZL2FestivalEffects            # ★Task428（8.2）：节日粒子层（ZL2ShellViewController import 它；
                                    #   getPrefObject 桩 = AmeFluentPreviewMain 既有服务桩）
     ZL2MotionKit                  # ★Task429（9.2）：MD3 动效四件（ZL2ShellViewController/ZL2M3Kit import 它）
-    ZL2BackgroundHost             # ★Task429（8.3）：ZL2 页背景层（ZL2ShellViewController import 它；
-                                   #   BackgroundManager 类符号 = AmeFluentPreviewMain 最小桩，
-                                   #   hasBackground=NO → 挂载守卫短路，壁纸管线不进预览）
+                                  # ★Task429-r6：ZL2BackgroundHost 不入本清单——ZL2PagesStub.m:1698
+                                  #   已有同名类桩（F 工位手写家法），真 TU 并编 = duplicate
+                                  #   symbol 判例；真类语法面由 -fsyntax-only 全量腿覆盖。
     AmeUIImageColors              # ★Task429（8.1）：壁纸主色提取（ZL2DynamicPalette import 它）
     AmeHCTPalette                 # ★Task429（8.1）：HCT 色域生成色板（ZL2DynamicPalette import 它）
     ZL2DynamicPalette             # ★Task429（8.1）：主题中枢（+load 向 ZL2Theme 覆盖点注册；
