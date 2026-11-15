@@ -4365,6 +4365,22 @@ int launchJVM(NSString *accountId, id launchTarget, int width, int height, int m
     //   NO 零行为变化）——开启后 iOS26+ 会话退役 -XX:+MirrorMappedCode
     //   Cache 并走 256m 非镜像轨；崩溃弹窗（ame273）提供一键开启。
     BOOL ame342_retireMirror = getPrefBool(@"debug.mirror_codecache_disable");
+    // ★Task430（二代 issue#2）：marker 文件兜底信号——ame273 濒死自动自救
+    //   路径写 pref + ame342_mirror_retired.txt 双通道，pref 落盘万一竞态
+    //   失败时 marker 在场同样退役镜像轨，防自动自救哑火（文件通道在
+    //   fopen+fsync 后跨进程杀场景最可靠）。
+    if (!ame342_retireMirror) {
+        const char *ame430_home = getenv("POJAV_HOME");
+        if (ame430_home != NULL) {
+            char ame430_marker[1024];
+            snprintf(ame430_marker, sizeof(ame430_marker),
+                     "%s/ame342_mirror_retired.txt", ame430_home);
+            if (access(ame430_marker, F_OK) == 0) {
+                ame342_retireMirror = YES;
+                NSLog(@"[JavaLauncher] Task430: ame342_mirror_retired.txt marker present -- retiring MirrorMappedCodeCache (auto-rescue fallback signal)");
+            }
+        }
+    }
     if (ame342_retireMirror) {
         NSLog(@"[JavaLauncher] Task342: debug.mirror_codecache_disable=1 -- retiring MirrorMappedCodeCache for this session (self-rescue path)");
     }
@@ -5252,6 +5268,20 @@ int launchHeadlessJVM(NSString *mainClass, NSArray<NSString *> *args, int minJav
     // ★ Task342：debug.mirror_codecache_disable 自救开关 headless 同步
     //   （launchJVM 同款语义，处理器/安装链会话同受镜像布局异常影响）。
     BOOL ame342_retireMirror = getPrefBool(@"debug.mirror_codecache_disable");
+    // ★Task430（二代 issue#2）：marker 兜底同款（processors JVM 路径与
+    //   launchJVM 双站对齐——pref 落盘竞态失败时 marker 在场同样退役镜像轨）。
+    if (!ame342_retireMirror) {
+        const char *ame430_home = getenv("POJAV_HOME");
+        if (ame430_home != NULL) {
+            char ame430_marker[1024];
+            snprintf(ame430_marker, sizeof(ame430_marker),
+                     "%s/ame342_mirror_retired.txt", ame430_home);
+            if (access(ame430_marker, F_OK) == 0) {
+                ame342_retireMirror = YES;
+                NSLog(@"[JavaLauncher] Task430: ame342_mirror_retired.txt marker present (processors path) -- retiring MirrorMappedCodeCache");
+            }
+        }
+    }
     if (@available(iOS 26.0, *) && !ame342_retireMirror) {
         PUSH_HARGV_LITERAL("-XX:ReservedCodeCacheSize=64m");
         PUSH_HARGV_LITERAL("-XX:InitialCodeCacheSize=48m");

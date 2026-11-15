@@ -139,6 +139,15 @@ typedef NS_ENUM(NSInteger, PLComponentServiceError) {
 /// 五分类显示名（clean → 本地化"原版"；其余复用 ModLoaderIconHelper 品牌名）
 + (NSString *)displayNameForComponentType:(NSString *)type;
 
+/// ★Task430（一代 issue#24 根修）：OptiFine version.json launchwrapper 库补齐。
+/// 官方安装器语义复刻：安装器 jar 内嵌 launchwrapper-of-<v>.jar → 解包落
+/// libraries/optifine/launchwrapper-of/<v>/ 并返回本地库条目；无嵌套库/解包
+/// 失败 → net.minecraft:launchwrapper:1.12 在线下载条目兜底。返回值直接追加
+/// 进 versionJson.libraries（ZL2GameAddonsViewController ame_installOptiFinePatch
+/// 与本服务补丁流两处安装同源调用）。
++ (NSDictionary *)ame430_launchwrapperLibraryForOptiFineJar:(NSString *)optifineJarPath
+                                                     gameDir:(NSString *)gameDir;
+
 @end
 
 NS_ASSUME_NONNULL_END

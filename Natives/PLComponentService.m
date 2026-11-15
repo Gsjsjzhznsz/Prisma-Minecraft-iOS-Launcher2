@@ -33,6 +33,8 @@
 
 #import "PLComponentService.h"
 #import "utils.h"                          // localize / parseJSONFromFile / saveJSONToFile / ame185
+#import <CommonCrypto/CommonCrypto.h>       // ★Task430：嵌套 launchwrapper-of 提取 sha1
+#import "UnzipKit.h"                        // ★Task430：OptiFine 安装器 jar 内嵌库解包（ModService 同源）
 #import "PLProfiles.h"                     // 注册表 + ame353 版本根（清单构建①复用点）
 #import "PLMirrorCenter.h"                 // ModLoader 镜像候选链（清单面/下载面同源）
 #import "ModLoaderIconHelper.h"            // 全仓加载器识别器（概览页信息卡同源）
@@ -1134,6 +1136,14 @@ NSString * const PLComponentServiceErrorDomain = @"PLComponentService";
 
     // ⑤ version.json（launchwrapper + OptiFineTweaker；字段 1:1 对齐
     //   ame_installOptiFinePatch 步骤 4——inheritsFrom/jar 均指父版本实体）
+    //   ★Task430（一代 issue#24）：launchwrapper 库补齐——原实现只声明
+    //   optifine:OptiFine 库而 mainClass=launchwrapper，launchwrapper 既不在
+    //   原版 inheritsFrom 库表（1.13+ 原版已无 launchwrapper）也不在补丁
+    //   jar 内 → ClassNotFoundException: net.minecraft.launchwrapper.Launcher
+    //   → exit(1)。官方 OptiFine 安装器语义 = 嵌套 launchwrapper-of-<v>.jar
+    //   解包 + libraries 追加本地库条目（helper 内含 1.12 在线兜底）。
+    NSDictionary *ame430_lwLib = [self ame430_launchwrapperLibraryForOptiFineJar:jarURL.path
+                                                                        gameDir:gameDir];
     NSDictionary *versionJson = @{
         @"id": versionId,
         @"inheritsFrom": parent,
@@ -1148,7 +1158,7 @@ NSString * const PLComponentServiceErrorDomain = @"PLComponentService";
                 @"size": @(jarData.length),
                 @"sha1": @""
             }}
-        }],
+        }, ame430_lwLib],
         @"jar": parent,
         @"minimumLauncherVersion": @21
     };
@@ -1168,6 +1178,83 @@ NSString * const PLComponentServiceErrorDomain = @"PLComponentService";
     }
     NSLog(@"[Component] Task429: optifine offline patch installed %@ (parent=%@)", versionId, parent);
     return versionId;
+}
+
+#pragma mark - ★Task430 OptiFine launchwrapper 库补齐（一代 issue#24 根修）
+
+/// ★Task430（一代 issue#24：OptiFine 装好即崩 "ClassNotFoundException:
+/// net.minecraft.launchwrapper.Launcher" exit(1)，装机 58e4ff9 latestlog
+/// 2026-11-08 19:27:41 实锤；二代两处 OptiFine 安装流生成的 version.json
+/// 只声明 optifine:OptiFine 库 + mainClass=launchwrapper，而 launchwrapper
+/// 既不在原版 inheritsFrom 库表（1.13+ 原版已无 launchwrapper）、也不在
+/// OptiFine 补丁 jar 内 → URLClassLoader 必然找不到 → exit(1)）。
+/// 官方 OptiFine 安装器语义复刻（OptiFine_1.20.1_HD_U_I5.jar 字节级实测）：
+/// 安装器 jar 根目录内嵌 launchwrapper-of-<ver>.jar（2.3，sha1
+/// 073b25f1667904d481b10f706288c95ea9656f0c），官方安装 = 解包落
+/// libraries/optifine/launchwrapper-of/<ver>/launchwrapper-of-<ver>.jar
+/// 并在 version.json libraries 追加 optifine:launchwrapper-of:<ver> 本地库。
+/// 返回值 = 应追加进 versionJson.libraries 的 library 字典：
+///   - 嵌套 launchwrapper-of 在场 → 本地库条目（url 空，本地文件直用，
+///     Java 侧 generateLaunchClasspath 以文件存在性准入，既有判例链一致）；
+///   - 无嵌套库/解压失败（旧形态或损坏）→ net.minecraft:launchwrapper:1.12
+///     在线下载条目（libraries.minecraft.net 官方工件，sha1/size 实测写入）
+///     ——自救优先，下载失败由下载链显式报错，不阻断安装主流程。
++ (NSDictionary *)ame430_launchwrapperLibraryForOptiFineJar:(NSString *)optifineJarPath
+                                                     gameDir:(NSString *)gameDir {
+    @try {
+        NSError *zipErr = nil;
+        UZKArchive *archive = [[UZKArchive alloc] initWithPath:optifineJarPath error:&zipErr];
+        if (archive) {
+            NSArray<NSString *> *names = [archive listFilenames:&zipErr];
+            NSString *nested = nil;
+            for (NSString *n in names) {
+                if (n.length > 0 && ![n containsString:@"/"] &&
+                    [n hasPrefix:@"launchwrapper-of-"] && [n hasSuffix:@".jar"]) { nested = n; break; }
+            }
+            if (nested) {
+                NSData *lwData = [archive extractDataFromFile:nested error:&zipErr];
+                if (lwData.length > 0) {
+                    // launchwrapper-of-2.3.jar → 2.3
+                    NSString *stem = [nested stringByDeletingPathExtension];
+                    NSString *lwVer = [stem substringFromIndex:(NSUInteger)([@"launchwrapper-of-" length])];
+                    NSString *lwRel = [NSString stringWithFormat:
+                        @"optifine/launchwrapper-of/%@/launchwrapper-of-%@.jar", lwVer, lwVer];
+                    NSString *lwAbs = [[gameDir stringByAppendingPathComponent:@"libraries"]
+                        stringByAppendingPathComponent:lwRel];
+                    [[NSFileManager defaultManager] createDirectoryAtPath:
+                        [lwAbs stringByDeletingLastPathComponent]
+                        withIntermediateDirectories:YES attributes:nil error:nil];
+                    if ([lwData writeToFile:lwAbs options:NSDataWritingAtomic error:nil]) {
+                        unsigned char ame430_dg[CC_SHA1_DIGEST_LENGTH];
+                        CC_SHA1(lwData.bytes, (CC_LONG)lwData.length, ame430_dg);
+                        NSMutableString *ame430_sha = [NSMutableString stringWithCapacity:40];
+                        for (int i = 0; i < CC_SHA1_DIGEST_LENGTH; i++) [ame430_sha appendFormat:@"%02x", ame430_dg[i]];
+                        NSLog(@"[Component] Task430: optifine nested launchwrapper-of-%@ extracted (%lu B, sha1 %@)", lwVer, (unsigned long)lwData.length, ame430_sha);
+                        return @{@"name": [NSString stringWithFormat:@"optifine:launchwrapper-of:%@", lwVer],
+                                 @"downloads": @{@"artifact": @{@"path": lwRel, @"url": @"",
+                                     @"size": @(lwData.length), @"sha1": ame430_sha}}};
+                    }
+                    NSLog(@"[Component] Task430: launchwrapper-of write failed -- fallback to net.minecraft:launchwrapper:1.12");
+                } else {
+                    NSLog(@"[Component] Task430: nested launchwrapper-of extract failed%@ -- fallback to net.minecraft:launchwrapper:1.12",
+                          zipErr ? [NSString stringWithFormat:@" (%@)", zipErr.localizedDescription] : @"");
+                }
+            } else {
+                NSLog(@"[Component] Task430: no nested launchwrapper-of-*.jar in OptiFine jar -- fallback to net.minecraft:launchwrapper:1.12");
+            }
+        } else {
+            NSLog(@"[Component] Task430: OptiFine jar not openable as zip%@ -- fallback to net.minecraft:launchwrapper:1.12",
+                  zipErr ? [NSString stringWithFormat:@" (%@)", zipErr.localizedDescription] : @"");
+        }
+    } @catch (NSException *exc) {
+        NSLog(@"[Component] Task430: launchwrapper extraction exception %@ -- fallback to net.minecraft:launchwrapper:1.12", exc);
+    }
+    // 兜底：net.minecraft:launchwrapper:1.12（libraries.minecraft.net 官方
+    // 工件，Task430 实测 http 200 / 32999 B / sha1 111e7bea9c968cdb3d06ef4632bf7ff0824d0f36）
+    return @{@"name": @"net.minecraft:launchwrapper:1.12",
+             @"downloads": @{@"artifact": @{@"path": @"net/minecraft/launchwrapper/1.12/launchwrapper-1.12.jar",
+                 @"url": @"https://libraries.minecraft.net/net/minecraft/launchwrapper/1.12/launchwrapper-1.12.jar",
+                 @"size": @32999, @"sha1": @"111e7bea9c968cdb3d06ef4632bf7ff0824d0f36"}}};
 }
 
 @end

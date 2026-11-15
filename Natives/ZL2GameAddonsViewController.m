@@ -15,6 +15,7 @@
 #import "ZL2Theme.h"
 #import "ZL2M3Kit.h"
 #import "PLProfiles.h"
+#import "PLComponentService.h"   // ★Task430：OptiFine launchwrapper 库补齐（一代 issue#24 根修）
 #import "DownloadTaskManager.h"
 #import "DownloadTaskItem.h"
 #import "MinecraftResourceDownloadTask.h"
@@ -1414,6 +1415,15 @@
             withIntermediateDirectories:YES attributes:nil error:nil];
         [jarData writeToFile:optifineJarAbsPath options:NSDataWritingAtomic error:nil];
 
+        // ★Task430（一代 issue#24）：launchwrapper 库补齐——原 JSON 只声明
+        //   optifine:OptiFine 库而 mainClass=launchwrapper → ClassNotFound-
+        //   Exception exit(1)。官方 OptiFine 安装器语义 = 嵌套 launchwrapper-
+        //   of-<v>.jar 解包 + libraries 追加本地库条目（helper 内含 1.12
+        //   在线兜底，两处安装流同源 PLComponentService）。
+        NSDictionary *ame430_lwLib = [PLComponentService
+            ame430_launchwrapperLibraryForOptiFineJar:optifineJarAbsPath
+                                              gameDir:gameDir];
+
         // 4. version.json（launchwrapper + OptiFineTweaker）
         NSDictionary *versionJson = @{
             @"id": currentVersionId,
@@ -1429,7 +1439,7 @@
                     @"size": @(jarData.length),
                     @"sha1": @""
                 }}
-            }],
+            }, ame430_lwLib],
             @"jar": gameVersion,
             @"minimumLauncherVersion": @21
         };

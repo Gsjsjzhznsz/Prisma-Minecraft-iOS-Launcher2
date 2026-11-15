@@ -1,6 +1,7 @@
 #import <Foundation/Foundation.h>
 #import <objc/runtime.h>   // Task202：CAMetalLayer nextDrawable 交换（Metal 首帧信号）
 #import "PLLogOutputView.h"
+#import "LauncherPreferences.h"  // ★Task430：濒死自动自救路径 setPrefBool（二代 issue#2）
 #import "SurfaceViewController.h"
 #import "ios_uikit_bridge.h"
 #import "utils.h"
@@ -509,6 +510,12 @@ static void ame273_writeCrashReport(int code) {
 
     // ---- 分类扫描（尾部 500 行窗口） ----
     int catModIncompat = 0, catMissingDep = 0, catOOM = 0, catJvmFatal = 0, catJavaExc = 0;
+    // ★Task430（二代 issue#2）：Ame342 JIT 镜像码缓存签名前置到扫描期
+    //   （SIGBUS 与 StubRoutines::call_stub 同场）——命中即归类
+    //   jit_mirror_codecache，优先级压过全部业务类（判读实录：用户会话
+    //   里 AvatarManager 头像 DNS 失败行命中裸 "could not be found" →
+    //   missing_dependency 抢占 jvm_fatal → 报告类别错误，用户被引去装模组）。
+    int ame430_sigbus = 0, ame430_stub = 0;
     int idxImmediateReason = -1, idxFix = -1, idxIncompatHead = -1;
     int idxLastCausedBy = -1, idxLastException = -1;
     int idxProblematicFrame = -1;  // Task305：JVM fatal 锚点（下一行 = 真实问题帧）
@@ -522,8 +529,16 @@ static void ame273_writeCrashReport(int code) {
         if (strstr(s, "Incompatible mods found!")) idxIncompatHead = i;
         if (strstr(s, "FormattedException") || strstr(s, "Some of your mods are incompatible") ||
             strstr(s, "HARD_DEP") || strstr(s, "Mod resolution failed")) catModIncompat = 1;
+        // ★Task430：裸 "could not be found" 触发收窄——启动器自身噪声行
+        //   （[AvatarManager] "A server with the specified hostname could not
+        //   be found"）不再命中 missing_dependency（二代 issue#2 实录根因）。
         if (strstr(s, "NO_CANDIDATE") || strstr(s, "Missing or unsupported mandatory dependencies") ||
-            strstr(s, "missing mod") || strstr(s, "could not be found")) catMissingDep = 1;
+            strstr(s, "missing mod") ||
+            (strstr(s, "could not be found") != NULL &&
+             strstr(s, "hostname") == NULL && strstr(s, "AvatarManager") == NULL)) catMissingDep = 1;
+        // ★Task430：JIT 镜像码缓存签名（与 Ame342 判据同源，前置到扫描期）
+        if (!ame430_sigbus && strstr(s, "SIGBUS") != NULL) ame430_sigbus = 1;
+        if (!ame430_stub && strstr(s, "StubRoutines::call_stub") != NULL) ame430_stub = 1;
         if (strstr(s, "OutOfMemoryError") || strstr(s, "Cannot reserve enough space") ||
             strstr(s, "OutOfMemory")) catOOM = 1;
         if (strstr(s, "SIGSEGV") || strstr(s, "EXCEPTION_ACCESS_VIOLATION") ||
@@ -549,7 +564,12 @@ static void ame273_writeCrashReport(int code) {
     const char *category = "unknown";
     const char *cat_cn = "未知错误";
     const char *cat_en = "Unknown error";
-    if (catModIncompat) {
+    // ★Task430：jit_mirror_codecache 首位——JIT 环境病压过全部业务类
+    if (ame430_sigbus && ame430_stub) {
+        category = "jit_mirror_codecache";
+        cat_cn = "JIT 代码缓存映射异常";
+        cat_en = "JIT code-cache mapping error";
+    } else if (catModIncompat) {
         category = "mod_incompatible";
         cat_cn = "模组不兼容/冲突";
         cat_en = "Mod incompatibility";
@@ -638,7 +658,32 @@ static void ame273_writeCrashReport(int code) {
         if (ame342_sigbus && ame342_stub) {
             NSLog(@"[Ame342] JIT mirror code cache crash signature detected (SIGBUS + call_stub%s) -- targeted fix guidance attached",
                   ame342_mirror ? " + mirror layout line" : "");
-            fix = "JIT 代码缓存镜像映射异常（JIT26 mirror-mapped CodeCache 双视图关系破裂，RX 段无有效代码可执行）。自救：①把 StikJIT/StikDebug 更新到最新版后重试（iPadOS 27 兼容）②在启动器崩溃弹窗点「开启 JIT 自救模式」（或 设置-调试-退役镜像映射代码缓存）后重试 ③更换 JIT 开启工具（SideStore/JitStreamer-EB 等）。 EN: JIT code-cache mirror mapping is broken (RW/RX views non-adjacent, RX pages carry no code). Self-rescue: 1) update StikJIT/StikDebug to the latest build 2) tap 'Enable JIT self-rescue' in the crash dialog (or Settings-Debug-Retire mirrored code cache) and retry 3) switch to another JIT enabler.";
+            // ★Task430（二代 issue#2）：检测即自救——不再等用户在崩溃弹窗里
+            //   手点「开启 JIT 自救模式」。签名命中当下直接写
+            //   debug.mirror_codecache_disable=1（PLPreferences setObject 即
+            //   saveGlobalPref 同步 writeToFile atomically，濒死环境可靠）+
+            //   ame342_mirror_retired.txt marker（fopen+fsync 双通道），下次
+            //   启动 JavaLauncher 即走 256m 非镜像轨。弹窗一键动作保留
+            //   （已开启则不再出现），手动开关语义零变化。
+            if (!getPrefBool(@"debug.mirror_codecache_disable")) {
+                setPrefBool(@"debug.mirror_codecache_disable", YES);
+                const char *ame430_home = getenv("POJAV_HOME");
+                if (ame430_home != NULL) {
+                    char ame430_marker[1024];
+                    snprintf(ame430_marker, sizeof(ame430_marker),
+                             "%s/ame342_mirror_retired.txt", ame430_home);
+                    FILE *ame430_f = fopen(ame430_marker, "w");
+                    if (ame430_f != NULL) {
+                        fprintf(ame430_f, "time=%lld\nreason=jit_mirror_codecache auto-rescue (Task430, gen2 issue#2)\n",
+                                (long long)time(NULL));
+                        fflush(ame430_f);
+                        fsync(fileno(ame430_f));
+                        fclose(ame430_f);
+                    }
+                }
+                NSLog(@"[Ame430] JIT mirror auto-rescue armed (debug.mirror_codecache_disable=1 + marker written) -- next launch uses the non-mirrored track");
+            }
+            fix = "JIT 代码缓存镜像映射异常（JIT26 mirror-mapped CodeCache 双视图关系破裂，RX 段无有效代码可执行）。已自动开启「JIT 自救模式」（退役镜像映射代码缓存），重启启动器后再点启动即可走非镜像轨；若仍崩溃请把 StikJIT/StikDebug 更新到最新版（iPadOS 27 兼容）或更换 JIT 开启工具（SideStore/JitStreamer-EB 等）。 EN: JIT code-cache mirror mapping is broken (RW/RX views non-adjacent, RX pages carry no code). JIT self-rescue has been armed automatically (mirrored code cache retired) -- relaunch the launcher and start the game to use the non-mirrored track; if it still crashes, update StikJIT/StikDebug to the latest build or switch to another JIT enabler (SideStore/JitStreamer-EB).";
         } else if (ame307_molten && ame307_mgl) {
             NSLog(@"[Ame307] MoltenVK crash signature detected (libMoltenVK+libMobileGL) -- targeted fix guidance attached");
             fix = "MoltenVK（MobileGlues Vulkan 后端）在着色器管线初始化时崩溃（空指针）。缓解：设置-视频-渲染器-渲染后端(MobileGlues) 切到 GLES 档（不经 MoltenVK），或改用其他渲染器后重试。 EN: MoltenVK (MobileGlues Vulkan backend) crashed during shader pipeline init (null deref). Mitigation: switch the MobileGlues backend to GLES (bypasses MoltenVK), or pick another renderer.";

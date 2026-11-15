@@ -807,6 +807,11 @@ NSString* localize(NSString* key, NSString* comment) {
     BOOL ame274_keyHit = (ame274_langKey == nil)
         ? (ame274_localizeKey == nil)
         : (ame274_localizeKey != nil && [ame274_langKey isEqualToString:ame274_localizeKey]);
+    // ★Task430（一代 issue#23）：覆盖键在场但缓存目标为 nil（旧失败探针遗留）
+    //   → 视为未命中强制重建；重建路径已锚定 en 基座，不再静默滑入系统分支。
+    if (ame274_keyHit && ame274_langKey != nil && ame274_localizeTarget == nil) {
+        ame274_keyHit = NO;
+    }
     if (ame274_keyHit) {
         targetBundle = ame274_localizeTarget;
     }
@@ -817,6 +822,16 @@ NSString* localize(NSString* key, NSString* comment) {
             NSString *lprojPath = [NSBundle.mainBundle pathForResource:ame274_langKey ofType:@"lproj"];
             if (lprojPath) {
                 targetBundle = [NSBundle bundleWithPath:lprojPath];
+            }
+            // ★Task430（一代 issue#23 "v7 language support is trash"）：覆盖语
+            //   言表缺失（升级换表/偏好迁移/语言码改名/包损坏四类病灶）时原实
+            //   现留 nil → 下滑进"跟随系统语言"分支，用户显式选择被静默丢弃。
+            //   改为锚定 en 基座：if(targetBundle) 分支内建 en→zh-Hans→zh-CN→
+            //   UIKit 四级抢救链，显式选择永不静默降级为系统语言；重建路径一次
+            //   性大日志便于定位坏装（缓存命中路径零日志零开销）。
+            if (targetBundle == nil) {
+                NSLog(@"[Task430] localize: language override '%@' has no matching .lproj in app bundle -- anchoring English (en→zh-Hans→zh-CN rescue chain) instead of silently following the system language", ame274_langKey);
+                targetBundle = ame274_cachedLprojBundle(@"en", &ame274_localizeEn, &ame274_localizeEnProbed);
             }
         }
         os_unfair_lock_lock(&ame274_localizeLock);
