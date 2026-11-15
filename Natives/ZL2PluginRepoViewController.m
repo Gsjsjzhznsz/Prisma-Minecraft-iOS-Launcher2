@@ -2,6 +2,7 @@
 #import "AmePluginKit.h"
 #import "ZL2Theme.h"
 #import "ZL2M3Kit.h"
+#import "ZL2MotionKit.h" // ★Task429：MD3 动效体系（插件仓库卡列表入场示范接入）
 #import "utils.h" // localize
 #import "UnzipKit.h"
 
@@ -355,6 +356,11 @@ static NSString * const ame333_repoMirrorPrefKey = @"ame333.plugin.repo.mirror";
     }
     [self ame345_refreshHeroCount];
     [self.table reloadData];
+    // ★Task429：插件仓库卡列表入场示范接入（表 9-1「列表入场」行）——
+    //   可见卡按 indexPath 递增 20ms 错峰 alpha+8pt 上移；同批防重入内置
+    //   （viewDidLoad + viewWillAppear 双 reload 不叠播）；远程区异步刷新
+    //   （tableReloadAndKeepScroll）不接入，保持阅读中不打断。
+    [ZL2MotionList animateEntranceOfTableView:self.table];
 }
 
 #pragma mark - 展示名（四表键优先，manifest 兜底）

@@ -1,0 +1,12 @@
+{
+  "id": "mobileglues-demo",
+  "name": "MobileGlues 渲染器插件（内置演示档）",
+  "version": "1.0.0",
+  "author": "Prisma",
+  "rendererName": "MobileGlues（渲染器插件档）",
+  "driverType": "mobileglues",
+  "abi": ["arm64"],
+  "dylib": "libmobileglues.dylib",
+  "description": "内置渲染器插件包单条链路演示（第六版 §3.2.1 落地顺序：清单注册→扫描→启动注入→UI 呈现渲染器档位）。dylib 绑定随包 Frameworks/libmobileglues.dylib（PLRendererPluginService 白名单回退源②，dlopen 按 dyld 路径去重——本档会话与经典 MobileGlues 选择共享同一物理镜像）。",
+  "minApi": 1
+}

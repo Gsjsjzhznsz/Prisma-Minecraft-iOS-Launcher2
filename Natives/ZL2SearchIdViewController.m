@@ -197,6 +197,8 @@
     _favoriteButton.translatesAutoresizingMaskIntoConstraints = NO;
     _favoriteButton.isAccessibilityElement = YES;
     _favoriteButton.accessibilityLabel = localize(@"ame369.common.favorites", @"收藏");
+    // ★Task429：收藏钮加大（用户复诉“收藏按钮太小了”）——命中面升级见布局段
+    //   （高 44/宽 ≥64，HIG 最小命中面）；label 装配见下方 ★Task429 注释块
     [_favoriteButton addTarget:self
                         action:@selector(ame_favoriteTapped)
               forControlEvents:UIControlEventTouchUpInside];
@@ -208,6 +210,19 @@
     heartIcon.userInteractionEnabled = NO;
     heartIcon.tag = 101;
     [_favoriteButton addSubview:heartIcon];
+
+    // ★Task429：收藏钮加大——用户复诉“收藏按钮太小了”+ZL2 口径：此前本页
+    //   favoriteLabel 只有声明无装配（纯图标小钮）；现按 ZL2AssetSearch 卡
+    //   FavoriteToggleLabel 基准装配为“心形+文字”胶囊钮（label 用既有字体阶
+    //   fontLabelLarge，文案复用既有键 ame369.common.favorites，无新增 i18n）
+    _favoriteLabel = [[UILabel alloc] init];
+    _favoriteLabel.text = localize(@"ame369.common.favorites", @"收藏");
+    _favoriteLabel.font = [ZL2Theme fontLabelLarge];
+    _favoriteLabel.textColor = [ZL2Theme onSurfaceVariant];
+    _favoriteLabel.numberOfLines = 1;
+    _favoriteLabel.translatesAutoresizingMaskIntoConstraints = NO;
+    _favoriteLabel.userInteractionEnabled = NO;
+    [_favoriteButton addSubview:_favoriteLabel];
     [_resultCard addSubview:_favoriteButton];
 
     _openLinkButton = [[UIControl alloc] init];
@@ -282,6 +297,10 @@
         [_descLabel.leadingAnchor constraintEqualToAnchor:_titleLabel.leadingAnchor],
         [_descLabel.trailingAnchor constraintLessThanOrEqualToAnchor:cardLG.trailingAnchor],
 
+        // ★Task429：收藏钮加大——desc 尾部避让加宽后的收藏钮（≤ 双保险：
+        //   原有 ≤ cardLG.trailing 保留；收藏钮透明命中冗余区不再压描述文字）
+        [_descLabel.trailingAnchor constraintLessThanOrEqualToAnchor:_favoriteButton.leadingAnchor constant:-8],
+
         [_downloadsLabel.topAnchor constraintEqualToAnchor:_descLabel.bottomAnchor constant:4],
         [_downloadsLabel.leadingAnchor constraintEqualToAnchor:_titleLabel.leadingAnchor],
 
@@ -291,12 +310,20 @@
 
         [_favoriteButton.centerYAnchor constraintEqualToAnchor:_iconView.centerYAnchor],
         [_favoriteButton.trailingAnchor constraintEqualToAnchor:cardLG.trailingAnchor],
-        [_favoriteButton.widthAnchor constraintEqualToConstant:32],
-        [_favoriteButton.heightAnchor constraintEqualToConstant:32],
-        [heartIcon.centerXAnchor constraintEqualToAnchor:_favoriteButton.centerXAnchor],
+        // ★Task429：收藏钮加大——命中面 32x32→高 44/宽 ≥64（HIG 最小命中面；
+        //   宽度由内容撑出，含 12pt 左侧隐形命中冗余，对齐 ZL2 搜索卡基准）
+        [_favoriteButton.widthAnchor constraintGreaterThanOrEqualToConstant:64],
+        [_favoriteButton.heightAnchor constraintEqualToConstant:44],
+        // ★Task429：心形锚点 centerX→左缘定距 12（同 ZL2 基准：图标靠左、
+        //   label 靠右，中段留隐形命中冗余）；图标保持 22pt
+        [heartIcon.leadingAnchor constraintEqualToAnchor:_favoriteButton.leadingAnchor constant:12],
         [heartIcon.centerYAnchor constraintEqualToAnchor:_favoriteButton.centerYAnchor],
         [heartIcon.widthAnchor constraintEqualToConstant:22],
         [heartIcon.heightAnchor constraintEqualToConstant:22],
+        // ★Task429：收藏 label 装配（HeartToggleLabel 口径：紧跟心形 + 右缘贴钮）
+        [_favoriteLabel.leadingAnchor constraintEqualToAnchor:heartIcon.trailingAnchor constant:6],
+        [_favoriteLabel.trailingAnchor constraintEqualToAnchor:_favoriteButton.trailingAnchor],
+        [_favoriteLabel.centerYAnchor constraintEqualToAnchor:_favoriteButton.centerYAnchor],
 
         [_openLinkButton.topAnchor constraintEqualToAnchor:_iconView.bottomAnchor constant:12],
         [_openLinkButton.leadingAnchor constraintEqualToAnchor:cardLG.leadingAnchor],
@@ -459,6 +486,12 @@
     UIImageView *heart = [self.favoriteButton viewWithTag:101];
     heart.image = [UIImage systemImageNamed:(fav ? @"heart.fill" : @"heart")];
     heart.tintColor = fav ? [ZL2Theme tertiary] : [ZL2Theme onSurfaceVariant];
+    // ★Task429：收藏钮加大同步——label 选中态色随心形（tertiary/次级），
+    //   a11y 标签随选中态切换（复用既有键，同 ZL2 搜索卡/详情胶囊口径）
+    self.favoriteLabel.textColor = fav ? [ZL2Theme tertiary] : [ZL2Theme onSurfaceVariant];
+    self.favoriteButton.accessibilityLabel = fav
+        ? localize(@"ame369.asearch.unfavorite", @"取消收藏")
+        : localize(@"ame369.common.favorites", @"收藏");
 }
 
 - (void)ame_favoriteTapped {

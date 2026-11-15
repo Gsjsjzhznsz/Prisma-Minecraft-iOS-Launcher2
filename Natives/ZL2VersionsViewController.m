@@ -57,7 +57,11 @@
 #import "ProfileSettingsViewController.h"
 #import "ZL2VersionDetailViewController.h"   // 7.0-UI-13-V：设置钮新目标（ZL2 VersionSettings 容器）
 #import "utils.h"   // localize()
-#import "PLGameIntegrityService.h"   // ★Task428：校验并补全游戏文件（3.3 手动入口）
+// ★Task429：PLGameIntegrityService.h 导入移除——原「校验并补全游戏文件」
+//   扫描 sheet 项已从本页移除，入口实例级化迁往「完整实例设置」页
+//   （ProfileSettingsViewController 版本信息组新行，扫描该页附属实例）；
+//   全局入口保留在 设置→启动器→下载完整性与公告组（ZL2SettingPages）。
+//   本页再无该服务符号引用。
 
 // ★Task428（1.2/1.3）：PLProfiles 新增类方法的本地前置声明（PLProfiles.h
 //   不在任务授权文件清单内，分类声明 = 零 .h 侵入；签名与 PLProfiles.m
@@ -1192,14 +1196,14 @@ static UIImage *ZL2VersionsSystemImage(NSString *name, NSString *fallback) {
                                             handler:^(__unused UIAlertAction *a) {
         [self ame338_showCleanup];
     }]];
-    // ★Task428（3.3 手动入口）：校验并补全游戏文件（HMCL checkGameState 闭环）。
-    //   自包含流程：遮罩进度卡（校验→修复）+ 结果三类清单 + 报告写
-    //   POJAV_HOME/game_integrity_report.txt；补全走 PLDownloadClient 现有队列。
-    [sheet addAction:[UIAlertAction actionWithTitle:localize(@"ame428.verify.entry", nil)
-                                              style:UIAlertActionStyleDefault
-                                            handler:^(__unused UIAlertAction *a) {
-        [[PLGameIntegrityService sharedService] runInteractiveVerifyAndRepairFromViewController:self];
-    }]];
+    // ★Task429：原「校验并补全游戏文件」项（ame428.verify.entry）从本 sheet
+    //   移除——完整性入口实例级化（用户复诉："放在版本设置里面就扫描版本
+    //   设置附属的那个实例"）。去向：
+    //   ① ProfileSettingsViewController 版本信息组新行 →
+    //      runInteractiveVerifyAndRepairForProfile:<本页附属实例>；
+    //   ② 设置→启动器→下载完整性与公告组全局入口保留（ame428_runIntegrity
+    //      Verify 改调新 API 传 nil，语义等价）。
+    //   sheet 回归 Task338 原貌：扫描并恢复版本 / 清理垃圾 / 取消 三项。
     [sheet addAction:[UIAlertAction actionWithTitle:localize(@"resman.common.cancel", nil)
                                               style:UIAlertActionStyleCancel handler:nil]];
     sheet.popoverPresentationController.sourceView = self.view;

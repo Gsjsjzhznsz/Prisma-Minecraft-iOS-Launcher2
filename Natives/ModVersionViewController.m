@@ -17,6 +17,7 @@
 #import "AmeTheme.h" // 7.0-UI-3e：Fluent 设计令牌层（Mod 版本页颜色语义化迁移）
 #import "PLMirrorCenter.h" // Task263：依赖详情拉取感知镜像源（旧实现硬编码官方域名）
 #import "ZL2FavoritesStore.h" // ★Task428（4.2）：头部收藏胶囊（与 ZL2 搜索卡/收藏页共用单例仓库）
+#import "ZL2Theme.h" // ★Task429：收藏胶囊 label 升 ZL2 既有字体阶 fontLabelLarge（全仓收藏钮统一口径）
 
 // ============================================================================
 // 下载源常量（与 ModVersion.apiSource 字段保持一致：1=Modrinth, 2=CurseForge）
@@ -301,7 +302,10 @@ static inline NSString *ame267_effectiveTargetProfile(NSString *ame267_target) {
     UIControl *ame428_capsule = [[UIControl alloc] init];
     ame428_capsule.translatesAutoresizingMaskIntoConstraints = NO;
     ame428_capsule.backgroundColor = [AmeTheme fillSubtle];
-    ame428_capsule.layer.cornerRadius = 14;
+    // ★Task429：收藏钮加大——用户复诉"收藏按钮太小了"+ZL2 口径（ZL2AssetSearch
+    //   FavoriteToggleLabel 基准：图标 22 / label LabelLarge / 命中面 44pt）：
+    //   胶囊定高 28→44（Apple HIG 最小命中面），圆角随半高 14→22 保胶囊形。
+    ame428_capsule.layer.cornerRadius = 22;
     ame428_capsule.layer.cornerCurve = kCACornerCurveContinuous;
     ame428_capsule.layer.borderWidth = 0.5;
     ame428_capsule.layer.borderColor = [AmeTheme divider].CGColor;
@@ -321,7 +325,8 @@ static inline NSString *ame267_effectiveTargetProfile(NSString *ame267_target) {
 
     UILabel *ame428_label = [[UILabel alloc] init];
     ame428_label.text = localize(@"ame369.common.favorites", @"收藏");
-    ame428_label.font = [UIFont systemFontOfSize:12 weight:UIFontWeightMedium];
+    // ★Task429：收藏钮加大——12pt Medium 硬编码字体升 ZL2 fontLabelLarge（14 Medium）
+    ame428_label.font = [ZL2Theme fontLabelLarge];
     ame428_label.textColor = [AmeTheme textPrimary];
     ame428_label.translatesAutoresizingMaskIntoConstraints = NO;
     ame428_label.userInteractionEnabled = NO;
@@ -333,13 +338,15 @@ static inline NSString *ame267_effectiveTargetProfile(NSString *ame267_target) {
         // 收藏钮同位——ZL2SearchIdVC favoriteButton.centerY=icon.centerY 口径）
         [ame428_capsule.trailingAnchor constraintEqualToAnchor:self.detailHeaderView.trailingAnchor constant:-32],
         [ame428_capsule.topAnchor constraintEqualToAnchor:self.detailHeaderView.topAnchor constant:30],
-        [ame428_capsule.heightAnchor constraintEqualToConstant:28],
-        [ame428_heartIcon.leadingAnchor constraintEqualToAnchor:ame428_capsule.leadingAnchor constant:10],
+        // ★Task429：收藏钮加大——胶囊高 28→44（HIG 最小命中面），内边距 10/10→
+        //   12/12、心形 14→22（对齐 ZL2 基准 22pt）、图文间距 4→6 视觉平衡
+        [ame428_capsule.heightAnchor constraintEqualToConstant:44],
+        [ame428_heartIcon.leadingAnchor constraintEqualToAnchor:ame428_capsule.leadingAnchor constant:12],
         [ame428_heartIcon.centerYAnchor constraintEqualToAnchor:ame428_capsule.centerYAnchor],
-        [ame428_heartIcon.widthAnchor constraintEqualToConstant:14],
-        [ame428_heartIcon.heightAnchor constraintEqualToConstant:14],
-        [ame428_label.leadingAnchor constraintEqualToAnchor:ame428_heartIcon.trailingAnchor constant:4],
-        [ame428_label.trailingAnchor constraintEqualToAnchor:ame428_capsule.trailingAnchor constant:-10],
+        [ame428_heartIcon.widthAnchor constraintEqualToConstant:22],
+        [ame428_heartIcon.heightAnchor constraintEqualToConstant:22],
+        [ame428_label.leadingAnchor constraintEqualToAnchor:ame428_heartIcon.trailingAnchor constant:6],
+        [ame428_label.trailingAnchor constraintEqualToAnchor:ame428_capsule.trailingAnchor constant:-12],
         [ame428_label.centerYAnchor constraintEqualToAnchor:ame428_capsule.centerYAnchor],
     ]];
     self.ame428_favoriteCapsule = ame428_capsule;

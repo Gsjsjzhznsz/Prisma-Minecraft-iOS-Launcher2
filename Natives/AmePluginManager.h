@@ -22,6 +22,12 @@ NS_ASSUME_NONNULL_BEGIN
 @property (nonatomic, copy) NSString *entry;         // 相对路径，*.js，禁 .. 与绝对路径
 @property (nonatomic, copy) NSArray<NSString *> *permissions; // ⊆ 权限注册表
 @property (nonatomic, assign) NSInteger minApi;
+/// ★Task429（§11.2）：可选 "java-inject" 节的规范化快照（未声明 = nil）。
+///   键空间：jvmFlags / agentJars / classpathEntries / nativeLibDirs
+///   （均为 NSString 数组；路径相对插件目录，禁 .. 与绝对路径）。
+///   存在性校验与收编在聚合面 AmePluginRuntime ame429_aggregatedJavaInject
+///   （game.starting 前；权限闸 java.inject 声明+授权双闸 fail-closed）。
+@property (nonatomic, copy, nullable) NSDictionary<NSString *, NSArray<NSString *> *> *javaInject;
 @end
 
 /// 安装结果

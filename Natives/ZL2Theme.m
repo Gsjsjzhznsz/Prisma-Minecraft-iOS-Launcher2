@@ -11,6 +11,17 @@
 #import "ZL2Theme.h"
 #import <math.h>   // Task341：isnan（形状/字体覆盖值防御钳制；smoke/Preview 目标自包含编译）
 
+#pragma mark - ★Task429 主题中枢懒启动钩子（函数指针，运行时注册）
+
+// mode≠0 的存档若无人触达中枢，色板永不生效（中枢无 AppDelegate/
+// SceneDelegate 挂点，两文件均不在本工位写权内）。ZL2DynamicPalette
+// +load 注册懒启动钩子（见彼处）；首个 ZL2Theme 色查询即壳层构建期，
+// 此处触达中枢（init 读三键落板早于首建 = 零闪变）。
+// ★ 链接依赖纪律（Task317 判例同口径）：本 TU 保持 smoke/Preview 目标
+//   零新增链接依赖——中枢 TU 缺席的目标钩子恒 NULL = 静默跳过，
+//   embermire 基线逐位不变；不直接 #import 中枢头。
+static void (*ame429_paletteBootstrapHook)(void) = NULL;
+
 static UIColor *ZL2ColorLightDark(int light, int dark) {
     return [UIColor colorWithDynamicProvider:^UIColor *_Nonnull(UITraitCollection *traits) {
         int value = (traits.userInterfaceStyle == UIUserInterfaceStyleDark) ? dark : light;
@@ -19,6 +30,24 @@ static UIColor *ZL2ColorLightDark(int light, int dark) {
                                 blue:(value & 0xFF) / 255.0
                                alpha:1.0];
     }];
+}
+
+#pragma mark - ★Task429 活动色板覆盖层（8.1 跟随背景/预设/CUSTOM 动态主题）
+
+// 覆盖表：token → @[浅 hexInt, 深 hexInt]（NSNumber）。主题中枢
+// ZL2DynamicPalette 在色板生成后经 +ame429_setActivePaletteOverlay 整表
+// 推送；nil/空 = 无覆盖（未初始化/模式 0 时 provider 逐位回落 embermire
+// 静态值 = 零回归）。字典指针整体原子换（immutable，读侧无锁）。
+static NSDictionary<NSString *, NSArray<NSNumber *> *> *ame429_activePaletteOverlay = nil;
+
+// 覆盖点查询：token 命中返回对应态 hexInt，miss 返回 -1（回落信号）
+static int Ame429OverlayHex(NSString *token, BOOL dark) {
+    if (ame429_activePaletteOverlay.count == 0) return -1;
+    NSArray *pair = ame429_activePaletteOverlay[token];
+    if (![pair isKindOfClass:[NSArray class]] || pair.count != 2) return -1;
+    NSNumber *v = pair[dark ? 1 : 0];
+    if (![v isKindOfClass:[NSNumber class]]) return -1;
+    return [v intValue];
 }
 
 #pragma mark - Task317 插件主题令牌覆盖（高危权限 ui.theme；smoke 目标零依赖）
@@ -65,10 +94,24 @@ static UIColor *AmePluginColorOverride(NSString *token) {
 //   UIColor，provider 运行时实时查覆盖表：有覆盖 → 取覆盖值（随插件
 //   换板/实时明暗切换即时生效，含预建代理）；无覆盖 → 经典深浅对。
 static UIColor *Ame317_PluginAwareColor(NSString *token, int light, int dark) {
+    if (ame429_paletteBootstrapHook != NULL) {
+        ame429_paletteBootstrapHook();   // ★Task429：中枢懒启动（+load 注册 trampoline，首次触达自举）
+    }
     return [UIColor colorWithDynamicProvider:^UIColor *_Nonnull(UITraitCollection *traits) {
         UIColor *ame317_ov = AmePluginColorOverride(token);
         if (ame317_ov) return [ame317_ov resolvedColorWithTraitCollection:traits];
-        int value = (traits.userInterfaceStyle == UIUserInterfaceStyleDark) ? dark : light;
+        // ★Task429：活动色板覆盖点（第二优先级）——跟随背景/预设/CUSTOM
+        //   动态主题经此贯通全部 28 枚色值角色；miss 回落 embermire 静态对
+        //   （未初始化/模式 0 时逐位等价旧值 = 零回归）。
+        BOOL ame429_dark = (traits.userInterfaceStyle == UIUserInterfaceStyleDark);
+        int ame429_v = Ame429OverlayHex(token, ame429_dark);
+        if (ame429_v >= 0) {
+            return [UIColor colorWithRed:((ame429_v >> 16) & 0xFF) / 255.0
+                                   green:((ame429_v >> 8) & 0xFF) / 255.0
+                                    blue:(ame429_v & 0xFF) / 255.0
+                                   alpha:1.0];
+        }
+        int value = ame429_dark ? dark : light;
         return [UIColor colorWithRed:((value >> 16) & 0xFF) / 255.0
                                green:((value >> 8) & 0xFF) / 255.0
                                 blue:(value & 0xFF) / 255.0
@@ -426,6 +469,33 @@ static void ame346_requestRootRebuild(void) {
 
 + (NSString *)ame347_shellLayout {
     return Ame347StructureOverride(@"shellLayout", @"topbar");
+}
+
+#pragma mark - ★Task429 活动色板覆盖层（8.1 动态主题中枢对接点）
+
++ (void)ame429_setActivePaletteOverlay:(NSDictionary<NSString *, NSArray<NSNumber *> *> *)overlay {
+    // 整表原子换（immutable 指针替换，读侧 Ame429OverlayHex 无锁）；
+    // nil/空 = 清除（未初始化/模式 0 逐位等价旧值 = 零回归）。
+    if (![overlay isKindOfClass:[NSDictionary class]] || overlay.count == 0) {
+        ame429_activePaletteOverlay = nil;
+        NSLog(@"[ZL2Theme] Task429: active palette overlay cleared (embermire fallback)");
+        return;
+    }
+    ame429_activePaletteOverlay = [overlay copy];
+    NSLog(@"[ZL2Theme] Task429: active palette overlay applied (%lu tokens)",
+          (unsigned long)overlay.count);
+}
+
++ (void)ame429_requestRootRebuild {
+    // Task346 根重建杠杆公开包装（ame346 冷却/尾沿补排/启动期守卫全在位）；
+    // ZL2DynamicPalette 生效链复用，不发明第二套广播。
+    ame346_requestRootRebuild();
+}
+
++ (void)ame429_setPaletteBootstrapHook:(void (*)(void))hook {
+    // C 函数指针直存（注册面 = ZL2DynamicPalette +load 传入全局静态
+    // trampoline，无上下文捕获；hook == NULL = 摘除，预览/冒烟目标默认态）
+    ame429_paletteBootstrapHook = hook;
 }
 
 #pragma mark - 主色系

@@ -34,6 +34,8 @@
 @property (nonatomic, assign) NSUInteger lastSearchTotalCount;
 // ★Task428（4.4）：分类失配回退感知（异步搜索路径写侧置位）
 @property (nonatomic, copy, nullable) NSString *ame428_lastCategoryFallbackSlug;
+// ★Task429 N6b：读后即清（take 语义）消费口（真实 .h 同名声明照抄）
+- (nullable NSString *)ame428_takeLastCategoryFallbackSlug;
 // classId 推导与 CF 分类树列举（CurseForgeAPI.h ★Task428 起公开的成员）
 - (nullable NSNumber *)classIDForProjectType:(NSString *)projectType;
 - (NSArray<NSDictionary<NSString *, NSString *> *> *)ame428_categoryListForClassId:(NSInteger)classId;
@@ -91,6 +93,11 @@
 /// 跨平台保守合并窗口：最近更新时间相差 ≤7 天才视为同一工程的同步数据
 /// （PCL 策略，FCL 同值；旧页 kAme291MergeWindowSeconds 同款）
 static const NSTimeInterval kAme428MergeWindowSeconds = 7.0 * 24.0 * 3600.0;
+
+/// ★Task429 N6a：聚合等待总上界（秒）——仅对 completion 悬挂场景兜底降级
+///   （与 N7 端点信号量上界 20s 同族；正常慢响应由源自身 timeoutInterval
+///   承接，不在此截断）
+static const NSTimeInterval kAme428AggWaitCapSeconds = 20.0;
 
 /// 去重入列：slug 优先、标题兜底双键；命中且时间同步（≤7 天窗）视为重复
 /// 跳过，时间不可得或差超窗则两平台条目都显示（数据不同步时的保守策略）
@@ -187,63 +194,81 @@ static const NSTimeInterval kAme428MergeWindowSeconds = 7.0 * 24.0 * 3600.0;
         }];
     });
 
-    dispatch_group_notify(ame428_group, dispatch_get_main_queue(), ^{
-        NSArray *ame428_cf = [ame428_cfResults isKindOfClass:NSArray.class] ? ame428_cfResults : nil;
-        NSArray *ame428_mr = [ame428_mrResults isKindOfClass:NSArray.class] ? ame428_mrResults : nil;
-
-        // ③ 双源全失败 → error（旧页 ame291.dl.aggregate_failed 同款文案）
-        if (ame428_cf == nil && ame428_mr == nil) {
-            NSError *ame428_error = ame428_cfError ?: ame428_mrError
-                ?: [NSError errorWithDomain:@"ZL2AggregatedSearchService" code:-428
-                                   userInfo:@{NSLocalizedDescriptionKey: localize(@"ame291.dl.aggregate_failed", nil)}];
-            completion(nil, 0, 0, NO, ame428_error, nil);
-            return;
+    // ★Task429 N6a（第六版报告）：dispatch_group_notify 恒等全源回源——任一源
+    //   completion 丢失/悬挂则 completion 永不触发 = 整页 spinner 永久卡死。
+    //   修法：等待加上限降级——后台 dispatch_group_wait 20s 上界（与 N7 端点
+    //   信号量上界同族；仅对"超时机制失效"的悬挂场景兜底），超时按已回源
+    //   先渲染，单源缺席走下方既有 aggregate_partial 降级提示（Toast 注明
+    //   部分结果）。notify 退役后迟到侧 completion 无二次回调点（enter/leave
+    //   仍配平，迟到结果只落变量不再触发渲染）。
+    dispatch_async(ame428_queue, ^{
+        if (dispatch_group_wait(ame428_group,
+                dispatch_time(DISPATCH_TIME_NOW,
+                              (int64_t)(kAme428AggWaitCapSeconds * NSEC_PER_SEC))) != 0) {
+            NSLog(@"[Agg] ★Task429 N6a: aggregate wait timeout (%.0fs) -- render partial results",
+                  kAme428AggWaitCapSeconds);
         }
+        dispatch_async(dispatch_get_main_queue(), ^{
+            NSArray *ame428_cf = [ame428_cfResults isKindOfClass:NSArray.class] ? ame428_cfResults : nil;
+            NSArray *ame428_mr = [ame428_mrResults isKindOfClass:NSArray.class] ? ame428_mrResults : nil;
 
-        // ④ 交错合并（CurseForge 前置）+ slug/标题归一化去重
-        NSMutableArray<NSDictionary *> *ame428_merged =
-            [ZL2AggregatedSearchService ame428_mergeCurseForge:(ame428_cf ?: @[])
-                                                      modrinth:(ame428_mr ?: @[])];
-
-        // 分页 total：仅计成功侧（失败侧 lastSearchTotalCount 是陈旧值不作数；
-        // 成功侧写侧在 completion 回调前赋值，读侧在此之后——happens-before 成立）
-        NSUInteger ame428_cfTotal = 0;
-        NSUInteger ame428_mrTotal = 0;
-        if (ame428_cf != nil) {
-            ame428_cfTotal = [[CurseForgeAPI sharedInstance] lastSearchTotalCount];
-        }
-        if (ame428_mr != nil) {
-            ame428_mrTotal = [[ModrinthAPI sharedInstance] lastSearchTotalCount];
-        }
-        BOOL ame428_hasMore = (ame428_cf.count >= (NSUInteger)ame428_limit ||
-                               ame428_mr.count >= (NSUInteger)ame428_limit);
-
-        // ③ 单源失败降级提示（另一源照常返回；旧页 ame291.dl.aggregate_partial 同款）
-        NSMutableArray<NSString *> *ame428_warnings = [NSMutableArray array];
-        if (ame428_cf == nil && ame428_mr != nil) {
-            [ame428_warnings addObject:[NSString stringWithFormat:localize(@"ame291.dl.aggregate_partial", nil),
-                                        localize(@"ame291.dl.source_curseforge", nil),
-                                        localize(@"ame291.dl.source_modrinth", nil)]];
-        } else if (ame428_mr == nil && ame428_cf != nil) {
-            [ame428_warnings addObject:[NSString stringWithFormat:localize(@"ame291.dl.aggregate_partial", nil),
-                                        localize(@"ame291.dl.source_modrinth", nil),
-                                        localize(@"ame291.dl.source_curseforge", nil)]];
-        }
-
-        // ② CF 分类失配回退提示（CF 侧照常返回全部结果；感知标记由 CF 异步
-        //    路径写侧在请求发出前置位，读侧在此之后——顺序安全。预览桩未
-        //    实现该成员时静默跳过）
-        if ([[CurseForgeAPI sharedInstance] respondsToSelector:@selector(ame428_lastCategoryFallbackSlug)]) {
-            NSString *ame428_cfFallback = [(CurseForgeAPI *)[CurseForgeAPI sharedInstance] ame428_lastCategoryFallbackSlug];
-            if (ame428_cfFallback.length > 0) {
-                [ame428_warnings addObject:localize(@"ame428.agg.category_fallback",
-                                                    @"该分类在 CurseForge 不存在，CF 侧已回退全部结果")];
+            // ③ 双源全失败 → error（旧页 ame291.dl.aggregate_failed 同款文案）
+            if (ame428_cf == nil && ame428_mr == nil) {
+                NSError *ame428_error = ame428_cfError ?: ame428_mrError
+                    ?: [NSError errorWithDomain:@"ZL2AggregatedSearchService" code:-428
+                                       userInfo:@{NSLocalizedDescriptionKey: localize(@"ame291.dl.aggregate_failed", nil)}];
+                completion(nil, 0, 0, NO, ame428_error, nil);
+                return;
             }
-        }
 
-        NSString *ame428_warning = (ame428_warnings.count > 0)
-            ? [ame428_warnings componentsJoinedByString:@"\n"] : nil;
-        completion(ame428_merged, ame428_cfTotal, ame428_mrTotal, ame428_hasMore, nil, ame428_warning);
+            // ④ 交错合并（CurseForge 前置）+ slug/标题归一化去重
+            NSMutableArray<NSDictionary *> *ame428_merged =
+                [ZL2AggregatedSearchService ame428_mergeCurseForge:(ame428_cf ?: @[])
+                                                          modrinth:(ame428_mr ?: @[])];
+
+            // 分页 total：仅计成功侧（失败侧 lastSearchTotalCount 是陈旧值不作数；
+            // 成功侧写侧在 completion 回调前赋值，读侧在此之后——happens-before 成立）
+            NSUInteger ame428_cfTotal = 0;
+            NSUInteger ame428_mrTotal = 0;
+            if (ame428_cf != nil) {
+                ame428_cfTotal = [[CurseForgeAPI sharedInstance] lastSearchTotalCount];
+            }
+            if (ame428_mr != nil) {
+                ame428_mrTotal = [[ModrinthAPI sharedInstance] lastSearchTotalCount];
+            }
+            BOOL ame428_hasMore = (ame428_cf.count >= (NSUInteger)ame428_limit ||
+                                   ame428_mr.count >= (NSUInteger)ame428_limit);
+
+            // ③ 单源失败/缺席降级提示（另一源照常返回；旧页 ame291.dl.aggregate_partial
+            //    同款——★Task429 N6a 超时降级同走此口 = Toast 注明部分结果）
+            NSMutableArray<NSString *> *ame428_warnings = [NSMutableArray array];
+            if (ame428_cf == nil && ame428_mr != nil) {
+                [ame428_warnings addObject:[NSString stringWithFormat:localize(@"ame291.dl.aggregate_partial", nil),
+                                            localize(@"ame291.dl.source_curseforge", nil),
+                                            localize(@"ame291.dl.source_modrinth", nil)]];
+            } else if (ame428_mr == nil && ame428_cf != nil) {
+                [ame428_warnings addObject:[NSString stringWithFormat:localize(@"ame291.dl.aggregate_partial", nil),
+                                            localize(@"ame291.dl.source_modrinth", nil),
+                                            localize(@"ame291.dl.source_curseforge", nil)]];
+            }
+
+            // ② CF 分类失配回退提示（CF 侧照常返回全部结果；感知标记由 CF 异步
+            //    路径写侧在请求发出前置位，读侧在此之后——顺序安全。预览桩未
+            //    实现该成员时静默跳过。★Task429 N6b：读后即清（take 语义），
+            //    单例粘态不再跨请求串味）
+            if ([[CurseForgeAPI sharedInstance] respondsToSelector:@selector(ame428_takeLastCategoryFallbackSlug)]) {
+                NSString *ame428_cfFallback =
+                    [(CurseForgeAPI *)[CurseForgeAPI sharedInstance] ame428_takeLastCategoryFallbackSlug];
+                if (ame428_cfFallback.length > 0) {
+                    [ame428_warnings addObject:localize(@"ame428.agg.category_fallback",
+                                                        @"该分类在 CurseForge 不存在，CF 侧已回退全部结果")];
+                }
+            }
+
+            NSString *ame428_warning = (ame428_warnings.count > 0)
+                ? [ame428_warnings componentsJoinedByString:@"\n"] : nil;
+            completion(ame428_merged, ame428_cfTotal, ame428_mrTotal, ame428_hasMore, nil, ame428_warning);
+        });
     });
 }
 

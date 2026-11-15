@@ -11,6 +11,7 @@
 #import "DownloadHistoryViewController.h"
 #import "PLTaskStages.h"
 #import "PLTaskProgressViewController.h"
+#import "ZL2MotionKit.h"   // ★Task429：MD3 动效体系（任务卡列表入场示范接入）
 
 static NSString * const kTaskCellReuseIdentifier = @"DownloadTaskCell";
 static NSString * const kEmptyStateReuseIdentifier = @"DownloadTaskEmptyCell";
@@ -690,6 +691,11 @@ static const CGFloat kSectionInset = 16.0;
 - (void)viewWillAppear:(BOOL)animated {
     [super viewWillAppear:animated];
     [self reloadData];
+    // ★Task429：下载任务卡列表入场示范接入（表 9-1「列表入场」行）——可见
+    //   卡片按 indexPath 递增 20ms 错峰 alpha+8pt 上移归位；同批防重入由
+    //   ZL2MotionList 内置（任务更新连发 reloadData 不重摆），reduceMotion
+    //   /未挂窗自动直落。
+    [ZL2MotionList animateEntranceOfCollectionView:self.collectionView];
 }
 
 - (void)dealloc {

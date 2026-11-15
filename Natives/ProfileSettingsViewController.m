@@ -23,6 +23,7 @@
 #import "PLTaskStages.h"
 #import "ModpackExportService.h" // for parseVersionId:
 #import "ModService.h"          // Task268：TouchController 卸载走生效 mods 目录
+#import "PLGameIntegrityService.h" // ★Task429：实例级校验并补全（版本信息组新行）
 
 @interface ProfileSettingsViewController () <UITextFieldDelegate, UIPickerViewDataSource, UIPickerViewDelegate>
 
@@ -110,6 +111,9 @@ static NSString * localizeProfileTitle(NSString *title) {
             @"名称": @"preference.profile.title.name",
             @"游戏版本": @"i18n_str_2031",
             @"游戏目录": @"preference.title.game_directory",
+            // ★Task429：实例级校验并补全（版本信息组新行，键四表见
+            //   scripts/task429_i18n_BC.json）
+            @"校验并补全游戏文件": @"ame429.bc.verify.entry",
             @"模组管理": @"i18n_str_2039",
             @"光影管理": @"i18n_str_2016",
             @"资源包管理": @"i18n_str_2040",
@@ -686,13 +690,17 @@ static NSString * localizeProfileTitle(NSString *title) {
 
     // 重构（Prisma-Design v1.2）：5 个 Bento 分组
     // 顺序与横屏布局对应：左侧（0,1）+ 右侧（2,3,4）
-    //   0: 版本信息  - 名称 / 游戏版本 / 游戏目录
+    //   0: 版本信息  - 名称 / 游戏版本 / 游戏目录 / 校验并补全（★Task429 实例级）
     //   1: 资源管理  - 模组 / 光影 / 资源包 / 数据包 / 世界
     //   2: 组件安装  - Fabric API / Sodium + Iris Shaders（Task157）/ TouchController（Task173）/ OptiFine
     //   3: 高级设置  - 渲染器 / 图形 API / Java / 内存 / JVM 参数
     //   4: 服务器    - 服务器地址
     self.sections = @[
-        @[@"名称", @"游戏版本", @"游戏目录"],
+        @[@"名称", @"游戏版本", @"游戏目录",
+          // ★Task429：完整性校验入口实例级化（原版本列表页扫描 sheet 项迁来；
+          //   用户复诉："放在版本设置里面就扫描版本设置附属的那个实例"）——
+          //   点击即扫描本页附属实例（currentProfileName），非全局当前档。
+          @"校验并补全游戏文件"],
         @[@"模组管理", @"光影管理", @"资源包管理", @"数据包管理", @"世界管理"],
         @[@"Fabric API", @"Sodium + Iris Shaders", @"TouchController", @"OptiFine"],
         [advancedRows copy],
@@ -1089,6 +1097,13 @@ static NSString * localizeProfileTitle(NSString *title) {
                 } else {
                     cell.detailTextLabel.text = self.profile[@"gameDir"];
                 }
+            } else if ([title isEqualToString:@"校验并补全游戏文件"]) {
+                // ★Task429：实例级校验并补全行（原版本列表页扫描 sheet 项迁来）。
+                //   与本组其它行同款：SF 符号 + disclosure 箭头 + 副文本。
+                cell.imageView.image = [UIImage systemImageNamed:@"checkmark.seal"];
+                cell.accessoryView = [self ame163_disclosureChevron];
+                cell.detailTextLabel.text =
+                    localize(@"ame429.bc.verify.subtitle", @"校验并补全本实例缺失或损坏的文件");
             }
             break;
 
@@ -1634,6 +1649,21 @@ static NSString * localizeProfileTitle(NSString *title) {
                 // Task217：FCL 风格版本隔离——游戏目录行点击弹三态选择器
                 //（不隔离 / 隔离此版本 / 自定义路径），替代旧版直接弹文本框。
                 [self ame217_showIsolationPicker];
+            } else if ([title isEqualToString:@"校验并补全游戏文件"]) {
+                // ★Task429：实例级校验——传入本页附属实例的注册表字典键。
+                //   取法 = Task271 身份口径 currentProfileName（profileDictKey
+                //   优先，启动链/保存链同源）；键不可得或不在注册表（新建未
+                //   保存等）时留痕并退化为 nil = 服务侧全局当前档语义，不臆造键名。
+                NSString *ame429_profileKey = [self currentProfileName];
+                if (ame429_profileKey.length == 0 ||
+                    ![PLProfiles.current.profiles objectForKey:ame429_profileKey]) {
+                    NSLog(@"[ProfileSettings] Task429: profile key unavailable (%@) -- degrade to current profile",
+                          ame429_profileKey ?: @"<nil>");
+                    ame429_profileKey = nil;
+                }
+                [[PLGameIntegrityService sharedService]
+                    runInteractiveVerifyAndRepairForProfile:ame429_profileKey
+                                         fromViewController:self];
             }
             break;
 

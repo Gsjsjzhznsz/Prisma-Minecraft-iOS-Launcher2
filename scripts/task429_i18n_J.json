@@ -1,0 +1,224 @@
+{
+  "ame429.j.entry.drag_edit": {
+    "en": "Drag-edit layout",
+    "zh-Hans": "拖拽编辑布局",
+    "zh-CN": "拖拽编辑布局",
+    "zh-Hant": "拖拽編輯佈局"
+  },
+  "ame429.j.toolbar.save": {
+    "en": "Save",
+    "zh-Hans": "保存",
+    "zh-CN": "保存",
+    "zh-Hant": "儲存"
+  },
+  "ame429.j.toolbar.saveas": {
+    "en": "Save a copy",
+    "zh-Hans": "另存副本",
+    "zh-CN": "另存副本",
+    "zh-Hant": "另存副本"
+  },
+  "ame429.j.load.error": {
+    "en": "Failed to read the layout file; check the JSON files inside controlmap",
+    "zh-Hans": "布局文件读取失败，请检查 controlmap 内的 JSON 文件",
+    "zh-CN": "布局文件读取失败，请检查 controlmap 内的 JSON 文件",
+    "zh-Hant": "佈局檔案讀取失敗，請檢查 controlmap 內的 JSON 檔案"
+  },
+  "ame429.j.layer.none": {
+    "en": "Tap a control node first",
+    "zh-Hans": "请先点选一个控件节点",
+    "zh-CN": "请先点选一个控件节点",
+    "zh-Hant": "請先點選一個控件節點"
+  },
+  "ame429.j.kind.button": {
+    "en": "Button",
+    "zh-Hans": "按钮",
+    "zh-CN": "按钮",
+    "zh-Hant": "按鈕"
+  },
+  "ame429.j.kind.drawer": {
+    "en": "Drawer",
+    "zh-Hans": "抽屉",
+    "zh-CN": "抽屉",
+    "zh-Hant": "抽屜"
+  },
+  "ame429.j.kind.subbutton": {
+    "en": "Sub-button",
+    "zh-Hans": "子键",
+    "zh-CN": "子键",
+    "zh-Hant": "子鍵"
+  },
+  "ame429.j.kind.joystick": {
+    "en": "Joystick",
+    "zh-Hans": "摇杆",
+    "zh-CN": "摇杆",
+    "zh-Hant": "搖桿"
+  },
+  "ame429.j.layer.title": {
+    "en": "Layer order",
+    "zh-Hans": "层管理",
+    "zh-CN": "层管理",
+    "zh-Hant": "層管理"
+  },
+  "ame429.j.layer.to_front": {
+    "en": "Bring to front",
+    "zh-Hans": "置顶",
+    "zh-CN": "置顶",
+    "zh-Hant": "置頂"
+  },
+  "ame429.j.layer.to_back": {
+    "en": "Send to back",
+    "zh-Hans": "置底",
+    "zh-CN": "置底",
+    "zh-Hant": "置底"
+  },
+  "ame429.j.layer.forward": {
+    "en": "Move forward",
+    "zh-Hans": "上移一层",
+    "zh-CN": "上移一层",
+    "zh-Hant": "上移一層"
+  },
+  "ame429.j.layer.backward": {
+    "en": "Move backward",
+    "zh-Hans": "下移一层",
+    "zh-CN": "下移一层",
+    "zh-Hant": "下移一層"
+  },
+  "ame429.j.layer.foot": {
+    "en": "Layer order is also written back to the layout JSON's array order, so it matches in-game.",
+    "zh-Hans": "层序同时写回布局 JSON 的数组顺序，进游戏后生效一致。",
+    "zh-CN": "层序同时写回布局 JSON 的数组顺序，进游戏后生效一致。",
+    "zh-Hant": "層序同時寫回佈局 JSON 的陣列順序，進遊戲後生效一致。"
+  },
+  "ame429.j.style.title": {
+    "en": "Style presets",
+    "zh-Hans": "样式预设",
+    "zh-CN": "样式预设",
+    "zh-Hant": "樣式預設"
+  },
+  "ame429.j.style.default": {
+    "en": "Default",
+    "zh-Hans": "默认",
+    "zh-CN": "默认",
+    "zh-Hant": "預設"
+  },
+  "ame429.j.style.default.sub": {
+    "en": "Opaque buttons · 30% dark fill · 1pt stroke",
+    "zh-Hans": "不透明按钮 · 30% 深底 · 1pt 描边",
+    "zh-CN": "不透明按钮 · 30% 深底 · 1pt 描边",
+    "zh-Hant": "不透明按鈕 · 30% 深底 · 1pt 描邊"
+  },
+  "ame429.j.style.translucent": {
+    "en": "Translucent",
+    "zh-Hans": "半透明",
+    "zh-CN": "半透明",
+    "zh-Hant": "半透明"
+  },
+  "ame429.j.style.translucent.sub": {
+    "en": "55% buttons · 12% light fill · 0.5pt stroke",
+    "zh-Hans": "55% 按钮 · 12% 浅底 · 0.5pt 描边",
+    "zh-CN": "55% 按钮 · 12% 浅底 · 0.5pt 描边",
+    "zh-Hant": "55% 按鈕 · 12% 淺底 · 0.5pt 描邊"
+  },
+  "ame429.j.style.minimal": {
+    "en": "Minimal",
+    "zh-Hans": "极简",
+    "zh-CN": "极简",
+    "zh-Hant": "極簡"
+  },
+  "ame429.j.style.minimal.sub": {
+    "en": "85% buttons · 7% light fill · no stroke",
+    "zh-Hans": "85% 按钮 · 7% 浅底 · 无描边",
+    "zh-CN": "85% 按钮 · 7% 浅底 · 无描边",
+    "zh-Hant": "85% 按鈕 · 7% 淺底 · 無描邊"
+  },
+  "ame429.j.style.foot": {
+    "en": "Applied to the whole layout: writes opacity, background alpha and stroke width for every control; colors stay unchanged.",
+    "zh-Hans": "整版套用：写回每个控件的透明度/背景透明度/描边三个样式字段，颜色本身不变。",
+    "zh-CN": "整版套用：写回每个控件的透明度/背景透明度/描边三个样式字段，颜色本身不变。",
+    "zh-Hant": "整版套用：寫回每個控件的透明度/背景透明度/描邊三個樣式欄位，顏色本身不變。"
+  },
+  "ame429.j.more.title": {
+    "en": "More",
+    "zh-Hans": "更多",
+    "zh-CN": "更多",
+    "zh-Hant": "更多"
+  },
+  "ame429.j.more.discard": {
+    "en": "Discard changes and exit",
+    "zh-Hans": "放弃更改并退出",
+    "zh-CN": "放弃更改并退出",
+    "zh-Hant": "放棄變更並離開"
+  },
+  "ame429.j.more.hint": {
+    "en": "Drag nodes to move; they snap to the 8pt grid on release. Drag a corner handle to scale uniformly. Use \"Layers\" to reorder and \"Styles\" to reskin the whole layout.",
+    "zh-Hans": "拖动节点移动，松手自动吸附 8pt 网格；选中后拖角柄等比缩放；工具条「层」调整叠放次序，「样式」整版换肤。",
+    "zh-CN": "拖动节点移动，松手自动吸附 8pt 网格；选中后拖角柄等比缩放；工具条「层」调整叠放次序，「样式」整版换肤。",
+    "zh-Hant": "拖動節點移動，鬆手自動吸附 8pt 網格；選中後拖角柄等比縮放；工具條「層」調整疊放次序，「樣式」整版換膚。"
+  },
+  "ame429.j.save.error.name": {
+    "en": "Invalid file name (empty or contains path separators)",
+    "zh-Hans": "文件名不合法（不能为空或包含路径分隔符）",
+    "zh-CN": "文件名不合法（不能为空或包含路径分隔符）",
+    "zh-Hant": "檔案名稱不合法（不能為空或包含路徑分隔符）"
+  },
+  "ame429.j.save.error.json_title": {
+    "en": "Save failed",
+    "zh-Hans": "保存失败",
+    "zh-CN": "保存失败",
+    "zh-Hant": "儲存失敗"
+  },
+  "ame429.j.save.error.json": {
+    "en": "Layout data could not be serialized to JSON; nothing was written.",
+    "zh-Hans": "布局数据无法序列化为 JSON，未写入文件。",
+    "zh-CN": "布局数据无法序列化为 JSON，未写入文件。",
+    "zh-Hant": "佈局資料無法序列化為 JSON，未寫入檔案。"
+  },
+  "ame429.j.save.error.write_title": {
+    "en": "Write failed",
+    "zh-Hans": "写入失败",
+    "zh-CN": "写入失败",
+    "zh-Hant": "寫入失敗"
+  },
+  "ame429.j.toast.copy_ok": {
+    "en": "Copy saved: %@.json",
+    "zh-Hans": "副本已保存：%@.json",
+    "zh-CN": "副本已保存：%@.json",
+    "zh-Hant": "副本已儲存：%@.json"
+  },
+  "ame429.j.toast.save_ok": {
+    "en": "Saved: %@.json",
+    "zh-Hans": "已保存：%@.json",
+    "zh-CN": "已保存：%@.json",
+    "zh-Hant": "已儲存：%@.json"
+  },
+  "ame429.j.toast.style_applied": {
+    "en": "Style applied to the whole layout",
+    "zh-Hans": "样式已整版套用",
+    "zh-CN": "样式已整版套用",
+    "zh-Hant": "樣式已整版套用"
+  },
+  "ame429.j.close.title": {
+    "en": "Exit editor",
+    "zh-Hans": "退出编辑器",
+    "zh-CN": "退出编辑器",
+    "zh-Hant": "離開編輯器"
+  },
+  "ame429.j.close.body": {
+    "en": "This layout has unsaved changes. Confirming will save it under the same file name and exit.",
+    "zh-Hans": "当前布局有未保存的更改。确认后将以原文件名保存并退出。",
+    "zh-CN": "当前布局有未保存的更改。确认后将以原文件名保存并退出。",
+    "zh-Hant": "目前佈局有未儲存的變更。確認後將以原檔名儲存並離開。"
+  },
+  "ame429.j.close.save_exit": {
+    "en": "Save and exit",
+    "zh-Hans": "保存并退出",
+    "zh-CN": "保存并退出",
+    "zh-Hant": "儲存並離開"
+  },
+  "ame429.j.title.dirty": {
+    "en": "Unsaved",
+    "zh-Hans": "未保存",
+    "zh-CN": "未保存",
+    "zh-Hant": "未儲存"
+  }
+}

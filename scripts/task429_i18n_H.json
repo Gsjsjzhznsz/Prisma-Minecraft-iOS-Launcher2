@@ -1,0 +1,32 @@
+{
+  "ame429.list.section_renderers": {
+    "en": "Renderer Plugins (MobileGlues plugin packages)",
+    "zh-Hans": "渲染器插件（MobileGlues 插件包）",
+    "zh-CN": "渲染器插件（MobileGlues 插件包）",
+    "zh-Hant": "渲染器插件（MobileGlues 插件包）"
+  },
+  "ame429.list.delete_confirm": {
+    "en": "Uninstall this renderer plugin? Its entry will disappear from the renderer list on next launch (running sessions are unaffected).",
+    "zh-Hans": "卸载该渲染器插件？下次启动后渲染器列表将不再出现该档位（运行中的会话不受影响）。",
+    "zh-CN": "卸载该渲染器插件？下次启动后渲染器列表将不再出现该档位（运行中的会话不受影响）。",
+    "zh-Hant": "卸載該渲染器插件？下次啟動後渲染器列表將不再出現該檔位（執行中的會話不受影響）。"
+  },
+  "ame429.list.delete_ok": {
+    "en": "Uninstall",
+    "zh-Hans": "卸载",
+    "zh-CN": "卸载",
+    "zh-Hant": "卸載"
+  },
+  "ame317.perm.java.inject.name": {
+    "en": "JVM Injection (java-inject)",
+    "zh-Hans": "JVM 注入（java-inject）",
+    "zh-CN": "JVM 注入（java-inject）",
+    "zh-Hant": "JVM 注入（java-inject）"
+  },
+  "ame317.perm.java.inject.desc": {
+    "en": "Allow the plugin to declare JVM launch arguments, -javaagent jars, extra classpath entries and native library paths in its manifest (applied at game start after you grant it; high risk — off by default).",
+    "zh-Hans": "允许插件在其 manifest 中声明 JVM 启动参数、-javaagent jar、附加 classpath 条目与 native 库路径（授权后于游戏启动时生效；高危，默认关闭）。",
+    "zh-CN": "允许插件在其 manifest 中声明 JVM 启动参数、-javaagent jar、附加 classpath 条目与 native 库路径（授权后于游戏启动时生效；高危，默认关闭）。",
+    "zh-Hant": "允許插件在其 manifest 中聲明 JVM 啟動參數、-javaagent jar、附加 classpath 條目與 native 庫路徑（授權後於遊戲啟動時生效；高危，默認關閉）。"
+  }
+}

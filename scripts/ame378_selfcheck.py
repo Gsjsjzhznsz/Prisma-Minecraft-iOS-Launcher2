@@ -261,9 +261,9 @@ check("C12 转盘字体恒定（★Task407：封面流条目随 |d| 缩放时缩
       and "ame400_nameLabel.lineBreakMode = NSLineBreakByTruncatingTail;" in home
       and "ame400_typeLabel.lineBreakMode = NSLineBreakByTruncatingTail;" in home)
 
-check("C13 构建代际锚（★Task407 立 408/409/410/411/412 推进 Task414 推进 ★Task421 重锚 ★Task422/423 推进 ★Task424 推进 ★Task426 推进 ★Task427 推进 ★Task428 推进：定义 header 化 = BuildTag.h 单一事实源，预览卡代际角标 ame421_buildChip 与关于页版本行同一字面量双面恒等；\n      Info.plist 双键静态致装机代际不可辨 = 旧构建滞留循环的\n      结构性盲区，角标/关于页任一面板截图即可判代际）",
+check("C13 构建代际锚（★Task407 立 408/409/410/411/412 推进 Task414 推进 ★Task421 重锚 ★Task422/423 推进 ★Task424 推进 ★Task426 推进 ★Task427 推进 ★Task428 推进 ★Task429 推进：定义 header 化 = BuildTag.h 单一事实源，预览卡代际角标 ame421_buildChip 与关于页版本行同一字面量双面恒等；\n      Info.plist 双键静态致装机代际不可辨 = 旧构建滞留循环的\n      结构性盲区，角标/关于页任一面板截图即可判代际）",
       "ame415_buildTag" in about_code
-      and "Task428 · 2026-11-15" in read("Natives/BuildTag.h")
+      and "Task429 · 2026-11-15" in read("Natives/BuildTag.h")
       and "static NSString *const ame415_buildTag" in read("Natives/BuildTag.h")
       and '#import "BuildTag.h"' in read("Natives/AboutViewController.m")
       and "numberOfLines = 0" in about_code)
@@ -535,7 +535,7 @@ ame378_c21 = [
     # ⑬ ★Task421 代际角标（旧构建滞留循环结构性根修：IMG_0655/0661 = 416+ 共享
     #    角点几何数学不可能的臂缝 30~40px = 设备滞留 Task415 代实锤；验锚必须
     #    长在截图面板自身而非用户从不导航的设置→关于）+ slim 内侧脸 1px UV 修正
-    ("build-tag-header", "Task428 · 2026-11-15" in read("Natives/BuildTag.h")
+    ("build-tag-header", "Task429 · 2026-11-15" in read("Natives/BuildTag.h")
         and "static NSString *const ame415_buildTag" in read("Natives/BuildTag.h")),   # 构建代号 header 化单一事实源
     ("build-tag-import-pair", '#import "BuildTag.h"' in read("Natives/AboutViewController.m")
         and '#import "BuildTag.h"' in skinview_raw
@@ -688,6 +688,69 @@ if ame378_c21_fail and os.environ.get("AME378_DEBUG"):
     print("  C21 failing clauses:", ", ".join(ame378_c21_fail))
 check("C21 真3D装配序根修+启动卡钉底回归根修+预览闭环补盲+雾化幽灵盒行高横屏根修+全息皮语义双修+预览皮肤链根修+代际角标（★Task415~427 递进——\n      ①面变换 R·T / 摆动枢轴 / 模型旋转入面 / NaN 卫兵 / 装配诊断日志；②启动卡钉底三钉 +\n      工作室卡 clamp[460,640]；③harness 选中账户 + 测试皮肤 = CI 首渲；④Task417 overlay+真壳+\n      iPad 腿+r5 紧凑行宽根修；⑤Task418 Nearest 滤镜 + shade 掩膜 + 64×32 y 同 x 标度 +\n      legacy 仅帽外层 + 账户行高等式 74 + hugging 软盾 + [Ame418] 帧诊断 + 横屏三件套 +\n      截图自动正向；⑩Task419 基础层 α 裁切 + 外层 DoubleSide + 全息测试皮 CI 可视；\n      ⑪Task419 studio 等式降 999 必冲突根修 + 视觉卡 ≤200 保险丝；⑫Task420 皮肤链 mtime\n      取新 + 双根探测 + 真皮回退 + 指纹闸 + 头像随新；⑬Task421 代际角标 BuildTag.h\n      单一事实源 + slim 内侧脸 1px UV 修正；⑭Task422 半透外层暗罩分级（α≥180 才受罩）+ 动作行下载/头像钮竖直补锚；\n      ⑮Task423 内容级 slim/classic 判定探针 + 缓存来源 sidecar 降毒 + alex 哨兵禁入；\n      ⑲Task427 面板只盖预览列以左 + 姿态图标段 + 全屏窗级宿主 + 五停靠天穹/晚霞辉光/雾锚定 +\n      维度固定光照 + 水面反光 + 20×20 高度图立体方块/沙盘/D_world/暴露壁）",
       all(ok for _, ok in ame378_c21))
+
+# ══ C 系：★Task429 第六版修复包（repair 真实发起 / redact 真实生效 / 上界收口族 / 旧账清账） ══
+# 口径：代码结构断言走 strip_code（注释中的病灶描述词不干扰）；字符串实义断言走 raw。
+
+ig = read("Natives/PLGameIntegrityService.m")
+ig_code = strip_code(ig)
+# 修复循环切片：ame428_repairSequentialWithDeadline 定义 → 下一契约入口
+# preLaunchCheckForCurrentProfile（该文件含并行工位改动区，切片断言防误伤）
+ig_repair = ig_code[ig_code.index("ame428_repairSequentialWithDeadline"):
+                    ig_code.index("preLaunchCheckForCurrentProfile")]
+
+ls = read("Natives/PLLogShareService.m")
+ls_code = strip_code(ls)
+agg = read("Natives/ZL2AggregatedSearchService.m")
+agg_code = strip_code(agg)
+cf = read("Natives/installer/modpack/CurseForgeAPI.m")
+cf_code = strip_code(cf)
+jl = read("Natives/JavaLauncher.m")
+ex = read("Natives/ModpackExportViewController.m")
+
+check("C28 ★Task429 N1 repair 真实发起（启动档预算守卫=耗尽语义：NSOrderedAscending/Same 才 break，"
+      "误用 ==NSOrderedDescending 形态退役；守卫逐轮读 deadline；循环内真实发起修复——"
+      "ame428_repairItem: → PLDownloadClient startRequest 在位）",
+      "NSOrderedAscending" in ig_repair
+      and "NSOrderedSame" in ig_repair
+      and "== NSOrderedDescending" not in ig_repair
+      and "[deadline compare:[NSDate date]]" in ig_repair
+      and "ame428_repairItem:item" in ig_repair
+      and "[[PLDownloadClient sharedClient] startRequest:" in ig_code)
+
+check("C29 ★Task429 N2 redact 真实生效（PLLogShareService dispatch_once 内 regularExpressionWithPattern: "
+      "编译路径在位；旧 isKindOfClass-continue 恒假守卫形态退役；消费端 matcher stringByReplacingMatchesInString 实名）",
+      "regularExpressionWithPattern:" in ls_code
+      and "isKindOfClass:NSRegularExpression.class" not in ls_code
+      and "stringByReplacingMatchesInString" in ls_code)
+
+check("C30 ★Task429 上界/收口族（N7 信号量 20s 上界+该文件 FOREVER 退役 · N6a 聚合等待加上限降级"
+      "（notify 退役改 dispatch_group_wait cap）· N4b group 等待轮询步进+总上界+FOREVER 退役 · "
+      "N4a cancelToken NSLock 读写收口（ame429_setCancelFlag/ame429_cancelRequested）· "
+      "N6b 失配旗标读后即清（ame428_takeLastCategoryFallbackSlug））",
+      "dispatch_time(DISPATCH_TIME_NOW, 20LL * NSEC_PER_SEC)" in ls_code
+      and "DISPATCH_TIME_FOREVER" not in ls_code
+      and "kAme428AggWaitCapSeconds" in agg_code
+      and "dispatch_group_notify" not in agg_code
+      and "dispatch_group_wait" in agg_code
+      and "kAme428RepairWaitPollStepSeconds" in ig_code
+      and "kAme428InteractiveRepairWaitCapSeconds" in ig_code
+      and "DISPATCH_TIME_FOREVER" not in ig_code
+      and "ame429_cancelRequested" in ig_code
+      and "ame429_setCancelFlag" in ig_code
+      and "_cancelTokenLock" in ig_code
+      and "ame428_takeLastCategoryFallbackSlug" in cf_code)
+
+check("C31 ★Task429 旧账清账（v2-2.2 UpdateChecker repoName=Prisma-Minecraft-iOS-Launcher2 与关于页同口径 · "
+      "v2-2.3 JavaLauncher SOCKS5 消费块恢复（AMETHYST_SOCKS5_PROXY 实消费 + [Ame429] fail-loud 哨）· "
+      "N5 导出页三处 onTap __weak weakSelf 断环）",
+      'return @"Prisma-Minecraft-iOS-Launcher2";' in read("Natives/UpdateChecker.m")
+      and 'getenv("AMETHYST_SOCKS5_PROXY")' in jl
+      and "[Ame429] socks5 proxy consumed" in jl
+      and ex.count("__weak typeof(self) weakSelf = self;") >= 3
+      and "weakSelf.selectedFormat = fmt;" in ex
+      and "[weakSelf showProfilePicker];" in ex
+      and "weakSelf.fileOptions |= bit;" in ex)
 
 # ══ S 反向探针（--selftest：变体注入必翻红） ═══════════════════════
 

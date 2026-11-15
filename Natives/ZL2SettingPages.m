@@ -91,6 +91,17 @@
 //   （该文件不在本任务写权内，注册面归并行工程师/主控合流）；注册前
 //   写值会被静默丢弃，读侧缺键回退默认不受影响（本文件读全部已带
 //   getPrefObject 判空默认链）。
+//   ★Task429 新行：general.mirror_mode 下载镜像三态（int 默认 0；
+//   0=自动（大陆 BMCLAPI 优先，Task428 4.1 大陆探测默认档语义）/
+//   1=官方 / 2=手动 BMCLAPI；服务侧消费由镜像服务层接）；注册片段
+//   scripts/task429_prefs_BC.json（Setter 静默丢弃族同判例）。
+//   ★Task429 S1 新行：general.proxy_mode 下载代理三态（int 默认 0；
+//   0=关 / 1=HTTP / 2=SOCKS5）+ general.proxy_host / general.proxy_port
+//   （字符串承载，运行期按 1-65535 校验）。生效面：PLDownloadClient 会话
+//   connectionProxyDictionary（HTTP 双键族）+ 游戏侧 AMETHYST_SOCKS5_PROXY
+//   环境变量（与 MultiplayerManager 联机通道同键双通道一致，物化逻辑单一
+//   事实源在 PLDownloadClient +ame429_s1_syncProxyEnvFromPrefs——本页各代理
+//   行落值即调用）。注册片段 scripts/task429_prefs_S1.json（同判例）。
 //
 // ⑥ Java 管理屏（LauncherPrefManageJREViewController 同枚举口径）
 //   java.java_homes                默认 Java（@0 字典按 tag：1_16_5_older/
@@ -140,6 +151,7 @@
 #import "LauncherPreferences.h"
 #import "PLProfiles.h"
 #import "PLMirrorCenter.h"
+#import "PLDownloadClient.h"   // ★Task429 S1：代理行落值即物化（ame429_s1_syncProxyEnvFromPrefs 单一事实源）
 #import "BackgroundManager.h"
 #import "UpdateChecker.h"
 #import "utils.h"
@@ -175,6 +187,10 @@
 #import "DataTransferService.h"
 #import "CurseForgeAPIKeyViewController.h"
 #import "CustomIconManager.h"
+
+// ★Task429：主题动态取色（8.1 主题色板行 + CUSTOM 取色弹层入口）
+#import "ZL2DynamicPalette.h"
+#import "ZL2ThemeCustomSheet.h"
 
 // ★Task428（1.2）：PLProfiles 新增类方法的本地前置声明（PLProfiles.h 不在
 //   授权清单内；全局隔离档行消费翻转计算 + 下沉执行）。签名勿漂移。
@@ -1663,6 +1679,8 @@ didFinishPickingMediaWithInfo:(NSDictionary<UIImagePickerControllerInfoKey,id> *
 //（两入口各自模式内各一个，不再同屏叠加）。底层链（PLPreferences/
 // SceneDelegate UIThemeChanged 迁移与映射）原样保留。
 @property (nonatomic, strong) ZL2SettingRowEnum *themeRow;
+// ★Task429：主题色板行（切轨刷新引用；general.theme_mode 三新键之一）
+@property (nonatomic, strong) ZL2SettingRowList *ame429_paletteRow;
 @property (nonatomic, strong) ZL2SettingRowList *languageRow;
 @property (nonatomic, strong) ZL2SettingRowList *effectRow;
 @property (nonatomic, strong) ZL2SettingRowSlider *opacityRow;
@@ -1787,6 +1805,57 @@ didPickDocumentsAtURLs:(NSArray<NSURL *> *)urls {
     };
     self.themeRow = themeRow;
 
+    // ★Task429：主题色板行（PDF 第五版 §8.1 动态主题模式选择，深浅三态行
+    //   近邻；列表 = embermire/跟随背景/五预设/CUSTOM）。键值域与
+    //   ZL2DynamicPalette Ame429ThemeMode 逐一对应（mode 2 = embermire 动态
+    //   重演内部占位，UI 不直达；UI 直达模式 0/1/3..8）。注册片段
+    //   scripts/task429_prefs_F.json（Setter 静默丢弃族同判例——PLPreferences.m
+    //   非本工位写权；注册前写值静默丢弃，读侧缺键回退默认 0 = embermire）。
+    NSArray<NSString *> *ame429_paletteLabels = @[
+        localize(@"ame429.f.palette.embermire", @"Embermire（默认）"),
+        localize(@"ame429.f.palette.follow", @"跟随背景"),
+        localize(@"ame429.f.palette.frozenlake", @"冻湖蓝"),
+        localize(@"ame429.f.palette.forest", @"森绿"),
+        localize(@"ame429.f.palette.dusk", @"暮紫"),
+        localize(@"ame429.f.palette.crimson", @"绯红"),
+        localize(@"ame429.f.palette.amber", @"琥珀"),
+        localize(@"ame429.f.palette.custom", @"自定义…"),
+    ];
+    NSArray<NSNumber *> *ame429_paletteModes = @[@0, @1, @3, @4, @5, @6, @7, @8];
+    ZL2SettingRowList *ame429_paletteRow =
+        [[ZL2SettingRowList alloc] initWithTitle:@"" subtitle:nil
+                                  options:ame429_paletteLabels optionKeys:nil];
+    ame429_paletteRow.title = localize(@"ame429.f.palette.title", @"主题色板");
+    ame429_paletteRow.subtitle = localize(@"ame429.f.palette.subtitle", @"跟随背景自动取色，或选择预设色板");
+    {
+        // 现值回显（mode → UI 列表位；mode 2 重演占位归位 embermire 位）
+        NSInteger ame429_mode = [[ZL2DynamicPalette shared] themeMode];
+        NSUInteger ame429_uiIndex = 0;   // 默认 embermire 位
+        for (NSUInteger i = 0; i < ame429_paletteModes.count; i++) {
+            if (ame429_paletteModes[i].integerValue == ame429_mode) {
+                ame429_uiIndex = i;
+                break;
+            }
+        }
+        [ame429_paletteRow ame_reloadSelectedIndex:(NSInteger)ame429_uiIndex];
+    }
+    ame429_paletteRow.onSelect = ^(NSInteger index) {
+        if (index < 0 || (NSUInteger)index >= ame429_paletteModes.count) return;
+        NSInteger ame429_mode = ame429_paletteModes[index].integerValue;
+        if (ame429_mode == (NSInteger)Ame429ThemeModeCustom) {
+            // 自定义 → 弹 ZL2ThemeCustomSheet（确认钮写三键触发生效链；
+            // 本行不落键，防未选种子即写 mode 8）
+            ZL2ThemeCustomSheet *ame429_sheet = [[ZL2ThemeCustomSheet alloc] init];
+            [ame429_sheet ame429_presentFromViewController:weakSelf];
+            return;
+        }
+        setPrefInt(@"general.theme_mode", ame429_mode);
+        // 生效链：HCT 色板 → 推 ZL2Theme 活动覆盖层 → Task346 根重建
+        // （跟随背景模式内部先落 embermire 再后台取色补推）
+        [[ZL2DynamicPalette shared] ame429_reloadAndApply];
+    };
+    self.ame429_paletteRow = ame429_paletteRow;
+
     // 应用语言（general.app_language；system + 全部内置语言，写后广播重载）
     NSArray<NSString *> *builtinCodes = [ZL2LauncherSettingsPage ame_availableLanguageCodes];
     NSArray<NSString *> *langCodes =
@@ -1875,7 +1944,8 @@ didPickDocumentsAtURLs:(NSArray<NSURL *> *)urls {
     ZL2SettingCardGroup *group1 = [[ZL2SettingCardGroup alloc] init];
     // ★ Task396：深浅模式行恢复后外观组五行（深浅/语言/效果/透明度/模糊）
     // ★Task428：+ 节日彩蛋行（外观/个性化组第 6 行）
-    [group1 ame_addRows:@[themeRow, languageRow, effectRow, opacityRow, blurRow, festivalRow]];
+    // ★Task429：+ 主题色板行（深浅行近邻第 2 位；8.1 动态主题模式选择）
+    [group1 ame_addRows:@[themeRow, ame429_paletteRow, languageRow, effectRow, opacityRow, blurRow, festivalRow]];
     [self ame_addGroup:group1];
     // ★ Task328：插件贡献行动态组上移（Task327 挂页尾 = 用户不可达面重现——
     //   四内置插件已装载而用户仍报"没看到任何功能"：组在第 3 屏外）。上移到
@@ -2152,6 +2222,81 @@ didPickDocumentsAtURLs:(NSArray<NSURL *> *)urls {
         if (value > 0 && value < 8) value = 8;
         setPrefInt(@"general.download_threads", value);
     };
+    // ★Task429（PDF 13.2）：下载镜像三态选择器（general.mirror_mode；int
+    //   0=自动（大陆 BMCLAPI 优先，Task428 4.1 大陆探测默认档语义）/ 1=官方 /
+    //   2=手动（BMCLAPI））。落位「下载并发数」行后（下载域聚簇）；组件口径 =
+    //   本页既有 ZL2SettingRowList（isoRow 同款 M3 行内选择器）；服务侧消费由
+    //   镜像服务层另行接（PLMirrorCenter）。键注册片段见
+    //   scripts/task429_prefs_BC.json——PLPreferences.m 非本工位写权（Setter
+    //   静默丢弃族同判例）：未注册期写值被丢弃，读侧缺键回退默认 0 不受影响。
+    ZL2SettingRowList *ame429_mirrorRow =
+        [[ZL2SettingRowList alloc] initWithTitle:@"" subtitle:nil
+                                 options:@[
+                                     localize(@"ame429.bc.mirror.auto", @"自动（大陆 BMCLAPI 优先）"),
+                                     localize(@"ame429.bc.mirror.official", @"官方"),
+                                     localize(@"ame429.bc.mirror.manual", @"手动（BMCLAPI）"),
+                                 ] optionKeys:@[@"0", @"1", @"2"]];
+    ame429_mirrorRow.title = localize(@"ame429.bc.mirror.title", @"下载镜像");
+    ame429_mirrorRow.subtitle = localize(@"ame429.bc.mirror.subtitle", @"游戏文件下载走官方源还是 BMCLAPI 镜像");
+    {
+        NSInteger ame429_mode = getPrefInt(@"general.mirror_mode");
+        if (ame429_mode < 0 || ame429_mode > 2) ame429_mode = 0;
+        [ame429_mirrorRow ame_reloadSelectedIndex:ame429_mode];
+    }
+    ame429_mirrorRow.onSelect = ^(NSInteger index) {
+        if (index < 0 || index > 2) return;
+        setPrefInt(@"general.mirror_mode", index);
+    };
+    // ★Task429 S1（PDF 六 §4.4）：下载代理三态 + 主机 + 端口（general.proxy_mode/
+    //   general.proxy_host/general.proxy_port——注册片段 scripts/task429_prefs_S1.json，
+    //   Setter 静默丢弃族同判例：注册前写值被丢弃，读侧缺键回退默认不受影响）。
+    //   落位紧随镜像行（下载域聚簇）；组件口径 = 本页既有 ZL2SettingRowList /
+    //   ZL2SettingRowInput。生效面单一事实源 = PLDownloadClient
+    //   +ame429_s1_syncProxyEnvFromPrefs / +ame429_s1_connectionProxyDictionaryFromPrefs：
+    //   三行任一落值即物化游戏侧 AMETHYST_SOCKS5_PROXY 环境变量（mode==2 且
+    //   host/port 合法 → setenv，否则 unsetenv；与 MultiplayerManager 联机通道
+    //   同键双通道一致）；启动器下载会话代理在会话构造点注入（会话固化 =
+    //   下轮进程生效，行注记已声明）。最小追加：仅新增三行与数组登记，
+    //   不触碰并行工位行。
+    ZL2SettingRowList *ame429_s1_proxyModeRow =
+        [[ZL2SettingRowList alloc] initWithTitle:@"" subtitle:nil
+                                 options:@[
+                                     localize(@"ame429.s1.proxy.off", @"关闭"),
+                                     localize(@"ame429.s1.proxy.http", @"HTTP"),
+                                     localize(@"ame429.s1.proxy.socks", @"SOCKS5"),
+                                 ] optionKeys:@[@"0", @"1", @"2"]];
+    ame429_s1_proxyModeRow.title = localize(@"ame429.s1.proxy.title", @"下载代理");
+    ame429_s1_proxyModeRow.subtitle = localize(@"ame429.s1.proxy.subtitle", @"启动器下载与游戏内网络（SOCKS5）的代理通道");
+    {
+        NSInteger ame429_s1_mode = getPrefInt(@"general.proxy_mode");
+        if (ame429_s1_mode < 0 || ame429_s1_mode > 2) ame429_s1_mode = 0;
+        [ame429_s1_proxyModeRow ame_reloadSelectedIndex:ame429_s1_mode];
+    }
+    ame429_s1_proxyModeRow.onSelect = ^(NSInteger index) {
+        if (index < 0 || index > 2) return;
+        setPrefInt(@"general.proxy_mode", index);
+        [PLDownloadClient ame429_s1_syncProxyEnvFromPrefs];
+    };
+    ZL2SettingRowInput *ame429_s1_proxyHostRow =
+        [[ZL2SettingRowInput alloc] initWithTitle:@"" subtitle:nil
+                              placeholder:localize(@"ame429.s1.proxy.host.placeholder", @"例如 127.0.0.1")
+                                     text:ame_pages_stringOr(getPrefObject(@"general.proxy_host"), @"")];
+    ame429_s1_proxyHostRow.title = localize(@"ame429.s1.proxy.host.title", @"代理主机");
+    ame429_s1_proxyHostRow.subtitle = localize(@"ame429.s1.proxy.host.subtitle", @"主机名或 IP；留空 = 不启用代理");
+    ame429_s1_proxyHostRow.onTextChanged = ^(NSString *text) {
+        setPrefString(@"general.proxy_host", text ?: @"");
+        [PLDownloadClient ame429_s1_syncProxyEnvFromPrefs];
+    };
+    ZL2SettingRowInput *ame429_s1_proxyPortRow =
+        [[ZL2SettingRowInput alloc] initWithTitle:@"" subtitle:nil
+                              placeholder:localize(@"ame429.s1.proxy.port.placeholder", @"例如 1080")
+                                     text:ame_pages_stringOr(getPrefObject(@"general.proxy_port"), @"")];
+    ame429_s1_proxyPortRow.title = localize(@"ame429.s1.proxy.port.title", @"代理端口");
+    ame429_s1_proxyPortRow.subtitle = localize(@"ame429.s1.proxy.port.subtitle", @"1-65535；非法值视为未配置");
+    ame429_s1_proxyPortRow.onTextChanged = ^(NSString *text) {
+        setPrefString(@"general.proxy_port", text ?: @"");
+        [PLDownloadClient ame429_s1_syncProxyEnvFromPrefs];
+    };
     // CurseForge API Key（表单页模态，旧页同款）
     ZL2SettingRowAction *cfKeyRow =
         [[ZL2SettingRowAction alloc] initWithTitle:@"" subtitle:nil];
@@ -2163,7 +2308,11 @@ didPickDocumentsAtURLs:(NSArray<NSURL *> *)urls {
         nav.modalPresentationStyle = UIModalPresentationFormSheet;
         [weakSelf ame_presentVC:nav];
     };
-    [miscGroup ame_addRows:@[shaRow, integrityRow, isoRow, mtRow, dlThreadRow, cfKeyRow]];
+    // ★Task429：+ ame429_mirrorRow（下载镜像三态，紧随下载并发数行）
+    // ★Task429 S1：+ 代理三行（下载代理/代理主机/代理端口，紧随镜像行）
+    [miscGroup ame_addRows:@[shaRow, integrityRow, isoRow, mtRow, dlThreadRow, ame429_mirrorRow,
+                             ame429_s1_proxyModeRow, ame429_s1_proxyHostRow, ame429_s1_proxyPortRow,
+                             cfKeyRow]];
     // 调试日志（general.debug_logging；游戏会话下轮生效——Task205 口径）
     ZL2SettingRowSwitch *dbgLogRow =
         [[ZL2SettingRowSwitch alloc] initWithTitle:@"" subtitle:nil];
@@ -2425,6 +2574,19 @@ didPickDocumentsAtURLs:(NSArray<NSURL *> *)urls {
     // ★Task428：节日彩蛋随切轨刷新（键缺省视为开，同建行口径）
     id ame428_festivalRaw = getPrefObject(@"general.festival_effects");
     [self.festivalRow ame_setOn:ame428_festivalRaw ? [ame428_festivalRaw boolValue] : YES];
+    // ★Task429：主题色板随切轨刷新（mode → UI 列表位回显；mode 2 重演占位归位 embermire 位）
+    {
+        NSArray<NSNumber *> *ame429_modes = @[@0, @1, @3, @4, @5, @6, @7, @8];
+        NSInteger ame429_mode = [[ZL2DynamicPalette shared] themeMode];
+        NSUInteger ame429_uiIndex = 0;
+        for (NSUInteger i = 0; i < ame429_modes.count; i++) {
+            if (ame429_modes[i].integerValue == ame429_mode) {
+                ame429_uiIndex = i;
+                break;
+            }
+        }
+        [self.ame429_paletteRow ame_reloadSelectedIndex:(NSInteger)ame429_uiIndex];
+    }
 }
 
 #pragma mark - Task344 旧 general 分区助手（旧 VC 平移）
@@ -2444,7 +2606,18 @@ didPickDocumentsAtURLs:(NSArray<NSURL *> *)urls {
     if ([ame428_svcClass respondsToSelector:@selector(sharedService)]) {
         ame428_shared = [ame428_svcClass performSelector:@selector(sharedService)];
     }
+    // ★Task429：入口保留（全局设置语义，PDF 3.3）；软链改调实例级新 API 传
+    //   nil（= 全局当前档，与旧 selector 语义等价——服务侧旧方法已改为
+    //   thin wrapper 兜底，两 selector 皆可命中，主用新键防旧键退役漂移）。
     if (ame428_shared != nil &&
+        [ame428_shared respondsToSelector:@selector(runInteractiveVerifyAndRepairForProfile:fromViewController:)]) {
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Warc-performSelector-leaks"
+        [ame428_shared performSelector:@selector(runInteractiveVerifyAndRepairForProfile:fromViewController:)
+                            withObject:nil
+                            withObject:self];
+#pragma clang diagnostic pop
+    } else if (ame428_shared != nil &&
         [ame428_shared respondsToSelector:@selector(runInteractiveVerifyAndRepairFromViewController:)]) {
 #pragma clang diagnostic push
 #pragma clang diagnostic ignored "-Warc-performSelector-leaks"

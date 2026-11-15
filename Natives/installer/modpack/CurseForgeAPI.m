@@ -20,6 +20,15 @@ static const NSInteger kCurseForgeCategoryIDServerUtility = 435;
 NSString *const CurseForgeResponseContentTypeKey = @"CurseForgeResponseContentTypeKey";
 NSString *const CurseForgeResponseSnippetKey = @"CurseForgeResponseSnippetKey";
 
+/// ★Task429 N6b（第六版报告）：分类失配旗标收口锁（惰性单例；getter/setter/
+/// take 三口共用同一把锁 = 写写/读写全路径互斥）
+static NSLock *Ame428FallbackSlugLock(void) {
+    static NSLock *ame428_slugLock = nil;
+    static dispatch_once_t ame428_slugLockOnce;
+    dispatch_once(&ame428_slugLockOnce, ^{ ame428_slugLock = [[NSLock alloc] init]; });
+    return ame428_slugLock;
+}
+
 /// 安全获取编译时 CurseForge API Key（避免 @nil 非法表达式）
 /// 参考 CurseForgeAPIKeyViewController.m 中的 CFKCompiledAPIKey() 实现
 static NSString *CFACompiledAPIKey(void) {
@@ -131,7 +140,41 @@ static NSString *CFA169NormalizeGameVersion(NSString *v) {
     return v;
 }
 
-@implementation CurseForgeAPI
+@implementation CurseForgeAPI {
+    // ★Task429 N6b：失配旗标 ivar 手工声明（getter/setter/take 三口全自实现
+    //   = 关闭自动合成；读写经 Ame428FallbackSlugLock() 收口）
+    NSString *_ame428_lastCategoryFallbackSlug;
+}
+
+// ★Task429 N6b（第六版报告）：分类失配旗标单例粘态跨请求竞态——原
+//   auto-synthesized nonatomic copy 属性在混杂线程下裸读写（写：请求发起
+//   线程 :983 复位 + 后台解析队列 :992 置位；读：主线程 completion），且
+//   粘态跨请求串味。修法：NSLock 收口三口（写/粘读/读后即清），聚合服务
+//   消费口走 ame428_takeLastCategoryFallbackSlug（取值后立即置 nil，一次
+//   失配只提示一次）。
+
+- (void)setAme428_lastCategoryFallbackSlug:(NSString *)slug {
+    [Ame428FallbackSlugLock() lock];
+    _ame428_lastCategoryFallbackSlug = [slug copy];
+    [Ame428FallbackSlugLock() unlock];
+}
+
+- (NSString *)ame428_lastCategoryFallbackSlug {
+    [Ame428FallbackSlugLock() lock];
+    NSString *slug = _ame428_lastCategoryFallbackSlug;
+    [Ame428FallbackSlugLock() unlock];
+    return slug;
+}
+
+/// 读后即清（take 语义）：读取处取值后立即置 nil（★Task429 N6b 消费口；
+/// 预览桩未实现该成员，消费方 respondsToSelector 守卫跳过）
+- (NSString *)ame428_takeLastCategoryFallbackSlug {
+    [Ame428FallbackSlugLock() lock];
+    NSString *slug = _ame428_lastCategoryFallbackSlug;
+    _ame428_lastCategoryFallbackSlug = nil;
+    [Ame428FallbackSlugLock() unlock];
+    return slug;
+}
 
 + (BOOL)ame169_isGatewayErrorJSON:(NSDictionary *)json {
     if (![json isKindOfClass:NSDictionary.class]) return NO;

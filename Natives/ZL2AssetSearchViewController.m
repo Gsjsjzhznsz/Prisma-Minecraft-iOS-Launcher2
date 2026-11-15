@@ -350,7 +350,8 @@ static UIColor *ZL2AssetSourceBadgeColor(NSInteger apiSource) {
         [_favoriteControl addSubview:_favoriteIconView];
 
         _favoriteLabel = [[UILabel alloc] init];
-        _favoriteLabel.font = [ZL2Theme fontLabelMedium];
+        // ★ Task429：收藏钮加大——label 随图标升到 LabelLarge（14pt 图标时代挤成小字）
+        _favoriteLabel.font = [ZL2Theme fontLabelLarge];
         _favoriteLabel.textColor = [ZL2Theme onSurfaceVariant];
         _favoriteLabel.numberOfLines = 1;
         _favoriteLabel.translatesAutoresizingMaskIntoConstraints = NO;
@@ -391,15 +392,24 @@ static UIColor *ZL2AssetSourceBadgeColor(NSInteger apiSource) {
             [_downloadsLabel.topAnchor constraintEqualToAnchor:_sourceBadgeView.bottomAnchor constant:6],
             [_downloadsLabel.trailingAnchor constraintEqualToAnchor:_cardView.trailingAnchor constant:-12],
 
-            [_favoriteControl.topAnchor constraintEqualToAnchor:_downloadsLabel.bottomAnchor constant:12],
+            // ★ Task429：收藏钮加大（用户复诉"收藏按钮太小了"）——对齐 ZL2
+            //   FavoriteToggleLabel 的图标口径（按 ID 页 22pt 心形同款）与 Apple
+            //   HIG 44pt 最小命中面：图标 14→22、label Medium→Large、控件定高
+            //   44/定宽 ≥64（含 12pt 左侧隐形命中冗余，视觉内容保持右对齐紧凑），
+            //   顶部间距 12→6 抵消高度增长，新增底缘 ≤ 约束把右列链纳入卡片自增高
+            //   （右列总高 10+20+6+17+6+44=103+8 底距 → 卡高 ~111，左列 ~100 取 max）。
+            [_favoriteControl.topAnchor constraintEqualToAnchor:_downloadsLabel.bottomAnchor constant:6],
             [_favoriteControl.trailingAnchor constraintEqualToAnchor:_cardView.trailingAnchor constant:-12],
+            [_favoriteControl.heightAnchor constraintEqualToConstant:44],
+            [_favoriteControl.widthAnchor constraintGreaterThanOrEqualToConstant:64],
+            [_favoriteControl.bottomAnchor constraintLessThanOrEqualToAnchor:_cardView.bottomAnchor constant:-8],
 
-            [_favoriteIconView.leadingAnchor constraintEqualToAnchor:_favoriteControl.leadingAnchor],
+            [_favoriteIconView.leadingAnchor constraintEqualToAnchor:_favoriteControl.leadingAnchor constant:12],
             [_favoriteIconView.centerYAnchor constraintEqualToAnchor:_favoriteControl.centerYAnchor],
-            [_favoriteIconView.widthAnchor constraintEqualToConstant:14],
-            [_favoriteIconView.heightAnchor constraintEqualToConstant:14],
+            [_favoriteIconView.widthAnchor constraintEqualToConstant:22],
+            [_favoriteIconView.heightAnchor constraintEqualToConstant:22],
 
-            [_favoriteLabel.leadingAnchor constraintEqualToAnchor:_favoriteIconView.trailingAnchor constant:3],
+            [_favoriteLabel.leadingAnchor constraintEqualToAnchor:_favoriteIconView.trailingAnchor constant:6],
             [_favoriteLabel.trailingAnchor constraintEqualToAnchor:_favoriteControl.trailingAnchor],
             [_favoriteLabel.centerYAnchor constraintEqualToAnchor:_favoriteControl.centerYAnchor],
 

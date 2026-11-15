@@ -99,8 +99,10 @@
 #import "AI/AiSessionStore.h"           //   顶栏 RailItem 第 5 项重挂；旧壳 showAIPage 同参）
 #import "utils.h"                       // Task318：localize（AI 顶栏项文案四表键，缺头=隐式声明雷）
 #import "BackgroundManager.h"            // ★ Task349：壁纸描边字体视图树级豁免（ame230_setViewTreeStrokeExempt）
+#import "ZL2BackgroundHost.h"             // ★Task429：ZL2 页背景层（8.3 双层毛玻璃，仅背景挂载区域消费）
 #import "ZL2FestivalEffects.h"          // ★Task428：8.2 节日彩蛋复活（当日节日粒子层挂窗 + 问候横幅）
 #import "TouchControllerPreferencesViewController.h"   // ★Task428：6.6 右上角切换簇虚拟按键直达
+#import "ZL2MotionKit.h"               // ★Task429：MD3 动效体系（壳层切页 fade+offset + 子 nav 转场接入）
 
 #include <stdlib.h>
 
@@ -728,6 +730,8 @@ static UIImage *ZL2ShellSystemImageSizedEx(NSString *name, NSString *fallback, C
 //   不再钻状态栏；胶囊入带右上 = 不再压主页右栏顶卡）
 @property(nonatomic, strong) UIView *bareHeaderView;                  // bare 顶带（状态栏区+64 呼吸带）
 @property(nonatomic, strong) UILabel *bareTitleLabel;                 // bare 顶带大标题（fui headerTitle 同源口径）
+// ★Task429：ZL2 页背景层（8.3；仅背景挂载区域消费，两骨架共用内容宿主）
+@property(nonatomic, strong) ZL2BackgroundHost *ame429_backgroundHost;
 @end
 
 @implementation ZL2ShellViewController
@@ -769,6 +773,10 @@ static UIImage *ZL2ShellSystemImageSizedEx(NSString *name, NSString *fallback, C
     } else {
         [self ame_buildBareShell];   // ★ Task378：顶栏骨架退役 = 无栏 bare 壳
     }
+
+    // ★Task429：ZL2 页背景挂载（8.3——两骨架共用内容宿主 self.container，
+    //   骨架分支后单点安装；详见 ame429_installBackgroundHost 注记）
+    [self ame429_installBackgroundHost];
 
     // 右上角快捷入口已移除；主页右栏是五个入口的唯一位置。
 
@@ -925,6 +933,28 @@ static UIImage *ZL2ShellSystemImageSizedEx(NSString *name, NSString *fallback, C
     ]];
     // 胶囊先建 = 被后加的顶带盖住；入带展示须置于顶带之上
     [self.view bringSubviewToFront:self.ame411_switcherCluster];
+}
+
+#pragma mark - ★Task429 8.3 ZL2 页背景挂载（唯一背景挂载区域）
+
+// 挂载方案：ZL2BackgroundHost 插入内容宿主 self.container 最底层
+//（insertSubview:atIndex:0——子页 attach 经 addSubview 恒在其上），读
+// BackgroundManager 既有管线：壁纸 Task223 降采样直取 / 透明度 uiOpacity /
+// 毛玻璃 blurIntensity 三令牌零新键；可见性经 Task111 透明化管线
+//（makeViewControllerTransparent:，hasBackground 守卫幂等）透出壳层树。
+// 首装即刷（含当前子页 attach 前的壳层树），此后壁纸/效果变化由宿主
+// 自身的双通知刷新面接管（Ame223WallpaperChanged / BackgroundUIEffectChanged）。
+- (void)ame429_installBackgroundHost {
+    if (self.container == nil) return;   // 骨架未建防御守卫
+    self.ame429_backgroundHost = [[ZL2BackgroundHost alloc] initWithFrame:CGRectZero];
+    [self.container insertSubview:self.ame429_backgroundHost atIndex:0];
+    [NSLayoutConstraint activateConstraints:@[
+        [self.ame429_backgroundHost.topAnchor constraintEqualToAnchor:self.container.topAnchor],
+        [self.ame429_backgroundHost.leadingAnchor constraintEqualToAnchor:self.container.leadingAnchor],
+        [self.ame429_backgroundHost.trailingAnchor constraintEqualToAnchor:self.container.trailingAnchor],
+        [self.ame429_backgroundHost.bottomAnchor constraintEqualToAnchor:self.container.bottomAnchor],
+    ]];
+    [self.ame429_backgroundHost ame429_refreshWithOwnerViewController:self];
 }
 
 #pragma mark - ★ Task411 bare 右上角无文字小型切换簇
@@ -1669,6 +1699,10 @@ static UIImage *ZL2ShellSystemImageSizedEx(NSString *name, NSString *fallback, C
     UIViewController *prev = [self ame_currentChild];
 
     [self ame_attachChildIfNeeded:next];
+    // ★Task429：子页 attach 后重放背景刷新（新子页 viewDidLoad 落不透明基色
+    //   会盖住背景层；幂等重放经 Task111 hasBackground 守卫把基色透出——
+    //   宿主刷新面含透明化管线应用，背景缺席时为对称还原，零视觉变化）
+    [self.ame429_backgroundHost ame429_refreshWithOwnerViewController:self];
 
     // ★Task405 退役：0d97c34 的「主页右栏提升到壳层常驻」整块拆除——提取后
     // actionMenu 脱离主页层级，长按换边（ame_applySideConstraintsAnimated:）
@@ -1683,8 +1717,42 @@ static UIImage *ZL2ShellSystemImageSizedEx(NSString *name, NSString *fallback, C
     };
     // ★ Task395：切页 CrossDissolve 补 reduceMotion 尊重（辅助功能“减弱
     //   动态效果”开启时直落无动画，其余场景 0.24s 淡入淡出）
+    // ★Task429：切页升级 fade+offset（全局杠杆 ①的壳层接线面）——prev 淡出
+    //   +下移 8pt、next alpha 0→1 + 上移 8pt 归位（kAme429MotionStandard 档）。
+    //   降级路径退回原 crossDissolve（Task395 语义原样保留）：reduceMotion
+    //   或页面未挂窗时走旧路。入场页 hidden 同步翻开（防竞态）；退场页保持
+    //   可见随动画淡出，completion 才补藏——补藏带 ame_currentChild 复核
+    //   （快速连点换页后，旧批次的 completion 不误藏当前页）；入场/退场只动
+    //   alpha 与 transform（与自动布局正交，缓存页复位零残留）。
     BOOL ame395_animate = !UIAccessibilityIsReduceMotionEnabled();  // C 函数形态（同上，CI 实锤）
-    if (prev && prev.view.superview && ame395_animate) {
+    if (prev && prev.view.superview && ame395_animate && next.view.superview) {
+        // 入场页先行可见（同步）；退场页保持可见随动画淡出，完成时再藏——
+        // hidden 补藏带 ame_currentChild 复核（中途连点换页的旧批次不藏当前页）
+        next.view.hidden = NO;
+        next.view.alpha = 0.0;
+        next.view.transform = CGAffineTransformMakeTranslation(0.0, 8.0);
+        prev.view.alpha = 1.0;
+        prev.view.transform = CGAffineTransformIdentity;
+        __weak typeof(self) weakSelf = self;
+        UIViewController *ame429_prev = prev;
+        [UIView animateWithDuration:kAme429MotionStandard
+                              delay:0.0
+                            options:UIViewAnimationOptionCurveEaseOut | UIViewAnimationOptionBeginFromCurrentState
+                         animations:^{
+            next.view.alpha = 1.0;
+            next.view.transform = CGAffineTransformIdentity;
+            prev.view.alpha = 0.0;
+            prev.view.transform = CGAffineTransformMakeTranslation(0.0, 8.0);
+        } completion:^(BOOL finished) {
+            // 复位缓存页（下次切回直显）；已被连点换页的旧批次才补藏
+            ame429_prev.view.alpha = 1.0;
+            ame429_prev.view.transform = CGAffineTransformIdentity;
+            __strong typeof(weakSelf) strongSelf = weakSelf;
+            if (strongSelf && ame429_prev != [strongSelf ame_currentChild]) {
+                ame429_prev.view.hidden = YES;
+            }
+        }];
+    } else if (prev && prev.view.superview && ame395_animate) {
         [UIView transitionWithView:self.container
                           duration:ZL2ShellAnimateDuration
                            options:UIViewAnimationOptionTransitionCrossDissolve
@@ -1890,8 +1958,17 @@ static UIImage *ZL2ShellSystemImageSizedEx(NSString *name, NSString *fallback, C
     }
     // 顶栏返回钮/标题跟随子 nav 栈深：UINavigationControllerDelegate 公开 API
     //（DidShow 通知常量在 SDK 非公开——CI 实证 undeclared，改走 delegate）
+    // ★Task429：子 nav 转场接入 ZL2MotionTransition（全局杠杆 ①，一次接入
+    //   下载/版本/账户/设置/联机/AI 六页全部 push/pop = 设置进出高频面）；
+    //   delegate 位被转场器占用后，didShow 经 onDidShow 旁挂转发回壳层原
+    //   消费方法（顶栏刷新语义不变；weak 防壳↔转场器保持环）。
     if ([vc isKindOfClass:[UINavigationController class]]) {
-        ((UINavigationController *)vc).delegate = self;
+        __weak typeof(self) weakSelf = self;
+        UINavigationController *ame429_nav = (UINavigationController *)vc;
+        [ZL2MotionTransition installOnNavigationController:ame429_nav
+                                                 onDidShow:^(UINavigationController *navVC, UIViewController *shown, BOOL animated) {
+            [weakSelf navigationController:navVC didShowViewController:shown animated:animated];
+        }];
     }
     self.childCache[@(index)] = vc;
     return vc;

@@ -92,6 +92,14 @@ NSString *ame317_pluginsRootDir(void) {
             [[AmePluginPermissionItem alloc] initWithId:@"jit.write"     danger:YES],
             [[AmePluginPermissionItem alloc] initWithId:@"game.launch"   danger:YES],
             [[AmePluginPermissionItem alloc] initWithId:@"logs.read"     danger:NO],
+            // ★Task429：java.inject —— manifest "java-inject" 节（JVM 参数/
+            //   -javaagent/附加 classpath/native 库路径四通道注入）的唯一
+            //   执法闸。RCE 级影响面（JVM 启动参数可携带任意 agent/flag）
+            //   → 高危默认拒，详情页手动授权；聚合面
+            //   AmePluginRuntime ame429_aggregatedJavaInject 按桥面
+            //   ame317_requirePerm 同款双闸语义执法（声明 ⊆ 表 AND 已授权；
+            //   ame.super 接管同语义放行并留审计痕）。
+            [[AmePluginPermissionItem alloc] initWithId:@"java.inject"   danger:YES],
             // ★ Task366：API 全量扩容权限组（用户拍板"少说 API 也应该要有几百个"；
             //   权限 20 → 33 组。安全组读面默认授，写面/隐私面高危默认拒）
             [[AmePluginPermissionItem alloc] initWithId:@"game.read"     danger:NO],

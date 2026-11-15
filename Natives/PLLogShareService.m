@@ -196,29 +196,50 @@ static const NSInteger kAme428ErrBothEndpoints = -1003;
 
 + (NSString *)ame428_redactLogContent:(NSString *)content {
     if (content.length == 0) return content;
-    // 规则表（编译一次）：pattern + 替换模板（$1 保留键名前缀）
+    // ★Task429 N2（第六版报告）：原实现 dispatch_once 存的是 pattern 字符串，
+    //   消费端 isKindOfClass:NSRegularExpression.class 恒假 continue → 四条规则
+    //   全跳过、脱敏从未生效（死代码）。修法：dispatch_once 内
+    //   regularExpressionWithPattern:options:error: 编译成 NSRegularExpression
+    //   实例存表；单条编译失败 NSLog 丢弃（其余规则照常生效）；消费端
+    //   matcher（stringByReplacingMatchesInString）调用实名不变。
     static NSArray<NSDictionary *> *rules = nil;
     static dispatch_once_t onceToken;
     dispatch_once(&onceToken, ^{
-        rules = @[
+        NSArray<NSDictionary<NSString *, NSString *> *> *patterns = @[
             // ① JWT：eyJ 头三段式长串
-            @{ @"regex": @"eyJ[A-Za-z0-9_-]{10,}\\.[A-Za-z0-9_-]{5,}\\.[A-Za-z0-9_-]{5,}",
+            @{ @"pattern": @"eyJ[A-Za-z0-9_-]{10,}\\.[A-Za-z0-9_-]{5,}\\.[A-Za-z0-9_-]{5,}",
                @"template": @"«redacted»" },
             // ② xuid：键位附近的 16 位数字（键名原样保留）
-            @{ @"regex": @"(?i)(xuid[\"']?\\s*[:=]\\s*[\"']?)\\d{16}([\"']?)",
+            @{ @"pattern": @"(?i)(xuid[\"']?\\s*[:=]\\s*[\"']?)\\d{16}([\"']?)",
                @"template": @"$1«redacted»$2" },
             // ③ access_token / clientToken：键位附近 ≥32 位长凭证串（hex/Base64）
-            @{ @"regex": @"(?i)((?:access[_-]?token|client[_-]?token)[\"']?\\s*[:=]\\s*[\"']?)[A-Za-z0-9_\\-\\+\\/=\\.]{32,}",
+            @{ @"pattern": @"(?i)((?:access[_-]?token|client[_-]?token)[\"']?\\s*[:=]\\s*[\"']?)[A-Za-z0-9_\\-\\+\\/=\\.]{32,}",
                @"template": @"$1«redacted»" },
             // ④ Authorization: Bearer 凭证头
-            @{ @"regex": @"(?i)(authorization[\"']?\\s*[:=]\\s*[\"']?bearer\\s+)[A-Za-z0-9_\\-\\+\\/=\\.]{20,}",
+            @{ @"pattern": @"(?i)(authorization[\"']?\\s*[:=]\\s*[\"']?bearer\\s+)[A-Za-z0-9_\\-\\+\\/=\\.]{20,}",
                @"template": @"$1«redacted»" },
         ];
+        NSMutableArray<NSDictionary *> *compiled = [NSMutableArray array];
+        for (NSDictionary *spec in patterns) {
+            NSError *compileError = nil;
+            NSRegularExpression *regex =
+                [NSRegularExpression regularExpressionWithPattern:spec[@"pattern"]
+                                                          options:0
+                                                            error:&compileError];
+            if (!regex || compileError) {
+                // 编译失败：NSLog 丢弃该条（不让坏 pattern 毒化整表）
+                NSLog(@"[Task428] ★Task429 N2: redact pattern compile failed, dropped (%@): %@",
+                      compileError.localizedDescription, spec[@"pattern"]);
+                continue;
+            }
+            [compiled addObject:@{ @"regex": regex, @"template": spec[@"template"] }];
+        }
+        rules = [compiled copy];
     });
     @try {
         for (NSDictionary *rule in rules) {
             NSRegularExpression *regex = rule[@"regex"];
-            if (![regex isKindOfClass:NSRegularExpression.class]) continue;
+            if (!regex) continue;   // 防御位：编译表内恒有实例（★Task429 N2 收口）
             content = [regex stringByReplacingMatchesInString:content
                                                        options:0
                                                          range:NSMakeRange(0, content.length)
@@ -397,7 +418,20 @@ static const NSInteger kAme428ErrBothEndpoints = -1003;
             dispatch_semaphore_signal(semaphore);
         }];
     [task resume];
-    dispatch_semaphore_wait(semaphore, DISPATCH_TIME_FOREVER);
+    // ★Task429 N7（第六版报告）：信号量等待无上界（DISPATCH_TIME_FOREVER）——
+    //   端点悬挂（DNS 卡死/代理黑洞等 NSURLSession timeoutInterval 不可全信、
+    //   不回调的场景）时上传线程永久阻塞，串行队列后续上传全部饿死。
+    //   修法：加 20s 上界，超时按失败走 failover（下一端点）；迟到回调写
+    //   __block 局部无悬挂引用，task 同步取消防后台继续耗流量。
+    if (dispatch_semaphore_wait(semaphore,
+            dispatch_time(DISPATCH_TIME_NOW, 20LL * NSEC_PER_SEC)) != 0) {
+        [task cancel];
+        if (failNote) *failNote = [NSString stringWithFormat:@"%@: no response within 20s",
+                                   request.URL.host ?: @""];
+        NSLog(@"[Task428] ★Task429 N7: endpoint %@ no response within 20s -- failover",
+              request.URL.host ?: @"");
+        return nil;
+    }
 
     NSString *host = request.URL.host ?: @"";
     if (requestError) {

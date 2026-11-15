@@ -48,6 +48,14 @@
 #import "MinecraftResourceUtils.h"
 #import "ZL2Theme.h"
 
+// ★Task429：PLProfiles 新增类方法的本地前置声明（PLProfiles.h 不在任务
+//   授权文件清单内，分类声明 = 零 .h 侵入；签名与 PLProfiles.m 实现逐一
+//   对应，勿漂移。ZL2VersionsViewController/ZL2SettingPages 同判例）。
+//   仅用于报告文件的 profile 维度字段（有效隔离态），纯读零副作用。
+@interface PLProfiles (Ame429Task429)
++ (NSInteger)ame428_effectiveIsolationForVid:(NSString *)vid profile:(NSDictionary *)profile;
+@end
+
 // ★Task428：与 JavaLauncher.m 的立桩/清除共用同一文件名与首行格式
 // （"ts=<epoch>\n"）。改动须两侧同步。
 static NSString *const kAme428SelfExitMarkerName = @"ame428_selfexit.marker";
@@ -61,6 +69,13 @@ static const NSUInteger kAme428FullAssetSampleCap = 300;
 static const NSUInteger kAme428RepairBatchSize = 4;
 /// 弹窗各分类清单展示上限（报告文件内为全量）
 static const NSUInteger kAme428ListShowCap = 8;
+/// ★Task429 N4b：交互档批次修复等待轮询步进（秒）
+static const NSTimeInterval kAme428RepairWaitPollStepSeconds = 0.2;
+/// ★Task429 N4b：交互档批次修复等待总上界（秒）= 修复预算 20s 口径 + 余量
+///   （40s；单批 ≤4 条并发下载，PLDownloadClient 内部自带退避重试，
+///   60s 内无一批收口 = completion 丢失/悬挂，按已回源渲染部分结果）
+static const NSTimeInterval kAme428InteractiveRepairWaitCapSeconds =
+    kAme428LaunchBudgetSeconds + 40.0;
 
 #pragma mark - 文件级工具函数
 
@@ -170,6 +185,9 @@ typedef NS_ENUM(NSInteger, Ame428ItemState) {
 @property (nonatomic, copy) NSString *versionRoot;   // versions/<id> 所在根
 @property (nonatomic, copy) NSString *gameRoot;      // libraries/assets 所在根（POJAV_GAME_DIR）
 @property (nonatomic, strong) NSDictionary *mergedJson; // 含继承链合并 + __libs 汇总
+// ★Task429：profile 维度字段（报告文件追加项）
+@property (nonatomic, copy) NSString *gameDirRaw;       // profile 原始 gameDir（缺失/空 = "."）
+@property (nonatomic, assign) NSInteger isolationEffective; // A 层有效隔离（-1=自定义/0=共享/1=隔离）
 @end
 @implementation Ame428Context
 @end
@@ -177,8 +195,13 @@ typedef NS_ENUM(NSInteger, Ame428ItemState) {
 @interface PLGameIntegrityService () {
     /// 交互流程重入保护（仅主线程读写）
     BOOL _interactiveRunning;
-    /// 活动交互流程的取消令牌（单实例单流程；仅主线程写、后台只读）
+    /// 活动交互流程的取消令牌（单实例单流程）
+    /// ★Task429 N4a（第六版报告）：原 NSMutableArray 主线程写/后台轮询读
+    ///   非线程安全（NSMutableArray 非线程安全容器）→ NSLock 保护读写全路径
+    ///   收口（写读只经 ame429_setCancelFlag:/ame429_cancelRequested，裸容器
+    ///   不再直触；锁与令牌在主线程同帧创建，dispatch_async 发布 = happens-before）
     NSMutableArray *_activeCancelToken;
+    NSLock *_cancelTokenLock;
     /// 交互流程取消按钮（直持身份，零 viewWithTag）
     UIButton *_activeCancelButton;
 }
@@ -199,12 +222,25 @@ typedef NS_ENUM(NSInteger, Ame428ItemState) {
 
 #pragma mark - 上下文解析
 
-/// 解析当前 profile 的校验上下文；任一环节失败返回 nil（调用方 fail-open 放行）。
-- (nullable Ame428Context *)ame428_resolveContext {
+/// 解析指定 profile 的校验上下文；任一环节失败返回 nil（调用方 fail-open 放行）。
+/// ★Task429（实例级化）：profileName 为空 = 全局当前档（旧调用兼容，逐位
+///   等价）；非空 = 该 profile 附属实例，解析口径与 PLProfiles/实例隔离一致：
+///   ① 注册表字典键直查（PLProfiles.current.profiles，只读）；
+///   ② 版本根 = ame353 自洽根（ame353_versionRootForProfileName:——gameDir
+///      展开点祖先链探测，A 层 gameDir 各形态全覆盖：A1 缺失/"."→当前实例
+///      根、A2 versions/<vid>→实例自根、A3 绝对/相对自定义→展开点祖先链）；
+///   ③ libraries/assets 根 = ②的自洽根 R（对齐启动链：ZL2Home Ame353 对齐点
+///      启动期把 POJAV_GAME_DIR setenv 到 R，MRDT 校验链把 libraries/assets
+///      补进 R = 版本隔离安装语义闭环。旧实现读 env：当前档 A1/A2 常态下
+///      R == env 逐位等价（零回归）；跨实例/深层根形态 R ≠ env 时旧口径会
+///      扫错实例的库/资产——本口径为启动链同根修正，属任务要求的
+///      "与实例隔离一致的 gameDir 解析链"）。
+- (nullable Ame428Context *)ame428_resolveContextForProfileName:(NSString *)profileName {
     @autoreleasepool {
-        NSString *profileName = PLProfiles.current.selectedProfileName;
-        if (profileName.length == 0) return nil;
-        NSDictionary *profile = [PLProfiles.current.profiles objectForKey:profileName];
+        // ★Task429：nil/空 = 当前档（旧调用兼容）；非空 = 指定实例字典键
+        NSString *resolvedProfile = profileName.length > 0 ? profileName : PLProfiles.current.selectedProfileName;
+        if (resolvedProfile.length == 0) return nil;
+        NSDictionary *profile = [PLProfiles.current.profiles objectForKey:resolvedProfile];
         NSString *versionId = nil;
         if ([profile isKindOfClass:[NSDictionary class]] &&
             [profile[@"lastVersionId"] isKindOfClass:[NSString class]]) {
@@ -214,11 +250,13 @@ typedef NS_ENUM(NSInteger, Ame428ItemState) {
 
         // 版本根：优先 ame353（Task353 profile 自洽根，深层实例形态正确）；
         // 缺席时回退 POJAV_GAME_DIR（Task225/ame158 同源口径）。
-        NSString *versionRoot = [PLProfiles ame353_versionRootForProfileName:profileName];
+        NSString *versionRoot = [PLProfiles ame353_versionRootForProfileName:resolvedProfile];
         if (versionRoot.length == 0) versionRoot = Ame428GameDir();
         if (versionRoot.length == 0) return nil;
-        NSString *gameRoot = Ame428GameDir();
-        if (gameRoot.length == 0) gameRoot = versionRoot;
+        // ★Task429：gameRoot 口径对齐启动链（注释详见方法头 ③）。
+        //   ame353 未命中回退 env 时，下方版本 JSON 校验即失败返回 nil，
+        //   gameRoot 不可达——此处 versionRoot 恒为启动链同根 R。
+        NSString *gameRoot = versionRoot;
 
         // 版本 JSON（含 inheritsFrom 链：chain = [子, 父, 祖父...]）
         NSString *jsonPath = [[versionRoot stringByAppendingPathComponent:@"versions"]
@@ -289,11 +327,17 @@ typedef NS_ENUM(NSInteger, Ame428ItemState) {
         merged[@"__libs"] = libs;
 
         Ame428Context *ctx = [[Ame428Context alloc] init];
-        ctx.profileName = profileName;
+        ctx.profileName = resolvedProfile;
         ctx.versionId = versionId;
         ctx.versionRoot = versionRoot;
         ctx.gameRoot = gameRoot;
         ctx.mergedJson = merged;
+        // ★Task429：profile 维度字段（原始 gameDir + A 层有效隔离，报告用）
+        NSString *rawGameDir = [profile[@"gameDir"] isKindOfClass:[NSString class]]
+            ? profile[@"gameDir"] : nil;
+        ctx.gameDirRaw = rawGameDir.length > 0 ? rawGameDir : @".";
+        ctx.isolationEffective = [PLProfiles ame428_effectiveIsolationForVid:versionId
+                                                                    profile:profile];
         return ctx;
     }
 }
@@ -503,12 +547,18 @@ typedef NS_ENUM(NSInteger, Ame428ItemState) {
     }];
 }
 
-/// 启动档修复：串行 + 全局预算；超预算停止发起新下载（在途的继续落盘）。
+/// 启动档修复：串行 + 全局预算；预算耗尽才停止发起新下载（在途的继续落盘）。
 - (void)ame428_repairSequentialWithDeadline:(NSArray<Ame428CheckItem *> *)items
                                    deadline:(NSDate *)deadline {
     NSUInteger done = 0;
     for (Ame428CheckItem *item in items) {
-        if ([deadline compare:[NSDate date]] == NSOrderedDescending) {
+        // ★Task429 N1（第六版报告）：原写法 `== NSOrderedDescending` 语义写反——
+        //   deadline 晚于当前 = 预算还剩却 break → 启动档自动补全首轮即退出，
+        //   整个修复循环成死代码。修法：预算耗尽（deadline 不晚于当前，即
+        //   NSOrderedAscending 或 NSOrderedSame）才 break；预算还剩
+        //   （NSOrderedDescending）继续发起新下载。
+        NSInteger ame429_budgetCmp = [deadline compare:[NSDate date]];
+        if (ame429_budgetCmp == NSOrderedAscending || ame429_budgetCmp == NSOrderedSame) {
             NSUInteger remaining = items.count - done;
             if (remaining > 0) {
                 NSLog(@"[Integrity] Task428: repair budget exhausted (%lu/%lu done, %lu deferred to next launch)",
@@ -534,7 +584,8 @@ typedef NS_ENUM(NSInteger, Ame428ItemState) {
     dispatch_async(dispatch_get_global_queue(QOS_CLASS_USER_INITIATED, 0), ^{
         NSDictionary *report = nil;
         @autoreleasepool {
-            Ame428Context *ctx = [self ame428_resolveContext];
+            // ★Task429：启动档恒为全局当前档语义（nil = selectedProfileName）
+            Ame428Context *ctx = [self ame428_resolveContextForProfileName:nil];
             if (!ctx) {
                 // fail-open：无从校验不阻断启动（Task225 "老版本/异常 JSON" 同语义）
                 report = @{ @"ok": @YES,
@@ -599,9 +650,20 @@ typedef NS_ENUM(NSInteger, Ame428ItemState) {
 #pragma mark - 交互档入口（契约 API）
 
 - (void)runInteractiveVerifyAndRepairFromViewController:(UIViewController *)presentingVC {
+    // ★Task429：thin wrapper——nil = 全局当前档（旧语义零回归，见 .h 契约注）
+    [self runInteractiveVerifyAndRepairForProfile:nil fromViewController:presentingVC];
+}
+
+- (void)runInteractiveVerifyAndRepairForProfile:(NSString *)profileName
+                              fromViewController:(UIViewController *)presentingVC {
+    // ★Task429：实例级化——profileName 空 = 当前档；非空 = 该 profile 附属
+    //   实例（ame428_resolveContextForProfileName: 同口径解析）。流程/UI/
+    //   报告与旧入口完全一致，仅校验对象随参数走。
+    NSString *ame429_targetProfile = profileName.length > 0 ? [profileName copy] : nil;
     dispatch_async(dispatch_get_main_queue(), ^{
         if (_interactiveRunning || !presentingVC.view) {
-            NSLog(@"[Integrity] Task428: interactive run busy / no host view -- ignored");
+            NSLog(@"[Integrity] Task428: interactive run busy / no host view -- ignored (profile=%@)",
+                  ame429_targetProfile ?: @"<current>");
             return;
         }
         _interactiveRunning = YES;
@@ -658,9 +720,11 @@ typedef NS_ENUM(NSInteger, Ame428ItemState) {
             [cancelBtn.bottomAnchor constraintEqualToAnchor:card.bottomAnchor constant:-16],
         ]];
 
-        // 取消令牌：主线程写 / 后台轮询（NSNumber 不可变对象，读安全）
-        NSMutableArray *cancelToken = [NSMutableArray arrayWithObject:@(NO)];
-        _activeCancelToken = cancelToken;
+        // 取消令牌：主线程写 / 后台轮询——★Task429 N4a：读写全部收口到
+        //   ame429_setCancelFlag:/ame429_cancelRequested（NSLock 保护），
+        //   本地局部变量退役，后台轮询一律走访问器。
+        _cancelTokenLock = [[NSLock alloc] init];
+        _activeCancelToken = [NSMutableArray arrayWithObject:@(NO)];
         _activeCancelButton = cancelBtn;
         [cancelBtn addTarget:self
                       action:@selector(ame428_cancelTapped:)
@@ -676,14 +740,15 @@ typedef NS_ENUM(NSInteger, Ame428ItemState) {
             dispatch_async(dispatch_get_main_queue(), ^{
                 [dim removeFromSuperview];
                 _interactiveRunning = NO;
-                _activeCancelToken = nil;
+                [self ame429_resetCancelToken];   // ★Task429 N4a：令牌+锁同帧收口（锁内置 nil，与后台读互斥）
                 _activeCancelButton = nil;
             });
         };
 
         // ---- 阶段 1/2：后台校验（full SHA-1，无抽样上限）----
         dispatch_async(dispatch_get_global_queue(QOS_CLASS_USER_INITIATED, 0), ^{
-            Ame428Context *ctx = [self ame428_resolveContext];
+            // ★Task429：校验对象 = 参数指定的 profile（nil = 当前档）
+            Ame428Context *ctx = [self ame428_resolveContextForProfileName:ame429_targetProfile];
             if (!ctx) {
                 teardown();
                 dispatch_async(dispatch_get_main_queue(), ^{
@@ -699,7 +764,7 @@ typedef NS_ENUM(NSInteger, Ame428ItemState) {
             NSUInteger checked = 0;
             BOOL anyIssue = NO;
             for (Ame428CheckItem *item in items) {
-                if ([cancelToken.firstObject boolValue]) break;
+                if ([self ame429_cancelRequested]) break;   // ★Task429 N4a：NSLock 收口读
                 Ame428ItemState st = [self ame428_checkItem:item fullSha1:YES];
                 checked++;
                 if (st == Ame428ItemStateMissing) { [missing addObject:item]; anyIssue = YES; }
@@ -710,7 +775,7 @@ typedef NS_ENUM(NSInteger, Ame428ItemState) {
                              items.count > 0 ? (double)checked / (double)items.count : 0.0);
                 }
             }
-            if ([cancelToken.firstObject boolValue]) {
+            if ([self ame429_cancelRequested]) {   // ★Task429 N4a：NSLock 收口读
                 teardown();
                 dispatch_async(dispatch_get_main_queue(), ^{
                     [self ame428_presentResultOnVC:presentingVC
@@ -731,7 +796,7 @@ typedef NS_ENUM(NSInteger, Ame428ItemState) {
             if (toRepair.count > 0) {
                 updateUI(localize(@"ame428.verify.phase_repair", nil), 0.0);
                 for (NSUInteger start = 0; start < toRepair.count; start += kAme428RepairBatchSize) {
-                    if ([cancelToken.firstObject boolValue]) break;
+                    if ([self ame429_cancelRequested]) break;   // ★Task429 N4a：NSLock 收口读
                     NSUInteger end = MIN(start + kAme428RepairBatchSize, toRepair.count);
                     dispatch_group_t group = dispatch_group_create();
                     for (NSUInteger i = start; i < end; i++) {
@@ -746,7 +811,24 @@ typedef NS_ENUM(NSInteger, Ame428ItemState) {
                             dispatch_group_leave(group);
                         }];
                     }
-                    dispatch_group_wait(group, DISPATCH_TIME_FOREVER);
+                    // ★Task429 N4b（第六版报告）：dispatch_group_wait(DISPATCH_TIME_FOREVER)
+                    //   单个 completion 丢失则遮罩永久卡死。修法：200ms 步进轮询
+                    //   （总上界 = 修复预算 20s + 余量 = 60s），轮询内查取消标志；
+                    //   取消/超时按已回源渲染部分结果（在途 item 落盘后，下轮
+                    //   启动档/交互档自然命中增量）。迟到的 leave 与 enter 仍配平，
+                    //   无二次回调点（notify 未用）。
+                    NSTimeInterval ame429_waited = 0;
+                    while (dispatch_group_wait(group, dispatch_time(DISPATCH_TIME_NOW,
+                            (int64_t)(kAme428RepairWaitPollStepSeconds * NSEC_PER_SEC))) != 0) {
+                        if ([self ame429_cancelRequested]
+                            || ame429_waited >= kAme428InteractiveRepairWaitCapSeconds) {
+                            NSLog(@"[Integrity] ★Task429 N4b: batch repair wait %@ at %.1fs -- render partial results (in-flight items keep landing)",
+                                  [self ame429_cancelRequested] ? @"cancelled" : @"timed out",
+                                  ame429_waited);
+                            break;
+                        }
+                        ame429_waited += kAme428RepairWaitPollStepSeconds;
+                    }
                     NSUInteger doneCount = end;
                     updateUI([NSString stringWithFormat:localize(@"ame428.verify.repair_progress_fmt", nil),
                               doneCount, toRepair.count],
@@ -762,8 +844,11 @@ typedef NS_ENUM(NSInteger, Ame428ItemState) {
                                     repairedCount:repairedOK
                                     repairFailed:repairFailed];
             dispatch_async(dispatch_get_main_queue(), ^{
+                // ★Task429 N4a：取消态先于 teardown 取值（teardown 收口后令牌
+                //   置 nil，访问器将恒 NO；先读后清 = cancelled 弹窗不丢）
+                BOOL ame429_cancelled = [self ame429_cancelRequested];
                 teardown();
-                if ([cancelToken.firstObject boolValue]) {
+                if (ame429_cancelled) {
                     [self ame428_presentResultOnVC:presentingVC
                                              title:localize(@"ame428.verify.title", nil)
                                            message:localize(@"ame428.verify.cancelled", nil)];
@@ -805,10 +890,39 @@ typedef NS_ENUM(NSInteger, Ame428ItemState) {
 
 /// 取消按钮动作（主线程）
 - (void)ame428_cancelTapped:(id)sender {
+    // ★Task429 N4a：唯一写路径经 NSLock 收口访问器（原裸 _activeCancelToken[0]
+    //   写与后台轮询读并发 = NSMutableArray 数据竞争）
+    [self ame429_setCancelFlag:YES];
+    NSLog(@"[Integrity] Task428: interactive run cancellation requested");
+}
+
+/// ★Task429 N4a：取消令牌唯一写路径（NSLock 收口；锁/令牌主线程同帧创建，
+///   teardown 经 ame429_resetCancelToken 锁内收口——锁为 nil 时消息投递为
+///   no-op，仅存在于无交互流程时的防御性调用，不构成竞争窗口）
+- (void)ame429_setCancelFlag:(BOOL)flag {
+    [_cancelTokenLock lock];
     if (_activeCancelToken.count > 0) {
-        _activeCancelToken[0] = @(YES);
-        NSLog(@"[Integrity] Task428: interactive run cancellation requested");
+        _activeCancelToken[0] = @(flag);
     }
+    [_cancelTokenLock unlock];
+}
+
+/// ★Task429 N4a：令牌+锁收口（teardown 专用；锁内置 nil = 与后台读全互斥，
+///   裸指针写不参与竞争面）
+- (void)ame429_resetCancelToken {
+    [_cancelTokenLock lock];
+    _activeCancelToken = nil;
+    [_cancelTokenLock unlock];
+}
+
+/// ★Task429 N4a：取消态唯一读路径（后台轮询/主线程终态皆走此收口）
+- (BOOL)ame429_cancelRequested {
+    BOOL ame429_requested = NO;
+    [_cancelTokenLock lock];
+    ame429_requested = (_activeCancelToken.count > 0
+                        && [_activeCancelToken.firstObject boolValue]);
+    [_cancelTokenLock unlock];
+    return ame429_requested;
 }
 
 /// 弹窗辅助（主线程）
@@ -850,6 +964,17 @@ typedef NS_ENUM(NSInteger, Ame428ItemState) {
         [s appendFormat:@"=== Prisma game integrity report (Task428) ===\n"];
         [s appendFormat:@"time: %@\n", [NSDate date]];
         [s appendFormat:@"profile: %@\n", ctx.profileName];
+        // ★Task429：profile 维度字段追加（实例级扫描可追溯：附属实例原始
+        //   gameDir / 库资产根（启动链同根 R）/ A 层有效隔离态）
+        [s appendFormat:@"gameDir: %@\n", ctx.gameDirRaw];
+        [s appendFormat:@"game_root: %@\n", ctx.gameRoot];
+        NSString *ame429_iso = @"custom(-1)";
+        switch (ctx.isolationEffective) {
+            case 1: ame429_iso = @"isolated(1)"; break;
+            case 0: ame429_iso = @"shared(0)"; break;
+            default: break;
+        }
+        [s appendFormat:@"isolation: %@\n", ame429_iso];
         [s appendFormat:@"version: %@ (root %@)\n", ctx.versionId, ctx.versionRoot];
         [s appendFormat:@"tier: interactive-full-sha1\n"];
         [s appendFormat:@"checked: %lu\n", (unsigned long)checked];

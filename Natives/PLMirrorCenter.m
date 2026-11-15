@@ -485,6 +485,32 @@ static BOOL ame138_probeInFlight[2] = {NO, NO};
 }
 
 + (PLMirrorPolicy)policyForType:(PLMirrorResourceType)type {
+    // ★Task429（任务二）：三态总开关 general.mirror_mode（int：0=自动 / 1=官方源 /
+    //   2=手动镜像档）消费侧唯一读点。UI+键注册由主控统一落地（PLPreferences.m
+    //   本轮只读禁改），本键不在 defaults 注册时 getPrefInt 缺键返 0 = 自动档。
+    //   · 0 / 缺键 → 下方 428 存量链原样（分资源类型策略键 + 旧键回退 + 大陆探测
+    //     默认档物化），零回归；
+    //   · 1 = 强制官方源（全资源类型官方优先，speed_first 用户档亦被覆盖）；
+    //   · 2 = 强制镜像档（沿用 Task218 旧键迁移口径："bmclapi 与 mcim 都是走国内
+    //     镜像的用户意愿"——GameFile/ModLoader 落 BMCLAPI、AssetSearch/AssetDownload
+    //     落 MCIM，由 PLMirrorPolicyMirrorFirst 经既有映射表分发，本层不散落镜像 URL 构造）。
+    //   consulted 点汇流声明：全工程镜像决策（candidateURLsForOriginalURL /
+    //   preferredURLForOriginalURL / modrinthAPIBaseURL / curseForgeAPIBaseURL /
+    //   mirrorPreferredForType / legacySourceTokenForType 及 NeoForgeVersionFetcher
+    //   的 policyForType 直读）全部经本方法出值，三态在此一处生效即可全域生效。
+    //   用户显式选择永久尊重语义保留：mode=1/2 期间不触发 428 物化写，回 0 后
+    //   ame428_applyGeoDefaultForKey 链按侧标记原样续跑（默认档物化逻辑零改动）。
+    NSInteger ame429_mode = getPrefInt(@"general.mirror_mode");
+    if (ame429_mode == 1 || ame429_mode == 2) {
+        static dispatch_once_t ame429_once;
+        dispatch_once(&ame429_once, ^{
+            NSLog(@"[PLMirrorCenter] Task429: manual mirror_mode=%ld in effect "
+                  @"(1=official / 2=mirror), per-type policy chain bypassed",
+                  (long)getPrefInt(@"general.mirror_mode"));
+        });
+        return (ame429_mode == 1) ? PLMirrorPolicyOfficialFirst : PLMirrorPolicyMirrorFirst;
+    }
+
     // 优先读取新版分资源类型策略键（值 official_first / mirror_first）
     NSString *key = nil;
     switch (type) {

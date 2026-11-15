@@ -176,12 +176,16 @@ typedef NS_ENUM(NSInteger, ModernAssetType) {
         [self.downloadButton setContentCompressionResistancePriority:UILayoutPriorityRequired forAxis:UILayoutConstraintAxisHorizontal];
         [self.contentContainer addSubview:self.downloadButton];
 
-        // ----- ★Task428（4.2）：收藏心形钮：下载钮左侧 24x24（ZL2 搜索卡同位
+        // ----- ★Task428（4.2）：收藏心形钮：下载钮左侧（ZL2 搜索卡同位
         //       语义；选中态 heart.fill + 品牌粉，未选 heart + 次级色）-----
+        //       ★Task429：收藏钮加大——用户复诉“收藏按钮太小了”+ZL2 口径：
+        //       心形字形 15→20pt（≥20 对齐 ZL2 基准）；命中面 24x24→44x44
+        //       （HIG 最小命中面）见下方布局段，字形用 imageEdgeInsets 右偏
+        //       10pt 保持原视觉重心（左侧 20pt 透明区 = 隐形命中冗余）
         self.favoriteButton = [UIButton buttonWithType:UIButtonTypeSystem];
         self.favoriteButton.translatesAutoresizingMaskIntoConstraints = NO;
         UIImage *ame428_heartSymbol = [UIImage systemImageNamed:@"heart"
-                                              withConfiguration:[UIImageSymbolConfiguration configurationWithPointSize:15 weight:UIFontWeightRegular]];
+                                              withConfiguration:[UIImageSymbolConfiguration configurationWithPointSize:20 weight:UIFontWeightRegular]];
         if (!ame428_heartSymbol) {
             ame428_heartSymbol = [UIImage systemImageNamed:@"heart"];
         }
@@ -193,6 +197,10 @@ typedef NS_ENUM(NSInteger, ModernAssetType) {
         self.favoriteButton.accessibilityTraits = UIAccessibilityTraitButton;
         [self.favoriteButton setContentHuggingPriority:UILayoutPriorityRequired forAxis:UILayoutConstraintAxisHorizontal];
         [self.favoriteButton setContentCompressionResistancePriority:UILayoutPriorityRequired forAxis:UILayoutConstraintAxisHorizontal];
+        // ★Task429：收藏钮加大——44pt 框内字形右偏 10pt（正左 inset + 等量
+        //   负右 inset 不改布局宽，仅移视觉位），心形重心与旧 24x24 框对齐；
+        //   仓内既有用法判例：ThirdPartyLoginViewController/WelcomeViewController
+        self.favoriteButton.imageEdgeInsets = UIEdgeInsetsMake(0, 10, 0, -10);
         [self.favoriteButton addTarget:self
                                 action:@selector(ame428_favoriteTapped)
                       forControlEvents:UIControlEventTouchUpInside];
@@ -227,11 +235,15 @@ typedef NS_ENUM(NSInteger, ModernAssetType) {
             [self.tagsStack.centerYAnchor constraintEqualToAnchor:self.descLabel.centerYAnchor],
             [self.tagsStack.trailingAnchor constraintLessThanOrEqualToAnchor:self.favoriteButton.leadingAnchor constant:-4],
 
-            // 收藏钮：下载钮左侧 -4，垂直居中，24x24
+            // 收藏钮：下载钮左侧 -4，垂直居中
+            // ★Task429：收藏钮加大——命中面 24x24→44x44（HIG 最小命中面）；
+            //   卡内视觉保持紧凑（字形已 imageEdgeInsets 右偏回原位），44 框
+            //   左/上/下侧透明边即隐形命中冗余；行高 54-上下 3pt 内边距=48 容
+            //   器，44 高垂直居中仍完全在卡内
             [self.favoriteButton.trailingAnchor constraintEqualToAnchor:self.downloadButton.leadingAnchor constant:-4],
             [self.favoriteButton.centerYAnchor constraintEqualToAnchor:self.contentContainer.centerYAnchor],
-            [self.favoriteButton.widthAnchor constraintEqualToConstant:24],
-            [self.favoriteButton.heightAnchor constraintEqualToConstant:24],
+            [self.favoriteButton.widthAnchor constraintEqualToConstant:44],
+            [self.favoriteButton.heightAnchor constraintEqualToConstant:44],
 
             // 下载按钮：右侧 -6，垂直居中，24x24
             [self.downloadButton.trailingAnchor constraintEqualToAnchor:self.contentContainer.trailingAnchor constant:-6],

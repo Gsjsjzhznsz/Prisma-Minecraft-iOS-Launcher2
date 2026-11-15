@@ -1,0 +1,128 @@
+{
+  "ame429.g.comp.analyzing": {
+    "en": "Scanning installed components…",
+    "zh-Hans": "正在分析已装组件…",
+    "zh-CN": "正在分析已装组件…",
+    "zh-Hant": "正在分析已裝元件…"
+  },
+  "ame429.g.comp.change.confirm_fmt": {
+    "en": "Switch profile %@ to %@ %@? Nothing is written unless the install succeeds; the existing version is kept.",
+    "zh-Hans": "将实例 %@ 的 %@ 换装为 %@？失败不落盘，旧版本保留",
+    "zh-CN": "将实例 %@ 的 %@ 换装为 %@？失败不落盘，旧版本保留",
+    "zh-Hant": "將實例 %@ 的 %@ 換裝為 %@？失敗不落盤，舊版本保留"
+  },
+  "ame429.g.comp.change.confirm_title": {
+    "en": "Confirm version change",
+    "zh-Hans": "换版确认",
+    "zh-CN": "换版确认",
+    "zh-Hant": "換版確認"
+  },
+  "ame429.g.comp.clean.viewonly_note": {
+    "en": "Vanilla instance: change versions from the game download page.",
+    "zh-Hans": "原版本体：换版本请走游戏下载页",
+    "zh-CN": "原版本体：换版本请走游戏下载页",
+    "zh-Hant": "原版本體：換版本請走遊戲下載頁"
+  },
+  "ame429.g.comp.empty": {
+    "en": "No components detected (this profile has no installed version).",
+    "zh-Hans": "未检测到组件（实例尚未安装版本）",
+    "zh-CN": "未检测到组件（实例尚未安装版本）",
+    "zh-Hant": "未偵測到元件（實例尚未安裝版本）"
+  },
+  "ame429.g.comp.failed": {
+    "en": "Install failed: the profile was left unchanged.",
+    "zh-Hans": "换装失败：实例状态未做任何变更",
+    "zh-CN": "换装失败：实例状态未做任何变更",
+    "zh-Hant": "換裝失敗：實例狀態未做任何變更"
+  },
+  "ame429.g.comp.import.button": {
+    "en": "Import offline installer…",
+    "zh-Hans": "离线导入安装器…",
+    "zh-CN": "离线导入安装器…",
+    "zh-Hant": "離線匯入安裝器…"
+  },
+  "ame429.g.comp.import.fabric_notsupported": {
+    "en": "Fabric has no offline installer; tap the Fabric entry to install online.",
+    "zh-Hans": "Fabric 无离线安装器（换版请点 Fabric 条目在线安装）",
+    "zh-CN": "Fabric 无离线安装器（换版请点 Fabric 条目在线安装）",
+    "zh-Hant": "Fabric 無離線安裝器（換版請點 Fabric 條目線上安裝）"
+  },
+  "ame429.g.comp.import.parse_failed": {
+    "en": "Could not parse version info from the installer/manifest.",
+    "zh-Hans": "未能解析安装器/清单版本信息",
+    "zh-CN": "未能解析安装器/清单版本信息",
+    "zh-Hant": "無法解析安裝器/清單版本資訊"
+  },
+  "ame429.g.comp.import.success_fmt": {
+    "en": "Offline install finished: %@",
+    "zh-Hans": "离线安装完成：%@",
+    "zh-CN": "离线安装完成：%@",
+    "zh-Hant": "離線安裝完成：%@"
+  },
+  "ame429.g.comp.install.success_fmt": {
+    "en": "Installed: profile now points to %@",
+    "zh-Hans": "换装成功：实例已指向 %@",
+    "zh-CN": "换装成功：实例已指向 %@",
+    "zh-Hant": "換裝成功：實例已指向 %@"
+  },
+  "ame429.g.comp.list.empty": {
+    "en": "No versions available",
+    "zh-Hans": "暂无可用版本",
+    "zh-CN": "暂无可用版本",
+    "zh-Hant": "暫無可用版本"
+  },
+  "ame429.g.comp.list.failed": {
+    "en": "Failed to fetch the version list. Check your network and try again.",
+    "zh-Hans": "版本清单获取失败，请检查网络后重试",
+    "zh-CN": "版本清单获取失败，请检查网络后重试",
+    "zh-Hant": "版本清單取得失敗，請檢查網路後重試"
+  },
+  "ame429.g.comp.list.loading": {
+    "en": "Loading version list…",
+    "zh-Hans": "正在获取版本清单…",
+    "zh-CN": "正在获取版本清单…",
+    "zh-Hant": "正在取得版本清單…"
+  },
+  "ame429.g.comp.optifine.viewonly_note": {
+    "en": "OptiFine has no remote manifest yet: view only. Import an offline installer to install.",
+    "zh-Hans": "OptiFine 远端清单未接入：仅展示当前版本，可离线导入安装器",
+    "zh-CN": "OptiFine 远端清单未接入：仅展示当前版本，可离线导入安装器",
+    "zh-Hant": "OptiFine 遠端清單未接入：僅展示當前版本，可離線匯入安裝器"
+  },
+  "ame429.g.comp.page.title": {
+    "en": "Components",
+    "zh-Hans": "组件管理",
+    "zh-CN": "组件管理",
+    "zh-Hant": "元件管理"
+  },
+  "ame429.g.comp.parent_missing_fmt": {
+    "en": "Parent version %@ does not exist; install the vanilla/loader version first.",
+    "zh-Hans": "父版本 %@ 不存在，请先安装原版/加载器版本",
+    "zh-CN": "父版本 %@ 不存在，请先安装原版/加载器版本",
+    "zh-Hant": "父版本 %@ 不存在，請先安裝原版/載入器版本"
+  },
+  "ame429.g.comp.row.viewonly": {
+    "en": "View only",
+    "zh-Hans": "仅展示",
+    "zh-CN": "仅展示",
+    "zh-Hant": "僅展示"
+  },
+  "ame429.g.comp.type.clean": {
+    "en": "Vanilla (clean install)",
+    "zh-Hans": "原版（干净本体）",
+    "zh-CN": "原版（干净本体）",
+    "zh-Hant": "原版（乾淨本體）"
+  },
+  "ame429.g.comp.type.fabric": {
+    "en": "Fabric (incl. Quilt)",
+    "zh-Hans": "Fabric（含 Quilt 谱系）",
+    "zh-CN": "Fabric（含 Quilt 谱系）",
+    "zh-Hant": "Fabric（含 Quilt 譜系）"
+  },
+  "ame429.g.row.title": {
+    "en": "Components / Update loader",
+    "zh-Hans": "组件管理 / 更新加载器",
+    "zh-CN": "组件管理 / 更新加载器",
+    "zh-Hant": "元件管理 / 更新載入器"
+  }
+}

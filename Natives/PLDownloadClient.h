@@ -109,10 +109,33 @@ typedef void (^PLDownloadCompletion)(BOOL success, NSError * _Nullable error);
 ///   - 进度负 delta 回退，保证调用方累计单调贴合真实进度
 ///   - NSLock 保护的字节计数 + GCD 每秒定时器采样速率
 ///   - pause 落盘 resumeData，resume 优先断点续传
+///   - ★Task429 下载代理（general.proxy_mode/proxy_host/proxy_port）：
+///     会话构造点注入 connectionProxyDictionary（HTTP）+ 游戏侧 SOCKS5
+///     环境变量物化（AMETHYST_SOCKS5_PROXY，与 MultiplayerManager 联机
+///     通道同键双通道一致）
 ///
 /// 线程模型：start / pause / resume / cancel 可从任意线程调用，内部派发到串行队列；
 /// progress / speed / completion 回调均在内部串行队列上执行（非主线程），UI 操作请调用方自行切换线程。
 @interface PLDownloadClient : NSObject
+
+/// ★Task429（PDF 六 §4.4「Horizon 支持 S1 速齐」下载代理设置项）：按偏好键
+/// general.proxy_mode（int 0=关/1=HTTP/2=SOCKS5）+ general.proxy_host +
+/// general.proxy_port（字符串）构造 NSURLSessionConfiguration
+/// connectionProxyDictionary 载荷。mode!=1/2、host 空、端口非法（非 1-65535）
+/// 任一命中即返回空字典 = 不代理（防御守卫，读侧缺键回退默认 0）。
+/// HTTP 模式：HTTP + HTTPS 同源双键族；SOCKS5 模式：kCFNetworkProxiesSOCKS*
+/// 键族（NSURLSession 对 SOCKS 为尽力而为面——游戏侧权威通道见
+/// ame429_s1_syncProxyEnvFromPrefs 注释）。
++ (NSDictionary<NSString *, id> *)ame429_s1_connectionProxyDictionaryFromPrefs;
+
+/// ★Task429 游戏侧 SOCKS5 通道物化（单一事实源）：mode==2 且 host/port 合法
+/// → setenv AMETHYST_SOCKS5_PROXY=host:port（JavaLauncher :3645-3685 启动时
+/// 消费注入 -DsocksProxyHost/-DsocksProxyPort）；否则 unsetenv。
+/// 与 MultiplayerManager 联机通道同款键双通道一致（写入点：①本设置页各代理
+/// 行变更即物化；②下载引擎会话构造兜底物化。联机会话期可能以房主代理覆盖、
+/// 断开 unsetenv 清除——常驻档以偏好键为准，下次任一写入点重新物化）。
+/// 环境变量在游戏启动时读取 = 对进行中会话零影响（下轮生效，JavaLauncher 同口径）。
++ (void)ame429_s1_syncProxyEnvFromPrefs;
 
 /// 使用指定会话配置创建客户端。
 /// configuration 为 nil 时使用默认前台配置（HTTPMaximumConnectionsPerHost = 8，

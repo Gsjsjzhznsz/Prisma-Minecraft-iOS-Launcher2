@@ -1,0 +1,128 @@
+{
+  "ame429.f.palette.title": {
+    "en": "Theme Palette",
+    "zh-Hans": "主题色板",
+    "zh-CN": "主题色板",
+    "zh-Hant": "主題色板"
+  },
+  "ame429.f.palette.subtitle": {
+    "en": "Extract colors from your wallpaper or pick a preset palette",
+    "zh-Hans": "跟随背景自动取色，或选择预设色板",
+    "zh-CN": "跟随背景自动取色，或选择预设色板",
+    "zh-Hant": "跟隨背景自動取色，或選擇預設色板"
+  },
+  "ame429.f.palette.embermire": {
+    "en": "Embermire (default)",
+    "zh-Hans": "Embermire（默认）",
+    "zh-CN": "Embermire（默认）",
+    "zh-Hant": "Embermire（預設）"
+  },
+  "ame429.f.palette.follow": {
+    "en": "Follow wallpaper",
+    "zh-Hans": "跟随背景",
+    "zh-CN": "跟随背景",
+    "zh-Hant": "跟隨背景"
+  },
+  "ame429.f.palette.frozenlake": {
+    "en": "Frozen Lake",
+    "zh-Hans": "冻湖蓝",
+    "zh-CN": "冻湖蓝",
+    "zh-Hant": "凍湖藍"
+  },
+  "ame429.f.palette.forest": {
+    "en": "Forest Green",
+    "zh-Hans": "森绿",
+    "zh-CN": "森绿",
+    "zh-Hant": "森綠"
+  },
+  "ame429.f.palette.dusk": {
+    "en": "Dusk Purple",
+    "zh-Hans": "暮紫",
+    "zh-CN": "暮紫",
+    "zh-Hant": "暮紫"
+  },
+  "ame429.f.palette.crimson": {
+    "en": "Crimson",
+    "zh-Hans": "绯红",
+    "zh-CN": "绯红",
+    "zh-Hant": "緋紅"
+  },
+  "ame429.f.palette.amber": {
+    "en": "Amber",
+    "zh-Hans": "琥珀",
+    "zh-CN": "琥珀",
+    "zh-Hant": "琥珀"
+  },
+  "ame429.f.palette.custom": {
+    "en": "Custom…",
+    "zh-Hans": "自定义…",
+    "zh-CN": "自定义…",
+    "zh-Hant": "自訂…"
+  },
+  "ame429.f.custom.sheet.title": {
+    "en": "Custom Palette",
+    "zh-Hans": "自定义取色",
+    "zh-CN": "自定义取色",
+    "zh-Hant": "自訂取色"
+  },
+  "ame429.f.custom.seed": {
+    "en": "Seed color",
+    "zh-Hans": "种子色",
+    "zh-CN": "种子色",
+    "zh-Hant": "種子色"
+  },
+  "ame429.f.custom.style": {
+    "en": "Palette style",
+    "zh-Hans": "调色风格",
+    "zh-CN": "调色风格",
+    "zh-Hant": "調色風格"
+  },
+  "ame429.f.custom.style.natural": {
+    "en": "Natural",
+    "zh-Hans": "自然",
+    "zh-CN": "自然",
+    "zh-Hant": "自然"
+  },
+  "ame429.f.custom.style.vivid": {
+    "en": "Vivid",
+    "zh-Hans": "鲜活",
+    "zh-CN": "鲜活",
+    "zh-Hant": "鮮活"
+  },
+  "ame429.f.custom.style.soft": {
+    "en": "Soft",
+    "zh-Hans": "柔和",
+    "zh-CN": "柔和",
+    "zh-Hant": "柔和"
+  },
+  "ame429.f.custom.preview": {
+    "en": "Live preview",
+    "zh-Hans": "实时预览",
+    "zh-CN": "实时预览",
+    "zh-Hant": "即時預覽"
+  },
+  "ame429.f.custom.preview.primary": {
+    "en": "Primary",
+    "zh-Hans": "主色",
+    "zh-CN": "主色",
+    "zh-Hant": "主色"
+  },
+  "ame429.f.custom.preview.container": {
+    "en": "Container",
+    "zh-Hans": "容器",
+    "zh-CN": "容器",
+    "zh-Hant": "容器"
+  },
+  "ame429.f.custom.preview.tertiary": {
+    "en": "Tertiary",
+    "zh-Hans": "三色",
+    "zh-CN": "三色",
+    "zh-Hant": "三色"
+  },
+  "ame429.f.custom.confirm": {
+    "en": "Apply",
+    "zh-Hans": "应用",
+    "zh-CN": "应用",
+    "zh-Hant": "套用"
+  }
+}

@@ -1693,3 +1693,18 @@ typedef NS_ENUM(NSInteger, MultiplayerVCMode) {
 //   Multiplayer/FolderBrowser/AI 三桩如上，ZL2VersionIndex 不再重复（run
 //   43036193733 duplicate @interface/@implementation 判例：追加桩前先
 //   grep 既有类清单）。
+
+// ─────────────────────────────────────────────────────────────
+// ★Task429：ZL2BackgroundHost 预览链桩（真壳 TU 编入 preview 目标后新增的
+//   链接面符号——壳背景挂载区引用背景宿主类；本 TU 家法：手写同名类声明 +
+//   最小真签名空实现，不 import 真头。预览链无壁纸管线 = 恒空安全：壳层
+//   ame429_installBackgroundHost 拿到空壳宿主，刷新方法为无操作）。
+// ─────────────────────────────────────────────────────────────
+@interface ZL2BackgroundHost : UIView
+- (void)ame429_refreshWithOwnerViewController:(nullable UIViewController *)ownerVC;
+@end
+@implementation ZL2BackgroundHost
+- (void)ame429_refreshWithOwnerViewController:(nullable UIViewController *)ownerVC {
+    (void)ownerVC;
+}
+@end

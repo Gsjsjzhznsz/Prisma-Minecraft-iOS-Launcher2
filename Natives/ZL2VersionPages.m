@@ -82,6 +82,9 @@
 #import <ImageIO/ImageIO.h>
 #import <objc/runtime.h>
 #import "ModpackExportViewController.h"   // ★Task428（1.2）：导出整合包入口行（公开 init API：alloc/init + preselectedProfileName）
+#import "PLComponentService.h"           // ★Task429：FCL 式组件自动安装服务（组件管理子页数据面）
+#import "NMToast.h"                       // ★Task429：结果吐司（换装成败轻量提示）
+#import "PLWorldBackupService.h"        // ★Task429 S1：世界备份/恢复/复制/删除服务（「导出整合包」入口行同款语位）
 
 // ★Task428（1.2/1.4）：PLProfiles 新增类方法的本地前置声明（PLProfiles.h
 //   不在授权清单内；版本详情页隔离行消费）。签名与 PLProfiles.m 对应，勿漂移。
@@ -96,6 +99,20 @@
                                  toIsolated:(BOOL)toIsolated
                                      reason:(NSString *)reason
                                   onCommit:(void (^)(void))onCommit;
+@end
+
+// ★Task429（PDF 第五版 §2.1 + 第六版 §3.2.5）：FCL 式组件管理子页（与
+//   「校验并补全」入口并列挂版本详情页）。接口前置于消费点（ZL2CleanupPage
+//   同判例：声明后置 = undeclared identifier 编译雷）；实现于文件尾。
+//   基类沿用本文件既有 ZL2VersionPageBase（scrollView + 竖排列语言）。
+@interface ZL2ComponentsPage : ZL2VersionPageBase
+@end
+
+/// ★Task429：组件版本选单页（点组件条目 push；选版本 → 二次确认 → 换装）
+@interface ZL2ComponentVersionListPage : ZL2VersionPageBase
+- (instancetype)initWithProfileName:(NSString *)profileName
+                                gameDir:(NSString *)gameDir
+                                 entry:(PLComponentEntry *)entry;
 @end
 
 #pragma mark - 常量与小工具
@@ -704,6 +721,12 @@ static UIImage *ZL2V13ThumbnailAtPath(NSString *path, CGFloat maxPixel) {
 @property (nonatomic, strong) UILabel *ame428_isoValueLabel;
 @property (nonatomic, strong) UIControl *ame428_isoRowControl;
 @property (nonatomic, strong) UIControl *ame428_exportRowControl;
+// ★Task429：组件管理入口行（「导出整合包」同款语言）
+@property (nonatomic, strong) UIControl *ame429_componentRowControl;
+@property (nonatomic, strong) UILabel *ame429_componentValueLabel;
+// ★Task429 S1（PDF 六 §4.4）：世界备份入口行（与「导出整合包」并列；
+//   弹层动作面见文件内 ame429_s1_* 方法族）
+@property (nonatomic, strong) UIControl *ame429_s1_worldRowControl;
 @end
 
 @implementation ZL2VersionOverviewPage
@@ -893,12 +916,114 @@ static UIImage *ZL2V13ThumbnailAtPath(NSString *path, CGFloat maxPixel) {
             [expChevron.heightAnchor constraintEqualToConstant:18],
         ]];
 
-        UIStackView *ame428_rows = [[UIStackView alloc] initWithArrangedSubviews:@[_ame428_isoRowControl, _ame428_exportRowControl]];
+        // —— ★Task429：组件管理 / 更新加载器入口行（「导出整合包」同款语言：
+        //   surfaceContainer / radiusM / 高 ≥56 / 尾随当前加载器名 + chevron）——
+        UILabel *compTitle = [[UILabel alloc] init];
+        compTitle.text = localize(@"ame429.g.row.title", @"组件管理 / 更新加载器");
+        compTitle.font = [ZL2Theme fontTitleMedium];
+        compTitle.textColor = [ZL2Theme onSurface];
+        compTitle.translatesAutoresizingMaskIntoConstraints = NO;
+        _ame429_componentValueLabel = [[UILabel alloc] init];
+        _ame429_componentValueLabel.font = [ZL2Theme fontLabelMedium];
+        _ame429_componentValueLabel.textColor = [ZL2Theme onSurfaceVariant];
+        _ame429_componentValueLabel.numberOfLines = 1;
+        _ame429_componentValueLabel.lineBreakMode = NSLineBreakByTruncatingTail;
+        _ame429_componentValueLabel.textAlignment = NSTextAlignmentRight;
+        _ame429_componentValueLabel.translatesAutoresizingMaskIntoConstraints = NO;
+        UIImageView *compChevron = [[UIImageView alloc] initWithImage:
+            [ZL2V13SystemImage(@"puzzlepiece.extension", @"wand.and.stars") imageWithRenderingMode:UIImageRenderingModeAlwaysTemplate]];
+        compChevron.tintColor = [ZL2Theme onSurfaceVariant];
+        compChevron.contentMode = UIViewContentModeScaleAspectFit;
+        compChevron.translatesAutoresizingMaskIntoConstraints = NO;
+        _ame429_componentRowControl = [[UIControl alloc] init];
+        _ame429_componentRowControl.backgroundColor = [ZL2Theme surfaceContainer];
+        _ame429_componentRowControl.layer.cornerRadius = [ZL2Theme radiusM];
+        _ame429_componentRowControl.translatesAutoresizingMaskIntoConstraints = NO;
+        _ame429_componentRowControl.isAccessibilityElement = YES;
+        _ame429_componentRowControl.accessibilityTraits = UIAccessibilityTraitButton;
+        _ame429_componentRowControl.accessibilityLabel = localize(@"ame429.g.row.title", @"组件管理 / 更新加载器");
+        [_ame429_componentRowControl addSubview:compTitle];
+        [_ame429_componentRowControl addSubview:_ame429_componentValueLabel];
+        [_ame429_componentRowControl addSubview:compChevron];
+        [_ame429_componentRowControl addTarget:self
+                                       action:@selector(ame429_componentRowTapped)
+                             forControlEvents:UIControlEventTouchUpInside];
+        [NSLayoutConstraint activateConstraints:@[
+            [_ame429_componentRowControl.heightAnchor constraintGreaterThanOrEqualToConstant:56],
+            [compTitle.leadingAnchor constraintEqualToAnchor:_ame429_componentRowControl.leadingAnchor constant:16],
+            [compTitle.centerYAnchor constraintEqualToAnchor:_ame429_componentRowControl.centerYAnchor],
+            [compTitle.trailingAnchor constraintLessThanOrEqualToAnchor:_ame429_componentValueLabel.leadingAnchor constant:-8],
+            [_ame429_componentValueLabel.trailingAnchor constraintEqualToAnchor:compChevron.leadingAnchor constant:-6],
+            [_ame429_componentValueLabel.centerYAnchor constraintEqualToAnchor:_ame429_componentRowControl.centerYAnchor],
+            [_ame429_componentValueLabel.widthAnchor constraintLessThanOrEqualToConstant:180],
+            [compChevron.trailingAnchor constraintEqualToAnchor:_ame429_componentRowControl.trailingAnchor constant:-14],
+            [compChevron.centerYAnchor constraintEqualToAnchor:_ame429_componentRowControl.centerYAnchor],
+            [compChevron.widthAnchor constraintEqualToConstant:18],
+            [compChevron.heightAnchor constraintEqualToConstant:18],
+        ]];
+
+        UIStackView *ame428_rows = [[UIStackView alloc] initWithArrangedSubviews:
+            @[_ame428_isoRowControl, _ame428_exportRowControl, _ame429_componentRowControl]];
         ame428_rows.axis = UILayoutConstraintAxisVertical;
         ame428_rows.alignment = UIStackViewAlignmentFill;
         ame428_rows.spacing = ZL2V13CardSpacing;
         ame428_rows.translatesAutoresizingMaskIntoConstraints = NO;
         [_ameV13_contentStack addArrangedSubview:ame428_rows];
+
+        // —— ★Task429 S1：世界备份入口行（「导出整合包」同款语言：surfaceContainer
+        //   / radiusM / 高 ≥56 / 尾随实例名 + chevron；自持独立 stack，仅新增不
+        //   改写并行工位行，避免 429-G 组件管理区冲突）——
+        UILabel *wbTitle = [[UILabel alloc] init];
+        wbTitle.text = localize(@"ame429.s1.row.title", @"世界备份");
+        wbTitle.font = [ZL2Theme fontTitleMedium];
+        wbTitle.textColor = [ZL2Theme onSurface];
+        wbTitle.translatesAutoresizingMaskIntoConstraints = NO;
+        UILabel *wbValue = [[UILabel alloc] init];
+        wbValue.text = self.ameV13_profileName;
+        wbValue.font = [ZL2Theme fontLabelMedium];
+        wbValue.textColor = [ZL2Theme onSurfaceVariant];
+        wbValue.numberOfLines = 1;
+        wbValue.lineBreakMode = NSLineBreakByTruncatingTail;
+        wbValue.textAlignment = NSTextAlignmentRight;
+        wbValue.translatesAutoresizingMaskIntoConstraints = NO;
+        UIImageView *wbChevron = [[UIImageView alloc] initWithImage:
+            [ZL2V13SystemImage(@"externaldrive", @"archivebox") imageWithRenderingMode:UIImageRenderingModeAlwaysTemplate]];
+        wbChevron.tintColor = [ZL2Theme onSurfaceVariant];
+        wbChevron.contentMode = UIViewContentModeScaleAspectFit;
+        wbChevron.translatesAutoresizingMaskIntoConstraints = NO;
+        _ame429_s1_worldRowControl = [[UIControl alloc] init];
+        _ame429_s1_worldRowControl.backgroundColor = [ZL2Theme surfaceContainer];
+        _ame429_s1_worldRowControl.layer.cornerRadius = [ZL2Theme radiusM];
+        _ame429_s1_worldRowControl.translatesAutoresizingMaskIntoConstraints = NO;
+        _ame429_s1_worldRowControl.isAccessibilityElement = YES;
+        _ame429_s1_worldRowControl.accessibilityTraits = UIAccessibilityTraitButton;
+        _ame429_s1_worldRowControl.accessibilityLabel = localize(@"ame429.s1.row.title", @"世界备份");
+        [_ame429_s1_worldRowControl addSubview:wbTitle];
+        [_ame429_s1_worldRowControl addSubview:wbValue];
+        [_ame429_s1_worldRowControl addSubview:wbChevron];
+        [_ame429_s1_worldRowControl addTarget:self
+                                       action:@selector(ame429_s1_worldBackupRowTapped)
+                             forControlEvents:UIControlEventTouchUpInside];
+        [NSLayoutConstraint activateConstraints:@[
+            [_ame429_s1_worldRowControl.heightAnchor constraintGreaterThanOrEqualToConstant:56],
+            [wbTitle.leadingAnchor constraintEqualToAnchor:_ame429_s1_worldRowControl.leadingAnchor constant:16],
+            [wbTitle.centerYAnchor constraintEqualToAnchor:_ame429_s1_worldRowControl.centerYAnchor],
+            [wbTitle.trailingAnchor constraintLessThanOrEqualToAnchor:wbValue.leadingAnchor constant:-8],
+            [wbValue.trailingAnchor constraintEqualToAnchor:wbChevron.leadingAnchor constant:-6],
+            [wbValue.centerYAnchor constraintEqualToAnchor:_ame429_s1_worldRowControl.centerYAnchor],
+            [wbValue.widthAnchor constraintLessThanOrEqualToConstant:180],
+            [wbChevron.trailingAnchor constraintEqualToAnchor:_ame429_s1_worldRowControl.trailingAnchor constant:-14],
+            [wbChevron.centerYAnchor constraintEqualToAnchor:_ame429_s1_worldRowControl.centerYAnchor],
+            [wbChevron.widthAnchor constraintEqualToConstant:18],
+            [wbChevron.heightAnchor constraintEqualToConstant:18],
+        ]];
+        UIStackView *ame429_s1_rows = [[UIStackView alloc] initWithArrangedSubviews:
+            @[_ame429_s1_worldRowControl]];
+        ame429_s1_rows.axis = UILayoutConstraintAxisVertical;
+        ame429_s1_rows.alignment = UIStackViewAlignmentFill;
+        ame429_s1_rows.spacing = ZL2V13CardSpacing;
+        ame429_s1_rows.translatesAutoresizingMaskIntoConstraints = NO;
+        [_ameV13_contentStack addArrangedSubview:ame429_s1_rows];
     }
 
     [self ameV13_refreshInfoCard];
@@ -1036,6 +1161,365 @@ static UIImage *ZL2V13ThumbnailAtPath(NSString *path, CGFloat maxPixel) {
     [self.navigationController pushViewController:ame428_vc animated:YES];
 }
 
+#pragma mark - ★Task429 S1（PDF 六 §4.4）：世界备份入口行 + 备份管理弹层
+// 最小追加区块：本 pragma 以下至 ameV13_refreshInfoCard 之前全部为 S1 新增，
+// 不改写 428/429-G 任何行。数据面 = PLWorldBackupService（新 TU）；恢复落点
+// 与备份源统一走 PLProfiles 隔离决策树（+ame429_s1_gameDirForProfileName:
+// versionId:，与 JavaLauncher 启动链 gameDir 同源——第六版 §3.3 红线）。
+// 反馈口径 = NMToast（成功/进行中）+ 内联 AlertDialog（失败/确认/空态），
+// 与本文件既有用途边界一致；所有链式弹层统一走 0.35s 延迟窗口（下方 helper）。
+
+/// ★Task429 S1：链式弹层呈现（前一张 UIAlertController 动作点按后其退场动画
+/// 仍在飞行，直接 present = "presentation in progress" 竞态——Task428 全局档
+/// 行 / ProfileSettingsViewController 同款 0.35s 延迟窗口判例，统一收口）。
+- (void)ame429_s1_presentAfterDismiss:(UIAlertController *)vc {
+    dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.35 * NSEC_PER_SEC)),
+                   dispatch_get_main_queue(), ^{
+        [self presentViewController:vc animated:YES completion:nil];
+    });
+}
+
+/// 入口行点按：世界备份管理弹层（备份 / 备份列表（恢复/删除备份）/ 复制 /
+/// 删除世界四操作 + 列表呈现）。
+- (void)ame429_s1_worldBackupRowTapped {
+    UIAlertController *sheet = [UIAlertController
+        alertControllerWithTitle:localize(@"ame429.s1.sheet.title", @"世界备份")
+                         message:[NSString stringWithFormat:
+                             localize(@"ame429.s1.sheet.message", @"实例：%@ · 删除与被恢复覆盖的世界均移入回收站"),
+                             self.ameV13_profileName]
+                  preferredStyle:UIAlertControllerStyleActionSheet];
+    [sheet addAction:[UIAlertAction actionWithTitle:localize(@"ame429.s1.action.backup", @"备份世界…")
+                                              style:UIAlertActionStyleDefault
+                                            handler:^(__unused UIAlertAction *a) {
+        [self ame429_s1_pickWorldThen:^(NSString *worldPath) {
+            [self ame429_s1_runBackupForWorld:worldPath];
+        }];
+    }]];
+    [sheet addAction:[UIAlertAction actionWithTitle:localize(@"ame429.s1.action.list", @"备份列表…")
+                                              style:UIAlertActionStyleDefault
+                                            handler:^(__unused UIAlertAction *a) {
+        [self ame429_s1_showBackupList];
+    }]];
+    [sheet addAction:[UIAlertAction actionWithTitle:localize(@"ame429.s1.action.duplicate", @"复制世界…")
+                                              style:UIAlertActionStyleDefault
+                                            handler:^(__unused UIAlertAction *a) {
+        [self ame429_s1_pickWorldThen:^(NSString *worldPath) {
+            [self ame429_s1_runDuplicateForWorld:worldPath];
+        }];
+    }]];
+    [sheet addAction:[UIAlertAction actionWithTitle:localize(@"ame429.s1.action.trash", @"删除世界…")
+                                              style:UIAlertActionStyleDestructive
+                                            handler:^(__unused UIAlertAction *a) {
+        [self ame429_s1_pickWorldThen:^(NSString *worldPath) {
+            [self ame429_s1_confirmTrashWorld:worldPath];
+        }];
+    }]];
+    [sheet addAction:[UIAlertAction actionWithTitle:localize(@"resman.common.cancel", nil)
+                                              style:UIAlertActionStyleCancel handler:nil]];
+    sheet.popoverPresentationController.sourceView = _ame429_s1_worldRowControl ?: self.view;
+    sheet.popoverPresentationController.sourceRect = (_ame429_s1_worldRowControl ?: self.view).bounds;
+    [self presentViewController:sheet animated:YES completion:nil];
+}
+
+/// 世界选择弹层（后台枚举决策树 gameDir/saves → 主线程 action sheet；
+/// 空态 AlertDialog）。
+- (void)ame429_s1_pickWorldThen:(void (^)(NSString *worldPath))onPick {
+    __weak typeof(self) weakSelf = self;
+    NSString *profileName = self.ameV13_profileName;
+    NSDictionary *prof = [self ameV13_profileDict];
+    NSString *vid = [prof[@"lastVersionId"] isKindOfClass:[NSString class]] ? prof[@"lastVersionId"] : nil;
+    dispatch_async(dispatch_get_global_queue(QOS_CLASS_USER_INITIATED, 0), ^{
+        NSString *gameDir = [PLWorldBackupService ame429_s1_gameDirForProfileName:profileName versionId:vid];
+        NSArray<NSDictionary *> *worlds = [PLWorldBackupService ame429_s1_listWorldsForGameDir:gameDir ?: @""];
+        dispatch_async(dispatch_get_main_queue(), ^{
+            __strong typeof(weakSelf) strongSelf = weakSelf;
+            if (!strongSelf) return;
+            if (worlds.count == 0) {
+                [strongSelf ame429_s1_presentAfterDismiss:[UIAlertController
+                    alertControllerWithTitle:nil
+                                     message:localize(@"ame429.s1.world.none", @"当前实例暂无世界存档")
+                          preferredStyle:UIAlertControllerStyleAlert]];
+                return;
+            }
+            UIAlertController *picker = [UIAlertController
+                alertControllerWithTitle:localize(@"ame429.s1.world.title", @"选择世界")
+                                 message:nil preferredStyle:UIAlertControllerStyleActionSheet];
+            for (NSDictionary *world in worlds) {
+                NSString *path = [world[@"path"] isKindOfClass:[NSString class]] ? world[@"path"] : nil;
+                if (path.length == 0) continue;
+                [picker addAction:[UIAlertAction actionWithTitle:path.lastPathComponent
+                                                           style:UIAlertActionStyleDefault
+                                                         handler:^(__unused UIAlertAction *a) {
+                    onPick(path);
+                }]];
+            }
+            [picker addAction:[UIAlertAction actionWithTitle:localize(@"resman.common.cancel", nil)
+                                                       style:UIAlertActionStyleCancel handler:nil]];
+            picker.popoverPresentationController.sourceView = strongSelf->_ame429_s1_worldRowControl ?: strongSelf.view;
+            picker.popoverPresentationController.sourceRect = (strongSelf->_ame429_s1_worldRowControl ?: strongSelf.view).bounds;
+            [strongSelf ame429_s1_presentAfterDismiss:picker];
+        });
+    });
+}
+
+/// 备份执行：busy 吐司（NMToast 顶替语义）→ 主线程结果反馈。
+- (void)ame429_s1_runBackupForWorld:(NSString *)worldPath {
+    [NMToast showMessage:localize(@"ame429.s1.busy", @"处理中…")];
+    __weak typeof(self) weakSelf = self;
+    [PLWorldBackupService ame429_s1_backupWorldAtPath:worldPath completion:^(BOOL ok, NSString *zipPath, NSError *error) {
+        __strong typeof(weakSelf) strongSelf = weakSelf;
+        if (!strongSelf) return;
+        if (ok) {
+            [NMToast showMessage:[NSString stringWithFormat:
+                localize(@"ame429.s1.backup.ok_fmt", @"备份完成：%@（存于 world_backups/）"),
+                zipPath.lastPathComponent ?: @""]];
+        } else {
+            [strongSelf ame429_s1_presentAfterDismiss:[UIAlertController
+                alertControllerWithTitle:nil
+                                 message:[NSString stringWithFormat:
+                     localize(@"ame429.s1.backup.fail_fmt", @"备份失败：%@"), error.localizedDescription ?: @""]
+                          preferredStyle:UIAlertControllerStyleAlert]];
+        }
+    }];
+}
+
+/// 备份清单弹层（后台枚举 world_backups/ → 主线程 action sheet → 单备份动作面）。
+- (void)ame429_s1_showBackupList {
+    __weak typeof(self) weakSelf = self;
+    dispatch_async(dispatch_get_global_queue(QOS_CLASS_USER_INITIATED, 0), ^{
+        NSArray<NSDictionary *> *backups = [PLWorldBackupService ame429_s1_listBackups];
+        dispatch_async(dispatch_get_main_queue(), ^{
+            __strong typeof(weakSelf) strongSelf = weakSelf;
+            if (!strongSelf) return;
+            if (backups.count == 0) {
+                [strongSelf ame429_s1_presentAfterDismiss:[UIAlertController
+                    alertControllerWithTitle:nil
+                                     message:localize(@"ame429.s1.backup.empty", @"暂无备份")
+                          preferredStyle:UIAlertControllerStyleAlert]];
+                return;
+            }
+            UIAlertController *list = [UIAlertController
+                alertControllerWithTitle:[NSString stringWithFormat:
+                    localize(@"ame429.s1.backup.pick.title", @"备份列表（%lu）"), (unsigned long)backups.count]
+                                 message:nil preferredStyle:UIAlertControllerStyleActionSheet];
+            for (NSDictionary *backup in backups) {
+                NSString *path = [backup[@"path"] isKindOfClass:[NSString class]] ? backup[@"path"] : nil;
+                if (path.length == 0) continue;
+                long long bytes = [backup[@"size"] isKindOfClass:[NSNumber class]]
+                    ? [(NSNumber *)backup[@"size"] longLongValue] : 0;
+                NSString *rowTitle = [NSString stringWithFormat:@"%@（%.1f MB）",
+                    path.lastPathComponent, bytes / (1024.0 * 1024.0)];
+                [list addAction:[UIAlertAction actionWithTitle:rowTitle
+                                                         style:UIAlertActionStyleDefault
+                                                       handler:^(__unused UIAlertAction *a) {
+                    __strong typeof(weakSelf) strongSelfInner = weakSelf;
+                    [strongSelfInner ame429_s1_showBackupActionsForPath:path];
+                }]];
+            }
+            [list addAction:[UIAlertAction actionWithTitle:localize(@"resman.common.cancel", nil)
+                                                     style:UIAlertActionStyleCancel handler:nil]];
+            list.popoverPresentationController.sourceView = strongSelf->_ame429_s1_worldRowControl ?: strongSelf.view;
+            list.popoverPresentationController.sourceRect = (strongSelf->_ame429_s1_worldRowControl ?: strongSelf.view).bounds;
+            [strongSelf ame429_s1_presentAfterDismiss:list];
+        });
+    });
+}
+
+/// 单备份动作面：恢复（确认后执行）/ 删除备份（回收站语义）。
+- (void)ame429_s1_showBackupActionsForPath:(NSString *)zipPath {
+    __weak typeof(self) weakSelf = self;
+    UIAlertController *sheet = [UIAlertController
+        alertControllerWithTitle:zipPath.lastPathComponent
+                         message:localize(@"ame429.s1.backup.actions.msg", @"恢复目标 = 本实例隔离决策树解析出的存档目录")
+                  preferredStyle:UIAlertControllerStyleActionSheet];
+    [sheet addAction:[UIAlertAction actionWithTitle:localize(@"ame429.s1.restore.do", @"恢复此备份")
+                                              style:UIAlertActionStyleDefault
+                                            handler:^(__unused UIAlertAction *a) {
+        __strong typeof(weakSelf) strongSelf = weakSelf;
+        [strongSelf ame429_s1_confirmRestore:zipPath];
+    }]];
+    [sheet addAction:[UIAlertAction actionWithTitle:localize(@"ame429.s1.backupdel.do", @"删除备份")
+                                              style:UIAlertActionStyleDestructive
+                                            handler:^(__unused UIAlertAction *a) {
+        __strong typeof(weakSelf) strongSelf = weakSelf;
+        [strongSelf ame429_s1_confirmTrashBackup:zipPath];
+    }]];
+    [sheet addAction:[UIAlertAction actionWithTitle:localize(@"resman.common.cancel", nil)
+                                              style:UIAlertActionStyleCancel handler:nil]];
+    sheet.popoverPresentationController.sourceView = _ame429_s1_worldRowControl ?: self.view;
+    sheet.popoverPresentationController.sourceRect = (_ame429_s1_worldRowControl ?: self.view).bounds;
+    [self ame429_s1_presentAfterDismiss:sheet];
+}
+
+/// 恢复确认（同名旧档回收站语义声明）→ 执行恢复。
+- (void)ame429_s1_confirmRestore:(NSString *)zipPath {
+    __weak typeof(self) weakSelf = self;
+    UIAlertController *confirm = [UIAlertController
+        alertControllerWithTitle:localize(@"ame429.s1.restore.confirm.title", @"恢复备份")
+                         message:[NSString stringWithFormat:
+                             localize(@"ame429.s1.restore.confirm.msg_fmt", @"将把「%@」解回当前实例存档目录；同名现存档会先移入回收站。"),
+                             zipPath.lastPathComponent]
+                  preferredStyle:UIAlertControllerStyleAlert];
+    [confirm addAction:[UIAlertAction actionWithTitle:localize(@"resman.common.cancel", nil)
+                                                style:UIAlertActionStyleCancel handler:nil]];
+    [confirm addAction:[UIAlertAction actionWithTitle:localize(@"ame429.s1.restore.do", @"恢复此备份")
+                                                style:UIAlertActionStyleDefault
+                                              handler:^(__unused UIAlertAction *a) {
+        __strong typeof(weakSelf) strongSelf = weakSelf;
+        if (!strongSelf) return;
+        [strongSelf ame429_s1_runRestore:zipPath];
+    }]];
+    [self ame429_s1_presentAfterDismiss:confirm];
+}
+
+/// 恢复执行：目标 gameDir 每次现算（决策树取值——实例隔离态翻转后恢复仍
+/// 落对位置），服务侧 completion 主线程回调。
+- (void)ame429_s1_runRestore:(NSString *)zipPath {
+    [NMToast showMessage:localize(@"ame429.s1.busy", @"处理中…")];
+    __weak typeof(self) weakSelf = self;
+    NSString *profileName = self.ameV13_profileName;
+    NSDictionary *prof = [self ameV13_profileDict];
+    NSString *vid = [prof[@"lastVersionId"] isKindOfClass:[NSString class]] ? prof[@"lastVersionId"] : nil;
+    dispatch_async(dispatch_get_global_queue(QOS_CLASS_USER_INITIATED, 0), ^{
+        NSString *gameDir = [PLWorldBackupService ame429_s1_gameDirForProfileName:profileName versionId:vid];
+        [PLWorldBackupService ame429_s1_restoreBackupAtPath:zipPath gameDir:gameDir ?: @"" completion:^(BOOL ok, NSString *restoredName, NSError *error) {
+            __strong typeof(weakSelf) strongSelf = weakSelf;
+            if (!strongSelf) return;
+            if (ok) {
+                [NMToast showMessage:[NSString stringWithFormat:
+                    localize(@"ame429.s1.restore.ok_fmt", @"已恢复世界：%@（同名旧档已移入回收站）"), restoredName ?: @""]];
+            } else {
+                [strongSelf ame429_s1_presentAfterDismiss:[UIAlertController
+                    alertControllerWithTitle:nil
+                                     message:[NSString stringWithFormat:
+                         localize(@"ame429.s1.restore.fail_fmt", @"恢复失败：%@"), error.localizedDescription ?: @""]
+                              preferredStyle:UIAlertControllerStyleAlert]];
+            }
+        }];
+    });
+}
+
+/// 删除备份确认 → 回收站语义执行。
+- (void)ame429_s1_confirmTrashBackup:(NSString *)zipPath {
+    __weak typeof(self) weakSelf = self;
+    UIAlertController *confirm = [UIAlertController
+        alertControllerWithTitle:localize(@"ame429.s1.backupdel.confirm.title", @"删除备份")
+                         message:[NSString stringWithFormat:
+                             localize(@"ame429.s1.backupdel.confirm.msg_fmt", @"备份「%@」将移入回收站（POJAV_HOME/trash），不会直删。"),
+                             zipPath.lastPathComponent]
+                  preferredStyle:UIAlertControllerStyleAlert];
+    [confirm addAction:[UIAlertAction actionWithTitle:localize(@"resman.common.cancel", nil)
+                                                style:UIAlertActionStyleCancel handler:nil]];
+    [confirm addAction:[UIAlertAction actionWithTitle:localize(@"ame429.s1.backupdel.do", @"删除备份")
+                                                style:UIAlertActionStyleDestructive
+                                              handler:^(__unused UIAlertAction *a) {
+        __strong typeof(weakSelf) strongSelf = weakSelf;
+        if (!strongSelf) return;
+        [strongSelf ame429_s1_runTrashBackup:zipPath];
+    }]];
+    [self ame429_s1_presentAfterDismiss:confirm];
+}
+
+- (void)ame429_s1_runTrashBackup:(NSString *)zipPath {
+    __weak typeof(self) weakSelf = self;
+    dispatch_async(dispatch_get_global_queue(QOS_CLASS_USER_INITIATED, 0), ^{
+        NSError *error = nil;
+        BOOL ok = [PLWorldBackupService ame429_s1_trashBackupAtPath:zipPath error:&error];
+        dispatch_async(dispatch_get_main_queue(), ^{
+            __strong typeof(weakSelf) strongSelf = weakSelf;
+            if (!strongSelf) return;
+            if (ok) {
+                [NMToast showMessage:[NSString stringWithFormat:
+                    localize(@"ame429.s1.backupdel.ok_fmt", @"已移入回收站：%@"), zipPath.lastPathComponent]];
+            } else {
+                [strongSelf ame429_s1_presentAfterDismiss:[UIAlertController
+                    alertControllerWithTitle:nil
+                                     message:[NSString stringWithFormat:
+                         localize(@"ame429.s1.backupdel.fail_fmt", @"删除失败：%@"), error.localizedDescription ?: @""]
+                              preferredStyle:UIAlertControllerStyleAlert]];
+            }
+        });
+    });
+}
+
+/// 复制执行（saves/ 内就地深拷贝，_Copy 去重后缀；busy 吐司 + 结果反馈）。
+- (void)ame429_s1_runDuplicateForWorld:(NSString *)worldPath {
+    [NMToast showMessage:localize(@"ame429.s1.busy", @"处理中…")];
+    __weak typeof(self) weakSelf = self;
+    dispatch_async(dispatch_get_global_queue(QOS_CLASS_USER_INITIATED, 0), ^{
+        NSError *error = nil;
+        NSString *newName = [PLWorldBackupService ame429_s1_duplicateWorldAtPath:worldPath error:&error];
+        dispatch_async(dispatch_get_main_queue(), ^{
+            __strong typeof(weakSelf) strongSelf = weakSelf;
+            if (!strongSelf) return;
+            if (newName.length > 0) {
+                [NMToast showMessage:[NSString stringWithFormat:
+                    localize(@"ame429.s1.duplicate.ok_fmt", @"已复制为：%@"), newName]];
+            } else {
+                [strongSelf ame429_s1_presentAfterDismiss:[UIAlertController
+                    alertControllerWithTitle:nil
+                                     message:[NSString stringWithFormat:
+                         localize(@"ame429.s1.duplicate.fail_fmt", @"复制失败：%@"), error.localizedDescription ?: @""]
+                              preferredStyle:UIAlertControllerStyleAlert]];
+            }
+        });
+    });
+}
+
+/// 删除世界确认（回收站语义声明）→ 执行。
+- (void)ame429_s1_confirmTrashWorld:(NSString *)worldPath {
+    __weak typeof(self) weakSelf = self;
+    UIAlertController *confirm = [UIAlertController
+        alertControllerWithTitle:localize(@"ame429.s1.trash.confirm.title", @"删除世界")
+                         message:[NSString stringWithFormat:
+                             localize(@"ame429.s1.trash.confirm.msg_fmt", @"世界「%@」将移入回收站（POJAV_HOME/trash/时间戳子目录），可手动找回。"),
+                             worldPath.lastPathComponent]
+                  preferredStyle:UIAlertControllerStyleAlert];
+    [confirm addAction:[UIAlertAction actionWithTitle:localize(@"resman.common.cancel", nil)
+                                                style:UIAlertActionStyleCancel handler:nil]];
+    [confirm addAction:[UIAlertAction actionWithTitle:localize(@"ame429.s1.action.trash", @"删除世界…")
+                                                style:UIAlertActionStyleDestructive
+                                              handler:^(__unused UIAlertAction *a) {
+        __strong typeof(weakSelf) strongSelf = weakSelf;
+        if (!strongSelf) return;
+        [strongSelf ame429_s1_runTrashWorld:worldPath];
+    }]];
+    [self ame429_s1_presentAfterDismiss:confirm];
+}
+
+- (void)ame429_s1_runTrashWorld:(NSString *)worldPath {
+    __weak typeof(self) weakSelf = self;
+    dispatch_async(dispatch_get_global_queue(QOS_CLASS_USER_INITIATED, 0), ^{
+        NSError *error = nil;
+        BOOL ok = [PLWorldBackupService ame429_s1_trashWorldAtPath:worldPath error:&error];
+        dispatch_async(dispatch_get_main_queue(), ^{
+            __strong typeof(weakSelf) strongSelf = weakSelf;
+            if (!strongSelf) return;
+            if (ok) {
+                [NMToast showMessage:[NSString stringWithFormat:
+                    localize(@"ame429.s1.trash.ok_fmt", @"已移入回收站：%@"), worldPath.lastPathComponent]];
+            } else {
+                [strongSelf ame429_s1_presentAfterDismiss:[UIAlertController
+                    alertControllerWithTitle:nil
+                                     message:[NSString stringWithFormat:
+                         localize(@"ame429.s1.trash.fail_fmt", @"删除失败：%@"), error.localizedDescription ?: @""]
+                              preferredStyle:UIAlertControllerStyleAlert]];
+            }
+        });
+    });
+}
+
+/// ★Task429：组件管理入口行 → ZL2ComponentsPage 子页（FCL 式组件自动安装；
+/// 数据面 PLComponentService，版本选单/二次确认/结果吐司在子页收口）。
+/// 第六版 N1/N2 判例：本 selector 已注册于入口行 addTarget，无实现 = 点击即
+/// unrecognized selector crash → 实现必须真实落地（禁止声明占位）。
+- (void)ame429_componentRowTapped {
+    ZL2ComponentsPage *ame429_vc = [[ZL2ComponentsPage alloc]
+        initWithProfileName:self.ameV13_profileName
+                    gameDir:self.ameV13_gameDir];
+    [self.navigationController pushViewController:ame429_vc animated:YES];
+}
+
 - (void)ameV13_refreshInfoCard {
     NSMutableDictionary *profile = [self ameV13_profileDict];
     NSString *versionId = nil;
@@ -1080,6 +1564,14 @@ static UIImage *ZL2V13ThumbnailAtPath(NSString *path, CGFloat maxPixel) {
         self.ameV13_iconView.image = [ZL2V13SystemImage(@"gamecontroller", @"cube.box.fill") imageWithRenderingMode:UIImageRenderingModeAlwaysTemplate];
         self.ameV13_iconView.tintColor = [ZL2Theme onSurfaceVariant];
         self.ameV13_iconBox.backgroundColor = [ZL2Theme surfaceVariant];
+    }
+
+    // ★Task429：组件入口行尾随当前加载器名（无 loader → MC 版本；数据源与
+    //   信息卡 tagLabel 共用同一 loader/mcVersion 局部量，零重复解析）
+    if (_ame429_componentValueLabel) {
+        _ame429_componentValueLabel.text = loader.length > 0
+            ? [ModLoaderIconHelper displayNameForLoader:loader]
+            : (mcVersion.length > 0 ? mcVersion : @"");
     }
 }
 
@@ -3925,6 +4417,454 @@ static NSString *ZL2V13ModSHA1ForFile(NSString *path) {
 - (BOOL)textFieldShouldReturn:(UITextField *)textField {
     [textField resignFirstResponder];
     return YES;
+}
+
+@end
+
+#pragma mark - ★Task429：组件管理子页实现（接口声明见文件头）
+
+// 第六版 N1/N2 判例落地注记：概览页入口行已注册 ame429_componentRowTapped
+//   target-action 并推入本页，前序轮只有 @interface 占位——无 @implementation
+//   时 objc_getClass 返回 nil → push nil 异常；选单页同理。故两页实现必须
+//   真实落地，禁止"声明占位"。
+
+@interface ZL2ComponentsPage () <UIDocumentPickerDelegate>
+@property (nonatomic, strong) UIStackView *ame429_contentStack;
+@property (nonatomic, strong) UIStackView *ame429_listStack;
+@property (nonatomic, strong) UILabel *ame429_stateLabel;
+@property (nonatomic, strong) NSArray<PLComponentEntry *> *ame429_entries;
+@end
+
+@implementation ZL2ComponentsPage
+
+- (void)viewDidLoad {
+    [super viewDidLoad];
+    self.view.backgroundColor = [UIColor clearColor];
+    self.title = localize(@"ame429.g.comp.page.title", @"组件管理");
+
+    _ame429_stateLabel = [[UILabel alloc] init];
+    _ame429_stateLabel.font = [ZL2Theme fontBodyMedium];
+    _ame429_stateLabel.textColor = [ZL2Theme onSurfaceVariant];
+    _ame429_stateLabel.numberOfLines = 0;
+    _ame429_stateLabel.textAlignment = NSTextAlignmentCenter;
+    _ame429_stateLabel.translatesAutoresizingMaskIntoConstraints = NO;
+    _ame429_stateLabel.text = localize(@"ame429.g.comp.analyzing", @"正在分析已装组件…");
+
+    _ame429_listStack = [[UIStackView alloc] init];
+    _ame429_listStack.axis = UILayoutConstraintAxisVertical;
+    _ame429_listStack.alignment = UIStackViewAlignmentFill;
+    _ame429_listStack.spacing = ZL2V13CardSpacing;
+    _ame429_listStack.translatesAutoresizingMaskIntoConstraints = NO;
+
+    _ame429_contentStack = [self ameV13_installContentSkeleton];
+    [_ame429_contentStack addArrangedSubview:
+        [self ameV13_pageHeaderRowWithTitle:self.title trailing:nil]];
+    [_ame429_contentStack addArrangedSubview:_ame429_stateLabel];
+    [_ame429_contentStack addArrangedSubview:_ame429_listStack];
+    // 首扫由基类 viewWillAppear → ameV13_reloadContent 触发（防 viewDidLoad/
+    //   viewWillAppear 双发重复 analyze）
+}
+
+// 返回本页即重扫（换装成功 pop 回来后条目即时刷新）
+- (void)ameV13_reloadContent {
+    __weak typeof(self) wself = self;
+    _ame429_stateLabel.hidden = NO;
+    _ame429_stateLabel.text = localize(@"ame429.g.comp.analyzing", @"正在分析已装组件…");
+    [PLComponentService analyzeComponentsForProfile:self.ameV13_profileName
+                                         completion:^(NSArray<PLComponentEntry *> *entries) {
+        __strong typeof(wself) sself = wself;
+        if (!sself) return;
+        [sself ame429_renderEntries:entries];
+    }];
+}
+
+- (void)ame429_renderEntries:(NSArray<PLComponentEntry *> *)entries {
+    for (UIView *v in [_ame429_listStack.arrangedSubviews copy]) [v removeFromSuperview];
+    if (entries.count == 0) {
+        _ame429_stateLabel.hidden = NO;
+        _ame429_stateLabel.text = localize(@"ame429.g.comp.empty", @"未检测到组件（实例尚未安装版本）");
+        return;
+    }
+    _ame429_stateLabel.hidden = YES;
+    _ame429_entries = entries;
+    [entries enumerateObjectsUsingBlock:^(PLComponentEntry *entry, NSUInteger idx, BOOL *stop) {
+        [_ame429_listStack addArrangedSubview:[self ame429_rowForEntry:entry index:idx]];
+    }];
+    [_ame429_listStack addArrangedSubview:[self ame429_importRow]];
+}
+
+/// 条目行：显示名 + 尾随当前版本 + chevron。installable → 版本选单页；
+/// viewonly（clean/optifine）→ 服务侧 viewonly 注记弹窗（诚实边界：不灰死）。
+- (UIView *)ame429_rowForEntry:(PLComponentEntry *)entry index:(NSUInteger)idx {
+    UILabel *title = [[UILabel alloc] init];
+    title.font = [ZL2Theme fontBodyMedium];
+    title.textColor = entry.installable ? [ZL2Theme onSurface] : [ZL2Theme onSurfaceVariant];
+    title.numberOfLines = 1;
+    title.text = [PLComponentService displayNameForComponentType:entry.type];
+    title.translatesAutoresizingMaskIntoConstraints = NO;
+
+    UILabel *value = [[UILabel alloc] init];
+    value.font = [ZL2Theme fontLabelMedium];
+    value.textColor = [ZL2Theme onSurfaceVariant];
+    value.numberOfLines = 1;
+    value.lineBreakMode = NSLineBreakByTruncatingMiddle;
+    value.textAlignment = NSTextAlignmentRight;
+    value.text = entry.version.length > 0
+        ? entry.version
+        : localize(@"ame429.g.comp.row.viewonly", @"仅展示");
+    value.translatesAutoresizingMaskIntoConstraints = NO;
+
+    UIImageView *chevron = [[UIImageView alloc] initWithImage:
+        [ZL2V13SystemImage(@"chevron.right", @"chevron.forward") imageWithRenderingMode:UIImageRenderingModeAlwaysTemplate]];
+    chevron.tintColor = [ZL2Theme onSurfaceVariant];
+    chevron.contentMode = UIViewContentModeScaleAspectFit;
+    chevron.translatesAutoresizingMaskIntoConstraints = NO;
+    [NSLayoutConstraint activateConstraints:@[
+        [chevron.widthAnchor constraintEqualToConstant:16],
+        [chevron.heightAnchor constraintEqualToConstant:16],
+    ]];
+
+    UIControl *row = [[UIControl alloc] init];
+    row.backgroundColor = [ZL2Theme surfaceContainer];
+    row.layer.cornerRadius = [ZL2Theme radiusM];
+    row.tag = (NSInteger)idx;
+    row.isAccessibilityElement = YES;
+    row.accessibilityTraits = UIAccessibilityTraitButton;
+    row.accessibilityLabel = [NSString stringWithFormat:@"%@, %@",
+        title.text ?: @"", value.text ?: @""];
+    row.translatesAutoresizingMaskIntoConstraints = NO;
+    [row addSubview:title];
+    [row addSubview:value];
+    [row addSubview:chevron];
+    [NSLayoutConstraint activateConstraints:@[
+        [row.heightAnchor constraintGreaterThanOrEqualToConstant:52],
+        [title.leadingAnchor constraintEqualToAnchor:row.leadingAnchor constant:16],
+        [title.centerYAnchor constraintEqualToAnchor:row.centerYAnchor],
+        [title.trailingAnchor constraintLessThanOrEqualToAnchor:value.leadingAnchor constant:-8],
+        [value.trailingAnchor constraintEqualToAnchor:chevron.leadingAnchor constant:-6],
+        [value.centerYAnchor constraintEqualToAnchor:row.centerYAnchor],
+        [value.widthAnchor constraintLessThanOrEqualToConstant:200],
+        [chevron.trailingAnchor constraintEqualToAnchor:row.trailingAnchor constant:-14],
+        [chevron.centerYAnchor constraintEqualToAnchor:row.centerYAnchor],
+    ]];
+    [row addTarget:self
+              action:@selector(ame429_entryRowTapped:)
+    forControlEvents:UIControlEventTouchUpInside];
+
+    UIStackView *wrap = [[UIStackView alloc] initWithArrangedSubviews:@[row]];
+    wrap.axis = UILayoutConstraintAxisVertical;
+    wrap.alignment = UIStackViewAlignmentFill;
+    wrap.translatesAutoresizingMaskIntoConstraints = NO;
+    return wrap;
+}
+
+- (void)ame429_entryRowTapped:(UIControl *)sender {
+    NSUInteger idx = (NSUInteger)sender.tag;
+    if (idx >= _ame429_entries.count) return;
+    PLComponentEntry *entry = _ame429_entries[idx];
+    if (entry.installable) {
+        ZL2ComponentVersionListPage *vc = [[ZL2ComponentVersionListPage alloc]
+            initWithProfileName:self.ameV13_profileName
+                        gameDir:self.ameV13_gameDir
+                          entry:entry];
+        [self.navigationController pushViewController:vc animated:YES];
+        return;
+    }
+    NSString *note = [entry.type isEqualToString:PLComponentTypeClean]
+        ? localize(@"ame429.g.comp.clean.viewonly_note", @"原版本体：换版本请走游戏下载页")
+        : localize(@"ame429.g.comp.optifine.viewonly_note",
+                   @"OptiFine 远端清单未接入：仅展示当前版本，可离线导入安装器");
+    [self ameV13_showAlertMessage:note];
+}
+
+/// 离线导入入口行（forge/neoforge/optifine 安装器 jar；FCL 本地安装语义，
+/// 类型由文件名探测——未识别即注记弹窗，不猜类型）。
+- (UIView *)ame429_importRow {
+    UILabel *title = [[UILabel alloc] init];
+    title.font = [ZL2Theme fontBodyMedium];
+    title.textColor = [ZL2Theme onSurface];
+    title.numberOfLines = 1;
+    title.text = localize(@"ame429.g.comp.import.button", @"离线导入安装器…");
+    title.translatesAutoresizingMaskIntoConstraints = NO;
+
+    UIImageView *chevron = [[UIImageView alloc] initWithImage:
+        [ZL2V13SystemImage(@"square.and.arrow.down", @"tray.and.arrow.down") imageWithRenderingMode:UIImageRenderingModeAlwaysTemplate]];
+    chevron.tintColor = [ZL2Theme onSurfaceVariant];
+    chevron.contentMode = UIViewContentModeScaleAspectFit;
+    chevron.translatesAutoresizingMaskIntoConstraints = NO;
+    [NSLayoutConstraint activateConstraints:@[
+        [chevron.widthAnchor constraintEqualToConstant:16],
+        [chevron.heightAnchor constraintEqualToConstant:16],
+    ]];
+
+    UIControl *row = [[UIControl alloc] init];
+    row.backgroundColor = [ZL2Theme surfaceContainer];
+    row.layer.cornerRadius = [ZL2Theme radiusM];
+    row.isAccessibilityElement = YES;
+    row.accessibilityTraits = UIAccessibilityTraitButton;
+    row.accessibilityLabel = title.text;
+    row.translatesAutoresizingMaskIntoConstraints = NO;
+    [row addSubview:title];
+    [row addSubview:chevron];
+    [NSLayoutConstraint activateConstraints:@[
+        [row.heightAnchor constraintGreaterThanOrEqualToConstant:52],
+        [title.leadingAnchor constraintEqualToAnchor:row.leadingAnchor constant:16],
+        [title.centerYAnchor constraintEqualToAnchor:row.centerYAnchor],
+        [chevron.trailingAnchor constraintEqualToAnchor:row.trailingAnchor constant:-14],
+        [chevron.centerYAnchor constraintEqualToAnchor:row.centerYAnchor],
+    ]];
+    [row addTarget:self
+              action:@selector(ame429_importTapped)
+    forControlEvents:UIControlEventTouchUpInside];
+
+    UIStackView *wrap = [[UIStackView alloc] initWithArrangedSubviews:@[row]];
+    wrap.axis = UILayoutConstraintAxisVertical;
+    wrap.alignment = UIStackViewAlignmentFill;
+    wrap.translatesAutoresizingMaskIntoConstraints = NO;
+    return wrap;
+}
+
+- (void)ame429_importTapped {
+    UIDocumentPickerViewController *picker = [[UIDocumentPickerViewController alloc]
+        initForOpeningContentTypes:@[UTTypeData]];
+    picker.delegate = self;
+    picker.allowsMultipleSelection = NO;
+    [self presentViewController:picker animated:YES completion:nil];
+}
+
+- (void)documentPicker:(UIDocumentPickerViewController *)controller
+didPickDocumentsAtURLs:(NSArray<NSURL *> *)urls {
+    if (urls.count == 0) return;
+    NSURL *pickedURL = urls.firstObject;
+    // 文件名探测组件类型（官方安装器命名；neoforge 先于 forge——子串包含）
+    NSString *name = pickedURL.lastPathComponent.lowercaseString;
+    NSString *type = nil;
+    if ([name containsString:@"optifine"]) type = PLComponentTypeOptiFine;
+    else if ([name containsString:@"neoforge"]) type = PLComponentTypeNeoForge;
+    else if ([name containsString:@"forge"]) type = PLComponentTypeForge;
+    if (type.length == 0) {
+        [self ameV13_showAlertMessage:localize(@"ame429.g.comp.import.parse_failed",
+            @"未能解析安装器/清单版本信息")];
+        return;
+    }
+    // 安全范围 URL 必须先 start 再读（AccountListViewController ame224 同款）；
+    // 服务按路径重复读（install_profile.json + jar 本体）→ 先拷入 tmp 再传路径
+    NSString *tmpPath = [NSTemporaryDirectory() stringByAppendingPathComponent:
+        [NSString stringWithFormat:@"ame429-import-%@", pickedURL.lastPathComponent]];
+    [[NSFileManager defaultManager] removeItemAtPath:tmpPath error:nil];
+    BOOL accessing = [pickedURL startAccessingSecurityScopedResource];
+    NSError *copyError = nil;
+    BOOL copied = [[NSFileManager defaultManager] copyItemAtPath:pickedURL.path
+                                                          toPath:tmpPath
+                                                           error:&copyError];
+    if (accessing) [pickedURL stopAccessingSecurityScopedResource];
+    if (!copied) {
+        NSLog(@"[ZL2VersionPages] Task429: offline jar copy failed: %@",
+              copyError.localizedDescription ?: @"unknown");
+        [self ameV13_showAlertMessage:localize(@"ame429.g.comp.import.parse_failed",
+            @"未能解析安装器/清单版本信息")];
+        return;
+    }
+    __weak typeof(self) wself = self;
+    [PLComponentService importOfflineJar:[NSURL fileURLWithPath:tmpPath]
+                       forComponentType:type
+                             forProfile:self.ameV13_profileName
+                             completion:^(BOOL success, NSString *newVersionId, NSError *error) {
+        __strong typeof(wself) sself = wself;
+        [[NSFileManager defaultManager] removeItemAtPath:tmpPath error:nil]; // 用后即清
+        if (!sself) return;
+        if (success) {
+            // 注册表广播由服务 repoint 收口（ReloadProfileList），UI 不重复发
+            [NMToast showMessage:[NSString stringWithFormat:
+                localize(@"ame429.g.comp.import.success_fmt", @"离线安装完成：%@"), newVersionId ?: @""]];
+        } else {
+            // 错误提示仍走 AlertDialog（NMToast 用途边界）
+            NSString *msg = error.localizedDescription.length > 0
+                ? error.localizedDescription
+                : localize(@"ame429.g.comp.failed", @"换装失败：实例状态未做任何变更");
+            [sself ameV13_showAlertMessage:msg];
+        }
+    }];
+}
+
+@end
+
+#pragma mark - ★Task429：组件版本选单页实现（点条目 push；选版本 → 二次确认 → 换装）
+
+@interface ZL2ComponentVersionListPage ()
+@property (nonatomic, strong) UIStackView *ame429_contentStack;
+@property (nonatomic, strong) UIStackView *ame429_listStack;
+@property (nonatomic, strong) UILabel *ame429_stateLabel;
+@property (nonatomic, strong) NSArray<NSString *> *ame429_versions;
+@property (nonatomic, copy) PLComponentEntry *ame429_entry;
+@end
+
+@implementation ZL2ComponentVersionListPage
+
+- (instancetype)initWithProfileName:(NSString *)profileName
+                             gameDir:(NSString *)gameDir
+                              entry:(PLComponentEntry *)entry {
+    self = [super initWithProfileName:profileName gameDir:gameDir];
+    if (!self) return self;
+    _ame429_entry = entry;
+    self.title = [PLComponentService displayNameForComponentType:entry.type];
+    return self;
+}
+
+- (void)viewDidLoad {
+    [super viewDidLoad];
+    self.view.backgroundColor = [UIColor clearColor];
+
+    _ame429_stateLabel = [[UILabel alloc] init];
+    _ame429_stateLabel.font = [ZL2Theme fontBodyMedium];
+    _ame429_stateLabel.textColor = [ZL2Theme onSurfaceVariant];
+    _ame429_stateLabel.numberOfLines = 0;
+    _ame429_stateLabel.textAlignment = NSTextAlignmentCenter;
+    _ame429_stateLabel.translatesAutoresizingMaskIntoConstraints = NO;
+    _ame429_stateLabel.text = localize(@"ame429.g.comp.list.loading", @"正在获取版本清单…");
+
+    _ame429_listStack = [[UIStackView alloc] init];
+    _ame429_listStack.axis = UILayoutConstraintAxisVertical;
+    _ame429_listStack.alignment = UIStackViewAlignmentFill;
+    _ame429_listStack.spacing = ZL2V13CardSpacing;
+    _ame429_listStack.translatesAutoresizingMaskIntoConstraints = NO;
+
+    // MC 版本上下文行（选单 = 该继承链根 MC 版本的远端清单）
+    UILabel *mcCaption = [[UILabel alloc] init];
+    mcCaption.font = [ZL2Theme fontLabelMedium];
+    mcCaption.textColor = [ZL2Theme onSurfaceVariant];
+    mcCaption.numberOfLines = 1;
+    mcCaption.translatesAutoresizingMaskIntoConstraints = NO;
+    mcCaption.text = [NSString stringWithFormat:@"MC %@", self.ame429_entry.minecraftVersion ?: @""];
+
+    _ame429_contentStack = [self ameV13_installContentSkeleton];
+    [_ame429_contentStack addArrangedSubview:
+        [self ameV13_pageHeaderRowWithTitle:self.title trailing:nil]];
+    [_ame429_contentStack addArrangedSubview:mcCaption];
+    [_ame429_contentStack addArrangedSubview:_ame429_stateLabel];
+    [_ame429_contentStack addArrangedSubview:_ame429_listStack];
+
+    [self ame429_loadVersions];
+}
+
+// 单次加载（viewDidLoad；换装成功即 pop 回组件页重扫，无需 viewWillAppear 重拉）
+- (void)ame429_loadVersions {
+    __weak typeof(self) wself = self;
+    [PLComponentService availableVersionsForComponentType:self.ame429_entry.type
+                                              gameVersion:self.ame429_entry.minecraftVersion
+                                               completion:^(NSArray<NSString *> *versions, NSError *error) {
+        __strong typeof(wself) sself = wself;
+        if (!sself) return;
+        if (error) {
+            // NoRemoteSource（optifine/clean 灰置注记）与其余失败均如实展示服务侧文案
+            sself->_ame429_stateLabel.hidden = NO;
+            sself->_ame429_stateLabel.text = error.localizedDescription;
+            return;
+        }
+        if (versions.count == 0) {
+            sself->_ame429_stateLabel.hidden = NO;
+            sself->_ame429_stateLabel.text = localize(@"ame429.g.comp.list.empty", @"暂无可用版本");
+            return;
+        }
+        sself->_ame429_versions = versions;
+        sself->_ame429_stateLabel.hidden = YES;
+        for (UIView *v in [sself->_ame429_listStack.arrangedSubviews copy]) [v removeFromSuperview];
+        [versions enumerateObjectsUsingBlock:^(NSString *version, NSUInteger idx, BOOL *stop) {
+            [sself->_ame429_listStack addArrangedSubview:[sself ame429_versionRow:version index:idx]];
+        }];
+    }];
+}
+
+- (UIView *)ame429_versionRow:(NSString *)version index:(NSUInteger)idx {
+    UILabel *label = [[UILabel alloc] init];
+    label.font = [ZL2Theme fontBodyMedium];
+    label.textColor = [ZL2Theme onSurface];
+    label.numberOfLines = 1;
+    label.text = version;
+    label.translatesAutoresizingMaskIntoConstraints = NO;
+
+    UIImageView *chevron = [[UIImageView alloc] initWithImage:
+        [ZL2V13SystemImage(@"chevron.right", @"chevron.forward") imageWithRenderingMode:UIImageRenderingModeAlwaysTemplate]];
+    chevron.tintColor = [ZL2Theme onSurfaceVariant];
+    chevron.contentMode = UIViewContentModeScaleAspectFit;
+    chevron.translatesAutoresizingMaskIntoConstraints = NO;
+    [NSLayoutConstraint activateConstraints:@[
+        [chevron.widthAnchor constraintEqualToConstant:14],
+        [chevron.heightAnchor constraintEqualToConstant:14],
+    ]];
+
+    UIControl *row = [[UIControl alloc] init];
+    row.backgroundColor = [ZL2Theme surfaceContainer];
+    row.layer.cornerRadius = [ZL2Theme radiusM];
+    row.tag = (NSInteger)idx;
+    row.isAccessibilityElement = YES;
+    row.accessibilityTraits = UIAccessibilityTraitButton;
+    row.accessibilityLabel = version;
+    row.translatesAutoresizingMaskIntoConstraints = NO;
+    [row addSubview:label];
+    [row addSubview:chevron];
+    [NSLayoutConstraint activateConstraints:@[
+        [row.heightAnchor constraintGreaterThanOrEqualToConstant:52],
+        [label.leadingAnchor constraintEqualToAnchor:row.leadingAnchor constant:16],
+        [label.centerYAnchor constraintEqualToAnchor:row.centerYAnchor],
+        [label.trailingAnchor constraintLessThanOrEqualToAnchor:chevron.leadingAnchor constant:-8],
+        [chevron.trailingAnchor constraintEqualToAnchor:row.trailingAnchor constant:-14],
+        [chevron.centerYAnchor constraintEqualToAnchor:row.centerYAnchor],
+    ]];
+    [row addTarget:self
+              action:@selector(ame429_versionRowTapped:)
+    forControlEvents:UIControlEventTouchUpInside];
+
+    UIStackView *wrap = [[UIStackView alloc] initWithArrangedSubviews:@[row]];
+    wrap.axis = UILayoutConstraintAxisVertical;
+    wrap.alignment = UIStackViewAlignmentFill;
+    wrap.translatesAutoresizingMaskIntoConstraints = NO;
+    return wrap;
+}
+
+- (void)ame429_versionRowTapped:(UIControl *)sender {
+    NSUInteger idx = (NSUInteger)sender.tag;
+    if (idx >= _ame429_versions.count) return;
+    NSString *version = _ame429_versions[idx];
+    // 换版二次确认（任务口径：UI 层 M3Dialog；失败不落盘语义见服务注释块）
+    __weak typeof(self) wself = self;
+    [ZL2M3Dialog showTitle:localize(@"ame429.g.comp.change.confirm_title", @"换版确认")
+                      body:[NSString stringWithFormat:
+                          localize(@"ame429.g.comp.change.confirm_fmt",
+                                   @"将实例 %@ 的 %@ 换装为 %@？失败不落盘，旧版本保留"),
+                          self.ameV13_profileName,
+                          [PLComponentService displayNameForComponentType:self.ame429_entry.type],
+                          version]
+              confirmTitle:localize(@"i18n_str_44", nil)
+                destructive:NO
+                 onConfirm:^{
+        __strong typeof(wself) sself = wself;
+        if (!sself) return;
+        [sself ame429_installVersion:version];
+    } onCancel:nil];
+}
+
+- (void)ame429_installVersion:(NSString *)version {
+    __weak typeof(self) wself = self;
+    [PLComponentService installComponent:self.ameV13_profileName
+                                    type:self.ame429_entry.type
+                                 version:version
+                              completion:^(BOOL success, NSString *newVersionId, NSError *error) {
+        __strong typeof(wself) sself = wself;
+        if (!sself) return;
+        if (success) {
+            // 注册表广播由服务 repoint 收口（ReloadProfileList），UI 不重复发
+            [NMToast showMessage:[NSString stringWithFormat:
+                localize(@"ame429.g.comp.install.success_fmt", @"换装成功：实例已指向 %@"),
+                newVersionId ?: @""]];
+            [sself.navigationController popViewControllerAnimated:YES]; // 回组件页（viewWillAppear 重扫）
+        } else {
+            NSString *msg = error.localizedDescription.length > 0
+                ? error.localizedDescription
+                : localize(@"ame429.g.comp.failed", @"换装失败：实例状态未做任何变更");
+            [sself ameV13_showAlertMessage:msg];
+        }
+    }];
 }
 
 @end

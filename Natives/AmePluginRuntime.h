@@ -62,6 +62,18 @@ NS_ASSUME_NONNULL_BEGIN
 + (nullable NSDictionary *)ame366_themeOverrides:(NSString *)kind
                                        forPlugin:(NSString *)pluginId;
 
+/// ★Task429（PDF v5 §11.2）：java-inject 声明聚合（三刀口统一出料面）。
+///   game.starting 前由 JavaLauncher 启动链调用（进程内一次），遍历
+///   已启用插件的 manifest "java-inject" 节：权限双闸（java.inject 声明+
+///   授权；ame.super 接管同语义放行）→ 相对路径收编为绝对路径（防逃逸
+///   拼接 + 存在性/形态校验，逐项 fail-closed）→ 四通道数组 + 来源审计。
+///   返回 @{@"jvmFlags":…, @"agentJars":…, @"classpathEntries":…,
+///         @"nativeLibDirs":…, @"sources":[{plugin,jvmFlags,…}]}，
+///   空键缺席；无任何声明返回 nil（消费方零注入零日志噪音）。
+///   服务缺席安全：本 API 只依赖 Manager/Permissions（既有 TU），与
+///   PLRendererPluginService 零耦合。
++ (nullable NSDictionary *)ame429_aggregatedJavaInject;
+
 @end
 
 NS_ASSUME_NONNULL_END

@@ -1090,6 +1090,12 @@ static NSDictionary *ame366_lastExitRecord = nil;
 }
 
 + (void)notifyGameStarting {
+    // ★Task429（审计补全，§11.2 契约时机）：game.starting 【前】汇总已启用
+    //   插件的 java-inject 声明 —— UI 层（SurfaceViewController/JavaGUI-
+    //   ViewController）在 launchJVM 调用【前】派发本事件，此处预聚合把
+    //   enabled 快照钉在事件时点；三刀口消费侧（JavaLauncher 进程内缓存）
+    //   读到的即是这份同一快照。预聚合失败/空集 = nil，消费面零注入零变化。
+    [self ame429_aggregatedJavaInject];
     [self emitEvent:@"game.starting" payload:nil];
 }
 
@@ -1112,6 +1118,123 @@ static NSDictionary *ame366_lastExitRecord = nil;
 
 + (void)notifyAppEnteringBackground {
     [self emitEvent:@"app.background" payload:nil];
+}
+
+#pragma mark - ★Task429 java-inject 聚合（§11.2 三刀口统一汇总面）
+
+/// 单插件 java-inject 声明收编。权限双闸 fail-closed（桥面
+/// ame317_requirePerm 同款语义）：java.inject 声明 ⊆ manifest AND 已授权；
+/// ame.super 接管放行并留审计痕（执法点首行同款）。返回本插件各通道实收
+/// 计数（空通道缺席）；rel 路径经防逃逸拼接 + 存在性/形态校验（装后文件
+/// 可变——收编时校验才是新鲜事实），单插件单通道 16 项封顶。
++ (NSDictionary<NSString *, NSNumber *> *)ame429_collectJavaInjectForPlugin:(NSString *)pluginId
+                                                                   manifest:(AmePluginManifest *)m
+                                                                     target:(NSMutableDictionary<NSString *, NSMutableArray *> *)acc {
+    if (m.javaInject.count == 0) return @{};
+    BOOL ame429_super = [AmePluginPermissions pluginHasGrant:pluginId permission:@"ame.super"];
+    if (!ame429_super) {
+        // 双闸：声明（manifest permissions 含 java.inject）+ 授权（state.json）
+        if (![m.permissions containsObject:@"java.inject"] ||
+            ![AmePluginPermissions pluginHasGrant:pluginId permission:@"java.inject"]) {
+            return @{};
+        }
+    } else {
+        NSLog(@"[AmePlugin:%@] ame.super takeover: java-inject collected (audit: takeover grant bypasses declaration+grant gates)", pluginId);
+    }
+    NSString *dir = [AmePluginManager pluginDir:pluginId];
+    NSFileManager *fm = [NSFileManager defaultManager];
+    // 四通道：{manifest 键, 聚合键, 是否目录形态}（常量实名内联表）
+    NSArray<NSArray *> *ame429_chans = @[
+        @[@"jvmFlags",         @"jvmFlags",         @NO],
+        @[@"agentJars",        @"agentJars",        @NO],
+        @[@"classpathEntries", @"classpathEntries", @NO],
+        @[@"nativeLibDirs",    @"nativeLibDirs",    @YES],
+    ];
+    NSMutableDictionary<NSString *, NSNumber *> *got = [NSMutableDictionary dictionary];
+    for (NSArray *chan in ame429_chans) {
+        NSString *srcKey = chan[0];
+        NSString *dstKey = chan[1];
+        BOOL needDir = [chan[2] boolValue];
+        NSArray<NSString *> *items = m.javaInject[srcKey];
+        if (items.count == 0) continue;
+        NSInteger collected = 0;
+        for (NSString *rel in items) {
+            if (collected >= 16) {
+                NSLog(@"[AmePlugin:%@] java-inject 收编封顶（单插件单通道 ≤16，余项丢弃留痕）: %@", pluginId, srcKey);
+                break;
+            }
+            // 防逃逸拼接（校验器已挡 .. / 绝对路径，此处再守一道防装后手改）
+            if (rel.length == 0 || [rel hasPrefix:@"/"] || [rel containsString:@".."]) {
+                NSLog(@"[AmePlugin:%@] java-inject 收编拒绝（逃逸路径）: %@=%@", pluginId, srcKey, rel);
+                continue;
+            }
+            NSString *abs = [dir stringByAppendingPathComponent:rel];
+            BOOL isDir = NO;
+            BOOL exists = [fm fileExistsAtPath:abs isDirectory:&isDir];
+            if (!exists || (needDir && !isDir) || (!needDir && isDir)) {
+                NSLog(@"[AmePlugin:%@] java-inject 收编跳过（存在性/形态不符 %@）: %@=%@",
+                      pluginId, needDir ? @"需目录" : @"需文件", srcKey, rel);
+                continue;
+            }
+            NSMutableArray *bucket = acc[dstKey];
+            if (!bucket) {
+                bucket = [NSMutableArray array];
+                acc[dstKey] = bucket;
+            }
+            if (![bucket containsObject:abs]) [bucket addObject:abs];
+            collected++;
+        }
+        if (collected > 0) got[srcKey] = @(collected);
+    }
+    return got;
+}
+
+/// ★Task429：game.starting 前的 java-inject 汇总（三刀口统一出料；插件间
+/// 互不感知，JavaLauncher 只消费聚合结果）。汇总时机 = notifyGameStarting
+/// 预聚合（UI 层先于 launchJVM 派发 game.starting——契约时点钉死 enabled
+/// 快照）+ 本方法进程内缓存一次（JVM 单会话语义；同次会话三刀口读到
+/// 必然是同一份字典）。
++ (nullable NSDictionary *)ame429_aggregatedJavaInject {
+    static NSDictionary *ame429_cached = nil;
+    static BOOL ame429_computed = NO;
+    if (ame429_computed) return ame429_cached;
+    NSMutableDictionary<NSString *, NSMutableArray *> *acc = [NSMutableDictionary dictionary];
+    NSMutableArray<NSDictionary *> *sources = [NSMutableArray array];
+    for (NSString *pid in [AmePluginManager installedPluginIds]) {
+        // 已启用闸（与 bootIfNeeded 装载闸同源：停用插件的声明一概不入料）
+        if (![AmePluginPermissions pluginEnabled:pid]) continue;
+        AmePluginManifest *m = [AmePluginManager manifestForPlugin:pid];
+        if (!m || m.javaInject.count == 0) continue;
+        NSDictionary<NSString *, NSNumber *> *got =
+            [self ame429_collectJavaInjectForPlugin:pid manifest:m target:acc];
+        if (got.count == 0) continue;
+        [sources addObject:@{@"plugin": pid,
+                             @"name": m.name ?: @"",
+                             @"jvmFlags": got[@"jvmFlags"] ?: @0,
+                             @"agentJars": got[@"agentJars"] ?: @0,
+                             @"classpathEntries": got[@"classpathEntries"] ?: @0,
+                             @"nativeLibDirs": got[@"nativeLibDirs"] ?: @0}];
+    }
+    if (acc.count == 0) {
+        ame429_cached = nil;   // 空集亦钉快照（nil = 消费方零注入，契约不变）
+        ame429_computed = YES;
+        return nil;
+    }
+    NSMutableDictionary *out = [NSMutableDictionary dictionary];
+    for (NSString *k in @[@"jvmFlags", @"agentJars", @"classpathEntries", @"nativeLibDirs"]) {
+        NSArray *bucket = acc[k];
+        if (bucket.count > 0) out[k] = [bucket copy];
+    }
+    if (sources.count > 0) out[@"sources"] = [sources copy];
+    NSLog(@"[AmePlugin] Task429 java-inject aggregate: flags=%lu agents=%lu cp=%lu nativedirs=%lu sources=%@",
+          (unsigned long)[out[@"jvmFlags"] count],
+          (unsigned long)[out[@"agentJars"] count],
+          (unsigned long)[out[@"classpathEntries"] count],
+          (unsigned long)[out[@"nativeLibDirs"] count],
+          sources.count > 0 ? [sources valueForKeyPath:@"plugin"] : @"<none>");
+    ame429_cached = [out copy];
+    ame429_computed = YES;
+    return ame429_cached;
 }
 
 #pragma mark - 系统事件订阅（单例一次性）

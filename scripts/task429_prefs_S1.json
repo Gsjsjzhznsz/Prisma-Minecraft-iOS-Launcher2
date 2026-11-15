@@ -1,0 +1,3 @@
+{"general.proxy_mode": {"type":"int","default":0,"values":[0,1,2],"section":"download","desc":"下载代理三态：0=关/1=HTTP/2=SOCKS5；生效面=PLDownloadClient 会话 connectionProxyDictionary（启动器下载）+ AMETHYST_SOCKS5_PROXY 环境变量（游戏侧，JavaLauncher :3645-3685 消费；与 MultiplayerManager 联机通道同键双通道一致）"}}
+{"general.proxy_host": {"type":"string","default":"","section":"download","desc":"代理主机（host/IP）；proxy_mode!=0 且端口合法时生效，空串=代理整体不物化（fail-loud 前提守卫）"}}
+{"general.proxy_port": {"type":"string","default":"","section":"download","desc":"代理端口（字符串承载，运行期按 1-65535 校验）；非法/越界值视为代理未配置（读侧缺键回退默认空串）"}}

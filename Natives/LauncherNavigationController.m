@@ -26,6 +26,7 @@
 #import "AmeNativeMenu.h"       // ★ Task281：JIT 等待族弹窗玻璃档镜像接管
 #import "installer/modpack/ModrinthAPI.h"
 #import "AmeTheme.h"   // ★ 7.0-UI-5b：Fluent 设计令牌（颜色/字体单一事实源）
+#import "ZL2MotionKit.h"  // ★Task429：MD3 转场全局杠杆（旧页 push/pop 一次接入）
 
 #include <sys/time.h>
 
@@ -91,6 +92,13 @@ static void *ProgressObserverContext = &ProgressObserverContext;
     if ([self respondsToSelector:@selector(setNeedsUpdateOfScreenEdgesDeferringSystemGestures)]) {
         [self setNeedsUpdateOfScreenEdgesDeferringSystemGestures];
     }
+
+    // ★Task429：旧页导航转场一次接入（全局杠杆 ①）——本 nav 全部 push/pop
+    //   （安装器/设置/文件面板等旧页面）换装 ZL2MotionTransition：退场
+    //   fade+下移 70ms、进场 spring 错峰 350ms，消除「应用像网页跳转」观感。
+    //   delegate 弱引用由关联对象保活（随本 nav 生命周期），无其他 didShow
+    //   消费方（grep 实证），onDidShow 传 nil。
+    [ZL2MotionTransition installOnNavigationController:self onDidShow:nil];
 
     self.versionTextField = [[PickTextField alloc] initWithFrame:CGRectMake(4, 4, self.toolbar.frame.size.width * 0.8 - 8, self.toolbar.frame.size.height - 8)];
     [self.versionTextField addTarget:self.versionTextField action:@selector(resignFirstResponder) forControlEvents:UIControlEventEditingDidEndOnExit];

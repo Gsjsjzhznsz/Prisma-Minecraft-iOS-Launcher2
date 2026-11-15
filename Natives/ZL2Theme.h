@@ -158,6 +158,27 @@ NS_ASSUME_NONNULL_BEGIN
 // 结构蓝图读取（壳层构建期消费）：无覆盖时返回 @"topbar"（M3 基线不变）。
 + (NSString *)ame347_shellLayout;
 
+#pragma mark - ★Task429 活动色板覆盖层（PDF 第五版 §8.1 动态主题）
+
+// 「跟随背景/预设/CUSTOM」动态主题的覆盖推送入口（主题中枢 =
+// ZL2DynamicPalette 调用）。色板查询优先级（覆盖点在 Ame317 provider 内）：
+//   插件令牌覆盖（ame317）→ 活动色板覆盖（本 API 推送）→ embermire 静态值。
+// overlay 结构：token 名（@"primary" 等 28 枚色值角色白名单）→
+//   @[浅色态 hexInt, 深色态 hexInt]（NSNumber）。
+// nil/空 = 清除覆盖（未初始化/模式 0 时逐位等价旧值 = 零回归）。
++ (void)ame429_setActivePaletteOverlay:(nullable NSDictionary<NSString *, NSArray<NSNumber *> *> *)overlay;
+
+// 根重建杠杆公开包装（Task346 既有链：AppLanguageChanged → SceneDelegate
+// 整壳重建 + Task380 400ms 冷却尾沿补排；启动期根未建自动跳过）。
+// 消费方：ZL2DynamicPalette 生效链（勿发明第二套广播）。
++ (void)ame429_requestRootRebuild;
+
+// 主题中枢懒启动钩子注册（ZL2DynamicPalette +load 调用；C 函数指针语义，
+// 无上下文捕获）。本 TU 保持 smoke/Preview 目标零新增链接依赖（Task317
+// 判例同口径）——中枢 TU 缺席的目标钩子恒 NULL = 静默跳过，embermire
+// 基线不变；NULL 传入 = 摘除。
++ (void)ame429_setPaletteBootstrapHook:(void (*)(void))hook;
+
 @end
 
 NS_ASSUME_NONNULL_END

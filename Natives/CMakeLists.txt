@@ -528,6 +528,19 @@ add_executable(AngelAuraAmethyst
   PLLogShareService.m
   ZL2VersionsViewController.m
   ZL2AccountsViewController.m
+  # ★ Task429（PDF v5 P2 批 + v6 六版修复 + Horizon S1，主控合流注册）：
+  #   MD3 动效四件（转场/触觉/列表入场/Shimmer）+ 动态取色三件（取色/HCT/主题中枢）+
+  #   自定义取色弹层 + ZL2 页背景层 + 触控布局拖拽编辑器（7.3 第三层）+
+  #   组件自动安装（2.1 LibraryAnalyzer 对标）+ 世界备份恢复（Horizon S1）
+  ZL2MotionKit.m
+  AmeUIImageColors.m
+  AmeHCTPalette.m
+  ZL2DynamicPalette.m
+  ZL2ThemeCustomSheet.m
+  ZL2BackgroundHost.m
+  ZL2ControlLayoutEditorViewController.m
+  PLComponentService.m
+  PLWorldBackupService.m
   # ★ Task413：账户页内嵌皮肤 3D 预览视图（纯 CALayer CATransform3D 盒体，
   #   Y 轴翻转根修 + yggdrasil 真皮链 + slim 模型；412f 独立弹窗 VC 退役）
   ZL2SkinPreviewView.m
@@ -575,6 +588,9 @@ add_executable(AngelAuraAmethyst
   AmePluginManager.m
   AmePluginBridge.m
   AmePluginRuntime.m
+  # ★ Task429（PDF §11.4）：MobileGlues 渲染器插件服务（manifest 校验/安装/
+  #   扫描注册进渲染器列表/启停删除对接；JavaLauncher 三刀口消费）
+  PLRendererPluginService.m
   ZL2PluginListViewController.m
   ZL2PluginDetailViewController.m
   # Task318：内置插件仓库页（浏览/一键安装随包预置插件）

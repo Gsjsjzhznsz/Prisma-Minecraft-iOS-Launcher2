@@ -6,6 +6,25 @@
 
 #import <UniformTypeIdentifiers/UniformTypeIdentifiers.h>
 
+// ═══ ★Task429（§11.4 管理端最小接入）：渲染器插件软链协议 ═══
+// PLRendererPluginService / PLRendererPluginEntry 的影子协议 —— 本页零
+// import 服务头、零链接符号依赖（服务 TU 未进构建时 NSClassFromString 得
+// nil，渲染器插件组整组隐藏；ame428 PLGameIntegrityService 软链判例同款）。
+@protocol Ame429RendererServiceShadow <NSObject>
++ (NSArray<NSDictionary *> *)rendererChoiceOverrides;
++ (BOOL)isRendererPluginEnabled:(NSString *)pluginId;
++ (void)setRendererPluginEnabled:(BOOL)enabled pluginId:(NSString *)pluginId;
++ (BOOL)uninstallRendererPlugin:(NSString *)pluginId;
+@end
+@protocol Ame429RendererEntryShadow <NSObject>
+@property (nonatomic, readonly) NSString *pluginId;
+@property (nonatomic, readonly) NSString *rendererName;
+@property (nonatomic, readonly) NSString *driverType;
+@property (nonatomic, readonly) NSArray<NSString *> *abi;
+@property (nonatomic, readonly) NSString *version;
+@property (nonatomic, readonly) BOOL enabled;
+@end
+
 // ═══════════════════════════════════════════════════════════════════
 // ZL2PluginListViewController 实现（Task 317 / ★ Task345 结构性重排）
 // 口径注释：
@@ -231,6 +250,9 @@
 @property (nonatomic, strong) NSArray<NSDictionary *> *contributedRows;
 @property (nonatomic, strong) UILabel *ame345_heroCountLabel;
 @property (nonatomic, assign) CGFloat ame345_lastHeroWidth;
+// ★Task429：渲染器插件条目（id<Ame429RendererEntryShadow>；软链消费，
+//   空 = 服务缺席/无插件档，渲染器插件组整组隐藏）
+@property (nonatomic, strong) NSArray *ame429_rendererEntries;
 @end
 
 @implementation ZL2PluginListViewController
@@ -441,6 +463,24 @@
         [self.cards addObject:@{@"id": pid, @"manifest": m, @"enabled": @(enabled)}];
     }
     self.contributedRows = [AmePluginRuntime allContributedRows];
+    // ★Task429（§11.4 管理端最小接入）：渲染器插件组（与 JS 插件共用
+    //   安装/启停/删除存储层，仅包格式校验不同）。软链取扫描面；服务
+    //   缺席 = 空组隐藏。启停直写 state.json enabled 表（与 JS 插件详情
+    //   页开关同源）；删除走服务卸载链（目录 + purge state）。
+    {
+        Class ame429_svc = NSClassFromString(@"PLRendererPluginService");
+        NSArray *ame429_scanned = nil;
+        if (ame429_svc && [ame429_svc respondsToSelector:@selector(availableRenderers)]) {
+            ame429_scanned = [ame429_svc availableRenderers];
+        }
+        NSMutableArray *ame429_list = [NSMutableArray array];
+        for (id ame429_entry in ame429_scanned) {
+            if ([ame429_entry conformsToProtocol:@protocol(Ame429RendererEntryShadow)]) {
+                [ame429_list addObject:ame429_entry];
+            }
+        }
+        self.ame429_rendererEntries = [ame429_list copy];
+    }
     [self ame345_refreshHeroCount];
     [self.table reloadData];
 }
@@ -528,12 +568,14 @@ didPickDocumentsAtURLs:(NSArray<NSURL *> *)urls {
 #pragma mark - 表格
 
 - (NSInteger)numberOfSectionsInTableView:(UITableView *)tableView {
-    return 4;   // ★ Task327：0 已装 / 1 贡献行 / 2 API 行 / 3 使用指南
+    // ★Task429：+1 渲染器插件组（有插件档才出现；0-3 区 index 零漂移）
+    return 4 + (self.ame429_rendererEntries.count > 0 ? 1 : 0);   // ★ Task327：0 已装 / 1 贡献行 / 2 API 行 / 3 使用指南 / 4 渲染器插件
 }
 
 - (NSInteger)tableView:(UITableView *)tableView numberOfRowsInSection:(NSInteger)section {
     if (section == 0) return MAX(self.cards.count, 1); // 空态占位行
     if (section == 1) return self.contributedRows.count;
+    if (section == 4) return self.ame429_rendererEntries.count;   // ★Task429：渲染器插件
     return 1; // API 版本说明行 / 指南行
 }
 
@@ -543,6 +585,7 @@ didPickDocumentsAtURLs:(NSArray<NSURL *> *)urls {
     if (section == 0) text = localize(@"ame317.list.section_installed", nil);
     else if (section == 1) text = localize(@"ame317.list.section_rows", nil);
     else if (section == 3) text = localize(@"ame327.plugin.guide.title", nil);
+    else if (section == 4) text = localize(@"ame429.list.section_renderers", nil);   // ★Task429
     else text = localize(@"ame317.list.section_about", nil);
 
     UILabel *label = [[UILabel alloc] init];
@@ -598,6 +641,35 @@ didPickDocumentsAtURLs:(NSArray<NSURL *> *)urls {
         cell.titleLabel.font = [ZL2Theme fontBodyMedium];
         cell.titleLabel.textColor = [ZL2Theme onSurfaceVariant];
         [cell ame345_setBodyFlowMode];
+        return cell;
+    }
+    if (indexPath.section == 4) {
+        // ★Task429：渲染器插件卡（启停开关与 JS 插件同源 state.json；
+        //   点按 = 卸载确认弹窗）。副文 = 驱动类型 · ABI · 版本（§11.4 三字段
+        //   档位呈现面）。
+        id<Ame429RendererEntryShadow> ame429_entry =
+            self.ame429_rendererEntries[(NSUInteger)indexPath.row];
+        NSString *ame429_sub = [NSString stringWithFormat:@"%@ · %@ · v%@",
+            ame429_entry.driverType,
+            [ame429_entry.abi componentsJoinedByString:@"/"],
+            ame429_entry.version];
+        [cell ame345_setTitles:ame429_entry.rendererName
+                           sub:ame429_sub
+                          icon:@"cpu"];
+        cell.titleLabel.textColor = ame429_entry.enabled ? [ZL2Theme onSurface] : [ZL2Theme onSurfaceVariant];
+        ZL2M3Switch *sw = [[ZL2M3Switch alloc] init];
+        sw.on = ame429_entry.enabled;
+        sw.tag = 10000 + indexPath.row;   // 渲染器组 tag 偏移（与 section 0 启停开关分流）
+        [sw addTarget:self action:@selector(ame317_enableToggled:)
+             forControlEvents:UIControlEventValueChanged];
+        UIView *slot = [[UIView alloc] initWithFrame:CGRectMake(0, 0, [ZL2M3Switch switchWidth] + 8, [ZL2M3Switch switchHeight])];
+        sw.translatesAutoresizingMaskIntoConstraints = NO;
+        [slot addSubview:sw];
+        [NSLayoutConstraint activateConstraints:@[
+            [sw.centerYAnchor constraintEqualToAnchor:slot.centerYAnchor],
+            [sw.leadingAnchor constraintEqualToAnchor:slot.leadingAnchor],
+        ]];
+        [cell ame345_setTrailingSlot:slot];
         return cell;
     }
 
@@ -664,12 +736,51 @@ didPickDocumentsAtURLs:(NSArray<NSURL *> *)urls {
     } else if (indexPath.section == 1) {
         NSDictionary *row = self.contributedRows[(NSUInteger)indexPath.row];
         [AmePluginRuntime invokeRowTap:row[@"id"]];
+    } else if (indexPath.section == 4) {
+        // ★Task429：卸载确认（与 JS 插件卸载同款 purge state；运行中会话
+        //   不受影响，下次启动生效）。
+        id<Ame429RendererEntryShadow> ame429_entry =
+            self.ame429_rendererEntries[(NSUInteger)indexPath.row];
+        NSString *ame429_pid = ame429_entry.pluginId;
+        __weak typeof(self) wself = self;
+        [ZL2M3Dialog showTitle:ame429_entry.rendererName
+                          body:localize(@"ame429.list.delete_confirm", nil)
+                  confirmTitle:localize(@"ame429.list.delete_ok", nil)
+                   destructive:YES
+                    onConfirm:^{
+            Class ame429_svc = NSClassFromString(@"PLRendererPluginService");
+            if (ame429_svc && [ame429_svc respondsToSelector:@selector(uninstallRendererPlugin:)]) {
+                id<Ame429RendererServiceShadow> ame429_shadow = ame429_svc;
+                [ame429_shadow uninstallRendererPlugin:ame429_pid];
+            }
+            [wself ame317_reload];
+        }
+                     onCancel:nil];
     }
 }
 
 - (void)ame317_enableToggled:(ZL2M3Switch *)sender {
     // ZL2M3Kit 契约：UI 点击内部已自动翻转 _on 再发 ValueChanged，
     // sender.on 即新值（禁再取反——取反=把用户点击写回去）
+    // ★Task429：渲染器组开关（tag >= 10000）直写 state.json enabled 表
+    //   （与 JS 插件启停同源；启用 = 渲染器列表出现档位，停用 = 隐去，
+    //   不触碰用户当前选中渲染器）。
+    if (sender.tag >= 10000) {
+        NSUInteger ame429_row = (NSUInteger)sender.tag - 10000;
+        if (ame429_row >= self.ame429_rendererEntries.count) return;
+        id<Ame429RendererEntryShadow> ame429_entry =
+            self.ame429_rendererEntries[ame429_row];
+        Class ame429_svc = NSClassFromString(@"PLRendererPluginService");
+        if (ame429_svc && [ame429_svc respondsToSelector:@selector(setRendererPluginEnabled:pluginId:)]) {
+            id<Ame429RendererServiceShadow> ame429_shadow = ame429_svc;
+            [ame429_shadow setRendererPluginEnabled:sender.on pluginId:ame429_entry.pluginId];
+        }
+        dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.15 * NSEC_PER_SEC)),
+                       dispatch_get_main_queue(), ^{
+            [self ame317_reload];
+        });
+        return;
+    }
     if (self.cards.count == 0) return;
     NSDictionary *card = self.cards[(NSUInteger)sender.tag];
     NSString *pid = card[@"id"];

@@ -17,9 +17,32 @@
 
 #import "PLDownloadClient.h"
 #import <CommonCrypto/CommonDigest.h>
+#import "LauncherPreferences.h"   // ★Task429：getPrefObject/getPrefInt（代理设置读侧）
 
 NSString *const PLDownloadClientErrorDomain = @"PLDownloadClientErrorDomain";
 NSString *const PLDownloadClientUnderlyingErrorsKey = @"PLDownloadClientUnderlyingErrorsKey";
+
+/// ★Task429 常量实名（判例族）：偏好键与环境变量键不用散落字面量。
+static NSString * const kAme429S1PrefProxyMode = @"general.proxy_mode";
+static NSString * const kAme429S1PrefProxyHost = @"general.proxy_host";
+static NSString * const kAme429S1PrefProxyPort = @"general.proxy_port";
+/// ★Task429 游戏侧 SOCKS5 通道键（与 MultiplayerManager.m
+/// kAMETHYSTSOCKS5ProxyEnvVar 同名同值——两 TU 各自持有常量，值即契约）。
+static NSString * const kAme429S1SOCKS5ProxyEnvKey = @"AMETHYST_SOCKS5_PROXY";
+
+/// ★Task429 常量实名：CFNetwork 代理字典键。字面量值 = CFNetwork ProxySupport.c
+/// 中同名常量的 CFString 值（kCFNetworkProxiesSOCKS* 族在部分 SDK 头存在可用性
+/// 守卫，字面量实名规避编译面差异；运行期与常量逐位等价）。HTTP 模式同时物化
+/// HTTP 与 HTTPS 两键族（iOS 13+ 常量在案，仓库最低支持 iOS 14）。
+static NSString * const kAme429S1ProxyHTTPEnableKey  = @"kCFNetworkProxiesHTTPEnable";
+static NSString * const kAme429S1ProxyHTTPProxyKey   = @"kCFNetworkProxiesHTTPProxy";
+static NSString * const kAme429S1ProxyHTTPPortKey    = @"kCFNetworkProxiesHTTPPort";
+static NSString * const kAme429S1ProxyHTTPSEnableKey = @"kCFNetworkProxiesHTTPSEnable";
+static NSString * const kAme429S1ProxyHTTPSProxyKey  = @"kCFNetworkProxiesHTTPSProxy";
+static NSString * const kAme429S1ProxyHTTPSPortKey   = @"kCFNetworkProxiesHTTPSPort";
+static NSString * const kAme429S1ProxySOCKSEnableKey = @"kCFNetworkProxiesSOCKSEnable";
+static NSString * const kAme429S1ProxySOCKSProxyKey  = @"kCFNetworkProxiesSOCKSProxy";
+static NSString * const kAme429S1ProxySOCKSPortKey   = @"kCFNetworkProxiesSOCKSPort";
 
 /// 单候选 URL 的最大重试次数（指数退避 1s / 2s / 4s，参考 ZL2 与 FCL 的退避节奏）
 static const NSUInteger PLDownloadMaxRetryPerCandidate = 3;
@@ -33,6 +56,25 @@ static const NSUInteger PLDownloadHashChunkSize = 256 * 1024;
 static NSString *const PLDownloadResumeDirectoryName = @"PLDownloadResume";
 
 #pragma mark - 工具函数
+
+/// ★Task429 内部：读字符串偏好键（isKindOfClass 守卫 + trim；非字符串/空 → nil）。
+static NSString * _Nullable ame429_s1_stringPref(NSString *key) {
+    id raw = getPrefObject(key);
+    if (![raw isKindOfClass:[NSString class]]) return nil;
+    NSString *trimmed = [(NSString *)raw stringByTrimmingCharactersInSet:
+        NSCharacterSet.whitespaceAndNewlineCharacterSet];
+    return trimmed.length > 0 ? trimmed : nil;
+}
+
+/// ★Task429 内部：端口合法性（1-65535）；字符串承载、运行期数值校验（fail-loud
+/// 前提守卫：非法端口视为代理未配置，返回 0）。
+static NSInteger ame429_s1_validatedPort(void) {
+    NSString *raw = ame429_s1_stringPref(kAme429S1PrefProxyPort);
+    if (!raw) return 0;
+    NSInteger port = raw.integerValue;
+    if (port <= 0 || port > 65535) return 0;
+    return port;
+}
 
 /// 构造本错误域的 NSError
 static NSError *PLDownloadErrorMake(PLDownloadClientErrorCode code, NSString *desc, NSError *_Nullable underlying) {
@@ -365,10 +407,61 @@ expectedTotalBytes:(int64_t)expectedTotalBytes {
 
 #pragma mark 生命周期
 
+#pragma mark - ★Task429 下载代理（PDF 六 §4.4 速齐：设置项生效面单一事实源）
+
++ (NSDictionary<NSString *, id> *)ame429_s1_connectionProxyDictionaryFromPrefs {
+    NSInteger mode = getPrefInt(kAme429S1PrefProxyMode);
+    if (mode != 1 && mode != 2) return @{};
+    NSString *host = ame429_s1_stringPref(kAme429S1PrefProxyHost);
+    NSInteger port = ame429_s1_validatedPort();
+    if (host.length == 0 || port <= 0) return @{};
+
+    NSMutableDictionary<NSString *, id> *dict = [NSMutableDictionary dictionary];
+    if (mode == 1) {
+        // HTTP：HTTP 与 HTTPS 同源双键族（NSURLSession HTTPS 请求同样入代理）
+        dict[kAme429S1ProxyHTTPEnableKey]  = @YES;
+        dict[kAme429S1ProxyHTTPProxyKey]   = host;
+        dict[kAme429S1ProxyHTTPPortKey]    = @(port);
+        dict[kAme429S1ProxyHTTPSEnableKey] = @YES;
+        dict[kAme429S1ProxyHTTPSProxyKey]  = host;
+        dict[kAme429S1ProxyHTTPSPortKey]   = @(port);
+    } else {
+        // SOCKS5：启动器侧为尽力而为面（NSURLSession 对 kCFNetworkProxiesSOCKS*
+        // 键族的消费依 CFNetwork 版本而定）；游戏侧权威通道 =
+        // ame429_s1_syncProxyEnvFromPrefs（AMETHYST_SOCKS5_PROXY → JVM 参数）。
+        dict[kAme429S1ProxySOCKSEnableKey] = @YES;
+        dict[kAme429S1ProxySOCKSProxyKey]  = host;
+        dict[kAme429S1ProxySOCKSPortKey]   = @(port);
+    }
+    return [dict copy];
+}
+
++ (void)ame429_s1_syncProxyEnvFromPrefs {
+    // ★Task429 双通道一致（注释声明）：本方法 = 设置项通道（ZL2SettingPages
+    // 代理行变更）与引擎通道（会话构造）共用的物化点；MultiplayerManager
+    // 联机通道写同款键（connect 流覆盖 / 断开 unsetenv）。mode!=2 或 host/port
+    // 非法 → unsetenv（清，不告警：未启用即无消费事实）。
+    NSInteger mode = getPrefInt(kAme429S1PrefProxyMode);
+    NSString *host = ame429_s1_stringPref(kAme429S1PrefProxyHost);
+    NSInteger port = ame429_s1_validatedPort();
+    if (mode == 2 && host.length > 0 && port > 0) {
+        NSString *value = [NSString stringWithFormat:@"%@:%ld", host, (long)port];
+        setenv(kAme429S1SOCKS5ProxyEnvKey.UTF8String, value.UTF8String, 1);
+        NSLog(@"[Ame429] socks5 proxy env materialized: %@ (download-proxy settings channel)", value);
+    } else {
+        unsetenv(kAme429S1SOCKS5ProxyEnvKey.UTF8String);
+        NSLog(@"[Ame429] socks5 proxy env cleared (mode=%ld host-valid=%d port=%ld)",
+              (long)mode, host.length > 0, (long)port);
+    }
+}
+
 + (instancetype)sharedClient {
     static PLDownloadClient *sharedClient = nil;
     static dispatch_once_t onceToken;
     dispatch_once(&onceToken, ^{
+        // ★Task429：引擎侧兜底物化点——设置页变更即物化为主链路，此处保证
+        //   「偏好键已配置但本轮从未进过设置页」的装机会话也能与偏好键一致。
+        [PLDownloadClient ame429_s1_syncProxyEnvFromPrefs];
         sharedClient = [[PLDownloadClient alloc] initWithSessionConfiguration:nil];
     });
     return sharedClient;
@@ -391,6 +484,18 @@ expectedTotalBytes:(int64_t)expectedTotalBytes {
         // 60 秒无数据即判定候选故障，尽快切换镜像；总时长放宽以支持大文件
         config.timeoutIntervalForRequest = 60.0;
         config.timeoutIntervalForResource = 86400.0;
+    }
+
+    // ★Task429（PDF 六 §4.4 下载代理设置项）会话代理生效面：既有 session 构造点
+    //   唯一注入位——无论 caller 传入定制配置还是默认配置，代理键族一律按偏好键
+    //   物化（mode=0/缺键 → 空字典 → 零触碰既有配置）。注意：代理字典在会话构造
+    //   时固化，设置变更后新建的客户端实例生效（sharedClient 单例 = 下轮启动器
+    //   进程生效；设置页变更同时物化游戏侧环境变量，见 sync 方法注释）。
+    NSDictionary<NSString *, id> *ame429_proxyDict = [[self class] ame429_s1_connectionProxyDictionaryFromPrefs];
+    if (ame429_proxyDict.count > 0) {
+        config.connectionProxyDictionary = ame429_proxyDict;
+        NSLog(@"[Ame429] download session proxy applied (mode=%ld, entries=%lu)",
+              (long)getPrefInt(kAme429S1PrefProxyMode), (unsigned long)ame429_proxyDict.count);
     }
 
     _stateQueue = dispatch_queue_create("com.angelaura.pldownloadclient.state", DISPATCH_QUEUE_SERIAL);

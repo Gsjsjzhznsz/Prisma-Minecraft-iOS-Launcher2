@@ -1,0 +1,1 @@
+{"general.mirror_mode": {"type":"int","default":0,"values":[0,1,2],"section":"download","desc":"镜像三态：0=自动(大陆探测)/1=官方/2=BMCLAPI"}}

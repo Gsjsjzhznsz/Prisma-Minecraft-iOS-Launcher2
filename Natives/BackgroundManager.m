@@ -39,6 +39,10 @@ static const NSInteger kAme160GlassBackdropTag = 99994;
 // Task288：玻璃风格 TG 磨砂层 tag（与 blur 层互斥安装，重建时先拆旧层）
 static const NSInteger kBackgroundGlassTag = 99993;
 
+// ★Task429（第六版捆绑项 v2-7.2 旧账）：壁纸降采样目标上限（px）——
+// 界面层只需要屏幕级位图，2048px 封顶 = 内存项与主线程解码双清
+static const CGFloat Ame429WallpaperMaxPixelCap = 2048.0;
+
 @interface BackgroundManager ()
 @property (nonatomic, strong) AVPlayer *videoPlayer;
 @property (nonatomic, strong) AVPlayerLayer *videoPlayerLayer;
@@ -473,6 +477,41 @@ static const NSInteger kBackgroundGlassTag = 99993;
     });
 }
 
+#pragma mark - ★Task429（第六版捆绑项）：壁纸降采样共用 helper
+
+// 壁纸降采样目标：MIN(2048px, 屏幕长边 × scale)（任务书口径 "≤2048px 或
+// 屏幕 2x" 取保守交集；界面展示永不超出屏幕像素，视觉无损）。
++ (CGFloat)ame429_wallpaperMaxPixelSize {
+    CGFloat screenMax = MAX(UIScreen.mainScreen.bounds.size.width,
+                            UIScreen.mainScreen.bounds.size.height);
+    CGFloat screenPx = screenMax * UIScreen.mainScreen.scale;
+    return MIN(Ame429WallpaperMaxPixelCap, screenPx);
+}
+
+// ImageIO 降采样解码（CGImageSourceCreateThumbnailAtIndex +
+// kCGImageSourceThumbnailMaxPixelSize；kCGImageSource* 字面量键直用——
+// 仓内 Task223/ZL2VersionPages/IconLoader 同判例）。四处全尺寸直读
+//（applyImageBackgroundToContainer / ame223 两路回退 / backgroundPreview）
+// 统一改走本 helper：原图可达 4K，全尺寸主线程解码 = v2-7.2 旧账内存项。
++ (nullable UIImage *)ame429_downsampledImageAtPath:(NSString *)path
+                                      maxPixelSize:(CGFloat)maxPixelSize {
+    if (path.length == 0) return nil;
+    CGImageSourceRef src = CGImageSourceCreateWithURL(
+        (__bridge CFURLRef)[NSURL fileURLWithPath:path], NULL);
+    if (src == NULL) return nil;
+    NSDictionary *downOpts = @{
+        (NSString *)kCGImageSourceCreateThumbnailFromImageAlways: @(YES),
+        (NSString *)kCGImageSourceThumbnailMaxPixelSize: @(maxPixelSize),
+        (NSString *)kCGImageSourceShouldCacheImmediately: @(YES),
+    };
+    CGImageRef img = CGImageSourceCreateThumbnailAtIndex(src, 0, (__bridge CFDictionaryRef)downOpts);
+    CFRelease(src);
+    if (img == NULL) return nil;
+    UIImage *result = [UIImage imageWithCGImage:img];
+    CGImageRelease(img);
+    return result;
+}
+
 #pragma mark - Background Content Application
 
 - (void)applyDefaultBackgroundToContainer:(UIView *)container {
@@ -499,8 +538,11 @@ static const NSInteger kBackgroundGlassTag = 99993;
 
 - (void)applyImageBackgroundToContainer:(UIView *)container {
     if (!self.currentBackgroundPath) return;
-    
-    UIImage *image = [UIImage imageWithContentsOfFile:self.currentBackgroundPath];
+
+    // ★Task429：全尺寸直读改降采样解码（v2-7.2 旧账；缩略图语义保留——
+    // 屏幕级位图 AspectFill 后视觉不变，主线程解码量降一个量级）
+    UIImage *image = [BackgroundManager ame429_downsampledImageAtPath:self.currentBackgroundPath
+                                                         maxPixelSize:[BackgroundManager ame429_wallpaperMaxPixelSize]];
     if (!image) {
         // Task 129f：图片解码失败（内存压力/格式异常/文件半损）旧实现静默 return，
         // 容器空置 -> 透出 window 底色 systemBackgroundColor（浅色模式=纯白）——
@@ -1189,7 +1231,9 @@ NSNotificationName const Ame223WallpaperChangedNotification = @"Ame223WallpaperC
     CGImageSourceRef src = CGImageSourceCreateWithURL(
         (__bridge CFURLRef)[NSURL fileURLWithPath:path], NULL);
     if (src == NULL) {
-        return [UIImage imageWithContentsOfFile:path];
+        // ★Task429：回退同走降采样 helper（原 imageWithContentsOfFile
+        // 全尺寸直读 = 同型旧账四处清单之一）
+        return [BackgroundManager ame429_downsampledImageAtPath:path maxPixelSize:maxDim];
     }
     NSDictionary *downOpts = @{
         (NSString *)kCGImageSourceCreateThumbnailFromImageAlways: @(YES),
@@ -1198,7 +1242,8 @@ NSNotificationName const Ame223WallpaperChangedNotification = @"Ame223WallpaperC
     };
     CGImageRef img = CGImageSourceCreateThumbnailAtIndex(src, 0, (__bridge CFDictionaryRef)downOpts);
     CFRelease(src);
-    if (img == NULL) return [UIImage imageWithContentsOfFile:path];
+    // ★Task429：回退同走降采样 helper（同型旧账，同上）
+    if (img == NULL) return [BackgroundManager ame429_downsampledImageAtPath:path maxPixelSize:maxDim];
     UIImage *result = [UIImage imageWithCGImage:img];
     CGImageRelease(img);
     return result;
@@ -1756,6 +1801,10 @@ NSNotificationName const Ame223WallpaperChangedNotification = @"Ame223WallpaperC
                 }
                 // Task152：无背景 → 有背景的同款即时生效刷新（用户首次设置图片/视频）
                 [self refreshTransparencyForWindowUI];
+                // ★Task429：壁纸变化补播 Ame223WallpaperChanged（原 set 路径
+                //   仅刷透明化不广播 = Task223 消费面拿到的是旧壁纸态；
+                //   ZL2DynamicPalette 跟随背景模式与 Welcome 重取色同链受益）
+                [[NSNotificationCenter defaultCenter] postNotificationName:Ame223WallpaperChangedNotification object:nil];
 
                 if (completion) completion(YES, nil);
             });
@@ -1816,6 +1865,8 @@ NSNotificationName const Ame223WallpaperChangedNotification = @"Ame223WallpaperC
             // Task152：首次拉到 Bing 壁纸时既有 VC 是"无背景"时期建的（不透明），
             // 必须重放透明化，否则壁纸被盖住直到重启。
             [self refreshTransparencyForWindowUI];
+            // ★Task429：Bing 首图登记补播（同 setImageBackground 补播口径）
+            [[NSNotificationCenter defaultCenter] postNotificationName:Ame223WallpaperChangedNotification object:nil];
             if (completion) completion(YES, nil);
         });
     });
@@ -1855,6 +1906,8 @@ NSNotificationName const Ame223WallpaperChangedNotification = @"Ame223WallpaperC
                 }
                 // Task152：无背景 → 有背景的同款即时生效刷新（用户首次设置图片/视频）
                 [self refreshTransparencyForWindowUI];
+                // ★Task429：视频壁纸登记补播（同 setImageBackground 补播口径）
+                [[NSNotificationCenter defaultCenter] postNotificationName:Ame223WallpaperChangedNotification object:nil];
 
                 if (completion) completion(YES, nil);
             });
@@ -1890,6 +1943,8 @@ NSNotificationName const Ame223WallpaperChangedNotification = @"Ame223WallpaperC
         [self applyBackgroundToWindow:self.currentWindow];
     }
     [self refreshTransparencyForWindowUI];
+    // ★Task429：MD3 纯色壁纸登记补播（跟随背景模式无源回落 embermire 同链）
+    [[NSNotificationCenter defaultCenter] postNotificationName:Ame223WallpaperChangedNotification object:nil];
 
     NSLog(@"[Ame403] MD3 solid background set (source=md3solid, role=primaryContainer, dynamic light/dark)");
 
@@ -1952,7 +2007,10 @@ NSNotificationName const Ame223WallpaperChangedNotification = @"Ame223WallpaperC
 
 - (nullable UIImage *)backgroundPreview {
     if (self.currentType == BackgroundTypeImage && self.currentBackgroundPath) {
-        return [UIImage imageWithContentsOfFile:self.currentBackgroundPath];
+        // ★Task429：预览缩略图语义保留，全尺寸直读改降采样 helper
+        //（v2-7.2 旧账四处清单之四；预览展示尺寸内视觉不变）
+        return [BackgroundManager ame429_downsampledImageAtPath:self.currentBackgroundPath
+                                                   maxPixelSize:[BackgroundManager ame429_wallpaperMaxPixelSize]];
     }
     return nil;
 }

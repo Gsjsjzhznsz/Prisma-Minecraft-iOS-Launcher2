@@ -403,6 +403,9 @@
     if (self.ame428_typeView) return self.ame428_typeView;
     ZL2SettingCardGroup *group = [[ZL2SettingCardGroup alloc] init];
     group.translatesAutoresizingMaskIntoConstraints = NO;
+    // ★Task429 N5（第六版报告）：row.onTap block 强捕 self（self → row →
+    //   block → self = 保留环）→ __weak weakSelf（对齐全仓惯例）
+    __weak typeof(self) weakSelf = self;
 
     // 格式枚举沿用 ModpackExportService 既有定义（顺序 = 枚举值 0..4）
     NSArray<NSDictionary *> *specs = @[
@@ -429,8 +432,8 @@
         ZL2SettingRowAction *row = [[ZL2SettingRowAction alloc] initWithTitle:spec[@"title"]
                                                                       subtitle:spec[@"desc"]];
         row.onTap = ^{
-            self.selectedFormat = fmt;
-            [self ame428_refreshFormatSelection];
+            weakSelf.selectedFormat = fmt;              // ★Task429 N5：weakSelf 断环
+            [weakSelf ame428_refreshFormatSelection];
         };
         [rows addObject:row];
         [group ame_addRow:row];
@@ -459,8 +462,10 @@
 
     self.profileRow = [[ZL2SettingRowAction alloc] initWithTitle:localize(@"ame428.export.profile", nil)
                                                         subtitle:nil];
+    // ★Task429 N5（第六版报告）：onTap 强捕 self → __weak weakSelf 断保留环
+    __weak typeof(self) weakSelf = self;
     self.profileRow.onTap = ^{
-        [self showProfilePicker];
+        [weakSelf showProfilePicker];
     };
     [group1 ame_addRow:self.profileRow];
 
@@ -629,6 +634,8 @@
     if (!self.filesGroup) return;
     [self.filesGroup ame_removeAllRows];
     [self.extraGroup ame_removeAllRows];
+    // ★Task429 N5（第六版报告）：onTap 强捕 self → __weak weakSelf 断保留环
+    __weak typeof(self) weakSelf = self;
 
     NSString *gameDir = [self ame428_gameDirForSelectedProfile];
 
@@ -641,13 +648,14 @@
                                                                       subtitle:[self ame428_subtitleForSpec:spec gameDir:gameDir]];
         row.onTap = ^{
             // 勾选语义：位开关（服务层 fileOptions 的既有契约）
-            if (self.fileOptions & bit) {
-                self.fileOptions &= ~bit;
+            // ★Task429 N5：weakSelf 断环（self → row → block → self）
+            if (weakSelf.fileOptions & bit) {
+                weakSelf.fileOptions &= ~bit;
             } else {
-                self.fileOptions |= bit;
+                weakSelf.fileOptions |= bit;
             }
-            [self ame428_refreshCategoryRows];
-            [self ame428_refreshBottomBar];
+            [weakSelf ame428_refreshCategoryRows];
+            [weakSelf ame428_refreshBottomBar];
         };
         [rows addObject:row];
         [self.filesGroup ame_addRow:row];

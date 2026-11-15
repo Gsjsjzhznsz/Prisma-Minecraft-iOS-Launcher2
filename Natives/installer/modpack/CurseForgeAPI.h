@@ -47,7 +47,13 @@ extern NSString *const CurseForgeResponseSnippetKey;
 /// （未带分类筛选 / 映射成功 / 新一次搜索发起时的复位值）。读侧在搜索
 /// completion 内消费（lastSearchTotalCount 同款口径），UI 出「该分类在
 /// CurseForge 不存在，已回退全部结果」提示——不再静默不筛。
+/// ★Task429 N6b：NSLock 收口 + 读后即清（聚合服务消费口改走下方 take
+/// 方法，取值后立即置 nil——单例粘态不再跨请求串味）。
 @property (nonatomic, copy, nullable) NSString *ame428_lastCategoryFallbackSlug;
+
+/// ★Task429 N6b：失配旗标读后即清（take 语义）——取值后立即置 nil（聚合
+/// 服务 completion 消费口；预览桩未实现该成员，消费方守卫跳过）
+- (nullable NSString *)ame428_takeLastCategoryFallbackSlug;
 
 /// Task211：占位 API Key 判定（编译期 NULL 字面量字符串化产物家族，如
 /// "((void *)0)"）。KeyViewController 的预填净化与保存门使用，与 apiKey getter 的

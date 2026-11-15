@@ -102,6 +102,114 @@ syntax_mode() {
 }
 
 # ─────────────────────────────────────────────────────────────
+# ★Task429 N8（第六版报告）：桩签名漂移防线（Preview/ZL2PagesStub.m ↔ 真实 .h）
+#   语义（grep 级断言，shell 无编译器仲裁的替代口径）：桩 TU 的手写同名类
+#   声明"签名照抄真实 .h 逐条对表"（桩文件头分账纪律）此前仅靠人眼——真实
+#   头改签名（加参/改 completion 形态/退役选择器）时桩侧静默漂移，而预览
+#   harness 照常链接（方法调用运行时动态绑定，链接期只查类名与 C 符号）
+#   = 假绿。本门禁做双侧 grep 断言：
+#     · 正向对：真实 .h 声明片段在位 + 桩 TU 同片段在位（多行声明用 anchor
+#       + 行窗匹配）；
+#     · 负向对（WorldService）：真实头与桩都不得出现 expectedSHA1——"无参
+#       侧多参"同样是漂移；
+#     · respondsToSelector 消费契约面：消费方守卫的选择器必须在真实 .h
+#       实名在位（防守卫对象被静默更名 = 守卫恒跳过假绿）。
+#   粒度 = 声明行关键片段（grep -F 定长匹配，规避 typedef 与内联 block
+#   形态差异的逐字符误报——ModService completion 走 ModDownloadHandler
+#   typedef，桩侧内联展开为同 ABI block，属分账纪律许可形态）；完整签名
+#   一致性由 preview 腿桩 TU -fsyntax-only 编译期承接。
+# ─────────────────────────────────────────────────────────────
+stub_signature_gate() {
+  echo "== ★Task429 N8 桩签名漂移防线（Preview/ZL2PagesStub.m ↔ 真实 .h）=="
+  local stub="$NATIVES/Preview/ZL2PagesStub.m"
+  local ame429_bad=0
+  # ame429_sig_pair <label> <header-relpath> <anchor-frag> <probe-frag> <window>
+  #   window=0 → 真实头与桩各自整文件 grep -F probe-frag；
+  #   window=N → 先 grep -F anchor，再在其后 N 行窗内 grep -F probe-frag
+  #   （双侧同 anchor/同窗 = 多行声明形态对表）。
+  #   ★pipefail 卫生：窗内匹配先落变量再单段 grep（grep|grep -q 在
+  #   set -o pipefail 下有 SIGPIPE 141 假阴性雷——小文件虽难触发，仍收口）
+  ame429_sig_pair() {
+    local ame429_label="$1" ame429_hdr="$2" ame429_anchor="$3" ame429_probe="$4" ame429_win="$5"
+    local ame429_hdr_path="$NATIVES/$ame429_hdr"
+    if [[ ! -f "$ame429_hdr_path" ]]; then
+      echo "  ✗ [$ame429_label] 真实头缺席: $ame429_hdr"
+      ame429_bad=$((ame429_bad + 1)); return
+    fi
+    local ame429_ctx
+    if [[ "$ame429_win" -eq 0 ]]; then
+      if ! grep -Fq "$ame429_probe" "$ame429_hdr_path"; then
+        echo "  ✗ [$ame429_label] 真实头缺片段: $ame429_hdr :: $ame429_probe"
+        ame429_bad=$((ame429_bad + 1)); return
+      fi
+      if ! grep -Fq "$ame429_probe" "$stub"; then
+        echo "  ✗ [$ame429_label] 桩 TU 缺片段: $ame429_probe"
+        ame429_bad=$((ame429_bad + 1)); return
+      fi
+    else
+      ame429_ctx="$(grep -A"$ame429_win" -F "$ame429_anchor" "$ame429_hdr_path" || true)"
+      if ! grep -Fq "$ame429_probe" <<<"$ame429_ctx"; then
+        echo "  ✗ [$ame429_label] 真实头 anchor 后 ${ame429_win} 行窗缺片段: $ame429_anchor → $ame429_probe"
+        ame429_bad=$((ame429_bad + 1)); return
+      fi
+      ame429_ctx="$(grep -A"$ame429_win" -F "$ame429_anchor" "$stub" || true)"
+      if ! grep -Fq "$ame429_probe" <<<"$ame429_ctx"; then
+        echo "  ✗ [$ame429_label] 桩 TU anchor 后 ${ame429_win} 行窗缺片段: $ame429_anchor → $ame429_probe"
+        ame429_bad=$((ame429_bad + 1)); return
+      fi
+    fi
+    echo "  ✓ [$ame429_label]"
+  }
+  # API 双源（桩 §"API 双源 签名照抄"族）
+  ame429_sig_pair "ModrinthAPI 异步搜索 searchModWithFilters:completion:" \
+    "installer/modpack/ModrinthAPI.h" \
+    "searchModWithFilters:(NSDictionary *)filters" "searchModWithFilters:(NSDictionary *)filters" 0
+  ame429_sig_pair "CurseForgeAPI 异步搜索 searchModWithFilters:completion:" \
+    "installer/modpack/CurseForgeAPI.h" \
+    "searchModWithFilters:(NSDictionary *)filters" "searchModWithFilters:(NSDictionary *)filters" 0
+  # 下载服务四件（桩 §"下载服务四件 各 download 签名照真实 .h"族）
+  ame429_sig_pair "ModService downloadMod 带 expectedSHA1" \
+    "ModService.h" "downloadMod:(ModItem *)mod" "expectedSHA1:" 4
+  ame429_sig_pair "ShaderService downloadShader 带 expectedSHA1" \
+    "ShaderService.h" "downloadShader:(ShaderItem *)shader" "expectedSHA1:" 4
+  ame429_sig_pair "ResourcePackService downloadResourcePack 带 expectedSHA1" \
+    "ResourcePackService.h" "downloadResourcePack:(ResourcePackItem *)item" "expectedSHA1:" 4
+  # 负向对：WorldService 无 expectedSHA1（双侧）——无参侧多参 = 同样漂移
+  #   （同款 pipefail 卫生：先落变量再判）
+  local ame429_world_hdr ame429_world_stub
+  ame429_world_hdr="$(grep -A4 -F "downloadWorld:(WorldItem *)item" "$NATIVES/WorldService.h" || true)"
+  ame429_world_stub="$(grep -A4 -F "downloadWorld:(WorldItem *)item" "$stub" || true)"
+  if grep -Fq "expectedSHA1:" <<<"$ame429_world_hdr"; then
+    echo "  ✗ [WorldService downloadWorld 无 expectedSHA1（负断言）] 真实头多出 expectedSHA1"
+    ame429_bad=$((ame429_bad + 1))
+  elif grep -Fq "expectedSHA1:" <<<"$ame429_world_stub"; then
+    echo "  ✗ [WorldService downloadWorld 无 expectedSHA1（负断言）] 桩 TU 多出 expectedSHA1"
+    ame429_bad=$((ame429_bad + 1))
+  else
+    echo "  ✓ [WorldService downloadWorld 无 expectedSHA1（双侧负断言）]"
+  fi
+  # 镜像中心（桩 §"镜像中心 桩参数以 NSInteger 承载（同 ABI）"——
+  #   枚举参数形态差异属分账纪律许可，selector 级对表）
+  ame429_sig_pair "PLMirrorCenter legacySourceTokenForType:" \
+    "PLMirrorCenter.h" "legacySourceTokenForType:" "legacySourceTokenForType:" 0
+  # respondsToSelector 消费契约面（★Task429 N6b 消费口：消费方守卫的选择器
+  #   必须在真实 .h 实名在位，防守卫对象被静默更名 = 守卫恒跳过假绿；桩侧
+  #   不实现该成员、消费方守卫跳过 = 分账纪律既有口径，不做桩侧断言）
+  if grep -Fq "ame428_takeLastCategoryFallbackSlug" "$NATIVES/installer/modpack/CurseForgeAPI.h"; then
+    echo "  ✓ [CurseForgeAPI ame428_takeLastCategoryFallbackSlug（N6b 消费契约）]"
+  else
+    echo "  ✗ [CurseForgeAPI ame428_takeLastCategoryFallbackSlug（N6b 消费契约）] 真实头缺声明"
+    ame429_bad=$((ame429_bad + 1))
+  fi
+  if [[ "$ame429_bad" -ne 0 ]]; then
+    echo "  == 桩签名防线结果: $ame429_bad 项漂移 =="
+    FAIL=1
+    return
+  fi
+  echo "== 桩签名防线结果: 全部对表 =="
+}
+
+# ─────────────────────────────────────────────────────────────
 # preview 模式：编译 harness → 模拟器安装启动 → 逐页浅/深截图
 #   harness = AmeTheme + Fluent 组件 8 件（Task343：LauncherMenuViewController 随旧壳退役摘除）
 #   + Preview/AmeFluentPreviewMain.m（服务桩内嵌，见该文件头注释）
@@ -136,6 +244,14 @@ preview_mode() {
                                    #   真机 10pt vs CI 镜像 20pt 两倍差 = 镜像自绘图标从未经过真管线）
     ZL2FestivalEffects            # ★Task428（8.2）：节日粒子层（ZL2ShellViewController import 它；
                                    #   getPrefObject 桩 = AmeFluentPreviewMain 既有服务桩）
+    ZL2MotionKit                  # ★Task429（9.2）：MD3 动效四件（ZL2ShellViewController/ZL2M3Kit import 它）
+    ZL2BackgroundHost             # ★Task429（8.3）：ZL2 页背景层（ZL2ShellViewController import 它；
+                                   #   BackgroundManager 类符号 = AmeFluentPreviewMain 最小桩，
+                                   #   hasBackground=NO → 挂载守卫短路，壁纸管线不进预览）
+    AmeUIImageColors              # ★Task429（8.1）：壁纸主色提取（ZL2DynamicPalette import 它）
+    AmeHCTPalette                 # ★Task429（8.1）：HCT 色域生成色板（ZL2DynamicPalette import 它）
+    ZL2DynamicPalette             # ★Task429（8.1）：主题中枢（+load 向 ZL2Theme 覆盖点注册；
+                                   #   mode=0 默认时 overlay 不激活，零观感回归）
   )
   local objs=()
   for s in "${sources[@]}"; do
@@ -495,9 +611,9 @@ PLIST
 }
 
 case "$MODE" in
-  syntax)  syntax_mode ;;
+  syntax)  syntax_mode; stub_signature_gate ;;   # ★Task429 N8：语法腿同轮跑桩签名防线（无模拟器依赖）
   preview) preview_mode ;;
-  all)     syntax_mode; preview_mode ;;
+  all)     syntax_mode; stub_signature_gate; preview_mode ;;
   *) echo "用法: $0 [syntax|preview|all]"; exit 2 ;;
 esac
 

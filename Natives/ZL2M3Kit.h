@@ -133,4 +133,22 @@ NS_ASSUME_NONNULL_BEGIN
 
 @end
 
+#pragma mark - ⑦ PressableCard（★Task429 按压缩放+触觉全局杠杆）
+
+/// PressableCard 工具：按下 0.94~0.97 档缩放 + 触觉钩子（轻触 light），
+/// 抬起/取消 spring 回位（damping 0.8 expressive 档）。
+/// 实现为挂靠手势（UILongPressGestureRecognizer minDuration 0、
+/// cancelsTouchesInView = NO）：宿主既有点击/选择语义零改动——替换各页
+/// 分散的 0.94~0.97 手写缩放（第五版表 9-1「按压缩放+触觉」行）。
+/// ZL2M3CardCell（卡 0.94 档）/ ZL2M3FilterChip（chip 0.97 档）已内置复用。
+@interface ZL2M3Pressable : NSObject
+
+/// 默认档 0.96（卡/chip 之外的通用按压件）
++ (void)attachToView:(UIView *)view;
+
+/// 显式档位（0.94~0.97；超出区间夹回边界值）
++ (void)attachToView:(UIView *)view pressedScale:(CGFloat)pressedScale;
+
+@end
+
 NS_ASSUME_NONNULL_END

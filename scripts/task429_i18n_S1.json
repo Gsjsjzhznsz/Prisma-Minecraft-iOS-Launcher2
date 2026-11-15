@@ -1,0 +1,362 @@
+{
+  "ame429.s1.row.title": {
+    "en": "World Backups",
+    "zh-Hans": "世界备份",
+    "zh-CN": "世界备份",
+    "zh-Hant": "世界備份"
+  },
+  "ame429.s1.sheet.title": {
+    "en": "World Backups",
+    "zh-Hans": "世界备份",
+    "zh-CN": "世界备份",
+    "zh-Hant": "世界備份"
+  },
+  "ame429.s1.sheet.message": {
+    "en": "Instance: %@ · Deleted or overwritten worlds go to the trash, never hard-deleted",
+    "zh-Hans": "实例：%@ · 删除与被恢复覆盖的世界均移入回收站",
+    "zh-CN": "实例：%@ · 删除与被恢复覆盖的世界均移入回收站",
+    "zh-Hant": "實例：%@ · 刪除與被恢復覆蓋的世界均移入回收站"
+  },
+  "ame429.s1.action.backup": {
+    "en": "Back Up a World…",
+    "zh-Hans": "备份世界…",
+    "zh-CN": "备份世界…",
+    "zh-Hant": "備份世界…"
+  },
+  "ame429.s1.action.list": {
+    "en": "Backup List…",
+    "zh-Hans": "备份列表…",
+    "zh-CN": "备份列表…",
+    "zh-Hant": "備份列表…"
+  },
+  "ame429.s1.action.duplicate": {
+    "en": "Duplicate a World…",
+    "zh-Hans": "复制世界…",
+    "zh-CN": "复制世界…",
+    "zh-Hant": "複製世界…"
+  },
+  "ame429.s1.action.trash": {
+    "en": "Delete a World…",
+    "zh-Hans": "删除世界…",
+    "zh-CN": "删除世界…",
+    "zh-Hant": "刪除世界…"
+  },
+  "ame429.s1.world.title": {
+    "en": "Choose a World",
+    "zh-Hans": "选择世界",
+    "zh-CN": "选择世界",
+    "zh-Hant": "選擇世界"
+  },
+  "ame429.s1.world.none": {
+    "en": "No worlds found for this instance",
+    "zh-Hans": "当前实例暂无世界存档",
+    "zh-CN": "当前实例暂无世界存档",
+    "zh-Hant": "當前實例暫無世界存檔"
+  },
+  "ame429.s1.busy": {
+    "en": "Working…",
+    "zh-Hans": "处理中…",
+    "zh-CN": "处理中…",
+    "zh-Hant": "處理中…"
+  },
+  "ame429.s1.backup.ok_fmt": {
+    "en": "Backup done: %@ (stored in world_backups/)",
+    "zh-Hans": "备份完成：%@（存于 world_backups/）",
+    "zh-CN": "备份完成：%@（存于 world_backups/）",
+    "zh-Hant": "備份完成：%@（存於 world_backups/）"
+  },
+  "ame429.s1.backup.fail_fmt": {
+    "en": "Backup failed: %@",
+    "zh-Hans": "备份失败：%@",
+    "zh-CN": "备份失败：%@",
+    "zh-Hant": "備份失敗：%@"
+  },
+  "ame429.s1.backup.empty": {
+    "en": "No backups yet",
+    "zh-Hans": "暂无备份",
+    "zh-CN": "暂无备份",
+    "zh-Hant": "暫無備份"
+  },
+  "ame429.s1.backup.pick.title": {
+    "en": "Backups (%lu)",
+    "zh-Hans": "备份列表（%lu）",
+    "zh-CN": "备份列表（%lu）",
+    "zh-Hant": "備份列表（%lu）"
+  },
+  "ame429.s1.backup.actions.msg": {
+    "en": "Restore target = this instance's saves directory resolved by the isolation decision tree",
+    "zh-Hans": "恢复目标 = 本实例隔离决策树解析出的存档目录",
+    "zh-CN": "恢复目标 = 本实例隔离决策树解析出的存档目录",
+    "zh-Hant": "恢復目標 = 本實例隔離決策樹解析出的存檔目錄"
+  },
+  "ame429.s1.restore.do": {
+    "en": "Restore This Backup",
+    "zh-Hans": "恢复此备份",
+    "zh-CN": "恢复此备份",
+    "zh-Hant": "恢復此備份"
+  },
+  "ame429.s1.restore.confirm.title": {
+    "en": "Restore Backup",
+    "zh-Hans": "恢复备份",
+    "zh-CN": "恢复备份",
+    "zh-Hant": "恢復備份"
+  },
+  "ame429.s1.restore.confirm.msg_fmt": {
+    "en": "This will extract \"%@\" into this instance's saves directory; an existing world with the same name is moved to the trash first.",
+    "zh-Hans": "将把「%@」解回当前实例存档目录；同名现存档会先移入回收站。",
+    "zh-CN": "将把「%@」解回当前实例存档目录；同名现存档会先移入回收站。",
+    "zh-Hant": "將把「%@」解回當前實例存檔目錄；同名現存檔會先移入回收站。"
+  },
+  "ame429.s1.restore.ok_fmt": {
+    "en": "World restored: %@ (previous copy moved to trash)",
+    "zh-Hans": "已恢复世界：%@（同名旧档已移入回收站）",
+    "zh-CN": "已恢复世界：%@（同名旧档已移入回收站）",
+    "zh-Hant": "已恢復世界：%@（同名舊檔已移入回收站）"
+  },
+  "ame429.s1.restore.fail_fmt": {
+    "en": "Restore failed: %@",
+    "zh-Hans": "恢复失败：%@",
+    "zh-CN": "恢复失败：%@",
+    "zh-Hant": "恢復失敗：%@"
+  },
+  "ame429.s1.backupdel.do": {
+    "en": "Delete Backup",
+    "zh-Hans": "删除备份",
+    "zh-CN": "删除备份",
+    "zh-Hant": "刪除備份"
+  },
+  "ame429.s1.backupdel.confirm.title": {
+    "en": "Delete Backup",
+    "zh-Hans": "删除备份",
+    "zh-CN": "删除备份",
+    "zh-Hant": "刪除備份"
+  },
+  "ame429.s1.backupdel.confirm.msg_fmt": {
+    "en": "Backup \"%@\" will be moved to the trash (POJAV_HOME/trash), not hard-deleted.",
+    "zh-Hans": "备份「%@」将移入回收站（POJAV_HOME/trash），不会直删。",
+    "zh-CN": "备份「%@」将移入回收站（POJAV_HOME/trash），不会直删。",
+    "zh-Hant": "備份「%@」將移入回收站（POJAV_HOME/trash），不會直刪。"
+  },
+  "ame429.s1.backupdel.ok_fmt": {
+    "en": "Moved to trash: %@",
+    "zh-Hans": "已移入回收站：%@",
+    "zh-CN": "已移入回收站：%@",
+    "zh-Hant": "已移入回收站：%@"
+  },
+  "ame429.s1.backupdel.fail_fmt": {
+    "en": "Delete failed: %@",
+    "zh-Hans": "删除失败：%@",
+    "zh-CN": "删除失败：%@",
+    "zh-Hant": "刪除失敗：%@"
+  },
+  "ame429.s1.duplicate.ok_fmt": {
+    "en": "Duplicated as: %@",
+    "zh-Hans": "已复制为：%@",
+    "zh-CN": "已复制为：%@",
+    "zh-Hant": "已複製為：%@"
+  },
+  "ame429.s1.duplicate.fail_fmt": {
+    "en": "Duplicate failed: %@",
+    "zh-Hans": "复制失败：%@",
+    "zh-CN": "复制失败：%@",
+    "zh-Hant": "複製失敗：%@"
+  },
+  "ame429.s1.trash.confirm.title": {
+    "en": "Delete World",
+    "zh-Hans": "删除世界",
+    "zh-CN": "删除世界",
+    "zh-Hant": "刪除世界"
+  },
+  "ame429.s1.trash.confirm.msg_fmt": {
+    "en": "World \"%@\" will be moved to the trash (POJAV_HOME/trash/timestamp folder) and can be recovered manually.",
+    "zh-Hans": "世界「%@」将移入回收站（POJAV_HOME/trash/时间戳子目录），可手动找回。",
+    "zh-CN": "世界「%@」将移入回收站（POJAV_HOME/trash/时间戳子目录），可手动找回。",
+    "zh-Hant": "世界「%@」將移入回收站（POJAV_HOME/trash/時間戳子目錄），可手動找回。"
+  },
+  "ame429.s1.trash.ok_fmt": {
+    "en": "Moved to trash: %@",
+    "zh-Hans": "已移入回收站：%@",
+    "zh-CN": "已移入回收站：%@",
+    "zh-Hant": "已移入回收站：%@"
+  },
+  "ame429.s1.trash.fail_fmt": {
+    "en": "Delete failed: %@",
+    "zh-Hans": "删除失败：%@",
+    "zh-CN": "删除失败：%@",
+    "zh-Hant": "刪除失敗：%@"
+  },
+  "ame429.s1.err.move_failed": {
+    "en": "Move/copy failed: %1$@ → %2$@ (%3$@ / %4$@)",
+    "zh-Hans": "目录移动/复制失败：%1$@ → %2$@（%3$@ / %4$@）",
+    "zh-CN": "目录移动/复制失败：%1$@ → %2$@（%3$@ / %4$@）",
+    "zh-Hant": "目錄移動/複製失敗：%1$@ → %2$@（%3$@ / %4$@）"
+  },
+  "ame429.s1.err.world_missing": {
+    "en": "The world directory does not exist or is no longer valid",
+    "zh-Hans": "世界目录不存在或已失效",
+    "zh-CN": "世界目录不存在或已失效",
+    "zh-Hant": "世界目錄不存在或已失效"
+  },
+  "ame429.s1.err.not_a_world": {
+    "en": "level.dat is missing — this is not a valid world save",
+    "zh-Hans": "目录缺少 level.dat，不是有效世界存档",
+    "zh-CN": "目录缺少 level.dat，不是有效世界存档",
+    "zh-Hant": "目錄缺少 level.dat，不是有效世界存檔"
+  },
+  "ame429.s1.err.backup_dir": {
+    "en": "Failed to create the backup directory",
+    "zh-Hans": "备份目录创建失败",
+    "zh-CN": "备份目录创建失败",
+    "zh-Hant": "備份目錄創建失敗"
+  },
+  "ame429.s1.err.zip_open": {
+    "en": "Failed to open the backup archive: %@",
+    "zh-Hans": "备份包创建失败：%@",
+    "zh-CN": "备份包创建失败：%@",
+    "zh-Hant": "備份包創建失敗：%@"
+  },
+  "ame429.s1.err.read_file": {
+    "en": "Failed to read file: %@",
+    "zh-Hans": "读取文件失败：%@",
+    "zh-CN": "读取文件失败：%@",
+    "zh-Hant": "讀取文件失敗：%@"
+  },
+  "ame429.s1.err.zip_write": {
+    "en": "Failed writing into backup archive (%@): %@",
+    "zh-Hans": "写入备份包失败（%@）：%@",
+    "zh-CN": "写入备份包失败（%@）：%@",
+    "zh-Hant": "寫入備份包失敗（%@）：%@"
+  },
+  "ame429.s1.err.empty_world": {
+    "en": "The world directory is empty; no backup was produced",
+    "zh-Hans": "世界目录为空，未生成备份",
+    "zh-CN": "世界目录为空，未生成备份",
+    "zh-Hant": "世界目錄為空，未生成備份"
+  },
+  "ame429.s1.err.zip_verify": {
+    "en": "Backup integrity check failed (missing %@): %@",
+    "zh-Hans": "备份完整性校验失败（缺 %@）：%@",
+    "zh-CN": "备份完整性校验失败（缺 %@）：%@",
+    "zh-Hant": "備份完整性校驗失敗（缺 %@）：%@"
+  },
+  "ame429.s1.err.zip_extract": {
+    "en": "Failed to extract the backup archive: %@",
+    "zh-Hans": "备份包解压失败：%@",
+    "zh-CN": "备份包解压失败：%@",
+    "zh-Hant": "備份包解壓失敗：%@"
+  },
+  "ame429.s1.err.zip_structure": {
+    "en": "Unexpected archive layout: a single top-level world folder is required",
+    "zh-Hans": "备份包结构异常：应为单一顶层世界目录",
+    "zh-CN": "备份包结构异常：应为单一顶层世界目录",
+    "zh-Hant": "備份包結構異常：應為單一頂層世界目錄"
+  },
+  "ame429.s1.err.zip_slip": {
+    "en": "Archive path escapes the staging area (zip-slip blocked)",
+    "zh-Hans": "备份包路径越界（zip-slip 防御拦截）",
+    "zh-CN": "备份包路径越界（zip-slip 防御拦截）",
+    "zh-Hant": "備份包路徑越界（zip-slip 防禦攔截）"
+  },
+  "ame429.s1.err.no_gamedir": {
+    "en": "Failed to resolve the game directory (PLProfiles decision tree returned empty)",
+    "zh-Hans": "游戏目录解析失败（PLProfiles 决策树空值）",
+    "zh-CN": "游戏目录解析失败（PLProfiles 决策树空值）",
+    "zh-Hant": "遊戲目錄解析失敗（PLProfiles 決策樹空值）"
+  },
+  "ame429.s1.err.saves_dir": {
+    "en": "Failed to create the saves directory",
+    "zh-Hans": "存档目录创建失败",
+    "zh-CN": "存档目录创建失败",
+    "zh-Hant": "存檔目錄創建失敗"
+  },
+  "ame429.s1.err.existing": {
+    "en": "Failed to move the existing world with the same name to trash: %@",
+    "zh-Hans": "同名现存档移入回收站失败：%@",
+    "zh-CN": "同名现存档移入回收站失败：%@",
+    "zh-Hant": "同名現存檔移入回收站失敗：%@"
+  },
+  "ame429.s1.err.trash_missing": {
+    "en": "Target no longer exists; cannot move to trash",
+    "zh-Hans": "目标不存在，无法移入回收站",
+    "zh-CN": "目标不存在，无法移入回收站",
+    "zh-Hant": "目標不存在，無法移入回收站"
+  },
+  "ame429.s1.err.trash_dir": {
+    "en": "Failed to create the trash directory",
+    "zh-Hans": "回收站目录创建失败",
+    "zh-CN": "回收站目录创建失败",
+    "zh-Hant": "回收站目錄創建失敗"
+  },
+  "ame429.s1.err.dup_name": {
+    "en": "No available copy name (999-item limit reached)",
+    "zh-Hans": "可用副本名耗尽（999 项上限）",
+    "zh-CN": "可用副本名耗尽（999 项上限）",
+    "zh-Hant": "可用副本名耗盡（999 項上限）"
+  },
+  "ame429.s1.proxy.title": {
+    "en": "Download Proxy",
+    "zh-Hans": "下载代理",
+    "zh-CN": "下载代理",
+    "zh-Hant": "下載代理"
+  },
+  "ame429.s1.proxy.subtitle": {
+    "en": "Proxy channel for launcher downloads and in-game networking (SOCKS5)",
+    "zh-Hans": "启动器下载与游戏内网络（SOCKS5）的代理通道",
+    "zh-CN": "启动器下载与游戏内网络（SOCKS5）的代理通道",
+    "zh-Hant": "啟動器下載與遊戲內網絡（SOCKS5）的代理通道"
+  },
+  "ame429.s1.proxy.off": {
+    "en": "Off",
+    "zh-Hans": "关闭",
+    "zh-CN": "关闭",
+    "zh-Hant": "關閉"
+  },
+  "ame429.s1.proxy.http": {
+    "en": "HTTP",
+    "zh-Hans": "HTTP",
+    "zh-CN": "HTTP",
+    "zh-Hant": "HTTP"
+  },
+  "ame429.s1.proxy.socks": {
+    "en": "SOCKS5",
+    "zh-Hans": "SOCKS5",
+    "zh-CN": "SOCKS5",
+    "zh-Hant": "SOCKS5"
+  },
+  "ame429.s1.proxy.host.title": {
+    "en": "Proxy Host",
+    "zh-Hans": "代理主机",
+    "zh-CN": "代理主机",
+    "zh-Hant": "代理主機"
+  },
+  "ame429.s1.proxy.host.subtitle": {
+    "en": "Hostname or IP; leave empty to disable the proxy",
+    "zh-Hans": "主机名或 IP；留空 = 不启用代理",
+    "zh-CN": "主机名或 IP；留空 = 不启用代理",
+    "zh-Hant": "主機名或 IP；留空 = 不啟用代理"
+  },
+  "ame429.s1.proxy.host.placeholder": {
+    "en": "e.g. 127.0.0.1",
+    "zh-Hans": "例如 127.0.0.1",
+    "zh-CN": "例如 127.0.0.1",
+    "zh-Hant": "例如 127.0.0.1"
+  },
+  "ame429.s1.proxy.port.title": {
+    "en": "Proxy Port",
+    "zh-Hans": "代理端口",
+    "zh-CN": "代理端口",
+    "zh-Hant": "代理端口"
+  },
+  "ame429.s1.proxy.port.subtitle": {
+    "en": "1-65535; invalid values are treated as unset",
+    "zh-Hans": "1-65535；非法值视为未配置",
+    "zh-CN": "1-65535；非法值视为未配置",
+    "zh-Hant": "1-65535；非法值視為未配置"
+  },
+  "ame429.s1.proxy.port.placeholder": {
+    "en": "e.g. 1080",
+    "zh-Hans": "例如 1080",
+    "zh-CN": "例如 1080",
+    "zh-Hant": "例如 1080"
+  }
+}

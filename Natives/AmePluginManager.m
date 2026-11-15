@@ -161,6 +161,39 @@
         if (minApi > [self apiVersion]) { fail = AmePluginInstallErrAPITooNew; goto fail; }
     }
 
+    // ★Task429（§11.2）：可选 "java-inject" 节——结构门（manifest 校验期）。
+    //   四键均为 string 数组：路径相对插件目录、禁绝对路径与 ".." 段
+    //   （逃逸拒绝与 entry 校验同源；逐项存在性校验延后到聚合面
+    //   AmePluginRuntime ame429_aggregatedJavaInject —— 装后文件可变，
+    //   收编时校验才是新鲜事实）。声明节本身不触发任何权限：聚合面以
+    //   java.inject（声明+授权双闸）执法，fail-closed。
+    {
+        id ame429_ji = dict[@"java-inject"];
+        if (ame429_ji != nil) {
+            if (![ame429_ji isKindOfClass:[NSDictionary class]]) goto fail;
+            NSDictionary *ame429_jiD = ame429_ji;
+            NSMutableDictionary<NSString *, NSArray<NSString *> *> *ame429_norm =
+                [NSMutableDictionary dictionary];
+            for (NSString *ame429_k in @[@"jvmFlags", @"agentJars",
+                                         @"classpathEntries", @"nativeLibDirs"]) {
+                id ame429_v = ame429_jiD[ame429_k];
+                if (ame429_v == nil) continue;
+                if (![ame429_v isKindOfClass:[NSArray class]]) goto fail;
+                NSMutableArray<NSString *> *ame429_arr = [NSMutableArray array];
+                for (id ame429_item in ame429_v) {
+                    if (![ame429_item isKindOfClass:[NSString class]]) goto fail;
+                    NSString *ame429_s = ame429_item;
+                    if (ame429_s.length == 0 || [ame429_s hasPrefix:@"/"]) goto fail;
+                    if ([ame429_s containsString:@".."]) goto fail;
+                    if (ame429_arr.count >= 64) goto fail;   // 单键 64 项封顶防滥用
+                    [ame429_arr addObject:ame429_s];
+                }
+                if (ame429_arr.count > 0) ame429_norm[ame429_k] = ame429_arr;
+            }
+            if (ame429_norm.count > 0) m.javaInject = ame429_norm;
+        }
+    }
+
     return m;
 
 fail:

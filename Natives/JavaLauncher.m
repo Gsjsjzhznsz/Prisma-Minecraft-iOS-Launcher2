@@ -7,6 +7,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <sys/stat.h>
+#include <sys/sysctl.h>   // ★Task429（§11.3）：JIT 豁免检测 —— sysctl KERN_PROC + CS_DEBUGGED 位
 #include <time.h>   // ★Task428：selfexit marker 的 ts（time(NULL)）
 #include <unistd.h>
 #include <mach/mach.h>
@@ -29,6 +30,7 @@
 #import "ModService.h"   // Task225：隔离嗅探（与 ModService/ModsManager 同源）
 #import "MinecraftResourceUtils.h"
 #import "PLGameIntegrityService.h"   // ★Task428：启动前游戏完整性校验（3.3，HMCL checkGameState 对标）
+#import "PLRendererPluginService.h"   // ★Task429：渲染器插件（§11.4）——仅头文件类型面；消费一律 NSClassFromString 软链，零链接符号依赖
 
 // ★Task428（1.2）：PLProfiles 新增类方法的本地前置声明（PLProfiles.h 不在
 //   授权清单内；启动链消费有效隔离解析——单一事实源在 PLProfiles.m，
@@ -239,6 +241,12 @@ static double ame130_export_rcas_env(void) {
     return sharpness;
 }
 
+// ★Task429（审计补全）：软链影子协议前置声明 —— init_loadMobileGluesConfig
+//   （下方）先于协议完整定义（init_loadCustomJvmFlags 前）消费
+//   id<Ame429RendererServiceShadow>；协议必须先声明后消费（零告警编译面）。
+@protocol Ame429PluginRuntimeShadow;
+@protocol Ame429RendererServiceShadow;
+
 void init_loadMobileGluesConfig() {
     // Task 144：改读 ame_effective_renderer()（单一事实源）而非裸 profile 键。
     // Task142 后 profile 存的是 "mg" 逻辑键，旧白名单永远 miss；解析后拿到的
@@ -246,7 +254,36 @@ void init_loadMobileGluesConfig() {
     NSString *renderer = ame_effective_renderer();
     NSLog(@"[JavaLauncher] init_loadMobileGluesConfig: renderer=%@", renderer);
 
-    BOOL usesMobileGlues = [renderer isEqualToString:@ RENDERER_NAME_MOBILEGLUES] ||
+    // ★Task429（§11.4）：渲染器插件会话（driverType=mobileglues）同享 MG
+    //   config 写盘链 —— ame_effective_renderer 对插件键原样透传（显式选择
+    //   分支），旧白名单必然 miss；软链取插件条目判驱动类型 + 取 driver.json
+    //   覆盖层（下方 config 字典收尾处消费）。服务缺席 = 零变化。
+    BOOL ame429_pluginMgRenderer = NO;
+    NSDictionary *ame429_driverConfig = nil;
+    {
+        id<Ame429RendererServiceShadow> ame429_svc =
+            (id<Ame429RendererServiceShadow>)NSClassFromString(@"PLRendererPluginService");
+        if (ame429_svc &&
+            [ame429_svc respondsToSelector:@selector(isRendererPluginId:)] &&
+            [ame429_svc respondsToSelector:@selector(entryForRendererKey:)] &&
+            [ame429_svc isRendererPluginId:renderer]) {
+            PLRendererPluginEntry *ame429_entry = [ame429_svc entryForRendererKey:renderer];
+            // driverType 字面量 @"mobileglues"（与服务侧常量同源；此处刻意
+            // 不引用 extern 符号——软链消费面零链接依赖）
+            if ([ame429_entry.driverType isEqualToString:@"mobileglues"]) {
+                ame429_pluginMgRenderer = YES;
+            }
+            if (ame429_entry.driverConfig) {
+                ame429_driverConfig = ame429_entry.driverConfig;
+            }
+            NSLog(@"[Ame429] renderer plugin session: %@ (driver=%@, driverConfig=%@)",
+                  ame429_entry.pluginId, ame429_entry.driverType,
+                  ame429_driverConfig ? @"YES" : @"no");
+        }
+    }
+
+    BOOL usesMobileGlues = ame429_pluginMgRenderer ||
+        [renderer isEqualToString:@ RENDERER_NAME_MOBILEGLUES] ||
         [renderer isEqualToString:@"auto"] ||
         [renderer isEqualToString:@ RENDERER_NAME_VULKAN] ||
         [renderer isEqualToString:@ RENDERER_NAME_MOBILEGL] ||
@@ -439,6 +476,26 @@ void init_loadMobileGluesConfig() {
     // 的三路分发注释）。
     config[@"fsr1RcasSharpness"] = @(ame130_export_rcas_env());
 
+    // ★Task429（§11.4）：渲染器插件 driver.json 覆盖层 —— 仅该插件档会话
+    //   生效；插件 wins（插件档即插件自带驱动调优，置于用户分区偏好之后
+    //   收尾）。仅收编 String/Number 值（与 config.json 同型；Boolean 由
+    //   NSNumber boolValue 承载——MG 侧同判）。未知键原样透传（MG 对
+    //   config.json 的未知键自带忽略语义）。
+    if (ame429_driverConfig.count > 0) {
+        NSUInteger ame429_merged = 0;
+        for (NSString *ame429_k in ame429_driverConfig) {
+            id ame429_v = ame429_driverConfig[ame429_k];
+            if (![ame429_k isKindOfClass:[NSString class]]) continue;
+            if ([ame429_v isKindOfClass:[NSString class]] ||
+                [ame429_v isKindOfClass:[NSNumber class]]) {
+                config[ame429_k] = ame429_v;
+                ame429_merged++;
+            }
+        }
+        NSLog(@"[Ame429] plugin driver.json overlay merged into MG config: %lu key(s) (renderer-plugin session only)",
+              (unsigned long)ame429_merged);
+    }
+
     NSError *error = nil;
     NSData *jsonData = [NSJSONSerialization dataWithJSONObject:config options:NSJSONWritingPrettyPrinted error:&error];
     if (jsonData) {
@@ -500,6 +557,93 @@ static NSString *ame256_effectiveJvmPreset(void) {
     return @"normal";
 }
 
+// ═══ ★Task429（PDF v5 §11.2/§11.3/§11.4 + v6 §3.2.1）：插件注入三刀口 ═══
+// 消费前置助手（软链判例 = ame428 PLGameIntegrityService 同款）：
+//   AmePluginRuntime / PLRendererPluginService 一律经 NSClassFromString 取
+//   类——任一服务 TU 未进构建（如主控尚未补 CMakeLists 源清单行）时类查找
+//   为 nil，消费面整体跳过：零链接符号依赖、运行期零崩溃。
+// 软链影子协议：Class 接收者直发未声明选择器会触发 no-known-class-method
+//   编译告警；经协议收窄调用形态（编译器可核验）且零符号依赖。
+@protocol Ame429PluginRuntimeShadow <NSObject>
++ (nullable NSDictionary *)ame429_aggregatedJavaInject;
+@end
+@protocol Ame429RendererServiceShadow <NSObject>
++ (NSString *)rendererPluginsRootDir;
++ (BOOL)isRendererPluginId:(NSString *)key;
++ (nullable PLRendererPluginEntry *)entryForRendererKey:(NSString *)key;
+@end
+// 三刀口契约（§11.2）：
+//   ①customJvmFlags 区段   —— 插件追加 JVM 参数（init_loadCustomJvmFlags）
+//   ②agent/classpath 注入点 —— 插件 -javaagent jar 与附加 -cp 拼接
+//   ③native 库路径拼接      —— 渲染器插件 dlopen 路径白名单 + nativeLibDirs
+// 三处统一消费 AmePluginRuntime 在 game.starting 前汇总的同一份聚合快照
+// （进程内缓存一次，刀口①②③读到的必然是同一次汇总——插件间互不感知）。
+
+/// 聚合快照（launchJVM 进程内一次；launchHeadlessJVM 安装器路径不消费——
+/// 插件注入面只作用于游戏会话）。
+static NSDictionary *ame429_javaInjectSnapshot(void) {
+    static NSDictionary *ame429_cache = nil;
+    if (ame429_cache) return ame429_cache;
+    id<Ame429PluginRuntimeShadow> ame429_rt =
+        (id<Ame429PluginRuntimeShadow>)NSClassFromString(@"AmePluginRuntime");
+    if (!ame429_rt || ![ame429_rt respondsToSelector:@selector(ame429_aggregatedJavaInject)]) {
+        // 服务缺席（TU 未链接/插件系统未编入）：零注入零崩溃，一行留痕
+        NSLog(@"[Ame429] AmePluginRuntime absent -- java-inject aggregate skipped (service-absent safe)");
+        ame429_cache = @{};
+        return ame429_cache;
+    }
+    NSDictionary *ame429_agg = [ame429_rt ame429_aggregatedJavaInject];
+    ame429_cache = ([ame429_agg isKindOfClass:[NSDictionary class]] && ame429_agg.count > 0)
+        ? ame429_agg : @{};
+    return ame429_cache;
+}
+
+/// 当前选中渲染器插件的包目录（刀口③拼 java.library.path 用；nil = 本会话
+/// 非渲染器插件）。由渲染器消费块（launchJVM AMETHYST_RENDERER 解析点）写入。
+static NSString *ame429_rendererPluginLibDir = nil;
+
+/// 渲染器插件根（白名单锚点；经软链取——服务缺席返回空串 = 白名单无插件源）
+static NSString *ame429_rendererPluginsRoot(void) {
+    id<Ame429RendererServiceShadow> ame429_svc =
+        (id<Ame429RendererServiceShadow>)NSClassFromString(@"PLRendererPluginService");
+    if (!ame429_svc || ![ame429_svc respondsToSelector:@selector(rendererPluginsRootDir)]) return @"";
+    NSString *ame429_root = [ame429_svc rendererPluginsRootDir];
+    return [ame429_root isKindOfClass:[NSString class]] ? ame429_root : @"";
+}
+
+/// ★Task429（§11.3）：JIT 豁免检测 —— sysctl KERN_PROC + CS_DEBUGGED 位。
+/// 契约（§11.3）：JIT 环境 CS_DEBUGGED 置位 ⇔ 调试器信任链在场 ⇔ Library
+/// Validation 解除 ⇔ 未签名 dylib 可 dlopen（渲染器插件 / agent 自带 native
+/// 的物理前提；与 main.m init_hookFunctions 的 init_bypassDyldLibValidation
+/// 环境互为表里——钩子改写校验行为，本位证明豁免资格在场）。
+/// 取证通道：sysctl(CTL_KERN, KERN_PROC, KERN_PROC_PID) 的 kp_proc.p_csflags
+/// （utils.m JIT26DebuggerAttachedViaPtrace 同款 mib 面；CS_DEBUGGED 位与
+/// utils.m isJITEnabled 的 csops 判据同一内核位——第二通道冗余取证）。
+/// ZSign 兜底（对未签名插件 dylib 做 ad-hoc 重签以在无 JIT 环境下过
+/// Library Validation）仅为文档注释——未实现，属后续泛化轮（第六版落地
+/// 顺序：先跑通内置单条链路）。
+static BOOL ame429_jitExemptionSatisfied(BOOL ame429_quiet) {
+    struct kinfo_proc ame429_info;
+    size_t ame429_size = sizeof(ame429_info);
+    memset(&ame429_info, 0, sizeof(ame429_info));
+    int ame429_mib[4] = {CTL_KERN, KERN_PROC, KERN_PROC_PID, getpid()};
+    if (sysctl(ame429_mib, 4, &ame429_info, &ame429_size, NULL, 0) != 0) {
+        NSLog(@"[Ame429] JIT exemption probe FAILED (sysctl errno=%d) -- assume NOT exempt (unsigned dylib dlopen will fail Library Validation)", errno);
+        return NO;
+    }
+    BOOL ame429_ok = (ame429_info.kp_proc.p_csflags & CS_DEBUGGED) != 0;
+    if (!ame429_quiet && !ame429_ok) {
+        NSLog(@"[Ame429] JIT exemption NOT satisfied (p_csflags=0x%X, CS_DEBUGGED bit clear) -- "
+              @"unsigned plugin dylibs (renderer plugin / agent-bundled natives) will be rejected "
+              @"by Library Validation. Enable JIT (StikDebug / TrollStore / dynamic-codesigning "
+              @"entitlement) and relaunch. (ZSign ad-hoc re-sign fallback is documented-only, "
+              @"not implemented.)", ame429_info.kp_proc.p_csflags);
+    } else if (!ame429_quiet) {
+        NSLog(@"[Ame429] JIT exemption satisfied (CS_DEBUGGED set) -- Library Validation relaxed, unsigned plugin dylibs loadable");
+    }
+    return ame429_ok;
+}
+
 void init_loadCustomJvmFlags(int* argc, const char** argv) {
     // ★ Task255（清单 11）：JVM 预设 custom 档的自定义参数注入。
     //   java.jvm_preset=custom 时，java.jvm_preset_custom_args 的内容与
@@ -550,6 +694,24 @@ void init_loadCustomJvmFlags(int* argc, const char** argv) {
             }
         } else {
             NSLog(@"[JavaLauncher] Task255: JVM preset=custom but jvm_preset_custom_args empty (GC tuning skipped, JVM defaults apply)");
+        }
+    }
+
+    // ★Task429（§11.2 刀口①）：插件 JVM 参数注入 —— AmePluginRuntime 已在
+    //   game.starting 前把各插件 manifest "java-inject".jvmFlags 汇总（权限
+    //   门 java.inject：声明+授权双闸 fail-closed，ame.super 接管同语义放行）。
+    //   插件 flags 与 Task255 custom 档同链同规（ame255_pushFlag：Xms/Xmx/
+    //   d32/d64 purge + margv 1000 上限 + retainedCustomFlags 强引用防悬垂）
+    //   ——插件间互不感知，JavaLauncher 只消费聚合结果。
+    {
+        NSArray *ame429_flags = ame429_javaInjectSnapshot()[@"jvmFlags"];
+        for (NSString *ame429_flag in ame429_flags) {
+            if (![ame429_flag isKindOfClass:[NSString class]]) continue;
+            ame255_pushFlag(ame429_flag);
+        }
+        if (ame429_flags.count > 0) {
+            NSLog(@"[Ame429] knife① plugin jvmFlags consumed: %lu item(s)",
+                  (unsigned long)ame429_flags.count);
         }
     }
 
@@ -2794,6 +2956,85 @@ int launchJVM(NSString *accountId, id launchTarget, int width, int height, int m
             //   （SurfaceViewController Task233，25s 零换帧一次性提示
             //   "退出重进可恢复"）承接，取证留给下一轮设备日志。
         }
+        // ★Task429（§11.4 渲染器插件消费刀口）：选中渲染器插件 → 白名单校验
+        //   → 拼环境变量与库路径 → AMETHYST_RENDERER 换成插件 dylib 文件名
+        //   （LWJGL opengl.libname / egl_bridge 预加载 / gl_bridge dlsym_EGL
+        //   三链按既有判例消费；插件目录由刀口③拼入 java.library.path）。
+        //   优先级/回退（与既有 libmobileglues 选择语义兼容，注释口径）：
+        //   · 显式选中的渲染器插件优先于一切 auto 解析（显式选择永远优先
+        //     ——Task217 同纪律；本块在 Task120 家族覆盖日志之后执行）；
+        //   · 插件缺失/停用/dylib 白名单校验失败 → 回退 auto（Task138 dylib
+        //     缺失守卫同款回落），由 ame217 版本感知候选链接管；
+        //   · 经典键（libmobileglues.dylib 等）不经本块（isRendererPluginId
+        //     只认插件 renderer 目录内登记 id）——经典选择路径零触碰。
+        {
+            id<Ame429RendererServiceShadow> ame429_svc =
+                (id<Ame429RendererServiceShadow>)NSClassFromString(@"PLRendererPluginService");
+            if (ame429_svc &&
+                [ame429_svc respondsToSelector:@selector(isRendererPluginId:)] &&
+                [ame429_svc respondsToSelector:@selector(entryForRendererKey:)] &&
+                [ame429_svc isRendererPluginId:renderer]) {
+                PLRendererPluginEntry *ame429_entry = [ame429_svc entryForRendererKey:renderer];
+                NSString *ame429_dylib = ame429_entry.resolvedDylibPath;
+                BOOL ame429_usable = (ame429_entry != nil) && ame429_entry.enabled &&
+                                     ame429_dylib.length > 0;
+                if (ame429_usable) {
+                    // dylib 白名单终校验（服务侧仅产两处来源：①插件 renderer
+                    // 目录内 ②bundle Frameworks 回退；此处防未来改动漂移）
+                    NSString *ame429_wlRoot = ame429_rendererPluginsRoot();
+                    NSString *ame429_wlFrameworks = [NSBundle.mainBundle.bundlePath
+                        stringByAppendingPathComponent:@"Frameworks"];
+                    BOOL ame429_inWhitelist =
+                        (ame429_wlRoot.length > 0 && [ame429_dylib hasPrefix:ame429_wlRoot]) ||
+                        [ame429_dylib hasPrefix:ame429_wlFrameworks];
+                    ame429_usable = ame429_inWhitelist;
+                    if (!ame429_inWhitelist) {
+                        NSLog(@"[Ame429] renderer plugin dylib OUTSIDE whitelist: %@ (root=%@) -- falling back to auto",
+                              ame429_dylib, ame429_wlRoot);
+                    }
+                }
+                if (ame429_usable) {
+                    NSLog(@"[Ame429] renderer plugin active: id=%@ name=%@ driver=%@ abi=%@ dylib=%@",
+                          ame429_entry.pluginId, ame429_entry.rendererName,
+                          ame429_entry.driverType,
+                          [ame429_entry.abi componentsJoinedByString:@","],
+                          ame429_dylib);
+                    // §11.3：JIT 豁免检测（未签名插件 dylib 的 dlopen 前提；
+                    // 不满足只提示不阻断——LWJGL 侧加载失败有 hs_err 取证）
+                    ame429_jitExemptionSatisfied(NO);
+                    // 环境变量拼装（§11.4 生命周期：用户选中 → 启动链拼环境
+                    // 变量与库路径 → dlopen 生效）
+                    setenv("AME429_RENDERER_PLUGIN", ame429_entry.pluginId.UTF8String, 1);
+                    setenv("AME429_RENDERER_PLUGIN_DIR", ame429_entry.packageDir.UTF8String, 1);
+                    if (ame429_entry.driverConfigPath.length > 0) {
+                        setenv("AME429_RENDERER_DRIVER_CONFIG",
+                               ame429_entry.driverConfigPath.UTF8String, 1);
+                    } else {
+                        unsetenv("AME429_RENDERER_DRIVER_CONFIG");
+                    }
+                    // AMETHYST_RENDERER ← 插件 dylib 文件名：LWJGL 裸名映射
+                    // （lwjglBareLibName）与 java.library.path 搜索链照常消费；
+                    // 内置演示档绑定 libmobileglues.dylib 时逐位同经典
+                    // MobileGlues 会话（5.1.0 已验证用户路径，零新运行时面）。
+                    ame429_rendererPluginLibDir = ame429_entry.packageDir;
+                    renderer = ame429_dylib.lastPathComponent;
+                } else {
+                    NSLog(@"[Ame429] renderer plugin '%@' unavailable (entry=%@ enabled=%d dylib=%@) -- falling back to auto (Task138-style guard)",
+                          renderer,
+                          ame429_entry ? @"YES" : @"NO",
+                          ame429_entry.enabled ? 1 : 0,
+                          ame429_dylib ?: @"<nil>");
+                    renderer = @"auto";
+                    ame429_rendererPluginLibDir = nil;
+                    unsetenv("AME429_RENDERER_PLUGIN");
+                    unsetenv("AME429_RENDERER_PLUGIN_DIR");
+                    unsetenv("AME429_RENDERER_DRIVER_CONFIG");
+                }
+            } else if (!ame429_svc) {
+                // 软链服务缺席：静态置 nil 防上一次会话残留（防御守卫）
+                ame429_rendererPluginLibDir = nil;
+            }
+        }
         // Metal 渲染器（libmetallum.dylib，Task201 随上游同步移植）：图形后端由
         // metallum agent 走原生 Metal（直接 MTLDevice），不经过 EGL 渲染器。
         // 渲染器回落 auto（→ANGLE）仅为 Surface 提供 GL 上下文，与 metallum
@@ -3473,8 +3714,45 @@ int launchJVM(NSString *accountId, id launchTarget, int width, int height, int m
     // library.path = Frameworks。定制版 root lwjgl.jar（含 iOS 专用 LWJGL 补丁）通过 JavaApp/Makefile
     // 合并进最终 lwjgl.jar，确保 LWJGL 在 iOS 上能正确加载 GL 实现。
     NSString *frameworksPath = [NSString stringWithFormat:@"%@/Frameworks", NSBundle.mainBundle.bundlePath];
-    PUSH_MARGV_FORMAT(@"-Djava.library.path=%@", frameworksPath);
-    NSLog(@"[JavaLauncher] library.path = %@", frameworksPath);
+    // ★Task429（§11.2 刀口③）：native 库路径拼接 —— 渲染器插件 dlopen 路径
+    //   白名单 + 插件 java-inject.nativeLibDirs。追加面全部过前缀白名单：
+    //   · 渲染器插件目录 = Prisma2/plugins/renderer/<id>（服务侧收编产物，
+    //     消费块已二次校验 dylib 白名单）；
+    //   · nativeLibDirs = 聚合侧已按插件目录相对路径收编 + 存在性校验，此处
+    //     再验"必须仍位于 Prisma2/plugins/ 之下"（防 future 漂移）。
+    //   Frameworks 恒居首（既有解析序零变化——同名库 Frameworks 优先，插件
+    //   侧需用独立文件名避免被随包件遮蔽）。
+    {
+        NSMutableArray<NSString *> *ame429_libDirs = [NSMutableArray array];
+        NSString *ame429_pluginsRoot = [ame429_rendererPluginsRoot() stringByDeletingLastPathComponent];
+        if (ame429_rendererPluginLibDir.length > 0 &&
+            ame429_pluginsRoot.length > 0 &&
+            [ame429_rendererPluginLibDir hasPrefix:ame429_pluginsRoot]) {
+            [ame429_libDirs addObject:ame429_rendererPluginLibDir];
+        }
+        for (NSString *ame429_nd in ame429_javaInjectSnapshot()[@"nativeLibDirs"]) {
+            if (![ame429_nd isKindOfClass:[NSString class]]) continue;
+            if (ame429_pluginsRoot.length == 0 || ![ame429_nd hasPrefix:ame429_pluginsRoot]) {
+                NSLog(@"[Ame429] knife③ nativeLibDir outside plugins whitelist -- skipped: %@", ame429_nd);
+                continue;
+            }
+            if (![ame429_libDirs containsObject:ame429_nd]) [ame429_libDirs addObject:ame429_nd];
+        }
+        if (ame429_libDirs.count > 0) {
+            // §11.3：插件 native 路径在场即探一次 JIT 豁免（未签名 dylib 的
+            //   dlopen 前提；与渲染器消费块/J刀口②同源，进程内可多次，日志限在此点）
+            ame429_jitExemptionSatisfied(NO);
+            NSString *ame429_jlp = [frameworksPath
+                stringByAppendingString:[@":" stringByAppendingString:
+                [ame429_libDirs componentsJoinedByString:@":"]]];
+            PUSH_MARGV_FORMAT(@"-Djava.library.path=%@", ame429_jlp);
+            NSLog(@"[Ame429] library.path = %@ (knife③ plugin dirs appended: %@)",
+                  ame429_jlp, [ame429_libDirs componentsJoinedByString:@", "]);
+        } else {
+            PUSH_MARGV_FORMAT(@"-Djava.library.path=%@", frameworksPath);
+            NSLog(@"[JavaLauncher] library.path = %@", frameworksPath);
+        }
+    }
 
     // Task 112：钉死 OpenAL 库的解析路径（绝对路径直载）。
     //
@@ -3643,39 +3921,46 @@ int launchJVM(NSString *accountId, id launchTarget, int width, int height, int m
     }
 
     // ============================================================================
-    // ZeroTier 联机 SOCKS5 代理注入 —— 暂时移除（排查启动崩溃）
+    // ZeroTier 联机 SOCKS5 代理注入 —— ★Task429 v2-2.3 清账（第六版 3.2.8）
     // ============================================================================
-    // 原逻辑：检测 AMETHYST_SOCKS5_PROXY 环境变量，注入 -DsocksProxyHost/-DsocksProxyPort
-    // ZeroTier 暂时移除后，MultiplayerManager 不再设置该环境变量，此块代码注释掉
+    // 消费方恢复：检测 AMETHYST_SOCKS5_PROXY 环境变量，注入
+    // -DsocksProxyHost/-DsocksProxyPort/-DsocksNonProxyHosts。写入方
+    // （MultiplayerManager 联机流程 setenv/unsetenv，kAMETHYSTSOCKS5ProxyEnvVar）
+    // 存活，而本消费块此前被整体注释 = 链路断头（环境变量设了没人消费）。
+    // 前置存在性守卫（env 未设/空串零副作用）+ fail-loud NSLog（[Ame429]
+    // socks5 proxy consumed = 装机日志可判消费事实）。
     // ============================================================================
-    // const char *socks5ProxyEnv = getenv("AMETHYST_SOCKS5_PROXY");
-    // if (socks5ProxyEnv && socks5ProxyEnv[0] != '\0') {
-    //     NSString *proxyStr = [NSString stringWithUTF8String:socks5ProxyEnv];
-    //     NSRange colonRange = [proxyStr rangeOfString:@":"];
-    //     if (colonRange.location != NSNotFound && colonRange.location > 0 &&
-    //         colonRange.location + 1 < proxyStr.length) {
-    //         NSString *proxyHost = [proxyStr substringToIndex:colonRange.location];
-    //         NSString *proxyPortStr = [proxyStr substringFromIndex:colonRange.location + 1];
-    //         NSInteger portValue = [proxyPortStr integerValue];
-    //         if (portValue > 0 && portValue <= 65535) {
-    //             PUSH_MARGV_FORMAT(@"-DsocksProxyHost=%@", proxyHost);
-    //             PUSH_MARGV_FORMAT(@"-DsocksProxyPort=%@", proxyPortStr);
-    //             NSString *nonProxyHosts = @"localhost|127.*|[::1]|"
-    //                                       @"*.minecraft.net|*.mojang.com|"
-    //                                       @"*.microsoft.com|*.microsoftonline.com|"
-    //                                       @"*.xboxlive.com|*.modrinth.com|"
-    //                                       @"*.curseforge.com|*.githubusercontent.com|"
-    //                                       @"*.github.com|*.amazonaws.com|"
-    //                                       @"*.cloudfront.net|*.akamaihd.net|"
-    //                                       @"10.*|192.168.*|172.16.*|172.17.*|172.18.*|"
-    //                                       @"172.19.*|172.20.*|172.21.*|172.22.*|172.23.*|"
-    //                                       @"172.24.*|172.25.*|172.26.*|172.27.*|172.28.*|"
-    //                                       @"172.29.*|172.30.*|172.31.*";
-    //             PUSH_MARGV_FORMAT(@"-DsocksNonProxyHosts=%@", nonProxyHosts);
-    //             NSLog(@"[JavaLauncher] Injected ZeroTier SOCKS5 proxy: %@:%@", proxyHost, proxyPortStr);
-    //         }
-    //     }
-    // }
+    const char *socks5ProxyEnv = getenv("AMETHYST_SOCKS5_PROXY");
+    if (socks5ProxyEnv && socks5ProxyEnv[0] != '\0') {
+        NSString *proxyStr = [NSString stringWithUTF8String:socks5ProxyEnv];
+        NSRange colonRange = [proxyStr rangeOfString:@":"];
+        if (colonRange.location != NSNotFound && colonRange.location > 0 &&
+            colonRange.location + 1 < proxyStr.length) {
+            NSString *proxyHost = [proxyStr substringToIndex:colonRange.location];
+            NSString *proxyPortStr = [proxyStr substringFromIndex:colonRange.location + 1];
+            NSInteger portValue = [proxyPortStr integerValue];
+            if (portValue > 0 && portValue <= 65535) {
+                PUSH_MARGV_FORMAT(@"-DsocksProxyHost=%@", proxyHost);
+                PUSH_MARGV_FORMAT(@"-DsocksProxyPort=%@", proxyPortStr);
+                NSString *nonProxyHosts = @"localhost|127.*|[::1]|"
+                                          @"*.minecraft.net|*.mojang.com|"
+                                          @"*.microsoft.com|*.microsoftonline.com|"
+                                          @"*.xboxlive.com|*.modrinth.com|"
+                                          @"*.curseforge.com|*.githubusercontent.com|"
+                                          @"*.github.com|*.amazonaws.com|"
+                                          @"*.cloudfront.net|*.akamaihd.net|"
+                                          @"10.*|192.168.*|172.16.*|172.17.*|172.18.*|"
+                                          @"172.19.*|172.20.*|172.21.*|172.22.*|172.23.*|"
+                                          @"172.24.*|172.25.*|172.26.*|172.27.*|172.28.*|"
+                                          @"172.29.*|172.30.*|172.31.*";
+                PUSH_MARGV_FORMAT(@"-DsocksNonProxyHosts=%@", nonProxyHosts);
+                NSLog(@"[JavaLauncher] Injected ZeroTier SOCKS5 proxy: %@:%@", proxyHost, proxyPortStr);
+                // ★Task429 v2-2.3 清账：fail-loud 消费哨（联机链路消费事实入
+                // 装机日志，链路断裂再无可静默吞没的盲区）
+                NSLog(@"[Ame429] socks5 proxy consumed: %@:%@", proxyHost, proxyPortStr);
+            }
+        }
+    }
 
     // Preset OpenGL libname
     const char *glLibName = getenv("AMETHYST_RENDERER");
@@ -3970,6 +4255,24 @@ int launchJVM(NSString *accountId, id launchTarget, int width, int height, int m
         NSLog(@"[JavaLauncher] Task263: showdown agent enabled (ame.showdown.home=%@)", gameDir);
     } else {
         NSLog(@"[JavaLauncher] Task263: showdown_agent.jar not found in libs, path fix unavailable (Cobblemon modpacks may hang at showdown init)");
+    }
+
+    // ★Task429（§11.2 刀口②）：插件 -javaagent 注入（"顺便修改"主通道）。
+    //   聚合侧已收编存在性校验过的绝对路径（插件目录相对路径 + java.inject
+    //   权限双闸 fail-closed）；此处按既有 agent 判例推送（jar 由 JVM 自加载
+    //   并自动追加到系统 classpath——Task341 ame341-agent-cp-exclusion 同款
+    //   语义，插件 agent jar 不需要也不进入下方 -cp 目录收集）。
+    //   agent 参数带 "="（与 patchjna/patchsvc 同形态：无参 agent 亦合法）。
+    {
+        NSArray *ame429_agents = ame429_javaInjectSnapshot()[@"agentJars"];
+        for (NSString *ame429_agentJar in ame429_agents) {
+            if (![ame429_agentJar isKindOfClass:[NSString class]]) continue;
+            PUSH_MARGV_FORMAT(@"-javaagent:%@=", ame429_agentJar);
+            NSLog(@"[Ame429] knife② plugin javaagent injected: %@", ame429_agentJar);
+        }
+        // §11.3：agent 自带 native（metallum 同款运行期解出未签名 dylib）的
+        //   dlopen 前提检测 —— 有 agent 注入即探一次（不满足只提示不阻断）
+        if (ame429_agents.count > 0) ame429_jitExemptionSatisfied(NO);
     }
 
     // ★ Task259（清单 10）：FO 整合包 26.3 局域网游戏闪退根修。
@@ -4491,6 +4794,18 @@ int launchJVM(NSString *accountId, id launchTarget, int width, int height, int m
         [classpathBuilder appendFormat:@"%@/%@:", librariesPath, libFile];
     }
     [classpathBuilder appendString:lwjglJar];
+    // ★Task429（§11.2 刀口②）：插件附加 classpath 拼接（表尾追加——既有
+    //   条目次序零漂移；聚合侧已做防逃逸+存在性校验，权限闸 java.inject
+    //   fail-closed）。插件 jar 与 metallum_agent.jar 同理不经 libs/ 目录
+    //   收集（上方循环零触碰），直接以登记绝对路径追加。
+    {
+        NSArray *ame429_cpEntries = ame429_javaInjectSnapshot()[@"classpathEntries"];
+        for (NSString *ame429_cp in ame429_cpEntries) {
+            if (![ame429_cp isKindOfClass:[NSString class]]) continue;
+            [classpathBuilder appendFormat:@"%@:", ame429_cp];
+            NSLog(@"[Ame429] knife② plugin classpath entry appended: %@", ame429_cp);
+        }
+    }
     NSString *classpath = classpathBuilder;
     if (launchJar) {
         // JAR 放在 classpath 最前面，避免 bundle libs 中的同名类（gson/guava/kotlin-stdlib 等）

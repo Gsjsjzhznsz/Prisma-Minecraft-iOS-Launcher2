@@ -26,6 +26,8 @@
 #import "ZL2M3Kit.h"
 #import "utils.h"
 #import "ZL2Theme.h"
+#import "ZL2MotionKit.h"        // ★Task429：时长档/弹簧阻尼/触觉出口（MD3 动效体系）
+#import <objc/runtime.h>
 
 #pragma mark - 私有工具
 
@@ -222,6 +224,10 @@ static UIViewController *ZL2M3TopmostViewController(void) {
         self.accessibilityTraits = UIAccessibilityTraitButton;
         self.accessibilityLabel = text;
 
+        // ★Task429：PressableCard 复用（chip 0.97 档按压缩放 + 触觉钩子；
+        //   挂靠手势 cancelsTouchesInView=NO，TouchUp 选中语义零改动）
+        [ZL2M3Pressable attachToView:self pressedScale:0.97];
+
         _checkView = [[UIImageView alloc]
             initWithImage:[ZL2M3SystemImage(@"checkmark", nil)
                            imageWithRenderingMode:UIImageRenderingModeAlwaysTemplate]];
@@ -256,8 +262,23 @@ static UIViewController *ZL2M3TopmostViewController(void) {
 
 - (void)setSelected:(BOOL)selected {
     // selected 属性承自 UIControl（super 存储，无子类 ivar；覆写仅刷外观）
+    BOOL ame429_changed = (selected != self.isSelected);
     [super setSelected:selected];
     [self ame_applyAppearance];
+    // ★Task429：选中 expandIn（表 9-1「Chip 选中 expandIn」行）——
+    //   0.94→1 transform spring（damping 0.8 expressive 档）。只在态变化
+    //   时播（程序化批量刷新同值不重摆）；取消选中不缩放（仅外观切换）。
+    if (ame429_changed && selected) {
+        self.transform = CGAffineTransformMakeScale(0.94, 0.94);
+        [UIView animateWithDuration:kAme429MotionStandard
+                              delay:0.0
+             usingSpringWithDamping:kAme429SpringDamping
+              initialSpringVelocity:0.0
+                            options:UIViewAnimationOptionBeginFromCurrentState
+                         animations:^{
+            self.transform = CGAffineTransformIdentity;
+        } completion:nil];
+    }
 }
 
 - (void)ame_applyAppearance {
@@ -743,6 +764,10 @@ static __weak ZL2M3OverlayViewController *_ame_currentSheet = nil;
         _actionLabel.userInteractionEnabled = NO;
         [_actionPill addSubview:_actionLabel];
 
+        // ★Task429：PressableCard 复用（卡 0.94 档按压缩放 + 触觉钩子；
+        //   挂靠手势不干扰 didSelectRow 选中链路，只加不改既有行为）
+        [ZL2M3Pressable attachToView:card pressedScale:0.94];
+
         self.pillTrailing =
             [_actionPill.trailingAnchor constraintEqualToAnchor:card.trailingAnchor constant:-[ZL2Theme ame343_layoutMetric:@"cardInsetX" fallback:14.0]];
         self.titleFallback =
@@ -807,6 +832,89 @@ static __weak ZL2M3OverlayViewController *_ame_currentSheet = nil;
             break;
     }
     _actionLabel.text = title;
+}
+
+@end
+
+#pragma mark - ⑦ PressableCard（★Task429）
+
+// 按压驱动器：挂靠宿主视图（关联对象保活），minDuration 0 长按手势
+// 模拟按压态——began 压下 + light 触觉，ended/cancelled/failed spring 回位。
+// cancelsTouchesInView = NO：宿主 UIControl/TableViewCell 选中链路零干扰。
+@interface ZL2M3PressableDriver : NSObject
+@property (nonatomic, weak) UIView *hostView;      // 关联对象随宿主消亡，weak 防环
+@property (nonatomic, assign) CGFloat pressedScale;
+- (void)ame429_pressStateChanged:(UILongPressGestureRecognizer *)gesture;
+@end
+
+@implementation ZL2M3PressableDriver
+
+- (void)ame429_pressStateChanged:(UILongPressGestureRecognizer *)gesture {
+    UIView *host = self.hostView;
+    if (!host) return;
+    switch (gesture.state) {
+        case UIGestureRecognizerStateBegan: {
+            [ZL2MotionHaptics light];   // 触觉钩子（开关门控在 Haptics 内部）
+            CGFloat scale = self.pressedScale;
+            [UIView animateWithDuration:kAme429MotionFast
+                                  delay:0.0
+                                options:UIViewAnimationOptionCurveEaseOut | UIViewAnimationOptionBeginFromCurrentState
+                             animations:^{
+                host.transform = CGAffineTransformMakeScale(scale, scale);
+            } completion:nil];
+            break;
+        }
+        case UIGestureRecognizerStateEnded:
+        case UIGestureRecognizerStateCancelled:
+        case UIGestureRecognizerStateFailed: {
+            [UIView animateWithDuration:kAme429MotionStandard
+                                  delay:0.0
+                 usingSpringWithDamping:kAme429SpringDamping
+                  initialSpringVelocity:0.0
+                                options:UIViewAnimationOptionBeginFromCurrentState
+                             animations:^{
+                host.transform = CGAffineTransformIdentity;
+            } completion:nil];
+            break;
+        }
+        default:
+            break;
+    }
+}
+
+@end
+
+@implementation ZL2M3Pressable
+
+// 关联对象键（driver 生命周期 = 宿主视图生命周期）
+static void *kZL2M3PressableDriverKey = &kZL2M3PressableDriverKey;
+
++ (void)attachToView:(UIView *)view {
+    [self attachToView:view pressedScale:0.96];
+}
+
++ (void)attachToView:(UIView *)view pressedScale:(CGFloat)pressedScale {
+    if (!view) {
+        NSLog(@"[ZL2M3Kit] Task429 PressableCard attach nil view — skipped");
+        return;
+    }
+    if (objc_getAssociatedObject(view, kZL2M3PressableDriverKey)) return;   // 幂等
+    // 0.94~0.97 档夹回（表 9-1 按压缩放档位区间）
+    CGFloat scale = MIN(MAX(pressedScale, 0.94), 0.97);
+
+    ZL2M3PressableDriver *driver = [[ZL2M3PressableDriver alloc] init];
+    driver.hostView = view;
+    driver.pressedScale = scale;
+    objc_setAssociatedObject(view, kZL2M3PressableDriverKey, driver, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+
+    UILongPressGestureRecognizer *press =
+        [[UILongPressGestureRecognizer alloc] initWithTarget:driver
+                                                      action:@selector(ame429_pressStateChanged:)];
+    press.minimumPressDuration = 0.0;
+    press.cancelsTouchesInView = NO;   // 宿主点击/选中语义零改动
+    press.delaysTouchesBegan = NO;
+    press.delaysTouchesEnded = NO;
+    [view addGestureRecognizer:press];
 }
 
 @end

@@ -1,0 +1,44 @@
+{
+  "ame429.bc.verify.entry": {
+    "en": "Verify & Repair Game Files",
+    "zh-Hans": "校验并补全游戏文件",
+    "zh-CN": "校验并补全游戏文件",
+    "zh-Hant": "校驗並補全遊戲檔案"
+  },
+  "ame429.bc.verify.subtitle": {
+    "en": "Scan this instance's game files and repair missing or corrupt ones",
+    "zh-Hans": "校验并补全本实例缺失或损坏的文件",
+    "zh-CN": "校验并补全本实例缺失或损坏的文件",
+    "zh-Hant": "校驗並補全本實例缺失或損壞的檔案"
+  },
+  "ame429.bc.mirror.title": {
+    "en": "Download Mirror",
+    "zh-Hans": "下载镜像",
+    "zh-CN": "下载镜像",
+    "zh-Hant": "下載鏡像"
+  },
+  "ame429.bc.mirror.subtitle": {
+    "en": "Whether game file downloads use official servers or the BMCLAPI mirror",
+    "zh-Hans": "游戏文件下载走官方源还是 BMCLAPI 镜像",
+    "zh-CN": "游戏文件下载走官方源还是 BMCLAPI 镜像",
+    "zh-Hant": "遊戲檔案下載走官方源還是 BMCLAPI 鏡像"
+  },
+  "ame429.bc.mirror.auto": {
+    "en": "Auto (BMCLAPI first in mainland China)",
+    "zh-Hans": "自动（大陆 BMCLAPI 优先）",
+    "zh-CN": "自动（大陆 BMCLAPI 优先）",
+    "zh-Hant": "自動（大陸 BMCLAPI 優先）"
+  },
+  "ame429.bc.mirror.official": {
+    "en": "Official",
+    "zh-Hans": "官方",
+    "zh-CN": "官方",
+    "zh-Hant": "官方"
+  },
+  "ame429.bc.mirror.manual": {
+    "en": "Manual (BMCLAPI)",
+    "zh-Hans": "手动（BMCLAPI）",
+    "zh-CN": "手动（BMCLAPI）",
+    "zh-Hant": "手動（BMCLAPI）"
+  }
+}

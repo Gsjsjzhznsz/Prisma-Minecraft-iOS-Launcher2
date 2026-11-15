@@ -1,0 +1,3 @@
+{"general.theme_mode": {"type":"int","default":0,"values":[0,1,2,3,4,5,6,7,8],"section":"launcher","desc":"主题色板模式（PDF 8.1）：0=embermire(默认)/1=跟随背景(壁纸取色→HCT)/2=embermire动态重演占位(UI不直达)/3=冻湖蓝/4=森绿/5=暮紫/6=绯红/7=琥珀/8=CUSTOM；消费方 ZL2DynamicPalette→ZL2Theme 活动覆盖层"}}
+{"general.custom_seed_color": {"type":"string","default":"","section":"launcher","desc":"CUSTOM 模式种子色 #RRGGBB（ZL2ThemeCustomSheet 写入）；空 = 断链修复回落旧 general.accent_color，再空 = 默认蓝 #429CF5"}}
+{"general.custom_palette_style": {"type":"int","default":0,"values":[0,1,2],"section":"launcher","desc":"调色风格三档（色度缩放系数）：0=自然(1.0x)/1=鲜活(1.4x)/2=柔和(0.6x)；AmeHCTPalette PaletteStyle 消费"}}

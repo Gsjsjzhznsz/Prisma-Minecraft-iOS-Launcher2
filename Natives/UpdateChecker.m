@@ -16,8 +16,11 @@
 // 此前两处 URL（API + 打开页面）都指向上游：用户点"检查更新"会把上游的
 // release 当成自己的更新（版本号/下载链接全部错位）。repoOwner/repoName
 // 是这两个 URL 的唯一来源，改这里即全链路生效。
+// ★Task429（第六版 3.2.8 v2-2.2 旧账清账）：repoName 补 "2" 后缀——本仓库
+//   实名 Prisma-Minecraft-iOS-Launcher2（ZL2SettingPages 关于页项目行
+//   :3170 同口径），旧值漏 2 = 检查更新打到不存在的仓库恒 404。
 + (NSString *)repoOwner { return @"Gsjsjzhznsz"; }
-+ (NSString *)repoName { return @"Prisma-Minecraft-iOS-Launcher"; }
++ (NSString *)repoName { return @"Prisma-Minecraft-iOS-Launcher2"; }
 
 + (NSString *)latestReleaseURL {
     /* /releases/latest 接口自动返回最新的非 pre-release（正式版） */

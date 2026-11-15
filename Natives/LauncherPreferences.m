@@ -796,6 +796,28 @@ static NSArray<NSDictionary *> *availableRendererCandidates(void) {
         }
         [result addObject:entry];
     }
+    // ★Task429（§11.4）：渲染器插件动态扩展 —— 已启用且 dylib 白名单校验
+    //   通过的插件档表尾追加（既有条目下标零漂移；@{key/name/file} 三键与
+    //   本表同构，file 为插件 dylib 文件名）。PLRendererPluginService 经
+    //   NSClassFromString 软链（服务 TU 缺席 = 零扩展零变化，零链接依赖）。
+    //   插件面只读本函数（追加档位），不写偏好层——PLPreferences 零触碰。
+    //   file 键的 rendererLibraryExists 过滤不适用插件项（插件 dylib 不在
+    //   bundle Frameworks 是常态），由服务侧 resolvedDylibPath 白名单裁决。
+    //   影子协议收窄调用形态（Class 直发未声明选择器 = 编译告警面）。
+    {
+        Class ame429_cls = NSClassFromString(@"PLRendererPluginService");
+        id ame429_svc = ame429_cls;
+        if (ame429_svc && [(id)ame429_svc respondsToSelector:@selector(rendererChoiceOverrides)]) {
+            NSArray *ame429_ovs = [(id)ame429_svc rendererChoiceOverrides];
+            for (NSDictionary *ame429_ov in ame429_ovs) {
+                if ([ame429_ov isKindOfClass:[NSDictionary class]] &&
+                    [ame429_ov[@"key"] isKindOfClass:[NSString class]] &&
+                    [ame429_ov[@"name"] isKindOfClass:[NSString class]]) {
+                    [result addObject:ame429_ov];
+                }
+            }
+        }
+    }
     return result;
 }
 

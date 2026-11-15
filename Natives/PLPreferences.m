@@ -394,6 +394,24 @@ NSString *const PREF_MOD_MIRROR = @"general.mod_mirror";
             //   2=从不 NEVER，默认 0）。读侧 PLProfiles ame428_globalDefault
             //   （钳 0-2），写侧 ZL2SettingPages 设置行 setPrefInt。
             @"isolation_default": @(0),
+            // ★Task429 主控合流（工位片段注册，防 Setter 静默丢弃族）：
+            //   mirror_mode：下载镜像三态（int 0=自动大陆探测/1=官方/2=手动 BMCLAPI，
+            //   默认 0=Task428 存量语义原样）。读侧 PLMirrorCenter +policyForType:
+            //   唯一读点，写侧 ZL2SettingPages 三态行。
+            @"mirror_mode": @(0),
+            //   theme_mode/custom_seed_color/custom_palette_style：主题动态取色
+            //   三键（int 0=embermire/1=跟随背景/2..7=预设/8=CUSTOM；hex 种子串；
+            //   int 0/1/2=自然/鲜活/柔和）。读侧 ZL2DynamicPalette，写侧
+            //   ZL2ThemeCustomSheet/ZL2SettingPages 主题行。
+            @"theme_mode": @(0),
+            @"custom_seed_color": @"",
+            @"custom_palette_style": @(0),
+            //   proxy_mode/proxy_host/proxy_port：下载代理两级（int 0=关/1=HTTP/
+            //   2=SOCKS5；host/port 字符串，port 运行期 1-65535 校验）。读侧
+            //   PLDownloadClient +ame429_s1_* 单一事实源，写侧 ZL2SettingPages 代理行。
+            @"proxy_mode": @(0),
+            @"proxy_host": @"",
+            @"proxy_port": @"",
         };
         [defaults[@"general"] addEntriesFromDictionary:general];
 

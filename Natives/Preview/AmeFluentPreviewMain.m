@@ -88,6 +88,17 @@ id getPrefObject(NSString *key) {
     viewController.view.backgroundColor = [UIColor clearColor];
 }
 
+// ★Task429：ZL2BackgroundHost/ZL2DynamicPalette 消费面（真头文件签名；
+//   预览无壁纸管线 → hasBackground 恒 NO = 背景挂载守卫短路 + 取色链不进），
+//   缺失 = ZL2ShellViewController 真壳渲染 unrecognized selector 崩溃。
+- (BOOL)hasBackground {
+    return NO;
+}
+
+- (nullable UIImage *)ame223_currentWallpaperImage {
+    return nil;
+}
+
 @end
 
 #pragma mark - ZL2 预览桩（7.0-UI-8：ZL2HomeViewController 链接期依赖）

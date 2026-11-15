@@ -5,6 +5,7 @@
 #import "LauncherPreferences.h"
 #import "ios_uikit_bridge.h"
 #import "AmeTheme.h"   // ★ 7.0-UI-5d：Fluent 设计令牌（颜色/字体单一事实源）
+#import "ZL2ControlLayoutEditorViewController.h"   // ★ Task429（工位 3-d）：拖拽编辑布局入口
 
 #import "customcontrols/ControlDrawer.h"
 #import "customcontrols/ControlJoystick.h"
@@ -249,11 +250,16 @@
         UIMenuItem *actionAddJoystick = [[UIMenuItem alloc] initWithTitle:localize(@"custom_controls.control_menu.add_joystick", nil) action:@selector(actionMenuAddJoystick)];
         // Task188：FCL 式控件仓库入口（下载社区布局到 controlmap 后用“加载”应用）
         UIMenuItem *actionRepo = [[UIMenuItem alloc] initWithTitle:localize(@"custom_controls.control_menu.repo", nil) action:@selector(actionMenuRepo)];
+        // ★ Task429（工位 3-d）：拖拽编辑布局入口——同一长按菜单语言，打开
+        //   拖拽编辑器（8pt 吸附网格/等比缩放/层管理/样式预设）快捷通道，
+        //   喂当前正在编辑的文件名（另存副本后 currentFileName 可能与
+        //   control.default_ctrl 偏好分叉，拖拽编辑器跟随 currentFileName）。
+        UIMenuItem *actionDragEdit = [[UIMenuItem alloc] initWithTitle:localize(@"ame429.j.entry.drag_edit", @"拖拽编辑布局") action:@selector(ame429_openDragEditEditor)];
         // ★ Task230（反馈 #13）：编辑器上传入口——把当前正在编辑的布局
         //   直接送进上传流程（仓库页入口选已安装布局，这里免选、带着
         //   currentFileName 预填）。
         UIMenuItem *actionUpload = [[UIMenuItem alloc] initWithTitle:localize(@"ame230.repo.upload_editor", nil) action:@selector(actionMenuUpload)];
-        [menuController setMenuItems:@[actionExit, actionSave, actionLoad, actionRestoreDefault, actionSafeArea, actionAddButton, actionAddDrawer, actionAddJoystick, actionRepo, actionUpload]];
+        [menuController setMenuItems:@[actionExit, actionSave, actionLoad, actionRestoreDefault, actionSafeArea, actionAddButton, actionAddDrawer, actionAddJoystick, actionRepo, actionDragEdit, actionUpload]];
 
         CGPoint point = [sender locationInView:sender.view];
         self.selectedPoint = CGRectMake(point.x, point.y, 1.0, 1.0);
@@ -398,6 +404,18 @@
     NSString *ame230_pre = self.currentFileName.length > 0
         ? [NSString stringWithFormat:@"%@.json", self.currentFileName] : nil;
     [ControlRepoViewController ame230_presentUploadFlowFrom:self preselect:ame230_pre];
+}
+
+/// ★ Task429（工位 3-d）：拖拽编辑布局入口——以 OverFullScreen 直接呈现
+///   ZL2ControlLayoutEditorViewController（其自带判例 Task62：不包导航容器），
+///   喂当前正在编辑的布局名（currentFileName；空/nil = 拖拽编辑器按
+///   control.default_ctrl 偏好回落）。isControlModifiable 入场/离场总闸由
+///   拖拽编辑器 viewDidLoad/viewWillDisappear 自理，本页零介入。
+- (void)ame429_openDragEditEditor {
+    [self setButtonMenuVisibleForView:nil];
+    NSString *ame429_feedName = self.currentFileName.length > 0 ? self.currentFileName : nil;
+    [ZL2ControlLayoutEditorViewController ame429_presentFromViewController:self
+                                                            layoutFileName:ame429_feedName];
 }
 
 - (void)actionMenuSafeArea {

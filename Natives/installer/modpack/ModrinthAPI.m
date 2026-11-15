@@ -11,6 +11,65 @@ static NSString *MRAMirrorResolvedURL(NSString *urlString) {
     return resolved.absoluteString ?: urlString;
 }
 
+/// ★Task429（4.3-闭环）：Modrinth 搜索 facets 构造共用 helper——同步路径
+///（searchModWithFilters:previousPageResult:）与异步/分页路径
+///（searchModWithFilters:completion:）的唯一口径，杜绝两路漂移（PDF v5
+/// 移交清单 4.3：异步路缺分类 facet 的存量行为，本任务接通）。
+///
+/// 输入 filters 只读，键位与两路调用方既有字典完全对齐：
+///   projectType / isModpack → project_type facet（缺省防御回退 mod，两路同款）；
+///   mcVersion / version     → versions facet（并集口径：同步路调用方只发
+///                             mcVersion，异步路兼容 version 别名键）；
+///   category                → 分类 facet（Task316 singular 键，Modrinth slug
+///                             直通发 categories:<slug>。同步路既有；异步路
+///                             本任务起接通——聚合档 ZL2AggregatedSearchService
+///                             filters 整体透传含 @"category"（Modrinth 口径
+///                             slug 值域，见 ZL2AssetSearchViewController.m
+///                             ★Task428（4.4）值域注释），此前被本类异步路
+///                             静默丢弃。分类 facet 不套 ame179 闸门：分类表
+///                             按资源类型给值域（resourcepack 的 16x/32x 等
+///                             亦为该类型合法 categories），与同步路一致）；
+///   loader / categories     → loader facet（ame179 闸门：resourcepack/shader/
+///                             datapack/world 无加载器概念禁发 categories:
+///                             <loader>，否则实测 35467→15 结果清空。同步路
+///                             唯一调用方 ModpackInstallViewController 恒为
+///                             modpack，闸门对该路是空操作，统一无回归）。
+///
+/// 输出未编码 JSON 数组字符串，例：
+///   [["project_type:mod"], ["versions:1.20.1"], ["categories:technology"], ["categories:fabric"]]
+/// 异步路注释级请求示例（分类 + 加载器 + 版本三筛选齐发，URL 编码后）：
+///   https://api.modrinth.com/v2/search?query=sodium&limit=50&offset=0
+///     &facets=%5B%5B%22project_type%3Amod%22%5D%2C%20%5B%22versions%3A1.20.1%22%5D%2C%20%5B%22categories%3Aoptimization%22%5D%2C%20%5B%22categories%3Afabric%22%5D%5D
+///     &index=relevance
+/// 同步路经 getEndpoint:params: 由 AFNetworking 对 facets 值做同规则编码。
+static NSString *Ame429_FacetsStringForFilters(NSDictionary *filters) {
+    NSString *projectType = filters[@"projectType"];
+    if (projectType.length == 0) {
+        projectType = [filters[@"isModpack"] boolValue] ? @"modpack" : @"mod";
+    }
+    NSMutableString *facetString = [NSMutableString new];
+    [facetString appendString:@"["];
+    [facetString appendFormat:@"[\"project_type:%@\"]", projectType];
+    NSString *mcVersion = filters[@"mcVersion"] ?: filters[@"version"];
+    if ([mcVersion isKindOfClass:NSString.class] && mcVersion.length > 0) {
+        [facetString appendFormat:@", [\"versions:%@\"]", mcVersion];
+    }
+    NSString *ame316_category = filters[@"category"];
+    if ([ame316_category isKindOfClass:NSString.class] && ame316_category.length > 0) {
+        [facetString appendFormat:@", [\"categories:%@\"]", ame316_category];
+    }
+    BOOL ame179_loaderLessType = ([projectType isEqualToString:@"resourcepack"] ||
+                                  [projectType isEqualToString:@"shader"] ||
+                                  [projectType isEqualToString:@"datapack"] ||
+                                  [projectType isEqualToString:@"world"]);
+    NSString *loader = filters[@"loader"] ?: filters[@"categories"];
+    if ([loader isKindOfClass:NSString.class] && loader.length > 0 && !ame179_loaderLessType) {
+        [facetString appendFormat:@", [\"categories:%@\"]", loader];
+    }
+    [facetString appendString:@"]"];
+    return facetString;
+}
+
 @implementation ModrinthAPI
 
 @dynamic reachedLastPage, lastError;
@@ -56,23 +115,9 @@ static NSString *MRAMirrorResolvedURL(NSString *urlString) {
 
     // 修复 #50: 必须把 loader（categories facet）传给 Modrinth API，否则筛选 neoforge/fabric 不生效
     // Modrinth 的 loader 类别：fabric / quilt / forge / neoforge / liteloader / rift 等
-    NSMutableString *facetString = [NSMutableString new];
-    [facetString appendString:@"["];
-    [facetString appendFormat:@"[\"project_type:%@\"]", projectType];
-    if (searchFilters[@"mcVersion"].length > 0) {
-        [facetString appendFormat:@", [\"versions:%@\"]", searchFilters[@"mcVersion"]];
-    }
-    NSString *loader = searchFilters[@"loader"] ?: searchFilters[@"categories"];
-    // Task316：分类筛选 facet（categories:<slug>，与 loader facet 可并存；
-    // 键取 singular @"category" 避开上方 loader 的 plural @"categories" 路径）
-    NSString *ame316_category = searchFilters[@"category"];
-    if ([ame316_category isKindOfClass:NSString.class] && ame316_category.length > 0) {
-        [facetString appendFormat:@", [\"categories:%@\"]", ame316_category];
-    }
-    if (loader.length > 0) {
-        [facetString appendFormat:@", [\"categories:%@\"]", loader];
-    }
-    [facetString appendString:@"]"];
+    // ★Task429（4.3-闭环）：facet 构造收敛到 Ame429_FacetsStringForFilters
+    //（同步/异步唯一口径；Task316 singular category 键两路同权，杜绝漂移）
+    NSString *facetString = Ame429_FacetsStringForFilters(searchFilters);
 
     NSDictionary *params = @{
         @"facets": facetString,
@@ -289,28 +334,17 @@ static NSString *MRAMirrorResolvedURL(NSString *urlString) {
     int limit = [limitNum intValue];
     NSNumber *offsetNum = filters[@"offset"] ?: @0;
     int offset = [offsetNum intValue];
-    
-    NSMutableString *facetString = [NSMutableString new];
-    [facetString appendString:@"["];
-    [facetString appendFormat:@"[\"project_type:%@\"]", projectType];
-    NSString *mcVersion = filters[@"mcVersion"] ?: filters[@"version"];
-    if (mcVersion.length > 0) {
-        [facetString appendFormat:@", [\"versions:%@\"]", mcVersion];
-    }
+
     // 修复 #50: 必须把 loader（categories facet）传给 Modrinth API，否则筛选 neoforge/fabric 不生效
-    // Task179：无加载器概念的资源类型禁发 categories facet——resourcepack/
-    // shader/datapack/world 挂上 categories:fabric 后 Modrinth 只剩 15 个
-    // 结果（实测 35467 -> 15），资源包页等于清空。模组/整合包不受影响。
-    BOOL ame179_loaderLessType = ([projectType isEqualToString:@"resourcepack"] ||
-                                  [projectType isEqualToString:@"shader"] ||
-                                  [projectType isEqualToString:@"datapack"] ||
-                                  [projectType isEqualToString:@"world"]);
-    NSString *loader = filters[@"loader"] ?: filters[@"categories"];
-    if (loader.length > 0 && !ame179_loaderLessType) {
-        [facetString appendFormat:@", [\"categories:%@\"]", loader];
-    }
-    [facetString appendString:@"]"];
-    
+    // ★Task429（4.3-闭环）：原异步路 facet 串缺 Task316 singular @"category" 分类
+    //   facet（存量行为）——聚合搜索（ZL2AggregatedSearchService filters 整体透传，
+    //   含 @"category"= Modrinth 口径 slug）与 ZL2 资产搜索页 Modrinth 单源档的
+    //   分类筛选此前在 Modrinth 侧被静默丢弃（对照 CurseForgeAPI 异步路 ★Task428
+    //   已接通）。本任务起与同步路共用 Ame429_FacetsStringForFilters 补齐，两路口径
+    //   逐位一致（project_type / versions / categories:<分类slug> / categories:<loader>，
+    //   ame179 无加载器资源类型闸门随 helper 统一保留）。请求 URL 示例见 helper 注释。
+    NSString *facetString = Ame429_FacetsStringForFilters(filters);
+
     NSString *encodedQuery = [query stringByAddingPercentEncodingWithAllowedCharacters:[NSCharacterSet URLQueryAllowedCharacterSet]];
     NSString *encodedFacets = [facetString stringByAddingPercentEncodingWithAllowedCharacters:[NSCharacterSet URLQueryAllowedCharacterSet]];
     NSString *index = [ModrinthAPI ame173_indexForSort:filters[@"sort"] query:query];
