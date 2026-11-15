@@ -1521,7 +1521,7 @@ static NSDictionary *ame428_byIdLocal(NSArray<NSDictionary *> *list, NSString *v
         NSString *ame428_parent = ame428_e[@"inheritsFromParent"];
         BOOL ame428_listed = (ame428_parent.length > 0
             && [ame428_ids containsObject:ame428_parent]
-            && [([ame428_byIdLocal(ame428_result, ame428_parent)[@"jsonState"] ?: @(0)) integerValue] != 0);
+            && [(ame428_byIdLocal(ame428_result, ame428_parent)[@"jsonState"] ?: @(0)) integerValue] != 0);
         NSMutableDictionary *ame428_m = [ame428_e mutableCopy];
         ame428_m[@"inheritsParentListed"] = @(ame428_listed);
         [ame428_result replaceObjectAtIndex:ame428_i withObject:ame428_m];
