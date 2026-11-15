@@ -56,20 +56,6 @@ static NSDictionary *kPL429SeedBuiltinDriverConfig(void) {
     return @{ @"enableNoError": @0 };
 }
 
-@implementation PLRendererPluginEntry
-@end
-
-@interface PLRendererPluginService ()
-@property (nonatomic, strong) NSArray<PLRendererPluginEntry *> *scanCache;
-// ★Task429（审计补全）：类方法先声明后实现 —— pl429_trimmed 在 manifest
-//   校验（pl429_validateRendererManifest）首行前消费、
-//   pl429_bootstrapBuiltinRendererPackages 在 availableRenderers 首行前消费
-//   （两处消费点均早于 @implementation 内的完整定义）；类扩展内前置声明
-//   消除 use-before-declaration 告警面，实现体位置保持不动。
-+ (nullable NSDictionary *)pl429_trimmed:(id)raw;
-+ (void)pl429_bootstrapBuiltinRendererPackages;
-@end
-
 // ★Task429-r10：类扩展 readwrite 重声明（同文件服务 @implementation 给
 //   PLRendererPluginEntry 装配只读属性——跨 @implementation 私有 ivar 直访
 //   = "instance variable is private" 判例族；setter 经 Entry @synthesize 链接）。
@@ -85,6 +71,20 @@ static NSDictionary *kPL429SeedBuiltinDriverConfig(void) {
 @property (nonatomic, copy, readwrite, nullable) NSString *driverConfigPath;
 @property (nonatomic, strong, readwrite, nullable) NSDictionary *driverConfig;
 @property (nonatomic, assign, readwrite) BOOL enabled;
+@end
+
+@implementation PLRendererPluginEntry
+@end
+
+@interface PLRendererPluginService ()
+@property (nonatomic, strong) NSArray<PLRendererPluginEntry *> *scanCache;
+// ★Task429（审计补全）：类方法先声明后实现 —— pl429_trimmed 在 manifest
+//   校验（pl429_validateRendererManifest）首行前消费、
+//   pl429_bootstrapBuiltinRendererPackages 在 availableRenderers 首行前消费
+//   （两处消费点均早于 @implementation 内的完整定义）；类扩展内前置声明
+//   消除 use-before-declaration 告警面，实现体位置保持不动。
++ (nullable NSDictionary *)pl429_trimmed:(id)raw;
++ (void)pl429_bootstrapBuiltinRendererPackages;
 @end
 
 @implementation PLRendererPluginService
@@ -246,7 +246,7 @@ static NSDictionary *kPL429SeedBuiltinDriverConfig(void) {
     e.pluginId = pid;
     e.rendererName = m[kPL429ManifestRendererName];
     e.driverType = m[kPL429ManifestDriverType];
-    e.abi = [abi copy];
+    e.abi = m[kPL429ManifestABI];   // ★Task429-r11：validate 的 abi 局部数组未回写 m，此处取 manifest 原始数组（条目已在 validate 过长度闸）
     e.version = m[@"version"];
     e.dylibFile = ([m[kPL429ManifestDylib] length] > 0 ? m[kPL429ManifestDylib] : nil);
     e.packageDir = dir;
