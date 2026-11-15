@@ -294,6 +294,7 @@ preview_mode() {
   if ! xcrun clang -isysroot "$SDK_SIM" -target "${ARCH}-apple-ios14.0-simulator" \
       -framework UIKit -framework Foundation -framework CoreGraphics -framework QuartzCore \
       -framework AuthenticationServices -framework UniformTypeIdentifiers \
+      -framework CoreHaptics \
       -o "$OUT/AmeFluentPreview" \
       "${objs[@]}" "$OUT/AmeFluentPreviewMain.o" "$OUT/ZL2PagesStub.o" 2>"$OUT/link.log"; then
     echo "  ✗ 链接失败:"

@@ -906,6 +906,10 @@ target_link_libraries(AngelAuraAmethyst
   "-framework CAltKit"
   "-framework CoreFoundation"
   "-framework CoreGraphics"
+  # ★Task429-r4：ZL2MotionKit CoreHaptics 触觉（9.2）——CXX 驱动无模块
+  #   自动链接，CHHaptic* 类/常量符号必须显式链接（smoke run 43689520997
+  #   链接实录同款；UIKit 传递依赖不含 CoreHaptics）
+  "-framework CoreHaptics"
   "-framework CoreImage"
   "-framework CoreMedia"
   "-framework ImageIO"

@@ -68,6 +68,11 @@ id getPrefObject(NSString *key) {
 
 // BackgroundManager 最小桩：LauncherMenuViewController 仅消费
 // sharedManager + makeViewControllerTransparent:（预览无壁纸管线，透传清底）
+// ★Task429-r4：补 Ame223WallpaperChangedNotification 外部常量定义
+//   （ZL2BackgroundHost/ZL2DynamicPalette 观察者注册引用——真值镜像
+//   BackgroundManager.m:1221，预览侧无壁纸管线故通知恒不发出）。
+NSString *const Ame223WallpaperChangedNotification = @"Ame223WallpaperChanged";
+
 @interface BackgroundManager : NSObject
 + (instancetype)sharedManager;
 - (void)makeViewControllerTransparent:(UIViewController *)viewController;
