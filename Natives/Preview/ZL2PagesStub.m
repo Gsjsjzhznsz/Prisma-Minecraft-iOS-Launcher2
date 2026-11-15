@@ -1708,3 +1708,23 @@ typedef NS_ENUM(NSInteger, MultiplayerVCMode) {
     (void)ownerVC;
 }
 @end
+
+// ─────────────────────────────────────────────────────────────
+// ★Task430（一代 issue#24 链接面）：ZL2GameAddonsViewController 真壳 TU 进
+//   preview 编译清单后新增引用 PLComponentService 类符号（ame430 OptiFine
+//   launchwrapper 库补齐单源助手）——真实现 TU 不在冒烟清单（Task429-r4
+//   LauncherPreferences 判例同族）。本 TU 家法：手写同名类声明 + 最小签名
+//   空实现，不 import 真头；预览链无 OptiFine 安装流 = 助手永不调用，返回
+//   空库表兜底字典保持可判读。
+// ─────────────────────────────────────────────────────────────
+@interface PLComponentService : NSObject
++ (NSDictionary *)ame430_launchwrapperLibraryForOptiFineJar:(NSString *)optifineJarPath
+                                                     gameDir:(NSString *)gameDir;
+@end
+@implementation PLComponentService
++ (NSDictionary *)ame430_launchwrapperLibraryForOptiFineJar:(NSString *)optifineJarPath
+                                                     gameDir:(NSString *)gameDir {
+    (void)optifineJarPath; (void)gameDir;
+    return @{@"name": @"stub.launchwrapper:1.12", @"downloads": @{}};
+}
+@end

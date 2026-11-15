@@ -192,6 +192,10 @@ stub_signature_gate() {
   #   枚举参数形态差异属分账纪律许可，selector 级对表）
   ame429_sig_pair "PLMirrorCenter legacySourceTokenForType:" \
     "PLMirrorCenter.h" "legacySourceTokenForType:" "legacySourceTokenForType:" 0
+  # ★Task430（一代 issue#24 链接面）：PLComponentService ame430 助手桩签名
+  #   对表（ZL2GameAddonsViewController 真壳 TU 新引用类符号——桩 §Task430 族）
+  ame429_sig_pair "PLComponentService ame430_launchwrapperLibraryForOptiFineJar:" \
+    "PLComponentService.h" "ame430_launchwrapperLibraryForOptiFineJar:" "ame430_launchwrapperLibraryForOptiFineJar:" 0
   # respondsToSelector 消费契约面（★Task429 N6b 消费口：消费方守卫的选择器
   #   必须在真实 .h 实名在位，防守卫对象被静默更名 = 守卫恒跳过假绿；桩侧
   #   不实现该成员、消费方守卫跳过 = 分账纪律既有口径，不做桩侧断言）
