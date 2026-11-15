@@ -470,8 +470,14 @@
     {
         Class ame429_svc = NSClassFromString(@"PLRendererPluginService");
         NSArray *ame429_scanned = nil;
-        if (ame429_svc && [ame429_svc respondsToSelector:@selector(availableRenderers)]) {
-            ame429_scanned = [ame429_svc availableRenderers];
+        // ★Task429-r1 热修（smoke CI 实录：Class 类型直发 +availableRenderers =
+        //   no known class method）——ame428 判例同款 performSelector 软链
+        //   （ZL2SettingPages ame428_runIntegrityVerify 同 pragma 口径）。
+        if (ame429_svc && [ame429_svc respondsToSelector:NSSelectorFromString(@"availableRenderers")]) {
+            #pragma clang diagnostic push
+            #pragma clang diagnostic ignored "-Warc-performSelector-leaks"
+            ame429_scanned = [ame429_svc performSelector:NSSelectorFromString(@"availableRenderers")];
+            #pragma clang diagnostic pop
         }
         NSMutableArray *ame429_list = [NSMutableArray array];
         for (id ame429_entry in ame429_scanned) {

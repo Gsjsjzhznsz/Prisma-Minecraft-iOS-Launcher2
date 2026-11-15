@@ -118,8 +118,11 @@ static const NSTimeInterval kAme429EnterDefault = 0.35;
     } completion:nil];
 
     // 进场：错峰 70ms 后 spring 350ms 归位（MotionScheme.expressive damping 0.8）
+    // ★Task429-r1 热修（dev/smoke CI 实录）：+springTimingWithDampingRatio: 类
+    //   方法在本 SDK 不存在（no known class method）——改 alloc/initWithDampingRatio:
+    //   实名实例方法（Apple 文档面，同义同参）。
     UISpringTimingParameters *spring =
-        [UISpringTimingParameters springTimingWithDampingRatio:kAme429SpringDamping];
+        [[UISpringTimingParameters alloc] initWithDampingRatio:kAme429SpringDamping];
     UIViewPropertyAnimator *enter =
         [[UIViewPropertyAnimator alloc] initWithDuration:_enterDuration timingParameters:spring];
     [enter addAnimations:^{
@@ -208,17 +211,27 @@ static dispatch_once_t s_ame429EngineOnce;
 }
 
 // CoreHaptics 可用性（进程级一次判定；不可用 = 老设备/系统限制，真降级路径）
+// ★Task429-r1 热修（smoke CI 实录）：CHHapticCapabilities 类/
+//   capabilitiesForType:error:/CHHapticCapabilityTypeHaptics 三者在本 SDK 均
+//   未声明（use of undeclared identifier × 3）——能力探测改用引擎创建探针：
+//   [CHHapticEngine alloc] initAndReturnError: 成败本身就是设备能力判据
+//   （创建成功 = 支持；失败 fail-loud 降级），探针引擎直接转正为进程级
+//   引擎零浪费。isAutoShutdownEnabled setter 实名 setAutoShutdownEnabled:
+//   （原 setIsAutoShutdownEnabled: 系虚构族）；state/CHHapticEngineStateRunning
+//   两符号同样未声明——停止态重启简化为每次 startAndReturnError:（幂等）。
 + (BOOL)ame429_supportsCoreHaptics {
     __block BOOL supported = NO;
     dispatch_once(&s_ame429EngineOnce, ^{
-        NSError *capabilityError = nil;
-        CHHapticCapabilities *capabilities =
-            [CHHapticEngine capabilitiesForType:CHHapticCapabilityTypeHaptics
-                                          error:&capabilityError];
-        supported = capabilities.supportsHaptics;
-        if (!supported && capabilityError) {
-            NSLog(@"[ZL2Motion] Task429 CoreHaptics capability query failed: %@ — fallback to UIImpactFeedbackGenerator",
-                  capabilityError);
+        NSError *initError = nil;
+        CHHapticEngine *probe = [[CHHapticEngine alloc] initAndReturnError:&initError];
+        supported = (probe != nil);
+        if (!supported) {
+            NSLog(@"[ZL2Motion] Task429 CoreHaptics engine unavailable: %@ — fallback to UIImpactFeedbackGenerator",
+                  initError);
+        } else {
+            // 探针引擎转正（进程级复用，不自动关停）
+            s_ame429HapticEngine = probe;
+            s_ame429HapticEngine.autoShutdownEnabled = NO;
         }
     });
     return supported;
@@ -234,16 +247,16 @@ static dispatch_once_t s_ame429EngineOnce;
                   initError);
             return NO;
         }
-        s_ame429HapticEngine.isAutoShutdownEnabled = NO;   // 进程级复用，不自动关停
+        s_ame429HapticEngine.autoShutdownEnabled = NO;   // 进程级复用，不自动关停
     }
-    if (s_ame429HapticEngine.state != CHHapticEngineStateRunning) {
-        NSError *startError = nil;
-        BOOL started = [s_ame429HapticEngine startAndReturnError:&startError];
-        if (!started) {
-            NSLog(@"[ZL2Motion] Task429 CHHapticEngine start failed: %@ — fallback to UIImpactFeedbackGenerator",
-                  startError);
-            return NO;
-        }
+    // ★Task429-r1 热修：state/CHHapticEngineStateRunning 在本 SDK 未声明——
+    //   停止态重启改每次 startAndReturnError:（运行态再 start 幂等无副作用）。
+    NSError *startError = nil;
+    BOOL started = [s_ame429HapticEngine startAndReturnError:&startError];
+    if (!started) {
+        NSLog(@"[ZL2Motion] Task429 CHHapticEngine start failed: %@ — fallback to UIImpactFeedbackGenerator",
+              startError);
+        return NO;
     }
     return YES;
 }
@@ -445,7 +458,12 @@ static BOOL Ame429ListBeginBatch(NSUInteger visibleCount) {
 
 - (void)traitCollectionDidChange:(nullable UITraitCollection *)previousTraitCollection {
     [super traitCollectionDidChange:previousTraitCollection];
-    if ([self.traitCollection hasDifferentColorAppearanceComparedTo:previousTraitCollection]) {
+    // ★Task429-r1 热修：hasDifferentColorAppearanceComparedTo: 在 Xcode 26.3/
+    //   iPhoneOS26.2 SDK 下 no visible @interface（Task379-r1 判例同族，iOS 17
+    //   trait 注册 API 世代被 SDK 软移除）——正解 = userInterfaceStyle 直比
+    //   （iOS 12 稳定面，语义等价仅明暗变化即刷；previous nil 不误发）。
+    if (previousTraitCollection != nil &&
+        self.traitCollection.userInterfaceStyle != previousTraitCollection.userInterfaceStyle) {
         [self ame429_refreshColors];
     }
 }

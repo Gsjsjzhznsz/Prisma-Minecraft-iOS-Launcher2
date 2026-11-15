@@ -239,14 +239,14 @@ static id ame429_listElementForNode(UIView *node) {
 // ============================================================================
 @interface Ame429SheetRowView : UIControl
 @property(nonatomic, copy) void (^ame429_onTap)(void);
-- (instancetype)ame429_initWithTitle:(NSString *)title
+- (instancetype)initWithTitle:(NSString *)title
                             subtitle:(NSString *)subtitle
                          destructive:(BOOL)destructive;
 @end
 
 @implementation Ame429SheetRowView
 
-- (instancetype)ame429_initWithTitle:(NSString *)title
+- (instancetype)initWithTitle:(NSString *)title
                             subtitle:(NSString *)subtitle
                          destructive:(BOOL)destructive {
     self = [super initWithFrame:CGRectZero];
@@ -946,22 +946,22 @@ static id ame429_listElementForNode(UIView *node) {
     [content addSubview:info];
     self.layerSheetInfoLabel = info;
 
-    Ame429SheetRowView *frontRow = [[Ame429SheetRowView alloc] ame429_initWithTitle:
+    Ame429SheetRowView *frontRow = [[Ame429SheetRowView alloc] initWithTitle:
         localize(@"ame429.j.layer.to_front", @"置顶") subtitle:nil destructive:NO];
     frontRow.ame429_onTap = ^{
         [self ame429_layerOp:Ame429LayerOpToFront];
     };
-    Ame429SheetRowView *backRow = [[Ame429SheetRowView alloc] ame429_initWithTitle:
+    Ame429SheetRowView *backRow = [[Ame429SheetRowView alloc] initWithTitle:
         localize(@"ame429.j.layer.to_back", @"置底") subtitle:nil destructive:NO];
     backRow.ame429_onTap = ^{
         [self ame429_layerOp:Ame429LayerOpToBack];
     };
-    Ame429SheetRowView *forwardRow = [[Ame429SheetRowView alloc] ame429_initWithTitle:
+    Ame429SheetRowView *forwardRow = [[Ame429SheetRowView alloc] initWithTitle:
         localize(@"ame429.j.layer.forward", @"上移一层") subtitle:nil destructive:NO];
     forwardRow.ame429_onTap = ^{
         [self ame429_layerOp:Ame429LayerOpForward];
     };
-    Ame429SheetRowView *backwardRow = [[Ame429SheetRowView alloc] ame429_initWithTitle:
+    Ame429SheetRowView *backwardRow = [[Ame429SheetRowView alloc] initWithTitle:
         localize(@"ame429.j.layer.backward", @"下移一层") subtitle:nil destructive:NO];
     backwardRow.ame429_onTap = ^{
         [self ame429_layerOp:Ame429LayerOpBackward];
@@ -1125,21 +1125,21 @@ static id ame429_listElementForNode(UIView *node) {
     header.text = localize(@"ame429.j.style.title", @"样式预设");
     [content addSubview:header];
 
-    Ame429SheetRowView *defaultRow = [[Ame429SheetRowView alloc] ame429_initWithTitle:
+    Ame429SheetRowView *defaultRow = [[Ame429SheetRowView alloc] initWithTitle:
         localize(@"ame429.j.style.default", @"默认")
         subtitle:localize(@"ame429.j.style.default.sub", @"不透明按钮 · 30% 深底 · 1pt 描边")
         destructive:NO];
     defaultRow.ame429_onTap = ^{
         [self ame429_applyStylePreset:0];
     };
-    Ame429SheetRowView *translucentRow = [[Ame429SheetRowView alloc] ame429_initWithTitle:
+    Ame429SheetRowView *translucentRow = [[Ame429SheetRowView alloc] initWithTitle:
         localize(@"ame429.j.style.translucent", @"半透明")
         subtitle:localize(@"ame429.j.style.translucent.sub", @"55% 按钮 · 12% 浅底 · 0.5pt 描边")
         destructive:NO];
     translucentRow.ame429_onTap = ^{
         [self ame429_applyStylePreset:1];
     };
-    Ame429SheetRowView *minimalRow = [[Ame429SheetRowView alloc] ame429_initWithTitle:
+    Ame429SheetRowView *minimalRow = [[Ame429SheetRowView alloc] initWithTitle:
         localize(@"ame429.j.style.minimal", @"极简")
         subtitle:localize(@"ame429.j.style.minimal.sub", @"85% 按钮 · 7% 浅底 · 无描边")
         destructive:NO];
@@ -1225,17 +1225,17 @@ static id ame429_listElementForNode(UIView *node) {
     header.text = localize(@"ame429.j.more.title", @"更多");
     [content addSubview:header];
 
-    Ame429SheetRowView *saveRow = [[Ame429SheetRowView alloc] ame429_initWithTitle:
+    Ame429SheetRowView *saveRow = [[Ame429SheetRowView alloc] initWithTitle:
         localize(@"ame429.j.toolbar.save", @"保存") subtitle:nil destructive:NO];
     saveRow.ame429_onTap = ^{
         [self ame429_saveTapped];
     };
-    Ame429SheetRowView *copyRow = [[Ame429SheetRowView alloc] ame429_initWithTitle:
+    Ame429SheetRowView *copyRow = [[Ame429SheetRowView alloc] initWithTitle:
         localize(@"ame429.j.toolbar.saveas", @"另存副本") subtitle:nil destructive:NO];
     copyRow.ame429_onTap = ^{
         [self ame429_saveAsCopyTapped];
     };
-    Ame429SheetRowView *discardRow = [[Ame429SheetRowView alloc] ame429_initWithTitle:
+    Ame429SheetRowView *discardRow = [[Ame429SheetRowView alloc] initWithTitle:
         localize(@"ame429.j.more.discard", @"放弃更改并退出") subtitle:nil destructive:YES];
     discardRow.ame429_onTap = ^{
         [self ame429_discardAndExit];

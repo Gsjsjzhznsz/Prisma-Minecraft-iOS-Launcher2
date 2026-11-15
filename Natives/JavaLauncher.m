@@ -241,11 +241,19 @@ static double ame130_export_rcas_env(void) {
     return sharpness;
 }
 
-// ★Task429（审计补全）：软链影子协议前置声明 —— init_loadMobileGluesConfig
-//   （下方）先于协议完整定义（init_loadCustomJvmFlags 前）消费
-//   id<Ame429RendererServiceShadow>；协议必须先声明后消费（零告警编译面）。
-@protocol Ame429PluginRuntimeShadow;
-@protocol Ame429RendererServiceShadow;
+// ★Task429（审计补全）→ ★Task429-r1 热修（dev run 43686992635 实录：前向声明
+//   不携带方法表，:267-270 四选择器 no known instance/class method）——
+//   影子协议完整定义前置于此（消费点 init_loadMobileGluesConfig 先于原
+//   定义位置），原处留注释指向本块。PLRendererPluginEntry 类型面由
+//   :33 PLRendererPluginService.h import 提供。
+@protocol Ame429PluginRuntimeShadow <NSObject>
++ (nullable NSDictionary *)ame429_aggregatedJavaInject;
+@end
+@protocol Ame429RendererServiceShadow <NSObject>
++ (NSString *)rendererPluginsRootDir;
++ (BOOL)isRendererPluginId:(NSString *)key;
++ (nullable PLRendererPluginEntry *)entryForRendererKey:(NSString *)key;
+@end
 
 void init_loadMobileGluesConfig() {
     // Task 144：改读 ame_effective_renderer()（单一事实源）而非裸 profile 键。
@@ -562,16 +570,8 @@ static NSString *ame256_effectiveJvmPreset(void) {
 //   AmePluginRuntime / PLRendererPluginService 一律经 NSClassFromString 取
 //   类——任一服务 TU 未进构建（如主控尚未补 CMakeLists 源清单行）时类查找
 //   为 nil，消费面整体跳过：零链接符号依赖、运行期零崩溃。
-// 软链影子协议：Class 接收者直发未声明选择器会触发 no-known-class-method
-//   编译告警；经协议收窄调用形态（编译器可核验）且零符号依赖。
-@protocol Ame429PluginRuntimeShadow <NSObject>
-+ (nullable NSDictionary *)ame429_aggregatedJavaInject;
-@end
-@protocol Ame429RendererServiceShadow <NSObject>
-+ (NSString *)rendererPluginsRootDir;
-+ (BOOL)isRendererPluginId:(NSString *)key;
-+ (nullable PLRendererPluginEntry *)entryForRendererKey:(NSString *)key;
-@end
+// 软链影子协议（完整定义已前置至 init_loadMobileGluesConfig 上方；
+//   ★Task429-r1：前向声明不携带方法表=消费点选择器不可见，判例留档）：
 // 三刀口契约（§11.2）：
 //   ①customJvmFlags 区段   —— 插件追加 JVM 参数（init_loadCustomJvmFlags）
 //   ②agent/classpath 注入点 —— 插件 -javaagent jar 与附加 -cp 拼接
@@ -623,21 +623,22 @@ static NSString *ame429_rendererPluginsRoot(void) {
 /// Library Validation）仅为文档注释——未实现，属后续泛化轮（第六版落地
 /// 顺序：先跑通内置单条链路）。
 static BOOL ame429_jitExemptionSatisfied(BOOL ame429_quiet) {
-    struct kinfo_proc ame429_info;
-    size_t ame429_size = sizeof(ame429_info);
-    memset(&ame429_info, 0, sizeof(ame429_info));
-    int ame429_mib[4] = {CTL_KERN, KERN_PROC, KERN_PROC_PID, getpid()};
-    if (sysctl(ame429_mib, 4, &ame429_info, &ame429_size, NULL, 0) != 0) {
-        NSLog(@"[Ame429] JIT exemption probe FAILED (sysctl errno=%d) -- assume NOT exempt (unsigned dylib dlopen will fail Library Validation)", errno);
+    // ★Task429-r1 热修（dev run 43686992635 实录：:634/:640 no member named
+    //   'p_csflags' in 'struct extern_proc'——本 SDK kinfo_proc 外层结构无该
+    //   成员）——改走 utils.m Task181 同款 csops(CS_OPS_STATUS=0) 判据
+    //   （utils.h:187 实名声明；CS_DEBUGGED 位同源，utils.m:455 先例）。
+    uint32_t ame429_csFlags = 0;
+    if (csops(getpid(), 0, &ame429_csFlags, sizeof(ame429_csFlags)) != 0) {
+        NSLog(@"[Ame429] JIT exemption probe FAILED (csops errno=%d) -- assume NOT exempt (unsigned dylib dlopen will fail Library Validation)", errno);
         return NO;
     }
-    BOOL ame429_ok = (ame429_info.kp_proc.p_csflags & CS_DEBUGGED) != 0;
+    BOOL ame429_ok = (ame429_csFlags & CS_DEBUGGED) != 0;
     if (!ame429_quiet && !ame429_ok) {
-        NSLog(@"[Ame429] JIT exemption NOT satisfied (p_csflags=0x%X, CS_DEBUGGED bit clear) -- "
+        NSLog(@"[Ame429] JIT exemption NOT satisfied (csflags=0x%X, CS_DEBUGGED bit clear) -- "
               @"unsigned plugin dylibs (renderer plugin / agent-bundled natives) will be rejected "
               @"by Library Validation. Enable JIT (StikDebug / TrollStore / dynamic-codesigning "
               @"entitlement) and relaunch. (ZSign ad-hoc re-sign fallback is documented-only, "
-              @"not implemented.)", ame429_info.kp_proc.p_csflags);
+              @"not implemented.)", ame429_csFlags);
     } else if (!ame429_quiet) {
         NSLog(@"[Ame429] JIT exemption satisfied (CS_DEBUGGED set) -- Library Validation relaxed, unsigned plugin dylibs loadable");
     }
