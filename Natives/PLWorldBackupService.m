@@ -66,10 +66,11 @@ static unsigned long long ame429_s1_sizeOfDirectoryAtPath(NSString *path) {
 }
 
 /// 目录移动（优先 rename 语义 move；跨设备/失败回退深拷贝+删源，双败 fail-loud）
-static BOOL ame429_s1_movePath:(NSString *)src
-                          toPath:(NSString *)dst
-                     deleteOnCopy:(BOOL)deleteOnCopy
-                            error:(NSError **)error {
+// ★Task429-r7 热修（dev run 43691459560 实录：:69 顶层声明误写 ObjC selector
+//   形态 ame429_s1_movePath:（expected ';' after top level declarator +
+//   redefinition of 'NSString' as different kind of symbol × 5 连锁）——
+//   本函数是 C 函数（三调用点全 C 式传参），声明改回 C 形参表。
+static BOOL ame429_s1_movePath(NSString *src, NSString *dst, BOOL deleteOnCopy, NSError **error) {
     NSFileManager *fm = [NSFileManager defaultManager];
     NSError *moveError = nil;
     if ([fm moveItemAtPath:src toPath:dst error:&moveError]) return YES;
@@ -96,6 +97,14 @@ static BOOL ame429_s1_movePath:(NSString *)src
     }
     return NO;
 }
+
+// ★Task429-r7 热修（dev run 43691459560 实录：:151 no known class method）——
+//   ame428_effectiveIsolationForVid:profile: 实现于 PLProfiles.m:941 但
+//   PLProfiles.h 未声明；Gfin 判例同款本地分类前向声明（PLProfiles.h 零侵入，
+//   签名逐字对应）。
+@interface PLProfiles (Ame429Task429S1)
++ (NSInteger)ame428_effectiveIsolationForVid:(NSString *)vid profile:(NSDictionary *)profile;
+@end
 
 @implementation PLWorldBackupService
 
