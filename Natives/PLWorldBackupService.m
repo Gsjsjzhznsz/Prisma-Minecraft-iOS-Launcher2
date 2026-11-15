@@ -168,7 +168,7 @@ static BOOL ame429_s1_movePath(NSString *src, NSString *dst, BOOL deleteOnCopy, 
             // ★Task429-r8 热修（dev run 43693267578 实录：:168 missing '[' at
             //   start of message send expression = isEqualToString: 右实参后
             //   多一个 ']'）——修括号。
-                        if ([resolved stringByStandardizingPath] isEqualToString:[vdir stringByStandardizingPath]) {
+                        if ([[resolved stringByStandardizingPath] isEqualToString:[vdir stringByStandardizingPath]]) {
                 resolved = base;
             }
         }
