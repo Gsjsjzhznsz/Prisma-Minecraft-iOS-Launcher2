@@ -160,10 +160,10 @@ static UIColor *Ame429ColorForTone(CGFloat hueDeg, CGFloat chroma, CGFloat tone)
 @implementation AmeHCTTonalPalette
 
 + (instancetype)ame429_paletteWithHue:(CGFloat)hue chroma:(CGFloat)chroma {
-    return [[self alloc] ame429_initWithHue:hue chroma:chroma];
+    return [[self alloc] initWithHue:hue chroma:chroma];
 }
 
-- (instancetype)ame429_initWithHue:(CGFloat)hue chroma:(CGFloat)chroma {
+- (instancetype)initWithHue:(CGFloat)hue chroma:(CGFloat)chroma {
     self = [super init];
     if (self) {
         // 色相归一 0...360（fmod 负数修正）；色度 clamp 0...120
@@ -194,10 +194,10 @@ static UIColor *Ame429ColorForTone(CGFloat hueDeg, CGFloat chroma, CGFloat tone)
 
 + (instancetype)ame429_paletteWithSeed:(UIColor *)seed
                                  style:(AmeHCTPaletteStyle)style {
-    return [[self alloc] ame429_initWithSeed:seed style:style];
+    return [[self alloc] initWithSeed:seed style:style];
 }
 
-- (instancetype)ame429_initWithSeed:(UIColor *)seed style:(AmeHCTPaletteStyle)style {
+- (instancetype)initWithSeed:(UIColor *)seed style:(AmeHCTPaletteStyle)style {
     self = [super init];
     if (self) {
         UIColor *safeSeed = seed ?: [UIColor colorWithRed:0.43 green:0.23 blue:0.09 alpha:1.0]; // embermire 主棕兜底
