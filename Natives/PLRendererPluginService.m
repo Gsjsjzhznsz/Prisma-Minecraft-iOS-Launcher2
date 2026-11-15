@@ -70,6 +70,23 @@ static NSDictionary *kPL429SeedBuiltinDriverConfig(void) {
 + (void)pl429_bootstrapBuiltinRendererPackages;
 @end
 
+// ★Task429-r10：类扩展 readwrite 重声明（同文件服务 @implementation 给
+//   PLRendererPluginEntry 装配只读属性——跨 @implementation 私有 ivar 直访
+//   = "instance variable is private" 判例族；setter 经 Entry @synthesize 链接）。
+@interface PLRendererPluginEntry ()
+@property (nonatomic, copy, readwrite) NSString *pluginId;
+@property (nonatomic, copy, readwrite) NSString *rendererName;
+@property (nonatomic, copy, readwrite) NSString *driverType;
+@property (nonatomic, copy, readwrite) NSArray<NSString *> *abi;
+@property (nonatomic, copy, readwrite) NSString *version;
+@property (nonatomic, copy, readwrite, nullable) NSString *dylibFile;
+@property (nonatomic, copy, readwrite) NSString *packageDir;
+@property (nonatomic, copy, readwrite, nullable) NSString *resolvedDylibPath;
+@property (nonatomic, copy, readwrite, nullable) NSString *driverConfigPath;
+@property (nonatomic, strong, readwrite, nullable) NSDictionary *driverConfig;
+@property (nonatomic, assign, readwrite) BOOL enabled;
+@end
+
 @implementation PLRendererPluginService
 
 + (instancetype)sharedService {
@@ -143,7 +160,7 @@ static NSDictionary *kPL429SeedBuiltinDriverConfig(void) {
         return nil;
     }
     id abiRaw = dict[kPL429ManifestABI];
-    if (![abiRaw isKindOfClass:[NSArray class]] || abiRaw.count == 0) {
+    if (![abiRaw isKindOfClass:[NSArray class]] || [(NSArray *)abiRaw count] == 0) {
         if (errCode) *errCode = fail;
         return nil;
     }
@@ -226,27 +243,27 @@ static NSDictionary *kPL429SeedBuiltinDriverConfig(void) {
         return nil;
     }
     PLRendererPluginEntry *e = [[PLRendererPluginEntry alloc] init];
-    e->_pluginId = pid;
-    e->_rendererName = m[kPL429ManifestRendererName];
-    e->_driverType = m[kPL429ManifestDriverType];
-    e->_abi = m[kPL429ManifestABI];
-    e->_version = m[@"version"];
-    e->_dylibFile = [m[kPL429ManifestDylib] length] > 0 ? m[kPL429ManifestDylib] : nil;
-    e->_packageDir = dir;
-    e->_resolvedDylibPath = [self pl429_resolveDylibPath:e->_dylibFile packageDir:dir];
+    e.pluginId = pid;
+    e.rendererName = m[kPL429ManifestRendererName];
+    e.driverType = m[kPL429ManifestDriverType];
+    e.abi = [abi copy];
+    e.version = m[@"version"];
+    e.dylibFile = ([m[kPL429ManifestDylib] length] > 0 ? m[kPL429ManifestDylib] : nil);
+    e.packageDir = dir;
+    e.resolvedDylibPath = [self pl429_resolveDylibPath:e.dylibFile packageDir:dir];
     // 驱动配置（可选；解析失败按缺省——宁缺勿错）
     NSString *cfgPath = [dir stringByAppendingPathComponent:kPL429DriverConfigFile];
     NSData *cfgData = [NSData dataWithContentsOfFile:cfgPath];
     if (cfgData) {
         id cfg = [NSJSONSerialization JSONObjectWithData:cfgData options:0 error:nil];
         if ([cfg isKindOfClass:[NSDictionary class]]) {
-            e->_driverConfigPath = cfgPath;
-            e->_driverConfig = cfg;
+            e.driverConfigPath = cfgPath;
+            e.driverConfig = cfg;
         } else {
             NSLog(@"[Ame429] renderer plugin '%@' driver.json is not a JSON object -- ignored", pid);
         }
     }
-    e->_enabled = [AmePluginPermissions pluginEnabled:pid];
+    e.enabled = [AmePluginPermissions pluginEnabled:pid];
     return e;
 }
 
