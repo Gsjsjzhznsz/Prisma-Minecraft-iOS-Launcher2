@@ -66,6 +66,15 @@ id getPrefObject(NSString *key) {
     return [[NSUserDefaults standardUserDefaults] objectForKey:key];
 }
 
+// ★Task429-r5：补 getPrefInt C 函数桩（ZL2DynamicPalette 主题中枢消费——
+//   LauncherPreferences.h 实名签名 NSInteger getPrefInt(NSString *key)；
+//   真定义在 LauncherPreferences.m、不在冒烟固定清单判例同族）。预览侧
+//   NSUserDefaults 后备语义与 getPrefObject 同构（未设键返 0 = theme_mode/
+//   mirror_mode/proxy_mode 默认档，预览观感零回归）。
+NSInteger getPrefInt(NSString *key) {
+    return (NSInteger)[[NSUserDefaults standardUserDefaults] integerForKey:key];
+}
+
 // BackgroundManager 最小桩：LauncherMenuViewController 仅消费
 // sharedManager + makeViewControllerTransparent:（预览无壁纸管线，透传清底）
 // ★Task429-r4：补 Ame223WallpaperChangedNotification 外部常量定义
