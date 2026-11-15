@@ -23,6 +23,7 @@
 #import "PLTaskStages.h"
 #import "utils.h"               // ★ Task337：ame185_loaderVersionMatchesGameVersion（neoforge 清单共享匹配器）
 #import "LauncherPreferences.h" // ★ Task337：getPrefObject（download_source 镜像策略）
+#import "ModLoaderIconHelper.h" // ★Task431：API 行（fabricapi/quiltapi）图标统一解析（家族 PNG 映射 + 品牌色首字母档）
 
 #include <stdlib.h>
 
@@ -55,6 +56,7 @@
 @property (nonatomic, assign) BOOL expanded;
 @property (nonatomic, assign) BOOL loading;
 @property (nonatomic, assign) BOOL listFailed;
+@property (nonatomic, assign) BOOL listEmpty; // ★Task431：清单拉取成功但上游零版本（中性态，非失败）
 @property (nonatomic, weak, nullable) id<ZL2AddonCardDelegate> delegate;
 
 - (instancetype)initWithIdentifier:(NSString *)identifier
@@ -577,11 +579,23 @@
         dispatch_async(dispatch_get_main_queue(), ^{
             [self.loadingIdentifiers removeObject:ident];
             card.loading = NO;
-            if (items.count == 0) {
+            // ★Task431 三态拆分（单行失败隔离判例收口）：nil（网络/HTTP/解析失败）
+            // → 红字失败态可重试；空数组（清单成功、上游该游戏版本零构建，如
+            // Quilted Fabric API 26.x —— Modrinth qsl 与 maven.quiltmc.org 实测
+            // game_versions 上限 1.21）→ 中性空态，不再误报「清单加载失败」。
+            // 各卡本就 per-row 独立拉取/独立呈现（loadingIdentifiers 按卡去重、
+            // failedLabel 卡内锚定），单行失败/空态不阻断其它行加载。
+            if (items == nil) {
                 card.listFailed = YES;
+                card.listEmpty = NO;
+                card.items = nil;
+            } else if (items.count == 0) {
+                card.listFailed = NO;
+                card.listEmpty = YES;
                 card.items = nil;
             } else {
                 card.listFailed = NO;
+                card.listEmpty = NO;
                 card.items = items;
                 // API 卡自动跟随（Task335 泛化：fabricapi/legacyfabricapi/quiltapi
                 // 同语义 —— 清单落定且所属主加载器已选而 API 未选 → 选最新，
@@ -801,7 +815,11 @@
         }
         return out_;
     }
-    // ★ Task335：Quilted Fabric API（Modrinth 项目 qsl，ZL2 QuiltAPIVersions 同源）
+    // ★ Task335：Quilted Fabric API（Modrinth 项目 qsl，ZL2 QuiltAPIVersions 同源。
+    // ★Task431 实测：qsl 工程名即 Quilted Fabric API (QFAPI) / QSL 一体，loader
+    // 标签 ["quilt"] 正确，但上游 game_versions 上限 1.21 —— 26.x 查询官方源返回
+    // 200 空数组（走 ★Task431 中性空态而非红字失败）；mcim 镜像对零命中回 404
+    // error dict，由 ame_syncFetch HTTP 状态闸落空到官方源）
     if ([identifier isEqualToString:@"quiltapi"]) {
         return [self ame_fetchModrinthVersionsForProject:@"qsl"
                                               loaderTag:@"quilt"
@@ -910,7 +928,20 @@
     [[[NSURLSession sessionWithConfiguration:cfg]
         dataTaskWithURL:url
       completionHandler:^(NSData *data, NSURLResponse *response, NSError *error) {
-        if (!error && data) result = data;
+        // ★Task431：HTTP 状态闸 —— 镜像 404/5xx 错误体此前被当合法数据吞掉：
+        // 实测 BMCLAPI /quilt-meta/26.2 → 404 COMMON_NO_SUCH_OBJECT JSON 体、
+        // BMCLAPI /fabric-meta 零命中版本 → 500 错误体、mcim Modrinth 零命中 →
+        // 404 error dict。候选循环拿到任何 data 即 break，错误体先行 = 官方源
+        // 永不触达（Quilt/Quilted Fabric API 行镜像态「清单加载失败」根因）。
+        // 非 2xx 一律视为该候选失败，落空到下一候选（官方源实测 200 可用）。
+        if (!error && data) {
+            BOOL ame431_statusOK = YES;
+            if ([response isKindOfClass:[NSHTTPURLResponse class]]) {
+                NSInteger ame431_code = ((NSHTTPURLResponse *)response).statusCode;
+                ame431_statusOK = (ame431_code >= 200 && ame431_code < 300);
+            }
+            if (ame431_statusOK) result = data;
+        }
         dispatch_semaphore_signal(sem);
     }] resume];
     dispatch_semaphore_wait(sem, dispatch_time(DISPATCH_TIME_NOW, 40LL * NSEC_PER_SEC));
@@ -1514,6 +1545,7 @@
 @property (nonatomic, strong) NSLayoutConstraint *listHeight;
 @property (nonatomic, strong) UIActivityIndicatorView *spinner;
 @property (nonatomic, strong) UILabel *failedLabel;
+@property (nonatomic, strong) UILabel *emptyLabel; // ★Task431：零版本中性文案（与 failedLabel 互斥显示）
 @end
 
 @implementation ZL2AddonCard
@@ -1541,7 +1573,7 @@
     _cardView.translatesAutoresizingMaskIntoConstraints = NO;
     [self addSubview:_cardView];
 
-    // 品牌图标（ModLoaderIcons bundle）→ SF 兜底 → 首字母档
+    // 品牌图标（ModLoaderIcons bundle）→ ModLoaderIconHelper → SF 兜底 → 首字母档
     UIImage *brandImage = nil;
     if (self.iconBundleName.length > 0) {
         NSString *iconsPath = [[NSBundle mainBundle].resourcePath
@@ -1550,8 +1582,24 @@
                               [NSString stringWithFormat:@"%@.png", self.iconBundleName]];
         brandImage = [UIImage imageWithContentsOfFile:iconPath];
     }
+    // ★Task431 图标补齐（装机「Fabric API / Quilted Fabric API 两行没有图标」）：
+    // API 行 iconBundleName 为 nil，旧码直接 systemImageNamed(shippingbox) 兜底
+    // —— 与其它行的品牌 PNG 不同规格，观感=两行无图标。改经 ModLoaderIconHelper
+    // 统一解析：pngKeyForLoader 家族 containsString 命中（fabricapi→fabric /
+    // quiltapi→quilt / legacyfabricapi→legacyfabric，ZL2 img_loader_* 无 API 专属
+    // 资产同口径复用家族键），PNG 与主加载器行同源同规格；PNG 全缺时回退
+    // helper 的 SF Symbol，仍缺再走卡片 fallbackSymbol。
+    if (!brandImage) {
+        brandImage = [ModLoaderIconHelper iconImageForLoader:self.identifier
+                                             traitCollection:nil];
+    }
     if (!brandImage) {
         brandImage = [UIImage systemImageNamed:self.fallbackSymbol];
+    }
+    // 首字母档（原注释承诺的第三档，★Task431 实装）：PNG/SF 全缺时品牌色
+    // 圆角底 + 白色首字母，24x24 与其它档同尺寸，永不出现空图标行
+    if (!brandImage) {
+        brandImage = [self ame_letterBadgeImage];
     }
     _iconView = [[UIImageView alloc] initWithImage:brandImage];
     _iconView.contentMode = UIViewContentModeScaleAspectFit;
@@ -1659,6 +1707,18 @@
     _failedLabel.hidden = YES;
     [_cardView addSubview:_failedLabel];
 
+    // ★Task431：清单成功但上游零版本（如 Quilted Fabric API 26.x 无构建）的
+    // 中性提示 —— 与「清单加载失败」红字态严格区分（零命中不是网络失败，
+    // 不该红字惊吓；新增 i18n 键登记见卷尾 ★Task431-i18n 标注）
+    _emptyLabel = [[UILabel alloc] init];
+    _emptyLabel.text = localize(@"ame369.addon.list_empty_hint", @"该版本暂无可用版本"); // ★Task431-i18n: ame369.addon.list_empty_hint = zh "该版本暂无可用版本" / en "No versions available for this game version"
+    _emptyLabel.font = [ZL2Theme fontBodyMedium];
+    _emptyLabel.textColor = [ZL2Theme onSurfaceVariant];
+    _emptyLabel.numberOfLines = 1;
+    _emptyLabel.translatesAutoresizingMaskIntoConstraints = NO;
+    _emptyLabel.hidden = YES;
+    [_cardView addSubview:_emptyLabel];
+
     _listHeight = [_listView.heightAnchor constraintEqualToConstant:0];
     _listHeight.active = YES;
 
@@ -1723,16 +1783,48 @@
 
         [_failedLabel.centerXAnchor constraintEqualToAnchor:_cardView.centerXAnchor],
         [_failedLabel.centerYAnchor constraintEqualToAnchor:_listView.centerYAnchor],
+
+        // ★Task431：空态文案与失败文案同位锚定（listView 中线），同一时刻至多
+        // 显示其一（见 ame_refreshAppearance 互斥隐藏）
+        [_emptyLabel.centerXAnchor constraintEqualToAnchor:_cardView.centerXAnchor],
+        [_emptyLabel.centerYAnchor constraintEqualToAnchor:_listView.centerYAnchor],
     ]];
+}
+
+/// 首字母档兜底图标（★Task431 实装，原注释承诺第三档）：品牌色圆角底 +
+/// 白色首字母，24x24 与 PNG/SF 档同规格。UIGraphicsImageRenderer 离屏渲染。
+- (UIImage *)ame_letterBadgeImage {
+    NSString *ame431_display = [ModLoaderIconHelper displayNameForLoader:self.identifier];
+    NSString *ame431_initial = (ame431_display.length > 0)
+        ? [[ame431_display substringToIndex:1] uppercaseString] : @"?";
+    UIColor *ame431_brand = [ModLoaderIconHelper brandColorForLoader:self.identifier];
+    UILabel *ame431_badge = [[UILabel alloc] initWithFrame:CGRectMake(0, 0, 24, 24)];
+    ame431_badge.text = ame431_initial;
+    ame431_badge.font = [UIFont systemFontOfSize:13 weight:UIFontWeightSemibold];
+    ame431_badge.textColor = [UIColor whiteColor];
+    ame431_badge.textAlignment = NSTextAlignmentCenter;
+    ame431_badge.backgroundColor = ame431_brand;
+    ame431_badge.layer.cornerRadius = 6;
+    ame431_badge.layer.cornerCurve = kCACornerCurveContinuous;
+    ame431_badge.layer.masksToBounds = YES;
+    UIGraphicsImageRenderer *ame431_renderer = [[UIGraphicsImageRenderer alloc]
+        initWithSize:CGSizeMake(24, 24)];
+    return [ame431_renderer imageWithActions:^(UIGraphicsImageRendererContext *ame431_ctx) {
+        [ame431_badge.layer renderInContext:ame431_ctx.CGContext];
+    }];
 }
 
 - (void)ame_refreshAppearance {
     _valueLabel.text = self.selectedItem.length > 0 ? self.selectedItem : localize(@"ame369.addon.none_selected", @"未选择");
 
     BOOL hasItems = self.items.count > 0;
+    // ★Task431：零版本中性态（成功但上游无构建）——与失败态同布局语义：
+    // 隐藏 chevron（无列表可展开）、给列表区 48pt 最小高度承载文案；文案色
+    // onSurfaceVariant（中性，非 error 红），红字仅保留给真失败（listFailed）
+    BOOL ame431_empty = self.listEmpty && !self.listFailed;
     _clearButton.hidden = (self.selectedItem.length == 0);
     _reloadButton.hidden = self.loading;
-    _chevronLabel.hidden = self.loading || self.listFailed;
+    _chevronLabel.hidden = self.loading || self.listFailed || ame431_empty;
     _chevronLabel.text = self.expanded ? @"▲" : @"▼";
 
     _divider.hidden = !self.expanded;
@@ -1740,16 +1832,19 @@
     // Task325：加载/失败态给列表区最小高度 48 —— spinner 与失败文案均锚在
     // listView.centerY，历史版 0 高列表时两者都不可见（“什么都不显示”观感
     // 死角之二）；items 到达后恢复数据高度。失败文案常驻可点（见 headerTapped）。
-    CGFloat ame325_min = (self.loading || self.listFailed) ? 48.0 : 0.0;
+    // ★Task431：空态同款 48pt 最小高度（零版本文案可见可点重试）。
+    CGFloat ame325_min = (self.loading || self.listFailed || ame431_empty) ? 48.0 : 0.0;
     CGFloat ame325_data = MIN((CGFloat)(MAX(self.items.count, 1)) * 40.0 + 8.0, 260.0);
     _listHeight.constant = self.expanded ? MAX(ame325_min, ame325_data) : 0.0;
 
     if (self.loading) {
         [_spinner startAnimating];
         _failedLabel.hidden = YES;
+        _emptyLabel.hidden = YES;
     } else {
         [_spinner stopAnimating];
         _failedLabel.hidden = !self.listFailed;
+        _emptyLabel.hidden = !(self.listEmpty && !self.listFailed);
     }
     // ★ Task325 核心雷：items 到达后从不 reloadData —— UITableView 首次 layout
     //   时 items 还是 nil 已缓存 0 行，后续展开/拉取成功都不触发行数重查，

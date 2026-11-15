@@ -1,7 +1,7 @@
 {
   "schema": 1,
   "repo": "Gsjsjzhznsz/Prisma-Minecraft-iOS-Launcher2",
-  "updated": "2026-11-01",
+  "updated": "2026-11-15",
   "plugins": [
     {
       "id": "element-drag",
@@ -17,12 +17,12 @@
     {
       "id": "fluent-ui",
       "name": "Fluent UI",
-      "version": "2.6.0",
+      "version": "2.6.1",
       "author": "Prisma",
-      "summary": "Fluent 2 两态开关：开=全维度换装+色板跟随系统明暗，关=恢复默认主题",
+      "summary": "Fluent 2 两态开关：开=全维度换装+色板跟随系统明暗，关=恢复默认主题；v2.6.1 修复 NavigationView 窗格底（设置/文件）选中蓝条错位到主页旁（ui.views 测量纠偏+200ms 自愈）",
       "file": "plugins/fluent-ui.zip",
-      "size": 6304,
-      "sha256": "c5f98dc91cf51acb818f0416ce9e9bd971e1bdeddaeea5070c6ad8624b0f71f2",
+      "size": 10480,
+      "sha256": "a1ae068469e606fa205f3666c6ef3e00cc3a1257783945bd919dd15533aee22d",
       "official": true
     },
     {

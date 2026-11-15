@@ -1,6 +1,38 @@
 // Task375 fluent-ui v2.4.0 —— 「两态开关 · 跟随系统明暗」版（用户指令：
 // "flUI的开关能不能就2种状态，开和不开，浅色合深色跟随设置"）。
 // ---------------------------------------------------------------------
+// ★ v2.6.1（fui-rail-fix）：NavigationView 选中指示条（蓝条）窗格底页错位
+//   根修（插件侧最大能力版）。症状：蓝条随切页上下滑动正常，但驻「设置」
+//   页时滑到「主页」旁（「文件」为瞬时动作不换选中，WinUI 语义本就保持
+//   原选中行；其「错位」观感与设置页同源）。根因在原生壳
+//   ZL2ShellViewController ame389_syncIndicatorYAnimated —— 共享蓝条驻主
+//   列 paneStack，centerY 常量取 CGRectGetMidY(选中项.frame)；主列项 frame
+//   是 paneStack 局部坐标 = 恒正确，而「设置」项驻窗格底部固定列
+//   paneFooterStack（paneStack 的兄弟列），ame389 拿到的 frame 是
+//   footerStack 局部坐标（行中点 ≈22pt）却被当 paneStack 坐标落约束 →
+//   蓝条每次都滑到首行（主页）旁。另：侧边栏点按不广播
+//   ZL2ShellNavigateNotification → page.changed 事件只覆盖主页瓦片/
+//   程序化切页，事件面不完整（本版以周期自愈补齐）。
+//   插件侧修复（ame.views 家族，manifest 增声明 ui.views；官方件装/更即
+//   授权自愈）：
+//     · 选中行判定零文案依赖（窗格项无 accessibilityIdentifier 可依）：
+//       ame_setSelected 选中=不透明行底（describe.bg 7 位 #RRGGBB），
+//       未选中=clearColor（9 位带 00）——本地化/色板/明暗全无关；兜底链
+//       = page.changed index → 行内 UILabel 标题别名表（zh/en 实表）。
+//     · 选中行为主列（parent == paneStack）→ 原生几何恒正确，零干预
+//       （0.18s 蓝条滑动动画原样保留）。
+//     · 选中行为 footer 列（设置）→ 测量纠偏：蓝条 centerY 应 = 选中行
+//       中点在 paneStack 坐标系的位置 —— footerStack→paneWrap 与
+//       paneStack→paneScroll→paneWrap 两条祖先链同基对差（链上全部取
+//       superview 相对 frame，折叠 64/展开 280/窄屏抽屉全态成立），偏差
+//       >1.5pt 时 ame.views.apply 纠 indicator frame.origin.y。
+//     · 原生约束常量仍持旧值（桥面无改约束通道）→ 任何再布局（折叠/
+//       旋转/主题重建/再切页）会把蓝条拉回错位处：200ms 周期自愈重校
+//       + page.changed 双拍（260/900ms）即时通道 + 装载/手开/appearance
+//       重建延迟校，全部幂等（在位即跳过，不重入不抖动）。
+//   app 侧一行根治（本轮不动 Natives，仅留报告）：ame389 对选中项先
+//     convertRect:toView:self.paneStack 再取 midY 即根治，插件纠偏可退役。
+// ---------------------------------------------------------------------
 // ★ v2.6.0（Task390）：用户可见文案去 ZL2 字样（对话框「非旧版主题换色」）；
 //   版本随轮次演进 2.5.1 → 2.6.0。功能面与 v2.5.1 完全一致。
 // ★ v2.5.1（Task380）：appearance 事件去重——Task346 根重建杠杆每次令牌
@@ -207,6 +239,8 @@
     var ame380_dark = systemIsDark();
     applyPalette(ame380_dark ? 1 : 0, silent);
     rememberAppliedDark(ame380_dark);   // ★ v2.5.1：手开路径登记基线（防后续同值事件重放）
+    railScheduleSync(800);              // ★ v2.6.1：结构重建落定后蓝条自愈校准
+    railScheduleSync(1600);
   }
 
   // ★ Task375：关 = 恢复默认主题（全部令牌清空），无任何隐藏循环态。
@@ -237,6 +271,8 @@
         var ame380_dark = systemIsDark();
         applyPalette(ame380_dark ? 1 : 0, true);
         rememberAppliedDark(ame380_dark);   // ★ v2.5.1：装载路径登记基线
+        railScheduleSync(800);              // ★ v2.6.1：装载即校（壳若驻设置页/重建窗口期）
+        railScheduleSync(1600);
       }
       else ame.log('[' + MARK + '] auto-apply skipped (off)');
     } catch (e) {
@@ -293,6 +329,8 @@
         }
         applyPalette(ame380_dark ? 1 : 0, true);
         rememberAppliedDark(ame380_dark);
+        railScheduleSync(800);              // ★ v2.6.1：换板=根重建，新壳落定后蓝条自愈校准
+        railScheduleSync(1600);
         ame.log('[' + MARK + '] appearance.changed -> palette ' + (ame380_dark ? 'fluent-dark' : 'fluent-light'));
       } catch (e2) {
         ame.log('[' + MARK + '] appearance.changed handler failed (non-fatal): ' + e2);
@@ -302,7 +340,179 @@
     ame.log('[' + MARK + '] appearance.changed subscribe failed (old engine?): ' + e);
   }
 
+  // ═══ v2.6.1 蓝条纠偏实施（ui.views 家族；全链 try-catch 包裹：权限缺失/
+  //     非 fui 骨架/结构不识别一律静默跳过 = 零副作用降级）═══
+  var RAIL_LAST_PAGE = -1;   // page.changed 最近页索引（标题别名兜底用）
+
+  // page.changed index → 窗格项标题别名（zh/en 实表，对齐 resources
+  // Localizable ame369.* / ame192.ai.title）。索引 3（账户内部宿主页）与
+  // 文件（瞬时动作，不换选中也不发 page.changed）无窗格项 = 不入表。
+  var RAIL_ALIASES = {
+    0: ['主页', 'Home'],
+    1: ['下载', 'Downloads'],
+    2: ['版本', 'Versions'],
+    4: ['设置', 'Settings'],
+    5: ['多人联机', '联机', 'Multiplayer', 'Terracotta'],
+    6: ['AI', '助手', 'Assistant']
+  };
+
+  // ui.views 可用性探测（声明+授权双闸，未过即抛 JS 异常）——只探一次，
+  // 周期自愈不反复撞权限墙（每次被拒都会落审计日志）。
+  var RAIL_VIEWS_OK = null;
+  function railViewsAvailable() {
+    if (RAIL_VIEWS_OK !== null) return RAIL_VIEWS_OK;
+    try {
+      ame.views.find({ limit: 1 });
+      RAIL_VIEWS_OK = true;
+    } catch (e) {
+      RAIL_VIEWS_OK = false;
+      ame.log('[' + MARK + '] ui.views unavailable（未声明或未授权，蓝条纠偏降级停用）: ' + e);
+    }
+    return RAIL_VIEWS_OK;
+  }
+
+  // 选中行判定：不透明行底（surfaceContainerHighest，动态色解析后 #RRGGBB
+  // 7 位）= 选中；clearColor 解析 #RRGGBB00（9 位）= 未选中。
+  function railIsOpaqueBg(bg) {
+    return typeof bg === 'string' && bg.length === 7 && bg.charAt(0) === '#';
+  }
+
+  // parent 桥面只回 {handle,cls,text} 不带 frame → 从祖父的 children 里
+  // 取回本节点（frame 为 superview 相对坐标，链上逐级累加即绝对坐标）。
+  function railChildNode(parentHandle, handle) {
+    var kids = null;
+    try { kids = ame.views.children(parentHandle); } catch (e) { return null; }
+    if (!kids) return null;
+    for (var i = 0; i < kids.length; i++) {
+      if (kids[i] && kids[i].handle === handle) return kids[i];
+    }
+    return null;
+  }
+
+  // 兜底链②：行内 UILabel 标题（窗格项本体非 UIButton，find 的 text 恒空）。
+  function railItemTitle(itemHandle) {
+    var kids = null;
+    try { kids = ame.views.children(itemHandle); } catch (e) { return null; }
+    if (!kids) return null;
+    for (var i = 0; i < kids.length; i++) {
+      if (kids[i] && kids[i].cls === 'UILabel' && kids[i].text) return kids[i].text;
+    }
+    return null;
+  }
+
+  function railAliasHit(itemHandle) {
+    var set = RAIL_ALIASES[RAIL_LAST_PAGE];
+    if (!set) return false;
+    var t = railItemTitle(itemHandle);
+    if (!t) return false;
+    for (var i = 0; i < set.length; i++) {
+      if (t === set[i] || t.indexOf(set[i]) >= 0) return true;
+    }
+    return false;
+  }
+
+  // 主列 paneStack 定位：持 ≥3 个窗格项的父栈（footerStack 只有 2 项，
+  // 与列序无关地可分辨）。
+  function railFindMainStack(items) {
+    for (var i = 0; i < items.length && i < 6; i++) {
+      var p = null, kids = null, n = 0;
+      try { p = ame.views.parent(items[i].handle); } catch (e) { continue; }
+      if (!p) continue;
+      try { kids = ame.views.children(p.handle); } catch (e2) { continue; }
+      if (!kids) continue;
+      for (var k = 0; k < kids.length; k++) {
+        if (kids[k] && kids[k].cls && kids[k].cls.indexOf('ZL2ShellNavItem') >= 0) n++;
+      }
+      if (n >= 3) return p;
+    }
+    return null;
+  }
+
+  // 单轮纠偏（幂等）：选中行判定 → 主列不干预 → footer 列测量对差 →
+  // 偏差 >1.5pt 才落 views.apply（在位即跳过 = 不重入不抖动）。
+  function railSyncOnce() {
+    if (!isOn()) return;
+    if (typeof ame.views === 'undefined' || !ame.views) return;
+    if (!railViewsAvailable()) return;
+    var items = null, i = 0;
+    try { items = ame.views.find({ cls: 'ZL2ShellNavItem', limit: 12 }); } catch (e) { return; }
+    if (!items || !items.length) return;                 // topbar 骨架/壳未建：无 rail 可修
+    // ① 选中行：行底不透明判定（语言无关主判据）
+    var sel = null;
+    for (i = 0; i < items.length; i++) {
+      var d = null;
+      try { d = ame.views.describe(items[i].handle); } catch (e2) { d = null; }
+      if (d && railIsOpaqueBg(d.bg)) { sel = items[i]; break; }
+    }
+    // ② 兜底：page.changed index → 标题别名表（bg 判读失效时）
+    if (!sel && RAIL_LAST_PAGE >= 0) {
+      for (i = 0; i < items.length; i++) {
+        if (railAliasHit(items[i].handle)) { sel = items[i]; break; }
+      }
+    }
+    if (!sel || !sel.frame) return;                      // 无选中（账户/瞬时页）= 原生自隐，不干预
+    // ③ 主列项 = 原生几何恒正确（含 0.18s 滑动动画），零干预
+    var paneStack = railFindMainStack(items);
+    if (!paneStack) return;
+    var selParent = null;
+    try { selParent = ame.views.parent(sel.handle); } catch (e3) { return; }
+    if (!selParent || selParent.handle === paneStack.handle) return;
+    // ④ footer 列选中（设置）：paneWrap = 公共祖先（paneStack⊂paneScroll⊂paneWrap，
+    //    footerStack⊂paneWrap），两条链同基对差 = 选中行中点在 paneStack 系的 Y
+    var paneScroll = null, paneWrap = null;
+    try { paneScroll = ame.views.parent(paneStack.handle); } catch (e4) { return; }
+    if (!paneScroll) return;
+    try { paneWrap = ame.views.parent(paneScroll.handle); } catch (e5) { return; }
+    if (!paneWrap) return;
+    var stackNode = railChildNode(paneScroll.handle, paneStack.handle);
+    var scrollNode = railChildNode(paneWrap.handle, paneScroll.handle);
+    var footNode = railChildNode(paneWrap.handle, selParent.handle);
+    if (!stackNode || !scrollNode || !footNode ||
+        !stackNode.frame || !scrollNode.frame || !footNode.frame) return;
+    // ⑤ 共享蓝条 = paneStack 里唯一的 3×16 裸 UIView（行内占位指示条都在
+    //    各项内部，不在此列）
+    var kids = null, ind = null;
+    try { kids = ame.views.children(paneStack.handle); } catch (e6) { return; }
+    if (!kids) return;
+    for (i = 0; i < kids.length; i++) {
+      var k = kids[i];
+      if (k && k.cls === 'UIView' && k.frame &&
+          Math.abs(k.frame.w - 3) < 0.6 && Math.abs(k.frame.h - 16) < 0.8) { ind = k; break; }
+    }
+    if (!ind || !ind.frame) return;                      // 结构不识别（未来改版）：不盲动
+    // ⑥ centerY 常量语义对齐原生（ame389_indicatorY = centerY 对 paneStack
+    //    顶 + constant；frame.origin.y = constant − 半高）：
+    //    目标 constant = 选中行中点（paneWrap 系）− paneStack 顶（paneWrap 系）
+    var midAbs = sel.frame.y + sel.frame.h / 2 + footNode.frame.y;
+    var stackTopAbs = stackNode.frame.y + scrollNode.frame.y;
+    var targetY = midAbs - stackTopAbs - ind.frame.h / 2;
+    if (Math.abs(ind.frame.y - targetY) <= 1.5) return;  // 已纠偏在位
+    try { ame.views.apply(ind.handle, { y: targetY }); } catch (e7) {}
+  }
+
+  function railScheduleSync(delayMs) {
+    try {
+      setTimeout(function () { try { railSyncOnce(); } catch (e) {} }, delayMs || 50);
+    } catch (e2) {}
+  }
+
+  // 通道一（即时）：page.changed（主页瓦片/版本页/ame.openPage 程序化切页；
+  // 双拍 = 0.18s 指示条动画收拍后 + 重建二段确认）。
+  try {
+    ame.on('page.changed', function (_ev, payload) {
+      try {
+        var idx = payload && typeof payload.index === 'number' ? payload.index : -1;
+        if (idx >= 0) RAIL_LAST_PAGE = idx;
+        railScheduleSync(260);
+        railScheduleSync(900);
+      } catch (e) {}
+    });
+  } catch (e) {}
+  // 通道二（自愈兜底）：侧边栏点按不广播 ZL2ShellNavigate（无事件可订阅），
+  // 200ms 周期重校补齐——选中主列/在位/关态/非 fui 骨架时为纯判定零写面。
+  try { setInterval(function () { try { railSyncOnce(); } catch (e) {} }, 200); } catch (e2) {}
+
   autoApply();
 
-  ame.log('[' + MARK + '] fluent-ui v2.6.0 loaded（两态开关：开=NavigationView 全维度换装+色板实时跟随系统明暗，关=恢复默认；Task380 事件去重防回环）');
+  ame.log('[' + MARK + '] fluent-ui v2.6.1 loaded（两态开关：开=NavigationView 全维度换装+色板实时跟随系统明暗，关=恢复默认；Task380 事件去重防回环；v2.6.1 蓝条 footer 页错位测量纠偏+200ms 自愈）');
 })();

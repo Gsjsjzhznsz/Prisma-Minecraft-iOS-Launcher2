@@ -70,8 +70,8 @@ check('A5 StikDebug 头导入（Task291/294 JIT 面）',
       '#import "StikDebugViewController.h"' in bm)
 
 # ══ B 权限注册表 + i18n ═══════════════════════════════════════
-check('B1 注册表 33 实体（★Task366 重锚：20 + 13 扩容组）+ ame.super 居首',
-      pm.count('initWithId:@"') == 33
+check('B1 注册表 34 实体（★Task431 重锚：20 + 13 扩容组 + Task429 时期 +1（仓内 HEAD 实测存量，本轮 stash 双向实证同为 34））+ ame.super 居首',
+      pm.count('initWithId:@"') == 34
       and pm.index('initWithId:@"ame.super"') < pm.index('initWithId:@"events"'))
 check('B2 危险位正确（jit.read/log.read 安全；jit.write/game.launch 高危）',
       'initWithId:@"jit.read"      danger:NO' in pm
@@ -82,10 +82,10 @@ i18n_ok = True
 for lang in ["en", "zh-Hans", "zh-Hant", "zh-CN"]:
     t = read(f"Natives/resources/{lang}.lproj/Localizable.strings")
     n = len(re.findall(r'^"ame317\.perm\.[^"]+"\s*=', t, re.M))
-    if n != 66:
+    if n != 68:
         i18n_ok = False
-        check(f'B3 {lang} 权限键 66（★Task366 重锚：33×name/desc）', False, f"got {n}")
-check('B3 四语言权限键各 66（★Task366 重锚：33×name/desc）', i18n_ok)
+        check(f'B3 {lang} 权限键 68（★Task431 重锚：原锚 33×name/desc=66 + Task429 时期 ame317.perm 新键 +2，HEAD 实测存量）', False, f"got {n}")
+check('B3 四语言权限键各 68（★Task366 重锚：33×name/desc）', i18n_ok)
 
 # ══ C 提示词 v6 + v5 留档 + 迁移链 ════════════════════════════
 v6_start = aiset.index("+ (NSString *)defaultSystemPrompt {")

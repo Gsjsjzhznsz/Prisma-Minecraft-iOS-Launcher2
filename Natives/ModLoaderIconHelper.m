@@ -210,6 +210,15 @@
     if (!loader || loader.length == 0) return nil;
     NSString *lower = loader.lowercaseString;
 
+    // ★Task431：API 行显式键位（ZL2 Addons 页标识符 fabricapi/legacyfabricapi/
+    // quiltapi 直入本方法）—— 家族品牌 PNG 复用（ZL2 img_loader_* 无 API 专属
+    // 资产，Fabric API 品牌图即 Fabric logo、Quilted Fabric API 即 Quilt 门面，
+    // 与 ZL2 Android 同口径）。必须置于通用 containsString 分支之前显式命中：
+    // legacyfabricapi 含 fabricapi 子串，须先判长键防吞并。
+    if ([lower containsString:@"legacyfabricapi"]) return @"legacyfabric";
+    if ([lower containsString:@"fabricapi"])        return @"fabric";
+    if ([lower containsString:@"quiltapi"])         return @"quilt";
+
     // 注意顺序：neoforge 在 forge 之前，optifabric 在 optifine 之前
     if ([lower containsString:@"neoforge"])   return @"neoforge";
     if ([lower containsString:@"forge"])      return @"forge";

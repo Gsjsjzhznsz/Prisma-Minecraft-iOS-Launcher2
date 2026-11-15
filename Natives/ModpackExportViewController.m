@@ -821,19 +821,35 @@
 
     dispatch_async(dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_DEFAULT, 0), ^{
         NSError *error = nil;
-        BOOL success = [[ModpackExportService sharedService] exportModpackForProfile:self.selectedProfileName
-                                                                               toPath:destPath
-                                                                                  name:name
-                                                                               version:version
-                                                                                author:author
-                                                                               format:self.selectedFormat
-                                                                           fileOptions:self.fileOptions
-                                                                              progress:^(double p, NSString *stageMessage) {
-            dispatch_async(dispatch_get_main_queue(), ^{
-                [self setProgress:p stageMessage:stageMessage];
-            });
+        BOOL success = NO;
+        // ★Task431（用户报告「导出整合包闪退」，无设备报告文件）：后台导出链
+        //   整体套 @try 网——UZKArchive（预编译 framework，内部含 raise 路径）/
+        //   JSON 序列化/字典插 nil 等 NSException 类崩溃（后台线程异常 =
+        //   hooked_abort 直杀、无机会走 UI 错误分支）在本页转成可见错误弹窗，
+        //   完整异常栈落 latestlog（[ModpackExport][Task431] 前缀，配合
+        //   reportProgress 既有逐阶段面包屑一击定位阶段）。非异常类崩溃
+        //   （jetsam/EXC_BAD_ACCESS）不受此网影响，仍走系统崩溃取证。
+        @try {
+            success = [[ModpackExportService sharedService] exportModpackForProfile:self.selectedProfileName
+                                                                             toPath:destPath
+                                                                                name:name
+                                                                             version:version
+                                                                              author:author
+                                                                             format:self.selectedFormat
+                                                                        fileOptions:self.fileOptions
+                                                                           progress:^(double p, NSString *stageMessage) {
+                dispatch_async(dispatch_get_main_queue(), ^{
+                    [self setProgress:p stageMessage:stageMessage];
+                });
+            }
+                                                                             error:&error];
+        } @catch (NSException *ame431_exc) {
+            NSLog(@"[ModpackExport][Task431] export exception: %@ (%@)\n%@", ame431_exc.name, ame431_exc.reason, ame431_exc.callStackSymbols);
+            error = [NSError errorWithDomain:@"ModpackExportService" code:999
+                                     userInfo:@{NSLocalizedDescriptionKey:
+                                         [NSString stringWithFormat:@"export exception: %@ (%@)",
+                                             ame431_exc.name, ame431_exc.reason ?: @""]}];
         }
-                                                                                  error:&error];
 
         dispatch_async(dispatch_get_main_queue(), ^{
             BOOL wasCancelled = [[error.userInfo objectForKey:NSLocalizedDescriptionKey] containsString:localize(@"Cancel", @"取消")];

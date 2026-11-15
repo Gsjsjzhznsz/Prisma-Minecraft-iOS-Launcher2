@@ -513,7 +513,9 @@ static const CGFloat AME416_WALK_AMP = 0.50;
 //   c=1.4 面间差 58 灰阶 vs 旧 31 = 1.9×；c=2.0 更大；c=0 = 平光（光影关）。
 //   Task424 VEIL_CAP 0.60 退役（旧「罩上限防 murk」顾虑由公式重构根治：
 //   黑罩只在背光面深、受光面浅，不再全模型均匀压暗）。
-static const CGFloat AME425_CONTRAST_DEFAULT = 1.4;
+//   ★Task431 角色自身亮度预设 140%→40%（用户钦定；罩强基数语义不变 =
+//   同单位换算 1.4→0.4，双罩公式 c 通道零改动 = 角色自着色大幅减淡）。
+static const CGFloat AME425_CONTRAST_DEFAULT = 0.4;
 static const CGFloat AME425_CONTRAST_MIN = 0.0;
 static const CGFloat AME425_CONTRAST_MAX = 2.0;
 static const CGFloat AME425_DEPTH_K = 1.30;
@@ -606,6 +608,13 @@ static void ame427_terrainAt(NSInteger bx, NSInteger bz, NSInteger world,
         CGFloat ame427_edge = 9.0 + (ame427_hash(bx, bz, 55) & 0xFF) / 255.0 * 1.6;
         if (ame427_r > ame427_edge) { *hOut = 0; *kOut = 6; return; }   // 浮岛缘外 = 虚空
         CGFloat ame427_dome = (9.5 - ame427_r) / 9.5 * 2.6 + ame427_noise2(ame427_gx, ame427_gz, 57) * 0.8;
+        // ★Task431 广场平地同规根修（用户「末地场景的角色蹲地了」）：旧末地支路
+        //   先 return 漏掉 r<2.6 广场钳制，中心穹顶 h=3 = 地台顶 -16+48 高出脚
+        //   平面 3 块 = 角色半埋「蹲地」实锤。补与其余三世界同款环形衰减
+        //   （r<2.6 → h=0 = 脚点 y=-16 数学零改动；r∈[2.6,7] 渐升保浮岛轮廓）。
+        if (ame427_r < 7.0) {
+            ame427_dome *= fmin(1.0, fmax(0.0, (ame427_r - 2.6) / 4.4));
+        }
         *hOut = (NSInteger)fmin(3.0, fmax(0.0, round(ame427_dome)));
         *kOut = 3;
         return;
@@ -767,7 +776,9 @@ static void ame427_terrainAt(NSInteger bx, NSInteger bz, NSInteger world,
         _ame424_lightAz = AME424_DEF_AZ;
         _ame424_lightEl = AME424_DEF_EL;
         _ame424_brightness = AME424_BRIGHT_DEFAULT;
-        // ★Task425 光影对比初值（Python B 组定量：c=1.4 面间差 58 灰阶 vs 旧 31）
+        // ★Task431 角色自身亮度预设 40%（旧 140% = AME425_CONTRAST_DEFAULT 1.4，
+        //   用户钦定 140→40 同单位换算；★Task425 Python B 组定量判据留档：
+        //   c=1.4 面间差 58 灰阶 vs 旧 31）
         _ame425_contrast = AME425_CONTRAST_DEFAULT;
         _ame425_world = 0;   // 默认黑场（既有判例）
         // ★Task426 天穹时间盘初值（晨后暖斜光 = 默认光影一眼可辨）+ 天气晴
@@ -2146,18 +2157,23 @@ static void ame427_terrainAt(NSInteger bx, NSInteger bz, NSInteger world,
 
 // ★Task427 树（橡树 = 原木+单层树冠；云杉 = 原木+双层收分树冠；baseY =
 //   地形顶面 y，随高度图落地 = 树不悬空不埋地）
+// ★Task431 多格树干根修（用户「雪地和草地背景的树木只有一格高」）：旧尺寸
+//   原木 7-8u + 树冠 3-5u 全株不足 1 块（块 = 16u，角色 32u = 2 块）=「一格
+//   高」实锤。新尺寸 = MC 原版多格立柱：橡树 4 块原木(64u) + 单层树冠(14u)；
+//   云杉 4.5 块原木(72u) + 双层收分树冠（下层 32u 宽 / 上层收分 20u 宽）；
+//   两世界树种分流保持（草地橡树 / 雪地云杉）。
 - (void)ame425_buildTreeWithX:(CGFloat)ame426_x z:(CGFloat)ame426_z
                         baseY:(CGFloat)ame427_base spruce:(BOOL)ame426_spruce {
     NSInteger ame426_w = _ame425_world;
     UIImage *ame426_trunk = [self ame426_tileImageForWorld:ame426_w variant:6];
     UIImage *ame426_leaf = [self ame426_tileImageForWorld:ame426_w variant:7];
     if (ame426_spruce) {
-        [self ame425_buildPropBoxWithCx:ame426_x cy:ame427_base + 4.0 cz:ame426_z w:3.0 h:8.0 d:3.0 tile:ame426_trunk emissive:0.0];
-        [self ame425_buildPropBoxWithCx:ame426_x cy:ame427_base + 8.5 cz:ame426_z w:7.0 h:5.0 d:7.0 tile:ame426_leaf emissive:0.0];
-        [self ame425_buildPropBoxWithCx:ame426_x cy:ame427_base + 12.5 cz:ame426_z w:4.0 h:3.0 d:4.0 tile:ame426_leaf emissive:0.0];
+        [self ame425_buildPropBoxWithCx:ame426_x cy:ame427_base + 36.0 cz:ame426_z w:6.0 h:72.0 d:6.0 tile:ame426_trunk emissive:0.0];
+        [self ame425_buildPropBoxWithCx:ame426_x cy:ame427_base + 69.0 cz:ame426_z w:32.0 h:14.0 d:32.0 tile:ame426_leaf emissive:0.0];
+        [self ame425_buildPropBoxWithCx:ame426_x cy:ame427_base + 81.0 cz:ame426_z w:20.0 h:10.0 d:20.0 tile:ame426_leaf emissive:0.0];
     } else {
-        [self ame425_buildPropBoxWithCx:ame426_x cy:ame427_base + 3.5 cz:ame426_z w:3.0 h:7.0 d:3.0 tile:ame426_trunk emissive:0.0];
-        [self ame425_buildPropBoxWithCx:ame426_x cy:ame427_base + 9.5 cz:ame426_z w:8.0 h:5.0 d:8.0 tile:ame426_leaf emissive:0.0];
+        [self ame425_buildPropBoxWithCx:ame426_x cy:ame427_base + 32.0 cz:ame426_z w:6.0 h:64.0 d:6.0 tile:ame426_trunk emissive:0.0];
+        [self ame425_buildPropBoxWithCx:ame426_x cy:ame427_base + 71.0 cz:ame426_z w:28.0 h:14.0 d:28.0 tile:ame426_leaf emissive:0.0];
     }
 }
 

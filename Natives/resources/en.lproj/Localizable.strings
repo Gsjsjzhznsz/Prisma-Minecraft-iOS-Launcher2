@@ -3764,6 +3764,7 @@
 "ame369.addon.clear_selection_fmt" = "Clear %@ selection";
 "ame369.addon.refresh_list_fmt" = "Refresh %@ list";
 "ame369.addon.list_failed_hint" = "List load failed — tap refresh to retry";
+"ame369.addon.list_empty_hint" = "No versions available for this game version";
 "ame369.addon.none_selected" = "None selected";
 "ame369.common.rename" = "Rename";
 "ame369.vpage.edit_summary" = "Edit Summary";
@@ -4182,6 +4183,7 @@
 // ── ★ Task429（PDF v5 P2 批 + v6 修复 + Horizon S1：主控合流，151 键）──
 "ame317.perm.java.inject.desc" = "Allow the plugin to declare JVM launch arguments, -javaagent jars, extra classpath entries and native library paths in its manifest (applied at game start after you grant it; high risk — off by default).";
 "ame317.perm.java.inject.name" = "JVM Injection (java-inject)";
+"ame429.renderer.installed" = "Renderer plugin installed and enabled";
 "ame429.bc.mirror.auto" = "Auto (BMCLAPI first in mainland China)";
 "ame429.bc.mirror.manual" = "Manual (BMCLAPI)";
 "ame429.bc.mirror.official" = "Official";

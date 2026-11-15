@@ -105,9 +105,9 @@ check("② ame369.* 键四表齐备",
 # ★Task428 二段重锚：P1 批次（428-G 手柄向导复用 ame369.setpg.gamepad_type、
 #   428-H 导出向导复用既有键）再 +2 站点 = 463。
 # ★Task429 重锚：+3 实测站点（429-A 收藏钮态切换复用 ame369.asearch.unfavorite、
-#   429-BC 完整性行复用既有键站点、429-S1 世界备份/代理行复用既有键）= 466
+#   429-BC 完整性行复用既有键站点、429-S1 世界备份/代理行复用既有键）= 466 → 431 仓库行三态空态新站点 +1 = 467
 #   （git stash 双向核验口径同前；AME_REPO=/home/z/my-project/work429）。
-check("① ame369 改写点数 == 466（★Task418 复核重锚 457 → ★Task428 重锚 P0 +4 / P1 +2 = 463 → ★Task429 重锚 +3（收藏钮态切换/完整性实例行/世界备份代理行复用既有键站点）= 466）", ame369_sites == 466, str(ame369_sites))
+check("① ame369 改写点数 == 467（★Task418 复核重锚 457 → ★Task428 重锚 P0 +4 / P1 +2 = 463 → ★Task429 重锚 +3 = 466 → ★Task431 重锚 +1（ame369.addon.list_empty_hint 新站点：仓库行三态改造的上游零构建中性空态）= 467）", ame369_sites == 467, str(ame369_sites))
 
 # 复用站点：4 处 localize(@"ame193.misc.[13]"（内容级匹配——5 个补 import 文件行号整体 +1，行级断言会错位）
 REUSE_EXPECT = {

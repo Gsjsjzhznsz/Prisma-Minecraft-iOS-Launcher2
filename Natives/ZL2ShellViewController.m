@@ -1619,7 +1619,15 @@ static UIImage *ZL2ShellSystemImageSizedEx(NSString *name, NSString *fallback, C
     void (^ame389_apply)(void) = ^{
         if (ame389_target) {
             self.ame389_slideIndicator.hidden = NO;
-            self.ame389_indicatorY.constant = CGRectGetMidY(ame389_target.frame);
+            // ★Task431（用户复诉：设置/文件页蓝条跑到主页旁）：footer 行
+            //   （paneFooterStack）的 frame 是 footerStack 局部坐标系，直接当
+            //   paneStack 空间常量 → 蓝条钉在 paneStack 顶部 ≈ 主页旁；主列
+            //   arranged 行 frame 恰好同空间（历史绿跑判据）。统一 convertRect
+            //   到 paneStack 空间再取中点，两种行同一条数学路径（子代理 2-b
+            //   判读 + 一行真修落点；scroll contentOffset 由 UIKit 转换链承接）。
+            CGRect ame431_local = [self.paneStack convertRect:ame389_target.frame
+                                     fromView:ame389_target.superview];
+            self.ame389_indicatorY.constant = CGRectGetMidY(ame431_local);
         } else {
             self.ame389_slideIndicator.hidden = YES;
         }

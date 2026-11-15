@@ -1398,14 +1398,62 @@ static NSDictionary *ame428_byIdLocal(NSArray<NSDictionary *> *list, NSString *v
 ///（父版本本身在列——父 jsonState!=0 且非子版本自身循环）/ referenced /
 /// sizeBytes（includeSize=YES 时才有；轻量档跳过递归求积，主线程零卡顿）。
 + (NSArray<NSDictionary *> *)ame428_scanWithOptions:(BOOL)includeSize {
-    NSString *ame428_versionsDir = [[PLProfiles ame428_scanRoot]
-        stringByAppendingPathComponent:@"versions"];
+    // ★Task431（用户复诉：版本页 3 条 vs 主页 9 实例——两页数量口径分裂）：
+    //   多根聚合扫描。原实现只扫当前实例 scanRoot/versions：隔离态实例
+    //   （instances/<n>/versions）与绝对路径 gameDir 的版本实体在版本页恒
+    //   隐身，而主页 ame_rebuildData 枚举 PLProfiles 全注册表 → 数量差距。
+    //   聚合序 = 当前根（POJAV_GAME_DIR，选中实例优先）→ POJAV_HOME 旧布局
+    //   兜底 → 全注册表 profile gameDir 逐根展开（ame353 隔离决策树同源解析：
+    //   nil/""/"." = 当前根、绝对路径 = 原样、相对 = 相对当前根拼接）；根集合
+    //   先去重（同目录零重扫），条目按版本 id 全局去重（首根优先 = 当前根
+    //   权重最高）。引用判定 / 继承判定 / 体积档语义零变化；清理页
+    //   （ame338_scanInstalledVersions）同源收益 = 「全量扫描」回归 VM
+    //   ame256 全仓口径。
+    NSFileManager *ame428_fm = [NSFileManager defaultManager];
+
+    // —— 根清单构建（去重保序）——
+    NSString *ame428_baseRoot = [PLProfiles ame428_scanRoot];
+    NSMutableArray<NSString *> *ame428_roots = [NSMutableArray array];
+    NSMutableSet<NSString *> *ame428_seenRoots = [NSMutableSet set];
+    void (^ame428_addRoot)(NSString *) = ^(NSString *ame428_r) {
+        if (![ame428_r isKindOfClass:[NSString class]] || ame428_r.length == 0) return;
+        if ([ame428_seenRoots containsObject:ame428_r]) return;
+        [ame428_seenRoots addObject:ame428_r];
+        [ame428_roots addObject:ame428_r];
+    };
+    ame428_addRoot(ame428_baseRoot);
+    const char *ame428_homeEnv = getenv("POJAV_HOME");
+    if (ame428_homeEnv && *ame428_homeEnv) {
+        ame428_addRoot([NSString stringWithUTF8String:ame428_homeEnv]);
+    }
+    if (ame428_baseRoot.length > 0) {
+        NSDictionary *ame428_proRoots = [PLProfiles current].profiles;
+        NSArray *ame428_sortedKeys = [ame428_proRoots.allKeys
+            sortedArrayUsingSelector:@selector(localizedCaseInsensitiveCompare:)];
+        for (NSString *ame428_key in ame428_sortedKeys) {
+            NSDictionary *ame428_p = ame428_proRoots[ame428_key];
+            if (![ame428_p isKindOfClass:[NSDictionary class]]) continue;
+            NSString *ame428_gd = ame428_p[@"gameDir"];
+            if (![ame428_gd isKindOfClass:[NSString class]]) continue;
+            if (ame428_gd.length == 0 || [ame428_gd isEqualToString:@"."]) continue;
+            NSString *ame428_resolved = nil;
+            if ([ame428_gd isAbsolutePath]) {
+                ame428_resolved = ame428_gd;
+            } else {
+                NSString *ame428_clean = [ame428_gd hasPrefix:@"./"]
+                    ? [ame428_gd substringFromIndex:2] : ame428_gd;
+                ame428_resolved = [ame428_baseRoot stringByAppendingPathComponent:ame428_clean];
+            }
+            ame428_addRoot(ame428_resolved);
+        }
+    }
+    if (ame428_roots.count == 0) return @[];
+
+    // —— 聚合扫描（id 全局去重：首根优先 = 当前根权重最高）——
     NSMutableArray<NSDictionary *> *ame428_result = [NSMutableArray array];
-    NSArray<NSString *> *ame428_entries = [NSFileManager.defaultManager
-        contentsOfDirectoryAtPath:ame428_versionsDir error:nil];
-    if (ame428_entries.count == 0) return ame428_result;
-    NSMutableSet<NSString *> *ame428_referenced = [NSMutableSet set];
+    NSMutableSet<NSString *> *ame428_seenIds = [NSMutableSet set];
     NSDictionary *ame428_profiles = [PLProfiles current].profiles;
+    NSMutableSet<NSString *> *ame428_referenced = [NSMutableSet set];
     for (NSString *ame428_key in ame428_profiles.allKeys) {
         NSDictionary *ame428_p = ame428_profiles[ame428_key];
         if ([ame428_p isKindOfClass:NSDictionary.class] &&
@@ -1413,48 +1461,56 @@ static NSDictionary *ame428_byIdLocal(NSArray<NSDictionary *> *list, NSString *v
             [ame428_referenced addObject:ame428_p[@"lastVersionId"]];
         }
     }
-    for (NSString *ame428_entry in ame428_entries) {
-        NSString *ame428_vdir = [ame428_versionsDir stringByAppendingPathComponent:ame428_entry];
-        BOOL ame428_isDir = NO;
-        if (![NSFileManager.defaultManager fileExistsAtPath:ame428_vdir
-                                                 isDirectory:&ame428_isDir] || !ame428_isDir) continue;
-        NSString *ame428_jsonPath = [ame428_vdir stringByAppendingPathComponent:
-            [NSString stringWithFormat:@"%@.json", ame428_entry]];
-        // jsonState 三态（身份 = 目录名；损坏自愈 = 仍入列 + 标注，不伪造清单）
-        NSInteger ame428_jsonState = 0;
-        NSDictionary *ame428_manifest = nil;
-        if ([NSFileManager.defaultManager fileExistsAtPath:ame428_jsonPath]) {
-            NSMutableDictionary *ame428_parsed = parseJSONFromFile(ame428_jsonPath);
-            if ([ame428_parsed isKindOfClass:[NSDictionary class]] && !ame428_parsed[@"NSErrorObject"]) {
-                ame428_jsonState = 1;
-                ame428_manifest = ame428_parsed;
-            } else {
-                ame428_jsonState = 2;   // 存在但不可解析 → 损坏（身份自愈于目录名）
+    for (NSString *ame428_root in ame428_roots) {
+        NSString *ame428_versionsDir = [ame428_root stringByAppendingPathComponent:@"versions"];
+        NSArray<NSString *> *ame428_entries = [NSFileManager.defaultManager
+            contentsOfDirectoryAtPath:ame428_versionsDir error:nil];
+        if (ame428_entries.count == 0) continue;
+        for (NSString *ame428_entry in ame428_entries) {
+            if ([ame428_seenIds containsObject:ame428_entry]) continue;   // ★Task431 跨根去重
+            NSString *ame428_vdir = [ame428_versionsDir stringByAppendingPathComponent:ame428_entry];
+            BOOL ame428_isDir = NO;
+            if (![NSFileManager.defaultManager fileExistsAtPath:ame428_vdir
+                                                     isDirectory:&ame428_isDir] || !ame428_isDir) continue;
+            NSString *ame428_jsonPath = [ame428_vdir stringByAppendingPathComponent:
+                [NSString stringWithFormat:@"%@.json", ame428_entry]];
+            // jsonState 三态（身份 = 目录名；损坏自愈 = 仍入列 + 标注，不伪造清单）
+            NSInteger ame428_jsonState = 0;
+            NSDictionary *ame428_manifest = nil;
+            if ([NSFileManager.defaultManager fileExistsAtPath:ame428_jsonPath]) {
+                NSMutableDictionary *ame428_parsed = parseJSONFromFile(ame428_jsonPath);
+                if ([ame428_parsed isKindOfClass:[NSDictionary class]] && !ame428_parsed[@"NSErrorObject"]) {
+                    ame428_jsonState = 1;
+                    ame428_manifest = ame428_parsed;
+                } else {
+                    ame428_jsonState = 2;   // 存在但不可解析 → 损坏（身份自愈于目录名）
+                }
             }
-        }
-        NSString *ame428_inherits = nil;
-        if (ame428_jsonState == 1 && [ame428_manifest isKindOfClass:[NSDictionary class]]) {
-            id ame428_raw = ame428_manifest[@"inheritsFrom"];
-            // ★Task428-r1：id 上 .length 点语法不可编译——isinstance 守卫后显式转修
-            if ([ame428_raw isKindOfClass:[NSString class]] &&
-                ((NSString *)ame428_raw).length > 0 && ![ame428_raw isEqualToString:ame428_entry]) {
-                ame428_inherits = ame428_raw;
+            NSString *ame428_inherits = nil;
+            if (ame428_jsonState == 1 && [ame428_manifest isKindOfClass:[NSDictionary class]]) {
+                id ame428_raw = ame428_manifest[@"inheritsFrom"];
+                // ★Task428-r1：id 上 .length 点语法不可编译——isinstance 守卫后显式转修
+                if ([ame428_raw isKindOfClass:[NSString class]] &&
+                    ((NSString *)ame428_raw).length > 0 && ![ame428_raw isEqualToString:ame428_entry]) {
+                    ame428_inherits = ame428_raw;
+                }
             }
+            unsigned long long ame428_folderSize = 0;
+            if (includeSize) {
+                [ZL2VersionsViewController ame338_calculateFolderSizeAtPath:ame428_vdir size:&ame428_folderSize];
+            }
+            [ame428_seenIds addObject:ame428_entry];
+            [ame428_result addObject:@{
+                @"id": ame428_entry,
+                @"path": ame428_vdir,
+                @"jsonState": @(ame428_jsonState),
+                @"jsonOK": @(ame428_jsonState == 1),
+                @"jsonBroken": @(ame428_jsonState == 2),
+                @"inheritsFromParent": ame428_inherits ?: @"",
+                @"referenced": @([ame428_referenced containsObject:ame428_entry]),
+                @"sizeBytes": @(ame428_folderSize),
+            }];
         }
-        unsigned long long ame428_folderSize = 0;
-        if (includeSize) {
-            [ZL2VersionsViewController ame338_calculateFolderSizeAtPath:ame428_vdir size:&ame428_folderSize];
-        }
-        [ame428_result addObject:@{
-            @"id": ame428_entry,
-            @"path": ame428_vdir,
-            @"jsonState": @(ame428_jsonState),
-            @"jsonOK": @(ame428_jsonState == 1),
-            @"jsonBroken": @(ame428_jsonState == 2),
-            @"inheritsFromParent": ame428_inherits ?: @"",
-            @"referenced": @([ame428_referenced containsObject:ame428_entry]),
-            @"sizeBytes": @(ame428_folderSize),
-        }];
     }
     // inheritsParentListed 二遍判定（父必须在列 = jsonState!=0 且父非子版本）。
     // 索引循环 + replaceObjectAtIndex（fast enumeration 中替换 = 运行时变异崩溃）
@@ -1465,7 +1521,7 @@ static NSDictionary *ame428_byIdLocal(NSArray<NSDictionary *> *list, NSString *v
         NSString *ame428_parent = ame428_e[@"inheritsFromParent"];
         BOOL ame428_listed = (ame428_parent.length > 0
             && [ame428_ids containsObject:ame428_parent]
-            && [(ame428_byIdLocal(ame428_result, ame428_parent)[@"jsonState"] ?: @(0)) integerValue] != 0);
+            && [([ame428_byIdLocal(ame428_result, ame428_parent)[@"jsonState"] ?: @(0)) integerValue] != 0);
         NSMutableDictionary *ame428_m = [ame428_e mutableCopy];
         ame428_m[@"inheritsParentListed"] = @(ame428_listed);
         [ame428_result replaceObjectAtIndex:ame428_i withObject:ame428_m];
@@ -1475,6 +1531,7 @@ static NSDictionary *ame428_byIdLocal(NSArray<NSDictionary *> *list, NSString *v
     }];
     return ame428_result;
 }
+
 
 /// latest 别名占位符（静态版；本文件消费口径同 Task351 实例版）。
 + (BOOL)ame_isLatestAliasStatic:(NSString *)versionId {

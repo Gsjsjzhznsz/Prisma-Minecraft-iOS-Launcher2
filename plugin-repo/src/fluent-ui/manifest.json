@@ -1,9 +1,9 @@
 {
   "id": "fluent-ui",
   "name": "Fluent UI",
-  "version": "2.6.0",
+  "version": "2.6.1",
   "author": "Prisma",
-  "description": "Fluent 2 两态开关：开=NavigationView 全维度换装（结构/排版/形状/字阶/色板），色板跟随系统明暗；关=恢复默认主题",
+  "description": "Fluent 2 两态开关：开=NavigationView 全维度换装（结构/排版/形状/字阶/色板），色板跟随系统明暗；关=恢复默认主题。v2.6.1 修复窗格底「设置/文件」选中蓝条（指示条）错位到主页旁（ui.views 测量纠偏+周期自愈）",
   "entry": "main.js",
   "permissions": [
     "settings.read",
@@ -11,6 +11,7 @@
     "ui.dialog",
     "ui.rows",
     "ui.theme",
+    "ui.views",
     "events"
   ],
   "minApi": 1

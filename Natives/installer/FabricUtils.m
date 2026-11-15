@@ -24,6 +24,21 @@ static void ame336_asyncGet(NSURL *url, void (^completion)(id json, NSError *err
                                                      userInfo:@{NSLocalizedDescriptionKey: @"empty response"}]);
             return;
         }
+        // ★Task431：HTTP 状态闸（与 ZL2GameAddonsViewController.ame_syncFetch 同
+        // 根因判例）—— 镜像 404/5xx 错误体（BMCLAPI /quilt-meta 零对象 404 JSON、
+        // mcim Modrinth 零命中 404 error dict）此前被当合法 JSON 吞掉：profile
+        // 候选轮询会把错误 dict 当成功载荷返回（missing id 二次误报）、Modrinth
+        // 版本查询会把错误 dict 拒于数组判（镜像态恒败不落官方源）。非 2xx 一律
+        // 视为该候选失败，落空到下一候选（ame336_fetchProfile tryNext 链）。
+        if ([resp isKindOfClass:[NSHTTPURLResponse class]]) {
+            NSInteger ame431_code = ((NSHTTPURLResponse *)resp).statusCode;
+            if (ame431_code < 200 || ame431_code >= 300) {
+                completion(nil, [NSError errorWithDomain:@"FabricUtils" code:-6
+                                                userInfo:@{NSLocalizedDescriptionKey:
+                                                    [NSString stringWithFormat:@"HTTP %ld", (long)ame431_code]}]);
+                return;
+            }
+        }
         id json = [NSJSONSerialization JSONObjectWithData:data options:0 error:nil];
         if (![json isKindOfClass:[NSDictionary class]] && ![json isKindOfClass:[NSArray class]]) {
             completion(nil, [NSError errorWithDomain:@"FabricUtils" code:-2

@@ -3763,6 +3763,7 @@
 "ame369.addon.clear_selection_fmt" = "清除%@选择";
 "ame369.addon.refresh_list_fmt" = "刷新%@清单";
 "ame369.addon.list_failed_hint" = "清单加载失败，点刷新重试";
+"ame369.addon.list_empty_hint" = "该版本暂无可用版本";
 "ame369.addon.none_selected" = "未选择";
 "ame369.common.rename" = "重命名";
 "ame369.vpage.edit_summary" = "编辑摘要";
@@ -4181,6 +4182,7 @@
 // ── ★ Task429（PDF v5 P2 批 + v6 修复 + Horizon S1：主控合流，151 键）──
 "ame317.perm.java.inject.desc" = "允许插件在其 manifest 中声明 JVM 启动参数、-javaagent jar、附加 classpath 条目与 native 库路径（授权后于游戏启动时生效；高危，默认关闭）。";
 "ame317.perm.java.inject.name" = "JVM 注入（java-inject）";
+"ame429.renderer.installed" = "渲染器插件已安装并启用";
 "ame429.bc.mirror.auto" = "自动（大陆 BMCLAPI 优先）";
 "ame429.bc.mirror.manual" = "手动（BMCLAPI）";
 "ame429.bc.mirror.official" = "官方";

@@ -209,6 +209,123 @@ static NSArray<NSString *> *ame232_layoutSafetyIssues(NSData *raw, id jsonObj) {
 
 // ★ Task325：仓库卡片 cell 上收 ZL2M3Kit 公共组件（ZL2M3CardCell）——
 // 控件仓库与插件仓库（ZL2PluginRepoViewController）同款卡片语义，实现见 ZL2M3Kit.m。
+// ============================================================================
+// ★ Task431（仓库页按钮修复）：在 ZL2M3CardCell 之上收口两件事（两仓库页
+//   同款接棒，双页外观零漂移；ZL2M3CardCell 全仓消费面 = 本页 + 插件仓库页）。
+//   病历（用户 iPad 截图两报）：
+//   ① "下载按钮没有对齐"——kit 展示胶囊宽度仅有 >= 约束（pillMinWidth +
+//      标签两侧内距），无等式钉死，换内容复用时求解器可在可行域内保留旧
+//      宽度/几何漂移；本类以真按钮接棒并把右缘/宽/高/纵向中心全部显式钉死
+//      （令牌与 kit 胶囊同源取值：contentView.trailing -(cardMarginH+
+//      cardInsetX)、pillMinWidth、pillHeight、标题字阶 centerY）——跨行高
+//      （副文本多行）几何恒定一致。
+//   ② "在选项上滑动即触发下载/安装"——kit 胶囊 userInteractionEnabled=NO，
+//      点击语义 = 整行点击（didSelectRow 直连下载链）+ Task429 PressableCard
+//      挂在卡片上的 LPGR（minimumPressDuration 0）滑动起手即播按压动画。
+//      修法：动作胶囊升级为真按钮，下载/更新唯一入口 = 按钮 handler（行体
+//      点击零动作）；行体 Pressable 按压手势退役（按压缩放+触觉保留在按钮
+//      本身）；kit 展示胶囊以 applyActionStyle:3 隐藏，文本避让约束同步收窄
+//      到按钮左缘。
+// ============================================================================
+@interface Ame431RepoCardCell : ZL2M3CardCell
+/// 动作按钮回调（nil = 按钮纯展示态，如"已安装"角标）。cellForRow 每次装配
+/// 都重设（handler 捕获业务 id 而非 indexPath）——cell 复用安全。
+@property (nonatomic, copy) void (^ame431_actionHandler)(void);
+/// 0=下载(primary) 1=已安装(灰) 2=可更新(warning) 3=隐藏（含 kit 展示胶囊隐藏）
+- (void)ame431_applyActionStyle:(NSInteger)style title:(NSString *)title handler:(void (^)(void))handler;
+@end
+
+@implementation Ame431RepoCardCell {
+    UIButton *_ame431_button;
+    NSLayoutConstraint *_ame431_titleToButton;
+    NSLayoutConstraint *_ame431_subToButton;
+}
+
+- (instancetype)initWithStyle:(UITableViewCellStyle)style reuseIdentifier:(NSString *)reuseIdentifier {
+    self = [super initWithStyle:style reuseIdentifier:reuseIdentifier];
+    if (self) {
+        // ① 行体按压手势退役：PressableCard 挂在卡片视图上的 LPGR（签名 =
+        //   UILongPressGestureRecognizer + minimumPressDuration 0）正是"滑动
+        //   起手即按压动画+触觉"的根源。先摘除（本方法后段还要给按钮挂
+        //   Pressable，顺序不可倒——按钮自身的按压效果须保留）。
+        for (UIView *ame431_v in self.contentView.subviews) {
+            NSArray<UIGestureRecognizer *> *ame431_gs = [ame431_v gestureRecognizers] ?: @[];
+            for (UIGestureRecognizer *ame431_g in ame431_gs) {
+                if ([ame431_g isKindOfClass:[UILongPressGestureRecognizer class]] &&
+                    ((UILongPressGestureRecognizer *)ame431_g).minimumPressDuration <= 0.0) {
+                    [ame431_v removeGestureRecognizer:ame431_g];
+                }
+            }
+        }
+        // kit 展示态胶囊整体退役（按钮接棒；隐藏态文本 fallback 约束由 kit 侧保持）
+        [self applyActionStyle:3 title:@""];
+        _ame431_button = [UIButton buttonWithType:UIButtonTypeCustom];
+        _ame431_button.translatesAutoresizingMaskIntoConstraints = NO;
+        _ame431_button.layer.cornerRadius = [ZL2Theme radiusS];
+        _ame431_button.layer.masksToBounds = YES;
+        _ame431_button.titleLabel.font = [ZL2Theme fontLabelMedium];
+        _ame431_button.titleLabel.textAlignment = NSTextAlignmentCenter;
+        _ame431_button.titleLabel.numberOfLines = 1;
+        _ame431_button.contentEdgeInsets = UIEdgeInsetsMake(0, [ZL2Theme ame343_layoutMetric:@"pillGap" fallback:10.0], 0,
+                                                            [ZL2Theme ame343_layoutMetric:@"pillGap" fallback:10.0]);
+        [_ame431_button addTarget:self action:@selector(ame431_actionTapped)
+               forControlEvents:UIControlEventTouchUpInside];
+        [self.contentView addSubview:_ame431_button];
+        CGFloat ame431_trailing = [ZL2Theme ame343_layoutMetric:@"cardMarginH" fallback:16.0] +
+                                  [ZL2Theme ame343_layoutMetric:@"cardInsetX" fallback:14.0];
+        _ame431_titleToButton = [self.titleLabel.trailingAnchor
+            constraintLessThanOrEqualToAnchor:_ame431_button.leadingAnchor
+                                     constant:-[ZL2Theme ame343_layoutMetric:@"pillGap" fallback:10.0]];
+        _ame431_subToButton = [self.subLabel.trailingAnchor
+            constraintLessThanOrEqualToAnchor:_ame431_button.leadingAnchor
+                                     constant:-[ZL2Theme ame343_layoutMetric:@"pillGap" fallback:10.0]];
+        [NSLayoutConstraint activateConstraints:@[
+            [_ame431_button.trailingAnchor constraintEqualToAnchor:self.contentView.trailingAnchor
+                                                          constant:-ame431_trailing],
+            [_ame431_button.widthAnchor constraintGreaterThanOrEqualToConstant:
+                [ZL2Theme ame343_layoutMetric:@"pillMinWidth" fallback:56.0]],
+            [_ame431_button.heightAnchor constraintEqualToConstant:
+                [ZL2Theme ame343_layoutMetric:@"pillHeight" fallback:28.0]],
+            [_ame431_button.centerYAnchor constraintEqualToAnchor:self.titleLabel.centerYAnchor],
+        ]];
+        // ② 按钮自身按压效果（0.94 档 + 触觉——与原卡片按压同档；chip 同款
+        //   挂靠手势 cancelsTouchesInView=NO，不干扰 TouchUpInside）
+        [ZL2M3Pressable attachToView:_ame431_button pressedScale:0.94];
+    }
+    return self;
+}
+
+- (void)ame431_applyActionStyle:(NSInteger)style title:(NSString *)title handler:(void (^)(void))handler {
+    BOOL ame431_hidden = (style == 3);
+    _ame431_button.hidden = ame431_hidden;
+    _ame431_titleToButton.active = !ame431_hidden;
+    _ame431_subToButton.active = !ame431_hidden;
+    self.ame431_actionHandler = ame431_hidden ? nil : handler;
+    if (ame431_hidden) return;
+    switch (style) {
+        case 1:
+            _ame431_button.backgroundColor = [ZL2Theme surfaceContainerHighest];
+            [_ame431_button setTitleColor:[ZL2Theme onSurfaceVariant] forState:UIControlStateNormal];
+            break;
+        case 2:
+            _ame431_button.backgroundColor = [ZL2Theme warning];
+            [_ame431_button setTitleColor:[ZL2Theme onPrimary] forState:UIControlStateNormal];
+            break;
+        default:
+            _ame431_button.backgroundColor = [ZL2Theme primary];
+            [_ame431_button setTitleColor:[ZL2Theme onPrimary] forState:UIControlStateNormal];
+            break;
+    }
+    [_ame431_button setTitle:title forState:UIControlStateNormal];
+}
+
+- (void)ame431_actionTapped {
+    void (^ame431_h)(void) = self.ame431_actionHandler;
+    if (ame431_h) ame431_h();
+}
+
+@end
+
 @implementation ControlRepoViewController
 
 /// Task232（反馈 #15）：下载落盘安装（直通与"仍要下载"确认两路共用）。
@@ -381,8 +498,10 @@ static NSArray<NSString *> *ame232_layoutSafetyIssues(NSData *raw, id jsonObj) {
     self.tableView.rowHeight = UITableViewAutomaticDimension;
     self.tableView.estimatedRowHeight = 88.0;
     self.tableView.contentInset = UIEdgeInsetsMake(6, 0, 16, 0);
-    [self.tableView registerClass:[ZL2M3CardCell class]
-           forCellReuseIdentifier:@"ZL2M3CardCell"];
+    // ★ Task431：卡片 cell 换装 Ame431RepoCardCell（动作胶囊 → 真按钮，几何
+    //   钉死 + 下载唯一入口在按钮；详见类头病历注）
+    [self.tableView registerClass:[Ame431RepoCardCell class]
+           forCellReuseIdentifier:@"Ame431RepoCardCell"];
     self.refreshControl = [[UIRefreshControl alloc] init];
     self.refreshControl.tintColor = [ZL2Theme primary];
     self.refreshControl.backgroundColor = [UIColor clearColor];
@@ -568,16 +687,16 @@ static NSArray<NSString *> *ame232_layoutSafetyIssues(NSData *raw, id jsonObj) {
 }
 
 - (UITableViewCell *)tableView:(UITableView *)tableView cellForRowAtIndexPath:(NSIndexPath *)indexPath {
-    // ★ Task325：卡片 cell（ZL2 新 UI）——系统 Subtitle cell 退役；行点击语义
-    //   （didSelectRow 全链）零改动，动作胶囊为纯展示态徽章。
-    ZL2M3CardCell *cell = [tableView dequeueReusableCellWithIdentifier:@"ZL2M3CardCell"
-                                                           forIndexPath:indexPath];
+    // ★ Task325：卡片 cell（ZL2 新 UI）——系统 Subtitle cell 退役。
+    // ★ Task431：动作按钮 cell（原展示态胶囊 cell 退役）
+    Ame431RepoCardCell *cell = [tableView dequeueReusableCellWithIdentifier:@"Ame431RepoCardCell"
+                                                              forIndexPath:indexPath];
     if (self.selectedCategory == 3) {
         // ★ Task310：本地页（Task311 起索引 3）。空态 = 引导去官方精选/编辑器；有数据 = 布局清单。
         if (self.localLayouts.count == 0) {
             cell.titleLabel.text = localize(@"dl.controls.local.empty", nil);
             cell.subLabel.text = @"";
-            [cell applyActionStyle:3 title:@""];
+            [cell ame431_applyActionStyle:3 title:@"" handler:nil];
             cell.selectionStyle = UITableViewCellSelectionStyleNone;
             return cell;
         }
@@ -587,7 +706,7 @@ static NSArray<NSString *> *ame232_layoutSafetyIssues(NSData *raw, id jsonObj) {
                         ? e[@"version"] : @"?";
         double kb = [(NSNumber *)e[@"size"] doubleValue] / 1024.0;
         cell.subLabel.text = [NSString stringWithFormat:localize(@"dl.controls.local.file.sub", nil), ver, kb];
-        [cell applyActionStyle:3 title:@""];
+        [cell ame431_applyActionStyle:3 title:@"" handler:nil];
         cell.selectionStyle = UITableViewCellSelectionStyleDefault;
         return cell;
     }
@@ -596,14 +715,14 @@ static NSArray<NSString *> *ame232_layoutSafetyIssues(NSData *raw, id jsonObj) {
         if (!self.loadFailed && self.selectedCategory == 1) {
             cell.titleLabel.text = localize(@"dl.controls.community.empty", nil);
             cell.subLabel.text = localize(@"dl.controls.community.empty.tap", nil);
-            [cell applyActionStyle:3 title:@""];
+            [cell ame431_applyActionStyle:3 title:@"" handler:nil];
             cell.selectionStyle = UITableViewCellSelectionStyleDefault;
             return cell;
         }
         cell.titleLabel.text = self.loadFailed ? localize(@"custom_controls.repo.fetch.failed", nil)
                                               : localize(@"custom_controls.repo.empty", nil);
         cell.subLabel.text = self.loadFailed ? localize(@"custom_controls.repo.retry_hint", nil) : @"";
-        [cell applyActionStyle:3 title:@""];
+        [cell ame431_applyActionStyle:3 title:@"" handler:nil];
         cell.selectionStyle = UITableViewCellSelectionStyleNone;
         return cell;
     }
@@ -634,7 +753,18 @@ static NSArray<NSString *> *ame232_layoutSafetyIssues(NSData *raw, id jsonObj) {
     }
     if (desc.length > 0) [sub appendFormat:@"\n%@", desc];
     cell.subLabel.text = sub;
-    [cell applyActionStyle:ame325_action title:ame325_actionTitle];
+    // ★ Task431：动作按钮装配——下载/可更新 = 按钮回调（唯一下载入口）；
+    //   已安装 = 纯展示态角标（无动作）。handler 捕获 layoutId（点击时按 id
+    //   回查 filteredLayouts 现值，reload 后索引漂移不影响取数），不捕获 indexPath。
+    NSString *ame431_layoutId = [e[@"id"] isKindOfClass:[NSString class]] ? e[@"id"] : @"";
+    void (^ame431_handler)(void) = nil;
+    if (ame325_action != 1) {
+        __weak typeof(self) ame431_wself = self;
+        ame431_handler = ^{
+            [ame431_wself ame431_downloadTappedForLayoutId:ame431_layoutId];
+        };
+    }
+    [cell ame431_applyActionStyle:ame325_action title:ame325_actionTitle handler:ame431_handler];
     cell.selectionStyle = UITableViewCellSelectionStyleDefault;
     return cell;
 }
@@ -704,8 +834,23 @@ static NSArray<NSString *> *ame232_layoutSafetyIssues(NSData *raw, id jsonObj) {
         if (self.loadFailed) [self fetchIndex];
         return;
     }
-    NSDictionary *e = self.filteredLayouts[indexPath.row];
-    NSString *layoutId = e[@"id"];
+    // ★ Task431：仓库数据行点击零动作——下载/更新唯一入口 = 行尾动作按钮
+    //   （Ame431RepoCardCell handler → ame431_downloadTappedForLayoutId:）。
+    //   行体滑动/点按不再触发下载，也不再播按压动画（行体 Pressable 手势已
+    //   在 Ame431RepoCardCell 内退役）——用户"在选项上滑动即触发下载"误触
+    //   根治；行选中反馈（高亮 + deselect）保留为无动作视觉反馈。
+}
+
+/// ★ Task431：动作按钮下载入口（原 didSelectRow 数据行链路整体搬移，
+/// 校验/防重入/安装管线零改动）。按 id 回查 filteredLayouts 现值——
+/// handler 捕获 id 而非 indexPath，reload 后索引漂移不影响取数。
+- (void)ame431_downloadTappedForLayoutId:(NSString *)layoutId {
+    NSDictionary *e = nil;
+    for (NSDictionary *ame431_cand in self.filteredLayouts) {
+        NSString *ame431_id = [ame431_cand[@"id"] isKindOfClass:[NSString class]] ? ame431_cand[@"id"] : nil;
+        if (ame431_id != nil && [ame431_id isEqualToString:layoutId]) { e = ame431_cand; break; }
+    }
+    if (e == nil) return;
     // ★ Task311：gamepad 条目分流——校验/安装路径/提示全部走手柄映射管线
     //  （落盘 controlmap/gamepads/<id>.json，触屏管线落 controlmap/ 不变）。
     NSString *ame311_cat = [e[@"category"] isKindOfClass:[NSString class]] ? e[@"category"] : @"official";

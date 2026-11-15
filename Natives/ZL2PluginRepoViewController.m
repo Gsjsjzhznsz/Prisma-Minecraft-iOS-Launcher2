@@ -45,6 +45,118 @@ static NSString * const ame333_repoBaseGhfast    = @"https://ghfast.top/https://
 //   （旧缓存可接受，raw/ghfast 通道兜底，CI 侧另加 push 后自动 purge）。
 static NSString * const ame333_repoMirrorPrefKey = @"ame333.plugin.repo.mirror";
 
+// ============================================================================
+// ★ Task431（仓库页按钮修复）：仓库卡片动作胶囊 → 真按钮（与本仓插件仓库页
+//   的 Ame431RepoCardCell 同款接棒；ZL2M3CardCell 全仓消费面 = 两仓库页）。
+//   病历（用户 iPad 截图两报）：
+//   ① 动作按钮几何只有 >= 约束无等式钉死，复用换内容可漂移——本类把右缘/
+//      宽/高/纵向中心显式钉死（令牌与 kit 胶囊同源：contentView.trailing
+//      -(cardMarginH+cardInsetX)、pillMinWidth、pillHeight、标题字阶 centerY）。
+//   ② kit 胶囊 userInteractionEnabled=NO，点击语义 = 整行点击（didSelectRow
+//      直连安装链）+ Task429 PressableCard 挂在卡片上的 LPGR（minimumPress
+//      Duration 0）滑动起手即播按压动画 —— "在选项上滑动即触发安装"误触
+//      根源。修法：安装/更新唯一入口 = 按钮 handler，行体点击零动作；行体
+//      按压手势退役，按压效果保留在按钮本身；kit 展示胶囊 applyActionStyle:3
+//      隐藏，文本避让约束同步收窄到按钮左缘。
+// ============================================================================
+@interface Ame431PluginRepoCardCell : ZL2M3CardCell
+/// 动作按钮回调（nil = 按钮纯展示态）。cellForRow 每次装配都重设
+/// （handler 捕获业务 id 而非 indexPath）——cell 复用安全。
+@property (nonatomic, copy) void (^ame431_actionHandler)(void);
+/// 0=安装/更新(primary) 1=已安装(灰) 2=可更新(warning) 3=隐藏（含 kit 展示胶囊隐藏）
+- (void)ame431_applyActionStyle:(NSInteger)style title:(NSString *)title handler:(void (^)(void))handler;
+@end
+
+@implementation Ame431PluginRepoCardCell {
+    UIButton *_ame431_button;
+    NSLayoutConstraint *_ame431_titleToButton;
+    NSLayoutConstraint *_ame431_subToButton;
+}
+
+- (instancetype)initWithStyle:(UITableViewCellStyle)style reuseIdentifier:(NSString *)reuseIdentifier {
+    self = [super initWithStyle:style reuseIdentifier:reuseIdentifier];
+    if (self) {
+        // ① 行体按压手势退役：PressableCard 挂在卡片视图上的 LPGR（签名 =
+        //   UILongPressGestureRecognizer + minimumPressDuration 0）。先摘除
+        //   （后段还要给按钮挂 Pressable，顺序不可倒——按钮按压效果须保留）。
+        for (UIView *ame431_v in self.contentView.subviews) {
+            NSArray<UIGestureRecognizer *> *ame431_gs = [ame431_v gestureRecognizers] ?: @[];
+            for (UIGestureRecognizer *ame431_g in ame431_gs) {
+                if ([ame431_g isKindOfClass:[UILongPressGestureRecognizer class]] &&
+                    ((UILongPressGestureRecognizer *)ame431_g).minimumPressDuration <= 0.0) {
+                    [ame431_v removeGestureRecognizer:ame431_g];
+                }
+            }
+        }
+        // kit 展示态胶囊整体退役（按钮接棒；隐藏态文本 fallback 约束由 kit 侧保持）
+        [self applyActionStyle:3 title:@""];
+        _ame431_button = [UIButton buttonWithType:UIButtonTypeCustom];
+        _ame431_button.translatesAutoresizingMaskIntoConstraints = NO;
+        _ame431_button.layer.cornerRadius = [ZL2Theme radiusS];
+        _ame431_button.layer.masksToBounds = YES;
+        _ame431_button.titleLabel.font = [ZL2Theme fontLabelMedium];
+        _ame431_button.titleLabel.textAlignment = NSTextAlignmentCenter;
+        _ame431_button.titleLabel.numberOfLines = 1;
+        _ame431_button.contentEdgeInsets = UIEdgeInsetsMake(0, [ZL2Theme ame343_layoutMetric:@"pillGap" fallback:10.0], 0,
+                                                            [ZL2Theme ame343_layoutMetric:@"pillGap" fallback:10.0]);
+        [_ame431_button addTarget:self action:@selector(ame431_actionTapped)
+               forControlEvents:UIControlEventTouchUpInside];
+        [self.contentView addSubview:_ame431_button];
+        CGFloat ame431_trailing = [ZL2Theme ame343_layoutMetric:@"cardMarginH" fallback:16.0] +
+                                  [ZL2Theme ame343_layoutMetric:@"cardInsetX" fallback:14.0];
+        _ame431_titleToButton = [self.titleLabel.trailingAnchor
+            constraintLessThanOrEqualToAnchor:_ame431_button.leadingAnchor
+                                     constant:-[ZL2Theme ame343_layoutMetric:@"pillGap" fallback:10.0]];
+        _ame431_subToButton = [self.subLabel.trailingAnchor
+            constraintLessThanOrEqualToAnchor:_ame431_button.leadingAnchor
+                                     constant:-[ZL2Theme ame343_layoutMetric:@"pillGap" fallback:10.0]];
+        [NSLayoutConstraint activateConstraints:@[
+            [_ame431_button.trailingAnchor constraintEqualToAnchor:self.contentView.trailingAnchor
+                                                          constant:-ame431_trailing],
+            [_ame431_button.widthAnchor constraintGreaterThanOrEqualToConstant:
+                [ZL2Theme ame343_layoutMetric:@"pillMinWidth" fallback:56.0]],
+            [_ame431_button.heightAnchor constraintEqualToConstant:
+                [ZL2Theme ame343_layoutMetric:@"pillHeight" fallback:28.0]],
+            [_ame431_button.centerYAnchor constraintEqualToAnchor:self.titleLabel.centerYAnchor],
+        ]];
+        // ② 按钮自身按压效果（0.94 档 + 触觉——与原卡片按压同档；挂靠手势
+        //   cancelsTouchesInView=NO，不干扰 TouchUpInside）
+        [ZL2M3Pressable attachToView:_ame431_button pressedScale:0.94];
+    }
+    return self;
+}
+
+- (void)ame431_applyActionStyle:(NSInteger)style title:(NSString *)title handler:(void (^)(void))handler {
+    BOOL ame431_hidden = (style == 3);
+    _ame431_button.hidden = ame431_hidden;
+    _ame431_titleToButton.active = !ame431_hidden;
+    _ame431_subToButton.active = !ame431_hidden;
+    self.ame431_actionHandler = ame431_hidden ? nil : handler;
+    if (ame431_hidden) return;
+    switch (style) {
+        case 1:
+            _ame431_button.backgroundColor = [ZL2Theme surfaceContainerHighest];
+            [_ame431_button setTitleColor:[ZL2Theme onSurfaceVariant] forState:UIControlStateNormal];
+            break;
+        case 2:
+            _ame431_button.backgroundColor = [ZL2Theme warning];
+            [_ame431_button setTitleColor:[ZL2Theme onPrimary] forState:UIControlStateNormal];
+            break;
+        default:
+            _ame431_button.backgroundColor = [ZL2Theme primary];
+            [_ame431_button setTitleColor:[ZL2Theme onPrimary] forState:UIControlStateNormal];
+            break;
+    }
+    [_ame431_button setTitle:title forState:UIControlStateNormal];
+}
+
+- (void)ame431_actionTapped {
+    void (^ame431_h)(void) = self.ame431_actionHandler;
+    if (ame431_h) ame431_h();
+}
+
+@end
+
 @interface ZL2PluginRepoViewController () <UITableViewDelegate, UITableViewDataSource>
 @property (nonatomic, strong) UITableView *table;
 @property (nonatomic, strong) NSMutableArray<NSDictionary *> *items;      // 包内区 {dirName, manifest}
@@ -78,7 +190,9 @@ static NSString * const ame333_repoMirrorPrefKey = @"ame333.plugin.repo.mirror";
     self.table.rowHeight = UITableViewAutomaticDimension;
     self.table.estimatedRowHeight = 88.0;
     self.table.contentInset = UIEdgeInsetsMake(6, 0, 16, 0);
-    [self.table registerClass:[ZL2M3CardCell class] forCellReuseIdentifier:@"ZL2M3CardCell"];
+    // ★ Task431：卡片 cell 换装 Ame431PluginRepoCardCell（动作胶囊 → 真按钮）
+    [self.table registerClass:[Ame431PluginRepoCardCell class]
+           forCellReuseIdentifier:@"Ame431PluginRepoCardCell"];
     [self.view addSubview:self.table];
 
     [NSLayoutConstraint activateConstraints:@[
@@ -395,18 +509,19 @@ static NSString * const ame333_repoMirrorPrefKey = @"ame333.plugin.repo.mirror";
 
 - (UITableViewCell *)tableView:(UITableView *)tableView cellForRowAtIndexPath:(NSIndexPath *)indexPath {
     // ★ Task325：系统 Subtitle cell → ZL2M3CardCell（卡底/字体/动作胶囊全令牌化）
-    ZL2M3CardCell *cell = [tableView dequeueReusableCellWithIdentifier:@"ZL2M3CardCell"
-                                                          forIndexPath:indexPath];
+    // ★ Task431：动作按钮 cell（原展示态胶囊 cell 退役）
+    Ame431PluginRepoCardCell *cell = [tableView dequeueReusableCellWithIdentifier:@"Ame431PluginRepoCardCell"
+                                                                 forIndexPath:indexPath];
     if (indexPath.section == 0 && self.remoteItems.count == 0) {
         cell.titleLabel.text = self.remoteStatus ?: localize(@"ame333.repo.fetch_empty", nil);
         cell.subLabel.text = @"";
-        [cell applyActionStyle:3 title:@""];
+        [cell ame431_applyActionStyle:3 title:@"" handler:nil];
         return cell;
     }
     if (indexPath.section == 1 && self.items.count == 0) {
         cell.titleLabel.text = localize(@"ame318.repo.empty", nil);
         cell.subLabel.text = @"";
-        [cell applyActionStyle:3 title:@""];
+        [cell ame431_applyActionStyle:3 title:@"" handler:nil];
         return cell;
     }
 
@@ -425,12 +540,28 @@ static NSString * const ame333_repoMirrorPrefKey = @"ame333.plugin.repo.mirror";
                               authorLine,
                               [p[@"summary"] isKindOfClass:[NSString class]] ? p[@"summary"] : @""];
         AmePluginManifest *installedM = [AmePluginManager manifestForPlugin:pid];
+        // ★ Task431：动作按钮装配——安装/更新 = 按钮回调（唯一安装入口）；
+        //   已安装 = 纯展示态角标 + 点按进详情（与原行点击语义同）。handler
+        //   捕获 pluginId（点击时按 id 回查现值，防 reload 索引漂移）。
+        __weak typeof(self) ame431_wself = self;
         if (!installedM) {
-            [cell applyActionStyle:0 title:localize(installing ? @"ame318.repo.installing" : @"ame333.repo.install", nil)];
+            [cell ame431_applyActionStyle:0
+                                    title:localize(installing ? @"ame318.repo.installing" : @"ame333.repo.install", nil)
+                                  handler:^{
+                [ame431_wself ame333_beginRemoteInstallForPluginId:pid];
+            }];
         } else if ([installedM.version compare:p[@"version"]] == NSOrderedAscending) {
-            [cell applyActionStyle:0 title:localize(@"ame333.repo.update", nil)];
+            [cell ame431_applyActionStyle:0
+                                    title:localize(@"ame333.repo.update", nil)
+                                  handler:^{
+                [ame431_wself ame333_beginRemoteInstallForPluginId:pid];
+            }];
         } else {
-            [cell applyActionStyle:1 title:localize(@"custom_controls.repo.installed_badge", nil)];
+            [cell ame431_applyActionStyle:1
+                                    title:localize(@"custom_controls.repo.installed_badge", nil)
+                                  handler:^{
+                [ame431_wself ame431_openPluginDetail:pid];
+            }];
         }
         return cell;
     }
@@ -447,10 +578,21 @@ static NSString * const ame333_repoMirrorPrefKey = @"ame333.plugin.repo.mirror";
     cell.subLabel.text = [NSString stringWithFormat:@"v%@ · %@ · %@",
                           m.version ?: @"?", authorLine,
                           [self ame318_displaySummaryForManifest:m]];
+    // ★ Task431：动作按钮装配——安装 = 按钮回调（唯一安装入口）；已安装 =
+    //   展示态角标 + 点按进详情。handler 捕获 pluginId，cell 复用安全。
+    __weak typeof(self) ame431_wself = self;
     if (installed) {
-        [cell applyActionStyle:1 title:localize(@"custom_controls.repo.installed_badge", nil)];
+        [cell ame431_applyActionStyle:1
+                                title:localize(@"custom_controls.repo.installed_badge", nil)
+                              handler:^{
+            [ame431_wself ame431_openPluginDetail:m.pluginId];
+        }];
     } else {
-        [cell applyActionStyle:0 title:localize(installing ? @"ame318.repo.installing" : @"ame318.repo.install", nil)];
+        [cell ame431_applyActionStyle:0
+                                title:localize(installing ? @"ame318.repo.installing" : @"ame318.repo.install", nil)
+                              handler:^{
+            [ame431_wself ame318_beginInstallForPluginId:m.pluginId];
+        }];
     }
     return cell;
 }
@@ -462,27 +604,22 @@ static NSString * const ame333_repoMirrorPrefKey = @"ame333.plugin.repo.mirror";
         NSDictionary *p = self.remoteItems[(NSUInteger)indexPath.row];
         NSString *pid = p[@"id"];
         AmePluginManifest *installedM = [AmePluginManager manifestForPlugin:pid];
-        // 已装同版或更高 → 详情页；已装低版或未装 → 下载安装/更新
-        if (installedM && [installedM.version compare:p[@"version"]] != NSOrderedAscending) {
-            ZL2PluginDetailViewController *detail =
-                [[ZL2PluginDetailViewController alloc] initWithPluginId:pid];
-            [self.navigationController pushViewController:detail animated:YES];
-            return;
+        // ★ Task431：行点击仅保留"已装件 → 详情页"导航语义（未装/可更新件也
+        //   进详情，安装/更新唯一入口 = 行尾动作按钮 ame431）——滑动/误触行体
+        //   不再触发安装，也不再播按压动画（行体 Pressable 手势已在
+        //   Ame431PluginRepoCardCell 内退役）。
+        if (installedM) {
+            [self ame431_openPluginDetail:pid];
         }
-        [self ame333_beginRemoteInstallForRow:(NSInteger)indexPath.row];
         return;
     }
     if (self.items.count == 0) return;
     NSDictionary *item = self.items[(NSUInteger)indexPath.row];
     AmePluginManifest *m = item[@"manifest"];
+    // ★ Task431：已装件 → 详情；未装件行点击零动作（安装唯一入口 = 按钮）
     if ([[AmePluginManager installedPluginIds] containsObject:m.pluginId]) {
-        ZL2PluginDetailViewController *detail =
-            [[ZL2PluginDetailViewController alloc] initWithPluginId:m.pluginId];
-        [self.navigationController pushViewController:detail animated:YES];
-        return;
+        [self ame431_openPluginDetail:m.pluginId];
     }
-    // ★ Task325：未装 = 整行点击安装（accessoryView 时代按钮链退役）
-    [self ame318_beginInstallForRow:(NSInteger)indexPath.row];
 }
 
 #pragma mark - 远程安装链（镜像下载 → sha256 → installFromZip 全量校验链）
@@ -587,6 +724,36 @@ static NSString * const ame333_repoMirrorPrefKey = @"ame333.plugin.repo.mirror";
             [sself ame318_installDidFinish:code manifest:m];
         });
     });
+}
+
+// ★ Task431：按钮回调入口——按 id 回查当前行（防 reload 索引漂移），防重入
+//   守卫沿用 ame333_beginRemoteInstallForRow:。
+- (void)ame333_beginRemoteInstallForPluginId:(NSString *)pid {
+    if (pid.length == 0) return;
+    NSUInteger ame431_idx = [self.remoteItems indexOfObjectPassingTest:^BOOL(NSDictionary *p, NSUInteger idx, BOOL *stop) {
+        return [p[@"id"] isKindOfClass:[NSString class]] && [(NSString *)p[@"id"] isEqualToString:pid];
+    }];
+    if (ame431_idx == NSNotFound) return;
+    [self ame333_beginRemoteInstallForRow:(NSInteger)ame431_idx];
+}
+
+// ★ Task431：按钮回调入口——builtin 项按 manifest.pluginId 回查（dirName 与
+//   pluginId 可能不同名），防重入守卫沿用 ame318_beginInstallForRow:。
+- (void)ame318_beginInstallForPluginId:(NSString *)pid {
+    if (pid.length == 0) return;
+    NSUInteger ame431_idx = [self.items indexOfObjectPassingTest:^BOOL(NSDictionary *item, NSUInteger idx, BOOL *stop) {
+        AmePluginManifest *m = item[@"manifest"];
+        return m != nil && [m.pluginId isEqualToString:pid];
+    }];
+    if (ame431_idx == NSNotFound) return;
+    [self ame318_beginInstallForRow:(NSInteger)ame431_idx];
+}
+
+// ★ Task431：详情页导航收口（原 didSelectRow 内联链——按钮与行点击共用）
+- (void)ame431_openPluginDetail:(NSString *)pid {
+    ZL2PluginDetailViewController *detail =
+        [[ZL2PluginDetailViewController alloc] initWithPluginId:pid];
+    [self.navigationController pushViewController:detail animated:YES];
 }
 
 // 内存态 sha（下载流直算，免二次落盘读）
