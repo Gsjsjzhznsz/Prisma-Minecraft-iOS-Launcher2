@@ -807,8 +807,15 @@ static NSArray<NSDictionary *> *availableRendererCandidates(void) {
     {
         Class ame429_cls = NSClassFromString(@"PLRendererPluginService");
         id ame429_svc = ame429_cls;
-        if (ame429_svc && [(id)ame429_svc respondsToSelector:@selector(rendererChoiceOverrides)]) {
-            NSArray *ame429_ovs = [(id)ame429_svc rendererChoiceOverrides];
+        // ★Task429-r12 热修（dev run 43702092887 实录：no known instance method
+        //   rendererChoiceOverrides——(id) 转型不携带方法表，Task429-r1
+        //   PluginList performSelector 软链判例同款）。
+        SEL ame429_sel = NSSelectorFromString(@"rendererChoiceOverrides");
+        if (ame429_svc && [(id)ame429_svc respondsToSelector:ame429_sel]) {
+            #pragma clang diagnostic push
+            #pragma clang diagnostic ignored "-Warc-performSelector-leaks"
+            NSArray *ame429_ovs = [(id)ame429_svc performSelector:ame429_sel];
+            #pragma clang diagnostic pop
             for (NSDictionary *ame429_ov in ame429_ovs) {
                 if ([ame429_ov isKindOfClass:[NSDictionary class]] &&
                     [ame429_ov[@"key"] isKindOfClass:[NSString class]] &&
