@@ -1067,20 +1067,6 @@ typedef NS_ENUM(NSInteger, AssetVersionType) {
 
 @end
 
-#pragma mark 组件服务（预览仅补 OptiFine launchwrapper 查询符号）
-
-@interface PLComponentService : NSObject
-+ (nullable NSDictionary *)ame430_launchwrapperLibraryForOptiFineJar:(NSString *)jarPath
-                                                              gameDir:(NSString *)gameDir;
-@end
-
-@implementation PLComponentService
-+ (nullable NSDictionary *)ame430_launchwrapperLibraryForOptiFineJar:(NSString *)jarPath
-                                                              gameDir:(NSString *)gameDir {
-    return nil;
-}
-@end
-
 #pragma mark Forge 直装器（installer/ForgeDirectInstaller.h；整合包原版预装门）
 
 // ★ Task337：ForgeInstallViewController/FabricInstallViewController 桩退役——
