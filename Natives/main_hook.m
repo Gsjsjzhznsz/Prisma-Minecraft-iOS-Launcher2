@@ -516,6 +516,11 @@ static void ame273_writeCrashReport(int code) {
     //   里 AvatarManager 头像 DNS 失败行命中裸 "could not be found" →
     //   missing_dependency 抢占 jvm_fatal → 报告类别错误，用户被引去装模组）。
     int ame430_sigbus = 0, ame430_stub = 0;
+    // ★Task437（二代 issue#3 第五层）：映射假阳性判别轴——「映射已授予」
+    //   （Got JIT mapping / mapping at RW= 应答行在场）vs「映射零发起」
+    //   （Java 21 缺实现会话全程零 mapping 行，Task434 病历）。同是
+    //   SIGBUS+call_stub，两态处置指引完全不同，扫描期分轴。
+    int ame437_gotmap = 0, ame437_mapline = 0;
     int idxImmediateReason = -1, idxFix = -1, idxIncompatHead = -1;
     int idxLastCausedBy = -1, idxLastException = -1;
     int idxProblematicFrame = -1;  // Task305：JVM fatal 锚点（下一行 = 真实问题帧）
@@ -539,6 +544,9 @@ static void ame273_writeCrashReport(int code) {
         // ★Task430：JIT 镜像码缓存签名（与 Ame342 判据同源，前置到扫描期）
         if (!ame430_sigbus && strstr(s, "SIGBUS") != NULL) ame430_sigbus = 1;
         if (!ame430_stub && strstr(s, "StubRoutines::call_stub") != NULL) ame430_stub = 1;
+        // ★Task437：映射应答行（映射假阳性判别轴，见上方声明处注释）
+        if (!ame437_gotmap && strstr(s, "Got JIT mapping") != NULL) ame437_gotmap = 1;
+        if (!ame437_mapline && strstr(s, "mapping at RW=") != NULL) ame437_mapline = 1;
         if (strstr(s, "OutOfMemoryError") || strstr(s, "Cannot reserve enough space") ||
             strstr(s, "OutOfMemory")) catOOM = 1;
         if (strstr(s, "SIGSEGV") || strstr(s, "EXCEPTION_ACCESS_VIOLATION") ||
@@ -565,7 +573,16 @@ static void ame273_writeCrashReport(int code) {
     const char *cat_cn = "未知错误";
     const char *cat_en = "Unknown error";
     // ★Task430：jit_mirror_codecache 首位——JIT 环境病压过全部业务类
-    if (ame430_sigbus && ame430_stub) {
+    // ★Task437：映射假阳性精化为更高优先子类别——SIGBUS+call_stub 且
+    //   latestlog 带映射应答行（Got JIT mapping / mapping at RW=）=
+    //   「映射已授予但 RX 空壳」，与「映射零发起」（jit_mirror_codecache
+    //   原语义，Task434 缺实现病历）是两个病灶，处置指引完全不同，必须
+    //   分开归类（装机 642025264 实锤：映射应答在场的会话换 Java 17 仍崩）。
+    if (ame430_sigbus && ame430_stub && (ame437_gotmap || ame437_mapline)) {
+        category = "jit26_mapping_shadow";
+        cat_cn = "JIT26 镜像通道假阳性";
+        cat_en = "JIT26 mirror channel fake-positive";
+    } else if (ame430_sigbus && ame430_stub) {
         category = "jit_mirror_codecache";
         cat_cn = "JIT 代码缓存映射异常";
         cat_en = "JIT code-cache mapping error";
@@ -683,12 +700,29 @@ static void ame273_writeCrashReport(int code) {
                 }
                 NSLog(@"[Ame430] JIT mirror auto-rescue armed (debug.mirror_codecache_disable=1 + marker written) -- next launch uses the non-mirrored track");
             }
-            // ★Task434（二代 issue#3 跟进）：运行时 JIT26 能力探针 marker
-            //   在场 = 本会话镜像轨在册但所选运行时 libjvm 缺 JIT26 调试映射
-            //   实现（JavaLauncher 双站预检实证，hs_err_pid46873 实锤）——
-            //   TXM 调试 JIT 下该运行时不可用（映射请求零发起 → 普通 mmap
-            //   页不可执行 → 首取指 ~StubRoutines::call_stub SIGBUS）。
-            //   指引 = 换 Java 17 运行时（内置构建已验证含 JIT26 调试映射）。
+            // ★Task437（二代 issue#3 第五层）：映射假阳性分支——优先级最高。
+            //   通道假阳性是比运行时缺实现更深的病灶：同一通道下任何运行时
+            //   都活不了（报告者按 Task434 指引切 Java 17 实测仍崩 = 装机
+            //   642025264 实锤，hs_err Instructions 段 RX 读回全零）。判据
+            //   双通道：启动链自证探针 marker（ame437_probe_shadow.txt，
+            //   端到端真调用失败，新鲜度语义同 ame434：通过即清）∨
+            //   latestlog 映射应答行（Got JIT mapping / mapping at RW=，
+            //   Task437 扫描轴）。Task433/434 的四层防线验不出此层（特征
+            //   在 ≠ 通道工作），本分支接住并给真指引（更新调试器侧，
+            //   而非换运行时）。
+            const char *ame437_home = getenv("POJAV_HOME");
+            BOOL ame437_shadowMarker = NO;
+            if (ame437_home != NULL) {
+                char ame437_path[1024];
+                snprintf(ame437_path, sizeof(ame437_path),
+                         "%s/ame437_probe_shadow.txt", ame437_home);
+                ame437_shadowMarker = (access(ame437_path, F_OK) == 0);
+            }
+            // ★Task434（二代 issue#3 跟进）：运行时 JIT26 能力探针 marker 在场 =
+            //   本会话镜像轨在册但所选运行时 libjvm 缺 JIT26 调试映射实现
+            //   （JavaLauncher 双站预检实证，hs_err_pid46873 实锤）。分支序
+            //   ★Task437：shadow（通道假阳性，最高）→ ame434（运行时缺
+            //   实现）→ ame433（自救已激活）→ Task430 原文。
             const char *ame434_home = getenv("POJAV_HOME");
             BOOL ame434_jit26Missing = NO;
             if (ame434_home != NULL) {
@@ -697,9 +731,14 @@ static void ame273_writeCrashReport(int code) {
                          "%s/ame434_jit26_missing.txt", ame434_home);
                 ame434_jit26Missing = (access(ame434_marker, F_OK) == 0);
             }
-            if (ame434_jit26Missing) {
+            BOOL ame437_shadow = ame437_shadowMarker || ame437_gotmap || ame437_mapline;
+            if (ame437_shadow) {
+                NSLog(@"[Ame437] SIGBUS+call_stub with mapping-response lines%s -- JIT26 channel fake-positive: debugger granted the mapping but the RX view was never backed (gen2 issue#3 layer5)",
+                      ame437_shadowMarker ? " + ame437_probe_shadow.txt present" : "");
+                fix = "映射拿到了、代码也写进去了，但可执行视图是空壳（JIT26 映射假阳性，第五层病灶）：调试器应答了映射地址却从未落地 RW/RX 别名（内容同步与执行授权双缺），崩点就在刚拿到的 RX 区域内首取指。这不是启动器或 Java 运行时的问题，换 Java 17/21/25 都没用（装机实测：按指引切 Java 17 后同崩）。处置：把 StikJIT/StikDebug 更新到最新版（旧版 JIT 脚本对镜像映射请求的应答有缺陷——只回地址不落地别名），或改用其他 JIT 开启工具（SideStore/JitStreamer-EB 等）后重试；启动器侧四层防线（镜像轨保留/能力探针/自救闸/通道自证探针）均已验证健康，无需在启动器侧再排查。 EN: The mapping was granted and the code was written, but the executable view is a hollow shell (JIT26 mapping fake-positive, layer 5): the debugger acknowledged the mapping address yet never actually backed the RW/RX alias (neither content sync nor execute authorization landed), so the crash is the first instruction fetch inside the freshly granted RX region. This is not a launcher or Java-runtime problem -- switching Java 17/21/25 does not help (on-device test: Java 17 crashes identically when following the previous advice). Fix: update StikJIT/StikDebug to the latest build (older JIT scripts flaw their mirror-mapping response -- they return an address without backing the alias), or switch to another JIT enabler (SideStore/JitStreamer-EB) and retry; all four launcher-side defenses (mirror-track keep / capability probe / self-rescue gate / channel self-verify probe) have verified healthy.";
+            } else if (ame434_jit26Missing) {
                 NSLog(@"[Ame434] SIGBUS+call_stub with ame434_jit26_missing.txt present -- selected runtime lacks JIT26 debug-mapping; TXM debugger JIT cannot run it (gen2 issue#3 follow-up)");
-                fix = "崩溃原因 = 当前实例选用的 Java 运行时缺少 JIT26 调试映射实现（启动前二进制探针已实证其 libjvm 不含 JIT26 特征：XNU_HAS_TXM/DeviceHasTXM/Got JIT mapping 全缺）。你的 JIT 环境（TXM 调试 JIT，StikJIT/StikDebug 家族）只能执行镜像轨内存，而该运行时即使挂着镜像轨旗标也从不发起映射请求 → 代码缓存页不可执行，首次取指即崩。处置：对该实例改用 Java 17 运行时（内置 jre17 构建经反汇编验证含 JIT26 调试映射），或把 StikJIT/StikDebug 更新到最新版后重试。 EN: Crash cause = the Java runtime selected for this instance lacks the JIT26 debug-mapping implementation (its libjvm was binary-probed before launch and carries none of the JIT26 markers: XNU_HAS_TXM / DeviceHasTXM / 'Got JIT mapping' all absent). Your JIT environment (TXM debugger JIT, StikJIT/StikDebug family) can only execute mirror-track memory, and this runtime never issues the mapping request even with the mirror flag present -> code-cache pages are never executable, first instruction fetch crashes. Fix: switch this instance to a Java 17 runtime (the bundled jre17 build is verified by disassembly to carry the JIT26 debug-mapping), or update StikJIT/StikDebug to the latest build and retry.";
+                fix = "崩溃原因 = 当前实例选用的 Java 运行时缺少 JIT26 调试映射实现（启动前二进制探针已实证其 libjvm 不含 JIT26 特征：XNU_HAS_TXM/DeviceHasTXM/Got JIT mapping 全缺）。你的 JIT 环境（TXM 调试 JIT，StikJIT/StikDebug 家族）只能执行镜像轨内存，而该运行时即使挂着镜像轨旗标也从不发起映射请求 → 代码缓存页不可执行，首次取指即崩。处置：对该实例改用 Java 17 运行时（内置 jre17 构建经反汇编验证含 JIT26 调试映射），或把 StikJIT/StikDebug 更新到最新版后重试；若换 Java 17 后仍崩且日志出现 Got JIT mapping / mapping at RW= 行，则属映射假阳性（调试器通道空壳，任何 Java 版本都无法工作，见映射假阳性处置）。 EN: Crash cause = the Java runtime selected for this instance lacks the JIT26 debug-mapping implementation (its libjvm was binary-probed before launch and carries none of the JIT26 markers: XNU_HAS_TXM / DeviceHasTXM / 'Got JIT mapping' all absent). Your JIT environment (TXM debugger JIT, StikJIT/StikDebug family) can only execute mirror-track memory, and this runtime never issues the mapping request even with the mirror flag present -> code-cache pages are never executable, first instruction fetch crashes. Fix: switch this instance to a Java 17 runtime (the bundled jre17 build is verified by disassembly to carry the JIT26 debug-mapping), or update StikJIT/StikDebug to the latest build and retry; if a Java 17 runtime also crashes with 'Got JIT mapping' / 'mapping at RW=' lines in the log, the debugger-side JIT26 channel is a fake-positive (hollow mapping -- no Java version can work), see the mapping fake-positive guidance.";
             } else if (getPrefBool(@"debug.mirror_codecache_disable")) {
                 // ★Task433（二代 issue#3）：自救已激活仍崩——不再重复武装
                 //   （Task430 自动自救已在 pref/marker 双通道，再写是空转），

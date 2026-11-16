@@ -21,6 +21,11 @@
 #   + marker 新鲜度（通过即清）· A14 ame273 ame434 精确分支（换 Java 17）
 #   · A15 Task433 被证伪的「改用 Java 21」建议退役（装机 hs_err_pid46873
 #   + latestlog 零 mapping 行实锤：Java 21 21.0.8 缺 JIT26 映射实现）。
+# ★Task437（二代 issue#3 第五层）：映射假阳性（装机 642025264 Java 17 实
+#   锤：映射请求发出且获应答但 RX 别名空壳，hs_err Instructions 段读回
+#   全零）。A16 ame273 jit26_mapping_shadow 分支（扫描轴 + marker 双通
+#   道，优先级压过 ame434）· A17 JavaLauncher 通道自证探针（写已知指令
+#   + Prepare + icache + 真调用，三信号安全网）· S-5 反向注入探针。
 import os
 import sys
 
@@ -114,8 +119,15 @@ if '--selftest' in sys.argv:
         print('ok  S-4 反向：证伪建议回流 -> A15 FAIL（符合预期）')
     else:
         print('S-4 未翻红（证伪建议探针失效）'); bad += 1
+    # S-5（★Task437）：通道自证探针接线被摘 → A17 必翻红
+    inj_jl3 = jl_code.replace('ame437_selfVerifyJit26Channel(result);', '/* REDACTED */;')
+    ok = 'ame437_selfVerifyJit26Channel(result);' not in inj_jl3
+    if ok:
+        print('ok  S-5 反向：通道自证探针接线摘除 -> A17 FAIL（符合预期）')
+    else:
+        print('S-5 未翻红（自证探针接线探针失效）'); bad += 1
     if bad == 0:
-        print('selftest OK（4 探针全部翻红）')
+        print('selftest OK（5 探针全部翻红）')
         sys.exit(0)
     sys.exit(1)
 
@@ -174,6 +186,33 @@ check('A15 被证伪的 Java 21 建议退役（Java 17 指引在场）',
       'use a Java 21 runtime for this instance' not in mh_code and
       '或对该实例改用 Java 17 运行时' in mh_code and
       'switch this instance to a Java 17 runtime' in mh_code)
+
+print('== A16/A17 组：Task437 JIT26 映射假阳性（二代 issue#3 第五层）==')
+
+# A16: main_hook 映射假阳性分支——扫描轴（Got JIT mapping / mapping at RW=）
+#      + 新类别 jit26_mapping_shadow + marker 双通道判据 + 优先级压过
+#      ame434 + 证伪文案（换 Java 17 没用 → 更新调试器侧）。
+check('A16 main_hook 映射假阳性分支（jit26_mapping_shadow + 双通道判据）',
+      '"jit26_mapping_shadow"' in mh_code and
+      'ame437_gotmap' in mh_code and 'ame437_mapline' in mh_code and
+      'ame437_probe_shadow.txt' in mh_code and
+      '换 Java 17/21/25 都没用' in mh_code and
+      'mapping fake-positive' in mh_code and
+      'JIT26 镜像通道假阳性' in mh_code and
+      mh_code.index('if (ame437_shadow)') < mh_code.index('else if (ame434_jit26Missing)'))
+
+# A17: JavaLauncher 通道自证探针——写已知指令（movz x0,#0x1337 / ret）
+#      + JIT26PrepareRegion + sys_icache_invalidate + 真调用校验 + 三信号
+#      安全网（sigsetjmp）+ marker 通道 + 新鲜度（通过即清）+ 启动链接线。
+check('A17 JavaLauncher JIT26 通道自证探针（真调用 + 三信号 + marker）',
+      'static void ame437_selfVerifyJit26Channel(void *ame437_region)' in jl_code and
+      '0xD28266E0' in jl_code and '0xD65F03C0' in jl_code and
+      'JIT26PrepareRegion(ame437_region' in jl_code and
+      'sys_icache_invalidate(ame437_region' in jl_code and
+      'sigsetjmp(ame437_verifyEnv' in jl_code and
+      'ame437_probe_shadow.txt' in jl_code and
+      'unlink(ame437_path)' in jl_code and
+      jl_code.count('ame437_selfVerifyJit26Channel(result);') == 1)
 
 print(f'\n== task433_selfcheck: {passed} passed, {len(fails)} failed ==')
 if fails:

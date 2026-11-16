@@ -10,6 +10,9 @@
 #include <sys/sysctl.h>   // ★Task429（§11.3）：JIT 豁免检测 —— sysctl KERN_PROC + CS_DEBUGGED 位
 #include <time.h>   // ★Task428：selfexit marker 的 ts（time(NULL)）
 #include <unistd.h>
+#include <signal.h>   // ★Task437：通道自证探针三信号保护（SIGTRAP/SIGBUS/SIGSEGV）
+#include <setjmp.h>   // ★Task437：sigsetjmp/siglongjmp（JIT26TrapCatch 同款安全网模式）
+#include <libkern/OSCacheControl.h>   // ★Task437：sys_icache_invalidate（dyld_bypass 同款先例）
 #include <mach/mach.h>
 #include "utils.h"
 #include "ZinkConfig.h"
@@ -328,6 +331,95 @@ static void ame434_probeJit26Runtime(NSString *javaHome) {
                 fflush(ame434_f);
                 fsync(fileno(ame434_f));
                 fclose(ame434_f);
+            }
+        }
+    }
+}
+
+// ★Task437（二代 issue#3 第五层）：JIT26 通道自证探针——「映射假阳性」检出。
+//   Task434 探针只验「运行时 libjvm 是否携带 JIT26 实现」（特征字符串），
+//   验不出通道假阳性：装机 642025264（Java 17）latestlog + hs_err 实锤——
+//   探针健康、映射请求发出且获应答（"Got JIT mapping 0x700b228000 from
+//   debugger" + "mapping at RW=0x700f228000, RX=0x700b228000"，RW-RX 相距
+//   1GB = Task342 病历同型的别名关系破裂），但 RX 别名读回全零（hs_err
+//   Instructions 段）、pc=RX+0xbc 首取指 SIGBUS BUS_ADRALN——调试器应答了
+//   地址却从未落地 RW/RX 别名（内容同步 + 执行授权双缺）。特征在 ≠ 通道
+//   工作，本探针在启动链 brk0x69 建区成功后对探测页做端到端真调用自证：
+//   写已知指令（movz x0,#0x1337; ret）→ JIT26PrepareRegion 转可执行
+//   （与 dyld_bypass redirectFunctionMirrored 同协议窗口：init_bypass
+//   在紧随其后就会走 PrepareRegion，通道若不能应答 0xf00d 本来也活不了）
+//   → sys_icache_invalidate → 真调用 → 校验返回值；SIGTRAP/SIGBUS/SIGSEGV
+//   任一在窗即判通道假阳性 → ame437_probe_shadow.txt marker（fopen+fsync
+//   通道，ame273 消费）+ 取证日志。会话继续（零回归：崩时 ame273 新分支
+//   jit26_mapping_shadow 给精确指引）；探针通过 = 清历史 marker（新鲜度
+//   语义与 ame434 相同）。
+static sigjmp_buf ame437_verifyEnv;
+static volatile sig_atomic_t ame437_verifyStep = 0;   // 1=write 2=prepare 3=icache 4=call 5=verify
+
+static void ame437_verifyCatch(int sig) {
+    (void)sig;
+    siglongjmp(ame437_verifyEnv, 1);
+}
+
+static void ame437_selfVerifyJit26Channel(void *ame437_region) {
+    if (ame437_region == NULL) return;
+    static const uint32_t ame437_code[2] = {
+        0xD28266E0u,   // movz x0, #0x1337
+        0xD65F03C0u,   // ret
+    };
+
+    struct sigaction ame437_sa, ame437_oldTrap, ame437_oldBus, ame437_oldSegv;
+    memset(&ame437_sa, 0, sizeof(ame437_sa));
+    ame437_sa.sa_handler = ame437_verifyCatch;
+    sigemptyset(&ame437_sa.sa_mask);
+    ame437_sa.sa_flags = SA_NODEFER;
+    sigaction(SIGTRAP, &ame437_sa, &ame437_oldTrap);
+    sigaction(SIGBUS, &ame437_sa, &ame437_oldBus);
+    sigaction(SIGSEGV, &ame437_sa, &ame437_oldSegv);
+
+    int ame437_verdict = 0;   // 0=pass；1=write 2=prepare 3=icache 4=exec 5=verify
+    if (sigsetjmp(ame437_verifyEnv, 1) == 0) {
+        ame437_verifyStep = 1;
+        memcpy(ame437_region, ame437_code, sizeof(ame437_code));
+        ame437_verifyStep = 2;
+        JIT26PrepareRegion(ame437_region, sizeof(ame437_code));
+        ame437_verifyStep = 3;
+        sys_icache_invalidate(ame437_region, sizeof(ame437_code));
+        ame437_verifyStep = 4;
+        volatile int (*ame437_fn)(void) = (volatile int (*)(void))ame437_region;
+        int ame437_ret = ame437_fn();
+        ame437_verifyStep = 5;
+        ame437_verdict = (ame437_ret == 0x1337) ? 0 : 5;
+    } else {
+        ame437_verdict = (int)ame437_verifyStep;   // 死在哪一步（取证用）
+    }
+    ame437_verifyStep = 0;
+    sigaction(SIGTRAP, &ame437_oldTrap, NULL);
+    sigaction(SIGBUS, &ame437_oldBus, NULL);
+    sigaction(SIGSEGV, &ame437_oldSegv, NULL);
+
+    const char *ame437_home = getenv("POJAV_HOME");
+    char ame437_path[1024];
+    BOOL ame437_havePath = NO;
+    if (ame437_home != NULL) {
+        snprintf(ame437_path, sizeof(ame437_path), "%s/ame437_probe_shadow.txt", ame437_home);
+        ame437_havePath = YES;
+    }
+    if (ame437_verdict == 0) {
+        NSLog(@"[Ame437] JIT26 channel self-verify PASSED (write + prepare + icache + call + ret==0x1337) -- debugger JIT26 channel really works");
+        if (ame437_havePath) unlink(ame437_path);   // 新鲜度：通道健康即清历史 shadow marker
+    } else {
+        static const char *ame437_stepName[] = { "", "write (RW side dead)", "prepare (brk0xf00d unserviced)", "icache", "exec (RX fetch fault -- mapping hollow)", "verify (bad return value)" };
+        const char *ame437_kind = (ame437_verdict >= 1 && ame437_verdict <= 5) ? ame437_stepName[ame437_verdict] : "unknown";
+        NSLog(@"[Ame437] JIT26 channel self-verify FAILED at step %d (%s) -- debugger granted the mapping but the executable view never got backed (mapping fake-positive, gen2 issue#3 layer5); ame437_probe_shadow.txt armed", ame437_verdict, ame437_kind);
+        if (ame437_havePath) {
+            FILE *ame437_f = fopen(ame437_path, "w");
+            if (ame437_f != NULL) {
+                fprintf(ame437_f, "time=%lld\nkind=%s\nstep=%d\nregion=%p\nreason=jit26 channel self-verify failed -- mapping fake-positive (Task437, gen2 issue#3 layer5)\n",
+                        (long long)time(NULL), ame437_kind, ame437_verdict, ame437_region);
+                fflush(ame437_f);
+                fsync(fileno(ame437_f));
+                fclose(ame437_f);
             }
         }
     }
@@ -2855,6 +2947,18 @@ int launchJVM(NSString *accountId, id launchTarget, int width, int height, int m
         JIT26SetDetachAfterFirstBr(!jit26AlwaysAttached);
         // make sure we don't get stuck in EXC_BAD_ACCESS
         task_set_exception_ports(mach_task_self(), EXC_MASK_BAD_ACCESS, 0, EXCEPTION_DEFAULT, MACHINE_THREAD_STATE);
+        // ★Task437：通道自证接线——对 Task342 探针页做端到端真调用（映射
+        //   假阳性检出，marker → ame273 新分支）。此处 BAD_ACCESS 端口已清零
+        //   （SIGBUS/SIGSEGV 以 Unix 信号抵达自证探针的安全网，不会被异常
+        //   端口吞掉）；探针失败不中断启动（零回归：真崩时 ame273 给精确
+        //   指引，通道假阳性下任何轨道都活不了，提前中断只会剥夺 latestlog
+        //   取证）。另补一道 Task342 探针地址高位取证：装机实录
+        //   0xcccccccc690000e0 被表层判活（低 32 位 = 0x690000E0 魔数掩过
+        //   legacy 检查），高位 0xCC 填充 = 调试器侧中毒指针嫌疑，留痕对拍。
+        if (((uintptr_t)result >> 32) == 0xCCCCCCCCu) {
+            NSLog(@"[JIT] [JavaLauncher] Task437 probe region high-32 = 0xCCCCCCCC (poisoned pattern) -- debugger returned a suspicious address; the self-verify probe below gives the real verdict");
+        }
+        ame437_selfVerifyJit26Channel(result);
     }
 
     if (jit26AlwaysAttached) {

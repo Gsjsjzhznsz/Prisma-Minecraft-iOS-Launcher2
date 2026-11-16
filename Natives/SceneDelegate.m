@@ -647,6 +647,7 @@ static void ame274_presentAfterSettling(UIViewController *presenter, UIViewContr
 
         // ---- 解析 key: value + detail 块 ----
         NSString *exitCode = nil, *catCn = nil, *catEn = nil, *headline = nil, *fix = nil;
+        NSString *ame437_rawCat = nil;   // ★Task437：原始 category 字段（英文标识符）
         NSMutableArray<NSString *> *details = [NSMutableArray array];
         BOOL inDetail = NO;
         for (NSString *raw in [content componentsSeparatedByString:@"\n"]) {
@@ -662,6 +663,7 @@ static void ame274_presentAfterSettling(UIViewController *presenter, UIViewContr
             NSString *k = [line substringToIndex:eq.location];
             NSString *v = [line substringFromIndex:NSMaxRange(eq)];
             if ([k isEqualToString:@"exit_code"]) exitCode = v;
+            else if ([k isEqualToString:@"category"]) ame437_rawCat = v;
             else if ([k isEqualToString:@"category_cn"]) catCn = v;
             else if ([k isEqualToString:@"category_en"]) catEn = v;
             else if ([k isEqualToString:@"headline"]) headline = v;
@@ -720,7 +722,12 @@ static void ame274_presentAfterSettling(UIViewController *presenter, UIViewContr
         // 动作：写 debug.mirror_codecache_disable=1（退役镜像映射代码缓存，
         // 下次启动走非镜像轨）+ marker 落盘取证。已开启仍崩（= 非镜像轨
         // 也死）则不再重复出现，走常规排查（更新/更换 JIT 工具）。
+        // ★Task437：报告类别 = jit26_mapping_shadow（映射已授予但 RX 空壳，
+        // 通道假阳性）时抑制 Task342 自救钮——该层自救是死路（非镜像轨在
+        // TXM 调试 JIT 下不可执行，Task433 闸下次启动又会忽略自救保留镜像
+        // 轨 = 空转循环），真指引是更新 StikJIT/StikDebug（fix 文案已给）。
         if (headline.length > 0 && [headline containsString:@"StubRoutines::call_stub"] &&
+            ![ame437_rawCat isEqualToString:@"jit26_mapping_shadow"] &&
             !getPrefBool(@"debug.mirror_codecache_disable")) {
             [ame273_alert addAction:[UIAlertAction actionWithTitle:localize(@"ame342.crash.retire_mirror", nil)
                 style:UIAlertActionStyleDefault handler:^(UIAlertAction *action) {
