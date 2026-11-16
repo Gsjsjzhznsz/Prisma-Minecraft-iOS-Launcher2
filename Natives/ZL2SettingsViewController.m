@@ -168,6 +168,14 @@ static UIImage *ame_hubSystemImage(NSString *name, NSString *fallback) {
 @property (nonatomic, strong) NSMutableDictionary<NSNumber *, UIViewController *> *childCache;
 @end
 
+// case 4 页子类：super 建完全部组卡后追加尾部入口组（连体双行）。
+// 注：Task327 插件贡献行动态组经 viewWillAppear 重建时恒追加至内容栈末尾，
+// 重建后位序为「尾部入口组 → 插件贡献组」（动态组本就浮动末位，观感可接受）。
+@interface ZL2LauncherSettingsTailPage : ZL2LauncherSettingsPage
+- (void)ame432_appendTailGroup;
+- (void)ame432_tailRowTapped:(UIControl *)sender;
+@end
+
 @implementation ZL2SettingsViewController
 
 #pragma mark - Lifecycle
@@ -530,13 +538,6 @@ static UIImage *ame_hubSystemImage(NSString *name, NSString *fallback) {
 }
 @end
 
-// case 4 页子类：super 建完全部组卡后追加尾部入口组（连体双行）。
-// 注：Task327 插件贡献行动态组经 viewWillAppear 重建时恒追加至内容栈末尾，
-// 重建后位序为「尾部入口组 → 插件贡献组」（动态组本就浮动末位，观感可接受）。
-@interface ZL2LauncherSettingsTailPage : ZL2LauncherSettingsPage
-- (void)ame432_appendTailGroup;
-- (void)ame432_tailRowTapped:(UIControl *)sender;
-@end
 
 @implementation ZL2LauncherSettingsTailPage
 

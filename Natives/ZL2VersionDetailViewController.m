@@ -1374,7 +1374,7 @@ static const CGFloat ZL2V13PageCardSpacing = 12.0;   // 页内行卡间距（ZL2
             if (!isDir && ![name.lowercaseString hasSuffix:@".zip"]) continue;
             NSDictionary *attrs = [fm attributesOfItemAtPath:path error:nil];
             unsigned long long size = [attrs fileSize];
-            NSDate *modified = [attrs modificationDate];
+            NSDate *modified = [attrs fileModificationDate];
             if (!modified) modified = [NSDate date];
             [rows addObject:@{
                 @"name": name,
