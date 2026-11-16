@@ -17,6 +17,10 @@
 #   剥离器：strip_keep_str（ame342 家法——去注释保字符串；NSLog/fix 文案
 #   断言目标在字符串字面量内，real 剥离器会把字符串替换成 "" 导致假阴）。
 #   惯例：--selftest 反向验证模式（内存注入病灶变体，必翻红；零仓内文件触碰）。
+# ★Task434（二代 issue#3 跟进）：A13 ame434 JIT26 运行时预检探针双站接线
+#   + marker 新鲜度（通过即清）· A14 ame273 ame434 精确分支（换 Java 17）
+#   · A15 Task433 被证伪的「改用 Java 21」建议退役（装机 hs_err_pid46873
+#   + latestlog 零 mapping 行实锤：Java 21 21.0.8 缺 JIT26 映射实现）。
 import os
 import sys
 
@@ -89,8 +93,29 @@ if '--selftest' in sys.argv:
         print('ok  S-2 反向：ame273 改道分支摘除 -> A10 FAIL（符合预期）')
     else:
         print('S-2 未翻红（改道分支探针失效）'); bad += 1
+    # S-3: ame434 探针双站接线被摘 → A13 必翻红
+    inj_jl2 = jl_code.replace('ame434_probeJit26Runtime(javaHome);', '/* REDACTED */;')
+    ok = 'ame434_probeJit26Runtime(javaHome);' not in inj_jl2
+    if ok:
+        print('ok  S-3 反向：ame434 探针双站接线摘除 -> A13 FAIL（符合预期）')
+    else:
+        print('S-3 未翻红（探针接线探针失效）'); bad += 1
+    # S-4: 被证伪的 Java 21 建议回流 → A15 必翻红（对 A15 谓词做
+    #      健康/病态双向验证：真代码必须健康，注入后必须翻红）
+    def a15_pred(src):
+        return ('改用 Java 21 运行时' not in src and
+                'use a Java 21 runtime for this instance' not in src and
+                '或对该实例改用 Java 17 运行时' in src and
+                'switch this instance to a Java 17 runtime' in src)
+    inj_mh2 = mh_code.replace('switch this instance to a Java 17 runtime',
+                              'use a Java 21 runtime for this instance')
+    ok = a15_pred(mh_code) and (not a15_pred(inj_mh2))
+    if ok:
+        print('ok  S-4 反向：证伪建议回流 -> A15 FAIL（符合预期）')
+    else:
+        print('S-4 未翻红（证伪建议探针失效）'); bad += 1
     if bad == 0:
-        print('selftest OK（2 探针全部翻红）')
+        print('selftest OK（4 探针全部翻红）')
         sys.exit(0)
     sys.exit(1)
 
@@ -123,6 +148,32 @@ check('A12 ame342 退役旗标闸零回归（MARGV/HARGV 双落位）',
       '} else if (@available(iOS 26.0, *) && !ame342_retireMirror) {' in jl_code and
       'PUSH_MARGV_LITERAL("-XX:+MirrorMappedCodeCache");' in jl_code and
       'PUSH_HARGV_LITERAL("-XX:+MirrorMappedCodeCache");' in jl_code)
+
+print('== A13/A14/A15 组：Task434 JIT26 运行时预检探针（二代 issue#3 跟进）==')
+
+# A13: ame434 探针助手 + 双站接线 + marker 通道与新鲜度语义。
+check('A13 ame434 JIT26 运行时预检探针双站接线（launchJVM + headless）',
+      'static void ame434_probeJit26Runtime(NSString *javaHome)' in jl_code and
+      jl_code.count('ame434_probeJit26Runtime(javaHome);') == 2 and
+      'XNU_HAS_TXM' in jl_code and 'DeviceHasTXM' in jl_code and
+      'Got JIT mapping' in jl_code and
+      'ame434_jit26_missing.txt' in jl_code and 'unlink(ame434_path)' in jl_code)
+
+# A14: main_hook ame434 精确分支——marker 在场给换运行时指引，优先级在
+#      Task433 分支之前（分支序：ame434 探针 → ame433 自救已激活 → Task430 原文）。
+check('A14 main_hook ame434 精确分支（运行时缺 JIT26 → 换 Java 17）',
+      '[Ame434] SIGBUS+call_stub with ame434_jit26_missing.txt present' in mh_code and
+      '缺少 JIT26 调试映射实现' in mh_code and
+      '改用 Java 17 运行时' in mh_code and
+      'ame434_jit26_missing.txt' in mh_code and
+      mh_code.index('ame434_jit26Missing') < mh_code.index('[Ame433] SIGBUS+call_stub'))
+
+# A15: Task433 被装机实测证伪的「改用 Java 21」建议退役（修正为 Java 17）。
+check('A15 被证伪的 Java 21 建议退役（Java 17 指引在场）',
+      '改用 Java 21 运行时' not in mh_code and
+      'use a Java 21 runtime for this instance' not in mh_code and
+      '或对该实例改用 Java 17 运行时' in mh_code and
+      'switch this instance to a Java 17 runtime' in mh_code)
 
 print(f'\n== task433_selfcheck: {passed} passed, {len(fails)} failed ==')
 if fails:

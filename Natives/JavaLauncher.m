@@ -255,6 +255,75 @@ static double ame130_export_rcas_env(void) {
 + (nullable PLRendererPluginEntry *)entryForRendererKey:(NSString *)key;
 @end
 
+// ★Task434（二代 issue#3 跟进）：JIT26 调试映射运行时能力探针。
+//   依据 Task433 jre17 libjvm 反汇编取证（上方 Task433 闸注释同源）：
+//   具备 JIT26 调试映射实现的 libjvm 二进制必然编译期携带特征字符串
+//   XNU_HAS_TXM（环境变量名）/ DeviceHasTXM（dlsym 符号名）/
+//   "Got JIT mapping"（映射成功 stdout 行）；缺实现构建三者全无。
+//   装机实锤（056a466 + Java 21 21.0.8，装机 hs_err_pid46873 +
+//   latestlog）：镜像轨旗标在册（+MirrorMappedCodeCache）但 latestlog
+//   全程零 mapping 行 = 映射请求零发起 → 普通 mmap 页在 TXM 调试 JIT
+//   下不可执行 → 首取指 ~StubRoutines::call_stub SIGBUS BUS_ADRALN
+//   （java.lang <clinit> 55ms 即死，问题帧与 Task430 病历逐位同形）。
+//   探针通过 = 清掉历史 marker（新鲜度：marker 恒指当前会话探针）；
+//   探针缺失 = 落 ame434_jit26_missing.txt（fopen+fsync 通道），
+//   ame273 据此给精确处置指引（换 Java 17 运行时），取代 Task433
+//   文案中被装机实测证伪的「改用 Java 21」建议。文件缺失 = 未知
+//   （不告警零回归）。
+static void ame434_probeJit26Runtime(NSString *javaHome) {
+    if (javaHome.length == 0) return;
+    NSFileManager *ame434_fm = [NSFileManager defaultManager];
+    NSString *ame434_libjvm = nil;
+    for (NSString *ame434_rel in @[@"lib/server/libjvm.dylib", @"lib/libjvm.dylib"]) {
+        NSString *ame434_cand = [javaHome stringByAppendingPathComponent:ame434_rel];
+        if ([ame434_fm fileExistsAtPath:ame434_cand]) { ame434_libjvm = ame434_cand; break; }
+    }
+    if (ame434_libjvm.length == 0) {
+        NSLog(@"[Ame434] JIT26 runtime probe: libjvm.dylib not found under %@ -- probe skipped (unknown, no guidance change)", javaHome);
+        return;
+    }
+    NSData *ame434_data = [NSData dataWithContentsOfFile:ame434_libjvm
+                                                 options:NSDataReadingMappedIfSafe
+                                                   error:nil];
+    if (ame434_data.length == 0) {
+        NSLog(@"[Ame434] JIT26 runtime probe: read failed for %@ -- probe skipped", ame434_libjvm);
+        return;
+    }
+    static const char *ame434_markers[] = { "XNU_HAS_TXM", "DeviceHasTXM", "Got JIT mapping" };
+    BOOL ame434_found = NO;
+    const char *ame434_bytes = ame434_data.bytes;
+    NSUInteger ame434_len = ame434_data.length;
+    for (NSUInteger ame434_mi = 0; ame434_mi < 3 && !ame434_found; ame434_mi++) {
+        const char *ame434_m = ame434_markers[ame434_mi];
+        if (memmem(ame434_bytes, ame434_len, ame434_m, strlen(ame434_m)) != NULL) {
+            ame434_found = YES;
+        }
+    }
+    const char *ame434_home = getenv("POJAV_HOME");
+    char ame434_path[1024];
+    BOOL ame434_havePath = NO;
+    if (ame434_home != NULL) {
+        snprintf(ame434_path, sizeof(ame434_path), "%s/ame434_jit26_missing.txt", ame434_home);
+        ame434_havePath = YES;
+    }
+    if (ame434_found) {
+        NSLog(@"[Ame434] JIT26 runtime probe: %@ carries JIT26 debug-mapping markers -- mirror track viable on this runtime", ame434_libjvm);
+        if (ame434_havePath) unlink(ame434_path);   // 新鲜度：探针通过即清历史缺失 marker
+    } else {
+        NSLog(@"[Ame434] JIT26 runtime probe: %@ LACKS JIT26 debug-mapping markers (XNU_HAS_TXM/DeviceHasTXM/'Got JIT mapping' all absent) -- mirror flag will not engage mapping under TXM debugger JIT; ame434_jit26_missing.txt armed", ame434_libjvm);
+        if (ame434_havePath) {
+            FILE *ame434_f = fopen(ame434_path, "w");
+            if (ame434_f != NULL) {
+                fprintf(ame434_f, "time=%lld\nruntime=%s\nreason=jit26 debug-mapping markers absent (Task434, gen2 issue#3 follow-up)\n",
+                        (long long)time(NULL), ame434_libjvm.UTF8String);
+                fflush(ame434_f);
+                fsync(fileno(ame434_f));
+                fclose(ame434_f);
+            }
+        }
+    }
+}
+
 void init_loadMobileGluesConfig() {
     // Task 144：改读 ame_effective_renderer()（单一事实源）而非裸 profile 键。
     // Task142 后 profile 存的是 "mg" 逻辑键，旧白名单永远 miss；解析后拿到的
@@ -4398,6 +4467,16 @@ int launchJVM(NSString *accountId, id launchTarget, int width, int height, int m
         ame342_retireMirror = NO;
         NSLog(@"[JavaLauncher] Task433: self-rescue requested but TXM debugger JIT active -- mirror track kept (non-mirror track is non-executable under TXM debug JIT; gen2 issue#3)");
     }
+    // ★Task434（二代 issue#3 跟进）：TXM 调试 JIT + 镜像轨会话的运行时
+    //   JIT26 能力预检（ame434 探针：XNU_HAS_TXM / DeviceHasTXM /
+    //   "Got JIT mapping" 三特征字符串任一命中即具备）。装机实锤：Java 21
+    //   21.0.8 构建镜像轨旗标在册但 latestlog 全程零 mapping 行 = 映射请求
+    //   零发起，TXM 下必然首取指即崩（hs_err_pid46873 与 Task430 病历同形）。
+    //   探针结果落 ame434_jit26_missing.txt marker，ame273 据此给精确处置
+    //   指引（换 Java 17），取代被装机实测证伪的「改用 Java 21」建议。
+    if (@available(iOS 26.0, *) && !ame342_retireMirror && JIT26IsLikelyDebuggerKeepAttached()) {
+        ame434_probeJit26Runtime(javaHome);
+    }
     if (ame342_retireMirror) {
         NSLog(@"[JavaLauncher] Task342: debug.mirror_codecache_disable=1 -- retiring MirrorMappedCodeCache for this session (self-rescue path)");
     }
@@ -5305,6 +5384,11 @@ int launchHeadlessJVM(NSString *mainClass, NSArray<NSString *> *args, int minJav
     if (ame342_retireMirror && JIT26IsLikelyDebuggerKeepAttached()) {
         ame342_retireMirror = NO;
         NSLog(@"[JavaLauncher] Task433: self-rescue requested but TXM debugger JIT active (processors path) -- mirror track kept (gen2 issue#3)");
+    }
+    // ★Task434（二代 issue#3 跟进）：ame434 JIT26 运行时预检 headless 同款
+    //   （双站对齐；根因链与探针语义见 launchJVM 站注释）。
+    if (@available(iOS 26.0, *) && !ame342_retireMirror && JIT26IsLikelyDebuggerKeepAttached()) {
+        ame434_probeJit26Runtime(javaHome);
     }
     if (@available(iOS 26.0, *) && !ame342_retireMirror) {
         PUSH_HARGV_LITERAL("-XX:ReservedCodeCacheSize=64m");

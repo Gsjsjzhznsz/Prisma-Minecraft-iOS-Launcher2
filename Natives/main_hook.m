@@ -683,7 +683,24 @@ static void ame273_writeCrashReport(int code) {
                 }
                 NSLog(@"[Ame430] JIT mirror auto-rescue armed (debug.mirror_codecache_disable=1 + marker written) -- next launch uses the non-mirrored track");
             }
-            if (getPrefBool(@"debug.mirror_codecache_disable")) {
+            // ★Task434（二代 issue#3 跟进）：运行时 JIT26 能力探针 marker
+            //   在场 = 本会话镜像轨在册但所选运行时 libjvm 缺 JIT26 调试映射
+            //   实现（JavaLauncher 双站预检实证，hs_err_pid46873 实锤）——
+            //   TXM 调试 JIT 下该运行时不可用（映射请求零发起 → 普通 mmap
+            //   页不可执行 → 首取指 ~StubRoutines::call_stub SIGBUS）。
+            //   指引 = 换 Java 17 运行时（内置构建已验证含 JIT26 调试映射）。
+            const char *ame434_home = getenv("POJAV_HOME");
+            BOOL ame434_jit26Missing = NO;
+            if (ame434_home != NULL) {
+                char ame434_marker[1024];
+                snprintf(ame434_marker, sizeof(ame434_marker),
+                         "%s/ame434_jit26_missing.txt", ame434_home);
+                ame434_jit26Missing = (access(ame434_marker, F_OK) == 0);
+            }
+            if (ame434_jit26Missing) {
+                NSLog(@"[Ame434] SIGBUS+call_stub with ame434_jit26_missing.txt present -- selected runtime lacks JIT26 debug-mapping; TXM debugger JIT cannot run it (gen2 issue#3 follow-up)");
+                fix = "崩溃原因 = 当前实例选用的 Java 运行时缺少 JIT26 调试映射实现（启动前二进制探针已实证其 libjvm 不含 JIT26 特征：XNU_HAS_TXM/DeviceHasTXM/Got JIT mapping 全缺）。你的 JIT 环境（TXM 调试 JIT，StikJIT/StikDebug 家族）只能执行镜像轨内存，而该运行时即使挂着镜像轨旗标也从不发起映射请求 → 代码缓存页不可执行，首次取指即崩。处置：对该实例改用 Java 17 运行时（内置 jre17 构建经反汇编验证含 JIT26 调试映射），或把 StikJIT/StikDebug 更新到最新版后重试。 EN: Crash cause = the Java runtime selected for this instance lacks the JIT26 debug-mapping implementation (its libjvm was binary-probed before launch and carries none of the JIT26 markers: XNU_HAS_TXM / DeviceHasTXM / 'Got JIT mapping' all absent). Your JIT environment (TXM debugger JIT, StikJIT/StikDebug family) can only execute mirror-track memory, and this runtime never issues the mapping request even with the mirror flag present -> code-cache pages are never executable, first instruction fetch crashes. Fix: switch this instance to a Java 17 runtime (the bundled jre17 build is verified by disassembly to carry the JIT26 debug-mapping), or update StikJIT/StikDebug to the latest build and retry.";
+            } else if (getPrefBool(@"debug.mirror_codecache_disable")) {
                 // ★Task433（二代 issue#3）：自救已激活仍崩——不再重复武装
                 //   （Task430 自动自救已在 pref/marker 双通道，再写是空转），
                 //   弹窗改道讲真话：jre17 libjvm 反汇编实锤（JavaLauncher
@@ -696,7 +713,7 @@ static void ame273_writeCrashReport(int code) {
                 //   自救保留镜像轨——此处给环境级处置指引，不再诱导用户
                 //   「开启自救」（本会话装机实录：自救开着仍崩循环三连）。
                 NSLog(@"[Ame433] SIGBUS+call_stub while self-rescue already active -- non-mirror track is non-executable under TXM debugger JIT; launcher keeps the mirror track (gen2 issue#3)");
-                fix = "JIT 自救已开启仍崩溃 = 你的 JIT 环境（TXM 调试 JIT，StikJIT/StikDebug 家族）无法运行非镜像轨（该轨道的内存页不被授权可执行，自救在此环境是死路）。启动器已自动忽略自救并保留镜像映射轨道（TXM 调试 JIT 唯一可执行内存通道），请直接再点启动。若镜像轨也崩，请把 StikJIT/StikDebug 更新到最新版（iPadOS 27 兼容）或更换 JIT 开启工具（SideStore/JitStreamer-EB 等），或对该实例改用 Java 21 运行时。 EN: The JIT self-rescue is already enabled and the crash persists = your JIT environment (TXM debugger JIT, StikJIT/StikDebug family) cannot run the non-mirror track (its pages are never executable under TXM, so the self-rescue is a dead end here). The launcher now ignores the self-rescue and keeps the mirrored track (the only viable executable-memory channel under TXM) -- just tap Launch again. If the mirrored track also crashes, update StikJIT/StikDebug to the latest build or switch to another JIT enabler (SideStore/JitStreamer-EB), or use a Java 21 runtime for this instance.";
+                fix = "JIT 自救已开启仍崩溃 = 你的 JIT 环境（TXM 调试 JIT，StikJIT/StikDebug 家族）无法运行非镜像轨（该轨道的内存页不被授权可执行，自救在此环境是死路）。启动器已自动忽略自救并保留镜像映射轨道（TXM 调试 JIT 唯一可执行内存通道），请直接再点启动。若镜像轨也崩，请把 StikJIT/StikDebug 更新到最新版（iPadOS 27 兼容）或更换 JIT 开启工具（SideStore/JitStreamer-EB 等），或对该实例改用 Java 17 运行时（内置 jre17 构建经反汇编验证含 JIT26 调试映射；部分 Java 21 构建缺该实现，ame434 启动前探针会给出实证）。 EN: The JIT self-rescue is already enabled and the crash persists = your JIT environment (TXM debugger JIT, StikJIT/StikDebug family) cannot run the non-mirror track (its pages are never executable under TXM, so the self-rescue is a dead end here). The launcher now ignores the self-rescue and keeps the mirrored track (the only viable executable-memory channel under TXM) -- just tap Launch again. If the mirrored track also crashes, update StikJIT/StikDebug to the latest build or switch to another JIT enabler (SideStore/JitStreamer-EB), or switch this instance to a Java 17 runtime (the bundled jre17 build is verified to carry the JIT26 debug-mapping); some Java 21 builds lack it and the ame434 pre-launch probe will prove it on device.";
             } else {
                 fix = "JIT 代码缓存镜像映射异常（JIT26 mirror-mapped CodeCache 双视图关系破裂，RX 段无有效代码可执行）。已自动开启「JIT 自救模式」（退役镜像映射代码缓存），重启启动器后再点启动即可走非镜像轨；若仍崩溃请把 StikJIT/StikDebug 更新到最新版（iPadOS 27 兼容）或更换 JIT 开启工具（SideStore/JitStreamer-EB 等）。 EN: JIT code-cache mirror mapping is broken (RW/RX views non-adjacent, RX pages carry no code). JIT self-rescue has been armed automatically (mirrored code cache retired) -- relaunch the launcher and start the game to use the non-mirrored track; if it still crashes, update StikJIT/StikDebug to the latest build or switch to another JIT enabler (SideStore/JitStreamer-EB).";
             }
