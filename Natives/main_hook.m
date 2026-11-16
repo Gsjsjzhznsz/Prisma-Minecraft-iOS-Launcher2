@@ -683,7 +683,23 @@ static void ame273_writeCrashReport(int code) {
                 }
                 NSLog(@"[Ame430] JIT mirror auto-rescue armed (debug.mirror_codecache_disable=1 + marker written) -- next launch uses the non-mirrored track");
             }
-            fix = "JIT 代码缓存镜像映射异常（JIT26 mirror-mapped CodeCache 双视图关系破裂，RX 段无有效代码可执行）。已自动开启「JIT 自救模式」（退役镜像映射代码缓存），重启启动器后再点启动即可走非镜像轨；若仍崩溃请把 StikJIT/StikDebug 更新到最新版（iPadOS 27 兼容）或更换 JIT 开启工具（SideStore/JitStreamer-EB 等）。 EN: JIT code-cache mirror mapping is broken (RW/RX views non-adjacent, RX pages carry no code). JIT self-rescue has been armed automatically (mirrored code cache retired) -- relaunch the launcher and start the game to use the non-mirrored track; if it still crashes, update StikJIT/StikDebug to the latest build or switch to another JIT enabler (SideStore/JitStreamer-EB).";
+            if (getPrefBool(@"debug.mirror_codecache_disable")) {
+                // ★Task433（二代 issue#3）：自救已激活仍崩——不再重复武装
+                //   （Task430 自动自救已在 pref/marker 双通道，再写是空转），
+                //   弹窗改道讲真话：jre17 libjvm 反汇编实锤（JavaLauncher
+                //   Task433 闸注释同源），JIT26 调试映射（brk0x69 + vm_remap
+                //   RW/RX 双视图）由 MirrorMappedCodeCache 旗标单点闸控；
+                //   旗标退役 = 普通 mmap 路径，其页在 TXM 调试 JIT
+                //   （StikJIT/StikDebug 家族）下从未被授权可执行 → 自救 =
+                //   结构性死路，镜像轨才是唯一可行轨道。Task433 闸
+                //   （JavaLauncher launchJVM/headless 双站）已在启动侧忽略
+                //   自救保留镜像轨——此处给环境级处置指引，不再诱导用户
+                //   「开启自救」（本会话装机实录：自救开着仍崩循环三连）。
+                NSLog(@"[Ame433] SIGBUS+call_stub while self-rescue already active -- non-mirror track is non-executable under TXM debugger JIT; launcher keeps the mirror track (gen2 issue#3)");
+                fix = "JIT 自救已开启仍崩溃 = 你的 JIT 环境（TXM 调试 JIT，StikJIT/StikDebug 家族）无法运行非镜像轨（该轨道的内存页不被授权可执行，自救在此环境是死路）。启动器已自动忽略自救并保留镜像映射轨道（TXM 调试 JIT 唯一可执行内存通道），请直接再点启动。若镜像轨也崩，请把 StikJIT/StikDebug 更新到最新版（iPadOS 27 兼容）或更换 JIT 开启工具（SideStore/JitStreamer-EB 等），或对该实例改用 Java 21 运行时。 EN: The JIT self-rescue is already enabled and the crash persists = your JIT environment (TXM debugger JIT, StikJIT/StikDebug family) cannot run the non-mirror track (its pages are never executable under TXM, so the self-rescue is a dead end here). The launcher now ignores the self-rescue and keeps the mirrored track (the only viable executable-memory channel under TXM) -- just tap Launch again. If the mirrored track also crashes, update StikJIT/StikDebug to the latest build or switch to another JIT enabler (SideStore/JitStreamer-EB), or use a Java 21 runtime for this instance.";
+            } else {
+                fix = "JIT 代码缓存镜像映射异常（JIT26 mirror-mapped CodeCache 双视图关系破裂，RX 段无有效代码可执行）。已自动开启「JIT 自救模式」（退役镜像映射代码缓存），重启启动器后再点启动即可走非镜像轨；若仍崩溃请把 StikJIT/StikDebug 更新到最新版（iPadOS 27 兼容）或更换 JIT 开启工具（SideStore/JitStreamer-EB 等）。 EN: JIT code-cache mirror mapping is broken (RW/RX views non-adjacent, RX pages carry no code). JIT self-rescue has been armed automatically (mirrored code cache retired) -- relaunch the launcher and start the game to use the non-mirrored track; if it still crashes, update StikJIT/StikDebug to the latest build or switch to another JIT enabler (SideStore/JitStreamer-EB).";
+            }
         } else if (ame307_molten && ame307_mgl) {
             NSLog(@"[Ame307] MoltenVK crash signature detected (libMoltenVK+libMobileGL) -- targeted fix guidance attached");
             fix = "MoltenVK（MobileGlues Vulkan 后端）在着色器管线初始化时崩溃（空指针）。缓解：设置-视频-渲染器-渲染后端(MobileGlues) 切到 GLES 档（不经 MoltenVK），或改用其他渲染器后重试。 EN: MoltenVK (MobileGlues Vulkan backend) crashed during shader pipeline init (null deref). Mitigation: switch the MobileGlues backend to GLES (bypasses MoltenVK), or pick another renderer.";

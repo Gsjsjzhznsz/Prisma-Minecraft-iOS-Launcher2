@@ -4381,6 +4381,23 @@ int launchJVM(NSString *accountId, id launchTarget, int width, int height, int m
             }
         }
     }
+    //   ★ Task433（二代 issue#3）：TXM 调试 JIT 环境闸——自救（退役镜像
+    //   轨）在 StikJIT/TXM 调试 JIT 设备上是结构性死路。jre17 libjvm
+    //   反汇编实锤（task433_jit26_xref2/disasm）：JIT26 调试映射函数
+    //   （dlsym DeviceHasTXM / XNU_HAS_TXM 环境变量 → brk #0x69 向调试器
+    //   请求可执行区 → vm_remap 造 RW 别名 → "mapping at RW=%p, RX=%p"）
+    //   由 MirrorMappedCodeCache 旗标单点闸控（闸字节关闭即 return NULL
+    //   回落普通 mmap 路径）；普通路径产出的内存页在 TXM 下从未被授权
+    //   可执行 → 首次取指 ~StubRoutines::call_stub 即 SIGBUS BUS_ADRALN
+    //   （pc==si_addr，装机 hs_err_pid41485 实锤：自救已激活 256m 轨仍同
+    //   签名崩，启动后 55ms java.lang <clinit> 首次 Java 调用即死；x4/x23
+    //   同区段 Interpreter codelet 也从未执行）。即镜像轨是 TXM 调试 JIT
+    //   设备唯一可执行内存通道——自救请求在该环境被忽略（镜像轨保留），
+    //   弹窗文案（main_hook ame273 ame433 分支）同步改道讲真话。
+    if (ame342_retireMirror && JIT26IsLikelyDebuggerKeepAttached()) {
+        ame342_retireMirror = NO;
+        NSLog(@"[JavaLauncher] Task433: self-rescue requested but TXM debugger JIT active -- mirror track kept (non-mirror track is non-executable under TXM debug JIT; gen2 issue#3)");
+    }
     if (ame342_retireMirror) {
         NSLog(@"[JavaLauncher] Task342: debug.mirror_codecache_disable=1 -- retiring MirrorMappedCodeCache for this session (self-rescue path)");
     }
@@ -5281,6 +5298,13 @@ int launchHeadlessJVM(NSString *mainClass, NSArray<NSString *> *args, int minJav
                 NSLog(@"[JavaLauncher] Task430: ame342_mirror_retired.txt marker present (processors path) -- retiring MirrorMappedCodeCache");
             }
         }
+    }
+    // ★ Task433（二代 issue#3）：TXM 闸同款（processors JVM 路径与
+    //   launchJVM 双站对齐——镜像轨是 TXM 调试 JIT 唯一可执行内存通道，
+    //   自救请求在该环境被忽略；根因链见 launchJVM 站注释）。
+    if (ame342_retireMirror && JIT26IsLikelyDebuggerKeepAttached()) {
+        ame342_retireMirror = NO;
+        NSLog(@"[JavaLauncher] Task433: self-rescue requested but TXM debugger JIT active (processors path) -- mirror track kept (gen2 issue#3)");
     }
     if (@available(iOS 26.0, *) && !ame342_retireMirror) {
         PUSH_HARGV_LITERAL("-XX:ReservedCodeCacheSize=64m");

@@ -39,6 +39,7 @@ run_py task191      scripts/task191_validate_strings.py
 run_py task248      scripts/task248_i18n_audit.py
 run_py task250      scripts/task250_i18n_audit.py
 run_py task393_r3   scripts/task393_r3_audit.py
+run_py task433      scripts/task433_selfcheck.py
 run_py verify161    scripts/verify_task161.py
 run_py verify219    scripts/verify_task219.py
 run_py verify255    scripts/verify_task255.py
