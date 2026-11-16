@@ -295,8 +295,17 @@ static void ame434_probeJit26Runtime(NSString *javaHome) {
     NSUInteger ame434_len = ame434_data.length;
     for (NSUInteger ame434_mi = 0; ame434_mi < 3 && !ame434_found; ame434_mi++) {
         const char *ame434_m = ame434_markers[ame434_mi];
-        if (memmem(ame434_bytes, ame434_len, ame434_m, strlen(ame434_m)) != NULL) {
-            ame434_found = YES;
+        // 有界子串扫描（★Task434：Darwin string.h 不声明 memmem——
+        //   spvc_shim.c 同判例，首字符闸 + memcmp 防隐式声明告警）
+        NSUInteger ame434_ml = strlen(ame434_m);
+        if (ame434_len < ame434_ml) continue;
+        const char *ame434_end = ame434_bytes + (ame434_len - ame434_ml);
+        for (const char *ame434_p = ame434_bytes; ame434_p <= ame434_end; ame434_p++) {
+            if (ame434_p[0] == ame434_m[0] &&
+                memcmp(ame434_p, ame434_m, ame434_ml) == 0) {
+                ame434_found = YES;
+                break;
+            }
         }
     }
     const char *ame434_home = getenv("POJAV_HOME");
