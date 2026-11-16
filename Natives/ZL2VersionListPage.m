@@ -825,8 +825,11 @@ static NSArray<NSDictionary *> *ZL2VListSortOptionItems(void) {
 
 // 通用筛选行（左 caption + 右横滑 chips；旧页 createFilterRowWithIconName
 // 行结构 ZL2 化——图标省略，caption fontLabelMedium）
+// Task436-r2: out-param 限 __strong —— 四个调用点传的都是 __strong 合成 ivar 地址（&_sourceChipStack 族），
+// 裸 UIStackView ** 按 ARC 默认降为 __autoreleasing 写回 → "passing address of non-local object to
+// __autoreleasing parameter" 硬错（CI smoke 腿 6 errors 同根）；签名限 __strong 后调用点零改动
 - (UIView *)ame_filterRowWithCaption:(NSString *)caption
-                        chipStackOut:(UIStackView **)chipStackOut {
+                        chipStackOut:(UIStackView *__strong *)chipStackOut {
     UILabel *captionLabel = [[UILabel alloc] init];
     captionLabel.text = caption;
     captionLabel.font = [ZL2Theme fontLabelMedium];
@@ -991,7 +994,7 @@ static NSArray<NSDictionary *> *ZL2VListSortOptionItems(void) {
 // 属性——两行逻辑同构合并，避免旧页 versionChipTapped/loaderChipTapped 双份复制）
 - (void)ame_valueChipTapped:(ZL2M3FilterChip *)chip
                     inStack:(UIStackView *)stack
-                        key:(NSString **)key {
+                        key:(NSString *__strong *)key {
     NSString *value = chip.accessibilityLabel ?: @"";
     if (value.length == 0 || [value isEqualToString:*key]) return;
     *key = value;
