@@ -312,11 +312,13 @@ preview_mode() {
   # 与 CALayer/CABasicAnimation（Progress/Card 阴影）符号不在 UIKit 内；
   # 7.0-UI-9-e 补 AuthenticationServices（账户页 ASWebAuthenticationSession MSA 流）
   # 与 UniformTypeIdentifiers（设置页 UTType 文档选择器）——本脚本不用 -fmodules，
-  # 无自动链接
+  # 无自动链接；★Task437-r2 补 ImageIO（IconLoader CGImageSource* 缩略图族，
+  # 预览 TU 清单入列 IconLoader 后暴露——框架面是新 TU 落地的第二轴：类符号
+  # 轴之外还有链接框架轴）
   if ! xcrun clang -isysroot "$SDK_SIM" -target "${ARCH}-apple-ios14.0-simulator" \
       -framework UIKit -framework Foundation -framework CoreGraphics -framework QuartzCore \
       -framework AuthenticationServices -framework UniformTypeIdentifiers \
-      -framework CoreHaptics \
+      -framework CoreHaptics -framework ImageIO \
       -o "$OUT/AmeFluentPreview" \
       "${objs[@]}" "$OUT/AmeFluentPreviewMain.o" "$OUT/ZL2PagesStub.o" 2>"$OUT/link.log"; then
     echo "  ✗ 链接失败:"
