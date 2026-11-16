@@ -368,6 +368,43 @@ static id ame429_listElementForNode(UIView *node) {
 @property(nonatomic, assign) NSInteger ame436_createdCount;
 @end
 
+// ============================================================================
+// ★Task436 私有面板件——类声明前置（★Task436-r3）：主实现方法体
+// （ame436_showPropsSheet :1916 起引用 Ame436BlockTextField/Ame436SpecialKeyGrid
+// 等）要求类先声明——ObjC 方法体内类引用必须先见 @interface，@class 前置
+// 声明不足以访问 property（borderStyle/font/ame436_onChange 等）。声明在上、
+// 实现在下（文件尾）的标准私有类布局；本文件私有，不新增 TU、不动 ZL2M3Kit。
+// ============================================================================
+
+/// 块回调滑条（UIControl 系统族只收 selector，面板行内联回调走块属性）
+@interface Ame436BlockSlider : UISlider
+@property(nonatomic, copy) void (^ame436_onChange)(CGFloat value);
+@end
+
+/// 块回调开关
+@interface Ame436BlockSwitch : UISwitch
+@property(nonatomic, copy) void (^ame436_onChange)(BOOL on);
+@end
+
+/// 块回调分段
+@interface Ame436BlockSegment : UISegmentedControl
+@property(nonatomic, copy) void (^ame436_onChange)(NSInteger idx);
+@end
+
+/// 块回调文本框（EditingChanged 逐字符回调）
+@interface Ame436BlockTextField : UITextField
+@property(nonatomic, copy) void (^ame436_onChange)(NSString *text);
+@end
+
+/// 启动器动作（特殊键）单选网格：3 列 × 4 行 chip（10 项）。值域 = 本运行时
+/// 特殊键族（utils.h SPECIALBTN_*，0 = 无）——与 SurfaceViewController
+/// executebtn 特殊键分发表（case SPECIALBTN_*）一一对应，即 iOS 侧「启动器
+/// 事件」既有面（ZL2 基准 launch.ui 动作枚举在本仓无对应运行时面，不硬造）。
+@interface Ame436SpecialKeyGrid : UIView
+- (instancetype)initWithCurrentValue:(NSInteger)current
+                            onChange:(void (^)(NSInteger value))onChange;
+@end
+
 @implementation ZL2ControlLayoutEditorViewController
 
 + (void)ame429_presentFromViewController:(UIViewController *)host {
@@ -2332,14 +2369,13 @@ typedef NS_ENUM(NSInteger, Ame436NewKind) {
 
 
 // ============================================================================
-// ★Task436 私有面板件（本文件私有，不新增 TU、不动 ZL2M3Kit——链接面零风险
-// 判例：冒烟清单外的类一律做成既有 TU 内私有类；ZL2M3Kit 弹层族照旧复用）
+// ★Task436 私有面板件——实现块（类声明已前置至主 @implementation 之前，
+// ★Task436-r3 判例：ObjC 方法体内类引用必须先见 @interface，声明+实现
+// 连体沉尾会让主实现先用后声明 → undeclared identifier 轰炸）。本文件
+// 私有，不新增 TU、不动 ZL2M3Kit——链接面零风险判例：冒烟清单外的类
+// 一律做成既有 TU 内私有类；ZL2M3Kit 弹层族照旧复用。
 // ============================================================================
 
-/// 块回调滑条（UIControl 系统族只收 selector，面板行内联回调走块属性）
-@interface Ame436BlockSlider : UISlider
-@property(nonatomic, copy) void (^ame436_onChange)(CGFloat value);
-@end
 @implementation Ame436BlockSlider
 - (instancetype)initWithFrame:(CGRect)frame {
     self = [super initWithFrame:frame];
@@ -2353,10 +2389,6 @@ typedef NS_ENUM(NSInteger, Ame436NewKind) {
 - (void)ame436_fire { if (self.ame436_onChange) self.ame436_onChange(self.value); }
 @end
 
-/// 块回调开关
-@interface Ame436BlockSwitch : UISwitch
-@property(nonatomic, copy) void (^ame436_onChange)(BOOL on);
-@end
 @implementation Ame436BlockSwitch
 - (instancetype)initWithFrame:(CGRect)frame {
     self = [super initWithFrame:frame];
@@ -2370,10 +2402,6 @@ typedef NS_ENUM(NSInteger, Ame436NewKind) {
 - (void)ame436_fire { if (self.ame436_onChange) self.ame436_onChange(self.on); }
 @end
 
-/// 块回调分段
-@interface Ame436BlockSegment : UISegmentedControl
-@property(nonatomic, copy) void (^ame436_onChange)(NSInteger idx);
-@end
 @implementation Ame436BlockSegment
 - (instancetype)initWithItems:(NSArray *)items {
     self = [super initWithItems:items];
@@ -2389,10 +2417,6 @@ typedef NS_ENUM(NSInteger, Ame436NewKind) {
 }
 @end
 
-/// 块回调文本框（EditingChanged 逐字符回调）
-@interface Ame436BlockTextField : UITextField
-@property(nonatomic, copy) void (^ame436_onChange)(NSString *text);
-@end
 @implementation Ame436BlockTextField
 - (instancetype)initWithFrame:(CGRect)frame {
     self = [super initWithFrame:frame];
@@ -2405,14 +2429,6 @@ typedef NS_ENUM(NSInteger, Ame436NewKind) {
 - (void)ame436_fire { if (self.ame436_onChange) self.ame436_onChange(self.text ?: @""); }
 @end
 
-/// 启动器动作（特殊键）单选网格：3 列 × 4 行 chip（10 项）。值域 = 本运行时
-/// 特殊键族（utils.h SPECIALBTN_*，0 = 无）——与 SurfaceViewController
-/// executebtn 特殊键分发表（case SPECIALBTN_*）一一对应，即 iOS 侧「启动器
-/// 事件」既有面（ZL2 基准 launch.ui 动作枚举在本仓无对应运行时面，不硬造）。
-@interface Ame436SpecialKeyGrid : UIView
-- (instancetype)initWithCurrentValue:(NSInteger)current
-                            onChange:(void (^)(NSInteger value))onChange;
-@end
 @implementation Ame436SpecialKeyGrid {
     NSMutableArray<UIButton *> *_chips;
     NSInteger _current;
