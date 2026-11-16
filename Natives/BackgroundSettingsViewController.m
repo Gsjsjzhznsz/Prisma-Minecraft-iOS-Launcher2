@@ -9,7 +9,8 @@
 #import "BackgroundSettingsViewController.h"
 #import "AmeNativeMenu.h"       // ★ Task240：菜单全面系统原生 UIMenu 化
 #import "BackgroundManager.h"
-#import "ImageCropperViewController.h"
+// ★Task434 A1：ImageCropperViewController 死 import 摘除（本文件零使用；
+// 全仓唯一实例化点现挂 ZL2SettingPages ame434 应用图标导入链）
 // Task151：Bing 每日壁纸（开关/画廊/刷新）
 #import "BingWallpaperManager.h"
 #import "BingWallpaperGalleryViewController.h"

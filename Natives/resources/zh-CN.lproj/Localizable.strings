@@ -4473,3 +4473,7 @@
 "ame432.vdet.modify.unsupported" = "暂不支持";
 
 "ame432.vdet.modify.versions_loading" = "正在获取 %@ 可用版本…";
+
+"launch.ui.icon.import" = "导入图标";
+
+"launch.ui.icon.import.subtitle" = "从相册选取图片，裁剪后用作应用图标";

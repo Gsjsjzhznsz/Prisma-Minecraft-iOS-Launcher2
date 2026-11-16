@@ -202,6 +202,12 @@ static UIImpactFeedbackGenerator *s_ame429ImpactMedium = nil;
 static dispatch_once_t s_ame429ImpactOnce;
 static dispatch_once_t s_ame429EngineOnce;
 static BOOL s_ame429CoreHapticsAvailable = NO;
+// ★Task434 P1-4: 「创建不可用」与「单次 start 失败」分离——上式只在创建探针
+//   dispatch_once 里判定（设备能力，永久粘滞）；start 的瞬时失败（引擎资源
+//   繁忙等）改为连续失败计数有界防抖：连续 kAme429HapticStartFailLimit 次
+//   失败才在本次会话内降级 UIImpactFeedbackGenerator 并停止重试，成功即复位。
+static const NSInteger kAme429HapticStartFailLimit = 3;
+static NSInteger s_ame429HapticStartFailStreak = 0;
 
 @implementation ZL2MotionHaptics
 
@@ -220,6 +226,9 @@ static BOOL s_ame429CoreHapticsAvailable = NO;
 //   引擎零浪费。isAutoShutdownEnabled setter 实名 setAutoShutdownEnabled:
 //   （原 setIsAutoShutdownEnabled: 系虚构族）；state/CHHapticEngineStateRunning
 //   两符号同样未声明——停止态重启简化为每次 startAndReturnError:（幂等）。
+// ★Task434 P1-4: 探针「不可用」= 设备能力判定，保持粘滞（dispatch_once 一次
+//   定死不再变）；start 的瞬时失败不在此判定，见 ame429_ensureEngineRunning
+//   的连续失败防抖。
 + (BOOL)ame429_supportsCoreHaptics {
     dispatch_once(&s_ame429EngineOnce, ^{
         NSError *initError = nil;
@@ -239,12 +248,18 @@ static BOOL s_ame429CoreHapticsAvailable = NO;
 
 // 引擎懒加载 + 停止态重启（失败 NSLog + NO = 调用方走降级）
 + (BOOL)ame429_ensureEngineRunning {
+    // ★Task434 P1-4: 会话级降级短路——连续失败达上限后本次会话不再触碰引擎
+    if (s_ame429HapticStartFailStreak >= kAme429HapticStartFailLimit) {
+        return NO;
+    }
     if (!s_ame429HapticEngine) {
         NSError *initError = nil;
         s_ame429HapticEngine = [[CHHapticEngine alloc] initAndReturnError:&initError];
         if (!s_ame429HapticEngine) {
             NSLog(@"[ZL2Motion] Task429 CHHapticEngine init failed: %@ — fallback to UIImpactFeedbackGenerator",
                   initError);
+            // ★Task434 P1-4: 运行期重建失败同样计入连续失败（可重试，不粘滞）
+            s_ame429HapticStartFailStreak++;
             return NO;
         }
         s_ame429HapticEngine.autoShutdownEnabled = NO;   // 进程级复用，不自动关停
@@ -254,12 +269,22 @@ static BOOL s_ame429CoreHapticsAvailable = NO;
     NSError *startError = nil;
     BOOL started = [s_ame429HapticEngine startAndReturnError:&startError];
     if (!started) {
-        NSLog(@"[ZL2Motion] Task429 CHHapticEngine start failed: %@ — fallback to UIImpactFeedbackGenerator",
-              startError);
-        s_ame429CoreHapticsAvailable = NO;
+        NSLog(@"[ZL2Motion] Task429 CHHapticEngine start failed: %@ — fallback to UIImpactFeedbackGenerator (streak %ld/%ld)",
+              startError, (long)s_ame429HapticStartFailStreak + 1, (long)kAme429HapticStartFailLimit);
+        // ★Task434 P1-4: 单次 start 失败不再置 s_ame429CoreHapticsAvailable=NO
+        //  （那会把设备能力误伤成会话级粘滞，停止态重启路径成死代码）——引擎
+        //  置空允许下次重建（停止态重启恢复可达），连续失败计数防抖：连续
+        //  kAme429HapticStartFailLimit(3) 次失败后本次会话降级停止重试。
         s_ame429HapticEngine = nil;
+        s_ame429HapticStartFailStreak++;
+        if (s_ame429HapticStartFailStreak >= kAme429HapticStartFailLimit) {
+            NSLog(@"[ZL2Motion] Task434 连续 %ld 次 start 失败，本次会话降级 UIImpactFeedbackGenerator",
+                  (long)s_ame429HapticStartFailStreak);
+        }
         return NO;
     }
+    // ★Task434 P1-4: 成功即复位连续失败计数（瞬时故障自愈后自动回到 CoreHaptics）
+    s_ame429HapticStartFailStreak = 0;
     return YES;
 }
 

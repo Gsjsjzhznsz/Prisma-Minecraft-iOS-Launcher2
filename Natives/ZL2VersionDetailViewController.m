@@ -1361,6 +1361,8 @@ static const CGFloat ZL2V13PageCardSpacing = 12.0;   // 页内行卡间距（ZL2
 
 - (void)ame432_reload {
     NSString *packsDir = [self.ame432_worldPath stringByAppendingPathComponent:@"datapacks"];
+    // ★Task434 弱捕获：一次性 async 块不直捕 self（对齐本页 wself/sself 家法）
+    __weak typeof(self) wself = self;
     dispatch_async(dispatch_get_global_queue(QOS_CLASS_USER_INITIATED, 0), ^{
         NSFileManager *fm = [NSFileManager defaultManager];
         NSArray<NSString *> *contents = [fm contentsOfDirectoryAtPath:packsDir error:nil];
@@ -1389,8 +1391,10 @@ static const CGFloat ZL2V13PageCardSpacing = 12.0;   // 页内行卡间距（ZL2
             return [b[@"modified"] compare:a[@"modified"]];
         }];
         dispatch_async(dispatch_get_main_queue(), ^{
-            self.ame432_rows = rows;
-            [self ame432_rebuildCards];
+            __strong typeof(wself) sself = wself;   // ★Task434 弱捕获对齐
+            if (!sself) return;
+            sself.ame432_rows = rows;
+            [sself ame432_rebuildCards];
         });
     });
 }
@@ -1527,6 +1531,8 @@ static const CGFloat ZL2V13PageCardSpacing = 12.0;   // 页内行卡间距（ZL2
     NSString *packsDir = [self.ame432_worldPath stringByAppendingPathComponent:@"datapacks"];
     [NSFileManager.defaultManager createDirectoryAtPath:packsDir
                             withIntermediateDirectories:YES attributes:nil error:nil];
+    // ★Task434 弱捕获：一次性 async 块不直捕 self（对齐本页 wself/sself 家法）
+    __weak typeof(self) wself = self;
     dispatch_async(dispatch_get_global_queue(QOS_CLASS_USER_INITIATED, 0), ^{
         NSInteger ok = 0;
         NSInteger fail = 0;
@@ -1557,12 +1563,14 @@ static const CGFloat ZL2V13PageCardSpacing = 12.0;   // 页内行卡间距（ZL2
             }
         }
         dispatch_async(dispatch_get_main_queue(), ^{
+            __strong typeof(wself) sself = wself;   // ★Task434 弱捕获对齐
+            if (!sself) return;
             if (fail > 0) {
                 NSString *resultText = [NSString stringWithFormat:
                     localize(@"resman.common.import_result", nil), (long)ok, (long)fail];
-                [self ame432_showAlert:resultText];
+                [sself ame432_showAlert:resultText];
             }
-            [self ame432_reload];
+            [sself ame432_reload];
         });
     });
 }

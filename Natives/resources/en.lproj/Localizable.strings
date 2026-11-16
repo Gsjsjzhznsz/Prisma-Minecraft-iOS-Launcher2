@@ -4477,3 +4477,7 @@
 "ame432.vdet.modify.unsupported" = "Not supported yet";
 
 "ame432.vdet.modify.versions_loading" = "Fetching available %@ versions…";
+
+"launch.ui.icon.import" = "Import Icon";
+
+"launch.ui.icon.import.subtitle" = "Pick a photo, crop it, and use it as the app icon";

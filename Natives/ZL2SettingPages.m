@@ -213,6 +213,7 @@
 #import "DataTransferService.h"
 #import "CurseForgeAPIKeyViewController.h"
 #import "CustomIconManager.h"
+#import "ImageCropperViewController.h"  // ★Task434 A1：应用图标导入→裁剪链（退役批次一回归修复，见 ame434 节）
 
 // ★Task429：主题动态取色（8.1 主题色板行 + CUSTOM 取色弹层入口）
 #import "ZL2DynamicPalette.h"
@@ -230,6 +231,36 @@
 #import <stdlib.h>
 #import <QuartzCore/QuartzCore.h>   // Task344：CAMetalLayer developerHUD 探测
 #import "UIKit+hook.h"              // Task344：realUIIdiom（陀螺仪面 TV 闸）
+
+#pragma mark - ★Task434 A1 PHPicker 运行时软链面（PhotosUI 未入主构建链接清单）
+//
+// PhotosUI 不在主构建 target_link_libraries（本任务授权文件外不可动），Task366
+// 判例：ObjC import 不自动链接框架 → 直引类符号 = _OBJC_CLASS_$ undefined。
+// 故 PHPicker 四类一律 NSClassFromString 运行时软链（ame428 服务软链同款），
+// 编译期仅手写最小同名类声明（Task430-r2 桩纪律同族：签名照抄 SDK 逐字勿漂移；
+// 本 TU 不 import <PhotosUI/PhotosUI.h>，若日后引入须删除本段防重复声明）。
+// 类型仅作编译期点语法承载，运行时零链接依赖；Preview 腿同因无类符号而免桩。
+@class PHPickerFilter;
+@class PHPickerResult;
+@class PHPickerViewController;
+@protocol PHPickerViewControllerDelegate <NSObject>
+- (void)picker:(PHPickerViewController *)picker didFinishPicking:(NSArray<PHPickerResult *> *)results;
+@end
+@interface PHPickerFilter : NSObject
++ (PHPickerFilter *)images;
+@end
+@interface PHPickerConfiguration : NSObject
+@property (nonatomic, strong) PHPickerFilter *filter;
+@property (nonatomic) NSInteger selectionLimit;
+@end
+@interface PHPickerResult : NSObject
+@property (nonatomic, strong) NSItemProvider *itemProvider;
+@end
+@interface PHPickerViewController : UIViewController
+@property (nonatomic, strong) PHPickerConfiguration *configuration;
+@property (nonatomic, weak) id<PHPickerViewControllerDelegate> delegate;
+- (instancetype)initWithConfiguration:(PHPickerConfiguration *)configuration;
+@end
 
 // 内容列最大宽（照抄 ZL2SettingsViewController 旧枢纽：iPad 居中，iPhone 占满减边距）
 static const CGFloat ame_pageContentMaxWidth = 520;
@@ -1749,9 +1780,13 @@ didFinishPickingMediaWithInfo:(NSDictionary<UIImagePickerControllerInfoKey,id> *
 @property (nonatomic, strong) ZL2SettingCardGroup *ame327_pluginGroup;
 // ★ Task344：自定义颜色选择（旧页 openColorPickerForKey 平移）
 @property (nonatomic, copy) NSString *ame344_pickingColorKey;
+// ★Task434 A1：应用图标导入链的图标行引用（落盘后 ame_reloadSelectedIndex 即时刷新；
+//   weak——页面重建后自动失效，刷新静默降级）
+@property (nonatomic, weak) ZL2SettingRowList *ame434_iconRow;
 @end
 
-@interface ZL2LauncherSettingsPage () <UIDocumentPickerDelegate, UIColorPickerViewControllerDelegate>
+@interface ZL2LauncherSettingsPage () <UIDocumentPickerDelegate, UIColorPickerViewControllerDelegate,
+                                       PHPickerViewControllerDelegate>
 @end
 
 @implementation ZL2LauncherSettingsPage
@@ -1830,6 +1865,103 @@ didPickDocumentsAtURLs:(NSArray<NSURL *> *)urls {
     });
     NSString *name = native[code];
     return name ?: code;
+}
+
+#pragma mark - ★Task434 A1 应用图标导入链（退役批次一回归修复）
+//
+// 第 9 期补遗报告 3.3：旧壳承载链（选图 → ImageCropperViewController 方形裁剪 →
+// CustomIconManager 落盘 → 行刷新）随退役批次一整体删除，新 UI 图标行只剩两态
+// 切换且无图标档时死路（i18n_str_388/389 裸提示）。本节按旧链平移恢复：
+// PHPicker 选图（软链面见文件头 Task434 段）→ ImageCropperViewController 方形
+// 裁剪（push 语境与旧链一致）→ saveCustomIcon 落盘（CustomIconManager 既有
+// API，存储格式零新造）→ ame_reloadSelectedIndex 行内刷新（装载态 hasCustomIcon
+// 同口径）。
+
+- (void)ame434_pickAppIconForRow:(ZL2SettingRowList *)iconRow {
+    self.ame434_iconRow = iconRow;
+    Class ame434_pickerClass = NSClassFromString(@"PHPickerViewController");
+    Class ame434_configClass = NSClassFromString(@"PHPickerConfiguration");
+    if (ame434_pickerClass == nil || ame434_configClass == nil) {
+        // 软链面缺席：与 ame428 服务软链同口径——明确提示而非静默
+        [self ame344_showNotice:localize(@"i18n_str_102", nil)];
+        return;
+    }
+    PHPickerConfiguration *config = [[ame434_configClass alloc] init];
+    config.selectionLimit = 1;
+    config.filter = [(id)NSClassFromString(@"PHPickerFilter") images];
+    // 家法对齐：PHPicker 唯一初始化器 initWithConfiguration:（单参家族；
+    // UIDocumentPicker 两参家法先例 = ModpackImportViewController.m:282/:293
+    // initForOpeningContentTypes:[/asCopy:]；三参 asCopy:error: 是 SDK 不存在的
+    // 方法，Task431 判例，绝不出现）
+    PHPickerViewController *picker = [[ame434_pickerClass alloc] initWithConfiguration:config];
+    picker.delegate = self;
+    [self ame_presentVC:picker];
+}
+
+- (void)picker:(PHPickerViewController *)picker
+didFinishPicking:(NSArray<PHPickerResult *> *)results {
+    __weak typeof(self) weakSelf = self;
+    PHPickerResult *result = results.firstObject;
+    if (!result.itemProvider) {
+        // PHPicker 取消也走本回调（空 results）——旧链 i18n_str_374 同口径；
+        //   取消态先自行收起 picker（delegate 收起契约），提示错峰避让收起动画
+        [picker dismissViewControllerAnimated:YES completion:nil];
+        dispatch_async(dispatch_get_main_queue(), ^{
+            [weakSelf ame344_showNotice:localize(@"i18n_str_374", nil)];
+        });
+        return;
+    }
+    [picker dismissViewControllerAnimated:YES completion:^{
+        [result.itemProvider loadObjectOfClass:[UIImage class]
+                             completionHandler:^(id<NSItemProviderReading> _Nullable object,
+                                                  NSError * _Nullable error) {
+            dispatch_async(dispatch_get_main_queue(), ^{
+                UIImage *image = (UIImage *)object;
+                if (![image isKindOfClass:[UIImage class]]) {
+                    NSLog(@"[ZL2Settings][Task434] icon pick load failed: %@", error);
+                    [weakSelf ame344_showNotice:localize(@"i18n_str_368", nil)];
+                    return;
+                }
+                [weakSelf ame434_pushIconCropperForImage:image];
+            });
+        }];
+    }];
+}
+
+- (void)ame434_pushIconCropperForImage:(UIImage *)image {
+    __weak typeof(self) weakSelf = self;
+    ImageCropperViewController *cropper =
+        [[ImageCropperViewController alloc] initWithImage:image];
+    cropper.completionHandler = ^(UIImage * _Nullable croppedImage) {
+        if (!croppedImage) {
+            // 裁剪取消（旧链 i18n_str_373 同口径；pop 动画错峰后再弹提示）
+            dispatch_async(dispatch_get_main_queue(), ^{
+                [weakSelf ame344_showNotice:localize(@"i18n_str_373", nil)];
+            });
+            return;
+        }
+        [weakSelf ame434_saveImportedIcon:croppedImage];
+    };
+    // push 语境与旧链一致（cropper cancel/done 自走 popViewControllerAnimated:）
+    [self ame_push:cropper titled:localize(@"i18n_str_319", nil)];
+}
+
+- (void)ame434_saveImportedIcon:(UIImage *)image {
+    __weak typeof(self) weakSelf = self;
+    [[CustomIconManager sharedManager] saveCustomIcon:image withCompletion:^(BOOL success, NSError * _Nullable error) {
+        dispatch_async(dispatch_get_main_queue(), ^{
+            if (success) {
+                // 图标行即时刷新：行内既有 ame_reloadSelectedIndex 机制，
+                //   刷新口径与装载态同源（hasCustomIcon → 默认/自定义）
+                [weakSelf.ame434_iconRow ame_reloadSelectedIndex:
+                    ([[CustomIconManager sharedManager] hasCustomIcon] ? 1 : 0)];
+                [weakSelf ame344_showNotice:localize(@"i18n_str_371", nil)];
+            } else {
+                NSString *message = error.localizedDescription ?: localize(@"i18n_str_372", nil);
+                [weakSelf ame344_showNotice:message];
+            }
+        });
+    }];
 }
 
 - (void)ame_buildGroups {
@@ -2130,16 +2262,32 @@ didPickDocumentsAtURLs:(NSArray<NSURL *> *)urls {
     iconRow.subtitle = localize(@"preference.detail.appicon", nil);
     BOOL hasCustom = [[CustomIconManager sharedManager] hasCustomIcon];
     [iconRow ame_reloadSelectedIndex:(hasCustom ? 1 : 0)];
+    // ★Task434 A1：图标行弱引用透传（导入链落盘后 ame_reloadSelectedIndex 即时刷新）
+    __weak typeof(iconRow) weakIconRow = iconRow;
     iconRow.onSelect = ^(NSInteger index) {
         if (index == 0) {
             [[CustomIconManager sharedManager] removeCustomIcon];
             [UIApplication.sharedApplication setAlternateIconName:nil completionHandler:nil];
         } else {
             if (![[CustomIconManager sharedManager] hasCustomIcon]) {
-                [weakSelf ame_presentVC:([UIAlertController
+                // ★Task434 A1：死路出口——批次一退役后「无图标档」只剩裸提示
+                //   （alert 零 action 连取消都关不掉）；现接「导入图标」链
+                //   （ame434_pickAppIconForRow:）+ 取消动作。
+                UIAlertController *ame434_alert = [UIAlertController
                     alertControllerWithTitle:localize(@"i18n_str_388", nil)
                                       message:localize(@"i18n_str_389", nil)
-                               preferredStyle:UIAlertControllerStyleAlert])];
+                               preferredStyle:UIAlertControllerStyleAlert];
+                [ame434_alert addAction:[UIAlertAction
+                    actionWithTitle:localize(@"launch.ui.icon.import", @"导入图标")
+                              style:UIAlertActionStyleDefault
+                            handler:^(UIAlertAction *ame434_action) {
+                                [weakSelf ame434_pickAppIconForRow:weakIconRow];
+                            }]];
+                [ame434_alert addAction:[UIAlertAction
+                    actionWithTitle:localize(@"resman.common.cancel", @"取消")
+                              style:UIAlertActionStyleCancel
+                            handler:nil]];
+                [weakSelf ame_presentVC:ame434_alert];
                 return;
             }
             [[CustomIconManager sharedManager] setCustomIconWithCompletion:^(BOOL success, NSError * _Nullable error) {
@@ -2150,6 +2298,14 @@ didPickDocumentsAtURLs:(NSArray<NSURL *> *)urls {
         }
     };
     [advGroup ame_addRow:iconRow];
+    // ★Task434 A1：导入图标入口（第 9 期补遗 3.3 回归修复——旧壳选图→裁剪→
+    //   落盘链整链平移，见 ame434 节）
+    ZL2SettingRowAction *iconImportRow =
+        [[ZL2SettingRowAction alloc] initWithTitle:@"" subtitle:nil];
+    iconImportRow.title = localize(@"launch.ui.icon.import", @"导入图标");
+    iconImportRow.subtitle = localize(@"launch.ui.icon.import.subtitle", @"从相册选取图片，裁剪后用作应用图标");
+    iconImportRow.onTap = ^{ [weakSelf ame434_pickAppIconForRow:weakIconRow]; };
+    [advGroup ame_addRow:iconImportRow];
     [self ame_addGroup:advGroup];
 
     // --- 组 2：下载源（download.* 四分类真键；值域 official/mirror/speed_first）---

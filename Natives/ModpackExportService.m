@@ -15,14 +15,17 @@
 /// 计算文件 sha512（分块读取）
 - (nullable NSString *)sha512ForFileAtPath:(NSString *)path;
 /// 将目录递归写入 zip
-- (void)addDirectoryToArchive:(UZKArchive *)archive
+/// ★Task434：返回 YES = 全部写入成功；NO = 存在写失败（清单见日志）或中途取消
+///   （取消由调用方 checkCancelledWithError 收口，不误报写失败）
+- (BOOL)addDirectoryToArchive:(UZKArchive *)archive
                       dirPath:(NSString *)dirPath
                   prefixInZip:(NSString *)prefixInZip
                      progress:(void (^_Nullable)(NSUInteger done, NSUInteger total))progress;
 /// ★Task428：带跳过集合的目录写入变体——命中 SHA1 反查的 mod 不再嵌入
 /// overrides（gameDirRelative 用于把 zip 内相对路径还原成 gameDir 相对路径
 /// 以匹配 skipPaths；两个过滤参数传 nil = 不过滤，等价旧签名）
-- (void)addDirectoryToArchive:(UZKArchive *)archive
+/// ★Task434：返回值语义同上（写失败/取消以 NO 返回）
+- (BOOL)addDirectoryToArchive:(UZKArchive *)archive
                       dirPath:(NSString *)dirPath
                   prefixInZip:(NSString *)prefixInZip
               gameDirRelative:(nullable NSString *)gameDirRelative
@@ -336,6 +339,9 @@
     // 不补链、不内嵌，导入侧按缺失元数据跳过）。反查失败静默降级，不阻断导出。
     NSDictionary<NSString *, NSString *> *ame428_hits = @{};
     if ((fileOptions & ModpackExportFileMods) && modFiles.count > 0) {
+        // ★Task434 E4：反查循环实址在 installer/modpack/ModpackUtils.m:234-253
+        //   （类方法无取消通道，白名单外不动）；服务层入口先即查即退。
+        if ([self checkCancelledWithError:error]) return NO;
         progress(0.25, localize(@"ame428.export.lookup", nil));
         // ★Task432（§6.1 P2「SHA1 反查串行慢」整改）：有界并发探测信号量上限收敛
         //   为 6（Task428 已落 dispatch_group + dispatch_semaphore 有界并发，双端点
@@ -427,16 +433,29 @@
         return NO;
     }
     if (fileOptions & ModpackExportFileMods) {
-        [self addDirectoryToArchive:archive
-                            dirPath:[gameDirAbsolute stringByAppendingPathComponent:@"mods"]
-                        prefixInZip:@"overrides/mods"
-                    gameDirRelative:@"mods"
-                           skipPaths:[ame428_skipEmbed copy]
-                          progress:^(NSUInteger done, NSUInteger total) {
+        // ★Task434 E1：mods 写入前后补取消检查点（写法对齐 :830/:850 先例），
+        //   取消不再漏报导出成功
+        if ([self checkCancelledWithError:error]) return NO;
+        BOOL ame428_modsOK = [self addDirectoryToArchive:archive
+                                                 dirPath:[gameDirAbsolute stringByAppendingPathComponent:@"mods"]
+                                             prefixInZip:@"overrides/mods"
+                                         gameDirRelative:@"mods"
+                                                skipPaths:[ame428_skipEmbed copy]
+                                                progress:^(NSUInteger done, NSUInteger total) {
             double ame428_ratio = (total > 0) ? ((double)done / (double)total) : 1.0;
             progress(0.70 + 0.20 * ame428_ratio,
                      [NSString stringWithFormat:localize(@"i18n_str_489", nil), @"overrides", @"mods"]);
         }];
+        if (!ame428_modsOK) {
+            // ★Task434：取消优先收口；写失败置错返回（失败路径清单见日志）
+            if ([self checkCancelledWithError:error]) return NO;
+            if (error) {
+                *error = [NSError errorWithDomain:@"ModpackExportService" code:6
+                                         userInfo:@{NSLocalizedDescriptionKey:
+                                             @"mods write into overrides failed (failed path list in log)"}];
+            }
+            return NO;
+        }
     }
 
     progress(0.95, localize(@"i18n_str_1259", nil));
@@ -801,6 +820,8 @@
 
     __block NSUInteger processed = 0;
     __block NSError *blockError = nil;
+    // ★Task434 E2：写失败不再静默——失败计数 + 路径清单，收口进既有 *error 通道
+    NSMutableArray<NSString *> *ame434_failedPaths = [NSMutableArray array];
 
     // 计算每个目录的文件总数，用于精确进度
     NSUInteger totalFiles = 0;
@@ -834,14 +855,19 @@
             continue;
         }
         NSString *prefixInZip = [NSString stringWithFormat:@"%@/%@", zipPrefix, dir];
-        [self addDirectoryToArchive:archive
-                            dirPath:dirPath
-                        prefixInZip:prefixInZip
-                           progress:^(NSUInteger done, NSUInteger total) {
+        BOOL ame434_dirOK = [self addDirectoryToArchive:archive
+                                                dirPath:dirPath
+                                            prefixInZip:prefixInZip
+                                               progress:^(NSUInteger done, NSUInteger total) {
             processedFiles = done;
             double p = baseProgress + progressRange * ((double)processedFiles / (double)totalFiles);
             progress(p, [NSString stringWithFormat:localize(@"i18n_str_489", nil), zipPrefix, dir]);
         }];
+        if (!ame434_dirOK) {
+            // ★Task434：取消先行收口；目录内写失败计入清单（明细见日志）
+            if ([self checkCancelledWithError:error]) return NO;
+            [ame434_failedPaths addObject:[NSString stringWithFormat:@"%@/%@/*", zipPrefix, dir]];
+        }
         processed++;
     }
 
@@ -858,6 +884,7 @@
                              error:&writeErr];
                 if (writeErr) {
                     NSLog(@"[ModpackExport] Warning: failed to write %@/%@: %@", zipPrefix, file, writeErr.localizedDescription);
+                    [ame434_failedPaths addObject:[NSString stringWithFormat:@"%@/%@", zipPrefix, file]];   // ★Task434 E2 计入清单
                 }
             }
         }
@@ -865,6 +892,25 @@
         double p = baseProgress + progressRange * ((double)processedFiles / (double)totalFiles);
         progress(p, [NSString stringWithFormat:localize(@"i18n_str_489", nil), zipPrefix, file]);
         processed++;
+    }
+
+    // ★Task434：终查取消（目录写内部取消经 NO 上抛，此处收口不漏报成功）
+    if ([self checkCancelledWithError:error]) return NO;
+
+    // ★Task434 E2：任一 overrides 写失败即置错（阈值 >0，对齐既有硬失败口径；
+    //   磁盘满不再产出部分 zip 报成功），失败路径清单落日志
+    if (ame434_failedPaths.count > 0) {
+        NSLog(@"[ModpackExport] Overrides write failures (%lu): %@",
+              (unsigned long)ame434_failedPaths.count,
+              [ame434_failedPaths componentsJoinedByString:@", "]);
+        if (error) {
+            *error = [NSError errorWithDomain:@"ModpackExportService" code:6
+                                     userInfo:@{NSLocalizedDescriptionKey:
+                                         [NSString stringWithFormat:@"overrides write failed (%lu): %@",
+                                          (unsigned long)ame434_failedPaths.count,
+                                          [ame434_failedPaths componentsJoinedByString:@", "]]}];
+        }
+        return NO;
     }
 
     if (blockError) {
@@ -876,12 +922,13 @@
 
 #pragma mark - 辅助方法
 
-- (void)addDirectoryToArchive:(UZKArchive *)archive
+- (BOOL)addDirectoryToArchive:(UZKArchive *)archive
                       dirPath:(NSString *)dirPath
                   prefixInZip:(NSString *)prefixInZip
                      progress:(void (^_Nullable)(NSUInteger done, NSUInteger total))progress {
     // ★Task428：旧签名转发到带过滤的变体（既有调用点零改动；nil = 不过滤）
-    [self addDirectoryToArchive:archive
+    // ★Task434：返回值透传（写失败/取消以 NO 返回）
+    return [self addDirectoryToArchive:archive
                         dirPath:dirPath
                     prefixInZip:prefixInZip
                 gameDirRelative:nil
@@ -889,7 +936,7 @@
                         progress:progress];
 }
 
-- (void)addDirectoryToArchive:(UZKArchive *)archive
+- (BOOL)addDirectoryToArchive:(UZKArchive *)archive
                       dirPath:(NSString *)dirPath
                   prefixInZip:(NSString *)prefixInZip
               gameDirRelative:(nullable NSString *)gameDirRelative
@@ -917,7 +964,7 @@
     }
     if (total == 0) {
         if (progress) progress(0, 0);
-        return;
+        return YES;   // ★Task434：空目录 = 干净成功
     }
 
     // ★ Task222：导出多线程化（清单第 6 项）。旧实现逐文件「读→写→读→写」
@@ -933,6 +980,8 @@
     NSArray<NSString *> *sortedPaths = [relPaths sortedArrayUsingSelector:@selector(compare:)];
     NSUInteger done = 0;
     NSUInteger batchStart = 0;
+    // ★Task434 E2：串行写失败清单（跨批累计，方法尾统一落日志）
+    NSMutableArray<NSString *> *ame434_failedZipPaths = [NSMutableArray array];
     // 并行读队列：QoS userInitiated（导出是用户显式等待的操作）
     dispatch_queue_t readQueue = dispatch_queue_create("ame222.export.read", DISPATCH_QUEUE_CONCURRENT);
 
@@ -941,7 +990,7 @@
         @synchronized(self) {
             if (self.cancelled) {
                 if (progress) progress(done, total);
-                return;
+                return NO;   // ★Task434：取消以 NO 上抛，调用方以取消检查收口
             }
         }
 
@@ -982,13 +1031,27 @@
         NSArray *sortedLoaded = [loaded sortedArrayUsingComparator:^NSComparisonResult(NSDictionary *a, NSDictionary *b) {
             return [a[@"zip"] compare:b[@"zip"]];
         }];
+        // ★Task434 E2：串行写失败计数 + 路径清单（磁盘满不再静默产出部分 zip）
         for (NSDictionary *item in sortedLoaded) {
-            [archive writeData:item[@"data"] filePath:item[@"zip"] error:nil];
+            NSError *ame434_writeErr = nil;
+            [archive writeData:item[@"data"] filePath:item[@"zip"] error:&ame434_writeErr];
+            if (ame434_writeErr) {
+                [ame434_failedZipPaths addObject:item[@"zip"]];
+            }
         }
 
         done += batch.count;
         if (progress) progress(done, total);
     }
+
+    // ★Task434 E2：写失败清单落日志；NO 上抛由调用方收口成错误
+    if (ame434_failedZipPaths.count > 0) {
+        NSLog(@"[ModpackExport] %lu file(s) failed to write into %@: %@",
+              (unsigned long)ame434_failedZipPaths.count, prefixInZip,
+              [ame434_failedZipPaths componentsJoinedByString:@", "]);
+        return NO;
+    }
+    return YES;
 }
 
 - (nullable NSString *)resolveAbsoluteGameDirForProfile:(NSString *)profileName {

@@ -199,6 +199,13 @@ stub_signature_gate() {
   #   对表（ZL2GameAddonsViewController 真壳 TU 新引用类符号——桩 §Task430 族）
   ame429_sig_pair "PLComponentService ame430_launchwrapperLibraryForOptiFineJar:" \
     "PLComponentService.h" "ame430_launchwrapperLibraryForOptiFineJar:" "ame430_launchwrapperLibraryForOptiFineJar:" 0
+  # ★Task434 A1（应用图标导入链回归修复）：ZL2SettingPages ame434 流程引用
+  #   ImageCropperViewController 真类符号（真 TU 在 CMakeLists 主构建、不在
+  #   preview 编译清单）→ 桩 §Task434 族新增；真 .h 单行声明，窗 0 定长匹配。
+  ame429_sig_pair "ImageCropperViewController initWithImage:" \
+    "ImageCropperViewController.h" "initWithImage:(UIImage *)image" "initWithImage:(UIImage *)image" 0
+  ame429_sig_pair "ImageCropperViewController completionHandler 裁剪回调" \
+    "ImageCropperViewController.h" "void (^completionHandler)(UIImage * _Nullable croppedImage)" "void (^completionHandler)(UIImage * _Nullable croppedImage)" 0
   # respondsToSelector 消费契约面（★Task429 N6b 消费口：消费方守卫的选择器
   #   必须在真实 .h 实名在位，防守卫对象被静默更名 = 守卫恒跳过假绿；桩侧
   #   不实现该成员、消费方守卫跳过 = 分账纪律既有口径，不做桩侧断言）

@@ -485,6 +485,45 @@ static id ame429_listElementForNode(UIView *node) {
         dict[@"mJoystickDataList"] = [NSMutableArray array];
     }
 
+    // ★Task434 P0-1: 守卫下沉到实际被消费的深层键（读到哪层护到哪层）——
+    //   三列表元素须为字典，异形剔除留痕（Favorites 家法）；抽屉元素
+    //   buttonProperties 须为数组（非数组跳过该键补空）、其元素须为字典
+    //   （异形剔除）。失败语义沿用上方键级容错（补空/剔除 + 留痕，不整体
+    //   拒载——整体拒载仅留给坏 JSON/非字典）；运行时 loadControlObject 对
+    //   三列表与 buttonProperties 的快枚举无 @try 兜底，须先净化再喂。
+    for (NSString *listKey in @[@"mControlDataList", @"mDrawerDataList", @"mJoystickDataList"]) {
+        NSMutableArray *list = dict[listKey];
+        NSMutableIndexSet *alienIdx = [NSMutableIndexSet indexSet];
+        for (NSUInteger i = 0; i < list.count; i++) {
+            if (![list[i] isKindOfClass:[NSDictionary class]]) [alienIdx addIndex:i];
+        }
+        if (alienIdx.count > 0) {
+            NSLog(@"[Task429][Task434] %@ 异形元素 %lu 条已剔除",
+                  listKey, (unsigned long)alienIdx.count);
+            [list removeObjectsAtIndexes:alienIdx];
+        }
+    }
+    for (NSMutableDictionary *drawerData in dict[@"mDrawerDataList"]) {
+        id subButtons = drawerData[@"buttonProperties"];
+        if (subButtons == nil) continue;   // 缺省 = 无子按钮，放行
+        if (![subButtons isKindOfClass:[NSArray class]]) {
+            NSLog(@"[Task429][Task434] drawer.buttonProperties 异形(非数组)已补空");
+            drawerData[@"buttonProperties"] = [NSMutableArray array];
+            continue;
+        }
+        // MutableContainers 解析保证数组可变，可直接按索引剔除异形子按钮
+        NSMutableArray *subList = subButtons;
+        NSMutableIndexSet *alienSub = [NSMutableIndexSet indexSet];
+        for (NSUInteger i = 0; i < subList.count; i++) {
+            if (![subList[i] isKindOfClass:[NSDictionary class]]) [alienSub addIndex:i];
+        }
+        if (alienSub.count > 0) {
+            NSLog(@"[Task429][Task434] buttonProperties 异形子按钮 %lu 条已剔除",
+                  (unsigned long)alienSub.count);
+            [subList removeObjectsAtIndexes:alienSub];
+        }
+    }
+
     // 运行时同款装载（loadControlObject 内含 convertLayoutIfNecessary 旧版
     // 迁移 + scaledAt 归一化；isControlModifiable=YES 已让抽屉子键展开可见）
     [self.canvas loadControlLayout:dict];
@@ -1070,11 +1109,21 @@ static id ame429_listElementForNode(UIView *node) {
     NSMutableArray *drawerList = self.layoutDict[@"mDrawerDataList"];
     NSMutableArray *joyList = self.layoutDict[@"mJoystickDataList"];
 
+    // ★Task434 P0-1: 元素级守卫——三组枚举非字典异形元素跳过并留痕
+    //（Favorites 家法）；drawerData 守卫后 :buttonProperties 下标方为安全读。
     for (NSMutableDictionary *btnProps in btnList) {
+        if (![btnProps isKindOfClass:[NSDictionary class]]) {
+            NSLog(@"[Task429][Task434] mControlDataList 异形元素(%@)已跳过", [btnProps class]);
+            continue;
+        }
         UIView *view = [self ame429_viewForProperties:btnProps];
         if (view != nil) [self.canvas addSubview:view];
     }
     for (NSMutableDictionary *drawerData in drawerList) {
+        if (![drawerData isKindOfClass:[NSDictionary class]]) {
+            NSLog(@"[Task429][Task434] mDrawerDataList 异形元素(%@)已跳过", [drawerData class]);
+            continue;
+        }
         UIView *drawerView = [self ame429_viewForDrawerData:drawerData];
         if (drawerView != nil) [self.canvas addSubview:drawerView];
         id subButtons = drawerData[@"buttonProperties"];
@@ -1086,6 +1135,10 @@ static id ame429_listElementForNode(UIView *node) {
         }
     }
     for (NSMutableDictionary *joyProps in joyList) {
+        if (![joyProps isKindOfClass:[NSDictionary class]]) {
+            NSLog(@"[Task429][Task434] mJoystickDataList 异形元素(%@)已跳过", [joyProps class]);
+            continue;
+        }
         UIView *view = [self ame429_viewForProperties:joyProps];
         if (view != nil) [self.canvas addSubview:view];
     }
@@ -1195,10 +1248,21 @@ static id ame429_listElementForNode(UIView *node) {
     NSMutableArray *drawerList = self.layoutDict[@"mDrawerDataList"];
     NSMutableArray *joyList = self.layoutDict[@"mJoystickDataList"];
 
+    // ★Task434 P0-1: 元素级守卫——三组枚举非字典异形元素跳过并留痕
+    //（Favorites 家法）；drawerData 守卫后 :properties/:buttonProperties
+    // 下标方为安全读（properties 值级异常由 applyStyleToProperties 内守卫留痕）。
     for (NSMutableDictionary *props in btnList) {
+        if (![props isKindOfClass:[NSDictionary class]]) {
+            NSLog(@"[Task429][Task434] mControlDataList 异形元素(%@)已跳过", [props class]);
+            continue;
+        }
         ame429_applyStyleToProperties(props, params);
     }
     for (NSMutableDictionary *drawerData in drawerList) {
+        if (![drawerData isKindOfClass:[NSDictionary class]]) {
+            NSLog(@"[Task429][Task434] mDrawerDataList 异形元素(%@)已跳过", [drawerData class]);
+            continue;
+        }
         ame429_applyStyleToProperties(drawerData[@"properties"], params);
         id subButtons = drawerData[@"buttonProperties"];
         if (![subButtons isKindOfClass:[NSArray class]]) continue;
@@ -1208,6 +1272,10 @@ static id ame429_listElementForNode(UIView *node) {
         }
     }
     for (NSMutableDictionary *joyProps in joyList) {
+        if (![joyProps isKindOfClass:[NSDictionary class]]) {
+            NSLog(@"[Task429][Task434] mJoystickDataList 异形元素(%@)已跳过", [joyProps class]);
+            continue;
+        }
         ame429_applyStyleToProperties(joyProps, params);
     }
 

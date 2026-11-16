@@ -25,8 +25,9 @@
 //   本地账户 → 本页输入框 + LocalAuthenticator（旧 actionLoginLocal 原样
 //     移植）。
 //   注：AccountLoginViewController 为登录方式四选一卡片页（选择结果仍回抛
-//   容器执行流程），本页已有 actionSheet 选择层，再 push 一层选择页属重复
-//   选择器，故不消费（Microsoft/本地两种方式其本身也没有独立登录 VC）。
+//   容器执行流程）——本页 ame_requestAdd 经 NSClassFromString 动态实例化并
+//   push，收编为正式添加账号流程页；类缺失时降级 actionSheet 选择层。
+//   ★Task434 注释纠偏：原「故不消费」口径与 .m 动态消费实码不符。
 //
 // 导航约定：根页隐藏系统导航栏（viewWillAppear），push 登录页返回后由
 //   viewWillDisappear 约定恢复；列表在 viewWillAppear + @"UpdateAccountInfo"

@@ -147,35 +147,71 @@
     // 将裁剪框的坐标转换为图片坐标
     CGRect cropBounds = self.cropOverlayView.frame;
     CGRect imageFrame = self.imageView.frame;
-    
+    if (imageFrame.size.width < 1.0 || imageFrame.size.height < 1.0) return nil;
+
     CGFloat scaleX = self.sourceImage.size.width / imageFrame.size.width;
     CGFloat scaleY = self.sourceImage.size.height / imageFrame.size.height;
-    
+
     CGRect cropRectInImage = CGRectMake(
         (cropBounds.origin.x - imageFrame.origin.x) * scaleX,
         (cropBounds.origin.y - imageFrame.origin.y) * scaleY,
         cropBounds.size.width * scaleX,
         cropBounds.size.height * scaleY
     );
-    
+
     // 确保裁剪区域不超出图片边界
-    cropRectInImage = CGRectIntersection(cropRectInImage, CGRectMake(0, 0, self.sourceImage.size.width, self.sourceImage.size.height));
-    
-    // 创建一个正方形的黑色背景图片
-    UIGraphicsBeginImageContextWithOptions(cropRectInImage.size, YES, self.sourceImage.scale);
+    CGRect imageBounds = CGRectMake(0, 0, self.sourceImage.size.width, self.sourceImage.size.height);
+    cropRectInImage = CGRectIntersection(cropRectInImage, imageBounds);
+
+    // ★Task434 A1：方形裁剪语义根修（应用图标导入链复用前置审计：旧实现
+    //   drawInRect 把整图压入输出框 = 平移/双指缩放手势对产物零生效，输出
+    //   还可能随交集钳制变非方）。三步收口：
+    //   ① 方形化：区域居中收短边（应用图标恒方形；side ≤ MIN(imgW,imgH) 恒可行）；
+    //   ② 子域绘制：按收口区域取源图对应像素，取景手势对产物真实生效；
+    //   ③ 方向归一：先按 EXIF 转正再取像素域，保证 CGImage 空间与视图几何一致。
+    CGFloat side = MIN(cropRectInImage.size.width, cropRectInImage.size.height);
+    if (side < 1.0) return nil;
+    cropRectInImage.origin.x += (cropRectInImage.size.width - side) / 2.0;
+    cropRectInImage.origin.y += (cropRectInImage.size.height - side) / 2.0;
+    // 居中收口后钳回图界（贴边取景防越界）
+    cropRectInImage.origin.x = MIN(MAX(cropRectInImage.origin.x, 0), imageBounds.size.width - side);
+    cropRectInImage.origin.y = MIN(MAX(cropRectInImage.origin.y, 0), imageBounds.size.height - side);
+    cropRectInImage.size = CGSizeMake(side, side);
+
+    // EXIF → Up 归一化（PHPicker 回图通常已 Up，历史选图链旋转图兜底）
+    UIGraphicsBeginImageContextWithOptions(self.sourceImage.size, NO, self.sourceImage.scale);
+    [self.sourceImage drawAtPoint:CGPointZero];
+    UIImage *uprightImage = UIGraphicsGetImageFromCurrentImageContext();
+    UIGraphicsEndImageContext();
+    if (!uprightImage.CGImage) return nil;
+
+    // 点域 → CGImage 像素域取子图（入参须在图像界内，先钳制防取整越界）
+    CGFloat pxScale = uprightImage.scale;
+    CGRect pixelRect = CGRectMake(round(cropRectInImage.origin.x * pxScale),
+                                  round(cropRectInImage.origin.y * pxScale),
+                                  round(cropRectInImage.size.width * pxScale),
+                                  round(cropRectInImage.size.height * pxScale));
+    pixelRect = CGRectIntersection(pixelRect,
+        CGRectMake(0, 0, uprightImage.size.width * pxScale, uprightImage.size.height * pxScale));
+    if (CGRectIsNull(pixelRect) || pixelRect.size.width < 1.0 || pixelRect.size.height < 1.0) return nil;
+    CGImageRef regionRef = CGImageCreateWithImageInRect(uprightImage.CGImage, pixelRect);
+    if (!regionRef) return nil;
+    UIImage *regionImage = [UIImage imageWithCGImage:regionRef
+                                               scale:pxScale
+                                         orientation:UIImageOrientationUp];
+    CGImageRelease(regionRef);
+
+    // 方形黑背衬输出（与旧版黑底语义一致；PNG 落盘无透明边）
+    UIGraphicsBeginImageContextWithOptions(cropRectInImage.size, YES, pxScale);
     CGContextRef context = UIGraphicsGetCurrentContext();
-    
-    // 填充黑色背景
     CGContextSetFillColorWithColor(context, [UIColor blackColor].CGColor);
     CGContextFillRect(context, CGRectMake(0, 0, cropRectInImage.size.width, cropRectInImage.size.height));
-    
-    // 在黑色背景上绘制裁剪的图片
-    CGRect drawRect = CGRectMake(0, 0, cropRectInImage.size.width, cropRectInImage.size.height);
-    [self.sourceImage drawInRect:drawRect blendMode:kCGBlendModeNormal alpha:1.0];
-    
+    [regionImage drawInRect:CGRectMake(0, 0, cropRectInImage.size.width, cropRectInImage.size.height)
+                  blendMode:kCGBlendModeNormal
+                    alpha:1.0];
     UIImage *croppedImage = UIGraphicsGetImageFromCurrentImageContext();
     UIGraphicsEndImageContext();
-    
+
     return croppedImage;
 }
 

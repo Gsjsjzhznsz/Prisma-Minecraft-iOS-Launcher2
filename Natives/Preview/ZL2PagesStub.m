@@ -307,6 +307,27 @@
 @implementation BackgroundSettingsViewController
 @end
 
+// ★Task434 A1：应用图标导入链裁剪器桩——ZL2SettingPages ame434 流程引用
+//   ImageCropperViewController 真类符号（_OBJC_CLASS_$，Task430-r1 判例同族：
+//   真实现 TU 在 CMakeLists 主构建、不在 preview 编译清单），本 TU 手写同名
+//   类声明 + 最小签名空实现（家法：不 import 真实类头防声明冲突；签名照抄
+//   Natives/ImageCropperViewController.h 逐字勿漂移，ui_fluent_smoke.sh
+//   ame429_sig_pair 双侧对表承接）。
+@interface ImageCropperViewController : UIViewController
+@property (nonatomic, strong) UIImage *sourceImage;
+@property (nonatomic, copy) void (^completionHandler)(UIImage * _Nullable croppedImage);
+- (instancetype)initWithImage:(UIImage *)image;
+@end
+
+@implementation ImageCropperViewController
+
+- (instancetype)initWithImage:(UIImage *)image {
+    self = [super init];
+    return self;
+}
+
+@end
+
 // BingWallpaperGalleryViewController：+galleryController 类工厂（Task151）。
 // 桩返回 nil（行点击仅截图流程不触达；返回类型放宽到 UIViewController 与
 // 调用方 `UIViewController *vc = [X galleryController]` 同构）

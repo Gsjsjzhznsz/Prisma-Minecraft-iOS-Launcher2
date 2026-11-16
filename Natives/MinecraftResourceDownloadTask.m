@@ -1294,7 +1294,19 @@ static void ame428_dropAllPending(void) {
     [service resetCancelState];
 
     NSError *parseError = nil;
-    NSDictionary *modpackInfo = [service parseModpackAtURL:[NSURL fileURLWithPath:packagePath] error:&parseError];
+    // ★Task434 C3：构造性畸形 zip/mrpack（dependencies 为字符串、minecraft 为数字等）
+    //   会让解析抛 NSException 直接硬崩；只网住解析这一段调用，异常转 parseError
+    //   交由下方既有 !modpackInfo 失败分支（finishDownloadWithErrorString: 标失败 +
+    //   弹窗 + 恢复 UI）收尾（家法对齐 ModpackImportViewController.m:401-419）
+    NSDictionary *modpackInfo = nil;
+    @try {
+        modpackInfo = [service parseModpackAtURL:[NSURL fileURLWithPath:packagePath] error:&parseError];
+    } @catch (NSException *ame434_ex) {
+        NSLog(@"[ModpackImport] Task434 C3 parse threw: %@ (%@)\n%@",
+              ame434_ex.name, ame434_ex.reason, ame434_ex.callStackSymbols);
+        parseError = [NSError errorWithDomain:@"MinecraftResourceDownloadTask" code:2
+                                     userInfo:@{NSLocalizedDescriptionKey: ame434_ex.reason ?: ame434_ex.name}];
+    }
     if (!modpackInfo) {
         [self finishDownloadWithErrorString:[NSString stringWithFormat:@"Failed to parse modpack package: %@",
                                              parseError.localizedDescription ?: @"unknown error"]];
@@ -1323,7 +1335,18 @@ static void ame428_dropAllPending(void) {
     // 后台执行统一导入（6 阶段进度上报 + autoPresentDetail 统一进度页）
     dispatch_async(dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_DEFAULT, 0), ^{
         NSError *importError = nil;
-        BOOL success = [service importModpack:info progress:nil error:&importError];
+        // ★Task434 C3：导入链遇构造性畸形数据会抛 NSException 直接硬崩（后台队列无人兜底）；
+        //   只网住 importModpack: 这一调用，异常转 importError 走下方既有失败分支
+        //   （NSLog 失败原因 + 清理 zip 临时文件 + 不发 ReloadProfileList）收尾
+        BOOL success = NO;
+        @try {
+            success = [service importModpack:info progress:nil error:&importError];
+        } @catch (NSException *ame434_ex) {
+            NSLog(@"[ModpackImport] Task434 C3 import threw: %@ (%@)\n%@",
+                  ame434_ex.name, ame434_ex.reason, ame434_ex.callStackSymbols);
+            importError = [NSError errorWithDomain:@"ModpackImportError" code:9999
+                                          userInfo:@{NSLocalizedDescriptionKey: ame434_ex.reason ?: ame434_ex.name}];
+        }
         if (success) {
             NSLog(@"[ModpackImport] Online modpack '%@' imported", info[@"name"]);
         } else {
@@ -1333,7 +1356,12 @@ static void ame428_dropAllPending(void) {
         [NSFileManager.defaultManager removeItemAtPath:packagePath error:nil];
         // 成功后刷新 profile 列表（与 Fabric/Forge 安装完成后的 ReloadProfileList 通知一致）
         if (success) {
-            [[NSNotificationCenter defaultCenter] postNotificationName:@"ReloadProfileList" object:nil];
+            // ★Task434 C4：观察者（ZL2HomeViewController 等）收到通知后做 UI 刷新，必须在
+            //   主线程 post——本块运行在后台全局队列，直接 post 会导致后台线程 UI 刷新闪退
+            //   （写法对齐 ZL2AssetSearchViewController.m:3282 / DownloadViewController.m:5604）
+            dispatch_async(dispatch_get_main_queue(), ^{
+                [[NSNotificationCenter defaultCenter] postNotificationName:@"ReloadProfileList" object:nil];
+            });
         }
     });
 }

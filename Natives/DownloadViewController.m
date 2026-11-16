@@ -5406,7 +5406,19 @@ static const NSTimeInterval kAme291MergeWindowSeconds = 7.0 * 24.0 * 3600.0;
                 ModpackImportService *importService = [[ModpackImportService alloc] init];
             dispatch_async(dispatch_get_global_queue(QOS_CLASS_USER_INITIATED, 0), ^{
                 NSError *parseError = nil;
-                NSDictionary *modpackInfo = [importService parseModpackAtURL:[NSURL fileURLWithPath:tempPath] error:&parseError];
+                // ★Task434 C3：构造性畸形 mrpack（dependencies 为字符串、minecraft 为数字等）
+                //   会让解析抛 NSException 直接硬崩；只网住解析这一段调用，异常转 parseError
+                //   交由下方既有 !modpackInfo 失败分支（标 Failed + completedWithError +
+                //   showError）收尾（家法对齐 ModpackImportViewController.m:401-419）
+                NSDictionary *modpackInfo = nil;
+                @try {
+                    modpackInfo = [importService parseModpackAtURL:[NSURL fileURLWithPath:tempPath] error:&parseError];
+                } @catch (NSException *ame434_ex) {
+                    NSLog(@"[ModpackDownload] Task434 C3 parse threw: %@ (%@)\n%@",
+                          ame434_ex.name, ame434_ex.reason, ame434_ex.callStackSymbols);
+                    parseError = [NSError errorWithDomain:@"DownloadError" code:2
+                                                 userInfo:@{NSLocalizedDescriptionKey: ame434_ex.reason ?: ame434_ex.name}];
+                }
                 if (!modpackInfo) {
                     dispatch_async(dispatch_get_main_queue(), ^{
                         [[DownloadTaskManager sharedManager] updateTaskWithId:taskItem.taskId
@@ -5545,42 +5557,53 @@ static const NSTimeInterval kAme291MergeWindowSeconds = 7.0 * 24.0 * 3600.0;
                         tempPath:(NSString *)tempPath {
     NSError *importError = nil;
     __weak typeof(self) weakSelf = self;
-    BOOL success = [importService importModpack:info
-                                       progress:^(double p, NSString *stage) {
-        __strong typeof(weakSelf) strongSelf = weakSelf;
-        if (!strongSelf) return;
-        dispatch_async(dispatch_get_main_queue(), ^{
-            DownloadTaskManager *manager = [DownloadTaskManager sharedManager];
-            if (p < 0.3) {
-                // 阶段2 下载依赖文件进行中
-                [manager updateTaskWithId:taskId
-                              stageAtIndex:2
-                                   progress:p / 0.3
-                                  message:stage];
-            } else if (p < 0.7) {
-                // 阶段2 完成，阶段3 安装加载器进行中
-                [manager updateTaskWithId:taskId stageAtIndex:2 status:PLTaskStageStatusCompleted];
-                [manager updateTaskWithId:taskId
-                              stageAtIndex:3
-                                   progress:(p - 0.3) / 0.4
-                                  message:stage];
-                [manager updateTaskWithId:taskId currentStageIndex:3];
-            } else if (p < 1.0) {
-                // 阶段3 完成，阶段5 完成配置进行中
-                [manager updateTaskWithId:taskId stageAtIndex:3 status:PLTaskStageStatusCompleted];
-                [manager updateTaskWithId:taskId
-                              stageAtIndex:5
-                                   progress:(p - 0.7) / 0.3
-                                  message:stage];
-                [manager updateTaskWithId:taskId currentStageIndex:5];
-            } else {
-                // 全部阶段完成
-                [manager updateTaskWithId:taskId stageAtIndex:2 status:PLTaskStageStatusCompleted];
-                [manager updateTaskWithId:taskId stageAtIndex:3 status:PLTaskStageStatusCompleted];
-                [manager updateTaskWithId:taskId stageAtIndex:5 status:PLTaskStageStatusCompleted];
-            }
-        });
-    } error:&importError];
+    // ★Task434 C3：导入链（解压依赖/装 loader/写 profile）遇构造性畸形数据会抛 NSException
+    //   直接硬崩；只网住 importModpack: 这一调用，异常转 importError 交由下方既有失败分支
+    //   （阶段 2/3/5 标 Failed + completedWithError + showError）收尾
+    BOOL success = NO;
+    @try {
+        success = [importService importModpack:info
+                                      progress:^(double p, NSString *stage) {
+            __strong typeof(weakSelf) strongSelf = weakSelf;
+            if (!strongSelf) return;
+            dispatch_async(dispatch_get_main_queue(), ^{
+                DownloadTaskManager *manager = [DownloadTaskManager sharedManager];
+                if (p < 0.3) {
+                    // 阶段2 下载依赖文件进行中
+                    [manager updateTaskWithId:taskId
+                                 stageAtIndex:2
+                                     progress:p / 0.3
+                                      message:stage];
+                } else if (p < 0.7) {
+                    // 阶段2 完成，阶段3 安装加载器进行中
+                    [manager updateTaskWithId:taskId stageAtIndex:2 status:PLTaskStageStatusCompleted];
+                    [manager updateTaskWithId:taskId
+                                 stageAtIndex:3
+                                     progress:(p - 0.3) / 0.4
+                                      message:stage];
+                    [manager updateTaskWithId:taskId currentStageIndex:3];
+                } else if (p < 1.0) {
+                    // 阶段3 完成，阶段5 完成配置进行中
+                    [manager updateTaskWithId:taskId stageAtIndex:3 status:PLTaskStageStatusCompleted];
+                    [manager updateTaskWithId:taskId
+                                 stageAtIndex:5
+                                     progress:(p - 0.7) / 0.3
+                                      message:stage];
+                    [manager updateTaskWithId:taskId currentStageIndex:5];
+                } else {
+                    // 全部阶段完成
+                    [manager updateTaskWithId:taskId stageAtIndex:2 status:PLTaskStageStatusCompleted];
+                    [manager updateTaskWithId:taskId stageAtIndex:3 status:PLTaskStageStatusCompleted];
+                    [manager updateTaskWithId:taskId stageAtIndex:5 status:PLTaskStageStatusCompleted];
+                }
+            });
+        } error:&importError];
+    } @catch (NSException *ame434_ex) {
+        NSLog(@"[ModpackImport] Task434 C3 import threw: %@ (%@)\n%@",
+              ame434_ex.name, ame434_ex.reason, ame434_ex.callStackSymbols);
+        importError = [NSError errorWithDomain:@"ModpackImportError" code:9999
+                                      userInfo:@{NSLocalizedDescriptionKey: ame434_ex.reason ?: ame434_ex.name}];
+    }
 
     // 清理临时文件
     [[NSFileManager defaultManager] removeItemAtPath:tempPath error:nil];

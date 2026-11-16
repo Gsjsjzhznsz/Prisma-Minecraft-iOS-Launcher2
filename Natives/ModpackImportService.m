@@ -1583,7 +1583,10 @@ static BOOL ame269_sMigrationRunning = NO;
         // env 字段过滤：Modrinth 文件可声明仅 server 或仅 client 适用。
         // 启动器是客户端，跳过 env.client=="unsupported" 的文件（避免下载服务端专用 mod）。
         // env 缺失或 env.client=="required"/"optional" 时正常下载。
-        NSDictionary *env = fileInfo[@"env"];
+        // ★Task434 C1 族加固：env 为 NSNull/数组/字符串时裸下标同族 unrecognized
+        //   selector 崩（B1 并发网汇报项），判类收窄后按 env 缺席口径放行。
+        NSDictionary *env = [fileInfo[@"env"] isKindOfClass:[NSDictionary class]]
+            ? (NSDictionary *)fileInfo[@"env"] : nil;
         NSString *clientEnv = env[@"client"];
         if ([clientEnv isKindOfClass:[NSString class]] && [clientEnv isEqualToString:@"unsupported"]) {
             skippedServerOnly++;
@@ -1680,16 +1683,38 @@ static BOOL ame269_sMigrationRunning = NO;
             }
 
             // ---- 构造单个文件的下载请求 ----
+            // ★Task434 C1/C2 并发块异常网：局部声明原样前移到 @try 之外（@catch 构造
+            //   失败登记条目需读取 fileName/recordURL），无语义改动。
             NSString *fileName = nil;
             NSString *destPath = nil;
             NSString *expectedSHA1 = nil;
             NSString *recordURL = @"";
             NSMutableArray<NSURL *> *candidates = [NSMutableArray array];
+            // ★Task434 C1/C2 并发块异常网：完成协议归属标记——置 YES 表示下载已被
+            //   PLDownloadClient 受理（signal/leave 移交其 completion），@catch 不得重复收尾。
+            BOOL ame434_downloadDispatched = NO;
 
+            // ★Task434 C1/C2 并发块异常网：块体整体套 @try 网——本并发线程异常无人接
+            //   （调用方 importModpack 的 Task269 网在导入线程，不跨线程）= SIGABRT 硬闪退。
+            //   对齐 Task431 导出网家法：@catch 转 NSError + NSLog 落异常栈取证；单文件
+            //   按既有 failedFiles 通道登记失败并推进进度，其余文件继续，不静默吞掉。
+            @try {
             if (isCurseForge) {
                 // ===== Task 3.3：CurseForge 延迟解析（占用并发槽，与其他文件的解析/下载并行）=====
-                long long projectID = [fileInfo[@"projectID"] longLongValue];
-                long long fileID = [fileInfo[@"fileID"] longLongValue];
+                // ★Task434 C1：projectID/fileID 预筛只查非 nil（:1575），manifest 若为
+                //   null/对象/数组，裸发 longLongValue = unrecognized selector 硬闪退。
+                //   正常态是 JSON 数字（:799 直取 NSJSONSerialization 原始输出）= NSNumber，
+                //   字符串亦合法——两类放行（均响应 longLongValue），其余抛块级异常网
+                //   按失败登记跳过该文件。
+                id ame434_pid = fileInfo[@"projectID"];
+                id ame434_fid = fileInfo[@"fileID"];
+                if (!([ame434_pid isKindOfClass:[NSString class]] || [ame434_pid isKindOfClass:[NSNumber class]]) ||
+                    !([ame434_fid isKindOfClass:[NSString class]] || [ame434_fid isKindOfClass:[NSNumber class]])) {
+                    [NSException raise:@"ModpackImportInvalidMeta"
+                                format:@"curseforge entry with non-scalar projectID/fileID: %@", fileInfo];
+                }
+                long long projectID = [ame434_pid longLongValue];
+                long long fileID = [ame434_fid longLongValue];
 
                 // ===== Task 5.3 + 5.4：filesByFileID 元数据（fileName/sha1/classId）优先 =====
                 // BMCLAPI 镜像的 CurseForge API 可用时一举三得：真实文件名、SHA1 流式校验
@@ -1885,7 +1910,16 @@ if (hasRealFileName) {
 
                 // Task 3.2：.mrpack index 的 files[].hashes.sha1 透传给 PLDownloadClient 做流式校验，
                 // 校验失败由其内部自动重试/换源；长度非法（非 40 位）时不设置，避免误判为校验失败。
-                NSString *sha1 = fileInfo[@"hashes"][@"sha1"];
+                // ★Task434 C2：预筛只验 downloads/path 漏验 hashes——非字典容器（数组/字符串/
+                //   NSNull）裸发 objectForKeyedSubscript: = unrecognized selector 硬闪退。
+                //   hashes 缺席（nil）是既有支持态（走 zip EOCD 兜底口径），不动；非 nil 且
+                //   非字典视为元数据损坏，抛块级异常网按失败登记跳过该文件。
+                id ame434_hashContainer = fileInfo[@"hashes"];
+                if (ame434_hashContainer && ![ame434_hashContainer isKindOfClass:[NSDictionary class]]) {
+                    [NSException raise:@"ModpackImportInvalidMeta"
+                                format:@"modrinth entry with non-dictionary hashes: %@", fileInfo[@"path"]];
+                }
+                NSString *sha1 = [ame434_hashContainer isKindOfClass:[NSDictionary class]] ? ame434_hashContainer[@"sha1"] : nil;
                 if ([sha1 isKindOfClass:[NSString class]] && sha1.length == 40) {
                     expectedSHA1 = sha1;
                 }
@@ -2065,6 +2099,58 @@ if (hasRealFileName) {
                 dispatch_semaphore_signal(slotSemaphore);
                 dispatch_group_leave(group);
             }];
+            // ★Task434：startRequest 无异常返回 = 下载受理成功，完成协议自此归其
+            //   completion 所有；置位后 @catch 只留痕、不再 signal/leave（防重复收尾）。
+            ame434_downloadDispatched = YES;
+            } @catch (NSException *ame434_exc) {
+                // ★Task434 C1/C2 并发块异常网收尾：转 NSError + NSLog 落异常栈取证
+                //   （Task431 家法），异常原因经既有 failedFilesInternal 通道按文件粒度登记。
+                NSError *ame434_err = [NSError errorWithDomain:@"ModpackImportService" code:5001
+                                                       userInfo:@{NSLocalizedDescriptionKey:
+                                       [NSString stringWithFormat:@"concurrent download exception: %@ (%@)",
+                                           ame434_exc.name, ame434_exc.reason ?: @""]}];
+                NSLog(@"[ModpackImport] ★Task434 concurrent download block exception: %@ (%@)\n%@",
+                      ame434_exc.name, ame434_exc.reason ?: @"-", ame434_exc.callStackSymbols);
+
+                if (!ame434_downloadDispatched) {
+                    // ★Task434 完成协议恰好一次：仅下载未受理时由本分支收尾（与取消/无候选
+                    //   两条既有路径同一协议，signal+leave 各恰好一次）；已受理则 completion
+                    //   负责，此处不得触碰，否则 dispatch_group 重复 leave 必崩。
+                    NSMutableDictionary *ame434_entry = [@{
+                        @"fileName": fileName ?: @"(unknown)",
+                        @"url": recordURL ?: @"",
+                        @"reason": ame434_err.localizedDescription,
+                        @"format": isCurseForge ? @"curseforge" : @"modrinth"
+                    } mutableCopy];
+                    if (isCurseForge) {
+                        // C1 场景 ID 可能是非法容器对象——登记条目只落合法标量，其余置 @0，
+                        // 防重试链消费条目时二次踩 unrecognized selector。
+                        id ame434_pid = fileInfo[@"projectID"];
+                        id ame434_fid = fileInfo[@"fileID"];
+                        ame434_entry[@"projectID"] = ([ame434_pid isKindOfClass:[NSNumber class]] || [ame434_pid isKindOfClass:[NSString class]]) ? ame434_pid : @0;
+                        ame434_entry[@"fileID"] = ([ame434_fid isKindOfClass:[NSNumber class]] || [ame434_fid isKindOfClass:[NSString class]]) ? ame434_fid : @0;
+                    }
+                    @synchronized(self) {
+                        [self.failedFilesInternal addObject:ame434_entry];
+                    }
+                    NSUInteger ame434_completedNow = 0;
+                    @synchronized(aggregate) {
+                        aggregate[@"failed"] = @([aggregate[@"failed"] unsignedLongValue] + 1);
+                        aggregate[@"completed"] = @([aggregate[@"completed"] unsignedLongValue] + 1);
+                        ame434_completedNow = [aggregate[@"completed"] unsignedLongValue];
+                    }
+                    if (progress && total > 0) {
+                        progress(0.15 + 0.70 * ((double)ame434_completedNow / (double)total),
+                                 [NSString stringWithFormat:localize(@"i18n_str_547", nil),
+                                  (unsigned long)ame434_completedNow, (unsigned long)total, fileName ?: @"(unknown)"]);
+                    }
+                    [[DownloadTaskManager sharedManager] updateTaskWithId:aggregateTask.taskId
+                                                       completedFileCount:(NSInteger)ame434_completedNow
+                                                           totalFileCount:(NSInteger)total];
+                    dispatch_semaphore_signal(slotSemaphore);
+                    dispatch_group_leave(group);
+                }
+            }
         });
     }
 

@@ -659,7 +659,8 @@
 // 启动加载界面（参照 FCL/ZL2 风格）
 "launch.title" = "正在启动 Minecraft";
 "launch.stage.init_env" = "正在初始化运行环境...";
-"launch.stage.verify_files" = "正在校验游戏文件完整性...";
+// ★Task434 简体行转真繁体（原值与 zh-Hans 逐字同）
+"launch.stage.verify_files" = "正在校驗遊戲檔案完整性...";
 "launch.stage.load_jre" = "正在加载 Java 运行时...";
 "launch.stage.config_jvm" = "正在配置 JVM 参数...";
 "launch.stage.start_jvm" = "正在启动 Java 虚拟机...";
@@ -4473,3 +4474,7 @@
 "ame432.vdet.modify.unsupported" = "暫不支援";
 
 "ame432.vdet.modify.versions_loading" = "正在獲取 %@ 可用版本…";
+
+"launch.ui.icon.import" = "匯入圖示";
+
+"launch.ui.icon.import.subtitle" = "從相簿選取圖片，裁剪後用作應用程式圖示";
