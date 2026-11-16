@@ -248,13 +248,13 @@ preview_mode() {
     ZL2AggregatedSearchService     # ★Task428（4.3）：聚合档双源并行服务（ZL2AssetSearchViewController
                                    #   import 它——固定清单缺席 = _OBJC_CLASS_$ 未定义，ZL2SkinPreviewView 判例同族）
     ZL2VersionListPage             # ★Task436 批次三：参数化版本列表新页（ZL2AssetSearch/ZL2SearchId push 点
-                                   #   消费其类符号——CI N+14 判例：新 TU 落地必同步本清单，缺席 = 链接腿
-                                   #   _OBJC_CLASS_$ 未定义；Task413/428 判例同族第三次触发）
-    IconLoader                     # ★Task437-r2：ZL2VersionListPage 表达式级引用（[IconLoader loadIconForImageView:]）
-    InlineMessageView              # ★Task437-r2：ZL2VersionListPage 表达式级引用（[InlineMessageView showIn…]）
-    ModLoaderIconHelper            # ★Task437-r2：ZL2VersionListPage 表达式级引用（[ModLoaderIconHelper brandColorForLoader:]）
-    ModItem                        # ★Task437-r2：ZL2VersionListPage 表达式级引用（[ModItem class] isKindOfClass 门）
-    PLMirrorCenter                 # ★Task437-r2：IconLoader 表达式级引用（[PLMirrorCenter preferredURLForOriginalURL:]）
+                                   #   消费其类符号——CI 判例 N+14：新 TU 落地必同步本清单，缺席 = 链接腿
+                                   #   _OBJC_CLASS_$ 未定义；Task413/428 判例同族第三次触发）。
+                                   #   ★Task437-r2/r3/r4 三波实录：其表达式级引用的 IconLoader/
+                                   #   InlineMessageView/ModLoaderIconHelper/ModItem/PLMirrorCenter
+                                   #   五类 ZL2PagesStub 桩全供（:124/:717/:1082/:1168/:1210）——
+                                   #   补真身反而 duplicate symbol（判例 N+16：新 TU 落地先查桩面，
+                                   #   桩已供 = 只补真身缺项，引用类走桩）
     ZL2M3Kit                       # 7.0-UI-12：MD3 功能组件库（搜索/chip/开关/对话框/弹层）
     ZL2GameDownloadViewController  # 7.0-UI-12：游戏 M3 下载页（旧 DownloadViewController 退场）
     ZL2GameAddonsViewController    # 7.0-UI-14：Addons 加载器选择屏（选版后加载器组合+安装分发）
@@ -312,13 +312,11 @@ preview_mode() {
   # 与 CALayer/CABasicAnimation（Progress/Card 阴影）符号不在 UIKit 内；
   # 7.0-UI-9-e 补 AuthenticationServices（账户页 ASWebAuthenticationSession MSA 流）
   # 与 UniformTypeIdentifiers（设置页 UTType 文档选择器）——本脚本不用 -fmodules，
-  # 无自动链接；★Task437-r2 补 ImageIO（IconLoader CGImageSource* 缩略图族，
-  # 预览 TU 清单入列 IconLoader 后暴露——框架面是新 TU 落地的第二轴：类符号
-  # 轴之外还有链接框架轴）
+  # 无自动链接
   if ! xcrun clang -isysroot "$SDK_SIM" -target "${ARCH}-apple-ios14.0-simulator" \
       -framework UIKit -framework Foundation -framework CoreGraphics -framework QuartzCore \
       -framework AuthenticationServices -framework UniformTypeIdentifiers \
-      -framework CoreHaptics -framework ImageIO \
+      -framework CoreHaptics \
       -o "$OUT/AmeFluentPreview" \
       "${objs[@]}" "$OUT/AmeFluentPreviewMain.o" "$OUT/ZL2PagesStub.o" 2>"$OUT/link.log"; then
     echo "  ✗ 链接失败:"
