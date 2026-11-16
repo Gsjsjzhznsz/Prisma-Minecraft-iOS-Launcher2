@@ -290,13 +290,11 @@
 /// 「实例根定位 → 打平为 zip 等价流」后走既有解析/预览/导入链。
 - (void)selectModpackFolder {
     [self ame432_cleanupFolderPackZips];
-    NSError *pickerError = nil;
     UIDocumentPickerViewController *picker =
         [[UIDocumentPickerViewController alloc] initForOpeningContentTypes:@[UTTypeFolder]
-                                                                   asCopy:YES
-                                                                    error:&pickerError];
+                                                                   asCopy:YES];
     if (!picker) {
-        NSLog(@"[ModpackImport][Task432] folder picker unavailable: %@", pickerError.localizedDescription);
+        NSLog(@"[ModpackImport][Task432] folder picker unavailable (alloc/init returned nil)");
         return;
     }
     picker.delegate = self;
