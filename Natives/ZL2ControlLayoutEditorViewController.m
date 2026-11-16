@@ -1514,185 +1514,6 @@ static id ame429_listElementForNode(UIView *node) {
     [self ame436_exitEditor];
 }
 
-// ============================================================================
-// ★Task436 私有面板件（本文件私有，不新增 TU、不动 ZL2M3Kit——链接面零风险
-// 判例：冒烟清单外的类一律做成既有 TU 内私有类；ZL2M3Kit 弹层族照旧复用）
-// ============================================================================
-
-/// 块回调滑条（UIControl 系统族只收 selector，面板行内联回调走块属性）
-@interface Ame436BlockSlider : UISlider
-@property(nonatomic, copy) void (^ame436_onChange)(CGFloat value);
-@end
-@implementation Ame436BlockSlider
-- (instancetype)initWithFrame:(CGRect)frame {
-    self = [super initWithFrame:frame];
-    if (self) {
-        self.tintColor = [ZL2Theme primary];
-        [self addTarget:self action:@selector(ame436_fire)
-     forControlEvents:UIControlEventValueChanged];
-    }
-    return self;
-}
-- (void)ame436_fire { if (self.ame436_onChange) self.ame436_onChange(self.value); }
-@end
-
-/// 块回调开关
-@interface Ame436BlockSwitch : UISwitch
-@property(nonatomic, copy) void (^ame436_onChange)(BOOL on);
-@end
-@implementation Ame436BlockSwitch
-- (instancetype)initWithFrame:(CGRect)frame {
-    self = [super initWithFrame:frame];
-    if (self) {
-        self.onTintColor = [ZL2Theme primary];
-        [self addTarget:self action:@selector(ame436_fire)
-     forControlEvents:UIControlEventValueChanged];
-    }
-    return self;
-}
-- (void)ame436_fire { if (self.ame436_onChange) self.ame436_onChange(self.on); }
-@end
-
-/// 块回调分段
-@interface Ame436BlockSegment : UISegmentedControl
-@property(nonatomic, copy) void (^ame436_onChange)(NSInteger idx);
-@end
-@implementation Ame436BlockSegment
-- (instancetype)initWithItems:(NSArray *)items {
-    self = [super initWithItems:items];
-    if (self) {
-        self.selectedSegmentTintColor = [ZL2Theme primary];
-        [self addTarget:self action:@selector(ame436_fire)
-     forControlEvents:UIControlEventValueChanged];
-    }
-    return self;
-}
-- (void)ame436_fire {
-    if (self.ame436_onChange) self.ame436_onChange(self.selectedSegmentIndex);
-}
-@end
-
-/// 块回调文本框（EditingChanged 逐字符回调）
-@interface Ame436BlockTextField : UITextField
-@property(nonatomic, copy) void (^ame436_onChange)(NSString *text);
-@end
-@implementation Ame436BlockTextField
-- (instancetype)initWithFrame:(CGRect)frame {
-    self = [super initWithFrame:frame];
-    if (self) {
-        [self addTarget:self action:@selector(ame436_fire)
-     forControlEvents:UIControlEventEditingChanged];
-    }
-    return self;
-}
-- (void)ame436_fire { if (self.ame436_onChange) self.ame436_onChange(self.text ?: @""); }
-@end
-
-/// 启动器动作（特殊键）单选网格：3 列 × 4 行 chip（10 项）。值域 = 本运行时
-/// 特殊键族（utils.h SPECIALBTN_*，0 = 无）——与 SurfaceViewController
-/// executebtn 特殊键分发表（case SPECIALBTN_*）一一对应，即 iOS 侧「启动器
-/// 事件」既有面（ZL2 基准 launch.ui 动作枚举在本仓无对应运行时面，不硬造）。
-@interface Ame436SpecialKeyGrid : UIView
-- (instancetype)initWithCurrentValue:(NSInteger)current
-                            onChange:(void (^)(NSInteger value))onChange;
-@end
-@implementation Ame436SpecialKeyGrid {
-    NSMutableArray<UIButton *> *_chips;
-    NSInteger _current;
-    void (^_onChange)(NSInteger);
-}
-
-+ (NSArray<NSArray *> *)ame436_options {
-    // 元素 = @[键值, i18n 键, 缺省文案]（localize 第三参形参即注释）
-    return @[
-        @[@(0), @"ame436.editor.props.special.none", @"无"],
-        @[@(SPECIALBTN_KEYBOARD), @"ame436.editor.props.special.keyboard", @"虚拟键盘"],
-        @[@(SPECIALBTN_MENU), @"ame436.editor.props.special.menu", @"主菜单"],
-        @[@(SPECIALBTN_TOGGLECTRL), @"ame436.editor.props.special.toglectrl", @"GUI 切换"],
-        @[@(SPECIALBTN_VIRTUALMOUSE), @"ame436.editor.props.special.vmouse", @"虚拟鼠标"],
-        @[@(SPECIALBTN_MOUSEPRI), @"ame436.editor.props.special.mousepri", @"左键"],
-        @[@(SPECIALBTN_MOUSESEC), @"ame436.editor.props.special.mousesec", @"右键"],
-        @[@(SPECIALBTN_MOUSEMID), @"ame436.editor.props.special.mousemid", @"中键"],
-        @[@(SPECIALBTN_SCROLLUP), @"ame436.editor.props.special.scrollup", @"滚轮上"],
-        @[@(SPECIALBTN_SCROLLDOWN), @"ame436.editor.props.special.scrolldown", @"滚轮下"],
-    ];
-}
-
-- (instancetype)initWithCurrentValue:(NSInteger)current
-                            onChange:(void (^)(NSInteger value))onChange {
-    self = [super initWithFrame:CGRectZero];
-    if (!self) return self;
-    self.translatesAutoresizingMaskIntoConstraints = NO;
-    _chips = [NSMutableArray array];
-    _current = current;
-    _onChange = onChange;
-
-    UIStackView *vstack = [[UIStackView alloc] init];
-    vstack.axis = UILayoutConstraintAxisVertical;
-    vstack.spacing = 6.0;
-    vstack.translatesAutoresizingMaskIntoConstraints = NO;
-    [self addSubview:vstack];
-
-    NSArray *options = [Ame436SpecialKeyGrid ame436_options];
-    NSUInteger rows = (options.count + 2) / 3;
-    for (NSUInteger r = 0; r < rows; r++) {
-        NSMutableArray *cells = [NSMutableArray array];
-        for (NSUInteger c = 0; c < 3; c++) {
-            NSUInteger idx = r * 3 + c;
-            if (idx >= options.count) {
-                // 补位空单元（FillEqually 对齐）
-                UIView *spacer = [[UIView alloc] init];
-                spacer.translatesAutoresizingMaskIntoConstraints = NO;
-                [cells addObject:spacer];
-                continue;
-            }
-            UIButton *chip = [UIButton buttonWithType:UIButtonTypeSystem];
-            chip.translatesAutoresizingMaskIntoConstraints = NO;
-            chip.layer.cornerRadius = [ZL2Theme radiusS];
-            chip.layer.masksToBounds = YES;
-            chip.titleLabel.font = [ZL2Theme fontLabelMedium];
-            chip.contentEdgeInsets = UIEdgeInsetsMake(5, 8, 5, 8);
-            chip.tag = [options[idx][0] integerValue];
-            [chip setTitle:localize(options[idx][1], options[idx][2])
-                  forState:UIControlStateNormal];
-            [chip addTarget:self action:@selector(ame436_chipTapped:)
-           forControlEvents:UIControlEventTouchUpInside];
-            [self ame436_refreshChip:chip];
-            [chip.heightAnchor constraintEqualToConstant:30.0].active = YES;
-            [_chips addObject:chip];
-            [cells addObject:chip];
-        }
-        UIStackView *hstack = [[UIStackView alloc] initWithArrangedSubviews:cells];
-        hstack.axis = UILayoutConstraintAxisHorizontal;
-        hstack.spacing = 6.0;
-        hstack.distribution = UIStackViewDistributionFillEqually;
-        hstack.translatesAutoresizingMaskIntoConstraints = NO;
-        [vstack addArrangedSubview:hstack];
-    }
-
-    [NSLayoutConstraint activateConstraints:@[
-        [vstack.topAnchor constraintEqualToAnchor:self.topAnchor],
-        [vstack.leadingAnchor constraintEqualToAnchor:self.leadingAnchor],
-        [vstack.trailingAnchor constraintEqualToAnchor:self.trailingAnchor],
-        [vstack.bottomAnchor constraintEqualToAnchor:self.bottomAnchor],
-    ]];
-    return self;
-}
-
-- (void)ame436_refreshChip:(UIButton *)chip {
-    BOOL selected = (chip.tag == _current);
-    chip.backgroundColor = selected ? [ZL2Theme primaryContainer]
-                                    : [ZL2Theme surfaceContainer];
-    chip.tintColor = selected ? [ZL2Theme onPrimaryContainer]
-                              : [ZL2Theme onSurfaceVariant];
-}
-
-- (void)ame436_chipTapped:(UIButton *)sender {
-    _current = sender.tag;
-    for (UIButton *chip in _chips) [self ame436_refreshChip:chip];
-    if (_onChange) _onChange(_current);
-}
-@end
 
 // ============================================================================
 // ★Task436 批次三·编辑器最小闭环（①新建控件 ②属性面板 ③删除/克隆 ④退出
@@ -2507,4 +2328,185 @@ typedef NS_ENUM(NSInteger, Ame436NewKind) {
     }
 }
 
+@end
+
+
+// ============================================================================
+// ★Task436 私有面板件（本文件私有，不新增 TU、不动 ZL2M3Kit——链接面零风险
+// 判例：冒烟清单外的类一律做成既有 TU 内私有类；ZL2M3Kit 弹层族照旧复用）
+// ============================================================================
+
+/// 块回调滑条（UIControl 系统族只收 selector，面板行内联回调走块属性）
+@interface Ame436BlockSlider : UISlider
+@property(nonatomic, copy) void (^ame436_onChange)(CGFloat value);
+@end
+@implementation Ame436BlockSlider
+- (instancetype)initWithFrame:(CGRect)frame {
+    self = [super initWithFrame:frame];
+    if (self) {
+        self.tintColor = [ZL2Theme primary];
+        [self addTarget:self action:@selector(ame436_fire)
+     forControlEvents:UIControlEventValueChanged];
+    }
+    return self;
+}
+- (void)ame436_fire { if (self.ame436_onChange) self.ame436_onChange(self.value); }
+@end
+
+/// 块回调开关
+@interface Ame436BlockSwitch : UISwitch
+@property(nonatomic, copy) void (^ame436_onChange)(BOOL on);
+@end
+@implementation Ame436BlockSwitch
+- (instancetype)initWithFrame:(CGRect)frame {
+    self = [super initWithFrame:frame];
+    if (self) {
+        self.onTintColor = [ZL2Theme primary];
+        [self addTarget:self action:@selector(ame436_fire)
+     forControlEvents:UIControlEventValueChanged];
+    }
+    return self;
+}
+- (void)ame436_fire { if (self.ame436_onChange) self.ame436_onChange(self.on); }
+@end
+
+/// 块回调分段
+@interface Ame436BlockSegment : UISegmentedControl
+@property(nonatomic, copy) void (^ame436_onChange)(NSInteger idx);
+@end
+@implementation Ame436BlockSegment
+- (instancetype)initWithItems:(NSArray *)items {
+    self = [super initWithItems:items];
+    if (self) {
+        self.selectedSegmentTintColor = [ZL2Theme primary];
+        [self addTarget:self action:@selector(ame436_fire)
+     forControlEvents:UIControlEventValueChanged];
+    }
+    return self;
+}
+- (void)ame436_fire {
+    if (self.ame436_onChange) self.ame436_onChange(self.selectedSegmentIndex);
+}
+@end
+
+/// 块回调文本框（EditingChanged 逐字符回调）
+@interface Ame436BlockTextField : UITextField
+@property(nonatomic, copy) void (^ame436_onChange)(NSString *text);
+@end
+@implementation Ame436BlockTextField
+- (instancetype)initWithFrame:(CGRect)frame {
+    self = [super initWithFrame:frame];
+    if (self) {
+        [self addTarget:self action:@selector(ame436_fire)
+     forControlEvents:UIControlEventEditingChanged];
+    }
+    return self;
+}
+- (void)ame436_fire { if (self.ame436_onChange) self.ame436_onChange(self.text ?: @""); }
+@end
+
+/// 启动器动作（特殊键）单选网格：3 列 × 4 行 chip（10 项）。值域 = 本运行时
+/// 特殊键族（utils.h SPECIALBTN_*，0 = 无）——与 SurfaceViewController
+/// executebtn 特殊键分发表（case SPECIALBTN_*）一一对应，即 iOS 侧「启动器
+/// 事件」既有面（ZL2 基准 launch.ui 动作枚举在本仓无对应运行时面，不硬造）。
+@interface Ame436SpecialKeyGrid : UIView
+- (instancetype)initWithCurrentValue:(NSInteger)current
+                            onChange:(void (^)(NSInteger value))onChange;
+@end
+@implementation Ame436SpecialKeyGrid {
+    NSMutableArray<UIButton *> *_chips;
+    NSInteger _current;
+    void (^_onChange)(NSInteger);
+}
+
++ (NSArray<NSArray *> *)ame436_options {
+    // 元素 = @[键值, i18n 键, 缺省文案]（localize 第三参形参即注释）
+    return @[
+        @[@(0), @"ame436.editor.props.special.none", @"无"],
+        @[@(SPECIALBTN_KEYBOARD), @"ame436.editor.props.special.keyboard", @"虚拟键盘"],
+        @[@(SPECIALBTN_MENU), @"ame436.editor.props.special.menu", @"主菜单"],
+        @[@(SPECIALBTN_TOGGLECTRL), @"ame436.editor.props.special.toglectrl", @"GUI 切换"],
+        @[@(SPECIALBTN_VIRTUALMOUSE), @"ame436.editor.props.special.vmouse", @"虚拟鼠标"],
+        @[@(SPECIALBTN_MOUSEPRI), @"ame436.editor.props.special.mousepri", @"左键"],
+        @[@(SPECIALBTN_MOUSESEC), @"ame436.editor.props.special.mousesec", @"右键"],
+        @[@(SPECIALBTN_MOUSEMID), @"ame436.editor.props.special.mousemid", @"中键"],
+        @[@(SPECIALBTN_SCROLLUP), @"ame436.editor.props.special.scrollup", @"滚轮上"],
+        @[@(SPECIALBTN_SCROLLDOWN), @"ame436.editor.props.special.scrolldown", @"滚轮下"],
+    ];
+}
+
+- (instancetype)initWithCurrentValue:(NSInteger)current
+                            onChange:(void (^)(NSInteger value))onChange {
+    self = [super initWithFrame:CGRectZero];
+    if (!self) return self;
+    self.translatesAutoresizingMaskIntoConstraints = NO;
+    _chips = [NSMutableArray array];
+    _current = current;
+    _onChange = onChange;
+
+    UIStackView *vstack = [[UIStackView alloc] init];
+    vstack.axis = UILayoutConstraintAxisVertical;
+    vstack.spacing = 6.0;
+    vstack.translatesAutoresizingMaskIntoConstraints = NO;
+    [self addSubview:vstack];
+
+    NSArray *options = [Ame436SpecialKeyGrid ame436_options];
+    NSUInteger rows = (options.count + 2) / 3;
+    for (NSUInteger r = 0; r < rows; r++) {
+        NSMutableArray *cells = [NSMutableArray array];
+        for (NSUInteger c = 0; c < 3; c++) {
+            NSUInteger idx = r * 3 + c;
+            if (idx >= options.count) {
+                // 补位空单元（FillEqually 对齐）
+                UIView *spacer = [[UIView alloc] init];
+                spacer.translatesAutoresizingMaskIntoConstraints = NO;
+                [cells addObject:spacer];
+                continue;
+            }
+            UIButton *chip = [UIButton buttonWithType:UIButtonTypeSystem];
+            chip.translatesAutoresizingMaskIntoConstraints = NO;
+            chip.layer.cornerRadius = [ZL2Theme radiusS];
+            chip.layer.masksToBounds = YES;
+            chip.titleLabel.font = [ZL2Theme fontLabelMedium];
+            chip.contentEdgeInsets = UIEdgeInsetsMake(5, 8, 5, 8);
+            chip.tag = [options[idx][0] integerValue];
+            [chip setTitle:localize(options[idx][1], options[idx][2])
+                  forState:UIControlStateNormal];
+            [chip addTarget:self action:@selector(ame436_chipTapped:)
+           forControlEvents:UIControlEventTouchUpInside];
+            [self ame436_refreshChip:chip];
+            [chip.heightAnchor constraintEqualToConstant:30.0].active = YES;
+            [_chips addObject:chip];
+            [cells addObject:chip];
+        }
+        UIStackView *hstack = [[UIStackView alloc] initWithArrangedSubviews:cells];
+        hstack.axis = UILayoutConstraintAxisHorizontal;
+        hstack.spacing = 6.0;
+        hstack.distribution = UIStackViewDistributionFillEqually;
+        hstack.translatesAutoresizingMaskIntoConstraints = NO;
+        [vstack addArrangedSubview:hstack];
+    }
+
+    [NSLayoutConstraint activateConstraints:@[
+        [vstack.topAnchor constraintEqualToAnchor:self.topAnchor],
+        [vstack.leadingAnchor constraintEqualToAnchor:self.leadingAnchor],
+        [vstack.trailingAnchor constraintEqualToAnchor:self.trailingAnchor],
+        [vstack.bottomAnchor constraintEqualToAnchor:self.bottomAnchor],
+    ]];
+    return self;
+}
+
+- (void)ame436_refreshChip:(UIButton *)chip {
+    BOOL selected = (chip.tag == _current);
+    chip.backgroundColor = selected ? [ZL2Theme primaryContainer]
+                                    : [ZL2Theme surfaceContainer];
+    chip.tintColor = selected ? [ZL2Theme onPrimaryContainer]
+                              : [ZL2Theme onSurfaceVariant];
+}
+
+- (void)ame436_chipTapped:(UIButton *)sender {
+    _current = sender.tag;
+    for (UIButton *chip in _chips) [self ame436_refreshChip:chip];
+    if (_onChange) _onChange(_current);
+}
 @end

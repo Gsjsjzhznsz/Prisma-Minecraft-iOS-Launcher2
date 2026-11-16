@@ -1710,17 +1710,37 @@ static UIColor *ZL2AssetSourceBadgeColor(NSInteger apiSource) {
         dispatch_group_enter(ame436_group);
         if (ame436_source == 1) {
             dispatch_async(dispatch_get_global_queue(QOS_CLASS_USER_INITIATED, 0), ^{
-                id ame436_json = [[ModrinthAPI sharedInstance]
-                    getEndpoint:[NSString stringWithFormat:@"project/%@", ame436_pid] params:nil];
-                dispatch_async(dispatch_get_main_queue(), ^{
-                    __strong typeof(weakSelf) strongSelf = weakSelf;
-                    if (strongSelf && [ame436_json isKindOfClass:[NSDictionary class]]) {
-                        [strongSelf ame436_backfillFavoriteEntry:(NSMutableDictionary *)ame436_entry
-                                               fromModrinthJSON:ame436_json];
-                        ame436_okCount += 1;
-                    }
+                // ★Task436-r1：Modrinth project/{id} 原生 JSON 直取——ame412_fetchProjectDetails
+                //   转换字典字段面（name/summary/icon）不含 categories/loaders，backfill 消费
+                //   面需要原生 JSON；端点与 ModrinthAPI init 同源（api.modrinth.com/v2）；
+                //   HTTP 2xx 状态闸 = Task431 ame_syncFetch 判例（错误体不当数据）
+                NSString *ame436_url = [NSString stringWithFormat:
+                    @"https://api.modrinth.com/v2/project/%@", ame436_pid];
+                NSURL *ame436_u = [NSURL URLWithString:ame436_url];
+                if (!ame436_u) {
                     dispatch_group_leave(ame436_group);
-                });
+                    return;
+                }
+                [[NSURLSession sharedSession] dataTaskWithURL:ame436_u
+                    completionHandler:^(NSData *ame436_data, NSURLResponse *ame436_resp, NSError *ame436_err) {
+                    dispatch_async(dispatch_get_main_queue(), ^{
+                        __strong typeof(weakSelf) strongSelf = weakSelf;
+                        NSHTTPURLResponse *ame436_http = (id)ame436_resp;
+                        id ame436_json = nil;
+                        if (ame436_data
+                            && [ame436_http isKindOfClass:[NSHTTPURLResponse class]]
+                            && ame436_http.statusCode == 200) {
+                            ame436_json = [NSJSONSerialization JSONObjectWithData:ame436_data
+                                                                          options:0 error:nil];
+                        }
+                        if (strongSelf && [ame436_json isKindOfClass:[NSDictionary class]]) {
+                            [strongSelf ame436_backfillFavoriteEntry:(NSMutableDictionary *)ame436_entry
+                                                   fromModrinthJSON:ame436_json];
+                            ame436_okCount += 1;
+                        }
+                        dispatch_group_leave(ame436_group);
+                    });
+                }];
             });
         } else {
             [[CurseForgeAPI sharedInstance] ame238_fetchProjectInfo:ame436_pid
