@@ -5280,3 +5280,47 @@ Work Log:
 
 Stage Summary:
 - 装机锚点（BuildTag=「Task433 · 2026-11-16」）：①TXM 调试 JIT（StikJIT/StikDebug 家族）设备上「JIT 自救」开关不再把会话切到必然 SIGBUS 的非镜像轨（自救请求被闸忽略，镜像轨保留；日志 [JavaLauncher] Task433 双站）②自救已激活仍崩的 ame273 弹窗改道讲真话（不再诱导开启自救；[Ame433] 锚）③非 TXM 环境（TrollStore/直授权）自救语义零变化。
+
+
+## Task 434 · 2026-11-16（第 10 期批次一热修全量（PDF 第 9 期路线图当天档）+ 二代 issue#3 跟进根修：JIT26 运行时能力预检探针 ame434 双站 + ame273 精确分支 + Task433 证伪建议退役）
+
+**用户指令**：「开始按照PDF所有提及到的全部加进去。使用子代理加速。」+「处理一下二代仓库又一个3号新议题……这个议题不用直接关闭，因为#2号议题没有解决它的问题。」（续接铁律：继续上一任务不提问）
+
+Work Log:
+- 【批次一热修（fc9bd0e3d）】C1/C2 并发下载块整体 @try 网（ModpackImportService :1675-2068 单块包住 + env 判类族加固）/ C3 在线链六点套网 / C4 MinecraftResourceDownloadTask :1336 post 主线程化 / P0-1 编辑器元素级守卫下沉 loadLayout（btnList/drawerList/joyList 枚举点 + 深层键）/ P1-4 触觉 start 失败可重试三连败熔断（消粘滞）/ A1 应用图标导入+裁剪回归修复（PHPicker 软链 + ImageCropper 方形根修 + CustomIconManager 落盘 + 图标行即时刷新）/ 快赢六件（zh-Hant 校驗一键 / 弱捕获口径统一 / Accounts .h 注释失实修正 / E1 Modrinth 取消失明 / E2 overrides 写失败计数 / E4 SHA1 反查取消前置）+ BuildTag Task434 重锚 + ame378 39/39 + verify219 4173 四表 + 预览桩 ImageCropperViewController + ame429_sig_pair 双侧对表 + i18n 四表 launch.ui.icon.import 双键。
+- 【议题#3 跟进取证】报告者（uhjjas-del）Java 21 重测仍崩 + Prisma 6.5.5 无需自救可玩对照。证据链：hs_err 命令行 +MirrorMappedCodeCache 在场（Task433 双站闸已按设计保留镜像轨）但 latestlog `Got JIT mapping` 计数 = 0 → jre21 libjvm 从未发起 JIT26 调试映射请求（brk #0x69 → vm_remap 链零踪迹）→ 普通 mmap 页不可执行 → SIGBUS BUS_ADRALN pc==si_addr，崩点 ~StubRoutines::call_stub / InstanceKlass::call_class_initializer（java.lang <clinit> 首次生成代码执行）。**残余根因定案：jre21 libjvm 构建缺 JIT26 调试映射实现**（Task433 二进制反汇编只锚 jre17；三特征 XNU_HAS_TXM/DeviceHasTXM/brk#0x69 为 fork 编译期常量）。
+- 【修复（b3b13057e + r3 460b14ddd）】ame434 JIT26 运行时能力预检探针：双站（launchJVM/launchHeadlessJVM）在 TXM 闸保留镜像轨前 mmap libjvm 做三特征扫描；探针缺失 → 取证日志 + marker 落盘 + ame273 新精确分支（该运行时缺 JIT26 映射、TXM 环境不可用 → 改用 Java 17 运行时）；Task433「改用 Java 21」证伪建议退役。r3 热修：探针子串扫描 memmem → 手写有界扫描（Darwin string.h 不声明 memmem，spvc_shim.c :461 同判例；clang 21 隐式声明=硬错误）。新自检门探针 4 探针全翻红双向验证（A13-A15 + selftest 扩 4 探针）。
+- 【CI 实录】r1 dev 两次外部 cancelled（Task432 判例同型）→ r2（b3b13057e）dev+smoke 双绿 → r3 dev 首轮红（memmem）→ r3（460b14ddd）dev 绿 + smoke 被外部取消 → rerun-failed-jobs（HTTP 201）→ **r3 attempt2 双绿终态（run 43853851324）**。
+- 【议题处理】#3 评论（comment 6915852620，英文五段式：根因确认 + Fixed in Prisma 2.0 + 探针机制细节 + 验证请求 + Will ship in the next Prisma 2.0 build），**按用户指令保持 open 不闭合**（#2 未解决其问题）。
+
+Stage Summary:
+- 装机锚点（BuildTag=「Task434 · 2026-11-16」）：①批次一热修七类全量（并发网/在线链网/主线程化/元素守卫/触觉熔断/应用图标导入裁剪/快赢六件）②Java 21 运行时在 TXM 设备不再无声 SIGBUS——启动前探针给出精确指引「该运行时缺 JIT26 映射，请改用 Java 17」③日志锚：[JavaLauncher] ame434 探针 / [Ame434] ame273 分支。
+
+## Task 435 · 2026-11-16（MobileGlues dev（iOS 适配）渲染器插件包上线：上游 dev 构建 artifact 三件套随包落位 + hook 权限链路四站审计门 task435_renderer_hook_audit）
+
+**用户指令**：「之前不是搞了渲染器插件吗，你生成一个modile dev为iOS适配的渲染器改成插件测试一下hook权限能不能正常工作。」（modile dev 会话内解读 = MobileGlues dev 渠道 iOS 适配构建）
+
+Work Log:
+- 【上游构件取证】MobileGL-Dev/MobileGlues-release 无 iOS 资产（全 apk）；核心仓 "Build MobileGlues for iOS" workflow dev 分支 run 38099792822（2026-10-11，success）artifact「MobileGlues-iOS-dylib」56.6MB → 解包 libmobileglues.dylib **Mach-O 64-bit arm64 10,617,984B**（dev@0c27a3a8）。仓内 Frameworks 85MB libMobileGL.dylib 进 git 先例 → 10.6MB 直接进仓可行。
+- 【插件包三件套（Natives/resources/builtin-renderers/mobileglues-dev/）】manifest.json（id=mobileglues-dev / rendererName=MobileGlues dev（iOS 适配档）/ driverType=mobileglues / abi=[arm64] / dylib=libmobileglues.dylib / version=dev-0c27a3a8）/ driver.json（enableNoError=0 调试亲和 + 覆盖层语义注释）/ libmobileglues.dylib（dev 真身，白名单源①包内优先独立物理镜像——与经典档 Frameworks 回退共享镜像形成双档分立；dlopen 按 dyld 路径各按绝对路径独立加载）。bootstrap 幂等引导（bundle 通道真包 → pl429_bootstrapBuiltinRendererPackages 包内 dylib 随拷 :574-585 + 首方信任自动启用）。Makefile :920 resources 整树打包 → 零构建面改动。
+- 【hook 权限链路实测（四站）】新门 scripts/task435_renderer_hook_audit.py：站1 manifest 校验器逐位复刻（pl429_validateRendererManifest 全规则：id 字符集/三字段/dylib 文件名形态，dev+demo 双包回归）；站2 zip 安装链真测试（python zipfile 真打真解 2 正例 + 5 反例：ErrNoManifest/ErrBadSchema id<3/ErrBadEntry dylib 两源皆缺/ABI 缺 arm64 拒装/id=renderer 自引用拒收）；站3 dylib Mach-O 级手解析（magic 0xfeedfacf/cputype arm64/filetype 6/LC_ID_DYLIB/__TEXT __DATA/导出符号 GL 面 2878+（C 符号 strtab 前导下划线判据修正）/依赖 libEGL+libGLESv2+Metal/LC_CODE_SIGNATURE 在场——真货字节级非占位）；站4 hook 权限链路静态接线 26 锚（白名单两源 pl429_resolveDylibPath/bootstrap 随拷/首方信任 setPluginEnabled:YES/刀口③ isRendererPluginId+entryForRendererKey+OUTSIDE whitelist 拒绝+nativeLibDirs/JIT 豁免 ame429_jitExemptionSatisfied CS_DEBUGGED+init_hookFunctions/driverConfig 覆盖层 merged）。**52/52 ALL GREEN**（5 轮迭代修正审计脚本自身判据：segname 16 字节/符号下划线前缀/词边界）。
+- 【门禁】电池 26/26→**27/27**（新门入电池）；BuildTag→Task435 + ame378 C13 值锚推进；零 ObjC 代码改动（纯资源插件包 + 测试门，链路全复用 Task429 既有实现）。
+- 【CI】r4（642025264）双腿外部 cancelled（判例同型）→ CI 证据由 r5 承接（r5 含 r4 全部内容）。
+
+Stage Summary:
+- 装机锚点（BuildTag=「Task435 · 2026-11-16」）：渲染器列表新增「MobileGlues dev（iOS 适配档）」插件档（内置自动安装+启用；用户选档即走白名单 dlopen dev dylib + driver.json 覆盖层 enableNoError=0；真机验证看 [Ame429] builtin renderer bootstrap install: mobileglues-dev + renderer plugin active 日志锚）。
+
+## Task 436 · 2026-11-16（第 10 期批次二（退役六步）+ 批次三（对标补齐）PDF 路线图全量落地：四工位子代理并行 + 主控合流 + r1 双编译错误热修）
+
+**用户指令**：PDF 总指令续期（「按照PDF所有提及到的全部加进去，使用子代理加速」）——第 9 期主报告表 10 批次一已由 Task434 清偿，本轮清偿批次二/三（批次四门禁第四腿维持 macOS 迭代环境保留项）。
+
+Work Log:
+- 【四工位并行（文件属主矩阵零交集）】SA（批次二①②③⑤实例域：账户断链/完整性行/兜底拆除+五管理页 12 文件删除/CMake 摘除）+ SB（批次二④+A2：ZL2VersionListPage 参数化新页 1336 行三域 delegate 接线 + ZL2SearchId/ZL2AssetSearch 全部 push 点换新 + A2 收藏筛选面板 分类/平台/加载器/排序/远端刷新）+ SC（批次三编辑器最小闭环：新建按键/文本框/摇杆三类 + 属性面板（按键映射/启动器动作 SPECIALBTN 族/点击三态/样式联动）+ 删除/克隆 Z 序重铺 + 游戏内实时编辑入口（SurfaceViewController+Navigation menuArray 第 13 项）+ A4 控件仓库迁移改名 ZL2ControlRepo（四处直挂+冒烟桩同步+13 脚本断言面机械重锚））+ SD（批次三主题取色器升级 Ame436HueBar 色相条+Hex 输入+12 圆点降级快选+下游 CUSTOM 种子管线零改动；陀螺仪对标：灵敏度 50→25+平滑开关+窗口 2-10 双控件+ZL2GyroTunerViewController 七项实时调参浮层；A3 首启向导断一代 Welcome present；批次二⑥孤儿清理 12 文件：MinecraftNews 家族/AnnouncementItem/ServerService/ServerItem/CurseForgeAPIKey 根双副本+悬空公告预览级行摘除+news_url 键退役）。SB 子代理调用两次失败（unmarshal/deadline）但首次改动已落盘（新页+push 全换+A2 面板），主控核验完整性后收编。
+- 【主控合流】ZL2SettingPages.m ControlRepo 引用 10 处替换（SC/SD 登记的合流中间态）+ BuildTag Task436 重锚 + ame378 C13 推进 + 三门重锚：ame369 站点 443→449（拆兜底 -1/摘悬空行 -3/新页复用 +10 净计）/ ame343 A3 保留面收敛至 ProfileSettings（五管理页+DownloadVC 入退役面；B5 旧页键集合并入表全键口径）+ CMake 行精确整行匹配（ZL2DownloadViewController 子串误伤修正）/ verify219 摘退役 TU（mm 读取+H4 徽标断言+L-balance 清单）+ J 族 4173→4231。
+- 【i18n】四表 +58 键 4173→4231（SC 40 编辑器族 / SD 13 取色器+陀螺仪族 / SB 5 收藏筛选族；ame436 前缀分段互不碰撞）。
+- 【电池】27/27 ALL GREEN（合流+三门重锚后）。
+- 【CI 判例·第 N+12 例（门禁盲区：括号配平≠结构正确）】r5（79197e296）双腿同根双红：①SC 把 5 个私有面板类插进主 @implementation 中间 → 主类提前闭合（missing @end :1523 + missing context :1719+），ame_bracket_audit 括号配平照样 PASS、task240 语法闸也过——**静态括号审计只计配平不查类结构区段，@implementation 内嵌套 @interface/@end 对主实现闭合的截断效应承接**（与 Task431 N+11「[( 混排」同族：CI 实证第三例结构级盲区）②SB 用了不存在的 ModrinthAPI getEndpoint:params: 选择器。r6（64bb7e508）热修：私有类块整体搬移至文件尾主 @end 后（@interface 7/@impl 7/@end 14 配平）+ Modrinth 原生 project/{id} JSON 直取（NSURLSession dataTask + HTTP 2xx 状态闸 Task431 判例；ame412 转换字典字段面不含 categories/loaders 故不能复用）。
+- 【保留面裁决】ProfileSettingsViewController 本体保留（矩阵外编译级引用 ×2：FabricInstallViewController.m 死链 + ZL2VersionsViewController.m 死 import——运行时消费链已全断，建议后续轮随 FabricInstall 死类收编）；AccountLoginViewController 已零外部消费（后续轮退役候选）；批次四门禁第四腿维持 macOS 迭代环境保留项（Task432 移交②口径）。
+
+Stage Summary:
+- 装机锚点（BuildTag=「Task436 · 2026-11-16」）：①批次二六步全量：账户四选一旧卡退役（actionSheet 直走）+ 实例详情补完整性校验行 + 旧实例设置/五管理页/旧下载页 13 文件物理删除（-12743 行）+ 三版本列表页 ZL2 化（新 UI 搜索流下半程全部新页）+ 孤儿/双副本/悬空行清零 ②批次三对标补齐：编辑器配得上「编辑器」之名（新建/属性/删除/克隆四件闭环 + 游戏内实时编辑入口）+ 控件仓库 ZL2 正名 + 主题自由取色（色相条+Hex）+ 陀螺仪七项实时调参浮层（灵敏度 25-300 对齐 ZL2）+ 首启不再弹一代向导 ③日志锚：[Task436] 各域（编辑器 ame436_* 方法族/A2 收藏筛选/A4 改名/SurfaceVC menuArray 第 13 项）。
