@@ -417,23 +417,13 @@ BOOL ZL2AccountsSharedIsThirdParty(NSDictionary *accountData) {
 }
 
 - (void)ame_requestAdd {
-    Class chooserClass = NSClassFromString(@"AccountLoginViewController");
-    UIViewController *chooser = chooserClass ? [[chooserClass alloc] init] : nil;
-    if (!chooser) { [self showAddAccountSheet]; return; }
-    __weak typeof(self) weakSelf = self;
-    void (^selection)(NSInteger) = ^(NSInteger type) {
-        [weakSelf.navigationController popViewControllerAnimated:YES];
-        dispatch_async(dispatch_get_main_queue(), ^{
-            switch (type) {
-                case 0: [weakSelf actionLoginMicrosoft]; break;
-                case 1: [weakSelf pushThirdPartyLoginWithMode:ThirdPartyLoginModeLittleSkin]; break;
-                case 2: [weakSelf pushThirdPartyLoginWithMode:ThirdPartyLoginModeCustom]; break;
-                case 3: [weakSelf actionLoginLocal]; break;
-            }
-        });
-    };
-    [chooser setValue:[selection copy] forKey:@"onSelectLoginType"];
-    [self.navigationController pushViewController:chooser animated:YES];
+    // ★Task436 退役批次二：断开对旧四选一登录卡 AccountLoginViewController
+    //   的反向消费（原此处经 NSClassFromString 动态实例化旧卡片页并 push，
+    //   等于新 UI 把旧页拉回现役）。添加账号统一改走本页 showAddAccountSheet
+    //   ——四类登录方式 actionSheet 与旧卡片 1:1 同源（微软 / LittleSkin /
+    //   自定义第三方 / 本地，见下方 #pragma mark - Add Account 区），选择后
+    //   进入完全相同的登录流程，无行为差。
+    [self showAddAccountSheet];
 }
 
 - (void)ame_requestDeleteCurrent {

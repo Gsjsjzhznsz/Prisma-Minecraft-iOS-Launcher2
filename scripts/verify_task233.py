@@ -51,7 +51,7 @@ def check_absent(name, path, needle):
 svc = "Natives/SurfaceViewController.m"
 ccu = "Natives/customcontrols/CustomControlsUtils.m"
 jl  = "Natives/JavaLauncher.m"
-crv = "Natives/ControlRepoViewController.m"
+crv = "Natives/ZL2ControlRepoViewController.m"
 bm  = "Natives/BackgroundManager.m"
 wvc = "Natives/WelcomeViewController.m"
 cmk = "Natives/Ame223CoachMarksView.m"

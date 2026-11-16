@@ -70,11 +70,12 @@ cmk_lines = read("Natives/CMakeLists.txt").split("\n")
 cmk_code = [ln.split("#")[0] for ln in cmk_lines]
 resid = [ln.strip() for ln in cmk_code for n in FAMILY if n in ln]
 check('A2 CMakeLists 零退役面 TU（注释豁免）', not resid, f'residual: {resid[:3]}')
-check('A3 保留面仍在 CMake（旧页深链容器/服务/设置族；★Task432 重锚：'
-      'LauncherNavigationController 已入退役批次一物理删除，保留面相应摘除）',
-      all(any(k in ln for ln in cmk_code) for k in
-          ("ModsManagerViewController.m",
-           "ProfileSettingsViewController.m", "DownloadViewController.m")))
+check('A3 保留面仍在 CMake（★Task436 重锚：批次二③五管理页整链 + 旧 DownloadViewController 已物理删除，'
+      '保留面收敛至 ProfileSettingsViewController（矩阵外编译级引用 ×2 待后续轮收编））',
+      any("ProfileSettingsViewController.m" in ln for ln in cmk_code)
+      and not any(ln.strip() == n   # CMake 源清单行形态 = strip 后整行等于文件名（ZL2 前缀新类不受子串误伤）
+                  for n in ("ModsManagerViewController.m", "DownloadViewController.m")
+                  for ln in cmk_code))
 
 bridge = read("Natives/ios_uikit_bridge.m")
 check('A4 回壳判定单轨 ZL2 壳（LauncherSplit 引用清零 + ZL2Shell 判定在位）',
@@ -142,9 +143,8 @@ list_ok = ("ZL2M3SearchBar" in vp_code
            and "_copy_%" in vp)                               # Task268 同名规避（字面量，原表检查）
 check('B4 列表交互面（搜索/筛选/双 chip 排序/批量/去下载/导入 _copy 规避）', list_ok)
 
-# B5 新模组页 i18n 键零新增（新页键 ⊆ 旧页键 ∪ 现行表全键——全部已在 54 表注册）
-old_src = read("Natives/ModsManagerViewController.m")
-old_keys = set(re.findall(r'localize\(@"([\w.]+)"', old_src))
+# B5 新模组页 i18n 键零新增（★Task436 重锚：ModsManagerViewController 已随退役批次二物理删除，
+#   旧页键集合并入表全键口径；旧键按家法留守待后续轮清理）
 zh_table = read("Natives/resources/zh-Hans.lproj/Localizable.strings")
 table_keys = set(re.findall(r'^"([\w.]+)"', zh_table, re.M))
 _i1 = vp.find("#pragma mark - ② 模组管理")
@@ -152,7 +152,7 @@ _i2 = vp.find("#pragma mark - ③ 存档管理")
 assert _i1 >= 0 and _i2 > _i1, "new mods section not found"
 mods_impl = vp[_i1:_i2]
 new_keys = set(re.findall(r'localize\(@"([\w.]+)"', mods_impl))
-known_keys = old_keys | table_keys
+known_keys = table_keys
 check('B5 新页 i18n 键全部已注册（旧页集合 ∪ 表全键；零新增键）', new_keys <= known_keys,
       f'未注册键: {sorted(new_keys - known_keys)}')
 

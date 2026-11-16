@@ -1,13 +1,17 @@
 #import <UIKit/UIKit.h>
 
 // ============================================================================
+// ★ Task436（A4 迁移改名）：ControlRepoViewController → ZL2ControlRepoViewController
+//   （类名与文件名同步 ZL2 前缀，ZL2 新拟态 UI 域命名规范；引用点同步
+//   替换——CustomControls/ZL2Home/ZL2Download 三处本工位自改，
+//   ZL2SettingPages.m / DownloadViewController.m 属主他工位待主控合流）。
 // Task 188（FCL 式控件仓库）：应用内浏览远程控件布局仓库（GitHub 仓库
 // controls/ 目录 + index.json 索引，参考 Fold Craft Launcher 的控制仓库
 // 设计），一键下载社区布局到本地 controlmap/，随后经编辑器"加载"菜单
 // 或游戏内控件设置使用。下载源：raw.githubusercontent.com 主源 +
 // jsDelivr CDN 回退。
 // ============================================================================
-@interface ControlRepoViewController : UITableViewController
+@interface ZL2ControlRepoViewController : UITableViewController
 /// 下载完成后的回调（文件名不含 .json 后缀，与 actionOpenFilePicker
 /// 的 whenItemSelected 语义一致）。
 @property (nonatomic, copy) void (^whenLayoutDownloaded)(NSString *fileName);

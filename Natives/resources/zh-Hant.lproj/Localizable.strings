@@ -4478,3 +4478,66 @@
 "launch.ui.icon.import" = "匯入圖示";
 
 "launch.ui.icon.import.subtitle" = "從相簿選取圖片，裁剪後用作應用程式圖示";
+
+// ★Task436：主题取色自由化（色相条 + Hex/三档如实文案）+ 陀螺仪实时调参浮层（13 键四表同步）
+"ame436.control.gyro.tuner" = "陀螺儀即時調參";
+"ame436.control.gyro.tuner.subtitle" = "浮層七項參數即時生效（遊戲內 / 設定頁均可開啟）";
+"ame436.f.custom.hex.placeholder" = "#RRGGBB";
+"ame436.f.custom.style" = "調色風格（三檔）";
+"ame436.gyro.enable" = "陀螺儀";
+"ame436.gyro.hint" = "七項參數改動即時生效，收起浮層即可體感驗證";
+"ame436.gyro.invert_x" = "反轉 X 軸";
+"ame436.gyro.invert_y" = "反轉 Y 軸";
+"ame436.gyro.sample_rate" = "採樣率";
+"ame436.gyro.sensitivity" = "靈敏度";
+"ame436.gyro.smooth_enable" = "平滑";
+"ame436.gyro.smooth_window" = "平滑視窗";
+"ame436.gyro.title" = "陀螺儀即時調參";
+
+// ★ Task436（批次三·编辑器最小闭环 + A4 改名）：四表 40 键
+"ame436.gamemenu.edit_layout" = "編輯佈局（即時）";
+"ame436.editor.add.title" = "新建控件";
+"ame436.editor.add.button" = "按鍵";
+"ame436.editor.add.button.sub" = "功能按鍵（預設無綁定，選取後可改鍵值）";
+"ame436.editor.add.textbox" = "文字方塊";
+"ame436.editor.add.textbox.sub" = "虛擬鍵盤開關（遊戲內文字輸入入口）";
+"ame436.editor.add.joystick" = "搖桿";
+"ame436.editor.add.joystick.sub" = "虛擬搖桿（WASD 方向控制）";
+"ame436.editor.add.foot" = "新控件出現在畫布中心，拖到目標位置後儲存。";
+"ame436.editor.add.toast_fmt" = "已新建：%@";
+"ame436.editor.props.none" = "請先點選一個控件節點";
+"ame436.editor.props.title" = "控件屬性";
+"ame436.editor.props.name" = "名稱";
+"ame436.editor.props.keycode" = "按鍵映射";
+"ame436.editor.props.keycode.hint" = "鍵值：0=無綁定；正數=GLFW 鍵碼（87=W、256=Esc）；負數=特殊鍵";
+"ame436.editor.props.event" = "點擊事件";
+"ame436.editor.props.event.normal" = "普通";
+"ame436.editor.props.event.toggle" = "切換";
+"ame436.editor.props.event.passthru" = "穿透";
+"ame436.editor.props.special" = "啟動器動作";
+"ame436.editor.props.special.none" = "無";
+"ame436.editor.props.special.keyboard" = "虛擬鍵盤";
+"ame436.editor.props.special.menu" = "主選單";
+"ame436.editor.props.special.toglectrl" = "GUI 切換";
+"ame436.editor.props.special.vmouse" = "虛擬滑鼠";
+"ame436.editor.props.special.mousepri" = "左鍵";
+"ame436.editor.props.special.mousesec" = "右鍵";
+"ame436.editor.props.special.mousemid" = "中鍵";
+"ame436.editor.props.special.scrollup" = "滾輪上";
+"ame436.editor.props.special.scrolldown" = "滾輪下";
+"ame436.editor.props.opacity" = "透明度";
+"ame436.editor.props.bgalpha" = "背景透明度";
+"ame436.editor.props.stroke" = "描邊寬度";
+"ame436.editor.props.forwardlock" = "方向鎖";
+"ame436.editor.props.clone" = "克隆控件（偏移 8pt）";
+"ame436.editor.props.delete" = "刪除控件";
+"ame436.editor.delete.confirm.body_fmt" = "將刪除「%@」。儲存後寫入佈局檔案；未儲存前可用「放棄變更並離開」復原。";
+"ame436.editor.toast.cloned_fmt" = "已克隆：%@（偏移 8pt）";
+"ame436.editor.toast.deleted" = "控件已刪除";
+"ame436.editor.clone.suffix" = "副本";
+
+"ame436.vlist.empty" = "暫無可下載版本";
+"ame436.fav.sort_by_title" = "按標題排序";
+"ame436.fav.refresh" = "重新整理遠端資訊";
+"ame436.fav.refresh_done_fmt" = "已重新整理 %lu/%lu 個收藏";
+"ame436.fav.filter_missing_hint" = "部分條目缺少該欄位資訊，缺欄位條目不過濾";

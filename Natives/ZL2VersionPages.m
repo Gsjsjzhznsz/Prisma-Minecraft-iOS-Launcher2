@@ -50,8 +50,12 @@
 //          键族单一事实源 ame256_effectiveJvmPreset 消费侧）、渲染器覆写
 //          RowList（profile[@"renderer"]，真键 getRendererKeys/Names）、
 //          服务器 IP（PLProfiles serverIpForProfile:/setServerIp:forProfile:
-//          现成 API）；底部「完整实例设置」push 旧 ProfileSettings
-//          ViewController（长尾兜底）。
+//          现成 API）；★Task436 退役批次二：补「校验并补全游戏文件」实例行
+//          （PLGameIntegrityService 实例级 API，旧 ProfileSettings 版本信息
+//          组同语义行平移）；原底部「完整实例设置」push 旧 ProfileSettings
+//          长尾兜底入口拆除——长尾功能已全量被子页族吸收（概览 = 版本信息
+//          编辑/组件管理/版本隔离/导出整合包/世界备份；rail = 模组/存档
+//          +数据包/资源包/光影/截图/服务器），保留入口只会把旧页拉回现役。
 //
 // 通用契约：枚举后台队列 / UI 主线程；NSFileManager +
 // stringByAppendingPathComponent；颜色/字体/圆角全 ZL2Theme；SF1.x 级
@@ -74,7 +78,9 @@
 #import <CommonCrypto/CommonDigest.h> // ★ Task343：流式 SHA1（Modrinth 反查依赖）
 #import "ZL2VersionDetailViewController.h"   // +ameV13_resolvedGameDirForProfileName:（gameDir 重解析兜底）
 #import "PLProfiles.h"
-#import "ProfileSettingsViewController.h"    // 「完整实例设置」长尾入口（旧链 1:1）
+// ★Task436 退役批次二：ProfileSettingsViewController.h 导入移除——配置子页
+//   「完整实例设置」长尾兜底入口拆除（push 目标属退役批次二旧页；长尾功能
+//   全量被子页族吸收，见文件头 ⑧ 配置注记）。
 #import "LauncherPreferences.h"              // getRendererKeys/getRendererNames
 #import "utils.h"                            // localize() / ame173_safeHeapCeilingMB()
 #import "external/UnzipKit/UZKArchive.h"     // 存档 zip 解压（WorldService.m 同款链路）
@@ -85,6 +91,7 @@
 #import "PLComponentService.h"           // ★Task429：FCL 式组件自动安装服务（组件管理子页数据面）
 #import "NMToast.h"                       // ★Task429：结果吐司（换装成败轻量提示）
 #import "PLWorldBackupService.h"        // ★Task429 S1：世界备份/恢复/复制/删除服务（「导出整合包」入口行同款语位）
+#import "PLGameIntegrityService.h"       // ★Task436 步骤②：配置子页「校验并补全游戏文件」实例行（ame428/429 服务直调）
 
 // ★Task428（1.2/1.4）：PLProfiles 新增类方法的本地前置声明（PLProfiles.h
 //   不在授权清单内；版本详情页隔离行消费）。签名与 PLProfiles.m 对应，勿漂移。
@@ -4025,16 +4032,24 @@ static NSString *ZL2V13ModSHA1ForFile(NSString *path) {
     serverIpWrap.translatesAutoresizingMaskIntoConstraints = NO;
     [_ameV13_contentStack addArrangedSubview:serverIpWrap];
 
-    // —— 完整实例设置（长尾兜底：push 旧 ProfileSettingsViewController）——
-    NSString *fullTitle = localize(@"ame369.vpage.full_instance_settings", @"完整实例设置");
-    UIButton *fullButton = [self ameV13_outlinedButtonWithTitle:fullTitle destructive:NO];
-    fullButton.contentEdgeInsets = UIEdgeInsetsMake(12, 12, 12, 12);
-    [fullButton addTarget:self action:@selector(ameV13_openFullSettings) forControlEvents:UIControlEventTouchUpInside];
-    UIStackView *fullWrap = [[UIStackView alloc] initWithArrangedSubviews:@[fullButton]];
-    fullWrap.axis = UILayoutConstraintAxisVertical;
-    fullWrap.alignment = UIStackViewAlignmentFill;
-    fullWrap.translatesAutoresizingMaskIntoConstraints = NO;
-    [_ameV13_contentStack addArrangedSubview:fullWrap];
+    // —— ★Task436 退役批次二·步骤②：完整性校验/修复实例行 ——
+    //   语义对齐旧 ProfileSettingsViewController 版本信息组「校验并补全游戏
+    //   文件」行（Task429 实例级化）：PLGameIntegrityService 实例级 API，
+    //   profile 传本页附属实例（ameV13_profileName = PLProfiles 注册表字典
+    //   键，启动链/保存链同源身份）。文案复用全局设置组既有键
+    //   （ame428.integrity.verify 族，四表已备）零新增键；按钮形态与本页
+    //   outlined 按钮族同视觉。本行落位后配置子页对旧 ProfileSettings 的
+    //   长尾覆盖完毕，原底部「完整实例设置」兜底入口随之拆除（入口保留
+    //   只会把退役批次二旧页拉回现役，与账户页 Task436 断链同性质）。
+    NSString *verifyTitle = localize(@"ame428.integrity.verify", @"校验并补全游戏文件");
+    UIButton *verifyButton = [self ameV13_outlinedButtonWithTitle:verifyTitle destructive:NO];
+    verifyButton.contentEdgeInsets = UIEdgeInsetsMake(12, 12, 12, 12);
+    [verifyButton addTarget:self action:@selector(ame436_runIntegrityVerify) forControlEvents:UIControlEventTouchUpInside];
+    UIStackView *verifyWrap = [[UIStackView alloc] initWithArrangedSubviews:@[verifyButton]];
+    verifyWrap.axis = UILayoutConstraintAxisVertical;
+    verifyWrap.alignment = UIStackViewAlignmentFill;
+    verifyWrap.translatesAutoresizingMaskIntoConstraints = NO;
+    [_ameV13_contentStack addArrangedSubview:verifyWrap];
 
     [self ameV13_loadValues];
     [self ameV13_rebuildRendererRows];
@@ -4412,13 +4427,24 @@ static NSString *ZL2V13ModSHA1ForFile(NSString *path) {
     NSLog(@"[ZL2VersionPages] renderer for '%@' -> %@", self.ameV13_profileName, key);
 }
 
-#pragma mark 配置：完整实例设置（旧 ProfileSettingsViewController 长尾兜底）
+#pragma mark 配置：完整性校验/修复（★Task436 步骤②：旧 ProfileSettings 版本信息组实例行平移）
 
-- (void)ameV13_openFullSettings {
-    // 旧 VC editProfile: 同款目标与 init（[[alloc] init] + profileName 属性）
-    ProfileSettingsViewController *vc = [[ProfileSettingsViewController alloc] init];
-    vc.profileName = self.ameV13_profileName;
-    [self.navigationController pushViewController:vc animated:YES];
+// ★Task429 口径：profile 传本页附属实例（注册表字典键；键不可得——新建
+//   未保存等——时留痕退化为 nil = 服务侧全局当前档语义，与旧页降级路径
+//   逐位等价，不臆造键名）。PLGameIntegrityService 为 ame428 已合流 TU，
+//   编译期符号直调（不走 ZL2SettingPages 当年服务未就绪期的
+//   NSClassFromString 软链判例；ame436 维持运行时零查找、编译期可验证）。
+- (void)ame436_runIntegrityVerify {
+    NSString *ame436_key = self.ameV13_profileName;
+    if (ame436_key.length == 0 ||
+        ![PLProfiles.current.profiles objectForKey:ame436_key]) {
+        NSLog(@"[ZL2VersionPages] Task436: profile key unavailable (%@) -- degrade to current profile",
+              ame436_key ?: @"<nil>");
+        ame436_key = nil;
+    }
+    [[PLGameIntegrityService sharedService]
+        runInteractiveVerifyAndRepairForProfile:ame436_key
+                             fromViewController:self];
 }
 
 #pragma mark UITextFieldDelegate（收起键盘即落盘）

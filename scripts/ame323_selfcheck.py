@@ -139,7 +139,7 @@ def main():
           and dl.count("initWithRootViewController") >= 3,
           "仓库三件必须以 nav 宿主嵌入（控件仓库用 navigationItem 链）")
     check("dl:repo-imports",
-          '#import "ControlRepoViewController.h"' in dl
+          '#import "ZL2ControlRepoViewController.h"' in dl
           and '#import "ZL2PluginRepoViewController.h"' in dl)
 
     # ── ⑥ ZeroTier ──────────────────────────────────────────────
@@ -182,7 +182,7 @@ def main():
           ]),
           "ZL2Home 续链链接期 C/类符号桩必须齐备")
     check("preview:repo-class-stubs",
-          "@interface ControlRepoViewController : UIViewController" in preview_stub
+          "@interface ZL2ControlRepoViewController : UIViewController" in preview_stub
           and "initialCategoryIndex" in preview_stub
           and "@interface ZL2PluginRepoViewController : UIViewController" in preview_stub,
           "下载中心左轨 9-11 仓库类链接桩必须齐备")

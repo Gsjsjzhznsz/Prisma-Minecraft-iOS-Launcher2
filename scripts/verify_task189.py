@@ -122,7 +122,7 @@ check("E3 原始 handler 仍在（符号化栈 + fatal trace 双通道）",
       "uncaughtExceptionHandler" in mm and "callStackSymbols" in mm and "ame_write_fatal_trace" in mm)
 
 # ============================ F. 控件仓库下载页 + 镜像链 ============================
-cr = read("Natives/ControlRepoViewController.m")
+cr = read("Natives/ZL2ControlRepoViewController.m")
 check("F1 六源镜像链", all(m in cr for m in
       ["ghfast.top", "gh-proxy.com", "fastly", "gcore", "cdn.jsdelivr.net" if "cdn.jsdelivr.net" in cr else "cdn", "raw.githubusercontent.com"]))
 check("F2 粘性源偏好", "controlrepo.mirror_idx" in cr)
@@ -196,7 +196,7 @@ check("G11 未知设备回退迁移", "ame189.common.unknown_device" in read("Na
 #   失败；权威校准工具 task225_bracket_audit（联合分词 + #pragma 感知）对
 #   该文件判定平衡（本轮 N1 门内通过）。与 task225 对 sdl3_hook.m 的固有
 #   误报豁免同款处理。
-for f in ["Natives/ControlRepoViewController.m", "Natives/DownloadViewController.m",
+for f in ["Natives/ZL2ControlRepoViewController.m", "Natives/DownloadViewController.m",
           "Natives/SceneDelegate.m", "Natives/AppDelegate.m", "Natives/LauncherRightPanelViewController.m",
           "Natives/LauncherPreferencesViewController.m", "Natives/ios_uikit_bridge.m",
           "Natives/utils.m", "Natives/SurfaceViewController.m",

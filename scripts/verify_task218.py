@@ -57,7 +57,7 @@ plist = rd("Natives/Info.plist")
 vh = rd("Natives/external/MobileGlues/MobileGlues-cpp/version.h")
 ta = rd("Natives/authenticator/ThirdPartyAuthenticator.m")
 uc = rd("Natives/UpdateChecker.m")
-crv = rd("Natives/ControlRepoViewController.m")
+crv = rd("Natives/ZL2ControlRepoViewController.m")
 ans = rd("Natives/AnnouncementService.m")
 
 print("== A. 下载源双轨收敛（用户主诉：设置显示与实际行为不一致） ==")

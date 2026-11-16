@@ -4480,3 +4480,66 @@
 "launch.ui.icon.import" = "导入图标";
 
 "launch.ui.icon.import.subtitle" = "从相册选取图片，裁剪后用作应用图标";
+
+// ★Task436：主题取色自由化（色相条 + Hex/三档如实文案）+ 陀螺仪实时调参浮层（13 键四表同步）
+"ame436.control.gyro.tuner" = "陀螺仪实时调参";
+"ame436.control.gyro.tuner.subtitle" = "浮层七项参数即时生效（游戏内 / 设置页均可打开）";
+"ame436.f.custom.hex.placeholder" = "#RRGGBB";
+"ame436.f.custom.style" = "调色风格（三档）";
+"ame436.gyro.enable" = "陀螺仪";
+"ame436.gyro.hint" = "七项参数改动即时生效，收起浮层即可体感验证";
+"ame436.gyro.invert_x" = "反转 X 轴";
+"ame436.gyro.invert_y" = "反转 Y 轴";
+"ame436.gyro.sample_rate" = "采样率";
+"ame436.gyro.sensitivity" = "灵敏度";
+"ame436.gyro.smooth_enable" = "平滑";
+"ame436.gyro.smooth_window" = "平滑窗口";
+"ame436.gyro.title" = "陀螺仪实时调参";
+
+// ★ Task436（批次三·编辑器最小闭环 + A4 改名）：四表 40 键
+"ame436.gamemenu.edit_layout" = "编辑布局（实时）";
+"ame436.editor.add.title" = "新建控件";
+"ame436.editor.add.button" = "按键";
+"ame436.editor.add.button.sub" = "功能按键（默认无绑定，选中后可改键值）";
+"ame436.editor.add.textbox" = "文本框";
+"ame436.editor.add.textbox.sub" = "虚拟键盘开关（游戏内文字输入入口）";
+"ame436.editor.add.joystick" = "摇杆";
+"ame436.editor.add.joystick.sub" = "虚拟摇杆（WASD 方向控制）";
+"ame436.editor.add.foot" = "新控件出现在画布中心，拖到目标位置后保存。";
+"ame436.editor.add.toast_fmt" = "已新建：%@";
+"ame436.editor.props.none" = "请先点选一个控件节点";
+"ame436.editor.props.title" = "控件属性";
+"ame436.editor.props.name" = "名称";
+"ame436.editor.props.keycode" = "按键映射";
+"ame436.editor.props.keycode.hint" = "键值：0=无绑定；正数=GLFW 键码（87=W、256=Esc）；负数=特殊键";
+"ame436.editor.props.event" = "点击事件";
+"ame436.editor.props.event.normal" = "普通";
+"ame436.editor.props.event.toggle" = "切换";
+"ame436.editor.props.event.passthru" = "穿透";
+"ame436.editor.props.special" = "启动器动作";
+"ame436.editor.props.special.none" = "无";
+"ame436.editor.props.special.keyboard" = "虚拟键盘";
+"ame436.editor.props.special.menu" = "主菜单";
+"ame436.editor.props.special.toglectrl" = "GUI 切换";
+"ame436.editor.props.special.vmouse" = "虚拟鼠标";
+"ame436.editor.props.special.mousepri" = "左键";
+"ame436.editor.props.special.mousesec" = "右键";
+"ame436.editor.props.special.mousemid" = "中键";
+"ame436.editor.props.special.scrollup" = "滚轮上";
+"ame436.editor.props.special.scrolldown" = "滚轮下";
+"ame436.editor.props.opacity" = "透明度";
+"ame436.editor.props.bgalpha" = "背景透明度";
+"ame436.editor.props.stroke" = "描边宽度";
+"ame436.editor.props.forwardlock" = "方向锁";
+"ame436.editor.props.clone" = "克隆控件（偏移 8pt）";
+"ame436.editor.props.delete" = "删除控件";
+"ame436.editor.delete.confirm.body_fmt" = "将删除「%@」。保存后写入布局文件；未保存前可用「放弃更改并退出」恢复。";
+"ame436.editor.toast.cloned_fmt" = "已克隆：%@（偏移 8pt）";
+"ame436.editor.toast.deleted" = "控件已删除";
+"ame436.editor.clone.suffix" = "副本";
+
+"ame436.vlist.empty" = "暂无可下载版本";
+"ame436.fav.sort_by_title" = "按标题排序";
+"ame436.fav.refresh" = "刷新远端信息";
+"ame436.fav.refresh_done_fmt" = "已刷新 %lu/%lu 个收藏";
+"ame436.fav.filter_missing_hint" = "部分条目缺少该字段信息，缺字段条目不过滤";

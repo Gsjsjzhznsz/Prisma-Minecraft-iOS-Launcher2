@@ -21,6 +21,7 @@
 #import "TerracottaViewController.h"
 #import "TerracottaBridge.h"  // Task222 CI fix: isAvailable 探测（run 37300697020 报 undeclared identifier）
 #import "TouchControllerPreferencesViewController.h"   // ★Task428（6.6）：游戏内菜单「虚拟按键 / 触控布局」直达入口
+#import "ZL2ControlLayoutEditorViewController.h"        // ★Task436（批次三④）：游戏内菜单「编辑布局（实时）」直达入口
 #import <objc/runtime.h>
 
 // 暴露 class extension 中的私有属性，供 category 使用
@@ -212,7 +213,8 @@ static UIColor *ame244_snapshotTint(void) {
         @"game.menu.toggle_keyboard",       // 游戏内键盘
         @"game.menu.resolution",            // 分辨率调整
         @"game.menu.settings",              // Task232⑰：原为裸英文字串 "Settings"（ localize 找不到键回退原文 = 硬编码残留）
-        @"ame428.gamemenu.virtual_controls"  // ★Task428（6.6）：虚拟按键 / 触控布局直达入口（TouchController 设置页）
+        @"ame428.gamemenu.virtual_controls", // ★Task428（6.6）：虚拟按键 / 触控布局直达入口（TouchController 设置页）
+        @"ame436.gamemenu.edit_layout"       // ★Task436（批次三④）：编辑布局（实时）——拖拽编辑器直达（运行中实时编辑当前布局，保存退出后热重载控件）
     ];
 
     // ★ Task237（用户："现在游戏内菜单打开还是就液态玻璃的覆盖层，根本
@@ -296,6 +298,7 @@ static UIColor *ame244_snapshotTint(void) {
         @"textformat.size",                       // 分辨率调整
         @"gearshape.fill",                        // 设置
         @"hand.tap.fill",                         // ★Task428（6.6）：虚拟按键 / 触控布局
+        @"square.and.pencil",                     // ★Task436（批次三④）：编辑布局（实时）
     ];
     NSMutableArray<Ame237MenuRow *> *ame237_rows = [NSMutableArray array];
     for (NSUInteger ame237_i = 0; ame237_i < self.menuArray.count; ame237_i++) {
@@ -1128,6 +1131,37 @@ static UIColor *ame244_snapshotTint(void) {
     }];
 }
 
+/// ★Task436（批次三④ 游戏内入口）：编辑布局（实时）——运行中直开拖拽
+/// 编辑器（ZL2ControlLayoutEditorViewController），实时编辑当前布局：
+///   - 喂参 = PLProfiles 解析的当前激活布局（与 getDefaultCtrl 同源键，
+///     档案感知；空/nil 时编辑器按 control.default_ctrl 偏好回落）；
+///   - 呈现 = 编辑器自带 OverFullScreen（判例 Task62：不包导航容器），
+///     isControlModifiable 入场/离场总闸由编辑器自管（与旧编辑器同约定）；
+///   - 退出 = onDismiss 回调链（ame436_presentFromViewController: 的批次三
+///     ④新参数）——编辑器保存/放弃退出后按 Task64 既有热重载链
+///     （removeAllButtons + loadCustomControls）重载控件，无需重启游戏；
+///     与 actionRestoreDefaultControls 热重载同链（会重新挂接 executebtn_*
+///     触摸目标）。
+- (void)actionOpenDragLayoutEditor {
+    [self dismissMenu];
+    NSString *ame436_current = [PLProfiles resolveKeyForCurrentProfile:@"defaultTouchCtrl"];
+    if (![ame436_current isKindOfClass:[NSString class]] || ame436_current.length == 0) {
+        ame436_current = nil;
+    }
+    __weak typeof(self) weakSelf = self;
+    [ZL2ControlLayoutEditorViewController
+        ame436_presentFromViewController:self
+                          layoutFileName:ame436_current
+                               onDismiss:^{
+        __strong typeof(weakSelf) strongSelf = weakSelf;
+        if (!strongSelf) return;
+        // 热重载：Task64 恢复默认控件同链（removeAllButtons + loadCustomControls）
+        [strongSelf.ctrlView removeAllButtons];
+        [strongSelf loadCustomControls];
+        NSLog(@"[CustomControls] Task436 in-game drag editor exited, controls reloaded");
+    }];
+}
+
 - (void)actionOpenPreferences {
     [self dismissMenu];
     // Task224（#16）：游戏内设置包上导航控制器（此前裸 present——设置页
@@ -1443,6 +1477,9 @@ static UIColor *ame244_snapshotTint(void) {
             break;
         case 11: // ★Task428（6.6）：虚拟按键 / 触控布局（TouchController 设置页直达）
             [self actionOpenTouchControllerPreferences];
+            break;
+        case 12: // ★Task436（批次三④）：编辑布局（实时）——拖拽编辑器直达
+            [self actionOpenDragLayoutEditor];
             break;
     }
 }

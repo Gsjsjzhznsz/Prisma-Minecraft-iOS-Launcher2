@@ -107,8 +107,8 @@ check("E7 CAMetalLayer pixelFormat/opaque 取证",
 
 # ---------- F. 控件仓库 ----------
 check("F1 ControlRepoViewController.h/.m 存在",
-      os.path.exists('Natives/ControlRepoViewController.h') and os.path.exists('Natives/ControlRepoViewController.m'))
-crv = read('Natives/ControlRepoViewController.m')
+      os.path.exists('Natives/ZL2ControlRepoViewController.h') and os.path.exists('Natives/ZL2ControlRepoViewController.m'))
+crv = read('Natives/ZL2ControlRepoViewController.m')
 check("F2 双源（raw.githubusercontent 主 + jsDelivr 回退）",
       'raw.githubusercontent.com' in crv and 'cdn.jsdelivr.net' in crv)
 check("F3 布局校验（mControlDataList 数组门）", 'mControlDataList' in crv and 'download.invalid' in crv)
@@ -117,7 +117,7 @@ check("F5 防连点下载锁", 'downloading containsObject' in crv.replace('[sel
 cc = read('Natives/CustomControlsViewController.m')
 check("F6 编辑器长按菜单入口（actionMenuRepo）", 'actionMenuRepo' in cc and 'custom_controls.control_menu.repo' in cc)
 cml = read('Natives/CMakeLists.txt')
-check("F7 CMake 源列表收录", 'ControlRepoViewController.m' in cml)
+check("F7 CMake 源列表收录", 'ZL2ControlRepoViewController.m' in cml)
 for lang in ('zh-Hans', 'zh-Hant', 'zh-CN', 'en'):
     s = read(f'Natives/resources/{lang}.lproj/Localizable.strings')
     n = s.count('custom_controls.repo.')
@@ -150,7 +150,7 @@ def balanced(path):
     return not stack
 for f in ['Natives/ctxbridges/gl_bridge.m', 'Natives/utils.m', 'Natives/SceneDelegate.m',
           'Natives/installer/NeoForgeDirectInstaller.m', 'Natives/installer/ForgeDirectInstaller.m',
-          'Natives/ControlRepoViewController.m', 'Natives/CustomControlsViewController.m']:
+          'Natives/ZL2ControlRepoViewController.m', 'Natives/CustomControlsViewController.m']:
     check(f"G 括号门 {os.path.basename(f)}", balanced(f))
 
 print(f"\nRESULT: {PASS} pass, {FAIL} fail")

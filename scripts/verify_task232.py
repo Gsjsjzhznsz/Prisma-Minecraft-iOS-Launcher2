@@ -106,11 +106,11 @@ check("232-14c per-page forensics", "Natives/Ame223CoachMarksView.m", "Task232 p
 check("232-14d empty-title filter", "Natives/Ame223CoachMarksView.m", "锚点页也要求非空标题")
 
 # (15) 控件分享：上传免检 + 下载扫描询问
-check("232-15a upload unchecked", "Natives/ControlRepoViewController.m", "上传免检")
-check("232-15b issues collector", "Natives/ControlRepoViewController.m", "ame232_layoutSafetyIssues")
-check("232-15c ask dialog", "Natives/ControlRepoViewController.m", "ame232.repo.check.continue")
-check("232-15d 4MB cap", "Natives/ControlRepoViewController.m", "4 * 1024 * 1024")
-check("232-15e keycode -12 floor", "Natives/ControlRepoViewController.m", "iv < -12")
+check("232-15a upload unchecked", "Natives/ZL2ControlRepoViewController.m", "上传免检")
+check("232-15b issues collector", "Natives/ZL2ControlRepoViewController.m", "ame232_layoutSafetyIssues")
+check("232-15c ask dialog", "Natives/ZL2ControlRepoViewController.m", "ame232.repo.check.continue")
+check("232-15d 4MB cap", "Natives/ZL2ControlRepoViewController.m", "4 * 1024 * 1024")
+check("232-15e keycode -12 floor", "Natives/ZL2ControlRepoViewController.m", "iv < -12")
 
 # (16) 白底黑边字体：四方向外扩描边（CoreText stroke + 光晕退役）
 check("232-16a drawTextInRect swizzle", bm, "ame232_swizzledLabelDrawTextInRect")

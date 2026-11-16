@@ -39,6 +39,14 @@ NSString *const PREF_MOD_MIRROR = @"general.mod_mirror";
             @"gyro_invert_y": @(NO),
             @"gyro_sample_rate": @(20.0),
             @"gyro_smoothing": @(30),
+            //   ★ Task436（平滑双控件化）：平滑改「开关+窗口」双键（ZL2
+            //   口径）——旧 gyro_smoothing 0-100 单键退役读写（注册保留）；
+            //   契约默认（开+窗口 4）与旧默认 smoothing=30 映射窗口逐位
+            //   等价，未动过平滑的设备升级手感零漂移。消费面：GyroInput
+            //   垫片/热应用 + ZL2SettingPages 控制屏 +
+            //   ZL2GyroTunerViewController 实时调参浮层。
+            @"gyro_smooth_enable": @(YES),
+            @"gyro_smooth_window": @(4),
             // ★ Task432（陀螺仪键族单族化）：旧族 control.gyroscope_*（三键）
             //   并入本节单族 general.gyro_*——迁移器 GyroInput
             //   ame432_migrateGyroKeyFamilyIfNeeded 一次性拷贝（幂等哨兵见下），
@@ -62,11 +70,13 @@ NSString *const PREF_MOD_MIRROR = @"general.mod_mirror";
             //   失败（Java 8 默认 128MB 编译堆连续预留对远古版纯属浪费）；
             //   OFF=与现役版本同参。
             @"legacy_compatibility": @YES,
-            // Task 130：公告源改为本仓库托管的 announcements.json（旧上游
-            // air-api.vercel.app 已 404；AnnouncementService 的 raw + jsDelivr
-            // 源级联见同文件常量，此默认值同时是"未自定义"识别基准之一）
-            // Task218：仓库名去 air（Gsjsjzhznsz/Prisma-Minecraft-iOS-Launcher）。
-            @"news_url": @"https://raw.githubusercontent.com/Gsjsjzhznsz/Prisma-Minecraft-iOS-Launcher/main/announcements.json",
+            // ★Task436（新闻/公告域孤儿清理）：news_url 键定义摘除——唯一
+            //   消费方 AnnouncementService 已随 Task432 退役批次一物理删除，
+            //   MinecraftNewsService/MinecraftNewsItem/AnnouncementItem/
+            //   ServerService/ServerItem 孤儿件亦随 Task436 删除（grep 全仓
+            //   零代码消费证据见 Task436 报告）；存量 plist 残值无读者自然
+            //   失活。i18n 旧词条（preference.title.news_url 等）按
+            //   「旧键不删」家法留待后续轮。
             // Task218：旧版全局下载源键的默认值退役（注释化——本键已无任何
             // 写入方，键不存在不影响任何读写）。旧默认 "bmclapi" 会被
             // setDefaultsForPref 播种并落盘：① 让 Task138 声明的 speed_first

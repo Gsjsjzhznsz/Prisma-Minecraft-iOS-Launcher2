@@ -31,7 +31,7 @@ dt = rd("Natives/DataTransferService.m")
 ps = rd("Natives/ProfileSettingsViewController.m")
 ms = rd("Natives/ModService.m")
 mh = rd("Natives/ModService.h")
-mm = rd("Natives/ModsManagerViewController.m")
+# ★Task436 退役批次二：ModsManagerViewController 已物理删除（批次二③五管理页整链退役），mm 读取摘除（Task432「退役门不复活」判例同款）
 vh = rd("Natives/external/MobileGlues/MobileGlues-cpp/version.h")
 cml = rd("Natives/CMakeLists.txt")
 ann = json.load(open("announcements.json", encoding="utf-8"))["announcements"]
@@ -192,12 +192,8 @@ check("H2 downloadMod 与 scanMods 都已切到隔离优先",
 check("H3 隔离态类方法 + 头文件声明（ModsManager 徽标数据源）",
       "+ (NSInteger)ame219_isolationStateForProfile" in mh
       and "+ (NSInteger)ame219_isolationStateForProfile" in ms)
-check("H4 模组管理页隔离徽标（隔离/共享 两键 + 自动判定日志）",
-      "ame219_isolationStateForProfile" in mm
-      and 'localize(\n        (ame219_iso == 1) ? @"ame219.mods.isolated_chip" : @"ame219.mods.shared_chip"' in mm.replace(" ", "")[:0] + mm  # raw containment below
-      if False else
-      ("ame219.mods.isolated_chip" in mm and "ame219.mods.shared_chip" in mm
-       and "isolation badge" in mm))
+# ★Task436 H4 摘除：模组管理页（ModsManagerViewController）已随退役批次二物理删除，隔离徽标随页退役；
+# 隔离态类方法 H3（ModService 侧）继续在位承载该语义（退役不复活判例，编号留空洞）。
 
 print("== I. VGPU 更名（④） ==")
 for lang, expect in [("en", "VGPU (≤1.17)"), ("zh-Hans", "VGPU（≤1.17）"),
@@ -218,8 +214,8 @@ for lang in ["en", "zh-Hans", "zh-Hant", "zh-CN"]:
     # ★ Task426 重锚：+9 键增量四表同步（ame426 dial.caption/time 四态/weather 三段 = task191 同锚 3741）= 3741
     # ★ Task427 重锚：+5 键增量四表同步（ame427 fs 双态/占位/维度固定光照/姿态 a11y = task191 同锚 3746）= 3746
     # ★ Task428 重锚：+79 键增量四表同步（PDF v5 P0 批次：聚合搜索 4/完整性校验 17/关于页+设置行 46/节日彩蛋与 logshare 上传 11/游戏内菜单入口 1 = task191 同锚 3825）= 3825
-    # ★ Task431 重锚：+2 = 4099 → ★ Task432 重锚：+72 = 4171（第 8 期整改批四工位：导入文件夹 6/布局卡 25/主题拆行+色板 5/许可证 2/修改版本页 20/数据包子页 9/SearchId 闭环 3/设置尾行 2） → ★ Task434 重锚：+2 = 4173（A1 应用图标导入 launch.ui.icon.import{,.subtitle} 四表同步）
-    check(f"J-{lang} 唯一键 4173（★Task432 重锚：…431 = 4099 → 432 = 4171 → ★Task434 A1 应用图标导入 +2（launch.ui.icon.import{{,.subtitle}} 四表同步 task191 同锚）= 4173）", len(keys) == 4173, f"got {len(keys)}")
+    # ★ Task431 重锚：+2 = 4099 → ★ Task432 重锚：+72 = 4171（第 8 期整改批四工位：导入文件夹 6/布局卡 25/主题拆行+色板 5/许可证 2/修改版本页 20/数据包子页 9/SearchId 闭环 3/设置尾行 2） → ★ Task434 重锚：+2 = 4173（A1 应用图标导入 launch.ui.icon.import{,.subtitle} 四表同步） → ★ Task436 重锚：+58 = 4231（批次二/三四工位：SC 编辑器闭环 40 / SD 取色器+陀螺仪浮层 13 / SB 版本列表新页+收藏筛选 5）
+    check(f"J-{lang} 唯一键 4231（★Task434 重锚 4173 → ★Task436 批次二/三四工位 +58 = 4231）", len(keys) == 4231, f"got {len(keys)}")
 check("J-公告 6 条（★Task419 补锚：repo2 实态——Task413-r3 起 6 条，region-notice 为 repo1 专有从未入 repo2；pin 语义保持）",
       len(ann) == 6
       and any(a["id"] == "server-recommend-2026-09-24" for a in ann)
@@ -275,7 +271,6 @@ for p in ["Natives/ctxbridges/virgl_server.m", "Natives/egl_bridge.m",
           "Natives/external/gl4es/tinygl4angle.c", "Natives/WelcomeViewController.m",
           "Natives/AboutViewController.m", "Natives/DataTransferService.m",
           "Natives/ProfileSettingsViewController.m", "Natives/ModService.m",
-          "Natives/ModsManagerViewController.m",
           "Natives/external/MobileGlues/MobileGlues-cpp/version.h"]:
     check(f"L-balance {p.split('/')[-1]}", balance(p))
 

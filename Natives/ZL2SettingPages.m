@@ -50,12 +50,22 @@
 //   general.gyro_invert_x                    反转 X 轴（BOOL 默认 NO；旧键
 //                                            control.gyroscope_invert_x_axis
 //                                            同上迁移）
-//   general.gyro_sensitivity                 灵敏度（float % 50–300，默认 100；
+//   general.gyro_sensitivity                 灵敏度（float % 25–300，默认 100；
 //                                            旧键 control.gyroscope_sensitivity
-//                                            同上迁移）
+//                                            同上迁移；★Task436 下限 50→25
+//                                            对齐 ZL2 GyroscopeReader）
 //   general.gyro_invert_y                    反转 Y 轴（BOOL 默认 NO）
 //   general.gyro_sample_rate                 陀螺仪采样率（float Hz 5–50，默认 20）
-//   general.gyro_smoothing                   陀螺仪平滑强度（int 0–100，默认 30）
+//   general.gyro_smoothing                   陀螺仪平滑强度（int 0–100，默认 30；
+//                                            ★Task436 退役读写——注册保留，
+//                                            平滑改「开关+窗口」双键见下）
+//   ——★Task436 平滑双控件化（ZL2 开关+窗口口径对标）：
+//   general.gyro_smooth_enable               平滑开关（BOOL 默认 YES）
+//   general.gyro_smooth_window               平滑窗口（int 2-10 样本，默认 4；
+//                                            与旧默认 smoothing=30 映射
+//                                            窗口 4 逐位等价，手感零漂移）
+//   实时调参浮层 → ZL2GyroTunerViewController +presentFrom:（七项参数
+//   改动即写偏好并经 GyroInput ame436_applyCurrentPreferences 即时生效）
 //   ——★Task428 gesture_*/gyro_* 键名契约：并行工程师的运行时手势/陀螺仪
 //     层按同名键读，逐字一致不可改；★Task432 迁移后 control.gyroscope_*
 //     旧族不再写入（读侧兜底仅剩 GyroInput 迁移器一次）
@@ -136,7 +146,7 @@
 //   键位调整 → CustomControlsViewController（全屏画布编辑器，旧设置页
 //   openChildPaneAtIndexPath 同款 nav 模态呈现）；布局卡 →
 //   ZL2ControlLayoutEditorViewController 拖拽编辑器；仓库三行 →
-//   ControlRepoViewController / ControlRepoViewController(cat=2) /
+//   ZL2ControlRepoViewController / ZL2ControlRepoViewController(cat=2) /
 //   ZL2PluginRepoViewController
 //
 // ⑧ 关于屏（★Task428 9.1 四块 MD3 重做：关于启动器 / 鸣谢 / 依赖库 /
@@ -189,12 +199,13 @@
 #import "TouchControllerPreferencesViewController.h"
 #import "LauncherPrefContCfgViewController.h"
 #import "LauncherPrefManageJREViewController.h"
-#import "ControlRepoViewController.h"
+#import "ZL2ControlRepoViewController.h"
 #import "CustomControlsViewController.h"
 #import "ZL2ControlLayoutEditorViewController.h"   // ★Task432：布局卡点击 → 拖拽编辑器入口（ame429_presentFromViewController:layoutFileName:）
 // ★Task432：陀螺仪键族迁移器（单族化唯一实现，UI 装载前调用；
 //   GyroInput 同文件兜底旧键读——两读点共用同一迁移器防双族回写）
 #import "input/GyroInput.h"
+#import "ZL2GyroTunerViewController.h"   // ★Task436：陀螺仪实时调参浮层（设置页入口/预览，+presentFrom:）
 // ★Task428：关于页四块重做后不再 push 老关于页（AboutViewController 仍由
 //   欢迎页/旧设置页入口可达），本文件对其的依赖解除，import 随 moreRow 退役
 #import "JavaGUIViewController.h"
@@ -211,7 +222,7 @@
 #import "StikDebugViewController.h"
 #import "DataExportViewController.h"
 #import "DataTransferService.h"
-#import "CurseForgeAPIKeyViewController.h"
+#import "installer/CurseForgeAPIKeyViewController.h"   // ★Task436：Natives 根双副本退役（CMake 只编 installer/ 版，含头走 installer/ 子目录）
 #import "CustomIconManager.h"
 #import "ImageCropperViewController.h"  // ★Task434 A1：应用图标导入→裁剪链（退役批次一回归修复，见 ame434 节）
 
@@ -1264,17 +1275,19 @@ static NSUInteger ame432_paletteEchoIndex(NSInteger mode) {
             setPrefBool(@"general.gyro_invert_x", on);
         };
         ZL2SettingRowSlider *gyroSensRow =
-            [[ZL2SettingRowSlider alloc] initWithTitle:@"" subtitle:nil minimum:50 maximum:300 suffix:@"%"];
+            [[ZL2SettingRowSlider alloc] initWithTitle:@"" subtitle:nil minimum:25 maximum:300 suffix:@"%"];   // ★Task436 下限 50→25
         gyroSensRow.title = localize(@"preference.title.gyroscope_sensitivity", nil);
         gyroSensRow.subtitle = localize(@"preference.detail.gyroscope_sensitivity", nil);
         [gyroSensRow ame_setValue:(NSInteger)getPrefFloat(@"general.gyro_sensitivity")];
         gyroSensRow.onValueChanged = ^(NSInteger value) {
             setPrefFloat(@"general.gyro_sensitivity", (float)value);
         };
-        // ★Task428→★Task432：陀螺仪补三行（反转 Y / 采样率 / 平滑强度；
+        // ★Task428→★Task432→★Task436：陀螺仪行族（反转 Y / 采样率；
         //   general.gyro_* 单族——Task432 起旧 control.gyroscope_* 三行已
-        //   并入同族（gyro_enable/gyro_invert_x/gyro_sensitivity），六行
-        //   同读 general.gyro_* 一个键族；注册已落地见文件头 Task432 注记）
+        //   并入同族（gyro_enable/gyro_invert_x/gyro_sensitivity），
+        //   同读 general.gyro_* 一个键族；注册已落地见文件头 Task432 注记。
+        //   ★Task436：平滑 0-100 单滑杆改「开关+窗口」双控件 + 新增实时
+        //   调参浮层入口行）
         ZL2SettingRowSwitch *gyroInvertYRow =
             [[ZL2SettingRowSwitch alloc] initWithTitle:@"" subtitle:nil];
         gyroInvertYRow.title = localize(@"ame428.control.gyro.invert_y", @"反转 Y 轴");
@@ -1294,20 +1307,42 @@ static NSUInteger ame432_paletteEchoIndex(NSInteger mode) {
         gyroRateRow.onValueChanged = ^(NSInteger value) {
             setPrefFloat(@"general.gyro_sample_rate", (float)value);
         };
-        // 平滑强度（general.gyro_smoothing；int 0–100 默认 30）
-        id ame428_smoothRaw = getPrefObject(@"general.gyro_smoothing");
-        NSInteger ame428_smooth = ame428_smoothRaw ? [ame428_smoothRaw intValue] : 30;
-        if (ame428_smooth < 0 || ame428_smooth > 100) ame428_smooth = 30;
-        ZL2SettingRowSlider *gyroSmoothRow =
+        // ★Task436：平滑改「开关 + 窗口」双控件（对齐 ZL2 开关+窗口口径；
+        //   旧 general.gyro_smoothing 0-100 单滑杆退役读写，注册保留，
+        //   GyroInput 读侧已切双键）。
+        //   平滑开关（general.gyro_smooth_enable；BOOL 默认 YES）
+        ZL2SettingRowSwitch *gyroSmoothEnableRow =
+            [[ZL2SettingRowSwitch alloc] initWithTitle:@"" subtitle:nil];
+        gyroSmoothEnableRow.title = localize(@"ame436.gyro.smooth_enable", @"平滑");
+        [gyroSmoothEnableRow ame_setOn:getPrefBool(@"general.gyro_smooth_enable")];
+        gyroSmoothEnableRow.onToggle = ^(BOOL on) {
+            setPrefBool(@"general.gyro_smooth_enable", on);
+        };
+        // 平滑窗口（general.gyro_smooth_window；int 2-10 样本，默认 4）
+        id ame436_windowRaw = getPrefObject(@"general.gyro_smooth_window");
+        NSInteger ame436_window = ame436_windowRaw ? [ame436_windowRaw integerValue] : 4;
+        if (ame436_window < 2 || ame436_window > 10) ame436_window = 4;
+        ZL2SettingRowSlider *gyroSmoothWindowRow =
             [[ZL2SettingRowSlider alloc] initWithTitle:@"" subtitle:nil
-                                   minimum:0 maximum:100 suffix:@"%"];
-        gyroSmoothRow.title = localize(@"ame428.control.gyro.smoothing", @"平滑强度");
-        [gyroSmoothRow ame_setValue:ame428_smooth];
-        gyroSmoothRow.onValueChanged = ^(NSInteger value) {
-            setPrefInt(@"general.gyro_smoothing", value);
+                                   minimum:2 maximum:10 suffix:@" 样本"];
+        gyroSmoothWindowRow.title = localize(@"ame436.gyro.smooth_window", @"平滑窗口");
+        [gyroSmoothWindowRow ame_setValue:ame436_window];
+        gyroSmoothWindowRow.onValueChanged = ^(NSInteger value) {
+            setPrefInt(@"general.gyro_smooth_window", value);
+        };
+        // ★Task436：游戏内实时调参浮层入口（七项参数改动即写偏好并即时
+        //   生效；本行即设置页「面板预览入口」，游戏内主入口由主控后续接）
+        ZL2SettingRowAction *gyroTunerRow =
+            [[ZL2SettingRowAction alloc] initWithTitle:@"" subtitle:nil];
+        gyroTunerRow.title = localize(@"ame436.control.gyro.tuner", @"陀螺仪实时调参");
+        gyroTunerRow.subtitle = localize(@"ame436.control.gyro.tuner.subtitle", @"浮层七项参数即时生效（游戏内 / 设置页均可打开）");
+        gyroTunerRow.onTap = ^{
+            [ZL2GyroTunerViewController presentFrom:weakSelf];
         };
         [kbdGroup ame_addRows:@[gyroRow, gyroInvertRow, gyroSensRow,
-                                gyroInvertYRow, gyroRateRow, gyroSmoothRow]];
+                                gyroInvertYRow, gyroRateRow,
+                                gyroSmoothEnableRow, gyroSmoothWindowRow,
+                                gyroTunerRow]];
     }
     [self ame_addGroup:kbdGroup];
 
@@ -2544,25 +2579,11 @@ didFinishPicking:(NSArray<PHPickerResult *> *)results {
         debugLogEnabled = on;
         NSLog(@"[Debugging] Debug log enabled: %@ (renderer diagnostics verbose from next game session)", on ? @"YES" : @"NO");
     };
-    // 公告预览等级（full/summary/title_only）
-    NSArray<NSString *> *apvKeys = @[@"full", @"summary", @"title_only"];
-    NSArray<NSString *> *apvNames = @[
-        localize(@"i18n_str_390", nil),
-        localize(@"i18n_str_391", nil),
-        localize(@"i18n_str_392", nil),
-    ];
-    ZL2SettingRowList *apvRow =
-        [[ZL2SettingRowList alloc] initWithTitle:@"" subtitle:nil
-                                 options:apvNames optionKeys:apvKeys];
-    apvRow.title = localize(@"preference.title.announcement_preview_level", nil);
-    apvRow.subtitle = localize(@"preference.detail.announcement_preview_level", nil);
-    [apvRow ame_reloadSelectedIndex:(NSInteger)[apvKeys indexOfObject:
-        ame_pages_stringOr(getPrefObject(@"general.announcement_preview_level"), @"full")]];
-    apvRow.onSelect = ^(NSInteger index) {
-        if (index < 0 || (NSUInteger)index >= apvKeys.count) return;
-        setPrefString(@"general.announcement_preview_level", apvKeys[index]);
-    };
-    [miscGroup ame_addRows:@[dbgLogRow, apvRow]];
+    // ★Task436：公告预览等级行摘除（悬空行——其消费 UI 首页公告磁贴/
+    //   公告列表页已随第 9 期退役，general.announcement_preview_level
+    //   自此零消费；键定义与 i18n 词条按「旧键不删」家法留待后续轮，
+    //   见 Task436 报告登记）
+    [miscGroup ame_addRows:@[dbgLogRow]];
     [self ame_addGroup:miscGroup];
 
     // ── ★ Task344 旧设置全量迁移：数据管理组（导出/导入/兄弟迁移/重置）──
@@ -3278,7 +3299,7 @@ didFinishPicking:(NSArray<PHPickerResult *> *)results {
 //   · 布局 JSON 真实存储目录 = $POJAV_HOME/controlmap/*.json
 //     （CustomControlsViewController actionOpenFilePicker :367、
 //      ControlLayout loadControlFile :27、main.m init_setupCustomControls
-//      出厂 default.json + custom.json、ControlRepoViewController 下载落盘）
+//      出厂 default.json + custom.json、ZL2ControlRepoViewController 下载落盘）
 //   · 真实 schema（resources/controlmap/custom.json 实读 +
 //     CustomControlsUtils generateAndSaveDefaultControl 家法）：
 //       { version:int, scaledAt:int, mControlDataList:[],
@@ -3332,7 +3353,7 @@ didFinishPicking:(NSArray<PHPickerResult *> *)results {
         gpEmptyRow.title = localize(@"ame369.setpg.no_gamepad_map", @"未找到手柄映射文件");
         gpEmptyRow.subtitle = localize(@"ame369.setpg.no_gamepad_map.subtitle", @"可从「手柄仓库」下载（内建默认同源备份）");
         gpEmptyRow.onTap = ^{
-            ControlRepoViewController *repo = [[ControlRepoViewController alloc] init];
+            ZL2ControlRepoViewController *repo = [[ZL2ControlRepoViewController alloc] init];
             repo.initialCategoryIndex = 2;  // 直达手柄分类
             [weakSelf ame_push:repo titled:localize(@"dl.controls.cat.gamepad", nil)];
         };
@@ -3444,7 +3465,7 @@ didFinishPicking:(NSArray<PHPickerResult *> *)results {
     // --- 组 4（★Task432 新增）：仓库三行（控件仓库 / 手柄仓库 / 插件仓库）。
     //   Task432 自下载页轨迁入，共享基础设施迁移改名在批次二。
     //   类名/直挂形态从 ZL2DownloadViewController.m :357-389 实读：
-    //   控件仓库 = ControlRepoViewController 裸 init；手柄仓库 = 同类
+    //   控件仓库 = ZL2ControlRepoViewController 裸 init；手柄仓库 = 同类
     //   initialCategoryIndex=2；插件仓库 = ZL2PluginRepoViewController 裸 init。
     ZL2SettingCardGroup *repoGroup = [[ZL2SettingCardGroup alloc] init];
     ZL2SettingRowAction *repoRow =
@@ -3453,7 +3474,7 @@ didFinishPicking:(NSArray<PHPickerResult *> *)results {
     repoRow.subtitle = localize(@"ame369.common.control_repo.subtitle", @"浏览与下载社区控制布局");
     repoRow.onTap = ^{
         // Task432 自下载页轨迁入，共享基础设施迁移改名在批次二
-        [weakSelf ame_push:[[ControlRepoViewController alloc] init] titled:localize(@"ame369.common.control_repo", @"控件仓库")];
+        [weakSelf ame_push:[[ZL2ControlRepoViewController alloc] init] titled:localize(@"ame369.common.control_repo", @"控件仓库")];
     };
     ZL2SettingRowAction *gamepadRepoRow =
         [[ZL2SettingRowAction alloc] initWithTitle:@"" subtitle:nil];
@@ -3461,7 +3482,7 @@ didFinishPicking:(NSArray<PHPickerResult *> *)results {
     gamepadRepoRow.subtitle = localize(@"ame369.common.gamepad_repo.subtitle", @"官方精选/社区手柄映射下载（装完即用）");
     gamepadRepoRow.onTap = ^{
         // Task432 自下载页轨迁入，共享基础设施迁移改名在批次二
-        ControlRepoViewController *repo = [[ControlRepoViewController alloc] init];
+        ZL2ControlRepoViewController *repo = [[ZL2ControlRepoViewController alloc] init];
         repo.initialCategoryIndex = 2;  // 直达手柄分类（ZL2DownloadViewController 同形态）
         [weakSelf ame_push:repo titled:localize(@"dl.controls.cat.gamepad", nil)];
     };

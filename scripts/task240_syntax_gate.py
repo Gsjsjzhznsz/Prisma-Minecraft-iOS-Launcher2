@@ -18,14 +18,15 @@ FILES = [
     # Task432：DownloadTasksViewController 随退役批次一物理删除摘闸
     "Natives/ModpackExportViewController.m",
     "Natives/ModpackImportViewController.m",
-    "Natives/DownloadViewController.m",
+    # Task436：DownloadViewController 随退役批次二物理删除摘闸（消费面仅剩
+    #   Shaders/DataPacks 两个旧管理页，同批整链退役归零）
     "Natives/BackgroundSettingsViewController.m",
     "Natives/ProfileSettingsViewController.m",
     "Natives/SurfaceViewController+Navigation.m",
     "Natives/ThirdPartyLoginViewController.m",
     "Natives/TouchControllerPreferencesViewController.m",
     "Natives/WelcomeViewController.m",
-    "Natives/ControlRepoViewController.m",
+    "Natives/ZL2ControlRepoViewController.m",
     "Natives/BingWallpaperGalleryViewController.m",
     "Natives/LauncherPrefManageJREViewController.m",
     "Natives/PLPrefTableViewController.m",

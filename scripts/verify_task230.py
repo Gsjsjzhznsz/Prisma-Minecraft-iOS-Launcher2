@@ -96,12 +96,12 @@ for jf in ["Natives/resources/controlmap/custom.json", "controls/layouts/classic
 check("230-3b migration", "Natives/main.m", "sprint dead-button migrated to Left Control 341")
 check("230-3c unbound toast (Task232 重锚：⑤ NMToast 退役，取证留日志层)", "Natives/SurfaceViewController.m", "Task229 UNBOUND button pressed")
 # (13) control repo: upload + safety check
-check("230-13a sanitizer", "Natives/ControlRepoViewController.m", "static BOOL ame230_layoutSafetyCheck(NSData *raw, id jsonObj, NSString **reasonOut)")
-check("230-13b download check (Task232 重锚：⑮ 检查移到下载侧询问流)", "Natives/ControlRepoViewController.m", "ame232_layoutSafetyIssues")
-check("230-13c upload flow", "Natives/ControlRepoViewController.m", "+ (void)ame230_presentUploadFlowFrom:(UIViewController *)presenter preselect:(NSString *)preselect")
-check("230-13d header decl", "Natives/ControlRepoViewController.h", "+ (void)ame230_presentUploadFlowFrom:(UIViewController *)presenter preselect:(NSString *)preselect;")
+check("230-13a sanitizer", "Natives/ZL2ControlRepoViewController.m", "static BOOL ame230_layoutSafetyCheck(NSData *raw, id jsonObj, NSString **reasonOut)")
+check("230-13b download check (Task232 重锚：⑮ 检查移到下载侧询问流)", "Natives/ZL2ControlRepoViewController.m", "ame232_layoutSafetyIssues")
+check("230-13c upload flow", "Natives/ZL2ControlRepoViewController.m", "+ (void)ame230_presentUploadFlowFrom:(UIViewController *)presenter preselect:(NSString *)preselect")
+check("230-13d header decl", "Natives/ZL2ControlRepoViewController.h", "+ (void)ame230_presentUploadFlowFrom:(UIViewController *)presenter preselect:(NSString *)preselect;")
 check("230-13e editor entry", "Natives/CustomControlsViewController.m", "- (void)actionMenuUpload {")
-check("230-13f github deeplink (Task233 重锚：URL 编码修复；Task234 重锚：filename=/value= 查询参数触发 GitHub 500 错误页——isaacs/github#1527 filename 斜杠已知 bug + value 大载荷渲染 500，改 /new/main/controls/layouts/community 纯路径目录预导航)", "Natives/ControlRepoViewController.m", "/new/%@/controls/layouts/community")
+check("230-13f github deeplink (Task233 重锚：URL 编码修复；Task234 重锚：filename=/value= 查询参数触发 GitHub 500 错误页——isaacs/github#1527 filename 斜杠已知 bug + value 大载荷渲染 500，改 /new/main/controls/layouts/community 纯路径目录预导航)", "Natives/ZL2ControlRepoViewController.m", "/new/%@/controls/layouts/community")
 # (15) i18n: 18 keys x 5 langs
 KEYS = ["ame230.gamemenu.caption", "ame230.deps.required",
         "ame230.deps.optional", "ame230.import.summary", "ame230.repo.upload",

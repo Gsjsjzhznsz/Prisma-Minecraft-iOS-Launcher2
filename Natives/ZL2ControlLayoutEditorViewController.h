@@ -53,6 +53,16 @@ NS_ASSUME_NONNULL_BEGIN
 + (void)ame429_presentFromViewController:(UIViewController *)host
                           layoutFileName:(nullable NSString *)fileName;
 
+/// ★ Task436（批次三④ 游戏内入口 + 最小闭环）：同上，但显式带「编辑器退出
+/// 回调」——游戏内 SurfaceViewController 呈现本编辑器实时编辑当前布局，
+/// 退出（保存并退出 / 放弃退出 / 读取失败退出，三条路径统一走
+/// ame436_exitEditor）后回调 onDismiss，宿主按 Task64 既有热重载链
+/// （removeAllButtons + loadCustomControls）重载控件，无需重启游戏。
+/// nil = 不回调（启动器内既有入口行为零变化）。
++ (void)ame436_presentFromViewController:(UIViewController *)host
+                          layoutFileName:(nullable NSString *)fileName
+                               onDismiss:(nullable void (^)(void))onDismiss;
+
 /// 当前编辑的布局文件名（不含 .json 后缀；诊断/测试观察用）
 @property(nonatomic, copy, readonly) NSString *ame429_layoutFileName;
 

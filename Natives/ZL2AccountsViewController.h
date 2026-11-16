@@ -24,10 +24,10 @@
 //     （mode=LittleSkin/Custom）；
 //   本地账户 → 本页输入框 + LocalAuthenticator（旧 actionLoginLocal 原样
 //     移植）。
-//   注：AccountLoginViewController 为登录方式四选一卡片页（选择结果仍回抛
-//   容器执行流程）——本页 ame_requestAdd 经 NSClassFromString 动态实例化并
-//   push，收编为正式添加账号流程页；类缺失时降级 actionSheet 选择层。
-//   ★Task434 注释纠偏：原「故不消费」口径与 .m 动态消费实码不符。
+//   注：添加账号入口统一走本页 showAddAccountSheet（四类登录方式
+//   actionSheet）。★Task436 退役批次二：ame_requestAdd 不再经
+//   NSClassFromString 动态消费旧四选一登录卡 AccountLoginViewController
+//   （旧页回归待退役域，不属新 UI 流程页）。
 //
 // 导航约定：根页隐藏系统导航栏（viewWillAppear），push 登录页返回后由
 //   viewWillDisappear 约定恢复；列表在 viewWillAppear + @"UpdateAccountInfo"

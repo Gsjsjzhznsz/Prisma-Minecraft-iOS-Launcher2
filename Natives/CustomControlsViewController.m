@@ -1,5 +1,5 @@
 #import "CustomControlsViewController.h"
-#import "ControlRepoViewController.h"
+#import "ZL2ControlRepoViewController.h"   // ★Task436：A4 迁移改名同步（ControlRepo → ZL2ControlRepo）
 #import "DBNumberedSlider.h"
 #import "FileListViewController.h"
 #import "LauncherPreferences.h"
@@ -391,7 +391,7 @@
 // 下载的布局落入 controlmap/<id>.json，随后经既有“加载”菜单应用——
 // 与本地布局同一套生命周期（编辑/保存/设为默认），仓库只做分发。
 - (void)actionMenuRepo {
-    ControlRepoViewController *repo = [[ControlRepoViewController alloc] init];
+    ZL2ControlRepoViewController *repo = [[ZL2ControlRepoViewController alloc] init];
     UINavigationController *nav = [[UINavigationController alloc] initWithRootViewController:repo];
     nav.modalPresentationStyle = UIModalPresentationPageSheet;
     [self presentViewController:nav animated:YES completion:nil];
@@ -403,7 +403,7 @@
 - (void)actionMenuUpload {
     NSString *ame230_pre = self.currentFileName.length > 0
         ? [NSString stringWithFormat:@"%@.json", self.currentFileName] : nil;
-    [ControlRepoViewController ame230_presentUploadFlowFrom:self preselect:ame230_pre];
+    [ZL2ControlRepoViewController ame230_presentUploadFlowFrom:self preselect:ame230_pre];
 }
 
 /// ★ Task429（工位 3-d）：拖拽编辑布局入口——以 OverFullScreen 直接呈现

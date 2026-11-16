@@ -37,7 +37,7 @@ check("B2 nintendo_layout 联写", 'setPrefBool(@"control.nintendo_layout", [key
 check("B3 滚轮速度行 25-300", 'minimum:25 maximum:300 suffix:@"%"]' in sp and 'setPrefFloat(@"control.scroll_speed"' in sp)
 check("B4 控制管理手柄映射组", "ame_scanGamepads" in sp and "control.default_gamepad_ctrl" in sp)
 check("B5 手柄仓库直达分类2", "repo.initialCategoryIndex = 2;" in sp)
-rh = rd("Natives/ControlRepoViewController.h"); rm = rd("Natives/ControlRepoViewController.m")
+rh = rd("Natives/ZL2ControlRepoViewController.h"); rm = rd("Natives/ZL2ControlRepoViewController.m")
 check("B6 仓库页 initialCategoryIndex 接口+应用", "initialCategoryIndex" in rh and "self.initialCategoryIndex > 0" in rm)
 
 # ── C. 分类筛选全链 ──

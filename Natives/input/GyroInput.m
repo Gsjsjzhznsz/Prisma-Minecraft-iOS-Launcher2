@@ -6,8 +6,9 @@
 #import "../LauncherPreferences.h"   // ★Task428：getPrefBool/getPrefObject（陀螺仪新参数偏好读取）
 
 // ★Task428（6.4，ZL2 GyroscopeReader 平滑质量对标）：新参数常量。
-//   AME428_GYRO_MAX_WINDOW：滑动均值窗口上限——smoothing 0-100 映射
-//     窗口 = 1 + smoothing/10，即 1（平滑关）..11（最大平滑）。
+//   AME428_GYRO_MAX_WINDOW：滑动均值窗口上限——★Task436 起平滑为
+//     「开关 + 窗口」双控件，窗口即样本数（2-10），本常量仅作内部缓冲
+//     上界（11 ≥ 窗口上限 10）。
 //   AME428_GYRO_DEADZONE：微增量阈值——单轴每 tick 增量绝对值低于该值
 //     视为抖动丢弃（置 0），对齐 ZL2 GyroscopeReader 的阈值语义，
 //     抑制持机静止时的视角漂移。
@@ -24,6 +25,20 @@ static NSString * const Ame432GyroNewEnableKey         = @"general.gyro_enable";
 static NSString * const Ame432GyroNewInvertXKey        = @"general.gyro_invert_x";
 static NSString * const Ame432GyroNewSensitivityKey    = @"general.gyro_sensitivity";
 static NSString * const Ame432GyroMigratedSentinelKey  = @"general.gyro_family_migrated";
+
+// ★Task436（平滑双控件化 + 灵敏度下限对齐）：新二键 + 参数域常量。
+//   平滑旧键 general.gyro_smoothing（0-100 单滑杆）退役读写（注册保留），
+//   改「开关 + 窗口」双控件：开关 bool + 窗口 2-10 整数（滑动均值样本数）。
+//   契约默认（开 + 窗口 4）与旧默认 smoothing=30 映射窗口 4 逐位等价，
+//   未动过平滑的设备升级后手感零漂移。灵敏度域 25-300（★Task436 下限
+//   50→25 对齐 ZL2 GyroscopeReader）。
+static NSString * const Ame436GyroSmoothEnableKey      = @"general.gyro_smooth_enable";
+static NSString * const Ame436GyroSmoothWindowKey      = @"general.gyro_smooth_window";
+static const int AME436_GYRO_SENS_MIN = 25;
+static const int AME436_GYRO_SENS_MAX = 300;
+static const int AME436_GYRO_WINDOW_MIN = 2;
+static const int AME436_GYRO_WINDOW_MAX = 10;
+static const int AME436_GYRO_WINDOW_DEFAULT = 4;
 
 // 迁移哨兵进程内快路径（持久哨兵见上；两者任一为真即跳过）
 static BOOL ame432_gyroFamilyMigrated = NO;
@@ -91,9 +106,11 @@ static int gyroSmoothIndex = 0;
 
 // ★Task428（6.4）：旧签名兼容垫片——转发到全参数入口，新参数（Y 反转 /
 //   采样率 / 平滑）从偏好读取，键缺失按契约默认（invert_y=NO、20Hz、
-//   smoothing=30），越界值夹取到合法域。现有调用方（SurfaceViewController
+//   平滑开 + 窗口 4），越界值夹取到合法域。现有调用方（SurfaceViewController
 //   applyInGamePreferenceChanges）零改动即让新键生效。
 //   ★Task432：垫片入口先跑键族迁移器（若调用方漏跑，此处兜底一次）。
+//   ★Task436：平滑读侧从旧 0-100 单键改双键（smooth_enable +
+//   smooth_window），旧键 general.gyro_smoothing 不再读（注册保留）。
 + (void)updateSensitivity:(int)sensitivity invertXAxis:(BOOL)invertX {
     [self ame432_migrateGyroKeyFamilyIfNeeded];
     CGFloat ame428_rate = 20.0;   // general.gyro_sample_rate 契约默认（Hz）
@@ -103,25 +120,72 @@ static int gyroSmoothIndex = 0;
         if (ame428_rate < 5.0) ame428_rate = 5.0;
         if (ame428_rate > 50.0) ame428_rate = 50.0;
     }
-    int ame428_smoothing = 30;    // general.gyro_smoothing 契约默认（0=关）
-    id ame428_smoothObj = getPrefObject(@"general.gyro_smoothing");
-    if (ame428_smoothObj != nil) {
-        ame428_smoothing = [ame428_smoothObj intValue];
-        if (ame428_smoothing < 0) ame428_smoothing = 0;
-        if (ame428_smoothing > 100) ame428_smoothing = 100;
+    // ★Task436：平滑双键（开关 bool 默认 YES + 窗口 int 2-10 默认 4）
+    BOOL ame436_smoothEnable = YES;
+    id ame436_seObj = getPrefObject(Ame436GyroSmoothEnableKey);
+    if (ame436_seObj != nil) {
+        ame436_smoothEnable = [ame436_seObj boolValue];
     }
+    int ame436_window = AME436_GYRO_WINDOW_DEFAULT;
+    id ame436_wObj = getPrefObject(Ame436GyroSmoothWindowKey);
+    if (ame436_wObj != nil) {
+        ame436_window = [ame436_wObj intValue];
+        if (ame436_window < AME436_GYRO_WINDOW_MIN) ame436_window = AME436_GYRO_WINDOW_MIN;
+        if (ame436_window > AME436_GYRO_WINDOW_MAX) ame436_window = AME436_GYRO_WINDOW_MAX;
+    }
+    if (!ame436_smoothEnable) ame436_window = 1;   // 关 = 直通（全入口窗口 1 语义）
     [self updateSensitivity:sensitivity
                  invertXAxis:invertX
                  invertYAxis:getPrefBool(@"general.gyro_invert_y")
                   sampleRate:ame428_rate
-                   smoothing:ame428_smoothing];
+                smoothEnable:ame436_smoothEnable
+                smoothWindow:ame436_window];
+}
+
+// ★Task436（游戏内实时调参）：全键热应用——ZL2GyroTunerViewController
+//   每次控件改动后调用（七键现读现配，改动即生效）；非游戏态只落盘不启
+//   采样（进游戏由 applyInGamePreferenceChanges 常规装载），防游戏外空转
+//   DeviceMotion 白耗电。
++ (void)ame436_applyCurrentPreferences {
+    [self ame432_migrateGyroKeyFamilyIfNeeded];
+    if ([SurfaceViewController currentInstance] == nil) return;   // 非游戏态：偏好已落盘，装载交常规链
+    BOOL ame436_enable = getPrefBool(Ame432GyroNewEnableKey);
+    int ame436_sens = (int)roundf(getPrefFloat(Ame432GyroNewSensitivityKey));
+    if (ame436_sens < AME436_GYRO_SENS_MIN) ame436_sens = AME436_GYRO_SENS_MIN;
+    if (ame436_sens > AME436_GYRO_SENS_MAX) ame436_sens = AME436_GYRO_SENS_MAX;
+    CGFloat ame436_rate = 20.0;
+    id ame436_rateObj = getPrefObject(@"general.gyro_sample_rate");
+    if (ame436_rateObj != nil) {
+        ame436_rate = [ame436_rateObj floatValue];
+        if (ame436_rate < 5.0) ame436_rate = 5.0;
+        if (ame436_rate > 50.0) ame436_rate = 50.0;
+    }
+    BOOL ame436_smoothEnable = YES;
+    id ame436_seObj = getPrefObject(Ame436GyroSmoothEnableKey);
+    if (ame436_seObj != nil) {
+        ame436_smoothEnable = [ame436_seObj boolValue];
+    }
+    int ame436_window = AME436_GYRO_WINDOW_DEFAULT;
+    id ame436_wObj = getPrefObject(Ame436GyroSmoothWindowKey);
+    if (ame436_wObj != nil) {
+        ame436_window = [ame436_wObj intValue];
+        if (ame436_window < AME436_GYRO_WINDOW_MIN) ame436_window = AME436_GYRO_WINDOW_MIN;
+        if (ame436_window > AME436_GYRO_WINDOW_MAX) ame436_window = AME436_GYRO_WINDOW_MAX;
+    }
+    [self updateSensitivity:ame436_enable ? ame436_sens : 0
+                 invertXAxis:getPrefBool(Ame432GyroNewInvertXKey)
+                 invertYAxis:getPrefBool(@"general.gyro_invert_y")
+                  sampleRate:ame436_rate
+                smoothEnable:ame436_smoothEnable
+                smoothWindow:ame436_window];
 }
 
 // ★Task428（6.4）：全参数配置入口——灵敏度 / X 反转语义与旧入口完全一致，
 //   新增：invertY（Y 轴反转）、sampleRate（DeviceMotion 采样率 Hz →
-//   deviceMotionUpdateInterval = 1.0/rate，启动前设置）、smoothing（0-100 →
-//   滑动均值窗口 1+smoothing/10，缓冲随之复位）。
-+ (void)updateSensitivity:(int)sensitivity invertXAxis:(BOOL)invertX invertYAxis:(BOOL)invertY sampleRate:(CGFloat)sampleRate smoothing:(int)smoothing {
+//   deviceMotionUpdateInterval = 1.0/rate，启动前设置）。
+//   ★Task436：平滑参数改双控件（smoothEnable 开关 + smoothWindow 窗口
+//   2-10 整数，滑动均值样本数；关 = 窗口 1 直通），缓冲随之复位。
++ (void)updateSensitivity:(int)sensitivity invertXAxis:(BOOL)invertX invertYAxis:(BOOL)invertY sampleRate:(CGFloat)sampleRate smoothEnable:(BOOL)smoothEnable smoothWindow:(int)smoothWindow {
     if (cmInstance == nil) {
         cmInstance = [[CMMotionManager alloc] init];
     }
@@ -136,10 +200,11 @@ static int gyroSmoothIndex = 0;
             sampleRate = 20.0;
         }
         cmInstance.deviceMotionUpdateInterval = 1.0 / sampleRate;
-        // ★Task428：平滑窗口映射（0-100 → 1..11）+ 环形缓冲复位
-        if (smoothing < 0) smoothing = 0;
-        if (smoothing > 100) smoothing = 100;
-        gyroSmoothWindow = 1 + smoothing / 10;
+        // ★Task436：平滑窗口（开关 + 窗口双控件；关/非法 → 1 直通）+
+        //   环形缓冲复位
+        gyroSmoothWindow = smoothEnable ? smoothWindow : 1;
+        if (gyroSmoothWindow < 1) gyroSmoothWindow = 1;
+        if (gyroSmoothWindow > AME428_GYRO_MAX_WINDOW) gyroSmoothWindow = AME428_GYRO_MAX_WINDOW;
         gyroSmoothIndex = 0;
         for (int ame428_i = 0; ame428_i < AME428_GYRO_MAX_WINDOW; ame428_i++) {
             gyroSmoothBufX[ame428_i] = 0;

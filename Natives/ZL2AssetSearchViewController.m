@@ -77,6 +77,14 @@
 //   无 viewWithTag 状态查找（chip.tag 仅作下标载荷）；中文文案硬编码/
 //   既有 i18n 键复用（新文案入表为既有待办口径）。
 //
+// 【★Task436 批次二④/A2 改道登记】版本页 push 全量改道 ZL2VersionListPage
+//   （三旧版本页在本文件零构造；三旧 delegate 协议与回调保留为兼容面，方法体
+//   收编 ame436_* 共享 helper——新旧回调同链路零重复分流）。A2 收藏页筛选面板
+//   补遗（补遗报告表 3-2 #1）：收藏模式新增顶部筛选行（分类/平台/加载器 +
+//   按标题排序 + 远端刷新四件，ame436_fav* 方法族）；右栏筛选面板维持搜索域
+//   专用（收藏页/窄屏仍隐藏——「收藏页与窄屏整体隐藏」旧注记语义同步改写：
+//   收藏页不再「缺面板」，筛选能力由专属筛选行承担）。
+//
 
 #import "ZL2AssetSearchViewController.h"
 #import "ZL2Theme.h"
@@ -100,6 +108,7 @@
 #import "ModVersionViewController.h"
 #import "ShaderVersionViewController.h"
 #import "AssetVersionViewController.h"
+#import "ZL2VersionListPage.h"          // ★Task436 批次二④：三版本列表页统一新页
 #import "ModService.h"
 #import "ShaderService.h"
 #import "ResourcePackService.h"
@@ -152,6 +161,10 @@
 @property (nonatomic, copy, nullable) NSString *ame428_lastCategoryFallbackSlug;
 - (void)ame227_fetchModTitle:(NSString *)modID
                   completion:(void (^)(NSString * _Nullable title, NSError * _Nullable error))completion;
+// ★Task436 A2：收藏条目远端刷新（GET /mods/{id} 富元数据 name/summary/icon
+//   三键——Task238 前置富卡片同端点；签名照抄 CurseForgeAPI.h）
+- (void)ame238_fetchProjectInfo:(NSString *)modID
+                     completion:(void (^)(NSDictionary * _Nullable info, NSError * _Nullable error))completion;
 - (void)getVersionsForModWithID:(NSString *)modID
                      completion:(void (^)(NSArray<ModVersion *> * _Nullable versions, NSError * _Nullable error))completion;
 @end
@@ -616,7 +629,7 @@ static UIColor *ZL2AssetSourceBadgeColor(NSInteger apiSource) {
 @interface ZL2AssetSearchViewController () <
     UITableViewDataSource, UITableViewDelegate,
     ModVersionViewControllerDelegate, ShaderVersionViewControllerDelegate,
-    AssetVersionViewControllerDelegate>
+    AssetVersionViewControllerDelegate, ZL2VersionListPageDelegate>
 
 // 构造入参（init 注入后只读）
 @property (nonatomic, assign, readwrite) ZL2AssetSearchType assetType;
@@ -706,6 +719,20 @@ static UIColor *ZL2AssetSourceBadgeColor(NSInteger apiSource) {
 
 // 收藏模式（7.0-UI-14）：数据源 = ZL2FavoritesStore，其余全链同构复用
 @property (nonatomic, assign) BOOL favoritesMode;
+
+// ★Task436 A2：收藏页筛选面板状态（分类/平台/加载器/按标题排序 + 远端刷新；
+// 缺字段维度直通不过滤——收藏快照仅 Modrinth 侧携带 categories/loaders）
+@property (nonatomic, copy, nullable) NSString *ame436_favCategoryFilter;   // slug；nil/空 = 不限
+@property (nonatomic, assign) NSInteger ame436_favPlatformFilter;           // 0=全部 1=Modrinth 2=CurseForge
+@property (nonatomic, copy, nullable) NSString *ame436_favLoaderFilter;     // fabric/forge/quilt/neoforge；nil/空 = 不限
+@property (nonatomic, assign) BOOL ame436_favSortByTitle;                   // YES = 按标题排序（缺省关 = 仓库 followTime 序）
+@property (nonatomic, assign) BOOL ame436_favRefreshing;                    // 远端刷新在途（防重入）
+@property (nonatomic, strong) UIView *ame436_favFilterBar;                  // 收藏筛选行容器（收藏模式独有）
+@property (nonatomic, strong) UIScrollView *ame436_favFilterScroll;
+@property (nonatomic, strong) UIStackView *ame436_favFilterStack;           // chips 横排
+@property (nonatomic, strong) UIButton *ame436_favRefreshButton;
+@property (nonatomic, strong) UIActivityIndicatorView *ame436_favRefreshSpinner;
+@property (nonatomic, strong) UIView *ame436_favSheetContent;               // 筛选弹层内容（展示期持有）
 
 // 整合包安装流的原版预装任务句柄（旧页 vanillaPreinstallTask 语义）
 @property (nonatomic, strong) MinecraftResourceDownloadTask *vanillaPreinstallTask;
@@ -925,7 +952,8 @@ static UIColor *ZL2AssetSourceBadgeColor(NSInteger apiSource) {
     BOOL isSearchMode = !self.favoritesMode;
 
     // ① 右侧筛选面板（ZL2 SearchAssetsScreen 右栏真机对齐：搜索名称 /
-    //    游戏版本 / 导入整合包 / 目标平台 / 排序方式；收藏页与窄屏整体隐藏）
+    //    游戏版本 / 导入整合包 / 目标平台 / 排序方式；仅搜索域——★Task436 A2
+    //    收藏页改用顶部筛选行 ame436_favFilterBar，不再「整体隐藏」缺筛选）
     _filterPanel = [[UIView alloc] init];
     _filterPanel.backgroundColor = [UIColor clearColor];
     _filterPanel.translatesAutoresizingMaskIntoConstraints = NO;
@@ -1043,6 +1071,13 @@ static UIColor *ZL2AssetSourceBadgeColor(NSInteger apiSource) {
                      action:@selector(ame_sortTapped)
            forControlEvents:UIControlEventTouchUpInside];
     [panelStack addArrangedSubview:_sortControl];
+
+    // ★Task436 A2：收藏页顶部筛选行（分类 / 平台 / 加载器 / 按标题排序四件
+    //    + 远端刷新钮；横滑 chips 窄屏适配——布局占位与隐藏的页码器同槽，
+    //    列表 top 锚零改动）
+    if (self.favoritesMode) {
+        [self ame436_buildFavoritesFilterBar];
+    }
 
     // ② 页码控制器（ZL2 PageController："1 / 500" + 前后翻页；列表列顶部居中）
     _paginationBar = [[UIView alloc] init];
@@ -1376,7 +1411,9 @@ static UIColor *ZL2AssetSourceBadgeColor(NSInteger apiSource) {
     }
 }
 
-// 面板显隐收敛（宽态 ≥560pt 展示右栏；窄屏/收藏页列表全宽，ZL2 横屏语义）
+// 面板显隐收敛（宽态 ≥560pt 展示右栏；窄屏列表全宽，ZL2 横屏语义。
+// ★Task436 A2：收藏页不进本收敛——右栏面板收藏页恒隐藏，筛选改走顶部筛选行
+// ame436_favFilterBar（分类/平台/加载器/标题排序/远端刷新），非「缺面板」）
 - (void)ame_setFilterPanelVisible:(BOOL)visible {
     if (self.filterPanel.hidden != !visible) {
         self.filterPanel.hidden = !visible;
@@ -1392,6 +1429,7 @@ static UIColor *ZL2AssetSourceBadgeColor(NSInteger apiSource) {
 - (void)viewDidLayoutSubviews {
     [super viewDidLayoutSubviews];
     if (self.favoritesMode) {
+        // ★Task436 A2：右栏面板收藏页恒隐藏（筛选 = 顶部筛选行，见 A2 方法族）
         [self ame_setFilterPanelVisible:NO];
         return;
     }
@@ -1418,7 +1456,18 @@ static UIColor *ZL2AssetSourceBadgeColor(NSInteger apiSource) {
         item[@"downloads"] = snapshot[@"downloads"] ?: @0;
         item[@"projectType"] = snapshot[@"projectType"] ?: @"mod";
         item[@"isModpack"] = @([item[@"projectType"] isEqualToString:@"modpack"]);
-        [self.results addObject:item];
+        // ★Task436 A2：收藏筛选（分类/平台/加载器；缺字段维度直通不过滤）
+        if ([self ame436_favItemPassFilters:item]) {
+            [self.results addObject:item];
+        }
+    }
+    // ★Task436 A2：按标题排序开关（关 = 仓库 followTime 新→旧默认序）
+    if (self.ame436_favSortByTitle) {
+        [self.results sortUsingComparator:^NSComparisonResult(NSDictionary *a, NSDictionary *b) {
+            NSString *ame436_ta = [a[@"title"] isKindOfClass:[NSString class]] ? a[@"title"] : @"";
+            NSString *ame436_tb = [b[@"title"] isKindOfClass:[NSString class]] ? b[@"title"] : @"";
+            return [ame436_ta localizedCaseInsensitiveCompare:ame436_tb];
+        }];
     }
     [self.tableView reloadData];
     [self ame_refreshEmptyAndLoading];
@@ -1428,6 +1477,490 @@ static UIColor *ZL2AssetSourceBadgeColor(NSInteger apiSource) {
     dispatch_async(dispatch_get_main_queue(), ^{
         [self ame_reloadFavorites];
     });
+}
+
+#pragma mark - ★Task436 A2：收藏页筛选面板（分类/平台/加载器 + 按标题排序 + 远端刷新）
+
+// 顶部筛选行构建（buildViews 收藏模式调用；横滑 chips + 尾部刷新钮——
+// 补遗报告表 3-2 #1「四件验收」落位：分类/平台/加载器筛选 + 按标题排序 +
+// 远端刷新；窄屏适配 = 单行横滑，右栏面板维持搜索域专用）
+- (void)ame436_buildFavoritesFilterBar {
+    _ame436_favFilterBar = [[UIView alloc] init];
+    _ame436_favFilterBar.backgroundColor = [ZL2Theme surfaceContainer];
+    _ame436_favFilterBar.layer.cornerRadius = [ZL2Theme radiusS];
+    _ame436_favFilterBar.layer.masksToBounds = YES;
+    _ame436_favFilterBar.translatesAutoresizingMaskIntoConstraints = NO;
+    [self.view addSubview:_ame436_favFilterBar];
+
+    _ame436_favFilterScroll = [[UIScrollView alloc] init];
+    _ame436_favFilterScroll.showsHorizontalScrollIndicator = NO;
+    _ame436_favFilterScroll.alwaysBounceHorizontal = YES;
+    _ame436_favFilterScroll.translatesAutoresizingMaskIntoConstraints = NO;
+    [_ame436_favFilterBar addSubview:_ame436_favFilterScroll];
+
+    _ame436_favFilterStack = [[UIStackView alloc] init];
+    _ame436_favFilterStack.axis = UILayoutConstraintAxisHorizontal;
+    _ame436_favFilterStack.spacing = 8;
+    _ame436_favFilterStack.alignment = UIStackViewAlignmentCenter;
+    _ame436_favFilterStack.translatesAutoresizingMaskIntoConstraints = NO;
+    [_ame436_favFilterScroll addSubview:_ame436_favFilterStack];
+
+    _ame436_favRefreshButton = [UIButton buttonWithType:UIButtonTypeCustom];
+    UIImage *ame436_refreshIcon = [UIImage systemImageNamed:@"arrow.clockwise"];
+    if (!ame436_refreshIcon) ame436_refreshIcon = [UIImage systemImageNamed:@"arrowshape.turn.up.right"];
+    [_ame436_favRefreshButton setImage:[ame436_refreshIcon imageWithRenderingMode:UIImageRenderingModeAlwaysTemplate]
+                              forState:UIControlStateNormal];
+    _ame436_favRefreshButton.tintColor = [ZL2Theme onSurface];
+    _ame436_favRefreshButton.translatesAutoresizingMaskIntoConstraints = NO;
+    _ame436_favRefreshButton.accessibilityLabel = localize(@"ame436.fav.refresh", @"刷新远端信息");
+    [_ame436_favRefreshButton addTarget:self
+                                 action:@selector(ame436_favRefreshTapped)
+                       forControlEvents:UIControlEventTouchUpInside];
+    [_ame436_favFilterBar addSubview:_ame436_favRefreshButton];
+
+    _ame436_favRefreshSpinner = [[UIActivityIndicatorView alloc] initWithActivityIndicatorStyle:UIActivityIndicatorViewStyleMedium];
+    _ame436_favRefreshSpinner.color = [ZL2Theme primary];
+    _ame436_favRefreshSpinner.hidesWhenStopped = YES;
+    _ame436_favRefreshSpinner.translatesAutoresizingMaskIntoConstraints = NO;
+    _ame436_favRefreshSpinner.userInteractionEnabled = NO;
+    [_ame436_favFilterBar addSubview:_ame436_favRefreshSpinner];
+
+    [NSLayoutConstraint activateConstraints:@[
+        [_ame436_favFilterBar.topAnchor constraintEqualToAnchor:self.view.safeAreaLayoutGuide.topAnchor constant:8],
+        [_ame436_favFilterBar.leadingAnchor constraintEqualToAnchor:self.view.leadingAnchor constant:8],
+        [_ame436_favFilterBar.trailingAnchor constraintEqualToAnchor:self.view.trailingAnchor constant:-8],
+        [_ame436_favFilterBar.heightAnchor constraintEqualToConstant:40],
+
+        [_ame436_favFilterScroll.leadingAnchor constraintEqualToAnchor:_ame436_favFilterBar.leadingAnchor constant:6],
+        [_ame436_favFilterScroll.topAnchor constraintEqualToAnchor:_ame436_favFilterBar.topAnchor],
+        [_ame436_favFilterScroll.bottomAnchor constraintEqualToAnchor:_ame436_favFilterBar.bottomAnchor],
+        [_ame436_favFilterScroll.trailingAnchor constraintEqualToAnchor:_ame436_favRefreshButton.leadingAnchor constant:-2],
+
+        [_ame436_favFilterStack.topAnchor constraintEqualToAnchor:_ame436_favFilterScroll.contentLayoutGuide.topAnchor],
+        [_ame436_favFilterStack.bottomAnchor constraintEqualToAnchor:_ame436_favFilterScroll.contentLayoutGuide.bottomAnchor],
+        [_ame436_favFilterStack.leadingAnchor constraintEqualToAnchor:_ame436_favFilterScroll.contentLayoutGuide.leadingAnchor],
+        [_ame436_favFilterStack.trailingAnchor constraintEqualToAnchor:_ame436_favFilterScroll.contentLayoutGuide.trailingAnchor],
+        [_ame436_favFilterStack.heightAnchor constraintEqualToAnchor:_ame436_favFilterScroll.frameLayoutGuide.heightAnchor],
+
+        [_ame436_favRefreshButton.trailingAnchor constraintEqualToAnchor:_ame436_favFilterBar.trailingAnchor constant:-6],
+        [_ame436_favRefreshButton.centerYAnchor constraintEqualToAnchor:_ame436_favFilterBar.centerYAnchor],
+        [_ame436_favRefreshButton.widthAnchor constraintEqualToConstant:36],
+        [_ame436_favRefreshButton.heightAnchor constraintEqualToConstant:36],
+
+        [_ame436_favRefreshSpinner.centerXAnchor constraintEqualToAnchor:_ame436_favRefreshButton.centerXAnchor],
+        [_ame436_favRefreshSpinner.centerYAnchor constraintEqualToAnchor:_ame436_favRefreshButton.centerYAnchor],
+    ]];
+
+    [self ame436_rebuildFavoritesFilterChips];
+}
+
+// chips 重建（值随筛选状态；tag 载荷 = chip 下标——ZL2 红线「chip.tag 仅作
+// 下标载荷」口径；文本即值，ZL2M3FilterChip 构造时同步进 accessibilityLabel）
+- (void)ame436_rebuildFavoritesFilterChips {
+    if (!_ame436_favFilterStack) return;
+    [_ame436_favFilterStack.arrangedSubviews makeObjectsPerformSelector:@selector(removeFromSuperview)];
+
+    // ① 分类（值域 = 六类 Modrinth 口径表并集；选中显示本地化名）
+    NSString *ame436_categoryName = self.ame436_favCategoryFilter.length > 0
+        ? [self ame436_favCategoryNameForSlug:self.ame436_favCategoryFilter]
+        : localize(@"dl.asset.filter.category", nil);
+    [self ame436_addFavChip:ame436_categoryName selected:(self.ame436_favCategoryFilter.length > 0) tag:0];
+
+    // ② 平台（全部 / Modrinth / CurseForge；收藏快照 platform 键恒在场）
+    NSString *ame436_platformName = nil;
+    switch (self.ame436_favPlatformFilter) {
+        case 1: ame436_platformName = @"Modrinth"; break;
+        case 2: ame436_platformName = @"CurseForge"; break;
+        default: ame436_platformName = localize(@"dl.asset.filter.platform", nil); break;
+    }
+    [self ame436_addFavChip:ame436_platformName selected:(self.ame436_favPlatformFilter != 0) tag:1];
+
+    // ③ 加载器（fabric/forge/quilt/neoforge；Modrinth 条目混在 categories/loaders）
+    NSString *ame436_loaderName = self.ame436_favLoaderFilter.length > 0
+        ? [self ame_loaderDisplayNameForValue:self.ame436_favLoaderFilter]
+        : localize(@"ame369.common.loader", @"加载器");
+    [self ame436_addFavChip:ame436_loaderName selected:(self.ame436_favLoaderFilter.length > 0) tag:2];
+
+    // ④ 按标题排序（开关两态；关 = 仓库 followTime 新→旧默认序）
+    [self ame436_addFavChip:localize(@"ame436.fav.sort_by_title", @"按标题排序")
+                   selected:self.ame436_favSortByTitle tag:3];
+}
+
+- (void)ame436_addFavChip:(NSString *)title selected:(BOOL)selected tag:(NSInteger)tag {
+    ZL2M3FilterChip *chip = [[ZL2M3FilterChip alloc] initWithText:title];
+    chip.selected = selected;
+    chip.tag = tag;
+    [chip addTarget:self action:@selector(ame436_favChipTapped:) forControlEvents:UIControlEventTouchUpInside];
+    [_ame436_favFilterStack addArrangedSubview:chip];
+}
+
+// chips 点击统一入口（tag 分流 0=分类 1=平台 2=加载器 3=标题排序开关）
+- (void)ame436_favChipTapped:(ZL2M3FilterChip *)chip {
+    switch (chip.tag) {
+        case 0: [self ame436_favCategoryTapped]; break;
+        case 1: [self ame436_favPlatformTapped]; break;
+        case 2: [self ame436_favLoaderTapped]; break;
+        case 3: [self ame436_favSortChipTapped]; break;
+        default: break;
+    }
+}
+
+// 分类弹层（值域 = 六类 Modrinth 口径表并集；首行「全部」清除项置顶）
+- (void)ame436_favCategoryTapped {
+    if (self.ame436_favSheetContent) {
+        [ZL2M3BottomSheet dismissWithContentView:self.ame436_favSheetContent];
+        return;
+    }
+    __weak typeof(self) weakSelf = self;
+    self.ame436_favSheetContent =
+        [self ame436_favOptionSheetWithTitle:localize(@"dl.asset.filter.category", nil)
+                                  footerHint:localize(@"ame436.fav.filter_missing_hint", @"部分条目缺少该字段信息，缺字段条目不过滤")
+                                     options:[self ame436_favCategoryTable]
+                                    selected:(self.ame436_favCategoryFilter ?: @"")
+                                      onPick:^(NSString *slug) {
+            __strong typeof(weakSelf) strongSelf = weakSelf;
+            if (!strongSelf) return;
+            strongSelf.ame436_favCategoryFilter = slug.length > 0 ? slug : nil;
+            [strongSelf ame436_reloadFavoritesWithFilters];
+        }];
+}
+
+// 平台弹层（全部/Modrinth/CurseForge；快照 platform 键 1/2 恒在场 = 严格过滤）
+- (void)ame436_favPlatformTapped {
+    if (self.ame436_favSheetContent) {
+        [ZL2M3BottomSheet dismissWithContentView:self.ame436_favSheetContent];
+        return;
+    }
+    __weak typeof(self) weakSelf = self;
+    NSArray<NSDictionary *> *ame436_options = @[
+        @{@"slug": @"1", @"name": @"Modrinth"},
+        @{@"slug": @"2", @"name": @"CurseForge"},
+    ];
+    self.ame436_favSheetContent =
+        [self ame436_favOptionSheetWithTitle:localize(@"dl.asset.filter.platform", nil)
+                                  footerHint:nil
+                                     options:ame436_options
+                                    selected:[NSString stringWithFormat:@"%ld", (long)self.ame436_favPlatformFilter]
+                                      onPick:^(NSString *slug) {
+            __strong typeof(weakSelf) strongSelf = weakSelf;
+            if (!strongSelf) return;
+            strongSelf.ame436_favPlatformFilter = slug.integerValue;   // @""（全部）→ 0
+            [strongSelf ame436_reloadFavoritesWithFilters];
+        }];
+}
+
+// 加载器弹层（ame_loaderTable 同值域；表首「全部」行由弹层构建器自带，此处切片）
+- (void)ame436_favLoaderTapped {
+    if (self.ame436_favSheetContent) {
+        [ZL2M3BottomSheet dismissWithContentView:self.ame436_favSheetContent];
+        return;
+    }
+    __weak typeof(self) weakSelf = self;
+    NSArray<NSArray<NSString *> *> *ame436_table = [self ame_loaderTable];
+    NSMutableArray<NSDictionary *> *ame436_options = [NSMutableArray array];
+    for (NSUInteger ame436_i = 1; ame436_i < ame436_table.count; ame436_i++) {
+        [ame436_options addObject:@{@"slug": ame436_table[ame436_i][0], @"name": ame436_table[ame436_i][1]}];
+    }
+    self.ame436_favSheetContent =
+        [self ame436_favOptionSheetWithTitle:localize(@"ame369.common.loader", @"加载器")
+                                  footerHint:localize(@"ame436.fav.filter_missing_hint", @"部分条目缺少该字段信息，缺字段条目不过滤")
+                                     options:ame436_options
+                                    selected:(self.ame436_favLoaderFilter ?: @"")
+                                      onPick:^(NSString *slug) {
+            __strong typeof(weakSelf) strongSelf = weakSelf;
+            if (!strongSelf) return;
+            strongSelf.ame436_favLoaderFilter = slug.length > 0 ? slug : nil;
+            [strongSelf ame436_reloadFavoritesWithFilters];
+        }];
+}
+
+// 按标题排序开关（★Task436 A2 第二件）：关 = 仓库 followTime 新→旧默认序
+- (void)ame436_favSortChipTapped {
+    self.ame436_favSortByTitle = !self.ame436_favSortByTitle;
+    [self ame436_reloadFavoritesWithFilters];
+}
+
+// 远端刷新（★Task436 A2 第四件）：逐条目拉远端元数据回填当前列表内存条目。
+// 口径登记（如实）：① 仅回填内存（self.results），不回写 ZL2FavoritesStore
+// 仓库——仓库公开面无更新口（toggleFavoriteWithProject: 双发会丢 followTime
+// 排序位）；② 刷新对象 = 当前可见（已过滤）条目，回填不触发重筛；③ Modrinth
+// GET project/{id}（getEndpoint 既有声明）回填 title/description/imageUrl/
+// downloads/categories/loaders；CurseForge ame238 /mods/{id} 回填 name/
+// summary/icon 三键；④ 失败条目静默计数，汇总信息条提示成功/总数。
+- (void)ame436_favRefreshTapped {
+    if (self.ame436_favRefreshing) return;
+    if (self.results.count == 0) return;
+    self.ame436_favRefreshing = YES;
+    self.ame436_favRefreshButton.hidden = YES;
+    [self.ame436_favRefreshSpinner startAnimating];
+
+    NSArray<NSDictionary *> *ame436_targets = [self.results copy];
+    dispatch_group_t ame436_group = dispatch_group_create();
+    __block NSUInteger ame436_okCount = 0;
+    __weak typeof(self) weakSelf = self;
+
+    for (NSDictionary *ame436_entry in ame436_targets) {
+        if (![ame436_entry isKindOfClass:[NSMutableDictionary class]]) continue;
+        NSInteger ame436_source = [ame436_entry[@"apiSource"] isKindOfClass:[NSNumber class]]
+            ? [ame436_entry[@"apiSource"] integerValue] : 1;
+        if (ame436_source != 1 && ame436_source != 2) ame436_source = 1;
+        NSString *ame436_pid = [ame436_entry[@"id"] isKindOfClass:[NSString class]] ? ame436_entry[@"id"] : @"";
+        if (ame436_pid.length == 0) continue;
+
+        dispatch_group_enter(ame436_group);
+        if (ame436_source == 1) {
+            dispatch_async(dispatch_get_global_queue(QOS_CLASS_USER_INITIATED, 0), ^{
+                id ame436_json = [[ModrinthAPI sharedInstance]
+                    getEndpoint:[NSString stringWithFormat:@"project/%@", ame436_pid] params:nil];
+                dispatch_async(dispatch_get_main_queue(), ^{
+                    __strong typeof(weakSelf) strongSelf = weakSelf;
+                    if (strongSelf && [ame436_json isKindOfClass:[NSDictionary class]]) {
+                        [strongSelf ame436_backfillFavoriteEntry:(NSMutableDictionary *)ame436_entry
+                                               fromModrinthJSON:ame436_json];
+                        ame436_okCount += 1;
+                    }
+                    dispatch_group_leave(ame436_group);
+                });
+            });
+        } else {
+            [[CurseForgeAPI sharedInstance] ame238_fetchProjectInfo:ame436_pid
+                completion:^(NSDictionary * _Nullable info, NSError * _Nullable error) {
+                dispatch_async(dispatch_get_main_queue(), ^{
+                    __strong typeof(weakSelf) strongSelf = weakSelf;
+                    if (strongSelf && [info isKindOfClass:[NSDictionary class]]) {
+                        [strongSelf ame436_backfillFavoriteEntry:(NSMutableDictionary *)ame436_entry
+                                              fromCurseForgeInfo:info];
+                        ame436_okCount += 1;
+                    }
+                    dispatch_group_leave(ame436_group);
+                });
+            }];
+        }
+    }
+
+    dispatch_group_notify(ame436_group, dispatch_get_main_queue(), ^{
+        __strong typeof(weakSelf) strongSelf = weakSelf;
+        if (!strongSelf) return;
+        strongSelf.ame436_favRefreshing = NO;
+        strongSelf.ame436_favRefreshButton.hidden = NO;
+        [strongSelf.ame436_favRefreshSpinner stopAnimating];
+        [strongSelf.tableView reloadData];
+        [InlineMessageView showInViewController:strongSelf
+                                          title:localize(@"ame436.fav.refresh", @"刷新远端信息")
+                                        message:[NSString stringWithFormat:
+                                                     localize(@"ame436.fav.refresh_done_fmt", @"已刷新 %lu/%lu 个收藏"),
+                                                     (unsigned long)ame436_okCount, (unsigned long)ame436_targets.count]
+                                           type:InlineMessageTypeInfo];
+        NSLog(@"[ZL2AssetSearch] Task436 A2 favorites remote refresh: %lu/%lu ok",
+              (unsigned long)ame436_okCount, (unsigned long)ame436_targets.count);
+    });
+}
+
+// Modrinth project/{id} JSON → 收藏条目字段回填（loader 筛选消费 categories∪loaders）
+- (void)ame436_backfillFavoriteEntry:(NSMutableDictionary *)entry
+                   fromModrinthJSON:(NSDictionary *)json {
+    NSString *ame436_title = json[@"title"];
+    if ([ame436_title isKindOfClass:[NSString class]] && ame436_title.length > 0) entry[@"title"] = ame436_title;
+    NSString *ame436_desc = json[@"description"];
+    if ([ame436_desc isKindOfClass:[NSString class]] && ame436_desc.length > 0) entry[@"description"] = ame436_desc;
+    NSString *ame436_icon = json[@"icon_url"];
+    if ([ame436_icon isKindOfClass:[NSString class]] && ame436_icon.length > 0) entry[@"imageUrl"] = ame436_icon;
+    if ([json[@"downloads"] isKindOfClass:[NSNumber class]]) entry[@"downloads"] = json[@"downloads"];
+    if ([json[@"categories"] isKindOfClass:[NSArray class]]) entry[@"categories"] = json[@"categories"];
+    if ([json[@"loaders"] isKindOfClass:[NSArray class]]) entry[@"loaders"] = json[@"loaders"];
+}
+
+// CurseForge /mods/{id} 富元数据 → 收藏条目字段回填（ame238 三键口径）
+- (void)ame436_backfillFavoriteEntry:(NSMutableDictionary *)entry
+                 fromCurseForgeInfo:(NSDictionary *)info {
+    NSString *ame436_name = info[@"name"];
+    if ([ame436_name isKindOfClass:[NSString class]] && ame436_name.length > 0) entry[@"title"] = ame436_name;
+    NSString *ame436_summary = info[@"summary"];
+    if ([ame436_summary isKindOfClass:[NSString class]] && ame436_summary.length > 0) entry[@"description"] = ame436_summary;
+    NSString *ame436_icon = info[@"icon"];
+    if ([ame436_icon isKindOfClass:[NSString class]] && ame436_icon.length > 0) entry[@"imageUrl"] = ame436_icon;
+}
+
+// 分类值域 = 六类 Modrinth 口径表并集（ame436_modrinthCategoryTableForType:
+// 同一份数据源 slug 去重；收藏条目 categories 键由 Modrinth 侧写入，slug 全域
+// 落该并集内；CF 条目无 categories 键 → 直通不过滤，见 passFilters）
+- (NSArray<NSDictionary *> *)ame436_favCategoryTable {
+    NSMutableDictionary<NSString *, NSDictionary *> *ame436_bySlug = [NSMutableDictionary dictionary];
+    for (NSString *ame436_type in @[@"mod", @"modpack", @"resourcepack", @"shader", @"world", @"datapack"]) {
+        for (NSDictionary *ame436_entry in [self ame436_modrinthCategoryTableForType:ame436_type]) {
+            NSString *ame436_slug = [ame436_entry[@"slug"] isKindOfClass:[NSString class]] ? ame436_entry[@"slug"] : nil;
+            if (ame436_slug.length == 0) continue;
+            ame436_bySlug[ame436_slug] = ame436_entry;
+        }
+    }
+    return [ame436_bySlug.allValues sortedArrayUsingComparator:^NSComparisonResult(NSDictionary *a, NSDictionary *b) {
+        return [a[@"name"] compare:b[@"name"]];
+    }];
+}
+
+- (NSString *)ame436_favCategoryNameForSlug:(NSString *)slug {
+    if (slug.length == 0) return @"";
+    for (NSDictionary *entry in [self ame436_favCategoryTable]) {
+        if ([entry[@"slug"] isEqualToString:slug]) return entry[@"name"];
+    }
+    return slug;   // 未知 slug 兜底原样展示（ame_categoryDisplayNameForSlug 同口径）
+}
+
+// 过滤判定（★Task436 A2：缺字段维度直通不过滤——诚实降级口径：
+// ① 平台：快照恒有 platform（仓库键）→ 严格过滤；
+// ② 分类：条目无 categories 键（CF 侧快照）→ 直通；有则 slug 命中才保留；
+// ③ 加载器：categories ∪ loaders 两键找 loader slug；两键皆缺 → 直通）
+- (BOOL)ame436_favItemPassFilters:(NSDictionary *)item {
+    if (self.ame436_favPlatformFilter != 0) {
+        NSInteger ame436_source = [item[@"apiSource"] isKindOfClass:[NSNumber class]]
+            ? [item[@"apiSource"] integerValue] : 1;
+        if (ame436_source != self.ame436_favPlatformFilter) return NO;
+    }
+    if (self.ame436_favCategoryFilter.length > 0) {
+        NSArray *ame436_categories = [item[@"categories"] isKindOfClass:[NSArray class]] ? item[@"categories"] : nil;
+        if (ame436_categories.count > 0 &&
+            ![ame436_categories containsObject:self.ame436_favCategoryFilter]) return NO;
+    }
+    if (self.ame436_favLoaderFilter.length > 0) {
+        NSArray *ame436_categories = [item[@"categories"] isKindOfClass:[NSArray class]] ? item[@"categories"] : @[];
+        NSArray *ame436_loaders = [item[@"loaders"] isKindOfClass:[NSArray class]] ? item[@"loaders"] : @[];
+        if (ame436_categories.count == 0 && ame436_loaders.count == 0) return YES;   // 缺字段直通
+        NSString *ame436_lower = self.ame436_favLoaderFilter.lowercaseString;
+        for (NSString *ame436_slug in ame436_categories) {
+            if ([ame436_slug isKindOfClass:[NSString class]] &&
+                [ame436_slug.lowercaseString isEqualToString:ame436_lower]) return YES;
+        }
+        for (NSString *ame436_slug in ame436_loaders) {
+            if ([ame436_slug isKindOfClass:[NSString class]] &&
+                [ame436_slug.lowercaseString isEqualToString:ame436_lower]) return YES;
+        }
+        return NO;
+    }
+    return YES;
+}
+
+// 筛选/排序变更收口（重载列表 + 刷新 chips 值显示）
+- (void)ame436_reloadFavoritesWithFilters {
+    [self ame_reloadFavorites];
+    [self ame436_rebuildFavoritesFilterChips];
+}
+
+// 通用选项弹层（标题 + 清除项 + 选项行 + 可选脚注；ame_categoryFieldTapped
+// 弹层形态收编——收藏面板三组筛选共用一份构建器，选中行 primaryContainer 高亮）
+- (UIView *)ame436_favOptionSheetWithTitle:(NSString *)title
+                                footerHint:(NSString *)footerHint
+                                   options:(NSArray<NSDictionary *> *)options
+                                  selected:(NSString *)selected
+                                    onPick:(void (^)(NSString *slug))onPick {
+    CGFloat ame436_width = MIN(440.0, self.view.bounds.size.width - 48.0);
+    if (ame436_width < 280.0) ame436_width = 280.0;
+
+    UIView *content = [[UIView alloc] init];
+    content.backgroundColor = [ZL2Theme surfaceContainerLow];
+    content.translatesAutoresizingMaskIntoConstraints = NO;
+    content.layer.cornerRadius = [ZL2Theme radiusXL];
+    content.layer.masksToBounds = YES;
+
+    UILabel *titleLabel = [[UILabel alloc] init];
+    titleLabel.text = title;
+    titleLabel.font = [ZL2Theme fontTitleMedium];
+    titleLabel.textColor = [ZL2Theme onSurface];
+    titleLabel.numberOfLines = 1;
+    titleLabel.translatesAutoresizingMaskIntoConstraints = NO;
+    [content addSubview:titleLabel];
+
+    UIScrollView *scroll = [[UIScrollView alloc] init];
+    scroll.backgroundColor = [UIColor clearColor];
+    scroll.showsVerticalScrollIndicator = YES;
+    scroll.alwaysBounceVertical = YES;
+    scroll.translatesAutoresizingMaskIntoConstraints = NO;
+    [content addSubview:scroll];
+
+    UIStackView *stack = [[UIStackView alloc] init];
+    stack.axis = UILayoutConstraintAxisVertical;
+    stack.spacing = 6;
+    stack.translatesAutoresizingMaskIntoConstraints = NO;
+    [scroll addSubview:stack];
+
+    __weak typeof(self) weakSelf = self;
+    __weak typeof(content) weakContent = content;
+    // 首行 = 清除项「全部」（slug=@""；归一为不过滤）
+    NSMutableArray<NSDictionary *> *ame436_rows = [NSMutableArray arrayWithObject:
+        @{@"slug": @"", @"name": localize(@"ame193.misc.1", @"全部")}];
+    [ame436_rows addObjectsFromArray:options];
+    for (NSDictionary *entry in ame436_rows) {
+        NSString *slug = [entry[@"slug"] isKindOfClass:[NSString class]] ? entry[@"slug"] : @"";
+        NSString *name = [entry[@"name"] isKindOfClass:[NSString class]] ? entry[@"name"] : slug;
+        UIButton *option = [UIButton buttonWithType:UIButtonTypeCustom];
+        option.contentHorizontalAlignment = UIControlContentHorizontalAlignmentLeft;
+        option.titleEdgeInsets = UIEdgeInsetsMake(0, 14, 0, 14);
+        option.titleLabel.font = [ZL2Theme fontBodyLarge];
+        [option setTitle:name forState:UIControlStateNormal];
+        [option setTitleColor:[ZL2Theme onSurface] forState:UIControlStateNormal];
+        option.backgroundColor = [slug isEqualToString:selected]
+            ? [ZL2Theme primaryContainer] : [ZL2Theme surfaceContainer];
+        option.layer.cornerRadius = [ZL2Theme radiusS];
+        option.layer.masksToBounds = YES;
+        option.translatesAutoresizingMaskIntoConstraints = NO;
+        [option.heightAnchor constraintEqualToConstant:44].active = YES;
+        [option addTarget:self action:@selector(ame436_favSheetOptionTapped:)
+         forControlEvents:UIControlEventTouchUpInside];
+        objc_setAssociatedObject(option, @selector(ame436_favSheetOptionTapped:), slug, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+        objc_setAssociatedObject(option, "ame436_fav_onPick", onPick, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+        [stack addArrangedSubview:option];
+    }
+    [stack.widthAnchor constraintEqualToAnchor:scroll.widthAnchor].active = YES;
+    [stack.topAnchor constraintEqualToAnchor:scroll.contentLayoutGuide.topAnchor constant:8].active = YES;
+    [stack.bottomAnchor constraintEqualToAnchor:scroll.contentLayoutGuide.bottomAnchor constant:-8].active = YES;
+
+    CGFloat ame436_height = ((CGFloat)ame436_rows.count) * 50.0 + 110.0;
+    if (footerHint.length > 0) ame436_height += 30.0;
+    if (ame436_height > 420.0) ame436_height = 420.0;
+
+    NSLayoutYAxisAnchor *ame436_scrollBottomAnchor = content.bottomAnchor;
+    if (footerHint.length > 0) {
+        UILabel *hintLabel = [[UILabel alloc] init];
+        hintLabel.text = footerHint;
+        hintLabel.font = [ZL2Theme fontLabelMedium];
+        hintLabel.textColor = [ZL2Theme onSurfaceVariant];
+        hintLabel.numberOfLines = 2;
+        hintLabel.translatesAutoresizingMaskIntoConstraints = NO;
+        [content addSubview:hintLabel];
+        [NSLayoutConstraint activateConstraints:@[
+            [hintLabel.leadingAnchor constraintEqualToAnchor:content.leadingAnchor constant:20],
+            [hintLabel.trailingAnchor constraintEqualToAnchor:content.trailingAnchor constant:-20],
+            [hintLabel.bottomAnchor constraintEqualToAnchor:content.bottomAnchor constant:-8],
+        ]];
+        ame436_scrollBottomAnchor = hintLabel.topAnchor;   // 脚注在场时列表底距挂脚注上方
+    }
+
+    [NSLayoutConstraint activateConstraints:@[
+        [content.widthAnchor constraintEqualToConstant:ame436_width],
+        [content.heightAnchor constraintEqualToConstant:ame436_height],
+        [titleLabel.topAnchor constraintEqualToAnchor:content.topAnchor constant:18],
+        [titleLabel.leadingAnchor constraintEqualToAnchor:content.leadingAnchor constant:20],
+        [scroll.topAnchor constraintEqualToAnchor:titleLabel.bottomAnchor constant:12],
+        [scroll.leadingAnchor constraintEqualToAnchor:content.leadingAnchor constant:16],
+        [scroll.trailingAnchor constraintEqualToAnchor:content.trailingAnchor constant:-16],
+        [scroll.bottomAnchor constraintEqualToAnchor:ame436_scrollBottomAnchor constant:-6],
+    ]];
+
+    [ZL2M3BottomSheet presentWithContentView:content
+                                  onDismiss:^{
+        __strong typeof(weakSelf) strongSelf = weakSelf;
+        if (!strongSelf) return;
+        strongSelf.ame436_favSheetContent = nil;
+        (void)weakContent;
+    }];
+    return content;
+}
+
+- (void)ame436_favSheetOptionTapped:(UIButton *)sender {
+    NSString *slug = objc_getAssociatedObject(sender, @selector(ame436_favSheetOptionTapped:));
+    void (^onPick)(NSString *) = objc_getAssociatedObject(sender, "ame436_fav_onPick");
+    UIView *content = self.ame436_favSheetContent;
+    if (content) [ZL2M3BottomSheet dismissWithContentView:content];
+    if (onPick) onPick(slug ?: @"");
 }
 
 #pragma mark - 搜索触发（0.5s 防抖文本变化 / 平台 / 排序）
@@ -2084,16 +2617,15 @@ static UIColor *ZL2AssetSourceBadgeColor(NSInteger apiSource) {
 
 // ★Task428（4.4）：Modrinth 口径原始分类表（ame_categoryTableForType 的
 // 域无关基底；CF 分类树展示名反查也消费本表）
+// ★Task436：本体迁至 ame436_modrinthCategoryTableForType:（收藏页并集值域
+//   复用同一份 slug→本地化名表，免跨域复制 50+ 键）
 - (NSArray<NSDictionary *> *)ame428_modrinthCategoryTable {
-    NSString *type = nil;
-    switch (self.assetType) {
-        case ZL2AssetSearchTypeMod:         type = @"mod"; break;
-        case ZL2AssetSearchTypeModpack:     type = @"modpack"; break;
-        case ZL2AssetSearchTypeResourcePack: type = @"resourcepack"; break;
-        case ZL2AssetSearchTypeShader:      type = @"shader"; break;
-        case ZL2AssetSearchTypeWorld:       type = @"world"; break;
-        case ZL2AssetSearchTypeDataPack:    type = @"datapack"; break;   // Task323：空表 → 分类字段隐藏
-    }
+    return [self ame436_modrinthCategoryTableForType:[self ame_typeToken]];
+}
+
+// 域参数化分类表（★Task436：type = ame_typeToken 同款令牌 mod/modpack/
+// resourcepack/shader/world/datapack；收藏页并集值域数据源）
+- (NSArray<NSDictionary *> *)ame436_modrinthCategoryTableForType:(NSString *)type {
     // ★Task428：条目改字典形态（@{@"slug":…, @"name":…}）——原数组字面量
     //   @[slug, name] 与消费端 entry[@"slug"]/entry[@"name"]（objectForKeyed
     //   Subscript:）不匹配，分类弹层一打开即 unrecognized selector 崩溃
@@ -2471,7 +3003,21 @@ static UIColor *ZL2AssetSourceBadgeColor(NSInteger apiSource) {
     }
 }
 
-#pragma mark - 结果卡点击 → 版本页（1:1 复刻旧页各类型配置）
+// ★Task436：收藏模式条目路由类型（快照 projectType → ZL2AssetSearchType；
+// 搜索模式恒 self.assetType）。initWithFavorites 的「按项内 projectType 分流」
+// 注记在旧实码缺席（收藏条目恒按占位 Mod 路由）——随版本页改道一并补齐。
+- (ZL2AssetSearchType)ame436_routingTypeForItem:(NSDictionary *)dict {
+    if (!self.favoritesMode) return self.assetType;
+    NSString *projectType = [dict[@"projectType"] isKindOfClass:[NSString class]] ? dict[@"projectType"] : @"";
+    if ([projectType isEqualToString:@"modpack"]) return ZL2AssetSearchTypeModpack;
+    if ([projectType isEqualToString:@"resourcepack"]) return ZL2AssetSearchTypeResourcePack;
+    if ([projectType isEqualToString:@"world"]) return ZL2AssetSearchTypeWorld;
+    if ([projectType isEqualToString:@"shader"]) return ZL2AssetSearchTypeShader;
+    if ([projectType isEqualToString:@"datapack"]) return ZL2AssetSearchTypeDataPack;
+    return ZL2AssetSearchTypeMod;
+}
+
+#pragma mark - 结果卡点击 → 版本页（1:1 复刻旧页各类型配置；★Task436 页型改道）
 
 - (void)ame_openResultAtIndex:(NSInteger)index {
     if (index < 0 || index >= (NSInteger)self.results.count) return;
@@ -2484,56 +3030,66 @@ static UIColor *ZL2AssetSourceBadgeColor(NSInteger apiSource) {
         ? [dict[@"apiSource"] integerValue] : [self ame_apiSourceForType];
     if (itemSource != 1 && itemSource != 2) itemSource = 1;
 
-    switch (self.assetType) {
+    // ★Task436：路由类型派生（收藏模式按条目 projectType 分流，见上方 helper）
+    ZL2AssetSearchType ame436_route = [self ame436_routingTypeForItem:dict];
+    switch (ame436_route) {
         case ZL2AssetSearchTypeMod: {
-            // 旧页 downloadModAtIndexPath:（L5274-5292）1:1
+            // 旧页 downloadModAtIndexPath:（L5274-5292）1:1 → ★Task436 版本页改道
             ModItem *modItem = [[ModItem alloc] initWithOnlineData:dict];
-            ModVersionViewController *versionVC = [[ModVersionViewController alloc] init];
-            versionVC.modItem = modItem;
-            versionVC.delegate = self;
-            versionVC.title = modItem.displayName;
+            ZL2VersionListPage *versionVC =
+                [[ZL2VersionListPage alloc] initWithDomain:ZL2VersionListDomainMod];
+            versionVC.projectID = modItem.onlineID;
             versionVC.apiSource = itemSource;
             versionVC.preferredGameVersion = [self ame_profileMinecraftVersion];
             versionVC.preferredLoader = [self ame_profileLoader];
+            versionVC.pageTitle = modItem.displayName;
+            versionVC.modItem = modItem;
+            versionVC.snapshotProjectType = @"mod";
+            versionVC.delegate = self;
             [self ame_pushViewController:versionVC];
             break;
         }
         case ZL2AssetSearchTypeModpack: {
-            // 旧页 installModpackAtIndexPath:（L4712-4735）1:1：模组版版本页复用，
+            // 旧页 installModpackAtIndexPath:（L4712-4735）1:1：模组域版本页复用，
             // pendingDownloadType="modpack" + pendingModpackDict 分流安装流
+            // → ★Task436 版本页改道（页仍 Mod 域承载，分流语义不变）
             ModItem *modItem = [[ModItem alloc] initWithOnlineData:dict];
-            ModVersionViewController *versionVC = [[ModVersionViewController alloc] init];
-            versionVC.modItem = modItem;
-            versionVC.delegate = self;
-            versionVC.title = modItem.displayName;
+            ZL2VersionListPage *versionVC =
+                [[ZL2VersionListPage alloc] initWithDomain:ZL2VersionListDomainMod];
+            versionVC.projectID = modItem.onlineID;
             versionVC.apiSource = itemSource;
             versionVC.preferredGameVersion = [self ame_profileMinecraftVersion];
             versionVC.preferredLoader = [self ame_profileLoader];
+            versionVC.pageTitle = modItem.displayName;
+            versionVC.modItem = modItem;
+            versionVC.snapshotProjectType = @"modpack";
+            versionVC.delegate = self;
             self.pendingDownloadType = @"modpack";
             self.pendingModpackDict = dict;
             [self ame_pushViewController:versionVC];
             break;
         }
         case ZL2AssetSearchTypeResourcePack: {
-            // 旧页 downloadResourcepackAtIndexPath:（L5324-5353）1:1
+            // 旧页 downloadResourcepackAtIndexPath:（L5324-5353）1:1 → ★Task436 版本页改道
             ResourcePackItem *item = [[ResourcePackItem alloc] initWithOnlineData:dict];
             self.pendingDownloadType = @"resourcepack";
             self.pendingResourcePackItem = item;
-            AssetVersionViewController *versionVC = [[AssetVersionViewController alloc] init];
-            versionVC.assetType = AssetVersionTypeResourcePack;
+            ZL2VersionListPage *versionVC =
+                [[ZL2VersionListPage alloc] initWithDomain:ZL2VersionListDomainAsset];
             versionVC.projectID = item.onlineID;
             versionVC.apiSource = itemSource;
-            versionVC.projectDisplayName = item.displayName;
+            versionVC.pageTitle = item.displayName;
+            versionVC.snapshotProjectType = @"resourcepack";
             versionVC.delegate = self;
-            versionVC.title = item.displayName;
-            versionVC.projectIconURL = item.iconURL;
-            versionVC.projectAuthor = item.author;
-            versionVC.projectDownloads = item.downloads;
-            versionVC.projectLikes = item.likes;
-            versionVC.projectDescription = item.resourcePackDescription;
-            versionVC.projectCategories = item.categories;
-            versionVC.projectLastUpdated = item.lastUpdated;
             versionVC.preferredGameVersion = [self ame_profileMinecraftVersion];
+            versionVC.headerTitle = item.displayName;
+            versionVC.headerIconURL = item.iconURL;
+            versionVC.headerAuthor = item.author;
+            versionVC.headerDownloads = item.downloads;
+            versionVC.headerLikes = item.likes;
+            versionVC.headerDescription = item.resourcePackDescription;
+            versionVC.headerCategories = item.categories;
+            versionVC.headerLastUpdated = item.lastUpdated;
             [self ame_pushViewController:versionVC];
             break;
         }
@@ -2541,62 +3097,68 @@ static UIColor *ZL2AssetSourceBadgeColor(NSInteger apiSource) {
             // 旧页 downloadWorldAtIndexPath:（L5396-5425）1:1 形态；
             // ★Task432：存档轨双源放开，版本页 apiSource 随条目/当前源分流
             //   （聚合档混排条目自带 apiSource，与模组/资源包轨同口径），
-            //   不再显式钉 CurseForge。
+            //   不再显式钉 CurseForge。→ ★Task436 版本页改道
             WorldItem *item = [[WorldItem alloc] initWithOnlineData:dict];
             self.pendingDownloadType = @"world";
             self.pendingWorldItem = item;
-            AssetVersionViewController *versionVC = [[AssetVersionViewController alloc] init];
-            versionVC.assetType = AssetVersionTypeWorld;
+            ZL2VersionListPage *versionVC =
+                [[ZL2VersionListPage alloc] initWithDomain:ZL2VersionListDomainAsset];
             versionVC.projectID = item.onlineID;
             versionVC.apiSource = itemSource;
-            versionVC.projectDisplayName = item.displayName;
+            versionVC.pageTitle = item.displayName;
+            versionVC.snapshotProjectType = @"world";
             versionVC.delegate = self;
-            versionVC.title = item.displayName;
-            versionVC.projectIconURL = item.iconURL;
-            versionVC.projectAuthor = item.author;
-            versionVC.projectDownloads = item.downloads;
-            versionVC.projectLikes = item.likes;
-            versionVC.projectDescription = item.worldDescription;
-            versionVC.projectCategories = item.categories;
-            versionVC.projectLastUpdated = item.lastUpdated;
             versionVC.preferredGameVersion = [self ame_profileMinecraftVersion];
+            versionVC.headerTitle = item.displayName;
+            versionVC.headerIconURL = item.iconURL;
+            versionVC.headerAuthor = item.author;
+            versionVC.headerDownloads = item.downloads;
+            versionVC.headerLikes = item.likes;
+            versionVC.headerDescription = item.worldDescription;
+            versionVC.headerCategories = item.categories;
+            versionVC.headerLastUpdated = item.lastUpdated;
             [self ame_pushViewController:versionVC];
             break;
         }
         case ZL2AssetSearchTypeShader: {
-            // 旧页 downloadShaderAtIndexPath:（L5299-5317）1:1
+            // 旧页 downloadShaderAtIndexPath:（L5299-5317）1:1 → ★Task436 版本页改道
             ShaderItem *shaderItem = [[ShaderItem alloc] initWithOnlineData:dict];
-            ShaderVersionViewController *versionVC = [[ShaderVersionViewController alloc] init];
-            versionVC.shaderItem = shaderItem;
-            versionVC.delegate = self;
-            versionVC.title = shaderItem.displayName;
+            ZL2VersionListPage *versionVC =
+                [[ZL2VersionListPage alloc] initWithDomain:ZL2VersionListDomainShader];
+            versionVC.projectID = shaderItem.onlineID;
             versionVC.apiSource = itemSource;
             versionVC.preferredGameVersion = [self ame_profileMinecraftVersion];
             versionVC.preferredLoader = [self ame_profileLoader];
+            versionVC.pageTitle = shaderItem.displayName;
+            versionVC.shaderItem = shaderItem;
+            versionVC.snapshotProjectType = @"shader";
+            versionVC.delegate = self;
             [self ame_pushViewController:versionVC];
             break;
         }
         case ZL2AssetSearchTypeDataPack: {
             // ★ Task323：数据包（AssetVersionTypeDataPack 详情页既有，旧页
             //   startDownloadForDataPackItem 同链；CurseForge/Modrinth 双源）
+            //   → ★Task436 版本页改道
             DataPackItem *item = [[DataPackItem alloc] initWithOnlineData:dict];
             self.pendingDownloadType = @"datapack";
             self.pendingDataPackItem = item;
-            AssetVersionViewController *versionVC = [[AssetVersionViewController alloc] init];
-            versionVC.assetType = AssetVersionTypeDataPack;
+            ZL2VersionListPage *versionVC =
+                [[ZL2VersionListPage alloc] initWithDomain:ZL2VersionListDomainAsset];
             versionVC.projectID = item.onlineID;
             versionVC.apiSource = itemSource;
-            versionVC.projectDisplayName = item.displayName;
+            versionVC.pageTitle = item.displayName;
+            versionVC.snapshotProjectType = @"datapack";
             versionVC.delegate = self;
-            versionVC.title = item.displayName;
-            versionVC.projectIconURL = item.iconURL;
-            versionVC.projectAuthor = item.author;
-            versionVC.projectDownloads = item.downloads;
-            versionVC.projectLikes = item.likes;
-            versionVC.projectDescription = item.dataPackDescription;
-            versionVC.projectCategories = item.categories;
-            versionVC.projectLastUpdated = item.lastUpdated;
             versionVC.preferredGameVersion = [self ame_profileMinecraftVersion];
+            versionVC.headerTitle = item.displayName;
+            versionVC.headerIconURL = item.iconURL;
+            versionVC.headerAuthor = item.author;
+            versionVC.headerDownloads = item.downloads;
+            versionVC.headerLikes = item.likes;
+            versionVC.headerDescription = item.dataPackDescription;
+            versionVC.headerCategories = item.categories;
+            versionVC.headerLastUpdated = item.lastUpdated;
             [self ame_pushViewController:versionVC];
             break;
         }
@@ -2619,10 +3181,29 @@ static UIColor *ZL2AssetSourceBadgeColor(NSInteger apiSource) {
     [self.navigationController popViewControllerAnimated:YES];
 }
 
-#pragma mark - ModVersionViewControllerDelegate（模组 + 整合包复用分流）
+#pragma mark - 版本页 delegate 回调（★Task436：新页 + 三旧页兼容面同链路）
 
+// ★Task436 新版本页回调：按页域分流（模组/整合包 pendingDownloadType 分流；
+// 光影 ShaderItem 直填；资产域 pending* 分流）——与三条旧回调方法体 1:1
+// 共链（收编 ame436_* helper，零重复分流）
+- (void)zl2VersionListPage:(ZL2VersionListPage *)page didSelectVersion:(ModVersion *)version {
+    switch (page.domainType) {
+        case ZL2VersionListDomainMod:
+            [self ame436_handleModDomainVersion:version modItem:page.modItem];
+            break;
+        case ZL2VersionListDomainShader:
+            [self ame436_handleShaderDomainVersion:version shaderItem:page.shaderItem];
+            break;
+        case ZL2VersionListDomainAsset:
+            [self ame436_handleAssetDomainVersion:version];
+            break;
+    }
+}
+
+// ★Task436：模组域选版分流（原 modVersionViewController:didSelectVersion:
+// 方法体收编；modItem 出参化——新页读 page.modItem，旧页读 viewController.modItem）
 // 旧页 modVersionViewController:didSelectVersion:（L5439-5560）等价移植
-- (void)modVersionViewController:(ModVersionViewController *)viewController didSelectVersion:(ModVersion *)version {
+- (void)ame436_handleModDomainVersion:(ModVersion *)version modItem:(ModItem *)modItem {
     NSDictionary *primaryFile = version.primaryFile;
     if (!primaryFile || ![primaryFile[@"url"] isKindOfClass:[NSString class]]) {
         [self ame_showError:localize(@"i18n_str_265", nil)];
@@ -2640,7 +3221,7 @@ static UIColor *ZL2AssetSourceBadgeColor(NSInteger apiSource) {
         return;
     }
 
-    ModItem *itemToDownload = viewController.modItem;
+    ModItem *itemToDownload = modItem;
     itemToDownload.selectedVersionDownloadURL = primaryFile[@"url"];
     itemToDownload.fileName = primaryFile[@"filename"] ?: [NSString stringWithFormat:@"%@.jar", itemToDownload.displayName];
     itemToDownload.fileSHA1 = ZL2AssetSha1FromPrimaryFile(primaryFile);
@@ -2734,6 +3315,12 @@ static UIColor *ZL2AssetSourceBadgeColor(NSInteger apiSource) {
             [strongSelf2 presentViewController:ame227_sheet animated:YES completion:nil];
         });
     }];
+}
+
+// ★Task436：旧页兼容面（方法体已收编上行 helper；当前全仓已无「旧页 push 挂
+// 本页 delegate」路径，保留防协议未实现告警）
+- (void)modVersionViewController:(ModVersionViewController *)viewController didSelectVersion:(ModVersion *)version {
+    [self ame436_handleModDomainVersion:version modItem:viewController.modItem];
 }
 
 // 旧页 startDownloadForModItem:（L5606-5631）等价移植：
@@ -2857,11 +3444,13 @@ static UIColor *ZL2AssetSourceBadgeColor(NSInteger apiSource) {
     nextStep();
 }
 
-#pragma mark - ShaderVersionViewControllerDelegate
+#pragma mark - ShaderVersionViewControllerDelegate / ★Task436 光影域
 
+// ★Task436：光影域选版分流（原 shaderVersionViewController:didSelectVersion:
+// 方法体收编；ModVersion 形参统一承载——ShaderVersion 同字段面动态派发兼容）
 // 旧页 shaderVersionViewController:didSelectVersion:（L5816-5833）等价移植
-- (void)shaderVersionViewController:(ShaderVersionViewController *)viewController didSelectVersion:(ShaderVersion *)version {
-    ShaderItem *itemToDownload = viewController.shaderItem;
+- (void)ame436_handleShaderDomainVersion:(ModVersion *)version shaderItem:(ShaderItem *)shaderItem {
+    ShaderItem *itemToDownload = shaderItem;
 
     NSDictionary *primaryFile = version.primaryFile;
     if (!primaryFile || ![primaryFile[@"url"] isKindOfClass:[NSString class]]) {
@@ -2876,6 +3465,12 @@ static UIColor *ZL2AssetSourceBadgeColor(NSInteger apiSource) {
     // 子页面已 push 到导航栈，选完版本后 pop 回搜索列表
     [self ame_popVersionPage];
     [self ame_startDownloadForShaderItem:itemToDownload];
+}
+
+// ★Task436：旧页兼容面（方法体已收编上行 helper；ShaderVersion 实参仅消费
+// primaryFile——同字段面动态派发，ShaderVersionViewController 旧页同判例）
+- (void)shaderVersionViewController:(ShaderVersionViewController *)viewController didSelectVersion:(ShaderVersion *)version {
+    [self ame436_handleShaderDomainVersion:(ModVersion *)version shaderItem:viewController.shaderItem];
 }
 
 // 旧页 startDownloadForShaderItem:（L5837-5857）等价移植
@@ -2899,10 +3494,12 @@ static UIColor *ZL2AssetSourceBadgeColor(NSInteger apiSource) {
     }];
 }
 
-#pragma mark - AssetVersionViewControllerDelegate（资源包 / 存档分流）
+#pragma mark - AssetVersionViewControllerDelegate（资源包 / 存档分流）/ ★Task436
 
+// ★Task436：资产域选版分流（原 assetVersionViewController:didSelectVersion:
+// 方法体收编；分流完全走 self.pending*——新页/旧页同链）
 // 旧页 assetVersionViewController:didSelectVersion:（L5564-5602）等价移植
-- (void)assetVersionViewController:(AssetVersionViewController *)viewController didSelectVersion:(ModVersion *)version {
+- (void)ame436_handleAssetDomainVersion:(ModVersion *)version {
     NSDictionary *primaryFile = version.primaryFile;
     if (!primaryFile || ![primaryFile[@"url"] isKindOfClass:[NSString class]]) {
         [self ame_showError:localize(@"i18n_str_265", nil)];
@@ -2940,6 +3537,11 @@ static UIColor *ZL2AssetSourceBadgeColor(NSInteger apiSource) {
         item.fileSHA1 = ZL2AssetSha1FromPrimaryFile(primaryFile);
         [self ame_startDownloadForDataPackItem:item];
     }
+}
+
+// ★Task436：旧页兼容面（方法体已收编上行 helper）
+- (void)assetVersionViewController:(AssetVersionViewController *)viewController didSelectVersion:(ModVersion *)version {
+    [self ame436_handleAssetDomainVersion:version];
 }
 
 // Task323：旧页 startDownloadForDataPackItem:（L6391-6414）等价移植；

@@ -63,7 +63,7 @@
 #import "ZL2HomeViewController.h"
 #import "ZL2Theme.h"
 #import <math.h>   // ★Task414 ame414_relayoutVersionHeight fmax/fmin
-#import "ControlRepoViewController.h"   // ★Task343：控件自动检查更新挂载（旧 Root 壳退役后移防主页）
+#import "ZL2ControlRepoViewController.h"   // ★Task343：控件自动检查更新挂载（旧 Root 壳退役后移防主页）；★Task436 A4 改名同步
 #import "ZL2M3Kit.h"                 // ZL2M3BottomSheet（长按卡菜单）
 // ★ Task378 r2：目录瓦片改走壳通知接线（@"ZL2ShellOpenFileManager"）——有意不
 //   import FolderBrowserViewController.h：ui_fluent_smoke 预览链接窄清单不含
@@ -615,7 +615,7 @@ static UIImage *ZL2HomeSizedImage(NSString *name, NSString *fallback, CGFloat po
     // ★Task343：控件自动检查更新挂载点（Task255 链 1:1——旧 Root 壳物理退役，
     // 开关门控 + 静态一次性守卫在 autoCheckControlUpdatesOnce 实现内，主页
     // viewDidLoad 每启动恰一次）
-    [ControlRepoViewController autoCheckControlUpdatesOnce];
+    [ZL2ControlRepoViewController autoCheckControlUpdatesOnce];   // ★Task436：A4 迁移改名同步
     // 复用注册（经典 dataSource 路径；cell 类自带 configure，无 iOS15+ registration）
     [self.gridView registerClass:[ZL2HomeVersionCardCell class]
       forCellWithReuseIdentifier:@"zl2_home_version_card"];

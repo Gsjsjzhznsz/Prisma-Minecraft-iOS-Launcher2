@@ -4481,3 +4481,66 @@
 "launch.ui.icon.import" = "Import Icon";
 
 "launch.ui.icon.import.subtitle" = "Pick a photo, crop it, and use it as the app icon";
+
+// ★Task436：主题取色自由化（色相条 + Hex/三档如实文案）+ 陀螺仪实时调参浮层（13 键四表同步）
+"ame436.control.gyro.tuner" = "Gyro Live Tuner";
+"ame436.control.gyro.tuner.subtitle" = "Floating panel, seven parameters apply instantly (works in game and here)";
+"ame436.f.custom.hex.placeholder" = "#RRGGBB";
+"ame436.f.custom.style" = "Palette style (3 presets)";
+"ame436.gyro.enable" = "Gyroscope";
+"ame436.gyro.hint" = "All seven parameters apply instantly; collapse the panel and feel it in game";
+"ame436.gyro.invert_x" = "Invert X Axis";
+"ame436.gyro.invert_y" = "Invert Y Axis";
+"ame436.gyro.sample_rate" = "Sample Rate";
+"ame436.gyro.sensitivity" = "Sensitivity";
+"ame436.gyro.smooth_enable" = "Smoothing";
+"ame436.gyro.smooth_window" = "Smoothing Window";
+"ame436.gyro.title" = "Gyro Live Tuner";
+
+// ★ Task436（批次三·编辑器最小闭环 + A4 改名）：四表 40 键
+"ame436.gamemenu.edit_layout" = "Edit Layout (Live)";
+"ame436.editor.add.title" = "New Control";
+"ame436.editor.add.button" = "Button";
+"ame436.editor.add.button.sub" = "Action button (unbound by default; select it to set a key)";
+"ame436.editor.add.textbox" = "Text Box";
+"ame436.editor.add.textbox.sub" = "Virtual keyboard toggle (in-game text input entry)";
+"ame436.editor.add.joystick" = "Joystick";
+"ame436.editor.add.joystick.sub" = "Virtual joystick (WASD movement)";
+"ame436.editor.add.foot" = "New controls appear at the canvas center; drag them into place, then save.";
+"ame436.editor.add.toast_fmt" = "Created: %@";
+"ame436.editor.props.none" = "Tap a control node first";
+"ame436.editor.props.title" = "Control Properties";
+"ame436.editor.props.name" = "Name";
+"ame436.editor.props.keycode" = "Key Mapping";
+"ame436.editor.props.keycode.hint" = "Keycode: 0=unbound; positive=GLFW keycode (87=W, 256=Esc); negative=special key";
+"ame436.editor.props.event" = "Tap Event";
+"ame436.editor.props.event.normal" = "Normal";
+"ame436.editor.props.event.toggle" = "Toggle";
+"ame436.editor.props.event.passthru" = "Pass-through";
+"ame436.editor.props.special" = "Launcher Actions";
+"ame436.editor.props.special.none" = "None";
+"ame436.editor.props.special.keyboard" = "Virtual Keyboard";
+"ame436.editor.props.special.menu" = "Main Menu";
+"ame436.editor.props.special.toglectrl" = "Toggle GUI";
+"ame436.editor.props.special.vmouse" = "Virtual Mouse";
+"ame436.editor.props.special.mousepri" = "Left Click";
+"ame436.editor.props.special.mousesec" = "Right Click";
+"ame436.editor.props.special.mousemid" = "Middle Click";
+"ame436.editor.props.special.scrollup" = "Scroll Up";
+"ame436.editor.props.special.scrolldown" = "Scroll Down";
+"ame436.editor.props.opacity" = "Opacity";
+"ame436.editor.props.bgalpha" = "Background Opacity";
+"ame436.editor.props.stroke" = "Stroke Width";
+"ame436.editor.props.forwardlock" = "Forward Lock";
+"ame436.editor.props.clone" = "Duplicate Control (offset 8pt)";
+"ame436.editor.props.delete" = "Delete Control";
+"ame436.editor.delete.confirm.body_fmt" = "\"%@\" will be removed. It is written to the layout file on save; use \"Discard Changes & Exit\" to undo before saving.";
+"ame436.editor.toast.cloned_fmt" = "Duplicated: %@ (offset 8pt)";
+"ame436.editor.toast.deleted" = "Control deleted";
+"ame436.editor.clone.suffix" = "Copy";
+
+"ame436.vlist.empty" = "No downloadable versions";
+"ame436.fav.sort_by_title" = "Sort by title";
+"ame436.fav.refresh" = "Refresh remote info";
+"ame436.fav.refresh_done_fmt" = "Refreshed %lu/%lu favorites";
+"ame436.fav.filter_missing_hint" = "Entries missing this field are not filtered";

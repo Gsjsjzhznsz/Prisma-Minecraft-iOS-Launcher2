@@ -1,10 +1,10 @@
 #import "ProfileSettingsViewController.h"
 #import "AmeNativeMenu.h"       // ★ Task240：菜单全面系统原生 UIMenu 化
-#import "ModsManagerViewController.h"
-#import "ShadersManagerViewController.h"
-#import "ResourcePacksManagerViewController.h"
-#import "DataPacksManagerViewController.h"
-#import "WorldsManagerViewController.h"
+// ★Task436 退役批次二：旧五管理页（Mods/Shaders/ResourcePacks/DataPacks/
+//   WorldsManagerViewController）整链删除——本页资源管理组五个入口统一
+//   改道 ZL2 实例页族（ZL2VersionDetailViewController 容器：模组/存档
+//   +数据包/资源包/光影 rail 直达；世界管理 = 存档子页）。
+#import "ZL2VersionDetailViewController.h"
 #import "PLProfiles.h"
 #import "LauncherPreferences.h"
 // Task432：LauncherNavigationController import 随类退役摘除（其承载的
@@ -1669,17 +1669,10 @@ static NSString * localizeProfileTitle(NSString *title) {
             break;
 
         case 1: // 资源管理
-            if ([title isEqualToString:@"模组管理"]) {
-                [self openModsManager];
-            } else if ([title isEqualToString:@"光影管理"]) {
-                [self openShadersManager];
-            } else if ([title isEqualToString:@"资源包管理"]) {
-                [self openResourcePacksManager];
-            } else if ([title isEqualToString:@"数据包管理"]) {
-                [self openDataPacksManager];
-            } else if ([title isEqualToString:@"世界管理"]) {
-                [self openWorldsManager];
-            }
+            // ★Task436 退役批次二：旧五管理页退役——本组五个入口统一改道
+            //   ZL2 实例页族（分组行保留 = 旧页用户路径连续；落点全在
+            //   ZL2VersionDetailViewController 容器，rail 内对位子页直达）。
+            [self ame436_openZL2InstanceDomain];
             break;
 
         case 2: // 组件安装
@@ -1803,10 +1796,14 @@ static NSString * localizeProfileTitle(NSString *title) {
     [self presentViewController:alert animated:YES completion:nil];
 }
 
-- (void)openModsManager {
-    ModsManagerViewController *vc = [[ModsManagerViewController alloc] init];
-    // Task267：语义入口（本 gameDir 实例的模组）= 钉定，选中实例变化不跟走
-    [vc ame267_pinToProfile:[self currentProfileName]];
+// ★Task436 退役批次二：资源管理组改道 ZL2 实例页族（旧五管理页整链删除，
+//   模组/光影/资源包/数据包/世界管理在 ZL2 版本详情容器各有对位子页：
+//   模组页 / 存档桥接页（含数据包入口）/ 资源包页 / 光影页；世界管理 =
+//   存档子页）。currentProfileName = Task271 身份口径（profileDictKey
+//   优先），与容器「注册表字典键」契约同源。
+- (void)ame436_openZL2InstanceDomain {
+    ZL2VersionDetailViewController *vc =
+        [[ZL2VersionDetailViewController alloc] initWithProfileName:[self currentProfileName]];
     [self.navigationController pushViewController:vc animated:YES];
 }
 
@@ -2212,32 +2209,6 @@ static NSString * localizeProfileTitle(NSString *title) {
     [ask addAction:[UIAlertAction actionWithTitle:localize(@"resman.common.cancel", nil)
         style:UIAlertActionStyleCancel handler:nil]];
     [self presentViewController:ask animated:YES completion:nil];
-}
-
-- (void)openShadersManager {
-    ShadersManagerViewController *vc = [[ShadersManagerViewController alloc] init];
-    vc.profileName = [self currentProfileName];
-    vc.initialMode = ShadersManagerModeLocal;
-    [self.navigationController pushViewController:vc animated:YES];
-}
-
-- (void)openResourcePacksManager {
-    ResourcePacksManagerViewController *vc = [[ResourcePacksManagerViewController alloc] init];
-    vc.profileName = [self currentProfileName];
-    vc.initialMode = ResourcePacksManagerModeLocal;
-    [self.navigationController pushViewController:vc animated:YES];
-}
-
-- (void)openDataPacksManager {
-    DataPacksManagerViewController *vc = [[DataPacksManagerViewController alloc] init];
-    vc.profileName = [self currentProfileName];
-    [self.navigationController pushViewController:vc animated:YES];
-}
-
-- (void)openWorldsManager {
-    WorldsManagerViewController *vc = [[WorldsManagerViewController alloc] init];
-    vc.profileName = [self currentProfileName];
-    [self.navigationController pushViewController:vc animated:YES];
 }
 
 #pragma mark - 组件独立安装（Fabric API / OptiFine）

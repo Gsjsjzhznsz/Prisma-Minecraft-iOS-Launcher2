@@ -187,9 +187,9 @@ def main():
           "加载器清单必须接入 PLMirrorCenter 候选链")
     check("ame325:m3cardcell-shared",
           "ZL2M3CardCell" in read("Natives/ZL2M3Kit.h")
-          and "ZL2RepoCardCell" not in read("Natives/ControlRepoViewController.m"),
+          and "ZL2RepoCardCell" not in read("Natives/ZL2ControlRepoViewController.m"),
           "卡片 cell 必须上收 ZL2M3Kit 公共组件（本地类退役）")
-    for repo_rel in ("Natives/ControlRepoViewController.m", "Natives/ZL2PluginRepoViewController.m"):
+    for repo_rel in ("Natives/ZL2ControlRepoViewController.m", "Natives/ZL2PluginRepoViewController.m"):
         repo = read(repo_rel)
         check("ame325:%s-zl2card" % os.path.basename(repo_rel),
               "ZL2M3CardCell" in repo and "UITableViewCellStyleSubtitle" not in repo,

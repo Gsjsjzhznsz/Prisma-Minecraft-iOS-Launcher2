@@ -12,6 +12,9 @@
 //   · 轨桥接私有成员经「运行期合成访问器」消费（消费方 TU 自含声明判例：
 //     类扩展 property 的 getter/setter 在主实现 TU 编译期合成，本 TU 声明
 //     同名 property 走 objc_msgSend 运行期命中；选择器逐一对应勿漂移）。
+// ★Task436 批次二④：版本页构造全量改道 ZL2VersionListPage（五分支构造点
+//   mod/modpack/resourcepack/world/shader；分支语义与 pending* 回填不变，
+//   仅页型换新——轨页 delegate 桥接协议同步换 ZL2VersionListPageDelegate）。
 //
 
 #import "ZL2SearchIdViewController.h"
@@ -28,9 +31,9 @@
 #import "ShaderItem.h"
 #import "ResourcePackItem.h"
 #import "WorldItem.h"
-#import "ModVersionViewController.h"
-#import "ShaderVersionViewController.h"
-#import "AssetVersionViewController.h"
+// ★Task436 批次二④：三版本列表页统一新页（旧三版本页头退役——本 TU 版本页
+//   构造全量改道 ZL2VersionListPage，delegate 桥接协议同步换新）
+#import "ZL2VersionListPage.h"
 
 #include <stdlib.h>
 
@@ -54,8 +57,7 @@
 // 轨搜索页私有面：pending* = 版本页回填状态（类扩展合成访问器，运行期命中）；
 // assetType 只读（构造注入后只读）；ame_profile* = 轨内偏好快照（旧页语义）
 @interface ZL2AssetSearchViewController (Task432SearchIdBridge)
-    <ModVersionViewControllerDelegate, ShaderVersionViewControllerDelegate,
-     AssetVersionViewControllerDelegate>
+    <ZL2VersionListPageDelegate>
 @property (nonatomic, copy, nullable) NSString *pendingDownloadType;
 @property (nonatomic, strong, nullable) NSDictionary *pendingModpackDict;
 @property (nonatomic, strong, nullable) ResourcePackItem *pendingResourcePackItem;
@@ -866,87 +868,98 @@ static UIImage *ZL2SIDSystemImage(NSString *name, NSString *fallback) {
     switch (assetType) {
         case ZL2AssetSearchTypeMod: {
             // 防轨内 pending 残留串扰（模组分支不吃 modpack 回填态）
+            // ★Task436：版本页改道 ZL2VersionListPage（Mod 域承载）
             track.pendingDownloadType = nil;
             ModItem *modItem = [[ModItem alloc] initWithOnlineData:entry];
-            ModVersionViewController *vc = [[ModVersionViewController alloc] init];
-            vc.modItem = modItem;
-            vc.delegate = track;
-            vc.title = modItem.displayName;
+            ZL2VersionListPage *vc = [[ZL2VersionListPage alloc] initWithDomain:ZL2VersionListDomainMod];
+            vc.projectID = modItem.onlineID;
             vc.apiSource = itemSource;
             vc.preferredGameVersion = mcVersion;
             vc.preferredLoader = loader;
+            vc.pageTitle = modItem.displayName;
+            vc.modItem = modItem;
+            vc.snapshotProjectType = @"mod";
+            vc.delegate = track;
             versionVC = vc;
             break;
         }
         case ZL2AssetSearchTypeModpack: {
-            // 旧页 installModpackAtIndexPath 形态：模组版版本页复用 +
+            // 旧页 installModpackAtIndexPath 形态：模组域版本页复用 +
             // pendingDownloadType="modpack" + pendingModpackDict 分流安装流
+            // ★Task436：版本页改道（页仍 Mod 域承载，分流语义不变）
             ModItem *modItem = [[ModItem alloc] initWithOnlineData:entry];
-            ModVersionViewController *vc = [[ModVersionViewController alloc] init];
-            vc.modItem = modItem;
-            vc.delegate = track;
-            vc.title = modItem.displayName;
+            ZL2VersionListPage *vc = [[ZL2VersionListPage alloc] initWithDomain:ZL2VersionListDomainMod];
+            vc.projectID = modItem.onlineID;
             vc.apiSource = itemSource;
             vc.preferredGameVersion = mcVersion;
             vc.preferredLoader = loader;
+            vc.pageTitle = modItem.displayName;
+            vc.modItem = modItem;
+            vc.snapshotProjectType = @"modpack";
+            vc.delegate = track;
             track.pendingDownloadType = @"modpack";
             track.pendingModpackDict = entry;
             versionVC = vc;
             break;
         }
         case ZL2AssetSearchTypeResourcePack: {
+            // ★Task436：版本页改道（Asset 域承载 + 详情头字段显式透传）
             ResourcePackItem *item = [[ResourcePackItem alloc] initWithOnlineData:entry];
             track.pendingDownloadType = @"resourcepack";
             track.pendingResourcePackItem = item;
-            AssetVersionViewController *vc = [[AssetVersionViewController alloc] init];
-            vc.assetType = AssetVersionTypeResourcePack;
+            ZL2VersionListPage *vc = [[ZL2VersionListPage alloc] initWithDomain:ZL2VersionListDomainAsset];
             vc.projectID = item.onlineID;
             vc.apiSource = itemSource;
-            vc.projectDisplayName = item.displayName;
+            vc.pageTitle = item.displayName;
+            vc.snapshotProjectType = @"resourcepack";
             vc.delegate = track;
-            vc.title = item.displayName;
-            vc.projectIconURL = item.iconURL;
-            vc.projectAuthor = item.author;
-            vc.projectDownloads = item.downloads;
-            vc.projectLikes = item.likes;
-            vc.projectDescription = item.resourcePackDescription;
-            vc.projectCategories = item.categories;
-            vc.projectLastUpdated = item.lastUpdated;
             vc.preferredGameVersion = mcVersion;
+            vc.headerTitle = item.displayName;
+            vc.headerIconURL = item.iconURL;
+            vc.headerAuthor = item.author;
+            vc.headerDownloads = item.downloads;
+            vc.headerLikes = item.likes;
+            vc.headerDescription = item.resourcePackDescription;
+            vc.headerCategories = item.categories;
+            vc.headerLastUpdated = item.lastUpdated;
             versionVC = vc;
             break;
         }
         case ZL2AssetSearchTypeWorld: {
+            // ★Task436：版本页改道（Asset 域承载 + 详情头字段显式透传）
             WorldItem *item = [[WorldItem alloc] initWithOnlineData:entry];
             track.pendingDownloadType = @"world";
             track.pendingWorldItem = item;
-            AssetVersionViewController *vc = [[AssetVersionViewController alloc] init];
-            vc.assetType = AssetVersionTypeWorld;
+            ZL2VersionListPage *vc = [[ZL2VersionListPage alloc] initWithDomain:ZL2VersionListDomainAsset];
             vc.projectID = item.onlineID;
             vc.apiSource = itemSource;
-            vc.projectDisplayName = item.displayName;
+            vc.pageTitle = item.displayName;
+            vc.snapshotProjectType = @"world";
             vc.delegate = track;
-            vc.title = item.displayName;
-            vc.projectIconURL = item.iconURL;
-            vc.projectAuthor = item.author;
-            vc.projectDownloads = item.downloads;
-            vc.projectLikes = item.likes;
-            vc.projectDescription = item.worldDescription;
-            vc.projectCategories = item.categories;
-            vc.projectLastUpdated = item.lastUpdated;
             vc.preferredGameVersion = mcVersion;
+            vc.headerTitle = item.displayName;
+            vc.headerIconURL = item.iconURL;
+            vc.headerAuthor = item.author;
+            vc.headerDownloads = item.downloads;
+            vc.headerLikes = item.likes;
+            vc.headerDescription = item.worldDescription;
+            vc.headerCategories = item.categories;
+            vc.headerLastUpdated = item.lastUpdated;
             versionVC = vc;
             break;
         }
         case ZL2AssetSearchTypeShader: {
+            // ★Task436：版本页改道（Shader 域承载）
             ShaderItem *shaderItem = [[ShaderItem alloc] initWithOnlineData:entry];
-            ShaderVersionViewController *vc = [[ShaderVersionViewController alloc] init];
-            vc.shaderItem = shaderItem;
-            vc.delegate = track;
-            vc.title = shaderItem.displayName;
+            ZL2VersionListPage *vc = [[ZL2VersionListPage alloc] initWithDomain:ZL2VersionListDomainShader];
+            vc.projectID = shaderItem.onlineID;
             vc.apiSource = itemSource;
             vc.preferredGameVersion = mcVersion;
             vc.preferredLoader = loader;
+            vc.pageTitle = shaderItem.displayName;
+            vc.shaderItem = shaderItem;
+            vc.snapshotProjectType = @"shader";
+            vc.delegate = track;
             versionVC = vc;
             break;
         }

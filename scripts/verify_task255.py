@@ -85,14 +85,14 @@ check("MP:预检 https 2 备用线路", "etnode.zkitefly.eu.org/node1" in tm and
 check("MP:https HEAD 探测", 'HTTPMethod = @"HEAD"' in tm)
 
 # ─── 7. 控件自动检查更新链 ───
-cr = read("Natives/ControlRepoViewController.m")
+cr = read("Natives/ZL2ControlRepoViewController.m")
 check("Ctrl:autoCheck 类方法", "+ (void)autoCheckControlUpdatesOnce" in cr)
-crh = read("Natives/ControlRepoViewController.h")
+crh = read("Natives/ZL2ControlRepoViewController.h")
 check("Ctrl:h 声明", "autoCheckControlUpdatesOnce" in crh)
 # ★Task343 重锚：LauncherRootViewController 随旧壳家族物理退役；启动链挂载点已由
 # 7.0-UI-8 壳接管演进至 ZL2HomeViewController，本断言对准现役主页挂载点
 lr = read("Natives/ZL2HomeViewController.m")
-check("Ctrl:启动链挂载（★Task343 对准 ZL2Home 现役挂载点）", "[ControlRepoViewController autoCheckControlUpdatesOnce]" in lr)
+check("Ctrl:启动链挂载（★Task343 对准 ZL2Home 现役挂载点）", "[ZL2ControlRepoViewController autoCheckControlUpdatesOnce]" in lr)
 plp = read("Natives/PLPreferences.m")
 check("Ctrl:defaults 注册", '"auto_control_update_check": @NO' in plp)
 # ★Task432 重锚：LPV 本体随退役批次一物理删除，设置行现役面 = ZL2SettingPages 控制屏

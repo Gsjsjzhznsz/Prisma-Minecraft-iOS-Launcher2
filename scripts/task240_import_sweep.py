@@ -7,7 +7,7 @@ FILES = [
     "Natives/ThirdPartyLoginViewController.m",
     "Natives/TouchControllerPreferencesViewController.m",
     "Natives/WelcomeViewController.m",
-    "Natives/ControlRepoViewController.m",
+    "Natives/ZL2ControlRepoViewController.m",
     "Natives/BingWallpaperGalleryViewController.m",
     "Natives/LauncherPrefManageJREViewController.m",
     "Natives/PLPrefTableViewController.m",

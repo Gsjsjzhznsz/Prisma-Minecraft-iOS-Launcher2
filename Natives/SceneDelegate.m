@@ -4,7 +4,9 @@
 #import "LauncherPreferences.h"
 #import "BackgroundManager.h"
 #import "BingWallpaperManager.h" // Task151
-#import "WelcomeViewController.h" // Task218：首次使用欢迎向导
+// ★Task436（A3 首启向导断一代）：#import "WelcomeViewController.h" 摘除——
+//   本文件不再 present 一代欢迎向导（唯一 present 点退役，见下方原 0.8s
+//   延迟位注记）；向导本体保留编译（删除决策报告登记）。
 // ★ Task392：RegionGate（Task312 服务地区门）彻底退役——用户指令 2026-11-03
 //   「彻底清除确认非中国大陆用户的弹窗」：检测链/弹窗链/偏好键/i18n 词条
 //   全链拆除，欢迎向导不再被门拦（直接呈现，时序不变）。
@@ -123,23 +125,20 @@ extern BOOL Amethyst_EnforceSDL3Presentation(void);
     UIViewController *rootVC = [[ZL2ShellViewController alloc] init];
     self.window.rootViewController = rootVC;
 
-    // Task218：首次使用欢迎向导（general.welcome_completed 哨兵，默认 NO）。
-    // 延迟 0.8s 让主界面先完成首帧布局，再全屏淡入向导（语言 / 下载源 /
-    // 数据导入三步引导 + 动效）。完成或跳过即置 YES，此后不再打扰。
-    // ★ Task392：Task312 服务地区门前置退役（用户指令「彻底清除确认非
-    //   中国大陆用户的弹窗」）——向导直接呈现，0.8s 时序原样保留。
-    dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.8 * NSEC_PER_SEC)),
-                   dispatch_get_main_queue(), ^{
-        [WelcomeViewController presentIfNeededFromViewController:rootVC];
-    });
+    // ★Task436（A3 首启三步向导断一代）：一代 WelcomeViewController 自动弹
+    //   窗整链摘除（原 Task218 口径：哨兵 general.welcome_completed 默认
+    //   NO，延迟 0.8s 全屏淡入三步引导；★ Task392 起无地区门拦截）。
+    //   新 UI 域尚无等价首启向导——存量用户升级路径已无需向导，新装引导
+    //   待新 UI 首启域承接后另行挂载（挂点即本处原 0.8s 延迟位）。验收
+    //   量尺：本文件不再 present 一代 Welcome（全仓唯一 present 点即此）。
 
     // ★ Task273（PCL CE 式崩溃分析第二层）：上次会话非零退出的崩溃原因
     //   报告补弹——ame273_writeCrashReport 在闪退前已同步落盘
     //   ame273_crash_report.txt（确定性层），此处冷启动检出后玻璃弹窗
     //   给出崩溃类别/关键原因/修复建议/详情（main_hook 会话内让路窗口
     //   未能展示 PLCrashView 时的必达兜底；消费后归档不重复打扰）。
-    //   延迟 2.5s：避开欢迎向导 0.8s 呈现窗口 + 主界面首帧布局（方法内
-    //   另有沿链上溯，双保险）。
+    //   延迟 2.5s：避开主界面首帧布局（★Task436 起无欢迎向导 0.8s 呈现
+    //   窗口，注释口径随断链更新；方法内另有沿链上溯，双保险）。
     dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(2.5 * NSEC_PER_SEC)),
                    dispatch_get_main_queue(), ^{
         // ★ Task306：SIGKILL 级会话死亡感知——app 冷启动即感知上次会话

@@ -540,6 +540,9 @@ add_executable(AngelAuraAmethyst
   AmeHCTPalette.m
   ZL2DynamicPalette.m
   ZL2ThemeCustomSheet.m
+  # ★ Task436：陀螺仪游戏内实时调参浮层（统一进度页式浮层挂载；
+  #   +presentFrom: 任意 VC 可拉起——游戏内主入口由主控后续接 SurfaceViewController）
+  ZL2GyroTunerViewController.m
   ZL2BackgroundHost.m
   ZL2ControlLayoutEditorViewController.m
   PLComponentService.m
@@ -564,6 +567,8 @@ add_executable(AngelAuraAmethyst
   ZL2GameAddonsViewController.m
   ZL2SearchIdViewController.m
   ZL2FavoritesStore.m
+  # ★Task436 批次二④：三版本列表页统一参数化新页（Asset/Mod/Shader 三域承载）
+  ZL2VersionListPage.m
   InlineMessageView.m
   DownloadTaskItem.m
   DownloadTaskManager.m
@@ -602,7 +607,8 @@ add_executable(AngelAuraAmethyst
   AppDelegate.m
   CustomControlsViewController.m
   CustomControlsViewController+UndoManager.m
-  ControlRepoViewController.m
+  # ★ Task436（A4 迁移改名）：ControlRepoViewController.m → ZL2ControlRepoViewController.m
+  ZL2ControlRepoViewController.m
   FileListViewController.m
   FolderBrowserViewController.m
   Ame223CoachMarksView.m
@@ -618,7 +624,9 @@ add_executable(AngelAuraAmethyst
   PortForwarder.m
   # Task432 退役批次一：LauncherNavigationController.m 物理删除（ZL2 壳导航总线接管）
   ProfileSettingsViewController.m
-  DownloadViewController.m
+  # ★Task436 退役批次二：DownloadViewController.m 物理删除（消费面仅剩
+  #   Shaders/DataPacks 两个旧管理页，随五管理页整链退役一并归零；
+  #   ZL2 下载域 = ZL2DownloadViewController / ZL2GameDownloadViewController）
   # Task291: built-in JIT (PocketJ port phase 1)
   StikDebugEngine.m
   StikDebugViewController.m
@@ -661,7 +669,9 @@ add_executable(AngelAuraAmethyst
   ModItem.m
   ModService.m
   ModTableViewCell.m
-  ModsManagerViewController.m
+  # ★Task436 退役批次二：ModsManagerViewController.m 物理删除（唯一真实
+  #   消费者 = ProfileSettings 资源管理组，该组已改道 ZL2 版本详情容器；
+  #   ZL2 对位页 = ZL2VersionModsPage）
   ModVersion.m
   ModVersionViewController.m
   ModVersionTableViewCell.m
@@ -682,7 +692,8 @@ add_executable(AngelAuraAmethyst
   ShaderVersion.m
   ShaderVersionTableViewCell.m
   ShaderVersionViewController.m
-  ShadersManagerViewController.m
+  # ★Task436 退役批次二：ShadersManagerViewController.m 物理删除（同上，
+  #   ZL2 对位页 = ZL2VersionShadersPage）
 
   # Modpack import/export sources
   ModpackImportViewController.m
@@ -704,15 +715,14 @@ add_executable(AngelAuraAmethyst
   DataPackService.m
   WorldService.m
   AssetVersionViewController.m
-  ResourcePacksManagerViewController.m
-  DataPacksManagerViewController.m
-  WorldsManagerViewController.m
+  # ★Task436 退役批次二：ResourcePacks/DataPacks/WorldsManagerViewController.m
+  #   物理删除（同上；ZL2 对位页 = ZL2VersionResourcePacksPage / 版本详情
+  #   第九子页 ZL2V13DatapacksPage / ZL2VersionSavesPage）
 
   # Server projects (Modrinth Server Projects + CurseForge server packs)
-  ServerItem.m
-  ServerService.m
-  # Task432 退役批次一：ServerListViewController.m / ServerDetailViewController.m 物理删除
-  #   （ServerItem/ServerService 数据层留守）
+  # ★Task436 孤儿清理：ServerItem.m / ServerService.m 物理删除
+  #   （全仓 grep 零代码消费——Task432 批次一删 ServerList/ServerDetail 后
+  #   仅剩自引；CurseForgeAPI.m:1497 / ModrinthAPI.m:725 仅注释提及）
 
   # CurseForge API Key settings page
   installer/CurseForgeAPIKeyViewController.m
@@ -759,14 +769,14 @@ add_executable(AngelAuraAmethyst
   UpdateChecker.m
 
   # Minecraft 新闻（参考 PCL-CE，调用 minecraft-services.net 官方新闻 API）
-  # Task432 退役批次一：MinecraftNewsViewController.m 物理删除（Item/Service 数据层留守）
-  MinecraftNewsItem.m
-  MinecraftNewsService.m
+  # ★Task436 孤儿清理：MinecraftNewsItem.m / MinecraftNewsService.m 物理删除
+  #   （Task432 批次一已删 MinecraftNewsViewController 消费页，Item/Service
+  #   自此零代码消费——仅自引；PLPreferences news_url 键同步摘除）
 
   # 公告系统（从官网拉取 JSON，支持 Markdown 渲染）
   # Task432 退役批次一：AnnouncementService/AnnouncementList/AnnouncementDetail 三件物理删除
-  #   （评估实锤：service 代码引用仅公告列表页；AnnouncementItem 模型 + MarkdownParser 留守）
-  AnnouncementItem.m
+  # ★Task436 孤儿清理：AnnouncementItem.m 物理删除（消费 UI 已全退役，
+  #   仅自引；MarkdownParser 留守——AIMessageCell 仍消费）
   MarkdownParser.m
 
   # Air AI Agent（OpenAI 兼容聊天助手）

@@ -63,7 +63,7 @@ rpm = "Natives/LauncherRightPanelViewController.m"
 wvc = "Natives/WelcomeViewController.m"
 cmk = "Natives/Ame223CoachMarksView.m"
 bm  = "Natives/BackgroundManager.m"
-crv = "Natives/ControlRepoViewController.m"
+crv = "Natives/ZL2ControlRepoViewController.m"
 mgv = "Natives/external/MobileGlues/MobileGlues-cpp/version.h"
 mgm = "Natives/external/MobileGlues/MobileGlues-cpp/gl/multidraw.cpp"
 

@@ -47,7 +47,7 @@
 #import "ZL2AssetSearchViewController.h"
 #import "ZL2SearchIdViewController.h"
 #import "utils.h"                           // localize()（轨项标题）
-// ★Task432：ControlRepoViewController / ZL2PluginRepoViewController 两 import
+// ★Task432（★Task436 类名随 A4 迁移改名同步）：ZL2ControlRepoViewController / ZL2PluginRepoViewController 两 import
 //   随仓库三轨摘除同步退役（未用引用全清；VC 类本体与设置域入口不动）。
 
 // SF Symbols 取图兜底（符号名异常时降级旧名）

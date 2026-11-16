@@ -1,4 +1,6 @@
-#import "ControlRepoViewController.h"
+// ★ Task436（A4 迁移改名）：本文件自 ControlRepoViewController.m 迁移改名
+//   （类名与文件名同步 ZL2 前缀；类内自引用同步替换，逻辑零改动）。
+#import "ZL2ControlRepoViewController.h"
 #import "AmeNativeMenu.h"       // ★ Task240：菜单全面系统原生 UIMenu 化
 #import "NMToast.h"
 #import "utils.h"
@@ -49,7 +51,7 @@ static NSString *task189_mirrorURL(NSInteger idx, NSString *relPath) {
     return raw;  // idx 5：官方直连（兜底）
 }
 
-@interface ControlRepoViewController ()
+@interface ZL2ControlRepoViewController ()
 @property (nonatomic, strong) NSMutableArray<NSDictionary *> *layouts;
 @property (nonatomic, strong) NSMutableDictionary<NSString *, NSString *> *localVersions;  // id -> 本地已装版本（触屏布局）
 // ★ Task311（手柄控件）：本地已装手柄映射角标（controlmap/gamepads/ 扫描，
@@ -326,7 +328,7 @@ static NSArray<NSString *> *ame232_layoutSafetyIssues(NSData *raw, id jsonObj) {
 
 @end
 
-@implementation ControlRepoViewController
+@implementation ZL2ControlRepoViewController
 
 /// Task232（反馈 #15）：下载落盘安装（直通与"仍要下载"确认两路共用）。
 - (void)ame232_installDownloadedLayout:(NSString *)layoutId data:(NSData *)data {
@@ -567,7 +569,7 @@ static NSArray<NSString *> *ame232_layoutSafetyIssues(NSData *raw, id jsonObj) {
 
 /// Task230：上传入口点击 → 选已安装布局 → 填元信息 → 安全检查 → 提交。
 - (void)ame230_uploadTapped:(id)sender {
-    [ControlRepoViewController ame230_presentUploadFlowFrom:self preselect:nil];
+    [ZL2ControlRepoViewController ame230_presentUploadFlowFrom:self preselect:nil];
 }
 
 /// 扫描本地 controlmap/ 的同名文件，计算"已下载/可更新"角标数据。
@@ -789,7 +791,7 @@ static NSArray<NSString *> *ame232_layoutSafetyIssues(NSData *raw, id jsonObj) {
         [sheet addAction:[UIAlertAction actionWithTitle:localize(@"dl.controls.local.upload", nil)
                                                   style:UIAlertActionStyleDefault
                                                 handler:^(UIAlertAction *a) {
-            [ControlRepoViewController ame230_presentUploadFlowFrom:self preselect:fileName];
+            [ZL2ControlRepoViewController ame230_presentUploadFlowFrom:self preselect:fileName];
         }]];
         [sheet addAction:[UIAlertAction actionWithTitle:localize(@"dl.controls.local.delete", nil)
                                                   style:UIAlertActionStyleDestructive
@@ -828,7 +830,7 @@ static NSArray<NSString *> *ame232_layoutSafetyIssues(NSData *raw, id jsonObj) {
     //   加载失败行点击重拉索引（原行为）。
     if (self.loadFailed || self.filteredLayouts.count == 0) {
         if (!self.loadFailed && self.selectedCategory == 1) {
-            [ControlRepoViewController ame230_presentUploadFlowFrom:self preselect:nil];
+            [ZL2ControlRepoViewController ame230_presentUploadFlowFrom:self preselect:nil];
             return;
         }
         if (self.loadFailed) [self fetchIndex];
@@ -1075,7 +1077,7 @@ static NSArray<NSString *> *ame232_layoutSafetyIssues(NSData *raw, id jsonObj) {
         [form addAction:[UIAlertAction actionWithTitle:localize(@"global.share", nil)
                                                  style:UIAlertActionStyleDefault
                                                handler:^(UIAlertAction *a) {
-            [ControlRepoViewController ame230_finishUploadFrom:presenter
+            [ZL2ControlRepoViewController ame230_finishUploadFrom:presenter
                                                       fileName:fileName
                                                           name:form.textFields[0].text
                                                         author:form.textFields[1].text
@@ -1086,7 +1088,7 @@ static NSArray<NSString *> *ame232_layoutSafetyIssues(NSData *raw, id jsonObj) {
         [form addAction:[UIAlertAction actionWithTitle:localize(@"ame230.repo.upload.github", nil)
                                                  style:UIAlertActionStyleDefault
                                                handler:^(UIAlertAction *a) {
-            [ControlRepoViewController ame230_finishUploadFrom:presenter
+            [ZL2ControlRepoViewController ame230_finishUploadFrom:presenter
                                                       fileName:fileName
                                                           name:form.textFields[0].text
                                                         author:form.textFields[1].text

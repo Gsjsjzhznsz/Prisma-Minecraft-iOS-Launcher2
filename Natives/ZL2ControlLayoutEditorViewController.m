@@ -359,6 +359,13 @@ static id ame429_listElementForNode(UIView *node) {
 // 入口喂参（工位 3-d）：宿主编辑器当前正在编辑的布局名（不含 .json；
 // nil/空 = 按 control.default_ctrl 偏好回落，见 ame429_loadLayout）
 @property(nonatomic, copy, nullable) NSString *ame429_layoutFileNameOverride;
+
+// ★ Task436（批次三·编辑器最小闭环）：新建/属性两工具钮 + 退出回调 +
+//   新建计数（居中放置漂移防精确重叠）
+@property(nonatomic, strong) UIButton *addButton;      // 新建控件（三类）
+@property(nonatomic, strong) UIButton *propsButton;    // 控件属性面板
+@property(nonatomic, copy, nullable) void (^ame436_onDismiss)(void);
+@property(nonatomic, assign) NSInteger ame436_createdCount;
 @end
 
 @implementation ZL2ControlLayoutEditorViewController
@@ -369,9 +376,18 @@ static id ame429_listElementForNode(UIView *node) {
 
 + (void)ame429_presentFromViewController:(UIViewController *)host
                           layoutFileName:(NSString *)fileName {
+    // ★ Task436：既有入口委托到带退出回调的新入口（nil = 不回调，行为零变化）
+    [self ame436_presentFromViewController:host layoutFileName:fileName onDismiss:nil];
+}
+
++ (void)ame436_presentFromViewController:(UIViewController *)host
+                          layoutFileName:(NSString *)fileName
+                               onDismiss:(void (^)(void))onDismiss {
     ZL2ControlLayoutEditorViewController *editor =
         [[ZL2ControlLayoutEditorViewController alloc] init];
     editor.ame429_layoutFileNameOverride = fileName;
+    // ★ Task436（批次三④ 游戏内入口）：退出回调（宿主热重载控件用）
+    editor.ame436_onDismiss = onDismiss;
     // 判例 Task62：全屏画布编辑器 OverFullScreen 直接呈现，不包导航容器
     editor.modalPresentationStyle = UIModalPresentationOverFullScreen;
     [host presentViewController:editor animated:YES completion:nil];
@@ -405,9 +421,10 @@ static id ame429_listElementForNode(UIView *node) {
     [self ame429_setupOverlay];
 
     if (![self ame429_loadLayout]) {
-        // 坏 JSON / 缺文件：吐司后退出（不崩，不留白屏编辑器）
+        // 坏 JSON / 缺文件：吐司后退出（不崩，不留白屏编辑器）。
+        // ★ Task436：退出统一走 ame436_exitEditor（onDismiss 回调链）
         [NMToast showMessage:localize(@"ame429.j.load.error", @"布局文件读取失败，请检查 controlmap 内的 JSON 文件")];
-        [self dismissViewControllerAnimated:YES completion:nil];
+        [self ame436_exitEditor];
     }
 }
 
@@ -538,16 +555,23 @@ static id ame429_listElementForNode(UIView *node) {
 
 - (void)ame429_attachGestures {
     for (UIView *nodeView in [self.canvas.subviews copy]) {
-        if (![nodeView isKindOfClass:[ControlButton class]]) continue;
-        UITapGestureRecognizer *tap = [[UITapGestureRecognizer alloc]
-            initWithTarget:self action:@selector(ame429_nodeTapped:)];
-        [nodeView addGestureRecognizer:tap];
-
-        UIPanGestureRecognizer *pan = [[UIPanGestureRecognizer alloc]
-            initWithTarget:self action:@selector(ame429_nodePanned:)];
-        pan.maximumNumberOfTouches = 1;
-        [nodeView addGestureRecognizer:pan];
+        [self ame429_attachGesturesToNode:nodeView];
     }
+}
+
+/// ★ Task436：单节点手势挂接（点按选中 / 拖拽移动）——装载批量挂接与本轮
+///   新建/克隆的单节点挂接共用，避免重复挂手势（老实现整画布循环只跑一次，
+///   新建/克隆路径若复用整循环会重复叠手势）。
+- (void)ame429_attachGesturesToNode:(UIView *)nodeView {
+    if (![nodeView isKindOfClass:[ControlButton class]]) return;
+    UITapGestureRecognizer *tap = [[UITapGestureRecognizer alloc]
+        initWithTarget:self action:@selector(ame429_nodeTapped:)];
+    [nodeView addGestureRecognizer:tap];
+
+    UIPanGestureRecognizer *pan = [[UIPanGestureRecognizer alloc]
+        initWithTarget:self action:@selector(ame429_nodePanned:)];
+    pan.maximumNumberOfTouches = 1;
+    [nodeView addGestureRecognizer:pan];
 }
 
 #pragma mark - 顶部工具条（M3）
@@ -595,6 +619,21 @@ static id ame429_listElementForNode(UIView *node) {
     [self.moreButton addTarget:self action:@selector(ame429_moreButtonTapped) forControlEvents:UIControlEventTouchUpInside];
     [self.topBar addSubview:self.moreButton];
 
+    // ★ Task436（批次三①②）：新建控件（按键/文本框/摇杆三类）与控件属性
+    self.addButton = [UIButton buttonWithType:UIButtonTypeSystem];
+    self.addButton.translatesAutoresizingMaskIntoConstraints = NO;
+    [self.addButton setImage:[UIImage systemImageNamed:@"plus"] forState:UIControlStateNormal];
+    self.addButton.tintColor = [ZL2Theme onSurfaceVariant];
+    [self.addButton addTarget:self action:@selector(ame436_addButtonTapped) forControlEvents:UIControlEventTouchUpInside];
+    [self.topBar addSubview:self.addButton];
+
+    self.propsButton = [UIButton buttonWithType:UIButtonTypeSystem];
+    self.propsButton.translatesAutoresizingMaskIntoConstraints = NO;
+    [self.propsButton setImage:[UIImage systemImageNamed:@"slider.horizontal.3"] forState:UIControlStateNormal];
+    self.propsButton.tintColor = [ZL2Theme onSurfaceVariant];
+    [self.propsButton addTarget:self action:@selector(ame436_propsButtonTapped) forControlEvents:UIControlEventTouchUpInside];
+    [self.topBar addSubview:self.propsButton];
+
     self.saveButton = [UIButton buttonWithType:UIButtonTypeSystem];
     self.saveButton.translatesAutoresizingMaskIntoConstraints = NO;
     self.saveButton.backgroundColor = [ZL2Theme primary];
@@ -619,7 +658,7 @@ static id ame429_listElementForNode(UIView *node) {
     self.closeButton.frame = CGRectMake(x, centerY - 18.0, 36.0, 36.0);
     x += 36.0 + 6.0;
 
-    // 右侧簇：层 / 样式 / 更多 / 保存
+    // 右侧簇：新建 / 属性 / 层 / 样式 / 更多 / 保存（★Task436 右簇增两钮）
     CGFloat saveW = 76.0;
     CGFloat iconW = 38.0;
     CGFloat gap = 2.0;
@@ -631,6 +670,10 @@ static id ame429_listElementForNode(UIView *node) {
     self.styleButton.frame = CGRectMake(rightX - iconW, centerY - 18.0, iconW, 36.0);
     rightX -= iconW + gap;
     self.layerButton.frame = CGRectMake(rightX - iconW, centerY - 18.0, iconW, 36.0);
+    rightX -= iconW + gap;
+    self.propsButton.frame = CGRectMake(rightX - iconW, centerY - 18.0, iconW, 36.0);
+    rightX -= iconW + gap;
+    self.addButton.frame = CGRectMake(rightX - iconW, centerY - 18.0, iconW, 36.0);
 
     // 标题居中于左右簇之间
     CGFloat titleX = x;
@@ -1459,14 +1502,998 @@ static id ame429_listElementForNode(UIView *node) {
                     __strong typeof(weakSelf) strongSelf = weakSelf;
                     if (!strongSelf) return;
                     [strongSelf ame429_writeLayoutNamed:strongSelf.ame429_layoutFileName asCopy:NO];
-                    [strongSelf dismissViewControllerAnimated:YES completion:nil];
+                    // ★ Task436：退出统一走 ame436_exitEditor（onDismiss 回调链）
+                    [strongSelf ame436_exitEditor];
                 }
                  onCancel:nil];
 }
 
 - (void)ame429_discardAndExit {
     self.ame429_dirty = NO;
-    [self dismissViewControllerAnimated:YES completion:nil];
+    // ★ Task436：退出统一走 ame436_exitEditor（onDismiss 回调链）
+    [self ame436_exitEditor];
+}
+
+// ============================================================================
+// ★Task436 私有面板件（本文件私有，不新增 TU、不动 ZL2M3Kit——链接面零风险
+// 判例：冒烟清单外的类一律做成既有 TU 内私有类；ZL2M3Kit 弹层族照旧复用）
+// ============================================================================
+
+/// 块回调滑条（UIControl 系统族只收 selector，面板行内联回调走块属性）
+@interface Ame436BlockSlider : UISlider
+@property(nonatomic, copy) void (^ame436_onChange)(CGFloat value);
+@end
+@implementation Ame436BlockSlider
+- (instancetype)initWithFrame:(CGRect)frame {
+    self = [super initWithFrame:frame];
+    if (self) {
+        self.tintColor = [ZL2Theme primary];
+        [self addTarget:self action:@selector(ame436_fire)
+     forControlEvents:UIControlEventValueChanged];
+    }
+    return self;
+}
+- (void)ame436_fire { if (self.ame436_onChange) self.ame436_onChange(self.value); }
+@end
+
+/// 块回调开关
+@interface Ame436BlockSwitch : UISwitch
+@property(nonatomic, copy) void (^ame436_onChange)(BOOL on);
+@end
+@implementation Ame436BlockSwitch
+- (instancetype)initWithFrame:(CGRect)frame {
+    self = [super initWithFrame:frame];
+    if (self) {
+        self.onTintColor = [ZL2Theme primary];
+        [self addTarget:self action:@selector(ame436_fire)
+     forControlEvents:UIControlEventValueChanged];
+    }
+    return self;
+}
+- (void)ame436_fire { if (self.ame436_onChange) self.ame436_onChange(self.on); }
+@end
+
+/// 块回调分段
+@interface Ame436BlockSegment : UISegmentedControl
+@property(nonatomic, copy) void (^ame436_onChange)(NSInteger idx);
+@end
+@implementation Ame436BlockSegment
+- (instancetype)initWithItems:(NSArray *)items {
+    self = [super initWithItems:items];
+    if (self) {
+        self.selectedSegmentTintColor = [ZL2Theme primary];
+        [self addTarget:self action:@selector(ame436_fire)
+     forControlEvents:UIControlEventValueChanged];
+    }
+    return self;
+}
+- (void)ame436_fire {
+    if (self.ame436_onChange) self.ame436_onChange(self.selectedSegmentIndex);
+}
+@end
+
+/// 块回调文本框（EditingChanged 逐字符回调）
+@interface Ame436BlockTextField : UITextField
+@property(nonatomic, copy) void (^ame436_onChange)(NSString *text);
+@end
+@implementation Ame436BlockTextField
+- (instancetype)initWithFrame:(CGRect)frame {
+    self = [super initWithFrame:frame];
+    if (self) {
+        [self addTarget:self action:@selector(ame436_fire)
+     forControlEvents:UIControlEventEditingChanged];
+    }
+    return self;
+}
+- (void)ame436_fire { if (self.ame436_onChange) self.ame436_onChange(self.text ?: @""); }
+@end
+
+/// 启动器动作（特殊键）单选网格：3 列 × 4 行 chip（10 项）。值域 = 本运行时
+/// 特殊键族（utils.h SPECIALBTN_*，0 = 无）——与 SurfaceViewController
+/// executebtn 特殊键分发表（case SPECIALBTN_*）一一对应，即 iOS 侧「启动器
+/// 事件」既有面（ZL2 基准 launch.ui 动作枚举在本仓无对应运行时面，不硬造）。
+@interface Ame436SpecialKeyGrid : UIView
+- (instancetype)initWithCurrentValue:(NSInteger)current
+                            onChange:(void (^)(NSInteger value))onChange;
+@end
+@implementation Ame436SpecialKeyGrid {
+    NSMutableArray<UIButton *> *_chips;
+    NSInteger _current;
+    void (^_onChange)(NSInteger);
+}
+
++ (NSArray<NSArray *> *)ame436_options {
+    // 元素 = @[键值, i18n 键, 缺省文案]（localize 第三参形参即注释）
+    return @[
+        @[@(0), @"ame436.editor.props.special.none", @"无"],
+        @[@(SPECIALBTN_KEYBOARD), @"ame436.editor.props.special.keyboard", @"虚拟键盘"],
+        @[@(SPECIALBTN_MENU), @"ame436.editor.props.special.menu", @"主菜单"],
+        @[@(SPECIALBTN_TOGGLECTRL), @"ame436.editor.props.special.toglectrl", @"GUI 切换"],
+        @[@(SPECIALBTN_VIRTUALMOUSE), @"ame436.editor.props.special.vmouse", @"虚拟鼠标"],
+        @[@(SPECIALBTN_MOUSEPRI), @"ame436.editor.props.special.mousepri", @"左键"],
+        @[@(SPECIALBTN_MOUSESEC), @"ame436.editor.props.special.mousesec", @"右键"],
+        @[@(SPECIALBTN_MOUSEMID), @"ame436.editor.props.special.mousemid", @"中键"],
+        @[@(SPECIALBTN_SCROLLUP), @"ame436.editor.props.special.scrollup", @"滚轮上"],
+        @[@(SPECIALBTN_SCROLLDOWN), @"ame436.editor.props.special.scrolldown", @"滚轮下"],
+    ];
+}
+
+- (instancetype)initWithCurrentValue:(NSInteger)current
+                            onChange:(void (^)(NSInteger value))onChange {
+    self = [super initWithFrame:CGRectZero];
+    if (!self) return self;
+    self.translatesAutoresizingMaskIntoConstraints = NO;
+    _chips = [NSMutableArray array];
+    _current = current;
+    _onChange = onChange;
+
+    UIStackView *vstack = [[UIStackView alloc] init];
+    vstack.axis = UILayoutConstraintAxisVertical;
+    vstack.spacing = 6.0;
+    vstack.translatesAutoresizingMaskIntoConstraints = NO;
+    [self addSubview:vstack];
+
+    NSArray *options = [Ame436SpecialKeyGrid ame436_options];
+    NSUInteger rows = (options.count + 2) / 3;
+    for (NSUInteger r = 0; r < rows; r++) {
+        NSMutableArray *cells = [NSMutableArray array];
+        for (NSUInteger c = 0; c < 3; c++) {
+            NSUInteger idx = r * 3 + c;
+            if (idx >= options.count) {
+                // 补位空单元（FillEqually 对齐）
+                UIView *spacer = [[UIView alloc] init];
+                spacer.translatesAutoresizingMaskIntoConstraints = NO;
+                [cells addObject:spacer];
+                continue;
+            }
+            UIButton *chip = [UIButton buttonWithType:UIButtonTypeSystem];
+            chip.translatesAutoresizingMaskIntoConstraints = NO;
+            chip.layer.cornerRadius = [ZL2Theme radiusS];
+            chip.layer.masksToBounds = YES;
+            chip.titleLabel.font = [ZL2Theme fontLabelMedium];
+            chip.contentEdgeInsets = UIEdgeInsetsMake(5, 8, 5, 8);
+            chip.tag = [options[idx][0] integerValue];
+            [chip setTitle:localize(options[idx][1], options[idx][2])
+                  forState:UIControlStateNormal];
+            [chip addTarget:self action:@selector(ame436_chipTapped:)
+           forControlEvents:UIControlEventTouchUpInside];
+            [self ame436_refreshChip:chip];
+            [chip.heightAnchor constraintEqualToConstant:30.0].active = YES;
+            [_chips addObject:chip];
+            [cells addObject:chip];
+        }
+        UIStackView *hstack = [[UIStackView alloc] initWithArrangedSubviews:cells];
+        hstack.axis = UILayoutConstraintAxisHorizontal;
+        hstack.spacing = 6.0;
+        hstack.distribution = UIStackViewDistributionFillEqually;
+        hstack.translatesAutoresizingMaskIntoConstraints = NO;
+        [vstack addArrangedSubview:hstack];
+    }
+
+    [NSLayoutConstraint activateConstraints:@[
+        [vstack.topAnchor constraintEqualToAnchor:self.topAnchor],
+        [vstack.leadingAnchor constraintEqualToAnchor:self.leadingAnchor],
+        [vstack.trailingAnchor constraintEqualToAnchor:self.trailingAnchor],
+        [vstack.bottomAnchor constraintEqualToAnchor:self.bottomAnchor],
+    ]];
+    return self;
+}
+
+- (void)ame436_refreshChip:(UIButton *)chip {
+    BOOL selected = (chip.tag == _current);
+    chip.backgroundColor = selected ? [ZL2Theme primaryContainer]
+                                    : [ZL2Theme surfaceContainer];
+    chip.tintColor = selected ? [ZL2Theme onPrimaryContainer]
+                              : [ZL2Theme onSurfaceVariant];
+}
+
+- (void)ame436_chipTapped:(UIButton *)sender {
+    _current = sender.tag;
+    for (UIButton *chip in _chips) [self ame436_refreshChip:chip];
+    if (_onChange) _onChange(_current);
+}
+@end
+
+// ============================================================================
+// ★Task436 批次三·编辑器最小闭环（①新建控件 ②属性面板 ③删除/克隆 ④退出
+// 回调链供游戏内入口热重载）。基准：ZL2 main/control_editor/ ControlEditor.kt
+// 新建三类 + edit_widget/EditWidgetDialog 属性族 + GameScreen.kt「运行中实时
+// 编辑」。属性面板按「量力而行」取核心字段闭环；键型同构红线：所有写回
+// 只动 v7 schema 既有键（name/keycodes/isToggle/passThruEnabled/opacity/
+// bgColor/strokeWidth/forwardLock/dynamicX/dynamicY），零新增键。
+// ============================================================================
+
+/// 新建类别（决定所属 JSON 列表与默认字典形态）
+typedef NS_ENUM(NSInteger, Ame436NewKind) {
+    Ame436NewKindButton = 0,     // 按键 → mControlDataList
+    Ame436NewKindTextbox,        // 文本框（虚拟键盘开关）→ mControlDataList
+    Ame436NewKindJoystick,       // 摇杆 → mJoystickDataList
+};
+
+#pragma mark - ★Task436 退出回调链（游戏内入口热重载）
+
+/// 统一退出点（保存并退出 / 放弃退出 / 读取失败退出三路径共用）：
+/// dismiss 完成后回调 ame436_onDismiss——游戏内宿主（SurfaceViewController）
+/// 据此走 Task64 既有热重载链（removeAllButtons + loadCustomControls），
+/// 启动器内既有入口（onDismiss = nil）行为零变化。
+- (void)ame436_exitEditor {
+    __weak typeof(self) weakSelf = self;
+    [self dismissViewControllerAnimated:YES completion:^{
+        __strong typeof(weakSelf) strongSelf = weakSelf;
+        if (!strongSelf) return;
+        void (^ame436_notify)(void) = strongSelf.ame436_onDismiss;
+        if (ame436_notify) ame436_notify();
+    }];
+}
+
+#pragma mark - ★Task436 新建控件（三类）
+
+- (void)ame436_addButtonTapped {
+    [self ame436_showAddSheet];
+}
+
+/// 新建控件弹层（三类行件：按键 / 文本框 / 摇杆）
+- (void)ame436_showAddSheet {
+    UIView *content = [[UIView alloc] init];
+    content.translatesAutoresizingMaskIntoConstraints = NO;
+
+    UILabel *header = [[UILabel alloc] init];
+    header.translatesAutoresizingMaskIntoConstraints = NO;
+    header.font = [ZL2Theme fontTitleLarge];
+    header.textColor = [ZL2Theme onSurface];
+    header.text = localize(@"ame436.editor.add.title", @"新建控件");
+    [content addSubview:header];
+
+    // ★Task432（P2 强捕 self）判例：弹层行 onTap 强捕 self → weakSelf 断链
+    __weak typeof(self) weakSelf = self;
+    Ame429SheetRowView *buttonRow = [[Ame429SheetRowView alloc] initWithTitle:
+        localize(@"ame436.editor.add.button", @"按键")
+        subtitle:localize(@"ame436.editor.add.button.sub", @"功能按键（默认无绑定，选中后可改键值）")
+        destructive:NO];
+    buttonRow.ame429_onTap = ^{
+        [weakSelf ame436_createNodeOfKind:Ame436NewKindButton];
+    };
+    Ame429SheetRowView *textboxRow = [[Ame429SheetRowView alloc] initWithTitle:
+        localize(@"ame436.editor.add.textbox", @"文本框")
+        subtitle:localize(@"ame436.editor.add.textbox.sub", @"虚拟键盘开关（游戏内文字输入入口）")
+        destructive:NO];
+    textboxRow.ame429_onTap = ^{
+        [weakSelf ame436_createNodeOfKind:Ame436NewKindTextbox];
+    };
+    Ame429SheetRowView *joystickRow = [[Ame429SheetRowView alloc] initWithTitle:
+        localize(@"ame436.editor.add.joystick", @"摇杆")
+        subtitle:localize(@"ame436.editor.add.joystick.sub", @"虚拟摇杆（WASD 方向控制）")
+        destructive:NO];
+    joystickRow.ame429_onTap = ^{
+        [weakSelf ame436_createNodeOfKind:Ame436NewKindJoystick];
+    };
+
+    UIStackView *stack = [[UIStackView alloc] initWithArrangedSubviews:
+        @[buttonRow, textboxRow, joystickRow]];
+    stack.axis = UILayoutConstraintAxisVertical;
+    stack.spacing = 8.0;
+    stack.translatesAutoresizingMaskIntoConstraints = NO;
+    [content addSubview:stack];
+
+    UILabel *foot = [[UILabel alloc] init];
+    foot.translatesAutoresizingMaskIntoConstraints = NO;
+    foot.font = [ZL2Theme fontBodyMedium];
+    foot.textColor = [ZL2Theme onSurfaceVariant];
+    foot.numberOfLines = 0;
+    foot.text = localize(@"ame436.editor.add.foot",
+        @"新控件出现在画布中心，拖到目标位置后保存。");
+    [content addSubview:foot];
+
+    [NSLayoutConstraint activateConstraints:@[
+        [header.topAnchor constraintEqualToAnchor:content.topAnchor],
+        [header.leadingAnchor constraintEqualToAnchor:content.leadingAnchor],
+        [stack.topAnchor constraintEqualToAnchor:header.bottomAnchor constant:12],
+        [stack.leadingAnchor constraintEqualToAnchor:content.leadingAnchor],
+        [stack.trailingAnchor constraintEqualToAnchor:content.trailingAnchor],
+        [foot.topAnchor constraintEqualToAnchor:stack.bottomAnchor constant:12],
+        [foot.leadingAnchor constraintEqualToAnchor:content.leadingAnchor],
+        [foot.trailingAnchor constraintEqualToAnchor:content.trailingAnchor],
+        [foot.bottomAnchor constraintEqualToAnchor:content.bottomAnchor],
+    ]];
+    for (Ame429SheetRowView *row in stack.arrangedSubviews) {
+        [row.heightAnchor constraintEqualToConstant:64.0].active = YES;
+    }
+
+    [ZL2M3BottomSheet presentWithContentView:content onDismiss:nil];
+}
+
+/// 三类新建的默认布局参数（控件字典键型与既有 loadLayout/saveLayout 完全
+/// 同构证明）：
+///   按键 = CustomControlsUtils createButton / 旧编辑器
+///   actionMenuAddButtonWithDrawer 同键集——name / keycodes[4] / dynamicX /
+///   dynamicY / width / height / opacity / cornerRadius / bgColor /
+///   displayInGame / displayInMenu；
+///   摇杆 = 旧编辑器 actionMenuAddJoystick 同键集——上述键集 + strokeColor /
+///   forwardLock（出厂 custom.json 摇杆条目同键域）；
+///   文本框 = 按键键集 + keycodes[0]=SPECIALBTN_KEYBOARD——本运行时无独立
+///   textbox 节点（ControlButton/ControlDrawer/ControlSubButton/
+///   ControlJoystick 四族而已），ZL2 基准的 textbox 按 iOS 既有语义映射为
+///   虚拟键盘开关键（SurfaceViewController executebtn 分发表
+///   case SPECIALBTN_KEYBOARD = 弹出/收起内置文字输入框；出厂 default.json
+///   "Keyboard" 键同款）。零新增 schema 字段。
+- (NSMutableDictionary *)ame436_defaultPropsForKind:(Ame436NewKind)kind {
+    NSMutableDictionary *props = [NSMutableDictionary dictionary];
+    if (kind == Ame436NewKindTextbox) {
+        props[@"name"] = localize(@"ame436.editor.add.textbox", @"文本框");
+        props[@"keycodes"] = [NSMutableArray arrayWithArray:
+            @[@(SPECIALBTN_KEYBOARD), @0, @0, @0]];
+    } else {
+        props[@"name"] = @"New";
+        props[@"keycodes"] = [NSMutableArray arrayWithArray:@[@0, @0, @0, @0]];
+    }
+    props[@"dynamicX"] = @"0";
+    props[@"dynamicY"] = @"0";
+    props[@"width"] = @(50.0);
+    props[@"height"] = @(50.0);
+    props[@"opacity"] = @(1);
+    props[@"cornerRadius"] = @(0);
+    props[@"bgColor"] = @(0x4d000000);
+    props[@"displayInGame"] = @YES;
+    props[@"displayInMenu"] = @YES;
+    if (kind == Ame436NewKindJoystick) {
+        props[@"name"] = @"";
+        props[@"width"] = @(100.0);
+        props[@"height"] = @(100.0);
+        props[@"strokeColor"] = @(0xffffffff);
+        props[@"forwardLock"] = @NO;
+    }
+    return props;
+}
+
+/// 新建落画布：所属 JSON 列表 append（列表序 = z 序尾部，与 addSubview 顶部
+/// 语义一致）→ 运行时视图上屏 → 手势挂接 → 居中放置（8pt 吸附 + 钳制 +
+/// 新建计数漂移防精确重叠）→ generateDynamicX/Y 写回（与拖拽落账同一表达式
+/// 管线，逐位一致）→ 选中 + 记脏。
+- (void)ame436_createNodeOfKind:(Ame436NewKind)kind {
+    NSMutableDictionary *props = [self ame436_defaultPropsForKind:kind];
+    BOOL isJoy = (kind == Ame436NewKindJoystick);
+    NSMutableArray *list = self.layoutDict[isJoy ? @"mJoystickDataList"
+                                                 : @"mControlDataList"];
+    if (![list isKindOfClass:[NSMutableArray class]]) {
+        // fail-loud（第六版 N1/N2 判例：守卫不得把异常藏成静默失效）
+        NSLog(@"[Task436] create: owning list missing/not mutable (anomalous data shape)");
+        return;
+    }
+    [list addObject:props];
+
+    ControlButton *node = isJoy
+        ? (ControlButton *)[ControlJoystick buttonWithProperties:props]
+        : [ControlButton buttonWithProperties:props];
+    [self.canvas addSubview:node];
+    [self ame429_attachGesturesToNode:node];
+    [node update];   // 先按占位 dynamicX/Y="0" 落位（generateDynamicX 依赖 superview）
+
+    CGFloat w = [props[@"width"] floatValue];
+    CGFloat h = [props[@"height"] floatValue];
+    CGFloat canvasW = self.canvas.frame.size.width;
+    CGFloat canvasH = self.canvas.frame.size.height;
+    CGFloat drift = (self.ame436_createdCount % 6) * ame429_gridStep;
+    CGFloat px = MAX(0.0, MIN((canvasW - w) / 2.0 + drift, MAX(0.0, canvasW - w)));
+    CGFloat py = MAX(0.0, MIN((canvasH - h) / 2.0 + drift, MAX(0.0, canvasH - h)));
+    px = roundf(px / ame429_gridStep) * ame429_gridStep;
+    py = roundf(py / ame429_gridStep) * ame429_gridStep;
+    node.properties[@"dynamicX"] = [node generateDynamicX:px];
+    node.properties[@"dynamicY"] = [node generateDynamicY:py];
+    [node update];
+
+    self.ame436_createdCount++;
+    self.selectedNode = node;
+    [self ame429_layoutSelectionOverlay];
+    self.ame429_dirty = YES;
+    [self ame429_refreshTitle];
+    NSString *kindName = (kind == Ame436NewKindTextbox)
+        ? localize(@"ame436.editor.add.textbox", @"文本框")
+        : (kind == Ame436NewKindJoystick
+            ? localize(@"ame436.editor.add.joystick", @"摇杆")
+            : localize(@"ame436.editor.add.button", @"按键"));
+    [NMToast showMessage:[NSString stringWithFormat:
+        localize(@"ame436.editor.add.toast_fmt", @"已新建：%@"), kindName]];
+}
+
+#pragma mark - ★Task436 控件属性面板
+
+- (void)ame436_propsButtonTapped {
+    ControlButton *node = self.selectedNode;
+    if (node == nil || node.superview == nil) {
+        [NMToast showMessage:localize(@"ame436.editor.props.none", @"请先点选一个控件节点")];
+        return;
+    }
+    [self ame436_showPropsSheet];
+}
+
+/// 属性写回目标字典：Button/Joy/SubButton = properties 本体；Drawer =
+/// drawerData[@"properties"]（抽屉本体是 button 形字典嵌在 drawerData）。
+/// 返回 nil = 异形数据形态（调用方留痕跳过，fail-loud 判例）。
+- (NSMutableDictionary *)ame436_propsTargetForNode:(ControlButton *)node {
+    if ([node isKindOfClass:[ControlDrawer class]]) {
+        NSMutableDictionary *p = ((ControlDrawer *)node).drawerData[@"properties"];
+        if ([p isKindOfClass:[NSMutableDictionary class]]) return p;
+        NSLog(@"[Task436] props: drawerData.properties missing/not mutable (anomalous data shape)");
+        return nil;
+    }
+    return node.properties;
+}
+
+/// 属性面板统一写回落点（任一字段改动后调用）：节点 update 热刷新（抽屉
+/// update 链含 syncButtons）→ 记脏。
+- (void)ame436_commitSelectedNode {
+    ControlButton *node = self.selectedNode;
+    if (node == nil || node.superview == nil) return;
+    [node update];
+    self.ame429_dirty = YES;
+    [self ame429_refreshTitle];
+}
+
+/// 主键键值（keycodes[0]）读取（异形布局兜底 0 = 无绑定）
+- (NSInteger)ame436_readPrimaryKeycodeFromProps:(NSMutableDictionary *)props {
+    NSArray *kcs = props[@"keycodes"];
+    if ([kcs isKindOfClass:[NSArray class]] && kcs.count > 0 &&
+        [kcs[0] isKindOfClass:[NSNumber class]]) {
+        return ((NSNumber *)kcs[0]).integerValue;
+    }
+    return 0;
+}
+
+/// 主键键值写回（keycodes 数组缺失/短数组按既有编辑器口径补齐四槽）
+- (void)ame436_writePrimaryKeycode:(NSInteger)value toProps:(NSMutableDictionary *)props {
+    NSMutableArray *kcs = props[@"keycodes"];
+    if (![kcs isKindOfClass:[NSMutableArray class]]) {
+        kcs = [NSMutableArray arrayWithArray:@[@0, @0, @0, @0]];
+        props[@"keycodes"] = kcs;
+    }
+    while (kcs.count < 4) [kcs addObject:@0];
+    kcs[0] = @(value);
+}
+
+/// 背景透明度读取（bgColor alpha 字节 / 255；缺省 = 出厂 0x4d000000 档）
+- (CGFloat)ame436_readBgAlphaFromProps:(NSMutableDictionary *)props {
+    NSNumber *bg = props[@"bgColor"];
+    if (![bg isKindOfClass:[NSNumber class]]) return 0x4d / 255.0;
+    long long argb = ame429_argbFromNumber(bg);
+    return ((argb >> 24) & 0xFF) / 255.0;
+}
+
+/// 背景透明度写回（仅改 alpha 字节保留 RGB——与样式预设
+/// ame429_applyStyleToProperties 同一语义；缺 bgColor 时以黑色 RGB 建档）
+- (void)ame436_writeBgAlpha:(CGFloat)alpha toProps:(NSMutableDictionary *)props {
+    NSNumber *bg = props[@"bgColor"];
+    long long rgb = 0;
+    if ([bg isKindOfClass:[NSNumber class]]) {
+        rgb = ame429_argbFromNumber(bg) & 0x00FFFFFFLL;
+    }
+    NSInteger byte = (NSInteger)roundf(MAX(0.0, MIN(alpha, 1.0)) * 255.0);
+    props[@"bgColor"] = @(rgb | ((long long)byte << 24));
+}
+
+// —— 面板行小件 ——
+- (UILabel *)ame436_propLabel:(NSString *)text {
+    UILabel *lab = [[UILabel alloc] init];
+    lab.font = [ZL2Theme fontBodyMedium];
+    lab.textColor = [ZL2Theme onSurface];
+    lab.text = text;
+    lab.numberOfLines = 1;
+    lab.adjustsFontSizeToFitWidth = YES;
+    lab.translatesAutoresizingMaskIntoConstraints = NO;
+    return lab;
+}
+
+- (UILabel *)ame436_propHintLabel:(NSString *)text {
+    UILabel *lab = [[UILabel alloc] init];
+    lab.font = [ZL2Theme fontLabelMedium];
+    lab.textColor = [ZL2Theme onSurfaceVariant];
+    lab.numberOfLines = 0;
+    lab.text = text;
+    lab.translatesAutoresizingMaskIntoConstraints = NO;
+    return lab;
+}
+
+- (UILabel *)ame436_propSectionLabel:(NSString *)text {
+    UILabel *lab = [[UILabel alloc] init];
+    lab.font = [ZL2Theme fontLabelLarge];
+    lab.textColor = [ZL2Theme onSurfaceVariant];
+    lab.text = text;
+    lab.translatesAutoresizingMaskIntoConstraints = NO;
+    return lab;
+}
+
+- (UILabel *)ame436_propValueLabel:(NSString *)text {
+    UILabel *lab = [[UILabel alloc] init];
+    lab.font = [ZL2Theme fontLabelMedium];
+    lab.textColor = [ZL2Theme onSurfaceVariant];
+    lab.textAlignment = NSTextAlignmentRight;
+    lab.text = text;
+    lab.translatesAutoresizingMaskIntoConstraints = NO;
+    return lab;
+}
+
+- (UIStackView *)ame436_rowWithLabel:(NSString *)title
+                             control:(UIView *)control
+                        controlWidth:(CGFloat)width {
+    UILabel *lab = [self ame436_propLabel:title];
+    UIStackView *row = [[UIStackView alloc] initWithArrangedSubviews:@[lab, control]];
+    row.axis = UILayoutConstraintAxisHorizontal;
+    row.spacing = 12.0;
+    row.alignment = UIStackViewAlignmentCenter;
+    row.translatesAutoresizingMaskIntoConstraints = NO;
+    [lab.widthAnchor constraintEqualToConstant:104.0].active = YES;
+    if (width > 0) [control.widthAnchor constraintEqualToConstant:width].active = YES;
+    return row;
+}
+
+- (UIStackView *)ame436_sliderRowWithLabel:(NSString *)title
+                                   slider:(UISlider *)slider
+                                valueLabel:(UILabel *)valueLabel {
+    UILabel *lab = [self ame436_propLabel:title];
+    UIStackView *row = [[UIStackView alloc] initWithArrangedSubviews:
+        @[lab, slider, valueLabel]];
+    row.axis = UILayoutConstraintAxisHorizontal;
+    row.spacing = 10.0;
+    row.alignment = UIStackViewAlignmentCenter;
+    row.translatesAutoresizingMaskIntoConstraints = NO;
+    [lab.widthAnchor constraintEqualToConstant:104.0].active = YES;
+    [valueLabel.widthAnchor constraintEqualToConstant:44.0].active = YES;
+    return row;
+}
+
+/// 属性面板（ZL2M3BottomSheet + 滚动区；字段按节点类别裁剪）：
+///   按键/子键：名称 + 按键映射 + 启动器动作 + 点击事件 + 三样式字段 +
+///             克隆 + 删除；
+///   摇杆：名称 + 三样式字段 + 方向锁 + 克隆 + 删除（ZL2 基准的摇杆
+///         id/半径/死区在 iOS v7 键型中无对应键——半径 = 控件尺寸（画布
+///         等比缩放管），死区 = 运行时常量 0.35（ControlJoystick.m），
+///         按键型同构红线不新增键，见报告登记）；
+///   抽屉：名称 + 三样式字段 + 克隆 + 删除（抽屉 properties 子字典）。
+- (void)ame436_showPropsSheet {
+    ControlButton *node = self.selectedNode;
+    if (node == nil || node.superview == nil) return;
+    NSMutableDictionary *props = [self ame436_propsTargetForNode:node];
+    if (props == nil) return;   // 异形数据形态：propsTargetForNode 已留痕
+
+    Ame429NodeKind kind = ame429_kindOfNode(node);
+    BOOL hasKeycodes = (kind == Ame429NodeKindButton || kind == Ame429NodeKindSubButton);
+    BOOL isJoystick = (kind == Ame429NodeKindJoystick);
+
+    UIView *content = [[UIView alloc] init];
+    content.translatesAutoresizingMaskIntoConstraints = NO;
+
+    UILabel *header = [[UILabel alloc] init];
+    header.translatesAutoresizingMaskIntoConstraints = NO;
+    header.font = [ZL2Theme fontTitleLarge];
+    header.textColor = [ZL2Theme onSurface];
+    header.text = localize(@"ame436.editor.props.title", @"控件属性");
+    [content addSubview:header];
+
+    UILabel *info = [[UILabel alloc] init];
+    info.translatesAutoresizingMaskIntoConstraints = NO;
+    info.font = [ZL2Theme fontBodyMedium];
+    info.textColor = [ZL2Theme onSurfaceVariant];
+    info.text = [self ame429_layerInfoText];
+    [content addSubview:info];
+
+    UIScrollView *scroll = [[UIScrollView alloc] init];
+    scroll.translatesAutoresizingMaskIntoConstraints = NO;
+    scroll.alwaysBounceVertical = YES;
+    scroll.showsVerticalScrollIndicator = YES;
+    [content addSubview:scroll];
+
+    UIStackView *stack = [[UIStackView alloc] init];
+    stack.axis = UILayoutConstraintAxisVertical;
+    stack.spacing = 10.0;
+    stack.translatesAutoresizingMaskIntoConstraints = NO;
+    [scroll addSubview:stack];
+
+    NSMutableArray<UIView *> *rows = [NSMutableArray array];
+    __weak typeof(self) weakSelf = self;
+    __weak typeof(props) weakProps = props;
+
+    // —— 名称（三类通用）——
+    Ame436BlockTextField *nameField = [[Ame436BlockTextField alloc] initWithFrame:CGRectZero];
+    nameField.borderStyle = UITextBorderStyleRoundedRect;
+    nameField.font = [ZL2Theme fontBodyMedium];
+    nameField.clearButtonMode = UITextFieldViewModeWhileEditing;
+    nameField.text = ([props[@"name"] isKindOfClass:[NSString class]])
+        ? props[@"name"] : @"";
+    [nameField.heightAnchor constraintEqualToConstant:32.0].active = YES;
+    nameField.ame436_onChange = ^(NSString *text) {
+        weakProps[@"name"] = text ?: @"";
+        [weakSelf ame436_commitSelectedNode];
+    };
+    [rows addObject:[self ame436_rowWithLabel:
+        localize(@"ame436.editor.props.name", @"名称")
+        control:nameField controlWidth:0]];
+
+    if (hasKeycodes) {
+        // —— 按键映射（键值输入；keycodes[0] 主键）——
+        Ame436BlockTextField *kcField = [[Ame436BlockTextField alloc] initWithFrame:CGRectZero];
+        kcField.borderStyle = UITextBorderStyleRoundedRect;
+        kcField.keyboardType = UIKeyboardTypeNumberPad;
+        kcField.font = [ZL2Theme fontBodyMedium];
+        kcField.text = [NSString stringWithFormat:@"%ld",
+            (long)[self ame436_readPrimaryKeycodeFromProps:props]];
+        [kcField.heightAnchor constraintEqualToConstant:32.0].active = YES;
+        kcField.ame436_onChange = ^(NSString *text) {
+            [weakSelf ame436_writePrimaryKeycode:text.integerValue toProps:weakProps];
+            [weakSelf ame436_commitSelectedNode];
+        };
+        [rows addObject:[self ame436_rowWithLabel:
+            localize(@"ame436.editor.props.keycode", @"按键映射")
+            control:kcField controlWidth:0]];
+        [rows addObject:[self ame436_propHintLabel:
+            localize(@"ame436.editor.props.keycode.hint",
+                @"键值：0=无绑定；正数=GLFW 键码（87=W、256=Esc）；负数=特殊键")]];
+
+        // —— 启动器动作（特殊键单选网格，iOS 既有面）——
+        [rows addObject:[self ame436_propSectionLabel:
+            localize(@"ame436.editor.props.special", @"启动器动作")]];
+        Ame436SpecialKeyGrid *grid = [[Ame436SpecialKeyGrid alloc]
+            initWithCurrentValue:[self ame436_readPrimaryKeycodeFromProps:props]
+                        onChange:^(NSInteger value) {
+                            [weakSelf ame436_writePrimaryKeycode:value toProps:weakProps];
+                            [weakSelf ame436_commitSelectedNode];
+                        }];
+        [rows addObject:grid];
+
+        // —— 点击事件（无/切换/穿透 → isToggle / passThruEnabled 既有字段；
+        //   ZL2 基准「长按」在本运行时无分发面，按键型同构红线映射为既有
+        //   两字段三态，不新增键）——
+        Ame436BlockSegment *seg = [[Ame436BlockSegment alloc] initWithItems:@[
+            localize(@"ame436.editor.props.event.normal", @"普通"),
+            localize(@"ame436.editor.props.event.toggle", @"切换"),
+            localize(@"ame436.editor.props.event.passthru", @"穿透"),
+        ]];
+        BOOL isToggle = [props[@"isToggle"] boolValue];
+        BOOL passThru = [props[@"passThruEnabled"] boolValue];
+        seg.selectedSegmentIndex = passThru ? 2 : (isToggle ? 1 : 0);
+        seg.ame436_onChange = ^(NSInteger idx) {
+            if (idx == 1) {
+                weakProps[@"isToggle"] = @YES;
+                weakProps[@"passThruEnabled"] = @NO;
+            } else if (idx == 2) {
+                weakProps[@"passThruEnabled"] = @YES;
+                weakProps[@"isToggle"] = @NO;
+            } else {
+                weakProps[@"isToggle"] = @NO;
+                weakProps[@"passThruEnabled"] = @NO;
+            }
+            [weakSelf ame436_commitSelectedNode];
+        };
+        [rows addObject:[self ame436_rowWithLabel:
+            localize(@"ame436.editor.props.event", @"点击事件")
+            control:seg controlWidth:168.0]];
+    }
+
+    // —— 三样式字段（与三套样式预设同一组既有键：opacity / bgColor-alpha /
+    //   strokeWidth，整版预设与单控件属性联动）——
+    UILabel *opacityValue = [self ame436_propValueLabel:@""];
+    Ame436BlockSlider *opacity = [[Ame436BlockSlider alloc] initWithFrame:CGRectZero];
+    opacity.minimumValue = 0.0;
+    opacity.maximumValue = 1.0;
+    opacity.value = MAX(0.0, MIN([props[@"opacity"] floatValue], 1.0));
+    opacityValue.text = [NSString stringWithFormat:@"%d%%",
+        (int)roundf(opacity.value * 100.0)];
+    opacity.ame436_onChange = ^(CGFloat v) {
+        weakProps[@"opacity"] = @(v);
+        opacityValue.text = [NSString stringWithFormat:@"%d%%", (int)roundf(v * 100.0)];
+        [weakSelf ame436_commitSelectedNode];
+    };
+    [rows addObject:[self ame436_sliderRowWithLabel:
+        localize(@"ame436.editor.props.opacity", @"透明度")
+        slider:opacity valueLabel:opacityValue]];
+
+    UILabel *bgValue = [self ame436_propValueLabel:@""];
+    Ame436BlockSlider *bgAlpha = [[Ame436BlockSlider alloc] initWithFrame:CGRectZero];
+    bgAlpha.minimumValue = 0.0;
+    bgAlpha.maximumValue = 1.0;
+    bgAlpha.value = [self ame436_readBgAlphaFromProps:props];
+    bgValue.text = [NSString stringWithFormat:@"%d%%",
+        (int)roundf(bgAlpha.value * 100.0)];
+    bgAlpha.ame436_onChange = ^(CGFloat v) {
+        [weakSelf ame436_writeBgAlpha:v toProps:weakProps];
+        bgValue.text = [NSString stringWithFormat:@"%d%%", (int)roundf(v * 100.0)];
+        [weakSelf ame436_commitSelectedNode];
+    };
+    [rows addObject:[self ame436_sliderRowWithLabel:
+        localize(@"ame436.editor.props.bgalpha", @"背景透明度")
+        slider:bgAlpha valueLabel:bgValue]];
+
+    UILabel *strokeValue = [self ame436_propValueLabel:@""];
+    Ame436BlockSlider *stroke = [[Ame436BlockSlider alloc] initWithFrame:CGRectZero];
+    stroke.minimumValue = 0.0;
+    stroke.maximumValue = 5.0;
+    stroke.value = MAX(0.0, MIN([props[@"strokeWidth"] floatValue], 5.0));
+    strokeValue.text = [NSString stringWithFormat:@"%.1f", stroke.value];
+    stroke.ame436_onChange = ^(CGFloat v) {
+        CGFloat stepped = roundf(v * 2.0) / 2.0;   // 0.5 步进
+        weakProps[@"strokeWidth"] = @(stepped);
+        strokeValue.text = [NSString stringWithFormat:@"%.1f", stepped];
+        [weakSelf ame436_commitSelectedNode];
+    };
+    [rows addObject:[self ame436_sliderRowWithLabel:
+        localize(@"ame436.editor.props.stroke", @"描边宽度")
+        slider:stroke valueLabel:strokeValue]];
+
+    if (isJoystick) {
+        // —— 摇杆配置：方向锁（iOS 键型既有键 forwardLock；ZL2 基准的
+        //   id/半径/死区无对应键，见方法头注释）——
+        Ame436BlockSwitch *fwd = [[Ame436BlockSwitch alloc] initWithFrame:CGRectZero];
+        fwd.on = [props[@"forwardLock"] boolValue];
+        fwd.ame436_onChange = ^(BOOL on) {
+            weakProps[@"forwardLock"] = @(on);
+            [weakSelf ame436_commitSelectedNode];
+        };
+        [rows addObject:[self ame436_rowWithLabel:
+            localize(@"ame436.editor.props.forwardlock", @"方向锁")
+            control:fwd controlWidth:0]];
+    }
+
+    // —— 克隆 / 删除（★Task436 批次三③）——
+    Ame429SheetRowView *cloneRow = [[Ame429SheetRowView alloc] initWithTitle:
+        localize(@"ame436.editor.props.clone", @"克隆控件（偏移 8pt）")
+        subtitle:nil destructive:NO];
+    cloneRow.ame429_onTap = ^{
+        [ZL2M3BottomSheet dismissWithContentView:nil];
+        [weakSelf ame436_cloneSelected];
+    };
+    Ame429SheetRowView *deleteRow = [[Ame429SheetRowView alloc] initWithTitle:
+        localize(@"ame436.editor.props.delete", @"删除控件")
+        subtitle:nil destructive:YES];
+    deleteRow.ame429_onTap = ^{
+        [weakSelf ame436_deleteSelected];
+    };
+    [rows addObject:cloneRow];
+    [rows addObject:deleteRow];
+
+    for (UIView *row in rows) [stack addArrangedSubview:row];
+    for (UIView *row in rows) {
+        if ([row isKindOfClass:[Ame429SheetRowView class]]) {
+            [row.heightAnchor constraintEqualToConstant:52.0].active = YES;
+        }
+    }
+
+    [NSLayoutConstraint activateConstraints:@[
+        [header.topAnchor constraintEqualToAnchor:content.topAnchor],
+        [header.leadingAnchor constraintEqualToAnchor:content.leadingAnchor],
+        [info.topAnchor constraintEqualToAnchor:header.bottomAnchor constant:4],
+        [info.leadingAnchor constraintEqualToAnchor:content.leadingAnchor],
+        [scroll.topAnchor constraintEqualToAnchor:info.bottomAnchor constant:12],
+        [scroll.leadingAnchor constraintEqualToAnchor:content.leadingAnchor],
+        [scroll.trailingAnchor constraintEqualToAnchor:content.trailingAnchor],
+        [scroll.heightAnchor constraintEqualToConstant:
+            MAX(220.0, MIN(420.0, self.view.bounds.size.height - 200.0))],
+        [scroll.bottomAnchor constraintEqualToAnchor:content.bottomAnchor],
+        [stack.topAnchor constraintEqualToAnchor:scroll.contentLayoutGuide.topAnchor],
+        [stack.leadingAnchor constraintEqualToAnchor:scroll.contentLayoutGuide.leadingAnchor],
+        [stack.trailingAnchor constraintEqualToAnchor:scroll.contentLayoutGuide.trailingAnchor],
+        [stack.bottomAnchor constraintEqualToAnchor:scroll.contentLayoutGuide.bottomAnchor],
+        [stack.widthAnchor constraintEqualToAnchor:scroll.frameLayoutGuide.widthAnchor],
+    ]];
+
+    [ZL2M3BottomSheet presentWithContentView:content onDismiss:nil];
+}
+
+#pragma mark - ★Task436 克隆 / 删除
+
+- (NSString *)ame436_selectedDisplayName {
+    ControlButton *node = self.selectedNode;
+    if (node == nil) return @"";
+    NSString *name = node.properties[@"name"];
+    if (![name isKindOfClass:[NSString class]] || name.length == 0) {
+        return [self ame429_layerInfoText];
+    }
+    return name;
+}
+
+/// 深拷贝布局元素字典（克隆体与源体零共享可变状态：嵌套数组/字典逐层
+/// mutable 重建——含抽屉 drawerData 的 buttonProperties 子列表）
+- (NSMutableDictionary *)ame436_deepMutableCopyOfDict:(NSDictionary *)src {
+    NSMutableDictionary *out = ([src isKindOfClass:[NSDictionary class]])
+        ? [src mutableCopy] : [NSMutableDictionary dictionary];
+    for (NSString *key in out.allKeys) {
+        id v = out[key];
+        if ([v isKindOfClass:[NSArray class]]) {
+            NSMutableArray *arr = [v mutableCopy];
+            for (NSUInteger i = 0; i < arr.count; i++) {
+                if ([arr[i] isKindOfClass:[NSDictionary class]]) {
+                    arr[i] = [self ame436_deepMutableCopyOfDict:arr[i]];
+                }
+            }
+            out[key] = arr;
+        } else if ([v isKindOfClass:[NSDictionary class]]) {
+            out[key] = [self ame436_deepMutableCopyOfDict:v];
+        }
+    }
+    return out;
+}
+
+/// 「复制新 id」的 iOS 落点：v7 布局 JSON 键型无 id 字段（键型同构红线，
+/// 零新增键），克隆体身份 = 新字典对象（指针身份）+ 名称后缀。空名不缀。
+- (void)ame436_sanitizeCloneName:(NSMutableDictionary *)props {
+    NSString *name = props[@"name"];
+    if (![name isKindOfClass:[NSString class]] || name.length == 0) return;
+    props[@"name"] = [NSString stringWithFormat:@"%@ %@", name,
+        localize(@"ame436.editor.clone.suffix", @"副本")];
+}
+
+/// 克隆体落位：源 frame 原点 +8pt（8pt 吸附网格语义）→ 吸附带内钳制 →
+/// generateDynamicX/Y 写回（与拖拽落账同一表达式管线）。返回实际位移
+/// delta（FREE 抽屉克隆时子键按同 delta 平移，非 FREE 由 syncButtons 重排）。
+- (CGPoint)ame436_placeClone:(ControlButton *)cloneView
+             relativeToFrame:(CGRect)srcFrame {
+    CGFloat canvasW = self.canvas.frame.size.width;
+    CGFloat canvasH = self.canvas.frame.size.height;
+    CGFloat tx = roundf((srcFrame.origin.x + ame429_gridStep) / ame429_gridStep)
+                 * ame429_gridStep;
+    CGFloat ty = roundf((srcFrame.origin.y + ame429_gridStep) / ame429_gridStep)
+                 * ame429_gridStep;
+    CGFloat maxOX = MAX(0.0, canvasW - srcFrame.size.width);
+    CGFloat maxOY = MAX(0.0, canvasH - srcFrame.size.height);
+    tx = MAX(0.0, MIN(tx, maxOX));
+    ty = MAX(0.0, MIN(ty, maxOY));
+    cloneView.properties[@"dynamicX"] = [cloneView generateDynamicX:tx];
+    cloneView.properties[@"dynamicY"] = [cloneView generateDynamicY:ty];
+    [cloneView update];
+    return CGPointMake(tx - srcFrame.origin.x, ty - srcFrame.origin.y);
+}
+
+/// 克隆选中控件（JSON 所属列表 insert idx+1 + 新视图上屏 + 手势挂接 +
+/// 偏移 8pt + 画布 z 序按装载语义重铺 + 记脏）。
+- (void)ame436_cloneSelected {
+    ControlButton *node = self.selectedNode;
+    if (node == nil || node.superview == nil) return;
+    CGRect srcFrame = node.frame;
+    Ame429NodeKind kind = ame429_kindOfNode(node);
+    ControlButton *cloneView = nil;
+
+    if (kind == Ame429NodeKindSubButton) {
+        ControlDrawer *parent = ((ControlSubButton *)node).parentDrawer;
+        id subList = parent.drawerData[@"buttonProperties"];
+        if (parent == nil || ![subList isKindOfClass:[NSMutableArray class]]) {
+            NSLog(@"[Task436] clone: subbutton parent chain missing (anomalous data shape)");
+            return;
+        }
+        NSUInteger idx = [subList indexOfObject:node.properties];
+        if (idx == NSNotFound) return;
+        NSMutableDictionary *copyProps =
+            [self ame436_deepMutableCopyOfDict:node.properties];
+        [self ame436_sanitizeCloneName:copyProps];
+        [subList insertObject:copyProps atIndex:idx + 1];
+        ControlSubButton *subView = [ControlSubButton buttonWithProperties:copyProps];
+        [parent addButton:subView];
+        [self.canvas addSubview:subView];
+        [self ame429_attachGesturesToNode:subView];
+        [subView update];
+        [parent syncButtons];
+        cloneView = subView;
+    } else if (kind == Ame429NodeKindDrawer) {
+        NSMutableArray *drawerList = self.layoutDict[@"mDrawerDataList"];
+        if (![drawerList isKindOfClass:[NSMutableArray class]]) return;
+        NSUInteger idx = [drawerList indexOfObject:((ControlDrawer *)node).drawerData];
+        if (idx == NSNotFound) return;
+        NSMutableDictionary *copyData =
+            [self ame436_deepMutableCopyOfDict:((ControlDrawer *)node).drawerData];
+        [self ame436_sanitizeCloneName:copyData[@"properties"]];
+        [drawerList insertObject:copyData atIndex:idx + 1];
+        ControlDrawer *drawerView = [ControlDrawer buttonWithData:copyData];
+        id subButtons = copyData[@"buttonProperties"];
+        if ([subButtons isKindOfClass:[NSArray class]]) {
+            for (NSMutableDictionary *subProps in (NSArray *)subButtons) {
+                if (![subProps isKindOfClass:[NSMutableDictionary class]]) continue;
+                ControlSubButton *subView = [ControlSubButton buttonWithProperties:subProps];
+                [drawerView addButton:subView];
+                [self.canvas addSubview:subView];
+                [self ame429_attachGesturesToNode:subView];
+                [subView update];
+            }
+        }
+        [self.canvas addSubview:drawerView];
+        [self ame429_attachGesturesToNode:drawerView];
+        [drawerView update];   // update 链含 syncButtons（非 FREE 子键重排）
+        cloneView = drawerView;
+    } else {
+        NSString *listKey = (kind == Ame429NodeKindJoystick)
+            ? @"mJoystickDataList" : @"mControlDataList";
+        NSMutableArray *list = self.layoutDict[listKey];
+        if (![list isKindOfClass:[NSMutableArray class]]) return;
+        NSUInteger idx = [list indexOfObject:node.properties];
+        if (idx == NSNotFound) return;
+        NSMutableDictionary *copyProps =
+            [self ame436_deepMutableCopyOfDict:node.properties];
+        [self ame436_sanitizeCloneName:copyProps];
+        [list insertObject:copyProps atIndex:idx + 1];
+        cloneView = (kind == Ame429NodeKindJoystick)
+            ? (ControlButton *)[ControlJoystick buttonWithProperties:copyProps]
+            : [ControlButton buttonWithProperties:copyProps];
+        [self.canvas addSubview:cloneView];
+        [self ame429_attachGesturesToNode:cloneView];
+        [cloneView update];
+    }
+    if (cloneView == nil) return;
+
+    CGPoint delta = [self ame436_placeClone:cloneView relativeToFrame:srcFrame];
+    if (kind == Ame429NodeKindDrawer) {
+        // FREE 抽屉克隆：子键绝对坐标随抽屉同 delta 平移（非 FREE 已由
+        // syncButtons 按抽屉排列规则重排，无需此步）
+        NSString *orientation = ((ControlDrawer *)cloneView).drawerData[@"orientation"];
+        if ([orientation isKindOfClass:[NSString class]]
+            && [orientation isEqualToString:@"FREE"]) {
+            for (ControlSubButton *subView in ((ControlDrawer *)cloneView).buttons) {
+                CGRect f = subView.frame;
+                CGFloat nx = MAX(0.0, f.origin.x + delta.x);
+                CGFloat ny = MAX(0.0, f.origin.y + delta.y);
+                subView.properties[@"dynamicX"] = [subView generateDynamicX:nx];
+                subView.properties[@"dynamicY"] = [subView generateDynamicY:ny];
+                [subView update];
+            }
+        }
+    }
+
+    // JSON 列表序 ↔ 画布 z 序重铺（装载语义一致性；克隆体入列非尾部时
+    // addSubview 的顶部语义与列表序可能错位，统一重铺说谎防线）
+    [self ame429_resyncCanvasZOrder];
+    self.selectedNode = cloneView;
+    [self ame429_layoutSelectionOverlay];
+    self.ame429_dirty = YES;
+    [self ame429_refreshTitle];
+    [NMToast showMessage:[NSString stringWithFormat:
+        localize(@"ame436.editor.toast.cloned_fmt", @"已克隆：%@（偏移 8pt）"),
+        cloneView.properties[@"name"] ?: @""]];
+}
+
+/// 删除选中控件（确认弹窗；与旧编辑器 doRemoveButton 同语义：JSON 所属
+/// 列表移除 + 画布移除 + 抽屉运行时 buttons 数组同步，无 undo 栈——拖拽
+/// 编辑器以「放弃更改」兜底回滚）。
+- (void)ame436_deleteSelected {
+    ControlButton *node = self.selectedNode;
+    if (node == nil || node.superview == nil) return;
+    __weak typeof(self) weakSelf = self;
+    NSString *name = [self ame436_selectedDisplayName];
+    [ZL2M3Dialog showTitle:localize(@"ame436.editor.props.delete", @"删除控件")
+                      body:[NSString stringWithFormat:
+          localize(@"ame436.editor.delete.confirm.body_fmt",
+              @"将删除「%@」。保存后写入布局文件；未保存前可用「放弃更改并退出」恢复。"), name]
+              confirmTitle:localize(@"ame436.editor.props.delete", @"删除控件")
+               destructive:YES
+                onConfirm:^{
+                    __strong typeof(weakSelf) strongSelf = weakSelf;
+                    if (!strongSelf) return;
+                    // 属性弹层先收（残留面板引用已删节点无意义）
+                    [ZL2M3BottomSheet dismissWithContentView:nil];
+                    [strongSelf ame436_performDeleteSelected];
+                }
+                 onCancel:nil];
+}
+
+- (void)ame436_performDeleteSelected {
+    ControlButton *node = self.selectedNode;
+    if (node == nil || node.superview == nil) return;
+    Ame429NodeKind kind = ame429_kindOfNode(node);
+    if (kind == Ame429NodeKindSubButton) {
+        ControlDrawer *parent = ((ControlSubButton *)node).parentDrawer;
+        if (parent != nil && [parent.drawerData isKindOfClass:[NSMutableDictionary class]]) {
+            [parent.buttons removeObject:node];
+            [parent.drawerData[@"buttonProperties"] removeObject:node.properties];
+            [parent syncButtons];
+        }
+    } else if (kind == Ame429NodeKindDrawer) {
+        ControlDrawer *drawer = (ControlDrawer *)node;
+        [drawer.buttons makeObjectsPerformSelector:@selector(removeFromSuperview)];
+        [self.layoutDict[@"mDrawerDataList"] removeObject:drawer.drawerData];
+    } else if (kind == Ame429NodeKindJoystick) {
+        [self.layoutDict[@"mJoystickDataList"] removeObject:node.properties];
+    } else {
+        [self.layoutDict[@"mControlDataList"] removeObject:node.properties];
+    }
+    [node removeFromSuperview];
+    self.selectedNode = nil;
+    [self ame429_layoutSelectionOverlay];
+    self.ame429_dirty = YES;
+    [self ame429_refreshTitle];
+    [NMToast showMessage:localize(@"ame436.editor.toast.deleted", @"控件已删除")];
 }
 
 #pragma mark - 杂项
