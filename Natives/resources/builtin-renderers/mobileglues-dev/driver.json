@@ -1,0 +1,4 @@
+{
+  "_comment": "★Task435 渲染器插件 mobileglues-dev 档驱动配置（§11.4 插件包三要素之三）。driverType=mobileglues：键型与 MobileGlues config.json 同构，JavaLauncher init_loadMobileGluesConfig 在该插件档会话做末位覆盖（插件 wins）；用户 MobileGlues 分区偏好照常先生效，此表仅覆盖列出的键。未列出的键不受影响。dev 构建档语义 = 调试亲和：enableNoError 保持 0（上游 dev 提交的着色器/程序编译错误不吞，MG 自身错误路径可见——dev 档的价值在暴露问题而非遮蔽；用户分区偏好若显式设 1 仍被本表覆盖回 0，dev 档取证优先）。",
+  "enableNoError": 0
+}
