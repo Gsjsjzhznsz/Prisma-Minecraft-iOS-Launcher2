@@ -248,7 +248,7 @@ preview_mode() {
                                    #   真机 10pt vs CI 镜像 20pt 两倍差 = 镜像自绘图标从未经过真管线）
     ZL2FestivalEffects            # ★Task428（8.2）：节日粒子层（ZL2ShellViewController import 它；
                                    #   getPrefObject 桩 = AmeFluentPreviewMain 既有服务桩）
-    ZL2MotionKit                  # ★Task429（9.2）：MD3 动效四件（ZL2ShellViewController/ZL2M3Kit import 它）
+    ZL2AnimationKit                  # ★Task429（9.2）：MD3 动效四件（ZL2ShellViewController/ZL2M3Kit import 它）
                                   # ★Task429-r6：ZL2BackgroundHost 不入本清单——ZL2PagesStub.m:1698
                                   #   已有同名类桩（F 工位手写家法），真 TU 并编 = duplicate
                                   #   symbol 判例；真类语法面由 -fsyntax-only 全量腿覆盖。

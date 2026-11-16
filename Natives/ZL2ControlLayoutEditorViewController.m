@@ -948,23 +948,25 @@ static id ame429_listElementForNode(UIView *node) {
 
     Ame429SheetRowView *frontRow = [[Ame429SheetRowView alloc] initWithTitle:
         localize(@"ame429.j.layer.to_front", @"置顶") subtitle:nil destructive:NO];
+    // ★Task432（P2 强捕 self）：弹层行 onTap 强捕 self → __weak weakSelf 断链
+    __weak typeof(self) weakSelf = self;
     frontRow.ame429_onTap = ^{
-        [self ame429_layerOp:Ame429LayerOpToFront];
+        [weakSelf ame429_layerOp:Ame429LayerOpToFront];
     };
     Ame429SheetRowView *backRow = [[Ame429SheetRowView alloc] initWithTitle:
         localize(@"ame429.j.layer.to_back", @"置底") subtitle:nil destructive:NO];
     backRow.ame429_onTap = ^{
-        [self ame429_layerOp:Ame429LayerOpToBack];
+        [weakSelf ame429_layerOp:Ame429LayerOpToBack];
     };
     Ame429SheetRowView *forwardRow = [[Ame429SheetRowView alloc] initWithTitle:
         localize(@"ame429.j.layer.forward", @"上移一层") subtitle:nil destructive:NO];
     forwardRow.ame429_onTap = ^{
-        [self ame429_layerOp:Ame429LayerOpForward];
+        [weakSelf ame429_layerOp:Ame429LayerOpForward];
     };
     Ame429SheetRowView *backwardRow = [[Ame429SheetRowView alloc] initWithTitle:
         localize(@"ame429.j.layer.backward", @"下移一层") subtitle:nil destructive:NO];
     backwardRow.ame429_onTap = ^{
-        [self ame429_layerOp:Ame429LayerOpBackward];
+        [weakSelf ame429_layerOp:Ame429LayerOpBackward];
     };
 
     UIStackView *stack = [[UIStackView alloc] initWithArrangedSubviews:
@@ -1000,7 +1002,7 @@ static id ame429_listElementForNode(UIView *node) {
     }
 
     [ZL2M3BottomSheet presentWithContentView:content onDismiss:^{
-        self.layerSheetInfoLabel = nil;
+        weakSelf.layerSheetInfoLabel = nil;   // ★Task432：weakSelf 断链
     }];
 }
 
@@ -1132,22 +1134,25 @@ static id ame429_listElementForNode(UIView *node) {
         localize(@"ame429.j.style.default", @"默认")
         subtitle:localize(@"ame429.j.style.default.sub", @"不透明按钮 · 30% 深底 · 1pt 描边")
         destructive:NO];
+    // ★Task432（P2 强捕 self）：样式表三行 onTap 强捕 self（弹层持有期间跨
+    //   页面存活）→ __weak weakSelf 断链（同族：层序表/更多表行同批改齐）
+    __weak typeof(self) weakSelf = self;
     defaultRow.ame429_onTap = ^{
-        [self ame429_applyStylePreset:0];
+        [weakSelf ame429_applyStylePreset:0];
     };
     Ame429SheetRowView *translucentRow = [[Ame429SheetRowView alloc] initWithTitle:
         localize(@"ame429.j.style.translucent", @"半透明")
         subtitle:localize(@"ame429.j.style.translucent.sub", @"55% 按钮 · 12% 浅底 · 0.5pt 描边")
         destructive:NO];
     translucentRow.ame429_onTap = ^{
-        [self ame429_applyStylePreset:1];
+        [weakSelf ame429_applyStylePreset:1];
     };
     Ame429SheetRowView *minimalRow = [[Ame429SheetRowView alloc] initWithTitle:
         localize(@"ame429.j.style.minimal", @"极简")
         subtitle:localize(@"ame429.j.style.minimal.sub", @"85% 按钮 · 7% 浅底 · 无描边")
         destructive:NO];
     minimalRow.ame429_onTap = ^{
-        [self ame429_applyStylePreset:2];
+        [weakSelf ame429_applyStylePreset:2];
     };
 
     UIStackView *stack = [[UIStackView alloc] initWithArrangedSubviews:
@@ -1233,18 +1238,20 @@ static id ame429_listElementForNode(UIView *node) {
 
     Ame429SheetRowView *saveRow = [[Ame429SheetRowView alloc] initWithTitle:
         localize(@"ame429.j.toolbar.save", @"保存") subtitle:nil destructive:NO];
+    // ★Task432（P2 强捕 self）：更多表三行 onTap 强捕 self → __weak weakSelf 断链
+    __weak typeof(self) weakSelf = self;
     saveRow.ame429_onTap = ^{
-        [self ame429_saveTapped];
+        [weakSelf ame429_saveTapped];
     };
     Ame429SheetRowView *copyRow = [[Ame429SheetRowView alloc] initWithTitle:
         localize(@"ame429.j.toolbar.saveas", @"另存副本") subtitle:nil destructive:NO];
     copyRow.ame429_onTap = ^{
-        [self ame429_saveAsCopyTapped];
+        [weakSelf ame429_saveAsCopyTapped];
     };
     Ame429SheetRowView *discardRow = [[Ame429SheetRowView alloc] initWithTitle:
         localize(@"ame429.j.more.discard", @"放弃更改并退出") subtitle:nil destructive:YES];
     discardRow.ame429_onTap = ^{
-        [self ame429_discardAndExit];
+        [weakSelf ame429_discardAndExit];
     };
 
     NSMutableArray *rows = [NSMutableArray arrayWithObjects:saveRow, copyRow, nil];
@@ -1373,13 +1380,18 @@ static id ame429_listElementForNode(UIView *node) {
         [self dismissViewControllerAnimated:YES completion:nil];
         return;
     }
+    // ★Task432（P2 强捕 self）：确认回调断链所需 weakSelf
+    __weak typeof(self) weakSelf = self;
     [ZL2M3Dialog showTitle:localize(@"ame429.j.close.title", @"退出编辑器")
                       body:localize(@"ame429.j.close.body", @"当前布局有未保存的更改。确认后将以原文件名保存并退出。")
               confirmTitle:localize(@"ame429.j.close.save_exit", @"保存并退出")
                destructive:NO
                 onConfirm:^{
-                    [self ame429_writeLayoutNamed:self.ame429_layoutFileName asCopy:NO];
-                    [self dismissViewControllerAnimated:YES completion:nil];
+                    // ★Task432（P2 强捕 self）：确认回调强捕 self → weakSelf 断链
+                    __strong typeof(weakSelf) strongSelf = weakSelf;
+                    if (!strongSelf) return;
+                    [strongSelf ame429_writeLayoutNamed:strongSelf.ame429_layoutFileName asCopy:NO];
+                    [strongSelf dismissViewControllerAnimated:YES completion:nil];
                 }
                  onCancel:nil];
 }

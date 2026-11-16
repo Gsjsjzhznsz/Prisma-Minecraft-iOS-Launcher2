@@ -1,6 +1,5 @@
 #import <UniformTypeIdentifiers/UniformTypeIdentifiers.h>
 #import "AmeNativeMenu.h"       // ★ Task240：菜单全面系统原生 UIMenu 化
-#import "LauncherNavigationController.h"
 #import "LauncherPreferences.h"
 #import "PLMirrorCenter.h"   // Task218: download-source label token
 #import "LauncherPrefManageJREViewController.h"
@@ -61,13 +60,10 @@ static NSString *currentImportTaskId;
     }
 
     // 走 splitVC 路径：先尝试从 current 往上找 splitVC
+    // Task432：旧壳 LauncherNavigationController 分支随类退役一并摘除
     UISplitViewController *splitVC = nil;
     if ([current isKindOfClass:UISplitViewController.class]) {
         splitVC = (UISplitViewController *)current;
-    } else if ([current.navigationController isKindOfClass:LauncherNavigationController.class]) {
-        // current 的 navigationController 是 LauncherNavigationController
-        // LauncherNavigationController 的 presenting/splitViewController 才是 splitVC
-        splitVC = current.navigationController.splitViewController;
     } else {
         splitVC = current.splitViewController;
     }
@@ -75,19 +71,13 @@ static NSString *currentImportTaskId;
         return nil;
     }
     UIViewController *secondary = splitVC.viewControllers[1];
-    LauncherNavigationController *nav = nil;
-    if ([secondary isKindOfClass:LauncherNavigationController.class]) {
-        nav = (LauncherNavigationController *)secondary;
-    } else if ([secondary isKindOfClass:UINavigationController.class]) {
+    if ([secondary isKindOfClass:UINavigationController.class]) {
         UIViewController *top = ((UINavigationController *)secondary).topViewController;
         if ([top isKindOfClass:LauncherPrefManageJREViewController.class]) {
             return (LauncherPrefManageJREViewController *)top;
         }
     }
-    if (!nav || ![nav.topViewController isKindOfClass:LauncherPrefManageJREViewController.class]) {
-        return nil;
-    }
-    return (LauncherPrefManageJREViewController *)nav.topViewController;
+    return nil;
 }
 
 - (void)viewDidLoad
@@ -165,9 +155,8 @@ static NSString *currentImportTaskId;
 }
 
 - (void)documentPicker:(UIDocumentPickerViewController *)controller didPickDocumentAtURL:(NSURL *)url {
-    LauncherNavigationController *nav = (id)self.navigationController;
-    [nav setInteractionEnabled:NO forDownloading:NO];
-
+    // Task432：旧壳 LauncherNavigationController 交互锁（setInteractionEnabled:forDownloading:）
+    //   随类退役摘除——统一进度页/下载任务态接管交互面。
     [url startAccessingSecurityScopedResource];
     NSUInteger xzSize = [NSFileManager.defaultManager attributesOfItemAtPath:url.path error:nil].fileSize;
 
@@ -251,7 +240,8 @@ static NSString *currentImportTaskId;
             vc.installingIndexPath = nil;
             [vc.tableView reloadData];
 
-            [nav setInteractionEnabled:YES forDownloading:NO];
+            // Task432：原 [nav setInteractionEnabled:YES forDownloading:NO]（旧壳导航
+            //   交互锁恢复）随类退役摘除——统一进度页任务态已收口交互面。
         });
     });
 }

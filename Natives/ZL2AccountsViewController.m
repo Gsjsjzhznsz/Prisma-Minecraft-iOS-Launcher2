@@ -7,14 +7,14 @@
 //      用户名 fontTitleMedium onSurface（无账号「未登录」，同主页口径）+
 //      账号类型 fontBodyMedium onSurfaceVariant）
 //   ② 「添加账户」大按钮（44 高，primary 底 onPrimary 前景 fontLabelLarge
-//      radiusS）→ actionSheet 列出旧 AccountListViewController 实际支持的
+//      radiusS）→ actionSheet 列出旧账号列表页实际支持的
 //      四种登录方式，逐项进入对应流程（见 .h 头注释）
 //   ③ 账号卡列表（每账号一卡：UIControl surfaceContainer / radiusL / 内边距
 //      14，横向 = 单选圈 20pt + 头像 46pt 圆形 + 用户名/类型中列 + 刷新钮
 //      32×32 + 更多钮 32×32）
 //   空态卡：person.crop.circle 68pt onSurfaceVariant + 「未找到可用账号」
 //
-// 行为移植（1:1 旧 AccountListViewController）：
+// 行为移植（1:1 旧账号列表页，原 AccountList 类 Task432 已退役）：
 //   - 数据源扫描：POJAV_HOME/accounts/*.json，parseJSONFromFile 读取，
 //     Task180 双保险（accountId 缺省退文件名去重 + NSErrorObject 坏文件过滤）
 //   - 类型文案：Demo. 前缀 → 演示；accountType 显式优先（thirdparty/本地/
@@ -478,7 +478,7 @@ BOOL ZL2AccountsSharedIsThirdParty(NSDictionary *accountData) {
     });
 }
 
-// 旧容器契约：AccountListViewController 的 whenItemSelected/whenDelete 由
+// 旧容器契约：原账号列表页（Task432 已退役）的 whenItemSelected/whenDelete 由
 // 容器桥接为 @"UpdateAccountInfo"（LauncherCardLayout/Root 同款）——本页
 // 直接发出，主页 pendingLaunchAfterLogin 据此自动续启动
 - (void)ame_postAccountInfoChanged {
@@ -1274,7 +1274,7 @@ BOOL ZL2AccountsSharedIsThirdParty(NSDictionary *accountData) {
 
 - (void)showAddAccountSheet {
     __weak typeof(self) weakSelf = self;
-    // 旧 AccountListViewController 实际支持的四种登录方式 1:1（文案与旧
+    // 旧账号列表页实际支持的四种登录方式 1:1（文案与旧
     // AccountLoginViewController 卡片同源 i18n 键）
     UIAlertController *sheet = [UIAlertController alertControllerWithTitle:nil
                                                                    message:nil

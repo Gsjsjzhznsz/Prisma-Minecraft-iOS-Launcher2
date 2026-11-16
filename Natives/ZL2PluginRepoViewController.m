@@ -2,7 +2,7 @@
 #import "AmePluginKit.h"
 #import "ZL2Theme.h"
 #import "ZL2M3Kit.h"
-#import "ZL2MotionKit.h" // ★Task429：MD3 动效体系（插件仓库卡列表入场示范接入）
+#import "ZL2AnimationKit.h" // ★Task429：MD3 动效体系（插件仓库卡列表入场示范接入）
 #import "utils.h" // localize
 #import "UnzipKit.h"
 

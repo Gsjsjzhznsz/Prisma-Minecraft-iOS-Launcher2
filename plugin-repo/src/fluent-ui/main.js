@@ -1,6 +1,16 @@
 // Task375 fluent-ui v2.4.0 —— 「两态开关 · 跟随系统明暗」版（用户指令：
 // "flUI的开关能不能就2种状态，开和不开，浅色合深色跟随设置"）。
 // ---------------------------------------------------------------------
+// ★ v2.6.2（Task432 移交⑥：导航广播事件化）：壳侧根修 —— ZL2ShellViewController
+//   showPageAtIndex 切页生效处现全量广播 ZL2ShellNavigateNotification（带 index
+//   userInfo；此前侧边栏点按不广播，page.changed 事件面不完整）。本版订阅
+//   page.changed（经 AmePluginRuntime 桥接）替代 200ms 轮询自愈主路径：
+//     · 通道一（即时主路径，原有）：page.changed 双拍（260/900ms）—— 现已覆盖
+//       全部切页（侧边栏点按/主页瓦片/程序化 openPage/返回主页）。
+//     · 通道二（轮询退役）：200ms 周期自愈摘除，保留装载后一轮轻校验兜底
+//       （2.2s 单拍，非循环）—— 覆盖装载期壳重建窗口与无事件面的旧引擎降级态。
+//   蓝条纠偏本体（测量对差 + 幂等在位跳过）与 v2.6.1 一致，零语义变更。
+// ---------------------------------------------------------------------
 // ★ v2.6.1（fui-rail-fix）：NavigationView 选中指示条（蓝条）窗格底页错位
 //   根修（插件侧最大能力版）。症状：蓝条随切页上下滑动正常，但驻「设置」
 //   页时滑到「主页」旁（「文件」为瞬时动作不换选中，WinUI 语义本就保持
@@ -496,8 +506,10 @@
     } catch (e2) {}
   }
 
-  // 通道一（即时）：page.changed（主页瓦片/版本页/ame.openPage 程序化切页；
-  // 双拍 = 0.18s 指示条动画收拍后 + 重建二段确认）。
+  // 通道一（即时主路径）：page.changed —— ★Task432 壳侧 showPageAtIndex 全量广播
+  //   ZL2ShellNavigate 后，本事件已覆盖全部切页（侧边栏点按/主页瓦片/程序化切页/
+  //   返回主页）；双拍 = 0.18s 指示条动画收拍后 + 重建二段确认。同页重复广播
+  //   （幂等早退保护，不会重复发）由 railSyncOnce 在位即跳过拦住，零写面。
   try {
     ame.on('page.changed', function (_ev, payload) {
       try {
@@ -508,11 +520,12 @@
       } catch (e) {}
     });
   } catch (e) {}
-  // 通道二（自愈兜底）：侧边栏点按不广播 ZL2ShellNavigate（无事件可订阅），
-  // 200ms 周期重校补齐——选中主列/在位/关态/非 fui 骨架时为纯判定零写面。
-  try { setInterval(function () { try { railSyncOnce(); } catch (e) {} }, 200); } catch (e2) {}
+  // 通道二（轻校验兜底，★Task432 200ms 轮询退役）：壳侧全量广播补齐事件面后，
+  //   周期轮询摘除；保留装载后一轮单拍（2.2s，非循环）——覆盖装载期壳重建
+  //   落定窗口与旧引擎无事件面的降级态（在位即跳过 = 零写面）。
+  railScheduleSync(2200);
 
   autoApply();
 
-  ame.log('[' + MARK + '] fluent-ui v2.6.1 loaded（两态开关：开=NavigationView 全维度换装+色板实时跟随系统明暗，关=恢复默认；Task380 事件去重防回环；v2.6.1 蓝条 footer 页错位测量纠偏+200ms 自愈）');
+  ame.log('[' + MARK + '] fluent-ui v2.6.2 loaded（两态开关：开=NavigationView 全维度换装+色板实时跟随系统明暗，关=恢复默认；Task380 事件去重防回环；v2.6.1 蓝条 footer 页错位测量纠偏；v2.6.2 订阅 page.changed 替代 200ms 轮询，保留一轮轻校验兜底）');
 })();

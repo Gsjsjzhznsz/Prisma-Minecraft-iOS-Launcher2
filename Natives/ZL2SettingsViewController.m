@@ -1,10 +1,17 @@
 //
-// ZL2SettingsViewController.m — ZL2 设置「左轨八屏 + 右内容」枢纽（7.0-UI-13-S）
+// ZL2SettingsViewController.m — ZL2 设置「左轨八屏 + 右内容」枢纽（7.0-UI-13-S；
+//   Task432 八组收敛对齐）
 //
 // 对标：ZalithLauncher2 ui/screens/content/SettingsScreen.kt——左轨 8 项分
 // 3 组（组间分隔线）+ 右侧内容区（子页切换非 push）。8 个子页 VC 全部
 // 落在 ZL2SettingPages（ZL2SettingPage 基类 + 八个子类），行卡组件落在
 // ZL2SettingCards（SettingsCard 连体拼接组）。
+//
+// ★Task432 八组收敛（第 8 期报告 §6.3）：摘除 Task344 自造超集的 AI(idx5)/
+//   调试(idx6) 两轨项，轨项与分隔位 1:1 回归 ZL2 SettingsScreen.kt L112-121
+//   settingItems 八组原版（Java 管理/关于前分隔）；两页可达性由 case 4 启动
+//   器页尾部「AI 设置 / 调试」真按钮行入口接住（文件尾 ZL2LauncherSettings-
+//   TailPage，ame_buildGroups 钩子注入、重建路径不掉落）。
 //
 // 左轨规格（spec）：
 //   · 宽 200pt（iPad）/ 160pt（iPhone 横屏）；
@@ -263,18 +270,19 @@ static UIImage *ame_hubSystemImage(NSString *name, NSString *fallback) {
         [_railStack.trailingAnchor constraintLessThanOrEqualToAnchor:_railScrollView.contentLayoutGuide.trailingAnchor constant:-4.0],
     ]];
 
-    // —— 轨项装配（Task344 扩容 8→10 项 + 3 条组分隔线；组间 custom spacing 6 呼吸）——
-    //   0 渲染器 / 1 游戏 / 2 控制 / 3 手柄 / 4 启动器 ｜ 5 AI / 6 调试 ｜
-    //   7 Java 管理 / 8 控制管理 ｜ 9 关于
-    //   （AI/调试插在启动器后：主页插件 chip 定点 index=4 不受影响）
+    // —— 轨项装配（★Task432 八组收敛：10→8 项 + 2 条组分隔线；组间 custom spacing 6 呼吸）——
+    //   0 渲染器 / 1 游戏 / 2 控制 / 3 手柄 / 4 启动器 ｜ 5 Java 管理 /
+    //   6 控制管理 ｜ 7 关于
+    //   （divider 位 1:1 对齐 ZL2 SettingsScreen.kt settingItems：Java 管理、
+    //   关于两项 division = true；AI/调试两轨项摘除，可达性由 case 4 启动器
+    //   页尾部入口接住——主页插件 chip 定点 index=4 不受影响：摘除点在原
+    //   idx 5/6，均在启动器之后，八组口径下启动器仍为 index 4）
     NSArray<NSArray<NSString *> *> *defs = @[
         @[localize(@"ame369.settab.renderer", @"渲染器"),   @"cpu",                       @"gearshape"],
         @[localize(@"ame369.settab.game", @"游戏"),     @"gamecontroller",            @""],
         @[localize(@"ame369.settab.controls", @"控制"),     @"hand.tap",                  @"hand.point.up.left"],
         @[localize(@"ame369.settab.gamepad", @"手柄"),     @"gamecontroller.fill",       @"gamecontroller"],
         @[localize(@"ame369.settab.launcher", @"启动器"),   @"gearshape.fill",            @"gear"],
-        @[@"AI",       @"sparkles",                  @""],
-        @[localize(@"ame369.settab.debug", @"调试"),     @"ladybug",                   @"ant.fill"],
         @[localize(@"ame369.settab.java_manager", @"Java 管理"), @"wrench.and.screwdriver",   @"wrench"],
         @[localize(@"ame369.settab.control_manager", @"控制管理"), @"square.on.square",          @"square.split.2x1"],
         @[localize(@"ame369.settab.about", @"关于"),     @"info.circle",               @""],
@@ -289,9 +297,12 @@ static UIImage *ame_hubSystemImage(NSString *name, NSString *fallback) {
         [_railStack addArrangedSubview:item];
         [_railItems addObject:item];
 
-        // 组分隔线：4→5（启动器｜AI/调试）、6→7（调试｜Java管理/控制管理）
-        // 与 8→9（控制管理｜关于）；分隔线两侧 custom spacing 6 呼吸（组间距语义）
-        if (i == 4 || i == 6 || i == 8) {
+        // 组分隔线（本枢纽语义 = item i 之后插入，即 4→5 / 6→7 之间）：
+        // 4→5（启动器｜Java 管理）、6→7（控制管理｜关于）——★Task432 八组
+        // 口径：divider 位 1:1 对齐 ZL2 settingItems 的 Java 管理 / 关于两项
+        // division = true（divider 前置语义 ↔ 本处"i 之后插入"差一位）；
+        // 分隔线两侧 custom spacing 6 呼吸（组间距语义）
+        if (i == 4 || i == 6) {
             [_railStack setCustomSpacing:6.0 afterView:item];
             UIView *separator = [[UIView alloc] init];
             separator.backgroundColor =
@@ -357,12 +368,15 @@ static UIImage *ame_hubSystemImage(NSString *name, NSString *fallback) {
         case 1: page = [[ZL2GameSettingsPage alloc] init];            break;
         case 2: page = [[ZL2ControlSettingsPage alloc] init];         break;
         case 3: page = [[ZL2GamepadSettingsPage alloc] init];         break;
-        case 4: page = [[ZL2LauncherSettingsPage alloc] init];        break;
-        case 5: page = [[ZL2AISettingsPage alloc] init];              break;
-        case 6: page = [[ZL2DebugSettingsPage alloc] init];           break;
-        case 7: page = [[ZL2JavaManagerSettingsPage alloc] init];     break;
-        case 8: page = [[ZL2ControlManagerSettingsPage alloc] init];  break;
-        case 9: page = [[ZL2AboutSettingsPage alloc] init];           break;
+        case 4:
+            // ★Task432：启动器页换转子类——尾部追加「AI 设置 / 调试」入口组
+            //   （左轨摘除两轨项后的可达性补偿；实现见文件尾子类）
+            page = [[ZL2LauncherSettingsTailPage alloc] init];           break;
+        case 5: page = [[ZL2JavaManagerSettingsPage alloc] init];     break;
+        case 6: page = [[ZL2ControlManagerSettingsPage alloc] init];  break;
+        case 7: page = [[ZL2AboutSettingsPage alloc] init];           break;
+        // ★Task432 去向注记：原 case 5（ZL2AISettingsPage）/ case 6（调试页）
+        //   左轨页面映射摘除，改由 case 4 页尾部入口 push 接住（同两类真实现）。
         default: return nil;
     }
     // 页首大标题（ZL2SettingPage.viewDidLoad 消费）
@@ -378,11 +392,9 @@ static UIImage *ame_hubSystemImage(NSString *name, NSString *fallback) {
         case 2: return localize(@"ame369.settab.controls", @"控制");
         case 3: return localize(@"ame369.settab.gamepad", @"手柄");
         case 4: return localize(@"ame369.settab.launcher", @"启动器");
-        case 5: return @"AI";
-        case 6: return localize(@"ame369.settab.debug", @"调试");
-        case 7: return localize(@"ame369.settab.java_manager", @"Java 管理");
-        case 8: return localize(@"ame369.settab.control_manager", @"控制管理");
-        case 9: return localize(@"ame369.settab.about", @"关于");
+        case 5: return localize(@"ame369.settab.java_manager", @"Java 管理");
+        case 6: return localize(@"ame369.settab.control_manager", @"控制管理");
+        case 7: return localize(@"ame369.settab.about", @"关于");
         default: return @"";
     }
 }
@@ -404,7 +416,7 @@ static UIImage *ame_hubSystemImage(NSString *name, NSString *fallback) {
 
 // 子页切换：attach + 显隐 + 0.18s crossDissolve（同壳 showPageAtIndex）
 - (void)ame_showPageAtIndex:(NSInteger)index {
-    if (index < 0 || index > 9) return;
+    if (index < 0 || index > 7) return;   // ★Task432 八组口径（0-7）
     if (index == self.currentIndex) return;
 
     UIViewController *next = [self ame_pageForIndex:index];
@@ -446,11 +458,146 @@ static UIImage *ame_hubSystemImage(NSString *name, NSString *fallback) {
     [self ame_showPageAtIndex:(NSInteger)sender.tag];
 }
 
-// ★ Task328：外部定点子页（userInfo[@"index"]）；越界忽略
+// ★ Task328：外部定点子页（userInfo[@"index"]）；★Task432 八组口径越界上限 7
 - (void)ame328_selectSubPage:(NSNotification *)note {
     NSInteger ame328_index = [note.userInfo[@"index"] integerValue];
-    if (ame328_index < 0 || ame328_index > 9) return;
+    if (ame328_index < 0 || ame328_index > 7) return;
     [self ame_showPageAtIndex:ame328_index];
+}
+
+@end
+
+#pragma mark - Task432 启动器页尾部 AI/调试入口（左轨 10→8 组收敛的可达性补偿）
+
+// AI/调试两轨项自左轨摘除（ZL2 SettingsScreen.kt L112-121 八组对齐），可达性
+// 由 case 4 启动器页子类补齐：尾部追加「AI 设置 / 调试」两枚真按钮行，点按
+// push 对应子页（ZL2SettingPage ame_push: 统一入口，导航栏随子页显示——枢纽
+// viewWillDisappear 恢复系统栏的既有契约原样生效）。
+// 注入点选 ame_buildGroups 覆写：基类 viewDidLoad 首建与 ame_rebuildGroups
+// 全量重建都汇经此钩子，尾部组在任意重建路径后均不丢。
+
+// 行卡：ZL2SettingCards SettingsCard 行观感的轻量 UIKit 直建平移（
+// surfaceContainer 组底 + 28 外圆角连体 + 56 行高 + fontTitleMedium 标题 +
+// 尾部 chevron；全部 ZL2Theme 令牌）。不引 ZL2SettingCards 类符号——
+// ui_fluent_smoke 固定清单无 ZL2SettingCards.m 且 ZL2PagesStub 桩 TU 无对应
+// 类符号（_OBJC_CLASS_$ 未定义链接面判例族；本行卡零新增链接面依赖）。
+@interface ZL2SettingsTailRow : UIControl
+- (instancetype)initWithTitle:(NSString *)title;
+@end
+
+@implementation ZL2SettingsTailRow {
+    UILabel *_titleLabel;
+    UIImageView *_chevronView;
+}
+- (instancetype)initWithTitle:(NSString *)title {
+    self = [super initWithFrame:CGRectZero];
+    if (self) {
+        self.translatesAutoresizingMaskIntoConstraints = NO;
+        self.isAccessibilityElement = YES;
+        self.accessibilityLabel = title;
+        self.accessibilityTraits = UIAccessibilityTraitButton;
+
+        _titleLabel = [[UILabel alloc] init];
+        _titleLabel.text = title;
+        _titleLabel.font = [ZL2Theme fontTitleMedium];
+        _titleLabel.textColor = [ZL2Theme onSurface];
+        _titleLabel.numberOfLines = 1;
+        _titleLabel.translatesAutoresizingMaskIntoConstraints = NO;
+        [self addSubview:_titleLabel];
+
+        UIImage *chevron = ame_hubSystemImage(@"chevron.right", @"chevron.right");
+        _chevronView = [[UIImageView alloc] initWithImage:
+            [chevron imageWithRenderingMode:UIImageRenderingModeAlwaysTemplate]];
+        _chevronView.tintColor = [ZL2Theme onSurfaceVariant];
+        _chevronView.contentMode = UIViewContentModeScaleAspectFit;
+        _chevronView.userInteractionEnabled = NO;
+        _chevronView.translatesAutoresizingMaskIntoConstraints = NO;
+        [self addSubview:_chevronView];
+
+        [NSLayoutConstraint activateConstraints:@[
+            [_titleLabel.leadingAnchor constraintEqualToAnchor:self.leadingAnchor constant:16.0],
+            [_titleLabel.centerYAnchor constraintEqualToAnchor:self.centerYAnchor],
+            [_titleLabel.trailingAnchor constraintLessThanOrEqualToAnchor:_chevronView.leadingAnchor constant:-8.0],
+
+            [_chevronView.trailingAnchor constraintEqualToAnchor:self.trailingAnchor constant:-16.0],
+            [_chevronView.centerYAnchor constraintEqualToAnchor:self.centerYAnchor],
+            [_chevronView.widthAnchor constraintEqualToConstant:16.0],
+            [_chevronView.heightAnchor constraintEqualToConstant:16.0],
+        ]];
+        [self.heightAnchor constraintEqualToConstant:56.0].active = YES;   // SettingsCard 行高下限
+    }
+    return self;
+}
+@end
+
+// case 4 页子类：super 建完全部组卡后追加尾部入口组（连体双行）。
+// 注：Task327 插件贡献行动态组经 viewWillAppear 重建时恒追加至内容栈末尾，
+// 重建后位序为「尾部入口组 → 插件贡献组」（动态组本就浮动末位，观感可接受）。
+@interface ZL2LauncherSettingsTailPage : ZL2LauncherSettingsPage
+- (void)ame432_appendTailGroup;
+- (void)ame432_tailRowTapped:(UIControl *)sender;
+@end
+
+@implementation ZL2LauncherSettingsTailPage
+
+- (void)ame_buildGroups {
+    // 真实现在 ZL2SettingPages.m 基类链（ui_fluent_smoke 的 ZL2PagesStub 桩 TU
+    // 仅链接期类符号、无方法实现；桩契约「截图流程不点轨项」下 case 4 页恒不
+    // 实例化，与 hub 全体子页同一语义面）
+    [super ame_buildGroups];
+    [self ame432_appendTailGroup];
+}
+
+// 尾部入口组（AI 设置 / 调试）：surfaceContainer 连体组卡，两行各 56pt
+- (void)ame432_appendTailGroup {
+    UIView *group = [[UIView alloc] init];
+    group.backgroundColor = [ZL2Theme surfaceContainer];
+    group.layer.cornerRadius = 28.0;   // M3 extraLarge（SettingsCard 组外圆角规格）
+    group.layer.masksToBounds = YES;
+    group.translatesAutoresizingMaskIntoConstraints = NO;
+
+    ZL2SettingsTailRow *aiRow =
+        [[ZL2SettingsTailRow alloc] initWithTitle:localize(@"ame432.settab.ai_tail", @"AI 设置")];
+    aiRow.tag = 0;   // 仅作 ame432_tailRowTapped: 下标载荷（域内判例）
+    [aiRow addTarget:self
+              action:@selector(ame432_tailRowTapped:)
+    forControlEvents:UIControlEventTouchUpInside];
+    [group addSubview:aiRow];
+
+    ZL2SettingsTailRow *debugRow =
+        [[ZL2SettingsTailRow alloc] initWithTitle:localize(@"ame432.settab.debug_tail", @"调试")];
+    debugRow.tag = 1;
+    [debugRow addTarget:self
+                 action:@selector(ame432_tailRowTapped:)
+       forControlEvents:UIControlEventTouchUpInside];
+    [group addSubview:debugRow];
+
+    [NSLayoutConstraint activateConstraints:@[
+        [aiRow.topAnchor constraintEqualToAnchor:group.topAnchor],
+        [aiRow.leadingAnchor constraintEqualToAnchor:group.leadingAnchor],
+        [aiRow.trailingAnchor constraintEqualToAnchor:group.trailingAnchor],
+
+        [debugRow.topAnchor constraintEqualToAnchor:aiRow.bottomAnchor],
+        [debugRow.leadingAnchor constraintEqualToAnchor:group.leadingAnchor],
+        [debugRow.trailingAnchor constraintEqualToAnchor:group.trailingAnchor],
+        [debugRow.bottomAnchor constraintEqualToAnchor:group.bottomAnchor],
+    ]];
+    // 基类钩子：入内容栈（组间距 2pt 由 groupsStack 统一；宽度随栈 fill 对齐）
+    [self ame_addGroup:group];
+}
+
+- (void)ame432_tailRowTapped:(UIControl *)sender {
+    UIViewController *vc = nil;
+    NSString *fallbackTitle = nil;
+    if (sender.tag == 0) {
+        vc = [[ZL2AISettingsPage alloc] init];
+        fallbackTitle = localize(@"ame432.settab.ai_tail", @"AI 设置");
+    } else if (sender.tag == 1) {
+        vc = [[ZL2DebugSettingsPage alloc] init];
+        fallbackTitle = localize(@"ame432.settab.debug_tail", @"调试");
+    }
+    if (!vc) return;
+    [self ame_push:vc titled:fallbackTitle];   // ZL2SettingPage 统一 push 入口
 }
 
 @end

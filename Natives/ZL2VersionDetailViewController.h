@@ -5,10 +5,16 @@
 //   Row { TabMenu(左子导航轨) + NavigationUI(内容) }。iOS 对应：
 //   顶部版本信息头卡（surfaceContainer/radiusM：34pt 加载器图标 + 版本名 +
 //   描述 + MC版本/加载器标签行 + 头部右侧「完成」钮）→ 左子导航轨（160pt，
-//   ZL2RailItem 视觉同款：32pt 胶囊 + 标签，概览/模组/存档/资源包/光影/
-//   截图/服务器/配置 八项，ZL2 的 division 分隔线同位移植：模组前/服务器前）
+//   ZL2RailItem 视觉同款：32pt 胶囊 + 标签。★Task432 九项与三组分隔 1:1 对齐
+//   ZL2 settingItems（VersionSettingsScreen.kt L159-168）：概览 / 配置 /
+//   修改版本 ｜ 模组 / 存档 / 资源包 / 光影 / 截图 ｜ 服务器，division 分隔线
+//   在模组前 / 服务器前两处）
 //   → 右内容区 = 子页 addChild + 0.18s crossDissolve（ZL2ShellViewController
-//   手法）。子页集合见 ZL2VersionPages.h（八页 1:1 ZL2 逻辑映射）。
+//   手法）。公共子页集合见 ZL2VersionPages.h（八页 1:1 ZL2 逻辑映射）；
+//   「修改版本」= 本 .m 内私有页（★Task432 实锤一：ZL2 ModifyVersionScreen.kt
+//   列表选择 + 确认安装语义，复用 PLComponentService 安装链）；存档子页 =
+//   本 .m 私有桥接页承载（内嵌 ZL2VersionSavesPage + 顶部数据包入口行，
+//   数据包 = ★Task432 缺口#6 第九子页 ZL2V13DatapacksPage）。
 //
 // 数据契约：
 //   - 实例字典 = PLProfiles.current.profiles[profileName]（键名即字典键，

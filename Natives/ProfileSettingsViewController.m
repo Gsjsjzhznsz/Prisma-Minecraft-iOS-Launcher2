@@ -7,7 +7,8 @@
 #import "WorldsManagerViewController.h"
 #import "PLProfiles.h"
 #import "LauncherPreferences.h"
-#import "LauncherNavigationController.h" // for localVersionList/remoteVersionList
+// Task432：LauncherNavigationController import 随类退役摘除（其承载的
+//   localVersionList/remoteVersionList 全局声明迁至 MinecraftResourceUtils.h）
 #import "MinecraftResourceUtils.h"
 #import "installer/modpack/ModrinthAPI.h"
 #import "ModVersion.h"
@@ -1523,7 +1524,7 @@ static NSString * localizeProfileTitle(NSString *title) {
         }
     }
     UITextField *textField = [[UITextField alloc] initWithFrame:CGRectMake(0, 0, 200, 30)];
-    // 参照 main 分支 LauncherProfileEditorViewController：placeholder 为 "(default)"，
+    // 参照 main 分支原 Profile 编辑器（Task432 已退役）：placeholder 为 "(default)"，
     // 表示未设置时回退到全局 java.java_args。
     textField.placeholder = @"(default)";
     // 仅当 profile 显式设置了 javaArgs 时才显示，否则留空显示 placeholder
@@ -1747,7 +1748,7 @@ static NSString * localizeProfileTitle(NSString *title) {
 
 #pragma mark - Actions
 
-/// 编辑游戏目录（仿 main 分支 LauncherProfileEditorViewController 的 gameDir 文本框）
+/// 编辑游戏目录（仿 main 分支原 Profile 编辑器的 gameDir 文本框；Task432 已退役）
 /// gameDir="." 表示使用当前 POJAV_GAME_DIR（即"游戏目录切换"选中的实例目录）
 /// 也可以输入相对路径（相对于 POJAV_GAME_DIR）或绝对路径来实现版本隔离
 /// Task217：不再作为游戏目录行的首选交互（改弹 FCL 三态选择器），保留为

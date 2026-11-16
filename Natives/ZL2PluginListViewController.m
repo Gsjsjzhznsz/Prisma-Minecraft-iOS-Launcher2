@@ -468,28 +468,33 @@
     //   安装/启停/删除存储层，仅包格式校验不同）。软链取扫描面；服务
     //   缺席 = 空组隐藏。启停直写 state.json enabled 表（与 JS 插件详情
     //   页开关同源）；删除走服务卸载链（目录 + purge state）。
-    {
-        Class ame429_svc = NSClassFromString(@"PLRendererPluginService");
-        NSArray *ame429_scanned = nil;
-        // ★Task429-r1 热修（smoke CI 实录：Class 类型直发 +availableRenderers =
-        //   no known class method）——ame428 判例同款 performSelector 软链
-        //   （ZL2SettingPages ame428_runIntegrityVerify 同 pragma 口径）。
-        if (ame429_svc && [ame429_svc respondsToSelector:NSSelectorFromString(@"availableRenderers")]) {
-            #pragma clang diagnostic push
-            #pragma clang diagnostic ignored "-Warc-performSelector-leaks"
-            ame429_scanned = [ame429_svc performSelector:NSSelectorFromString(@"availableRenderers")];
-            #pragma clang diagnostic pop
-        }
-        NSMutableArray *ame429_list = [NSMutableArray array];
-        for (id ame429_entry in ame429_scanned) {
-            if ([ame429_entry conformsToProtocol:@protocol(Ame429RendererEntryShadow)]) {
-                [ame429_list addObject:ame429_entry];
-            }
-        }
-        self.ame429_rendererEntries = [ame429_list copy];
-    }
+    //   ★Task432：扫描面提取为 ame429_rescanRendererEntries（拨杆回调同步
+    //   局部刷新复用同一份扫描实现，避免双份漂移）。
+    [self ame429_rescanRendererEntries];
     [self ame345_refreshHeroCount];
     [self.table reloadData];
+}
+
+/// ★Task432（P2 开关 0.15s 重载竞态）：渲染器插件组扫描面提取（原 ame317_reload
+/// 内联块）——ame317_reload 与拨杆同步局部刷新共用；服务缺席 = 空组。
+- (void)ame429_rescanRendererEntries {
+    Class ame429_svc = NSClassFromString(@"PLRendererPluginService");
+    NSArray *ame429_scanned = nil;
+    // ★Task429-r1 热修判例（smoke CI 实录：Class 类型直发 +availableRenderers =
+    //   no known class method）——ame428 判例同款 performSelector 软链。
+    if (ame429_svc && [ame429_svc respondsToSelector:NSSelectorFromString(@"availableRenderers")]) {
+        #pragma clang diagnostic push
+        #pragma clang diagnostic ignored "-Warc-performSelector-leaks"
+        ame429_scanned = [ame429_svc performSelector:NSSelectorFromString(@"availableRenderers")];
+        #pragma clang diagnostic pop
+    }
+    NSMutableArray *ame429_list = [NSMutableArray array];
+    for (id ame429_entry in ame429_scanned) {
+        if ([ame429_entry conformsToProtocol:@protocol(Ame429RendererEntryShadow)]) {
+            [ame429_list addObject:ame429_entry];
+        }
+    }
+    self.ame429_rendererEntries = [ame429_list copy];
 }
 
 #pragma mark - 安装链
@@ -793,30 +798,47 @@ didPickDocumentsAtURLs:(NSArray<NSURL *> *)urls {
     //   （与 JS 插件启停同源；启用 = 渲染器列表出现档位，停用 = 隐去，
     //   不触碰用户当前选中渲染器）。
     if (sender.tag >= 10000) {
-        NSUInteger ame429_row = (NSUInteger)sender.tag - 10000;
-        if (ame429_row >= self.ame429_rendererEntries.count) return;
+        NSInteger ame429_row = (NSInteger)sender.tag - 10000;
+        if (ame429_row < 0 || (NSUInteger)ame429_row >= self.ame429_rendererEntries.count) return;
         id<Ame429RendererEntryShadow> ame429_entry =
-            self.ame429_rendererEntries[ame429_row];
+            self.ame429_rendererEntries[(NSUInteger)ame429_row];
         Class ame429_svc = NSClassFromString(@"PLRendererPluginService");
         if (ame429_svc && [ame429_svc respondsToSelector:@selector(setRendererPluginEnabled:pluginId:)]) {
             id<Ame429RendererServiceShadow> ame429_shadow = ame429_svc;
             [ame429_shadow setRendererPluginEnabled:sender.on pluginId:ame429_entry.pluginId];
         }
-        dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.15 * NSEC_PER_SEC)),
-                       dispatch_get_main_queue(), ^{
-            [self ame317_reload];
-        });
+        // ★Task432（P2 开关 0.15s 重载竞态）：去掉 dispatch_after 延迟整页 reload
+        //   （快速连拨时旧延迟回调与新状态交叉互踩）——回调内同步重扫渲染器组
+        //   先更新 model 再局部 reloadRows；仅组出现/消失（section 数变化）时
+        //   回退整页 reloadData。
+        NSUInteger ame429_oldCount = self.ame429_rendererEntries.count;
+        [self ame429_rescanRendererEntries];
+        NSUInteger ame429_newCount = self.ame429_rendererEntries.count;
+        if (ame429_oldCount == ame429_newCount &&
+            (NSUInteger)ame429_row < self.ame429_rendererEntries.count) {
+            [self.table reloadRowsAtIndexPaths:@[[NSIndexPath indexPathForRow:ame429_row inSection:4]]
+                              withRowAnimation:UITableViewRowAnimationNone];
+        } else {
+            [self.table reloadData];
+        }
         return;
     }
     if (self.cards.count == 0) return;
-    NSDictionary *card = self.cards[(NSUInteger)sender.tag];
+    NSUInteger ame432_row = (NSUInteger)sender.tag;
+    if (ame432_row >= self.cards.count) return;
+    NSDictionary *card = self.cards[ame432_row];
     NSString *pid = card[@"id"];
     BOOL next = sender.on;
+    // ★Task432（P2 开关 0.15s 重载竞态）：启停主线程同步生效（setPluginEnabled
+    //   同步装载/卸载 context），回调内先更新 model 再局部 reloadRows，消灭
+    //   dispatch_after 延迟整页 reload 与快速连拨的交叉窗口。
     [AmePluginRuntime setPluginEnabled:pid enabled:next];
-    dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.15 * NSEC_PER_SEC)),
-                   dispatch_get_main_queue(), ^{
-        [self ame317_reload];
-    });
+    NSMutableDictionary *ame432_updated = [card mutableCopy];
+    ame432_updated[@"enabled"] = @([AmePluginPermissions pluginEnabled:pid] &&
+                                   [AmePluginRuntime isRunning:pid]);
+    self.cards[ame432_row] = ame432_updated;
+    [self.table reloadRowsAtIndexPaths:@[[NSIndexPath indexPathForRow:(NSInteger)ame432_row inSection:0]]
+                      withRowAnimation:UITableViewRowAnimationNone];
 }
 
 @end

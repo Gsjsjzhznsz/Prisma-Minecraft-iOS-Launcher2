@@ -4660,7 +4660,7 @@ didPickDocumentsAtURLs:(NSArray<NSURL *> *)urls {
             @"未能解析安装器/清单版本信息")];
         return;
     }
-    // 安全范围 URL 必须先 start 再读（AccountListViewController ame224 同款）；
+    // 安全范围 URL 必须先 start 再读（原账号列表页 ame224 同款，Task432 已退役）；
     // 服务按路径重复读（install_profile.json + jar 本体）→ 先拷入 tmp 再传路径
     NSString *tmpPath = [NSTemporaryDirectory() stringByAppendingPathComponent:
         [NSString stringWithFormat:@"ame429-import-%@", pickedURL.lastPathComponent]];

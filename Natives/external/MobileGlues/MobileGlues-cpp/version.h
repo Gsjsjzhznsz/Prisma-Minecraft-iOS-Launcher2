@@ -1873,7 +1873,7 @@
 // all six wait loops (RightPanel/NavCtrl/DownloadVC x isJITEnabled/
 // JIT26DebuggerKeepAttached) bounded, with a retry/cancel alert on timeout.
 // (5) Announcements: AnnouncementItem gains a "pin" field (bool/string
-// tolerant) sorted ahead of date-desc by AnnouncementService; the server
+// tolerant) sorted ahead of date-desc by the announcement service (retired Task432); the server
 // recommendation (mysv.dpdns.org) is pinned first per user request; task169
 // announcement added; v6-0-0-release rewritten to the FINAL truth (Vulkan-
 // direct FSR ships via the Metal presentation layer; the old "Vulkan does
@@ -2500,7 +2500,7 @@
 // + reattach) now dismiss with completion:nil and run the continuation
 // (Task172 liveness recheck + handler, or the timeout retry alert)
 // synchronously (LauncherRightPanelViewController.m,
-// LauncherNavigationController.m). Device anchors: "[tinygl4angle] Task182
+// the retired old-shell nav, Task432). Device anchors: "[tinygl4angle] Task182
 // gles pin: <fn> via eglGetProcAddress/frameworks handle", "[tinygl4angle]
 // Task182 glCreateShader(type=..) -> <id> (namespace joined)", "EGLBridge:
 // Task182 VGPU requesting ES 3.2 context", and -- absence expected --
@@ -3054,7 +3054,7 @@
 // REVISION 18 addendum (Amethyst Task 190, no bump): account card restyled
 // isomorphic to the installed-versions page + account long-press menu +
 // installer page spacing aligned to the version-number page.
-// (1) AME190AccountCardCell (AccountListViewController.m): the account card
+// (1) AME190AccountCardCell (the retired AccountList page, Task432): the account card
 // now mirrors VMTileBaseCell/VMVersionCardCell from
 // VersionManagerViewController exactly -- 12pt continuous-corner container
 // (white 0.08 base + 0.5pt white 0.10 border, accent 1.5pt border + accent

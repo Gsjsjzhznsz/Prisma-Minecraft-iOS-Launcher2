@@ -37,12 +37,9 @@ for dirpath, _, files in os.walk(ROOT):
             continue
         src = open(os.path.join(dirpath, fn), encoding="utf-8", errors="replace").read()
         # match localize(@"key",  / MPLocalized(@"key",
-        for m in re.finditer(r'(?:localize|MPLocalized)\(\s*@((?:[^"\\]|\\.)*)"', src):
-            k = m.group(1)
-            if k.startswith('"'):
-                lit.add(k[1:])
-            else:
-                lit.add(k)
+        for m in re.finditer(r'(?:localize|MPLocalized)\(\s*@"((?:[^"\\]|\\.)*)"', src):
+        # Task432 fix: restore opening-quote consumption in literal scan
+            lit.add(m.group(1))
 
 missing = collections.defaultdict(list)
 for k in sorted(lit):
@@ -67,15 +64,11 @@ def check_family(name, keys):
         dyn_report.append((name, miss))
 
 # 2a. preference.* families from PLPrefTableViewController — enumerate section/key
-# sources from LauncherPreferencesViewController.m row dicts: @{@"section": @"x"...}
+# ★Task432 重锚：LPV 本体随退役批次一物理删除，行键/段扫描源收敛至现役 PLPrefTableViewController；
+# 其行键 i18n 表项保留不摘（表非孤键门）。
 # and @{@"key": @"y"}; sections list rows.
 pref_rows = []
-sections = []
-lpc = open(os.path.join(ROOT, "LauncherPreferencesViewController.m"), encoding="utf-8").read()
-for m in re.finditer(r'@\{@"section"\s*:\s*@"([A-Za-z0-9_]+)"', lpc):
-    sections.append(m.group(1))
-for m in re.finditer(r'@\{@"key"\s*:\s*@"([A-Za-z0-9_\.]+)"', lpc):
-    pref_rows.append(m.group(1))
+sections = ["general", "video", "control", "download", "ai"]  # ★Task432 重锚：prefSections 字面量随 LPV 本体退役删除，五键回退（四表 preference.section.* 全在档实测）
 ptvc = open(os.path.join(ROOT, "PLPrefTableViewController.m"), encoding="utf-8").read()
 for m in re.finditer(r'@\{@"key"\s*:\s*@"([A-Za-z0-9_\.]+)"', ptvc):
     pref_rows.append(m.group(1))
@@ -84,9 +77,6 @@ for m in re.finditer(r'@\{@"key"\s*:\s*@"([A-Za-z0-9_\.]+)"', ptvc):
 # (self.prefSections = @[@"general", ...]) instead of a stale fallback list
 # whose phantom entries (launcher/instance) do not exist in any consumer --
 # 2 false MISSes that trained users to ignore the audit's output.
-ame259_sec_m = re.search(r'self\.prefSections\s*=\s*@\[([^\]]*)\]', lpc)
-if ame259_sec_m:
-    sections = re.findall(r'@"([A-Za-z0-9_]+)"', ame259_sec_m.group(1))
 sec_keys = sorted(set(sections)) or ["general", "video", "control", "download", "ai"]
 row_keys = sorted(set(pref_rows))
 
@@ -99,13 +89,13 @@ row_keys = sorted(set(pref_rows))
 #   warn.<k>    never demanded (consumer is guarded by design); rows that
 #               actually carry warn text still show up in --verbose stats
 ame259_row_hits = [(m.start(), m.group(1)) for m in
-                   re.finditer(r'@"key"\s*:\s*@"([A-Za-z0-9_\.]+)"', lpc + ptvc)]
+                   re.finditer(r'@"key"\s*:\s*@"([A-Za-z0-9_\.]+)"', ptvc)]
 ame259_detail_rows = []
 ame259_confirm_rows = []
 ame259_done_rows = []
 for ame259_i, (ame259_pos, ame259_k) in enumerate(ame259_row_hits):
-    ame259_end = ame259_row_hits[ame259_i + 1][0] if ame259_i + 1 < len(ame259_row_hits) else len(lpc + ptvc)
-    ame259_seg = (lpc + ptvc)[ame259_pos:ame259_end]
+    ame259_end = ame259_row_hits[ame259_i + 1][0] if ame259_i + 1 < len(ame259_row_hits) else len(ptvc)
+    ame259_seg = (ptvc)[ame259_pos:ame259_end]
     if re.search(r'hasDetail"?\s*:\s*@YES', ame259_seg):
         ame259_detail_rows.append(ame259_k)
     # ★ Task259 reachability: didSelectRowAtIndexPath routes typeButton rows
@@ -139,8 +129,6 @@ for m in re.finditer(r'prefControllerTypes\s*=\s*@((?:\s*@{@"name"\s*:\s*@"([A-Z
         ctypes.add(t.group(1))
 for m in re.finditer(r'controller_configurator\.title\.type\.\%', cfg_src):
     pass  # dynamic consumer confirmed present; types come from prefControllerTypes
-for m in re.finditer(r'controller_type[^\n]*@"([A-Za-z0-9_]+)"', open(os.path.join(ROOT, "LauncherPreferencesViewController.m"), encoding="utf-8").read()):
-    ctypes.add(m.group(1))
 # item names from LauncherPrefContCfgViewController.m: @{@"name": @"x"...}
 # ★ Task259 precision fix: the ONLY @{@"name": @"<literal>"} dicts on this
 # screen are prefControllerTypes (xbox/playstation) -- runtime item names in

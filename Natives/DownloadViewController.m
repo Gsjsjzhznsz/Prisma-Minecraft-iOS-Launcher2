@@ -45,7 +45,7 @@
 #import "PLCrashView.h"
 #import "installer/NeoForgeVersionFetcher.h"
 #import "installer/ModLoaderInstallViewController.h"
-#import "LauncherNavigationController.h"
+// Task432：LauncherNavigationController.h import 随类退役摘除（死查找链同步拆除）
 #import "installer/ModpackInstallViewController.h"
 #import "ModpackImportViewController.h"
 #import "ModpackImportService.h"
@@ -4282,86 +4282,11 @@ static const NSTimeInterval kAme291MergeWindowSeconds = 7.0 * 24.0 * 3600.0;
 
 #pragma mark - Forge Installation
 
-- (LauncherNavigationController *)activeLauncherNavigationController {
-    // First try the existing logic
-    UISplitViewController *splitVC = self.splitViewController;
-    if (!splitVC && [self.presentingViewController isKindOfClass:[UISplitViewController class]]) {
-        splitVC = (UISplitViewController *)self.presentingViewController;
-    }
-    if (splitVC.viewControllers.count > 1) {
-        UIViewController *candidate = splitVC.viewControllers[1];
-        if ([candidate isKindOfClass:[LauncherNavigationController class]]) {
-            return (LauncherNavigationController *)candidate;
-        }
-        if ([candidate isKindOfClass:[UINavigationController class]]) {
-            for (UIViewController *vc in ((UINavigationController *)candidate).viewControllers) {
-                if ([vc isKindOfClass:[LauncherNavigationController class]]) {
-                    return (LauncherNavigationController *)vc;
-                }
-            }
-        }
-    }
-    if ([self.navigationController isKindOfClass:[LauncherNavigationController class]]) {
-        return (LauncherNavigationController *)self.navigationController;
-    }
+// Task432：旧壳 LauncherNavigationController 死查找链（activeLauncherNavigationController /
+//   findLauncherNavigationControllerIn:）随类退役整链摘除——ZL2 壳导航总线接管后层级里
+//   恒无该类实例，查找链恒 nil（一代页留守红线内的纯死代码）。
 
-    // Fallback: traverse from key window root view controller
-    UIWindow *keyWindow = nil;
-    if (@available(iOS 13.0, *)) {
-        for (UIWindowScene *scene in [UIApplication sharedApplication].connectedScenes) {
-            if (scene.activationState == UISceneActivationStateForegroundActive) {
-                keyWindow = scene.windows.firstObject;
-                break;
-            }
-        }
-    }
-    if (!keyWindow) {
-        keyWindow = [[UIApplication sharedApplication] windows].firstObject;
-    }
-
-    UIViewController *rootVC = keyWindow.rootViewController;
-    if (rootVC) {
-        LauncherNavigationController *found = [self findLauncherNavigationControllerIn:rootVC];
-        if (found) return found;
-    }
-
-    return nil;
-}
-
-- (LauncherNavigationController *)findLauncherNavigationControllerIn:(UIViewController *)vc {
-    if ([vc isKindOfClass:[LauncherNavigationController class]]) {
-        return (LauncherNavigationController *)vc;
-    }
-    if ([vc isKindOfClass:[UINavigationController class]]) {
-        for (UIViewController *child in ((UINavigationController *)vc).viewControllers) {
-            LauncherNavigationController *found = [self findLauncherNavigationControllerIn:child];
-            if (found) return found;
-        }
-    }
-    if ([vc isKindOfClass:[UISplitViewController class]]) {
-        for (UIViewController *child in ((UISplitViewController *)vc).viewControllers) {
-            LauncherNavigationController *found = [self findLauncherNavigationControllerIn:child];
-            if (found) return found;
-        }
-    }
-    if ([vc isKindOfClass:[UITabBarController class]]) {
-        for (UIViewController *child in ((UITabBarController *)vc).viewControllers) {
-            LauncherNavigationController *found = [self findLauncherNavigationControllerIn:child];
-            if (found) return found;
-        }
-    }
-    if (vc.presentedViewController) {
-        LauncherNavigationController *found = [self findLauncherNavigationControllerIn:vc.presentedViewController];
-        if (found) return found;
-    }
-    for (UIViewController *child in vc.childViewControllers) {
-        LauncherNavigationController *found = [self findLauncherNavigationControllerIn:child];
-        if (found) return found;
-    }
-    return nil;
-}
-
-#pragma mark - Mod Installer (Fallback when LauncherNavigationController is not available)
+#pragma mark - Mod Installer
 
 - (void)launchModInstallerWithPath:(NSString *)path hitEnterAfterWindowShown:(BOOL)hitEnter {
     // 关键修复（二次执行 jar 卡死）：iOS 进程内 JVM 只能创建一次
@@ -4411,11 +4336,11 @@ static const NSTimeInterval kAme291MergeWindowSeconds = 7.0 * 24.0 * 3600.0;
 }
 
 - (void)invokeAfterJITEnabled:(void(^)(void))handler {
-    // Task91：entitlement AND 磁盘标记双确认（同 LauncherNavigationController，
+    // Task91：entitlement AND 磁盘标记双确认（Task432 注：原与已退役的旧壳导航同款，
     // 防止普通侧载包里的预写标记把流程导入 apple-magnifier:// 死路）
     BOOL hasTrollStoreJIT = getEntitlementValue(@"jb.pmap_cs.custom_trust") && isTrollStoreInstall();
 
-    // Diagnostic (mirrors LauncherNavigationController.m): every branch must
+    // Diagnostic: every branch must
     // log, otherwise a silent launch from this path is indistinguishable from
     // the JIT detection being skipped entirely in latestlog.txt.
     {
@@ -4666,16 +4591,12 @@ static const NSTimeInterval kAme291MergeWindowSeconds = 7.0 * 24.0 * 3600.0;
         return;
     }
     
-    LauncherNavigationController *navVC = [self activeLauncherNavigationController];
-    
     NSString *message = [NSString stringWithFormat:localize(@"i18n_str_225", nil), vendorName];
     
     void (^launchInstaller)(void) = ^{
-        if (navVC) {
-            [navVC enterModInstallerWithPath:filePath hitEnterAfterWindowShown:YES];
-        } else {
-            [self launchModInstallerWithPath:filePath hitEnterAfterWindowShown:YES];
-        }
+        // Task432：旧壳 navVC 分支随 LauncherNavigationController 退役摘除——
+        //   进程内 Mod Installer 直启路径成为唯一路径。
+        [self launchModInstallerWithPath:filePath hitEnterAfterWindowShown:YES];
         
         if (installAction) {
             installAction();

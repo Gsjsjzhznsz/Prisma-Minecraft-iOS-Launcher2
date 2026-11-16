@@ -2619,9 +2619,19 @@ static NSInteger ame283_lastLandscapeDev = 0;
         self.inputTextField.autocorrectionType = UITextAutocorrectionTypeNo;
     }
 
-    BOOL gyroEnabled = getPrefBool(@"control.gyroscope_enable");
-    BOOL gyroInvertX = getPrefBool(@"control.gyroscope_invert_x_axis");
-    int gyroSensitivity = getPrefInt(@"control.gyroscope_sensitivity");
+    // ★Task432（陀螺仪键族单族化）：读前先跑迁移器（control.gyroscope_* →
+    //   general.gyro_*，一次性幂等，实现唯一在 GyroInput）；三读全走新族键，
+    //   新键意外缺席（未注册构建）时兜底读旧键——保证运行时单族语义。
+    [GyroInput ame432_migrateGyroKeyFamilyIfNeeded];
+    id ame432_enableObj = getPrefObject(@"general.gyro_enable");
+    if (ame432_enableObj == nil) ame432_enableObj = getPrefObject(@"control.gyroscope_enable");
+    id ame432_invertXObj = getPrefObject(@"general.gyro_invert_x");
+    if (ame432_invertXObj == nil) ame432_invertXObj = getPrefObject(@"control.gyroscope_invert_x_axis");
+    id ame432_sensObj = getPrefObject(@"general.gyro_sensitivity");
+    if (ame432_sensObj == nil) ame432_sensObj = getPrefObject(@"control.gyroscope_sensitivity");
+    BOOL gyroEnabled = ame432_enableObj ? [ame432_enableObj boolValue] : NO;
+    BOOL gyroInvertX = ame432_invertXObj ? [ame432_invertXObj boolValue] : NO;
+    int gyroSensitivity = ame432_sensObj ? (int)roundf([ame432_sensObj floatValue]) : 100;
     [GyroInput updateSensitivity:gyroEnabled?gyroSensitivity:0 invertXAxis:gyroInvertX];
 
     self.mouseSpeed = getPrefFloat(@"control.mouse_speed") / 100.0;

@@ -3,8 +3,8 @@
 //
 // 结构：每屏 = 垂直滚动 + 分组「连体卡片」（ZL2SettingCards 家族：组卡外
 // 圆角 28 / 内圆角 4 / 组间 2pt / 行内 padding 16 / 行高 ≥56 / 底
-// surfaceContainer）。底部「更多设置」Action 行 push 对应旧页，旧页长尾
-// 功能全部可达（全逻辑兜底契约）。
+// surfaceContainer）。★Task432 退役批次一：底部「更多设置」引流行全量摘除
+//（旧设置页本体删除，长尾功能已直挂分组，见第 8 期报告 §5.4）
 //
 // 八屏 → 真实偏好键映射（唯一事实源；读侧与旧页同一 API，写侧同一 set
 // API，写后按旧页先例 post 对应刷新通知）：
@@ -15,7 +15,7 @@
 //   video.resolution               分辨率缩放 %（25–150；PLProfiles 回退链的
 //                                  全局兜底键，SurfaceViewController Task159 口径）
 //   video.fullscreen_airplay       全屏输出（外接显示器）
-//   更多设置 → LauncherPreferencesViewController
+//   ★Task432：底部「更多设置」行退役（长尾已直挂分组）
 //
 // ② 游戏屏
 //   profile["allocatedMemory"]     内存分配（当前实例；PLProfiles.selectedProfile
@@ -27,7 +27,7 @@
 //   java.java_args                 JVM 启动参数（全局）
 //   internal.isolated              版本隔离（实例 plist 键；写后 toggleIsolatedPref(NO)
 //                                  重算应用——LauncherPreferences 既有契约）
-//   更多设置 → LauncherPreferencesViewController
+//   ★Task432：底部「更多设置」行退役（长尾已直挂分组）
 //
 // ③ 控制屏（旧「触控设置」页顶层项，TouchControllerPreferencesViewController 同键族）
 //   control.mod_touch_mode         虚拟按键 / 触控布局（★Task428 6.6 更名：
@@ -43,11 +43,22 @@
 //   general.gesture_tap_action              点击动作（int 0 左/1 右/2 无，默认 0）
 //   general.gesture_longpress_action        长按动作（int 同上，默认 1）
 //   general.gesture_longpress_delay         长按延迟（float 秒 0.2–1.0，默认 0.30）
-//   general.gyro_invert_y                   反转 Y 轴（BOOL 默认 NO）
-//   general.gyro_sample_rate                陀螺仪采样率（float Hz 5–50，默认 20）
-//   general.gyro_smoothing                  陀螺仪平滑强度（int 0–100，默认 30）
+//   ——★Task432 陀螺仪键族单族化（双族并存 → 单族 general.gyro_*）：
+//   general.gyro_enable                      陀螺仪开关（BOOL 默认 NO；
+//                                            旧键 control.gyroscope_enable
+//                                            装载时一次性迁移，见下）
+//   general.gyro_invert_x                    反转 X 轴（BOOL 默认 NO；旧键
+//                                            control.gyroscope_invert_x_axis
+//                                            同上迁移）
+//   general.gyro_sensitivity                 灵敏度（float % 50–300，默认 100；
+//                                            旧键 control.gyroscope_sensitivity
+//                                            同上迁移）
+//   general.gyro_invert_y                    反转 Y 轴（BOOL 默认 NO）
+//   general.gyro_sample_rate                 陀螺仪采样率（float Hz 5–50，默认 20）
+//   general.gyro_smoothing                   陀螺仪平滑强度（int 0–100，默认 30）
 //   ——★Task428 gesture_*/gyro_* 键名契约：并行工程师的运行时手势/陀螺仪
-//     层按同名键读，逐字一致不可改
+//     层按同名键读，逐字一致不可改；★Task432 迁移后 control.gyroscope_*
+//     旧族不再写入（读侧兜底仅剩 GyroInput 迁移器一次）
 //   完整触控设置 → TouchControllerPreferencesViewController（写后 post
 //   TouchControllerSettingsChanged——Task224 广播契约；落地页退役属后续任务）
 //
@@ -57,9 +68,11 @@
 //   手柄映射配置 → LauncherPrefContCfgViewController
 //
 // ⑤ 启动器屏
-//   general.ui_theme               深浅模式（dark/light/auto；写后 set
-//                                  ui_theme_explicit + post UIThemeChanged——
-//                                  旧页 Task161 显式选择契约）
+//   general.ui_theme               深浅模式（★Task432 行 1，三态序
+//                                  跟随系统/浅色/深色 = auto/light/dark；
+//                                  写后 set ui_theme_explicit + post
+//                                  UIThemeChanged——旧页 Task161 显式选择
+//                                  契约；主题色板独立成行 2，两行两义）
 //   general.app_language           应用语言（system + bundle 全部 .lproj；
 //                                  写后 post AppLanguageChanged）
 //   BackgroundManager.uiEffect     界面效果（毛玻璃/半透明；defaults 键
@@ -72,8 +85,7 @@
 //                                  speed_first；写后 PLMirrorCenter 测速跟上
 //                                  ——mod_mirror 行 Task138 同款）
 //   背景设置 → BackgroundSettingsViewController；壁纸画廊 →
-//   BingWallpaperGalleryViewController；更多设置 → LauncherPreferences
-//   ViewController（ui_layout 行不露出：ZL2 壳唯一）
+//   BingWallpaperGalleryViewController；★Task432 底部「更多设置」行退役
 //   ★Task428 新行：general.festival_effects 节日彩蛋（BOOL 默认 YES，
 //   ZL2FestivalEffects 消费）；general.download_threads 下载并发数
 //   （int 0=自动 16-64 自适应 / 8-64 手动）；「校验并补全游戏文件」入口 =
@@ -81,16 +93,17 @@
 //   runInteractiveVerifyAndRepairFromViewController:（运行时软链调用，
 //   头文件由并行工程师实装）
 //   ★Task428 注册注记（Setter 静默丢弃族——Task142/143/230/334 同判例）：
-//   PLPreferences setObject: 只写已注册键。本轮八新键
+//   PLPreferences setObject: 只写已注册键。Task428 八新键
 //     general.download_threads=@(0)、general.gesture_tap_action=@(0)、
 //     general.gesture_longpress_action=@(1)、
 //     general.gesture_longpress_delay=@(0.30)、general.gyro_invert_y=@(NO)、
 //     general.gyro_sample_rate=@(20.0)、general.gyro_smoothing=@(30)、
 //     general.festival_effects=@(YES)
-//   需在 PLPreferences.m defaultPrefForGlobal: 的 general 节注册
-//   （该文件不在本任务写权内，注册面归并行工程师/主控合流）；注册前
-//   写值会被静默丢弃，读侧缺键回退默认不受影响（本文件读全部已带
-//   getPrefObject 判空默认链）。
+//   ★Task432：上述注册已完成（PLPreferences.m general 节，本批次内落地），
+//   并新增陀螺仪单族三键 + 迁移哨兵：general.gyro_enable=@(NO)、
+//   general.gyro_invert_x=@(NO)、general.gyro_sensitivity=@(100)、
+//   general.gyro_family_migrated=@(NO)；旧键 control.gyroscope_* 注册
+//   保留防迁移读不到（迁移完成后旧键不再写）。
 //   ★Task429 新行：general.mirror_mode 下载镜像三态（int 默认 0；
 //   0=自动（大陆 BMCLAPI 优先，Task428 4.1 大陆探测默认档语义）/
 //   1=官方 / 2=手动 BMCLAPI；服务侧消费由镜像服务层接）；注册片段
@@ -114,12 +127,17 @@
 //   预检；模态专用页，禁裸 push）
 //   完整 Java 管理 → LauncherPrefManageJREViewController（导入/删除）
 //
-// ⑦ 控制管理屏（Task77 custom.json 出厂默认）
+// ⑦ 控制管理屏（Task77 custom.json 出厂默认；★Task432 四能力对齐 ZL2
+//   ControlManageScreen：布局卡列表（点击进拖拽编辑器）/ 新建布局
+//   （出厂模板落盘）/ 导入布局文件（JSON 校验入库）/ 删除（确认弹窗 +
+//   删档 + 刷新）；仓库三行 = 控件/手柄/插件仓库（自下载页轨迁入））
 //   control.default_ctrl           控制布局 json（$POJAV_HOME/controlmap/*.json
 //                                  单选；恢复默认 = 写回 custom.json）
 //   键位调整 → CustomControlsViewController（全屏画布编辑器，旧设置页
-//   openChildPaneAtIndexPath 同款 nav 模态呈现）；控件仓库 →
-//   ControlRepoViewController；更多设置 → LauncherPreferencesViewController
+//   openChildPaneAtIndexPath 同款 nav 模态呈现）；布局卡 →
+//   ZL2ControlLayoutEditorViewController 拖拽编辑器；仓库三行 →
+//   ControlRepoViewController / ControlRepoViewController(cat=2) /
+//   ZL2PluginRepoViewController
 //
 // ⑧ 关于屏（★Task428 9.1 四块 MD3 重做：关于启动器 / 鸣谢 / 依赖库 /
 //   已加载插件——每块「区头标签 + 连体组卡」，不再 push 老关于页）
@@ -131,7 +149,9 @@
 //   项目主页（二代仓库）/ QQ 群（复制）/ 作者与团队（about.credits.*
 //   原文复用，与 AboutViewController/README 口径一致）
 //   鸣谢块：ZalithLauncher2/PojavLauncher/FCL/HMCL/Modrinth/CurseForge/
-//   BMCLAPI/logshare.cn/PCL（名称+一句话定位；许可信息不确切不写）
+//   BMCLAPI/logshare.cn/PCL（名称+一句话定位；许可信息不确切不写；
+//   ★Task432 openLicense：确知许可条目点击弹许可证名 + LICENSE 全文
+//   链接，URL 逐条实弹核实——无把握条目只显名称）
 //   依赖库块：AGENTS.md「核心依赖」权威清单八项
 //   已加载插件块：AmePluginManager installedPluginIds + manifestForPlugin
 //   （名称/版本/描述 + AmePluginRuntime isRunning 运行态；空态占位）
@@ -156,7 +176,9 @@
 #import "UpdateChecker.h"
 #import "utils.h"
 
-#import "LauncherPreferencesViewController.h"
+// Task432 退役批次一：#import "LauncherPreferencesViewController.h" 摘除
+//（5 处「更多设置」引流行整行退役，见第 8 期报告 §5.4；旧设置页本体由
+//  SE 工位物理删除，本文件对其零引用）
 #import "LauncherPrefGameDirViewController.h"  // Task316：游戏目录/实例选择器
 #import "FileLayoutService.h"                 // Task316：跨启动器导入
 #import "ZL2PluginListViewController.h"        // Task317：插件管理入口
@@ -169,6 +191,10 @@
 #import "LauncherPrefManageJREViewController.h"
 #import "ControlRepoViewController.h"
 #import "CustomControlsViewController.h"
+#import "ZL2ControlLayoutEditorViewController.h"   // ★Task432：布局卡点击 → 拖拽编辑器入口（ame429_presentFromViewController:layoutFileName:）
+// ★Task432：陀螺仪键族迁移器（单族化唯一实现，UI 装载前调用；
+//   GyroInput 同文件兜底旧键读——两读点共用同一迁移器防双族回写）
+#import "input/GyroInput.h"
 // ★Task428：关于页四块重做后不再 push 老关于页（AboutViewController 仍由
 //   欢迎页/旧设置页入口可达），本文件对其的依赖解除，import 随 moreRow 退役
 #import "JavaGUIViewController.h"
@@ -252,6 +278,56 @@ static NSString *ame_pages_hexFromColor(UIColor *color) {
     [color getRed:&r green:&g blue:&b alpha:&a];
     return [NSString stringWithFormat:@"%02X%02X%02X",
             (unsigned)(r * 255), (unsigned)(g * 255), (unsigned)(b * 255)];
+}
+
+// ═══ ★Task432：主题色板 7 套命名色板（5 预设 + 翠风/霞紫 2 套自造）═══
+// 存储形态说明（与既有 5 套同构约束下的诚实口径）：
+//   ZL2DynamicPalette.m（只读文件）对 general.theme_mode 有 0..8 值域硬限
+//   （越界回落 embermire），mode 种子表亦为编译期 6 项——新增两套无法走
+//   mode 9/10 持久化。故「翠风」「霞紫」以【命名预设种子】经既有 CUSTOM
+//   种子通道落地：general.theme_mode=8 + general.custom_seed_color=<命名
+//   种子 hex>，HCT 令牌生成与既有 5 套同一管线（色值同构）；CUSTOM 自由
+//   取色入口保留（弹层确认写同键，回显按种子归位，见回显器）。
+// 种子选取：与既有 5 套（冻湖蓝 0x2779B5/森绿 0x2E7D51/暮紫 0x6E56A6/
+//   绯红 0xB4424C/琥珀 0xA97A2C）及 CUSTOM 圆点 12 色（ZL2ThemeCustomSheet
+//   Ame429CustomSeedDots）均不重码——回显归位无歧义。
+static NSString * const Ame432PaletteSeedJadeBreeze = @"#26A69A";  // 翠风：翡翠青（偏青的新鲜翠绿）
+static NSString * const Ame432PaletteSeedRosyCloud  = @"#C0589E";  // 霞紫：霞霭紫（偏粉的晚霞紫）
+
+// UI 直达模式表（建行 + 切轨刷新共用；9/10 = 命名色板 UI 标识，不落盘）
+static NSArray<NSNumber *> *ame432_paletteUIModes(void) {
+    static NSArray *modes = nil;
+    static dispatch_once_t once;
+    dispatch_once(&once, ^{
+        modes = @[@0, @1, @3, @4, @5, @6, @7, @9, @10, @8];
+    });
+    return modes;
+}
+
+// 现值回显器（mode → UI 列表位）：
+//   mode 2 = embermire 动态重演内部占位（UI 不直达）→ 归位 embermire 位；
+//   mode 8 = CUSTOM 通道 → 种子等于命名色板种子则归位命名位，否则自定义位；
+//   其余精确匹配；未知回落 embermire 位。
+static NSUInteger ame432_paletteEchoIndex(NSInteger mode) {
+    NSArray<NSNumber *> *modes = ame432_paletteUIModes();
+    if (mode == 8) {
+        NSString *ame432_seed = [NSString stringWithFormat:@"%@", getPrefObject(@"general.custom_seed_color") ?: @""];
+        NSString *ame432_norm = [[ame432_seed stringByReplacingOccurrencesOfString:@"#" withString:@""] uppercaseString];
+        NSString *ame432_jade = [Ame432PaletteSeedJadeBreeze stringByReplacingOccurrencesOfString:@"#" withString:@""];
+        NSString *ame432_rosy = [Ame432PaletteSeedRosyCloud stringByReplacingOccurrencesOfString:@"#" withString:@""];
+        if ([ame432_norm isEqualToString:ame432_jade]) {
+            return [modes indexOfObject:@9];
+        }
+        if ([ame432_norm isEqualToString:ame432_rosy]) {
+            return [modes indexOfObject:@10];
+        }
+        return [modes indexOfObject:@8];
+    }
+    if (mode == 2) {
+        mode = 0;   // 重演占位归位 embermire 位（Task429 既有口径）
+    }
+    NSUInteger ame432_index = [modes indexOfObject:@(mode)];
+    return (ame432_index == NSNotFound) ? 0 : ame432_index;
 }
 
 #pragma mark - 基类（滚动骨架 + 组卡装配 + push 助手）
@@ -633,17 +709,9 @@ static NSString *ame_pages_hexFromColor(UIColor *color) {
     [mgGroup ame_addRow:glvRow];
     [self ame_addGroup:mgGroup];
 
-    // --- 组 4：更多设置（长尾兜底契约）---
-    ZL2SettingCardGroup *group2 = [[ZL2SettingCardGroup alloc] init];
-    ZL2SettingRowAction *moreRow =
-        [[ZL2SettingRowAction alloc] initWithTitle:@"" subtitle:nil];
-    moreRow.title = localize(@"ame369.setpg.more_video_graphics", @"更多视频与图形设置");
-    moreRow.subtitle = localize(@"ame369.setpg.more_video_graphics.subtitle", @"FSR 档位、MobileGlues、音频等完整分区");
-    moreRow.onTap = ^{
-        [weakSelf ame_push:[[LauncherPreferencesViewController alloc] init] titled:localize(@"ame369.common.more_settings", @"更多设置")];
-    };
-    [group2 ame_addRow:moreRow];
-    [self ame_addGroup:group2];
+    // Task432 退役批次一：旧设置页本体删除，长尾功能迁移见第 8 期报告 §5.4
+    //（原「更多视频与图形设置」引流行整行摘除——push LauncherPreferencesViewController
+    //  的兜底链随批次一退役；FSR/MobileGlues/音频行已在上方分组直挂）
 }
 
 - (void)ame_refreshState {
@@ -842,17 +910,9 @@ static NSString *ame_pages_hexFromColor(UIColor *color) {
     [memHelpGroup ame_addRow:memHelpRow];
     [self ame_addGroup:memHelpGroup];
 
-    // --- 组 3：更多设置 ---
-    ZL2SettingCardGroup *group3 = [[ZL2SettingCardGroup alloc] init];
-    ZL2SettingRowAction *moreRow =
-        [[ZL2SettingRowAction alloc] initWithTitle:@"" subtitle:nil];
-    moreRow.title = localize(@"ame369.setpg.more_game", @"更多游戏设置");
-    moreRow.subtitle = localize(@"ame369.setpg.more_game.subtitle", @"Java 版本、环境变量、调试等完整分区");
-    moreRow.onTap = ^{
-        [weakSelf ame_push:[[LauncherPreferencesViewController alloc] init] titled:localize(@"ame369.common.more_settings", @"更多设置")];
-    };
-    [group3 ame_addRow:moreRow];
-    [self ame_addGroup:group3];
+    // Task432 退役批次一：旧设置页本体删除，长尾功能迁移见第 8 期报告 §5.4
+    //（原「更多游戏设置」引流行整行摘除——Java 版本/环境变量/调试行已在
+    //  本页分组直挂，长尾不再经旧设置页兜底）
 }
 
 // 版本隔离写入：直接落实例 plist 的 internal.isolated（PLPreferences
@@ -1152,35 +1212,38 @@ static NSString *ame_pages_hexFromColor(UIColor *color) {
     };
     [kbdGroup ame_addRows:@[twoFingerRow, sdlKbdRow, hapticsRow]];
     // 陀螺仪三件（TV 无陀螺仪——旧页 enableCondition 同口径）
+    // ★Task432 键族单族化：装载时先跑迁移器（control.gyroscope_* →
+    //   general.gyro_*，一次性幂等；实现唯一在 GyroInput），行读/写全走新族。
     if (realUIIdiom != UIUserInterfaceIdiomTV) {
+        [GyroInput ame432_migrateGyroKeyFamilyIfNeeded];
         ZL2SettingRowSwitch *gyroRow =
             [[ZL2SettingRowSwitch alloc] initWithTitle:@"" subtitle:nil];
         gyroRow.title = localize(@"preference.title.gyroscope_enable", nil);
         gyroRow.subtitle = localize(@"preference.detail.gyroscope_enable", nil);
-        [gyroRow ame_setOn:getPrefBool(@"control.gyroscope_enable")];
+        [gyroRow ame_setOn:getPrefBool(@"general.gyro_enable")];
         gyroRow.onToggle = ^(BOOL on) {
-            setPrefBool(@"control.gyroscope_enable", on);
+            setPrefBool(@"general.gyro_enable", on);
         };
         ZL2SettingRowSwitch *gyroInvertRow =
             [[ZL2SettingRowSwitch alloc] initWithTitle:@"" subtitle:nil];
         gyroInvertRow.title = localize(@"preference.title.gyroscope_invert_x_axis", nil);
         gyroInvertRow.subtitle = localize(@"preference.detail.gyroscope_invert_x_axis", nil);
-        [gyroInvertRow ame_setOn:getPrefBool(@"control.gyroscope_invert_x_axis")];
+        [gyroInvertRow ame_setOn:getPrefBool(@"general.gyro_invert_x")];
         gyroInvertRow.onToggle = ^(BOOL on) {
-            setPrefBool(@"control.gyroscope_invert_x_axis", on);
+            setPrefBool(@"general.gyro_invert_x", on);
         };
         ZL2SettingRowSlider *gyroSensRow =
             [[ZL2SettingRowSlider alloc] initWithTitle:@"" subtitle:nil minimum:50 maximum:300 suffix:@"%"];
         gyroSensRow.title = localize(@"preference.title.gyroscope_sensitivity", nil);
         gyroSensRow.subtitle = localize(@"preference.detail.gyroscope_sensitivity", nil);
-        [gyroSensRow ame_setValue:(NSInteger)getPrefFloat(@"control.gyroscope_sensitivity")];
+        [gyroSensRow ame_setValue:(NSInteger)getPrefFloat(@"general.gyro_sensitivity")];
         gyroSensRow.onValueChanged = ^(NSInteger value) {
-            setPrefFloat(@"control.gyroscope_sensitivity", (float)value);
+            setPrefFloat(@"general.gyro_sensitivity", (float)value);
         };
-        // ★Task428：陀螺仪补三行（反转 Y / 采样率 / 平滑强度；general.gyro_*
-        //   键名契约由并行工程师的陀螺仪运行时按同名键消费，与既有
-        //   control.gyroscope_* 键族并行不混淆；注册要求见文件头
-        //   ★Task428 注册注记）
+        // ★Task428→★Task432：陀螺仪补三行（反转 Y / 采样率 / 平滑强度；
+        //   general.gyro_* 单族——Task432 起旧 control.gyroscope_* 三行已
+        //   并入同族（gyro_enable/gyro_invert_x/gyro_sensitivity），六行
+        //   同读 general.gyro_* 一个键族；注册已落地见文件头 Task432 注记）
         ZL2SettingRowSwitch *gyroInvertYRow =
             [[ZL2SettingRowSwitch alloc] initWithTitle:@"" subtitle:nil];
         gyroInvertYRow.title = localize(@"ame428.control.gyro.invert_y", @"反转 Y 轴");
@@ -1640,17 +1703,9 @@ didFinishPickingMediaWithInfo:(NSDictionary<UIImagePickerControllerInfoKey,id> *
     [group1 ame_addRows:@[typeRow, mappingRow, scrollRow]];
     [self ame_addGroup:group1];
 
-    // --- 组 2：更多设置 ---
-    ZL2SettingCardGroup *group2 = [[ZL2SettingCardGroup alloc] init];
-    ZL2SettingRowAction *moreRow =
-        [[ZL2SettingRowAction alloc] initWithTitle:@"" subtitle:nil];
-    moreRow.title = localize(@"ame369.setpg.more_control_gamepad", @"更多控制与手柄设置");
-    moreRow.subtitle = localize(@"ame369.setpg.more_control_gamepad.subtitle", @"键位调整、自定义鼠标、陀螺仪等完整分区");
-    moreRow.onTap = ^{
-        [weakSelf ame_push:[[LauncherPreferencesViewController alloc] init] titled:localize(@"ame369.common.more_settings", @"更多设置")];
-    };
-    [group2 ame_addRow:moreRow];
-    [self ame_addGroup:group2];
+    // Task432 退役批次一：旧设置页本体删除，长尾功能迁移见第 8 期报告 §5.4
+    //（原「更多控制与手柄设置」引流行整行摘除——键位调整/自定义鼠标/陀螺仪
+    //  行已在本页与控制管理屏直挂，长尾不再经旧设置页兜底）
 
     [self ame_refreshState];
 }
@@ -1781,19 +1836,21 @@ didPickDocumentsAtURLs:(NSArray<NSURL *> *)urls {
     __weak typeof(self) weakSelf = self;
 
     // --- 组 1：外观 ---
-    // ★ Task396：深浅模式行恢复（三态：深/浅/跟随系统；general.ui_theme +
-    //   显式选择标记 + UIThemeChanged 通知，Task161 契约原样）——用户上一轮
-    //   复诉的"一页三切换"经 fui 收敛（Task385）与本轮五钮/瓦片收敛后已
-    //   不复存在，本行回填为 MD3 模式唯一明暗入口。
-    NSArray<NSString *> *themeKeys = @[@"dark", @"light", @"auto"];
+    // ★Task432 主题拆两行两义（行 1 = 深浅模式，行 2 = 主题色板）：行 1 三态
+    //   序改口径为 跟随系统/浅色/深色（spec 口径；键序同步 auto/light/dark），
+    //   标题改「深浅模式」新键（原 i18n_str_379「外观模式」与主题色板行近邻
+    //   时两行含义易混）；general.ui_theme + 显式选择标记 + UIThemeChanged
+    //   通知，Task161/Task396 契约原样。
+    NSArray<NSString *> *themeKeys = @[@"auto", @"light", @"dark"];
     NSArray<NSString *> *themeNames = @[
-        localize(@"i18n_str_380", nil),
-        localize(@"i18n_str_381", nil),
-        localize(@"i18n_str_382", nil),
+        localize(@"i18n_str_382", nil),   // 跟随系统
+        localize(@"i18n_str_381", nil),   // 浅色模式
+        localize(@"i18n_str_380", nil),   // 深色模式
     ];
     ZL2SettingRowEnum *themeRow =
         [[ZL2SettingRowEnum alloc] initWithTitle:@"" subtitle:nil options:themeNames];
-    themeRow.title = localize(@"i18n_str_379", nil);
+    themeRow.title = localize(@"ame432.theme.mode.title", @"深浅模式");
+    themeRow.subtitle = localize(@"ame432.theme.mode.subtitle", @"跟随系统 / 浅色 / 深色");
     NSString *theme = ame_pages_stringOr(getPrefObject(@"general.ui_theme"), @"auto");
     [themeRow ame_reloadSelectedIndex:(NSInteger)[themeKeys indexOfObject:theme]];
     themeRow.onSelect = ^(NSInteger index) {
@@ -1805,12 +1862,13 @@ didPickDocumentsAtURLs:(NSArray<NSURL *> *)urls {
     };
     self.themeRow = themeRow;
 
-    // ★Task429：主题色板行（PDF 第五版 §8.1 动态主题模式选择，深浅三态行
-    //   近邻；列表 = embermire/跟随背景/五预设/CUSTOM）。键值域与
+    // ★Task429→★Task432：主题色板行（行 2 = 主题色板选择；列表 =
+    //   embermire/跟随背景/五预设/翠风/霞紫/CUSTOM）。预设 mode 值域与
     //   ZL2DynamicPalette Ame429ThemeMode 逐一对应（mode 2 = embermire 动态
-    //   重演内部占位，UI 不直达；UI 直达模式 0/1/3..8）。注册片段
-    //   scripts/task429_prefs_F.json（Setter 静默丢弃族同判例——PLPreferences.m
-    //   非本工位写权；注册前写值静默丢弃，读侧缺键回退默认 0 = embermire）。
+    //   重演内部占位，UI 不直达）；★Task432 翠风/霞紫 = 命名预设种子经
+    //   CUSTOM 种子通道落地（UI 标识 mode 9/10 不落盘，实际写 mode 8 +
+    //   general.custom_seed_color，详见文件头 ame432 色板注记），CUSTOM
+    //   自由取色入口保留。
     NSArray<NSString *> *ame429_paletteLabels = @[
         localize(@"ame429.f.palette.embermire", @"Embermire（默认）"),
         localize(@"ame429.f.palette.follow", @"跟随背景"),
@@ -1819,29 +1877,36 @@ didPickDocumentsAtURLs:(NSArray<NSURL *> *)urls {
         localize(@"ame429.f.palette.dusk", @"暮紫"),
         localize(@"ame429.f.palette.crimson", @"绯红"),
         localize(@"ame429.f.palette.amber", @"琥珀"),
+        localize(@"ame432.f.palette.jade", @"翠风"),
+        localize(@"ame432.f.palette.rosy", @"霞紫"),
         localize(@"ame429.f.palette.custom", @"自定义…"),
     ];
-    NSArray<NSNumber *> *ame429_paletteModes = @[@0, @1, @3, @4, @5, @6, @7, @8];
+    NSArray<NSNumber *> *ame429_paletteModes = ame432_paletteUIModes();
     ZL2SettingRowList *ame429_paletteRow =
         [[ZL2SettingRowList alloc] initWithTitle:@"" subtitle:nil
                                   options:ame429_paletteLabels optionKeys:nil];
     ame429_paletteRow.title = localize(@"ame429.f.palette.title", @"主题色板");
-    ame429_paletteRow.subtitle = localize(@"ame429.f.palette.subtitle", @"跟随背景自动取色，或选择预设色板");
+    ame429_paletteRow.subtitle = localize(@"ame432.f.palette.subtitle", @"跟随背景自动取色，或选择命名色板（含翠风/霞紫）");
     {
-        // 现值回显（mode → UI 列表位；mode 2 重演占位归位 embermire 位）
+        // 现值回显（mode → UI 列表位；mode 2 重演占位归位 embermire 位；
+        // mode 8 按种子归位翠风/霞紫/自定义位——回显器共用见文件头）
         NSInteger ame429_mode = [[ZL2DynamicPalette shared] themeMode];
-        NSUInteger ame429_uiIndex = 0;   // 默认 embermire 位
-        for (NSUInteger i = 0; i < ame429_paletteModes.count; i++) {
-            if (ame429_paletteModes[i].integerValue == ame429_mode) {
-                ame429_uiIndex = i;
-                break;
-            }
-        }
-        [ame429_paletteRow ame_reloadSelectedIndex:(NSInteger)ame429_uiIndex];
+        [ame429_paletteRow ame_reloadSelectedIndex:(NSInteger)ame432_paletteEchoIndex(ame429_mode)];
     }
     ame429_paletteRow.onSelect = ^(NSInteger index) {
         if (index < 0 || (NSUInteger)index >= ame429_paletteModes.count) return;
         NSInteger ame429_mode = ame429_paletteModes[index].integerValue;
+        if (ame429_mode == 9 || ame429_mode == 10) {
+            // ★Task432：翠风/霞紫 = 命名预设种子走 CUSTOM 通道（mode 8 +
+            //   general.custom_seed_color），HCT 令牌管线与既有 5 套同链；
+            //   种子值与 CUSTOM 圆点/既有预设均不重码（回显无歧义）
+            setPrefString(@"general.custom_seed_color",
+                          (ame429_mode == 9) ? Ame432PaletteSeedJadeBreeze
+                                             : Ame432PaletteSeedRosyCloud);
+            setPrefInt(@"general.theme_mode", (NSInteger)Ame429ThemeModeCustom);
+            [[ZL2DynamicPalette shared] ame429_reloadAndApply];
+            return;
+        }
         if (ame429_mode == (NSInteger)Ame429ThemeModeCustom) {
             // 自定义 → 弹 ZL2ThemeCustomSheet（确认钮写三键触发生效链；
             // 本行不落键，防未选种子即写 mode 8）
@@ -2433,13 +2498,9 @@ didPickDocumentsAtURLs:(NSArray<NSURL *> *)urls {
         // 工厂方法返回按设备宽度预配置网格布局的 UICollectionViewController
         [weakSelf ame_push:[BingWallpaperGalleryViewController galleryController] titled:localize(@"ame369.setpg.wallpaper_gallery", @"壁纸画廊")];
     };
-    ZL2SettingRowAction *moreRow =
-        [[ZL2SettingRowAction alloc] initWithTitle:@"" subtitle:nil];
-    moreRow.title = localize(@"ame369.setpg.more_launcher", @"更多启动器设置");
-    moreRow.subtitle = localize(@"ame369.setpg.more_launcher.subtitle", @"界面缩放、强调色、公告、数据导出等完整分区");
-    moreRow.onTap = ^{
-        [weakSelf ame_push:[[LauncherPreferencesViewController alloc] init] titled:localize(@"ame369.common.more_settings", @"更多设置")];
-    };
+    // Task432 退役批次一：旧设置页本体删除，长尾功能迁移见第 8 期报告 §5.4
+    //（原「更多启动器设置」moreRow 整行摘除——界面缩放/强调色/公告/数据导出
+    //  等长尾行已在本页分组直挂，不再经旧设置页兜底）
     // Task316（文件层桌面/安卓同构）：游戏目录/实例切换入口 + 跨启动器导入
     ZL2SettingRowAction *gameDirRow =
         [[ZL2SettingRowAction alloc] initWithTitle:@"" subtitle:nil];
@@ -2474,7 +2535,7 @@ didPickDocumentsAtURLs:(NSArray<NSURL *> *)urls {
         [weakSelf ame_push:[[ZL2PluginRepoViewController alloc] init]
                    titled:localize(@"ame318.repo.title", nil)];
     };
-    [group3 ame_addRows:@[backgroundRow, galleryRow, gameDirRow, importRow, pluginRow, repoRow, moreRow]];
+    [group3 ame_addRows:@[backgroundRow, galleryRow, gameDirRow, importRow, pluginRow, repoRow]];
     [self ame_addGroup:group3];
     // ★ Task327：插件贡献行动态组（Task318 ame.addLauncherRow 的消费端）
     //   ★ Task328：构建点已上移至外观组之后（首屏可视域），见彼处注释
@@ -2547,10 +2608,10 @@ didPickDocumentsAtURLs:(NSArray<NSURL *> *)urls {
 }
 
 - (void)ame_refreshState {
-    // ★ Task396：深浅模式行恢复，刷新面回归 深浅/语言/效果/透明度/模糊
+    // ★ Task396→★Task432：深浅模式行刷新，三态序同步为 跟随系统/浅色/深色
     NSString *theme = ame_pages_stringOr(getPrefObject(@"general.ui_theme"), @"auto");
     [self.themeRow ame_reloadSelectedIndex:
-        (NSInteger)[@[@"dark", @"light", @"auto"] indexOfObject:theme]];
+        (NSInteger)[@[@"auto", @"light", @"dark"] indexOfObject:theme]];
     // 语言
     NSArray<NSString *> *langCodes =
         [@[@"system"] arrayByAddingObjectsFromArray:
@@ -2574,18 +2635,11 @@ didPickDocumentsAtURLs:(NSArray<NSURL *> *)urls {
     // ★Task428：节日彩蛋随切轨刷新（键缺省视为开，同建行口径）
     id ame428_festivalRaw = getPrefObject(@"general.festival_effects");
     [self.festivalRow ame_setOn:ame428_festivalRaw ? [ame428_festivalRaw boolValue] : YES];
-    // ★Task429：主题色板随切轨刷新（mode → UI 列表位回显；mode 2 重演占位归位 embermire 位）
+    // ★Task429→★Task432：主题色板随切轨刷新（回显器共用：mode 2 重演占位
+    //   归位 embermire 位；mode 8 按种子归位翠风/霞紫/自定义位）
     {
-        NSArray<NSNumber *> *ame429_modes = @[@0, @1, @3, @4, @5, @6, @7, @8];
         NSInteger ame429_mode = [[ZL2DynamicPalette shared] themeMode];
-        NSUInteger ame429_uiIndex = 0;
-        for (NSUInteger i = 0; i < ame429_modes.count; i++) {
-            if (ame429_modes[i].integerValue == ame429_mode) {
-                ame429_uiIndex = i;
-                break;
-            }
-        }
-        [self.ame429_paletteRow ame_reloadSelectedIndex:(NSInteger)ame429_uiIndex];
+        [self.ame429_paletteRow ame_reloadSelectedIndex:(NSInteger)ame432_paletteEchoIndex(ame429_mode)];
     }
 }
 
@@ -3061,6 +3115,24 @@ didPickDocumentsAtURLs:(NSArray<NSURL *> *)urls {
 
 #pragma mark - ⑦ 控制管理屏
 
+// ★Task432：控制管理页能力对齐 ZL2 ControlManageScreen 四能力语义
+//（zl2-ref ui/screens/content/settings/ControlManageScreen.kt：布局卡列表 /
+// CreateNew 新建 / ImportMultipleFileButton 导入 / Delete 确认删除）。
+// 存储面实证（家法引用，非虚构）：
+//   · 布局 JSON 真实存储目录 = $POJAV_HOME/controlmap/*.json
+//     （CustomControlsViewController actionOpenFilePicker :367、
+//      ControlLayout loadControlFile :27、main.m init_setupCustomControls
+//      出厂 default.json + custom.json、ControlRepoViewController 下载落盘）
+//   · 真实 schema（resources/controlmap/custom.json 实读 +
+//     CustomControlsUtils generateAndSaveDefaultControl 家法）：
+//       { version:int, scaledAt:int, mControlDataList:[],
+//         mDrawerDataList:[], mJoystickDataList:[] }
+//     v7 = 现役格式（convertLayoutIfNecessary 6/7 直通，>7 拒载）；
+//     新建模板 = 上述真实 schema 的空布局（version 7 / scaledAt 100 / 三列表空）。
+// 手柄映射落盘 controlmap/gamepads/（Task310/311），不属触屏布局域。
+@interface ZL2ControlManagerSettingsPage () <UIDocumentPickerDelegate>
+@end
+
 @implementation ZL2ControlManagerSettingsPage
 
 - (void)ame_buildGroups {
@@ -3124,20 +3196,66 @@ didPickDocumentsAtURLs:(NSArray<NSURL *> *)urls {
         };
         [gamepadGroup ame_addRow:gpRow];
     }
-    ZL2SettingRowAction *gpRepoRow =
-        [[ZL2SettingRowAction alloc] initWithTitle:@"" subtitle:nil];
-    gpRepoRow.title = localize(@"ame369.common.gamepad_repo", @"手柄仓库");
-    gpRepoRow.subtitle = localize(@"ame369.common.gamepad_repo.subtitle", @"官方精选/社区手柄映射下载（装完即用）");
-    gpRepoRow.onTap = ^{
-        ControlRepoViewController *repo = [[ControlRepoViewController alloc] init];
-        repo.initialCategoryIndex = 2;  // 直达手柄分类
-        [weakSelf ame_push:repo titled:localize(@"dl.controls.cat.gamepad", nil)];
-    };
-    [gamepadGroup ame_addRow:gpRepoRow];
+    // ★Task432：原「手柄仓库」行移入下方仓库三行组（三仓库入口归拢一处）
     [self ame_addGroup:gamepadGroup];
 
-    // --- 组 2：编辑与获取 ---
-    ZL2SettingCardGroup *group2 = [[ZL2SettingCardGroup alloc] init];
+    // --- 组 2（★Task432 新增）：布局卡列表（ZL2 ControlLayoutList 对齐：
+    //   每卡 = 布局名 + 状态，点击进既有拖拽编辑器）---
+    ZL2SettingCardGroup *cardsGroup = [[ZL2SettingCardGroup alloc] init];
+    if (layouts.count == 0) {
+        // 空态明确显示（与组 1 空态同口径；可经新建/导入/仓库补齐）
+        ZL2SettingRowAction *cardsEmptyRow =
+            [[ZL2SettingRowAction alloc] initWithTitle:@"" subtitle:nil];
+        cardsEmptyRow.title = localize(@"ame432.layouts.empty", @"暂无布局卡");
+        cardsEmptyRow.subtitle = localize(@"ame432.layouts.empty.subtitle", @"用下方「新建布局 / 导入布局文件」或控件仓库补齐");
+        [cardsGroup ame_addRow:cardsEmptyRow];
+    } else {
+        NSString *ame432_current = ame_pages_stringOr(getPrefObject(@"control.default_ctrl"), @"custom.json");
+        for (NSString *ame432_file in layouts) {
+            NSString *ame432_name = [self ame432_layoutDisplayName:ame432_file];
+            NSString *ame432_subtitle = [self ame432_layoutCardSubtitle:ame432_file
+                                                          isDefault:[ame432_file isEqualToString:ame432_current]];
+            ZL2SettingRowAction *ame432_card =
+                [[ZL2SettingRowAction alloc] initWithTitle:@"" subtitle:nil];
+            ame432_card.title = ame432_name;
+            ame432_card.subtitle = ame432_subtitle;
+            NSString *ame432_feedName = ame432_name;   // 喂参 = 文件名去 .json（编辑器契约）
+            ame432_card.onTap = ^{
+                // 点击进既有拖拽编辑器（Task429 入口：OverFullScreen 直挂，
+                // 判例 Task62 画布编辑器不包导航容器；喂文件名不含 .json）
+                [ZL2ControlLayoutEditorViewController
+                    ame429_presentFromViewController:weakSelf
+                                      layoutFileName:ame432_feedName];
+            };
+            [cardsGroup ame_addRow:ame432_card];
+        }
+    }
+    [self ame_addGroup:cardsGroup];
+
+    // --- 组 3（★Task432 新增）：布局管理（新建 / 导入 / 删除 / 恢复默认 /
+    //   画布编辑器——ZL2 CreateNew/Import/Delete 三能力 + 画布编辑器入口）---
+    ZL2SettingCardGroup *manageGroup = [[ZL2SettingCardGroup alloc] init];
+    ZL2SettingRowAction *createRow =
+        [[ZL2SettingRowAction alloc] initWithTitle:@"" subtitle:nil];
+    createRow.title = localize(@"ame432.layouts.create", @"新建布局");
+    createRow.subtitle = localize(@"ame432.layouts.create.subtitle", @"以出厂模板创建空白布局（可在编辑器中添加控件）");
+    createRow.onTap = ^{
+        [weakSelf ame432_createNewLayout];
+    };
+    ZL2SettingRowAction *importRow =
+        [[ZL2SettingRowAction alloc] initWithTitle:@"" subtitle:nil];
+    importRow.title = localize(@"ame432.layouts.import", @"导入布局文件");
+    importRow.subtitle = localize(@"ame432.layouts.import.subtitle", @"从文件导入 .json（校验可解析后才入库 controlmap）");
+    importRow.onTap = ^{
+        [weakSelf ame432_importLayoutFile];
+    };
+    ZL2SettingRowAction *deleteRow =
+        [[ZL2SettingRowAction alloc] initWithTitle:@"" subtitle:nil];
+    deleteRow.title = localize(@"ame432.layouts.delete", @"删除布局");
+    deleteRow.subtitle = localize(@"ame432.layouts.delete.subtitle", @"删除 controlmap 中的布局文件（删档前列表选择 + 确认）");
+    deleteRow.onTap = ^{
+        [weakSelf ame432_deleteLayoutFlow];
+    };
     ZL2SettingRowAction *editorRow =
         [[ZL2SettingRowAction alloc] initWithTitle:@"" subtitle:nil];
     editorRow.title = localize(@"preference.title.custom_controls", nil);
@@ -3149,13 +3267,6 @@ didPickDocumentsAtURLs:(NSArray<NSURL *> *)urls {
         UINavigationController *nav = [[UINavigationController alloc] initWithRootViewController:editor];
         nav.modalInPresentation = YES;
         [weakSelf presentViewController:nav animated:YES completion:nil];
-    };
-    ZL2SettingRowAction *repoRow =
-        [[ZL2SettingRowAction alloc] initWithTitle:@"" subtitle:nil];
-    repoRow.title = localize(@"ame369.common.control_repo", @"控件仓库");
-    repoRow.subtitle = localize(@"ame369.common.control_repo.subtitle", @"浏览与下载社区控制布局");
-    repoRow.onTap = ^{
-        [weakSelf ame_push:[[ControlRepoViewController alloc] init] titled:localize(@"ame369.common.control_repo", @"控件仓库")];
     };
     ZL2SettingRowAction *resetRow =
         [[ZL2SettingRowAction alloc] initWithTitle:@"" subtitle:nil];
@@ -3171,25 +3282,359 @@ didPickDocumentsAtURLs:(NSArray<NSURL *> *)urls {
         }
                       onCancel:nil];
     };
-    [group2 ame_addRows:@[editorRow, repoRow, resetRow]];
-    [self ame_addGroup:group2];
+    [manageGroup ame_addRows:@[createRow, importRow, deleteRow, editorRow, resetRow]];
+    [self ame_addGroup:manageGroup];
 
-    // --- 组 3：更多设置 ---
-    ZL2SettingCardGroup *group3 = [[ZL2SettingCardGroup alloc] init];
-    ZL2SettingRowAction *moreRow =
+    // --- 组 4（★Task432 新增）：仓库三行（控件仓库 / 手柄仓库 / 插件仓库）。
+    //   Task432 自下载页轨迁入，共享基础设施迁移改名在批次二。
+    //   类名/直挂形态从 ZL2DownloadViewController.m :357-389 实读：
+    //   控件仓库 = ControlRepoViewController 裸 init；手柄仓库 = 同类
+    //   initialCategoryIndex=2；插件仓库 = ZL2PluginRepoViewController 裸 init。
+    ZL2SettingCardGroup *repoGroup = [[ZL2SettingCardGroup alloc] init];
+    ZL2SettingRowAction *repoRow =
         [[ZL2SettingRowAction alloc] initWithTitle:@"" subtitle:nil];
-    moreRow.title = localize(@"ame369.setpg.more_control", @"更多控制设置");
-    moreRow.subtitle = localize(@"ame369.setpg.more_control.subtitle", @"手柄配置、虚拟鼠标、陀螺仪等完整分区");
-    moreRow.onTap = ^{
-        [weakSelf ame_push:[[LauncherPreferencesViewController alloc] init] titled:localize(@"ame369.common.more_settings", @"更多设置")];
+    repoRow.title = localize(@"ame369.common.control_repo", @"控件仓库");
+    repoRow.subtitle = localize(@"ame369.common.control_repo.subtitle", @"浏览与下载社区控制布局");
+    repoRow.onTap = ^{
+        // Task432 自下载页轨迁入，共享基础设施迁移改名在批次二
+        [weakSelf ame_push:[[ControlRepoViewController alloc] init] titled:localize(@"ame369.common.control_repo", @"控件仓库")];
     };
-    [group3 ame_addRow:moreRow];
-    [self ame_addGroup:group3];
+    ZL2SettingRowAction *gamepadRepoRow =
+        [[ZL2SettingRowAction alloc] initWithTitle:@"" subtitle:nil];
+    gamepadRepoRow.title = localize(@"ame369.common.gamepad_repo", @"手柄仓库");
+    gamepadRepoRow.subtitle = localize(@"ame369.common.gamepad_repo.subtitle", @"官方精选/社区手柄映射下载（装完即用）");
+    gamepadRepoRow.onTap = ^{
+        // Task432 自下载页轨迁入，共享基础设施迁移改名在批次二
+        ControlRepoViewController *repo = [[ControlRepoViewController alloc] init];
+        repo.initialCategoryIndex = 2;  // 直达手柄分类（ZL2DownloadViewController 同形态）
+        [weakSelf ame_push:repo titled:localize(@"dl.controls.cat.gamepad", nil)];
+    };
+    ZL2SettingRowAction *pluginRepoRow =
+        [[ZL2SettingRowAction alloc] initWithTitle:@"" subtitle:nil];
+    pluginRepoRow.title = localize(@"ame318.repo.title", nil);
+    pluginRepoRow.subtitle = localize(@"ame318.repo.entry_subtitle", nil);
+    pluginRepoRow.onTap = ^{
+        // Task432 自下载页轨迁入，共享基础设施迁移改名在批次二
+        [weakSelf ame_push:[[ZL2PluginRepoViewController alloc] init] titled:localize(@"ame318.repo.title", nil)];
+    };
+    [repoGroup ame_addRows:@[repoRow, gamepadRepoRow, pluginRepoRow]];
+    [self ame_addGroup:repoGroup];
+
+    // Task432 退役批次一：旧设置页本体删除，长尾功能迁移见第 8 期报告 §5.4
+    //（原「更多控制设置」引流行整行摘除——手柄映射/虚拟鼠标/陀螺仪行已在本页
+    //  与控制屏直挂，长尾不再经旧设置页兜底）
 }
 
 - (void)ame_refreshState {
     [self ame_rebuildGroups];   // 布局文件集可在仓库页/编辑器变化 → 全量重建
 }
+
+#pragma mark ★Task432 布局卡列表 / 新建 / 导入 / 删除（ZL2 ControlManageScreen 四能力对齐）
+
+// 卡片显示名 = 文件名去 .json 后缀（编辑器喂参同形：ame429_layoutFileName
+// 契约「不含 .json 后缀」；stringByDeletingPathExtension 全 iOS 版可用）
+- (NSString *)ame432_layoutDisplayName:(NSString *)fileName {
+    if (fileName.length == 0) return fileName;
+    return [fileName stringByDeletingPathExtension];
+}
+
+// 卡片副文本 = 按钮数（mControlDataList 真实解析计数）+ 当前默认标记。
+// 解析失败/非字典 = 布局坏档 → 副文本如实标注（不造假按钮数）
+- (NSString *)ame432_layoutCardSubtitle:(NSString *)fileName isDefault:(BOOL)isDefault {
+    NSString *ame432_detail = nil;
+    NSString *ame432_path = [self ame432_layoutFilePath:fileName];
+    NSData *ame432_data = [NSData dataWithContentsOfFile:ame432_path];
+    if (ame432_data != nil) {
+        id ame432_root = [NSJSONSerialization JSONObjectWithData:ame432_data options:0 error:nil];
+        if ([ame432_root isKindOfClass:[NSDictionary class]]) {
+            id ame432_list = ((NSDictionary *)ame432_root)[@"mControlDataList"];
+            if ([ame432_list isKindOfClass:[NSArray class]]) {
+                NSString *ame432_btnFmt = localize(@"ame432.layouts.card.buttons", @"%lu 个按钮");
+                ame432_detail = [NSString stringWithFormat:ame432_btnFmt,
+                                 (unsigned long)[(NSArray *)ame432_list count]];
+            }
+        }
+    }
+    if (ame432_detail == nil) {
+        ame432_detail = localize(@"ame432.layouts.card.unparsed", @"布局文件无法解析");
+    }
+    if (isDefault) {
+        NSString *ame432_defaultMark = localize(@"ame432.layouts.card.current", @"当前默认 · %@");
+        return [NSString stringWithFormat:ame432_defaultMark, ame432_detail];
+    }
+    return ame432_detail;
+}
+
+- (NSString *)ame432_layoutFilePath:(NSString *)fileName {
+    const char *ame432_home = getenv("POJAV_HOME");
+    return [NSString stringWithFormat:@"%s/controlmap/%@", ame432_home ?: "", fileName];
+}
+
+// 名字净化（新建/导入共用）：去路径分隔符、去首尾空白、限长 64、空名兜底。
+// 布局名同时是文件名（controlmap/<name>.json），路径安全必须在源头保证
+- (NSString *)ame432_sanitizeLayoutName:(NSString *)raw {
+    NSString *name = [raw stringByReplacingOccurrencesOfString:@"/" withString:@""];
+    name = [name stringByReplacingOccurrencesOfString:@":" withString:@""];
+    name = [name stringByTrimmingCharactersInSet:[NSCharacterSet whitespaceAndNewlineCharacterSet]];
+    if (name.length > 64) name = [name substringToIndex:64];
+    if (name.length == 0) name = nil;
+    return name;
+}
+
+// 重名规避：base 已存在则追加 -1/-2/…（导入共用；新建重名直接报错不走此法
+// ——新建语义 = 起名，重名让用户自己改；导入语义 = 入库，自动避让）
+- (NSString *)ame432_uniqueFileNameForBase:(NSString *)base inDir:(NSString *)dir {
+    NSString *candidate = [base stringByAppendingPathExtension:@"json"];
+    NSUInteger idx = 1;
+    while ([[NSFileManager defaultManager] fileExistsAtPath:
+               [dir stringByAppendingPathComponent:candidate]]) {
+        candidate = [NSString stringWithFormat:@"%@-%lu.json", base, (unsigned long)idx++];
+    }
+    return candidate;
+}
+
+// 新建布局模板（真实 schema 家法 = CustomControlsUtils generateAndSaveDefaultControl
+// 骨架：version 7 / scaledAt 100 / 三列表空；convertLayoutIfNecessary 6/7 直通）
+- (BOOL)ame432_writeNewLayoutTemplateToPath:(NSString *)path {
+    NSDictionary *ame432_template = @{
+        @"version": @7,
+        @"scaledAt": @100,
+        @"mControlDataList": @[],
+        @"mDrawerDataList": @[],
+        @"mJoystickDataList": @[],
+    };
+    NSError *ame432_error = nil;
+    NSData *ame432_json = [NSJSONSerialization dataWithJSONObject:ame432_template
+                                                          options:NSJSONWritingPrettyPrinted
+                                                            error:&ame432_error];
+    if (ame432_json == nil) return NO;
+    return [ame432_json writeToFile:path options:NSDataWritingAtomic error:&ame432_error];
+}
+
+// 新建布局（ZL2 CreateNewLayoutDialog 对齐：起名 → 模板落盘 → 列表刷新）。
+// 重名报错不静默覆盖（用户起名语义，与导入的自动避让不同）
+- (void)ame432_createNewLayout {
+    __weak typeof(self) weakSelf = self;
+    NSString *ame432_title = localize(@"ame432.layouts.create", @"新建布局");
+    NSString *ame432_ph = localize(@"ame432.layouts.create.name.placeholder", @"布局名称");
+    NSString *ame432_ok = localize(@"OK", nil);
+    NSString *ame432_cancel = localize(@"Cancel", nil);
+    UIAlertController *alert =
+        [UIAlertController alertControllerWithTitle:ame432_title
+                                            message:nil
+                                     preferredStyle:UIAlertControllerStyleAlert];
+    [alert addTextFieldWithConfigurationHandler:^(UITextField *textField) {
+        textField.placeholder = ame432_ph;
+        textField.clearButtonMode = UITextFieldViewModeWhileEditing;
+        textField.borderStyle = UITextBorderStyleRoundedRect;
+    }];
+    // 捕获 textfield 本体而非 alert（alert→action→handler→alert 自持环）
+    UITextField *ame432_field = alert.textFields.firstObject;
+    [alert addAction:[UIAlertAction actionWithTitle:ame432_ok
+                                              style:UIAlertActionStyleDefault
+                                            handler:^(UIAlertAction *action) {
+        NSString *ame432_name = [weakSelf ame432_sanitizeLayoutName:
+                                    ame432_field.text ?: @""];
+        if (ame432_name == nil) {
+            [weakSelf ame432_showNotice:
+                localize(@"ame432.layouts.create.error.empty", @"布局名称不能为空")];
+            return;
+        }
+        const char *ame432_home = getenv("POJAV_HOME");
+        NSString *ame432_dir = [NSString stringWithFormat:@"%s/controlmap", ame432_home ?: ""];
+        NSString *ame432_path =
+            [ame432_dir stringByAppendingPathComponent:
+                [ame432_name stringByAppendingPathExtension:@"json"]];
+        if ([[NSFileManager defaultManager] fileExistsAtPath:ame432_path]) {
+            NSString *ame432_dup = localize(@"ame432.layouts.create.error.duplicate",
+                                            @"同名布局已存在，换一个名称");
+            [weakSelf ame432_showNotice:ame432_dup];
+            return;
+        }
+        if (![weakSelf ame432_writeNewLayoutTemplateToPath:ame432_path]) {
+            [weakSelf ame432_showNotice:
+                localize(@"ame432.layouts.create.error.write", @"布局写入失败（磁盘或权限）")];
+            return;
+        }
+        NSLog(@"[Ame432] new layout created: %@", ame432_path);
+        [weakSelf ame_rebuildGroups];   // 列表刷新（卡列表 + 当前布局行同步）
+    }]];
+    [alert addAction:[UIAlertAction actionWithTitle:ame432_cancel
+                                              style:UIAlertActionStyleCancel
+                                            handler:nil]];
+    [self ame_presentVC:alert];
+}
+
+// 导入布局文件（ZL2 ImportMultipleFileButton 对齐）：UIDocumentPicker 选
+// .json → 校验 JSON 可解析且为布局根字典（+版本 ≤7，超版拒载）
+// → 拷入 controlmap（重名自动避让）→ 列表刷新
+- (void)ame432_importLayoutFile {
+    if (@available(iOS 14.0, *)) {
+        UTType *ame432_jsonType = [UTType typeWithFilenameExtension:@"json"];
+        UIDocumentPickerViewController *picker =
+            [[UIDocumentPickerViewController alloc] initForOpeningContentTypes:@[ame432_jsonType ?: UTTypeJSON]
+                                                                        asCopy:YES];
+        picker.delegate = self;
+        picker.allowsMultipleSelection = NO;
+        [self ame_presentVC:picker];
+    } else {
+        UIDocumentPickerViewController *picker =
+            [[UIDocumentPickerViewController alloc] initWithDocumentTypes:@[@"public.json"]
+                                                                   inMode:UIDocumentPickerModeOpen];
+        picker.delegate = self;
+        [self ame_presentVC:picker];
+    }
+}
+
+- (void)documentPicker:(UIDocumentPickerViewController *)controller
+didPickDocumentsAtURLs:(NSArray<NSURL *> *)urls {
+    if (urls.count == 0) return;
+    NSURL *ame432_url = urls.firstObject;
+    // 安全作用域文件读入口（asCopy:YES 拷入沙盒 tmp，路径直读安全）
+    NSData *ame432_data = [NSData dataWithContentsOfURL:ame432_url];
+    NSError *ame432_parseError = nil;
+    id ame432_root = ame432_data
+        ? [NSJSONSerialization JSONObjectWithData:ame432_data options:0 error:&ame432_parseError]
+        : nil;
+    BOOL ame432_valid = [ame432_root isKindOfClass:[NSDictionary class]];
+    if (ame432_valid) {
+        // 版本守卫：convertLayoutIfNecessary 对 >7 拒载（导入即不可用档 = 拒收）
+        id ame432_version = ((NSDictionary *)ame432_root)[@"version"];
+        if ([ame432_version isKindOfClass:[NSNumber class]] &&
+            [ame432_version intValue] > 7) {
+            ame432_valid = NO;
+        }
+        // 布局根字典至少携带三类清单键之一（mControlDataList/mDrawerDataList/
+        // mJoystickDataList）——纯 JSON 文档（非布局）不入库
+        NSDictionary *ame432_dict = (NSDictionary *)ame432_root;
+        ame432_valid = ame432_valid &&
+            ([ame432_dict[@"mControlDataList"] isKindOfClass:[NSArray class]] ||
+             [ame432_dict[@"mDrawerDataList"] isKindOfClass:[NSArray class]] ||
+             [ame432_dict[@"mJoystickDataList"] isKindOfClass:[NSArray class]]);
+    }
+    if (!ame432_valid) {
+        NSString *ame432_fail = localize(@"ame432.layouts.import.error.parse",
+                                         @"导入失败：所选文件不是可解析的布局 JSON（或版本高于当前支持）");
+        [self ame432_showNotice:ame432_fail];
+        return;
+    }
+    const char *ame432_home = getenv("POJAV_HOME");
+    NSString *ame432_dir = [NSString stringWithFormat:@"%s/controlmap", ame432_home ?: ""];
+    NSString *ame432_base = [self ame432_sanitizeLayoutName:
+                                [ame432_url.lastPathComponent stringByDeletingPathExtension]];
+    if (ame432_base == nil) {
+        ame432_base = localize(@"ame432.layouts.import.default.name", @"导入布局");
+    }
+    NSString *ame432_fileName = [self ame432_uniqueFileNameForBase:ame432_base inDir:ame432_dir];
+    NSString *ame432_dst = [ame432_dir stringByAppendingPathComponent:ame432_fileName];
+    NSError *ame432_copyError = nil;
+    if (![[NSFileManager defaultManager] copyItemAtPath:ame432_url.path
+                                                toPath:ame432_dst
+                                                 error:&ame432_copyError]) {
+        NSString *ame432_fail2 = localize(@"ame432.layouts.import.error.copy",
+                                          @"导入失败：无法写入 controlmap 目录");
+        [self ame432_showNotice:ame432_fail2];
+        return;
+    }
+    NSLog(@"[Ame432] layout imported: %@ -> %@", ame432_url.lastPathComponent, ame432_dst);
+    NSString *ame432_done = localize(@"ame432.layouts.import.done", @"导入成功：%@");
+    [self ame432_showNotice:[NSString stringWithFormat:ame432_done, ame432_fileName]];
+    [self ame_rebuildGroups];
+}
+
+// 删除布局（ZL2 ControlLayoutItem onDelete 对齐；行卡形态的等价语义 =
+// 删除行 → 布局清单选择 → M3 确认弹窗 → 删档 + 默认指向兜底 + 列表刷新）。
+// 删除当前默认布局时：默认指向回落出厂 custom.json（Task77；文件缺失回
+// default.json——main.m init_setupCustomControls 启动即保证存在）
+- (void)ame432_deleteLayoutFlow {
+    NSArray<NSString *> *ame432_layouts = [self ame_scanLayouts];
+    if (ame432_layouts.count == 0) {
+        [self ame432_showNotice:
+            localize(@"ame432.layouts.delete.error.empty", @"暂无可删除的布局")];
+        return;
+    }
+    __weak typeof(self) weakSelf = self;
+    NSString *ame432_title = localize(@"ame432.layouts.delete.pick", @"选择要删除的布局");
+    UIAlertController *alert =
+        [UIAlertController alertControllerWithTitle:ame432_title
+                                            message:nil
+                                     preferredStyle:UIAlertControllerStyleAlert];
+    NSString *ame432_current = ame_pages_stringOr(getPrefObject(@"control.default_ctrl"), @"custom.json");
+    NSString *ame432_cancel = localize(@"Cancel", nil);
+    for (NSString *ame432_file in ame432_layouts) {
+        NSString *ame432_name = [self ame432_layoutDisplayName:ame432_file];
+        NSString *ame432_rowTitle =
+            [ame432_file isEqualToString:ame432_current]
+                ? [NSString stringWithFormat:@"%@ · %@",
+                   ame432_name, localize(@"ame432.layouts.card.current.short", @"当前默认")]
+                : ame432_name;
+        [alert addAction:[UIAlertAction actionWithTitle:ame432_rowTitle
+                                                  style:UIAlertActionStyleDestructive
+                                                handler:^(UIAlertAction *action) {
+            [weakSelf ame432_confirmDeleteLayout:ame432_file];
+        }]];
+    }
+    [alert addAction:[UIAlertAction actionWithTitle:ame432_cancel
+                                              style:UIAlertActionStyleCancel
+                                            handler:nil]];
+    [self ame_presentVC:alert];
+}
+
+// 删除确认（M3 destructive 弹窗）+ 删档 + 默认指向兜底 + 列表刷新
+- (void)ame432_confirmDeleteLayout:(NSString *)fileName {
+    __weak typeof(self) weakSelf = self;
+    NSString *ame432_name = [self ame432_layoutDisplayName:fileName];
+    NSString *ame432_title = localize(@"ame432.layouts.delete", @"删除布局");
+    NSString *ame432_bodyFormat = localize(@"ame432.layouts.delete.confirm",
+                                           @"确定删除布局「%@」？该操作不可撤销。");
+    NSString *ame432_ok = localize(@"OK", nil);
+    NSString *ame432_current = ame_pages_stringOr(getPrefObject(@"control.default_ctrl"), @"custom.json");
+    NSString *ame432_body = [NSString stringWithFormat:ame432_bodyFormat, ame432_name];
+    NSString *ame432_note = nil;
+    if ([fileName isEqualToString:ame432_current]) {
+        ame432_note = localize(@"ame432.layouts.delete.confirm.default",
+                               @"\n\n注意：这是当前默认布局，删除后将回落出厂布局 custom.json。");
+        ame432_body = [ame432_body stringByAppendingString:ame432_note];
+    }
+    [ZL2M3Dialog showTitle:ame432_title
+                      body:ame432_body
+              confirmTitle:ame432_ok
+               destructive:YES
+                onConfirm:^{
+        NSString *ame432_path = [weakSelf ame432_layoutFilePath:fileName];
+        BOOL ame432_removed =
+            [[NSFileManager defaultManager] removeItemAtPath:ame432_path error:nil];
+        if (!ame432_removed) {
+            [weakSelf ame432_showNotice:
+                localize(@"ame432.layouts.delete.error.failed", @"删除失败（文件不存在或被占用）")];
+            return;
+        }
+        // 删的是当前默认 → 回落出厂布局（custom.json 缺席回 default.json，
+        // main.m init_setupCustomControls 启动即保证 default.json 在盘）
+        NSString *ame432_still = ame_pages_stringOr(getPrefObject(@"control.default_ctrl"), @"custom.json");
+        if ([fileName isEqualToString:ame432_still]) {
+            NSString *ame432_fallback =
+                [[NSFileManager defaultManager] fileExistsAtPath:[weakSelf ame432_layoutFilePath:@"custom.json"]]
+                    ? @"custom.json" : @"default.json";
+            setPrefString(@"control.default_ctrl", ame432_fallback);
+        }
+        NSLog(@"[Ame432] layout deleted: %@", ame432_path);
+        [weakSelf ame_rebuildGroups];   // 列表刷新（卡列表 + 当前布局行同步）
+    }
+                 onCancel:nil];
+}
+
+// 轻反馈（ame344_showNotice 同形态局部副本：无标题 alert）
+- (void)ame432_showNotice:(NSString *)text {
+    NSString *ame432_ok = localize(@"OK", nil);
+    UIAlertController *alert = [UIAlertController alertControllerWithTitle:nil
+                                                                   message:text
+                                                            preferredStyle:UIAlertControllerStyleAlert];
+    [alert addAction:[UIAlertAction actionWithTitle:ame432_ok
+                                              style:UIAlertActionStyleDefault handler:nil]];
+    [self ame_presentVC:alert];
+}
+
 
 // $POJAV_HOME/controlmap/*.json 枚举（升序；custom.json 置顶对齐出厂默认）
 - (NSArray<NSString *> *)ame_scanLayouts {
@@ -3330,49 +3775,103 @@ didPickDocumentsAtURLs:(NSArray<NSURL *> *)urls {
                           projectRow, qqRow, teamRow, kxdwRow]];
     [self ame_addGroup:group1];
 
-    // ════ ★Task428 块 2/4：鸣谢（连体组卡列表：名称 + 一句话定位；开源
-    //   许可只在确切时才写——本块一律项目定位描述，不写具体许可证）════
+    // ════ ★Task428 块 2/4：鸣谢（连体组卡列表：名称 + 一句话定位）════
+    // ★Task432 openLicense：确知许可条目补许可证行内弹窗 + 全文链接
+    //   （URL 逐条实弹核实：raw.githubusercontent.com/LICENSE 文本 +
+    //   github blob HTTP 200 双验，出处清单见 Task432 报告；无把握条目
+    //   只显名称不加链接）。四元组 = [名称, 定位 i18n, 许可证名, LICENSE URL]
+    //   ——后两位空串 = 无把握，不挂弹窗。
     [self ame428_addSectionHeader:localize(@"ame428.about.section_credits", @"鸣谢")];
     ZL2SettingCardGroup *creditGroup = [[ZL2SettingCardGroup alloc] init];
     NSArray<NSArray<NSString *> *> *ame428_credits = @[
-        @[@"ZalithLauncher2", @"ame428.credit.zalith2"],
-        @[@"PojavLauncher",   @"ame428.credit.pojav"],
-        @[@"FCL",             @"ame428.credit.fcl"],
-        @[@"HMCL",            @"ame428.credit.hmcl"],
-        @[@"Modrinth",        @"ame428.credit.modrinth"],
-        @[@"CurseForge",      @"ame428.credit.curseforge"],
-        @[@"BMCLAPI",         @"ame428.credit.bmclapi"],
-        @[@"logshare.cn",     @"ame428.credit.logshare"],
-        @[@"PCL",             @"ame428.credit.pcl"],
+        @[@"ZalithLauncher2", @"ame428.credit.zalith2",
+          @"GNU GPL v3",
+          @"https://github.com/ZalithLauncher/ZalithLauncher2/blob/main/LICENSE"],
+        @[@"PojavLauncher",   @"ame428.credit.pojav",
+          @"GNU LGPL v3",
+          @"https://github.com/PojavLauncherTeam/PojavLauncher/blob/HEAD/LICENSE"],
+        @[@"FCL",             @"ame428.credit.fcl",
+          @"GNU GPL v3",
+          @"https://github.com/FCL-Team/FoldCraftLauncher/blob/main/LICENSE"],
+        @[@"HMCL",            @"ame428.credit.hmcl",
+          @"GNU GPL v3",
+          @"https://github.com/HMCL-dev/HMCL/blob/main/LICENSE"],
+        @[@"Modrinth",        @"ame428.credit.modrinth",
+          @"GNU AGPL v3",
+          @"https://github.com/modrinth/knossos/blob/HEAD/LICENSE"],
+        @[@"CurseForge",      @"ame428.credit.curseforge", @"", @""],
+        @[@"BMCLAPI",         @"ame428.credit.bmclapi", @"", @""],
+        @[@"logshare.cn",     @"ame428.credit.logshare", @"", @""],
+        @[@"PCL",             @"ame428.credit.pcl", @"", @""],
     ];
     for (NSArray<NSString *> *ame428_credit in ame428_credits) {
         ZL2SettingRowAction *ame428_creditRow =
             [[ZL2SettingRowAction alloc] initWithTitle:@"" subtitle:nil];
         ame428_creditRow.title = ame428_credit[0];
         ame428_creditRow.subtitle = localize(ame428_credit[1], nil);
+        NSString *ame432_licName = ame428_credit[2];
+        NSString *ame432_licURL  = ame428_credit[3];
+        if (ame432_licName.length > 0 && ame432_licURL.length > 0) {
+            NSString *ame432_rowLic = ame432_licName;
+            ame428_creditRow.onTap = ^{
+                [weakSelf ame432_showLicenseForName:ame428_credit[0]
+                                        licenseName:ame432_rowLic
+                                                url:ame432_licURL];
+            };
+        }
         [creditGroup ame_addRow:ame428_creditRow];
     }
     [self ame_addGroup:creditGroup];
 
     // ════ ★Task428 块 3/4：依赖库（AGENTS.md「核心依赖」权威清单八项；
     //   图形适配 / AWT 支持 / 其他三族，描述只写仓内已证实的用途）════
+    // ★Task432 openLicense：许可证名/URL 逐条实弹核实（README 依赖表 +
+    //   LICENSE 文本 raw 拉取 + blob HTTP 200 双验；Mesa 为 GitLab 仓（反爬
+    //   未能直验 blob，链接给 README 既有出处主页）；MetalANGLE LICENSE
+    //   实文为 ANGLE BSD 三条款（仓内 README 记 BSD-2，以 LICENSE 实文为准））
     [self ame428_addSectionHeader:localize(@"ame428.about.section_deps", @"依赖库")];
     ZL2SettingCardGroup *depGroup = [[ZL2SettingCardGroup alloc] init];
     NSArray<NSArray<NSString *> *> *ame428_deps = @[
-        @[@"MetalANGLE",      @"ame428.dep.metalangle"],
-        @[@"GL4ES",           @"ame428.dep.gl4es"],
-        @[@"Mesa 3D",         @"ame428.dep.mesa"],
-        @[@"MobileGlues",     @"ame428.dep.mobileglues"],
-        @[@"Caciocavallo",    @"ame428.dep.caciocavallo"],
-        @[@"LWJGL",           @"ame428.dep.lwjgl"],
-        @[@"OpenAL",          @"ame428.dep.openal"],
-        @[@"TouchController", @"ame428.dep.touchcontroller"],
+        @[@"MetalANGLE",      @"ame428.dep.metalangle",
+          @"BSD-3-Clause（ANGLE 条款）",
+          @"https://github.com/khanhduytran0/MetalANGLE/blob/master/LICENSE"],
+        @[@"GL4ES",           @"ame428.dep.gl4es",
+          @"MIT",
+          @"https://github.com/ptitSeb/gl4es/blob/master/LICENSE"],
+        @[@"Mesa 3D",         @"ame428.dep.mesa",
+          @"MIT",
+          @"https://gitlab.freedesktop.org/mesa/mesa"],
+        @[@"MobileGlues",     @"ame428.dep.mobileglues",
+          @"GNU LGPL v2.1",
+          @"https://github.com/MobileGL-Dev/MobileGlues/blob/main/LICENSE"],
+        @[@"Caciocavallo",    @"ame428.dep.caciocavallo",
+          @"GNU GPL v2",
+          @"https://github.com/PojavLauncherTeam/caciocavallo/blob/master/LICENSE"],
+        @[@"LWJGL",           @"ame428.dep.lwjgl",
+          @"BSD-3-Clause",
+          @"https://github.com/PojavLauncherTeam/lwjgl3/blob/HEAD/LICENSE.md"],
+        @[@"OpenAL",          @"ame428.dep.openal",
+          @"GNU LGPL v2",
+          @"https://github.com/kcat/openal-soft/blob/master/COPYING"],
+        @[@"TouchController", @"ame428.dep.touchcontroller",
+          @"GNU LGPL v3",
+          @"https://github.com/TouchController/TouchController/blob/master/LICENSE"],
     ];
     for (NSArray<NSString *> *ame428_dep in ame428_deps) {
         ZL2SettingRowAction *ame428_depRow =
             [[ZL2SettingRowAction alloc] initWithTitle:@"" subtitle:nil];
         ame428_depRow.title = ame428_dep[0];
         ame428_depRow.subtitle = localize(ame428_dep[1], nil);
+        NSString *ame432_licName = ame428_dep[2];
+        NSString *ame432_licURL  = ame428_dep[3];
+        if (ame432_licName.length > 0 && ame432_licURL.length > 0) {
+            NSString *ame432_rowLic = ame432_licName;
+            ame428_depRow.onTap = ^{
+                [weakSelf ame432_showLicenseForName:ame428_dep[0]
+                                        licenseName:ame432_rowLic
+                                                url:ame432_licURL];
+            };
+        }
         [depGroup ame_addRow:ame428_depRow];
     }
     [self ame_addGroup:depGroup];
@@ -3493,6 +3992,34 @@ didPickDocumentsAtURLs:(NSArray<NSURL *> *)urls {
 // 轻量反馈（复制成功等）；无独立 toast 组件，沿用既有 alert 形态（无标题）
 - (void)ame_showNoticeText:(NSString *)text {
     [self ame_showUpdateAlertWithTitle:nil message:text];
+}
+
+// ★Task432 openLicense：条目点击 → 许可证弹窗（许可证名 + 打开全文链接）。
+//   URL 由鸣谢/依赖库四元组传入（逐条实弹核实，见块注释）；无把握条目
+//   不挂 onTap（不进本方法）——绝不编造 URL。
+- (void)ame432_showLicenseForName:(NSString *)name
+                       licenseName:(NSString *)licenseName
+                               url:(NSString *)urlString {
+    NSString *ame432_title = localize(@"ame432.about.license.title", @"开源许可证");
+    NSString *ame432_view = localize(@"ame432.about.license.view", @"查看许可证全文");
+    NSString *ame432_ok = localize(@"OK", nil);
+    NSString *ame432_body =
+        [NSString stringWithFormat:@"%@\n%@", name, licenseName];
+    UIAlertController *alert =
+        [UIAlertController alertControllerWithTitle:ame432_title
+                                            message:ame432_body
+                                     preferredStyle:UIAlertControllerStyleAlert];
+    [alert addAction:[UIAlertAction actionWithTitle:ame432_view
+                                              style:UIAlertActionStyleDefault
+                                            handler:^(UIAlertAction *action) {
+        NSURL *ame432_url = [NSURL URLWithString:urlString];
+        if (ame432_url == nil) return;
+        [[UIApplication sharedApplication] openURL:ame432_url options:@{} completionHandler:nil];
+    }]];
+    [alert addAction:[UIAlertAction actionWithTitle:ame432_ok
+                                              style:UIAlertActionStyleCancel
+                                            handler:nil]];
+    [self presentViewController:alert animated:YES completion:nil];
 }
 
 @end

@@ -337,7 +337,10 @@
     NSDictionary<NSString *, NSString *> *ame428_hits = @{};
     if ((fileOptions & ModpackExportFileMods) && modFiles.count > 0) {
         progress(0.25, localize(@"ame428.export.lookup", nil));
-        ame428_hits = [ModpackUtils ame428_modrinthDownloadURLsForFiles:modFiles concurrency:8];
+        // ★Task432（§6.1 P2「SHA1 反查串行慢」整改）：有界并发探测信号量上限收敛
+        //   为 6（Task428 已落 dispatch_group + dispatch_semaphore 有界并发，双端点
+        //   逻辑/超时值不变；命中集合按 sha1 键回填，结果顺序天然稳定）。
+        ame428_hits = [ModpackUtils ame428_modrinthDownloadURLsForFiles:modFiles concurrency:6];
     }
     // 命中集合（gameDir 相对路径 mods/...）——这些文件不再嵌入 overrides
     NSMutableSet<NSString *> *ame428_skipEmbed = [NSMutableSet set];

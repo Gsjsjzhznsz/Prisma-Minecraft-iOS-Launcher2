@@ -871,7 +871,14 @@ NSString* localize(NSString* key, NSString* comment) {
     } else {
         // 跟随系统语言（默认行为）
         value = NSLocalizedString(key, nil);
-        if (![NSLocale.preferredLanguages[0] isEqualToString:@"en"] && [value isEqualToString:key]) {
+        // ★Task432（P2 语言数组理论面）：preferredLanguages 理论可为空数组（极端
+        //   环境/时序），[0] 直取会 NSRangeException——判空回退 nil 安全路径
+        //   （nil 按非 en 处理 → 走 en 兜底链，语义不回退）。
+        NSArray *ame432_sysLangs = NSLocale.preferredLanguages;
+        NSString *ame432_sysLang = (ame432_sysLangs.count > 0 &&
+                                    [ame432_sysLangs[0] isKindOfClass:[NSString class]])
+                                   ? ame432_sysLangs[0] : nil;
+        if (![ame432_sysLang isEqualToString:@"en"] && [value isEqualToString:key]) {
             NSBundle *languageBundle = ame274_cachedLprojBundle(@"en", &ame274_localizeEn, &ame274_localizeEnProbed);
             value = [languageBundle localizedStringForKey:key value:nil table:nil];
             if ([value isEqualToString:key]) {

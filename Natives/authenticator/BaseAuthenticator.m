@@ -12,8 +12,8 @@
 //（用户实测"多次选择并报错后会复制"）。同仓库两处改 ID 流程（loadSaved-
 // Name 迁移 / ThirdParty switchToProfile）都配了对删除，唯独 refresh 链
 // 漏配——本属性使 saveChanges 能感知漂移并在写盘成功后统一迁移头像 +
-// 清理旧文件（write-side cleanup；读侧去重在 AccountListViewController
-// reloadAccountList，双保险②）。
+// 清理旧文件（write-side cleanup；读侧去重在原账号列表页
+// reloadAccountList 同款链，Task432 已退役，双保险②）。
 @interface BaseAuthenticator ()
 @property (nonatomic, copy, nullable) NSString *ame180_savedAccountId;
 @end

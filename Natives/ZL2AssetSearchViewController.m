@@ -33,8 +33,10 @@
 //  │          │                            │ project* 全字段（L5324-5353） │
 //  ├──────────┼────────────────────────────┼───────────────────────────────┤
 //  │ 存档     │ projectType=world          │ AssetVersionViewController    │
-//  │          │ （强制 CurseForge，        │ assetType=World，apiSource=2  │
-//  │          │  Modrinth 无 world facet） │ （L5396-5425，显式 2）        │
+//  │          │ （★Task432 双源放开：      │ assetType=World，apiSource    │
+//  │          │  Modrinth                  │ 随条目/当前源（原显式 2）      │
+//  │          │  project_type:world facet  │ （L5396-5425 旧页 1:1 形态）   │
+//  │          │  由 ModrinthAPI 既有）     │                               │
 //  ├──────────┼────────────────────────────┼───────────────────────────────┤
 //  │ 光影包   │ projectType=shader         │ ShaderVersionViewController   │
 //  │          │                            │ shaderItem + apiSource +      │
@@ -42,8 +44,9 @@
 //  └──────────┴────────────────────────────┴───────────────────────────────┘
 //
 //   API 来源口径 = 旧页 apiSourceForType:（L1881-1883）/currentAPIForTabType:
-//   （L1866-1877）：world 强制 CurseForge；其余按 PLPreferences
-//   currentDownloadSourceForType:（"curseforge" → 2，否则 Modrinth 1）。
+//   （L1866-1877）等价；★Task432：world 强制 CurseForge 特判摘除，六类全部
+//   按 PLPreferences currentDownloadSourceForType:（"curseforge" → 2，否则
+//   聚合 3；Task428 口径）——存档轨与模组/整合包轨同形态双源。
 //   搜索 filters 字典键 = 旧页 loadModList（L2029-2044）/loadModpackList
 //   （L2191-2213）/loadShaderList（L2114-2124）/loadResourcePackList
 //   （L2273-2283）/loadWorldList（L2433-2443）真实键名：limit/offset/query/
@@ -793,8 +796,9 @@ static UIColor *ZL2AssetSourceBadgeColor(NSInteger apiSource) {
     [self ame_applyFilterPanelAppearance];
     [self ame_refreshEmptyAndLoading];
 
-    // ★Task428（4.4）：CF 起始档（world 强制 CF / 偏好 curseforge）预取 CF
-    //   分类树（右栏分类值域切 CF 口径的数据源；聚合/Modrinth 档不拉）
+    // ★Task428（4.4）：CF 起始档（偏好 curseforge；★Task432 起 world 不再
+    //   强制 CF 特判，仅历史偏好显式存过 curseforge 时预取）CF 分类树
+    //   （右栏分类值域切 CF 口径的数据源；聚合/Modrinth 档不拉）
     if (!self.favoritesMode) {
         [self ame428_prefetchCurseForgeCategoryTableIfNeeded];
     }
@@ -864,14 +868,17 @@ static UIColor *ZL2AssetSourceBadgeColor(NSInteger apiSource) {
 }
 
 // API 来源口径（旧页 apiSourceForType:/currentAPIForTabType: 等价：
-// world 强制 CurseForge——Modrinth 无 project_type:world facet；
-// 其余按 PLPreferences 下载源偏好；1=Modrinth 2=CurseForge。
+// 六类统一按 PLPreferences 下载源偏好；1=Modrinth 2=CurseForge 3=聚合。
+// ★Task432（存档轨放开双源）：原「world 强制 CurseForge——Modrinth 无
+// project_type:world facet」特判摘除——ModrinthAPI facets 链既有
+// project_type:world 直通（ame429_A_FacetsStringForFilters 加载器禁发表
+// 亦含 world），ZL2AggregatedSearchService 双源并行/单源降级全链复用，
+// 实现形态与模组/整合包轨同构。
 // ★Task428（4.3）：新增 3=聚合档且为默认档——旧档"聚合只在旧下载页可达，
 // ZL2 主路径不可见"的纠错。platformOverride=0（未显式选择）时仅历史偏好
 // 显式存过 CurseForge 的跟随，其余（modrinth/aggregate/全新安装）一律落
 // 聚合默认；选择项经 ame_applyPlatform: 持久化（含 "aggregate"，旧页同值域）
 - (NSInteger)ame_apiSourceForType {
-    if (self.assetType == ZL2AssetSearchTypeWorld) return 2;
     if (self.platformOverride == 1) return 1;
     if (self.platformOverride == 2) return 2;
     if (self.platformOverride == 3) return 3;
@@ -879,8 +886,9 @@ static UIColor *ZL2AssetSourceBadgeColor(NSInteger apiSource) {
     return [source isEqualToString:@"curseforge"] ? 2 : 3;
 }
 
-// ★Task428（4.3）：聚合档判定（消费 ZL2AggregatedSearchService；收藏页/
-// world 不聚合——world 强制 CurseForge，ame_apiSourceForType 已返回 2）
+// ★Task428（4.3）：聚合档判定（消费 ZL2AggregatedSearchService；收藏页不聚合。
+//   ★Task432：原「world 不聚合——world 强制 CurseForge」随存档轨双源放开
+//   一并退役，world 与其它轨同口径进聚合）
 - (BOOL)ame_isAggregateMode {
     if (self.favoritesMode) return NO;
     return [self ame_apiSourceForType] == 3;
@@ -1005,7 +1013,8 @@ static UIColor *ZL2AssetSourceBadgeColor(NSInteger apiSource) {
         [panelStack addArrangedSubview:_importButton];
     }
 
-    // 目标平台双行下拉（label + 平台品牌色 chip + chevron；存档强制 CurseForge 禁用）
+    // 目标平台双行下拉（label + 平台品牌色 chip + chevron；
+    // ★Task432：存档不再强制 CurseForge 禁用，六类同权）
     UIView *platformChipView = nil;
     UILabel *platformChipLabel = nil;
     _platformControl = [self ame_panelDropdownControlWithLabelText:localize(@"dl.asset.filter.platform", nil)
@@ -1018,10 +1027,8 @@ static UIColor *ZL2AssetSourceBadgeColor(NSInteger apiSource) {
                          action:@selector(ame_platformTapped)
                forControlEvents:UIControlEventTouchUpInside];
     [panelStack addArrangedSubview:_platformControl];
-    if (self.assetType == ZL2AssetSearchTypeWorld) {
-        _platformControl.userInteractionEnabled = NO;   // Modrinth 无 world facet（旧页口径）
-        _platformControl.alpha = 0.5;
-    }
+    // ★Task432：原「world 禁用目标平台下拉（userInteractionEnabled=NO +
+    //   alpha 0.5）」特判摘除——存档轨与其它轨同权切换聚合/Modrinth/CurseForge。
 
     // 排序方式双行下拉（五档 PlatformSortField 与旧 chips 同值域）
     UIView *sortChipView = nil;
@@ -1397,6 +1404,9 @@ static UIColor *ZL2AssetSourceBadgeColor(NSInteger apiSource) {
 - (void)ame_reloadFavorites {
     [self.results removeAllObjects];
     for (NSDictionary *snapshot in [[ZL2FavoritesStore sharedStore] allFavorites]) {
+        // ★Task432（P1 收藏仓异形档崩）：仓库装载处已滤异形条目，消费点再兜底
+        // 一层——非字典快照直接跳过，防外部改写档残留进入渲染链。
+        if (![snapshot isKindOfClass:[NSDictionary class]]) continue;
         // 快照 → 搜索结果同形字典（openResult 全链直接消费）
         NSMutableDictionary *item = [NSMutableDictionary dictionary];
         item[@"apiSource"] = snapshot[@"platform"] ?: @(1);
@@ -1436,8 +1446,7 @@ static UIColor *ZL2AssetSourceBadgeColor(NSInteger apiSource) {
 }
 
 // 目标平台下拉（★Task428 起三档：聚合（第一项+默认） | Modrinth | CurseForge；
-// 选择持久化进下载源偏好并整页重搜；存档类别 Modrinth 无 world facet，入口
-// 已禁用不达此处）
+// 选择持久化进下载源偏好并整页重搜；★Task432 起存档类别入口同权可达）
 - (void)ame_platformTapped {
     __weak typeof(self) weakSelf = self;
     UIAlertController *sheet = [UIAlertController alertControllerWithTitle:localize(@"dl.asset.filter.platform", nil)
@@ -1544,9 +1553,11 @@ static UIColor *ZL2AssetSourceBadgeColor(NSInteger apiSource) {
         return;
     }
 
-    // 存档 tab 门控（旧页 loadWorldList L2420-2431 同款：CurseForge 源不可用
-    // 时空态拦截；Task162 口径——key 仅官方直连需要）
-    if (self.assetType == ZL2AssetSearchTypeWorld && ![CurseForgeAPI isSourceAvailable]) {
+    // CurseForge 单源档门控（★Task432 由「存档恒拦截」收窄为「仅 CF 单源档」：
+    //   存档轨双源放开后，聚合/Modrinth 档由聚合服务单源降级（Task429 N6a）
+    //   与 Modrinth 直连自然承接，不再被 CF 可用性拦截；Task162 口径——
+    //   key 仅官方直连需要）
+    if ([self ame_apiSourceForType] == 2 && ![CurseForgeAPI isSourceAvailable]) {
         self.inFlight = NO;
         [self ame_showEmptyStateWithIcon:@"globe" fallback:@"globe.fill"
                                     text:localize(@"i18n_str_185", nil)];
@@ -1759,7 +1770,8 @@ static UIColor *ZL2AssetSourceBadgeColor(NSInteger apiSource) {
     });
 }
 
-// ★Task428（4.4）：分类值域口径——CF 单源档（含 world 强制 CF）用 CF 分类树；
+// ★Task428（4.4）：分类值域口径——CF 单源档用 CF 分类树（★Task432：原
+// 「含 world 强制 CF」随双源放开退役，world 不再恒 CF 单源档）；
 // Modrinth / 聚合档维持 Modrinth slug 口径（聚合档 CF 侧失配回退 + 提示）
 - (BOOL)ame428_categoryDomainIsCurseForge {
     return [self ame_apiSourceForType] == 2;
@@ -2059,9 +2071,10 @@ static UIColor *ZL2AssetSourceBadgeColor(NSInteger apiSource) {
 /// 展示名走属性赋值（task248 闸2 仅查 selector 写入点，ZL2SettingPages 先例）；
 /// CurseForge 侧按 name/slug 归一匹配（见 CurseForgeAPI ame316 解析）。
 - (NSArray<NSDictionary *> *)ame_categoryTableForType {
-    // ★Task428（4.4）：分类值域按当前源动态切换——CF 单源档（含 world 强制
-    //   CF）优先展示 CF 分类树（slug=CF 官方口径，ame316 映射/别名表同源；
-    //   已后台拉取缓存）；未拉取/拉取失败回退下方 Modrinth slug 口径表
+    // ★Task428（4.4）：分类值域按当前源动态切换——CF 单源档优先展示 CF 分类树
+    //   （★Task432：原「含 world 强制 CF」特判随存档轨双源放开退役；
+    //   slug=CF 官方口径，ame316 映射/别名表同源；已后台拉取缓存）；
+    //   未拉取/拉取失败回退下方 Modrinth slug 口径表
     //   （存量行为不变，另出信息条提示）。
     if ([self ame428_categoryDomainIsCurseForge] && self.ame428_cfCategoryTable.count > 0) {
         return self.ame428_cfCategoryTable;
@@ -2525,14 +2538,17 @@ static UIColor *ZL2AssetSourceBadgeColor(NSInteger apiSource) {
             break;
         }
         case ZL2AssetSearchTypeWorld: {
-            // 旧页 downloadWorldAtIndexPath:（L5396-5425）1:1：世界强制 CurseForge
+            // 旧页 downloadWorldAtIndexPath:（L5396-5425）1:1 形态；
+            // ★Task432：存档轨双源放开，版本页 apiSource 随条目/当前源分流
+            //   （聚合档混排条目自带 apiSource，与模组/资源包轨同口径），
+            //   不再显式钉 CurseForge。
             WorldItem *item = [[WorldItem alloc] initWithOnlineData:dict];
             self.pendingDownloadType = @"world";
             self.pendingWorldItem = item;
             AssetVersionViewController *versionVC = [[AssetVersionViewController alloc] init];
             versionVC.assetType = AssetVersionTypeWorld;
             versionVC.projectID = item.onlineID;
-            versionVC.apiSource = 2;
+            versionVC.apiSource = itemSource;
             versionVC.projectDisplayName = item.displayName;
             versionVC.delegate = self;
             versionVC.title = item.displayName;

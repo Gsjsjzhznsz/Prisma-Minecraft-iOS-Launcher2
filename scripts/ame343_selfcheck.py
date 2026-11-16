@@ -70,10 +70,11 @@ cmk_lines = read("Natives/CMakeLists.txt").split("\n")
 cmk_code = [ln.split("#")[0] for ln in cmk_lines]
 resid = [ln.strip() for ln in cmk_code for n in FAMILY if n in ln]
 check('A2 CMakeLists 零退役面 TU（注释豁免）', not resid, f'residual: {resid[:3]}')
-keep_ok = all(any(k in ln for ln in cmk_code) for k in
-              ("LauncherNavigationController.m", "ModsManagerViewController.m",
-               "ProfileSettingsViewController.m", "DownloadViewController.m"))
-check('A3 保留面仍在 CMake（旧页深链容器/服务/设置族）', keep_ok)
+check('A3 保留面仍在 CMake（旧页深链容器/服务/设置族；★Task432 重锚：'
+      'LauncherNavigationController 已入退役批次一物理删除，保留面相应摘除）',
+      all(any(k in ln for ln in cmk_code) for k in
+          ("ModsManagerViewController.m",
+           "ProfileSettingsViewController.m", "DownloadViewController.m")))
 
 bridge = read("Natives/ios_uikit_bridge.m")
 check('A4 回壳判定单轨 ZL2 壳（LauncherSplit 引用清零 + ZL2Shell 判定在位）',
@@ -203,11 +204,11 @@ fl_ok = (all(f"{k}:" in js for k in LAYOUT_KEYS)
          and "ame.setThemeLayout(FLUENT_LAYOUT)" in js
          and "ame.setThemeLayout({})" in js
          and "setThemeLayout failed" in js          # 布局链独立容错
-         and man.get("version") == "2.6.1"   # ★Task431 顺延：蓝条真修+ui.views
-         and fe and fe.get("version") == "2.6.1"
+         and man.get("version") == "2.6.2"   # ★Task432 重锚：切页广播事件化（轮询退役）
+         and fe and fe.get("version") == "2.6.2"
          and fe.get("sha256") == zsha and fe.get("size") == len(zdata)
          and znames == ["main.js", "manifest.json"])
-check('C6 fluent-ui v2.6.1（FLUENT_LAYOUT 13 键 + 独立容错 + 恢复三族清空 + manifest/index/zip 对拍；★Task431 顺延）', fl_ok)
+check('C6 fluent-ui v2.6.2（FLUENT_LAYOUT 13 键 + 独立容错 + 恢复三族清空 + manifest/index/zip 对拍；★Task431 顺延 → ★Task432 重锚：订阅 page.changed 替代 200ms 轮询）', fl_ok)
 
 # ══ D 结构护栏 ═════════════════════════════════════════════════
 bal_files = ["Natives/ZL2Theme.h", "Natives/ZL2Theme.m", "Natives/AmePluginBridge.h",

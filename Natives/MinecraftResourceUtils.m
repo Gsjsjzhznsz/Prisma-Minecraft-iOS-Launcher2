@@ -1,7 +1,6 @@
 #include <CommonCrypto/CommonDigest.h>
 
 #import "authenticator/BaseAuthenticator.h"
-#import "LauncherNavigationController.h"
 #import "LauncherPreferences.h"
 #import "MinecraftResourceUtils.h"
 #import "ios_uikit_bridge.h"

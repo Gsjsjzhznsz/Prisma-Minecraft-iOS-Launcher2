@@ -102,7 +102,7 @@
 #import "ZL2BackgroundHost.h"             // ★Task429：ZL2 页背景层（8.3 双层毛玻璃，仅背景挂载区域消费）
 #import "ZL2FestivalEffects.h"          // ★Task428：8.2 节日彩蛋复活（当日节日粒子层挂窗 + 问候横幅）
 #import "TouchControllerPreferencesViewController.h"   // ★Task428：6.6 右上角切换簇虚拟按键直达
-#import "ZL2MotionKit.h"               // ★Task429：MD3 动效体系（壳层切页 fade+offset + 子 nav 转场接入）
+#import "ZL2AnimationKit.h"               // ★Task429：MD3 动效体系（壳层切页 fade+offset + 子 nav 转场接入）
 
 #include <stdlib.h>
 
@@ -1771,6 +1771,18 @@ static UIImage *ZL2ShellSystemImageSizedEx(NSString *name, NSString *fallback, C
     }
 
     self.currentIndex = index;
+    // ★Task432（移交⑥ 导航广播落地）：切页生效即广播 ZL2ShellNavigateNotification
+    //   （既有常量 @selector 契约同字面量 @"ZL2ShellNavigate"，userInfo[@"index"] =
+    //   @(index)，与 AmePluginBridge ui.nav / ZL2Home·Versions 程序化切页同口径）。
+    //   此前侧边栏点按（rail item → showPageAtIndex）不广播，page.changed 事件面
+    //   只覆盖主页瓦片/程序化切页 → fui 插件被迫 200ms 轮询自愈（Task431 移交⑤⑥）；
+    //   本广播补齐事件面后，插件 v2.6.2 改订阅通知、轮询退役（保留一轮轻校验兜底）。
+    //   幂等：同页重复切换在本方法顶部 index==currentIndex 早退，不重入此点；
+    //   通知同步派发 ame_onNavigate 二次进入亦被同一早退拦截（自愈刷顶栏一次），
+    //   无回环。
+    [[NSNotificationCenter defaultCenter] postNotificationName:ZL2ShellNavigateNotification
+                                                        object:nil
+                                                      userInfo:@{@"index": @(index)}];
     [self ame_refreshTopBarStateAnimated:YES];
 }
 

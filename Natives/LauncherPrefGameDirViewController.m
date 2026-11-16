@@ -1,4 +1,3 @@
-#import "LauncherNavigationController.h"
 #import "LauncherPreferences.h"
 #import "LauncherPrefGameDirViewController.h"
 #import "BackgroundManager.h"

@@ -11,7 +11,10 @@ endif()
 
 configure_file(${CMAKE_CURRENT_LIST_DIR}/config.h.in ${CMAKE_CURRENT_LIST_DIR}/config.h)
 
-set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -target arm64-apple-ios -mcpu=apple-a8 -fcommon -fobjc-arc -ObjC -F'${CMAKE_OSX_SYSROOT}/System/Cryptexes/OS/System/Library/Frameworks'")
+# Task432：追加 -miphoneos-version-min=14.0（部署目标证据：Makefile 多处
+#   -DCMAKE_OSX_DEPLOYMENT_TARGET=14.0 / development.yml IPHONEOS_DEPLOYMENT_TARGET=14.0
+#   / meson objc_args -miphoneos-version-min=14.0 / 冒烟脚本 ios14.0-simulator）
+set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -target arm64-apple-ios -mcpu=apple-a8 -fcommon -fobjc-arc -ObjC -miphoneos-version-min=14.0 -F'${CMAKE_OSX_SYSROOT}/System/Cryptexes/OS/System/Library/Frameworks'")
 set(CMAKE_C_FLAGS_DEBUG "-funwind-tables -g")
 
 if("${CMAKE_HOST_SYSTEM_NAME}" MATCHES "Linux|^GNU$|Android")
@@ -493,7 +496,7 @@ add_executable(AngelAuraAmethyst
   input/GyroInput.m
   input/KeyboardInput.m
 
-  AccountListViewController.m
+  # Task432 退役批次一：AccountListViewController.m 物理删除（ZL2AccountsViewController 接管）
   AccountLoginViewController.m
   ThirdPartyLoginViewController.m
   GameMenuOverlayView.m
@@ -532,7 +535,7 @@ add_executable(AngelAuraAmethyst
   #   MD3 动效四件（转场/触觉/列表入场/Shimmer）+ 动态取色三件（取色/HCT/主题中枢）+
   #   自定义取色弹层 + ZL2 页背景层 + 触控布局拖拽编辑器（7.3 第三层）+
   #   组件自动安装（2.1 LibraryAnalyzer 对标）+ 世界备份恢复（Horizon S1）
-  ZL2MotionKit.m
+  ZL2AnimationKit.m
   AmeUIImageColors.m
   AmeHCTPalette.m
   ZL2DynamicPalette.m
@@ -566,8 +569,9 @@ add_executable(AngelAuraAmethyst
   DownloadTaskManager.m
   PLTaskStage.m
   PLTaskProgressViewController.m
-  DownloadTasksViewController.m
-  DownloadHistoryViewController.m
+  # Task432 退役批次一：DownloadTasksViewController.m / DownloadHistoryViewController.m
+  #   物理删除（统一进度页 PLTaskProgressViewController 接管）；DownloadHistoryStore 留守
+  #   （AmePluginBridge / DownloadTaskManager 仍消费）
   DownloadHistoryStore.m
   PLDownloadClient.m
   # ★ Task428（PDF v5 §3.3）：游戏完整性校验与补全服务（启动前快速校验/
@@ -612,18 +616,17 @@ add_executable(AngelAuraAmethyst
   ZeroTierBridge.m
   SOCKS5Proxy.m
   PortForwarder.m
-  LauncherNavigationController.m
+  # Task432 退役批次一：LauncherNavigationController.m 物理删除（ZL2 壳导航总线接管）
   ProfileSettingsViewController.m
   DownloadViewController.m
   # Task291: built-in JIT (PocketJ port phase 1)
   StikDebugEngine.m
   StikDebugViewController.m
   LauncherPreferences.m
-  LauncherPreferencesViewController.m
   LauncherPrefContCfgViewController.m
   LauncherPrefGameDirViewController.m
   LauncherPrefManageJREViewController.m
-  LauncherProfileEditorViewController.m
+  # Task432 退役批次一：LauncherProfileEditorViewController.m 物理删除（ProfileSettings 内联编辑接管）
   MinecraftResourceDownloadTask.m
   MinecraftResourceUtils.m
   PickTextField.m
@@ -708,8 +711,8 @@ add_executable(AngelAuraAmethyst
   # Server projects (Modrinth Server Projects + CurseForge server packs)
   ServerItem.m
   ServerService.m
-  ServerListViewController.m
-  ServerDetailViewController.m
+  # Task432 退役批次一：ServerListViewController.m / ServerDetailViewController.m 物理删除
+  #   （ServerItem/ServerService 数据层留守）
 
   # CurseForge API Key settings page
   installer/CurseForgeAPIKeyViewController.m
@@ -756,16 +759,15 @@ add_executable(AngelAuraAmethyst
   UpdateChecker.m
 
   # Minecraft 新闻（参考 PCL-CE，调用 minecraft-services.net 官方新闻 API）
+  # Task432 退役批次一：MinecraftNewsViewController.m 物理删除（Item/Service 数据层留守）
   MinecraftNewsItem.m
   MinecraftNewsService.m
-  MinecraftNewsViewController.m
 
   # 公告系统（从官网拉取 JSON，支持 Markdown 渲染）
+  # Task432 退役批次一：AnnouncementService/AnnouncementList/AnnouncementDetail 三件物理删除
+  #   （评估实锤：service 代码引用仅公告列表页；AnnouncementItem 模型 + MarkdownParser 留守）
   AnnouncementItem.m
-  AnnouncementService.m
   MarkdownParser.m
-  AnnouncementListViewController.m
-  AnnouncementDetailViewController.m
 
   # Air AI Agent（OpenAI 兼容聊天助手）
   AI/AiProvider.m
@@ -906,7 +908,7 @@ target_link_libraries(AngelAuraAmethyst
   "-framework CAltKit"
   "-framework CoreFoundation"
   "-framework CoreGraphics"
-  # ★Task429-r4：ZL2MotionKit CoreHaptics 触觉（9.2）——CXX 驱动无模块
+  # ★Task429-r4：ZL2AnimationKit CoreHaptics 触觉（9.2）——CXX 驱动无模块
   #   自动链接，CHHaptic* 类/常量符号必须显式链接（smoke run 43689520997
   #   链接实录同款；UIKit 传递依赖不含 CoreHaptics）
   "-framework CoreHaptics"

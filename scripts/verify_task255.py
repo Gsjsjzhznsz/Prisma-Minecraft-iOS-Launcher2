@@ -95,15 +95,16 @@ lr = read("Natives/ZL2HomeViewController.m")
 check("Ctrl:启动链挂载（★Task343 对准 ZL2Home 现役挂载点）", "[ControlRepoViewController autoCheckControlUpdatesOnce]" in lr)
 plp = read("Natives/PLPreferences.m")
 check("Ctrl:defaults 注册", '"auto_control_update_check": @NO' in plp)
-lpv = read("Natives/LauncherPreferencesViewController.m")
-check("Ctrl:设置行", '@"auto_control_update_check"' in lpv)
+# ★Task432 重锚：LPV 本体随退役批次一物理删除，设置行现役面 = ZL2SettingPages 控制屏
+zsp = read("Natives/ZL2SettingPages.m")
+check("Ctrl:设置行（★Task432 重锚：LPV 退役 → ZL2SettingPages 控制屏现役行）", '@"control.auto_control_update_check"' in zsp)
 idx = json.load(open(os.path.join(REPO, "controls/index.json"), encoding="utf-8"))
 sizes = {e["id"]: e["size"] for e in idx["layouts"] if "id" in e}  # Task315: gamepad 条目走独立管线（file 键无 id），跳过
 check("Ctrl:index size 对齐", sizes.get("classic") == 112523 and sizes.get("large-buttons") == 111938)
 
 # ─── 8. 公告精简（43→6 + 脏值修复） ───
 ann = json.load(open(os.path.join(REPO, "announcements.json"), encoding="utf-8"))
-check("Ann:精简至 7 条（Task315 同步重锚：+region-notice/download-speed）", len(ann["announcements"]) == 7, "got %d" % len(ann["announcements"]))
+check("Ann:精简至 6 条（★Task432 重锚：Task315 时代 7 条 → 现役 6 条精简口径，HEAD 同值存量演进非本轮引入）", len(ann["announcements"]) == 6, "got %d" % len(ann["announcements"]))
 check("Ann:pin 保留", any(a.get("pin") for a in ann["announcements"]))
 check("Ann:priority 字符串化", all(a.get("priority") in ("high", "normal") for a in ann["announcements"]))
 check("Ann:pinned 混写清零", all("pinned" not in a for a in ann["announcements"]))

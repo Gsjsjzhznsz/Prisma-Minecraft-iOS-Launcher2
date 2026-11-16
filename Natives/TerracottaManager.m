@@ -245,8 +245,9 @@ static BOOL g_ame256_terraLibInitialized = NO;
             dispatch_async(dispatch_get_global_queue(QOS_CLASS_USER_INITIATED, 0), ^{
                 // ★ Task255 r2 CI 修复（run 795 TerracottaManager.m:211 incompatible
                 //   block pointer types）：本仓 dataTaskWithRequest: completionHandler
-                //   签名为老顺序 (NSData, NSURLResponse, NSError)（AnnouncementService.m:199 /
-                //   ControlRepoViewController 先例同款），标准 (NSURLResponse, NSData, …) 顺序不兼容。
+                //   签名为老顺序 (NSData, NSURLResponse, NSError)（原公告服务 :199
+                //   同款，该类 Task432 已退役；ControlRepoViewController 先例同款），
+                //   标准 (NSURLResponse, NSData, …) 顺序不兼容。
                 [[ame255_hs dataTaskWithRequest:hreq
                     completionHandler:^(NSData *data, NSURLResponse *resp, NSError *err) {
                     NSHTTPURLResponse *hresp = (NSHTTPURLResponse *)resp;

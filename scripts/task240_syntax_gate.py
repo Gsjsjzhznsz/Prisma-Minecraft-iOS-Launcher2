@@ -10,12 +10,12 @@ REPO = os.path.abspath(os.path.join(os.path.dirname(os.path.abspath(__file__)), 
 FILES = [
     "Natives/AmeNativeMenu.m",
     "Natives/AmeNativeMenu.h",
-    "Natives/AccountListViewController.m",
+    # Task432：AccountListViewController 随退役批次一物理删除摘闸
     # Task343：LauncherRightPanel/HomeCustomize 随旧壳家族物理退役摘闸
     "Natives/PLLogOutputView.m",
     "Natives/DataTransferService.m",
     "Natives/MultiplayerViewController.m",
-    "Natives/DownloadTasksViewController.m",
+    # Task432：DownloadTasksViewController 随退役批次一物理删除摘闸
     "Natives/ModpackExportViewController.m",
     "Natives/ModpackImportViewController.m",
     "Natives/DownloadViewController.m",

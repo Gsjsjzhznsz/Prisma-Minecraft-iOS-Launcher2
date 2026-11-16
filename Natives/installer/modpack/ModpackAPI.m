@@ -52,7 +52,8 @@
 }
 
 - (void)installModpackFromDetail:(NSDictionary *)modDetail atIndex:(NSUInteger)selectedVersion {
-    // Pass details to LauncherNavigationController
+    // Task432 注：原注释「Pass details to 旧壳导航」——旧壳导航类已退役，
+    // 本通知现由 ZL2 壳导航总线/版本页消费（投递面不变）。
     NSDictionary* userInfo = @{
         @"detail": modDetail,
         @"index": @(selectedVersion)

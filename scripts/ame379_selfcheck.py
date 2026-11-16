@@ -103,14 +103,16 @@ check("C3 事件面第 12 事件（Runtime 订阅通知 → appearance.changed �
       'addObserverForName:@"AmeAppearanceTraitChanged"' in runtime
       and 'ame317_dispatchAll:@"appearance.changed" payload:@{@"dark": @(dark)}]' in runtime)
 
-check("C4 fluent-ui v2.6.1 订阅换板+Task380 同值幂等（appearance.changed → 去重短路 → applyPalette(dark?1:0)；★Task431 顺延）",
+check("C4 fluent-ui v2.6.2 订阅换板+Task380 同值幂等（appearance.changed → 去重短路 → applyPalette(dark?1:0)；★Task431 顺延 → ★Task432 重锚：另订阅 page.changed 替代 200ms 轮询）",
       "ame.on('appearance.changed'" in js
       and "lastAppliedDark !== null && ame380_dark === lastAppliedDark" in js
       and "applyPalette(ame380_dark ? 1 : 0, true);" in js
-      and "fluent-ui v2.6.1 loaded" in js)
+      and "fluent-ui v2.6.2 loaded" in js
+      and "ame.on('page.changed'" in js
+      and "setInterval" not in js)
 
-check("C5 manifest 2.6.1 + events 权限（订阅闸；★Task431 顺延 2.6.0→2.6.1 + ui.views）",
-      '"version": "2.6.1"' in manifest and '"events"' in manifest)
+check("C5 manifest 2.6.2 + events 权限（订阅闸；★Task431 顺延 2.6.0→2.6.1 + ui.views → ★Task432 重锚 2.6.1→2.6.2）",
+      '"version": "2.6.2"' in manifest and '"events"' in manifest)
 
 check("C6 插件文档同步（事件 11→12 种 + appearance.changed 条目）",
       "12 种" in docs and "appearance.changed" in docs)
@@ -122,7 +124,7 @@ def _idx_ok():
     zip_path = os.path.join(REPO, "plugin-repo", entry["file"])
     with open(zip_path, "rb") as f:
         blob = f.read()
-    return (entry["version"] == "2.6.1"
+    return (entry["version"] == "2.6.2"
             and entry["size"] == len(blob)
             and entry["sha256"] == hashlib.sha256(blob).hexdigest())
 

@@ -84,7 +84,9 @@ check('A5 实现：限时等待 + latest-* 滤除（url 字段闸）',
 check('A6 安装钮恒可点（userInteractionEnabled = YES）',
       re.search(r'installButton\.userInteractionEnabled\s*=\s*YES', gav))
 check('A7 busy 态不改文案（「清单加载中…」不在 installLabel 赋值链）',
-      'installLabel.text = hasSelection ? @"安装"' in gav
+      # ★Task432 重锚：Task369 i18n 化后 installLabel 三元取值走 localize 键
+      #   （ame369.common.install），字面量 '安装' 锚随本地化演进重锚（移交⑤）。
+      'installLabel.text = hasSelection ? localize(@"ame369.common.install"' in gav
       and not re.search(r'installLabel\.text\s*=\s*@"清单加载中', gav))
 check('A8 lastVersionId = self.gameVersion（实际下载版本）',
       re.search(r'profile\[@"lastVersionId"\]\s*=\s*self\.gameVersion', gav))

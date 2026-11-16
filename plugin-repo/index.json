@@ -17,12 +17,12 @@
     {
       "id": "fluent-ui",
       "name": "Fluent UI",
-      "version": "2.6.1",
+      "version": "2.6.2",
       "author": "Prisma",
-      "summary": "Fluent 2 两态开关：开=全维度换装+色板跟随系统明暗，关=恢复默认主题；v2.6.1 修复 NavigationView 窗格底（设置/文件）选中蓝条错位到主页旁（ui.views 测量纠偏+200ms 自愈）",
+      "summary": "Fluent 2 两态开关：开=NavigationView 全维度换装（结构/排版/形状/字阶/色板），色板跟随系统明暗；关=恢复默认主题。v2.6.2 切页广播事件化：壳侧全量广播后订阅 page.changed 替代 200ms 轮询（蓝条测量纠偏保留一轮轻校验兜底）",
       "file": "plugins/fluent-ui.zip",
-      "size": 10480,
-      "sha256": "a1ae068469e606fa205f3666c6ef3e00cc3a1257783945bd919dd15533aee22d",
+      "size": 10935,
+      "sha256": "ff3eeaf06506b4acbadf813059ab229d00c0d30198a3b56c779f6b2558f4190a",
       "official": true
     },
     {

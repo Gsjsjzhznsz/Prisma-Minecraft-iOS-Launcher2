@@ -4333,3 +4333,147 @@
 "ame429.s1.trash.ok_fmt" = "Moved to trash: %@";
 "ame429.s1.world.none" = "No worlds found for this instance";
 "ame429.s1.world.title" = "Choose a World";
+
+"ame432.about.license.title" = "Open-source Licenses";
+
+"ame432.about.license.view" = "View full license text";
+
+"ame432.f.palette.jade" = "Jade Breeze";
+
+"ame432.f.palette.rosy" = "Rosy Sunset";
+
+"ame432.f.palette.subtitle" = "Follow wallpaper, or pick a named palette (incl. Jade Breeze / Rosy Sunset)";
+
+"ame432.import.folder.button" = "Import Folder";
+
+"ame432.import.folder.failed" = "Failed to pack folder: %@";
+
+"ame432.import.folder.failed.plain" = "Failed to pack folder";
+
+"ame432.import.folder.failed.title" = "Cannot Import Folder";
+
+"ame432.import.folder.packing" = "Packing folder…";
+
+"ame432.import.folder.unrecognized" = "Not a MultiMC/Prism instance (mmc-pack.json / instance.cfg not found)";
+
+"ame432.layouts.card.buttons" = "%lu buttons";
+
+"ame432.layouts.card.current" = "Current default · %@";
+
+"ame432.layouts.card.current.short" = "Current default";
+
+"ame432.layouts.card.unparsed" = "Layout file unparsable";
+
+"ame432.layouts.create" = "New Layout";
+
+"ame432.layouts.create.error.duplicate" = "A layout with this name already exists";
+
+"ame432.layouts.create.error.empty" = "Layout name cannot be empty";
+
+"ame432.layouts.create.error.write" = "Failed to write layout (disk or permission)";
+
+"ame432.layouts.create.name.placeholder" = "Layout name";
+
+"ame432.layouts.create.subtitle" = "Create an empty layout from the factory template";
+
+"ame432.layouts.delete" = "Delete Layout";
+
+"ame432.layouts.delete.confirm" = "Delete layout “%@”? This cannot be undone.";
+
+"ame432.layouts.delete.confirm.default" = "\n\nNote: this is the current default layout; the factory custom.json will fall back after deletion.";
+
+"ame432.layouts.delete.error.empty" = "No deletable layouts";
+
+"ame432.layouts.delete.error.failed" = "Delete failed (file missing or in use)";
+
+"ame432.layouts.delete.pick" = "Pick a layout to delete";
+
+"ame432.layouts.delete.subtitle" = "Pick from list + confirm before deletion";
+
+"ame432.layouts.empty" = "No layout cards yet";
+
+"ame432.layouts.empty.subtitle" = "Use New Layout / Import Layout File below, or the Control Repo";
+
+"ame432.layouts.import" = "Import Layout File";
+
+"ame432.layouts.import.default.name" = "Imported Layout";
+
+"ame432.layouts.import.done" = "Imported: %@";
+
+"ame432.layouts.import.error.copy" = "Cannot write to the controlmap directory";
+
+"ame432.layouts.import.error.parse" = "Not a parseable layout JSON (or version above supported)";
+
+"ame432.layouts.import.subtitle" = "Import a .json (validated as parseable before entering controlmap)";
+
+"ame432.searchid.gallery" = "Screenshots";
+
+"ame432.searchid.go_download" = "Go to Download";
+
+"ame432.searchid.mcmod" = "Search mcmod.cn (Chinese docs)";
+
+"ame432.settab.ai_tail" = "AI Settings";
+
+"ame432.settab.debug_tail" = "Debug";
+
+"ame432.theme.mode.subtitle" = "Follow System / Light / Dark";
+
+"ame432.theme.mode.title" = "Light & Dark Mode";
+
+"ame432.vdet.datapacks.delete_confirm" = "Delete data pack “%@”? This cannot be undone.";
+
+"ame432.vdet.datapacks.dir_tag" = "Folder";
+
+"ame432.vdet.datapacks.empty" = "No data packs yet. Tap top-right to import a zip or folder.";
+
+"ame432.vdet.datapacks.entry" = "Data Packs";
+
+"ame432.vdet.datapacks.entry_hint" = "Managed per world directory";
+
+"ame432.vdet.datapacks.import" = "Import data pack";
+
+"ame432.vdet.datapacks.no_world" = "No saves yet (data packs live in each world's directory)";
+
+"ame432.vdet.datapacks.pick_world" = "Choose a world to manage data packs";
+
+"ame432.vdet.datapacks.world_fmt" = "World: %@";
+
+"ame432.vdet.modify" = "Modify Version";
+
+"ame432.vdet.modify.confirm_body" = "Install %@ %@ (MC %@) for instance “%@”? After success the instance points to the new version entity; the old one is kept.";
+
+"ame432.vdet.modify.confirm_install" = "Install";
+
+"ame432.vdet.modify.confirm_title" = "Confirm Install";
+
+"ame432.vdet.modify.current_fmt" = "Current %@";
+
+"ame432.vdet.modify.current_loader" = "Current Loader";
+
+"ame432.vdet.modify.family.vanilla" = "Vanilla";
+
+"ame432.vdet.modify.family_title" = "Target loader (tap to pick a version)";
+
+"ame432.vdet.modify.install_failed" = "Install failed";
+
+"ame432.vdet.modify.install_ok" = "Installed %@ (version entity %@)";
+
+"ame432.vdet.modify.installing" = "Installing %@ %@…";
+
+"ame432.vdet.modify.instance" = "Instance";
+
+"ame432.vdet.modify.loader_none" = "Vanilla (no loader installed)";
+
+"ame432.vdet.modify.mc_version" = "MC Version";
+
+"ame432.vdet.modify.no_base" = "No MC version installed for this instance";
+
+"ame432.vdet.modify.no_versions" = "No available versions (network error or unsupported MC version)";
+
+"ame432.vdet.modify.pick_version_title" = "Choose %@ version";
+
+"ame432.vdet.modify.tap_hint" = "Tap to pick a version";
+
+"ame432.vdet.modify.unsupported" = "Not supported yet";
+
+"ame432.vdet.modify.versions_loading" = "Fetching available %@ versions…";

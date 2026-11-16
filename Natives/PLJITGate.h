@@ -5,7 +5,7 @@
 // 的启动链是断头路——下载/校验 100% 后 KVO 分支仅收尾刷新（task=nil + 恢复
 // 交互 + ReloadProfileList）即终止，整条 invokeAfterJITEnabled → JIT 深链 →
 // SurfaceViewController → launchJVM → JLI_Launch 链路停留在退役旧壳三份私有
-// 拷贝里（LauncherRightPanelViewController / LauncherNavigationController /
+// 拷贝里（LauncherRightPanelViewController / 旧壳导航·Task432 已退役 /
 // DownloadViewController），新 UI 主路径从未可达 = 点启动后静默无后续
 // （latestlog 无 [JIT]/[SurfaceSwap]/[JavaLauncher] 痕迹，与旧版 6.5.5 同
 // LC 环境可正常起游戏形成对照——旧版活跃 UI 内嵌完整链路）。

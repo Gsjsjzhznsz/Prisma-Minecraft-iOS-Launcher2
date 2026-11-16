@@ -39,6 +39,17 @@ NSString *const PREF_MOD_MIRROR = @"general.mod_mirror";
             @"gyro_invert_y": @(NO),
             @"gyro_sample_rate": @(20.0),
             @"gyro_smoothing": @(30),
+            // ★ Task432（陀螺仪键族单族化）：旧族 control.gyroscope_*（三键）
+            //   并入本节单族 general.gyro_*——迁移器 GyroInput
+            //   ame432_migrateGyroKeyFamilyIfNeeded 一次性拷贝（幂等哨兵见下），
+            //   读写点：ZL2SettingPages 控制屏六行 + SurfaceViewController
+            //   applyInGamePreferenceChanges + GyroInput 兼容垫片。
+            @"gyro_enable": @(NO),
+            @"gyro_invert_x": @(NO),
+            @"gyro_sensitivity": @(100),
+            //   迁移哨兵：YES 后迁移器跳过（跨启动幂等；重置偏好后自然重跑，
+            //   重置态旧族=默认值，拷贝等价无副作用）
+            @"gyro_family_migrated": @(NO),
             //   节日彩蛋粒子层总开关（ZL2FestivalEffects 消费；缺省视为开）
             @"festival_effects": @(YES),
             @"cosmetica": @YES,
@@ -198,6 +209,9 @@ NSString *const PREF_MOD_MIRROR = @"general.mod_mirror";
             // 双向生效。
             @"auto_keyboard_sdl": @YES,   // Task247（T8）：默认改为 YES——开关语义落地后 ON=Start 自动弹（Task172 默认体验），OFF=不自动弹仅 ✎/T 键唤起；存量安装未显式写过此键，跟随新默认后行为不变
             @"auto_control_update_check": @NO,   // ★ Task255（清单 8）：自动检查控件更新——ON=启动后静默拉仓库 index 对比本地控件版本，可更新时 toast 提示（不自动下载，用户在控件仓库页自取）；默认 OFF 与启动器更新检查（general.auto_update_check）的旧默认观感解耦
+            // ★ Task432：旧族三键注册保留（防迁移器读不到）——迁移完成后
+            //   不再写入本节（唯一写点 = 迁移器读旧→写新），读写面全部走
+            //   general.gyro_* 单族（见 general 节 Task432 注记）
             @"gyroscope_enable": @NO,
             @"gyroscope_invert_x_axis": @NO,
             @"gyroscope_sensitivity": @(100),

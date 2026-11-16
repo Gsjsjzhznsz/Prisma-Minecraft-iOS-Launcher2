@@ -739,7 +739,26 @@ static void *kZL2GameWikiURLKey = &kZL2GameWikiURLKey;
          cellForRowAtIndexPath:(NSIndexPath *)indexPath {
     ZL2GameVersionCell *cell = [tableView dequeueReusableCellWithIdentifier:@"ZL2GameVersionCell"
                                                               forIndexPath:indexPath];
-    NSDictionary *entry = self.filtered[(NSUInteger)indexPath.row];
+    NSDictionary *entry = nil;
+    // ★Task432（P1 游戏下载页行竞态）：筛选重算（ame_applyFilters）与滚动续载
+    // （scrollViewDidScroll）存在无锁交叉窗口，filtered 可能已缩短而行请求仍指向
+    // 旧索引——取值前按 filtered.count 钳制，越界回退空配置渲染，不越界崩溃。
+    if ((NSUInteger)indexPath.row < self.filtered.count) {
+        entry = self.filtered[(NSUInteger)indexPath.row];
+    }
+    if (!entry) {
+        [cell ame_configureWithId:@""
+                         chipText:@""
+                           chipBg:[ZL2Theme tertiary]
+                           chipFg:[ZL2Theme onTertiary]
+                       iconBundle:@""
+                          summary:nil
+                         dateText:@""
+                          wikiUrl:nil
+                       wikiTarget:nil
+                       wikiAction:nil];
+        return cell;
+    }
     NSArray *visuals = [self ame_visualsForEntry:entry];
 
     // 类型 chip：ZL2 LittleTextLabel（tertiary 底 + onTertiary 字，全部五型统一）
@@ -768,6 +787,9 @@ static void *kZL2GameWikiURLKey = &kZL2GameWikiURLKey;
 
 - (void)tableView:(UITableView *)tableView didSelectRowAtIndexPath:(NSIndexPath *)indexPath {
     [tableView deselectRowAtIndexPath:indexPath animated:YES];
+    // ★Task432（P1 游戏下载页行竞态）：didSelect 与筛选重算竞态——越界直接吞掉
+    // 本次点击（无可选行），不越界崩溃。
+    if ((NSUInteger)indexPath.row >= self.filtered.count) return;
     NSDictionary *entry = self.filtered[(NSUInteger)indexPath.row];
     NSString *vid = entry[@"id"] ?: @"";
     if (vid.length == 0) return;
@@ -780,14 +802,18 @@ static void *kZL2GameWikiURLKey = &kZL2GameWikiURLKey;
 // 滚动续载（首屏 60 + 续载 40）
 - (void)scrollViewDidScroll:(UIScrollView *)scrollView {
     if (![scrollView isEqual:self.tableView]) return;
-    if (self.displayedCount >= self.filtered.count) return;
+    // ★Task432（P1 游戏下载页行竞态）：续载瞬间切筛选的交叉窗口——以快照计数
+    // 钳制本次续载上界，insertRows 的行集必落在当前 filtered 范围内。
+    NSUInteger total = self.filtered.count;
+    if (self.displayedCount >= total) return;
     CGPoint offset = scrollView.contentOffset;
     CGFloat threshold = scrollView.contentSize.height - scrollView.bounds.size.height - 400;
     if (threshold < 0 || offset.y >= threshold) {
-        NSUInteger next = MIN(self.displayedCount + ZL2GamePageSizeMore,
-                              self.filtered.count);
+        NSUInteger from = self.displayedCount;
+        if (from >= total) return;   // 竞态窗口内 filtered 已缩短：放弃本次续载
+        NSUInteger next = MIN(from + ZL2GamePageSizeMore, total);
         if (next != self.displayedCount) {
-            NSArray *indexPaths = [self ameIndexPathsFrom:self.displayedCount to:next];
+            NSArray *indexPaths = [self ameIndexPathsFrom:from to:next];
             self.displayedCount = next;
             [self.tableView insertRowsAtIndexPaths:indexPaths
                                   withRowAnimation:UITableViewRowAnimationNone];

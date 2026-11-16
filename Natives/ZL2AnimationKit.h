@@ -1,5 +1,5 @@
 //
-// ZL2MotionKit.h — MD3 动效体系（★Task429：PDF 第五版 §9.2 + 第六版 §3.2.2
+// ZL2AnimationKit.h — MD3 动效体系（★Task429：PDF 第五版 §9.2 + 第六版 §3.2.2
 // 「MD3 动画体系」全局杠杆落地）
 //
 // 定位：ZL2 域动效统一供给层，四个全局杠杆一次成型——
@@ -30,7 +30,7 @@
 //   分支）；iOS 14.0 API 上限；reduceMotion 全链尊重（开启即无动效直落，
 //   绝不把内容留在不可见态——守卫只跳过动画，不改动可见性终态）。
 //
-// ⚠️ 新 TU：ZL2MotionKit.m 需主控注册 Natives/CMakeLists.txt 源列表
+// ⚠️ 新 TU：ZL2AnimationKit.m 需主控注册 Natives/CMakeLists.txt 源列表
 //   （Task429 工位 429-E 报备；CMakeLists.txt 属本工位禁改清单）。
 //   CoreHaptics 依赖 clang autolink（lld LC_LINKER_OPTION）；若主控构建
 //   关闭 autolink，需在链接面追加 -framework CoreHaptics。

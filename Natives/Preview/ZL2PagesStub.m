@@ -301,12 +301,6 @@
 
 #pragma mark - 设置页十二行目标 VC 空桩（ZL2SettingsViewController push 表）
 
-@interface LauncherPreferencesViewController : UIViewController
-@end
-
-@implementation LauncherPreferencesViewController
-@end
-
 @interface BackgroundSettingsViewController : UIViewController
 @end
 
@@ -462,7 +456,8 @@ BOOL ame185_loaderVersionMatchesGameVersion(NSString *loaderVersion, NSString *g
     return NO;
 }
 
-// LauncherNavigationController.h 声明（定义于主程序 TU）：本地版本注册表。
+// 本地版本注册表（Task432 注：原注释「旧壳导航 .h 声明（定义于主程序 TU）」——
+//   该类已退役，此 C 符号改由 ProfileSettings 域消费）。
 // ★ Task336：FabricUtils ame336 执行器 extern 消费——预览环境空表实例
 // （CI 截图不触安装链；主程序构建用真身，桩与真实现从不同一二进制）
 NSMutableArray *localVersionList = nil;

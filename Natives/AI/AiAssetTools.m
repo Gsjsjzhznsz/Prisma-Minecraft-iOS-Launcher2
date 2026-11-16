@@ -11,7 +11,7 @@
 //      install_loader（Fabric/Quilt 直接安装：自动预装原版 + meta profile + Fabric API；
 //                     Forge/NeoForge/OptiFine 涉及 JVM 图形安装器，保留下载页引导）。
 //  两类工具共享文件内私有 helper（AiAssetNetworkUtil / AiAssetInstaller）。
-//  - 网络统一用 NSURLSession GET JSON（参考 AnnouncementService）。
+//  - 网络统一用 NSURLSession GET JSON（参考公告服务，原 AnnouncementService，Task432 已退役）。
 //  - 文件下载统一走 PLDownloadClient，并注册到 DownloadTaskManager 以便进度页跟踪。
 //  - 传统中括号语法 + ARC；结果一律调度回主线程回调。
 //

@@ -14,6 +14,20 @@
 #define AME428_GYRO_MAX_WINDOW 11
 #define AME428_GYRO_DEADZONE 0.02
 
+// ★Task432（键族单族化）：新旧键名 + 迁移哨兵（与 PLPreferences.m 注册逐字一致）。
+//   旧族 control.gyroscope_*（历史三键，注册保留防迁移读不到，迁移后不再写）；
+//   新族 general.gyro_*（本版本起唯一读写族）。
+static NSString * const Ame432GyroLegacyEnableKey      = @"control.gyroscope_enable";
+static NSString * const Ame432GyroLegacyInvertXKey     = @"control.gyroscope_invert_x_axis";
+static NSString * const Ame432GyroLegacySensitivityKey = @"control.gyroscope_sensitivity";
+static NSString * const Ame432GyroNewEnableKey         = @"general.gyro_enable";
+static NSString * const Ame432GyroNewInvertXKey        = @"general.gyro_invert_x";
+static NSString * const Ame432GyroNewSensitivityKey    = @"general.gyro_sensitivity";
+static NSString * const Ame432GyroMigratedSentinelKey  = @"general.gyro_family_migrated";
+
+// 迁移哨兵进程内快路径（持久哨兵见上；两者任一为真即跳过）
+static BOOL ame432_gyroFamilyMigrated = NO;
+
 @implementation GyroInput
 
 static CGFloat lastXValue, lastYValue, lastFrameTime;
@@ -39,11 +53,49 @@ static int gyroSmoothIndex = 0;
     // FIXME: camera jumps upon rotating screen
 }
 
+// ★Task432（键族单族化）：旧族 → 新族一次性迁移（幂等）。实现要点：
+//   · 哨兵双闸：进程内 static（同会话零开销）+ 持久键
+//     general.gyro_family_migrated（跨启动幂等）。
+//   · 拷贝语义：PLPreferences setDefaultsForPref 会把已注册键播种进内存
+//     （读侧恒非 nil），"旧键有值/新键未写"无法以 nil 判别——本迁移器以
+//     哨兵实现"一次性"，哨兵为假时旧族三值无条件拷入新族（未动过的旧键
+//     值 = 播种默认，拷贝后与默认逐位相等，幂等无害；用户改过的旧键值
+//     得以真实接管）。
+//   · 迁移完成后旧键不再写（本函数是旧键的最后一次读 + 唯一兜底写源）。
+//   · 调用点：① ZL2SettingPages 控制屏陀螺仪行装载；② SurfaceViewController
+//     applyInGamePreferenceChanges 陀螺仪读前；③ 本类旧签名兼容垫片入口
+//     （三入口共用一份实现，无双族回写窗口）。
++ (void)ame432_migrateGyroKeyFamilyIfNeeded {
+    if (ame432_gyroFamilyMigrated) return;
+    if (getPrefBool(Ame432GyroMigratedSentinelKey)) {
+        ame432_gyroFamilyMigrated = YES;
+        return;
+    }
+    // 旧键有值 → 拷贝迁移后写新键（旧键读保留，新键写；旧键自此不再写）
+    id ame432_enable = getPrefObject(Ame432GyroLegacyEnableKey);
+    if (ame432_enable != nil) {
+        setPrefObject(Ame432GyroNewEnableKey, @([ame432_enable boolValue]));
+    }
+    id ame432_invertX = getPrefObject(Ame432GyroLegacyInvertXKey);
+    if (ame432_invertX != nil) {
+        setPrefObject(Ame432GyroNewInvertXKey, @([ame432_invertX boolValue]));
+    }
+    id ame432_sens = getPrefObject(Ame432GyroLegacySensitivityKey);
+    if (ame432_sens != nil) {
+        setPrefObject(Ame432GyroNewSensitivityKey, @(roundf([ame432_sens floatValue])));
+    }
+    setPrefBool(Ame432GyroMigratedSentinelKey, YES);
+    ame432_gyroFamilyMigrated = YES;
+    NSLog(@"[Ame432] gyro key family migrated: control.gyroscope_* -> general.gyro_* (one-shot)");
+}
+
 // ★Task428（6.4）：旧签名兼容垫片——转发到全参数入口，新参数（Y 反转 /
 //   采样率 / 平滑）从偏好读取，键缺失按契约默认（invert_y=NO、20Hz、
 //   smoothing=30），越界值夹取到合法域。现有调用方（SurfaceViewController
 //   applyInGamePreferenceChanges）零改动即让新键生效。
+//   ★Task432：垫片入口先跑键族迁移器（若调用方漏跑，此处兜底一次）。
 + (void)updateSensitivity:(int)sensitivity invertXAxis:(BOOL)invertX {
+    [self ame432_migrateGyroKeyFamilyIfNeeded];
     CGFloat ame428_rate = 20.0;   // general.gyro_sample_rate 契约默认（Hz）
     id ame428_rateObj = getPrefObject(@"general.gyro_sample_rate");
     if (ame428_rateObj != nil) {

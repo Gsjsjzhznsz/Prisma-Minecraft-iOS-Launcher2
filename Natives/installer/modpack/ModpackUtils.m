@@ -207,9 +207,11 @@
 
 + (NSDictionary<NSString *, NSString *> *)ame428_modrinthDownloadURLsForFiles:(NSArray<NSDictionary *> *)files
                                                                    concurrency:(NSInteger)concurrency {
-    // ★Task428：并发受控（默认 8）；任何失败静默降级为未命中，不阻断导出
-    if (concurrency <= 0) concurrency = 8;
-    if (concurrency > 16) concurrency = 16;
+    // ★Task428：并发受控（Task432 验收口径收敛为默认/上限 6 并发——§6.1 批次一
+    //   P2「SHA1 反查串行慢」整改：有界并发探测，dispatch_group + dispatch_semaphore
+    //   信号量上限 6；任何失败静默降级为未命中，不阻断导出）
+    if (concurrency <= 0) concurrency = 6;
+    if (concurrency > 6) concurrency = 6;
 
     // 收集去重后的有效 sha1（40 位 hex）
     NSMutableOrderedSet<NSString *> *sha1s = [NSMutableOrderedSet orderedSet];

@@ -8,6 +8,11 @@
 // + 八个子类），ZL2 风格设置行卡组件在 ZL2SettingCards.h（SettingsCard
 // 连体拼接组 + Switch/Slider/List/Input/Action/Enum 六种行卡）。
 //
+// ★Task432 八组收敛：摘除 Task344 扩容的 AI/调试两轨项，divider 位 1:1
+// 回归 ZL2 settingItems 八组原版；两页可达性由启动器页（case 4）尾部
+// 「AI 设置 / 调试」真按钮行入口接住（.m 文件尾 ZL2LauncherSettingsTailPage）。
+// 主页插件 chip 定点 index=4 不受影响（摘除点均在启动器之后）。
+//
 // 导航约定：根页隐藏系统栏（viewWillAppear 隐藏 / viewWillDisappear 恢复），
 // 子页 push 旧页到 self.navigationController（push 后系统栏随子页显示，
 // 返回本页再隐藏）。集成方需把本页包在 UINavigationController 内作为

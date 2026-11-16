@@ -1,7 +1,6 @@
 #import "AFNetworking.h"
 #import "FabricInstallViewController.h"
 #import "FabricUtils.h"
-#import "LauncherNavigationController.h"
 #import "LauncherPreferences.h"
 #import "ProfileSettingsViewController.h"
 #import "PickTextField.h"

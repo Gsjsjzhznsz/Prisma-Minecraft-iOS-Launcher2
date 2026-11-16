@@ -139,9 +139,9 @@ if os.path.isfile(zp):
     zip_ok = names == ['main.js', 'manifest.json']
 check('B3 zip 结构与存在性（根直接两文件）', zip_ok, f'names={names}')
 ent = next((p for p in index_json.get('plugins', []) if p.get('id') == 'fluent-ui'), None)
-check('B4 index.json 条目全字段 + 完整性一致（★Task390 演进顺延：version 2.6.0 → 2.6.1（★Task431 重锚：蓝条 footer 行坐标系真修对齐 v2.6.1，ui.views 自愈揈权）',
+check('B4 index.json 条目全字段 + 完整性一致（★Task390 演进顺延：version 2.6.0 → 2.6.1（★Task431 重锚：蓝条 footer 行坐标系真修对齐 v2.6.1，ui.views 自愈揈权）→（★Task432 重锚：切页广播事件化 2.6.2，200ms 轮询退役保留一轮轻校验兜底）',
       bool(ent) and ent.get('file') == 'plugins/fluent-ui.zip'
-      and ent.get('official') is True and ent.get('version') == '2.6.1'
+      and ent.get('official') is True and ent.get('version') == '2.6.2'
       and ent.get('sha256') == real_sha and ent.get('size') == real_size,
       f'sha/size mismatch or entry missing')
 check('B5 旧电池演进同步（ame318 收敛断言 + ame338 repo 路径）',

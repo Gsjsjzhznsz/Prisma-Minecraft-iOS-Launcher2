@@ -26,7 +26,7 @@
 #import "ZL2M3Kit.h"
 #import "utils.h"
 #import "ZL2Theme.h"
-#import "ZL2MotionKit.h"        // ★Task429：时长档/弹簧阻尼/触觉出口（MD3 动效体系）
+#import "ZL2AnimationKit.h"        // ★Task429：时长档/弹簧阻尼/触觉出口（MD3 动效体系）
 #import <objc/runtime.h>
 
 #pragma mark - 私有工具
@@ -66,6 +66,7 @@ static UIViewController *ZL2M3TopmostViewController(void) {
 @property (nonatomic, strong) UIControl *scrimControl;
 @property (nonatomic, copy, nullable) void (^onScrimTapped)(void);
 - (void)ame_presentOver:(UIViewController *)host;
+- (void)ame432_performPresentOnHost:(UIViewController *)host;   // ★Task432：实际呈现步骤（子类重写接入场动效）
 - (void)ame_closeAnimated:(void (^)(void))completion;
 @end
 
@@ -104,8 +105,58 @@ static UIViewController *ZL2M3TopmostViewController(void) {
     if (self.onScrimTapped) self.onScrimTapped();
 }
 
-- (void)ame_presentOver:(UIViewController *)host {
+- (void)ame432_performPresentOnHost:(UIViewController *)host {
     [host presentViewController:self animated:NO completion:nil];
+}
+
+// ★Task432（工程件 M3Kit 弹窗守卫）：ame_presentOver 原先无 presentedViewController
+// 守卫——presentation-in-progress（连续弹 Dialog/Sheet 叠层、dismiss 动画未落、
+// 转场协调中）场景 UIKit 会静默拒绝 present，弹窗凭空消失。照
+// ame430_presentAfterDismiss（ZL2VersionPages 判例）形态：window 在场校验 +
+// presentedViewController/transitionCoordinator 双查 + 有界重试（0.18s×5），
+// 重试期间宿主不在场则改投 window 最顶层；超限安全返回（NSLog 留痕）。
+- (void)ame432_presentWithRetry:(UIViewController *)host attempt:(NSUInteger)attempt {
+    // 宿主不在场（页面已弹出/场景切换）→ 改投 window 最顶层（fail-safe 重定向）
+    if (!host.view.window) {
+        UIViewController *top = ZL2M3TopmostViewController();
+        if (top.view.window) host = top;
+    }
+    if (host.presentedViewController || host.transitionCoordinator) {
+        if (attempt >= 5) {
+            NSLog(@"[ZL2M3Kit][Task432] ame_presentOver: presentation busy after %lu retries, safely dropped",
+                  (unsigned long)attempt);
+            return;
+        }
+        __weak typeof(self) weakSelf = self;
+        dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.18 * NSEC_PER_SEC)),
+                       dispatch_get_main_queue(), ^{
+            [weakSelf ame432_presentWithRetry:host attempt:attempt + 1];
+        });
+        return;
+    }
+    [self ame432_performPresentOnHost:host];
+}
+
+- (void)ame_presentOver:(UIViewController *)host {
+    if (!host) {
+        NSLog(@"[ZL2M3Kit][Task432] ame_presentOver: host is nil, safely dropped");
+        return;
+    }
+    // window 在场校验（ame430 判例形态）：宿主不在场改投 window 最顶层
+    if (!host.view.window) {
+        UIViewController *top = ZL2M3TopmostViewController();
+        if (top.view.window) host = top;
+        if (!host.view.window) {
+            NSLog(@"[ZL2M3Kit][Task432] ame_presentOver: host offscreen and no usable topmost, safely dropped");
+            return;
+        }
+    }
+    // presentedViewController/transitionCoordinator 双查：转场中 → 有界重试
+    if (host.presentedViewController || host.transitionCoordinator) {
+        [self ame432_presentWithRetry:host attempt:0];
+        return;
+    }
+    [self ame432_performPresentOnHost:host];
 }
 
 - (void)ame_closeAnimated:(void (^)(void))completion {
@@ -526,8 +577,8 @@ static __weak ZL2M3OverlayViewController *_ame_currentDialog = nil;
     ]];
 }
 
-- (void)ame_presentOver:(UIViewController *)host {
-    [super ame_presentOver:host];
+- (void)ame432_performPresentOnHost:(UIViewController *)host {
+    [super ame432_performPresentOnHost:host];   // ★Task432：守卫后的实际呈现步骤（重试路径同样接入场动效）
     // 入场：卡片缩放 0.92→1 + 淡入（M3 emphasized 过渡近似）
     _cardView.transform = CGAffineTransformMakeScale(0.92, 0.92);
     [UIView animateWithDuration:0.22 animations:^{
@@ -647,8 +698,8 @@ static __weak ZL2M3OverlayViewController *_ame_currentSheet = nil;
     ]];
 }
 
-- (void)ame_presentOver:(UIViewController *)host {
-    [super ame_presentOver:host];
+- (void)ame432_performPresentOnHost:(UIViewController *)host {
+    [super ame432_performPresentOnHost:host];   // ★Task432：守卫后的实际呈现步骤（重试路径同样接入场动效）
     // 入场：上滑 0.28s（transform 位移——sheet 是自动布局管理视图，
     // 动画期间约束不改，frame 位移会被后续 layout pass 覆盖，
     // transform 与约束正交才是可靠路径）

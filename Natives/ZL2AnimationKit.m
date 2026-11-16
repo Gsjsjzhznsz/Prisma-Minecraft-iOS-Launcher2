@@ -1,5 +1,5 @@
 //
-// ZL2MotionKit.m — MD3 动效体系实现（★Task429：第五版 §9.2 + 第六版 §3.2.2
+// ZL2AnimationKit.m — MD3 动效体系实现（★Task429：第五版 §9.2 + 第六版 §3.2.2
 // 全局杠杆）
 //
 // 移植对照（第五版表 9-1 / 第六版 §3.2.2）：
@@ -24,7 +24,7 @@
 // 尊重（开启即直落无动画，不预置不可见态）。
 //
 
-#import "ZL2MotionKit.h"
+#import "ZL2AnimationKit.h"
 #import "ZL2Theme.h"
 #import "LauncherPreferences.h"   // getPrefBool：PLPreferences 只读链路（触觉总开关）
 #import <CoreHaptics/CoreHaptics.h>

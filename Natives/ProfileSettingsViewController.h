@@ -1,7 +1,7 @@
 #import <UIKit/UIKit.h>
 
 // 版本设置 - 管理当前版本的模组/光影/Java/内存/渲染器/服务器/资源包/世界
-// 合并了原 LauncherProfileEditorViewController 的版本选择和重命名功能
+// 合并了原 LauncherProfileEditor（Task432 物理退役）的版本选择和重命名功能
 // 参照 FCL 风格，作为统一的 Edit Profile 页面
 //
 // 重构（Prisma-Design v1.2）：

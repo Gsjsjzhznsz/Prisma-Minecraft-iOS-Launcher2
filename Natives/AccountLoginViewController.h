@@ -21,7 +21,7 @@ typedef NS_ENUM(NSInteger, AccountLoginType) {
     AccountLoginTypeLocal,
 };
 
-/// 用户选中某种登录方式后的回调（由 AccountListViewController 处理具体登录流程）
+/// 用户选中某种登录方式后的回调（由账号列表页处理具体登录流程；原 AccountList 类 Task432 已退役）
 @property (nonatomic, copy) void (^onSelectLoginType)(AccountLoginType type);
 
 @end

@@ -5,7 +5,6 @@
 #import "installer/modpack/ModpackAPI.h"
 #import "installer/ForgeDirectInstaller.h"
 #import "AFNetworking.h"
-#import "LauncherNavigationController.h"
 #import "LauncherPreferences.h"
 #import "MinecraftResourceDownloadTask.h"
 #import "MinecraftResourceUtils.h"
@@ -35,8 +34,8 @@ static const NSUInteger kMCStageIndexVerify = 5;
 // ===== Task312 ame312：批量下载吞吐量见证与低速换源（会话内生效，不落盘） =====
 // 病历（用户反馈 2026-10-20）：“6.5.5 下载速度比 6.5.0 慢多了”。双 tag 全链
 // 审计（v6.5.0→v6.5.5：MinecraftResourceDownloadTask/PLMirrorCenter/
-// DownloadTasksViewController/ForgeDirectInstaller/Tools.java 下载核心逐字节
-// 零改动）定性：非代码回归，是官方源路由劣化——现有候选轮换只在
+// ForgeDirectInstaller/Tools.java 下载核心逐字节零改动；Task432：已退役的
+// DownloadTasksViewController 从此名单摘除）定性：非代码回归，是官方源路由劣化——现有候选轮换只在
 // 【彻底失败】后才切镜像，“慢而不断”的官方源永不轮换，用户只能爬。
 // 修复：会话内吞吐量见证——按源累计（样本≥512KB 且耗时≥0.5s 的完成任务），
 // 官方源平均吞吐 < 128KB/s 且样本≥2 → 本批后续文件换镜像候选在前；
@@ -1288,8 +1287,7 @@ static void ame428_dropAllPending(void) {
 /// Task 5.10：在线整合包 zip 下载完成后的统一导入入口。
 ///   1. 用 ModpackImportService 解析 zip（Modrinth/CurseForge/MMC/MCBBS/Plain ZIP 均可识别）；
 ///   2. 解析失败走 finishDownloadWithErrorString:（任务标失败 + 弹窗 + 恢复 UI）；
-///   3. 解析成功后收口 zip 下载任务（推满父 progress → KVO 标记任务完成 →
-///      LauncherNavigationController 移除观察并恢复交互），再后台执行 importModpack:，
+///   3. 解析成功后收口 zip 下载任务（推满父 progress → KVO 标记任务完成），再后台执行 importModpack:，
 ///      由 service 注册 6 阶段整合包主任务（autoPresentDetail 自动弹统一进度页）。
 - (void)importDownloadedModpackPackage:(NSString *)packagePath {
     ModpackImportService *service = [[ModpackImportService alloc] init];
@@ -1317,8 +1315,7 @@ static void ame428_dropAllPending(void) {
     }
 
     // 收口 zip 下载任务：推满父 progress（清掉 prepareForDownload 预留的 1 字节单位），
-    // KVO 完成分支将 DownloadTaskItem 标记为完成，LauncherNavigationController 同步恢复交互；
-    // 后续导入进度全部由 service 的整合包主任务（统一进度页）承接。
+    // KVO 完成分支将 DownloadTaskItem 标记为完成；后续导入进度全部由 service 的整合包主任务（统一进度页）承接。
     if (self.progress.totalUnitCount > self.progress.completedUnitCount) {
         self.progress.completedUnitCount = self.progress.totalUnitCount;
     }

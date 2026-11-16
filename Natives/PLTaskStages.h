@@ -142,7 +142,7 @@ NS_INLINE NSArray<PLTaskStage *> *PLTaskStagesSingleFile(void) {
 /// 渲染阶段标题为用户可见文案：PLTaskStage.title 存储本地化 key，
 /// 优先 NSLocalizedString 查表（Phase 7 补全各语言 strings 后自动生效）；
 /// strings 暂无条目时回退到代码内中文默认值，避免过渡期直接显示裸 key。
-/// 供统一进度页（PLTaskProgressViewController）与下载中心卡片（DownloadTasksViewController）共用。
+/// 供统一进度页（PLTaskProgressViewController）与下载中心卡片（原 DownloadTasksViewController，Task432 已退役）共用。
 NS_INLINE NSString *PLTaskStageTitleDisplay(NSString *titleKey) {
     if (titleKey.length == 0) return @"";
     // ★ Task271（用户实证：English 下安装进度页阶段标题仍中文）：改走

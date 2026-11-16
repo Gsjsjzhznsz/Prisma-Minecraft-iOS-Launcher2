@@ -6,7 +6,7 @@
 // 大按钮 + 账号卡列表，全宽单列，内容列宽度方案与 ZL2HomeViewController 同款
 // 999 等式：520 上限居中 / iPhone 占满 / 两侧 >= 20）。
 //
-// 既有操作 1:1 移植旧 AccountListViewController：
+// 既有操作 1:1 移植旧账号列表页（原 AccountList 类，Task432 已退役）：
 //   账号列表数据源（POJAV_HOME/accounts/*.json 扫描 + Task180 去重/坏文件
 //   过滤）、账号类型文案与判定（ame190_accountTypeTextForAccount 同源）、
 //   选中链（第三方 refreshToken 会话校验 + 失败优雅降级 Task128）、刷新
@@ -17,7 +17,7 @@
 //   删除成功后发出 @"UpdateAccountInfo"（旧容器 whenItemSelected/whenDelete
 //   的等价契约，主页 pendingLaunchAfterLogin 据此自动续启动）。
 //
-// 登录入口（与旧 AccountListViewController 实际支持 1:1，四种全保留）：
+// 登录入口（与旧账号列表页实际支持 1:1，四种全保留）：
 //   微软账户 → ASWebAuthenticationSession MSA 流程（旧 actionLoginMicrosoft
 //     原样移植，本页内完成，无独立登录 VC）；
 //   LittleSkin / 自定义第三方认证服务器 → push ThirdPartyLoginViewController

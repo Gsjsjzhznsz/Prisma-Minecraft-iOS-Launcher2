@@ -533,6 +533,9 @@
 - (void)showProfilePicker {
     if (self.profileNames.count == 0) return;
 
+    // ★Task432（P2 强捕 self）：菜单 handler 强捕 self（dict → menu 持有期跨
+    //   页面存活）→ 照 Task429 N5 判例形态 __weak weakSelf 断链
+    __weak typeof(self) weakSelf = self;
     // ★ Task240：换装系统原生 UIMenu（旧 actionSheet 退役）。
     NSMutableArray<NSDictionary *> *ame240_items = [NSMutableArray array];
     for (NSString *name in self.profileNames) {
@@ -543,12 +546,12 @@
         [ame240_items addObject:@{
             @"title": title,
             @"handler": ^{
-                self.selectedProfileName = name;
-                [self refreshProfileRow];
+                weakSelf.selectedProfileName = name;   // ★Task432：weakSelf 断链
+                [weakSelf refreshProfileRow];
                 // 沿用既有行为：包名未编辑（空/仍为旧实例名）时跟随实例切换
-                if (self.nameInput.ame_text.length == 0 ||
-                    [self.profileNames containsObject:self.nameInput.ame_text]) {
-                    [self.nameInput ame_setText:name];
+                if (weakSelf.nameInput.ame_text.length == 0 ||
+                    [weakSelf.profileNames containsObject:weakSelf.nameInput.ame_text]) {
+                    [weakSelf.nameInput ame_setText:name];
                 }
             },
         }];
@@ -819,7 +822,13 @@
     // 重置取消状态
     [[ModpackExportService sharedService] resetCancelState];
 
+    // ★Task432（P2 强捕 self）：后台导出块 + 内嵌 progress 回调 + 收尾块三层
+    //   强捕 self（导出耗时期间整页被 GCD 链强持有）→ 照 Task429 N5 判例
+    //   形态 weakSelf/strongSelf 断链（进块强取，页面已释放则安全放弃）。
+    __weak typeof(self) weakSelf = self;
     dispatch_async(dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_DEFAULT, 0), ^{
+        __strong typeof(weakSelf) strongSelf = weakSelf;
+        if (!strongSelf) return;
         NSError *error = nil;
         BOOL success = NO;
         // ★Task431（用户报告「导出整合包闪退」，无设备报告文件）：后台导出链
@@ -830,16 +839,18 @@
         //   reportProgress 既有逐阶段面包屑一击定位阶段）。非异常类崩溃
         //   （jetsam/EXC_BAD_ACCESS）不受此网影响，仍走系统崩溃取证。
         @try {
-            success = [[ModpackExportService sharedService] exportModpackForProfile:self.selectedProfileName
+            success = [[ModpackExportService sharedService] exportModpackForProfile:strongSelf.selectedProfileName
                                                                              toPath:destPath
                                                                                 name:name
                                                                              version:version
                                                                               author:author
-                                                                             format:self.selectedFormat
-                                                                        fileOptions:self.fileOptions
+                                                                             format:strongSelf.selectedFormat
+                                                                        fileOptions:strongSelf.fileOptions
                                                                            progress:^(double p, NSString *stageMessage) {
+                __strong typeof(weakSelf) progressSelf = weakSelf;
+                if (!progressSelf) return;
                 dispatch_async(dispatch_get_main_queue(), ^{
-                    [self setProgress:p stageMessage:stageMessage];
+                    [weakSelf setProgress:p stageMessage:stageMessage];
                 });
             }
                                                                              error:&error];
@@ -852,14 +863,16 @@
         }
 
         dispatch_async(dispatch_get_main_queue(), ^{
+            __strong typeof(weakSelf) finishSelf = weakSelf;
+            if (!finishSelf) return;
             BOOL wasCancelled = [[error.userInfo objectForKey:NSLocalizedDescriptionKey] containsString:localize(@"Cancel", @"取消")];
-            [self hideProgressCard];
+            [finishSelf hideProgressCard];
             if (success) {
-                [self showExportSuccessWithPath:destPath];
+                [finishSelf showExportSuccessWithPath:destPath];
             } else if (wasCancelled) {
-                [self showAlertWithTitle:localize(@"i18n_str_127", nil) message:localize(@"i18n_str_469", nil)];
+                [finishSelf showAlertWithTitle:localize(@"i18n_str_127", nil) message:localize(@"i18n_str_469", nil)];
             } else {
-                [self showAlertWithTitle:localize(@"i18n_str_519", nil) message:error.localizedDescription ?: localize(@"i18n_str_97", nil)];
+                [finishSelf showAlertWithTitle:localize(@"i18n_str_519", nil) message:error.localizedDescription ?: localize(@"i18n_str_97", nil)];
             }
         });
     });
@@ -1050,12 +1063,15 @@
 #pragma mark - 完成提示（沿用既有链：文件位置提示 + 分享）
 
 - (void)showExportSuccessWithPath:(NSString *)path {
+    // ★Task432（P2 强捕 self 同族补漏）：动作回调强捕 self → weakSelf 断链
+    //   （弹窗在屏期间 presented 栈互持不受影响；行为与 Task429 N5 判例一致）
+    __weak typeof(self) weakSelf = self;
     UIAlertController *alert = [UIAlertController alertControllerWithTitle:localize(@"i18n_str_522", nil)
                                                                    message:[NSString stringWithFormat:localize(@"i18n_str_523", nil), path]
                                                             preferredStyle:UIAlertControllerStyleAlert];
     [alert addAction:[UIAlertAction actionWithTitle:localize(@"i18n_str_141", nil) style:UIAlertActionStyleCancel handler:nil]];
     [alert addAction:[UIAlertAction actionWithTitle:localize(@"i18n_str_524", nil) style:UIAlertActionStyleDefault handler:^(UIAlertAction * _Nonnull action) {
-        [self shareExportedFile:path];
+        [weakSelf shareExportedFile:path];
     }]];
     [self presentViewController:alert animated:YES completion:nil];
 }

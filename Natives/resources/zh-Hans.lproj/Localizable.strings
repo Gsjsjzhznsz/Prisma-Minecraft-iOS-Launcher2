@@ -4332,3 +4332,147 @@
 "ame429.s1.trash.ok_fmt" = "已移入回收站：%@";
 "ame429.s1.world.none" = "当前实例暂无世界存档";
 "ame429.s1.world.title" = "选择世界";
+
+"ame432.about.license.title" = "开源许可证";
+
+"ame432.about.license.view" = "查看许可证全文";
+
+"ame432.f.palette.jade" = "翠风";
+
+"ame432.f.palette.rosy" = "霞紫";
+
+"ame432.f.palette.subtitle" = "跟随背景自动取色，或选择命名色板（含翠风/霞紫）";
+
+"ame432.import.folder.button" = "导入文件夹";
+
+"ame432.import.folder.failed" = "文件夹打包失败：%@";
+
+"ame432.import.folder.failed.plain" = "文件夹打包失败";
+
+"ame432.import.folder.failed.title" = "无法导入文件夹";
+
+"ame432.import.folder.packing" = "正在打包文件夹…";
+
+"ame432.import.folder.unrecognized" = "所选文件夹不是 MultiMC/Prism 整合包实例（未找到 mmc-pack.json / instance.cfg）";
+
+"ame432.layouts.card.buttons" = "%lu 个按钮";
+
+"ame432.layouts.card.current" = "当前默认 · %@";
+
+"ame432.layouts.card.current.short" = "当前默认";
+
+"ame432.layouts.card.unparsed" = "布局文件无法解析";
+
+"ame432.layouts.create" = "新建布局";
+
+"ame432.layouts.create.error.duplicate" = "同名布局已存在，换一个名称";
+
+"ame432.layouts.create.error.empty" = "布局名称不能为空";
+
+"ame432.layouts.create.error.write" = "布局写入失败（磁盘或权限）";
+
+"ame432.layouts.create.name.placeholder" = "布局名称";
+
+"ame432.layouts.create.subtitle" = "以出厂模板创建空白布局（可在编辑器中添加控件）";
+
+"ame432.layouts.delete" = "删除布局";
+
+"ame432.layouts.delete.confirm" = "确定删除布局「%@」？该操作不可撤销。";
+
+"ame432.layouts.delete.confirm.default" = "\n\n注意：这是当前默认布局，删除后将回落出厂布局 custom.json。";
+
+"ame432.layouts.delete.error.empty" = "暂无可删除的布局";
+
+"ame432.layouts.delete.error.failed" = "删除失败（文件不存在或被占用）";
+
+"ame432.layouts.delete.pick" = "选择要删除的布局";
+
+"ame432.layouts.delete.subtitle" = "删除 controlmap 中的布局文件（删档前列表选择 + 确认）";
+
+"ame432.layouts.empty" = "暂无布局卡";
+
+"ame432.layouts.empty.subtitle" = "用下方「新建布局 / 导入布局文件」或控件仓库补齐";
+
+"ame432.layouts.import" = "导入布局文件";
+
+"ame432.layouts.import.default.name" = "导入布局";
+
+"ame432.layouts.import.done" = "导入成功：%@";
+
+"ame432.layouts.import.error.copy" = "导入失败：无法写入 controlmap 目录";
+
+"ame432.layouts.import.error.parse" = "导入失败：所选文件不是可解析的布局 JSON（或版本高于当前支持）";
+
+"ame432.layouts.import.subtitle" = "从文件导入 .json（校验可解析后才入库 controlmap）";
+
+"ame432.searchid.gallery" = "截图";
+
+"ame432.searchid.go_download" = "前往下载";
+
+"ame432.searchid.mcmod" = "mcmod 中文资料搜索";
+
+"ame432.settab.ai_tail" = "AI 设置";
+
+"ame432.settab.debug_tail" = "调试";
+
+"ame432.theme.mode.subtitle" = "跟随系统 / 浅色 / 深色";
+
+"ame432.theme.mode.title" = "深浅模式";
+
+"ame432.vdet.datapacks.delete_confirm" = "删除数据包「%@」？该操作不可撤销。";
+
+"ame432.vdet.datapacks.dir_tag" = "目录";
+
+"ame432.vdet.datapacks.empty" = "暂无数据包。点右上角导入 zip 或文件夹。";
+
+"ame432.vdet.datapacks.entry" = "数据包";
+
+"ame432.vdet.datapacks.entry_hint" = "世界目录内管理";
+
+"ame432.vdet.datapacks.import" = "导入数据包";
+
+"ame432.vdet.datapacks.no_world" = "暂无存档（数据包位于世界存档目录内）";
+
+"ame432.vdet.datapacks.pick_world" = "选择要管理数据包的世界";
+
+"ame432.vdet.datapacks.world_fmt" = "世界：%@";
+
+"ame432.vdet.modify" = "修改版本";
+
+"ame432.vdet.modify.confirm_body" = "将为实例「%@」安装 %@ %@（MC %@）。\n安装成功后实例指向新版本实体，旧版本实体保留。";
+
+"ame432.vdet.modify.confirm_install" = "安装";
+
+"ame432.vdet.modify.confirm_title" = "确认安装";
+
+"ame432.vdet.modify.current_fmt" = "当前 %@";
+
+"ame432.vdet.modify.current_loader" = "当前加载器";
+
+"ame432.vdet.modify.family.vanilla" = "原版";
+
+"ame432.vdet.modify.family_title" = "目标加载器（点击选择版本后安装）";
+
+"ame432.vdet.modify.install_failed" = "安装失败";
+
+"ame432.vdet.modify.install_ok" = "已安装 %@（版本实体 %@）";
+
+"ame432.vdet.modify.installing" = "正在安装 %@ %@…";
+
+"ame432.vdet.modify.instance" = "实例";
+
+"ame432.vdet.modify.loader_none" = "原版（未装加载器）";
+
+"ame432.vdet.modify.mc_version" = "MC 版本";
+
+"ame432.vdet.modify.no_base" = "实例尚未安装 MC 版本，无法修改加载器";
+
+"ame432.vdet.modify.no_versions" = "暂无可用版本（网络异常或该 MC 版本不受支持）";
+
+"ame432.vdet.modify.pick_version_title" = "选择 %@ 版本";
+
+"ame432.vdet.modify.tap_hint" = "点击选择版本";
+
+"ame432.vdet.modify.unsupported" = "暂不支持";
+
+"ame432.vdet.modify.versions_loading" = "正在获取 %@ 可用版本…";

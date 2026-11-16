@@ -103,7 +103,7 @@ for prof, be, expect, label in mode_cases:
 print("== B. 壁纸设置页被盖（glass 不进 UITableView）==")
 bm = rd("Natives/BackgroundManager.m")
 bsv = rd("Natives/BackgroundSettingsViewController.m")
-lpv = rd("Natives/LauncherPreferencesViewController.m")
+# ★Task432 重锚：LPV 本体随退役批次一物理删除，原 B7/D4/E 组的 lpv 源改退役证明或现役面
 check("B1 table 控制器（view==tableView）glass 挂 backgroundView（Task161 分支）",
       "viewController.view == ((UITableViewController *)viewController).tableView" in bm
       and "ame161_table.backgroundView = ame161_glass;" in bm)
@@ -118,9 +118,8 @@ check("B5 壁纸设置页 viewWillAppear 不再 backgroundView=nil（改走单�
       "Task161：改走 makeViewControllerTransparent 单点" in bsv)
 check("B6 壁纸设置页 reapplyBackgroundEffect 不再清 glass",
       "Task161：makeViewControllerTransparent 末尾的 ame160 会重铺" in bsv)
-check("B7 设置页 viewWillAppear/reapply 同口径（不再手写三行）",
-      "Task161：改走 makeViewControllerTransparent 单点" in lpv
-      and "Task161：不再手动 backgroundView = nil" in lpv)
+check("B7 旧设置页同口径退役（★Task432 重锚：LPV 本体删除 = viewWillAppear 同口径不复存在的最强形态）",
+      not os.path.exists(f"{ROOT}/Natives/LauncherPreferencesViewController.m"))
 
 print("== C. Bing 壁纸需重启（宿主引用不再被清）==")
 check("C1 removeGlobalBackground 的 Task161 根修注释在位",
@@ -142,9 +141,8 @@ check("D2 显式选择标记键已注册（Setter 硬要求）",
 check("D3 SceneDelegate 历史默认迁移（Task216 重锚：未显式选择设备统一迁回 auto 跟随系统）",
       "if (!getPrefBool(@\"general.ui_theme_explicit\")) {" in sd
       and "migrated to 'auto'" in sd)
-check("D4 显式选择标记（★Task396 重锚：深浅模式行恢复——Task385 收敛删过头（fui 关即无任何明暗入口），用户复诉「深浅主题切换怎么不见了」；终态 = MD3 模式 ZL2 设置页 themeRow 唯一明暗入口（三态 + explicit 标记 + UIThemeChanged 通知，Task161 契约原样）、fui 开时 fui 两态开关唯一；旧 FCL 设置页（LPV）ui_theme 行保持退役零残留）",
-      '@"key": @"ui_theme"' not in lpv
-      and "setPrefBool(@\"general.ui_theme_explicit\", YES);" not in lpv
+check("D4 显式选择标记（★Task396 重锚：深浅模式行恢复；★Task432 重锚：LPV 本体退役批次一删除 = 旧 FCL 设置页 ui_theme 行零残留最强形态，改断言本体不在树 + 新 UI themeRow 契约在位）",
+      not os.path.exists(f"{ROOT}/Natives/LauncherPreferencesViewController.m")
       and "themeRow.onSelect" in rd("Natives/ZL2SettingPages.m")
       and 'setPrefString(@"general.ui_theme", themeKeys[index]);' in rd("Natives/ZL2SettingPages.m")
       and "UIThemeChanged" in sd)
@@ -152,14 +150,9 @@ check("D5 SceneDelegate 三档映射保持（light/dark/auto）",
       "UIUserInterfaceStyleLight" in sd and "UIUserInterfaceStyleUnspecified" in sd
       and "UIUserInterfaceStyleDark" in sd)
 
-print("== E. 侧边栏信息卡深链闪退 ==")
-check("E1 折叠分区先展开（prefSectionsVisibility[s]=YES + reloadSections）",
-      "self.prefSectionsVisibility[s] = @YES;" in lpv
-      and "reloadSections:[NSIndexSet indexSetWithIndex:s]" in lpv)
-check("E2 行数防御（numberOfRows 越界只展开不选中）",
-      "ame161_visibleRows" in lpv and "expanded only, no selection" in lpv)
-check("E3 闪退机理注释钉住（Task217 重锚：启动器版本卡改路由 about 后的措辞）",
-      "启动器版本卡（Task217 起改路由 about）/ JIT 卡（jit_enabler）/" in lpv)
+print("== E. 侧边栏信息卡深链闪退（★Task432 摘闸：LPV 本体随退役批次一删除，折叠分区/深链越界机理随页消失；Task217 路由面已由关于屏承接）==")
+check("E LPV 退役证明（本体不在树 = E1-E3 三案机理归零）",
+      not os.path.exists(f"{ROOT}/Natives/LauncherPreferencesViewController.m"))
 
 print("== F. 26.2 及以下聊天自动弹键盘 ==")
 ib = rd("Natives/input_bridge_v3.m")
@@ -232,7 +225,7 @@ def strip_code(src):
     return "".join(out)
 
 for f in ["Natives/LauncherPreferences.m", "Natives/BackgroundManager.m",
-          "Natives/BackgroundSettingsViewController.m", "Natives/LauncherPreferencesViewController.m",
+          "Natives/BackgroundSettingsViewController.m",
           "Natives/PLPreferences.m", "Natives/SceneDelegate.m", "Natives/input_bridge_v3.m",
           "Natives/utils.h", "Natives/SurfaceViewController.m", "Natives/JavaLauncher.m"]:
     s = strip_code(rd(f))

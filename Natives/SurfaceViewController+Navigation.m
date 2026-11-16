@@ -1,7 +1,7 @@
 #import "CustomControlsViewController.h"
 #import "AmeNativeMenu.h"       // ★ Task240：菜单全面系统原生 UIMenu 化
 #import "LauncherPreferences.h"
-#import "LauncherPreferencesViewController.h"
+#import "ZL2SettingsViewController.h"   // ★ Task432：旧设置页退役后游戏内入口改挂新 UI 设置枢纽
 #import "PLProfiles.h"
 #import "SurfaceViewController.h"
 #import "GameMenuOverlayView.h"
@@ -1133,16 +1133,16 @@ static UIColor *ame244_snapshotTint(void) {
     // Task224（#16）：游戏内设置包上导航控制器（此前裸 present——设置页
     // 二级页的推入依赖 navigationController，裸呈现时全部静默失效）；
     // PageSheet 呈现保持系统动画（侧栏到目标页的标准模态语言）。
-    LauncherPreferencesViewController *vc = [[LauncherPreferencesViewController alloc] init];
-    // ★ Task286：游戏内标记——设置页 viewWillDisappear 据此回调 presenter
-    //   的 applyInGamePreferenceChanges（UI 安全面热应用；分辨率/FSR 保持
-    //   "下次启动"语义）。旧刷新桥以 navigationController == nil 为前提，
-    //   而本入口 Task224 起恒包 Navigation = 刷新桥在游戏内死路案发现场。
-    vc.presentedInGame = YES;
+    // ★ Task432（第 8 期报告 §5.5 退役批次一）：旧设置页
+    //   LauncherPreferencesViewController 本体物理删除，游戏内入口改挂
+    //   新 UI 设置枢纽 ZL2SettingsViewController（保入口零功能损失）。
+    //   旧页 presentedInGame→applyInGamePreferenceChanges 热应用链随页
+    //   退役；渲染类设置保持「下次启动」语义，UI 类设置由新枢纽各页自持。
+    ZL2SettingsViewController *vc = [[ZL2SettingsViewController alloc] init];
     UINavigationController *nav = [[UINavigationController alloc] initWithRootViewController:vc];
     nav.modalPresentationStyle = UIModalPresentationPageSheet;
     [self presentViewController:nav animated:YES completion:nil];
-    NSLog(@"[ThemeOps] Task224 in-game settings presented (page sheet + nav wrapper)");
+    NSLog(@"[ThemeOps] Task432 in-game settings presented (new-UI hub, page sheet + nav wrapper)");
 }
 
 /// ★Task428（6.6 游戏内菜单「虚拟按键 / 触控布局」直达入口）：呈现

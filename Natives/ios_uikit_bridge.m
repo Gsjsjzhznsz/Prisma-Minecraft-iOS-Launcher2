@@ -1,7 +1,6 @@
 #import "authenticator/BaseAuthenticator.h"
 #import "AppDelegate.h"
 #import "SceneDelegate.h"
-#import "LauncherNavigationController.h"
 #import "LauncherPreferences.h"
 #import "ZL2ShellViewController.h"   // 7.0-UI-11：回壳判定与新壳兜底（Task343：旧壳双轨退役，单轨新壳）
 #import "PLLogOutputView.h"
@@ -77,7 +76,7 @@ void ame187_showAccountRepairDialog(NSString *username, NSString *accountId, NSS
         [alert addAction:[UIAlertAction actionWithTitle:localize(@"i18n_str_2071", nil)
                                                   style:UIAlertActionStyleDefault
                                                 handler:^(UIAlertAction *action) {
-            // 与 AccountListViewController 滑动删除同一套语义：
+            // 与原账号列表页滑动删除同一套语义（Task432 已退役）：
             // accounts/{accountId}.json + keychain 条目 + selected_account 修正
             NSString *aid = accountId.length > 0 ? accountId : (username ?: @"");
             if (aid.length > 0) {
@@ -88,7 +87,7 @@ void ame187_showAccountRepairDialog(NSString *username, NSString *accountId, NSS
             if (xuid.length > 0) {
                 // Task187 修复：BaseAuthenticator.h（本文件第 1 行已导入）直接声明了
                 // MicrosoftAuthenticator 类与 +clearTokenDataOfProfile: 类方法，
-                // 与 AccountListViewController 滑动删除（同文件 619 行）同一调用形式。
+                // 与原账号列表页滑动删除同一调用形式（该类 Task432 已退役）。
                 // 直调替代此前的 objc_msgSend 动态派发——后者漏 <objc/message.h>
                 // 声明，曾致 CI af86509 构建失败（84:45 implicit function decl）。
                 [MicrosoftAuthenticator clearTokenDataOfProfile:xuid];

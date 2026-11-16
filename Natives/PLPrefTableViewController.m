@@ -3,7 +3,6 @@
 #import <objc/runtime.h>
 
 #import "DBNumberedSlider.h"
-#import "LauncherNavigationController.h"
 #import "LauncherPreferences.h"
 #import "PLPrefTableViewController.h"
 #import "BackgroundManager.h"

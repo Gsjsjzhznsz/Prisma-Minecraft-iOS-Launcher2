@@ -17,8 +17,8 @@
     item.content = dict[@"content"] ?: @"";
     item.priority = dict[@"priority"] ?: @"normal";
     // Task169：置顶字段（"pin": true / "pinned": true / "1"）。置顶项
-    // 在 AnnouncementService 排序时无条件排到最前（用户点名：服务器
-    // 推荐摆到第一个）。兼容 bool/字符串两种 JSON 形态。
+    // 在公告排序（原 AnnouncementService，Task432 已退役）时无条件排到最前
+    // （用户点名：服务器推荐摆到第一个）。兼容 bool/字符串两种 JSON 形态。
     id pinRaw = dict[@"pin"] ?: dict[@"pinned"];
     if ([pinRaw isKindOfClass:NSNumber.class]) {
         item.pinned = [(NSNumber *)pinRaw boolValue];

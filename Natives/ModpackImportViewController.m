@@ -32,6 +32,7 @@
 @property (nonatomic, strong) UIView *headerContainerView;          // 顶部说明 + 选择文件按钮
 @property (nonatomic, strong) UILabel *hintLabel;                   // 支持格式说明
 @property (nonatomic, strong) UIButton *importButton;               // 主导入按钮
+@property (nonatomic, strong) UIButton *importFolderButton;         // ★Task432：文件夹导入入口（MultiMC 未压缩实例目录）
 @property (nonatomic, strong) UITableView *tableView;
 @property (nonatomic, strong) UILabel *emptyLabel;
 @property (nonatomic, strong) NSMutableArray<NSDictionary *> *importedModpacks;
@@ -134,6 +135,22 @@
     [self.importButton addTarget:self action:@selector(selectModpackFile) forControlEvents:UIControlEventTouchUpInside];
     [self.headerContainerView addSubview:self.importButton];
 
+    // ★Task432（P2 MMC 文件夹导入缺口）：补「导入文件夹」入口——MultiMC/Prism
+    //   未压缩实例目录（mmc-pack.json / instance.cfg + .minecraft/）此前仅有
+    //   zip 入口无法直接导入。次按钮走目录选择器（UTTypeFolder asCopy）。
+    self.importFolderButton = [UIButton buttonWithType:UIButtonTypeSystem];
+    self.importFolderButton.translatesAutoresizingMaskIntoConstraints = NO;
+    [self.importFolderButton setTitle:[@"  " stringByAppendingString:localize(@"ame432.import.folder.button", @"导入文件夹")] forState:UIControlStateNormal];
+    [self.importFolderButton setImage:[UIImage systemImageNamed:@"folder.badge.plus"] forState:UIControlStateNormal];
+    self.importFolderButton.backgroundColor = [AmeTheme fillSubtle];
+    [self.importFolderButton setTitleColor:[AmeTheme textPrimary] forState:UIControlStateNormal];
+    self.importFolderButton.tintColor = [AmeTheme textPrimary];
+    self.importFolderButton.layer.cornerRadius = 12;
+    self.importFolderButton.layer.masksToBounds = YES;
+    self.importFolderButton.titleLabel.font = [UIFont boldSystemFontOfSize:15];
+    [self.importFolderButton addTarget:self action:@selector(selectModpackFolder) forControlEvents:UIControlEventTouchUpInside];
+    [self.headerContainerView addSubview:self.importFolderButton];
+
     self.tableView = [[UITableView alloc] initWithFrame:CGRectZero style:UITableViewStylePlain];
     self.tableView.translatesAutoresizingMaskIntoConstraints = NO;
     self.tableView.backgroundColor = [UIColor clearColor];
@@ -167,7 +184,13 @@
         [self.importButton.leadingAnchor constraintEqualToAnchor:self.headerContainerView.leadingAnchor],
         [self.importButton.trailingAnchor constraintEqualToAnchor:self.headerContainerView.trailingAnchor],
         [self.importButton.heightAnchor constraintEqualToConstant:50],
-        [self.importButton.bottomAnchor constraintEqualToAnchor:self.headerContainerView.bottomAnchor],
+
+        // ★Task432：文件夹导入次按钮位于主按钮下方（header 容器底缘由它收口）
+        [self.importFolderButton.topAnchor constraintEqualToAnchor:self.importButton.bottomAnchor constant:10],
+        [self.importFolderButton.leadingAnchor constraintEqualToAnchor:self.headerContainerView.leadingAnchor],
+        [self.importFolderButton.trailingAnchor constraintEqualToAnchor:self.headerContainerView.trailingAnchor],
+        [self.importFolderButton.heightAnchor constraintEqualToConstant:44],
+        [self.importFolderButton.bottomAnchor constraintEqualToAnchor:self.headerContainerView.bottomAnchor],
 
         [self.tableView.topAnchor constraintEqualToAnchor:self.headerContainerView.bottomAnchor constant:12],
         [self.tableView.leadingAnchor constraintEqualToAnchor:self.view.leadingAnchor],
@@ -248,6 +271,10 @@
 #pragma mark - 文件选择
 
 - (void)selectModpackFile {
+    // ★Task432：上一轮文件夹导入打包的 zip 等价流清理（tmp 内 ame432_folder_*；
+    //   与 Task169 同口径：清理只发生在下一次选择的入口，正在进行的导入用的是
+    //   解析副本/正在读取的包——既有串行约定内不作强同步）。
+    [self ame432_cleanupFolderPackZips];
     NSArray<UTType *> *contentTypes = @[
         [UTType typeWithFilenameExtension:@"mrpack"],
         [UTType typeWithFilenameExtension:@"zip"]
@@ -258,22 +285,75 @@
     [self presentViewController:picker animated:YES completion:nil];
 }
 
+/// ★Task432（P2 MMC 文件夹导入缺口）：目录选择器入口（UTTypeFolder + asCopy——
+/// 选取即拷贝，拿到可直接读取的副本）。MultiMC/Prism 未压缩实例目录经
+/// 「实例根定位 → 打平为 zip 等价流」后走既有解析/预览/导入链。
+- (void)selectModpackFolder {
+    [self ame432_cleanupFolderPackZips];
+    NSError *pickerError = nil;
+    UIDocumentPickerViewController *picker =
+        [[UIDocumentPickerViewController alloc] initForOpeningContentTypes:@[UTTypeFolder]
+                                                                   asCopy:YES
+                                                                    error:&pickerError];
+    if (!picker) {
+        NSLog(@"[ModpackImport][Task432] folder picker unavailable: %@", pickerError.localizedDescription);
+        return;
+    }
+    picker.delegate = self;
+    picker.allowsMultipleSelection = NO;
+    [self presentViewController:picker animated:YES completion:nil];
+}
+
+/// ★Task432：清理历史文件夹打包产物（tmp/ame432_folder_*.zip；新打包前执行）
+- (void)ame432_cleanupFolderPackZips {
+    @try {
+        NSFileManager *fm = [NSFileManager defaultManager];
+        NSString *tmp = NSTemporaryDirectory();
+        for (NSString *name in [fm contentsOfDirectoryAtPath:tmp error:nil]) {
+            if ([name hasPrefix:@"ame432_folder_"]) {
+                [fm removeItemAtPath:[tmp stringByAppendingPathComponent:name] error:nil];
+            }
+        }
+    } @catch (NSException *e) {
+        // 清理失败不影响本次导入（tmp 由系统择机回收）
+    }
+}
+
 #pragma mark - UIDocumentPickerDelegate
 
 - (void)documentPicker:(UIDocumentPickerViewController *)controller didPickDocumentsAtURLs:(NSArray<NSURL *> *)urls {
     if (urls.count == 0) return;
     NSURL *fileURL = urls.firstObject;
-    NSString *fileExtension = fileURL.pathExtension.lowercaseString;
 
+    // ★Task432（P2 MMC 文件夹导入缺口）：目录选择分流——UTTypeFolder asCopy
+    //   返回目录 URL（无扩展名）；探测实例根后打包为 zip 等价流复用既有链。
+    BOOL ame432_isDir = NO;
+    [[NSFileManager defaultManager] fileExistsAtPath:fileURL.path isDirectory:&ame432_isDir];
+    if (ame432_isDir) {
+        [self ame432_handlePickedDirectory:fileURL];
+        return;
+    }
+
+    NSString *fileExtension = fileURL.pathExtension.lowercaseString;
     if (![fileExtension isEqualToString:@"mrpack"] && ![fileExtension isEqualToString:@"zip"]) {
         [self showAlertWithTitle:localize(@"i18n_str_569", nil) message:localize(@"i18n_str_570", nil)];
         return;
     }
 
-    BOOL accessGranted = [fileURL startAccessingSecurityScopedResource];
-    if (!accessGranted) {
-        [self showAlertWithTitle:localize(@"i18n_str_571", nil) message:localize(@"i18n_str_572", nil)];
-        return;
+    [self ame432_parseAndPreviewModpackAtURL:fileURL needsSecurityScope:YES];
+}
+
+/// ★Task432：解析 + 预览主流程（原 documentPicker 内联块提取——zip/mrpack 与
+/// 目录打包等价流共用同一入口）。needsSecurityScope=NO 用于沙盒内临时副本
+/// （startAccessingSecurityScopedResource 对沙盒内文件返回 NO，旧判定会误报
+/// 571/572 错误弹窗；沙盒内文件本就无需作用域——Task169 病历同源结论）。
+- (void)ame432_parseAndPreviewModpackAtURL:(NSURL *)fileURL needsSecurityScope:(BOOL)needsSecurityScope {
+    if (needsSecurityScope) {
+        BOOL accessGranted = [fileURL startAccessingSecurityScopedResource];
+        if (!accessGranted) {
+            [self showAlertWithTitle:localize(@"i18n_str_571", nil) message:localize(@"i18n_str_572", nil)];
+            return;
+        }
     }
 
     // 解析阶段：轻量 HUD（本地 zip 读取，通常 < 1s）
@@ -292,27 +372,32 @@
         // 先拷进应用沙盒（"我的 iPhone"）的包才碰巧可用。拷贝同时会把
         // iCloud 占位文件实体化。失败则原路径回退（沙盒内文件本就不需要
         // 作用域，行为不变）。
+        // ★Task432：沙盒内副本（目录打包等价流）无需实体化拷贝，直接以
+        //   原路径解析/安装（needsSecurityScope=NO 路径），避免大目录双倍
+        //   tmp 占用；该 zip 在导入完成后由 ame432_cleanupFolderPackZips 清理。
         NSURL *parseURL = fileURL;
-        @try {
-            NSFileManager *fm = [NSFileManager defaultManager];
-            [self ame169_cleanupStaleImportCopies];
-            unsigned long long ame169_ms = (unsigned long long)([[NSDate date] timeIntervalSince1970] * 1000.0);
-            NSString *localCopy = [NSTemporaryDirectory() stringByAppendingPathComponent:
-                [NSString stringWithFormat:@"ame169_modpack_%llu.%@",
-                 ame169_ms,
-                 fileURL.pathExtension ?: @"zip"]];
-            NSError *copyError = nil;
-            if (![fm copyItemAtPath:fileURL.path toPath:localCopy error:&copyError]) {
-                NSLog(@"[ModpackImport] Task169 scoped copy failed (%@), falling back to original path: %@",
-                      copyError.localizedDescription, fileURL.lastPathComponent);
-            } else {
-                parseURL = [NSURL fileURLWithPath:localCopy];
-                NSLog(@"[ModpackImport] Task169 scoped copy OK: %@ -> %@ (%.1f MB)",
-                      fileURL.lastPathComponent, localCopy,
-                      (double)[[fm attributesOfItemAtPath:localCopy error:nil] fileSize] / 1048576.0);
+        if (needsSecurityScope) {
+            @try {
+                NSFileManager *fm = [NSFileManager defaultManager];
+                [self ame169_cleanupStaleImportCopies];
+                unsigned long long ame169_ms = (unsigned long long)([[NSDate date] timeIntervalSince1970] * 1000.0);
+                NSString *localCopy = [NSTemporaryDirectory() stringByAppendingPathComponent:
+                    [NSString stringWithFormat:@"ame169_modpack_%llu.%@",
+                     ame169_ms,
+                     fileURL.pathExtension ?: @"zip"]];
+                NSError *copyError = nil;
+                if (![fm copyItemAtPath:fileURL.path toPath:localCopy error:&copyError]) {
+                    NSLog(@"[ModpackImport] Task169 scoped copy failed (%@), falling back to original path: %@",
+                          copyError.localizedDescription, fileURL.lastPathComponent);
+                } else {
+                    parseURL = [NSURL fileURLWithPath:localCopy];
+                    NSLog(@"[ModpackImport] Task169 scoped copy OK: %@ -> %@ (%.1f MB)",
+                          fileURL.lastPathComponent, localCopy,
+                          (double)[[fm attributesOfItemAtPath:localCopy error:nil] fileSize] / 1048576.0);
+                }
+            } @catch (NSException *copyException) {
+                NSLog(@"[ModpackImport] Task169 scoped copy threw (%@), falling back to original path", copyException.reason);
             }
-        } @catch (NSException *copyException) {
-            NSLog(@"[ModpackImport] Task169 scoped copy threw (%@), falling back to original path", copyException.reason);
         }
 
         @try {
@@ -335,7 +420,9 @@
                                     userInfo:@{NSLocalizedDescriptionKey: [NSString stringWithFormat:localize(@"i18n_str_573", nil), exception.reason]}];
         }
 
-        [fileURL stopAccessingSecurityScopedResource];
+        if (needsSecurityScope) {
+            [fileURL stopAccessingSecurityScopedResource];
+        }
 
         dispatch_async(dispatch_get_main_queue(), ^{
             if (error || !modpackInfo) {
@@ -348,6 +435,137 @@
             [self showModpackPreview:modpackInfo fileURL:parseURL];
         });
     });
+}
+
+#pragma mark - ★Task432 目录式整合包导入（MultiMC/Prism 未压缩实例目录）
+
+/// ★Task432（P2 MMC 文件夹导入缺口）：目录选择结果处理——持锁打包为 zip 等价流
+/// 后交既有解析/预览链（needsSecurityScope=NO：产物在沙盒 tmp，无需作用域）。
+- (void)ame432_handlePickedDirectory:(NSURL *)dirURL {
+    BOOL accessGranted = [dirURL startAccessingSecurityScopedResource];
+    if (!accessGranted) {
+        // asCopy 副本/沙盒内目录可能无作用域可取——仅留痕不阻断（读取无需授权）
+        NSLog(@"[ModpackImport][Task432] folder pick without security scope (asCopy/sandbox-local), continue: %@",
+              dirURL.lastPathComponent);
+    }
+    [self showLoadingHUD:localize(@"ame432.import.folder.packing", @"正在打包文件夹…")];
+
+    dispatch_async(dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_DEFAULT, 0), ^{
+        NSError *error = nil;
+        NSURL *zipURL = nil;
+        @try {
+            NSString *root = [self ame432_locateInstanceRootInDirectory:dirURL.path];
+            if (!root) {
+                error = [NSError errorWithDomain:@"ModpackImportError" code:1030
+                                        userInfo:@{NSLocalizedDescriptionKey:
+                                                   localize(@"ame432.import.folder.unrecognized",
+                                                            @"所选文件夹不是 MultiMC/Prism 整合包实例（未找到 mmc-pack.json / instance.cfg）")}];
+            } else {
+                zipURL = [self ame432_packDirectoryToZip:root error:&error];
+            }
+        } @catch (NSException *ame432_exc) {
+            error = [NSError errorWithDomain:@"ModpackImportError" code:1031
+                                    userInfo:@{NSLocalizedDescriptionKey:
+                                               [NSString stringWithFormat:
+                                                   localize(@"ame432.import.folder.failed", @"文件夹打包失败：%@"),
+                                                   ame432_exc.reason ?: @""]}];
+        }
+        if (accessGranted) [dirURL stopAccessingSecurityScopedResource];
+
+        dispatch_async(dispatch_get_main_queue(), ^{
+            [self hideLoadingHUD];
+            if (error || !zipURL) {
+                [self showAlertWithTitle:localize(@"ame432.import.folder.failed.title", @"无法导入文件夹")
+                                 message:error.localizedDescription ?: localize(@"ame432.import.folder.failed.plain", @"文件夹打包失败")];
+                return;
+            }
+            // zip 等价流（mmc-pack.json / instance.cfg / .minecraft/ 原样落 zip 根）
+            // → 既有探测/解析链自动识别 MultiMC → 预览 → 统一进度页导入。
+            [self ame432_parseAndPreviewModpackAtURL:zipURL needsSecurityScope:NO];
+        });
+    });
+}
+
+/// ★Task432：MultiMC 实例根定位——所选目录自身含 mmc-pack.json / instance.cfg
+/// 即实例根；否则向下扫一层找含标志文件的子目录（用户误选 instances/ 父目录的
+/// 常见形态）。找不到返回 nil（明确报错，不猜）。
+- (nullable NSString *)ame432_locateInstanceRootInDirectory:(NSString *)dirPath {
+    NSFileManager *fm = [NSFileManager defaultManager];
+    BOOL isRoot = [fm fileExistsAtPath:[dirPath stringByAppendingPathComponent:@"mmc-pack.json"]] ||
+                  [fm fileExistsAtPath:[dirPath stringByAppendingPathComponent:@"instance.cfg"]];
+    if (isRoot) return dirPath;
+    NSString *packHit = nil;
+    NSString *cfgHit = nil;
+    for (NSString *name in [fm contentsOfDirectoryAtPath:dirPath error:nil]) {
+        NSString *sub = [dirPath stringByAppendingPathComponent:name];
+        BOOL isDir = NO;
+        [fm fileExistsAtPath:sub isDirectory:&isDir];
+        if (!isDir) continue;
+        if (!packHit && [fm fileExistsAtPath:[sub stringByAppendingPathComponent:@"mmc-pack.json"]]) packHit = sub;
+        if (!cfgHit && [fm fileExistsAtPath:[sub stringByAppendingPathComponent:@"instance.cfg"]]) cfgHit = sub;
+    }
+    return packHit ?: cfgHit;
+}
+
+/// ★Task432：实例根目录 → zip 等价流（沙盒 tmp）。zip 文件名带实例目录名——
+/// 服务层 parseMMCPack 在缺 instance.cfg name 键时按包文件名回退取名。
+- (nullable NSURL *)ame432_packDirectoryToZip:(NSString *)rootPath error:(NSError **)error {
+    // 目录名净化为安全文件名段（保留原实例名供服务层取名回退）
+    NSMutableString *safe = [[[rootPath.lastPathComponent ?: @"instance"
+        componentsSeparatedByCharactersInSet:[[NSCharacterSet alphanumericCharacterSet] invertedSet]]
+        componentsJoinedByString:@"_"] mutableCopy];
+    if (safe.length == 0) [safe setString:@"instance"];
+    NSString *zipPath = [NSTemporaryDirectory() stringByAppendingPathComponent:
+        [NSString stringWithFormat:@"ame432_folder_%@_%lld.zip",
+         safe, (long long)([[NSDate date] timeIntervalSince1970] * 1000.0)]];
+
+    UZKArchive *archive = [[UZKArchive alloc] initWithPath:zipPath error:error];
+    if (!archive) return nil;
+    BOOL ok = [self ame432_zipTreeAt:rootPath prefix:@"" archive:archive error:error];
+    archive = nil;   // UZKArchive 按次开关落盘；置 nil 确保写柄释放
+    if (!ok) {
+        [[NSFileManager defaultManager] removeItemAtPath:zipPath error:nil];
+        return nil;
+    }
+    unsigned long long ame432_size =
+        (unsigned long long)[[NSFileManager defaultManager] attributesOfItemAtPath:zipPath error:nil].fileSize;
+    NSLog(@"[ModpackImport][Task432] folder packed to zip: %@ (%.1f MB)",
+          zipPath.lastPathComponent, (double)ame432_size / 1048576.0);
+    return [NSURL fileURLWithPath:zipPath];
+}
+
+/// ★Task432：目录树递归写入 zip（prefix = 目录在 zip 内的相对路径，根为 @""）。
+/// 噪声剔除口径与探测层一致（.DS_Store / __MACOSX）；注意不跳 .minecraft 等
+/// 点前缀目录（MultiMC 实例的 .minecraft/ 就是本体内容）。空目录不产生 zip
+/// 条目（MMC 安装链按文件条目建目录，无空目录依赖）。
+- (BOOL)ame432_zipTreeAt:(NSString *)dirPath
+                  prefix:(NSString *)prefix
+                 archive:(UZKArchive *)archive
+                   error:(NSError **)error {
+    NSFileManager *fm = [NSFileManager defaultManager];
+    NSArray<NSString *> *entries = [fm contentsOfDirectoryAtPath:dirPath error:error];
+    if (!entries) return NO;
+    for (NSString *name in entries) {
+        if ([name isEqualToString:@".DS_Store"] || [name isEqualToString:@"__MACOSX"]) continue;
+        @autoreleasepool {
+            NSString *full = [dirPath stringByAppendingPathComponent:name];
+            NSString *zipEntry = prefix.length > 0
+                ? [NSString stringWithFormat:@"%@/%@", prefix, name]
+                : name;
+            BOOL isDir = NO;
+            [fm fileExistsAtPath:full isDirectory:&isDir];
+            if (isDir) {
+                if (![self ame432_zipTreeAt:full prefix:zipEntry archive:archive error:error]) return NO;
+            } else {
+                NSData *data = [NSData dataWithContentsOfFile:full
+                                                      options:NSDataReadingMappedIfSafe
+                                                        error:error];
+                if (!data) return NO;
+                if (![archive writeData:data filePath:zipEntry error:error]) return NO;
+            }
+        }
+    }
+    return YES;
 }
 
 /// Task169：清理上一轮遗留的沙盒拷贝（tmp 里的 ame169_modpack_*）。
