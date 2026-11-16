@@ -5263,3 +5263,20 @@ Work Log:
 
 Stage Summary:
 - 装机锚点（BuildTag=「Task432 · 2026-11-16」）：①版本页 rail 第 3 项「修改版本」（Forge/NeoForge/Fabric 换装事务；成功后实例指向新版本实体旧实体保留）②控制管理页 = 布局卡列表/新建布局/导入布局文件/删除布局 + 仓库三行 ③搜索 ID 结果卡「前往下载」真按钮 + 截图卡 + mcmod 卡 ④下载中心 8 轨（数据包管理迁版本页-存档-数据包；仓库入口在设置·控制管理域）⑤设置页 8 组 + 启动器组尾 AI/调试入口；主题拆两行 + 7 套色板（含翠风/霞紫）；关于页依赖条目点开许可证弹窗 ⑥游戏内菜单设置入口 = 新 UI 设置枢纽；设置域五处「更多设置」行退役 ⑦陀螺仪设置单族（旧 control.gyroscope_* 值自动迁移 general.gyro_*）⑧旧 UI 33 类可达面收敛：10 类物理删除（编译证伪）。
+
+## Task 433 · 2026-11-16（二代 issue#3 根修：JIT 自救（退役镜像轨）在 TXM 调试 JIT 设备是结构性死路——jre17 libjvm 二进制反汇编取证 + 双站 TXM 闸 + ame273 改道分支；议题按用户指令评论不闭合）
+
+**用户指令**：处理二代仓库 3 号新议题（uhjjas-del：Jvm crashes with JIT self-rescue (retire mirrored code cache) Enabled）——**该议题不用直接关闭，因为 #2 号议题没有解决它的问题**（铁律续接：继续上一任务不提问）。
+
+Work Log:
+- 【取证】议题四附件全量落盘（fatal_trace 三连崩 20:55/20:56/21:16 + hs_err_pid41485 + ame273 报告 + latestlog）。hs_err 决定性三事实：①命令行已是 `-XX:ReservedCodeCacheSize=256m` 非镜像轨（Task342 自救已激活）②SIGBUS **BUS_ADRALN** 且 **pc==si_addr=0x7012d8c0bc = 指令取指中止**（非数据访问）③x4/x23 同区段 `code_begin+0 Interpreter codelet`、启动 55ms `Threads::initialize_java_lang_classes → <clinit>` 首次 Java 调用即死——整个自分配码缓存从未可执行。latestlog 实锤：TXM debug JIT（StikJIT enabler、traced=1 exn=1）+ `Task342: debug.mirror_codecache_disable=1` 退役生效 + **libjvm "Got JIT mapping" 应答行缺席**。
+- 【jre17 libjvm 二进制反汇编（资产服务器 jre17-ios-aarch64.zip 20260708 构建，ADRP+ADD 编码级 xref 扫描 task433_jit26_xref2.py）】JIT26 调试映射函数簇 0x7b3e00-0x7b4100：入口闸字节 0xc35dc3（=MirrorMappedCodeCache 旗标）→ dlsym(RTLD_MAIN_ONLY,"DeviceHasTXM")/getenv("XNU_HAS_TXM") → `brk #0x69` 向调试器请求可执行区（"[JIT26] Requesting %zu MB for JIT mapping"）→ vm_remap(ANYWHERE) 造 RW 别名 → vm_protect(RW) → 记录 0xc40f90 → "mapping at RW=%p, RX=%p"。**闸字节关闭即 return NULL 回落普通 mmap 路径**；fallback 0x7b3f44 mmap(0x1002=MAP_ANON|MAP_PRIVATE, PROT_RX, 无 MAP_JIT)。结论：**普通路径产出的内存页在 TXM 下从未被授权可执行，镜像轨 = TXM 调试 JIT 设备唯一可执行内存通道**——Task342 自救开关在该环境把用户切到必然崩溃的轨道，ame273 弹窗又反复建议「开启自救」= 死循环（issue#3 实录自救开着三连崩；Java 21/25 健康 = 其构建分配链不同源）。
+- 【修复面】①JavaLauncher launchJVM + launchHeadlessJVM 双站 TXM 闸：`ame342_retireMirror && JIT26IsLikelyDebuggerKeepAttached()` 同真 → 忽略自救保留镜像轨（TrollStore/直授权无调试器环境自救照常生效），双站取证日志 ②main_hook ame273 ame433 改道分支：SIGBUS+call_stub 且自救已激活 → 不再重复武装（Task430 双通道已写再写空转），弹窗讲真话（非镜像轨不可执行；指引 = 直接再点启动 + 更新/更换 StikJIT/StikDebug 或换 SideStore/JitStreamer-EB + Java 21 运行时建议）；未激活态 Task430 自动自救 + 一键动作零回归 ③新门 scripts/task433_selfcheck.py（A9 TXM 闸双站/A10 改道分支/A11 Task430 零回归/A12 ame342 旗标闸零回归 + selftest 2 探针反向验证）。
+- 【判例·显示吞字假阳性第七例】判读 ZL2SettingPages.m:4184 疑似 `[m` 吞字（`irrorRow`），码点级复核 0x5b 0x6d 在位文件完好——与 Task429 双实录同族（bash 管道 ANSI 剥离族），布尔/码点证据优先纪律再证。判例·退役门不复活：ame342_selfcheck.py 自 Task343 读已删 LauncherPreferencesViewController.m 起不可运行（电池亦不含），本轮新面落新门 task433_selfcheck.py 入电池（25/25→26/26）而非复活死门。
+- 【门禁】本地电池 26/26 ALL GREEN（task432_gate_battery.sh + 新增 run_py task433；ame378/selftest+ame369/379/330/335/339/343/348/349/353/365+task139/240×2/158×2/191/248/250/393_r3/task433+verify161/219/255+i18n430+bracket 全家族）；BuildTag→「Task433 · 2026-11-16」+ ame378 C13/build-tag-header 双锚推进。
+- 【CI 一轮终态双绿实录】r1 126306b8f → dev 43814685387 + smoke 43814685432 双腿同轮双绿（本轮零热修；smoke 由 scripts/ 路径过滤自动触发补腿，无需 dispatch）。凭据判例：沙箱回收后 clone 无 token → 旧轮 poll 脚本内存提取 + 直推 URL 通道（不落盘不回显）。
+- 【产物唯一命名归档】download/artifacts_task433/（终态 dev run 43814685387）：com.prisma-devs.prisma-ios__Task433__43814685387.ipa（236,811,439B）+ com.prisma-devs.prisma-ios-trollstore.tipa__Task433__43814685387.tipa（236,811,778B）+ AngelAuraAmethyst.dSYM__Task433__43814685387/（26M bundle 树含 DWARF）+ ame-fluent-preview__Task433__43814685387/（4.1M，20 图测试图 + 编译/链接日志）；主二进制 BuildTag **UTF-16 cfstring 探针 Task433 · 2026-11-16 在位 / Task432 零残留（双编码验真）** + TXM 闸日志锚 UTF-8 双站在位 + [Ame433] 分类锚在位。产物拉取判例：dSYM/preview 双层包多文件载荷按目录整树归档（find head -1 单文件截断修正）。
+- 【议题处理】#3 按用户指令**评论不闭合**（五段式改型：根因段明确「Task430 的自救开关对 TXM 调试 JIT 设备无效且有害」+ 修复段 + 「Will ship in the next Prisma 2.0 build」收尾 + 验证请求）；#2 补交叉引用评论（指向 #3 根因链与本轮修复，说明自救开关对其设备场景的死路语义）。
+
+Stage Summary:
+- 装机锚点（BuildTag=「Task433 · 2026-11-16」）：①TXM 调试 JIT（StikJIT/StikDebug 家族）设备上「JIT 自救」开关不再把会话切到必然 SIGBUS 的非镜像轨（自救请求被闸忽略，镜像轨保留；日志 [JavaLauncher] Task433 双站）②自救已激活仍崩的 ame273 弹窗改道讲真话（不再诱导开启自救；[Ame433] 锚）③非 TXM 环境（TrollStore/直授权）自救语义零变化。
