@@ -1,3 +1,6 @@
+# ★Task432：第 8 期整改轮（退役批次一/三实锤/布局收敛/72 键四表/BuildTag Task432）。
+#   r2/r3 仅 Natives 源码推送未触 smoke 窄路径（r1 经 resources 路径触发过）——
+#   workflow_dispatch 需 admin 权限（token 403）→ 按路径触发补腿判例落此注记。
 #!/usr/bin/env bash
 #
 # ui_fluent_smoke.sh — Fluent 前端冒烟 + 模拟器预览（7.0 测试仓专用，7.0-UI-7）
