@@ -5324,3 +5324,18 @@ Work Log:
 
 Stage Summary:
 - 装机锚点（BuildTag=「Task436 · 2026-11-16」）：①批次二六步全量：账户四选一旧卡退役（actionSheet 直走）+ 实例详情补完整性校验行 + 旧实例设置/五管理页/旧下载页 13 文件物理删除（-12743 行）+ 三版本列表页 ZL2 化（新 UI 搜索流下半程全部新页）+ 孤儿/双副本/悬空行清零 ②批次三对标补齐：编辑器配得上「编辑器」之名（新建/属性/删除/克隆四件闭环 + 游戏内实时编辑入口）+ 控件仓库 ZL2 正名 + 主题自由取色（色相条+Hex）+ 陀螺仪七项实时调参浮层（灵敏度 25-300 对齐 ZL2）+ 首启不再弹一代向导 ③日志锚：[Task436] 各域（编辑器 ame436_* 方法族/A2 收藏筛选/A4 改名/SurfaceVC menuArray 第 13 项）。
+
+## Task 437 · 2026-11-16（二代 issue#3 第五层根修：JIT26 映射假阳性检出与精确指引 + Task436 CI 热修收官 r2-r4：预览 TU 桩面反转判例 N+16）
+
+**用户指令**：「在修ci错误的时候，3号议题又有回复了。」（议题 #3 新回复拉取分析 + 修复推进续期）
+
+Work Log:
+- 【议题#3 新回复（6917345240，13:10，uhjjas-del）】报告者在 642025264（含 Task434 根修）上按指引切 **Java 17** 重测仍崩，**决定性新证物 ame273_crash_report.txt 在场**（Task434 新取证通道首次实战命中）。四件附件全解剖：latestlog + hs_err_pid47795 等。
+- 【第五层定案（与 Java 21 会话根本不同）】jre17 三层防线全按设计动作：①ame434 探针判健康（jre17 libjvm 携带 JIT26 特征）②映射请求发出且获应答（`Got JIT mapping 0x700b228000 from debugger` + `mapping at RW=0x700f228000, RX=0x700b228000`，RW-RX 相距 0x40000000=1GB = Task342 2026-10-29 病历同型别名关系破裂）③CodeCache used=273Kb RW 侧写入成功。但崩点 pc=0x700b2280bc=RX 基址+0xbc（call_stub 首指令），hs_err **Instructions 段从 RX 视图读回全零** = 调试器应答了地址却从未落地 RW/RX 别名（内容同步+执行授权双缺）→ **映射假阳性**。Task433 闸/Task434 特征探针（验「实现存在」）结构上都测不出「通道假阳性」。附：Task342 probe 0xcccccccc690000e0 高位 0xCC 中毒指针嫌疑留痕。
+- 【修复（38cb08b92）】①JavaLauncher 通道自证探针 ame437_selfVerifyJit26Channel：对 Task342 探针页端到端真调用（写 movz x0,#0x1337;ret → JIT26PrepareRegion（与 dyld_bypass redirectFunctionMirrored 同协议窗口）→ sys_icache_invalidate → 真调用 → 校验），三信号安全网（SIGTRAP/SIGBUS/SIGSEGV sigsetjmp，JIT26TrapCatch 同款），按步取证（write/prepare/icache/exec/verify）落 ame437_probe_shadow.txt（fopen+fsync，通过即清新鲜度语义）；接线在 BAD_ACCESS 端口清零后（信号可达）+ 高位 0xCC 取证 ②main_hook：扫描期映射应答行判别轴（Got JIT mapping / mapping at RW=，区分「映射已授予」vs「映射零发起」）+ 新类别 jit26_mapping_shadow + fix 链重排（shadow→ame434→ame433→Task430），shadow 文案真指引（更新 StikJIT/StikDebug 或换 JIT 工具；换 Java 17/21/25 都没用——证伪文案），ame434 补通道 caveat ③SceneDelegate：报告 category 解析 + shadow 时抑制 Task342 一键自救钮（该层自救=死路空转循环）④自检门 A16/A17 + S-5 反向注入（5 探针全翻红）。
+- 【CI 七波收官（Task436/437 混合战场）】r3（70aa64cb9，Task436 私有类声明前置修四波）dev 绿 + smoke 被外部取消（rerun 403「already running」→ attempt2 自启，后同因红）；Task437（38cb08b92）dev 绿 + smoke 红 = **N+14 判例**（Task436 新页未同步 smoke 固定清单，_OBJC_CLASS_$_ZL2VersionListPage 未定义，Task413/428 同族第三触）；r2（890bf1ca0）补六 TU → duplicate symbol 四类红；r3（2eea31bfb）补 -framework ImageIO → 仍 duplicate；r4（c2a759551）**桩面反转收官**（判例 N+15 框架轴/N+16 桩面先查：ZL2PagesStub 五类桩全供 :124/:717/:1082/:1168/:1210，补真身=重复符号；终态清单只补 ZL2VersionListPage 一件）→ **smoke 腿绿**。dev 腿三连外部 cancelled（890bf1ca0/c2a759551×2，16:00 起确定性外部取消，Task432「无 admin」判例同族）——dev 编译等价证据由 38cb08b92 dev 绿承接（c2a759551 相对它零原生码改动，纯 smoke 脚本）；rerun#3 在飞。
+- 【议题处理】#3 评论（comment 6923971877，英文五段式变体：Java 17 日志证明的是更深一层的 bug + 四层防线动作证据链 + Task437 三件套 + 用户侧处置（更新 StikJIT/StikDebug 或换 JIT 工具）+ Will ship），**保持 open 不闭合**（用户指令：#2 未解决其问题）。
+- 【电池】全程 27/27 ALL GREEN；ame_bracket_audit 零参数（纯 docs/.sh 轮）原 rc=2 误红 → nothing-to-audit PASS 修正。
+
+Stage Summary:
+- 装机锚点（BuildTag=「Task437 · 2026-11-16」）：①TXM 调试 JIT 设备若调试器 JIT26 脚本假阳性，启动即 [Ame437] 通道自证取证 + 崩弹窗精确类别「JIT26 镜像通道假阳性」（指引更新调试器而非换 Java）②Task342 自救一键钮在 shadow 会话不再出现（防死路空转）③日志锚：[Ame437] JIT26 channel self-verify PASSED/FAILED (step N) / ame273 类别 jit26_mapping_shadow。
