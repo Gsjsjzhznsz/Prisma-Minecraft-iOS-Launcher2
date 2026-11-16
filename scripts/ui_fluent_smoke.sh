@@ -247,6 +247,14 @@ preview_mode() {
     ZL2AssetSearchViewController   # 7.0-UI-10：下载页资产搜索组件（.h+.m，与下载页同轮落地）
     ZL2AggregatedSearchService     # ★Task428（4.3）：聚合档双源并行服务（ZL2AssetSearchViewController
                                    #   import 它——固定清单缺席 = _OBJC_CLASS_$ 未定义，ZL2SkinPreviewView 判例同族）
+    ZL2VersionListPage             # ★Task436 批次三：参数化版本列表新页（ZL2AssetSearch/ZL2SearchId push 点
+                                   #   消费其类符号——CI N+14 判例：新 TU 落地必同步本清单，缺席 = 链接腿
+                                   #   _OBJC_CLASS_$ 未定义；Task413/428 判例同族第三次触发）
+    IconLoader                     # ★Task437-r2：ZL2VersionListPage 表达式级引用（[IconLoader loadIconForImageView:]）
+    InlineMessageView              # ★Task437-r2：ZL2VersionListPage 表达式级引用（[InlineMessageView showIn…]）
+    ModLoaderIconHelper            # ★Task437-r2：ZL2VersionListPage 表达式级引用（[ModLoaderIconHelper brandColorForLoader:]）
+    ModItem                        # ★Task437-r2：ZL2VersionListPage 表达式级引用（[ModItem class] isKindOfClass 门）
+    PLMirrorCenter                 # ★Task437-r2：IconLoader 表达式级引用（[PLMirrorCenter preferredURLForOriginalURL:]）
     ZL2M3Kit                       # 7.0-UI-12：MD3 功能组件库（搜索/chip/开关/对话框/弹层）
     ZL2GameDownloadViewController  # 7.0-UI-12：游戏 M3 下载页（旧 DownloadViewController 退场）
     ZL2GameAddonsViewController    # 7.0-UI-14：Addons 加载器选择屏（选版后加载器组合+安装分发）

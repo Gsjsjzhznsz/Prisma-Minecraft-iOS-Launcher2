@@ -104,8 +104,12 @@ def audit(path: str) -> bool:
 
 def main() -> int:
     if len(sys.argv) < 2:
-        print(__doc__)
-        return 2
+        # ★Task437-r2：电池接线（task432_gate_battery.sh）以「本轮编辑的
+        #   .m/.h 文件列表」为参数——本轮无 ObjC 编辑（例如纯 docs/.sh 轮）
+        #   时参数列表为空是合法状态，nothing to audit = PASS（返回 2 会把
+        #   电池误判红，CI 判例 N+14 轮实录）。
+        print("no objc file args -- nothing to audit (PASS)")
+        return 0
     ok = True
     for path in sys.argv[1:]:
         try:
