@@ -307,6 +307,10 @@ preview_mode() {
     return
   fi
 
+  # ★Task441-r2：harness 驱动引用导入链真类（ModpackUtils/UZKArchive）——preview
+  #   链接面同样补导入链对象（死代码于预览语境，零行为差异）
+  ame441_ensure_import_chain
+  if [[ "$FAIL" -ne 0 ]]; then return; fi
   echo "  链接 AmeFluentPreview"
   # CoreGraphics/QuartzCore 必须显式链接：CGAffineTransform（Toast/Banner/侧栏弹跳）
   # 与 CALayer/CABasicAnimation（Progress/Card 阴影）符号不在 UIKit 内；
@@ -318,7 +322,7 @@ preview_mode() {
       -framework AuthenticationServices -framework UniformTypeIdentifiers \
       -framework CoreHaptics \
       -o "$OUT/AmeFluentPreview" \
-      "${objs[@]}" "$OUT/AmeFluentPreviewMain.o" "$OUT/ZL2PagesStub.o" 2>"$OUT/link.log"; then
+      "${objs[@]}" "${AME441_CHAIN_OBJS[@]}" "$OUT/AmeFluentPreviewMain.o" "$OUT/ZL2PagesStub.o" 2>"$OUT/link.log"; then
     echo "  ✗ 链接失败:"
     head -80 "$OUT/link.log" || true
     sed 's/^/##[error] [link] /' "$OUT/link.log" | head -40 || true
@@ -634,6 +638,74 @@ PLIST
 }
 
 # ─────────────────────────────────────────────────────────────
+# ★Task441-r2 导入链对象共享构建（preview/shell 两腿共用，幂等——CI 判例
+#   N+21：UnzipKit 1.9 布局 = Source/*.m + Lib/MiniZip/*.c，仓库无 UnzipKit/
+#   子目录路径；include 面钉 pin 链优先防 vendored 三头与源码版本偏斜）
+# ─────────────────────────────────────────────────────────────
+AME441_CHAIN_OBJS=()
+ame441_ensure_import_chain() {
+  local ame441_uzk="$OUT/UnzipKit-src"
+  if [[ ! -f "$ame441_uzk/Source/UZKArchive.m" ]]; then
+    rm -rf "$ame441_uzk"
+    if ! git clone --quiet --depth 1 --branch "1.9" https://github.com/abbeycode/UnzipKit "$ame441_uzk" 2>"$OUT/unzipkit-clone.log"; then
+      git clone --quiet --depth 1 https://github.com/abbeycode/UnzipKit "$ame441_uzk" 2>>"$OUT/unzipkit-clone.log" \
+        || { echo "✗ UnzipKit 源码获取失败:"; cat "$OUT/unzipkit-clone.log"; FAIL=1; return; }
+    fi
+    git -C "$ame441_uzk" rev-parse HEAD > "$OUT/unzipkit-commit.txt" 2>/dev/null || true
+  fi
+  echo "  UnzipKit 源码 pin: $(cat "$OUT/unzipkit-commit.txt" 2>/dev/null || echo unknown)"
+
+  local ame441_uzinc=(-I"$ame441_uzk/Source" -I"$ame441_uzk/Lib/MiniZip" -I"$NATIVES/external/UnzipKit")
+  local ame441_s ame441_base ame441_uzm ame441_uzbase
+  local ame441_chain=(
+    ModpackImportService
+    installer/modpack/ModpackUtils
+    PLDownloadClient
+  )
+  for ame441_s in "${ame441_chain[@]}"; do
+    ame441_base="$(basename "$ame441_s")"
+    if [[ ! -f "$OUT/shellobj-$ame441_base.o" ]]; then
+      if ! xcrun clang -c "${ame441_uzinc[@]}" "${COMMON[@]}" "$NATIVES/$ame441_s.m" \
+          -o "$OUT/shellobj-$ame441_base.o" 2>"$OUT/compile-shell-$ame441_base.log"; then
+        echo "  ✗ $ame441_s.m 编译失败:"
+        cat "$OUT/compile-shell-$ame441_base.log" || true
+        sed 's/^/##[error] [shell-compile] /' "$OUT/compile-shell-$ame441_base.log" | head -20 || true
+        FAIL=1
+        return
+      fi
+    fi
+    AME441_CHAIN_OBJS+=("$OUT/shellobj-$ame441_base.o")
+  done
+  # UnzipKit 真源码（Source/**/*.m 含 Extensions 子目录 + Lib/MiniZip C；排除测试/示例）
+  while IFS= read -r ame441_uzm; do
+    ame441_uzbase="$(basename "$ame441_uzm" .m)"
+    if [[ ! -f "$OUT/shellobj-uzk-$ame441_uzbase.o" ]]; then
+      if ! xcrun clang -c "${ame441_uzinc[@]}" "${COMMON[@]}" -Wno-deprecated-declarations \
+          "$ame441_uzm" -o "$OUT/shellobj-uzk-$ame441_uzbase.o" 2>"$OUT/compile-uzk-$ame441_uzbase.log"; then
+        echo "  ✗ UnzipKit TU 编译失败: $ame441_uzm"
+        cat "$OUT/compile-uzk-$ame441_uzbase.log" || true
+        FAIL=1
+        return
+      fi
+    fi
+    AME441_CHAIN_OBJS+=("$OUT/shellobj-uzk-$ame441_uzbase.o")
+  done < <(find "$ame441_uzk/Source" -name '*.m' -not -path '*Test*' -not -path '*Demo*' 2>/dev/null)
+  while IFS= read -r ame441_uzm; do
+    ame441_uzbase="$(basename "$ame441_uzm" .c)"
+    if [[ ! -f "$OUT/shellobj-uzkc-$ame441_uzbase.o" ]]; then
+      if ! xcrun clang -c "${ame441_uzinc[@]}" -isysroot "$SDK_SIM" -target "${ARCH}-apple-ios14.0-simulator" \
+          "$ame441_uzm" -o "$OUT/shellobj-uzkc-$ame441_uzbase.o" 2>>"$OUT/compile-uzkc.log"; then
+        echo "  ✗ minizip C 编译失败: $ame441_uzm"
+        cat "$OUT/compile-uzkc.log" || true
+        FAIL=1
+        return
+      fi
+    fi
+    AME441_CHAIN_OBJS+=("$OUT/shellobj-uzkc-$ame441_uzbase.o")
+  done < <(find "$ame441_uzk/Lib/MiniZip" -name '*.c' 2>/dev/null)
+}
+
+# ─────────────────────────────────────────────────────────────
 # ★Task441 批次四：门禁第四腿（真壳冒烟，第五次移交落地）
 #   真壳 TU 全量链接（壳层七页 + 版本列表新页 + 整合包导入链全部真 TU 无桩）
 #   → 模拟器启动（-zl2shell real -ame441Smoke）→ 七页步进遍历 → 新入口遍历
@@ -651,19 +723,12 @@ PLIST
 shell_mode() {
   echo "== ★Task441 第四腿：真壳冒烟（simulator）=="
 
-  # ① UnzipKit 真源码获取（1.9 钉 pin；tag 缺席回落默认分支并记 sha）
-  local ame441_uzk="$OUT/UnzipKit-src"
-  if [[ ! -f "$ame441_uzk/UnzipKit/UZKArchive.m" ]]; then
-    rm -rf "$ame441_uzk"
-    if ! git clone --quiet --depth 1 --branch "1.9" https://github.com/abbeycode/UnzipKit "$ame441_uzk" 2>"$OUT/unzipkit-clone.log"; then
-      git clone --quiet --depth 1 https://github.com/abbeycode/UnzipKit "$ame441_uzk" 2>>"$OUT/unzipkit-clone.log" \
-        || { echo "✗ UnzipKit 源码获取失败:"; cat "$OUT/unzipkit-clone.log"; FAIL=1; return; }
-    fi
-    git -C "$ame441_uzk" rev-parse HEAD > "$OUT/unzipkit-commit.txt" 2>/dev/null || true
-  fi
-  echo "  UnzipKit 源码 pin: $(cat "$OUT/unzipkit-commit.txt" 2>/dev/null || echo unknown)"
+  # ① 导入链对象（共享构建：UnzipKit pin + 三件真 TU；幂等缓存）
+  ame441_ensure_import_chain
+  if [[ "$FAIL" -ne 0 ]]; then return; fi
+  local ame441_objs=("${AME441_CHAIN_OBJS[@]}")
 
-  # ② 编译：preview 固定清单同源镜像（34 TU）+ 真壳腿追加三件 + UnzipKit 真源码
+  # ② 编译：preview 固定清单同源镜像（33 TU，N+14 家法两处清单必同步）
   local ame441_sources=(
     AmeTheme FluentButton FluentCard FluentListCell FluentTextField
     FluentToast FluentSegmentedControl FluentProgress FluentBanner
@@ -675,24 +740,19 @@ shell_mode() {
     ZL2SearchIdViewController ZL2FavoritesStore installer/FabricUtils
     ZL2ShellViewController ZL2FestivalEffects ZL2AnimationKit
     AmeUIImageColors AmeHCTPalette ZL2DynamicPalette
-    ModpackImportService installer/modpack/ModpackUtils PLDownloadClient
   )
-  local ame441_uzinc=(-I"$NATIVES/external/UnzipKit" -I"$ame441_uzk/UnzipKit" -I"$ame441_uzk/UnzipKit/minizip")
-  local ame441_objs=()
   local ame441_s ame441_base
   for ame441_s in "${ame441_sources[@]}"; do
     ame441_base="$(basename "$ame441_s")"
-    if [[ -f "$OUT/shellobj-$ame441_base.o" ]]; then
-      ame441_objs+=("$OUT/shellobj-$ame441_base.o")
-      continue
-    fi
-    if ! xcrun clang -c "${COMMON[@]}" "${ame441_uzinc[@]}" "$NATIVES/$ame441_s.m" \
-        -o "$OUT/shellobj-$ame441_base.o" 2>"$OUT/compile-shell-$ame441_base.log"; then
-      echo "  ✗ $ame441_s.m 编译失败:"
-      cat "$OUT/compile-shell-$ame441_base.log" || true
-      sed 's/^/##[error] [shell-compile] /' "$OUT/compile-shell-$ame441_base.log" | head -20 || true
-      FAIL=1
-      return
+    if [[ ! -f "$OUT/shellobj-$ame441_base.o" ]]; then
+      if ! xcrun clang -c "${COMMON[@]}" "$NATIVES/$ame441_s.m" \
+          -o "$OUT/shellobj-$ame441_base.o" 2>"$OUT/compile-shell-$ame441_base.log"; then
+        echo "  ✗ $ame441_s.m 编译失败:"
+        cat "$OUT/compile-shell-$ame441_base.log" || true
+        sed 's/^/##[error] [shell-compile] /' "$OUT/compile-shell-$ame441_base.log" | head -20 || true
+        FAIL=1
+        return
+      fi
     fi
     ame441_objs+=("$OUT/shellobj-$ame441_base.o")
   done
@@ -701,7 +761,7 @@ shell_mode() {
   for ame441_s in "Preview/AmeFluentPreviewMain" "Preview/ZL2PagesStub"; do
     ame441_base="$(basename "$ame441_s")"
     if [[ ! -f "$OUT/shellobj-$ame441_base.o" ]]; then
-      if ! xcrun clang -c "${COMMON[@]}" "${ame441_uzinc[@]}" "$NATIVES/$ame441_s.m" \
+      if ! xcrun clang -c "${COMMON[@]}" "$NATIVES/$ame441_s.m" \
           -o "$OUT/shellobj-$ame441_base.o" 2>"$OUT/compile-shell-$ame441_base.log"; then
         echo "  ✗ $ame441_s.m 编译失败:"
         cat "$OUT/compile-shell-$ame441_base.log" || true
@@ -712,33 +772,6 @@ shell_mode() {
     ame441_objs+=("$OUT/shellobj-$ame441_base.o")
   done
 
-  # UnzipKit 真源码（UZKArchive/UZKFileInfo 等 .m + minizip C；排除测试/示例）
-  local ame441_uzm ame441_uzbase
-  while IFS= read -r ame441_uzm; do
-    ame441_uzbase="$(basename "$ame441_uzm" .m)"
-    [[ -f "$OUT/shellobj-uzk-$ame441_uzbase.o" ]] && { ame441_objs+=("$OUT/shellobj-uzk-$ame441_uzbase.o"); continue; }
-    if ! xcrun clang -c "${COMMON[@]}" "${ame441_uzinc[@]}" -Wno-deprecated-declarations \
-        "$ame441_uzm" -o "$OUT/shellobj-uzk-$ame441_uzbase.o" 2>"$OUT/compile-uzk-$ame441_uzbase.log"; then
-      echo "  ✗ UnzipKit TU 编译失败: $ame441_uzm"
-      cat "$OUT/compile-uzk-$ame441_uzbase.log" || true
-      FAIL=1
-      return
-    fi
-    ame441_objs+=("$OUT/shellobj-uzk-$ame441_uzbase.o")
-  done < <(find "$ame441_uzk/UnzipKit" -name '*.m' -not -path '*Test*' -not -path '*Demo*' 2>/dev/null)
-  while IFS= read -r ame441_uzm; do
-    ame441_uzbase="$(basename "$ame441_uzm" .c)"
-    [[ -f "$OUT/shellobj-uzkc-$ame441_uzbase.o" ]] && { ame441_objs+=("$OUT/shellobj-uzkc-$ame441_uzbase.o"); continue; }
-    if ! xcrun clang -c -isysroot "$SDK_SIM" -target "${ARCH}-apple-ios14.0-simulator" \
-        -I"$ame441_uzk/UnzipKit/minizip" -I"$ame441_uzk/UnzipKit" \
-        "$ame441_uzm" -o "$OUT/shellobj-uzkc-$ame441_uzbase.o" 2>>"$OUT/compile-uzkc.log"; then
-      echo "  ✗ minizip C 编译失败: $ame441_uzm"
-      cat "$OUT/compile-uzkc.log" || true
-      FAIL=1
-      return
-    fi
-    ame441_objs+=("$OUT/shellobj-uzkc-$ame441_uzbase.o")
-  done < <(find "$ame441_uzk/UnzipKit" -name '*.c' 2>/dev/null)
 
   # ③ 链接（同 preview 框架面 + libz：minizip 原生 zlib 依赖）
   if ! xcrun clang -isysroot "$SDK_SIM" -target "${ARCH}-apple-ios14.0-simulator" \

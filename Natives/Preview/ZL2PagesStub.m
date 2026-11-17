@@ -1744,3 +1744,15 @@ typedef NS_ENUM(NSInteger, MultiplayerVCMode) {
     return @[];   // 空候选链 → 消费方回落 official URL（ImportService :1855 判例分支）
 }
 @end
+
+// ─────────────────────────────────────────────────────────────
+// ★Task441-r2 C 符号面补桩（链接判例）：三件真 TU 引用的 extern——
+//   DownloadTaskItem.m 常量族 / PLMirrorCenter.m 镜像根 / utils.m Task275
+//   安_um 相对路径。真实现 TU 均不在桩链（DownloadTaskItem/PLMirrorCenter
+//   已桩化、utils.m 不入冒烟清单）→ 桩按真实现同值定义 / 恒等回落；
+//   样本链路（parse→守卫→取消式推导）不产生行为差异。
+// ─────────────────────────────────────────────────────────────
+NSString * const DownloadTaskResourceTypeMod = @"mod";
+NSString * const PLMirrorBMCLAPIRootURL = @"https://bmclapi2.bangbang93.com";
+NSString * const PLMirrorMCIMRootURL = @"https://mod.mcimirror.top";
+NSString *AME275SafeRelativePath(NSString *rel) { return rel; }
