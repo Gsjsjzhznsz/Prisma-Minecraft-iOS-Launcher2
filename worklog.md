@@ -5430,3 +5430,4 @@ Work Log:
 
 Stage Summary:
 - 装机锚点（BuildTag=「Task442 · 2026-11-17」）：①假阳性崩溃（RX 落别名池）的弹窗与日志不再武装 JIT 自救——ame442_mapping_pattern.txt 落形态证据②日志锚：[Ame442] mapping-response pattern conviction / [Ame442] auto-rescue arming suppressed③弹窗第四轮取证段（两 Run 形态对比 + 复发语义）④同症状复发 = 重复 per-app 重指派三步（Assign Script → 删了重指派 → 移除记录重开）。
+- 【闭环补记】CI 判例 N+20~N+29 十轮迭代后双绿终态（b5fb58d36：dev run 44143967587 success + ui-smoke run 44143967684 success 四腿全过含第四腿真壳冒烟）；拥塞窗口判例 N+29（dev build timeout 60→90min + 两处 smoke 40→50min 兜底——健康基线不受影响）；三产物 Task442 唯一命名归档（ipa/tipa/dSYM，两段式 SAS 下载判例：跟转带 Authorization 头会 404，先取 Location 后无头下载）；ipa 四重验证（zip 零错 + ame442 符号三串在场 + BuildTag UTF-16LE Task442 且 Task441 归零）；议题 #3 五段式评论 6957788688 落卷（形态逐字对比 + 跨会话劣化定性 + Task442 修复面 + 重指派三步 + 保持 open 等报告者回归验证）。
