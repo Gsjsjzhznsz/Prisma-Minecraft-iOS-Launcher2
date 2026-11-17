@@ -840,37 +840,57 @@ PLIST
   xcrun simctl install "$device" "$app" || { echo "✗ shell 腿安装失败"; FAIL=1; return; }
   echo "  shell 腿模拟器 UDID: ${device}（真壳 -zl2shell real -ame441Smoke）"
 
-  xcrun simctl launch --console-pty "$device" com.prisma-devs.ame-shell-smoke \
-      -zl2shell real -ame441Smoke > "$OUT/console-shell-smoke.log" 2>&1 &
-  local ame441_pid=$!
-  local ame441_ok=0 ame441_try
-  for ame441_try in $(seq 1 60); do
-    if grep -q "ame441-smoke] ALL PASS" "$OUT/console-shell-smoke.log" 2>/dev/null; then
-      ame441_ok=1
-      break
-    fi
-    if grep -q "ame441-smoke] FAIL" "$OUT/console-shell-smoke.log" 2>/dev/null; then
-      break
-    fi
-    if ! pgrep -f "AmeShellSmoke.app" >/dev/null 2>&1; then
-      break   # 进程亡且无标记 = 启动即崩/中途崩（无 FAIL 落日志的场景）
-    fi
-    sleep 2
-  done
-  kill "$ame441_pid" 2>/dev/null || true
-  wait "$ame441_pid" 2>/dev/null || true
-
-  if [[ "$ame441_ok" != "1" ]]; then
-    echo "✗ 第四腿真壳冒烟失败（ALL PASS 标记未达/进程中途亡）"
-    echo "── console-shell-smoke.log（尾部 60 行）:"
-    tail -60 "$OUT/console-shell-smoke.log" 2>/dev/null || echo "  （无输出）"
-    sed 's/^/##[error] [shell-smoke] /' "$OUT/console-shell-smoke.log" 2>/dev/null | tail -30 || true
-    echo "── DiagnosticReports 最近崩溃:"
-    ls -lt ~/Library/Logs/DiagnosticReports/ 2>/dev/null | head -6
+  # ★Task441-r10 两段式取证（判例 N+27：--console-pty 后台捕获对启动即亡进程
+  #   零输出且无崩溃报告——改非 pty 启动 + 统一日志轮询 + 进程存活哨兵）
+  if ! xcrun simctl launch "$device" com.prisma-devs.ame-shell-smoke \
+      -zl2shell real -ame441Smoke > "$OUT/shell-launch.log" 2>&1; then
+    echo "✗ shell 腿启动失败:"
+    cat "$OUT/shell-launch.log" || true
+    sed 's/^/##[error] [shell-launch] /' "$OUT/shell-launch.log" | head -10 || true
     FAIL=1
     return
   fi
-  echo "  ✓ 第四腿 ALL PASS：$(grep -c 'ame441-smoke] ok' "$OUT/console-shell-smoke.log") 步标记"
+  echo "  launch OK: $(cat "$OUT/shell-launch.log")"
+  local ame441_ok=0 ame441_try ame441_alive=1
+  local ame441_logq='eventMessage CONTAINS "ame441-smoke"'
+  for ame441_try in $(seq 1 60); do
+    if xcrun simctl spawn "$device" log show --last 3m --style compact \
+        --predicate "$ame441_logq" 2>/dev/null | grep -q "ALL PASS"; then
+      ame441_ok=1
+      break
+    fi
+    if xcrun simctl spawn "$device" log show --last 3m --style compact \
+        --predicate "$ame441_logq" 2>/dev/null | grep -q "] FAIL"; then
+      break
+    fi
+    if ! pgrep -f "AmeShellSmoke.app" >/dev/null 2>&1; then
+      ame441_alive=0
+      break   # 进程亡且无标记 = 启动即崩/中途崩
+    fi
+    sleep 2
+  done
+  # 统一日志取证落盘（本 app 全量相关行，成功/失败同路径可审计）
+  xcrun simctl spawn "$device" log show --last 6m --style compact \
+      --predicate 'processImagePath CONTAINS "AmeShellSmoke"' \
+      > "$OUT/console-shell-smoke.log" 2>&1 || true
+
+  if [[ "$ame441_ok" != "1" ]]; then
+    echo "✗ 第四腿真壳冒烟失败（ALL PASS 标记未达/进程中途亡；存活=$ame441_alive）"
+    echo "── shell-launch.log:"
+    cat "$OUT/shell-launch.log" 2>/dev/null || true
+    echo "── 统一日志 [AmeShellSmoke 相关]（尾部 80 行）:"
+    tail -80 "$OUT/console-shell-smoke.log" 2>/dev/null | head -80 || echo "  （无输出）"
+    sed 's/^/##[error] [shell-smoke] /' "$OUT/console-shell-smoke.log" 2>/dev/null | tail -40 || true
+    echo "── DiagnosticReports 全列（近 10）:"
+    ls -lt ~/Library/Logs/DiagnosticReports/ 2>/dev/null | head -10
+    for f in $(ls -t ~/Library/Logs/DiagnosticReports/AmeShellSmoke*.ips 2>/dev/null | head -2); do
+      echo "── 崩溃报告: $f"
+      grep -aoE '"exception"[^}]{0,260}|"asi":\{[^}]{0,600}|Application Specific Information[^}]{0,400}|unrecognized selector[^"]{0,140}|dyld[^"]{0,200}' "$f" | head -15
+    done
+    FAIL=1
+    return
+  fi
+  echo "  ✓ 第四腿 ALL PASS：$(grep -c 'ame441-smoke] ok' "$OUT/console-shell-smoke.log" 2>/dev/null || echo 0) 步标记"
   xcrun simctl terminate "$device" com.prisma-devs.ame-shell-smoke >/dev/null 2>&1 || true
 }
 
