@@ -875,7 +875,7 @@ PLIST
       > "$OUT/console-shell-smoke.log" 2>&1 || true
 
   if [[ "$ame441_ok" != "1" ]]; then
-    echo "✗ 第四腿真壳冒烟失败（ALL PASS 标记未达/进程中途亡；存活=$ame441_alive）"
+    echo "✗ 第四腿真壳冒烟失败（ALL PASS 标记未达/进程中途亡；存活=${ame441_alive}）"
     echo "── shell-launch.log:"
     cat "$OUT/shell-launch.log" 2>/dev/null || true
     echo "── 统一日志 [AmeShellSmoke 相关]（尾部 80 行）:"
