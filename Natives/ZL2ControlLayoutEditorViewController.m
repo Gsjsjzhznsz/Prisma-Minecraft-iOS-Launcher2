@@ -303,16 +303,17 @@ static NSMutableArray *ame441_loadStyleCabinet(void) {
     }
     id styles = dict[@"styles"];
     if (![styles isKindOfClass:[NSMutableArray class]]) return [NSMutableArray array];
+    NSMutableArray *ame441_styles = styles;   // ★Task441-r1（判例 N+20）：id 上点 .count 编译错——判类收窄后落强类型
     // 元素级守卫（Task434 Favorites 家法：异形元素剔除留痕，不整体拒载）
     NSMutableIndexSet *alien = [NSMutableIndexSet indexSet];
-    for (NSUInteger i = 0; i < styles.count; i++) {
-        if (![styles[i] isKindOfClass:[NSDictionary class]]) [alien addIndex:i];
+    for (NSUInteger i = 0; i < ame441_styles.count; i++) {
+        if (![ame441_styles[i] isKindOfClass:[NSDictionary class]]) [alien addIndex:i];
     }
     if (alien.count > 0) {
         NSLog(@"[Task441] style cabinet 异形元素 %lu 条已剔除", (unsigned long)alien.count);
-        [styles removeObjectsAtIndexes:alien];
+        [ame441_styles removeObjectsAtIndexes:alien];
     }
-    return styles;
+    return ame441_styles;
 }
 
 /// 写样式柜（与 ame429_writeLayoutNamed 同格式：PrettyPrinted + 原子写；

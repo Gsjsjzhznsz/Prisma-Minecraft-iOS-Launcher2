@@ -749,6 +749,26 @@ typedef NS_ENUM(NSInteger, ZL2VersionListDomain) {
 - (instancetype)initWithDomain:(ZL2VersionListDomain)domain;
 @end
 
+// ★Task441 第四腿：驱动引用的真类声明（真 TU 在链接面；声明置顶层级——
+//   @interface 误入 @implementation 内部 = 非法语，CI 判例 N+20 实锤：@end
+//   级联断链 → 后续方法全部 missing context）
+@interface ModpackImportService : NSObject
+- (nullable NSDictionary *)parseModpackAtURL:(NSURL *)fileURL error:(NSError **)error;
+- (BOOL)installModLoader:(NSString *)loader
+           loaderVersion:(NSString *)loaderVersion
+        minecraftVersion:(NSString *)minecraftVersion
+               versionId:(NSString *)versionId
+         gameDirAbsolute:(NSString *)gameDirAbsolute
+                   error:(NSError **)error;
+@end
+
+@interface ModpackUtils : NSObject
++ (NSDictionary<NSString *, NSString *> *)ame439_modrinthDownloadURLsForFiles:(NSArray<NSDictionary *> *)files
+                                                                  concurrency:(NSInteger)concurrency
+                                                              isCancelledBlock:(BOOL (^)(void))isCancelled;
++ (void)archive:(UZKArchive *)archive extractDirectory:(NSString *)dir toPath:(NSString *)path error:(NSError **)error;
+@end
+
 static void AmePreviewApplyFluentTokens(void) {
     [ZL2Theme ame317_setPluginThemeTokens:@"preview-fluent"
                                    tokens:@{
@@ -1141,23 +1161,8 @@ static void AmePreviewApplyFluentTokens(void) {
 // console-pty 捕获 grep 该标记 = 红灯拦截「编译过但运行崩」。
 // 样本桩面合规：ModService/PLCrashView/DownloadTaskManager.taskWithId 三件桩仅
 // Preview 目标（ZL2PagesStub.m Ame441ShellSmoke 区），真壳腿零产品桩。
-@interface ModpackImportService : NSObject
-- (nullable NSDictionary *)parseModpackAtURL:(NSURL *)fileURL error:(NSError **)error;
-- (BOOL)installModLoader:(NSString *)loader
-           loaderVersion:(NSString *)loaderVersion
-        minecraftVersion:(NSString *)minecraftVersion
-               versionId:(NSString *)versionId
-         gameDirAbsolute:(NSString *)gameDirAbsolute
-                   error:(NSError **)error;
-@end
-
-@interface ModpackUtils : NSObject
-+ (NSDictionary<NSString *, NSString *> *)ame439_modrinthDownloadURLsForFiles:(NSArray<NSDictionary *> *)files
-                                                                  concurrency:(NSInteger)concurrency
-                                                              isCancelledBlock:(BOOL (^)(void))isCancelled;
-+ (void)archive:(UZKArchive *)archive extractDirectory:(NSString *)dir toPath:(NSString *)path error:(NSError **)error;
-@end
-
+// （真类声明置顶层级：见 ZL2VersionListPage 声明块后方的 ModpackImportService/
+//   ModpackUtils——N+20 判例：@interface 不得居于 @implementation 内部。）
 - (void)ame441_scheduleShellSmokeWithShell:(ZL2ShellViewController *)shell {
     dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(3.0 * NSEC_PER_SEC)),
                    dispatch_get_main_queue(), ^{
