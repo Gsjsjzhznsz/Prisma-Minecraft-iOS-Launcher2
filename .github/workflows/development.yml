@@ -239,6 +239,13 @@ jobs:
           GIT_LFS_SKIP_SMUDGE: "1"
         run: git submodule update --init --recursive --depth 1 --jobs 8
 
+      # ★Task440 代际锚 CI 步（本地锚门容差窗口盲区的合流侧闭环）：checkout 后
+      #   log max = 本轮提交号，BuildTag 必须 ∈ {max, max+1}——修复提交漏重锚
+      #   （Task440 实录：本地门禁时 HEAD 尚在上轮，tag=439 ∈ {439,440} 误绿）
+      #   在 CI 侧必红，BuildTag 滞留两轮复发（第 10 期 6.3 节）被结构性拦截。
+      - name: BuildTag anchor check (Task439 gate, CI-side closure)
+        run: python3 scripts/task439_buildtag_anchor.py
+
       # ★ Task257（清单 6：CI 构建速度第二轮）——JRE 产物缓存：jre 目标每次
       #   全量下载 4 个 iOS JRE（8/17/21/25，assets.angelauramc.dev）+ 解包 +
       #   裁剪 + upcall-mirror 补丁（冷跑 3-5 分钟 = 当前最大网络单项）。

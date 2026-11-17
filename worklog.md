@@ -5372,3 +5372,22 @@ Work Log:
 
 Stage Summary:
 - 装机锚点（BuildTag=「Task439 · 2026-11-17」）：①构造性 mrpack（index.name 数字/容器）导入全链弹窗失败明细不再 SIGABRT②task158_base 门首次真实登记（电池声明=实跑）③任意截图代际角标可判 Task439 代（BuildTag 双面恒等 + 每轮锚号强制门）④弱网导出反查取消秒级生效⑤后台 post 家族新增不再威胁主页网格。
+
+## Task 440 · 2026-11-17（第 10 期复核报告批次二退役收尾全量落地：ameV13 改道 + 旧三页/死代码六件 14 文件退役 + 腐烂族清账 + 代际锚 CI 侧闭环）
+
+**用户指令**：「请解决PDF提到的所有问题」续期（第 10 期报告第七章批次二表 9 三件 + 表 8 #4/#5/#6 腐烂族全量）
+
+Work Log:
+- 【① 改道（批次④漏网活入口清账，报告 3.3 节）】ZL2VersionPages.m ameV13_pushVersionListWithProjectId 整体重写：ZL2VersionListPage Mod 域接棒（modItem 原样传/pageTitle/apiSource 同值同语义/lastVersionId 反解链原样保留/snapshotProjectType 防收藏错档）；delegate 换轨 ZL2VersionListPageDelegate，下载流 modVersionViewController:didSelectVersion: → zl2VersionListPage:didSelectVersion: 平移（ModService.downloadMod expectedSHA1 直下不变，Task265 目标实例锁定由宿主 ameV13_profileName 收口——新页无 targetProfileName 属性，语义等效）。
+- 【② 14 文件物理删除】旧三版本页（Mod/Asset/Shader VersionViewController）+ 死代码六件（AccountLogin/ProfileSettings/FabricInstall/Welcome）全链退役；A7 功能清点清单随删附（scripts/task440_retire_inventory.md：逐页功能底账/最后活路径/替代去处；首启向导留白定案为有意取舍——新 UI 壳层默认即用 + 设置页可达，如用户复诉再立项）；vestigial 面同步清零（ZL2AssetSearch 三 import/三协议/三死 delegate 段、ZL2Versions 死 import、Preview 桩四处=桩随真身同生死家法）。
+- 【③ 文档/腐烂族】CMake 七条目摘除 + :660 悬空注释校正（VersionCardCell 零活消费暂留登记）；MinecraftResourceDownloadTask:1361 引注校正；ZL2Versions.h/.m 五处 + LauncherPreferences/utils.h/Forge·NeoForge/TouchController 现时态失实注释改写（「push ProfileSettingsViewController」现时态声明 grep 归零，勘误墓碑家法豁免）；ZL2AssetSearchViewController.h 路由表落卷提交校正。
+- 【AiPluginDocsTool + PLPreferences】三退役键文档行摘除（news_url/announcement_preview_level/welcome_completed）+ 计数链重锚（106→103 键/212→206 操作/413→407 API，ame366 D1 同步）；PLPreferences 两退役键注册摘除（news_url 先例家法注释尾，存量 plist 残值自然失活）。
+- 【门禁面（agent 侦察驱动，一次成型零 CI 热修轮）】verify_task189 重生为退役面验收门（R1 物理缺席/R2 活代码零引用（剥注释+pragma）/R3 CMake 零条目/R4 桩零孤儿/R5 现时态注释归零）；verify_task188 F1 标签重锚；verify_task136/162/227/235/236/238 退役容错壳（[RETIRED] 诚实降级非静默绿——存留面断言继续生效，同族腐烂后续轮收编）；ame369 站点 449→445（旧页内 4 站点随页离场）；ame343 A3 终局（七页条目归零）/A5 Welcome 缺席+活引用清零/D 括号清单摘 Welcome；ame335 B2-B4/E2 退役断言（FabricUtils 端点维持现役）；verify219 C/D/E（Welcome 向导）+G（TC/Sodium 组件安装链——唯一宿主旧页，ZL2 下载轨接棒）段退役收敛；task139/240syn/240imp 闸域摘退役 TU。新门 task440_selfcheck.py 八断言+S 反向注入。
+- 【CI】a8e30796f 双腿一次全绿（run 44032533927 dev + smoke 同绿）——Task436 同域曾 r1-r6，本轮侦察→主控落码一次成型。
+- 【产物归档】com.prisma-devs.prisma-ios.ipa__Task440__44032533927.ipa——strings 验证：ModVersionViewController 符号 **二进制级消失**（退役终局实锚）+ ZL2VersionListPage/ame439 变体在场；BuildTag 值=Task439（修复提交漏重锚，见下条判例）→ 落卷提交重锚 Task440 并补 CI 加固步，终态 ipa 以落卷后 run 补档。
+- 【CI 判例·第 N+18 例（本地锚门容差窗口盲区→CI 步闭环）】Task440 修复提交漏 BuildTag 重锚：本地门禁时 HEAD 尚在上轮（log max=439，tag=439 ∈ {max,max+1} 误绿），推送后 log max=440 即成滞留——development.yml dev job 增 BuildTag anchor check 步（checkout 后 log max=本轮号，修复提交漏重锚 CI 必红），第 10 期 6.3 节「两轮滞留」被结构性拦截；K4 判例随行：yml 全 CRLF 不变量（python 插入 LF 行 K4 翻红即修）。
+- 【孤儿登记】ame369.vpage.full_instance_settings 四表键按旧键不删家法登记（zh-CN:3787/zh-Hant:3788/zh-Hans:3790/en:3791，全仓零代码消费）。
+- 【电池】a8e30796f 时点 31/31 ALL GREEN；落卷提交复跑 31/31（BuildTag Task440 重锚后）。
+
+Stage Summary:
+- 装机锚点（BuildTag=「Task440 · 2026-11-17」）：①一代旧页在盘数收敛（7 页 14 文件删除，活代码零引用 + 二进制符号消失实锚）②模组卡内跳走 ZL2 三域新页（下载流语义零变化）③插件文档 103 键/206 操作口径④代际锚 CI 侧强制（滞留两轮式缺陷结构性拦截）⑤日志锚：[Task440] 各域。

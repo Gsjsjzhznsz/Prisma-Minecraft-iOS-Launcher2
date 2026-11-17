@@ -17,11 +17,12 @@
 //   （锚点行号见 .m 文件头映射表）。
 //
 // 类型（枚举驱动，构造时注入，禁止事后可变）：
-//   ZL2AssetSearchTypeMod          模组   → ModVersionViewController
-//   ZL2AssetSearchTypeModpack      整合包 → ModVersionViewController（安装流）
-//   ZL2AssetSearchTypeResourcePack 资源包 → AssetVersionViewController
-//   ZL2AssetSearchTypeWorld        存档   → AssetVersionViewController（强制 CurseForge）
-//   ZL2AssetSearchTypeShader       光影包 → ShaderVersionViewController
+//   ZL2AssetSearchTypeMod          模组   → ZL2VersionListPage（Mod 域）
+//   ZL2AssetSearchTypeModpack      整合包 → ZL2VersionListPage（安装流）
+//   ZL2AssetSearchTypeResourcePack 资源包 → ZL2VersionListPage（Asset 域）
+//   ZL2AssetSearchTypeWorld        存档   → ZL2VersionListPage（Asset 域，强制 CurseForge）
+//   ZL2AssetSearchTypeShader       光影包 → ZL2VersionListPage（Shader 域）
+//   （★Task440 校正：原表写旧三版本页，已随批次二退役整链换新页）
 //
 // 由 ZL2DownloadViewController 六类接线消费（ame_childForIndex:）；
 // 预览 harness 无 nav 宿主时 push 自动降级为 present 包 nav。
