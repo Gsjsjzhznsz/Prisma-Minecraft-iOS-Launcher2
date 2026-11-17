@@ -521,6 +521,7 @@ static void ame273_writeCrashReport(int code) {
     //   （Java 21 缺实现会话全程零 mapping 行，Task434 病历）。同是
     //   SIGBUS+call_stub，两态处置指引完全不同，扫描期分轴。
     int ame437_gotmap = 0, ame437_mapline = 0;
+    const char *ame442_mapline = NULL;   // ★Task442：最后一次映射应答行原文（形态判决证据）
     int idxImmediateReason = -1, idxFix = -1, idxIncompatHead = -1;
     int idxLastCausedBy = -1, idxLastException = -1;
     int idxProblematicFrame = -1;  // Task305：JVM fatal 锚点（下一行 = 真实问题帧）
@@ -547,6 +548,7 @@ static void ame273_writeCrashReport(int code) {
         // ★Task437：映射应答行（映射假阳性判别轴，见上方声明处注释）
         if (!ame437_gotmap && strstr(s, "Got JIT mapping") != NULL) ame437_gotmap = 1;
         if (!ame437_mapline && strstr(s, "mapping at RW=") != NULL) ame437_mapline = 1;
+        if (strstr(s, "mapping at RW=") != NULL) ame442_mapline = s;   // ★Task442：逐行覆盖 = 最后一次应答行
         if (strstr(s, "OutOfMemoryError") || strstr(s, "Cannot reserve enough space") ||
             strstr(s, "OutOfMemory")) catOOM = 1;
         if (strstr(s, "SIGSEGV") || strstr(s, "EXCEPTION_ACCESS_VIOLATION") ||
@@ -675,47 +677,13 @@ static void ame273_writeCrashReport(int code) {
         if (ame342_sigbus && ame342_stub) {
             NSLog(@"[Ame342] JIT mirror code cache crash signature detected (SIGBUS + call_stub%s) -- targeted fix guidance attached",
                   ame342_mirror ? " + mirror layout line" : "");
-            // ★Task430（二代 issue#2）：检测即自救——不再等用户在崩溃弹窗里
-            //   手点「开启 JIT 自救模式」。签名命中当下直接写
-            //   debug.mirror_codecache_disable=1（PLPreferences setObject 即
-            //   saveGlobalPref 同步 writeToFile atomically，濒死环境可靠）+
-            //   ame342_mirror_retired.txt marker（fopen+fsync 双通道），下次
-            //   启动 JavaLauncher 即走 256m 非镜像轨。弹窗一键动作保留
-            //   （已开启则不再出现），手动开关语义零变化。
-            if (!getPrefBool(@"debug.mirror_codecache_disable")) {
-                setPrefBool(@"debug.mirror_codecache_disable", YES);
-                const char *ame430_home = getenv("POJAV_HOME");
-                if (ame430_home != NULL) {
-                    char ame430_marker[1024];
-                    snprintf(ame430_marker, sizeof(ame430_marker),
-                             "%s/ame342_mirror_retired.txt", ame430_home);
-                    FILE *ame430_f = fopen(ame430_marker, "w");
-                    if (ame430_f != NULL) {
-                        fprintf(ame430_f, "time=%lld\nreason=jit_mirror_codecache auto-rescue (Task430, gen2 issue#2)\n",
-                                (long long)time(NULL));
-                        fflush(ame430_f);
-                        fsync(fileno(ame430_f));
-                        fclose(ame430_f);
-                    }
-                }
-                NSLog(@"[Ame430] JIT mirror auto-rescue armed (debug.mirror_codecache_disable=1 + marker written) -- next launch uses the non-mirrored track");
-            }
-            // ★Task437（二代 issue#3 第五层）：映射假阳性分支——优先级最高。
-            //   通道假阳性是比运行时缺实现更深的病灶：同一通道下任何运行时
-            //   都活不了（报告者按 Task434 指引切 Java 17 实测仍崩 = 装机
-            //   642025264 实锤，hs_err Instructions 段 RX 读回全零）。判据
-            //   双通道：启动链自证探针 marker ∨ latestlog 映射应答行
-            //   （Got JIT mapping / mapping at RW=，Task437 扫描轴）。
-            //   ★Task438（三轮装机跟进）：marker 双味——Task437 原探针对
-            //   canned ping-ack 区（0x690000E0 魔数，健康 Universal 脚本的
-            //   正常应答，非真实分配）写指令 fault 一律定罪，判决不诚实
-            //   （装机三轮实录：StikJIT / 642025264 / StikDebug 3.2.2 探针
-            //   region 恒为 0xcccccccc690000e0，低 32 位全为魔数；若健康
-            //   脚本对 1 页探针做真实分配，一代 legacy 检查会杀掉每个健康
-            //   启动）。Task438 后探针双 marker：shadow=非魔数真区域死亡
-            //   （定罪），canned=魔数区 fault（预期行为，不定罪，取证）。
-            //   本分支触发轴不变（映射应答行在场 = 授予但未落地），文案按
-            //   marker 味道取材：shadow 定罪版 vs canned 旁证版。
+            // ★Task442（二代 issue#3 第四轮取证跟进）：判决前置——marker 读取与
+            //   映射应答形态判读提前到武装闸之前（原序：武装先于判决 = 通道
+            //   假阳性崩溃也照武装自救，把下次发射引向 TXM 死轨；装机 13:48Z
+            //   双 Run 证据组实锤：Run1 健康授予 RX=0x179a28000（低位真实可执行区）
+            //   +RW=0x7000000000（调试器固定 RW 别名基址），Run2 假阳性授予
+            //   RX=0x700d300000（落进调试器别名池）+RW=RX+64MB——形态差异
+            //   逐字钉死，Run2 崩后 Ame430 照旧武装）。
             const char *ame437_home = getenv("POJAV_HOME");
             BOOL ame437_shadowMarker = NO;
             BOOL ame437_cannedMarker = NO;
@@ -742,11 +710,103 @@ static void ame273_writeCrashReport(int code) {
                 ame434_jit26Missing = (access(ame434_marker, F_OK) == 0);
             }
             BOOL ame437_shadow = ame437_shadowMarker || ame437_gotmap || ame437_mapline;
+            // ★Task442 映射应答形态判决：从「mapping at RW=0x..., RX=0x...」行
+            //   解出两区基址——RX ≥ 0x1000000000（调试器别名池；健康授予 RX 在
+            //   用户态低位 0x179a28000 量级）∨ RW-RX == 0x4000000（64MB 成对，
+            //   健康双视图应≈请求值紧邻）= 假阳性形态实证（Run1/Run2 逐字
+            //   对比证据，装机 13:48Z 取证组）。
+            BOOL ame442_patternFake = NO;
+            unsigned long long ame442_rw = 0, ame442_rx = 0;
+            if (ame442_mapline != NULL) {
+                const char *ame442_p = strstr(ame442_mapline, "RW=0x");
+                if (ame442_p != NULL) ame442_rw = strtoull(ame442_p + 4, NULL, 16);
+                const char *ame442_q = strstr(ame442_mapline, "RX=0x");
+                if (ame442_q != NULL) ame442_rx = strtoull(ame442_q + 4, NULL, 16);
+                if (ame442_rx >= 0x1000000000ULL ||
+                    (ame442_rw != 0 && ame442_rx != 0 &&
+                     ame442_rw >= ame442_rx && ame442_rw - ame442_rx == 0x4000000ULL)) {
+                    ame442_patternFake = YES;
+                }
+            }
+            if (ame442_patternFake) {
+                NSLog(@"[Ame442] mapping-response pattern conviction: RX=0x%llx in debugger alias pool (healthy grant = low user-space RX + RW=0x7000000000 fixed base; broken grant = RX in alias pool + RW=RX+64MB pair -- run1/run2 verbatim comparison) -- channel fake-positive proven at dialog time",
+                      (unsigned long long)ame442_rx);
+            }
+            // ★Task430（二代 issue#2）：检测即自救——不再等用户在崩溃弹窗里
+            //   手点「开启 JIT 自救模式」。签名命中当下直接写
+            //   debug.mirror_codecache_disable=1（PLPreferences setObject 即
+            //   saveGlobalPref 同步 writeToFile atomically，濒死环境可靠）+
+            //   ame342_mirror_retired.txt marker（fopen+fsync 双通道），下次
+            //   启动 JavaLauncher 即走 256m 非镜像轨。弹窗一键动作保留
+            //   （已开启则不再出现），手动开关语义零变化。
+            //   ★Task442 武装闸：通道假阳性判决（映射应答行在场 = 镜像轨已
+            //   授予，崩因是 RX 空壳而非镜像轨缺陷）下不武装——非镜像轨在
+            //   TXM 调试 JIT 下是死路，武装纯害（误导性「下次走非镜像轨」
+            //   日志 + Task433 闸失效面）；改写 ame442_mapping_pattern.txt
+            //   取证 marker（形态证据随轮落盘）。
+            if (!getPrefBool(@"debug.mirror_codecache_disable")) {
+                if (!ame437_shadow) {
+                setPrefBool(@"debug.mirror_codecache_disable", YES);
+                const char *ame430_home = getenv("POJAV_HOME");
+                if (ame430_home != NULL) {
+                    char ame430_marker[1024];
+                    snprintf(ame430_marker, sizeof(ame430_marker),
+                             "%s/ame342_mirror_retired.txt", ame430_home);
+                    FILE *ame430_f = fopen(ame430_marker, "w");
+                    if (ame430_f != NULL) {
+                        fprintf(ame430_f, "time=%lld\nreason=jit_mirror_codecache auto-rescue (Task430, gen2 issue#2)\n",
+                                (long long)time(NULL));
+                        fflush(ame430_f);
+                        fsync(fileno(ame430_f));
+                        fclose(ame430_f);
+                    }
+                }
+                NSLog(@"[Ame430] JIT mirror auto-rescue armed (debug.mirror_codecache_disable=1 + marker written) -- next launch uses the non-mirrored track");
+                } else {
+                    NSLog(@"[Ame442] auto-rescue arming suppressed (channel fake-positive verdict -- mapping granted but RX never backed; mirror track is the only viable track under TXM debugger JIT) -- per-app script reassignment guidance applies instead%s",
+                          ame442_patternFake ? " + mapping-pattern conviction" : "");
+                    if (ame437_home != NULL) {
+                        char ame442_path[1024];
+                        snprintf(ame442_path, sizeof(ame442_path),
+                                 "%s/ame442_mapping_pattern.txt", ame437_home);
+                        FILE *ame442_f = fopen(ame442_path, "w");
+                        if (ame442_f != NULL) {
+                            fprintf(ame442_f, "time=%lld\npattern=%s\nrx=0x%llx\nrw=0x%llx\nverdict=channel fake-positive at dialog time (mapping-response pattern; Task442, gen2 issue#3 round4)\nhealthy_grant=low user-space RX + RW=0x7000000000 fixed base\nbroken_grant=RX in debugger alias pool + RW=RX+64MB pair\n",
+                                    (long long)time(NULL),
+                                    ame442_mapline != NULL ? ame442_mapline : "(mapping line not captured)",
+                                    (unsigned long long)ame442_rx,
+                                    (unsigned long long)ame442_rw);
+                            fflush(ame442_f);
+                            fsync(fileno(ame442_f));
+                            fclose(ame442_f);
+                        }
+                    }
+                }
+            }
+            // ★Task437（二代 issue#3 第五层）：映射假阳性分支——优先级最高。
+            //   通道假阳性是比运行时缺实现更深的病灶：同一通道下任何运行时
+            //   都活不了（报告者按 Task434 指引切 Java 17 实测仍崩 = 装机
+            //   642025264 实锤，hs_err Instructions 段 RX 读回全零）。判据
+            //   双通道：启动链自证探针 marker ∨ latestlog 映射应答行
+            //   （Got JIT mapping / mapping at RW=，Task437 扫描轴）。
+            //   ★Task438（三轮装机跟进）：marker 双味——Task437 原探针对
+            //   canned ping-ack 区（0x690000E0 魔数，健康 Universal 脚本的
+            //   正常应答，非真实分配）写指令 fault 一律定罪，判决不诚实
+            //   （装机三轮实录：StikJIT / 642025264 / StikDebug 3.2.2 探针
+            //   region 恒为 0xcccccccc690000e0，低 32 位全为魔数；若健康
+            //   脚本对 1 页探针做真实分配，一代 legacy 检查会杀掉每个健康
+            //   启动）。Task438 后探针双 marker：shadow=非魔数真区域死亡
+            //   （定罪），canned=魔数区 fault（预期行为，不定罪，取证）。
+            //   本分支触发轴不变（映射应答行在场 = 授予但未落地），文案按
+            //   marker 味道取材：shadow 定罪版 vs canned 旁证版。
+            //   ★Task442：marker 读取已前置（见武装闸上方），此处直接消费；
+            //   判决证据链新增映射形态判决（[Ame442] + ame442_mapping_pattern.txt）。
             if (ame437_shadow) {
-                NSLog(@"[Ame437] SIGBUS+call_stub with mapping-response lines%s%s -- JIT26 channel fake-positive: debugger granted the mapping but the RX view was never backed (gen2 issue#3 layer5; Task438 marker semantics: shadow=conviction, canned=inconclusive)",
+                NSLog(@"[Ame437] SIGBUS+call_stub with mapping-response lines%s%s%s -- JIT26 channel fake-positive: debugger granted the mapping but the RX view was never backed (gen2 issue#3 layer5; Task438 marker semantics: shadow=conviction, canned=inconclusive)",
                       ame437_shadowMarker ? " + ame437_probe_shadow.txt (conviction)" : "",
-                      ame437_cannedMarker ? " + ame437_probe_canned.txt (inconclusive, ping-ack canned)" : "");
-                fix = "映射拿到了、代码也写进去了，但可执行视图是空壳（JIT26 映射假阳性，第五层病灶）：调试器应答了映射地址却从未真正落地可执行别名，崩点就在刚拿到的 RX 区域内首取指。三轮装机取证定位：问题在调试器侧对这个 app 的 JIT 脚本握手态——brk 握手 ping 应答正常（协议魔数在），但真实的 64MB 内存请求只拿到地址、内容从未落地（同会话探针应答恒为 canned 魔数 0x690000E0、64MB 应答每次都不同却全是空壳）。这不是启动器或 Java 运行时的问题：三个内置运行时（Java 17/21/25）的 JIT26 客户端经二进制反汇编逐指令同构，换 Java 版本没用（装机实测切 17 后同崩）；调试器 app 本身也没坏——同一台设备同配置启动一代 Prisma 6.5.5/7.0.0 正常（你自己的对比）。处置（按顺序）：①在 StikDebug 里对本 app 重新分配 JIT 脚本：长按本启动器 → Assign Script → 选 Documents 目录里的 UniversalJIT26.js（启动器每次启动都会自动导出到 Documents）；②如果已分配过，先删除该分配再重新指派（per-app 脚本态会残留，更新 StikDebug 版本不会清掉它——装机实录 3.2.2 更新后同崩）；③仍不行则在 StikDebug 里彻底移除本 app 的 JIT 记录后重新开启，或换 JIT 开启方式（SideStore/JitStreamer-EB 等）。启动器侧四层防线（镜像轨保留/能力探针/自救闸/通道自证探针）均已验证健康，无需在启动器侧再排查。 EN: The mapping was granted and the code was written, but the executable view is a hollow shell (JIT26 mapping fake-positive, layer 5). Three on-device rounds pinpoint it: the defect is in the debugger's per-app JIT script handshake state for THIS app -- the brk handshake ping answers fine (protocol magic present), but real 64MB requests only receive an address whose contents never land (probe response is the constant canned magic 0x690000E0; the 64MB grant address differs every session yet is always hollow). This is not a launcher or Java-runtime problem: the JIT26 clients of all three bundled runtimes (Java 17/21/25) are instruction-for-instruction identical by binary disassembly, so switching Java versions does not help (on-device: Java 17 crashes identically); the debugger app itself is fine -- the same tool and config runs gen-1 Prisma 6.5.5/7.0.0 normally on this device (your own comparison). Fix, in order: (1) in StikDebug, re-assign the JIT script for THIS app: long-press the launcher -> Assign Script -> pick UniversalJIT26.js from the launcher's Documents folder (exported automatically at every startup); (2) if a script is already assigned, REMOVE it and re-assign (per-app script state is sticky -- updating StikDebug does not clear it, on-device 3.2.2 crashed the same after the update); (3) if that fails, fully remove this app's JIT entry in StikDebug and re-enable, or switch to another JIT enabler (SideStore/JitStreamer-EB). All four launcher-side defenses (mirror-track keep / capability probe / self-rescue gate / channel self-verify probe) have verified healthy.";
+                      ame437_cannedMarker ? " + ame437_probe_canned.txt (inconclusive, ping-ack canned)" : "",
+                      ame442_patternFake ? " + mapping-pattern conviction (Task442)" : "");
+                fix = "映射拿到了、代码也写进去了，但可执行视图是空壳（JIT26 映射假阳性，第五层病灶）：调试器应答了映射地址却从未真正落地可执行别名，崩点就在刚拿到的 RX 区域内首取指。三轮装机取证定位：问题在调试器侧对这个 app 的 JIT 脚本握手态——brk 握手 ping 应答正常（协议魔数在），但真实的 64MB 内存请求只拿到地址、内容从未落地（同会话探针应答恒为 canned 魔数 0x690000E0、64MB 应答每次都不同却全是空壳）。这不是启动器或 Java 运行时的问题：三个内置运行时（Java 17/21/25）的 JIT26 客户端经二进制反汇编逐指令同构，换 Java 版本没用（装机实测切 17 后同崩）；调试器 app 本身也没坏——同一台设备同配置启动一代 Prisma 6.5.5/7.0.0 正常（你自己的对比）。处置（按顺序）：①在 StikDebug 里对本 app 重新分配 JIT 脚本：长按本启动器 → Assign Script → 选 Documents 目录里的 UniversalJIT26.js（启动器每次启动都会自动导出到 Documents）；②如果已分配过，先删除该分配再重新指派（per-app 脚本态会残留，更新 StikDebug 版本不会清掉它——装机实录 3.2.2 更新后同崩）；③仍不行则在 StikDebug 里彻底移除本 app 的 JIT 记录后重新开启，或换 JIT 开启方式（SideStore/JitStreamer-EB 等）。启动器侧四层防线（镜像轨保留/能力探针/自救闸/通道自证探针）均已验证健康，无需在启动器侧再排查。 EN: The mapping was granted and the code was written, but the executable view is a hollow shell (JIT26 mapping fake-positive, layer 5). Three on-device rounds pinpoint it: the defect is in the debugger's per-app JIT script handshake state for THIS app -- the brk handshake ping answers fine (protocol magic present), but real 64MB requests only receive an address whose contents never land (probe response is the constant canned magic 0x690000E0; the 64MB grant address differs every session yet is always hollow). This is not a launcher or Java-runtime problem: the JIT26 clients of all three bundled runtimes (Java 17/21/25) are instruction-for-instruction identical by binary disassembly, so switching Java versions does not help (on-device: Java 17 crashes identically); the debugger app itself is fine -- the same tool and config runs gen-1 Prisma 6.5.5/7.0.0 normally on this device (your own comparison). Fix, in order: (1) in StikDebug, re-assign the JIT script for THIS app: long-press the launcher -> Assign Script -> pick UniversalJIT26.js from the launcher's Documents folder (exported automatically at every startup); (2) if a script is already assigned, REMOVE it and re-assign (per-app script state is sticky -- updating StikDebug does not clear it, on-device 3.2.2 crashed the same after the update); (3) if that fails, fully remove this app's JIT entry in StikDebug and re-enable, or switch to another JIT enabler (SideStore/JitStreamer-EB). All four launcher-side defenses (mirror-track keep / capability probe / self-rescue gate / channel self-verify probe) have verified healthy. ★第四轮取证补充（你上传的第一/第二次运行日志已把两种映射形态逐字钉死）：健康授予 = RX 在用户态低位（0x179a28000 量级）+ RW=0x7000000000（调试器固定 RW 别名基址）；假阳性授予 = RX 落进调试器别名池（0x700d300000 量级）+ RW=RX+64MB 成对。启动器已据此把这类崩溃与「镜像轨缺陷」彻底分开：不再对这类崩溃武装 JIT 自救（非镜像轨在 TXM 上是死路，误武装只会把下次发射引向更深的坑），并把形态证据写入 ame442_mapping_pattern.txt。另据你本轮实录：重指派后第一次会话健康、后续会话可能再次劣化——同症状复发时重复上述三步即可。 EN: Round-4 addendum (your first/second run logs pinned both grant patterns verbatim): healthy grant = RX in low user space (~0x179a28000) + RW=0x7000000000 (the debugger's fixed RW alias base); fake-positive grant = RX inside the debugger alias pool (~0x700d300000) + RW=RX+64MB pair. The launcher now separates this crash class from mirror-track defects for good: it no longer arms the JIT self-rescue on this verdict (the non-mirror track is a dead end under TXM -- arming only steered the next launch deeper) and writes the pattern evidence to ame442_mapping_pattern.txt. Also from this round: after re-assignment the FIRST session runs healthy and later sessions may degrade again -- when the same symptom recurs, repeat the three steps above.";
             } else if (ame434_jit26Missing) {
                 NSLog(@"[Ame434] SIGBUS+call_stub with ame434_jit26_missing.txt present -- selected runtime lacks JIT26 debug-mapping; TXM debugger JIT cannot run it (gen2 issue#3 follow-up)");
                 fix = "崩溃原因 = 当前实例选用的 Java 运行时缺少 JIT26 调试映射实现（启动前二进制探针已实证其 libjvm 不含 JIT26 特征：XNU_HAS_TXM/DeviceHasTXM/Got JIT mapping 全缺）。你的 JIT 环境（TXM 调试 JIT，StikJIT/StikDebug 家族）只能执行镜像轨内存，而该运行时即使挂着镜像轨旗标也从不发起映射请求 → 代码缓存页不可执行，首次取指即崩。处置：对该实例改用 Java 17 运行时（内置 jre17 构建经反汇编验证含 JIT26 调试映射），或把 StikJIT/StikDebug 更新到最新版后重试；若换 Java 17 后仍崩且日志出现 Got JIT mapping / mapping at RW= 行，则属映射假阳性（调试器通道空壳，任何 Java 版本都无法工作，见映射假阳性处置）。 EN: Crash cause = the Java runtime selected for this instance lacks the JIT26 debug-mapping implementation (its libjvm was binary-probed before launch and carries none of the JIT26 markers: XNU_HAS_TXM / DeviceHasTXM / 'Got JIT mapping' all absent). Your JIT environment (TXM debugger JIT, StikJIT/StikDebug family) can only execute mirror-track memory, and this runtime never issues the mapping request even with the mirror flag present -> code-cache pages are never executable, first instruction fetch crashes. Fix: switch this instance to a Java 17 runtime (the bundled jre17 build is verified by disassembly to carry the JIT26 debug-mapping), or update StikJIT/StikDebug to the latest build and retry; if a Java 17 runtime also crashes with 'Got JIT mapping' / 'mapping at RW=' lines in the log, the debugger-side JIT26 channel is a fake-positive (hollow mapping -- no Java version can work), see the mapping fake-positive guidance.";
