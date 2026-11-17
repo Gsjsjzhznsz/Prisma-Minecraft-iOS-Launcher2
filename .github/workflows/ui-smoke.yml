@@ -37,7 +37,7 @@ jobs:
   smoke:
     name: UI Fluent smoke
     runs-on: macos-15
-    timeout-minutes: 40   # ★Task441：all 模式扩四腿（+shell 真壳冒烟），25→40
+    timeout-minutes: 50   # ★Task442（判例 N+29）：拥塞窗口四腿实测逼近 40min 上限——50min 兜底
 
     steps:
       - name: Checkout repository

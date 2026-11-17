@@ -45,7 +45,7 @@ jobs:
     env:
       HOMEBREW_NO_AUTO_UPDATE: "1"
       HOMEBREW_NO_INSTALL_CLEANUP: "1"
-    timeout-minutes: 60
+    timeout-minutes: 90   # ★Task442（判例 N+29）：拥塞窗口+新文件冷缓存实测超 60min 基线被 timeout cancelled——90min 兜底（健康 run 仍 8-13min 不受影响）
 
     steps:
       # ★ Task223 上游同步（upstream 2fbac63ef）：优先 Xcode ≥26 —— 产物拿到
@@ -495,7 +495,7 @@ jobs:
   smoke:
     name: UI Fluent smoke (syntax + preview + shell)
     runs-on: macos-15
-    timeout-minutes: 40   # ★Task441：all 模式扩四腿（+shell 真壳冒烟），25→40
+    timeout-minutes: 50   # ★Task441 四腿扩容 25→40 + ★Task442 判例 N+29 拥塞兜底 40→50
 
     steps:
       - name: Checkout repository
