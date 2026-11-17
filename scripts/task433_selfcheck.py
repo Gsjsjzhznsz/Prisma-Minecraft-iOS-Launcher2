@@ -126,8 +126,24 @@ if '--selftest' in sys.argv:
         print('ok  S-5 反向：通道自证探针接线摘除 -> A17 FAIL（符合预期）')
     else:
         print('S-5 未翻红（自证探针接线探针失效）'); bad += 1
+    # S-6（★Task438）：canned ping-ack 判别被摘（判定恒 NO）→ A18 必翻红
+    #      （判别摘除后 canned 区 fault 会回到不定罪前的旧定罪语义——判决
+    #      诚实化倒退，门必须拦住）
+    def a18_pred(src):
+        return ('BOOL ame437_cannedAck = ((uint32_t)(uintptr_t)ame437_region) == 0x690000E0u;' in src and
+                'ame437_probe_canned.txt' in src and
+                'not a conviction' in src and
+                'verdict=inconclusive' in src)
+    inj_jl4 = jl_code.replace(
+        'BOOL ame437_cannedAck = ((uint32_t)(uintptr_t)ame437_region) == 0x690000E0u;',
+        'BOOL ame437_cannedAck = NO;')
+    ok = a18_pred(jl_code) and (not a18_pred(inj_jl4))
+    if ok:
+        print('ok  S-6 反向：canned ping-ack 判别摘除 -> A18 FAIL（符合预期）')
+    else:
+        print('S-6 未翻红（canned 判别探针失效）'); bad += 1
     if bad == 0:
-        print('selftest OK（5 探针全部翻红）')
+        print('selftest OK（6 探针全部翻红）')
         sys.exit(0)
     sys.exit(1)
 
@@ -196,7 +212,7 @@ check('A16 main_hook 映射假阳性分支（jit26_mapping_shadow + 双通道判
       '"jit26_mapping_shadow"' in mh_code and
       'ame437_gotmap' in mh_code and 'ame437_mapline' in mh_code and
       'ame437_probe_shadow.txt' in mh_code and
-      '换 Java 17/21/25 都没用' in mh_code and
+      '换 Java 版本没用' in mh_code and
       'mapping fake-positive' in mh_code and
       'JIT26 镜像通道假阳性' in mh_code and
       mh_code.index('if (ame437_shadow)') < mh_code.index('else if (ame434_jit26Missing)'))
@@ -213,6 +229,34 @@ check('A17 JavaLauncher JIT26 通道自证探针（真调用 + 三信号 + marke
       'ame437_probe_shadow.txt' in jl_code and
       'unlink(ame437_path)' in jl_code and
       jl_code.count('ame437_selfVerifyJit26Channel(result);') == 1)
+
+print('== A18/A19 组：Task438 探针判决诚实化 + per-app 脚本指引（二代 issue#3 三轮装机跟进）==')
+
+# A18: 探针判决诚实化——canned ping-ack 魔数判别（0x690000E0 低 32 位），
+#      魔数区 fault 落 inconclusive marker（不定罪），非魔数真区域 fault 才
+#      定罪 shadow marker，双 marker 互斥新鲜度（命中一路清另一路）。
+check('A18 探针判决诚实化（canned 不定罪 / 真区域定罪 / 双 marker 互斥清）',
+      'BOOL ame437_cannedAck = ((uint32_t)(uintptr_t)ame437_region) == 0x690000E0u;' in jl_code and
+      'ame437_probe_canned.txt' in jl_code and
+      'not a conviction' in jl_code and
+      'on a NON-magic region' in jl_code and
+      'verdict=inconclusive' in jl_code and
+      'mapping fake-positive conviction' in jl_code and
+      jl_code.count('ame437_probe_canned.txt') >= 3)
+
+# A19: main_hook shadow 分支文案重写——per-app 脚本重分配三步指引
+#      （Assign Script / 删除重指派 / 移除重开），三运行时客户端逐指令同构
+#      实锤句，marker 双味感知；被装机证伪的「更新调试器 app」主建议在
+#      shadow 分支退役（旧英文句只存在于旧 shadow 文案，其它分支短语
+#      形态不同，可作精确负断言）。
+check('A19 shadow 文案重写（Assign Script 三步指引 + 证伪主建议退役）',
+      'Assign Script' in mh_code and
+      'UniversalJIT26.js' in mh_code and
+      '逐指令同构' in mh_code and
+      'ame437_probe_canned.txt' in mh_code and
+      'conviction' in mh_code and
+      'per-app JIT script handshake state' in mh_code and
+      'update StikJIT/StikDebug to the latest build (older JIT scripts flaw' not in mh_code)
 
 print(f'\n== task433_selfcheck: {passed} passed, {len(fails)} failed ==')
 if fails:

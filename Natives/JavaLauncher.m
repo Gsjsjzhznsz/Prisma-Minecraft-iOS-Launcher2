@@ -349,10 +349,15 @@ static void ame434_probeJit26Runtime(NSString *javaHome) {
 //   （与 dyld_bypass redirectFunctionMirrored 同协议窗口：init_bypass
 //   在紧随其后就会走 PrepareRegion，通道若不能应答 0xf00d 本来也活不了）
 //   → sys_icache_invalidate → 真调用 → 校验返回值；SIGTRAP/SIGBUS/SIGSEGV
-//   任一在窗即判通道假阳性 → ame437_probe_shadow.txt marker（fopen+fsync
-//   通道，ame273 消费）+ 取证日志。会话继续（零回归：崩时 ame273 新分支
-//   jit26_mapping_shadow 给精确指引）；探针通过 = 清历史 marker（新鲜度
-//   语义与 ame434 相同）。
+//   任一在窗即落 marker（fopen+fsync 通道，ame273 消费）+ 取证日志。
+//   ★Task438 判决诚实化（三轮装机跟进）：探针 region 若为 canned ping-ack
+//   魔数（低 32 位 0x690000E0——健康 Universal 脚本的正常应答，非真实分
+//   配，三代装机实录恒为 0xcccccccc690000e0），对它写指令必然 fault 且
+//   健康会话同样发生 → 不定罪，落 ame437_probe_canned.txt（inconclusive）
+//   并清历史定罪 marker；仅非魔数真区域 fault 才定罪（ame437_probe_shadow
+//   .txt）。通道真判决 = libjvm 64MB 应答质量 + 崩溃签名轴（ame273）。
+//   会话继续（零回归：崩时 ame273 新分支 jit26_mapping_shadow 给精确指
+//   引）；探针通过 = 清双 marker（新鲜度语义与 ame434 相同）。
 static sigjmp_buf ame437_verifyEnv;
 static volatile sig_atomic_t ame437_verifyStep = 0;   // 1=write 2=prepare 3=icache 4=call 5=verify
 
@@ -401,26 +406,76 @@ static void ame437_selfVerifyJit26Channel(void *ame437_region) {
     const char *ame437_home = getenv("POJAV_HOME");
     char ame437_path[1024];
     BOOL ame437_havePath = NO;
+    // ★Task438（二代 issue#3 三轮装机跟进）：判决诚实化——canned ping-ack
+    //   判别。装机三轮实锤（StikJIT 会话 / 642025264 / StikDebug 3.2.2 会话）
+    //   探针 region 恒为 0xcccccccc690000e0：低 32 位 = 0x690000E0 协议
+    //   ping-ack 魔数（一代 legacy 检查的「健康」分支恰以该魔数为通过条件，
+    //   若健康 Universal 脚本对 1 页探针请求做真实分配，一代会杀掉每个健康
+    //   启动——所以 canned ping-ack 是健康脚本的正常应答，不是分配）。
+    //   对 canned 区写指令必然 fault（该地址从未映射）——这一失败在健康
+    //   会话同样发生，不能给通道定死刑。三会话 64MB 请求应答各不相同
+    //   （0x700b228000 / 0x7124108000 / 0x7009858000，看似真实分配）但 RX
+    //   读回全零——「canned ping-ack + 真实请求假落地」的脚本态，定罪权
+    //   在崩溃签名 + 映射应答行轴（main_hook ame273），探针只对「非魔数
+    //   真区域死亡」定罪。双 marker 语义：
+    //   ame437_probe_shadow.txt   = 非魔数区域 fault（真·假阳性定罪）
+    //   ame437_probe_canned.txt   = 魔数区域 fault（预期行为，不定罪，取证）
+    BOOL ame437_cannedAck = ((uint32_t)(uintptr_t)ame437_region) == 0x690000E0u;
     if (ame437_home != NULL) {
-        snprintf(ame437_path, sizeof(ame437_path), "%s/ame437_probe_shadow.txt", ame437_home);
+        snprintf(ame437_path, sizeof(ame437_path), "%s/%s", ame437_home,
+                 ame437_cannedAck ? "ame437_probe_canned.txt" : "ame437_probe_shadow.txt");
         ame437_havePath = YES;
     }
     if (ame437_verdict == 0) {
         NSLog(@"[Ame437] JIT26 channel self-verify PASSED (write + prepare + icache + call + ret==0x1337) -- debugger JIT26 channel really works");
-        if (ame437_havePath) unlink(ame437_path);   // 新鲜度：通道健康即清历史 shadow marker
-    } else {
-        static const char *ame437_stepName[] = { "", "write (RW side dead)", "prepare (brk0xf00d unserviced)", "icache", "exec (RX fetch fault -- mapping hollow)", "verify (bad return value)" };
+        if (ame437_havePath) unlink(ame437_path);   // 新鲜度：通道健康即清历史 marker
+        if (ame437_home != NULL) {
+            char ame437_other[1024];
+            snprintf(ame437_other, sizeof(ame437_other), "%s/%s", ame437_home,
+                     ame437_cannedAck ? "ame437_probe_shadow.txt" : "ame437_probe_canned.txt");
+            unlink(ame437_other);
+        }
+    } else if (ame437_cannedAck) {
+        // ★Task438：canned ping-ack 区 fault = 预期行为（健康会话同样如此），
+        //   不定罪——落 inconclusive 取证 marker，并清历史定罪 marker（防
+        //   上一轮定罪污染本轮判读）。真判决由 libjvm 64MB 应答 + 崩溃签名
+        //   轴给出（ame273）。
+        static const char *ame437_stepName[] = { "", "write (canned ping-ack region -- not a real allocation)", "prepare", "icache", "exec", "verify" };
         const char *ame437_kind = (ame437_verdict >= 1 && ame437_verdict <= 5) ? ame437_stepName[ame437_verdict] : "unknown";
-        NSLog(@"[Ame437] JIT26 channel self-verify FAILED at step %d (%s) -- debugger granted the mapping but the executable view never got backed (mapping fake-positive, gen2 issue#3 layer5); ame437_probe_shadow.txt armed", ame437_verdict, ame437_kind);
+        NSLog(@"[Ame437] probe region is the canned ping-ack (0x690000E0 low-32, expected for healthy Universal scripts too) -- write fault at step %d is EXPECTED, not a conviction; backing verdict deferred to libjvm 64MB grant + crash signature (Task438); ame437_probe_canned.txt armed", ame437_verdict);
         if (ame437_havePath) {
             FILE *ame437_f = fopen(ame437_path, "w");
             if (ame437_f != NULL) {
-                fprintf(ame437_f, "time=%lld\nkind=%s\nstep=%d\nregion=%p\nreason=jit26 channel self-verify failed -- mapping fake-positive (Task437, gen2 issue#3 layer5)\n",
+                fprintf(ame437_f, "time=%lld\nkind=%s\nstep=%d\nregion=%p\nverdict=inconclusive (canned ping-ack region is not a real allocation; write fault expected in healthy sessions too)\nreason=backing verdict deferred to libjvm 64MB grant + crash signature (Task438, gen2 issue#3 round3)\n",
                         (long long)time(NULL), ame437_kind, ame437_verdict, ame437_region);
                 fflush(ame437_f);
                 fsync(fileno(ame437_f));
                 fclose(ame437_f);
             }
+        }
+        if (ame437_home != NULL) {
+            char ame437_shadow[1024];
+            snprintf(ame437_shadow, sizeof(ame437_shadow), "%s/ame437_probe_shadow.txt", ame437_home);
+            unlink(ame437_shadow);
+        }
+    } else {
+        static const char *ame437_stepName[] = { "", "write (RW side dead)", "prepare (brk0xf00d unserviced)", "icache", "exec (RX fetch fault -- mapping hollow)", "verify (bad return value)" };
+        const char *ame437_kind = (ame437_verdict >= 1 && ame437_verdict <= 5) ? ame437_stepName[ame437_verdict] : "unknown";
+        NSLog(@"[Ame437] JIT26 channel self-verify FAILED at step %d (%s) on a NON-magic region -- debugger allocated a real-looking page that is dead (mapping fake-positive CONVICTION, gen2 issue#3 layer5); ame437_probe_shadow.txt armed", ame437_verdict, ame437_kind);
+        if (ame437_havePath) {
+            FILE *ame437_f = fopen(ame437_path, "w");
+            if (ame437_f != NULL) {
+                fprintf(ame437_f, "time=%lld\nkind=%s\nstep=%d\nregion=%p\nreason=jit26 channel self-verify failed on a real-looking region -- mapping fake-positive conviction (Task437, refined by Task438)\n",
+                        (long long)time(NULL), ame437_kind, ame437_verdict, ame437_region);
+                fflush(ame437_f);
+                fsync(fileno(ame437_f));
+                fclose(ame437_f);
+            }
+        }
+        if (ame437_home != NULL) {
+            char ame437_canned[1024];
+            snprintf(ame437_canned, sizeof(ame437_canned), "%s/ame437_probe_canned.txt", ame437_home);
+            unlink(ame437_canned);
         }
     }
 }

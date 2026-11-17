@@ -704,19 +704,29 @@ static void ame273_writeCrashReport(int code) {
             //   通道假阳性是比运行时缺实现更深的病灶：同一通道下任何运行时
             //   都活不了（报告者按 Task434 指引切 Java 17 实测仍崩 = 装机
             //   642025264 实锤，hs_err Instructions 段 RX 读回全零）。判据
-            //   双通道：启动链自证探针 marker（ame437_probe_shadow.txt，
-            //   端到端真调用失败，新鲜度语义同 ame434：通过即清）∨
-            //   latestlog 映射应答行（Got JIT mapping / mapping at RW=，
-            //   Task437 扫描轴）。Task433/434 的四层防线验不出此层（特征
-            //   在 ≠ 通道工作），本分支接住并给真指引（更新调试器侧，
-            //   而非换运行时）。
+            //   双通道：启动链自证探针 marker ∨ latestlog 映射应答行
+            //   （Got JIT mapping / mapping at RW=，Task437 扫描轴）。
+            //   ★Task438（三轮装机跟进）：marker 双味——Task437 原探针对
+            //   canned ping-ack 区（0x690000E0 魔数，健康 Universal 脚本的
+            //   正常应答，非真实分配）写指令 fault 一律定罪，判决不诚实
+            //   （装机三轮实录：StikJIT / 642025264 / StikDebug 3.2.2 探针
+            //   region 恒为 0xcccccccc690000e0，低 32 位全为魔数；若健康
+            //   脚本对 1 页探针做真实分配，一代 legacy 检查会杀掉每个健康
+            //   启动）。Task438 后探针双 marker：shadow=非魔数真区域死亡
+            //   （定罪），canned=魔数区 fault（预期行为，不定罪，取证）。
+            //   本分支触发轴不变（映射应答行在场 = 授予但未落地），文案按
+            //   marker 味道取材：shadow 定罪版 vs canned 旁证版。
             const char *ame437_home = getenv("POJAV_HOME");
             BOOL ame437_shadowMarker = NO;
+            BOOL ame437_cannedMarker = NO;
             if (ame437_home != NULL) {
                 char ame437_path[1024];
                 snprintf(ame437_path, sizeof(ame437_path),
                          "%s/ame437_probe_shadow.txt", ame437_home);
                 ame437_shadowMarker = (access(ame437_path, F_OK) == 0);
+                snprintf(ame437_path, sizeof(ame437_path),
+                         "%s/ame437_probe_canned.txt", ame437_home);
+                ame437_cannedMarker = (access(ame437_path, F_OK) == 0);
             }
             // ★Task434（二代 issue#3 跟进）：运行时 JIT26 能力探针 marker 在场 =
             //   本会话镜像轨在册但所选运行时 libjvm 缺 JIT26 调试映射实现
@@ -733,9 +743,10 @@ static void ame273_writeCrashReport(int code) {
             }
             BOOL ame437_shadow = ame437_shadowMarker || ame437_gotmap || ame437_mapline;
             if (ame437_shadow) {
-                NSLog(@"[Ame437] SIGBUS+call_stub with mapping-response lines%s -- JIT26 channel fake-positive: debugger granted the mapping but the RX view was never backed (gen2 issue#3 layer5)",
-                      ame437_shadowMarker ? " + ame437_probe_shadow.txt present" : "");
-                fix = "映射拿到了、代码也写进去了，但可执行视图是空壳（JIT26 映射假阳性，第五层病灶）：调试器应答了映射地址却从未落地 RW/RX 别名（内容同步与执行授权双缺），崩点就在刚拿到的 RX 区域内首取指。这不是启动器或 Java 运行时的问题，换 Java 17/21/25 都没用（装机实测：按指引切 Java 17 后同崩）。处置：把 StikJIT/StikDebug 更新到最新版（旧版 JIT 脚本对镜像映射请求的应答有缺陷——只回地址不落地别名），或改用其他 JIT 开启工具（SideStore/JitStreamer-EB 等）后重试；启动器侧四层防线（镜像轨保留/能力探针/自救闸/通道自证探针）均已验证健康，无需在启动器侧再排查。 EN: The mapping was granted and the code was written, but the executable view is a hollow shell (JIT26 mapping fake-positive, layer 5): the debugger acknowledged the mapping address yet never actually backed the RW/RX alias (neither content sync nor execute authorization landed), so the crash is the first instruction fetch inside the freshly granted RX region. This is not a launcher or Java-runtime problem -- switching Java 17/21/25 does not help (on-device test: Java 17 crashes identically when following the previous advice). Fix: update StikJIT/StikDebug to the latest build (older JIT scripts flaw their mirror-mapping response -- they return an address without backing the alias), or switch to another JIT enabler (SideStore/JitStreamer-EB) and retry; all four launcher-side defenses (mirror-track keep / capability probe / self-rescue gate / channel self-verify probe) have verified healthy.";
+                NSLog(@"[Ame437] SIGBUS+call_stub with mapping-response lines%s%s -- JIT26 channel fake-positive: debugger granted the mapping but the RX view was never backed (gen2 issue#3 layer5; Task438 marker semantics: shadow=conviction, canned=inconclusive)",
+                      ame437_shadowMarker ? " + ame437_probe_shadow.txt (conviction)" : "",
+                      ame437_cannedMarker ? " + ame437_probe_canned.txt (inconclusive, ping-ack canned)" : "");
+                fix = "映射拿到了、代码也写进去了，但可执行视图是空壳（JIT26 映射假阳性，第五层病灶）：调试器应答了映射地址却从未真正落地可执行别名，崩点就在刚拿到的 RX 区域内首取指。三轮装机取证定位：问题在调试器侧对这个 app 的 JIT 脚本握手态——brk 握手 ping 应答正常（协议魔数在），但真实的 64MB 内存请求只拿到地址、内容从未落地（同会话探针应答恒为 canned 魔数 0x690000E0、64MB 应答每次都不同却全是空壳）。这不是启动器或 Java 运行时的问题：三个内置运行时（Java 17/21/25）的 JIT26 客户端经二进制反汇编逐指令同构，换 Java 版本没用（装机实测切 17 后同崩）；调试器 app 本身也没坏——同一台设备同配置启动一代 Prisma 6.5.5/7.0.0 正常（你自己的对比）。处置（按顺序）：①在 StikDebug 里对本 app 重新分配 JIT 脚本：长按本启动器 → Assign Script → 选 Documents 目录里的 UniversalJIT26.js（启动器每次启动都会自动导出到 Documents）；②如果已分配过，先删除该分配再重新指派（per-app 脚本态会残留，更新 StikDebug 版本不会清掉它——装机实录 3.2.2 更新后同崩）；③仍不行则在 StikDebug 里彻底移除本 app 的 JIT 记录后重新开启，或换 JIT 开启方式（SideStore/JitStreamer-EB 等）。启动器侧四层防线（镜像轨保留/能力探针/自救闸/通道自证探针）均已验证健康，无需在启动器侧再排查。 EN: The mapping was granted and the code was written, but the executable view is a hollow shell (JIT26 mapping fake-positive, layer 5). Three on-device rounds pinpoint it: the defect is in the debugger's per-app JIT script handshake state for THIS app -- the brk handshake ping answers fine (protocol magic present), but real 64MB requests only receive an address whose contents never land (probe response is the constant canned magic 0x690000E0; the 64MB grant address differs every session yet is always hollow). This is not a launcher or Java-runtime problem: the JIT26 clients of all three bundled runtimes (Java 17/21/25) are instruction-for-instruction identical by binary disassembly, so switching Java versions does not help (on-device: Java 17 crashes identically); the debugger app itself is fine -- the same tool and config runs gen-1 Prisma 6.5.5/7.0.0 normally on this device (your own comparison). Fix, in order: (1) in StikDebug, re-assign the JIT script for THIS app: long-press the launcher -> Assign Script -> pick UniversalJIT26.js from the launcher's Documents folder (exported automatically at every startup); (2) if a script is already assigned, REMOVE it and re-assign (per-app script state is sticky -- updating StikDebug does not clear it, on-device 3.2.2 crashed the same after the update); (3) if that fails, fully remove this app's JIT entry in StikDebug and re-enable, or switch to another JIT enabler (SideStore/JitStreamer-EB). All four launcher-side defenses (mirror-track keep / capability probe / self-rescue gate / channel self-verify probe) have verified healthy.";
             } else if (ame434_jit26Missing) {
                 NSLog(@"[Ame434] SIGBUS+call_stub with ame434_jit26_missing.txt present -- selected runtime lacks JIT26 debug-mapping; TXM debugger JIT cannot run it (gen2 issue#3 follow-up)");
                 fix = "崩溃原因 = 当前实例选用的 Java 运行时缺少 JIT26 调试映射实现（启动前二进制探针已实证其 libjvm 不含 JIT26 特征：XNU_HAS_TXM/DeviceHasTXM/Got JIT mapping 全缺）。你的 JIT 环境（TXM 调试 JIT，StikJIT/StikDebug 家族）只能执行镜像轨内存，而该运行时即使挂着镜像轨旗标也从不发起映射请求 → 代码缓存页不可执行，首次取指即崩。处置：对该实例改用 Java 17 运行时（内置 jre17 构建经反汇编验证含 JIT26 调试映射），或把 StikJIT/StikDebug 更新到最新版后重试；若换 Java 17 后仍崩且日志出现 Got JIT mapping / mapping at RW= 行，则属映射假阳性（调试器通道空壳，任何 Java 版本都无法工作，见映射假阳性处置）。 EN: Crash cause = the Java runtime selected for this instance lacks the JIT26 debug-mapping implementation (its libjvm was binary-probed before launch and carries none of the JIT26 markers: XNU_HAS_TXM / DeviceHasTXM / 'Got JIT mapping' all absent). Your JIT environment (TXM debugger JIT, StikJIT/StikDebug family) can only execute mirror-track memory, and this runtime never issues the mapping request even with the mirror flag present -> code-cache pages are never executable, first instruction fetch crashes. Fix: switch this instance to a Java 17 runtime (the bundled jre17 build is verified by disassembly to carry the JIT26 debug-mapping), or update StikJIT/StikDebug to the latest build and retry; if a Java 17 runtime also crashes with 'Got JIT mapping' / 'mapping at RW=' lines in the log, the debugger-side JIT26 channel is a fake-positive (hollow mapping -- no Java version can work), see the mapping fake-positive guidance.";
