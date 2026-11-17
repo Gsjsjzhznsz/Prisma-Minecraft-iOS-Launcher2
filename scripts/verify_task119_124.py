@@ -30,6 +30,32 @@ def rd(path):
     with open(os.path.join(REPO, path), encoding="utf-8", errors="replace") as f:
         return f.read()
 
+# ★第 12 期整改批次二①退役容错壳（verify_task136/238 同款 [RETIRED] 家法）：
+# 旧设置页 LauncherPreferencesViewController.m 已随 Task436/440 两批退役物理
+# 删除。rd 对缺席文件不再抛 FileNotFoundError，改返空串并打印 [RETIRED] 标注
+# （诚实降级：存留面断言继续生效，退役面断言显式 SKIP）。单跑结论 = 存留面
+# 视图，非全量判定。
+import functools as _ft
+_orig_rd_119 = rd
+@_ft.wraps(_orig_rd_119)
+def rd(path, *a, **k):
+    cand = path if os.path.isabs(path) else os.path.join(REPO, path)
+    if not os.path.exists(cand):
+        print(f"  [RETIRED] {path} —— 退役批次已删，跳过相关断言（容错壳）")
+        return ""
+    return _orig_rd_119(path, *a, **k)
+
+SKIP = 0
+
+def skip(name, retired_path, why=""):
+    """退役面断言显式 SKIP：宿主文件已随退役批次删除（[RETIRED] 家法 (b)。"""
+    global SKIP
+    SKIP += 1
+    print(f"  [SKIP] {name} —— 断言面随退役文件 {retired_path} 整体退役（[RETIRED] 容错壳{('，' + why) if why else ''}）")
+
+def retired(path):
+    return not os.path.exists(os.path.join(REPO, path))
+
 jl = rd("Natives/JavaLauncher.m")
 lp = rd("Natives/LauncherPreferences.m")
 lph = rd("Natives/LauncherPreferences.h")
@@ -144,10 +170,14 @@ for lang in LANGS:
     check(f"C3 {lang} mobilegl_backend 死键已删 + 渲染器菜单三后端文案齐备（Task131）", ok)
 # Task 129e 重锚：iPad 紧凑菜单（_presentMenuAtLocation 私有 API）分支已
 # 退役，iPhone/iPad 统一为悬浮 actionSheet/popover；✓ 存储值比较保留。
-check("C4 pick 弹窗 ✓ 标记按存储值比较（Task129e 统一单分支）",
+# ★第 12 期整改批次二①重锚（Task240 UIMenu 换装）：pick 行换系统原生 UIMenu
+# （iPhone/iPad 一致，旧 actionSheet/popover 双轨退役）——popover
+# sourceView=cell 锚随双轨退役；✓ 存储值比较（Task121 口径）与
+# _presentMenuAtLocation 私有 API 退役闸保留。
+check("C4 pick 弹窗 ✓ 标记按存储值比较（Task240 重锚：UIMenu 换装单轨，ame121_curs 存储值比较保留）",
       "ame121_cur " in plpt and "ame121_curPads" not in plpt
       and "[interaction _presentMenuAtLocation:location];" not in plpt
-      and "popoverPresentationController.sourceView = cell;" in plpt)
+      and "ame240_items" in plpt and "[ame121_curs isEqualToString:value]" in plpt)
 check("C5 选中后 cell 显示本地化标签（统一分支 pickList[i]）",
       plpt.count("cell.detailTextLabel.text = pickList[i];") >= 1)
 # 引用完整性：LPVC/LauncherPreferences 引用的 preference.* 键都有 en 文案
@@ -170,9 +200,13 @@ def _ame_read_worklog(path):
     except OSError:
         return ""
 
+# ★第 12 期整改批次二①路径修复（verify_task136.py:33 家法）：外层 worklog
+# 原硬编码仓库外绝对路径，改相对/动态推导（仓内 worklog-archive.md 为主要
+# 证据面），TASK124_WORKLOG_DIR 环境变量覆盖保留。
+_ame_worklog_outer = os.environ.get("TASK124_WORKLOG_DIR", os.path.dirname(REPO))
 check("D3 崩溃判读入档 worklog（Task 124 条目；2026-09-22 瘦身后明细在 worklog-archive.md）",
       any("Task ID: 124" in _ame_read_worklog(p)
-          for p in ("../worklog.md", "/home/z/my-project/worklog.md",
+          for p in ("../worklog.md", os.path.join(_ame_worklog_outer, "worklog.md"),
                     "worklog-archive.md")))
 
 print("== E. 语法门 ==")
@@ -202,8 +236,14 @@ TOUCHED = ["Natives/JavaLauncher.m", "Natives/LauncherPreferences.m",
            "Natives/GameSurfaceView.m", "Natives/SurfaceViewController.m",
            "Natives/ctxbridges/gl_bridge.m", "Natives/ctxbridges/mgl_fsr.mm"]
 for p in TOUCHED:
+    if retired(p):
+        skip(f"E1 {os.path.basename(p)} 大括号平衡", p)
+        continue
     check(f"E1 {os.path.basename(p)} 大括号平衡", balance(rd(p)) == 0)
 for p in TOUCHED:
+    if retired(p):
+        skip(f"E2 {os.path.basename(p)} 裸括号 delta 与 HEAD 一致", p, "宿主已退役，HEAD 对拍基线不复存在")
+        continue
     cur = rd(p)
     head = subprocess.run(["git", "-C", REPO, "show", f"HEAD:{p}"],
                           capture_output=True, text=True).stdout or cur
@@ -236,5 +276,5 @@ r = subprocess.run([sys.executable, os.path.join(REPO, "scripts/verify_task112_1
 check("F1 verify_task112_118 ALL PASS", r.returncode == 0,
       r.stdout.strip().splitlines()[-1] if r.stdout else r.stderr[:200])
 
-print(f"\n==== RESULT: {'ALL PASS' if FAIL == 0 else 'FAILED'} ({PASS}/{PASS + FAIL}) ====")
+print(f"\n==== RESULT: {'ALL PASS' if FAIL == 0 else 'FAILED'} ({PASS}/{PASS + FAIL}, skipped {SKIP}) ====")
 sys.exit(0 if FAIL == 0 else 1)

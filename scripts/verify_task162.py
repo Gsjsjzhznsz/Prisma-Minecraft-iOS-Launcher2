@@ -36,78 +36,97 @@ def rd(rel):
 # 删除。rd 对缺席文件不再抛 FileNotFoundError，改返空串并打印 [RETIRED]
 # 标注（诚实降级：存留面断言继续生效，退役面口径以 task440_selfcheck.py /
 # verify_task189.py 重生门为准）。单跑结论 = 存留面视图，非全量判定。
+# ★第 12 期整改批次二①修复：①存在性判断改用 ROOT 前缀（原用 getcwd，丢
+# BASE 前缀病根，与 verify_task235/236/238 同族）；②退役面『在位型』断言
+# 降级为显式 SKIP（[RETIRED] 家法：退役面用 SKIP 而非 FAIL）。
 import functools as _ft
 _orig_rd_440 = rd
 @_ft.wraps(_orig_rd_440)
 def rd(p, *a, **k):
-    import os as _os
-    cand = p if _os.path.isabs(p) else _os.path.join(_os.getcwd(), p)
-    if not _os.path.exists(cand):
+    cand = p if os.path.isabs(p) else os.path.join(ROOT, p)
+    if not os.path.exists(cand):
         print(f"  [RETIRED] {p} —— 退役批次已删，跳过相关断言（容错壳）")
         return ""
     return _orig_rd_440(p, *a, **k)
 
+def retired(p):
+    return not os.path.exists(os.path.join(ROOT, p))
+
 results = []
+SKIPPED = []
 def check(label, cond):
     results.append((label, bool(cond)))
     print(f"  [{'PASS' if cond else 'FAIL'}] {label}")
 
-print("== A. Profile 身份一致性（渲染器回退 auto 根因）==")
-ps = rd("Natives/ProfileSettingsViewController.m")
-check("A1 profileDictKey 属性声明（Task162 病历注）",
-      "@property (nonatomic, copy, nullable) NSString *profileDictKey;" in ps
-      and "Task162（profile 身份一致性）" in ps)
-check("A2 viewDidLoad：profileName 键存在时记录 profileDictKey",
-      "if (PLProfiles.current.profiles[self.profileName]) {" in ps
-      and "self.profileDictKey = self.profileName;" in ps)
-check("A3 viewDidLoad：直传 profile 路径的 name 反查兜底",
-      "NSString *ame162_probeName = self.profile[@\"name\"];" in ps)
-check("A4 saveSettings：ame162_targetKey = profileDictKey 优先，键≠名时打日志",
-      "NSString *ame162_targetKey = self.profileDictKey.length > 0 ? self.profileDictKey : profName;" in ps
-      and "no phantom write" in ps)
-check("A5 saveSettings：existing 读源 = ame162_targetKey（读源同写目标，防残缺条目覆写）+ 落盘写 ame162_targetKey",
-      "NSMutableDictionary *existing = [PLProfiles.current.profiles[ame162_targetKey] mutableCopy];" in ps
-      and "PLProfiles.current.profiles[ame162_targetKey] = existing;" in ps
-      and "PLProfiles.current.profiles[profName] = existing;" not in ps
-      and "[PLProfiles.current.profiles[profName] mutableCopy]" not in ps)
-check("A5b saveSettings：existing 空基底回退 working copy（保完整字段）",
-      "existing = [self.profile mutableCopy] ?: [NSMutableDictionary dictionary];" in ps)
-check("A6 saveSettings：renderer 写入日志显示目标键",
-      "NSLog(@\"[ProfileSettings] Task150: renderer written to PROFILE ONLY '%@' = %@\",\n              ame162_targetKey, self.selectedRenderer);" in ps.replace("\r", ""))
-check("A7 actionDone：旧键 ame162_oldKey = profileDictKey ?: originalName；删旧键建新键",
-      "NSString *ame162_oldKey = self.profileDictKey.length > 0 ? self.profileDictKey : self.originalName;" in ps
-      and "[PLProfiles.current.profiles removeObjectForKey:ame162_oldKey];" in ps
-      and "PLProfiles.current.profiles[newName] = self.profile;" in ps)
-check("A8 actionDone：重命名同步 profileDictKey + selectedProfileName 按旧键判断",
-      "self.profileDictKey = newName;" in ps
-      and "[PLProfiles.current.selectedProfileName isEqualToString:ame162_oldKey]" in ps)
-check("A9 actionDone：名称没变分支按键落位",
-      "PLProfiles.current.profiles[ame162_oldKey] = self.profile;" in ps)
+def skip(label, path, why=""):
+    """退役面断言显式 SKIP：宿主文件已随退役批次删除（[RETIRED] 家法 (b)）。"""
+    SKIPPED.append(label)
+    print(f"  [SKIP] {label} —— 断言面随退役文件 {path} 整体退役（[RETIRED] 容错壳{('，' + why) if why else ''}）")
 
-ln = rd("Natives/LauncherNavigationController.m")
-check("A10 主页版本选择器：键快照属性（Task162 注）",
-      "@property(nonatomic, strong) NSArray<NSString *> *ame162PickerKeys;" in ln
-      and "Task162（选择器键稳定化）" in ln)
-check("A11 ame162RefreshPickerKeys：排序快照",
-      "- (void)ame162RefreshPickerKeys {" in ln
-      and "sortedArrayUsingSelector:@selector(localizedCaseInsensitiveCompare:)" in ln)
-check("A12 reloadProfileList：快照重建 + selectedProfileAt 按快照键定位",
-      "[self ame162RefreshPickerKeys];" in ln
-      and "self.profileSelectedAt = (int)[self.ame162PickerKeys indexOfObject:PLProfiles.current.selectedProfileName];" in ln)
-check("A13 didSelectRow：selectedProfileName 落字典键（不再落 titleForRow 的 name）",
-      "PLProfiles.current.selectedProfileName = self.ame162PickerKeys[row];" in ln
-      and "PLProfiles.current.selectedProfileName = self.versionTextField.text;" not in ln)
-check("A14 numberOfRows：行数=快照数 + 漂移自愈重建",
-      "if (self.ame162PickerKeys.count != PLProfiles.current.profiles.count) {" in ln
-      and "return self.ame162PickerKeys.count;" in ln)
-check("A15 titleForRow/enumerateImageView：经快照键定位 + 越界防御",
-      "NSDictionary *profile = PLProfiles.current.profiles[self.ame162PickerKeys[row]];" in ln
-      and "NSString *name = profile[@\"name\"];" in ln
-      and "PLProfiles.current.profiles[self.ame162PickerKeys[row]][@\"icon\"]" in ln
-      and "row < 0 || row >= (NSInteger)self.ame162PickerKeys.count" in ln
-      and "row >= 0 && row < (NSInteger)self.ame162PickerKeys.count" in ln)
-check("A16 allValues 行号索引全部退役（选择器三处）",
-      "profiles.allValues[row]" not in ln)
+print("== A. Profile 身份一致性（渲染器回退 auto 根因）==")
+if retired("Natives/ProfileSettingsViewController.m"):
+    print(f"  [RETIRED] Natives/ProfileSettingsViewController.m —— 退役批次已删，跳过相关断言（容错壳）")
+    skip("A1 profileDictKey 属性声明 / A2 viewDidLoad profileName 键记录 / A3 name 反查兑底 / A4 ame162_targetKey 优先 / A5 existing 读源同写目标 / A5b 空基底回退 working copy / A6 renderer 写入日志目标键 / A7 actionDone 删旧键建新键 / A8 重命名同步 profileDictKey / A9 名称没变分支按键落位", "Natives/ProfileSettingsViewController.m", "宿主已删除，在位型断言随 [RETIRED] 家法降级")
+else:
+    ps = rd("Natives/ProfileSettingsViewController.m")
+    check("A1 profileDictKey 属性声明（Task162 病历注）",
+          "@property (nonatomic, copy, nullable) NSString *profileDictKey;" in ps
+          and "Task162（profile 身份一致性）" in ps)
+    check("A2 viewDidLoad：profileName 键存在时记录 profileDictKey",
+          "if (PLProfiles.current.profiles[self.profileName]) {" in ps
+          and "self.profileDictKey = self.profileName;" in ps)
+    check("A3 viewDidLoad：直传 profile 路径的 name 反查兜底",
+          "NSString *ame162_probeName = self.profile[@\"name\"];" in ps)
+    check("A4 saveSettings：ame162_targetKey = profileDictKey 优先，键≠名时打日志",
+          "NSString *ame162_targetKey = self.profileDictKey.length > 0 ? self.profileDictKey : profName;" in ps
+          and "no phantom write" in ps)
+    check("A5 saveSettings：existing 读源 = ame162_targetKey（读源同写目标，防残缺条目覆写）+ 落盘写 ame162_targetKey",
+          "NSMutableDictionary *existing = [PLProfiles.current.profiles[ame162_targetKey] mutableCopy];" in ps
+          and "PLProfiles.current.profiles[ame162_targetKey] = existing;" in ps
+          and "PLProfiles.current.profiles[profName] = existing;" not in ps
+          and "[PLProfiles.current.profiles[profName] mutableCopy]" not in ps)
+    check("A5b saveSettings：existing 空基底回退 working copy（保完整字段）",
+          "existing = [self.profile mutableCopy] ?: [NSMutableDictionary dictionary];" in ps)
+    check("A6 saveSettings：renderer 写入日志显示目标键",
+          "NSLog(@\"[ProfileSettings] Task150: renderer written to PROFILE ONLY '%@' = %@\",\n              ame162_targetKey, self.selectedRenderer);" in ps.replace("\r", ""))
+    check("A7 actionDone：旧键 ame162_oldKey = profileDictKey ?: originalName；删旧键建新键",
+          "NSString *ame162_oldKey = self.profileDictKey.length > 0 ? self.profileDictKey : self.originalName;" in ps
+          and "[PLProfiles.current.profiles removeObjectForKey:ame162_oldKey];" in ps
+          and "PLProfiles.current.profiles[newName] = self.profile;" in ps)
+    check("A8 actionDone：重命名同步 profileDictKey + selectedProfileName 按旧键判断",
+          "self.profileDictKey = newName;" in ps
+          and "[PLProfiles.current.selectedProfileName isEqualToString:ame162_oldKey]" in ps)
+    check("A9 actionDone：名称没变分支按键落位",
+          "PLProfiles.current.profiles[ame162_oldKey] = self.profile;" in ps)
+
+if retired("Natives/LauncherNavigationController.m"):
+    print(f"  [RETIRED] Natives/LauncherNavigationController.m —— 退役批次已删，跳过相关断言（容错壳）")
+    skip("A10 键快照属性 / A11 排序快照 / A12 快照重建 / A13 selectedProfileName 落字典键 / A14 行数=快照数 / A15 快照键定位+越界防御 / A16 allValues 索引退役", "Natives/LauncherNavigationController.m", "宿主已删除，在位型断言随 [RETIRED] 家法降级")
+else:
+    ln = rd("Natives/LauncherNavigationController.m")
+    check("A10 主页版本选择器：键快照属性（Task162 注）",
+          "@property(nonatomic, strong) NSArray<NSString *> *ame162PickerKeys;" in ln
+          and "Task162（选择器键稳定化）" in ln)
+    check("A11 ame162RefreshPickerKeys：排序快照",
+          "- (void)ame162RefreshPickerKeys {" in ln
+          and "sortedArrayUsingSelector:@selector(localizedCaseInsensitiveCompare:)" in ln)
+    check("A12 reloadProfileList：快照重建 + selectedProfileAt 按快照键定位",
+          "[self ame162RefreshPickerKeys];" in ln
+          and "self.profileSelectedAt = (int)[self.ame162PickerKeys indexOfObject:PLProfiles.current.selectedProfileName];" in ln)
+    check("A13 didSelectRow：selectedProfileName 落字典键（不再落 titleForRow 的 name）",
+          "PLProfiles.current.selectedProfileName = self.ame162PickerKeys[row];" in ln
+          and "PLProfiles.current.selectedProfileName = self.versionTextField.text;" not in ln)
+    check("A14 numberOfRows：行数=快照数 + 漂移自愈重建",
+          "if (self.ame162PickerKeys.count != PLProfiles.current.profiles.count) {" in ln
+          and "return self.ame162PickerKeys.count;" in ln)
+    check("A15 titleForRow/enumerateImageView：经快照键定位 + 越界防御",
+          "NSDictionary *profile = PLProfiles.current.profiles[self.ame162PickerKeys[row]];" in ln
+          and "NSString *name = profile[@\"name\"];" in ln
+          and "PLProfiles.current.profiles[self.ame162PickerKeys[row]][@\"icon\"]" in ln
+          and "row < 0 || row >= (NSInteger)self.ame162PickerKeys.count" in ln
+          and "row >= 0 && row < (NSInteger)self.ame162PickerKeys.count" in ln)
+    check("A16 allValues 行号索引全部退役（选择器三处）",
+          "profiles.allValues[row]" not in ln)
 
 print("== A2b. Profile 身份决策镜像（Python）==")
 def resolve(selected_key, profiles):
@@ -183,34 +202,42 @@ check("D4 存量已保存值不受影响（Task184 重锚：显式保存值走 e
       and "_uiEffect < BackgroundUIEffectTranslucent || _uiEffect > BackgroundUIEffectBlur" in bm)
 
 print("== E. 主页头像缓存 ==")
-nw = rd("Natives/LauncherNewsViewController.m")
-check("E1 ame162_avatarCache 会话缓存（Task162 病历注 + NSCache countLimit 16）",
-      "static NSCache<NSString *, UIImage *> *ame162_avatarCache(void) {" in nw
-      and "cache.countLimit = 16;" in nw)
-check("E2 AvatarManager 本地自定义头像优先（Task180 重锚：username 回退双参查询）",
-      "avatarForAccount:auth.authData[@\"accountId\"]" in nw
-      and "usernameFallback:auth.authData[@\"username\"]" in nw)
-check("E3 缓存命中同步上屏（不再裸网络重拉）",
-      "UIImage *ame162_cached = [ame162_avatarCache() objectForKey:avatarURL];" in nw
-      and "命中缓存：同步上屏" in nw)
-check("E4 网络成功回填缓存",
-      "[ame162_avatarCache() setObject:img forKey:avatarURL];" in nw)
+if retired("Natives/LauncherNewsViewController.m"):
+    print(f"  [RETIRED] Natives/LauncherNewsViewController.m —— 退役批次已删，跳过相关断言（容错壳）")
+    skip("E1 ame162_avatarCache 会话缓存 / E2 AvatarManager 本地头像优先 / E3 缓存命中同步上屏 / E4 网络成功回填缓存", "Natives/LauncherNewsViewController.m", "宿主已删除，在位型断言随 [RETIRED] 家法降级")
+else:
+    nw = rd("Natives/LauncherNewsViewController.m")
+    check("E1 ame162_avatarCache 会话缓存（Task162 病历注 + NSCache countLimit 16）",
+          "static NSCache<NSString *, UIImage *> *ame162_avatarCache(void) {" in nw
+          and "cache.countLimit = 16;" in nw)
+    check("E2 AvatarManager 本地自定义头像优先（Task180 重锚：username 回退双参查询）",
+          "avatarForAccount:auth.authData[@\"accountId\"]" in nw
+          and "usernameFallback:auth.authData[@\"username\"]" in nw)
+    check("E3 缓存命中同步上屏（不再裸网络重拉）",
+          "UIImage *ame162_cached = [ame162_avatarCache() objectForKey:avatarURL];" in nw
+          and "命中缓存：同步上屏" in nw)
+    check("E4 网络成功回填缓存",
+          "[ame162_avatarCache() setObject:img forKey:avatarURL];" in nw)
 
 print("== F. 账号列表自动刷新 ==")
-al = rd("Natives/AccountListViewController.m")
-check("F1 既有的 FCL 风格 reloadAccountList 保持唯一实现（CI 热修：删除我方重复定义）",
-      al.count("- (void)reloadAccountList {") == 1
-      and "重新加载账户列表并刷新表格（FCL 风格：登录/删除后刷新卡片视图）" in al
-      and "勿在此重复实现（CI 实锤 duplicate declaration）" in al)
-check("F2 viewWillAppear 重扫（复用既有 reloadAccountList）",
-      "- (void)viewWillAppear:(BOOL)animated {" in al
-      and "[self reloadAccountList];" in al
-      and "[self.tableView reloadData];\n}" not in al.split("- (void)viewWillAppear")[1][:400])
-check("F3 AccountChanged / UpdateAccountInfo 双通知注册",
-      'name:@"AccountChanged"' in al and 'name:@"UpdateAccountInfo"' in al)
-check("F4 通知处理主线程重扫（ame162_handleAccountsChanged → reloadAccountList）",
-      "- (void)ame162_handleAccountsChanged {" in al
-      and "dispatch_async(dispatch_get_main_queue(), ^{" in al)
+if retired("Natives/AccountListViewController.m"):
+    print(f"  [RETIRED] Natives/AccountListViewController.m —— 退役批次已删，跳过相关断言（容错壳）")
+    skip("F1 reloadAccountList 唯一实现 / F2 viewWillAppear 重扫 / F3 双通知注册 / F4 通知处理主线程重扫", "Natives/AccountListViewController.m", "宿主已删除，在位型断言随 [RETIRED] 家法降级")
+else:
+    al = rd("Natives/AccountListViewController.m")
+    check("F1 既有的 FCL 风格 reloadAccountList 保持唯一实现（CI 热修：删除我方重复定义）",
+          al.count("- (void)reloadAccountList {") == 1
+          and "重新加载账户列表并刷新表格（FCL 风格：登录/删除后刷新卡片视图）" in al
+          and "勿在此重复实现（CI 实锤 duplicate declaration）" in al)
+    check("F2 viewWillAppear 重扫（复用既有 reloadAccountList）",
+          "- (void)viewWillAppear:(BOOL)animated {" in al
+          and "[self reloadAccountList];" in al
+          and "[self.tableView reloadData];\n}" not in al.split("- (void)viewWillAppear")[1][:400])
+    check("F3 AccountChanged / UpdateAccountInfo 双通知注册",
+          'name:@"AccountChanged"' in al and 'name:@"UpdateAccountInfo"' in al)
+    check("F4 通知处理主线程重扫（ame162_handleAccountsChanged → reloadAccountList）",
+          "- (void)ame162_handleAccountsChanged {" in al
+          and "dispatch_async(dispatch_get_main_queue(), ^{" in al)
 
 print("== G. CurseForge 免 key 可用 ==")
 cfa = rd("Natives/installer/modpack/CurseForgeAPI.m").replace("\r", "")
@@ -228,17 +255,29 @@ mch = rd("Natives/PLMirrorCenter.h")
 check("G4 PLMirrorCenter.mcimCurseForgeAPIBaseURL 唯一定义处 + 头声明",
       "+ (NSString *)mcimCurseForgeAPIBaseURL {" in mc
       and "+ (NSString *)mcimCurseForgeAPIBaseURL;" in mch)
-check("G5 6 处 UI 门控全部改用 isSourceAvailable（DownloadViewController x3 / Mod / Shader / ServerList）",
-      "![CurseForgeAPI isSourceAvailable]" in rd("Natives/DownloadViewController.m")
-      and rd("Natives/DownloadViewController.m").count("isSourceAvailable") >= 3
-      and "![CurseForgeAPI isSourceAvailable]" in rd("Natives/ModVersionViewController.m")
-      and "![CurseForgeAPI isSourceAvailable]" in rd("Natives/ShaderVersionViewController.m")
-      and "![CurseForgeAPI isSourceAvailable]" in rd("Natives/ServerListViewController.m"))
-check("G6 isAPIKeyConfigured 仅存定义处（无 UI 门控再消费）",
-      "isAPIKeyConfigured" not in rd("Natives/DownloadViewController.m")
-      and "isAPIKeyConfigured" not in rd("Natives/ModVersionViewController.m")
-      and "isAPIKeyConfigured" not in rd("Natives/ShaderVersionViewController.m")
-      and "isAPIKeyConfigured" not in rd("Natives/ServerListViewController.m"))
+# G5/G6 的四个门控宿主（旧下载中心/旧三版本页/服务器列表）已随 Task436/440
+# 退役批次物理删除；CurseForgeAPI.isSourceAvailable 恒可用语义本身由 G1-G4
+# 继续守卫。UI 门控面随宿主退役，按 [RETIRED] 家法降级 SKIP。
+_retired_ui_gates = ["Natives/DownloadViewController.m", "Natives/ModVersionViewController.m",
+                     "Natives/ShaderVersionViewController.m", "Natives/ServerListViewController.m"]
+if all(retired(_f) for _f in _retired_ui_gates):
+    print("  [RETIRED] " + ", ".join(_f.rsplit("/", 1)[1] for _f in _retired_ui_gates) + " —— 退役批次已删，跳过相关断言（容错壳）")
+    skip("G5 6 处 UI 门控全部改用 isSourceAvailable（DownloadViewController x3 / Mod / Shader / ServerList）",
+         "Natives/DownloadViewController.m 等 4 宿主", "UI 门控宿主已整体退役")
+    skip("G6 isAPIKeyConfigured 仅存定义处（无 UI 门控再消费）",
+         "Natives/DownloadViewController.m 等 4 宿主", "退役后无消费方语义真空成立")
+else:
+    check("G5 6 处 UI 门控全部改用 isSourceAvailable（DownloadViewController x3 / Mod / Shader / ServerList）",
+          "![CurseForgeAPI isSourceAvailable]" in rd("Natives/DownloadViewController.m")
+          and rd("Natives/DownloadViewController.m").count("isSourceAvailable") >= 3
+          and "![CurseForgeAPI isSourceAvailable]" in rd("Natives/ModVersionViewController.m")
+          and "![CurseForgeAPI isSourceAvailable]" in rd("Natives/ShaderVersionViewController.m")
+          and "![CurseForgeAPI isSourceAvailable]" in rd("Natives/ServerListViewController.m"))
+    check("G6 isAPIKeyConfigured 仅存定义处（无 UI 门控再消费）",
+          "isAPIKeyConfigured" not in rd("Natives/DownloadViewController.m")
+          and "isAPIKeyConfigured" not in rd("Natives/ModVersionViewController.m")
+          and "isAPIKeyConfigured" not in rd("Natives/ShaderVersionViewController.m")
+          and "isAPIKeyConfigured" not in rd("Natives/ServerListViewController.m"))
 
 print("== H. 公告（服务器推荐 + 默认值文案同步）==")
 import json
@@ -294,14 +333,18 @@ def strip_code(s):
             i += 1
     return "".join(out)
 
-for f in ["Natives/ProfileSettingsViewController.m", "Natives/LauncherNavigationController.m",
+_bal_files = ["Natives/ProfileSettingsViewController.m", "Natives/LauncherNavigationController.m",
           "Natives/BingWallpaperManager.m", "Natives/BackgroundManager.m", "Natives/BackgroundManager.h",
           "Natives/LauncherNewsViewController.m", "Natives/AccountListViewController.m",
           "Natives/DownloadViewController.m", "Natives/ModVersionViewController.m",
           "Natives/ShaderVersionViewController.m", "Natives/ServerListViewController.m",
           "Natives/PLMirrorCenter.m", "Natives/PLMirrorCenter.h",
           "Natives/installer/modpack/CurseForgeAPI.m", "Natives/installer/modpack/CurseForgeAPI.h",
-          "Natives/input_bridge_v3.m"]:
+          "Natives/input_bridge_v3.m"]
+for f in _bal_files:
+    if retired(f):
+        skip(f"I {f}: brace=0 paren=0", f, "宿主已删除，配平语义真空成立")
+        continue
     s = strip_code(rd(f))
     b = s.count("{") - s.count("}")
     p = s.count("(") - s.count(")")
@@ -316,7 +359,7 @@ check("I JavaApp/src/lwjgl/org/lwjgl/glfw/GLFW.java: brace=0 paren=0", b == 0 an
 failed = [l for l, ok in results if not ok]
 print()
 print(f"==== RESULT: {'ALL GREEN' if not failed else 'HAS FAILURES'} "
-      f"({sum(1 for _, ok in results if ok)} passed, {len(failed)} failed) ====")
+      f"({sum(1 for _, ok in results if ok)} passed, {len(SKIPPED)} skipped, {len(failed)} failed) ====")
 if failed:
     for l in failed:
         print(f"  FAILED: {l}")

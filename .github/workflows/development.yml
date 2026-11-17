@@ -158,9 +158,14 @@ jobs:
           fi
           echo "$PREFIX/bin" >> "$GITHUB_PATH"
 
-      - name: Install Java 8 (Temurin) via Homebrew
-        run: |
-          brew install --cask temurin@8
+      # ★ Task441（CI 提速第三轮）：brew cask temurin@8 换 actions/setup-java
+      #   （cask 装载器+验证步骤冷装 2-3 分钟；setup-java 工具缓存化后秒级）。
+      #   供 make 侧 javac 用（JavaApp 编译；JRE 产物本身走上方 Task257 缓存）。
+      - name: Install Java 8 (Temurin)
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '8'
 
       - name: Install brew toolchain (ldid/meson/ninja/bison/pkg-config in one pass)
         # ★ Task255（清单 12：CI 构建提速）：brew install 合并为一次调用——
@@ -304,7 +309,9 @@ jobs:
           # 影响）。首次运行冷缓存无加速，第二次起 MobileGlues+vgpu 的重编
           # 全部命中，预计省 3-4 分钟/次。
           export CCACHE_DIR="$HOME/.ccache"
-          ccache --set-config=max_size=2G || true
+          # ★Task441 提速：2G→6G（MobileGlues+vgpu 重编命中率根因之一；
+          #   shell-smoke 模拟器腿与主构建共用同一 ccache 桶，冷桶代价一次付清）
+          ccache --set-config=max_size=6G || true
           export CC="ccache clang"
           export CXX="ccache clang++"
           ccache --zero-stats 2>/dev/null || true
@@ -487,9 +494,9 @@ jobs:
   #   截图（浅/深两态），主页右栏双封面流随主页一并截入；装机前先看图。
   #   红线：不上传任何 release（仅 artifact，与 build job 同口径）。
   smoke:
-    name: UI Fluent smoke (syntax + preview)
+    name: UI Fluent smoke (syntax + preview + shell)
     runs-on: macos-15
-    timeout-minutes: 25
+    timeout-minutes: 40   # ★Task441：all 模式扩四腿（+shell 真壳冒烟），25→40
 
     steps:
       - name: Checkout repository
@@ -505,6 +512,14 @@ jobs:
       - name: Run UI Fluent smoke
         run: bash scripts/ui_fluent_smoke.sh all
 
+      # ★Task441：第四腿 shell-smoke 的 UnzipKit pin 证据随产物落盘（可审计）
+      - name: Record UnzipKit pin
+        if: always()
+        run: |
+          if [ -f build/ame-preview/unzipkit-commit.txt ]; then
+            echo "UnzipKit pin: $(cat build/ame-preview/unzipkit-commit.txt)"
+          fi
+
       - name: Upload preview artifacts (screenshots + failure logs)
         if: always()
         uses: actions/upload-artifact@v4
@@ -513,4 +528,5 @@ jobs:
           path: |
             build/ame-preview/*.png
             build/ame-preview/*.log
+            build/ame-preview/unzipkit-commit.txt
           if-no-files-found: ignore

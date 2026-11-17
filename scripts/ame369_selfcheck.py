@@ -12,7 +12,7 @@
 import os, re, sys, json
 from collections import defaultdict
 
-REPO = __import__("os").environ.get("AME_REPO") or "/home/z/my-project/repo-prisma2"   # ★Task379：沙箱克隆路径可覆盖（默认口径不变）
+REPO = __import__("os").environ.get("AME_REPO") or __import__("os").path.dirname(__import__("os").path.dirname(__import__("os").path.abspath(__file__)))   # ★Task379 环境变量可覆盖；★Task441 默认改脚本位置动态推导（第 11 期报告 5.4 节：硬编码绝对路径在干净克隆不可复现绿）
 NAT = os.path.join(REPO, 'Natives')
 RES = os.path.join(NAT, 'resources')
 fails = []

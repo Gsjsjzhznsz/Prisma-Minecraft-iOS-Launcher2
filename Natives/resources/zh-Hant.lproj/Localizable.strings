@@ -4247,7 +4247,7 @@
 "ame429.j.layer.to_front" = "置頂";
 "ame429.j.load.error" = "佈局檔案讀取失敗，請檢查 controlmap 內的 JSON 檔案";
 "ame429.j.more.discard" = "放棄變更並離開";
-"ame429.j.more.hint" = "拖動節點移動，鬆手自動吸附 8pt 網格；選中後拖角柄等比縮放；工具條「層」調整疊放次序，「樣式」整版換膚。";
+"ame429.j.more.hint" = "拖動節點移動，鬆手按吸附設定落位（吸附設定可改開關與模式）；選中後拖角柄等比縮放；工具條「層」調整疊放/重新命名/聚焦，「樣式」整版換膚或入櫃自訂，「預覽」可試按。";
 "ame429.j.more.title" = "更多";
 "ame429.j.save.error.json" = "佈局資料無法序列化為 JSON，未寫入檔案。";
 "ame429.j.save.error.json_title" = "儲存失敗";
@@ -4435,7 +4435,7 @@
 
 "ame432.vdet.datapacks.world_fmt" = "世界：%@";
 
-"ame432.vdet.modify" = "修改版本";
+"ame432.vdet.modify" = "更換載入器";
 
 "ame432.vdet.modify.confirm_body" = "將為實例「%@」安裝 %@ %@（MC %@）。\n安裝成功後實例指向新版本實體，舊版本實體保留。";
 
@@ -4541,3 +4541,45 @@
 "ame436.fav.refresh" = "重新整理遠端資訊";
 "ame436.fav.refresh_done_fmt" = "已重新整理 %lu/%lu 個收藏";
 "ame436.fav.filter_missing_hint" = "部分條目缺少該欄位資訊，缺欄位條目不過濾";
+
+// ★Task441（批次三①）：觸控布局編輯器五件對標 ZL2（錨 c62fdeaf）
+"ame441.editor.layer.rename" = "重新命名控件";
+"ame441.editor.layer.rename.hint" = "名稱寫入布局 JSON 的 name 欄位，儲存後生效";
+"ame441.editor.layer.focus" = "聚焦此控制項";
+"ame441.editor.layer.focus.sub" = "只顯示/只編輯該控制項，其餘調暗鎖定";
+"ame441.editor.layer.unfocus" = "退出聚焦";
+"ame441.editor.layer.unfocus.sub" = "恢復全部控制項的顯示與編輯";
+"ame441.editor.snap.title" = "吸附設定";
+"ame441.editor.snap.more.sub" = "開關、網格/元素邊緣兩檔模式";
+"ame441.editor.snap.enable" = "吸附開關";
+"ame441.editor.snap.mode" = "吸附模式";
+"ame441.editor.snap.mode.grid" = "網格 8pt";
+"ame441.editor.snap.mode.edge" = "元素邊緣";
+"ame441.editor.snap.foot" = "关闭吸附后拖拽自由落点（仍钳制在画布内）；「元素邊緣」模式拖拽时显示与其它控件边缘对齐的参考线，松手按对齐落位。";
+"ame441.editor.style.cabinet" = "樣式櫃";
+"ame441.editor.style.cabinet.empty" = "還沒有自訂預設——先把目前樣式存進來";
+"ame441.editor.style.save" = "存目前樣式為預設";
+"ame441.editor.style.save.hint" = "取樣目前整版的按鈕/背景透明度與描邊，命名後入櫃";
+"ame441.editor.style.params_fmt" = "按鈕 %d%% · 背景 %d%% · 描邊 %.1f";
+"ame441.editor.style.delete.confirm.title" = "刪除預設";
+"ame441.editor.style.delete.confirm.body_fmt" = "将刪除預設「%@」，不可恢复。";
+"ame441.editor.preview.enter" = "預覽模式";
+"ame441.editor.preview.enter.sub" = "隱藏編輯介面，控制項可試按，隨時退出回編輯";
+"ame441.editor.preview.exit" = "退出預覽";
+"ame441.editor.preview.badge" = "預覽模式 · 控件可试按";
+"ame441.editor.more.coach" = "重看新手引導";
+"ame441.editor.toast.focused_fmt" = "已聚焦：%@";
+"ame441.editor.toast.unfocused" = "已退出聚焦";
+"ame441.editor.toast.renamed" = "已重新命名";
+"ame441.editor.toast.style_applied_fmt" = "已套用預設：%@";
+"ame441.editor.toast.style_saved_fmt" = "已存入樣式櫃：%@";
+"ame441.editor.toast.style_deleted_fmt" = "已刪除預設：%@";
+"ame441.editor.toast.style_save_failed" = "樣式櫃写入失败";
+"ame441.editor.coach.p1.title" = "拖拽與吸附";
+"ame441.editor.coach.p1.body" = "拖動控制項移動，鬆手按目前吸附模式落位；選中後拖角柄等比縮放。";
+"ame441.editor.coach.p2.title" = "新建與屬性";
+"ame441.editor.coach.p2.body" = "「＋」新建按鍵/文字方塊/搖桿；選中後用屬性面板改名稱、鍵值、透明度等。";
+"ame441.editor.coach.p3.title" = "層與聚焦";
+"ame441.editor.coach.p3.body" = "「层」调整叠放次序，还可重新命名控件或聚焦单控件编辑。";
+"ame441.editor.coach.p4.title" = "樣式與預覽";
+"ame441.editor.coach.p4.body" = "「樣式」套預設或入櫃自訂；「更多」裡可進預覽試按，儲存後寫回布局檔案。";

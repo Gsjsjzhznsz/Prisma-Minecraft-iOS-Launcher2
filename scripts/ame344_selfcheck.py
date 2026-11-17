@@ -114,18 +114,29 @@ sv = read("Natives/ZL2SettingsViewController.m")
 pages = read("Natives/ZL2SettingPages.m")
 pages_h = read("Natives/ZL2SettingPages.h")
 
-print("== C 线C 设置枢纽扩容（8→10）==")
-check("C1 左轨 10 项（AI/调试位次+渲染器/关于齐备）",
-      '@[@"AI",       @"sparkles"' in sv and '@[@"调试",     @"ladybug"' in sv
-      and '@[@"关于",     @"info.circle"' in sv and '@[@"Java 管理", @"wrench.and.screwdriver"' in sv)
-check("C2 组分隔线三处（i==4||i==6||i==8）",
-      "i == 4 || i == 6 || i == 8" in sv)
-check("C3 页面映射 case5=AI case6=Debug case9=About",
-      "case 5: page = [[ZL2AISettingsPage alloc] init]" in sv
-      and "case 6: page = [[ZL2DebugSettingsPage alloc] init]" in sv
-      and "case 9: page = [[ZL2AboutSettingsPage alloc] init]" in sv)
-check("C4 越界闸 >9（showPageAtIndex + ame328_selectSubPage）",
-      "ame328_index > 9" in sv and "index > 9" in sv)
+print("== C 线C 设置枢纽（Task432 重锚：左轨 10→8 组收敛）==")
+# ★第 12 期整改批次二①重锚（Task432 八组口径）：Task432 把左轨 10 项收敛为
+# 8 项——AI/调试两轨项从左轨摘除（sparkles/ladybug 图标退场），可达性改由
+# case 4 启动器页尾子类 ZL2LauncherSettingsTailPage 尾部入口组 push 接住
+# （ame432_appendTailGroup + ame432_tailRowTapped，真实现零退役）；divider
+# 1:1 对齐 ZL2 SettingsScreen.kt settingItems（Java 管理/关于 division）。
+check("C1 左轨 8 项（Task432 重锚：Java管理/控制管理/关于轨项齐备；AI/调试轨项摘除但页尾入口接住真实现）",
+      '@"ame369.settab.java_manager"' in sv and '@"wrench.and.screwdriver"' in sv
+      and '@"ame369.settab.control_manager"' in sv and '@"square.on.square"' in sv
+      and '@"ame369.settab.about"' in sv and '@"info.circle"' in sv
+      and 'sparkles' not in sv and 'ladybug' not in sv
+      and 'ZL2LauncherSettingsTailPage' in sv and 'ame432_appendTailGroup' in sv
+      and '[[ZL2AISettingsPage alloc] init]' in sv and '[[ZL2DebugSettingsPage alloc] init]' in sv)
+check("C2 组分隔线两处（Task432 八组口径：i==4||i==6，旧三处 i==8 位退场）",
+      "i == 4 || i == 6" in sv and "i == 4 || i == 6 || i == 8" not in sv)
+check("C3 页面映射 case4=启动器尾页 case5=Java管理 case6=控制管理 case7=About（Task432 八组重锚；AI/Debug 由页尾 push 接住）",
+      "page = [[ZL2LauncherSettingsTailPage alloc] init]" in sv
+      and "case 5: page = [[ZL2JavaManagerSettingsPage alloc] init]" in sv
+      and "case 6: page = [[ZL2ControlManagerSettingsPage alloc] init]" in sv
+      and "case 7: page = [[ZL2AboutSettingsPage alloc] init]" in sv)
+check("C4 越界闸 >7（Task432 八组口径：showPageAtIndex + ame328_selectSubPage）",
+      "ame328_index > 7" in sv and "index > 7" in sv
+      and "index > 9" not in sv and "ame328_index > 9" not in sv)
 check("C5 头文件声明新屏", "ZL2AISettingsPage" in pages_h and "ZL2DebugSettingsPage" in pages_h)
 check("C6 新屏实现落位", "@implementation ZL2AISettingsPage" in pages
       and "@implementation ZL2DebugSettingsPage" in pages)
@@ -153,9 +164,11 @@ MIGRATED_KEYS = [
     # action-only 行（无偏好键，探测其 i18n 标题键）
     "preference.title.custom_mouse_pointer", "preference.title.reset_mouse_pointer",
     "preference.title.mc_toggle_sprint", "preference.title.keybind_sync",
-    # 启动器屏（外观进阶/杂项/数据/下载源）
-    "general.interface_style", "general.pseudo_glass_transparency", "general.ui_scale",
-    "general.text_scale", "general.hidden_sidebar", "general.accent_color",
+    # 启动器屏（外观进阶/杂项/数据/下载源）——★Ame361 重锚：伪玻璃透明度/
+    # 界面缩放/文字缩放三行读写改走 LGC 中枢（行 UI 仍在位，general.* 旧键名
+    # 退役），断言改锚 LGC 读写入口同源函数
+    "general.interface_style", "LGCSetPseudoGlassTransparency", "LGCSetUIScaleMultiplier",
+    "LGCSetTextScaleMultiplier", "general.hidden_sidebar", "general.accent_color",
     "general.text_color", "general.card_color", "general.check_sha",
     "general.multi_threaded", "general.debug_logging",
     "general.announcement_preview_level", "download.mod_mirror",
@@ -164,8 +177,9 @@ MIGRATED_KEYS = [
     "preference.title.data_export", "preference.title.data_import",
     "preference.title.data_sibling_import", "preference.title.erase_demo_data",
     "preference.title.reset_warnings", "preference.title.reset_settings",
-    # AI 屏
-    "ai.safety_mode", "ai.markdown_enabled",
+    # AI 屏——★Ame361 重锚：markdown 开关直连 AiSettings（ai.markdown_enabled
+    # 旧键名退役，消费方 AiSettings.markdownEnabled 同源）
+    "ai.safety_mode", "setMarkdownEnabled",
     # 调试屏
     "debug.jit_enabler", "debug.jit26_script_disable", "debug.mirror_codecache_disable",
     "debug.debug_universal_script_jit", "debug.debug_always_attached_jit",
@@ -173,7 +187,7 @@ MIGRATED_KEYS = [
     "debug.debug_ipad_ui", "debug.debug_auto_correction",
 ]
 missing_keys = [k for k in MIGRATED_KEYS if k not in pages]
-check("C7 迁移键全量在位（66 代表键）", not missing_keys,
+check("C7 迁移键全量在位（66 代表键；Ame361 三行换族键重锚 LGC 入口，行 UI 仍在位）", not missing_keys,
       "missing: " + ", ".join(missing_keys[:8]))
 
 print("== C 线C 复杂 handler 移植完整性 ==")
@@ -237,9 +251,9 @@ if "--selftest" in sys.argv:
         print("  RED  S-B1 谱系映射摘除被捕获"); red += 1
     else:
         print("  GREEN(BAD) S-B1 未捕获")
-    # S-C1 左轨 AI 项摘除 → C1 必翻红
-    sv_bad = sv.replace('@[@"AI",       @"sparkles"', '@[@"AI_X",     @"sparkles"')
-    if not ('@[@"AI",       @"sparkles"' in sv_bad):
+    # S-C1 左轨轨项摘除 → C1 必翻红（Task432 重锚：探针换锚 Java 管理轨项图标）
+    sv_bad = sv.replace('@"wrench.and.screwdriver"', '@"wrench.and.screwdriverX"')
+    if not ('@"wrench.and.screwdriver"' in sv_bad):
         print("  RED  S-C1 轨项摘除被捕获"); red += 1
     else:
         print("  GREEN(BAD) S-C1 未捕获")

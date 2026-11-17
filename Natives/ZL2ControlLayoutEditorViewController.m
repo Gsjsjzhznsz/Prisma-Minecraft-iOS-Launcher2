@@ -37,10 +37,39 @@
 //  isControlModifiable=YES（离场复位 NO）即接管 customcontrols 全族手势/
 //  触觉分支，与游戏内手势零并发。
 //
+//  ★ Task441（批次三① 编辑器五件对标 ZL2，锚 c62fdeaf）：
+//    1. 命名图层与聚焦层——层管理弹层新增「重命名控件」（写既有 name 字段）
+//       与「聚焦此控件」（focus：只显示/只编辑聚焦节点，其余节点压暗
+//       ame441_focusDimAlpha 且 userInteractionEnabled=NO；ZL2 基准
+//       ControlEditor.kt :176 onAttribute=editLayer + :242 isLayerFocus、
+//       LayerController/ControlEditor.kt :109 focusedLayer :123-130 只渲染
+//       聚焦层语义；iOS 无 layer 容器键型，聚焦粒度 = 单节点，键型同构
+//       红线零新增 schema 键）。
+//    2. 吸附开关+模式+参考线——control.editor_snap_enabled 开关 +
+//       control.editor_snap_mode 两档（0=8pt 网格既有行为 / 1=元素边缘吸附，
+//       ZL2 基准 enableSnap + SnapMode（utils/snap/SnapMode.kt :24-29）+
+//       utils/Buttons.kt calculateSnapPosition 八情形边缘对齐），拖拽命中时
+//       画 primary 色参考线（ZL2 GuideLine(direction,coordinate) :28-33 同
+//       语义），松手隐藏；关闭吸附 = 自由落点（仅画布内钳制）。
+//    3. 样式柜——既有三套内置预设之外，用户可把当前整版样式（三字段采样）
+//       命名存为自定义预设并复用/长按删除。持久化走布局持久化同款机制
+//       （NSJSONSerialization PrettyPrinted + NSDataWritingAtomic 落盘
+//       controlmap/editor_styles/styles.json——gamepads/ 子目录同构先例：
+//       controlmap 根扫 .json 的两处布局清单消费点不进子目录，零污染）。
+//    4. 预览模式——「更多」弹层进入：隐藏编辑 chrome（工具条/选择框/角柄/
+//       网格/参考线/微提示），isControlModifiable=NO 恢复控件运行时手势
+//       （按钮可试按/抽屉可展开），编辑手势 enabled=NO；浮动退出钮 + 顶部
+//       徽标，退出回编辑（ZL2 基准 ControlEditor.kt :108-109 isPreviewMode
+//       → PreviewControlBox 分支渲染 + ControlEditorElements.kt :237 等
+//       enabled = isPreviewMode.not() 编辑钮禁用语义）。
+//    5. 新手引导——首次进入显示 Ame223CoachMarksView showFeatureSequence
+//       四页引导（复用既有引导组件，挂主窗口；文案全走 i18n 键），已读标记
+//       control.editor_coach_done；「更多」弹层提供重看入口。
+//
 //  判例族对齐：id 变量消息语法 / block 赋值 __block / static C 函数定义
 //  先于调用 / anchor multiplier 用三参 multiplier:constant: 形式 / 常量实名
-//  （NSJSONWritingPrettyPrinted、NSDataWritingAtomic 均为系统实名）/ 禁
-//  @(nullable) boxed（所有装箱前先取实值）/ 注释 ★Task429。
+//  （NSJSONWritingPrettyPrinted、NSDataWritingAtomic 均为系统实名）/ 注释
+//  ★Task429/★Task441。
 //
 
 #import "ZL2ControlLayoutEditorViewController.h"
@@ -51,6 +80,7 @@
 #import "customcontrols/ControlLayout.h"
 #import "customcontrols/ControlSubButton.h"
 #import "customcontrols/CustomControlsUtils.h"
+#import "Ame223CoachMarksView.h"
 #import "LauncherPreferences.h"
 #import "NMToast.h"
 #import "ZL2M3Kit.h"
@@ -70,6 +100,12 @@ static const CGFloat ame429_topBarMargin = 12.0;     // 工具条左右缘距
 static const CGFloat ame429_handleVisual = 14.0;     // 角柄可视边长
 static const CGFloat ame429_handleTouch = 34.0;      // 角柄触控边长
 
+// ★Task441 常量（实名，本文件唯一定义点）
+static const CGFloat ame441_snapThreshold = 12.0;    // ★Task441 边缘吸附命中阈值（pt；ZL2 snapThreshold 同语义）
+static const CGFloat ame441_focusDimAlpha = 0.15;    // 聚焦态非聚焦节点压暗 alpha
+static const CGFloat ame441_guideLineWidth = 1.5;    // 吸附参考线宽（pt）
+static const CGFloat ame441_previewFabSize = 48.0;   // 预览退出浮动钮边长
+
 // ============================================================================
 // 枚举（定义先于任何使用点）
 // ============================================================================
@@ -80,6 +116,14 @@ typedef NS_ENUM(NSInteger, Ame429NodeKind) {
     Ame429NodeKindDrawer,         // mDrawerDataList 抽屉（本体）
     Ame429NodeKindSubButton,      // 抽屉内子键（buttonProperties）
     Ame429NodeKindJoystick,       // mJoystickDataList 摇杆
+};
+
+/// ★Task441 吸附模式（ZL2 基准 enableSnap + SnapMode 双档映射：
+/// SnapMode.kt :24-29 的 FullScreen/Local 两档均为元素边缘吸附的搜索范围，
+/// iOS 侧无该偏好面，按任务家法映射为「网格/边缘」两档吸附算法）
+typedef NS_ENUM(NSInteger, Ame441SnapMode) {
+    Ame441SnapModeGrid = 0,   // 8pt 网格吸附（既有行为）
+    Ame441SnapModeEdge,       // 元素边缘吸附（ZL2 calculateSnapPosition 八情形）
 };
 
 /// 层管理操作方向
@@ -235,6 +279,65 @@ static id ame429_listElementForNode(UIView *node) {
 }
 
 // ============================================================================
+// ★Task441 样式柜（自定义样式预设）文件族——持久化与布局保存同款机制：
+// NSJSONSerialization PrettyPrinted + NSDataWritingAtomic 落盘
+// controlmap/editor_styles/styles.json（gamepads/ 子目录同构先例：布局
+// 清单两处消费点只扫 controlmap 根的 .json，子目录零污染）。
+// ============================================================================
+
+static NSString *ame441_styleCabinetDir(void) {
+    return [NSString stringWithFormat:@"%s/controlmap/editor_styles", getenv("POJAV_HOME")];
+}
+
+static NSString *ame441_styleCabinetPath(void) {
+    return [ame441_styleCabinetDir() stringByAppendingPathComponent:@"styles.json"];
+}
+
+/// 读样式柜（坏 JSON/非字典/缺 styles 键 = 回落空数组，不拒编辑器入场——
+/// 样式柜是附属资产，损坏只损失自定义预设，与布局拒载语义分级）
+static NSMutableArray *ame441_loadStyleCabinet(void) {
+    NSMutableDictionary *dict = parseJSONFromFile(ame441_styleCabinetPath());
+    if (dict == nil || ![dict isKindOfClass:[NSMutableDictionary class]] || dict[@"NSErrorObject"] != nil) {
+        NSLog(@"[Task441] style cabinet parse failed/absent, fallback empty");
+        return [NSMutableArray array];
+    }
+    id styles = dict[@"styles"];
+    if (![styles isKindOfClass:[NSMutableArray class]]) return [NSMutableArray array];
+    // 元素级守卫（Task434 Favorites 家法：异形元素剔除留痕，不整体拒载）
+    NSMutableIndexSet *alien = [NSMutableIndexSet indexSet];
+    for (NSUInteger i = 0; i < styles.count; i++) {
+        if (![styles[i] isKindOfClass:[NSDictionary class]]) [alien addIndex:i];
+    }
+    if (alien.count > 0) {
+        NSLog(@"[Task441] style cabinet 异形元素 %lu 条已剔除", (unsigned long)alien.count);
+        [styles removeObjectsAtIndexes:alien];
+    }
+    return styles;
+}
+
+/// 写样式柜（与 ame429_writeLayoutNamed 同格式：PrettyPrinted + 原子写；
+/// 子目录缺失先建——controlmap 根必在，editor_styles/ 首存时才产生）
+static BOOL ame441_writeStyleCabinet(NSArray *styles) {
+    NSFileManager *fm = [NSFileManager defaultManager];
+    if (![fm fileExistsAtPath:ame441_styleCabinetDir()]) {
+        [fm createDirectoryAtPath:ame441_styleCabinetDir()
+      withIntermediateDirectories:YES attributes:nil error:nil];
+    }
+    NSMutableDictionary *root = [NSMutableDictionary dictionary];
+    root[@"styles"] = styles ?: @[];
+    NSError *jsonError = nil;
+    NSData *jsonData = [NSJSONSerialization dataWithJSONObject:root
+        options:NSJSONWritingPrettyPrinted error:&jsonError];
+    if (jsonData == nil) {
+        NSLog(@"[Task441] style cabinet serialize failed: %@", jsonError.localizedDescription);
+        return NO;
+    }
+    NSError *writeError = nil;
+    return [jsonData writeToFile:ame441_styleCabinetPath()
+                         options:NSDataWritingAtomic error:&writeError];
+}
+
+// ============================================================================
 // 弹层行（M3 行件：标题 + 副标题 + 点击回调；本文件私有，不动 ZL2M3Kit）
 // ============================================================================
 @interface Ame429SheetRowView : UIControl
@@ -356,6 +459,20 @@ static id ame429_listElementForNode(UIView *node) {
 // 层管理弹层打开期间的信息行（onDismiss 置 nil 结束引用）
 @property(nonatomic, strong, nullable) UILabel *layerSheetInfoLabel;
 
+// ★Task441 吸附设置（开关 + 模式；PLPreferences control.editor_snap_* 注册）
+@property(nonatomic, assign) BOOL ame441_snapEnabled;
+@property(nonatomic, assign) NSInteger ame441_snapMode;   // Ame441SnapMode
+@property(nonatomic, strong) UIView *ame441_guideV;       // 边缘吸附竖参考线
+@property(nonatomic, strong) UIView *ame441_guideH;       // 边缘吸附横参考线
+
+// ★Task441 聚焦层（focus：只显示/只编辑聚焦节点；weak 随视图生死）
+@property(nonatomic, weak, nullable) ControlButton *ame441_focusedNode;
+
+// ★Task441 预览模式（隐藏编辑 chrome + 控件可试按 + 浮动退出钮/徽标）
+@property(nonatomic, assign) BOOL ame441_previewMode;
+@property(nonatomic, strong) UIButton *ame441_previewExitButton;
+@property(nonatomic, strong) UILabel *ame441_previewBadge;
+
 // 入口喂参（工位 3-d）：宿主编辑器当前正在编辑的布局名（不含 .json；
 // nil/空 = 按 control.default_ctrl 偏好回落，见 ame429_loadLayout）
 @property(nonatomic, copy, nullable) NSString *ame429_layoutFileNameOverride;
@@ -456,6 +573,8 @@ static id ame429_listElementForNode(UIView *node) {
 
     [self ame429_setupChrome];
     [self ame429_setupOverlay];
+    [self ame441_setupSnapping];
+    [self ame441_setupPreviewChrome];
 
     if (![self ame429_loadLayout]) {
         // 坏 JSON / 缺文件：吐司后退出（不崩，不留白屏编辑器）。
@@ -469,6 +588,16 @@ static id ame429_listElementForNode(UIView *node) {
     [super viewWillAppear:animated];
     [self setNeedsUpdateOfScreenEdgesDeferringSystemGestures];
     [self setNeedsUpdateOfHomeIndicatorAutoHidden];
+}
+
+/// ★Task441 新手引导：首次进入编辑器（未读过 control.editor_coach_done）
+/// 且布局装载成功时，拉 Ame223CoachMarksView showFeatureSequence 四页
+/// 特性页序列（组件挂主窗口，无需真实锚点，转屏/布局时序零耦合）；读完
+/// 落盘已读标记。「更多」弹层提供重看入口（ame441_coachButtonTapped）。
+- (void)viewDidAppear:(BOOL)animated {
+    [super viewDidAppear:animated];
+    if (self.layoutDict == nil) return;   // 装载失败已退出，不再弹引导
+    [self ame441_showCoachMarksIfNeeded];
 }
 
 - (void)viewDidLayoutSubviews {
@@ -788,6 +917,83 @@ static id ame429_listElementForNode(UIView *node) {
     ]];
 }
 
+/// ★Task441 吸附设置装载（PLPreferences control.editor_snap_* 两键）+
+/// 参考线视图（primary 色，全画布长细线，常态隐藏，拖拽命中时点亮）。
+- (void)ame441_setupSnapping {
+    self.ame441_snapEnabled = getPrefBool(@"control.editor_snap_enabled");
+    self.ame441_snapMode = getPrefInt(@"control.editor_snap_mode");
+    if (self.ame441_snapMode != Ame441SnapModeGrid && self.ame441_snapMode != Ame441SnapModeEdge) {
+        self.ame441_snapMode = Ame441SnapModeGrid;   // 异形偏好回落（网格 = 既有行为）
+    }
+
+    self.ame441_guideV = [[UIView alloc] init];
+    self.ame441_guideV.translatesAutoresizingMaskIntoConstraints = NO;
+    self.ame441_guideV.backgroundColor = [ZL2Theme primary];
+    self.ame441_guideV.userInteractionEnabled = NO;
+    self.ame441_guideV.hidden = YES;
+    [self.view addSubview:self.ame441_guideV];
+
+    self.ame441_guideH = [[UIView alloc] init];
+    self.ame441_guideH.translatesAutoresizingMaskIntoConstraints = NO;
+    self.ame441_guideH.backgroundColor = [ZL2Theme primary];
+    self.ame441_guideH.userInteractionEnabled = NO;
+    self.ame441_guideH.hidden = YES;
+    [self.view addSubview:self.ame441_guideH];
+}
+
+/// ★Task441 预览 chrome：浮动退出钮（primary 圆钮，右下安全区角）+ 顶部
+/// 徽标（primaryContainer 提示条）。常态隐藏，进预览点亮。
+- (void)ame441_setupPreviewChrome {
+    self.ame441_previewExitButton = [UIButton buttonWithType:UIButtonTypeSystem];
+    self.ame441_previewExitButton.translatesAutoresizingMaskIntoConstraints = NO;
+    self.ame441_previewExitButton.backgroundColor = [ZL2Theme primary];
+    self.ame441_previewExitButton.layer.cornerRadius = ame441_previewFabSize / 2.0;
+    self.ame441_previewExitButton.layer.masksToBounds = YES;
+    self.ame441_previewExitButton.tintColor = [ZL2Theme onPrimary];
+    // SF1.0 档取图兜底（ZL2M3SystemImage 家法）：主名缺回落 stop
+    UIImage *exitImg = [UIImage systemImageNamed:@"eye.slash"];
+    if (exitImg == nil) exitImg = [UIImage systemImageNamed:@"stop"];
+    [self.ame441_previewExitButton setImage:exitImg forState:UIControlStateNormal];
+    [self.ame441_previewExitButton addTarget:self
+                                      action:@selector(ame441_previewExitTapped)
+                            forControlEvents:UIControlEventTouchUpInside];
+    self.ame441_previewExitButton.accessibilityLabel =
+        localize(@"ame441.editor.preview.exit", @"退出预览");
+    self.ame441_previewExitButton.hidden = YES;   // 常态隐藏（进预览点亮）
+    [self.view addSubview:self.ame441_previewExitButton];
+
+    self.ame441_previewBadge = [[UILabel alloc] init];
+    self.ame441_previewBadge.translatesAutoresizingMaskIntoConstraints = NO;
+    self.ame441_previewBadge.font = [ZL2Theme fontLabelMedium];
+    self.ame441_previewBadge.textColor = [ZL2Theme onPrimaryContainer];
+    self.ame441_previewBadge.backgroundColor = [ZL2Theme primaryContainer];
+    self.ame441_previewBadge.textAlignment = NSTextAlignmentCenter;
+    self.ame441_previewBadge.layer.cornerRadius = [ZL2Theme radiusS];
+    self.ame441_previewBadge.layer.masksToBounds = YES;
+    self.ame441_previewBadge.text = localize(@"ame441.editor.preview.badge", @"预览模式 · 控件可试按");
+    self.ame441_previewBadge.hidden = YES;
+    [self.view addSubview:self.ame441_previewBadge];
+
+    UILayoutGuide *safe = self.view.safeAreaLayoutGuide;
+    [NSLayoutConstraint activateConstraints:@[
+        [self.ame441_previewBadge.topAnchor constraintEqualToAnchor:safe.topAnchor constant:8.0],
+        [self.ame441_previewBadge.centerXAnchor constraintEqualToAnchor:self.view.centerXAnchor],
+        [self.ame441_previewBadge.heightAnchor constraintEqualToConstant:26.0],
+        [self.ame441_previewBadge.leadingAnchor
+            constraintGreaterThanOrEqualToAnchor:safe.leadingAnchor constant:16.0],
+        [self.ame441_previewBadge.trailingAnchor
+            constraintLessThanOrEqualToAnchor:safe.trailingAnchor constant:-16.0],
+        [self.ame441_previewExitButton.trailingAnchor
+            constraintEqualToAnchor:safe.trailingAnchor constant:-16.0],
+        [self.ame441_previewExitButton.bottomAnchor
+            constraintEqualToAnchor:safe.bottomAnchor constant:-16.0],
+        [self.ame441_previewExitButton.widthAnchor
+            constraintEqualToConstant:ame441_previewFabSize],
+        [self.ame441_previewExitButton.heightAnchor
+            constraintEqualToConstant:ame441_previewFabSize],
+    ]];
+}
+
 - (void)ame429_rebuildGridPath {
     CAShapeLayer *gridLayer = nil;
     for (CALayer *sub in self.gridView.layer.sublayers) {
@@ -892,7 +1098,9 @@ static id ame429_listElementForNode(UIView *node) {
         self.activeNode = node;
         self.selectedNode = node;
         [self ame429_layoutSelectionOverlay];
-        self.gridView.hidden = NO;
+        // ★Task441：网格层只在「吸附开 + 网格模式」点亮（边缘模式画参考线）
+        self.gridView.hidden = !(self.ame441_snapEnabled
+                                 && self.ame441_snapMode == Ame441SnapModeGrid);
         self.coordHint.hidden = NO;
     } else if (sender.state == UIGestureRecognizerStateChanged) {
         // 节点 frame 是画布坐标；位移 delta 跨同层视图坐标不变，直接累加
@@ -905,8 +1113,12 @@ static id ame429_listElementForNode(UIView *node) {
         node.frame = frame;
         [self ame429_layoutSelectionOverlay];
 
-        // 微提示显示松手将吸附的落点（8pt 取整 + 钳制后坐标）
-        CGPoint snapped = [self ame429_snappedOriginForFrame:frame];
+        // ★Task441：落点按当前吸附设置实时解算 + 边缘模式点亮参考线
+        // （微提示显示松手将吸附的落点坐标）
+        CGFloat guideX = NAN, guideY = NAN;
+        CGPoint snapped = [self ame441_snapOriginForNodeFrame:frame ofNode:node
+                                                       guideX:&guideX guideY:&guideY];
+        [self ame441_showGuideLinesX:guideX y:guideY];
         self.coordHint.text = [NSString stringWithFormat:@"x %.0f · y %.0f", snapped.x, snapped.y];
     } else if (sender.state == UIGestureRecognizerStateEnded ||
                sender.state == UIGestureRecognizerStateCancelled) {
@@ -914,6 +1126,7 @@ static id ame429_listElementForNode(UIView *node) {
         self.activeNode = nil;
         self.gridView.hidden = YES;
         self.coordHint.hidden = YES;
+        [self ame441_hideGuideLines];   // ★Task441：松手收参考线（ZL2 onLineCancel）
     }
 }
 
@@ -926,10 +1139,128 @@ static id ame429_listElementForNode(UIView *node) {
     return CGPointMake(MAX(0.0, MIN(sx, maxOriginX)), MAX(0.0, MIN(sy, maxOriginY)));
 }
 
+/// ★Task441 按当前吸附设置解算落点（画布坐标，含画布内钳制）：
+///   关闭 = 原样钳制；网格 = 8pt 取整（既有 ame429_snappedOriginForFrame）；
+///   边缘 = ZL2 calculateSnapPosition（utils/Buttons.kt :200-314）八情形
+///   对齐——右→左/左→右/同左/同右、底→顶/顶→底/同顶/同底，阈值
+///   ame441_snapThreshold，x/y 各取差值最小候选；命中产出参考线坐标
+///   （GuideLine(direction,coordinate) 同语义；未命中传出 NAN）。自身节点
+///   （selfNode）不参与对齐集合（ZL2 getOtherWidgets 排除自身同语义）。
+- (CGPoint)ame441_snapOriginForNodeFrame:(CGRect)frame
+                                  ofNode:(UIView *)selfNode
+                                  guideX:(CGFloat *)outGuideX
+                                  guideY:(CGFloat *)outGuideY {
+    if (outGuideX != NULL) *outGuideX = NAN;
+    if (outGuideY != NULL) *outGuideY = NAN;
+
+    CGFloat maxOriginX = MAX(0.0, self.canvas.frame.size.width - frame.size.width);
+    CGFloat maxOriginY = MAX(0.0, self.canvas.frame.size.height - frame.size.height);
+    CGFloat clampedX = MAX(0.0, MIN(frame.origin.x, maxOriginX));
+    CGFloat clampedY = MAX(0.0, MIN(frame.origin.y, maxOriginY));
+
+    if (!self.ame441_snapEnabled) {
+        return CGPointMake(clampedX, clampedY);   // 关闭吸附 = 自由落点（仅钳制）
+    }
+    if (self.ame441_snapMode == Ame441SnapModeGrid) {
+        return CGPointMake(MAX(0.0, MIN(round(frame.origin.x / ame429_gridStep) * ame429_gridStep, maxOriginX)),
+                           MAX(0.0, MIN(round(frame.origin.y / ame429_gridStep) * ame429_gridStep, maxOriginY)));
+    }
+
+    // —— 元素边缘吸附（ZL2 八情形）——
+    CGFloat curLeft = clampedX;
+    CGFloat curRight = clampedX + frame.size.width;
+    CGFloat curTop = clampedY;
+    CGFloat curBottom = clampedY + frame.size.height;
+
+    BOOL hasX = NO, hasY = NO;
+    CGFloat bestX = 0.0, bestGuideX = 0.0, bestXDist = 0.0;
+    CGFloat bestY = 0.0, bestGuideY = 0.0, bestYDist = 0.0;
+
+    for (UIView *other in self.canvas.subviews) {
+        if (other == selfNode) continue;   // 自身不对齐
+        if (![other isKindOfClass:[ControlButton class]]) continue;
+        CGRect of = other.frame;
+        CGFloat oLeft = of.origin.x, oRight = of.origin.x + of.size.width;
+        CGFloat oTop = of.origin.y, oBottom = of.origin.y + of.size.height;
+
+        // x 轴四情形（右→左 / 左→右 / 同左 / 同右；先命中先占位，ZL2
+        // newXWithLines map 同语义——同候选重叠时后者覆盖，差值最小化收束）
+        CGFloat dRightToLeft = fabs(curRight - oLeft);
+        CGFloat dLeftToRight = fabs(curLeft - oRight);
+        CGFloat dLeftToLeft = fabs(curLeft - oLeft);
+        CGFloat dRightToRight = fabs(curRight - oRight);
+        CGFloat xNew = NAN, xGuide = NAN;
+        if (dRightToLeft < ame441_snapThreshold) { xNew = oLeft - frame.size.width; xGuide = oLeft; }
+        else if (dLeftToRight < ame441_snapThreshold) { xNew = oRight; xGuide = oRight; }
+        else if (dLeftToLeft < ame441_snapThreshold) { xNew = oLeft; xGuide = oLeft; }
+        else if (dRightToRight < ame441_snapThreshold) { xNew = oRight - frame.size.width; xGuide = oRight; }
+        if (!isnan(xNew)) {
+            CGFloat dist = fabs(xNew - clampedX);
+            if (!hasX || dist < bestXDist) {
+                hasX = YES; bestX = xNew; bestGuideX = xGuide; bestXDist = dist;
+            }
+        }
+
+        // y 轴四情形（底→顶 / 顶→底 / 同顶 / 同底）
+        CGFloat dBottomToTop = fabs(curBottom - oTop);
+        CGFloat dTopToBottom = fabs(curTop - oBottom);
+        CGFloat dTopToTop = fabs(curTop - oTop);
+        CGFloat dBottomToBottom = fabs(curBottom - oBottom);
+        CGFloat yNew = NAN, yGuide = NAN;
+        if (dBottomToTop < ame441_snapThreshold) { yNew = oTop - frame.size.height; yGuide = oTop; }
+        else if (dTopToBottom < ame441_snapThreshold) { yNew = oBottom; yGuide = oBottom; }
+        else if (dTopToTop < ame441_snapThreshold) { yNew = oTop; yGuide = oTop; }
+        else if (dBottomToBottom < ame441_snapThreshold) { yNew = oBottom - frame.size.height; yGuide = oBottom; }
+        if (!isnan(yNew)) {
+            CGFloat dist = fabs(yNew - clampedY);
+            if (!hasY || dist < bestYDist) {
+                hasY = YES; bestY = yNew; bestGuideY = yGuide; bestYDist = dist;
+            }
+        }
+    }
+
+    if (!hasX && !hasY) return CGPointMake(clampedX, clampedY);   // 未命中 = 自由钳制落点
+    CGFloat outX = hasX ? MAX(0.0, MIN(bestX, maxOriginX)) : clampedX;
+    CGFloat outY = hasY ? MAX(0.0, MIN(bestY, maxOriginY)) : clampedY;
+    if (outGuideX != NULL && hasX) *outGuideX = bestGuideX;
+    if (outGuideY != NULL && hasY) *outGuideY = bestGuideY;
+    return CGPointMake(outX, outY);
+}
+
+/// ★Task441 参考线点亮（画布坐标 → 本视图坐标；NAN = 该轴未命中隐藏。
+/// ZL2 drawLine 全画布长直线同语义，色 primary）
+- (void)ame441_showGuideLinesX:(CGFloat)gx y:(CGFloat)gy {
+    CGPoint off = self.canvas.frame.origin;
+    CGFloat canvasH = self.canvas.frame.size.height;
+    CGFloat canvasW = self.canvas.frame.size.width;
+    if (!isnan(gx)) {
+        self.ame441_guideV.frame = CGRectMake(off.x + gx - ame441_guideLineWidth / 2.0,
+                                              off.y, ame441_guideLineWidth, canvasH);
+        self.ame441_guideV.hidden = NO;
+    } else {
+        self.ame441_guideV.hidden = YES;
+    }
+    if (!isnan(gy)) {
+        self.ame441_guideH.frame = CGRectMake(off.x, off.y + gy - ame441_guideLineWidth / 2.0,
+                                              canvasW, ame441_guideLineWidth);
+        self.ame441_guideH.hidden = NO;
+    } else {
+        self.ame441_guideH.hidden = YES;
+    }
+}
+
+/// ★Task441 参考线收起（松手/取消；ZL2 onLineCancel 同语义）
+- (void)ame441_hideGuideLines {
+    self.ame441_guideV.hidden = YES;
+    self.ame441_guideH.hidden = YES;
+}
+
 /// 松手落账：吸附 → 写回 dynamicX/dynamicY（运行时同款百分比表达式）→
 /// update 重解算（抽屉 update 链内含 syncButtons 重排子键）→ 记脏。
 - (void)ame429_commitNodeFrame:(ControlButton *)node {
-    CGPoint snapped = [self ame429_snappedOriginForFrame:node.frame];
+    // ★Task441：落账统一走吸附设置感知的解算（网格取整/边缘吸附/自由钳制）
+    CGPoint snapped = [self ame441_snapOriginForNodeFrame:node.frame ofNode:node
+                                                   guideX:NULL guideY:NULL];
     node.properties[@"dynamicX"] = [node generateDynamicX:snapped.x];
     node.properties[@"dynamicY"] = [node generateDynamicY:snapped.y];
     [node update];
@@ -956,7 +1287,9 @@ static id ame429_listElementForNode(UIView *node) {
         self.ame429_resizeAnchor = CGPointMake(
             dragLeft ? f.origin.x + f.size.width : f.origin.x,
             dragTop ? f.origin.y + f.size.height : f.origin.y);
-        self.gridView.hidden = NO;
+        // ★Task441：网格层只在「吸附开 + 网格模式」点亮（边缘模式画参考线）
+        self.gridView.hidden = !(self.ame441_snapEnabled
+                                 && self.ame441_snapMode == Ame441SnapModeGrid);
         self.coordHint.hidden = NO;
     } else if (sender.state == UIGestureRecognizerStateChanged) {
         CGRect start = self.ame429_resizeStartFrame;
@@ -1006,6 +1339,7 @@ static id ame429_listElementForNode(UIView *node) {
         self.activeNode = nil;
         self.gridView.hidden = YES;
         self.coordHint.hidden = YES;
+        [self ame441_hideGuideLines];   // ★Task441：缩放松手同步收参考线
     }
 }
 
@@ -1088,8 +1422,33 @@ static id ame429_listElementForNode(UIView *node) {
         [weakSelf ame429_layerOp:Ame429LayerOpBackward];
     };
 
+    // ★Task441 命名图层 + 聚焦层（ZL2 基准 ControlEditor.kt :176
+    // onAttribute=editLayer + :242 isLayerFocus；iOS 无 layer 容器键型，
+    // 聚焦粒度 = 单节点，重命名写既有 name 字段，零新增 schema 键）
+    Ame429SheetRowView *renameRow = [[Ame429SheetRowView alloc] initWithTitle:
+        localize(@"ame441.editor.layer.rename", @"重命名控件") subtitle:nil destructive:NO];
+    renameRow.ame429_onTap = ^{
+        [weakSelf ame441_renameSelected];
+    };
+    BOOL isFocused = (self.ame441_focusedNode != nil
+                      && self.ame441_focusedNode == self.selectedNode);
+    // 键名分支取值（字面键保持 task248/250 审计器可扫形态，不用三目进 localize）
+    NSString *focusTitle = isFocused
+        ? localize(@"ame441.editor.layer.unfocus", @"退出聚焦")
+        : localize(@"ame441.editor.layer.focus", @"聚焦此控件");
+    NSString *focusSub = isFocused
+        ? localize(@"ame441.editor.layer.unfocus.sub", @"恢复全部控件的显示与编辑")
+        : localize(@"ame441.editor.layer.focus.sub", @"只显示/只编辑该控件，其余压暗锁定");
+    Ame429SheetRowView *focusRow = [[Ame429SheetRowView alloc] initWithTitle:focusTitle
+        subtitle:focusSub destructive:NO];
+    focusRow.ame429_onTap = ^{
+        // 先收弹层再切换（行 title 二态在下次打开时重建，学克隆行判例）
+        [ZL2M3BottomSheet dismissWithContentView:nil];
+        [weakSelf ame441_toggleFocusSelected];
+    };
+
     UIStackView *stack = [[UIStackView alloc] initWithArrangedSubviews:
-        @[frontRow, backRow, forwardRow, backwardRow]];
+        @[frontRow, backRow, forwardRow, backwardRow, renameRow, focusRow]];
     stack.axis = UILayoutConstraintAxisVertical;
     stack.spacing = 8.0;
     stack.translatesAutoresizingMaskIntoConstraints = NO;
@@ -1295,6 +1654,66 @@ static id ame429_listElementForNode(UIView *node) {
     stack.translatesAutoresizingMaskIntoConstraints = NO;
     [content addSubview:stack];
 
+    // ★Task441 样式柜（自定义样式预设区）：内置三预设之外，用户可把当前
+    // 整版样式（三字段采样）命名存柜并复用/长按删除。持久化走布局保存同款
+    // 机制（controlmap/editor_styles/styles.json，见文件头 Task441 注记）。
+    UILabel *cabinetTitle = [[UILabel alloc] init];
+    cabinetTitle.translatesAutoresizingMaskIntoConstraints = NO;
+    cabinetTitle.font = [ZL2Theme fontLabelLarge];
+    cabinetTitle.textColor = [ZL2Theme onSurfaceVariant];
+    cabinetTitle.text = localize(@"ame441.editor.style.cabinet", @"样式柜");
+    [content addSubview:cabinetTitle];
+
+    NSMutableArray<UIView *> *cabinetRows = [NSMutableArray array];
+    NSArray *customStyles = ame441_loadStyleCabinet();
+    if (customStyles.count == 0) {
+        UILabel *empty = [[UILabel alloc] init];
+        empty.font = [ZL2Theme fontBodyMedium];
+        empty.textColor = [ZL2Theme onSurfaceVariant];
+        empty.numberOfLines = 0;
+        empty.text = localize(@"ame441.editor.style.cabinet.empty",
+                              @"还没有自定义预设——先把当前样式存进来");
+        empty.translatesAutoresizingMaskIntoConstraints = NO;
+        [cabinetRows addObject:empty];
+    } else {
+        for (NSUInteger idx = 0; idx < customStyles.count; idx++) {
+            NSMutableDictionary *style = customStyles[idx];
+            if (![style isKindOfClass:[NSDictionary class]]) continue;
+            Ame429StyleParams params = [self ame441_styleParamsFromDict:style];
+            NSString *name = [style[@"name"] isKindOfClass:[NSString class]]
+                ? style[@"name"] : @"";
+            NSString *title = (name.length > 0) ? name
+                : localize(@"ame441.editor.style.cabinet", @"样式柜");
+            Ame429SheetRowView *styleRow = [[Ame429SheetRowView alloc] initWithTitle:title
+                subtitle:[self ame441_styleParamsSummary:params] destructive:NO];
+            styleRow.ame429_onTap = ^{
+                [weakSelf ame441_applyCustomStyle:params name:name];
+            };
+            // 长按删除（target-action 无块捕获风险；确认走 ZL2M3Dialog；
+            // tag 仅作下标载荷家法：删除时按下标回查样式柜数组）
+            UILongPressGestureRecognizer *lp = [[UILongPressGestureRecognizer alloc]
+                initWithTarget:self action:@selector(ame441_styleRowLongPressed:)];
+            [styleRow addGestureRecognizer:lp];
+            styleRow.tag = idx;
+            [cabinetRows addObject:styleRow];
+        }
+    }
+    Ame429SheetRowView *saveRow = [[Ame429SheetRowView alloc] initWithTitle:
+        localize(@"ame441.editor.style.save", @"存当前样式为预设")
+        subtitle:localize(@"ame441.editor.style.save.hint",
+                          @"采样当前整版的按钮/背景透明度与描边，命名后入柜")
+        destructive:NO];
+    saveRow.ame429_onTap = ^{
+        [weakSelf ame441_promptSaveCustomStyle];
+    };
+    [cabinetRows addObject:saveRow];
+
+    UIStackView *cabinetStack = [[UIStackView alloc] initWithArrangedSubviews:cabinetRows];
+    cabinetStack.axis = UILayoutConstraintAxisVertical;
+    cabinetStack.spacing = 8.0;
+    cabinetStack.translatesAutoresizingMaskIntoConstraints = NO;
+    [content addSubview:cabinetStack];
+
     UILabel *foot = [[UILabel alloc] init];
     foot.translatesAutoresizingMaskIntoConstraints = NO;
     foot.font = [ZL2Theme fontBodyMedium];
@@ -1309,7 +1728,12 @@ static id ame429_listElementForNode(UIView *node) {
         [stack.topAnchor constraintEqualToAnchor:header.bottomAnchor constant:12],
         [stack.leadingAnchor constraintEqualToAnchor:content.leadingAnchor],
         [stack.trailingAnchor constraintEqualToAnchor:content.trailingAnchor],
-        [foot.topAnchor constraintEqualToAnchor:stack.bottomAnchor constant:12],
+        [cabinetTitle.topAnchor constraintEqualToAnchor:stack.bottomAnchor constant:16],
+        [cabinetTitle.leadingAnchor constraintEqualToAnchor:content.leadingAnchor],
+        [cabinetStack.topAnchor constraintEqualToAnchor:cabinetTitle.bottomAnchor constant:8],
+        [cabinetStack.leadingAnchor constraintEqualToAnchor:content.leadingAnchor],
+        [cabinetStack.trailingAnchor constraintEqualToAnchor:content.trailingAnchor],
+        [foot.topAnchor constraintEqualToAnchor:cabinetStack.bottomAnchor constant:12],
         [foot.leadingAnchor constraintEqualToAnchor:content.leadingAnchor],
         [foot.trailingAnchor constraintEqualToAnchor:content.trailingAnchor],
         [foot.bottomAnchor constraintEqualToAnchor:content.bottomAnchor],
@@ -1317,13 +1741,29 @@ static id ame429_listElementForNode(UIView *node) {
     for (Ame429SheetRowView *row in stack.arrangedSubviews) {
         [row.heightAnchor constraintEqualToConstant:64.0].active = YES;
     }
+    for (UIView *row in cabinetStack.arrangedSubviews) {
+        if ([row isKindOfClass:[Ame429SheetRowView class]]) {
+            [row.heightAnchor constraintEqualToConstant:64.0].active = YES;
+        }
+    }
 
-    // 弹层保持打开便于连续试预设（scrim 点按关闭）
+    // 弹层保持打开便于连续试预设/样式柜操作（scrim 点按关闭；存/删预设后
+    // ame441_refreshStyleSheet 重建弹层）
     [ZL2M3BottomSheet presentWithContentView:content onDismiss:nil];
 }
 
 - (void)ame429_applyStylePreset:(NSInteger)preset {
     Ame429StyleParams params = ame429_paramsForPreset(preset);
+    // ★Task441：整版套用公共管线（内置三预设与样式柜共用，见 ame441_）
+    [self ame441_applyStyleParamsToAllNodes:params];
+    [NMToast showMessage:localize(@"ame429.j.toast.style_applied", @"样式已整版套用")];
+}
+
+/// ★Task441 样式参数整版套用公共管线（三列表循环 + 全节点热刷新 + 记脏）：
+/// 内置三预设（ame429_applyStylePreset）与样式柜自定义预设
+/// （ame441_applyCustomStyle）共用；字段面不变（opacity/bgColor-alpha/
+/// strokeWidth 三既有键）。
+- (void)ame441_applyStyleParamsToAllNodes:(Ame429StyleParams)params {
     NSMutableArray *btnList = self.layoutDict[@"mControlDataList"];
     NSMutableArray *drawerList = self.layoutDict[@"mDrawerDataList"];
     NSMutableArray *joyList = self.layoutDict[@"mJoystickDataList"];
@@ -1368,7 +1808,6 @@ static id ame429_listElementForNode(UIView *node) {
 
     self.ame429_dirty = YES;
     [self ame429_refreshTitle];
-    [NMToast showMessage:localize(@"ame429.j.toast.style_applied", @"样式已整版套用")];
 }
 
 #pragma mark - 更多弹层（保存副本 / 放弃 / 说明）
@@ -1402,7 +1841,31 @@ static id ame429_listElementForNode(UIView *node) {
         [weakSelf ame429_discardAndExit];
     };
 
-    NSMutableArray *rows = [NSMutableArray arrayWithObjects:saveRow, copyRow, nil];
+    // ★Task441 编辑器五件入口：吸附设置 / 预览模式 / 重看新手引导
+    Ame429SheetRowView *snapRow = [[Ame429SheetRowView alloc] initWithTitle:
+        localize(@"ame441.editor.snap.title", @"吸附设置")
+        subtitle:localize(@"ame441.editor.snap.more.sub", @"开关、网格/元素边缘两档模式")
+        destructive:NO];
+    snapRow.ame429_onTap = ^{
+        [weakSelf ame441_showSnapSheet];
+    };
+    Ame429SheetRowView *previewRow = [[Ame429SheetRowView alloc] initWithTitle:
+        localize(@"ame441.editor.preview.enter", @"预览模式")
+        subtitle:localize(@"ame441.editor.preview.enter.sub",
+                          @"隐藏编辑界面，控件可试按，随时退出回编辑")
+        destructive:NO];
+    previewRow.ame429_onTap = ^{
+        [ZL2M3BottomSheet dismissWithContentView:nil];
+        [weakSelf ame441_setPreviewMode:YES];
+    };
+    Ame429SheetRowView *coachRow = [[Ame429SheetRowView alloc] initWithTitle:
+        localize(@"ame441.editor.more.coach", @"重看新手引导") subtitle:nil destructive:NO];
+    coachRow.ame429_onTap = ^{
+        [ZL2M3BottomSheet dismissWithContentView:nil];
+        [weakSelf ame441_showCoachMarksIfNeeded];
+    };
+
+    NSMutableArray *rows = [NSMutableArray arrayWithObjects:saveRow, copyRow, snapRow, previewRow, coachRow, nil];
     if (self.ame429_dirty) {
         [rows addObject:discardRow];
     }
@@ -1419,7 +1882,7 @@ static id ame429_listElementForNode(UIView *node) {
     foot.textColor = [ZL2Theme onSurfaceVariant];
     foot.numberOfLines = 0;
     foot.text = localize(@"ame429.j.more.hint",
-        @"拖动节点移动，松手自动吸附 8pt 网格；选中后拖角柄等比缩放；工具条「层」调整叠放次序，「样式」整版换肤。");
+        @"拖动节点移动，松手按吸附设置落位（吸附设置可改开关与模式）；选中后拖角柄等比缩放；工具条「层」调整叠放/重命名/聚焦，「样式」整版换肤或入柜自定义，「预览」可试按。");
     [content addSubview:foot];
 
     [NSLayoutConstraint activateConstraints:@[
@@ -1742,6 +2205,11 @@ typedef NS_ENUM(NSInteger, Ame436NewKind) {
     self.ame436_createdCount++;
     self.selectedNode = node;
     [self ame429_layoutSelectionOverlay];
+    // ★Task441：聚焦态下新建的节点接管聚焦焦点（避免聚焦态出现可编辑
+    // 第二节点的不一致；退出聚焦后全节点恢复）
+    if (self.ame441_focusedNode != nil) {
+        [self ame441_setFocusedNode:node];
+    }
     self.ame429_dirty = YES;
     [self ame429_refreshTitle];
     NSString *kindName = (kind == Ame436NewKindTextbox)
@@ -2295,6 +2763,10 @@ typedef NS_ENUM(NSInteger, Ame436NewKind) {
     [self ame429_resyncCanvasZOrder];
     self.selectedNode = cloneView;
     [self ame429_layoutSelectionOverlay];
+    // ★Task441：聚焦态下克隆体接管聚焦焦点（同新建节点口径）
+    if (self.ame441_focusedNode != nil) {
+        [self ame441_setFocusedNode:cloneView];
+    }
     self.ame429_dirty = YES;
     [self ame429_refreshTitle];
     [NMToast showMessage:[NSString stringWithFormat:
@@ -2329,6 +2801,10 @@ typedef NS_ENUM(NSInteger, Ame436NewKind) {
 - (void)ame436_performDeleteSelected {
     ControlButton *node = self.selectedNode;
     if (node == nil || node.superview == nil) return;
+    // ★Task441：删除聚焦节点前先退出聚焦（否则余下节点停留在压暗/锁定态）
+    if (self.ame441_focusedNode == node) {
+        [self ame441_setFocusedNode:nil];
+    }
     Ame429NodeKind kind = ame429_kindOfNode(node);
     if (kind == Ame429NodeKindSubButton) {
         ControlDrawer *parent = ((ControlSubButton *)node).parentDrawer;
@@ -2352,6 +2828,387 @@ typedef NS_ENUM(NSInteger, Ame436NewKind) {
     self.ame429_dirty = YES;
     [self ame429_refreshTitle];
     [NMToast showMessage:localize(@"ame436.editor.toast.deleted", @"控件已删除")];
+}
+
+// ============================================================================
+// ★Task441 编辑器五件（对标 ZL2，锚 c62fdeaf）方法群：吸附设置 / 命名与聚焦
+// / 样式柜 / 预览模式 / 新手引导。UI 全部复用 ZL2M3BottomSheet 行件与
+// Task436 面板小件（Ame436BlockSwitch/Ame436BlockSegment），零新增 TU。
+// ============================================================================
+
+#pragma mark - ★Task441 吸附设置弹层（开关 + 模式两档）
+
+- (void)ame441_showSnapSheet {
+    UIView *content = [[UIView alloc] init];
+    content.translatesAutoresizingMaskIntoConstraints = NO;
+
+    UILabel *header = [[UILabel alloc] init];
+    header.translatesAutoresizingMaskIntoConstraints = NO;
+    header.font = [ZL2Theme fontTitleLarge];
+    header.textColor = [ZL2Theme onSurface];
+    header.text = localize(@"ame441.editor.snap.title", @"吸附设置");
+    [content addSubview:header];
+
+    __weak typeof(self) weakSelf = self;
+
+    // —— 吸附开关（control.editor_snap_enabled）——
+    Ame436BlockSwitch *enableSwitch = [[Ame436BlockSwitch alloc] initWithFrame:CGRectZero];
+    enableSwitch.on = self.ame441_snapEnabled;
+    enableSwitch.ame436_onChange = ^(BOOL on) {
+        __strong typeof(weakSelf) strongSelf = weakSelf;
+        if (!strongSelf) return;
+        strongSelf.ame441_snapEnabled = on;
+        setPrefBool(@"control.editor_snap_enabled", on);
+    };
+    UIStackView *enableRow = [self ame436_rowWithLabel:
+        localize(@"ame441.editor.snap.enable", @"吸附开关")
+        control:enableSwitch controlWidth:0];
+
+    // —— 吸附模式（control.editor_snap_mode；网格 = 既有 8pt，边缘 = ZL2
+    //   calculateSnapPosition 八情形）——
+    Ame436BlockSegment *modeSeg = [[Ame436BlockSegment alloc] initWithItems:@[
+        localize(@"ame441.editor.snap.mode.grid", @"网格 8pt"),
+        localize(@"ame441.editor.snap.mode.edge", @"元素边缘"),
+    ]];
+    modeSeg.selectedSegmentIndex = self.ame441_snapMode;
+    modeSeg.ame436_onChange = ^(NSInteger idx) {
+        __strong typeof(weakSelf) strongSelf = weakSelf;
+        if (!strongSelf) return;
+        strongSelf.ame441_snapMode = idx;
+        setPrefInt(@"control.editor_snap_mode", idx);
+    };
+    UIStackView *modeRow = [self ame436_rowWithLabel:
+        localize(@"ame441.editor.snap.mode", @"吸附模式")
+        control:modeSeg controlWidth:168.0];
+
+    UIStackView *stack = [[UIStackView alloc] initWithArrangedSubviews:@[enableRow, modeRow]];
+    stack.axis = UILayoutConstraintAxisVertical;
+    stack.spacing = 12.0;
+    stack.translatesAutoresizingMaskIntoConstraints = NO;
+    [content addSubview:stack];
+
+    UILabel *foot = [[UILabel alloc] init];
+    foot.translatesAutoresizingMaskIntoConstraints = NO;
+    foot.font = [ZL2Theme fontBodyMedium];
+    foot.textColor = [ZL2Theme onSurfaceVariant];
+    foot.numberOfLines = 0;
+    foot.text = localize(@"ame441.editor.snap.foot",
+        @"关闭吸附后拖拽自由落点（仍钳制在画布内）；「元素边缘」模式拖拽时显示与其它控件边缘对齐的参考线，松手按对齐落位。");
+    [content addSubview:foot];
+
+    [NSLayoutConstraint activateConstraints:@[
+        [header.topAnchor constraintEqualToAnchor:content.topAnchor],
+        [header.leadingAnchor constraintEqualToAnchor:content.leadingAnchor],
+        [stack.topAnchor constraintEqualToAnchor:header.bottomAnchor constant:12],
+        [stack.leadingAnchor constraintEqualToAnchor:content.leadingAnchor],
+        [stack.trailingAnchor constraintEqualToAnchor:content.trailingAnchor],
+        [foot.topAnchor constraintEqualToAnchor:stack.bottomAnchor constant:12],
+        [foot.leadingAnchor constraintEqualToAnchor:content.leadingAnchor],
+        [foot.trailingAnchor constraintEqualToAnchor:content.trailingAnchor],
+        [foot.bottomAnchor constraintEqualToAnchor:content.bottomAnchor],
+    ]];
+
+    [ZL2M3BottomSheet presentWithContentView:content onDismiss:nil];
+}
+
+#pragma mark - ★Task441 命名图层（重命名入口）
+
+/// 重命名选中控件（写既有 name 字段 + update 热刷新 + 记脏；ZL2 基准
+/// ControlEditor.kt :176 onAttribute = editLayer 的 iOS 键型映射）
+- (void)ame441_renameSelected {
+    ControlButton *node = self.selectedNode;
+    if (node == nil || node.superview == nil) return;
+    NSMutableDictionary *props = [self ame436_propsTargetForNode:node];
+    if (props == nil) return;   // 异形数据形态：propsTargetForNode 已留痕
+
+    UIAlertController *alert = [UIAlertController alertControllerWithTitle:
+        localize(@"ame441.editor.layer.rename", @"重命名控件")
+        message:localize(@"ame441.editor.layer.rename.hint",
+                         @"名称写入布局 JSON 的 name 字段，保存后生效")
+        preferredStyle:UIAlertControllerStyleAlert];
+    [alert addTextFieldWithConfigurationHandler:^(UITextField *textField) {
+        textField.placeholder = localize(@"ame436.editor.props.name", @"名称");
+        textField.text = ([props[@"name"] isKindOfClass:[NSString class]])
+            ? props[@"name"] : @"";
+        textField.clearButtonMode = UITextFieldViewModeWhileEditing;
+        textField.borderStyle = UITextBorderStyleRoundedRect;
+    }];
+    [alert addAction:[UIAlertAction actionWithTitle:localize(@"OK", nil)
+        style:UIAlertActionStyleDefault handler:^(UIAlertAction *action) {
+            UITextField *field = alert.textFields.firstObject;
+            NSString *name = field.text ?: @"";
+            props[@"name"] = [name stringByTrimmingCharactersInSet:
+                [NSCharacterSet whitespaceAndNewlineCharacterSet]];
+            [node update];
+            self.ame429_dirty = YES;
+            [self ame429_refreshTitle];
+            [self ame429_refreshLayerSheetInfo];
+            [NMToast showMessage:localize(@"ame441.editor.toast.renamed", @"已重命名")];
+        }]];
+    [alert addAction:[UIAlertAction actionWithTitle:localize(@"Cancel", nil)
+        style:UIAlertActionStyleCancel handler:nil]];
+    [self presentViewController:alert animated:YES completion:nil];
+}
+
+#pragma mark - ★Task441 聚焦层（focus：只显示/只编辑聚焦节点）
+
+/// 聚焦/退出聚焦（行入口；ZL2 基准 ControlEditor.kt :242-243 isLayerFocus
+/// 开关语义：iOS 无 layer 容器键型，聚焦粒度 = 单节点——只显示/只编辑聚焦
+/// 节点，其余节点压暗 ame441_focusDimAlpha 且 userInteractionEnabled=NO）
+- (void)ame441_toggleFocusSelected {
+    ControlButton *node = self.selectedNode;
+    if (node == nil || node.superview == nil) return;
+    if (self.ame441_focusedNode == node) {
+        [self ame441_setFocusedNode:nil];
+        [NMToast showMessage:localize(@"ame441.editor.toast.unfocused", @"已退出聚焦")];
+    } else {
+        [self ame441_setFocusedNode:node];
+        NSString *name = node.properties[@"name"];
+        NSString *shown = ([name isKindOfClass:[NSString class]] && name.length > 0)
+            ? name : [self ame429_layerInfoText];
+        [NMToast showMessage:[NSString stringWithFormat:
+            localize(@"ame441.editor.toast.focused_fmt", @"已聚焦：%@"),
+            shown.length > 0 ? shown : @""]];
+    }
+}
+
+/// 聚焦态落位（nil = 退出：全节点恢复 alpha/可交互）。选择框跟随聚焦节点
+/// （selectedNode 同步），画布空白点按取消选中的路径不变。
+- (void)ame441_setFocusedNode:(ControlButton *)node {
+    for (UIView *nodeView in self.canvas.subviews) {
+        if (![nodeView isKindOfClass:[ControlButton class]]) continue;
+        BOOL isFocus = (node != nil && nodeView == node);
+        nodeView.alpha = (node == nil || isFocus) ? 1.0 : ame441_focusDimAlpha;
+        nodeView.userInteractionEnabled = (node == nil || isFocus);
+    }
+    self.ame441_focusedNode = node;
+    self.selectedNode = node;
+    [self ame429_layoutSelectionOverlay];
+}
+
+#pragma mark - ★Task441 预览模式（隐藏编辑 chrome + 控件可试按）
+
+/// 预览模式切换（ZL2 基准 ControlEditor.kt :108-109 isPreviewMode →
+/// PreviewControlBox 分支渲染 + ControlEditorElements.kt enabled =
+/// isPreviewMode.not() 编辑钮禁用语义的 iOS 形态：chrome 隐藏 + 编辑手势
+/// enabled=NO + isControlModifiable=NO 恢复控件运行时手势——按钮可试按/
+/// 抽屉可展开；退出回编辑全量还原）
+- (void)ame441_setPreviewMode:(BOOL)on {
+    if (self.ame441_previewMode == on) return;
+    self.ame441_previewMode = on;
+
+    if (on) {
+        [self ame441_setFocusedNode:nil];   // 聚焦态先退出（预览全量可见）
+        isControlModifiable = NO;           // 控件运行时手势恢复（可试按）
+        self.selectedNode = nil;
+        [self ame429_layoutSelectionOverlay];
+    } else {
+        isControlModifiable = YES;          // 回编辑态（离场 viewWillDisappear 仍复位 NO）
+    }
+
+    // 编辑 chrome 显隐：工具条 / 选择框 / 角柄 / 网格 / 参考线 / 微提示
+    self.topBar.hidden = on;
+    if (on) {
+        self.gridView.hidden = YES;
+        self.coordHint.hidden = YES;
+        [self ame441_hideGuideLines];
+    }
+    self.ame441_previewExitButton.hidden = !on;
+    self.ame441_previewBadge.hidden = !on;
+
+    // 节点编辑手势启停（tap 选中 / pan 拖拽；预览态交给控件自身 touch 链）
+    for (UIView *nodeView in self.canvas.subviews) {
+        if (![nodeView isKindOfClass:[ControlButton class]]) continue;
+        for (UIGestureRecognizer *gr in nodeView.gestureRecognizers) {
+            gr.enabled = !on;
+        }
+    }
+}
+
+- (void)ame441_previewExitTapped {
+    [self ame441_setPreviewMode:NO];
+}
+
+#pragma mark - ★Task441 样式柜（自定义样式预设）
+
+/// 预设字典 → 三参数（异形字段回落：opacity=1.0 / bgColor alpha=0x4D /
+/// strokeWidth=1.0，出厂档同源）
+- (Ame429StyleParams)ame441_styleParamsFromDict:(NSDictionary *)style {
+    Ame429StyleParams p;
+    NSNumber *alpha = style[@"buttonAlpha"];
+    p.buttonAlpha = ([alpha isKindOfClass:[NSNumber class]])
+        ? MAX(0.0, MIN(alpha.doubleValue, 1.0)) : 1.0;
+    NSNumber *bgByte = style[@"bgAlphaByte"];
+    p.bgAlphaByte = ([bgByte isKindOfClass:[NSNumber class]])
+        ? (NSInteger)(bgByte.integerValue & 0xFF) : 0x4D;
+    NSNumber *stroke = style[@"strokeWidth"];
+    p.strokeWidth = ([stroke isKindOfClass:[NSNumber class]])
+        ? MAX(0.0, MIN(stroke.doubleValue, 5.0)) : 1.0;
+    return p;
+}
+
+/// 三参数 → 行摘要文案（样式柜行 subtitle）
+- (NSString *)ame441_styleParamsSummary:(Ame429StyleParams)params {
+    return [NSString stringWithFormat:
+        localize(@"ame441.editor.style.params_fmt",
+                 @"按钮 %d%% · 背景 %d%% · 描边 %.1f"),
+        (int)roundf(params.buttonAlpha * 100.0),
+        (int)roundf(params.bgAlphaByte / 255.0 * 100.0),
+        params.strokeWidth];
+}
+
+/// 采样当前整版样式（按装载序取第一个节点字典读三字段；空布局/异形回落
+/// 出厂档——整版套用后全节点同参，采样首节点即当前整版样式）
+- (Ame429StyleParams)ame441_currentStyleSample {
+    NSMutableArray *btnList = self.layoutDict[@"mControlDataList"];
+    NSMutableArray *drawerList = self.layoutDict[@"mDrawerDataList"];
+    NSMutableArray *joyList = self.layoutDict[@"mJoystickDataList"];
+    NSMutableDictionary *sample = nil;
+    if ([btnList isKindOfClass:[NSMutableArray class]] && btnList.count > 0 &&
+        [btnList[0] isKindOfClass:[NSMutableDictionary class]]) {
+        sample = btnList[0];
+    } else if ([drawerList isKindOfClass:[NSMutableArray class]] && drawerList.count > 0 &&
+               [drawerList[0] isKindOfClass:[NSDictionary class]] &&
+               [drawerList[0][@"properties"] isKindOfClass:[NSMutableDictionary class]]) {
+        sample = drawerList[0][@"properties"];
+    } else if ([joyList isKindOfClass:[NSMutableArray class]] && joyList.count > 0 &&
+               [joyList[0] isKindOfClass:[NSMutableDictionary class]]) {
+        sample = joyList[0];
+    }
+    Ame429StyleParams p;
+    if (sample == nil) return ame429_paramsForPreset(0);   // 空布局 = 出厂默认档
+    NSNumber *opacity = sample[@"opacity"];
+    p.buttonAlpha = ([opacity isKindOfClass:[NSNumber class]])
+        ? MAX(0.0, MIN(opacity.doubleValue, 1.0)) : 1.0;
+    NSNumber *bg = sample[@"bgColor"];
+    if ([bg isKindOfClass:[NSNumber class]]) {
+        p.bgAlphaByte = (NSInteger)((ame429_argbFromNumber(bg) >> 24) & 0xFF);
+    } else {
+        p.bgAlphaByte = 0x4D;
+    }
+    NSNumber *stroke = sample[@"strokeWidth"];
+    p.strokeWidth = ([stroke isKindOfClass:[NSNumber class]])
+        ? MAX(0.0, MIN(stroke.doubleValue, 5.0)) : 1.0;
+    return p;
+}
+
+/// 套用自定义预设（公共管线 + 带名吐司；弹层保持打开便于连续试）
+- (void)ame441_applyCustomStyle:(Ame429StyleParams)params name:(NSString *)name {
+    [self ame441_applyStyleParamsToAllNodes:params];
+    NSString *shown = (name.length > 0) ? name : @"";
+    [NMToast showMessage:[NSString stringWithFormat:
+        localize(@"ame441.editor.toast.style_applied_fmt", @"已套用预设：%@"),
+        shown.length > 0 ? shown : localize(@"ame441.editor.style.cabinet", @"样式柜")]];
+}
+
+/// 存当前样式为预设（命名输入 → 采样 → 入柜落盘 → 重建弹层）
+- (void)ame441_promptSaveCustomStyle {
+    UIAlertController *alert = [UIAlertController alertControllerWithTitle:
+        localize(@"ame441.editor.style.save", @"存当前样式为预设")
+        message:nil preferredStyle:UIAlertControllerStyleAlert];
+    [alert addTextFieldWithConfigurationHandler:^(UITextField *textField) {
+        textField.placeholder = localize(@"ame436.editor.props.name", @"名称");
+        textField.clearButtonMode = UITextFieldViewModeWhileEditing;
+        textField.borderStyle = UITextBorderStyleRoundedRect;
+    }];
+    [alert addAction:[UIAlertAction actionWithTitle:localize(@"OK", nil)
+        style:UIAlertActionStyleDefault handler:^(UIAlertAction *action) {
+            UITextField *field = alert.textFields.firstObject;
+            NSString *name = [field.text stringByTrimmingCharactersInSet:
+                [NSCharacterSet whitespaceAndNewlineCharacterSet]];
+            if (name.length == 0) {
+                name = [NSString stringWithFormat:@"%@ %lu",
+                    localize(@"ame441.editor.style.cabinet", @"样式柜"),
+                    (unsigned long)(ame441_loadStyleCabinet().count + 1)];
+            }
+            NSMutableArray *styles = ame441_loadStyleCabinet();
+            Ame429StyleParams params = [self ame441_currentStyleSample];
+            NSMutableDictionary *entry = [NSMutableDictionary dictionary];
+            entry[@"name"] = name;
+            entry[@"buttonAlpha"] = @(params.buttonAlpha);
+            entry[@"bgAlphaByte"] = @(params.bgAlphaByte);
+            entry[@"strokeWidth"] = @(params.strokeWidth);
+            [styles addObject:entry];
+            if (ame441_writeStyleCabinet(styles)) {
+                [NMToast showMessage:[NSString stringWithFormat:
+                    localize(@"ame441.editor.toast.style_saved_fmt", @"已存入样式柜：%@"), name]];
+                [self ame429_showStyleSheet];   // present 自带先关后开，无竞争
+            } else {
+                [NMToast showMessage:localize(@"ame441.editor.toast.style_save_failed",
+                                              @"样式柜写入失败")];
+            }
+        }]];
+    [alert addAction:[UIAlertAction actionWithTitle:localize(@"Cancel", nil)
+        style:UIAlertActionStyleCancel handler:nil]];
+    [self presentViewController:alert animated:YES completion:nil];
+}
+
+/// 样式柜行长按删除（tag = 柜内下标载荷；确认走 ZL2M3Dialog——弹层确认
+/// 判例：onConfirm weakSelf/strongSelf 舞步）
+- (void)ame441_styleRowLongPressed:(UILongPressGestureRecognizer *)sender {
+    if (sender.state != UIGestureRecognizerStateBegan) return;
+    NSUInteger idx = sender.view.tag;
+    NSMutableArray *styles = ame441_loadStyleCabinet();
+    if (idx >= styles.count) return;
+    NSString *name = ([styles[idx] isKindOfClass:[NSDictionary class]] &&
+                      [styles[idx][@"name"] isKindOfClass:[NSString class]])
+        ? styles[idx][@"name"] : @"";
+    __weak typeof(self) weakSelf = self;
+    [ZL2M3Dialog showTitle:localize(@"ame441.editor.style.delete.confirm.title", @"删除预设")
+                      body:[NSString stringWithFormat:
+          localize(@"ame441.editor.style.delete.confirm.body_fmt",
+                   @"将删除预设「%@」，不可恢复。"), name]
+              confirmTitle:localize(@"ame441.editor.style.delete.confirm.title", @"删除预设")
+               destructive:YES
+                onConfirm:^{
+                    __strong typeof(weakSelf) strongSelf = weakSelf;
+                    if (!strongSelf) return;
+                    NSMutableArray *fresh = ame441_loadStyleCabinet();
+                    if (idx < fresh.count) {
+                        [fresh removeObjectAtIndex:idx];
+                        if (ame441_writeStyleCabinet(fresh)) {
+                            [NMToast showMessage:[NSString stringWithFormat:
+                                localize(@"ame441.editor.toast.style_deleted_fmt",
+                                         @"已删除预设：%@"),
+                                (name.length > 0) ? name : @""]];
+                            [strongSelf ame429_showStyleSheet];
+                        } else {
+                            [NMToast showMessage:localize(@"ame441.editor.toast.style_save_failed",
+                                                          @"样式柜写入失败")];
+                        }
+                    }
+                }
+                 onCancel:nil];
+}
+
+#pragma mark - ★Task441 新手引导（Ame223CoachMarksView 复用）
+
+/// 首次进入自动弹四页特性页引导；已读（control.editor_coach_done）则跳过。
+/// 「更多」弹层的重看入口同走本函数（重看是幂等行为：完成回调再写一次
+/// 已读标记无害）。文案全走 i18n 键；图标 SF1.0 档 + 组件内置 sparkles 兜底。
+- (void)ame441_showCoachMarksIfNeeded {
+    if (getPrefBool(@"control.editor_coach_done")) return;
+    NSArray *pages = @[
+        @{@"icon": @"hand.draw",
+          @"title": localize(@"ame441.editor.coach.p1.title", @"拖拽与吸附"),
+          @"body": localize(@"ame441.editor.coach.p1.body",
+                            @"拖动控件移动，松手按当前吸附模式落位；选中后拖角柄等比缩放。")},
+        @{@"icon": @"plus.square.on.square",
+          @"title": localize(@"ame441.editor.coach.p2.title", @"新建与属性"),
+          @"body": localize(@"ame441.editor.coach.p2.body",
+                            @"「＋」新建按键/文本框/摇杆；选中后用属性面板改名称、键值、透明度等。")},
+        @{@"icon": @"square.stack.3d.up",
+          @"title": localize(@"ame441.editor.coach.p3.title", @"层与聚焦"),
+          @"body": localize(@"ame441.editor.coach.p3.body",
+                            @"「层」调整叠放次序，还可重命名控件或聚焦单控件编辑。")},
+        @{@"icon": @"paintpalette",
+          @"title": localize(@"ame441.editor.coach.p4.title", @"样式与预览"),
+          @"body": localize(@"ame441.editor.coach.p4.body",
+                            @"「样式」套预设或入柜自定义；「更多」里可进预览试按，保存后写回布局文件。")},
+    ];
+    [Ame223CoachMarksView showFeatureSequence:pages completion:^{
+        setPrefBool(@"control.editor_coach_done", YES);
+    }];
 }
 
 #pragma mark - 杂项

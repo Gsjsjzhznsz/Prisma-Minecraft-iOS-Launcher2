@@ -2,9 +2,9 @@
 # ame366_selfcheck.py -- Task 366 门禁（插件 API 全量扩容：桥面 40→118 方法 / 权限 20→33 组 / 事件 7→11 种 / 文档 v7）
 # 用户拍板："可以改的东西还是太多了，少说 API 也应该要有几百个。"
 # A 桥面：JSExport 118 方法计数 + 新家族代表实现与执法点
-# B 权限：33 组注册 + 13 新组 danger 位 + 四语言 i18n 66 键
+# B 权限：34 组注册（★Task441 重锚：33+Task429 java.inject 实数）+ 13 新组 danger 位 + 四语言 i18n 68 键
 # C 提示词 v7：33 项行 / v6 逐字归档 / 迁移链 v6→v7 / v5 归档不受扰
-# D 文档：v7 头 + 118/33/106 计数 + 18 新家族锚 + 键目录抽查 + writer 同步
+# D 文档：v7 头 + 118/34/100 计数真执法（★Task441 D1 改逐键实数对账）+ 18 新家族锚 + 键目录抽查 + writer 同步
 # E 反向探针（泛化版）：文档 ame.* 顶层名与全部命名空间成员 ⊆ 门面
 # F 接线实锚：事件四路 / lastExit / 主题读取器 / 键枚举链 / FS 守卫
 # S 病灶反向：v7 不含 v6 残留 / JSExport 协议齐全 / raw 名成对存在
@@ -104,8 +104,8 @@ check('A5 扩容导入面（mach/UserNotifications/ModService/ShaderService/Cras
       and '#import "AmePluginRuntime.h"' in bm)
 
 # ══ B 权限注册表 + i18n ═══════════════════════════════════════
-check('B1 注册表 33 实体 + ame.super 居首',
-      pm.count('initWithId:@"') == 33
+check('B1 注册表 34 实体（★Task441 重锚：ame365 B1 同源实数，Task429 java.inject 计入）+ ame.super 居首',
+      pm.count('initWithId:@"') == 34
       and pm.index('initWithId:@"ame.super"') < pm.index('initWithId:@"events"'))
 check('B2 13 新组 danger 位正确（8 安全 + 5 高危：mods.write/worlds.write/controls.write/fs.launcher/ai.call/clipboard.read）',
       'initWithId:@"game.read"     danger:NO' in pm
@@ -121,10 +121,10 @@ i18n_ok = True
 for lang in ["en", "zh-Hans", "zh-Hant", "zh-CN"]:
     t = read(f"Natives/resources/{lang}.lproj/Localizable.strings")
     n = len(re.findall(r'^"ame317\.perm\.[^"]+"\s*=', t, re.M))
-    if n != 66:
+    if n != 68:
         i18n_ok = False
-        check(f'B3 {lang} 权限键 66（33×name/desc）', False, f"got {n}")
-check('B3 四语言权限键各 66（33×name/desc）', i18n_ok)
+        check(f'B3 {lang} 权限键 68（★Task441 重锚 34×name/desc，与 ame365 B3 同源）', False, f"got {n}")
+check('B3 四语言权限键各 68（★Task441 重锚 34×name/desc）', i18n_ok)
 
 # ══ C 提示词 v7 + v6 归档 + 迁移链 ════════════════════════════
 FRAG = re.compile(r'@?"((?:[^"\\]|\\.)*)"')
@@ -136,8 +136,9 @@ v7_zone = aiset[v7_start:aiset.index("+ (NSString *)ame366_v6DefaultSystemPrompt
 v6_arch_start = aiset.index("+ (NSString *)ame366_v6DefaultSystemPrompt {")
 v6_zone = aiset[v6_arch_start:aiset.index("/// ★ Task365：v5 默认提示词全文（")]
 
-check('C1 v7 现役含 33 项权限行 + 扩容代表（fs.launcher†/ai.call†/clipboard.read†）',
-      "权限共 33 项" in produced(v7_zone)
+check('C1 v7 现役含 34 项权限行（★Task441 重锚）+ java.inject + 扩容代表（fs.launcher†/ai.call†/clipboard.read†）',
+      "权限共 34 项" in produced(v7_zone)
+      and "java.inject" in produced(v7_zone)
       and "fs.launcher†" in produced(v7_zone) and "ai.call†" in produced(v7_zone)
       and "clipboard.read†" in produced(v7_zone) and "game.read" in produced(v7_zone))
 check('C2 v6 归档在位且为逐字节原文（归档内仍含 "共 20 项" 不变式）',
@@ -154,10 +155,21 @@ check('C4 v5 归档不受扰（ame365_v5DefaultSystemPrompt 在位）',
 
 # ══ D 文档（get_plugin_docs = 插件提示词正文）═════════════════
 docs_text = produced(dtool)
-check('D1 文档 v7 头 + 三计数锚（118 方法 / 33 权限 / 103 键×2=206；★Task440 随三退役键重锚）',
+# ★Task441 D1 真实计数执法（第 11 期报告 5.3 节：原 D1 只验声称字符串在场、结构性
+#   不可红——改为【10】目录段逐键实数对账：实数==声称键数、get/set=2×实数、
+#   退役键行零残留；本门已随 Task441 入电池，计数腐烂必翻红）。
+d10_zone = dtool[dtool.index("【10. 设置键目录"):dtool.index("【11. 渲染器")]
+d10_rows = re.findall(r'@"\s{2}([A-Za-z0-9_]+\.[A-Za-z0-9_.]+)（默认', d10_zone)
+m10 = re.search(r'【10\. 设置键目录（(\d+) 键 × get/set = (\d+) 个可寻址操作', docs_text)
+check('D1 文档 v7 头 + 计数真执法（★Task441：【10】逐键实数==声称=100、get/set=2×实数=200、general.download_source 退役行零残留）',
       "全量 API 参考 v7" in docs_text
-      and "桥面方法 118" in docs_text and "共 33 项" in docs_text
-      and "103 键 × get/set = 206" in docs_text)
+      and "桥面方法 118" in docs_text
+      and m10 is not None
+      and int(m10.group(1)) == len(d10_rows)
+      and len(d10_rows) == 100
+      and int(m10.group(2)) == 2 * len(d10_rows)
+      and "general.download_source（默认" not in docs_text,
+      f"claimed={m10.groups() if m10 else None} actual_rows={len(d10_rows)}")
 d2_anchors = ["ame.app.info()", "ame.views.batch", "ame.views.applyStyle", "ame.dialog.prompt",
               "ame.dialog.sheet", "ame.notify.haptic", "ame.clipboard.get", "ame.theme.getTokens",
               "ame.settings.keys", "ame.profiles.setKey", "ame.game.lastExit", "ame.jit.setScheme",
@@ -174,8 +186,8 @@ d4_keys = ["general.ram_allocation", "java.java_args", "video.renderer",
            "mobileglues.renderer_backend", "control.default_ctrl", "debug.jit_enabler"]
 d4_missing = [k for k in d4_keys if k not in docs_text]
 check('D4 文档键目录抽查（RAM/JVM 参数/渲染器/触控布局/JIT）', not d4_missing, f"missing={d4_missing}")
-check('D5 writer 摘要同步（118 方法 + 33 项权限 + 新速览）',
-      "118 个方法" in ptool and "33 项权限表" in ptool
+check('D5 writer 摘要同步（118 方法 + 34 项权限 + 新速览；★Task441 重锚）',
+      "118 个方法" in ptool and "34 项权限表" in ptool
       and "ame.views 14 方法" in ptool and "ame.ai.ask 自修复问答" in ptool)
 
 # ══ E 反向探针（泛化版：全部命名空间）═════════════════════════

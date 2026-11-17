@@ -17,12 +17,23 @@ Item map:
 """
 import re, subprocess, sys, os
 
-os.chdir('/home/z/my-project/Amethyst-iOS-MyRemastered')
-PASS = 0; FAIL = 0
+# ★第 12 期整改批次二①重锚：外部仓绝对路径已消失（干净克隆口径：任何门不得
+# 依赖仓库外绝对路径），改从脚本位置动态推导仓库根，TASK229_REPO 环境变量覆盖保留。
+os.chdir(os.environ.get("TASK229_REPO", os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
+PASS = 0; FAIL = 0; SKIPPED = 0
 def check(name, cond, detail=""):
     global PASS, FAIL
     if cond: PASS += 1; print(f"[PASS] {name}")
     else: FAIL += 1; print(f"[FAIL] {name} {detail}")
+
+def skip(name, path, why=""):
+    """退役面断言显式 SKIP：宿主已删/断言面已真退役（[RETIRED] 家法 (b)）。"""
+    global SKIPPED
+    SKIPPED += 1
+    print(f"[SKIP] {name} —— {path}{('，' + why) if why else ''}")
+
+def retired(p):
+    return not os.path.exists(p)
 
 def rd(p): return open(p, encoding='utf-8', errors='replace').read()
 
@@ -58,13 +69,20 @@ check("B8 called from Amethyst_SetSDLWindow", 'ame229_registerCTCOnce();' in ib)
 check("B9 SDL3-path anchor log", 'Task229 CTCDesktopPeer natives registered via Amethyst_SetSDLWindow' in ib)
 
 # ---------- C: sprint toggle + keybind sync (LauncherPreferencesViewController.m) ----------
-lp = rd('Natives/LauncherPreferencesViewController.m')
-check("C1 all-instance options scanner", 'ame229_allInstanceOptionsPaths' in lp)
-check("C2 toggleSprint writer", 'ame229_writeToggleSprint:toOptions:' in lp or 'ame229_writeToggleSprint' in lp)
-check("C3 keybind sync method", 'ame229_syncKeybindsAcrossInstances' in lp)
-check("C4 sprint settings entry", '"mc_toggle_sprint"' in lp)
-check("C5 keybind sync settings entry", '"keybind_sync"' in lp)
-check("C6 toggleSprint log typo fixed", 'toggleSprint written' in lp and 'toggleSpring written' not in lp)
+print("-- C. sprint toggle + keybind sync（设置页宿主） --")
+if retired('Natives/LauncherPreferencesViewController.m'):
+    print("  [RETIRED] Natives/LauncherPreferencesViewController.m —— 退役批次已删，跳过相关断言（容错壳）")
+    for _c in ["C1 all-instance options scanner", "C2 toggleSprint writer", "C3 keybind sync method",
+               "C4 sprint settings entry", "C5 keybind sync settings entry", "C6 toggleSprint log typo fixed"]:
+        skip(_c, "Natives/LauncherPreferencesViewController.m", "旧设置页宿主已随退役批次删除（设置域由 ZL2 接棒）")
+else:
+    lp = rd('Natives/LauncherPreferencesViewController.m')
+    check("C1 all-instance options scanner", 'ame229_allInstanceOptionsPaths' in lp)
+    check("C2 toggleSprint writer", 'ame229_writeToggleSprint:toOptions:' in lp or 'ame229_writeToggleSprint' in lp)
+    check("C3 keybind sync method", 'ame229_syncKeybindsAcrossInstances' in lp)
+    check("C4 sprint settings entry", '"mc_toggle_sprint"' in lp)
+    check("C5 keybind sync settings entry", '"keybind_sync"' in lp)
+    check("C6 toggleSprint log typo fixed", 'toggleSprint written' in lp and 'toggleSpring written' not in lp)
 
 # ---------- D: floating menu glass (SurfaceViewController+Navigation.m) ----------
 # Task237 重锚：游戏内菜单面板已彻底重写为自定义 UIView（旧 UITableView +
@@ -75,7 +93,10 @@ nav = rd('Natives/SurfaceViewController+Navigation.m')
 check("D1 style apply helper (Task237 renamed)", 'ame237_applyMenuStyle' in nav and 'ame229_reapplyMenuGlass' not in nav)
 check("D2 LGC glass-in-table retired (Task237)", 'LGCApplyGlassToView(self.menuView' not in nav and
       'LGCRemoveGlassFromView(self.menuView' not in nav)
-check("D3 layered blur at index 0 + rows above (Task237)", 'insertSubview:ame237_blur atIndex:0]' in nav and
+# ★第 12 期整改批次二①重锚（Task243：面板引入 ame243_snap 游戏快照层）：
+# 磨砂层插入点从 atIndex:0 重锚为 aboveSubview:ame243_snap（"磨砂受控分层、
+# 内容恒在磨砂之上"的关切不变；python 实测）。
+check("D3 layered blur above snapshot + rows above (Task237/243 重锚)", 'insertSubview:ame237_blur aboveSubview:ame243_snap]' in nav and
       'bringSubviewToFront:ame237_scroll' in nav)
 check("D4 style-gated", 'LGCIsGlassStyleActive()' in nav)
 check("D5 style-change observer", 'ame229_handleBackgroundUIEffectChanged' in nav and 'BackgroundUIEffectChanged' in nav)
@@ -94,7 +115,9 @@ fb = rd('Natives/FolderBrowserViewController.m')
 import re as _re
 _fb_code = _re.sub(r'//[^\n]*', '', _re.sub(r'/\*.*?\*/', '', fb, flags=_re.S))
 check("F1 solid sheet (no code-level transparency call)", _fb_code.count('makeViewControllerTransparent') == 0)
-check("F2 systemBackground view", 'systemBackgroundColor];' in fb)
+# ★第 12 期整改批次二①重锚（7.0-UI-5c：Fluent 设计令牌=颜色单一事实源）：
+# 页面底色从 systemBackgroundColor 重锚为 AmeTheme bgPrimary 令牌（语义自适应不变）。
+check("F2 systemBackground view (7.0-UI-5c 重锚：AmeTheme bgPrimary 令牌)", '[AmeTheme bgPrimary];' in fb)
 check("F3 empty state on tableHeaderView", 'tableHeaderView = ame229_hv' in fb)
 check("F4 cell labels exempt from stroke", fb.count('ame229_labelSetStrokeExempt') == 5)
 
@@ -103,7 +126,12 @@ svc = rd('Natives/SurfaceViewController.m')
 check("G1 hard suppression window", 'Task229 hard suppression' in svc)
 check("G2 2.5s window constant (Task232 重锚：硬抑制块变量随 ⑫ 重排更名)", 'ame232_sinceDismiss < 2.5' in svc)
 check("G3 recent-touch clear retired", 'recent touch"' not in svc)
-check("G4 chat-opener still honored (post-window)", "CLEARED (chat-opener key, %.1fs after dismissal)" in svc)
+# ★第 12 期整改批次二①重锚（Task247：auto_keyboard_sdl 开关语义落地后
+# chat-opener 放行日志改写为宽限语义）："聊天开键在硬抑制窗外仍被尊重"的
+# 关切由 Task247 宽限日志承接（python 实测重锚）。
+check("G4 chat-opener still honored (post-window；Task247 重锚：宽限放行日志)",
+      "Task247 keyboard shown via chat-opener grace" in svc
+      and "ame161_lastSentKeyWasChatOpener(3.0)" in svc)
 
 # ---------- H: gear pan threshold + auto-IME switch ----------
 gm = rd('Natives/GameMenuOverlayView.m')
@@ -113,7 +141,11 @@ check("H3 tap-chain logging", 'Task229 gear tap #' in gm)
 check("H4 pan delegate set", 'pan.delegate = self;' in gm)
 check("H5 auto-keyboard gate (first Start only)", 'ame229_autoKbShownThisSession' in svc)
 check("H6 pref key", 'control.auto_keyboard_sdl' in svc)
-check("H7 settings switch", '"auto_keyboard_sdl"' in lp)
+if retired('Natives/LauncherPreferencesViewController.m'):
+    print("  [RETIRED] Natives/LauncherPreferencesViewController.m —— 退役批次已删，跳过相关断言（容错壳）")
+    skip("H7 settings switch", "Natives/LauncherPreferencesViewController.m", "旧设置页宿主已随退役批次删除")
+else:
+    check("H7 settings switch", '"auto_keyboard_sdl"' in lp)
 check("H8 session reset in viewDidLoad", 'ame229_autoKbShownThisSession = NO;' in svc)
 check("H9 unbound-button diagnostic", 'Task229 UNBOUND button pressed' in svc)
 
@@ -130,11 +162,20 @@ check("I7 export sites set mode", dts.count('Ame229PickerModeExportDestination')
 # ---------- J: font stroke rework (BackgroundManager.m + coach marks) ----------
 bm = rd('Natives/BackgroundManager.m')
 cm = rd('Natives/Ame223CoachMarksView.m')
-check("J1 stroke width (Task232 重锚：⑯ CoreText stroke 退役，四方向 0.6pt 外扩描边)", "NSStrokeWidthAttributeName" not in bm and "ame232_swizzledLabelDrawTextInRect" in bm)
-check("J2 semi-transparent stroke color", 'colorWithWhite:0.0 alpha:0.82' in bm)
-check("J3 shadow (Task232 重锚：⑯ 光晕整体退役——零偏移模糊向字腔渗黑，职责全交外扩描边)", "shadowRadius = 2.5" not in bm and "shadowOpacity = 0.0" in bm)
-check("J4 exemption API", 'ame229_labelSetStrokeExempt' in bm and 'ame229_labelIsStrokeExempt' in bm)
-check("J5 swizzle honors exemption", 'if (ame229_labelIsStrokeExempt((UILabel *)self)) return;' in bm)
+# ★第 12 期整改批次二①（退役收编）：Task378（commit 91a10fe3d）"全局描边字体
+# 退役=白黑双重叠根修"把 setText:/drawTextInRect: 双交换+ame250 染色全链删除
+# （BackgroundManager.m 净删 374 行，python 实测描边/光晕 needle 0 命中）；
+# J1-J3/J5 锚面随链退役（退役口径由 ame378_selfcheck.py 守卫）。J4 豁免 API
+# 按 Task378 家法保留为兼容空操作桩（定义在位），J6 调用点继续守卫。
+skip("J1 stroke width（四方向 0.6pt 外扩描边）", "BackgroundManager.m 描边渲染链",
+     "Task378 全局描边字体整体退役（91a10fe3d）")
+skip("J2 semi-transparent stroke color", "BackgroundManager.m 描边渲染链",
+     "Task378 全局描边字体整体退役（91a10fe3d）")
+skip("J3 shadow", "BackgroundManager.m 光晕链", "Task378 全局描边字体整体退役（91a10fe3d）")
+check("J4 exemption API（Task378 后保留为兼容空操作桩，定义在位）",
+      'ame229_labelSetStrokeExempt' in bm and 'ame229_labelIsStrokeExempt' in bm)
+skip("J5 swizzle honors exemption", "BackgroundManager.m swizzle 入口",
+     "swizzle 随 Task378 退役，豁免消费点随链退役")
 check("J6 coach title exempt", cm.count('ame229_labelSetStrokeExempt') == 3)
 
 # ---------- K: i18n ----------
@@ -151,8 +192,13 @@ for lang in ['en', 'zh-Hans', 'zh-Hant', 'zh-CN', 'ja']:
 
 # used-subset audit: every localize(@"..." key in touched UI files exists in en+zh-Hans
 used = set()
+# ★退役收编：LauncherPreferencesViewController.m 已随退役批次删除——不参与
+# used 取证面（存留三文件守卫继续生效）。
 for f in ['Natives/LauncherPreferencesViewController.m', 'Natives/FolderBrowserViewController.m',
           'Natives/SurfaceViewController.m', 'Natives/SurfaceViewController+Navigation.m']:
+    if retired(f):
+        print(f"  [RETIRED] {f} —— 退役批次已删，跳过相关断言（容错壳）")
+        continue
     for m in re.finditer(r'localize\(@"([A-Za-z0-9_.\-]+)"', rd(f)):
         used.add(m.group(1))
 en = rd('Natives/resources/en.lproj/Localizable.strings')
@@ -168,5 +214,5 @@ check("L task139 syntax gate", r.returncode == 0, r.stdout[-200:] if r.returncod
 r = subprocess.run([sys.executable, 'scripts/task225_bracket_audit.py'], capture_output=True, text=True)
 check("L bracket audit (touched files)", 'FAIL' not in r.stdout, r.stdout[-300:] if 'FAIL' in r.stdout else "")
 
-print(f"\n===== verify_task229: {PASS} PASS / {FAIL} FAIL =====")
+print(f"\n===== verify_task229: {PASS} PASS / {SKIPPED} SKIP / {FAIL} FAIL =====")
 sys.exit(1 if FAIL else 0)

@@ -74,6 +74,12 @@ def balance(path):
 
 fails = 0
 for rel in FILES:
+    # ★第 12 期整改批次二①（退役收编）：清单中 Task436/440 批次已物理删除的
+    # 宿主（旧下载中心/主页 Root/主页新闻）不再可读——语法配平语义随宿主
+    # 退役（[RETIRED] 家法：退役面用 SKIP 而非 FAIL），存留文件守卫行为不变。
+    if not os.path.exists(os.path.join(REPO, rel)):
+        print("SKIP", rel, "-- [RETIRED] 退役批次已删，配平随宿主退役（容错壳）")
+        continue
     ok = balance(os.path.join(REPO, rel))
     print(("OK  " if ok else "FAIL"), rel)
     if not ok:

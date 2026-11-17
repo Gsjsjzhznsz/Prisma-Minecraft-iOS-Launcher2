@@ -244,7 +244,17 @@ NSString *const PREF_MOD_MIRROR = @"general.mod_mirror";
             // UI 子面板占位 key（LauncherPreferencesViewController 的 getPreference 回调
             // 会对每个设置项按 "section.key" 查询，包括 button/childPane 类型）。
             // 提供空串默认值避免触发 "Getter could not find preference control.custom_controls" 日志。
-            @"custom_controls": @""
+            @"custom_controls": @"",
+            // ★ Task441（编辑器五件对标 ZL2，批次三①）：触控布局拖拽编辑器
+            //   三键注册（Setter 静默丢弃判例家族——未注册键 setObject: 不落
+            //   盘）。读写点唯一：ZL2ControlLayoutEditorViewController.m。
+            //   editor_snap_enabled：吸附总开关（默认 YES = 既有 8pt 行为零
+            //   漂移）；editor_snap_mode：吸附模式（0=8pt 网格 / 1=元素边缘，
+            //   ZL2 基准 SnapMode 两档映射）；editor_coach_done：编辑器新手
+            //   引导已读哨兵（Ame223CoachMarksView 首进判定，读完落盘）。
+            @"editor_snap_enabled": @YES,
+            @"editor_snap_mode": @0,
+            @"editor_coach_done": @NO
         }.mutableCopy,
         @"java": @{
             @"java_homes": @{

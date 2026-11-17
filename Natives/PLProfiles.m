@@ -743,7 +743,8 @@ static void ame428_dosDateTime(NSDate *when, uint16_t *outTime, uint16_t *outDat
 //
 // A 层【实例级隔离（ame217 三态，既有语义优先——存量用户零回归的锚点）】
 //   读 profile[@"gameDir"]（ProfileSettingsViewController ame217_isolationState
-//   同口径）：
+//   同口径——★Task441 墓碑：该类已随 Task440 批次二物理退役 [RETIRED]，判例引用
+//   retired，语义锚由本文件 ame217 实现自持）：
 //   A1. gameDir 缺失 / "." / "./"（state 0，实例隔离未开）：
 //       → 进入 B 层（版本级 + 全局默认在此生效——这是全局档的主作用面）。
 //         “实例隔离关闭时版本级不生效”的落地方式：本形态下版本级的自动档

@@ -37,7 +37,7 @@ fi
 
 SDK_SIM="$(xcrun --sdk iphonesimulator --show-sdk-path)"
 ARCH="$(uname -m)"   # arm64（Apple Silicon runner）/ x86_64
-COMMON=(-fobjc-arc -I"$NATIVES" -isysroot "$SDK_SIM" -target "${ARCH}-apple-ios14.0-simulator")
+COMMON=(-fobjc-arc -I"$NATIVES" -I"$NATIVES/external/UnzipKit" -isysroot "$SDK_SIM" -target "${ARCH}-apple-ios14.0-simulator")
 mkdir -p "$OUT"
 
 # ★Task418 截图自动正向（横屏三件套配套）：canvas 竖（高>宽）→ -r 270 转横
@@ -633,11 +633,215 @@ PLIST
   fi
 }
 
+# ─────────────────────────────────────────────────────────────
+# ★Task441 批次四：门禁第四腿（真壳冒烟，第五次移交落地）
+#   真壳 TU 全量链接（壳层七页 + 版本列表新页 + 整合包导入链全部真 TU 无桩）
+#   → 模拟器启动（-zl2shell real -ame441Smoke）→ 七页步进遍历 → 新入口遍历
+#   → 五件构造损坏 JSON 回归样本（name 数字/hash 非字典/projectID null/
+#   minecraft:123/files:"x"，真实 ModpackImportService parse + installModLoader
+#   4001 守卫 + ModpackUtils ame439 取消式 URL 推导）。
+#   桩面合规：服务桩三件仅 Preview 目标（ZL2PagesStub.m Ame441ShellSmoke 区）。
+#   UnzipKit 预编 framework 为设备片（Mach-O arm64 device slice）——模拟器腿
+#   用钉 pin 真 UnzipKit 源码编译（非桩；commit sha 落 unzipkit-commit.txt）。
+#   验收 = console-pty 日志 grep "[ame441-smoke] ALL PASS"：CI 红灯拦截
+#   「编译过但运行崩」（第 11 期 2.2 节类型缺陷合入前被拦）。
+#   TU 清单为 preview_mode 固定清单的同源镜像（判例 N+14 家法：新 TU 落地两处
+#   清单必同步）+ 真壳腿追加三件。
+# ─────────────────────────────────────────────────────────────
+shell_mode() {
+  echo "== ★Task441 第四腿：真壳冒烟（simulator）=="
+
+  # ① UnzipKit 真源码获取（1.9 钉 pin；tag 缺席回落默认分支并记 sha）
+  local ame441_uzk="$OUT/UnzipKit-src"
+  if [[ ! -f "$ame441_uzk/UnzipKit/UZKArchive.m" ]]; then
+    rm -rf "$ame441_uzk"
+    if ! git clone --quiet --depth 1 --branch "1.9" https://github.com/abbeycode/UnzipKit "$ame441_uzk" 2>"$OUT/unzipkit-clone.log"; then
+      git clone --quiet --depth 1 https://github.com/abbeycode/UnzipKit "$ame441_uzk" 2>>"$OUT/unzipkit-clone.log" \
+        || { echo "✗ UnzipKit 源码获取失败:"; cat "$OUT/unzipkit-clone.log"; FAIL=1; return; }
+    fi
+    git -C "$ame441_uzk" rev-parse HEAD > "$OUT/unzipkit-commit.txt" 2>/dev/null || true
+  fi
+  echo "  UnzipKit 源码 pin: $(cat "$OUT/unzipkit-commit.txt" 2>/dev/null || echo unknown)"
+
+  # ② 编译：preview 固定清单同源镜像（34 TU）+ 真壳腿追加三件 + UnzipKit 真源码
+  local ame441_sources=(
+    AmeTheme FluentButton FluentCard FluentListCell FluentTextField
+    FluentToast FluentSegmentedControl FluentProgress FluentBanner
+    ZL2Theme ZL2RailView ZL2HomeViewController AmeFlowSelectView
+    ZL2DownloadViewController ZL2VersionsViewController
+    ZL2AccountsViewController ZL2SettingsViewController ZL2SkinPreviewView
+    ZL2AssetSearchViewController ZL2AggregatedSearchService ZL2VersionListPage
+    ZL2M3Kit ZL2GameDownloadViewController ZL2GameAddonsViewController
+    ZL2SearchIdViewController ZL2FavoritesStore installer/FabricUtils
+    ZL2ShellViewController ZL2FestivalEffects ZL2AnimationKit
+    AmeUIImageColors AmeHCTPalette ZL2DynamicPalette
+    ModpackImportService installer/modpack/ModpackUtils PLDownloadClient
+  )
+  local ame441_uzinc=(-I"$NATIVES/external/UnzipKit" -I"$ame441_uzk/UnzipKit" -I"$ame441_uzk/UnzipKit/minizip")
+  local ame441_objs=()
+  local ame441_s ame441_base
+  for ame441_s in "${ame441_sources[@]}"; do
+    ame441_base="$(basename "$ame441_s")"
+    if [[ -f "$OUT/shellobj-$ame441_base.o" ]]; then
+      ame441_objs+=("$OUT/shellobj-$ame441_base.o")
+      continue
+    fi
+    if ! xcrun clang -c "${COMMON[@]}" "${ame441_uzinc[@]}" "$NATIVES/$ame441_s.m" \
+        -o "$OUT/shellobj-$ame441_base.o" 2>"$OUT/compile-shell-$ame441_base.log"; then
+      echo "  ✗ $ame441_s.m 编译失败:"
+      cat "$OUT/compile-shell-$ame441_base.log" || true
+      sed 's/^/##[error] [shell-compile] /' "$OUT/compile-shell-$ame441_base.log" | head -20 || true
+      FAIL=1
+      return
+    fi
+    ame441_objs+=("$OUT/shellobj-$ame441_base.o")
+  done
+
+  echo "  编译 Preview/AmeFluentPreviewMain.m + ZL2PagesStub.m（shell 腿复用同 harness/桩 TU）"
+  for ame441_s in "Preview/AmeFluentPreviewMain" "Preview/ZL2PagesStub"; do
+    ame441_base="$(basename "$ame441_s")"
+    if [[ ! -f "$OUT/shellobj-$ame441_base.o" ]]; then
+      if ! xcrun clang -c "${COMMON[@]}" "${ame441_uzinc[@]}" "$NATIVES/$ame441_s.m" \
+          -o "$OUT/shellobj-$ame441_base.o" 2>"$OUT/compile-shell-$ame441_base.log"; then
+        echo "  ✗ $ame441_s.m 编译失败:"
+        cat "$OUT/compile-shell-$ame441_base.log" || true
+        FAIL=1
+        return
+      fi
+    fi
+    ame441_objs+=("$OUT/shellobj-$ame441_base.o")
+  done
+
+  # UnzipKit 真源码（UZKArchive/UZKFileInfo 等 .m + minizip C；排除测试/示例）
+  local ame441_uzm ame441_uzbase
+  while IFS= read -r ame441_uzm; do
+    ame441_uzbase="$(basename "$ame441_uzm" .m)"
+    [[ -f "$OUT/shellobj-uzk-$ame441_uzbase.o" ]] && { ame441_objs+=("$OUT/shellobj-uzk-$ame441_uzbase.o"); continue; }
+    if ! xcrun clang -c "${COMMON[@]}" "${ame441_uzinc[@]}" -Wno-deprecated-declarations \
+        "$ame441_uzm" -o "$OUT/shellobj-uzk-$ame441_uzbase.o" 2>"$OUT/compile-uzk-$ame441_uzbase.log"; then
+      echo "  ✗ UnzipKit TU 编译失败: $ame441_uzm"
+      cat "$OUT/compile-uzk-$ame441_uzbase.log" || true
+      FAIL=1
+      return
+    fi
+    ame441_objs+=("$OUT/shellobj-uzk-$ame441_uzbase.o")
+  done < <(find "$ame441_uzk/UnzipKit" -name '*.m' -not -path '*Test*' -not -path '*Demo*' 2>/dev/null)
+  while IFS= read -r ame441_uzm; do
+    ame441_uzbase="$(basename "$ame441_uzm" .c)"
+    [[ -f "$OUT/shellobj-uzkc-$ame441_uzbase.o" ]] && { ame441_objs+=("$OUT/shellobj-uzkc-$ame441_uzbase.o"); continue; }
+    if ! xcrun clang -c -isysroot "$SDK_SIM" -target "${ARCH}-apple-ios14.0-simulator" \
+        -I"$ame441_uzk/UnzipKit/minizip" -I"$ame441_uzk/UnzipKit" \
+        "$ame441_uzm" -o "$OUT/shellobj-uzkc-$ame441_uzbase.o" 2>>"$OUT/compile-uzkc.log"; then
+      echo "  ✗ minizip C 编译失败: $ame441_uzm"
+      cat "$OUT/compile-uzkc.log" || true
+      FAIL=1
+      return
+    fi
+    ame441_objs+=("$OUT/shellobj-uzkc-$ame441_uzbase.o")
+  done < <(find "$ame441_uzk/UnzipKit" -name '*.c' 2>/dev/null)
+
+  # ③ 链接（同 preview 框架面 + libz：minizip 原生 zlib 依赖）
+  if ! xcrun clang -isysroot "$SDK_SIM" -target "${ARCH}-apple-ios14.0-simulator" \
+      -framework UIKit -framework Foundation -framework CoreGraphics -framework QuartzCore \
+      -framework AuthenticationServices -framework UniformTypeIdentifiers \
+      -framework CoreHaptics -lz \
+      -o "$OUT/AmeShellSmoke" \
+      "${ame441_objs[@]}" 2>"$OUT/link-shell.log"; then
+    echo "  ✗ shell 腿链接失败:"
+    head -80 "$OUT/link-shell.log" || true
+    sed 's/^/##[error] [shell-link] /' "$OUT/link-shell.log" | head -40 || true
+    FAIL=1
+    return
+  fi
+
+  local app="$OUT/AmeShellSmoke.app"
+  mkdir -p "$app"
+  cp "$OUT/AmeShellSmoke" "$app/AmeShellSmoke"
+  cat > "$app/Info.plist" <<'PLIST'
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>CFBundleIdentifier</key><string>com.prisma-devs.ame-shell-smoke</string>
+  <key>CFBundleExecutable</key><string>AmeShellSmoke</string>
+  <key>CFBundleName</key><string>AmeShellSmoke</string>
+  <key>CFBundlePackageType</key><string>APPL</string>
+  <key>CFBundleShortVersionString</key><string>1.0.0</string>
+  <key>CFBundleVersion</key><string>1</string>
+  <key>CFBundleDevelopmentRegion</key><string>zh_CN</string>
+  <key>MinimumOSVersion</key><string>14.0</string>
+  <key>UILaunchScreen</key><dict/>
+  <key>UISupportedInterfaceOrientations</key>
+  <array>
+    <string>UIInterfaceOrientationLandscapeLeft</string>
+    <string>UIInterfaceOrientationLandscapeRight</string>
+    <string>UIInterfaceOrientationPortrait</string>
+  </array>
+</dict>
+</plist>
+PLIST
+  codesign --force --sign - "$app" >/dev/null 2>&1 || true
+
+  # ④ 模拟器启动 + 标记等待（七页步进 + 样本链全真 TU，冷启动上限 120s）
+  local device=""
+  device="$(xcrun simctl list devices booted 2>/dev/null | grep -oE '[0-9A-F-]{36}' | head -1 || true)"
+  if [[ -z "${device:-}" ]]; then
+    device="$(xcrun simctl list devices available 2>/dev/null | grep 'iPhone' | grep 'Max' | grep -oE '[0-9A-F-]{36}' | head -1 || true)"
+  fi
+  if [[ -z "${device:-}" ]]; then
+    device="$(xcrun simctl list devices available 2>/dev/null | grep 'iPhone' | grep -oE '[0-9A-F-]{36}' | head -1 || true)"
+  fi
+  if [[ -z "$device" ]]; then
+    echo "✗ 未找到可用 iPhone 模拟器"
+    FAIL=1
+    return
+  fi
+  xcrun simctl terminate "$device" com.prisma-devs.ame-shell-smoke >/dev/null 2>&1 || true
+  xcrun simctl boot "$device" 2>/dev/null || true
+  xcrun simctl bootstatus "$device" -b >/dev/null 2>&1 || true
+  xcrun simctl install "$device" "$app" || { echo "✗ shell 腿安装失败"; FAIL=1; return; }
+  echo "  shell 腿模拟器 UDID: $device（真壳 -zl2shell real -ame441Smoke）"
+
+  xcrun simctl launch --console-pty "$device" com.prisma-devs.ame-shell-smoke \
+      -zl2shell real -ame441Smoke > "$OUT/console-shell-smoke.log" 2>&1 &
+  local ame441_pid=$!
+  local ame441_ok=0 ame441_try
+  for ame441_try in $(seq 1 60); do
+    if grep -q "ame441-smoke] ALL PASS" "$OUT/console-shell-smoke.log" 2>/dev/null; then
+      ame441_ok=1
+      break
+    fi
+    if grep -q "ame441-smoke] FAIL" "$OUT/console-shell-smoke.log" 2>/dev/null; then
+      break
+    fi
+    if ! pgrep -f "AmeShellSmoke.app" >/dev/null 2>&1; then
+      break   # 进程亡且无标记 = 启动即崩/中途崩（无 FAIL 落日志的场景）
+    fi
+    sleep 2
+  done
+  kill "$ame441_pid" 2>/dev/null || true
+  wait "$ame441_pid" 2>/dev/null || true
+
+  if [[ "$ame441_ok" != "1" ]]; then
+    echo "✗ 第四腿真壳冒烟失败（ALL PASS 标记未达/进程中途亡）"
+    echo "── console-shell-smoke.log（尾部 60 行）:"
+    tail -60 "$OUT/console-shell-smoke.log" 2>/dev/null || echo "  （无输出）"
+    sed 's/^/##[error] [shell-smoke] /' "$OUT/console-shell-smoke.log" 2>/dev/null | tail -30 || true
+    echo "── DiagnosticReports 最近崩溃:"
+    ls -lt ~/Library/Logs/DiagnosticReports/ 2>/dev/null | head -6
+    FAIL=1
+    return
+  fi
+  echo "  ✓ 第四腿 ALL PASS：$(grep -c 'ame441-smoke] ok' "$OUT/console-shell-smoke.log") 步标记"
+  xcrun simctl terminate "$device" com.prisma-devs.ame-shell-smoke >/dev/null 2>&1 || true
+}
+
 case "$MODE" in
   syntax)  syntax_mode; stub_signature_gate ;;   # ★Task429 N8：语法腿同轮跑桩签名防线（无模拟器依赖）
   preview) preview_mode ;;
-  all)     syntax_mode; stub_signature_gate; preview_mode ;;
-  *) echo "用法: $0 [syntax|preview|all]"; exit 2 ;;
+  shell)   shell_mode ;;    # ★Task441 批次四：真壳冒烟独立腿（可单独跑，UnzipKit 钉 pin 自取）
+  all)     syntax_mode; stub_signature_gate; preview_mode; shell_mode ;;
+  *) echo "用法: $0 [syntax|preview|shell|all]"; exit 2 ;;
 esac
 
 if [[ "$FAIL" -ne 0 ]]; then

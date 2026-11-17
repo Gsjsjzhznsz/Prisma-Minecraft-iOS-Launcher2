@@ -1683,3 +1683,64 @@ typedef NS_ENUM(NSInteger, MultiplayerVCMode) {
     return @{@"name": @"stub.launchwrapper:1.12", @"downloads": @{}};
 }
 @end
+
+// ─────────────────────────────────────────────────────────────
+// ★Task441 批次四（门禁第四腿）：ModpackImportService/ModpackUtils/PLDownloadClient
+//   真 TU 进 shell 腿编译清单后的桩缺口三件（家法同前：手写同名类声明 + 最小
+//   签名空实现，不 import 真头）。三件均为导入成功/收尾路径符号（样本链路：
+//   parse → 守卫 → 取消式 URL 推导，永不触达），返回空 = 可判读兜底。
+//   DownloadTaskManager taskWithId: 缺口 = ImportService 聚合任务读侧（:133）。
+// ─────────────────────────────────────────────────────────────
+@interface ModService (Ame441ShellSmoke)
++ (void)ame325_ensureInstanceAxisSkeletons;
+@end
+@implementation ModService (Ame441ShellSmoke)
++ (void)ame325_ensureInstanceAxisSkeletons { }
+@end
+
+@interface PLCrashView : NSObject
++ (void)restartLauncher;
+@end
+@implementation PLCrashView
++ (void)restartLauncher { }
+@end
+
+@implementation DownloadTaskManager (Ame441ShellSmoke)
+- (nullable DownloadTaskItem *)taskWithId:(NSString *)taskId {
+    (void)taskId;
+    return nil;
+}
+@end
+
+// ─────────────────────────────────────────────────────────────
+// ★Task441 批次四链接面补桩（第二轮盲区清查）：ImportService 安装体与镜像
+//   候选链三符号（家法同前：手写同名类声明 + 最小签名空实现）。三件均属
+//   安装执行体/网络候选链，样本链路（parse→守卫→取消式推导）永不触达。
+// ─────────────────────────────────────────────────────────────
+@interface ForgeProcessorExecutor : NSObject
++ (BOOL)jvmUsedThisProcess;
+@end
+@implementation ForgeProcessorExecutor
++ (BOOL)jvmUsedThisProcess { return NO; }
+@end
+
+@interface NeoForgeDirectInstaller : NSObject
++ (BOOL)installNeoForgeFromInstaller:(NSString *)installerPath
+                              versionId:(NSString *)versionId
+                                  error:(NSError **)error;
+@end
+@implementation NeoForgeDirectInstaller
++ (BOOL)installNeoForgeFromInstaller:(NSString *)installerPath
+                              versionId:(NSString *)versionId
+                                  error:(NSError **)error {
+    (void)installerPath; (void)versionId; (void)error;
+    return NO;
+}
+@end
+
+@implementation PLMirrorCenter (Ame441ShellSmoke)
++ (NSArray<NSURL *> *)candidateURLsForOriginalURL:(NSURL *)originalURL resourceType:(NSInteger)type {
+    (void)originalURL; (void)type;
+    return @[];   // 空候选链 → 消费方回落 official URL（ImportService :1855 判例分支）
+}
+@end

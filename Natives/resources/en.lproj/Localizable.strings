@@ -4250,7 +4250,7 @@
 "ame429.j.layer.to_front" = "Bring to front";
 "ame429.j.load.error" = "Failed to read the layout file; check the JSON files inside controlmap";
 "ame429.j.more.discard" = "Discard changes and exit";
-"ame429.j.more.hint" = "Drag nodes to move; they snap to the 8pt grid on release. Drag a corner handle to scale uniformly. Use \"Layers\" to reorder and \"Styles\" to reskin the whole layout.";
+"ame429.j.more.hint" = "Drag nodes to move; they land per the snap settings on release (toggle and modes in \"More\"). Drag a corner handle to scale uniformly. Use \"Layers\" to reorder, rename, or focus; \"Styles\" to reskin the whole layout or save custom presets; \"Preview\" to try the controls.";
 "ame429.j.more.title" = "More";
 "ame429.j.save.error.json" = "Layout data could not be serialized to JSON; nothing was written.";
 "ame429.j.save.error.json_title" = "Save failed";
@@ -4438,7 +4438,7 @@
 
 "ame432.vdet.datapacks.world_fmt" = "World: %@";
 
-"ame432.vdet.modify" = "Modify Version";
+"ame432.vdet.modify" = "Change Loader";
 
 "ame432.vdet.modify.confirm_body" = "Install %@ %@ (MC %@) for instance “%@”? After success the instance points to the new version entity; the old one is kept.";
 
@@ -4544,3 +4544,45 @@
 "ame436.fav.refresh" = "Refresh remote info";
 "ame436.fav.refresh_done_fmt" = "Refreshed %lu/%lu favorites";
 "ame436.fav.filter_missing_hint" = "Entries missing this field are not filtered";
+
+// ★Task441 (batch 3-1): control editor five-piece aligned to ZL2 (anchor c62fdeaf)
+"ame441.editor.layer.rename" = "Rename Control";
+"ame441.editor.layer.rename.hint" = "The name is written to the name field of the layout JSON and takes effect after saving";
+"ame441.editor.layer.focus" = "Focus This Control";
+"ame441.editor.layer.focus.sub" = "Show and edit only this control; the others dim and lock";
+"ame441.editor.layer.unfocus" = "Exit Focus";
+"ame441.editor.layer.unfocus.sub" = "Restore display and editing of all controls";
+"ame441.editor.snap.title" = "Snap Settings";
+"ame441.editor.snap.more.sub" = "Toggle plus grid / element-edge modes";
+"ame441.editor.snap.enable" = "Snap";
+"ame441.editor.snap.mode" = "Snap Mode";
+"ame441.editor.snap.mode.grid" = "Grid 8pt";
+"ame441.editor.snap.mode.edge" = "Element Edges";
+"ame441.editor.snap.foot" = "With snapping off, nodes land freely (still clamped to the canvas). In \"Element Edges\" mode, a guide line appears while dragging to align with other controls' edges, and the node lands on the alignment on release.";
+"ame441.editor.style.cabinet" = "Style Cabinet";
+"ame441.editor.style.cabinet.empty" = "No custom presets yet — save the current style first";
+"ame441.editor.style.save" = "Save Current Style as Preset";
+"ame441.editor.style.save.hint" = "Samples the whole-layout button/background opacity and stroke, then names and stores it";
+"ame441.editor.style.params_fmt" = "Buttons %d%% · Background %d%% · Stroke %.1f";
+"ame441.editor.style.delete.confirm.title" = "Delete Preset";
+"ame441.editor.style.delete.confirm.body_fmt" = "The preset \"%@\" will be deleted. This cannot be undone.";
+"ame441.editor.preview.enter" = "Preview Mode";
+"ame441.editor.preview.enter.sub" = "Hide the editing UI, try the controls, exit anytime";
+"ame441.editor.preview.exit" = "Exit Preview";
+"ame441.editor.preview.badge" = "Preview · Controls are try-able";
+"ame441.editor.more.coach" = "Replay Onboarding Guide";
+"ame441.editor.toast.focused_fmt" = "Focused: %@";
+"ame441.editor.toast.unfocused" = "Focus exited";
+"ame441.editor.toast.renamed" = "Renamed";
+"ame441.editor.toast.style_applied_fmt" = "Preset applied: %@";
+"ame441.editor.toast.style_saved_fmt" = "Saved to style cabinet: %@";
+"ame441.editor.toast.style_deleted_fmt" = "Preset deleted: %@";
+"ame441.editor.toast.style_save_failed" = "Failed to write the style cabinet";
+"ame441.editor.coach.p1.title" = "Drag & Snap";
+"ame441.editor.coach.p1.body" = "Drag a control to move it; it lands per the current snap settings on release. Drag a corner handle to scale uniformly.";
+"ame441.editor.coach.p2.title" = "Create & Properties";
+"ame441.editor.coach.p2.body" = "Use \"+\" to create buttons/textboxes/joysticks; select one and edit its name, keycodes, opacity and more in the properties panel.";
+"ame441.editor.coach.p3.title" = "Layers & Focus";
+"ame441.editor.coach.p3.body" = "Use \"Layers\" to reorder, rename a control, or focus a single control for editing.";
+"ame441.editor.coach.p4.title" = "Styles & Preview";
+"ame441.editor.coach.p4.body" = "Apply style presets or save your own to the cabinet; \"More\" offers preview mode to try controls; saving writes back to the layout file.";

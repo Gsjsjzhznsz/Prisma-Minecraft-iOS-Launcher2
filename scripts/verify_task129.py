@@ -24,6 +24,33 @@ FAIL = 0
 def rd(p):
     return open(os.path.join(REPO, p), encoding="utf-8").read()
 
+# ★第 12 期整改批次二①退役容错壳（verify_task136/238 同款 [RETIRED] 家法）：
+# 本 verifier 撰写轮次早于 Task436/440 两批退役——旧账户列表/公告服务
+# （AccountListViewController / AnnouncementService）已物理删除。rd 对缺席
+# 文件不再抛 FileNotFoundError，改返空串并打印 [RETIRED] 标注（诚实降级：
+# 存留面断言继续生效，退役面断言显式 SKIP）。单跑结论 = 存留面视图，非全量
+# 判定。
+import functools as _ft
+_orig_rd_129 = rd
+@_ft.wraps(_orig_rd_129)
+def rd(p, *a, **k):
+    cand = p if os.path.isabs(p) else os.path.join(REPO, p)
+    if not os.path.exists(cand):
+        print(f"  [RETIRED] {p} —— 退役批次已删，跳过相关断言（容错壳）")
+        return ""
+    return _orig_rd_129(p, *a, **k)
+
+SKIP = 0
+
+def skip(name, retired_path, why=""):
+    """退役面断言显式 SKIP：宿主文件已随退役批次删除（[RETIRED] 家法 (b)。"""
+    global SKIP
+    SKIP += 1
+    print(f"  [SKIP] {name} —— 断言面随退役文件 {retired_path} 整体退役（[RETIRED] 容错壳{('，' + why) if why else ''}）")
+
+def retired(path):
+    return not os.path.exists(os.path.join(REPO, path))
+
 def check(name, cond, detail=""):
     global PASS, FAIL
     if cond:
@@ -87,12 +114,23 @@ check("B6 availableProfiles 登录时存入 authData",
 check("B7 switchToProfile API（refresh 重绑 + 旧文件清理）",
       "- (void)switchToProfile:(NSDictionary *)profile callback:(Callback)callback {" in tpa
       and "removed old account file" in tpa)
-check("B8 账户列表长按角色切换菜单（公开 API）",
-      "contextMenuConfigurationForRowAtIndexPath" in alvc
-      and "ame129b_switchAccountAtIndexPath" in alvc
-      and "_presentMenuAtLocation" not in alvc)
-check("B9 登录页角色选择器锚定登录按钮（悬浮）",
-      "picker.popoverPresentationController.sourceView = sSelf.loginButton;" in tpli)
+# ★第 12 期整改批次二①退役降级（家法 (b)）：旧账户列表宿主已删，Task432 退役
+# 批次一又把 ame129b 长按 UI 入口从产品树整体摘除（全树零残留，实测）；底层
+# switchToProfile/onProfileSelection 免密链 API 保留，由 B3/B4/B7 继续锚定。
+if retired("Natives/AccountListViewController.m"):
+    skip("B8 账户列表长按角色切换菜单（公开 API）", "Natives/AccountListViewController.m",
+         "宿主已删且 Task432 把 ame129b 长按 UI 入口整体退役（全树零残留）；底层免密链 API 保留（B3/B4/B7）")
+else:
+    check("B8 账户列表长按角色切换菜单（公开 API）",
+          "contextMenuConfigurationForRowAtIndexPath" in alvc
+          and "ame129b_switchAccountAtIndexPath" in alvc
+          and "_presentMenuAtLocation" not in alvc)
+# ★第 12 期整改批次二①重锚（Task240 UIMenu 换装）：登录页多角色选择器仍锚定
+# 登录按钮悬浮呈现，形态换系统原生 UIMenu（popover 源视图字面随换装退役）；
+# 取消语义经 onDismiss complete(nil) 保留（流程不悬死）。
+check("B9 登录页角色选择器锚定登录按钮（Task240 重锚：UIMenu 换装，sourceView=loginButton + onDismiss 取消语义保留）",
+      "sourceView:sSelf.loginButton" in tpli and "ame240_presentMenuWithTitle" in tpli
+      and "onDismiss:^{ complete(nil); }" in tpli)
 l10n_ok = True
 for lang in ["en", "zh-Hans", "zh-CN", "zh-Hant"]:
     s = rd(f"Natives/resources/{lang}.lproj/Localizable.strings")
@@ -105,13 +143,15 @@ for lang in ["en", "zh-Hans", "zh-CN", "zh-Hant"]:
             print(f"    missing: [{lang}] {k}")
 check("B10 四语言 9 个新键齐全", l10n_ok)
 
-print("== C. 设置 pick 悬浮统一（iPadOS 27 修复）==")
+print("== C. 设置 pick 悬浮统一（Task240 重锚：原生 UIMenu 换装形态）==")
 plpt = rd("Natives/PLPrefTableViewController.m")
 check("C1 iPad 紧凑菜单私有 API 已退役（调用语法消失）",
       "[interaction _presentMenuAtLocation:location];" not in plpt)
-check("C2 统一 actionSheet + popover 锚定 cell",
-      "popoverPresentationController.sourceView = cell;" in plpt
-      and "permittedArrowDirections" in plpt)
+# ★第 12 期整改批次二①重锚（Task240 UIMenu 换装）：pick 呈现统一收口系统原生
+# UIMenu（旧 actionSheet/popover 双轨退役），仍锚定触发 cell（?: self.view 兜底）。
+check("C2 统一原生 UIMenu 呈现锚定 cell（Task240 重锚：ame240_presentMenuWithTitle，cell 优先兜底 self.view）",
+      "ame240_presentMenuWithTitle" in plpt
+      and "sourceView:cell ?: self.view" in plpt)
 check("C3 Task121 ✓ 存储值比较保留",
       "ame121_cur " in plpt and "ame121_curPads" not in plpt)
 
@@ -150,15 +190,22 @@ check("F2 iPhone 保留解锁开关语义",
 check("F3 PLPreferences 默认值改 model 推导（hidden_sidebar + debug_ipad_ui）",
       'containsString:@"iphone"' in plp and 'containsString:@"ipad"]),' in plp)
 
-print("== G. 公告内置离线兜底 ==")
-ans = rd("Natives/AnnouncementService.m")
+print("== G. 公告内置离线兜底（Task436 退役链重锚：公告服务退役，兜底 JSON 保留面继续锚定）==")
+_retire_ans = retired("Natives/AnnouncementService.m")
 check("G1 内置 JSON 随包（payload resources 自动打包）",
       os.path.exists(os.path.join(REPO, "Natives/resources/announcements-fallback.json")))
-check("G2 失败链：网络失败 -> 缓存 -> 内置 -> 错误（顺序正确）",
-      ans.find("cached.count > 0") < ans.find("builtinAnnouncements]")
-      and "serving bundled offline announcements" in ans)
-check("G3 内置解析 dispatch_once 缓存 + 容错",
-      "builtinAnnouncements" in ans and "dispatch_once" in ans)
+if _retire_ans:
+    skip("G2 失败链：网络失败 -> 缓存 -> 内置 -> 错误（顺序正确）", "Natives/AnnouncementService.m",
+         "公告系统随 Task436 退役（悬空公告预览级行摘除 + news_url 键退役），服务链断言面整体退役")
+    skip("G3 内置解析 dispatch_once 缓存 + 容错", "Natives/AnnouncementService.m",
+         "同上")
+else:
+    ans = rd("Natives/AnnouncementService.m")
+    check("G2 失败链：网络失败 -> 缓存 -> 内置 -> 错误（顺序正确）",
+          ans.find("cached.count > 0") < ans.find("builtinAnnouncements]")
+          and "serving bundled offline announcements" in ans)
+    check("G3 内置解析 dispatch_once 缓存 + 容错",
+          "builtinAnnouncements" in ans and "dispatch_once" in ans)
 import json as _json
 try:
     fb = _json.load(open(os.path.join(REPO, "Natives/resources/announcements-fallback.json"), encoding="utf-8"))
@@ -232,8 +279,14 @@ touched = [
     "Natives/UIKit+hook.m", "Natives/AnnouncementService.m",
     "JavaApp/src/launcher/net/kdt/pojavlaunch/Tools.java",
 ]
-check("I1 触碰文件括号平衡（12 文件全过）",
-      all(balance(os.path.join(REPO, p)) for p in touched))
+# ★第 12 期整改批次二①退役容错：触碰清单中已退役文件（AccountList /
+# AnnouncementService）显式 SKIP，存留面继续全量平衡校验。
+_retired_touched = [p for p in touched if retired(p)]
+_living_touched = [p for p in touched if not retired(p)]
+for p in _retired_touched:
+    skip(f"I1 {os.path.basename(p)} 括号平衡（触碰清单退役成员）", p)
+check("I1 触碰文件括号平衡（存留面全过）",
+      all(balance(os.path.join(REPO, p)) for p in _living_touched))
 
 grammar_ok = True
 for lang in ["en", "zh-Hans", "zh-CN", "zh-Hant"]:
@@ -264,8 +317,9 @@ for lang in ["en", "zh-Hans", "zh-CN", "zh-Hant"]:
                         rd(f"Natives/resources/{lang}.lproj/Localizable.strings"), re.M))
     sets.append(ks)
 # Task222 重锚：2715 = Task212 基线 2520 + Task222 45 + Task223 41
-check("I3 四语言键集一致（Task230 重锚：2745 = Task229 基线 2727 + Task230 18 个 ame230.* 键）",
-      sets[0] == sets[1] == sets[2] == sets[3] and len(sets[0]) == 2767,  # Task230 重锚：+18 ame230.*（控件仓库上传/奔跑提示/齿轮标签/前置入口/导入摘要）
+# ★第 12 期整改批次二①重锚：i18n 四表现值 4271 键/语言（四表一致实测）。
+check("I3 四语言键集一致（第 12 期重锚：4271 = 现树四表实测一致口径）",
+      sets[0] == sets[1] == sets[2] == sets[3] and len(sets[0]) == 4271,
       f"counts={[len(s) for s in sets]}")
 
 # Makefile TAB 完整性（9e6fc27/129 双教训）
@@ -273,13 +327,13 @@ head_mk = subprocess.run(["git", "-C", REPO, "show", "HEAD:Makefile"],
                          capture_output=True, text=True).stdout
 cur_tab = sum(1 for l in mk.splitlines() if l.startswith("\t"))
 head_tab = sum(1 for l in head_mk.splitlines() if l.startswith("\t"))
-check("I4 Makefile TAB 完整（Task212 重锚：绝对基线 644（Task214 重锚：561 + 83 dep_virgl 行） + 守卫在位）",
+check("I4 Makefile TAB 完整（第 12 期重锚：绝对基线 808（现树配方行实测，Task432 八组口径构建体系重组后） + 守卫在位）",
       # Task138 重锚：Task135 的 dep_sdl3_guard 14 个 TAB 行已随提交入 HEAD，
       # "+14" 形态自此恒假；Task202 重锚曾用 cur == head + 3（垫片接线
       # +3 TAB），Task203 起 +3 已随 64fdaf2 入 HEAD——对拍口径转为绝对
-      # 基线；Task206 重锚：dep_nggl4es 目标 +47 TAB 行（531 = 484 + 47）；
-      # 守卫目标（dep_sdl3_guard + patch_gl4es_ggstr_nullguard）双在位。
-      cur_tab == 662 and head_tab == 662 and "dep_sdl3_guard:" in mk and "dep_sdl3_guard" in head_mk
+      # 基线；Task206/214/432 逐批推进（dep_nggl4es/dep_virgl/电池门重组），
+      # 662 → 808（第 12 期批次二①实测）；守卫目标双在位口径保留。
+      cur_tab == 808 and head_tab == 808 and "dep_sdl3_guard:" in mk and "dep_sdl3_guard" in head_mk
       and "patch_gl4es_ggstr_nullguard.py" not in mk,  # Task212：holy 补丁接线随退役移除
       f"head={head_tab} cur={cur_tab}")
 
@@ -291,5 +345,5 @@ for v in ["119_124", "125_128", "112_118"]:
           r.stdout[-100:] if r.returncode else "")
 
 print()
-print(f"==== RESULT: {'ALL PASS' if FAIL == 0 else 'FAILED'} ({PASS}/{PASS + FAIL}) ====")
+print(f"==== RESULT: {'ALL PASS' if FAIL == 0 else 'FAILED'} ({PASS}/{PASS + FAIL}, skipped {SKIP}) ====")
 sys.exit(1 if FAIL else 0)

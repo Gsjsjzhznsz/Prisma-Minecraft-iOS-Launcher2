@@ -4,23 +4,41 @@ device logs 7d8f6630 + 96c67e38) implementation gates. Byte-level anchors, absen
 where code was retired, and the standing fleet audits (self-ref blocks, task225 bracket)."""
 import os, sys, re, subprocess
 
-BASE = "/home/z/my-project/Amethyst-iOS-MyRemastered"
-passed, failed = 0, []
+# ★第 12 期整改批次二①重锚：外部仓绝对路径已消失（干净克隆口径），改从脚本
+# 位置动态推导仓库根，TASK232_REPO 环境变量覆盖保留。
+BASE = os.environ.get("TASK232_REPO", os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+passed, failed, skipped = 0, [], 0
 
 def rd(path):
     return open(os.path.join(BASE, path), encoding="utf-8", errors="replace").read()
 
 def check(name, path, needle):
-    global passed
+    """字节级锚点断言。退役宿主（Task436/440 批次物理删除）显式 SKIP，
+    存留文件锚点缺失仍为 FAIL（[RETIRED] 家法 (b)/(d)）。"""
+    global passed, skipped
+    p = os.path.join(BASE, path)
+    if not os.path.exists(p):
+        skipped += 1
+        print(f"  [RETIRED] {path} —— 退役批次已删，断言面随宿主退役（容错壳）")
+        print(f"  [SKIP] {name}")
+        return
     if needle in rd(path):
         passed += 1
+        print(f"  ok   {name}")
     else:
         failed.append(f"{name}: anchor missing in {path}")
 
 def check_absent(name, path, needle):
-    global passed
+    global passed, skipped
+    p = os.path.join(BASE, path)
+    if not os.path.exists(p):
+        skipped += 1
+        print(f"  [RETIRED] {path} —— 退役批次已删，断言面随宿主退役（容错壳）")
+        print(f"  [SKIP] {name}")
+        return
     if needle not in rd(path):
         passed += 1
+        print(f"  ok   {name}")
     else:
         failed.append(f"{name}: forbidden pattern STILL PRESENT in {path}")
 
@@ -53,7 +71,12 @@ check_absent("232-5b no toast call", svc, "ame230.controls.unbound_toast")
 
 # (6) 悬浮栏玻璃：齿轮/统计/标签三件套 + 菜单 tint 拆除
 check("232-6a floating bar glass", gmv, "ame232_applyFloatingGlass")
-check("232-6b gear glass heavy dark", gmv, "floating bar glass applied (gear + stats + caption, heavy dark material)")
+# ★第 12 期整改批次二①重锚（Task243：悬浮栏改纯深色胶囊 + 0.5pt/0.20 发丝线，
+# Metal 上 LGC 玻璃跳过；Task236 hardened 取证日志继续守卫三件套构成）：
+# 旧 "floating bar glass applied (gear + stats + caption, heavy dark material)"
+# 日志随重样式退役，python 实测重锚到现行两日志锚。
+check("232-6b gear glass heavy dark（Task243 重锚：纯深色胶囊 + 0.5pt 发丝线 + LGC 玻璃 Metal 跳过）",
+      gmv, "[GameMenu] Task243 floating bar restyled (pure dark capsules + 0.5pt/0.20 hairline; LGC glass skipped on Metal)")
 check_absent("232-6c menu tint stripped (Task237 重锚：面板重写后 LGC 玻璃链整体退役，888903 染色层由构造杜绝)", nav, "LGCApplyGlassToView(self.menuView")
 
 # (7) 上游问题关闭：FAQ 四文件 + 代码标记
@@ -113,11 +136,19 @@ check("232-15d 4MB cap", "Natives/ZL2ControlRepoViewController.m", "4 * 1024 * 1
 check("232-15e keycode -12 floor", "Natives/ZL2ControlRepoViewController.m", "iv < -12")
 
 # (16) 白底黑边字体：四方向外扩描边（CoreText stroke + 光晕退役）
-check("232-16a drawTextInRect swizzle", bm, "ame232_swizzledLabelDrawTextInRect")
-check("232-16b four offsets (Task235 重锚：拷贝画进 ame235_copyRect；Task234 的 textRect 紧致矩形语义在非缩字标签上原样保留)", bm, "CGRectOffset(ame235_copyRect,  0.6f,  0.0f)")
-check("232-16c setText marks only", bm, "ame232_OutlineMarkKey")
-check_absent("232-16d CoreText stroke retired", bm, "NSStrokeWidthAttributeName")
-check_absent("232-16e halo retired", bm, "shadowRadius = 2.5")
+# ★第 12 期整改批次二①（退役收编）：Task378（commit 91a10fe3d）"全局描边字体
+# 退役=白黑双重叠根修"把 setText:/drawTextInRect: 双交换 + ame250 染色 +
+# ame224 反色阴影全链删除（BackgroundManager.m 净删 374 行，python 实测
+# ame232_swizzledLabelDrawTextInRect/ame235_copyRect/ame232_OutlineMarkKey/
+# NSStrokeWidthAttributeName 全部 0 命中，全仓产品代码零残留）；白黑重叠的
+# 根关切由 Task378 的"移除双渲染源头"承接，退役口径由 ame378_selfcheck.py
+# 守卫。[RETIRED] 家法：锚面随链退役，SKIP 而非 FAIL。
+skipped += 5
+print("  [SKIP] 232-16a drawTextInRect swizzle —— 描边链随 Task378 全局描边字体退役（91a10fe3d）")
+print("  [SKIP] 232-16b four offsets —— ame235_copyRect 拷贝画随 Task378 退役（91a10fe3d）")
+print("  [SKIP] 232-16c setText marks only —— ame232_OutlineMarkKey 染色标记随 Task378 退役（91a10fe3d）")
+print("  [SKIP] 232-16d CoreText stroke retired —— swizzle 整体退役后缺席语义真空成立")
+print("  [SKIP] 232-16e halo retired —— 光晕链随 Task378 退役（91a10fe3d）")
 
 # (17) i18n：20 新键 ×5 语言 + 2 退役键移除 + 裸键名修复
 KEYS = ["game.menu.settings", "ame232.repo.check.title", "ame232.repo.check.continue",
@@ -144,7 +175,11 @@ for lang in ["en", "zh-Hans", "zh-Hant", "zh-CN", "ja"]:
 r = subprocess.run([sys.executable, os.path.join(BASE, "scripts/task231_selfref_block_scan.py")],
                    capture_output=True, text=True, cwd=os.path.join(BASE, "Natives"))
 bad = [l for l in r.stdout.splitlines() if l.startswith("***")]
-if "total real self-referencing blocks: 6" in r.stdout and not bad:
+# ★第 12 期整改批次二①重锚：task231 扫描器正则越界修复（\^\(?[^)]*\)? 在
+# 无参 block 赋值处越过 body 开括号贪婪吞吃 → cleanup/apply 两处假嫌疑 +
+# BackgroundManager.m:1076 一处漏报）；修正后实测 total=5 处真自引用块全部
+# 带 __block 标记（代码健康），期望数从 6 重锚到 5。
+if "total real self-referencing blocks: 5" in r.stdout and not bad:
     passed += 1
 else:
     failed.append(f"232-fleet selfref scan: {bad or 'count mismatch'}")
@@ -165,7 +200,7 @@ if n_bad == 0 and n_ok >= 1:   # 提交前多文件/提交后单文件均合法
 else:
     failed.append(f"232-fleet task225 bracket audit: {n_bad} FAIL of {n_ok}")
 
-print(f"verify_task232: {passed} passed, {len(failed)} failed")
+print(f"verify_task232: {passed} passed, {skipped} skipped, {len(failed)} failed")
 for f in failed:
     print(f"  FAIL: {f}")
 sys.exit(1 if failed else 0)

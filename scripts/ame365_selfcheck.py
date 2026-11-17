@@ -12,7 +12,7 @@
 # S 病灶变体反向比对（必翻红项注入检查）
 import io, re, subprocess, sys
 
-REPO = __import__("os").environ.get("AME_REPO") or "/home/z/my-project/repo-prisma2"   # ★Task379：沙箱克隆路径可覆盖（默认口径不变）
+REPO = __import__("os").environ.get("AME_REPO") or __import__("os").path.dirname(__import__("os").path.dirname(__import__("os").path.abspath(__file__)))   # ★Task379 环境变量可覆盖；★Task441 默认改脚本位置动态推导（第 11 期报告 5.4 节）
 
 def read(p):
     with io.open(REPO + "/" + p, encoding="utf-8", newline="") as f:
@@ -111,9 +111,9 @@ h5 = head_v5[head_v5.index("+ (NSString *)defaultSystemPrompt {"):head_v5.index(
 check('C1 v5 留档产出串 == git HEAD v5（逐字节迁移基线铁律）',
       produced(v5_zone) == produced(h5),
       f"archive={len(produced(v5_zone))} head={len(produced(h5))}")
-check('C2 v6 契约+铁律+20 项权限行在位',
+check('C2 v6 契约+铁律+权限行在位（★Task441 重锚：v6_zone 跨 v7 现役段，33→34 随计数链演进）',
       "get_plugin_docs" in produced(v6_zone) and "create_plugin 参数" in produced(v6_zone)
-      and "共 33 项" in produced(v6_zone) and "jit.write†" in produced(v6_zone)
+      and "共 34 项" in produced(v6_zone) and "jit.write†" in produced(v6_zone)
       and "game.launch†" in produced(v6_zone) and "logs.read" in produced(v6_zone))
 check('C3 v6 巨型 API 块确已移出（主题四家族/视图操纵/拖拽写法不再内联）',
       "setThemeToken(色令牌表)" not in produced(v6_zone)
@@ -148,8 +148,8 @@ check('D3 文档含主题四家族/视图操纵/拖拽标准写法（v5 全量�
       and "ame.theme.setStructure({shellLayout:'topbar'|'navigationview'})" in dtool
       and "ame.views.apply(h,{x:st.x+ev.tx,y:st.y+ev.ty});" in dtool
       and "SurfaceView/GameSurfaceView/ScrollableSurfaceView" in dtool)
-check('D4 文档含权限 20 项表 + create_plugin 契约 + 官方演示件',
-      "共 33 项" in dtool and "ame.super" in dtool
+check('D4 文档含权限表 + create_plugin 契约 + 官方演示件（★Task441 重锚 34）',
+      "共 34 项" in dtool and "ame.super" in dtool
       and "create_plugin 参数" in dtool and "(function(){...})();" in dtool
       and "element-drag" in dtool and "launch-counter" in dtool)
 check('D5 create_plugin 描述同步（文档前置铁律 + ★Task366 33 项权限值域 + 三件套速览）',

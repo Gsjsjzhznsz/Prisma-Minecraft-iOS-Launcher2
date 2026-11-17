@@ -8,7 +8,13 @@ files = sorted(glob.glob('*.m') + glob.glob('*.mm'))
 real_hits = []
 for f in files:
     src = open(f, encoding='utf-8', errors='replace').read()
-    for m in re.finditer(r'(\w*)\s*\(\^(\w+)\)\s*\([^)]*\)\s*=\s*\^\(?[^)]*\)?\s*\{', src):
+    # ★第 12 期整改批次二①正则修复：原式 `\^\(?[^)]*\)?\s*\{` 的 [^)]* 在
+    # 赋值右侧为无参 block（`^{ ... }`）时会越过 body 开花括号贪婪吞吃后续
+    # 代码（PLWorldBackupService.m:430 'cleanup' / ZL2DynamicPalette.m:210
+    # 'apply' 两处假「__block 自引用」嫌疑——真 body 内并无自调用），把远处
+    # 的 `{` 误当 body 起点。修正为 `\^\s*(?:\([^()]*\))?\s*\{`：^ 后可选
+    # 参数列表（内部禁嵌套括号）后必须紧跟开花括号，越界通道封死。
+    for m in re.finditer(r'(\w*)\s*\(\^(\w+)\)\s*\([^)]*\)\s*=\s*\^\s*(?:\([^()]*\))?\s*\{', src):
         decl_kw, name = m.group(1), m.group(2)
         start_body = m.end() - 1  # 指向 '{'
         depth, i, in_str, in_chr, esc = 0, start_body, False, False, False

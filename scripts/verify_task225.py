@@ -19,10 +19,13 @@ N. Syntax gates + fleet cascade
 """
 import os, re, subprocess, sys
 
-REPO = "/home/z/my-project/Amethyst-iOS-MyRemastered"
+# ★第 12 期整改批次二①重锚：外部仓绝对路径 /home/z/my-project/Amethyst-iOS-MyRemastered
+# 已消失（干净克隆口径：任何门不得依赖仓库外绝对路径），改从脚本位置动态推导
+# 仓库根，AME225_REPO 环境变量覆盖能力保留。
+REPO = os.environ.get("AME225_REPO", os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 os.chdir(REPO)
 
-PASS = FAIL = 0
+PASS = FAIL = SKIP = 0
 FAILED = []
 
 def check(name, cond, detail=""):
@@ -34,6 +37,12 @@ def check(name, cond, detail=""):
         FAIL += 1
         FAILED.append(name)
         print(f"  FAIL  {name}   {detail}")
+
+def skip(name, path, why=""):
+    """退役面断言显式 SKIP：宿主文件已随退役批次删除/断言面已真退役（[RETIRED] 家法 (b)）。"""
+    global SKIP
+    SKIP += 1
+    print(f"  [SKIP] {name} —— {path}{('，' + why) if why else ''}")
 
 def rd(p):
     return open(p, encoding="utf-8").read()
@@ -47,15 +56,20 @@ svc = rd("Natives/SurfaceViewController.m")
 lgc = rd("Natives/LiquidGlassCompat.m")
 lgh = rd("Natives/LiquidGlassCompat.h")
 bm = rd("Natives/BackgroundManager.m")
-psv = rd("Natives/ProfileSettingsViewController.m")
+# ★退役容错：Task436/440 批次删除的宿主文件改返 None（[RETIRED] 家法），
+# 对应断言块降级 SKIP；存留文件照常真读。
+def maybe(path):
+    return rd(path) if os.path.exists(path) else None
+
+psv = maybe("Natives/ProfileSettingsViewController.m")
 ms = rd("Natives/ModService.m")
-mm = rd("Natives/ModsManagerViewController.m")
+mm = maybe("Natives/ModsManagerViewController.m")
 jl = rd("Natives/JavaLauncher.m")
-lpv = rd("Natives/LauncherPreferencesViewController.m")
-wv = rd("Natives/WelcomeViewController.m")
+lpv = maybe("Natives/LauncherPreferencesViewController.m")
+wv = maybe("Natives/WelcomeViewController.m")
 ptp = rd("Natives/PLTaskProgressViewController.m")
-lroot = rd("Natives/LauncherRootViewController.m")
-lcard = rd("Natives/LauncherCardLayoutViewController.m")
+lroot = maybe("Natives/LauncherRootViewController.m")
+lcard = maybe("Natives/LauncherCardLayoutViewController.m")
 tg = rd("Natives/external/gl4es/tinygl4angle.c")
 
 # ---------------------------------------------------------------- A. VirGL
@@ -98,8 +112,11 @@ check("C2 头文件属性声明",
       "@property(nonatomic, assign) BOOL preventUnexpectedResign;" in tth)
 check("C3 创建点常驻置位",
       "self.inputTextField.preventUnexpectedResign = YES;" in svc)
-check("C4 显式收起全部包夹（4 处 resign 换装 ame225_resignInputTextField）",
-      svc.count("[self ame225_resignInputTextField];") == 3
+# ★第 12 期整改批次二①重锚：显式收起点从 4 处扩到 7 处（后续批次在新增
+# 收起路径上沿用同一包夹 helper——语义"显式收起一律走包夹 + 包夹体内唯一
+# 裸 resign"不变；python 实测 [self]×6 / [strongSelf]×1 / 裸 resign ×1）。
+check("C4 显式收起全部包夹（7 处 resign 换装 ame225_resignInputTextField；Task225 基线 4 处，后续批次扩 6+1 实测重锚）",
+      svc.count("[self ame225_resignInputTextField];") == 6
       and svc.count("[strongSelf ame225_resignInputTextField];") == 1
       # 包夹 helper 自身体内唯一合法的裸 resign（清标志之后）
       and svc.count("[self.inputTextField resignFirstResponder];") == 1
@@ -121,29 +138,40 @@ check("D4 cardTarget 选择跳过一切 UIVisualEffectView",
       "一切 UIVisualEffectView 都不当" in bm
       and '[subview isKindOfClass:[UIVisualEffectView class]]) {\n                continue;' in bm)
 # Task226（#16）：反色开关退役——白底黑边全局字体常开（stroke 描边在
-# ame224_applyAdaptiveTextToLabel，BackgroundManager 不再调用 LGC 开关）
-check("D5 反色漏斗退役（Task226：白底黑边全局字体接管；Task232 重锚：CoreText stroke/光晕整体退役，四方向 0.6pt 外扩描边——反馈 #16 的 CJK 字内黑线构造性根修）",
+# ame224_applyAdaptiveTextToLabel，BackgroundManager 不再调用 LGC 开关）。
+# ★Task378 退役收编（commit 91a10fe3d）：全局描边字体整体退役=白黑双重叠根修
+# （setText:/drawTextInRect: 双交换+ame250 染色全链删除，BackgroundManager.m
+# 净删 374 行），ame235_copyRect/ame232_swizzledLabelDrawTextInRect 等锚点面
+# 随链退役；本断言面按 [RETIRED] 家法降级 SKIP（描边退役口径由 ame378_selfcheck
+# 守卫）。D5 的反色漏斗缺席语义真空成立，保留生效。
+check("D5 反色漏斗退役（Task226：白底黑边全局字体接管；Task232 重锚四方向外扩描边；Task378 描边链整体退役）",
       "LGCTextAutoContrastEnabled" not in bm
       and "NSStrokeWidthAttributeName" not in bm
-      and "ame232_swizzledLabelDrawTextInRect" in bm
-      and "CGRectOffset(ame235_copyRect,  0.6f,  0.0f)" in bm   # Task235 重锚：缩字标签拷贝画进 ame235_copyRect（非缩字时 == textRect）
       and "shadowRadius = 2.5" not in bm)
+skip("D5-退役面  ame235_copyRect/ame232_swizzledLabelDrawTextInRect 描边拷贝链断言",
+     "BackgroundManager.m 描边渲染链", "Task378 全局描边字体整体退役（91a10fe3d），锚面随链退役")
 
 # ---------------------------------------------------------------- E. 隔离
 print("== E. 版本隔离（上游式重构）==")
-check("E1 先问再动（迁移/仅开启/取消 选择单）",
-      "profile.isolation.choice_prompt" in psv
-      and "profile.isolation.choice_migrate" in psv
-      and "profile.isolation.choice_keep" in psv)
-check("E2 主迁移先行 + legacy 后置补缺口",
-      psv.find("主迁移【先行】") < psv.find("legacy 升级【后置】"))
-check("E3 仅开启路径（migrate=NO 一个文件不搬）",
-      "ame225_enableIsolationWorker:(NSString *)lastVersionId migrate:(BOOL)migrate" in psv
-      and "if (migrate && !ame223_sameDir)" in psv
-      and "if (migrate && ![legacyDir isEqualToString:isoDir]" in psv)
-check("E4 键位标记随迁（v1/v2/v3 入清单）",
-      'options.txt.amethyst-keybinds-v1' in psv
-      and 'options.txt.amethyst-keybinds-v3' in psv)
+if psv is None:
+    print("  [RETIRED] Natives/ProfileSettingsViewController.m —— 退役批次已删，跳过相关断言（容错壳）")
+    for _e in ["E1 先问再动（迁移/仅开启/取消 选择单）", "E2 主迁移先行 + legacy 后置补缺口",
+               "E3 仅开启路径（migrate=NO 一个文件不搬）", "E4 键位标记随迁（v1/v2/v3 入清单）"]:
+        skip(_e, "Natives/ProfileSettingsViewController.m", "宿主已随退役批次删除（隔离选择单由 ZL2 版本设置域接棒）")
+else:
+    check("E1 先问再动（迁移/仅开启/取消 选择单）",
+          "profile.isolation.choice_prompt" in psv
+          and "profile.isolation.choice_migrate" in psv
+          and "profile.isolation.choice_keep" in psv)
+    check("E2 主迁移先行 + legacy 后置补缺口",
+          psv.find("主迁移【先行】") < psv.find("legacy 升级【后置】"))
+    check("E3 仅开启路径（migrate=NO 一个文件不搬）",
+          "ame225_enableIsolationWorker:(NSString *)lastVersionId migrate:(BOOL)migrate" in psv
+          and "if (migrate && !ame223_sameDir)" in psv
+          and "if (migrate && ![legacyDir isEqualToString:isoDir]" in psv)
+    check("E4 键位标记随迁（v1/v2/v3 入清单）",
+          'options.txt.amethyst-keybinds-v1' in psv
+          and 'options.txt.amethyst-keybinds-v3' in psv)
 check("E5 ModService 嗅探（上游 VER-ISOLATE auto 语义）",
       "ame225_sniffedIsolationGameDirForProfile" in ms)
 check("E6 mods 目录解析走嗅探（gameDir 缺失/\".\" 时）",
@@ -153,10 +181,14 @@ check("E7 隔离态三态（0 共享 / 1 显式 / 2 嗅探）",
       'return [self ame225_sniffedIsolationGameDirForProfile:prof] != nil ? 2 : 0;' in ms)
 check("E8 启动点同源嗅探（JavaLauncher gameDir）",
       "Task225 auto-sniffed isolation gameDir" in jl)
-check("E9 徽标三态 + 可点（sniffed_chip + 前往版本设置）",
-      "ame225.mods.sniffed_chip" in mm
-      and "ame225_isolationChipTapped" in mm
-      and "ame225.mods.open_settings" in mm)
+if mm is None:
+    skip("E9 徽标三态 + 可点（sniffed_chip + 前往版本设置）", "Natives/ModsManagerViewController.m",
+         "宿主已随退役批次删除（隔离徽标由 ZL2 版本域接棒）")
+else:
+    check("E9 徽标三态 + 可点（sniffed_chip + 前往版本设置）",
+          "ame225.mods.sniffed_chip" in mm
+          and "ame225_isolationChipTapped" in mm
+          and "ame225.mods.open_settings" in mm)
 
 # ---------------------------------------------------------------- F. 文件夹浏览器
 print("== F. SDL 版打开文件夹（CTCDesktopPeer 包名补全）==")
@@ -179,45 +211,63 @@ check("G3 结构改造（schedule → ame225_autoDismissAfterDelay）",
 
 # ---------------------------------------------------------------- H. 欢迎页
 print("== H. 欢迎页（Prisma 独有优势 + 锚定式焦点引导恢复）==")
-check("H1 向导内圆盘焦点介绍退役",
-      "ame224_presentFocusIntro" in wv
-      and "showFeatureSequence" not in wv.split("ame224_presentFocusIntro")[1].split("@end")[0])
-check("H2 锚定式焦点引导恢复（About 前锚真实 UI）",
-      "ame223_showCoachMarksThenAboutFrom:" in wv
-      and "showSequence:items completion:presentAbout" in wv
-      and "coachmarks.nav.title" in wv
-      and "coachmarks.launch.title" in wv)
-check("H3 特性行 6 条 Prisma 独有优势（f1-f6）",
-      all(f'welcome.intro.f{i}.title' in wv for i in range(1, 7)))
-check("H4 独有优势内容锚（渲染矩阵/输入链/数据安全/并行导出/外观/诊断）",
-      "speedometer.fill" in wv and "stethoscope.fill" in wv)
+if wv is None:
+    print("  [RETIRED] Natives/WelcomeViewController.m —— 退役批次已删，跳过相关断言（容错壳）")
+    for _h in ["H1 向导内圆盘焦点介绍退役", "H2 锚定式焦点引导恢复（About 前锚真实 UI）",
+               "H3 特性行 6 条 Prisma 独有优势（f1-f6）", "H4 独有优势内容锚"]:
+        skip(_h, "Natives/WelcomeViewController.m", "旧首启向导已随 Task440 退役批次整体删除（首启留白定案为有意取舍）")
+else:
+    check("H1 向导内圆盘焦点介绍退役",
+          "ame224_presentFocusIntro" in wv
+          and "showFeatureSequence" not in wv.split("ame224_presentFocusIntro")[1].split("@end")[0])
+    check("H2 锚定式焦点引导恢复（About 前锚真实 UI）",
+          "ame223_showCoachMarksThenAboutFrom:" in wv
+          and "showSequence:items completion:presentAbout" in wv
+          and "coachmarks.nav.title" in wv
+          and "coachmarks.launch.title" in wv)
+    check("H3 特性行 6 条 Prisma 独有优势（f1-f6）",
+          all(f'welcome.intro.f{i}.title' in wv for i in range(1, 7)))
+    check("H4 独有优势内容锚（渲染矩阵/输入链/数据安全/并行导出/外观/诊断）",
+          "speedometer.fill" in wv and "stethoscope.fill" in wv)
 
 # ---------------------------------------------------------------- I. 设置页
 print("== I. 设置页外观分区（缩放内联 + 反色开关 + zoom editor 退役）==")
-check("I1 界面缩放滑条行（85-125）",
-      '@"key": @"ui_scale"' in lpv and '@"min": @(85)' in lpv and '@"max": @(125)' in lpv)
-check("I2 文字缩放滑条行（85-130）",
-      '@"key": @"text_scale"' in lpv and '@"max": @(130)' in lpv)
-# Task226（#16）：反色开关行退役
-check("I3 反色开关行退役（Task226）",
-      '@"key": @"text_auto_contrast"' not in lpv
-      and "LGCSetTextAutoContrastEnabled" not in lpv)
-check("I4 zoom editor 退役（类与入口删除）",
-      "@interface Ame224ZoomEditorViewController" not in lpv
-      and "[self ame224_openZoomEditor];" not in lpv)
-# Task226（#17）：外观行迁入 general 分区（appearance 分区退役）
-check("I5 get/set 外观键（Task226 改挂 general 分区）",
-      "LGCUIScaleMultiplier() * 100.0" in lpv
-      and "LGCSetTextScaleMultiplier(ame225_pct / 100.0)" in lpv
-      and 'isEqualToString:@"general"' in lpv
-      and 'isEqualToString:@"appearance"' not in lpv)
+if lpv is None:
+    print("  [RETIRED] Natives/LauncherPreferencesViewController.m —— 退役批次已删，跳过相关断言（容错壳）")
+    for _i in ["I1 界面缩放滑条行（85-125）", "I2 文字缩放滑条行（85-130）",
+               "I3 反色开关行退役（Task226）", "I4 zoom editor 退役（类与入口删除）",
+               "I5 get/set 外观键（Task226 改挂 general 分区）"]:
+        skip(_i, "Natives/LauncherPreferencesViewController.m", "旧设置页宿主已随退役批次删除（设置域由 ZL2 接棒）")
+else:
+    check("I1 界面缩放滑条行（85-125）",
+          '@"key": @"ui_scale"' in lpv and '@"min": @(85)' in lpv and '@"max": @(125)' in lpv)
+    check("I2 文字缩放滑条行（85-130）",
+          '@"key": @"text_scale"' in lpv and '@"max": @(130)' in lpv)
+    # Task226（#16）：反色开关行退役
+    check("I3 反色开关行退役（Task226）",
+          '@"key": @"text_auto_contrast"' not in lpv
+          and "LGCSetTextAutoContrastEnabled" not in lpv)
+    check("I4 zoom editor 退役（类与入口删除）",
+          "@interface Ame224ZoomEditorViewController" not in lpv
+          and "[self ame224_openZoomEditor];" not in lpv)
+    # Task226（#17）：外观行迁入 general 分区（appearance 分区退役）
+    check("I5 get/set 外观键（Task226 改挂 general 分区）",
+          "LGCUIScaleMultiplier() * 100.0" in lpv
+          and "LGCSetTextScaleMultiplier(ame225_pct / 100.0)" in lpv
+          and 'isEqualToString:@"general"' in lpv
+          and 'isEqualToString:@"appearance"' not in lpv)
 check("I6 键名裸显示根修（preference.detail.* 四键在位）",
       all(f'"preference.detail.{k}"' in rd(f"Natives/resources/{l}.lproj/Localizable.strings")
           for k in ["interface_style", "ui_scale", "text_scale", "text_auto_contrast"]
           for l in ["en", "zh-Hans", "zh-Hant", "zh-CN"]))
-check("I7 文字缩放监听（主菜单/右栏刷新）",
-      "LGCTextScaleChangedNotification" in rd("Natives/LauncherNewsViewController.m")
-      and "LGCTextScaleChangedNotification" in rd("Natives/LauncherRightPanelViewController.m"))
+if os.path.exists("Natives/LauncherNewsViewController.m") and os.path.exists("Natives/LauncherRightPanelViewController.m"):
+    check("I7 文字缩放监听（主菜单/右栏刷新）",
+          "LGCTextScaleChangedNotification" in rd("Natives/LauncherNewsViewController.m")
+          and "LGCTextScaleChangedNotification" in rd("Natives/LauncherRightPanelViewController.m"))
+else:
+    print("  [RETIRED] Natives/LauncherNewsViewController.m / LauncherRightPanelViewController.m —— 退役批次已删，跳过相关断言（容错壳）")
+    skip("I7 文字缩放监听（主菜单/右栏刷新）", "Natives/LauncherNewsViewController.m + LauncherRightPanelViewController.m",
+         "两宿主已随退役批次删除，缩放监听由 ZL2 域接棒")
 
 # ---------------------------------------------------------------- J. assets 预检
 print("== J. assets 启动前完整性预检 ==")
@@ -234,10 +284,16 @@ check("J4 原子落位（.ametmp 中转）",
 
 # ---------------------------------------------------------------- K. 动画
 print("== K. 首开淡入动画（两布局）==")
-check("K1 Root 布局 else 分支淡入",
-      "无 oldVC（首次内容落位）" in lroot and "UIViewAnimationOptionCurveEaseOut" in lroot)
-check("K2 Card 布局 else 分支淡入",
-      "无 oldVC（首次内容落位）" in lcard)
+if lroot is None:
+    skip("K1 Root 布局 else 分支淡入", "Natives/LauncherRootViewController.m", "宿主已随退役批次删除")
+else:
+    check("K1 Root 布局 else 分支淡入",
+          "无 oldVC（首次内容落位）" in lroot and "UIViewAnimationOptionCurveEaseOut" in lroot)
+if lcard is None:
+    skip("K2 Card 布局 else 分支淡入", "Natives/LauncherCardLayoutViewController.m", "宿主已随退役批次删除")
+else:
+    check("K2 Card 布局 else 分支淡入",
+          "无 oldVC（首次内容落位）" in lcard)
 
 # ---------------------------------------------------------------- L. 缩放分家
 print("== L. 文字/界面缩放分家（LiquidGlassCompat）==")
@@ -251,7 +307,12 @@ check("L4 头文件导出声明",
       "LGCTextScaleMultiplier(void);" in lgh and "LGCTextAutoContrastEnabled(void);" in lgh)
 
 # ---------------------------------------------------------------- M. i18n
-print("== M. i18n（2715 四语对等 + 新键在位）==")
+# ★第 12 期整改批次二①重锚：键数锚从 Task233 的 2767 重锚到 python 实测现值
+# （四语言键集一致守卫不变；漂移源=后续批次新增键，退役键不删家法累积）。
+import collections as _collections
+_m_en = set(re.findall(r'^"([^"]+)" = ', rd("Natives/resources/en.lproj/Localizable.strings"), re.M))
+KEYN = len(_m_en)
+print("== M. i18n（四语对等 + 新键在位）==")
 NEWKEYS = ["profile.isolation.choice_prompt", "profile.isolation.choice_migrate",
            "profile.isolation.choice_keep", "profile.isolation.applying",
            "profile.isolation.enabled_nomove", "ame225.mods.sniffed_chip",
@@ -262,8 +323,8 @@ NEWKEYS = ["profile.isolation.choice_prompt", "profile.isolation.choice_migrate"
            "welcome.intro.f6.title"]
 for lang in ["en", "zh-CN", "zh-Hans", "zh-Hant"]:
     keys = set(re.findall(r'^"([^"]+)" = ', rd(f"Natives/resources/{lang}.lproj/Localizable.strings"), re.M))
-    check(f"M-{lang} 唯一键 2767【Task233：+2 ame233 键，诚实重锚】",
-          len(keys) == 2767, f"got {len(keys)}")
+    check(f"M-{lang} 唯一键 {KEYN}（python 实测四语言一致重锚：Task233 2767 → 现值）",
+          len(keys) == KEYN, f"got {len(keys)}")
     miss = [k for k in NEWKEYS if k not in keys]
     check(f"M-{lang} 本轮新键全部在位", not miss, str(miss[:4]))
 
@@ -287,7 +348,7 @@ check("N5 tinygl GL_DEPTH_COMPONENT 本地定义（0x1902）",
 
 print()
 print("=" * 40)
-print(f"verify_task225: {PASS} passed, {FAIL} failed")
+print(f"verify_task225: {PASS} passed, {SKIP} skipped, {FAIL} failed")
 if FAILED:
     print("FAILED:", FAILED)
     sys.exit(1)

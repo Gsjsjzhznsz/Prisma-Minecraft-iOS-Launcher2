@@ -27,7 +27,7 @@
 //     下载 + ForgeDirectInstaller / NeoForgeDirectInstaller 直装
 //     （skipRegisterVersion:YES，注册表由本服务收口）。事务性（换装失败不
 //     落盘）语义见 .m installComponent 注释块。
-//   · 换版二次确认由 UI 层做（ZL2ComponentsPage M3Dialog）。
+//   · 换版二次确认由 UI 层做（PLComponentsPage M3Dialog）。
 //
 //  红线：纯 Foundation（零 UIKit 依赖）；用户可见文案全部经 localize 的
 //  ame429.g.* 键（键清单 scripts/task429_i18n_G.json）；日志前缀 [Component] Task429。

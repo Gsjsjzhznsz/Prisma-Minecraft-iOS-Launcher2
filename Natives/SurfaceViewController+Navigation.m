@@ -2,6 +2,7 @@
 #import "AmeNativeMenu.h"       // ★ Task240：菜单全面系统原生 UIMenu 化
 #import "LauncherPreferences.h"
 #import "ZL2SettingsViewController.h"   // ★ Task432：旧设置页退役后游戏内入口改挂新 UI 设置枢纽
+#import "ZL2GyroTunerViewController.h"   // ★Task441 批次三⑤：陀螺仪实时调参浮层直达（游戏内菜单）
 #import "PLProfiles.h"
 #import "SurfaceViewController.h"
 #import "GameMenuOverlayView.h"
@@ -214,7 +215,8 @@ static UIColor *ame244_snapshotTint(void) {
         @"game.menu.resolution",            // 分辨率调整
         @"game.menu.settings",              // Task232⑰：原为裸英文字串 "Settings"（ localize 找不到键回退原文 = 硬编码残留）
         @"ame428.gamemenu.virtual_controls", // ★Task428（6.6）：虚拟按键 / 触控布局直达入口（TouchController 设置页）
-        @"ame436.gamemenu.edit_layout"       // ★Task436（批次三④）：编辑布局（实时）——拖拽编辑器直达（运行中实时编辑当前布局，保存退出后热重载控件）
+        @"ame436.gamemenu.edit_layout",       // ★Task436（批次三④）：编辑布局（实时）——拖拽编辑器直达（运行中实时编辑当前布局，保存退出后热重载控件）
+        @"ame436.control.gyro.tuner"          // ★Task441（批次三⑤）：陀螺仪实时调参浮层直达（键复用 ame436.control.gyro.tuner，两级间接清账）
     ];
 
     // ★ Task237（用户："现在游戏内菜单打开还是就液态玻璃的覆盖层，根本
@@ -1162,6 +1164,15 @@ static UIColor *ame244_snapshotTint(void) {
     }];
 }
 
+/// ★Task441 批次三⑤：陀螺仪实时调参浮层直达（游戏内菜单第 14 项）——
+///   原两级间接（菜单→编辑器→设置页→调参行）清账为一级直达；
+///   ZL2GyroTunerViewController +presentFrom: 设计即「游戏内/设置页均可打开」
+///   （ZL2SettingPages.m 同款入口），七项参数即时生效，无需热重载链。
+- (void)actionOpenGyroTuner {
+    [self dismissMenu];
+    [ZL2GyroTunerViewController presentFrom:self];
+}
+
 - (void)actionOpenPreferences {
     [self dismissMenu];
     // Task224（#16）：游戏内设置包上导航控制器（此前裸 present——设置页
@@ -1480,6 +1491,9 @@ static UIColor *ame244_snapshotTint(void) {
             break;
         case 12: // ★Task436（批次三④）：编辑布局（实时）——拖拽编辑器直达
             [self actionOpenDragLayoutEditor];
+            break;
+        case 13: // ★Task441（批次三⑤）：陀螺仪实时调参浮层直达（游戏内菜单第 14 项，两级间接清账）
+            [self actionOpenGyroTuner];
             break;
     }
 }

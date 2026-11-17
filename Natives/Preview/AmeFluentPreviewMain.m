@@ -43,6 +43,8 @@
 //
 
 #import <UIKit/UIKit.h>
+#import <stdlib.h>                        // ★Task441 第四腿：driver exit(0)/exit(1)
+#import "UnzipKit.h"                      // ★Task441 第四腿：样本 zip 写入（include 路径 -I external/UnzipKit；预编 framework 为设备片，模拟器腿用钉 pin 真 UnzipKit 源码编译）
 #import "AmeTheme.h"   // accentColor 桩消费（main TU 唯一残留 AmeTheme 引用）
 #import "ZL2Theme.h"
 #import "ZL2HomeViewController.h"
@@ -717,6 +719,7 @@ static NSString *AmePreviewPageTitle(NSInteger index) {
 // 与 CI 20pt 镜像的两倍差 = 镜像保真度缺口（IMG_0611 像素测量实锤），从此
 // CI 直接渲染真壳本体。
 @interface ZL2ShellViewController : UIViewController
+- (void)showPageAtIndex:(NSInteger)index;   // ★Task441 第四腿：真壳步进遍历入口
 @end
 
 @interface ZL2ShellNavItem : UIView
@@ -734,6 +737,18 @@ static NSString *AmePreviewPageTitle(NSInteger index) {
 // fui 插件四族令牌真路径（main.js PALETTES[1]/FLUENT_SHAPE/FLUENT_LAYOUT/
 // FLUENT_STRUCTURE 逐值同源；ame317/341/343/347 引擎承载面 = 插件运行时
 // 同一 API）。真壳模式（-zl2shell real）与镜像 fluent-dark 轨共用。
+
+// ★Task441 第四腿：Task436 参数化版本列表新页真 TU 声明（枚举序逐字对齐
+// ZL2VersionListPage.h :31-35——Asset=0/Mod=1/Shader=2，声明错序 = 模态进错域）
+typedef NS_ENUM(NSInteger, ZL2VersionListDomain) {
+    ZL2VersionListDomainAsset  = 0,
+    ZL2VersionListDomainMod    = 1,
+    ZL2VersionListDomainShader = 2,
+};
+@interface ZL2VersionListPage : UIViewController
+- (instancetype)initWithDomain:(ZL2VersionListDomain)domain;
+@end
+
 static void AmePreviewApplyFluentTokens(void) {
     [ZL2Theme ame317_setPluginThemeTokens:@"preview-fluent"
                                    tokens:@{
@@ -1108,6 +1123,173 @@ static void AmePreviewApplyFluentTokens(void) {
     ]];
     [ame417_shell didMoveToParentViewController:self];
     NSLog(@"[Ame417] real shell hosted (expanded=%d) — real ZL2ShellViewController + fui token path", ame417_expanded);
+
+    // ★Task441 批次四：第四腿驱动调度（-ame441Smoke 门控；真壳 attach 后 3s 起跑）
+    if ([[NSProcessInfo processInfo].arguments containsObject:@"-ame441Smoke"]) {
+        [self ame441_scheduleShellSmokeWithShell:(ZL2ShellViewController *)ame417_shell];
+    }
+}
+
+// ── ★Task441 批次四：门禁第四腿真壳冒烟驱动（-ame441Smoke 启动参数门控）──
+// 真壳（-zl2shell real）attach 后异步执行三段：① 七页 showPageAtIndex 步进（六页+AI，
+// Task318 口径）＝ 真壳容器 attach/detach 语义的 push/pop 遍历；② 新入口遍历＝
+// Task436 参数化版本列表新页真 TU 模态 present/dismiss；③ 五件构造损坏 JSON 样本
+// 过真实 ModpackImportService parse（name 数字/hash 非字典/projectID null/
+// minecraft:123/files:"x"）+ installModLoader 4001 消费侧守卫 + ModpackUtils ame439
+// 取消式 URL 推导（E4 取消旗标零网络；hash/projectID 判类真消费链）。全绿落
+// "[ame441-smoke] ALL PASS" 后 exit(0)；任一步断言失败落 FAIL 后 exit(1)——CI
+// console-pty 捕获 grep 该标记 = 红灯拦截「编译过但运行崩」。
+// 样本桩面合规：ModService/PLCrashView/DownloadTaskManager.taskWithId 三件桩仅
+// Preview 目标（ZL2PagesStub.m Ame441ShellSmoke 区），真壳腿零产品桩。
+@interface ModpackImportService : NSObject
+- (nullable NSDictionary *)parseModpackAtURL:(NSURL *)fileURL error:(NSError **)error;
+- (BOOL)installModLoader:(NSString *)loader
+           loaderVersion:(NSString *)loaderVersion
+        minecraftVersion:(NSString *)minecraftVersion
+               versionId:(NSString *)versionId
+         gameDirAbsolute:(NSString *)gameDirAbsolute
+                   error:(NSError **)error;
+@end
+
+@interface ModpackUtils : NSObject
++ (NSDictionary<NSString *, NSString *> *)ame439_modrinthDownloadURLsForFiles:(NSArray<NSDictionary *> *)files
+                                                                  concurrency:(NSInteger)concurrency
+                                                              isCancelledBlock:(BOOL (^)(void))isCancelled;
++ (void)archive:(UZKArchive *)archive extractDirectory:(NSString *)dir toPath:(NSString *)path error:(NSError **)error;
+@end
+
+- (void)ame441_scheduleShellSmokeWithShell:(ZL2ShellViewController *)shell {
+    dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(3.0 * NSEC_PER_SEC)),
+                   dispatch_get_main_queue(), ^{
+        [self ame441_runShellSmokeWithShell:shell];
+    });
+}
+
+- (void)ame441_mark:(NSString *)what {
+    NSLog(@"[ame441-smoke] ok %@", what);
+}
+
+- (void)ame441_runShellSmokeWithShell:(ZL2ShellViewController *)shell {
+    NSInteger ame441_steps = 0;
+    @try {
+        // ① 七页步进遍历（0..6；Task318 口径 6 = AI 助手顶栏第 5 项）
+        for (NSInteger ame441_i = 0; ame441_i <= 6; ame441_i++) {
+            [shell showPageAtIndex:ame441_i];
+            CFRunLoopRunInMode(kCFRunLoopDefaultMode, 0.6, false);   // 页面构建沉降
+            ame441_steps += 1;
+        }
+        [shell showPageAtIndex:0];
+        CFRunLoopRunInMode(kCFRunLoopDefaultMode, 0.4, false);
+        [self ame441_mark:@"pages walk 0..6"];
+
+        // ② 新入口遍历：Task436 参数化版本列表新页（真 TU）模态 present/dismiss
+        UIViewController *ame441_page = (UIViewController *)[[ZL2VersionListPage alloc]
+            initWithDomain:ZL2VersionListDomainMod];
+        UINavigationController *ame441_nav = [[UINavigationController alloc]
+            initWithRootViewController:ame441_page];
+        ame441_nav.modalPresentationStyle = UIModalPresentationFullScreen;
+        [shell presentViewController:ame441_nav animated:NO completion:nil];
+        CFRunLoopRunInMode(kCFRunLoopDefaultMode, 0.8, false);
+        [ame441_page dismissViewControllerAnimated:NO completion:nil];
+        CFRunLoopRunInMode(kCFRunLoopDefaultMode, 0.4, false);
+        ame441_steps += 1;
+        [self ame441_mark:@"version list page present/dismiss"];
+
+        // ③ 五件构造损坏 JSON 样本（真实 ModpackImportService 链）
+        ModpackImportService *ame441_svc = [[ModpackImportService alloc] init];
+        NSArray<NSDictionary *> *ame441_samples = @[
+            @{ @"id": @"s1-name-numeric",
+               @"index": @{ @"format": @1, @"game": @"minecraft",
+                            @"versionId": @"1.0.0", @"name": @123,
+                            @"dependencies": @{ @"minecraft": @"1.20.1" },
+                            @"files": @[] } },
+            @{ @"id": @"s2-hash-nondict",
+               @"index": @{ @"format": @1, @"game": @"minecraft",
+                            @"versionId": @"1.0.0", @"name": @"s2",
+                            @"dependencies": @{ @"minecraft": @"1.20.1" },
+                            @"files": @[ @{ @"path": @"mods/a.jar",
+                                            @"hashes": @"not-a-dict",
+                                            @"downloads": @[ @"https://example.invalid/a.jar" ] } ] } },
+            @{ @"id": @"s3-projectid-null",
+               @"index": @{ @"format": @1, @"game": @"minecraft",
+                            @"versionId": @"1.0.0", @"name": @"s3",
+                            @"dependencies": @{ @"minecraft": @"1.20.1" },
+                            @"files": @[ @{ @"path": @"mods/b.jar",
+                                            @"projectID": NSNull.null,
+                                            @"fileID": NSNull.null,
+                                            @"hashes": @{ @"sha1": @"abc" } } ] } },
+            @{ @"id": @"s4-minecraft-123",
+               @"index": @{ @"format": @1, @"game": @"minecraft",
+                            @"versionId": @"1.0.0", @"name": @"s4",
+                            @"dependencies": @{ @"minecraft": @123 },
+                            @"files": @[] } },
+            @{ @"id": @"s5-files-string",
+               @"index": @{ @"format": @1, @"game": @"minecraft",
+                            @"versionId": @"1.0.0", @"name": @"s5",
+                            @"dependencies": @{ @"minecraft": @"1.20.1" },
+                            @"files": @"x" } }
+        ];
+        for (NSDictionary *ame441_s in ame441_samples) {
+            NSString *ame441_sid = ame441_s[@"id"];
+            NSString *ame441_zip = [NSTemporaryDirectory() stringByAppendingPathComponent:
+                [NSString stringWithFormat:@"%@.mrpack", ame441_sid]];
+            NSData *ame441_json = [NSJSONSerialization dataWithJSONObject:ame441_s[@"index"] options:0 error:nil];
+            UZKArchive *ame441_arch = [[UZKArchive alloc] initWithPath:ame441_zip error:nil];
+            if (!ame441_arch) {
+                @throw [NSException exceptionWithName:@"Ame441Smoke" reason:@"UZKArchive init failed" userInfo:nil];
+            }
+            if (![ame441_arch writeData:ame441_json filePath:@"modrinth.index.json" error:nil]) {
+                @throw [NSException exceptionWithName:@"Ame441Smoke"
+                                              reason:[NSString stringWithFormat:@"%@ zip write failed", ame441_sid]
+                                            userInfo:nil];
+            }
+            NSDictionary *ame441_info = [ame441_svc parseModpackAtURL:[NSURL fileURLWithPath:ame441_zip] error:nil];
+            if (![ame441_info isKindOfClass:[NSDictionary class]]) {
+                @throw [NSException exceptionWithName:@"Ame441Smoke"
+                                              reason:[NSString stringWithFormat:@"%@ parse returned nil", ame441_sid]
+                                            userInfo:nil];
+            }
+            if ([ame441_sid isEqualToString:@"s1-name-numeric"] &&
+                ![ame441_info[@"name"] isKindOfClass:[NSString class]]) {
+                @throw [NSException exceptionWithName:@"Ame441Smoke"
+                                              reason:@"s1 name 未收窄为字符串（parse 判类回归）" userInfo:nil];
+            }
+            if ([ame441_sid isEqualToString:@"s5-files-string"] &&
+                (![ame441_info[@"files"] isKindOfClass:[NSArray class]] ||
+                 [(NSArray *)ame441_info[@"files"] count] != 0)) {
+                @throw [NSException exceptionWithName:@"Ame441Smoke"
+                                              reason:@"s5 files 未回落空数组（P1-2 判类回归）" userInfo:nil];
+            }
+            if ([ame441_sid isEqualToString:@"s4-minecraft-123"]) {
+                NSError *ame441_err = nil;
+                BOOL ame441_r = [ame441_svc installModLoader:@"Vanilla"
+                                               loaderVersion:@""
+                                            minecraftVersion:ame441_info[@"minecraftVersion"]
+                                                   versionId:@"ame441-smoke"
+                                             gameDirAbsolute:NSTemporaryDirectory()
+                                                       error:&ame441_err];
+                if (ame441_r || ame441_err.code != 4001) {
+                    @throw [NSException exceptionWithName:@"Ame441Smoke"
+                                                  reason:@"s4 installModLoader 守卫未拦 4001（P1-1 消费侧回归）"
+                                                userInfo:nil];
+                }
+            }
+            if ([ame441_sid isEqualToString:@"s2-hash-nondict"] ||
+                [ame441_sid isEqualToString:@"s3-projectid-null"]) {
+                // E4 取消式 URL 推导：hash 非字典/projectID null 判类真消费链（取消旗标零网络）
+                [ModpackUtils ame439_modrinthDownloadURLsForFiles:ame441_info[@"files"]
+                                                       concurrency:1
+                                                   isCancelledBlock:^{ return YES; }];
+            }
+            ame441_steps += 1;
+            [self ame441_mark:ame441_sid];
+        }
+        NSLog(@"[ame441-smoke] ALL PASS (steps=%ld)", (long)ame441_steps);
+        exit(0);
+    } @catch (NSException *ame441_ex) {
+        NSLog(@"[ame441-smoke] FAIL: %@ -- %@", ame441_ex.name, ame441_ex.reason);
+        exit(1);
+    }
 }
 
 // ── ★Task417 字形阶梯探针页（-zl2page probe）：真壳字形管线逐级隔离取证

@@ -31,6 +31,32 @@ def rd(path):
     with open(os.path.join(REPO, path), encoding="utf-8", errors="replace") as f:
         return f.read()
 
+# ★第 12 期整改批次二①退役容错壳（verify_task136/238 同款 [RETIRED] 家法）：
+# 本 verifier 撰写轮次早于 Task436/440 两批退役——旧设置页
+# LauncherPreferencesViewController.m 已物理删除。rd 对缺席文件不再抛
+# FileNotFoundError，改返空串并打印 [RETIRED] 标注（诚实降级：存留面断言
+# 继续生效，退役面断言显式 SKIP）。单跑结论 = 存留面视图，非全量判定。
+import functools as _ft
+_orig_rd_112 = rd
+@_ft.wraps(_orig_rd_112)
+def rd(path, *a, **k):
+    cand = path if os.path.isabs(path) else os.path.join(REPO, path)
+    if not os.path.exists(cand):
+        print(f"  [RETIRED] {path} —— 退役批次已删，跳过相关断言（容错壳）")
+        return ""
+    return _orig_rd_112(path, *a, **k)
+
+SKIP = 0
+
+def skip(name, retired_path, why=""):
+    """退役面断言显式 SKIP：宿主文件已随退役批次删除（[RETIRED] 家法 (b)。"""
+    global SKIP
+    SKIP += 1
+    print(f"  [SKIP] {name} —— 断言面随退役文件 {retired_path} 整体退役（[RETIRED] 容错壳{('，' + why) if why else ''}）")
+
+def retired(path):
+    return not os.path.exists(os.path.join(REPO, path))
+
 jl = rd("Natives/JavaLauncher.m")
 sdl = rd("Natives/sdl3_hook.m")
 lp = rd("Natives/LauncherPreferences.m")
@@ -80,8 +106,8 @@ check("B6 有效渲染器单一事实源（ame_effective_renderer + 显式选择
 check("B7 后端档位支持 GLES（同二进制切 DirectGLES，Mithril 带存在性守卫）",
       'getPrefInt(@"mobileglues.mobilegl_backend") == 2' in jl and
       'RENDERER_NAME_MITHRIL' in rd("Natives/LauncherPreferences.m"))
-check("B8 Makefile dep_mobilegl 更新（prebuilt 说明 + Task113 标记）",
-      'Task113, Vulkan-only' in mk and 'prebuilt libMobileGL.dylib' in mk)
+check("B8 Makefile MobileGL 构建链在位（Task259 时代重锚：dep_mobilegl 目标并入 dep_mg 统一构建链，vendor prebuilt dylib 由 B1 实锚）",
+      'dep_mg:' in mk and 'MobileGlues-cpp/3rdparty/glslang' in mk)
 check("B9 egl_bridge MobileGL 装载路径仍在（既有管线未被破坏）",
       'isMobileGLRenderer(renderer.UTF8String)' in rd("Natives/egl_bridge.m"))
 
@@ -93,8 +119,10 @@ check("C2 主线程化 dispatch 辅助 + nil 守卫",
       'ame_dispatchTextInputToMain' in sdl and 'dispatch_async(dispatch_get_main_queue(), work)' in sdl)
 check("C3 SetTextInputArea 堆拷贝 rect（block 异步安全）",
       'malloc(sizeof(ame_SDLRect))' in sdl and 'free(heapRect)' in sdl)
-check("C4 InitSubSystem hint 三件套",
-      all(h in sdl for h in ['SDL_RETURN_KEY_HIDES_IME', 'SDL_ENABLE_SCREEN_KEYBOARD", "1"',
+check("C4 InitSubSystem hint 三件套（Task252 重锚：ENABLE_SCREEN_KEYBOARD 跟随 auto_keyboard_sdl 开关，ON=1/OFF=0，石沉大海病灶根治）",
+      all(h in sdl for h in ['SDL_RETURN_KEY_HIDES_IME',
+                             'ame_real_SetHint("SDL_ENABLE_SCREEN_KEYBOARD", ame252_autoKb ? "1" : "0");',
+                             'getPrefBool(@"control.auto_keyboard_sdl")',
                              'SDL_OPENGL_FORCE_SRGB_FRAMEBUFFER']))
 init_impl = sdl[sdl.rfind('static bool ame_SDL_InitSubSystem(uint32_t flags) {'):]
 check("C5 InitSubSystem 对 srgb hint 的 gl-bridge 条件门控",
@@ -113,22 +141,29 @@ check("C8 真实指针表声明（6 个 ame_real_* 新增）",
                              'ame_real_StopTextInput = NULL', 'ame_real_SetTextInputArea = NULL',
                              'ame_real_InitSubSystem = NULL', 'ame_real_SetHint = NULL']))
 
-print("== D. Task115 UpdateChecker ==")
-check("D1 repoOwner/repoName 指向本仓库",
-      'return @"Gsjsjzhznsz";' in uc and 'return @"Prisma-Minecraft-iOS-Launcher";' in uc)
+print("== D. Task115 UpdateChecker（Task429 重锚：repoName 补 \"2\" 后缀 = 旧账清账代际）==")
+check("D1 repoOwner/repoName 指向本仓库（Task429：Prisma-Minecraft-iOS-Launcher2）",
+      'return @"Gsjsjzhznsz";' in uc and 'return @"Prisma-Minecraft-iOS-Launcher2";' in uc)
 check("D2 上游指向已清除（herbrine8403 不再作为更新目标）",
       'return @"herbrine8403"' not in uc)
 check("D3 两条 URL 均经 repoOwner/repoName 构造（单一来源）",
       uc.count('self.repoOwner') >= 2 and uc.count('self.repoName') >= 2)
 
-print("== E. Task116 本地化 ==")
+print("== E. Task116 本地化（Task343/436 退役链重锚：11 detail 存留键）==")
 detail_keys = ['ui_layout', 'ui_theme', 'app_language', 'custom_accent_color', 'custom_text_color',
                'custom_card_color', 'multi_threaded', 'curseforge_api_key', 'launcher_background',
                'announcement_preview_level', 'manage_runtime', 'debug_always_attached_jit']
-miss_zh = [k for k in detail_keys if f'"preference.detail.{k}"' not in zh]
-miss_en = [k for k in detail_keys if f'"preference.detail.{k}"' not in en]
-check("E1 12 个 preference.detail 补齐（zh-Hans）", not miss_zh, f"缺 {miss_zh}")
-check("E2 12 个 preference.detail 补齐（en）", not miss_en, f"缺 {miss_en}")
+# ★第 12 期整改批次二①重锚：ui_layout 随 Task343 死偏好退役（general.ui_layout
+# 根选择语义退役，旧设置页同批退场），四表键已清空、零活消费方——断言面
+# 退役：12 键收敛为 11 存留键 + ui_layout 死键清空回归锚。
+_living_detail_keys = [k for k in detail_keys if k != 'ui_layout']
+miss_zh = [k for k in _living_detail_keys if f'"preference.detail.{k}"' not in zh]
+miss_en = [k for k in _living_detail_keys if f'"preference.detail.{k}"' not in en]
+check("E1 11 个 preference.detail 存留键补齐（zh-Hans；ui_layout 已随 Task343 死偏好退役）", not miss_zh, f"缺 {miss_zh}")
+check("E2 11 个 preference.detail 存留键补齐（en）", not miss_en, f"缺 {miss_en}")
+check("E2b ui_layout 死键四表清空（Task343/436 退役链回归锚，零活消费方）",
+      '"preference.title.ui_layout' not in zh and '"preference.detail.ui_layout' not in zh
+      and '"preference.title.ui_layout' not in en and '"preference.detail.ui_layout' not in en)
 crash_keys = ['crash.reason.missing_mods', 'crash.suggestion.missingmods_manual',
               'crash.suggestion.missingmods_override', 'crash.suggestion.missingmods_share']
 check("E3 4 个 crash.* key 补齐（zh+en）",
@@ -146,14 +181,19 @@ check("E4 mobilegl_backend 死键已删 + 渲染器菜单三后端文案（Task1
 # （模式同 verify_task138 C1 / verify_task140 G 块）。助手重现时断言原样
 # 生效；缺失时跳过（不伪造通过，也不计失败）。
 import os as _os
-_helper1 = "/home/z/my-project/scripts/task116_l10n_audit.py"
+# ★第 12 期整改批次二①路径修复（verify_task136.py:33 家法）：审计助手原硬编码
+# 仓库外绝对路径 /home/z/my-project/scripts/...，干净克隆口径改为相对本仓根
+# 外一层目录动态推导，TASK116_HELPER_DIR 环境变量覆盖保留。助手是 Task116
+# 会话本地工具（从未入库），缺席时跳过（不伪造通过，也不计失败）。
+_helper_dir = _os.environ.get("TASK116_HELPER_DIR", _os.path.dirname(REPO))
+_helper1 = _os.path.join(_helper_dir, "scripts", "task116_l10n_audit.py")
 if _os.path.exists(_helper1):
     audit = subprocess.run([sys.executable, _helper1],
                            capture_output=True, text=True, timeout=120)
     check("E5 全量 key 审计归零（zh+en 无缺失）",
           '缺失 (0)' in audit.stdout and audit.returncode == 0,
           audit.stdout[-120:] if audit.returncode else "")
-_helper2 = "/home/z/my-project/scripts/task116c_precise_audit.py"
+_helper2 = _os.path.join(_helper_dir, "scripts", "task116c_precise_audit.py")
 if _os.path.exists(_helper2):
     audit2 = subprocess.run([sys.executable, _helper2],
                             capture_output=True, text=True, timeout=120)
@@ -178,9 +218,13 @@ check("F7 设计注释：刻意不进 INVISIBLE 档（保守后台态）",
 
 print("== G. 版本与语法门 ==")
 plist = rd("Natives/Info.plist")
-# Task169 重锚：v6.0.0 正式版发布，Info.plist 双键 5.1.0 -> 6.0.0。
-check("G1 Info.plist CFBundleShortVersionString = 6.5.0（Task217 重锚：Task216 升版 6.5.0 漏更本门，存量债修复）",
-      '<string>6.5.0</string>' in plist and '<string>6.0.0</string>' not in plist
+# ★第 12 期整改批次二①重锚（2ac99a5 版本重置 1.0.0，新项目 1.0.0 起线）：
+# Makefile VERSION 6.5.0→1.0.0 + Info.plist ShortVersion/BundleVersion 双键
+# →1.0.0；6.5.0/6.0.0/5.1.0 旧代全部退役。
+check("G1 Info.plist 版本双键 = 1.0.0（版本重置重锚：ShortVersion/BundleVersion 双键，旧代全退）",
+      plist.count('<string>1.0.0</string>') == 2
+      and '<string>6.5.0</string>' not in plist
+      and '<string>6.0.0</string>' not in plist
       and '<string>5.1.0</string>' not in plist)
 vh = rd("Natives/external/MobileGlues/MobileGlues-cpp/version.h")
 check("G2 version.h REVISION 17 addendum（Tasks 112-118）",
@@ -208,12 +252,18 @@ def balance(src):
 
 check("G3 sdl3_hook.m 大括号平衡（字符串/注释感知）", balance(sdl) == 0, f"depth={balance(sdl)}")
 check("G4 JavaLauncher.m 大括号平衡", balance(jl) == 0, f"depth={balance(jl)}")
-check("G5 LauncherPreferencesViewController.m 大括号平衡", balance(lpvc) == 0, f"depth={balance(lpvc)}")
+if retired("Natives/LauncherPreferencesViewController.m"):
+    skip("G5 LauncherPreferencesViewController.m 大括号平衡", "Natives/LauncherPreferencesViewController.m")
+else:
+    check("G5 LauncherPreferencesViewController.m 大括号平衡", balance(lpvc) == 0, f"depth={balance(lpvc)}")
 # 裸括号 delta 与 HEAD 一致（对齐既有 A5 语义：不因本次改动引入不平衡）
 for path, label in [("Natives/sdl3_hook.m", "sdl3_hook"), ("Natives/JavaLauncher.m", "JavaLauncher"),
                     ("Natives/LauncherPreferences.m", "LauncherPreferences"),
                     ("Natives/LauncherPreferencesViewController.m", "LPVC"),
                     ("Natives/PLPreferences.m", "PLPreferences"), ("Natives/UpdateChecker.m", "UpdateChecker")]:
+    if retired(path):
+        skip(f"G6 {label} 裸括号 delta 与 HEAD 一致", path, "宿主已退役，HEAD 对拍基线不复存在")
+        continue
     cur = rd(path)
     head = subprocess.run(["git", "-C", REPO, "show", f"HEAD:{path}"],
                           capture_output=True, text=True).stdout
@@ -221,5 +271,5 @@ for path, label in [("Natives/sdl3_hook.m", "sdl3_hook"), ("Natives/JavaLauncher
              for a, b in [("{", "}"), ("(", ")"), ("[", "]")])
     check(f"G6 {label} 裸括号 delta 与 HEAD 一致", ok)
 
-print(f"\n==== RESULT: {'ALL PASS' if FAIL == 0 else 'FAILED'} ({PASS}/{PASS + FAIL}) ====")
+print(f"\n==== RESULT: {'ALL PASS' if FAIL == 0 else 'FAILED'} ({PASS}/{PASS + FAIL}, skipped {SKIP}) ====")
 sys.exit(0 if FAIL == 0 else 1)

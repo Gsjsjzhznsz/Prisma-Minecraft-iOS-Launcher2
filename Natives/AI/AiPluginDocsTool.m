@@ -6,7 +6,7 @@
 //  免确认零摩擦）；返回文本 = 插件系统全量 API 参考（与基础系统提示词
 //  【七】章拆分的另一 половина：v5 时代该章全文塞在每条消息的系统提示词
 //  里，插件话题缺席时纯烧 token；v6 起移入本工具按需返回）。
-//  文档内容与 AmePluginBridge/Runtime 真实能力面逐条对齐（118 方法/33 权限/103 键）——ame365/ame366_selfcheck
+//  文档内容与 AmePluginBridge/Runtime 真实能力面逐条对齐（118 方法/34 权限/100 键）——ame365/ame366_selfcheck
 //  S 区反向探针会抽出文档里的每个 ame.* 名核对桥面/门面真实存在，防止
 //  文档漂移（"提示词给了不存在的 API"与"存在但文档没给"同罪）。
 //
@@ -22,10 +22,10 @@
 - (NSString *)summary {
     return
     @"获取 Prisma 插件系统全量 API 参考文档（写/改任何插件前必读）。返回内容："
-    @"create_plugin 参数契约、33 项权限表、ame.* 全部 118 个桥面方法（app 元信息/视图操纵与"
-    @"元素拖拽/弹窗/通知/主题四族读写/设置与 103 键目录/渲染器/实例档案/游戏状态与内存/"
+    @"create_plugin 参数契约、34 项权限表、ame.* 全部 118 个桥面方法（app 元信息/视图操纵与"
+    @"元素拖拽/弹窗/通知/主题四族读写/设置与 100 键目录/渲染器/实例档案/游戏状态与内存/"
     @"JIT 控制/游戏启动/日志与崩溃分析/模组光影/存档/账户脱敏/下载/AI 问答/触控布局/fs 沙盒/存储）、"
-    @"11 种事件、标准写法与示例。"
+    @"12 种事件、标准写法与示例。"
     @"仅当用户要求编写插件、修改插件、用插件改启动器界面或自修复启动器时调用；"
     @"一次会话调用一次即可。";
 }
@@ -40,10 +40,10 @@
     @"\n"
     @"【0. API 总量速览——整个启动器皆可改，本表即全部可寻址面】\n"
     @"· 桥面方法 118 个（下文【4】-【23】逐个列出，签名与语义以此为准）；\n"
-    @"· 设置注册键目录 103 键 × get/set = 206 个可寻址操作（【10】逐键列表）；\n"
+    @"· 设置注册键目录 100 键 × get/set = 200 个可寻址操作（【10】逐键列表）；\n"
     @"· 主题令牌 54 个（28 色 + 12 形状字阶 + 13 布局刻度 + 1 结构蓝图，【8】）；\n"
-    @"· 事件 11 种（【3】）；视图属性/手势值域 18 项（【6】）。\n"
-    @"· 四类合计约 407 个可寻址 API。目标场景：启动器崩溃打不开游戏 → 用户直接找 AI 写自修复插件，不等反馈。\n"
+    @"· 事件 12 种（【3】）；视图属性/手势值域 18 项（【6】）。\n"
+    @"· 四类合计约 404 个可寻址 API。目标场景：启动器崩溃打不开游戏 → 用户直接找 AI 写自修复插件，不等反馈。\n"
     @"\n"
     @"【1. 写插件铁律】\n"
     @"· 代码必须是纯 JS：无 require/import/浏览器对象；顶层用 (function(){...})(); 包裹；全文 ≤200KB。\n"
@@ -54,8 +54,8 @@
     @"· create_plugin 参数：id（小写字母/数字/._-，3-64 字符，全局唯一）、name（显示名 ≤64 字）、description（说明）、permissions（权限 id 数组，见【2】）、code（main.js 全文）、overwrite（同 id 覆盖，默认 false）。\n"
     @"· 多插件同名主题覆盖后写者胜；插件停用/卸载自动还原其视图改动与主题覆盖；所有回调/事件在主线程派发。\n"
     @"\n"
-    @"【2. 权限表（共 33 项，†=高危：默认拒绝，需用户在插件详情页手动开启）】\n"
-    @"ame.super（总权限=完全接管，用户显式开启后全部闸放行，永不自动授予）/ events / ui.dialog / ui.rows / ui.theme† / ui.views† / ui.nav / settings.read / settings.write† / renderer.read / renderer.write† / profile.read / profile.write† / storage / net† / files.game† / jit.read / jit.write† / game.read / game.launch† / logs.read / mods.read / mods.write† / worlds.read / worlds.write† / accounts.read / downloads.read / controls.read / controls.write† / fs.launcher† / ai.call† / notify / clipboard.read†\n"
+    @"【2. 权限表（共 34 项，†=高危：默认拒绝，需用户在插件详情页手动开启）】\n"
+    @"ame.super（总权限=完全接管，用户显式开启后全部闸放行，永不自动授予）/ events / ui.dialog / ui.rows / ui.theme† / ui.views† / ui.nav / settings.read / settings.write† / renderer.read / renderer.write† / profile.read / profile.write† / storage / net† / files.game† / jit.read / jit.write† / game.read / game.launch† / logs.read / java.inject† / mods.read / mods.write† / worlds.read / worlds.write† / accounts.read / downloads.read / controls.read / controls.write† / fs.launcher† / ai.call† / notify / clipboard.read†\n"
     @"\n"
     @"【3. 事件（events）】ame.on(event, function(event,payload){}) / ame.off(event)。12 种：\n"
     @"app.launch / app.foreground / app.background / profile.changed / profile.listChanged / page.changed（payload={index,page}） / account.changed / app.lowMemory / game.starting / game.exited（payload=退出码，0=正常） / game.crash（payload=退出码，非零退出即发，game.exited 的语义别名） / appearance.changed（★Task379：payload={dark}，系统深浅/外观偏好切换实时触发，色板类插件跟随系统明暗用）。\n"
@@ -114,14 +114,13 @@
     @"· ame.settings.getMulti([k1,k2...]) → {k:v}；ame.settings.setMulti({k1:v1,...})——批量读写（≤128 键）。\n"
     @"· ame.settings.remove(key)——删键（仅注册键）；ame.settings.describe(key) → {value,type,registered}。\n"
     @"\n"
-    @"【10. 设置键目录（103 键 × get/set = 206 个可寻址操作；值=出厂默认；★Task440 摘 news_url/announcement_preview_level/welcome_completed 三退役键，家法注释尾在 PLPreferences.m）】\n"
+    @"【10. 设置键目录（100 键 × get/set = 200 个可寻址操作；值=出厂默认；★Task440 摘 news_url/announcement_preview_level/welcome_completed 三退役键，家法注释尾在 PLPreferences.m；★Task441 摘 general.download_source 残留行——Task218 退役键的文档漂移，实数执法见 ame366 D1）】\n"
     @"· general：\n"
     @"  general.check_sha（默认 @YES）\n"
     @"  general.cosmetica（默认 @YES）\n"
     @"  general.debug_logging（默认 @(!CONFIG_RELEASE)）\n"
     @"  general.auto_update_check（默认 @YES）\n"
     @"  general.legacy_compatibility（默认 @YES）\n"
-    @"  general.download_source（默认 @\"bmclapi\"）\n"
     @"  general.download_source_mod（默认 @\"modrinth\"）\n"
     @"  general.download_source_shader（默认 @\"modrinth\"）\n"
     @"  general.download_source_resourcepack（默认 @\"modrinth\"）\n"

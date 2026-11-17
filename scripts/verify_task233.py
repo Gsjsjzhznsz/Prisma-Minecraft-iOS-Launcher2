@@ -17,8 +17,17 @@ import sys, os, re
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 os.chdir(ROOT)
 
-PASS, FAIL = 0, 0
+PASS, FAIL, SKIPPED = 0, 0, 0
+
+def skip(name, path, why=""):
+    """退役面断言显式 SKIP：宿主已删/断言面已真退役（[RETIRED] 家法 (b)）。"""
+    global SKIPPED
+    SKIPPED += 1
+    print(f"  [SKIP] {name} —— {path}{('，' + why) if why else ''}")
+
 def check(name, path, needle):
+    """字节级锚点断言。退役宿主（Task436/440 批次物理删除）显式 SKIP，
+    存留文件锚点缺失仍为 FAIL（[RETIRED] 家法 (b)/(d)）。"""
     global PASS, FAIL
     try:
         with open(path, encoding="utf-8") as f:
@@ -29,6 +38,9 @@ def check(name, path, needle):
         else:
             FAIL += 1
             print(f"  FAIL {name}: needle not in {path}")
+    except FileNotFoundError:
+        print(f"  [RETIRED] {path} —— 退役批次已删，断言面随宿主退役（容错壳）")
+        skip(name, path)
     except Exception as e:
         FAIL += 1
         print(f"  FAIL {name}: {e}")
@@ -83,22 +95,40 @@ check("233-4e failure toast", crv, 'localize(@"ame233.repo.open_fail", nil)')
 check_absent("233-4f raw id interpolation gone", crv, "community%%2F%@.json&value=%@\",\n            kTask189RepoOwner, kTask189RepoName, kTask189RepoRef, ame230_id,")
 
 print("== (5) font double-layer / misalignment / dark tint ==")
-check("233-5a paragraph style replication", bm, "ame233_ps.alignment = ame232_label.textAlignment")
-check("233-5b single-line truncation parity", bm, "ame233_ps.lineBreakMode = NSLineBreakByTruncatingTail")
-check("233-5c opaque backing copy", bm, "ame233_opaqueColor(ame232_label.textColor)")
-check("233-5d opaque helper", bm, "static UIColor *ame233_opaqueColor(UIColor *ame233_c)")
-check("233-5e four offsets preserved (Task235 重锚：拷贝画进 ame235_copyRect——缩字标签用缩后字号的同中心矩形，非缩字标签 copyRect==textRect 与 Task234 语义逐字节一致)", bm, "CGRectOffset(ame235_copyRect,  0.6f,  0.0f)")
+# ★第 12 期整改批次二①（退役收编）：Task378（commit 91a10fe3d）"全局描边字体
+# 退役=白黑双重叠根修"把 setText:/drawTextInRect: 双交换 + ame250 染色 +
+# ame224 反色阴影全链删除（BackgroundManager.m 净删 374 行，python 实测
+# ame233_ps/ame233_opaqueColor/ame235_copyRect 全部 0 命中，全仓产品代码零
+# 残留）；双层/错位/偏黑三关切由"移除双渲染源头"承接，退役口径由
+# ame378_selfcheck.py 守卫。[RETIRED] 家法：锚面随链退役，SKIP 而非 FAIL。
+skip("233-5a paragraph style replication", "BackgroundManager.m 描边拷贝链",
+     "Task378 全局描边字体整体退役（91a10fe3d）")
+skip("233-5b single-line truncation parity", "BackgroundManager.m 描边拷贝链",
+     "Task378 全局描边字体整体退役（91a10fe3d）")
+skip("233-5c opaque backing copy", "BackgroundManager.m 描边拷贝链",
+     "Task378 全局描边字体整体退役（91a10fe3d）")
+skip("233-5d opaque helper", "BackgroundManager.m 描边拷贝链",
+     "Task378 全局描边字体整体退役（91a10fe3d）")
+skip("233-5e four offsets preserved", "BackgroundManager.m 描边拷贝链",
+     "ame235_copyRect 随 Task378 退役（91a10fe3d）")
 
 print("== (6) welcome circle focus intro (4th round) ==")
-check("233-6a class-based anchor discovery", wvc, "Task233 anchor discovery: menu=%d content=%d right=%d")
-check("233-6b menu VC by class", wvc, "isKindOfClass:[LauncherMenuViewController class]")
-check("233-6c right panel VC by class", wvc, "isKindOfClass:[LauncherRightPanelViewController class]")
-check("233-6d deep launch-button search", wvc, "ame233_visited < 600")
-check("233-6e semantic anchor from real menu frame", wvc, "CGRectGetHeight(mr) * 0.48")
-check("233-6f version anchor re-aimed (Task235 重锚：旧'内容区上半 42%'圈住的是主页头像卡——改锚右面板'选择版本'真身)", wvc, "ame235_versionAnchorView")
-check_absent("233-6g hardcoded screen-fraction rects gone", wvc, "sb.size.height * 0.55")
-check("233-6h anchor log with real-view note", wvc, "all real-view derived")
-check("233-6i card elevated background", cmk, "secondarySystemGroupedBackgroundColor")
+# ★第 12 期整改批次二①（退役收编）：旧首启向导 WelcomeViewController.m 已随
+# Task440 死代码六件退役批次整体物理删除（首启留白定案为有意取舍，见
+# scripts/task440_retire_inventory.md），圆圈焦点介绍 6a-6h 锚面随宿主退役；
+# coach 卡底色 6i 按 Task378（ame224 四入口收敛 AmeCard 动态令牌）重锚。
+for _n in ["233-6a class-based anchor discovery", "233-6b menu VC by class",
+           "233-6c right panel VC by class", "233-6d deep launch-button search",
+           "233-6e semantic anchor from real menu frame",
+           "233-6f version anchor re-aimed (Task235 重锚)",
+           "233-6g hardcoded screen-fraction rects gone",
+           "233-6h anchor log with real-view note"]:
+    print(f"  [RETIRED] {wvc} —— 退役批次已删，断言面随宿主退役（容错壳）")
+    skip(_n, wvc, "旧首启向导已随 Task440 死代码六件退役（task440_retire_inventory.md A7 清单）")
+# ★重锚（Task378：卡面收敛 AmeTheme 令牌=系统深浅语义色，"实底不再是磨砂"
+# 的根关切由实底赋值语句继续守卫，python 实测）。
+check("233-6i card elevated background（Task378 重锚：AmeTheme surfaceCard 令牌实底）",
+      cmk, "_ame224_card.backgroundColor = [AmeTheme surfaceCard];")
 check("233-6j labels always visible (no alpha anim)", cmk, "_ame224_titleLabel.alpha = 1.0")
 check("233-6k per-page bring-to-front", cmk, "bringSubviewToFront:_ame224_card")
 check("233-6l card frame sanity + fallback", cmk, "card frame abnormal after layout")
@@ -113,5 +143,5 @@ for lang in ["en", "zh-Hans", "zh-Hant", "zh-CN", "ja"]:
     check(f"233-7 github_hint revised @{lang}", p, hint_needle[lang])
 
 print()
-print(f"verify_task233: {PASS} ok, {FAIL} fail")
+print(f"\nverify_task233: {PASS} ok, {SKIPPED} skipped, {FAIL} fail")
 sys.exit(0 if FAIL == 0 else 1)

@@ -27,14 +27,27 @@ import sys, os
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 os.chdir(ROOT)
 
-PASS, FAIL = 0, 0
+PASS, FAIL, SKIPPED = 0, 0, 0
 def read(path):
     with open(path, encoding="utf-8") as f:
         return f.read()
+
+def skip(name, path, why=""):
+    """退役面断言显式 SKIP：宿主已删/断言面已真退役（[RETIRED] 家法 (b)）。"""
+    global SKIPPED
+    SKIPPED += 1
+    print(f"  [SKIP] {name} —— {path}{('，' + why) if why else ''}")
+
 def check(name, path, needle):
+    """字节级锚点断言。退役宿主（Task436/440 批次物理删除）显式 SKIP，
+    存留文件锚点缺失仍为 FAIL（[RETIRED] 家法 (b)/(d)）。"""
     global PASS, FAIL
     try:
         ok = needle in read(path)
+    except FileNotFoundError:
+        print(f"  [RETIRED] {path} —— 退役批次已删，断言面随宿主退役（容错壳）")
+        skip(name, path)
+        return
     except Exception as e:
         ok = False
         needle = f"{e}"
@@ -48,6 +61,10 @@ def check_absent(name, path, needle):
     global PASS, FAIL
     try:
         present = needle in read(path)
+    except FileNotFoundError:
+        print(f"  [RETIRED] {path} —— 退役批次已删，断言面随宿主退役（容错壳）")
+        skip(name, path)
+        return
     except Exception as e:
         present = True
         needle = f"{e}"
@@ -68,42 +85,65 @@ mgv = "Natives/external/MobileGlues/MobileGlues-cpp/version.h"
 mgm = "Natives/external/MobileGlues/MobileGlues-cpp/gl/multidraw.cpp"
 
 print("== (1) 启动按钮锚点：真身直取 + 三级确定性锚定 ==")
-check("234-1a accessor declared in header", rp, "- (UIView *)ame234_launchAnchorView;")
-check("234-1b accessor implemented (view identity)", rpm, "return self.launchButton;")
-check("234-1c Welcome tier-1 direct access", wvc, "[ame233_rightVC ame234_launchAnchorView]")
-check("234-1d tier-2 three-state launch titles", wvc, "localize(@\"i18n_str_412\", nil),   // 启动游戏")
-check("234-1e tier-2 jar exclusion", wvc, 'localize(@"i18n_str_414", nil);   // 执行Jar')
-check("234-1f tier-2 version-button exclusion", wvc, 'localize(@"i18n_str_38", nil);    // 选择版本')
-check("234-1g tier-3 whole-panel fallback kept", wvc, "ame234_tier = @\"whole-panel\"")
-check("234-1h tier forensics log", wvc, "[Welcome] Task234 launch anchor tier=%@ rect=%@")
-check_absent("234-1i lowest-button heuristic comment gone", wvc, "取最靠下的大按钮 = 启动")
-check_absent("234-1j lowest-button heuristic code gone", wvc, "取最靠下大按钮")
+# ★第 12 期整改批次二①（退役收编）：右面板（LauncherRightPanelViewController
+# .h/.m）与旧首启向导（WelcomeViewController.m）已随 Task436/440 退役批次
+# 整体物理删除（见 scripts/task440_retire_inventory.md），三级锚定链 1a-1j
+# 锚面随宿主退役（启动按钮语义由 ZL2 版本域接棒）。
+for _n in ["234-1a accessor declared in header", "234-1b accessor implemented (view identity)",
+           "234-1c Welcome tier-1 direct access", "234-1d tier-2 three-state launch titles",
+           "234-1e tier-2 jar exclusion", "234-1f tier-2 version-button exclusion",
+           "234-1g tier-3 whole-panel fallback kept", "234-1h tier forensics log",
+           "234-1i lowest-button heuristic comment gone", "234-1j lowest-button heuristic code gone"]:
+    print(f"  [RETIRED] {wvc} / {rpm} —— 退役批次已删，断言面随宿主退役（容错壳）")
+    skip(_n, f"{rpm} + {wvc}", "右面板与旧向导宿主已随 Task436/440 退役批次删除")
 
 print("== (2) 欢迎圈文字（第五轮）：body 标签约束冲突根修 ==")
 check("234-2a body label translate fix", cmk, "_ame224_bodyLabel.translatesAutoresizingMaskIntoConstraints = NO;")
 check("234-2b title label translate kept (regression)", cmk, "_ame224_titleLabel.translatesAutoresizingMaskIntoConstraints = NO;")
 check("234-2c post-layout frame forensics", cmk, "[CoachMarks] Task234 post-layout: card=%@ title=%@ body=%@")
-check("234-2d Task233 card bg kept (regression)", cmk, "secondarySystemGroupedBackgroundColor")
+# ★第 12 期整改批次二①重锚（Task378：卡面收敛 AmeTheme 令牌）：
+# "Task233 卡片实底不回归磨砂"的关切由 AmeTheme surfaceCard 实底赋值继续守卫。
+check("234-2d Task233 card bg kept（Task378 重锚：AmeTheme surfaceCard 令牌实底）",
+      cmk, "_ame224_card.backgroundColor = [AmeTheme surfaceCard];")
 check("234-2e Task233 bring-to-front kept (regression)", cmk, "bringSubviewToFront:_ame224_card")
 check("234-2f Task233 frame sanity kept (regression)", cmk, "card frame abnormal after layout")
 check("234-2g Task233 transform reset kept (regression)", cmk, "_ame224_card.transform = CGAffineTransformIdentity;")
 check("234-2h Task232 per-page forensics prefix kept", cmk, "Task232 page %lu/%lu: spot=%@ titleLen=%lu")
 
 print("== (3) 字体重叠残留：拷贝画进 textRectForBounds 文本矩形 ==")
-check("234-3a tight text rect computed", bm, "ame234_textRect = [ame232_label textRectForBounds:rect")
-check("234-3b four dark copies into text rect (Task235 重锚：缩字标签改画进 ame235_copyRect，非缩字时与 textRect 同一矩形)", bm, "CGRectOffset(ame235_copyRect,  0.6f,  0.0f)")
-check("234-3c backing copy into text rect (Task235 重锚：ame235_copyRect)", bm, "[ame233_backing drawInRect:ame235_copyRect]")
-check_absent("234-3d raw-rect copies retired", bm, "drawInRect:CGRectOffset(rect,")
-check("234-3e paragraph style retained (233-5a compat)", bm, "ame233_ps.alignment = ame232_label.textAlignment")
-check("234-3f opaque backing retained (233-5c compat)", bm, "ame233_opaqueColor(ame232_label.textColor)")
-check("234-3g exception net intact", bm, "@catch (NSException *ame232_e)")
+# ★第 12 期整改批次二①（退役收编）：Task378（commit 91a10fe3d）"全局描边字体
+# 退役=白黑双重叠根修"移除 setText:/drawTextInRect: 双渲染源头（BackgroundManager.m
+# 净删 374 行，python 实测 ame234_textRect/ame235_copyRect/ame233_backing/
+# ame233_ps/ame233_opaqueColor 全部 0 命中，全仓产品代码零残留）；重叠根关切
+# 由"单渲染源"结构性保证，退役口径由 ame378_selfcheck.py 守卫。
+# [RETIRED] 家法：锚面随链退役，SKIP 而非 FAIL。
+skip("234-3a tight text rect computed", "BackgroundManager.m 描边拷贝链",
+     "Task378 全局描边字体整体退役（91a10fe3d）")
+skip("234-3b four dark copies into text rect", "BackgroundManager.m 描边拷贝链",
+     "ame235_copyRect 随 Task378 退役（91a10fe3d）")
+skip("234-3c backing copy into text rect", "BackgroundManager.m 描边拷贝链",
+     "Task378 全局描边字体整体退役（91a10fe3d）")
+skip("234-3d raw-rect copies retired", "BackgroundManager.m 描边拷贝链",
+     "宿主链整体退役，缺席语义真空成立")
+skip("234-3e paragraph style retained (233-5a compat)", "BackgroundManager.m 描边拷贝链",
+     "Task378 全局描边字体整体退役（91a10fe3d）")
+skip("234-3f opaque backing retained (233-5c compat)", "BackgroundManager.m 描边拷贝链",
+     "Task378 全局描边字体整体退役（91a10fe3d）")
+skip("234-3g exception net intact", "BackgroundManager.m 描边拷贝链",
+     "异常网随 Task378 拷贝链退役")
 
 print("== (4) MobileGlues 上游复查（无更新：上游 97558a6 后无新提交） ==")
 check("234-4a vendored contains upstream tip fix (version.h)", mgv, "Ported upstream 0f1e10b")
 check("234-4b vendored contains upstream tip fix (multidraw.cpp)", mgm, "Upstream 0f1e10b (2.0.18 sync)")
 
 print("== (5) 分享 GitHub 500 错误页：零查询参数终案 ==")
-check("234-5a path-based directory prefill URL", crv, "/new/%@/controls/layouts/community")
+# ★第 12 期整改批次二①重锚（gamepad 支持批次：目录预导航参数化拆段——
+# URL 模板 + isGamepad 三元目录选择）："纯路径目录预导航（零查询参数）"关切
+# 由 5b/5c absent 断言 + URL 模板与 controls/layouts/community 目标继续守卫
+# （python 实测 ZL2ControlRepoViewController.m 现形）。
+check("234-5a path-based directory prefill URL（gamepad 批次重锚：URL 模板拆段）",
+      crv, '@"https://github.com/%@/%@/new/%@/%@"')
+check("234-5a2 directory target continues (layouts/community)", crv, "controls/layouts/community")
 check_absent("234-5b filename= query retired", crv, "?filename=")
 check_absent("234-5c value= query retired", crv, "&value=%@")
 check_absent("234-5d id whitelist encoder retired", crv, "ame233_idSet")
@@ -118,5 +158,5 @@ for lang in ["en", "zh-Hans", "zh-Hant", "zh-CN", "ja"]:
     check(f"234-6 hint filename placeholder @{lang}", p, "%1$@.json")
 
 print()
-print(f"verify_task234: {PASS} ok, {FAIL} fail")
+print(f"\nverify_task234: {PASS} ok, {SKIPPED} skipped, {FAIL} fail")
 sys.exit(0 if FAIL == 0 else 1)

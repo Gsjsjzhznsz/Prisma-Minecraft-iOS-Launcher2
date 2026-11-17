@@ -238,17 +238,26 @@ static NSString * const kImportedModpacksKey = @"ImportedModpacks";
                             loader:(NSString **)outLoader
                      loaderVersion:(NSString **)outLoaderVersion
                     minecraftVer:(NSString **)outMcVersion {
-    if (outMcVersion) *outMcVersion = dependencies[@"minecraft"];
-    if (dependencies[@"forge"]) {
+    // ★Task441 P1-1 判类收窄（第 11 期报告 2.2 节）：dependencies 本体与五个出参全部
+    //   isKindOfClass 判类——构造性 modrinth.index.json 写 "dependencies":{"minecraft":123}
+    //   时原样透传到 installModLoader 的 .length 触发 unrecognized selector SIGABRT
+    //   （解析网只网 NSException，拦不住非异常异类型）。与 Task439 name/versionId 收窄
+    //   及 C1 projectID/fileID 双判类同款家法；非字符串一律回落 nil（下游
+    //   @"unknown" 语义保持，installModLoader 既有 length==0 守卫拦成 4001 参数错误弹窗，全链不崩）。
+    if (outMcVersion) {
+        id ame441_rawMc = [dependencies isKindOfClass:[NSDictionary class]] ? dependencies[@"minecraft"] : nil;
+        *outMcVersion = [ame441_rawMc isKindOfClass:[NSString class]] ? ame441_rawMc : nil;
+    }
+    if ([dependencies[@"forge"] isKindOfClass:[NSString class]]) {
         if (outLoader) *outLoader = @"Forge";
         if (outLoaderVersion) *outLoaderVersion = dependencies[@"forge"];
-    } else if (dependencies[@"neoforge"]) {
+    } else if ([dependencies[@"neoforge"] isKindOfClass:[NSString class]]) {
         if (outLoader) *outLoader = @"NeoForge";
         if (outLoaderVersion) *outLoaderVersion = dependencies[@"neoforge"];
-    } else if (dependencies[@"fabric-loader"]) {
+    } else if ([dependencies[@"fabric-loader"] isKindOfClass:[NSString class]]) {
         if (outLoader) *outLoader = @"Fabric";
         if (outLoaderVersion) *outLoaderVersion = dependencies[@"fabric-loader"];
-    } else if (dependencies[@"quilt-loader"]) {
+    } else if ([dependencies[@"quilt-loader"] isKindOfClass:[NSString class]]) {
         if (outLoader) *outLoader = @"Quilt";
         if (outLoaderVersion) *outLoaderVersion = dependencies[@"quilt-loader"];
     } else {
@@ -263,9 +272,14 @@ static NSString * const kImportedModpacksKey = @"ImportedModpacks";
                  loaderVersion:(NSString **)outLoaderVersion {
     if (outLoader) *outLoader = @"Vanilla";
     if (outLoaderVersion) *outLoaderVersion = @"";
-    if (modLoaders.count == 0) return;
-    NSDictionary *loaderInfo = modLoaders.firstObject;
-    NSString *loaderId = loaderInfo[@"id"];
+    // ★Task441 P1-1 同族收窄：modLoaders 本体判类（构造 manifest.json 写
+    //   "modLoaders":"forge" 时 .count 直崩），首元素非字典/loaderId 非字符串一律
+    //   维持 Vanilla 回落，不再裸透传。
+    if (![modLoaders isKindOfClass:[NSArray class]] || modLoaders.count == 0) return;
+    id ame441_loaderInfo = modLoaders.firstObject;
+    if (![ame441_loaderInfo isKindOfClass:[NSDictionary class]]) return;
+    id ame441_rawLoaderId = ame441_loaderInfo[@"id"];
+    NSString *loaderId = [ame441_rawLoaderId isKindOfClass:[NSString class]] ? ame441_rawLoaderId : @"";
     if ([loaderId hasPrefix:@"forge-"]) {
         if (outLoader) *outLoader = @"Forge";
         if (outLoaderVersion) *outLoaderVersion = [loaderId substringFromIndex:6];
@@ -762,7 +776,9 @@ static NSString * const kImportedModpacksKey = @"ImportedModpacks";
         @"filePath": filePath,
         @"format": @"modrinth",
         @"indexData": indexDict,
-        @"files": indexDict[@"files"] ?: @[],
+        // ★Task441 P1-2 files 判类（第 11 期报告 2.2 节：构造包写 "files":"x" →
+        //   importModpack .count 崩）：只兑 nil 不兑异类型，非数组一律回落空数组。
+        @"files": [indexDict[@"files"] isKindOfClass:[NSArray class]] ? indexDict[@"files"] : @[],
         @"iconBase64": iconBase64 ?: @""
     };
 }
@@ -780,8 +796,13 @@ static NSString * const kImportedModpacksKey = @"ImportedModpacks";
         return nil;
     }
 
-    NSDictionary *minecraft = manifestDict[@"minecraft"];
-    NSString *minecraftVersion = minecraft[@"version"];
+    // ★Task441 P1-1 同族收窄（第 11 期报告 2.2 节 :784 指控）：minecraft 本体非字典
+    //   （构造包写 "minecraft":"1.20.1" 时 objectForKeyedSubscript 直崩）与 version
+    //   非字符串一律判类回落，不再裸透传。
+    id ame441_rawMcDict = manifestDict[@"minecraft"];
+    NSDictionary *minecraft = [ame441_rawMcDict isKindOfClass:[NSDictionary class]] ? ame441_rawMcDict : @{};
+    id ame441_rawMcVer = minecraft[@"version"];
+    NSString *minecraftVersion = [ame441_rawMcVer isKindOfClass:[NSString class]] ? ame441_rawMcVer : nil;
 
     NSString *loader = nil, *loaderVersion = nil;
     [self resolveCurseForgeLoader:minecraft[@"modLoaders"]
@@ -812,7 +833,8 @@ static NSString * const kImportedModpacksKey = @"ImportedModpacks";
         @"filePath": filePath,
         @"format": @"curseforge",
         @"manifestData": manifestDict,
-        @"files": manifestDict[@"files"] ?: @[],
+        // ★Task441 P1-2 files 判类（同 Modrinth 侧，非数组回落空数组）。
+        @"files": [manifestDict[@"files"] isKindOfClass:[NSArray class]] ? manifestDict[@"files"] : @[],
         @"iconBase64": iconBase64 ?: @""
     };
 }
@@ -1048,7 +1070,9 @@ static BOOL ame269_sMigrationRunning = NO;
     [manager updateTaskWithId:taskId stageAtIndex:2 status:PLTaskStageStatusRunning];
 
     // 第 2 步: 下载 mod 文件列表
-    NSArray *modFiles = modpackInfo[@"files"];
+    // ★Task441 P1-2 消费侧兜底（第 11 期报告 2.2 节）：files 判类——parse 层收窄之外的
+    //   第三层防线，非数组一律空集跳过下载段（不崩、导入继续）。
+    NSArray *modFiles = [modpackInfo[@"files"] isKindOfClass:[NSArray class]] ? modpackInfo[@"files"] : @[];
     if (modFiles.count > 0) {
         if (progress) progress(0.15, [NSString stringWithFormat:localize(@"i18n_str_537", nil), (unsigned long)modFiles.count]);
         NSError *downloadError = nil;
@@ -2626,7 +2650,10 @@ if (hasRealFileName) {
                 versionId:(NSString *)versionId
           gameDirAbsolute:(NSString *)gameDirAbsolute
                    error:(NSError **)error {
-    if (!loaderVersion || loaderVersion.length == 0 || !minecraftVersion || minecraftVersion.length == 0) {
+    // ★Task441 消费侧兜底（第 11 期报告 2.2 节）：判类前置——构造包非字符串穿到此处时
+    //   .length 即 unrecognized selector（本守卫自身就是 :2629 崩点），先判类再取长度。
+    if (![loaderVersion isKindOfClass:[NSString class]] || loaderVersion.length == 0
+        || ![minecraftVersion isKindOfClass:[NSString class]] || minecraftVersion.length == 0) {
         if (error) {
             *error = [NSError errorWithDomain:@"ModpackImportError"
                                          code:4001

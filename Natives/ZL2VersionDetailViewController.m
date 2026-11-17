@@ -19,7 +19,8 @@
 //   光影/截图/服务器/配置）；「修改版本」= 本 .m 私有页 ZL2V13ModifyVersionPage
 //   （ZL2 ModifyVersionScreen.kt 列表选择 + 确认安装语义；loader 家族换装全链
 //   复用 PLComponentService，Vanilla/Quilt 无既有安装 API → 展示禁用注明
-//   「暂不支持」）；存档子页 = 本 .m 私有桥接页 ZL2V13SavesDatapacksBridgePage
+//   「暂不支持」；★Task441 批次三②：页名如实改「更换加载器」——第 10 期 4.5
+//   两条出路（解锁或如实改页名）任选其一清账，本仓选如实改页名，诚实边界不造假入口）；存档子页 = 本 .m 私有桥接页 ZL2V13SavesDatapacksBridgePage
 //   （内嵌 ZL2VersionSavesPage + 顶部数据包入口行 → ZL2V13DatapacksPage
 //   第九子页，对应下载轨 Task432 收敛注记「数据包→版本子页第九子页」）。
 //   旧注「ModifyVersion 编辑页语义折入概览页管理组」随本轮真实现落地废除
@@ -35,7 +36,7 @@
 #import "ModpackExportService.h"
 #import "ModService.h"
 #import "PLComponentService.h"   // ★Task432 实锤一：修改版本页 loader 换装链（analyze/availableVersions/install）
-#import "ZL2M3Kit.h"             // ★Task432：安装二次确认 M3Dialog（ZL2ComponentsPage 同款）
+#import "ZL2M3Kit.h"             // ★Task432：安装二次确认 M3Dialog（PLComponentsPage 同款）
 #import <UniformTypeIdentifiers/UniformTypeIdentifiers.h>   // ★Task432 缺口#6：数据包导入 picker（UTTypeZIP/UTTypeFolder）
 #import <objc/runtime.h>   // ★Task432：数据包页 iconButton block 载荷关联对象（ameV13_dispatchTap 判例）
 #import "utils.h"   // localize()
@@ -648,8 +649,10 @@ static UIImage *ZL2V13SystemImage(NSString *name, NSString *fallback) {
 //   installComponent:type:version: → 事务性换装（成功后 lastVersionId repoint
 //     + ReloadProfileList 广播，旧版本实体保留；容器头卡经该广播即时刷新）。
 // 家族面（任务规格五族）：Forge / NeoForge / Fabric = 可换装；Vanilla / Quilt
-//   无既有安装 API（clean 仅展示不换版 / quilt 仅检测谱系归并无安装器）→
-//   展示但禁用并注明「暂不支持」（诚实边界，不造假入口）。
+//   无既有安装 API（clean 仅展示不换版——PLComponentService :510 判例语义
+//   「原版本体：换版本请走游戏下载页」/ quilt 仅检测谱系归并无安装器与清单源）→
+//   展示但禁用并注明「暂不支持」（诚实边界，不造假入口）；★Task441 批次三②
+//   页名如实改「更换加载器」（ame432.vdet.modify 四表+fill 同步）。
 // 视觉 = 本文件页族同款（基类骨架 999 宽收敛 + surfaceContainer 行卡 +
 //   ZL2Theme 令牌）；基类私有构件经文件头 Task432VPageBridge 自含声明消费。
 
@@ -983,7 +986,7 @@ static const CGFloat ZL2V13PageCardSpacing = 12.0;   // 页内行卡间距（ZL2
 }
 
 /// 换版二次确认（UI 层职责，PLComponentService .h 约定；M3Dialog 照
-/// ZL2ComponentsPage 确认单判例）
+/// PLComponentsPage 确认单判例）
 - (void)ame432_confirmInstall:(NSString *)version familyName:(NSString *)familyName type:(NSString *)type {
     // 括号内 ?: 雷区判例：fallback 先出括号再拼串
     NSString *mcVersion = self.ame432_gameVersion;

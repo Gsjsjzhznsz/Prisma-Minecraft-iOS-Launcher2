@@ -126,7 +126,12 @@ uc = read("Natives/UpdateChecker.m")
 check("Brand:UA Prisma", "Prisma-iOS-UpdateChecker" in uc)
 faq = read("help-faq.json")
 check("Brand:help-faq 检索串同步", "[Amethyst]" not in faq)
-check("Brand:包名/进程名不动", 'CFBundleExecutable' in read("Natives/Info.plist") and "com.air-devs.air" in read("Natives/Info.plist"))
+# ★Task441 重锚（批次二 Info.plist CFBundleURLName 随 Task259 身份迁移，旧 air 标签零消费方实锤：Ame441 收编报告）：
+#   新锚口径 = 现身份在位 + 旧 air 零残留（不动语义升级为终态身份执法）
+check("Brand:包名/进程名不动（★Task441 重锚 Task259 终态 + air 零残留）",
+      'CFBundleExecutable' in read("Natives/Info.plist")
+      and "com.prisma-devs.prisma" in read("Natives/Info.plist")
+      and "com.air-devs.air" not in read("Natives/Info.plist"))
 
 # ─── 10. i18n 键 ───
 zh = read("Natives/resources/zh-CN.lproj/Localizable.strings")

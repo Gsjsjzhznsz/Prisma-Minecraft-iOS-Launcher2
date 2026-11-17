@@ -3,11 +3,15 @@
 (House rule: string-first stripping — URLs contain // which line comments would
 truncate; see Task223 lesson. States: code / line-comment / block-comment /
 single-string / char-literal.)"""
-import sys, subprocess
+import os, sys, subprocess
+
+# ★第 12 期整改批次二①重锚：外部仓绝对路径已消失（干净克隆口径），改从脚本
+# 位置动态推导仓库根；审计对象 = 本仓 git diff HEAD 的改动源文件（语义不变）。
+REPO = os.environ.get("TASK225_AUDIT_REPO", os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 FILES = subprocess.run(
     ["git", "diff", "--name-only", "HEAD"],
-    cwd="/home/z/my-project/Amethyst-iOS-MyRemastered",
+    cwd=REPO,
     capture_output=True, text=True).stdout.split()
 FILES = [f for f in FILES if f.endswith((".m", ".h", ".c"))]
 if not FILES:
@@ -71,14 +75,14 @@ def counts(code):
 fail = 0
 for f in FILES:
     try:
-        src = open("/home/z/my-project/Amethyst-iOS-MyRemastered/" + f, encoding="utf-8").read()
+        src = open(os.path.join(REPO, f), encoding="utf-8").read()
     except FileNotFoundError:
         continue
     code = strip(src)
     ob, cb, oc, cc, op, cp = counts(code)
     ok = (ob == cb) and (oc == cc) and (op == cp)
     # git-pinned HEAD comparison for delta reasoning
-    head = subprocess.run(["git", "-C", "/home/z/my-project/Amethyst-iOS-MyRemastered",
+    head = subprocess.run(["git", "-C", REPO,
                            "show", "HEAD:" + f], capture_output=True, text=True)
     if head.returncode == 0:
         hob, hcb, hoc, hcc, hop, hcp = counts(strip(head.stdout))

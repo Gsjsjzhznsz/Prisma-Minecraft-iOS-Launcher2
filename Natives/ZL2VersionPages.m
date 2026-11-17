@@ -112,7 +112,10 @@
 //   「校验并补全」入口并列挂版本详情页）。接口前置于消费点（ZL2CleanupPage
 //   同判例：声明后置 = undeclared identifier 编译雷）；实现于文件尾。
 //   基类沿用本文件既有 ZL2VersionPageBase（scrollView + 竖排列语言）。
-@interface ZL2ComponentsPage : ZL2VersionPageBase
+//   ★Task441 批次三③正名：类名 ZL2ComponentsPage → PLComponentsPage——去 ZL2 化
+//   （ZL2 基准侧全库检索确无此页，「移植了个空气」清账，第 10 期 4.5/第 11 期 4.1；
+//   「组件管理」标题语义保持不变）。
+@interface PLComponentsPage : ZL2VersionPageBase
 @end
 
 /// ★Task429：组件版本选单页（点组件条目 push；选版本 → 二次确认 → 换装）
@@ -1178,7 +1181,8 @@ static UIImage *ZL2V13ThumbnailAtPath(NSString *path, CGFloat maxPixel) {
 
 /// ★Task429 S1：链式弹层呈现（前一张 UIAlertController 动作点按后其退场动画
 /// 仍在飞行，直接 present = "presentation in progress" 竞态——Task428 全局档
-/// 行 / ProfileSettingsViewController 同款 0.35s 延迟窗口判例，统一收口）。
+/// 行 / ProfileSettingsViewController 同款 0.35s 延迟窗口判例（★Task441 墓碑：
+/// 该类已随 Task440 批次二物理退役 [RETIRED]，判例引用 retired），统一收口）。
 - (void)ame430_presentAfterDismiss:(UIAlertController *)vc attempt:(NSUInteger)attempt {
     if (!self.view.window) return;
     if (self.presentedViewController || self.transitionCoordinator) {
@@ -1529,12 +1533,12 @@ static UIImage *ZL2V13ThumbnailAtPath(NSString *path, CGFloat maxPixel) {
     });
 }
 
-/// ★Task429：组件管理入口行 → ZL2ComponentsPage 子页（FCL 式组件自动安装；
+/// ★Task429：组件管理入口行 → PLComponentsPage 子页（FCL 式组件自动安装；
 /// 数据面 PLComponentService，版本选单/二次确认/结果吐司在子页收口）。
 /// 第六版 N1/N2 判例：本 selector 已注册于入口行 addTarget，无实现 = 点击即
 /// unrecognized selector crash → 实现必须真实落地（禁止声明占位）。
 - (void)ame429_componentRowTapped {
-    ZL2ComponentsPage *ame429_vc = [[ZL2ComponentsPage alloc]
+    PLComponentsPage *ame429_vc = [[PLComponentsPage alloc]
         initWithProfileName:self.ameV13_profileName
                     gameDir:self.ameV13_gameDir];
     [self.navigationController pushViewController:ame429_vc animated:YES];
@@ -4476,14 +4480,14 @@ static NSString *ZL2V13ModSHA1ForFile(NSString *path) {
 //   时 objc_getClass 返回 nil → push nil 异常；选单页同理。故两页实现必须
 //   真实落地，禁止"声明占位"。
 
-@interface ZL2ComponentsPage () <UIDocumentPickerDelegate>
+@interface PLComponentsPage () <UIDocumentPickerDelegate>
 @property (nonatomic, strong) UIStackView *ame429_contentStack;
 @property (nonatomic, strong) UIStackView *ame429_listStack;
 @property (nonatomic, strong) UILabel *ame429_stateLabel;
 @property (nonatomic, strong) NSArray<PLComponentEntry *> *ame429_entries;
 @end
 
-@implementation ZL2ComponentsPage
+@implementation PLComponentsPage
 
 - (void)viewDidLoad {
     [super viewDidLoad];

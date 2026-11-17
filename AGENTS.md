@@ -122,9 +122,9 @@
 ## 关键功能模块
 
 *   **Mod 管理** (`ModsManagerViewController`, `ModService`): 提供 Mod 的查看、启用/禁用、删除功能，支持通过搜索框快速查找 Mod。
-*   **Mod 下载** (`ModVersionViewController`): 支持 Modrinth API 下载 Mod，可选择不同版本。
+*   **Mod 下载** (`ZL2VersionListPage` Mod 域 + `ZL2AssetSearchViewController`): 支持 Modrinth/CurseForge 下载 Mod（旧 ModVersionViewController 已退役，Task436/440 改道承接，ameV13 卡内跳与搜索页双入口）。
 *   **Shader 管理** (`ShadersManagerViewController`, `ShaderService`): 提供光影包的查看、启用/禁用、删除功能。
-*   **Shader 下载** (`ShaderVersionViewController`): 支持 Modrinth API 下载光影包，可选择不同版本。
+*   **Shader 下载** (`ZL2VersionListPage` Shader 域 + `ZL2AssetSearchViewController`): 支持 Modrinth 下载光影包（旧 ShaderVersionViewController 已退役，同上改道承接）。
 *   **整合包导入** (`ModpackImportViewController`, `ModpackImportService`): 支持导入 ZIP 格式的整合包。
 *   **账户系统** (`authenticator/`): 支持 Microsoft 账户、本地账户、演示账户和第三方认证账户。
 *   **自定义控制** (`customcontrols/`): 允许用户自定义游戏控制布局。
@@ -154,3 +154,11 @@
 5.  项目支持多平台构建，包括 iOS、tvOS、iOS 模拟器和 visionOS，通过 `PLATFORM` 参数指定。
 6.  渲染器设置为 Auto 时将自动选择合适的渲染器，包括 MobileGlues。
 7.  JVM 版本将根据游戏版本自动选择 (Java 8/17/21)。
+
+## 提交纪律（★Task441 批次二④，第 11 期报告 3.2 节）
+
+历史病历：5231bf0（题注 docs(worklog): Task439 落卷）实际承载了 14 个退役文件的物理删除，而 a8e3079 的提交信息声称「14 文件物理删除」但其 diff 零删除记录；中间提交树上 CMakeLists 仍引用已删 .m，构建必红，bisect 会得假阳性。自本节起强制：
+
+1.  **删码与修构建清单必须同提交**：物理删除任何被 CMakeLists.txt / Xcode 工程 / ui_fluent_smoke TU 清单引用的源文件时，对应的构建清单摘除必须落在同一个提交内。
+2.  **提交信息与 diff 内容一致性自检**：提交前用 `git show --name-status HEAD` 自检，删码动作不得记在 docs 提交名下；提交信息声称的动作必须能在 diff 里逐条找到对应。
+3.  worklog/docs 提交只许含文档与验证器脚本，不得夹带生产代码增删。

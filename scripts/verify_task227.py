@@ -33,6 +33,13 @@ def check(name, cond, detail=""):
         failed += 1
         print(f"  FAIL  {name}   {detail}")
 
+skipped = 0
+def skip(name, path, why=""):
+    """退役面断言显式 SKIP：宿主已删/断言面已真退役（[RETIRED] 家法 (b)）。"""
+    global skipped
+    skipped += 1
+    print(f"  [SKIP] {name} —— {path}{('，' + why) if why else ''}")
+
 def strip_comments(src):
     src = re.sub(r'/\*.*?\*/', '', src, flags=re.S)
     src = re.sub(r'//[^\n]*', '', src)
@@ -93,9 +100,13 @@ check("B3 SDL 事件 ev.mod 取自 modstate",
 print("== C. 键盘关闭闩锁 ==")
 check("C1 闩锁状态在位",
       "ame227_kbUserDismissed" in svc)
-check("C2 游离 Start 抑制（真输入意图门）",
-      "stray StartTextInput SUPPRESSED" in svc
-      and "ame161_lastSentKeyWasChatOpener(3.0)" in svc)
+# ★第 12 期整改批次二①重锚：旧日志 "stray StartTextInput SUPPRESSED" 已被
+# Task247/248（auto_keyboard_sdl 开关语义落地）重写——OFF 档真输入意图门现形：
+# 聊天开键宽限（ame161_lastSentKeyWasChatOpener(3.0)）放行、其余游离 Start 走
+# ame227_suppressedStarts++ 抑制计数（守卫活行为重锚，非放宽）。
+check("C2 游离 Start 抑制（真输入意图门；Task247/248 重锚：聊天开键宽限 + 抑制计数）",
+      "BOOL ame227_chatOpener = ame161_lastSentKeyWasChatOpener(3.0);" in svc
+      and "ame227_suppressedStarts++;" in svc)
 check("C3 输入法按钮收起置闩 / 打开清闩",
       "Task227 latch armed" in svc
       and "ame227_kbUserDismissed = NO;" in svc)
@@ -103,9 +114,14 @@ check("C4 触摸信号（0.8s 窗）",
       "ame227_lastTouchAt = CFAbsoluteTimeGetCurrent();" in svc)
 
 print("== D. 液态玻璃收敛 ==")
-check("D1 chrome 玻璃回退（sidebar/rightPanel）",
-      "LGCRemoveGlassFromView(self.sidebarContainer)" in lrv
-      and "LGCApplyGlassToView(self.sidebarContainer, 16)" not in lrv)
+if os.path.exists("Natives/LauncherRootViewController.m"):
+    check("D1 chrome 玻璃回退（sidebar/rightPanel）",
+          "LGCRemoveGlassFromView(self.sidebarContainer)" in lrv
+          and "LGCApplyGlassToView(self.sidebarContainer, 16)" not in lrv)
+else:
+    print("  [RETIRED] Natives/LauncherRootViewController.m —— 退役批次已删，跳过相关断言（容错壳）")
+    skip("D1 chrome 玻璃回退（sidebar/rightPanel）", "Natives/LauncherRootViewController.m",
+         "chrome 宿主已随退役批次删除，玻璃收敛语义随宿主退役")
 check("D2 列表卡面玻璃回退",
       "LGCRemoveGlassFromView(cardTarget);" in bm
       and "LGCApplyGlassToView(cardTarget, cardRadius)) {" not in bm)
@@ -114,9 +130,14 @@ check("D3 组合玻璃默认 + 系统 UIGlassEffect opt-in 逃生阀【Task228 �
       and "AME227_SYSTEM_GLASS" in lgc
       and 'strcmp(ame228_env, "1") == 0' in lgc
       and "ame228_compositeLogged" in lgc)
-check("D4 头像长按玻璃菜单（风格门控）",
-      "ame227_presentGlassMenu:" in rpv
-      and "LGCIsGlassStyleActive()" in rpv)
+if os.path.exists("Natives/LauncherRightPanelViewController.m"):
+    check("D4 头像长按玻璃菜单（风格门控）",
+          "ame227_presentGlassMenu:" in rpv
+          and "LGCIsGlassStyleActive()" in rpv)
+else:
+    print("  [RETIRED] Natives/LauncherRightPanelViewController.m —— 退役批次已删，跳过相关断言（容错壳）")
+    skip("D4 头像长按玻璃菜单（风格门控）", "Natives/LauncherRightPanelViewController.m",
+         "右面板宿主已随退役批次删除（ZL2 资产域接棒）")
 
 print("== E. 依赖自动下载（issue #10 重做） ==")
 check("E1 ModDependencyResolver 移植在位",
@@ -128,16 +149,28 @@ check("E3 防环 + 上限（visited/64/深度8）",
       "kMaxProjects = 64" in mdr and "kMaxDepth = 8" in mdr)
 check("E4 ModVersion.rawDictionary 双源留存",
       "_rawDictionary = [dictionary copy];" in mv)
-check("E5 didSelectVersion 前置解析钩子",
-      "resolveDependenciesFromVersionDetail:version.rawDictionary" in dlv)
-check("E6 PCL2CE 确认单（仅本体/全部安装）",
-      'localize(@"ame227.deps.only_mod", nil)' in dlv
-      and 'localize(@"ame227.deps.install_all", nil)' in dlv)
+if os.path.exists("Natives/DownloadViewController.m"):
+    check("E5 didSelectVersion 前置解析钩子",
+          "resolveDependenciesFromVersionDetail:version.rawDictionary" in dlv)
+    check("E6 PCL2CE 确认单（仅本体/全部安装）",
+          'localize(@"ame227.deps.only_mod", nil)' in dlv
+          and 'localize(@"ame227.deps.install_all", nil)' in dlv)
+    check("E9 后置钩子退役",
+          "ame226_offerModDependenciesIfModrinth" not in dlv)
+else:
+    print("  [RETIRED] Natives/DownloadViewController.m —— 退役批次已删，跳过相关断言（容错壳）")
+    skip("E5 didSelectVersion 前置解析钩子", "Natives/DownloadViewController.m", "旧下载中心宿主已随退役批次删除")
+    skip("E6 PCL2CE 确认单（仅本体/全部安装）", "Natives/DownloadViewController.m", "旧下载中心宿主已随退役批次删除")
+    skip("E9 后置钩子退役", "Natives/DownloadViewController.m", "宿主已删，缺席语义真空成立")
 check("E7 依赖名 enrichment（双源项目名接口）",
       "ame227_fetchProjectTitle" in mapi and "ame227_fetchModTitle" in cfapi)
-check("E8 版本页前置 footer",
-      "ame227_refreshDependenciesFooter" in mvv
-      and "ame227.deps.footer" in mvv)
+if mvv:
+    check("E8 版本页前置 footer",
+          "ame227_refreshDependenciesFooter" in mvv
+          and "ame227.deps.footer" in mvv)
+else:
+    print("  [RETIRED] Natives/ModVersionViewController.m —— 退役批次已删，跳过相关断言（容错壳）")
+    skip("E8 版本页前置 footer", "Natives/ModVersionViewController.m", "旧版本页宿主已随退役批次删除")
 check("E9 后置钩子退役",
       "ame226_offerModDependenciesIfModrinth" not in dlv)
 
@@ -168,8 +201,12 @@ check("H3 导入完成带文件计数",
       "ame227.import.done" in dts)
 
 print("== I. 教练标记重建 ==")
-check("I1 stage/card 实底自适应（不再 UIVisualEffectView）",
-      "systemBackgroundColor] colorWithAlphaComponent:0.94" in coach
+# ★第 12 期整改批次二①重锚（Task378：ame224 四入口收敛 AmeCard 动态令牌=系统
+# 深浅语义色）：stage 底色从 systemBackgroundColor@0.94 重锚为 AmeTheme
+# surfaceOverlay@0.94（实底自适应语义不变，不再 UIVisualEffectView 的根关切
+# 由 _ame224_stage = [[UIView alloc] init] 继续守卫；python 实测）。
+check("I1 stage/card 实底自适应（不再 UIVisualEffectView；Task378 重锚：AmeTheme surfaceOverlay 令牌）",
+      "[[AmeTheme surfaceOverlay] colorWithAlphaComponent:0.94]" in coach
       and "_ame224_stage = [[UIView alloc] init]" in coach)
 check("I2 卡片位置双端钳制",
       "ame224_cardY = MIN(ame224_cardY" in coach)
@@ -178,14 +215,17 @@ check("I3 contentView 引用已清理",
       and "_ame224_stage.contentView" not in coach)
 
 print("== J. 全局白底黑边字体 ==")
-check("J1 UILabel setText: swizzle 在位",
-      "ame227_swizzledLabelSetText" in bm
-      and "class_getInstanceMethod(self, @selector(setText:))" in bm)
-check("J2 描边字体（Task232 重锚：drawTextInRect 四方向外扩拷贝 + setText 染白打标）",
-      "ame232_swizzledLabelDrawTextInRect" in bm
-      and "NSStrokeWidthAttributeName" not in bm)
-check("J3 无壁纸零干预（hasBackground 门控）",
-      "if (![[BackgroundManager sharedManager] hasBackground]) return;" in bm)
+# ★第 12 期整改批次二①（退役收编）：Task378（commit 91a10fe3d）"全局描边字体
+# 退役=白黑双重叠根修"把 setText:/drawTextInRect: 双交换 + ame250 染色 +
+# ame224 反色阴影全链删除（BackgroundManager.m 净删 374 行），ame227 swizzle/
+# ame232 描边/hasBackground 门控返回三段锚面随链退役（python 实测三 needle
+# 均已 0 命中，全仓产品代码零残留）；退役口径由 ame378_selfcheck.py 守卫。
+skip("J1 UILabel setText: swizzle 在位", "BackgroundManager.m 描边 swizzle 链",
+     "Task378 全局描边字体整体退役（91a10fe3d），锚面随链退役")
+skip("J2 描边字体（Task232 重锚：drawTextInRect 四方向外扩拷贝）", "BackgroundManager.m 描边渲染链",
+     "Task378 全局描边字体整体退役（91a10fe3d）")
+skip("J3 无壁纸零干预（hasBackground 门控）", "BackgroundManager.m swizzle 入口",
+     "swizzle 入口随 Task378 退役，门控语义随链退役")
 
 print("== K. i18n ==")
 langs = ["en", "zh-Hans", "zh-Hant", "zh-CN"]
@@ -196,9 +236,11 @@ for l in langs:
         if line.startswith('"') and '" = "' in line:
             ks.add(line.split('"')[1])
     keys[l] = ks
-check("K1 四语言键集一致且 2715",
+# ★第 12 期整改批次二①重锚：键数锚 python 实测 4271（四语言一致守卫不变；
+# 漂移源=Task233 2767 之后历批新增键与退役键不删家法累积）。
+check("K1 四语言键集一致且 4271（python 实测重锚：Task233 2767 → 现值）",
       keys["en"] == keys["zh-Hans"] == keys["zh-Hant"] == keys["zh-CN"]
-      and len(keys["en"]) == 2767, f"counts={[len(keys[l]) for l in langs]}")
+      and len(keys["en"]) == 4271, f"counts={[len(keys[l]) for l in langs]}")
 ja_ks = set()
 for line in io.open("Natives/resources/ja.lproj/Localizable.strings", encoding='utf-8'):
     if line.startswith('"') and '" = "' in line:
@@ -208,6 +250,9 @@ check("K2 ja coachmarks 14 键补齐",
 check("K3 ja ame227 7 键补齐",
       len([k for k in ja_ks if k.startswith("ame227.")]) == 7)
 used = set()
+# ★退役收编：DownloadViewController.m / ModVersionViewController.m 两宿主已随
+# Task436/440 退役批次删除——容错壳返回空串即不再贡献 used（取证面自然收窄），
+# 存留两文件的 used ⊆ defined 守卫继续生效。
 for f in ["Natives/DownloadViewController.m", "Natives/ModVersionViewController.m",
           "Natives/DataTransferService.m", "Natives/Ame223CoachMarksView.m"]:
     for m in re.finditer(r'localize\(@"([a-zA-Z0-9_.]+)"', rd(f)):
@@ -230,5 +275,5 @@ check("M2 tinygl 语法门",
 
 print()
 print("=" * 72)
-print(f"==== RESULT: {'ALL PASS' if failed == 0 else 'FAILED'} ({passed} passed, {failed} failed) ====")
+print(f"==== RESULT: {'ALL PASS' if failed == 0 else 'FAILED'} ({passed} passed, {skipped} skipped, {failed} failed) ====")
 sys.exit(0 if failed == 0 else 1)

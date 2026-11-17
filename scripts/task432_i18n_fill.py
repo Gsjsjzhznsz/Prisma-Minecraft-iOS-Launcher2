@@ -81,7 +81,7 @@ DICT = {
     "ame432.about.license.title": ("Open-source Licenses", "开源许可证", "開源許可證"),
     "ame432.about.license.view": ("View full license text", "查看许可证全文", "查看許可證全文"),
     # ── SB1 工位（修改版本 20 + 数据包 9 = 29 键）─────────────────
-    "ame432.vdet.modify": ("Modify Version", "修改版本", "修改版本"),
+    "ame432.vdet.modify": ("Change Loader", "更换加载器", "更換載入器"),
     "ame432.vdet.modify.instance": ("Instance", "实例", "實例"),
     "ame432.vdet.modify.mc_version": ("MC Version", "MC 版本", "MC 版本"),
     "ame432.vdet.modify.current_loader": ("Current Loader", "当前加载器", "當前載入器"),

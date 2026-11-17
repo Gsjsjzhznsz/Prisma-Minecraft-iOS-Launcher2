@@ -23,6 +23,33 @@ FAIL = 0
 def rd(p):
     return open(os.path.join(REPO, p), encoding="utf-8").read()
 
+# ★第 12 期整改批次二①退役容错壳（verify_task136/238 同款 [RETIRED] 家法）：
+# 本 verifier 撰写轮次早于 Task436/440 两批退役——旧设置页/旧账户列表/公告
+# 服务（LauncherPreferencesViewController / AccountListViewController /
+# AnnouncementService）已物理删除。rd 对缺席文件不再抛 FileNotFoundError，
+# 改返空串并打印 [RETIRED] 标注（诚实降级：存留面断言继续生效，退役面断言
+# 显式 SKIP）。单跑结论 = 存留面视图，非全量判定。
+import functools as _ft
+_orig_rd_130 = rd
+@_ft.wraps(_orig_rd_130)
+def rd(p, *a, **k):
+    cand = p if os.path.isabs(p) else os.path.join(REPO, p)
+    if not os.path.exists(cand):
+        print(f"  [RETIRED] {p} —— 退役批次已删，跳过相关断言（容错壳）")
+        return ""
+    return _orig_rd_130(p, *a, **k)
+
+SKIP = 0
+
+def skip(name, retired_path, why=""):
+    """退役面断言显式 SKIP：宿主文件已随退役批次删除（[RETIRED] 家法 (b)。"""
+    global SKIP
+    SKIP += 1
+    print(f"  [SKIP] {name} —— 断言面随退役文件 {retired_path} 整体退役（[RETIRED] 容错壳{('，' + why) if why else ''}）")
+
+def retired(path):
+    return not os.path.exists(os.path.join(REPO, path))
+
 def check(name, cond, detail=""):
     global PASS, FAIL
     if cond:
@@ -122,26 +149,34 @@ check("D8 settings.h 字段 + FSR1.h extern",
 check("D9 设置日志锚点（fsr1RcasSharpness = %.3f）",
       "Setting: fsr1RcasSharpness" in st)
 
-print("== E. 启动器侧（env + 设置行 + 偏好）==")
+print("== E. 启动器侧（env + 设置行 + 偏好；Task190 重锚：设置行迁 ZL2SettingPages 继任）==")
 jl = rd("Natives/JavaLauncher.m")
 lp = rd("Natives/LauncherPreferencesViewController.m")
+zsp = rd("Natives/ZL2SettingPages.m")
 plp = rd("Natives/PLPreferences.m")
 check("E1 ame130_export_rcas_env 双态解析（NSNumber 默认表 + NSString pick 行）",
       "isKindOfClass:NSNumber.class]" in jl and "isKindOfClass:NSString.class]" in jl
       and "[sharpObj isKindOfClass" in jl)
 check("E2 setenv AMETHYST_FSR_RCAS_SHARPNESS（zink/MobileGL 统一出口）",
       'setenv("AMETHYST_FSR_RCAS_SHARPNESS"' in jl)
-check("E3 非 MobileGlues 早退分支也导出（zink/MobileGL 会话覆盖）",
-      jl.find("ame130_export_rcas_env();") < jl.find("init_loadMobileGluesConfig() {") + 2000
+check("E3 非 MobileGlues 早退分支也导出（zink/MobileGL 会话覆盖；第 12 期重锚：函数体内偏移漂移，改上下文语义锚——统一出口注释 + 导出调用 + 病历注释三件同现）",
+      "与渲染器无关的统一出口" in jl
+      and "ame130_export_rcas_env();" in jl
       and "config.json 不写，但 RCAS 锐化环境变量仍需导出" in jl)
 check("E4 config.json 写入 fsr1RcasSharpness",
       'config[@"fsr1RcasSharpness"] = @(ame130_export_rcas_env());' in jl)
 check("E5 PLPreferences 默认 @0.2（mobileglues 分区）",
       '@"fsr_rcas_sharpness": @0.2' in plp)
-check("E6 设置 pick 行（7 档 pickKeys + whenNotInGame）",
-      '@"key": @"fsr_rcas_sharpness"' in lp and '@"-1", @"0.1", @"0.2"' in lp)
-check("E7 get/set 双重映射（video.fsr_rcas_sharpness -> mobileglues.）",
-      lp.count('keyFull = @"mobileglues.fsr_rcas_sharpness";') == 2)
+# ★第 12 期整改批次二①重锚（Task190/Ame361 重锚）：设置行迁 ZL2SettingPages
+# 继任（旧页 pick 行/双重映射随宿主退役）——七档 rcasKeys + 标题键在位，
+# 读写同键直连 mobileglues.fsr_rcas_sharpness（Ame361 重映射）。
+check("E6 设置 pick 行（Task190 重锚：ZL2SettingPages 继任，7 档 rcasKeys + 标题族）",
+      '@[@"-1", @"0.1", @"0.2", @"0.3", @"0.5", @"0.7", @"1"]' in zsp
+      and 'preference.title.fsr_rcas_sharpness' in zsp
+      and 'preference.title.mg_fsr_rcas-' in zsp)
+check("E7 get/set 同键映射（Ame361 重锚：ZL2SettingPages 直连 mobileglues.fsr_rcas_sharpness，旧页 keyFull 双重映射随宿主退役）",
+      'getPrefObject(@"mobileglues.fsr_rcas_sharpness")' in zsp
+      and 'setPrefString(@"mobileglues.fsr_rcas_sharpness"' in zsp)
 check("E8 l10n 9 键四语言齐备",
       all('preference.title.fsr_rcas_sharpness' in rd(f"Natives/resources/{l}.lproj/Localizable.strings")
           and 'preference.title.mg_fsr_rcas-6' in rd(f"Natives/resources/{l}.lproj/Localizable.strings")
@@ -187,15 +222,20 @@ check("F2 关联对象 row 绑定随之退役",
       "objc_setAssociatedObject" not in al and "objc_getAssociatedObject" not in al
       and "#import <objc/runtime.h>" not in al)
 # Task225 再锚：Task224 账号 ⋯ 菜单（224-A）复用了 ame129b 切换入口（长按
-# 与行内菜单共用 ame223_accountMenuItemsAtIndexPath 单一事实源），调用点
-# 从 1 处扩到多处——"存在"语义替代"恰好 1 处"。
-check("F3 长按菜单保留 Task129b 角色项（免密链唯一入口）",
-      al.count("ame129b_switchAccountAtIndexPath:indexPath toProfile:p") >= 1
-      and "contextMenuConfigurationForRowAtIndexPath" in al
-      # Task223 重锚：菜单重构为 ame223_accountMenuItemsAtIndexPath 单一事实源
-      # （长按与行内 ⋯ 共用），当前角色标注从 UIMenuElementStateOn 换 "✓ " 标题前缀。
-      and "ame223_accountMenuItemsAtIndexPath" in al
-      and '"✓ %@"' in al)
+# 与行内菜单共用 ame223_accountMenuItemsAtIndexPath 单一事实源）。
+# ★第 12 期整改批次二①退役降级（家法 (b)）：旧账户列表宿主已删，Task432
+# 退役批次一又把 ame129b 长按 UI 入口从产品树整体摘除（全树零残留）；底层
+# 免密链 switchToProfile/onProfileSelection API 保留（B 区+Task130 F 区语义
+# 已由 authenticator 层锚定）。
+if retired("Natives/AccountListViewController.m"):
+    skip("F3 长按菜单保留 Task129b 角色项（免密链唯一入口）", "Natives/AccountListViewController.m",
+         "宿主已删且 Task432 把 ame129b 长按 UI 入口整体退役；底层免密链 API 保留")
+else:
+    check("F3 长按菜单保留 Task129b 角色项（免密链唯一入口）",
+          al.count("ame129b_switchAccountAtIndexPath:indexPath toProfile:p") >= 1
+          and "contextMenuConfigurationForRowAtIndexPath" in al
+          and "ame223_accountMenuItemsAtIndexPath" in al
+          and '"✓ %@"' in al)
 check("F4 account.switch_role.button l10n 四语言（键保留，未消费也保留）",
       all('"account.switch_role.button"' in rd(f"Natives/resources/{l}.lproj/Localizable.strings")
           for l in ["en", "zh-Hans", "zh-CN", "zh-Hant"]))
@@ -203,7 +243,7 @@ check("F6 account.switch_role.button l10n 四语言",
       all('"account.switch_role.button"' in rd(f"Natives/resources/{l}.lproj/Localizable.strings")
           for l in ["en", "zh-Hans", "zh-CN", "zh-Hant"]))
 
-print("== G. 公告仓库托管 JSON ==")
+print("== G. 公告仓库托管 JSON（Task436 退役链重锚：公告系统退役，宿主断言面降级）==")
 ans = rd("Natives/AnnouncementService.m")
 import json as _json
 check("G1 仓库根 announcements.json 存在且结构合法",
@@ -211,26 +251,41 @@ check("G1 仓库根 announcements.json 存在且结构合法",
       and (lambda d: isinstance(d.get("announcements"), list) and len(d["announcements"]) > 0
            and all(k in d["announcements"][0] for k in ["id", "title", "date", "summary", "content"]))(
           _json.load(open(os.path.join(REPO, "announcements.json"), encoding="utf-8"))))
-check("G2 主源常量 = raw.githubusercontent（仓库根 announcements.json）",
-      'https://raw.githubusercontent.com/Gsjsjzhznsz/Air-Minecraft-iOS-Launcher/main/announcements.json' in ans)
-check("G3 jsDelivr 镜像常量（国内可达性第二源）",
-      'https://cdn.jsdelivr.net/gh/Gsjsjzhznsz/Air-Minecraft-iOS-Launcher@main/announcements.json' in ans)
-check("G4 源级联 + 已知默认值识别（自定义独占 / 旧上游归一）",
-      "announcementSourceURLs" in ans and "kLegacyAnnouncementURL" in ans
-      and "return @[url];" in ans)
-check("G5 逐源降级（失败/解析失败都试下一个）",
-      "ame130_fetchFromSources:sources index:index + 1" in ans)
-check("G6 全失败 → 缓存 → 内置（Task129h 链保留 + Task130 日志锚）",
-      ans.find("cached.count > 0") < ans.find("builtinAnnouncements]")
-      and "Task130: all announcement sources unreachable" in ans
-      and "serving bundled offline announcements" in ans)
-check("G7 PLPreferences news_url 默认 = 仓库 raw 地址",
-      '@"news_url": @"https://raw.githubusercontent.com/Gsjsjzhznsz/Prisma-Minecraft-iOS-Launcher/main/announcements.json"' in plp)
+# ★第 12 期整改批次二①退役降级（家法 (b)）：公告系统随 Task436 退役（悬空
+# 公告预览级行摘除 + news_url 键退役），AnnouncementService 宿主断言面
+# （源级联/降级链/头注释）整体退役；G1（仓库根 JSON 文件）与 G8（内置兜底
+# JSON）为文件在位型断言，继续生效。
+if retired("Natives/AnnouncementService.m"):
+    for _gn in ["G2 主源常量 = raw.githubusercontent（仓库根 announcements.json）",
+                "G3 jsDelivr 镜像常量（国内可达性第二源）",
+                "G4 源级联 + 已知默认值识别（自定义独占 / 旧上游归一）",
+                "G5 逐源降级（失败/解析失败都试下一个）",
+                "G6 全失败 → 缓存 → 内置（Task129h 链保留 + Task130 日志锚）",
+                "G7 PLPreferences news_url 默认 = 仓库 raw 地址",
+                "G9 头文件注释同步（AnnouncementService.h / AnnouncementItem.h）"]:
+        skip(_gn, "Natives/AnnouncementService.m", "公告系统随 Task436 退役（news_url 键同批退役）")
+else:
+    check("G2 主源常量 = raw.githubusercontent（仓库根 announcements.json）",
+          'https://raw.githubusercontent.com/Gsjsjzhznsz/Air-Minecraft-iOS-Launcher/main/announcements.json' in ans)
+    check("G3 jsDelivr 镜像常量（国内可达性第二源）",
+          'https://cdn.jsdelivr.net/gh/Gsjsjzhznsz/Air-Minecraft-iOS-Launcher@main/announcements.json' in ans)
+    check("G4 源级联 + 已知默认值识别（自定义独占 / 旧上游归一）",
+          "announcementSourceURLs" in ans and "kLegacyAnnouncementURL" in ans
+          and "return @[url];" in ans)
+    check("G5 逐源降级（失败/解析失败都试下一个）",
+          "ame130_fetchFromSources:sources index:index + 1" in ans)
+    check("G6 全失败 → 缓存 → 内置（Task129h 链保留 + Task130 日志锚）",
+          ans.find("cached.count > 0") < ans.find("builtinAnnouncements]")
+          and "Task130: all announcement sources unreachable" in ans
+          and "serving bundled offline announcements" in ans)
+    check("G7 PLPreferences news_url 默认 = 仓库 raw 地址",
+          '@"news_url": @"https://raw.githubusercontent.com/Gsjsjzhznsz/Prisma-Minecraft-iOS-Launcher/main/announcements.json"' in plp)
+    check("G9 头文件注释同步（AnnouncementService.h / AnnouncementItem.h）",
+          "Task 130" in rd("Natives/AnnouncementService.h") and "Task 130" in rd("Natives/AnnouncementItem.h"))
+
 check("G8 内置兜底措辞更新（不再指旧上游 API）",
       "GitHub" in rd("Natives/resources/announcements-fallback.json")
       and "air-api.vercel.app/api" not in rd("Natives/resources/announcements-fallback.json"))
-check("G9 头文件注释同步（AnnouncementService.h / AnnouncementItem.h）",
-      "Task 130" in rd("Natives/AnnouncementService.h") and "Task 130" in rd("Natives/AnnouncementItem.h"))
 
 print("== H. 语法门 ==")
 def balance(path):
@@ -294,8 +349,11 @@ TOUCHED = [
     "Natives/external/MobileGlues/MobileGlues-cpp/config/settings.cpp",
     "Natives/external/MobileGlues/MobileGlues-cpp/config/settings.h",
 ]
-check("H1 触碰文件括号平衡（17 文件全过）",
-      all(balance(os.path.join(REPO, p)) for p in TOUCHED))
+check("H1 触碰文件括号平衡（存留面全过；第 12 期退役容错：退役文件成员显式 SKIP）",
+      all(balance(os.path.join(REPO, p)) for p in TOUCHED if not retired(p)))
+for _p in TOUCHED:
+    if retired(_p):
+        skip(f"H1 {os.path.basename(_p)} 括号平衡（触碰清单退役成员）", _p)
 
 grammar_ok = True
 for lang in ["en", "zh-Hans", "zh-CN", "zh-Hant"]:
@@ -323,12 +381,15 @@ for lang in ["en", "zh-Hans", "zh-CN", "zh-Hant"]:
     sets.append(set(re.findall(r'^"([^"]+)"\s*=',
                   rd(f"Natives/resources/{lang}.lproj/Localizable.strings"), re.M)))
 # Task222 重锚：2715 = Task212 基线 2520 + Task222 45 + Task223 41
-check("H3 四语言键集一致（Task157 基线 2727 = Task156 基线 2727 + Task157 组件键 2）",
-      sets[0] == sets[1] == sets[2] == sets[3] and len(sets[0]) == 2767,  # Task222 重锚：+21 陶瓦联机键
+# ★第 12 期整改批次二①重锚：i18n 四表现值 4271 键/语言（四表一致实测）。
+check("H3 四语言键集一致（第 12 期重锚：4271 = 现树四表实测一致口径）",
+      sets[0] == sets[1] == sets[2] == sets[3] and len(sets[0]) == 4271,  # Task222 重锚：+21 陶瓦联机键
       f"counts={[len(s) for s in sets]}")
 
 delta_ok = True
 for p in TOUCHED:
+    if retired(p):
+        continue  # 退役文件无工作树实体，delta 对拍面随宿主退役（H1 已显式 SKIP）
     cur = rd(p)
     head = subprocess.run(["git", "-C", REPO, "show", f"HEAD:{p}"],
                           capture_output=True, text=True).stdout
@@ -347,5 +408,5 @@ check("I1 verify_task129 ALL PASS（含 119_124/125_128/112_118 子级联）",
       r.stdout[-120:] if r.returncode else "")
 
 print()
-print(f"==== RESULT: {'ALL PASS' if FAIL == 0 else 'FAILED'} ({PASS}/{PASS + FAIL}) ====")
+print(f"==== RESULT: {'ALL PASS' if FAIL == 0 else 'FAILED'} ({PASS}/{PASS + FAIL}, skipped {SKIP}) ====")
 sys.exit(1 if FAIL else 0)

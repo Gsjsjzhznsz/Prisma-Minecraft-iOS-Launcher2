@@ -90,7 +90,8 @@ def t5_versions(text):
 
 def t6_docs(text):
     ok_keys = all(k not in text for k in ("general.news_url（默认", "general.announcement_preview_level（默认", "general.welcome_completed（默认"))
-    ok_counts = "103 键 × get/set = 206" in text and "约 407 个" in text
+    # ★Task441 随计数链实数重锚（ame366 D1 真执法同步）：103/206/407 → 100/200/404
+    ok_counts = "100 键 × get/set = 200" in text and "约 404 个" in text
     return ok_keys and ok_counts
 
 
@@ -126,7 +127,7 @@ INJECT_MARKERS = {
     "T3 retire-14-files-gone": None,
     "T4 cmake-7-entries-gone": "★Task440 注记",
     "T5 versions-import-gone": None,
-    "T6 aiplugin-docs-3keys-gone": "103 键 × get/set = 206",
+    "T6 aiplugin-docs-3keys-gone": "100 键 × get/set = 200",
     "T7 plprefs-2keys-gone": None,
     "T8 rot-family-reanchored": None,   # 跨文件元断言无单点标记，selftest 跳过
 }
