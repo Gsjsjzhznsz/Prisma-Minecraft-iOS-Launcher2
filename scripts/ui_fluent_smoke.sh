@@ -680,7 +680,12 @@ ame441_ensure_import_chain() {
   while IFS= read -r ame441_uzm; do
     ame441_uzbase="$(basename "$ame441_uzm" .m)"
     if [[ ! -f "$OUT/shellobj-uzk-$ame441_uzbase.o" ]]; then
-      if ! xcrun clang -c "${ame441_uzinc[@]}" "${COMMON[@]}" -Wno-deprecated-declarations \
+      # ★Task441-r3（判例 N+22）：UnzipKit 源头 Private.h/Macros.h 用 @import os.log
+      #   ——本脚本无模块化编译面，需 -fmodules + 独立缓存路径；Extensions 子目录
+      #   include（UZKArchive.m:14 NSURL+UnzipKitExtensions.h）
+      if ! xcrun clang -c "${ame441_uzinc[@]}" -I"$ame441_uzk/Source/Extensions" \
+          -fmodules -fmodules-cache-path="$OUT/mcache" \
+          "${COMMON[@]}" -Wno-deprecated-declarations \
           "$ame441_uzm" -o "$OUT/shellobj-uzk-$ame441_uzbase.o" 2>"$OUT/compile-uzk-$ame441_uzbase.log"; then
         echo "  ✗ UnzipKit TU 编译失败: $ame441_uzm"
         cat "$OUT/compile-uzk-$ame441_uzbase.log" || true
