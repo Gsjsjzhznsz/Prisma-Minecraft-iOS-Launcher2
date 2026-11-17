@@ -642,8 +642,8 @@ PLIST
 #   N+21：UnzipKit 1.9 布局 = Source/*.m + Lib/MiniZip/*.c，仓库无 UnzipKit/
 #   子目录路径；include 面钉 pin 链优先防 vendored 三头与源码版本偏斜）
 # ─────────────────────────────────────────────────────────────
-AME441_CHAIN_OBJS=()
 ame441_ensure_import_chain() {
+  AME441_CHAIN_OBJS=()   # ★Task441-r7（判例 N+25）：函数内重置——all 模式 preview/shell 双调用重复追加 = duplicate symbol 全家桶
   local ame441_uzk="$OUT/UnzipKit-src"
   if [[ ! -f "$ame441_uzk/Source/UZKArchive.m" ]]; then
     rm -rf "$ame441_uzk"
