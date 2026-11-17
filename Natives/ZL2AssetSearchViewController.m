@@ -3751,7 +3751,7 @@ static UIColor *ZL2AssetSourceBadgeColor(NSInteger apiSource) {
                     if (!ame439_nameVal
                         || ![ame439_nameVal isKindOfClass:[NSString class]]
                         || [(NSString *)ame439_nameVal isEqualToString:[tempPath.lastPathComponent stringByDeletingPathExtension]]) {
-                        mutableInfo[@"name"] = ([ame439_titleVal isKindOfClass:[NSString class]] && ame439_titleVal.length > 0)
+                        mutableInfo[@"name"] = ([ame439_titleVal isKindOfClass:[NSString class]] && [(NSString *)ame439_titleVal length] > 0)
                             ? ame439_titleVal
                             : ([ame439_nameVal isKindOfClass:[NSString class]] ? ame439_nameVal : nil);
                     }
