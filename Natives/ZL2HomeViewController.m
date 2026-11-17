@@ -2290,6 +2290,18 @@ static UIImage *ZL2HomeSizedImage(NSString *name, NSString *fallback, CGFloat po
 
 // 实例表变化（版本页选用/删除、本页删除链、下载完成）：网格与选择卡刷新
 - (void)profileListDidChange {
+    // ★Task439 防御钳制（第 10 期报告 2.1 节软约束清偿，Task337 判例同款）：
+    //   修复收口在 post 侧（Task434 三处主线程化）只覆盖现存 post 方，观察者侧
+    //   链 profileListDidChange → refreshLaunchState → ame_rebuildGrid reloadData
+    //   的安全性此前完全依赖「所有 post 方都在主线程」这一约定——未来任何新增
+    //   后台 post 都会原地复现 Task332 病历（后台线程跑 reloadData 的
+    //   NSInternalInconsistencyException）。非主线程到达时转发主队列后返回
+    //   （weak 引用防已 dealloc 的 VC 被复活），成本十行以内。
+    if (![NSThread isMainThread]) {
+        __weak typeof(self) weakSelf = self;
+        dispatch_async(dispatch_get_main_queue(), ^{ [weakSelf profileListDidChange]; });
+        return;
+    }
     [self refreshLaunchState];
 }
 

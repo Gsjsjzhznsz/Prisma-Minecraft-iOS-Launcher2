@@ -1,5 +1,7 @@
 #!/bin/bash
-# Task432 门禁电池 —— 16 门全量本地复跑（第 8 期整改轮）
+# Task432 门禁电池 —— 全量本地复跑（Task439 修幽灵门：run_sh 补定义，声明门数 =
+#   实跑门数，每轮 RESULT 汇总行即真实门数；当前 30 门 = 27 既有 runner +
+#   task439 双新门 + 括号审计，历史头注「16 门」自第 9 期起已失实，本轮校正）
 # 用法: bash scripts/task432_gate_battery.sh
 cd "$(dirname "$0")/.." || exit 1
 
@@ -12,6 +14,20 @@ run_py() {
   local name="$1"; shift
   local out
   out=$(python3 "$@" 2>&1)
+  local rc=$?
+  if [ $rc -eq 0 ]; then RESULT[$name]="PASS"; else RESULT[$name]="FAIL(rc=$rc)"; fi
+  echo "── $name (rc=$rc) ──"
+  echo "$out" | tail -6
+}
+
+# ★Task439 幽灵门清偿（第 10 期报告 6.2 节）：run_sh 与 run_py 同形态的 rc 捕获
+#   登记器。此前 task158_base 仅被声明从未定义，每轮 bash 报 command not found、
+#   RESULT 永不登记，「27/27 ALL GREEN」被缺席精确凑齐——本定义落地后
+#   task158_baseline_compare 门首次真实实跑。
+run_sh() {
+  local name="$1"; shift
+  local out
+  out=$(bash "$@" 2>&1)
   local rc=$?
   if [ $rc -eq 0 ]; then RESULT[$name]="PASS"; else RESULT[$name]="FAIL(rc=$rc)"; fi
   echo "── $name (rc=$rc) ──"
@@ -45,6 +61,8 @@ run_py verify161    scripts/verify_task161.py
 run_py verify219    scripts/verify_task219.py
 run_py verify255    scripts/verify_task255.py
 run_py i18n430      scripts/task430_i18n_audit.py
+run_py task439      scripts/task439_selfcheck.py
+run_py task439_tag  scripts/task439_buildtag_anchor.py
 
 # 括号审计：本轮全部编辑文件逐个过状态机（file args 契约，Task431 判例口径）
 EDITED=$(git diff --name-only HEAD --diff-filter=d -- 'Natives/*.m' 'Natives/*.h' 'Natives/**/*.m' 'Natives/**/*.h' 2>/dev/null | grep -v '^Natives/external/' | tr '\n' ' ')

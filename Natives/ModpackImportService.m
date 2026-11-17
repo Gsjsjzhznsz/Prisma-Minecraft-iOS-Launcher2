@@ -736,8 +736,17 @@ static NSString * const kImportedModpacksKey = @"ImportedModpacks";
                          loaderVersion:&loaderVersion
                           minecraftVer:&minecraftVersion];
 
-    NSString *name = indexDict[@"name"] ?: [filePath.lastPathComponent stringByDeletingPathExtension];
-    NSString *version = indexDict[@"versionId"] ?: @"1.0.0";
+    // ★Task439 P0 候选收窄（第 10 期报告 2.3 节）：构造性 mrpack 的 index.name
+    //   可为数字/容器，原样透传会在消费侧（ZL2AssetSearchViewController :3744 等）
+    //   isEqualToString: 触发 unrecognized selector SIGABRT——解析网只网住 NSException，
+    //   非异常的异类型静默穿过。此处 isKindOfClass 收窄（与 C1 projectID/fileID
+    //   双判类同款家法），非字符串一律回落文件名；versionId 同行同族一并收窄。
+    id ame439_rawName = indexDict[@"name"];
+    NSString *name = [ame439_rawName isKindOfClass:[NSString class]]
+        ? ame439_rawName
+        : [filePath.lastPathComponent stringByDeletingPathExtension];
+    id ame439_rawVersion = indexDict[@"versionId"];
+    NSString *version = [ame439_rawVersion isKindOfClass:[NSString class]] ? ame439_rawVersion : @"1.0.0";
     NSString *modpackId = [NSString stringWithFormat:@"modrinth_%@", [[NSUUID UUID] UUIDString]];
 
     // 提取 icon.png (如果有)
@@ -779,8 +788,15 @@ static NSString * const kImportedModpacksKey = @"ImportedModpacks";
                            loader:&loader
                     loaderVersion:&loaderVersion];
 
-    NSString *name = manifestDict[@"name"] ?: [filePath.lastPathComponent stringByDeletingPathExtension];
-    NSString *version = manifestDict[@"version"] ?: @"1.0.0";
+    // ★Task439 P0 候选收窄：CurseForge manifest.json 的 name/versionId 同族喂入
+    //   （第 10 期报告 2.3 节「CurseForge 解析路径 :782 同族」），判类口径与
+    //   Modrinth 侧一致：非字符串回落文件名/默认版本号。
+    id ame439_rawName = manifestDict[@"name"];
+    NSString *name = [ame439_rawName isKindOfClass:[NSString class]]
+        ? ame439_rawName
+        : [filePath.lastPathComponent stringByDeletingPathExtension];
+    id ame439_rawVersion = manifestDict[@"version"];
+    NSString *version = [ame439_rawVersion isKindOfClass:[NSString class]] ? ame439_rawVersion : @"1.0.0";
     NSString *modpackId = [NSString stringWithFormat:@"curseforge_%@", [[NSUUID UUID] UUIDString]];
 
     // 提取 icon (CurseForge 整合包通常没有，尝试 modpack.png 或 pack.png)

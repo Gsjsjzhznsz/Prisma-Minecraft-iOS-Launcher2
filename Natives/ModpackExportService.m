@@ -339,14 +339,23 @@
     // 不补链、不内嵌，导入侧按缺失元数据跳过）。反查失败静默降级，不阻断导出。
     NSDictionary<NSString *, NSString *> *ame428_hits = @{};
     if ((fileOptions & ModpackExportFileMods) && modFiles.count > 0) {
-        // ★Task434 E4：反查循环实址在 installer/modpack/ModpackUtils.m:234-253
-        //   （类方法无取消通道，白名单外不动）；服务层入口先即查即退。
+        // ★Task439 E4 清偿（第 10 期报告 2.2 节）：反查实址
+        //   installer/modpack/ModpackUtils.m 的 ame439 变体已带取消旗标——探测槽
+        //   入口与双端点切换处轮询本服务的 _cancelled 态，取消秒级生效，不再
+        //   「等全部条目双端点收完才被感知」。服务层入口先即查即退（Task434 口径维持）。
         if ([self checkCancelledWithError:error]) return NO;
         progress(0.25, localize(@"ame428.export.lookup", nil));
         // ★Task432（§6.1 P2「SHA1 反查串行慢」整改）：有界并发探测信号量上限收敛
         //   为 6（Task428 已落 dispatch_group + dispatch_semaphore 有界并发，双端点
         //   逻辑/超时值不变；命中集合按 sha1 键回填，结果顺序天然稳定）。
-        ame428_hits = [ModpackUtils ame428_modrinthDownloadURLsForFiles:modFiles concurrency:6];
+        __weak typeof(self) weakService = self;
+        ame428_hits = [ModpackUtils ame439_modrinthDownloadURLsForFiles:modFiles
+                                                             concurrency:6
+                                                         isCancelledBlock:^BOOL{
+            __strong typeof(self) strongService = weakService;
+            // 服务层已释放（异常时序）视同取消：剩余槽位不再发起新探测
+            return strongService ? [strongService checkCancelledWithError:NULL] : YES;
+        }];
     }
     // 命中集合（gameDir 相对路径 mods/...）——这些文件不再嵌入 overrides
     NSMutableSet<NSString *> *ame428_skipEmbed = [NSMutableSet set];

@@ -3741,8 +3741,19 @@ static UIColor *ZL2AssetSourceBadgeColor(NSInteger apiSource) {
                     }
                     // 用在线 modpack 信息补充（title、icon 等）
                     NSMutableDictionary *mutableInfo = [modpackInfo mutableCopy];
-                    if (!mutableInfo[@"name"] || [mutableInfo[@"name"] isEqualToString:[tempPath.lastPathComponent stringByDeletingPathExtension]]) {
-                        mutableInfo[@"name"] = modpack[@"title"] ?: mutableInfo[@"name"];
+                    // ★Task439 P0 候选收窄（第 10 期报告 2.3 节）：本行原样对 name 调
+                    //   isEqualToString:，构造性 mrpack 的 index.name 为数字/容器时
+                    //   unrecognized selector SIGABRT（本行运行在解析网之外的全局队列）。
+                    //   parse 层已收窄（ModpackImportService 双点位），此处再判类兜底；
+                    //   在线 title 同判类防 API 异常响应喂入非字符串。
+                    id ame439_nameVal = mutableInfo[@"name"];
+                    id ame439_titleVal = modpack[@"title"];
+                    if (!ame439_nameVal
+                        || ![ame439_nameVal isKindOfClass:[NSString class]]
+                        || [(NSString *)ame439_nameVal isEqualToString:[tempPath.lastPathComponent stringByDeletingPathExtension]]) {
+                        mutableInfo[@"name"] = ([ame439_titleVal isKindOfClass:[NSString class]] && ame439_titleVal.length > 0)
+                            ? ame439_titleVal
+                            : ([ame439_nameVal isKindOfClass:[NSString class]] ? ame439_nameVal : nil);
                     }
                     if (modpack[@"imageUrl"]) {
                         // 不强制下载 icon，保留原整合包内的（旧页同款注释）

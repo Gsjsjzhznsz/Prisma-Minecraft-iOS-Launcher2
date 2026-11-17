@@ -36,4 +36,12 @@
 + (NSDictionary<NSString *, NSString *> *)ame428_modrinthDownloadURLsForFiles:(NSArray<NSDictionary *> *)files
                                                                    concurrency:(NSInteger)concurrency;
 
+/// ★Task439 E4 清偿：带取消旗标的反查变体——isCancelledBlock 在每个探测槽入口
+/// 与双端点切换处轮询，取消即查即退（弱网下秒级生效）；传 nil 等价旧无参入口。
+/// 取消语义：已发出的单次探测不被打断（网络层无超时中断通道），但取消后的
+/// 剩余槽位不再发起任何新请求，dispatch_group 立即收口。
++ (NSDictionary<NSString *, NSString *> *)ame439_modrinthDownloadURLsForFiles:(NSArray<NSDictionary *> *)files
+                                                                  concurrency:(NSInteger)concurrency
+                                                              isCancelledBlock:(BOOL (^)(void))isCancelled;
+
 @end

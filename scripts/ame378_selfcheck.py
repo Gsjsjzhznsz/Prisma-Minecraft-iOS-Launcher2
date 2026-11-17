@@ -261,9 +261,9 @@ check("C12 转盘字体恒定（★Task407：封面流条目随 |d| 缩放时缩
       and "ame400_nameLabel.lineBreakMode = NSLineBreakByTruncatingTail;" in home
       and "ame400_typeLabel.lineBreakMode = NSLineBreakByTruncatingTail;" in home)
 
-check("C13 构建代际锚（★Task407 立 408/409/410/411/412 推进 Task414 推进 ★Task421 重锚 ★Task422/423 推进 ★Task424 推进 ★Task426 推进 ★Task427 推进 ★Task428 推进 ★Task429 推进 ★Task430 推进 ★Task431 推进 ★Task432 推进 ★Task435 推进 ★Task436 推进：定义 header 化 = BuildTag.h 单一事实源，预览卡代际角标 ame421_buildChip 与关于页版本行同一字面量双面恒等；\n      Info.plist 双键静态致装机代际不可辨 = 旧构建滞留循环的\n      结构性盲区，角标/关于页任一面板截图即可判代际）",
+check("C13 构建代际锚（★Task407 立 408/409/410/411/412 推进 Task414 推进 ★Task421 重锚 ★Task422/423 推进 ★Task424 推进 ★Task426 推进 ★Task427 推进 ★Task428 推进 ★Task429 推进 ★Task430 推进 ★Task431 推进 ★Task432 推进 ★Task435 推进 ★Task436 推进 ★Task439 锚形态化：定义 header 化 = BuildTag.h 单一事实源，预览卡代际角标 ame421_buildChip 与关于页版本行同一字面量双面恒等；\n      锚值字面量锁死改为 Task<NNN> · YYYY-MM-DD 形态验（新鲜度职责移至\n      task439_buildtag_anchor.py 专门，轮次重锚不再需同步本门）；\n      Info.plist 双键静态致装机代际不可辨 = 旧构建滞留循环的\n      结构性盲区，角标/关于页任一面板截图即可判代际）",
       "ame415_buildTag" in about_code
-      and "Task436 · 2026-11-16" in read("Natives/BuildTag.h")
+      and re.search(r'ame415_buildTag = @"Task\d+ · \d{4}-\d{2}-\d{2}"', read("Natives/BuildTag.h")) is not None
       and "static NSString *const ame415_buildTag" in read("Natives/BuildTag.h")
       and '#import "BuildTag.h"' in read("Natives/AboutViewController.m")
       and "numberOfLines = 0" in about_code)
@@ -535,7 +535,7 @@ ame378_c21 = [
     # ⑬ ★Task421 代际角标（旧构建滞留循环结构性根修：IMG_0655/0661 = 416+ 共享
     #    角点几何数学不可能的臂缝 30~40px = 设备滞留 Task415 代实锤；验锚必须
     #    长在截图面板自身而非用户从不导航的设置→关于）+ slim 内侧脸 1px UV 修正
-    ("build-tag-header", "Task436 · 2026-11-16" in read("Natives/BuildTag.h")   # ★Task436 推进锚
+    ("build-tag-header", re.search(r'ame415_buildTag = @"Task\d+ · \d{4}-\d{2}-\d{2}"', read("Natives/BuildTag.h")) is not None   # ★Task439 锚形态化：字面量锁死→形态验，新鲜度由 task439_buildtag_anchor 专门
         and "static NSString *const ame415_buildTag" in read("Natives/BuildTag.h")),   # 构建代号 header 化单一事实源
     ("build-tag-import-pair", '#import "BuildTag.h"' in read("Natives/AboutViewController.m")
         and '#import "BuildTag.h"' in skinview_raw

@@ -207,9 +207,21 @@
 
 + (NSDictionary<NSString *, NSString *> *)ame428_modrinthDownloadURLsForFiles:(NSArray<NSDictionary *> *)files
                                                                    concurrency:(NSInteger)concurrency {
+    // ★Task439 E4 清偿：旧无参签名保留为兼容入口，委托带取消旗标的 ame439 变体
+    //   （nil 取消块 = 旧行为不变；唯壹调用方 ModpackExportService 已改走 ame439）。
+    return [self ame439_modrinthDownloadURLsForFiles:files concurrency:concurrency isCancelledBlock:nil];
+}
+
++ (NSDictionary<NSString *, NSString *> *)ame439_modrinthDownloadURLsForFiles:(NSArray<NSDictionary *> *)files
+                                                                  concurrency:(NSInteger)concurrency
+                                                              isCancelledBlock:(BOOL (^)(void))isCancelled {
     // ★Task428：并发受控（Task432 验收口径收敛为默认/上限 6 并发——§6.1 批次一
     //   P2「SHA1 反查串行慢」整改：有界并发探测，dispatch_group + dispatch_semaphore
     //   信号量上限 6；任何失败静默降级为未命中，不阻断导出）
+    // ★Task439 E4 清偿（第 10 期报告 2.2 节）：原循环体内无取消检查，取消信号
+    //   要等全部条目双端点探测收完才被感知，大模组目录弱网下用户可感知
+    //   「取消不灵」。现在每个探测槽入口与双端点切换处轮询 isCancelledBlock，
+    //   取消即查即退（弱网下秒级生效）；入参 nil 取消块时行为与旧版逐位一致。
     if (concurrency <= 0) concurrency = 6;
     if (concurrency > 6) concurrency = 6;
 
@@ -236,9 +248,21 @@
         dispatch_semaphore_wait(slots, DISPATCH_TIME_FOREVER);
         dispatch_async(queue, ^{
             @autoreleasepool {
+                // ★Task439 E4：槽入口即查即退（取消旗标在位时不发起新探测）
+                if (isCancelled && isCancelled()) {
+                    dispatch_semaphore_signal(slots);
+                    dispatch_group_leave(group);
+                    return;
+                }
                 NSString *url = [self ame428_singleLookupSHA1:sha1 apiBase:officialBase];
                 if (url.length == 0) {
                     // 官方传输级失败（非 404 判定）时镜像端点补一发
+                    // ★Task439 E4：双端点切换处再查一次，取消后半程不再补探
+                    if (isCancelled && isCancelled()) {
+                        dispatch_semaphore_signal(slots);
+                        dispatch_group_leave(group);
+                        return;
+                    }
                     url = [self ame428_singleLookupSHA1:sha1 apiBase:mirrorBase];
                 }
                 if (url.length > 0) {
