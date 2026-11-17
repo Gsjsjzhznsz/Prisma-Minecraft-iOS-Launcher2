@@ -5354,3 +5354,21 @@ Work Log:
 
 Stage Summary:
 - 装机锚点（BuildTag=「Task438 · 2026-11-17」）：①TXM 调试 JIT 会话探针日志诚实化：魔数区 fault 不再误判「FAILED...fake-positive」，改记「EXPECTED, not a conviction」（ame437_probe_canned.txt）；非魔数真区域死亡才报定罪②崩溃弹窗（jit26_mapping_shadow）指引更新为 per-app 脚本重分配三步（Assign Script → 删了重指派 → 移除重开），不再诱导「更新调试器 app」③日志锚：[Ame437] ...canned ping-ack...EXPECTED / ...NON-magic region...CONVICTION / ame273 类别 jit26_mapping_shadow（文案三步指引）。
+
+## Task 439 · 2026-11-17（第 10 期复核报告批次一热修全量清偿：mrpack name 判类 P0 候选 + 电池幽灵门 + BuildTag 代际重锚制度化 + E4 取消旗标 + Home 观察者钳制）
+
+**用户指令**：「请解决PDF提到的所有问题」（第 10 期复核与新专项报告 upload/Prisma第10期整改复核与新专项报告.pdf，批次一表 9 五件全量；PDF 主线指令续期——使用子代理加速）
+
+Work Log:
+- 【环境重建判例再证】沙箱回收（repo-prisma2/gh_api.sh 丢失）→ 一代 remote URL 凭据内存提取重建二代 clone（HEAD=c99597cee Task438 落卷，CI 双腿绿基线）；议题 #3 状态复核（open，11 评论，报告者确认「重装+重指派 per-app 脚本成功」+ 一代 58e4ff9 健康 + 「get me log」待答）→ 五段式变体评论（comment 6939958235：per-app 重分配指引与 Task438 机理互证 + 日志取证三路径指引 + 保持 open）。
+- 【① mrpack name 判类收窄（P0 候选，报告 2.3 节）】ModpackImportService.m 双点位 parse 层 isKindOfClass 收窄（Modrinth :739 + CurseForge :782——ame439_rawName/ame439_rawVersion，name/versionId 同行同族一并收窄，非字符串回落文件名/默认版本号，C1 projectID/fileID 双判类同款家法）；ZL2AssetSearchViewController.m :3744 消费侧判类兜底（ame439_nameVal 判类 + 在线 title 判类，解析网只网 NSException 拦不住静默穿类型）。
+- 【② 电池幽灵门清偿（报告 6.2 节）】task432_gate_battery.sh 补 run_sh 定义（run_py 同形态 rc 捕获）——task158_baseline_compare 门自 Task432 引入起首次真实实跑登记；头注「16 门」失实校正为声明=实跑口径。
+- 【③ BuildTag 代际重锚 + 制度化（报告 6.3 节）】BuildTag.h :23 重锚 Task439 · 2026-11-17（Task437/438 两轮滞留 + worklog :5341 自述矛盾收敛）；新门 task439_buildtag_anchor.py（锚号 ∈ {git log max Task, max+1}，落后即红，制度化防再犯=「合流清单」机制化）；ame378 C13/build-tag-header 锚值字面量锁死改形态验（Task<NNN> · YYYY-MM-DD 正则，新鲜度职责移交专门门——每轮重锚不再需同步 ame378）。
+- 【④ E4 SHA1 反查取消旗标（报告 2.2 节）】ModpackUtils ame439_modrinthDownloadURLsForFiles:concurrency:isCancelledBlock: 变体（探测槽入口 + 双端点切换双查即退，弱网取消秒级生效；nil 块=旧行为）；旧 ame428 签名保留委托兼容；ModpackExportService 服务层传 _cancelled 轮询块（weak/strong，服务释放视同取消）。
+- 【⑤ Home 观察者防御钳制（报告 2.1 节软约束）】ZL2HomeViewController.m profileListDidChange Task337 式主队列钳制（非主线程到达转发主队列，weak 防 dealloc 复活）——post 侧约定改观察者侧自守。
+- 【CI 判例·第 N+17 例（本地绿≠CI 绿：id 上点语法）】299abe8b3 双腿红：ZL2AssetSearchViewController.m:3754 `ame439_titleVal.length`（property 'length' not found on '__strong id'）——Linux 本地门禁无 ObjC 语义编译覆盖（该 TU 仅 CI 语法腿 -fsyntax-only 在列）；r1（d779fe64a）`[(NSString *)ame439_titleVal length]` 收敛。CI 终态：dev 腿绿（run 44029679528）+ smoke 窄路径未触发（r1 单文件改动零触及触发面，Task438 判例沿用绿态）。
+- 【产物归档】com.prisma-devs.prisma-ios.ipa__Task439__44029679528.ipa（235MB→239MB 解包实名）——strings 双口径验证：ame439_modrinthDownloadURLsForFiles / jit26_mapping_shadow / ame437_probe_canned ASCII 在场 + BuildTag「Task439 · 2026-11-17」UTF-16LE 在场（NSString 非纯 ASCII 字面量走 __ustring 段——纯 ASCII 字节检索假阴性的取证判例）。
+- 【电池】299abe8b3 时点 30/30 ALL GREEN（28 既有 + task439 双新门首跑；ame378 39/39 + selftest 全翻红）。
+
+Stage Summary:
+- 装机锚点（BuildTag=「Task439 · 2026-11-17」）：①构造性 mrpack（index.name 数字/容器）导入全链弹窗失败明细不再 SIGABRT②task158_base 门首次真实登记（电池声明=实跑）③任意截图代际角标可判 Task439 代（BuildTag 双面恒等 + 每轮锚号强制门）④弱网导出反查取消秒级生效⑤后台 post 家族新增不再威胁主页网格。
