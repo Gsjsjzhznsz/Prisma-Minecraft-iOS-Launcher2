@@ -5339,3 +5339,18 @@ Work Log:
 
 Stage Summary:
 - 装机锚点（BuildTag=「Task437 · 2026-11-16」）：①TXM 调试 JIT 设备若调试器 JIT26 脚本假阳性，启动即 [Ame437] 通道自证取证 + 崩弹窗精确类别「JIT26 镜像通道假阳性」（指引更新调试器而非换 Java）②Task342 自救一键钮在 shadow 会话不再出现（防死路空转）③日志锚：[Ame437] JIT26 channel self-verify PASSED/FAILED (step N) / ame273 类别 jit26_mapping_shadow。
+
+## Task 438 · 2026-11-17（二代 issue#3 三轮装机跟进：探针判决诚实化 + per-app 脚本重分配指引——StikDebug 3.2.2 更新实录证伪「更新调试器」主建议）
+
+**用户指令**：「继续处理议题」（续接 #3：报告者 6925000325 按 Task437 指引更新 StikDebug 3.2.2 重测仍崩 + 附加 ame437_probe_shadow.txt 取证 + 「同配置一代 6.5.5/7.0.0 (58e4ff9) 健康」关键对比）
+
+Work Log:
+- 【新证物解剖（6925000325，7 件附件）】①ame437_probe_shadow.txt **首次实战命中**：探针 step=1 write fault（region=0xcccccccc690000e0）②ame273 类别正确判 jit26_mapping_shadow（Task437 检出层装机验证通过）③reporter 已升级 StikDebug 3.2.2 仍同签名崩（call_stub 首取指）——「更新调试器」主建议被实测证伪（继「切 Java 17」后第二例）④**决定性新对比**：同一台设备同 StikDebug 配置，一代 6.5.5/7.0.0 (58e4ff9) 无问题。
+- 【三轮取证定案（本轮新增四元互证）】①**canned ping-ack 判别**：三代装机探针 region 恒为 0xcccccccc690000e0（跨调试器版本、跨会话不变 = 应答非分配）；低 32 位 0x690000E0 = 一代 legacy 检查的「健康」通过魔数（58e4ff9 `(uint32_t)result != 0x690000E0` 才弹 legacy 弹窗）——若健康 Universal 脚本对 1 页探针做真实分配，一代会杀掉每个健康启动 → **魔数应答是健康脚本正常行为，对它写指令 fault 不构成通道死刑**（Task437 探针判决不诚实根因）②**三运行时客户端同构**：下载 assets.angelauramc.dev jre17/21/25 三包反汇编——brk#0x69 trampoline + 映射请求函数 + vm_remap 造别名逐指令同构（每 binary 恰 1 条 brk#0x69；Task74 upcall 补丁脚本注释「RW alias at RX+0x4000000」为笔误级参照）③**两代脚本逐字节相同**：UniversalJIT26.js/UniversalJIT26Extension.js md5 两代一致；二代深链 script-data 在推（报告者日志 noScript=0 + openURL stikjit:// →1；Task322 bundle-id 口径健全）④**64MB 假落地三实录**：三会话应答各不同（0x700b228000/0x7124108000/0x7009858000，看似真实分配）但 RX 读回全零——「ping 应答正常 + 真实请求假落地」= 调试器侧对该 app 条目的 JIT 脚本握手态缺陷（per-app 脚本态残留，更新调试器 app 不清除；同设备一代条目健康 = 脚本分配差异非工具缺陷）。
+- 【修复（4c7359c4b）】①JavaLauncher ame437 探针双 marker 判决诚实化：`ame437_cannedAck` 判别（低 32 位 == 0x690000E0）——魔数区 fault 落 ame437_probe_canned.txt（inconclusive 取证，「write fault EXPECTED, not a conviction」，并清历史定罪 marker 防上轮污染）；非魔数真区域 fault 才落 ame437_probe_shadow.txt（假阳性定罪）；通过 = 双 marker 互斥清（新鲜度语义）②main_hook ame273 shadow 分支双味感知（NSLog conviction/inconclusive 注记；触发轴不变：映射应答行在场 = 授予未落地）+ **fix 文案重写**：per-app 脚本重分配三步指引（①StikDebug 长按本 app → Assign Script → 选 Documents 导出的 UniversalJIT26.js ②已分配则删了重指派（残留态更新调试器不清——装机 3.2.2 实录）③移除记录重开/换 enabler）+ 三运行时逐指令同构实锤句 + 一代健康对比互证句；被证伪的「更新 StikJIT/StikDebug 最新版」主建议在 shadow 分支退役（精确负断言护栏）③自检门 A18/A19 + S-6 反向注入（canned 判别摘除必翻红，6 探针全翻红），A16 短语同步（「换 Java 版本没用」）。
+- 【CI】4c7359c4b dev 绿（run 43987735437，01:50Z success）；smoke 窄路径触发面（Preview/**/BuildTag.h/resources/** 等）本轮零触及 → 沿用 c2a759551 绿态（输入面零变化，Task419 窄路径语义）。
+- 【产物归档】补 Task437 缺失归档（download/com.prisma-devs.prisma-ios.ipa__Task437__43907445779.ipa，strings 验证 Ame437/jit26_mapping_shadow 串在场）+ Task438 归档（...__Task438__43987735437.ipa，strings 验证 ame437_probe_canned/Assign Script/逐指令同构句在场）。环境重建判例：沙箱回收后 gh_api.sh/二代 clone 丢失 → 凭据仍在一代 remote URL 重建；ame365 门需 unshallow（浅克隆 --depth 5 连环红 38cb08b^/8c8244d^/9faa97a^ 三代回走，全历史后 30/30 绿）。
+- 【电池】全程 27/27 ALL GREEN（task433_selfcheck 11/11 + S-1~S-6 反向全翻红）。
+
+Stage Summary:
+- 装机锚点（BuildTag=「Task438 · 2026-11-17」）：①TXM 调试 JIT 会话探针日志诚实化：魔数区 fault 不再误判「FAILED...fake-positive」，改记「EXPECTED, not a conviction」（ame437_probe_canned.txt）；非魔数真区域死亡才报定罪②崩溃弹窗（jit26_mapping_shadow）指引更新为 per-app 脚本重分配三步（Assign Script → 删了重指派 → 移除重开），不再诱导「更新调试器 app」③日志锚：[Ame437] ...canned ping-ack...EXPECTED / ...NON-magic region...CONVICTION / ame273 类别 jit26_mapping_shadow（文案三步指引）。
