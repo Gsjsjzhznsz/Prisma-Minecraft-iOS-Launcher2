@@ -1063,30 +1063,10 @@ void customNSLog(const char *file, int lineNumber, const char *functionName, NSS
 
 @end
 
-#pragma mark 整合包导入服务（ModpackImportService.h；.mrpack/.zip 解析与导入）
-
-@interface ModpackImportService : NSObject
-- (nullable NSDictionary *)parseModpackAtURL:(NSURL *)fileURL error:(NSError **)error;
-- (BOOL)importModpack:(NSDictionary *)modpackInfo
-             progress:(void (^_Nullable)(double progress, NSString *stageMessage))progress
-                error:(NSError **)error;
-@end
-
-@implementation ModpackImportService
-
-// 预览无真实包：解析 nil → 消费方 setTaskWithId:completedWithError: 收口（桩
-// manager no-op）+ InlineMessageView 提示（本桩静默）
-- (nullable NSDictionary *)parseModpackAtURL:(NSURL *)fileURL error:(NSError **)error {
-    return nil;
-}
-
-- (BOOL)importModpack:(NSDictionary *)modpackInfo
-             progress:(void (^_Nullable)(double progress, NSString *stageMessage))progress
-                error:(NSError **)error {
-    return NO;
-}
-
-@end
+#pragma mark 整合包导入服务（ModpackImportService.h）——★Task441-r4 桩退役：
+#   第四腿导入链真 TU（ModpackImportService/ModpackUtils/PLDownloadClient +
+#   钉 pin UnzipKit）入 preview/shell 双腿链接面，桩随真身同生死家法（Task440
+#   Preview 桩四处置判例同族）；真实现解析取代 nil 兜底。
 
 #pragma mark 图标加载器（IconLoader.h；本仓自有异步图组件，无 SDWebImage 依赖）
 
