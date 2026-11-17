@@ -283,8 +283,8 @@ typedef NS_ENUM(NSInteger, TouchControllerCommMode) {
 
     // Task224：广播全局键变化——版本设置页等已开页面即时刷新"有效状态"
     //（旧代码只有自动配置侧发广播，用户手动改模式不发 → 版本设置仍显示
-    // 过期的 "UDP 协议"）。观察侧见 ProfileSettingsViewController
-    // ame224_touchControllerSettingsChanged。
+    // 过期的 "UDP 协议"）。观察侧：各版本/实例页 ame224 观察点
+    //（★Task440 注记：原观察宿主 ProfileSettingsViewController 已随批次二退役）
     [[NSNotificationCenter defaultCenter] postNotificationName:@"TouchControllerSettingsChanged" object:nil];
 }
 

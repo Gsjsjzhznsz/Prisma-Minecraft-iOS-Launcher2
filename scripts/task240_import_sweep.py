@@ -6,7 +6,7 @@ FILES = [
     "Natives/SurfaceViewController+Navigation.m",
     "Natives/ThirdPartyLoginViewController.m",
     "Natives/TouchControllerPreferencesViewController.m",
-    "Natives/WelcomeViewController.m",
+    # ★Task440 重锚：Welcome 随批次二死代码六件退役摘扫
     "Natives/ZL2ControlRepoViewController.m",
     "Natives/BingWallpaperGalleryViewController.m",
     "Natives/LauncherPrefManageJREViewController.m",

@@ -476,7 +476,6 @@ add_executable(AngelAuraAmethyst
   external/ballpa1n/wrapped/HostManagerBridge.m
   external/mach/mach_excServer.c
 
-  installer/FabricInstallViewController.m
   installer/ForgeInstallViewController.m
   installer/ForgeInstallSchemeViewController.m
   installer/ForgeDirectInstaller.m
@@ -497,7 +496,6 @@ add_executable(AngelAuraAmethyst
   input/KeyboardInput.m
 
   # Task432 退役批次一：AccountListViewController.m 物理删除（ZL2AccountsViewController 接管）
-  AccountLoginViewController.m
   ThirdPartyLoginViewController.m
   GameMenuOverlayView.m
   AmeFloatingMenu.m
@@ -591,7 +589,6 @@ add_executable(AngelAuraAmethyst
   # Task218：崩溃识别引擎（hs_err 分型/渲染器归因，JavaLauncher 消费）
   CrashAnalyzer.m
   # Task218：首次使用欢迎向导（语言/下载源/数据导入三步引导）
-  WelcomeViewController.m
   # Task317：插件系统（JSContext 沙箱 + 桥接 API 面 + 权限中心 + 管理页）
   AmePluginPermissions.m
   AmePluginManager.m
@@ -623,7 +620,6 @@ add_executable(AngelAuraAmethyst
   SOCKS5Proxy.m
   PortForwarder.m
   # Task432 退役批次一：LauncherNavigationController.m 物理删除（ZL2 壳导航总线接管）
-  ProfileSettingsViewController.m
   # ★Task436 退役批次二：DownloadViewController.m 物理删除（消费面仅剩
   #   Shaders/DataPacks 两个旧管理页，随五管理页整链退役一并归零；
   #   ZL2 下载域 = ZL2DownloadViewController / ZL2GameDownloadViewController）
@@ -657,7 +653,7 @@ add_executable(AngelAuraAmethyst
   ios_uikit_bridge.m
   utils.m
 
-  # Version card cell (used by DownloadViewController)
+  # Version card cell（★Task440 注记：宿主 DownloadViewController 已于批次二退役，本 cell 暂无活消费、暂留编译清单登记——同轮退役候选，家法不静默删）
   VersionCardCell.m
 
   # Resource management shared base classes (card cell + list VC, shared by the 6 resource managers)
@@ -673,7 +669,6 @@ add_executable(AngelAuraAmethyst
   #   消费者 = ProfileSettings 资源管理组，该组已改道 ZL2 版本详情容器；
   #   ZL2 对位页 = ZL2VersionModsPage）
   ModVersion.m
-  ModVersionViewController.m
   ModVersionTableViewCell.m
   ModDependencyResolver.m   # Task227（issue #10）：依赖（前置）自动解析与安装
 
@@ -691,7 +686,6 @@ add_executable(AngelAuraAmethyst
   ShaderService.m
   ShaderVersion.m
   ShaderVersionTableViewCell.m
-  ShaderVersionViewController.m
   # ★Task436 退役批次二：ShadersManagerViewController.m 物理删除（同上，
   #   ZL2 对位页 = ZL2VersionShadersPage）
 
@@ -714,7 +708,6 @@ add_executable(AngelAuraAmethyst
   ResourcePackService.m
   DataPackService.m
   WorldService.m
-  AssetVersionViewController.m
   # ★Task436 退役批次二：ResourcePacks/DataPacks/WorldsManagerViewController.m
   #   物理删除（同上；ZL2 对位页 = ZL2VersionResourcePacksPage / 版本详情
   #   第九子页 ZL2V13DatapacksPage / ZL2VersionSavesPage）

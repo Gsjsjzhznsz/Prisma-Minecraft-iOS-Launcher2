@@ -10,13 +10,15 @@
 //
 // 交互契约（与旧 VersionManagerViewController 1:1）：
 //   点卡片        = 选用该实例（PLProfiles 持久化 + @"SelectedProfileChanged"）
-//   设置按钮      = push ProfileSettingsViewController（旧 VC editProfile: 同款）
+//   设置按钮      = push ZL2VersionDetailViewController（★Task440 注记：实码 7.0-UI-13-V
+//                   起已改推 ZL2 版本详情容器，旧写法「push ProfileSettingsViewController」
+//                   随旧页整链退役一并校正）
 //   更多按钮      = actionSheet 删除（旧 VC deleteProfile: 全链 1:1 移植）
 //   刷新按钮/通知 = @"ReloadProfileList" / @"SelectedProfileChanged" 重拉重建
 //   安装新游戏    = @"ZL2ShellNavigate" index=1 切下载页（壳契约）
 //
 // 导航约定：根页 viewWillAppear 隐藏系统导航栏，viewWillDisappear 恢复
-// （push 出去的 ProfileSettingsViewController 自带返回栏）。
+// （push 出去的 ZL2VersionDetailViewController 自带返回栏）。
 //
 
 #import <UIKit/UIKit.h>

@@ -21,11 +21,11 @@ FILES = [
     # Task436：DownloadViewController 随退役批次二物理删除摘闸（消费面仅剩
     #   Shaders/DataPacks 两个旧管理页，同批整链退役归零）
     "Natives/BackgroundSettingsViewController.m",
-    "Natives/ProfileSettingsViewController.m",
+    # ★Task440 重锚：ProfileSettings 随批次二死代码六件退役摘闸
     "Natives/SurfaceViewController+Navigation.m",
     "Natives/ThirdPartyLoginViewController.m",
     "Natives/TouchControllerPreferencesViewController.m",
-    "Natives/WelcomeViewController.m",
+    # ★Task440 重锚：Welcome 随批次二死代码六件退役摘闸（A3 断链后成死代码，本体本轮删除）
     "Natives/ZL2ControlRepoViewController.m",
     "Natives/BingWallpaperGalleryViewController.m",
     "Natives/LauncherPrefManageJREViewController.m",

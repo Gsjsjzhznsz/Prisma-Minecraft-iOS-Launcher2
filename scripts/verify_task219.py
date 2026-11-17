@@ -24,11 +24,15 @@ def check(name, ok, detail=""):
 vs = rd("Natives/ctxbridges/virgl_server.m")
 eb = rd("Natives/egl_bridge.m")
 tg = rd("Natives/external/gl4es/tinygl4angle.c")
-wv = rd("Natives/WelcomeViewController.m")
-wh = rd("Natives/WelcomeViewController.h")
+# ★Task440 退役重锚：Welcome 向导链 Task436 A3 断链后成死代码，本体本轮物理删除
+#   ——原 C/D/E 三段（向导布局/LC 检测/关于页收尾）断言随页离场，收敛为退役断言
+wv_retired = (not os.path.exists("Natives/WelcomeViewController.m")
+              and not os.path.exists("Natives/WelcomeViewController.h"))
 ab = rd("Natives/AboutViewController.m")
 dt = rd("Natives/DataTransferService.m")
-ps = rd("Natives/ProfileSettingsViewController.m")
+# ★Task440 退役重锚：ProfileSettings 本体删除——G 段 TC/Sodium 组件安装链
+#   （唯一宿主即旧页）随页退役，收敛为退役断言（ZL2 下载页资源轨接棒）
+ps_retired = not os.path.exists("Natives/ProfileSettingsViewController.m")
 ms = rd("Natives/ModService.m")
 mh = rd("Natives/ModService.h")
 # ★Task436 退役批次二：ModsManagerViewController 已物理删除（批次二③五管理页整链退役），mm 读取摘除（Task432「退役门不复活」判例同款）
@@ -82,66 +86,10 @@ check("B5 Task183 漏网监测器保留（回归哨兵不退役）",
 check("B6 旧 1xx 转换路径保留（低版本形态行为不变）",
       "converted[9] == '1'" in tg)
 
-print("== C. 欢迎向导重做（⑧：布局根因 + iPadOS 化 + 返回上一步） ==")
-check("C1 布局根因修复：常驻 UIScrollView 舞台，step 锚 contentLayoutGuide（不再引用上一步容器）",
-      "contentScrollView" in wv
-      and "contentLayoutGuide.topAnchor" in wv
-      and "ame218_old.topAnchor constraintEqualToAnchor" not in wv)
-check("C2 旧 step 移除仅限叶子（移除的是 currentStepView 的前值，无跨容器约束）",
-      "[ame218_old removeFromSuperview]" in wv
-      and "insertSubview:ame218_new belowSubview" not in wv)
-check("C3 返回上一步按钮（chevron.left + 步骤 0 隐藏）",
-      'localize(@"welcome.back"' in wv and "ame219_backTapped" in wv
-      and "self.backButton.hidden = (index == 0)" in wv)
-check("C4 八步流程（Hero/语言/环境与JIT/下载源/数据/界面风格/zl2介绍/完成；Task222 +1 / Task246 +1）",
-      "ame218_welcomeStepCount = 8" in wv)
-check("C5 步骤构建器 8/8 与 switch 对齐（run621 事故类防线；Task222：zl2 介绍页 ame222 前缀 / Task246：界面风格页 ame246 前缀）",
-      set(re.findall(r"\[self (ame\d+_build\w+Step):", wv)) ==
-      set(re.findall(r"^- \(void\)(ame\d+_build\w+Step):", wv, re.M)) and
-      len(set(re.findall(r"^- \(void\)(ame\d+_build\w+Step):", wv, re.M))) == 8)
-check("C6 iPadOS 视觉（7.0-UI-3d 迁 AmeTheme 令牌后重锚：textPrimary / surfaceCard / statusWarning 语义色）",
-      "AmeTheme textPrimary" in wv and "AmeTheme surfaceCard" in wv
-      and "AmeTheme statusWarning" in wv)
-check("C7 App 图标多候选加载（bundle 根 PNG 实名，根治“没有图标装饰”）",
-      "ame219_loadAppIcon" in wv and "AppIcon-Light60x60" in wv)
-check("C8 选择器完备性（@selector 全部有实现——run621 事故类防线）",
-      not ({u.split(":")[0] for u in re.findall(r"@selector\(([^)]+)\)", wv)}
-           - set(re.findall(r"^[-+] \([^)]*\)\s*(\w+)", wv, re.M))))
-
-print("== D. LiveContainer 检测 + JIT 方式（②③） ==")
-check("D1 LC 检测 = 已加载镜像扫描 LiveContainerShared（装机 fatal trace 同款判据）",
-      "runningInLiveContainer" in wv and "LiveContainerShared.framework" in wv
-      and "_dyld_image_count" in wv)
-check("D2 宿主包名解析 = LiveContainerShared 路径回溯 App.app + Info.plist",
-      "liveContainerHostBundleId" in wv and "CFBundleIdentifier" in wv
-      and 'stringByAppendingPathComponent:@"Info.plist"' in wv)
-check("D3 包名不一致指引（用户指令原文）+ 复制宿主包名",
-      'localize(@"welcome.env.lc.mismatch.title"' in wv
-      and 'localize(@"welcome.env.lc.mismatch.body"' in wv
-      and "ame219_copyHostId" in wv)
-check("D4 包名一致 = 绿色确认态（welcome.env.lc.ok）",
-      'localize(@"welcome.env.lc.ok"' in wv)
-check("D5 JIT 方式选择写 debug.jit_enabler（右面板 Task134 同键）+ 七选项",
-      'setPrefObject(@"debug.jit_enabler"' in wv
-      and '"jitstreamer", @"trollstore", @"manual"' in wv)
-check("D6 JIT 状态实时（isJITEnabled + 回前台刷新观察者）",
-      "isJITEnabled(NO)" in wv and "UIApplicationDidBecomeActiveNotification" in wv
-      and "ame219_refreshJitStatus" in wv)
-check("D7 立即开起 = 五工具 URL 分发（stikjit/sidestore/stosdebug/jitstreamer/apple-magnifier）",
-      "stikjit://enable-jit" in wv and "sidestore://enable-jit" in wv
-      and "stosdebug://enableJIT" in wv and "fd00::]:9172/launch_app" in wv
-      and "apple-magnifier://enable-jit" in wv)
-check("D8 LC 下的 JIT 提示走专用键（hint.lc）",
-      'localize(ame219_inLC ? @"welcome.jit.hint.lc" : @"welcome.jit.hint"' in wv)
-
-print("== E. 完成后自动打开关于页 + 关于页图标（⑥⑤） ==")
-check("E1 完成步收尾 → finishOpenAbout:YES；跳过路径保持安静",
-      "[self ame218_finishOpenAbout:YES]" in wv
-      and "ame218_finishOpenAbout:(BOOL)openAbout" in wv)
-check("E2 About 以 PageSheet 呈现于 dismissal completion 内",
-      "AboutViewController" in wv and "UIModalPresentationPageSheet" in wv)
-check("E3 关于页图标同样多候选加载",
-      "AppIcon-Light60x60" in ab)
+print("== C/D/E. Welcome 向导链退役（★Task440 终局：Task436 A3 断链 + 本体删除） ==")
+check("C+D+E Welcome 本体缺席 + 旧向导链断言收敛",
+      wv_retired
+      and not os.path.exists("Natives/WelcomeViewController.h"))
 
 print("== F. 数据导出增强（⑨） ==")
 check("F1 导出前预检（文件数 + 总量 + 预检日志）",
@@ -161,26 +109,9 @@ check("F5 跳过项不递归（latestlog/hs_err 目录整棵剪枝）",
 check("F6 空数据兜底（ame219.export.empty）",
       'localize(@"ame219.export.empty"' in dt)
 
-print("== G. TouchController 下载修复（⑩：“寻找 sou…”串台 + 找不到） ==")
-check("G1 TC 安装进度文案改用专属键（不再显示 Sodium 的 searching）",
-      'localize(@"component.touch.searching"' in ps
-      and 'localize(@"component.touch.searching' in ps)
-check("G2 取数器 notFoundKey 参数化：sodium 走原键、TC 走 component.touch.not_found",
-      "ame219_fetchModrinthPrimaryFileWithQuery" in ps
-      and 'notFoundKey:@"component.sodium.not_found"' in ps
-      and 'notFoundKey:@"component.touch.not_found"' in ps
-      and 'domain:@"TouchControllerComponent"' in ps)
-check("G3 版本预检（1.x 且次版本 <12 → 明确“不支持”而非“未找到”）",
-      "ame219_touchControllerUnsupportedVersion" in ps
-      and 'localize(@"component.touch.unsupported"' in ps)
-check("G4 预检不复活 Task217 已退役的 hasPrefix 形态（A1 锚共存）",
-      'hasPrefix:@"1."' not in ps)
-check("G5 确认/完成/仅Fabric 文案全部走键（双语硬编码退役）",
-      'localize(@"component.touch.confirm_message"' in ps
-      and 'localize(@"component.touch.done"' in ps
-      and 'localize(@"component.touch.fabric_only"' in ps)
-check("G6 Sodium 链路零回归（原 sodium 键仍在 sodium 流程使用）",
-      ps.count('localize(@"component.sodium.') >= 6)
+print("== G. TC/Sodium 组件安装链退役（★Task440 终局：唯一宿主 ProfileSettings 随页离场） ==")
+check("G 全段收敛：旧页缺席（组件安装功能由 ZL2 下载页资源轨接棒，component.* 键四表按家法留档）",
+      ps_retired)
 
 print("== H. 版本隔离自动识别（⑪） ==")
 check("H1 隔离优先解析器（下载 + 扫描共用；隔离目录缺即建，不落共享目录）",
@@ -268,9 +199,10 @@ def balance(path):
         i += 1
     return not stack
 for p in ["Natives/ctxbridges/virgl_server.m", "Natives/egl_bridge.m",
-          "Natives/external/gl4es/tinygl4angle.c", "Natives/WelcomeViewController.m",
+          "Natives/external/gl4es/tinygl4angle.c",
           "Natives/AboutViewController.m", "Natives/DataTransferService.m",
-          "Natives/ProfileSettingsViewController.m", "Natives/ModService.m",
+          # ★Task440：Welcome/ProfileSettings 随死代码六件退役摘括号审计
+          "Natives/ModService.m",
           "Natives/external/MobileGlues/MobileGlues-cpp/version.h"]:
     check(f"L-balance {p.split('/')[-1]}", balance(p))
 

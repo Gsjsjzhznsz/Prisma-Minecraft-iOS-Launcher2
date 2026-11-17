@@ -105,9 +105,7 @@
 #import "ResourcePackItem.h"
 #import "WorldItem.h"
 #import "DataPackItem.h"          // Task323：数据包 tab（Prisma1 八类对齐）
-#import "ModVersionViewController.h"
-#import "ShaderVersionViewController.h"
-#import "AssetVersionViewController.h"
+// ★Task440：旧三版本列表页（Mod/Shader/Asset VersionViewController）import 三行随整链退役摘除
 #import "ZL2VersionListPage.h"          // ★Task436 批次二④：三版本列表页统一新页
 #import "ModService.h"
 #import "ShaderService.h"
@@ -628,8 +626,7 @@ static UIColor *ZL2AssetSourceBadgeColor(NSInteger apiSource) {
 
 @interface ZL2AssetSearchViewController () <
     UITableViewDataSource, UITableViewDelegate,
-    ModVersionViewControllerDelegate, ShaderVersionViewControllerDelegate,
-    AssetVersionViewControllerDelegate, ZL2VersionListPageDelegate>
+    ZL2VersionListPageDelegate>
 
 // 构造入参（init 注入后只读）
 @property (nonatomic, assign, readwrite) ZL2AssetSearchType assetType;
@@ -3337,11 +3334,9 @@ static UIColor *ZL2AssetSourceBadgeColor(NSInteger apiSource) {
     }];
 }
 
-// ★Task436：旧页兼容面（方法体已收编上行 helper；当前全仓已无「旧页 push 挂
-// 本页 delegate」路径，保留防协议未实现告警）
-- (void)modVersionViewController:(ModVersionViewController *)viewController didSelectVersion:(ModVersion *)version {
-    [self ame436_handleModDomainVersion:version modItem:viewController.modItem];
-}
+// ★Task440：旧页兼容面 modVersionViewController:didSelectVersion: 摘除
+// （ModVersionViewController 整链退役，方法体收编上行 ame436_handleModDomainVersion
+// 活链不变；协议采纳面同步收缩为 ZL2VersionListPageDelegate）
 
 // 旧页 startDownloadForModItem:（L5606-5631）等价移植：
 // 进度由 Service 内部注册的下载任务 + 统一进度页驱动，调用方只做收尾提示
@@ -3464,7 +3459,7 @@ static UIColor *ZL2AssetSourceBadgeColor(NSInteger apiSource) {
     nextStep();
 }
 
-#pragma mark - ShaderVersionViewControllerDelegate / ★Task436 光影域
+#pragma mark - 光影域选版分流（★Task436；原旧页 delegate 名随 Task440 退役摘除）
 
 // ★Task436：光影域选版分流（原 shaderVersionViewController:didSelectVersion:
 // 方法体收编；ModVersion 形参统一承载——ShaderVersion 同字段面动态派发兼容）
@@ -3487,11 +3482,9 @@ static UIColor *ZL2AssetSourceBadgeColor(NSInteger apiSource) {
     [self ame_startDownloadForShaderItem:itemToDownload];
 }
 
-// ★Task436：旧页兼容面（方法体已收编上行 helper；ShaderVersion 实参仅消费
-// primaryFile——同字段面动态派发，ShaderVersionViewController 旧页同判例）
-- (void)shaderVersionViewController:(ShaderVersionViewController *)viewController didSelectVersion:(ShaderVersion *)version {
-    [self ame436_handleShaderDomainVersion:(ModVersion *)version shaderItem:viewController.shaderItem];
-}
+// ★Task440：旧页兼容面 shaderVersionViewController:didSelectVersion: 摘除
+// （ShaderVersionViewController 整链退役；ame436_handleShaderDomainVersion
+// 活链由 ZL2VersionListPage Shader 域 delegate 继续消费）
 
 // 旧页 startDownloadForShaderItem:（L5837-5857）等价移植
 - (void)ame_startDownloadForShaderItem:(ShaderItem *)item {
@@ -3559,10 +3552,9 @@ static UIColor *ZL2AssetSourceBadgeColor(NSInteger apiSource) {
     }
 }
 
-// ★Task436：旧页兼容面（方法体已收编上行 helper）
-- (void)assetVersionViewController:(AssetVersionViewController *)viewController didSelectVersion:(ModVersion *)version {
-    [self ame436_handleAssetDomainVersion:version];
-}
+// ★Task440：旧页兼容面 assetVersionViewController:didSelectVersion: 摘除
+// （AssetVersionViewController 整链退役；ame436_handleAssetDomainVersion 活链
+// 由 ZL2VersionListPage Asset 域 delegate 继续消费）
 
 // Task323：旧页 startDownloadForDataPackItem:（L6391-6414）等价移植；
 // 进度由 Service 内部注册的下载任务驱动统一进度页，本页只报结果。

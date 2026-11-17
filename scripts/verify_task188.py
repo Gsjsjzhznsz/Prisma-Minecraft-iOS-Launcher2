@@ -106,7 +106,7 @@ check("E7 CAMetalLayer pixelFormat/opaque 取证",
       'Task188 layer: pixelFormat=' in gb and 'framebufferOnly' in gb)
 
 # ---------- F. 控件仓库 ----------
-check("F1 ControlRepoViewController.h/.m 存在",
+check("F1 ZL2ControlRepoViewController.h/.m 存在（★Task440 标签重锚：A4 改名后标签未跟，实检路径本就是 ZL2 前缀新类）",
       os.path.exists('Natives/ZL2ControlRepoViewController.h') and os.path.exists('Natives/ZL2ControlRepoViewController.m'))
 crv = read('Natives/ZL2ControlRepoViewController.m')
 check("F2 双源（raw.githubusercontent 主 + jsDelivr 回退）",

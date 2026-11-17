@@ -12,8 +12,7 @@ FILES = [
     "Natives/audio_capture_bridge.m",
     "Natives/SurfaceViewController.m",
     "Natives/JavaLauncher.m",
-    # ★Task432 重锚：LauncherPreferencesViewController 随退役批次一物理删除，闸域收敛现役面（Task343 摘闸判例同款）
-    "Natives/ProfileSettingsViewController.m",
+    # ★Task440 重锚：ProfileSettingsViewController 随批次二死代码六件退役摘闸（闸域收敛现役面，Task343/432 摘闸判例同款）
     # Task343：LauncherRightPanel/Root 随旧壳家族物理退役摘闸（闸域收敛现役面）
     "Natives/utils.h",
     "Natives/ctxbridges/mgl_fsr.mm",

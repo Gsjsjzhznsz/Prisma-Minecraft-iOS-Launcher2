@@ -97,16 +97,9 @@
 @implementation ShadersManagerViewController
 @end
 
-#pragma mark - 版本页依赖桩（设置按钮 push 目标 + 加载器识别 / MC 版本反解）
-
-// ProfileSettingsViewController：[[alloc] init] + profileName 属性（旧 VC
-// editProfile: 同款；真实页自身有完整数据面，桩空壳即可——截图流程不 push）
-@interface ProfileSettingsViewController : UIViewController
-@property(nonatomic, copy, nullable) NSString *profileName;
-@end
-
-@implementation ProfileSettingsViewController
-@end
+#pragma mark - 版本页依赖桩（加载器识别 / MC 版本反解）
+// ★Task440：ProfileSettingsViewController 桩摘除（旧页整链退役；消费方
+// ZL2VersionsViewController.m 死 import 已同步摘除，桩面归零）
 
 // ModLoaderIconHelper：版本卡加载器识别单一契约（detectLoaderFromVersionId
 // 计数 + configureImageView 图标 + displayNameForLoader 标签）。桩全空：
@@ -791,66 +784,9 @@ void customNSLog(const char *file, int lineNumber, const char *functionName, NSS
 
 @end
 
-#pragma mark 版本页 VC 三件（ModVersionViewController.h / ShaderVersionViewController.h /
-#pragma mark AssetVersionViewController.h；delegate 属性类型照真实 .h = id<协议>，
-#pragma mark 协议本体在真实 .h → 消费方 TU 自含，桩 TU 空声明同名兜底）
-
-// AssetVersionType 枚举照真实 .h（本 TU 本地 typedef，消费方 TU 内联自头，无链接符号）
-typedef NS_ENUM(NSInteger, AssetVersionType) {
-    AssetVersionTypeResourcePack = 0,
-    AssetVersionTypeDataPack = 1,
-    AssetVersionTypeWorld = 2,
-};
-
-@protocol ModVersionViewControllerDelegate <NSObject>
-@end
-
-@interface ModVersionViewController : UIViewController
-@property (nonatomic, strong, nullable) ModItem *modItem;
-@property (nonatomic, weak, nullable) id<ModVersionViewControllerDelegate> delegate;
-@property (nonatomic, copy, nullable) NSString *preferredGameVersion;
-@property (nonatomic, copy, nullable) NSString *preferredLoader;
-@property (nonatomic, assign) NSInteger apiSource;
-@end
-
-@implementation ModVersionViewController
-@end
-
-@protocol ShaderVersionViewControllerDelegate <NSObject>
-@end
-
-@interface ShaderVersionViewController : UIViewController
-@property (nonatomic, strong, nullable) ShaderItem *shaderItem;
-@property (nonatomic, weak, nullable) id<ShaderVersionViewControllerDelegate> delegate;
-@property (nonatomic, copy, nullable) NSString *preferredGameVersion;
-@property (nonatomic, copy, nullable) NSString *preferredLoader;
-@property (nonatomic, assign) NSInteger apiSource;
-@end
-
-@implementation ShaderVersionViewController
-@end
-
-@protocol AssetVersionViewControllerDelegate <NSObject>
-@end
-
-@interface AssetVersionViewController : UIViewController
-@property (nonatomic, assign) AssetVersionType assetType;
-@property (nonatomic, copy, nullable) NSString *projectID;
-@property (nonatomic, copy, nullable) NSString *projectDisplayName;
-@property (nonatomic, weak, nullable) id<AssetVersionViewControllerDelegate> delegate;
-@property (nonatomic, assign) NSInteger apiSource;
-@property (nonatomic, copy, nullable) NSString *preferredGameVersion;
-@property (nonatomic, copy, nullable) NSString *projectIconURL;
-@property (nonatomic, copy, nullable) NSString *projectAuthor;
-@property (nonatomic, strong, nullable) NSNumber *projectDownloads;
-@property (nonatomic, strong, nullable) NSNumber *projectLikes;
-@property (nonatomic, copy, nullable) NSString *projectDescription;
-@property (nonatomic, strong, nullable) NSArray<NSString *> *projectCategories;
-@property (nonatomic, copy, nullable) NSString *projectLastUpdated;
-@end
-
-@implementation AssetVersionViewController
-@end
+#pragma mark 版本页 VC 三件（★Task440 整块摘除：旧三版本页已随批次二
+#pragma mark 退役整链删除——消费方 import/delegate 面同步清零，
+#pragma mark 桩无消费面即退役；家法：桩随真身同生死，不留孤儿桩）
 
 #pragma mark 下载服务四件（ModService.h / ShaderService.h / ResourcePackService.h / WorldService.h）
 // 各 download 签名照真实 .h（Mod/Shader 带 expectedSHA1 且 completion 只给

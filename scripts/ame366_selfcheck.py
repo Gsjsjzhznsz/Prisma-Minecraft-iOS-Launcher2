@@ -154,10 +154,10 @@ check('C4 v5 归档不受扰（ame365_v5DefaultSystemPrompt 在位）',
 
 # ══ D 文档（get_plugin_docs = 插件提示词正文）═════════════════
 docs_text = produced(dtool)
-check('D1 文档 v7 头 + 三计数锚（118 方法 / 33 权限 / 106 键×2=212）',
+check('D1 文档 v7 头 + 三计数锚（118 方法 / 33 权限 / 103 键×2=206；★Task440 随三退役键重锚）',
       "全量 API 参考 v7" in docs_text
       and "桥面方法 118" in docs_text and "共 33 项" in docs_text
-      and "106 键 × get/set = 212" in docs_text)
+      and "103 键 × get/set = 206" in docs_text)
 d2_anchors = ["ame.app.info()", "ame.views.batch", "ame.views.applyStyle", "ame.dialog.prompt",
               "ame.dialog.sheet", "ame.notify.haptic", "ame.clipboard.get", "ame.theme.getTokens",
               "ame.settings.keys", "ame.profiles.setKey", "ame.game.lastExit", "ame.jit.setScheme",

@@ -1358,7 +1358,7 @@ static void ame428_dropAllPending(void) {
         if (success) {
             // ★Task434 C4：观察者（ZL2HomeViewController 等）收到通知后做 UI 刷新，必须在
             //   主线程 post——本块运行在后台全局队列，直接 post 会导致后台线程 UI 刷新闪退
-            //   （写法对齐 ZL2AssetSearchViewController.m:3282 / DownloadViewController.m:5604）
+            //   （写法对齐 ZL2AssetSearchViewController.m 主线程 post 口径；原引 DownloadViewController.m:5604 宿主已随批次二退役，引注随 Task440 校正）
             dispatch_async(dispatch_get_main_queue(), ^{
                 [[NSNotificationCenter defaultCenter] postNotificationName:@"ReloadProfileList" object:nil];
             });

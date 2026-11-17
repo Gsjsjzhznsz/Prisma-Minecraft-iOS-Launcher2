@@ -1,7 +1,7 @@
 #!/bin/bash
 # Task432 门禁电池 —— 全量本地复跑（Task439 修幽灵门：run_sh 补定义，声明门数 =
-#   实跑门数，每轮 RESULT 汇总行即真实门数；当前 30 门 = 27 既有 runner +
-#   task439 双新门 + 括号审计，历史头注「16 门」自第 9 期起已失实，本轮校正）
+#   实跑门数，每轮 RESULT 汇总行即真实门数；当前 31 门 = 27 既有 runner +
+#   task439 双新门 + task440 自检门 + 括号审计，历史头注「16 门」自第 9 期起已失实，Task439 校正）
 # 用法: bash scripts/task432_gate_battery.sh
 cd "$(dirname "$0")/.." || exit 1
 
@@ -63,6 +63,7 @@ run_py verify255    scripts/verify_task255.py
 run_py i18n430      scripts/task430_i18n_audit.py
 run_py task439      scripts/task439_selfcheck.py
 run_py task439_tag  scripts/task439_buildtag_anchor.py
+run_py task440      scripts/task440_selfcheck.py
 
 # 括号审计：本轮全部编辑文件逐个过状态机（file args 契约，Task431 判例口径）
 EDITED=$(git diff --name-only HEAD --diff-filter=d -- 'Natives/*.m' 'Natives/*.h' 'Natives/**/*.m' 'Natives/**/*.h' 2>/dev/null | grep -v '^Natives/external/' | tr '\n' ' ')

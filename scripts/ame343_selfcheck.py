@@ -70,9 +70,14 @@ cmk_lines = read("Natives/CMakeLists.txt").split("\n")
 cmk_code = [ln.split("#")[0] for ln in cmk_lines]
 resid = [ln.strip() for ln in cmk_code for n in FAMILY if n in ln]
 check('A2 CMakeLists 零退役面 TU（注释豁免）', not resid, f'residual: {resid[:3]}')
-check('A3 保留面仍在 CMake（★Task436 重锚：批次二③五管理页整链 + 旧 DownloadViewController 已物理删除，'
-      '保留面收敛至 ProfileSettingsViewController（矩阵外编译级引用 ×2 待后续轮收编））',
-      any("ProfileSettingsViewController.m" in ln for ln in cmk_code)
+check('A3 保留面已全退役（★Task440 终局重锚：批次④漏网旧三页 + 死代码六件全链删除，'
+      'ProfileSettings/ModVersion/AssetVersion/ShaderVersion/AccountLogin/FabricInstall/Welcome'
+      ' 七页 CMake 条目归零；批次二旧 DownloadViewController/五管理页维持删除态）',
+      not any(n in ln for n in ("ProfileSettingsViewController.m", "ModVersionViewController.m",
+                                "AssetVersionViewController.m", "ShaderVersionViewController.m",
+                                "AccountLoginViewController.m", "FabricInstallViewController.m",
+                                "WelcomeViewController.m")
+              for ln in cmk_code)
       and not any(ln.strip() == n   # CMake 源清单行形态 = strip 后整行等于文件名（ZL2 前缀新类不受子串误伤）
                   for n in ("ModsManagerViewController.m", "DownloadViewController.m")
                   for ln in cmk_code))
@@ -82,13 +87,27 @@ check('A4 回壳判定单轨 ZL2 壳（LauncherSplit 引用清零 + ZL2Shell 判
       "LauncherSplitViewController" not in strip_code(bridge)
       and "isKindOfClass:ZL2ShellViewController.class]" in bridge)
 
-welcome = read("Natives/WelcomeViewController.m")
-welcome_code = strip_code(welcome)
-check('A5 Welcome 旧壳锚点退役（发现循环/锚点消费/头 import 三清）',
-      all(s not in welcome_code for s in
-          ("ame233_menuVC", "ame233_rightVC", "ame233_contentVC",
-           "ame234_launchAnchorView", "ame235_versionAnchorView",
-           '#import "LauncherMenuViewController.h"', '#import "LauncherRightPanelViewController.h"')))
+# ★Task440 重锚：WelcomeViewController 本体已物理删除（死代码六件之一），
+# A5 由「旧壳锚点退役」升级为「文件缺席 + 全仓零活引用」双断言。
+# 匹配前剥 // 行注释（家法：删除记录墓碑注释允许留档——SceneDelegate/PLPreferences）
+welcome_gone = not os.path.exists("Natives/WelcomeViewController.m")
+welcome_refs = []
+for _root, _dirs, _files in os.walk(os.path.join(REPO, "Natives")):
+    if "external" in _root:
+        continue
+    for _fn in _files:
+        if _fn.endswith((".m", ".h")):
+            _p = os.path.join(_root, _fn)
+            try:
+                _t = open(_p, encoding="utf-8", errors="replace").read()
+            except OSError:
+                continue
+            _code = re.sub(r"//[^\n]*", "", _t)   # 剥行注释，墓碑豁免
+            if "WelcomeViewController" in _code:
+                welcome_refs.append(_p)
+check('A5 Welcome 旧壳本体删除 + 活代码引用清零（死代码六件之一，★Task440 终局；'
+      '注释墓碑家法豁免）',
+      welcome_gone and not welcome_refs, f'refs: {welcome_refs[:3]}')
 
 smoke = read("scripts/ui_fluent_smoke.sh")
 check('A6 smoke harness 零旧壳 TU（LauncherMenuViewController 摘除，注释豁免）',
@@ -214,7 +233,7 @@ check('C6 fluent-ui v2.6.2（FLUENT_LAYOUT 13 键 + 独立容错 + 恢复三族�
 bal_files = ["Natives/ZL2Theme.h", "Natives/ZL2Theme.m", "Natives/AmePluginBridge.h",
              "Natives/AmePluginBridge.m", "Natives/AmePluginRuntime.m",
              "Natives/ZL2M3Kit.h", "Natives/ZL2M3Kit.m", "Natives/ZL2VersionPages.m",
-             "Natives/WelcomeViewController.m", "Natives/ios_uikit_bridge.m"]
+             "Natives/ios_uikit_bridge.m"]   # ★Task440：WelcomeViewController.m 条目随文件删除摘除
 unbal = []
 for f in bal_files:
     code = strip_code(read(f))   # 剥串后全量计数（不做续行整行丢弃——GNU 语句表达式

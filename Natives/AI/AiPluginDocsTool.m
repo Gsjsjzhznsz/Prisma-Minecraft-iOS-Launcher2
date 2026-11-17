@@ -6,7 +6,7 @@
 //  免确认零摩擦）；返回文本 = 插件系统全量 API 参考（与基础系统提示词
 //  【七】章拆分的另一 половина：v5 时代该章全文塞在每条消息的系统提示词
 //  里，插件话题缺席时纯烧 token；v6 起移入本工具按需返回）。
-//  文档内容与 AmePluginBridge/Runtime 真实能力面逐条对齐（118 方法/33 权限/106 键）——ame365/ame366_selfcheck
+//  文档内容与 AmePluginBridge/Runtime 真实能力面逐条对齐（118 方法/33 权限/103 键）——ame365/ame366_selfcheck
 //  S 区反向探针会抽出文档里的每个 ame.* 名核对桥面/门面真实存在，防止
 //  文档漂移（"提示词给了不存在的 API"与"存在但文档没给"同罪）。
 //
@@ -23,7 +23,7 @@
     return
     @"获取 Prisma 插件系统全量 API 参考文档（写/改任何插件前必读）。返回内容："
     @"create_plugin 参数契约、33 项权限表、ame.* 全部 118 个桥面方法（app 元信息/视图操纵与"
-    @"元素拖拽/弹窗/通知/主题四族读写/设置与 106 键目录/渲染器/实例档案/游戏状态与内存/"
+    @"元素拖拽/弹窗/通知/主题四族读写/设置与 103 键目录/渲染器/实例档案/游戏状态与内存/"
     @"JIT 控制/游戏启动/日志与崩溃分析/模组光影/存档/账户脱敏/下载/AI 问答/触控布局/fs 沙盒/存储）、"
     @"11 种事件、标准写法与示例。"
     @"仅当用户要求编写插件、修改插件、用插件改启动器界面或自修复启动器时调用；"
@@ -40,10 +40,10 @@
     @"\n"
     @"【0. API 总量速览——整个启动器皆可改，本表即全部可寻址面】\n"
     @"· 桥面方法 118 个（下文【4】-【23】逐个列出，签名与语义以此为准）；\n"
-    @"· 设置注册键目录 106 键 × get/set = 212 个可寻址操作（【10】逐键列表）；\n"
+    @"· 设置注册键目录 103 键 × get/set = 206 个可寻址操作（【10】逐键列表）；\n"
     @"· 主题令牌 54 个（28 色 + 12 形状字阶 + 13 布局刻度 + 1 结构蓝图，【8】）；\n"
     @"· 事件 11 种（【3】）；视图属性/手势值域 18 项（【6】）。\n"
-    @"· 四类合计约 413 个可寻址 API。目标场景：启动器崩溃打不开游戏 → 用户直接找 AI 写自修复插件，不等反馈。\n"
+    @"· 四类合计约 407 个可寻址 API。目标场景：启动器崩溃打不开游戏 → 用户直接找 AI 写自修复插件，不等反馈。\n"
     @"\n"
     @"【1. 写插件铁律】\n"
     @"· 代码必须是纯 JS：无 require/import/浏览器对象；顶层用 (function(){...})(); 包裹；全文 ≤200KB。\n"
@@ -114,14 +114,13 @@
     @"· ame.settings.getMulti([k1,k2...]) → {k:v}；ame.settings.setMulti({k1:v1,...})——批量读写（≤128 键）。\n"
     @"· ame.settings.remove(key)——删键（仅注册键）；ame.settings.describe(key) → {value,type,registered}。\n"
     @"\n"
-    @"【10. 设置键目录（106 键 × get/set = 212 个可寻址操作；值=出厂默认）】\n"
+    @"【10. 设置键目录（103 键 × get/set = 206 个可寻址操作；值=出厂默认；★Task440 摘 news_url/announcement_preview_level/welcome_completed 三退役键，家法注释尾在 PLPreferences.m）】\n"
     @"· general：\n"
     @"  general.check_sha（默认 @YES）\n"
     @"  general.cosmetica（默认 @YES）\n"
     @"  general.debug_logging（默认 @(!CONFIG_RELEASE)）\n"
     @"  general.auto_update_check（默认 @YES）\n"
     @"  general.legacy_compatibility（默认 @YES）\n"
-    @"  general.news_url（默认 @\"https://raw.githubusercontent.com/Gsjsj...）\n"
     @"  general.download_source（默认 @\"bmclapi\"）\n"
     @"  general.download_source_mod（默认 @\"modrinth\"）\n"
     @"  general.download_source_shader（默认 @\"modrinth\"）\n"
@@ -135,8 +134,6 @@
     @"  general.mod_update_keep_old（默认 @YES）\n"
     @"  general.mod_mirror（默认 @\"official\"）\n"
     @"  general.ram_allocation（默认 @(0)）\n"
-    @"  general.announcement_preview_level（默认 @\"summary\"）\n"
-    @"  general.welcome_completed（默认 @NO）\n"
     @"· download：\n"
     @"  download.fileSource（默认 @\"speed_first\"）\n"
     @"  download.assetSearchSource（默认 @\"speed_first\"）\n"

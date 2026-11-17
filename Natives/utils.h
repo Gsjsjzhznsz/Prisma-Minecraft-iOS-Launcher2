@@ -538,7 +538,8 @@ int ame141_currentLaunchAllocMem(void);
 // when the API is unavailable. ame141_currentLaunchAllocMem clamps every
 // -Xmx through this (device session: 7165MB slider value = silent Jetsam
 // SIGKILL 53s into a 244-mod pack load). Also used to cap the memory slider
-// in ProfileSettingsViewController so users cannot pre-select doomed values.
+// in the ZL2 profile pages so users cannot pre-select doomed values
+// (original ProfileSettingsViewController retired in Task440 batch-2).
 // ============================================================================
 int ame173_safeHeapCeilingMB(void);
 

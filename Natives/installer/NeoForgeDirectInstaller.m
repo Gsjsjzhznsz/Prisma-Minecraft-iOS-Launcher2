@@ -627,7 +627,8 @@ NSString *const NeoForgeDirectInstallerErrorDomain = @"NeoForgeDirectInstallerEr
     profileDict[@"created"] = [NSDate date].description;
     // 推断 Java 版本：NeoForge 1.20.5+ 需 Java 21，1.18+ 需 Java 17，1.17 需 Java 16
     NSInteger javaMajor = [self inferJavaMajorVersionFromVersionId:versionId];
-    // 写入 NSString 而非 NSDictionary，与 ProfileSettingsViewController 等所有读取方一致
+    // 写入 NSString 而非 NSDictionary，与 ZL2 实例页族等所有读取方一致
+    //（★Task440 注记：原引 ProfileSettingsViewController 已随批次二退役）
     // JavaLauncher 通过 .intValue 读取，"17".intValue = 17
     profileDict[@"javaVersion"] = [NSString stringWithFormat:@"%ld", (long)javaMajor];
     [profiles saveProfile:profileDict withName:versionId];

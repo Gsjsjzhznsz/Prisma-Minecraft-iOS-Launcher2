@@ -356,7 +356,8 @@ ame378_c19 = [
     ("source-sig", "NSNumber *source))completion" in modupd_code),   # .m 签名（.h 同增 _Nullable 形态）
     ("v13-push", "ameV13_pushVersionListWithProjectId" in vpages_code),
     ("v13-pidmap", "ameV13_projectIdByPath" in vpages_code),
-    ("mvc-import", "ModVersionViewController.h" in vpages),
+    ("mvc-import", "ZL2VersionListPage.h" in vpages),   # ★Task440 重锚：旧页退役后新页 import 接棒
+    ("mvc-retired", "ModVersionViewController" not in vpages),   # ★Task440：旧页符号零残留
     ("svc-contact", 'contact[@"homepage"]' in modsvc_raw),
     ("svc-mcmod", 'entryName:@"mcmod.info"' in modsvc_raw),
     ("acct-inline", "ZL2SkinPreviewView" in accounts_code),
@@ -371,7 +372,7 @@ ame378_c19 = [
 ame378_c19_fail = [n for n, ok in ame378_c19 if not ok]
 if ame378_c19_fail and os.environ.get("AME378_DEBUG"):
     print("  C19 failing clauses:", ", ".join(ame378_c19_fail))
-check("C19 安全区二轮+模组链接内跳+皮肤预览内嵌真皮链（★Task413 第 22 轮复诉五项——\n      ①安全区二轮：壳头带 64 / 内容行 centerY 32 / 胶囊顶距 12 / 主页网格顶距 28\n      （iPhone 刘海由 safeAreaLayoutGuide 锚点天然涵盖）；②fui 图标字形重生幂等锁\n      （ame413_appliedGlyphPt 同值跳过 = 调节不再带动图标重渲染）；③模组链接内跳：\n      fetchProjectInfoForMod completion 增补 source + ameV13_projectIdByPath 路由 +\n      ModVersionViewController 推入 + jar 链接三源提取（ModService homepage）；\n      ④皮肤预览内嵌：ZL2SkinPreviewView 账户卡右栏 + Y 轴翻转（y_l = −(y_m−16)）\n      + 左右面换位 + slim 模型 + yggdrasil 真皮链 + skinfull-<accountId>.png 全皮落盘）",
+check("C19 安全区二轮+模组链接内跳+皮肤预览内嵌真皮链（★Task413 第 22 轮复诉五项——\n      ①安全区二轮：壳头带 64 / 内容行 centerY 32 / 胶囊顶距 12 / 主页网格顶距 28\n      （iPhone 刘海由 safeAreaLayoutGuide 锚点天然涵盖）；②fui 图标字形重生幂等锁\n      （ame413_appliedGlyphPt 同值跳过 = 调节不再带动图标重渲染）；③模组链接内跳：\n      fetchProjectInfoForMod completion 增补 source + ameV13_projectIdByPath 路由 +\n      ZL2VersionListPage Mod 域推入（★Task440 改道重锚，原 ModVersionViewController\n      随批次二退役）+ jar 链接三源提取（ModService homepage）；\n      ④皮肤预览内嵌：ZL2SkinPreviewView 账户卡右栏 + Y 轴翻转（y_l = −(y_m−16)）\n      + 左右面换位 + slim 模型 + yggdrasil 真皮链 + skinfull-<accountId>.png 全皮落盘）",
       all(ok for _, ok in ame378_c19))
 
 # ── C20 断言子句化（★Task414 第 23 轮复诉六项——逐条可读） ──

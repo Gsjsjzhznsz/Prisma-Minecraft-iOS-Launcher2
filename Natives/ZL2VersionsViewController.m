@@ -27,8 +27,8 @@
 // 重命名/复制/导出/置顶在本仓旧 VC 中不存在，按铁律不移植、不虚构）：
 //   - 选用   selectProfileNamed:（旧 VC L1884）：写 selectedProfileName +
 //     save + post @"SelectedProfileChanged" + 重建（同名静默防抖）
-//   - 编辑   editProfile:（旧 VC L1872）：push ProfileSettingsViewController
-//     （[[alloc] init] + profileName 属性，1:1）
+//   - 编辑   editProfile:（旧 VC L1872）：push 版本设置容器（旧写法
+//     ProfileSettingsViewController 已退役；7.0-UI-13-V 起实码推 ZL2VersionDetailViewController）
 //   - 删除   deleteProfile:（旧 VC L1893）：至少保留一个实例守卫
 //     （i18n_str_1092）→ 二次确认（i18n_str_457 / i18n_str_1093）→
 //     删注册表条目 + 选中回退 firstObject + save + Task255 实体目录
@@ -54,12 +54,13 @@
 #import "PLProfiles.h"
 #import "ModLoaderIconHelper.h"
 #import "ModpackExportService.h"   // +parseVersionId:（lastVersionId 反解 MC 版本）
-#import "ProfileSettingsViewController.h"
+// ★Task440：ProfileSettingsViewController 死 import 摘除（旧页整链退役；本文件零符号使用）
 #import "ZL2VersionDetailViewController.h"   // 7.0-UI-13-V：设置钮新目标（ZL2 VersionSettings 容器）
 #import "utils.h"   // localize()
 // ★Task429：PLGameIntegrityService.h 导入移除——原「校验并补全游戏文件」
-//   扫描 sheet 项已从本页移除，入口实例级化迁往「完整实例设置」页
-//   （ProfileSettingsViewController 版本信息组新行，扫描该页附属实例）；
+//   扫描 sheet 项已从本页移除，入口实例级化迁往 ZL2 版本详情容器
+//   （★Task440 注记：原写法「ProfileSettingsViewController 版本信息组新行」
+//   已随旧页整链退役校正）；
 //   全局入口保留在 设置→启动器→下载完整性与公告组（ZL2SettingPages）。
 //   本页再无该服务符号引用。
 
@@ -1057,7 +1058,7 @@ static UIImage *ZL2VersionsSystemImage(NSString *name, NSString *fallback) {
 
 /// 版本设置：7.0-UI-13-V 起进 ZL2 版本详情容器（NestedNavKey.VersionSettings
 /// 对标：概览/模组/存档/资源包/光影/截图/服务器/配置 八子页；实例级长尾
-/// 设置由容器配置页「完整实例设置」兜底 push ProfileSettingsViewController）。
+/// 设置由容器配置页承载——旧「完整实例设置兜底 push ProfileSettingsViewController」口径已随 Task436 兑底拆除 + Task440 旧页退役双线终结）。
 /// push 后由本页 viewWillDisappear 恢复导航栏。
 - (void)ame_openSettingsForProfile:(NSString *)profileName {
     ZL2VersionDetailViewController *vc =
@@ -1199,7 +1200,8 @@ static UIImage *ZL2VersionsSystemImage(NSString *name, NSString *fallback) {
     // ★Task429：原「校验并补全游戏文件」项（ame428.verify.entry）从本 sheet
     //   移除——完整性入口实例级化（用户复诉："放在版本设置里面就扫描版本
     //   设置附属的那个实例"）。去向：
-    //   ① ProfileSettingsViewController 版本信息组新行 →
+    //   ① ZL2VersionDetailViewController 版本详情容器（原 ProfileSettingsViewController
+    //      版本信息组新行去向，旧页随 Task440 整链退役，入口迁容器页）→
     //      runInteractiveVerifyAndRepairForProfile:<本页附属实例>；
     //   ② 设置→启动器→下载完整性与公告组全局入口保留（ame428_runIntegrity
     //      Verify 改调新 API 传 nil，语义等价）。

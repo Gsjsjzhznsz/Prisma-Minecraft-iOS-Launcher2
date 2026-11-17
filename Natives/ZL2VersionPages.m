@@ -70,7 +70,7 @@
 #import "ModLoaderIconHelper.h"      // 7.0-UI-13-r1：加载器识别（详情头图标口径）
 #import "ModpackExportService.h"     // 7.0-UI-13-r1：版本 id 反解（MC 版本口径）
 #import "ModService.h"                 // ★ Task343：模组页数据层（scan/toggle/delete/metadata/隔离口径）
-#import "ModVersionViewController.h"    // ★Task413 模组链接内跳：版本列表页（下载中心同款推入）
+#import "ZL2VersionListPage.h"          // ★Task440 改道：批次④旧三页退役，Mod 域参数化新页接棒 ameV13 内跳（旧页 import 摘除）
 #import "ModUpdateService.h"          // ★ Task343：检查更新全流程（双源限流）
 #import "PLDownloadClient.h"          // ★ Task343：更新下载（镜像候选 + SHA1 校验）
 #import "PLMirrorCenter.h"
@@ -1831,7 +1831,7 @@ static NSString *ZL2V13ModSHA1ForFile(NSString *path) {
     return hex;
 }
 
-@interface ZL2VersionModsPage () <UIDocumentPickerDelegate, ModVersionViewControllerDelegate>
+@interface ZL2VersionModsPage () <UIDocumentPickerDelegate, ZL2VersionListPageDelegate>
 @property (nonatomic, strong) UIStackView *ameV13_contentStack;
 @property (nonatomic, strong) UIStackView *ameV13_cardsStack;
 @property (nonatomic, strong) UILabel *ameV13_countLabel;
@@ -2326,7 +2326,7 @@ static NSString *ZL2V13ModSHA1ForFile(NSString *path) {
     // ★Task413 模组链接启动器内完成（第 22 轮复诉：v412 外跳 modrinth.com
     //   改内建跳转「直接跳转对应的模组列表」= 下载中心同款版本列表页；
     //   仅 jar 内链接非 cf/modrinth 源站时才外跳）：
-    //   ① 双源哈希反查命中（projectId+source）→ 推 ModVersionViewController
+    //   ① 双源哈希反查命中（projectId+source）→ 推版本列表页（★Task440 改道 ZL2 新页）
     //     （apiSource 按 source 路由 —— 拿 CF 数字 ID 请求 Modrinth 拉不到
     //     版本的 Task247 判例同源；选中版本走 ModService.downloadMod
     //     expectedSHA1 直下目标实例）；
@@ -2365,7 +2365,9 @@ static NSString *ZL2V13ModSHA1ForFile(NSString *path) {
     [self ameV13_showAlertMessage:localize(@"resman.mods.link_unavailable_message", nil)];
 }
 
-// ★Task413 内跳推入：ModVersionViewController（下载中心同款导航栈语义；
+// ★Task413 内跳推入：★Task440 改道 ZL2VersionListPage（第 10 期报告 3.3 节批次④
+// 漏网活入口清账——旧 Mod 域版本列表页整链退役，ZL2 三域参数化新页 Mod 域
+// 接棒；下载中心/资产搜索/搜索页 11 处 push 点已先行换页，本处为最后一条活入口。
 // 本页为版本详情内嵌页，自身 navigationController 由宿主壳提供）
 - (void)ameV13_pushVersionListWithProjectId:(NSString *)projectId
                                      source:(NSInteger)source
@@ -2377,12 +2379,16 @@ static NSString *ZL2V13ModSHA1ForFile(NSString *path) {
     NSString *ame413_desc = _ameV13_descByPath[path];
     if (ame413_desc.length > 0) ame413_item.modDescription = ame413_desc;
 
-    ModVersionViewController *ame413_vc = [[ModVersionViewController alloc] init];
+    // ★Task440 改道参数映射：modItem 原样传（新页 Mod 域详情头从 modItem 派生）；
+//   title→pageTitle；apiSource 同值同语义；lastVersionId 反解链原样保留；
+//   snapshotProjectType 防收藏条目 projectType 错档；targetProfileName 新页无
+//   对应属性——下载流收口在 delegate 回调（宿主 ameV13_profileName 语义等效）。
+    ZL2VersionListPage *ame413_vc =
+        [[ZL2VersionListPage alloc] initWithDomain:ZL2VersionListDomainMod];
     ame413_vc.modItem = ame413_item;
-    ame413_vc.delegate = self;
-    ame413_vc.title = ame413_name.length > 0 ? ame413_name : projectId;
+    ame413_vc.pageTitle = ame413_name.length > 0 ? ame413_name : projectId;
     ame413_vc.apiSource = (source == 2) ? 2 : 1;
-    ame413_vc.targetProfileName = self.ameV13_profileName;   // ★Task265 目标实例锁定同口径
+    ame413_vc.snapshotProjectType = @"mod";
     // 偏好版本/加载器：本实例 lastVersionId 反解（ameV13_checkForUpdates 同源）
     NSDictionary *ame413_prof = PLProfiles.current.profiles[self.ameV13_profileName] ?: @{};
     NSString *ame413_lvid = [ame413_prof isKindOfClass:[NSDictionary class]] ? ame413_prof[@"lastVersionId"] : nil;
@@ -2394,6 +2400,7 @@ static NSString *ZL2V13ModSHA1ForFile(NSString *path) {
         ame413_vc.preferredGameVersion = ame413_gv;
         ame413_vc.preferredLoader = [ame413_ld isKindOfClass:[NSString class]] ? ame413_ld : nil;
     }
+    ame413_vc.delegate = self;
     [self.navigationController pushViewController:ame413_vc animated:YES];
 }
 
@@ -2406,16 +2413,18 @@ static NSString *ZL2V13ModSHA1ForFile(NSString *path) {
     return last;
 }
 
-// ★Task413 版本选中委托：ModService.downloadMod expectedSHA1 直下目标实例
+// ★Task413 版本选中委托：★Task440 改道 ZL2VersionListPageDelegate（下载流平移，
+// ModService.downloadMod expectedSHA1 直下目标实例；targetProfileName 改道后由
+// 宿主 ameV13_profileName 收口，Task265 目标实例锁定语义等效）
 // （下载中心 Task227 前置解析链为搜索轨专属重活；本页内跳轨轻量直下 =
 // 选中即装，完成后弹结果 + 自愈重扫）
-- (void)modVersionViewController:(ModVersionViewController *)viewController didSelectVersion:(ModVersion *)version {
+- (void)zl2VersionListPage:(ZL2VersionListPage *)page didSelectVersion:(ModVersion *)version {
     NSDictionary *ame413_primary = version.primaryFile;
     if (!ame413_primary || ![ame413_primary[@"url"] isKindOfClass:[NSString class]]) {
         [self ameV13_showAlertMessage:localize(@"i18n_str_265", nil)];
         return;
     }
-    ModItem *ame413_item = viewController.modItem;
+    ModItem *ame413_item = page.modItem;
     ame413_item.selectedVersionDownloadURL = ame413_primary[@"url"];
     // ★ NSString 声明先行（id 下标点语法 .length = run 42487051782 编译错判例）
     NSString *ame413_fname = ame413_primary[@"filename"];

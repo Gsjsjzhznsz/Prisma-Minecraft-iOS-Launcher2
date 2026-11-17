@@ -93,25 +93,20 @@ check('A8 lastVersionId = self.gameVersion（实际下载版本）',
 
 # ── B 线② 加载器同步 ZL2 ────────────────────────────────────
 futils = read('Natives/installer/FabricUtils.m')
-fivh = read('Natives/installer/FabricInstallViewController.h')
-fivm = read('Natives/installer/FabricInstallViewController.m')
+# ★Task440 退役重锚：FabricInstallViewController 死代码六件之一（全仓零实例化）
+#   本体删除——B2/B3/B4 旧页消费面断言收敛为退役断言；FabricUtils 端点保持
+fiv_retired = (not os.path.exists('Natives/installer/FabricInstallViewController.h')
+               and not os.path.exists('Natives/installer/FabricInstallViewController.m'))
 
 check('B1 Legacy Fabric 端点（meta.legacyfabric.net v2 双端点 + profile/json）',
       '@"Legacy Fabric"' in futils
       and 'meta.legacyfabric.net/v2/versions/game' in futils
       and 'meta.legacyfabric.net/v2/versions/loader' in futils
       and 'meta.legacyfabric.net/v2/versions/loader/%@/%@/profile/json' in futils)
-check('B2 vendor 段三厂 pickList',
-      '@[@"Fabric", @"Legacy Fabric", @"Quilt"]' in fivm)
-check('B3 preset 双 property + vendor 回显 + 版本直通',
-      'presetVendor' in fivh and 'presetLoaderVersion' in fivh
-      and 'self.presetVendor.length > 0 ? self.presetVendor' in fivm
-      and fivm.count('self.presetLoaderVersion') >= 2
-      and 'indexOfObject:current' in fivm)
-check('B4 API 三厂分流（legacy-fabric-api / qsl / legacy-fabric loaderTag）',
-      '@"legacy-fabric-api"' in fivm and '@"qsl"' in fivm
-      and '@"legacy-fabric"' in fivm
-      and 'project/%@/version?game_versions' in fivm)
+check('B2+B3+B4 旧 Fabric 安装页退役（死代码六件之一，★Task440 终局；vendor pickList/'
+      ' preset 直通/三厂分流三断言随页离场，FabricUtils 端点（B1）与 ZL2 下载链维持现役）',
+      fiv_retired
+      and '@"Legacy Fabric"' in futils)
 check('B5 Addons 九卡构造',
       all(k in gav for k in
           ['ame_cardWithIdentifier:@"legacyfabric"',
@@ -199,7 +194,7 @@ def _deltas(src):
 for rel in ['Natives/MinecraftResourceDownloadTask.m',
             'Natives/ZL2GameAddonsViewController.m',
             'Natives/ZL2VersionIndex.m',
-            'Natives/installer/FabricInstallViewController.m',
+            # ★Task440：FabricInstallViewController.m 随死代码六件退役摘括号审计
             'Natives/installer/FabricUtils.m',
             'Natives/ModLoaderIconHelper.m']:
     cur = _deltas(_strip_strings_comments(read(rel)))
@@ -209,9 +204,9 @@ for rel in ['Natives/MinecraftResourceDownloadTask.m',
     check(f'E1 括号平衡(HEAD对照) {os.path.basename(rel)}', cur == head,
           f'cur={cur} head={head}')
 
-check('E2 preset property .h 声明与 .m 应用一致',
-      re.search(r'@property.*presetVendor', fivh)
-      and re.search(r'@property.*presetLoaderVersion', fivh))
+check('E2 preset property 退役（★Task440 终局重锚：宿主页 FabricInstallViewController '
+      '死代码六件之一本体删除，preset 双 property 断言随页离场）',
+      fiv_retired)
 # E4 语义面盲区第十例防线（Task335：前向声明与 installer 头漂移）。
 # ★ Task336 语义演进：FabricInstallViewController 前向声明整体退役——
 # 新 UI Addons 页 Fabric-like 安装改 FabricUtils.ame336 页内直装，本文件

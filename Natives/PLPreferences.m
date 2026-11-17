@@ -106,12 +106,12 @@ NSString *const PREF_MOD_MIRROR = @"general.mod_mirror";
             @"mod_mirror": @"official",
             // profile 写入的强制内存分配，0=使用 java.allocated_memory/auto_ram 逻辑
             @"ram_allocation": @(0),
-            // 首页公告磁贴预览级别：full（标题+日期+摘要）/ summary（标题+摘要）/ title_only（仅标题）
-            @"announcement_preview_level": @"summary",
-            // Task218：首次使用欢迎向导完成哨兵（WelcomeViewController 完成
-            // 时置 YES；未置 = 首次启动，SceneDelegate 在根视图就绪后全屏
-            // 弹出向导：语言 / 下载源 / 数据导入三步引导 + 动效）。
-            @"welcome_completed": @NO,
+            // ★Task440（退役收尾批：文档面三退役键同步）：announcement_preview_level
+            //   与 welcome_completed 键定义摘除——唯一消费方公告磁贴随 Task436
+            //   退役、Welcome 向导链随 Task436 A3 断链 + 本轮 WelcomeViewController
+            //   物理删除（grep 全仓零代码消费，仅存 SceneDelegate.m:129 删除记录
+            //   注释）；存量 plist 残值无读者自然失活。键文档面三行已同步摘除
+            //   （AiPluginDocsTool 106→103 键），i18n 旧词条按「旧键不删」家法留待后续轮。
         }.mutableCopy,
         // ★ Task392：regiongate 偏好分区整体退役（用户指令「彻底清除确认非中国
         //   大陆用户的弹窗」）——Task312/313 服务地区门连同 RegionGate.m 全链

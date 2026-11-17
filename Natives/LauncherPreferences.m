@@ -851,8 +851,8 @@ NSArray* getRendererNames(BOOL containsDefault) {
 }
 
 // Task 140：统一渲染器显示名——设置页两行（video.renderer 主行 +
-// mobileglues.renderer_backend 后端行）与实例设置页（ProfileSettings
-// 渲染器行）共用。家族键 → 三后端文案；经典键（auto/gl4es/zink/...）
+// mobileglues.renderer_backend 后端行）与实例页族共用（★Task440 注记：
+// 原引「ProfileSettings 渲染器行」宿主已随批次二退役，现役消费方为 ZL2 实例页族）。家族键 → 三后端文案；经典键（auto/gl4es/zink/...）
 // → rendererCandidates 表的显示名（getRendererKeys/Names 同源配对）；
 // 未知值原样返回。
 //
