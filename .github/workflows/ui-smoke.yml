@@ -1,4 +1,4 @@
-name: UI Fluent smoke (7.0 test repo - frontend preview)
+name: UI Fluent smoke (7.0 test repo - frontend preview + shell)
 
 # 7.0-UI-7：前端专用冒烟——AmeTheme 令牌层 + Fluent 组件库 + 已迁移 VC 的
 # 语法门禁（-fsyntax-only）与模拟器渲染预览（侧栏 Navigation Rail + 8 件套
@@ -37,7 +37,7 @@ jobs:
   smoke:
     name: UI Fluent smoke
     runs-on: macos-15
-    timeout-minutes: 25
+    timeout-minutes: 40   # ★Task441：all 模式扩四腿（+shell 真壳冒烟），25→40
 
     steps:
       - name: Checkout repository
@@ -61,4 +61,5 @@ jobs:
           path: |
             build/ame-preview/*.png
             build/ame-preview/*.log
+            build/ame-preview/unzipkit-commit.txt
           if-no-files-found: ignore
