@@ -1063,10 +1063,10 @@ void customNSLog(const char *file, int lineNumber, const char *functionName, NSS
 
 @end
 
-#pragma mark 整合包导入服务（ModpackImportService.h）——★Task441-r4 桩退役：
-#   第四腿导入链真 TU（ModpackImportService/ModpackUtils/PLDownloadClient +
-#   钉 pin UnzipKit）入 preview/shell 双腿链接面，桩随真身同生死家法（Task440
-#   Preview 桩四处置判例同族）；真实现解析取代 nil 兜底。
+// ★Task441-r4 桩退役（整合包导入服务）：第四腿导入链真 TU
+//   （ModpackImportService/ModpackUtils/PLDownloadClient + 钉 pin UnzipKit）
+//   入 preview/shell 双腿链接面，桩随真身同生死家法（Task440 Preview 桩四处
+//   处置判例同族）；真实现解析取代 nil 兜底。
 
 #pragma mark 图标加载器（IconLoader.h；本仓自有异步图组件，无 SDWebImage 依赖）
 
