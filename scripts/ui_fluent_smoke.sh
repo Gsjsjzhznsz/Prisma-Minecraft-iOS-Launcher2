@@ -599,7 +599,7 @@ PLIST
   ' | head -1)"
   fi
   if [[ -n "${ipad_udid:-}" ]]; then
-    echo "== iPad leg (UDID: ${ipad_udid}) =="   # ★Task417-r4：纯 ASCII 边界（macOS bash 3.2 多字节名吞并雷：$var）全角）中被吞入变量名 = unbound 假象）
+    echo "== iPad leg (UDID: ${ipad_udid}) =="   # ★Task417-r4：纯 ASCII 边界（macOS bash 3.2 多字节名吞并雷：${var}）全角）中被吞入变量名 = unbound 假象）
     xcrun simctl boot "$ipad_udid" 2>/dev/null || true
     xcrun simctl bootstatus "$ipad_udid" -b >/dev/null 2>&1 || true
     xcrun simctl install "$ipad_udid" "$app" || { echo "✗ iPad 安装失败（iPad 腿跳过，不阻塞）"; xcrun simctl delete "$ipad_udid" 2>/dev/null || true; return; }
@@ -838,7 +838,7 @@ PLIST
   xcrun simctl boot "$device" 2>/dev/null || true
   xcrun simctl bootstatus "$device" -b >/dev/null 2>&1 || true
   xcrun simctl install "$device" "$app" || { echo "✗ shell 腿安装失败"; FAIL=1; return; }
-  echo "  shell 腿模拟器 UDID: $device（真壳 -zl2shell real -ame441Smoke）"
+  echo "  shell 腿模拟器 UDID: ${device}（真壳 -zl2shell real -ame441Smoke）"
 
   xcrun simctl launch --console-pty "$device" com.prisma-devs.ame-shell-smoke \
       -zl2shell real -ame441Smoke > "$OUT/console-shell-smoke.log" 2>&1 &
