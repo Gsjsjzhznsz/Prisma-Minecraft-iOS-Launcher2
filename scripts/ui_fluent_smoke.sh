@@ -865,7 +865,15 @@ PLIST
     fi
     if ! pgrep -f "AmeShellSmoke.app" >/dev/null 2>&1; then
       ame441_alive=0
-      break   # 进程亡且无标记 = 启动即崩/中途崩
+      # ★Task441-r12（判例 N+28）：进程亡后再做一次统一日志终判——驱动 exit(0)
+      #   快于 logd 刷盘+轮询节奏时，ALL PASS 标记在下一轮才可见（r11 实锤：
+      #   16:19:44.8 ALL PASS 落日志、16:19:52 pgrep 先断误判失败）
+      sleep 3
+      if xcrun simctl spawn "$device" log show --last 5m --style compact \
+          --predicate "$ame441_logq" 2>/dev/null | grep -q "ALL PASS"; then
+        ame441_ok=1
+      fi
+      break
     fi
     sleep 2
   done
