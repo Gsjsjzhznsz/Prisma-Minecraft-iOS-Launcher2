@@ -158,14 +158,13 @@ jobs:
           fi
           echo "$PREFIX/bin" >> "$GITHUB_PATH"
 
-      # ★ Task441（CI 提速第三轮）：brew cask temurin@8 换 actions/setup-java
-      #   （cask 装载器+验证步骤冷装 2-3 分钟；setup-java 工具缓存化后秒级）。
-      #   供 make 侧 javac 用（JavaApp 编译；JRE 产物本身走上方 Task257 缓存）。
-      - name: Install Java 8 (Temurin)
-        uses: actions/setup-java@v4
-        with:
-          distribution: temurin
-          java-version: '8'
+      # ★Task441-r8（判例 N+24）：setup-java@v4 temurin '8' 在 macos-15 runner
+      #   镜像被 SemVer 解析器拒收（Could not find satisfied version for SemVer '8'
+      #   → 构建前置崩）——回退 brew cask temurin@8 已证绿基线；提速收益保留
+      #   ccache 6G 项（setup-java 版本规格待上游 resolver 修正后另立任务再试）。
+      - name: Install Java 8 (Temurin) via Homebrew
+        run: |
+          brew install --cask temurin@8
 
       - name: Install brew toolchain (ldid/meson/ninja/bison/pkg-config in one pass)
         # ★ Task255（清单 12：CI 构建提速）：brew install 合并为一次调用——
