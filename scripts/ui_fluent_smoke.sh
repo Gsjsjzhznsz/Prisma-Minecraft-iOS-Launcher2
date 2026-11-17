@@ -6,6 +6,8 @@
 # ui_fluent_smoke.sh — Fluent 前端冒烟 + 模拟器预览（7.0 测试仓专用，7.0-UI-7）
 #
 # 用法:
+#   ★Task442 re-trigger 注记：runner 湍流窗口（17:06-17:22Z）连环 cancelled
+#   三 job（含未启动排队件）——本行随重触发推送落卷，无功能变更。
 #   scripts/ui_fluent_smoke.sh syntax    # 快速语法门禁：迁移面 .m 全量 -fsyntax-only（约 1 分钟）
 #   scripts/ui_fluent_smoke.sh preview   # 编译预览 harness → 模拟器安装启动 → 浅/深两态截图
 #   scripts/ui_fluent_smoke.sh all       # 两者依次（CI 默认）
