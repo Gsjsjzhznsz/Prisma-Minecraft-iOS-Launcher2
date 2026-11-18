@@ -4429,3 +4429,19 @@
 "ame449.setpg.group.jit" = "JIT";
 "ame449.setpg.group.jit26" = "Espelho JIT26";
 "ame449.setpg.group.debug_ui" = "Depuração de UI";
+
+// ★Task449 en-fallback completion (structural parity; untranslated entries render English via runtime rescue chain)
+"ame267.jit.legacy_stik" = "Support for legacy JIT scripts has been removed, please switch to the Universal JIT script. Current StikDebug builds auto-assign the script by app name (older sideloaded builds bundled the same script as Amethyst-MeloNX.js), so updating StikDebug is the easiest fix. To assign manually: long-press on the launcher app when enabling JIT in StikDebug, tap \"Assign Script\", then pick UniversalJIT26.js from the launcher's Documents directory (exported automatically at every startup).";
+"ame267.download.target_mismatch" = "Note: downloads still target instance \"%@\" (locked when the page was opened). Re-enter the download page to switch instances.";
+"ame317.detail.uninstall_confirm_body" = "\"%@\" and its granted permissions will be removed. This cannot be undone.";
+"ame327.plugin.guide.body" = "1. Effects - tap the rows in this page's \"Plugin rows\" section or Settings - \"Plugin rows\" group to trigger them; they are the features plugins provide.\n2. Permissions - dangerous permissions (network / theme / renderer write / instance manage / game folder) are denied by default; open the plugin detail page and enable them.\n3. AI-written plugins - ask the AI assistant \"write me a plugin\" with your idea; it generates, installs and loads one instantly.";
+"ame429.j.more.hint" = "Drag nodes to move; they land per the snap settings on release (toggle and modes in \"More\"). Drag a corner handle to scale uniformly. Use \"Layers\" to reorder, rename, or focus; \"Styles\" to reskin the whole layout or save custom presets; \"Preview\" to try the controls.";
+"ame429.s1.backupdel.confirm.msg_fmt" = "Backup \"%@\" will be moved to the trash (POJAV_HOME/trash), not hard-deleted.";
+"ame429.s1.restore.confirm.msg_fmt" = "This will extract \"%@\" into this instance's saves directory; an existing world with the same name is moved to the trash first.";
+"ame429.s1.trash.confirm.msg_fmt" = "World \"%@\" will be moved to the trash (POJAV_HOME/trash/timestamp folder) and can be recovered manually.";
+"ame436.editor.delete.confirm.body_fmt" = "\"%@\" will be removed. It is written to the layout file on save; use \"Discard Changes & Exit\" to undo before saving.";
+"ame441.editor.snap.foot" = "With snapping off, nodes land freely (still clamped to the canvas). In \"Element Edges\" mode, a guide line appears while dragging to align with other controls' edges, and the node lands on the alignment on release.";
+"ame441.editor.style.delete.confirm.body_fmt" = "The preset \"%@\" will be deleted. This cannot be undone.";
+"ame441.editor.coach.p2.body" = "Use \"+\" to create buttons/textboxes/joysticks; select one and edit its name, keycodes, opacity and more in the properties panel.";
+"ame441.editor.coach.p3.body" = "Use \"Layers\" to reorder, rename a control, or focus a single control for editing.";
+"ame441.editor.coach.p4.body" = "Apply style presets or save your own to the cabinet; \"More\" offers preview mode to try controls; saving writes back to the layout file.";

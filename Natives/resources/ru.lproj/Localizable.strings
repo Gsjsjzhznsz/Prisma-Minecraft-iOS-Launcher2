@@ -4428,3 +4428,19 @@
 "ame449.setpg.group.jit" = "JIT";
 "ame449.setpg.group.jit26" = "Зеркало JIT26";
 "ame449.setpg.group.debug_ui" = "Отладка интерфейса";
+
+// ★Task449 en-fallback completion (structural parity; untranslated entries render English via runtime rescue chain)
+"ame267.jit.legacy_stik" = "Support for legacy JIT scripts has been removed, please switch to the Universal JIT script. Current StikDebug builds auto-assign the script by app name (older sideloaded builds bundled the same script as Amethyst-MeloNX.js), so updating StikDebug is the easiest fix. To assign manually: long-press on the launcher app when enabling JIT in StikDebug, tap \"Assign Script\", then pick UniversalJIT26.js from the launcher's Documents directory (exported automatically at every startup).";
+"ame327.plugin.guide.body" = "1. Effects - tap the rows in this page's \"Plugin rows\" section or Settings - \"Plugin rows\" group to trigger them; they are the features plugins provide.\n2. Permissions - dangerous permissions (network / theme / renderer write / instance manage / game folder) are denied by default; open the plugin detail page and enable them.\n3. AI-written plugins - ask the AI assistant \"write me a plugin\" with your idea; it generates, installs and loads one instantly.";
+"ame369.addon.also_install_api_fmt" = "\nWill also install %@ API";
+"ame369.addon.confirm_body_fmt" = "Game version %@\nLoader %@ %@%@";
+"ame369.addon.confirm_body_offline_fmt" = "Game version %@\nLoader %@ %@\n(direct install via offline installer)";
+"ame369.crashv.latestlog_empty" = "(latestlog.txt is empty or unreadable)\n";
+"ame428.verify.more_fmt" = "  …and %lu more\n";
+"ame432.layouts.delete.confirm.default" = "\n\nNote: this is the current default layout; the factory custom.json will fall back after deletion.";
+"ame449.filexlate.core_fmt" = "\nCore layer merged: %ld items (versions/libraries/assets, shared by all instances)";
+"ame449.filexlate.content_fmt" = "\nContent layer merged: %ld items (worlds/mods/resource packs → current instance)";
+"ame449.filexlate.skip_fmt" = "\nSkipped (already present): %ld items (your existing data untouched)";
+"ame449.filexlate.src_ro" = "\nSource directory left untouched (read-only).";
+"ame449.filexlate.tip_full" = "\nNote: launcher config (accounts/settings) in the source directory is not migrated; game data is in place.";
+"ame449.jitgate.magnifier_no_response" = "apple-magnifier:// not handled (the TrollStore JIT helper has not taken over; often TrollStore is too old). Update TrollStore, or switch the JIT enabler to stikjit / SideStore / StosDebug in Settings and retry.\napple-magnifier:// not handled. Update TrollStore or switch the JIT enabler in Settings.";
