@@ -158,8 +158,10 @@ static UIImage *ZL2VersionsSystemImage(NSString *name, NSString *fallback) {
 // ★Task444：另含 childIds / childRows（派生版本数据）/ isChild / parentVid
 @property (nonatomic, copy) NSArray<NSDictionary *> *ame_allRows;
 @property (nonatomic, assign) NSInteger ame_selectedCategory;
-// ★Task444 派生版本展开态（父行 versionId 集合；跨 rebuild 保留，页重建即收起）
-@property (nonatomic, strong) NSMutableSet<NSString *> *ame444_expandedVids;
+// ★Task444 派生版本折叠态（Task450 语义倒置：集合 = 显式收起的父行 versionId；跨 rebuild 保留）
+// ★Task450：语义倒置 expandedVids→collapsedVids（子行默认展开 = 记录式实例
+//   与版本页数量口径对齐的用户诉求；用户显式收起跨 rebuild 保留）。
+@property (nonatomic, strong) NSMutableSet<NSString *> *ame444_collapsedVids;
 
 @end
 
@@ -552,7 +554,13 @@ static UIImage *ZL2VersionsSystemImage(NSString *name, NSString *fallback) {
         return [b[@"id"] compare:a[@"id"]];
     }];
     for (NSDictionary *ame428_e in ame428_sorted) {
-        if ([ame428_e[@"jsonState"] integerValue] == 0) continue;   // json 缺失：无版本身份，不入列
+        // ★Task450 ②：json 缺失目录旧口径整体不入列 = 记录式登记的实例
+        //   （安装器建目录/迁移未落 json 的面）在版本页隐身（15 期③复诉）。
+        //   修正：被任一 profile 引用（记录式真实存在）的缺失条目照常入列，
+        //   jsonOK=false 行卡走既有 invalid 语义；无引用的裸缺失目录仍排除
+        //   （防垃圾目录上屏）。
+        BOOL ame450_jsonMissing = ([ame428_e[@"jsonState"] integerValue] == 0);
+        if (ame450_jsonMissing && ![ame428_e[@"referenced"] boolValue]) continue;
         if ([ame428_e[@"inheritsParentListed"] boolValue]) continue; // 子版本：并入父行（不重复展示）
         NSString *ame428_vid = ame428_e[@"id"];
 
@@ -747,7 +755,7 @@ static UIImage *ZL2VersionsSystemImage(NSString *name, NSString *fallback) {
             NSArray<NSDictionary *> *ame444_childRows = [row[@"childRows"] isKindOfClass:[NSArray class]]
                 ? row[@"childRows"] : @[];
             if (ame444_vid.length > 0 && ame444_childRows.count > 0 &&
-                [self.ame444_expandedVids containsObject:ame444_vid]) {
+                ![self.ame444_collapsedVids containsObject:ame444_vid]) {
                 for (NSDictionary *ame444_childRow in ame444_childRows) {
                     [self.cardsStack addArrangedSubview:[self ame_cardForRow:ame444_childRow]];
                 }
@@ -988,19 +996,19 @@ static UIImage *ZL2VersionsSystemImage(NSString *name, NSString *fallback) {
     // ★Task444：父行派生版本展开/收起钮（childIds>0 时追加第三枚；子行无钮）
     ZL2VersionsTapControl *ame444_expandButton = nil;
     if (childIds.count > 0 && !ame444_isChild) {
-        BOOL ame444_open = [self.ame444_expandedVids containsObject:versionId];
+        BOOL ame444_open = ![self.ame444_collapsedVids containsObject:versionId];
         ame444_expandButton = [self iconButtonWithImageName:(ame444_open ? @"chevron.up" : @"chevron.down")
                                                    fallback:nil
                                                        size:32
                                              accessibility:localize(@"ame444.vers.derived_toggle", @"派生版本")];
         ame444_expandButton.ame_action = ^{
-            if (!weakSelf.ame444_expandedVids) {
-                weakSelf.ame444_expandedVids = [NSMutableSet set];
+            if (!weakSelf.ame444_collapsedVids) {
+                weakSelf.ame444_collapsedVids = [NSMutableSet set];
             }
-            if ([weakSelf.ame444_expandedVids containsObject:versionId]) {
-                [weakSelf.ame444_expandedVids removeObject:versionId];
+            if (![weakSelf.ame444_collapsedVids containsObject:versionId]) {
+                [weakSelf.ame444_collapsedVids addObject:versionId];   // 开→收
             } else {
-                [weakSelf.ame444_expandedVids addObject:versionId];
+                [weakSelf.ame444_collapsedVids removeObject:versionId]; // 收→开
             }
             [weakSelf ame_rebuildList];
         };
@@ -1540,6 +1548,17 @@ static NSDictionary *ame428_byIdLocal(NSArray<NSDictionary *> *list, NSString *v
                 ame428_resolved = [ame428_baseRoot stringByAppendingPathComponent:ame428_clean];
             }
             ame428_addRoot(ame428_resolved);
+            // ★Task450（15 期④「记录式没有很好的完成版本隔离迁移/列表依旧没有」）：
+            //   Task322 混居口径 gameDir = 相对 "versions/<vid>"（FabricUtils:276
+            //   saveProfile 原样落键）→ 上述相对解析落点 = 版本数据目录本身，
+            //   旧聚合在此盲目拼 versions/ = 扫 <vid>/versions/（不存在）→ 该
+            //   记录式实例的版本实体在版本页恒隐身。修正：落点末两级恰为
+            //   versions/<x> 时补挂父根（真实游戏根）——该根的 versions/ 才是
+            //   版本实体所在层级；去重由 addRoot 闭包天然承担。
+            NSString *ame450_parent = [ame428_resolved stringByDeletingLastPathComponent];
+            if ([ame450_parent lastPathComponent] isEqualToString:@"versions"]) {
+                ame428_addRoot([ame450_parent stringByDeletingLastPathComponent]);
+            }
         }
     }
     if (ame428_roots.count == 0) return @[];

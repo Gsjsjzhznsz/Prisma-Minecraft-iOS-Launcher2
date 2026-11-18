@@ -450,8 +450,15 @@ static NSUInteger ame432_paletteEchoIndex(NSInteger mode) {
     fillWidth.active = YES;
 
     [self ame_buildGroups];
-    // ★Task449：建组后即扫（chrome 标记面 + 行卡面；壁纸变化链另有全窗覆盖）
-    [[BackgroundManager sharedManager] ame449_applyWallpaperTransparencyToViewTree:self.view];
+    // ★Task449：建组后即扫（chrome 标记面 + 行卡面；壁纸变化链另有全窗覆盖）。
+    // ★Task450 P0 加固：装饰面收敛——装机 15 期「打开设置闪退」复诉（33892c9
+    //   实机、冒烟同码绿 = 设备依赖面未定位），壁纸透明清扫属纯装饰，任何
+    //   异常降级为「本轮不扫」（功能零损）+ 异常签名 NSLog 落日志给下轮。
+    @try {
+        [[BackgroundManager sharedManager] ame449_applyWallpaperTransparencyToViewTree:self.view];
+    } @catch (NSException *ame450_sweepEx) {
+        NSLog(@"[Task450] settings page wallpaper sweep degraded: %@ (%@)", ame450_sweepEx.name, ame450_sweepEx.reason);
+    }
 }
 
 - (void)ame_addGroup:(UIView *)group {
@@ -465,9 +472,14 @@ static NSUInteger ame432_paletteEchoIndex(NSInteger mode) {
                  key:(NSString *)key
      defaultCollapsed:(BOOL)defaultCollapsed {
     if ([group isKindOfClass:[ZL2SettingCardGroup class]] && title.length && key.length) {
-        [(ZL2SettingCardGroup *)group ame449_enableCollapsingWithTitle:title
-                                                                   key:key
-                                                          defaultCollapsed:defaultCollapsed];
+        @try {
+            [(ZL2SettingCardGroup *)group ame449_enableCollapsingWithTitle:title
+                                                                       key:key
+                                                              defaultCollapsed:defaultCollapsed];
+        } @catch (NSException *ame450_foldEx) {
+            // 折叠组头属装饰面：异常降级 = 该组保持平铺（功能零损）+ 签名落日志
+            NSLog(@"[Task450] fold group '%@' degraded: %@ (%@)", key, ame450_foldEx.name, ame450_foldEx.reason);
+        }
     }
     [self ame_addGroup:group];
 }

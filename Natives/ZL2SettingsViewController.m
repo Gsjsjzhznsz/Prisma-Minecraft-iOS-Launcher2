@@ -195,7 +195,11 @@ static UIImage *ame_hubSystemImage(NSString *name, NSString *fallback) {
     [self ame_showPageAtIndex:0];   // 首屏：渲染器（无过渡，首显直挂）
     // ★Task449：本页 chrome 标记面 + 已挂子页卡面建后即扫（壁纸在场时透出；
     // 后续切换子页在 ame_attachPageIfNeeded 同扫）
-    [[BackgroundManager sharedManager] ame449_applyWallpaperTransparencyToViewTree:self.view];
+    @try {
+        [[BackgroundManager sharedManager] ame449_applyWallpaperTransparencyToViewTree:self.view];
+    } @catch (NSException *ame450_hubEx) {
+        NSLog(@"[Task450] settings hub wallpaper sweep degraded: %@ (%@)", ame450_hubEx.name, ame450_hubEx.reason);
+    }
 
     // ★ Task328：外部定点打开契约（主页插件 chip 两段通知的第二段）——本页
     //   可能被壳懒建（attach 同步触发 viewDidLoad，观察者先于定点通知注册），
@@ -428,7 +432,11 @@ static UIImage *ame_hubSystemImage(NSString *name, NSString *fallback) {
     [page didMoveToParentViewController:self];
     // ★Task449：新挂子页卡面建后即扫（viewDidLoad 建组后子页自扫与本扫双保险，
     // 幂等可重入；壁纸变化链 refreshTransparencyForWindowUI 另有全窗覆盖）
-    [[BackgroundManager sharedManager] ame449_applyWallpaperTransparencyToViewTree:page.view];
+    @try {
+        [[BackgroundManager sharedManager] ame449_applyWallpaperTransparencyToViewTree:page.view];
+    } @catch (NSException *ame450_attachEx) {
+        NSLog(@"[Task450] settings attach wallpaper sweep degraded: %@ (%@)", ame450_attachEx.name, ame450_attachEx.reason);
+    }
 }
 
 // 子页切换：attach + 显隐 + 0.18s crossDissolve（同壳 showPageAtIndex）

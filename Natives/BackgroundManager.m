@@ -807,9 +807,41 @@ void Ame449MarkCardSurface(UIView *view) {
                              OBJC_ASSOCIATION_RETAIN_NONATOMIC);
 }
 
-// 卡面透明态：基色×α(max(uiOpacity, 0.5))——ZL2 cardColor·α(opacity/100)
-// 对标；0.5 下限 = 可读性护栏（ZL2 滑条 20 起步语义在本仓卡面档内的等值落点，
-// 壁纸本体另有 uiOpacity 直调，双层叠压不至文字没入壁纸）。
+// ★Task450 ②：卡面家族色识别（15 期②「壁纸还是有地方不是透明半透明」——
+// 标记制只覆盖设置行卡，下载/版本/资源页各卡面裸用 surfaceContainer 恒不透
+// 明；逐点补标 = 面散且漏网，改按色解算收编：双 trait 解算 RGBA 对表 ZL2Theme
+// 卡面三族（Container/High/Low），命中即收编入册（tag+基色关联）幂等化）。
++ (BOOL)ame450_isCardFamilyColor:(UIColor *)color {
+    if (![color isKindOfClass:[UIColor class]]) return NO;
+    static NSArray<UIColor *> *ame450_darkFamily = nil;
+    static NSArray<UIColor *> *ame450_lightFamily = nil;
+    static dispatch_once_t ame450_once;
+    dispatch_once(&ame450_once, ^{
+        UITraitCollection *ame450_dark = [UITraitCollection traitCollectionWithUserInterfaceStyle:UIUserInterfaceStyleDark];
+        UITraitCollection *ame450_light = [UITraitCollection traitCollectionWithUserInterfaceStyle:UIUserInterfaceStyleLight];
+        NSMutableArray *ame450_d = [NSMutableArray array];
+        NSMutableArray *ame450_l = [NSMutableArray array];
+        for (UIColor *(^token)(void) in @[[ZL2Theme surfaceContainer], [ZL2Theme surfaceContainerHigh], [ZL2Theme surfaceContainerLow]]) {
+            UIColor *ame450_t = token();
+            [ame450_d addObject:[ame450_t resolvedColorWithTraitCollection:ame450_dark]];
+            [ame450_l addObject:[ame450_t resolvedColorWithTraitCollection:ame450_light]];
+        }
+        ame450_darkFamily = [ame450_d copy];
+        ame450_lightFamily = [ame450_l copy];
+    });
+    UIColor *ame450_d = [color resolvedColorWithTraitCollection:
+        [UITraitCollection traitCollectionWithUserInterfaceStyle:UIUserInterfaceStyleDark]];
+    UIColor *ame450_l = [color resolvedColorWithTraitCollection:
+        [UITraitCollection traitCollectionWithUserInterfaceStyle:UIUserInterfaceStyleLight]];
+    for (UIColor *ame450_ref in ame450_darkFamily) if ([ame450_d isEqual:ame450_ref]) return YES;
+    for (UIColor *ame450_ref in ame450_lightFamily) if ([ame450_l isEqual:ame450_ref]) return YES;
+    return NO;
+}
+
+// 卡面透明态：基色×α(0.72 固定档)——ZL2 cardColor·α(80%) 默认档对标（15 期
+// 判例：旧 max(uiOpacity,0.5) 与壁纸滑条耦合，用户 opacity=1.00 时卡面恒不透
+// 明 =「还是有地方不是透明半透明」主诉；滑条语义 = 壁纸可见度，卡面脱钩取
+// ZL2 默认档等值，可读性由 onSurface 文字 + 壁纸 dim 层兜底）。
 - (void)ame449_sweepChromeAndCardsInView:(UIView *)root transparent:(BOOL)transparent {
     if (!root) return;
     if (root.tag == kAme449ChromeSurfaceTag) {
@@ -818,9 +850,14 @@ void Ame449MarkCardSurface(UIView *view) {
         UIColor *base = objc_getAssociatedObject(root, kAme449CardBaseColorKey);
         if (base) {
             root.backgroundColor = transparent
-                ? [base colorWithAlphaComponent:MAX(self.uiOpacity, 0.5)]
+                ? [base colorWithAlphaComponent:0.72]
                 : base;
         }
+    } else if (transparent && [BackgroundManager ame450_isCardFamilyColor:root.backgroundColor]) {
+        // 未标记卡面家族 → 收编入册（基色=当前家族色）再半透明；下一轮走 tag
+        // 分支幂等；无壁纸还原路径经同一 tag 分支回基色（零残留）。
+        Ame449MarkCardSurface(root);
+        root.backgroundColor = [root.backgroundColor colorWithAlphaComponent:0.72];
     }
     for (UIView *sub in root.subviews) {
         [self ame449_sweepChromeAndCardsInView:sub transparent:transparent];

@@ -258,6 +258,11 @@ static void ame336_fetchProfile(NSArray<NSURL *> *candidates, void (^completion)
             return;
         }
 
+        // ★Task450 ③：隔离数据播种（copy-from-parent，已存在不覆盖，best-effort）
+        NSString *ame450_parent = [profileJson[@"inheritsFrom"] isKindOfClass:[NSString class]]
+            ? profileJson[@"inheritsFrom"] : @"";
+        [PLProfiles ame450_seedIsolatedVersionData:profileId inheritsFrom:ame450_parent];
+
         // ★ Task337 线①闪退根修：profile 注册段整体主线程执行。
         //   旧写法在 NSURLSession 回调线程直接执行
         //   PLProfiles.current.selectedProfileName = profileId → 触发

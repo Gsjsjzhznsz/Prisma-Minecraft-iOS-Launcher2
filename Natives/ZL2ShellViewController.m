@@ -1191,6 +1191,15 @@ static UIImage *ZL2ShellSystemImageSizedEx(NSString *name, NSString *fallback, C
     ]];
 
     // 主导航项（账户管理已由右栏的添加/删除动作取代，页面 3 仅保留为内部流程宿主）。
+    // ★Task450 ⑥：小屏设备简单侧栏（用户钦定「识别到小屏幕设备就使用没有太
+    //   复杂的侧边栏，也就是提交转盘的时候的 zl2 形式的简单」）——设备级判定
+    //   （min 维度 < 500pt = iPhone/紧凑档）→ 主列摘 AI 项 + 底部摘文件项
+    //   （AI 仍可经下载页内入口/插件行可达，文件仍可经主页瓦片/顶栏同链可达；
+    //   大屏保持全量五项 + 双底部项不变）。
+    BOOL ame450_compactDevice = (MIN(UIScreen.mainScreen.bounds.size.width,
+                                     UIScreen.mainScreen.bounds.size.height) < 500.0);
+    NSLog(@"[Task450] shell rail compact device=%@ (min dim %.0f)", ame450_compactDevice ? @"YES" : @"NO",
+          MIN(UIScreen.mainScreen.bounds.size.width, UIScreen.mainScreen.bounds.size.height));
     NSArray<NSString *> *ame347_titles = @[localize(@"ame369.common.home", @"主页"), localize(@"ame369.shell.tab.downloads", @"下载"), localize(@"ame369.shell.tab.versions", @"版本"),
                                            localize(@"ame369.common.multiplayer", @"多人联机"), localize(@"ame192.ai.title", nil)];
     NSArray<NSString *> *ame347_symbols = @[@"house.fill",
@@ -1206,6 +1215,7 @@ static UIImage *ZL2ShellSystemImageSizedEx(NSString *name, NSString *fallback, C
     NSArray<NSNumber *> *ame347_pages = @[@0, @1, @2, @5, @6];
     NSMutableArray<ZL2ShellNavItem *> *ame347_items = [NSMutableArray array];
     [ame347_titles enumerateObjectsUsingBlock:^(NSString *itemTitle, NSUInteger idx, BOOL *stop) {
+        if (ame450_compactDevice && ame347_pages[idx].integerValue == 6) return;   // ★Task450 ⑥：小屏摘 AI 项
         ZL2ShellNavItem *item = [[ZL2ShellNavItem alloc]
             initWithTitle:itemTitle
                     symbol:ame347_symbols[idx]
@@ -1239,6 +1249,7 @@ static UIImage *ZL2ShellSystemImageSizedEx(NSString *name, NSString *fallback, C
     NSArray<NSString *> *ame347_footerFallbacks = @[@"gearshape", @"folder"];
     NSArray<NSNumber *> *ame347_footerPages = @[@4, @(-1)];
     [ame347_footerTitles enumerateObjectsUsingBlock:^(NSString *itemTitle, NSUInteger idx, BOOL *stop) {
+        if (ame450_compactDevice && ame347_footerPages[idx].integerValue < 0) return;   // ★Task450 ⑥：小屏摘文件项
         ZL2ShellNavItem *item = [[ZL2ShellNavItem alloc]
             initWithTitle:itemTitle
                     symbol:ame347_footerSymbols[idx]
