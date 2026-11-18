@@ -5461,3 +5461,4 @@ Work Log:
 
 Stage Summary:
 - 装机锚点（BuildTag=「Task448 · 2026-11-18」）：①主页右栏版本卡尾刷新/齿轮两钮首屏恒在（不再须滚动/切换）②版本页父行 chevron 展开钮点开派生版本子行（「⤷ 实例名」缩进，6 个 fabric-loader 实体与转盘 9 实例对齐）③下载页聚合源无词+相关度 = CF 卡片下载量量级在前（与 Modrinth 同口径）④整合包导出界面正常进入（三步指示器 1/3、2/3、3/3 分栏居中）⑤设置→游戏版本隔离行即刻显示真实态（Task447）⑥假阳性会话 ame442_mapping_pattern.txt verdict 行真实分叉（conviction/inconclusive），rx/rw 非零。
+- 【闭环补记】CI 双绿终态（3f34a1d60：dev run 44206655448 success + ui-smoke run 44206655192 success 一轮终绿）；三产物 Task448 唯一命名归档（ipa/tipa/dSYM，303+SAS 两段式无头下载）；ipa 四重验证（zip 零错 + jit26_mapping_shadow/ame437_probe_canned/ame444.vers.derived_toggle/ame442_mapping_pattern 四符号在场 + BuildTag UTF-16LE Task448 在场且 Task442 归零）；议题 #3 第五轮评论 6965590690 落卷（第五轮证据判读 + Task448 三修 + 内置 JIT enabler 建议诚实回应 + 保持 open 等报告者回归验证）。
