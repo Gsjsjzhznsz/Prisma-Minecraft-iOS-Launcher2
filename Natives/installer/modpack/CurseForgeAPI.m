@@ -815,7 +815,9 @@ static NSArray<NSDictionary *> *ame316_cachedCategoriesForClassId(CurseForgeAPI 
 ///   downloads-> sortField=6  desc
 ///   updated  -> sortField=3  desc
 ///   newest   -> sortField=3  desc（CF 无“创建时间”排序，LastUpdated 最近似）
-///   relevance-> 不带参数（searchFilter 存在时 CF 默认即相关度）
+///   relevance-> 有搜索词：不带参数（searchFilter 存在时 CF 默认即相关度）；
+///              无搜索词：sortField=6(TotalDownloads) desc（★Task445 兜底，
+///              见下方 relevance 分支注释）
 + (void)ame173_applySortAndLoaderParams:(NSDictionary *)filters
                                   params:(NSMutableDictionary *)params {
     NSString *sort = [filters[@"sort"] isKindOfClass:NSString.class] ? filters[@"sort"] : nil;
@@ -829,8 +831,28 @@ static NSArray<NSDictionary *> *ame316_cachedCategoriesForClassId(CurseForgeAPI 
         } else if ([sort isEqualToString:@"updated"] || [sort isEqualToString:@"newest"]) {
             params[@"sortField"] = @3;
             params[@"sortOrder"] = @"desc";
+        } else if ([sort isEqualToString:@"relevance"]) {
+            // ★Task445：无搜索词的“相关度”兜底改按下载量排。
+            // 病历（用户实测，Task445 设备日志）：下载页“目标平台=聚合/排序=相关度”
+            // 且无搜索词时请求 URL 不带 sortField（旧注释“CF 默认即相关度”只对
+            // 带 searchFilter 的情形成立）——CF 对无搜索词且无 sortField 的请求
+            // 返回完全无序列表（镜像实测 classId=4471：无 sortField 时下载量
+            // 96/50/29/105…；补 sortField=6 后 13.4M→8.2M→7.9M 严格降序）。
+            // 主流启动器（ZalithLauncher2 CurseForgeSearchRequest.kt:81-82 恒发
+            // sortField/sortOrder 绝不空发）同判：无查询词时“相关度”无意义；
+            // Modrinth 侧空 query 时服务端 index=relevance 实测即按 downloads
+            // 排，这里带 sortField=6 后聚合双源口径一致。有搜索词时保持不带
+            // sortField（CF 服务端真相关度），显式选下载量/更新时间的既有映射
+            // 不动。
+            NSString *ame445_query = [filters[@"query"] isKindOfClass:NSString.class]
+                                     ? filters[@"query"]
+                                     : ([filters[@"name"] isKindOfClass:NSString.class] ? filters[@"name"] : nil);
+            ame445_query = [ame445_query stringByTrimmingCharactersInSet:NSCharacterSet.whitespaceAndNewlineCharacterSet];
+            if (ame445_query.length == 0) {
+                params[@"sortField"] = @6;
+                params[@"sortOrder"] = @"desc";
+            }
         }
-        // relevance：不带 sortField（CF 默认）
     }
     NSString *loader = [filters[@"loader"] isKindOfClass:NSString.class] ? filters[@"loader"] : nil;
     // Task179：无加载器概念的资源类型禁发 modLoaderType。

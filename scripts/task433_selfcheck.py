@@ -142,8 +142,22 @@ if '--selftest' in sys.argv:
         print('ok  S-6 反向：canned ping-ack 判别摘除 -> A18 FAIL（符合预期）')
     else:
         print('S-6 未翻红（canned 判别探针失效）'); bad += 1
+    # S-7（★Task448）：+5 偏移回退到 +4（第五轮实录病态）→ A20 必翻红
+    #      （偏移回退后 rx/rw 恒 0，形态判决空转——门必须拦住倒退）
+    def a20_pred(src):
+        return ('strtoull(ame442_p + 5, NULL, 16)' in src and
+                'strtoull(ame442_q + 5, NULL, 16)' in src and
+                'BOOL ame442_patternParsed' in src and
+                'ame442_rw - ame442_rx == 0x4000000ULL' not in src)
+    inj_mh3 = mh_code.replace('strtoull(ame442_p + 5, NULL, 16)',
+                              'strtoull(ame442_p + 4, NULL, 16)')
+    ok = a20_pred(mh_code) and (not a20_pred(inj_mh3))
+    if ok:
+        print('ok  S-7 反向：+5 偏移回退 +4 -> A20 FAIL（符合预期）')
+    else:
+        print('S-7 未翻红（偏移探针失效）'); bad += 1
     if bad == 0:
-        print('selftest OK（6 探针全部翻红）')
+        print('selftest OK（7 探针全部翻红）')
         sys.exit(0)
     sys.exit(1)
 
@@ -257,6 +271,29 @@ check('A19 shadow 文案重写（Assign Script 三步指引 + 证伪主建议退
       'conviction' in mh_code and
       'per-app JIT script handshake state' in mh_code and
       'update StikJIT/StikDebug to the latest build (older JIT scripts flaw' not in mh_code)
+
+print('== A20/A21 组：Task448 第五轮形态判决三修（解析偏移 + RW−RX 轴退役 + marker verdict 诚实化）==')
+
+# A20: main_hook 形态判据三修——① strstr("RW=0x")+5 偏移（旧 +4 落在 'x'
+#      上恒 0，第五轮 marker rx/rw=0x0 实录）② RW−RX==0x4000000 判据退役
+#      （健康 Run1 同为 64MB 成对，零区分度）③ patternParsed 探针。
+check('A20 形态判据三修（+5 偏移 / RW−RX 轴退役 / patternParsed）',
+      'strtoull(ame442_p + 5, NULL, 16)' in mh_code and
+      'strtoull(ame442_q + 5, NULL, 16)' in mh_code and
+      'strtoull(ame442_p + 4, NULL, 16)' not in mh_code and
+      'strtoull(ame442_q + 4, NULL, 16)' not in mh_code and
+      'BOOL ame442_patternParsed' in mh_code and
+      'ame442_rw - ame442_rx == 0x4000000ULL' not in mh_code and
+      'pattern parse FAILED' in mh_code)
+
+# A21: marker verdict 分叉诚实化——pattern 定罪真走 conviction；解析失败/
+#      健康形态走 inconclusive（shadow 轴兑底）；旧固定定罪文案退役。
+check('A21 marker verdict 分叉诚实化（conviction/inconclusive 双味 + 旧固定文案退役）',
+      'verdict=%s' in mh_code and
+      'channel fake-positive (mapping-response pattern conviction' in mh_code and
+      'inconclusive via pattern axis (parse failed or healthy-shape grant' in mh_code and
+      'conviction via mapping-lines-present shadow axis' in mh_code and
+      'verdict=channel fake-positive at dialog time' not in mh_code)
 
 print(f'\n== task433_selfcheck: {passed} passed, {len(fails)} failed ==')
 if fails:

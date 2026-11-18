@@ -727,7 +727,17 @@ static UIImage *ZL2HomeSizedImage(NSString *name, NSString *fallback, CGFloat po
     // ★Task415c 余量重算：启动卡钉出滚动区后视口 = menuScrollView 自身高
     //   （旧式减 _launchCard 帧的口径随钉底三钉失效）；余量 = 视口 − 账户卡
     //   − 卡间间隙 − 版本卡内构
+    // ★Task443（用户复诉「转盘的设置和刷新必须切换几下才有，第二次刷新就
+    //   吞掉」· 数学实锤根修）：旧公式漏减快航瓦片卡高与其下方卡间间隙——
+    //   滚动内容总高 = quickNavH + gap + accountH + gap + (target + 内构)，
+    //   代入旧 avail 恒等于 scrollH + quickNavH + gap > 视口 = 版本卡尾部
+    //   （卡尾刷新/齿轮两钮 + flow 底行）恒卷出滚动可视区，滚动侧栏才可见
+    //   = 「切换几下才有」实体；两次 Task346 根重建重置滚动位相放大观感。
+    //   补减快航卡帧与其下间隙后，target 收敛时内容总高 ≤ 视口，卡尾两钮
+    //   恒在首屏可视区（滚动位相无关）。
     CGFloat ame414_avail = self.menuScrollView.bounds.size.height
+        - _quickNavCard.frame.size.height   // ★Task443 补：快航瓦片卡（旧公式漏减）
+        - ZL2HomeCardGap   // ★Task443 补：快航卡→账户卡间隙
         - _accountCard.frame.size.height
         - ZL2HomeCardGap   // 账户卡→版本卡间隙（stack spacing 同值）
         - (2.0 * ZL2HomeCardPadding + ZL2HomeCardFooterHeight + 6.0 + 4.0);   // 版本卡内构

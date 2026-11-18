@@ -712,25 +712,37 @@ static void ame273_writeCrashReport(int code) {
             BOOL ame437_shadow = ame437_shadowMarker || ame437_gotmap || ame437_mapline;
             // ★Task442 映射应答形态判决：从「mapping at RW=0x..., RX=0x...」行
             //   解出两区基址——RX ≥ 0x1000000000（调试器别名池；健康授予 RX 在
-            //   用户态低位 0x179a28000 量级）∨ RW-RX == 0x4000000（64MB 成对，
-            //   健康双视图应≈请求值紧邻）= 假阳性形态实证（Run1/Run2 逐字
+            //   用户态低位 0x173518000 量级）= 假阳性形态实证（Run1/Run2 逐字
             //   对比证据，装机 13:48Z 取证组）。
+            //   ★Task448（第五轮装机实锤三修，issue#3 评论 6961394083）：
+            //   ① 解析偏移修：strstr("RW=0x")+4 落在 'x' 上（"RW=0x" 5 字节，
+            //   +4 = 'RW=0' 后）→ strtoull("x...") 恒 0 = rx/rw 恒 0x0（第五轮
+            //   marker 实录）→ 形态判决恒 NO，第四轮判据空转；+5 对准首位十
+            //   六进制数字。
+            //   ② RW−RX==64MB 判据退役：健康 Run1 RW−RX 同为 0x4000000
+            //   （0x177518000−0x173518000），破损 Run2 亦 0x4000000——零区分
+            //   度，唯一真轴 = RX 位置。
+            //   ③ marker verdict 诚实化：pattern 判据真走 conviction，解析
+            //   失败/健康形态走 inconclusive（由 shadow 轴兜底），不再无条件
+            //   写「channel fake-positive」（Task438 marker 语义家法）。
             BOOL ame442_patternFake = NO;
+            BOOL ame442_patternParsed = NO;
             unsigned long long ame442_rw = 0, ame442_rx = 0;
             if (ame442_mapline != NULL) {
                 const char *ame442_p = strstr(ame442_mapline, "RW=0x");
-                if (ame442_p != NULL) ame442_rw = strtoull(ame442_p + 4, NULL, 16);
+                if (ame442_p != NULL) ame442_rw = strtoull(ame442_p + 5, NULL, 16);   // ★Task448：+5 跳过「RW=0x」全段
                 const char *ame442_q = strstr(ame442_mapline, "RX=0x");
-                if (ame442_q != NULL) ame442_rx = strtoull(ame442_q + 4, NULL, 16);
-                if (ame442_rx >= 0x1000000000ULL ||
-                    (ame442_rw != 0 && ame442_rx != 0 &&
-                     ame442_rw >= ame442_rx && ame442_rw - ame442_rx == 0x4000000ULL)) {
+                if (ame442_q != NULL) ame442_rx = strtoull(ame442_q + 5, NULL, 16);   // ★Task448：同上
+                ame442_patternParsed = (ame442_rx != 0 || ame442_rw != 0);
+                if (ame442_rx >= 0x1000000000ULL) {
                     ame442_patternFake = YES;
                 }
             }
             if (ame442_patternFake) {
-                NSLog(@"[Ame442] mapping-response pattern conviction: RX=0x%llx in debugger alias pool (healthy grant = low user-space RX + RW=0x7000000000 fixed base; broken grant = RX in alias pool + RW=RX+64MB pair -- run1/run2 verbatim comparison) -- channel fake-positive proven at dialog time",
+                NSLog(@"[Ame442] mapping-response pattern conviction: RX=0x%llx in debugger alias pool (healthy grant = low user-space RX + RW fixed-base alias; broken grant = RX in alias pool + RW=RX+64MB pair -- run1/run2 verbatim comparison) -- channel fake-positive proven at dialog time",
                       (unsigned long long)ame442_rx);
+            } else if (ame442_mapline != NULL && !ame442_patternParsed) {
+                NSLog(@"[Ame442] mapping-response pattern parse FAILED (rx/rw = 0) -- conviction falls back to the mapping-lines-present shadow axis");
             }
             // ★Task430（二代 issue#2）：检测即自救——不再等用户在崩溃弹窗里
             //   手点「开启 JIT 自救模式」。签名命中当下直接写
@@ -771,11 +783,17 @@ static void ame273_writeCrashReport(int code) {
                                  "%s/ame442_mapping_pattern.txt", ame437_home);
                         FILE *ame442_f = fopen(ame442_path, "w");
                         if (ame442_f != NULL) {
-                            fprintf(ame442_f, "time=%lld\npattern=%s\nrx=0x%llx\nrw=0x%llx\nverdict=channel fake-positive at dialog time (mapping-response pattern; Task442, gen2 issue#3 round4)\nhealthy_grant=low user-space RX + RW=0x7000000000 fixed base\nbroken_grant=RX in debugger alias pool + RW=RX+64MB pair\n",
+                            // ★Task448：verdict 按 pattern 判据真值诚实落盘（旧版无条件写「channel
+                        //   fake-positive」= marker 语义失真；第五轮实录 pattern
+                        //   解析恒 0、实际由 shadow 轴兜底，marker 却仍写定罪）。
+                        fprintf(ame442_f, "time=%lld\npattern=%s\nrx=0x%llx\nrw=0x%llx\nverdict=%s\nhealthy_grant=low user-space RX (run1 0x173518000) + RW=RX+64MB alias\nbroken_grant=RX in debugger alias pool >= 0x1000000000 (run2 0x700d300000) + RW=RX+64MB pair\n",
                                     (long long)time(NULL),
                                     ame442_mapline != NULL ? ame442_mapline : "(mapping line not captured)",
                                     (unsigned long long)ame442_rx,
-                                    (unsigned long long)ame442_rw);
+                                    (unsigned long long)ame442_rw,
+                                    ame442_patternFake
+                                        ? "channel fake-positive (mapping-response pattern conviction; Task442 axis + Task448 honest semantics, gen2 issue#3 round5)"
+                                        : "inconclusive via pattern axis (parse failed or healthy-shape grant; conviction via mapping-lines-present shadow axis; Task448, gen2 issue#3 round5)");
                             fflush(ame442_f);
                             fsync(fileno(ame442_f));
                             fclose(ame442_f);

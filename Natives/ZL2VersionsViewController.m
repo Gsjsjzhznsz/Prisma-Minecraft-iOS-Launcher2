@@ -154,8 +154,11 @@ static UIImage *ZL2VersionsSystemImage(NSString *name, NSString *fallback) {
 
 // 数据
 // 行模型字典：name / versionId / loader / mcVersion / summary / valid / isSelected
+// ★Task444：另含 childIds / childRows（派生版本数据）/ isChild / parentVid
 @property (nonatomic, copy) NSArray<NSDictionary *> *ame_allRows;
 @property (nonatomic, assign) NSInteger ame_selectedCategory;
+// ★Task444 派生版本展开态（父行 versionId 集合；跨 rebuild 保留，页重建即收起）
+@property (nonatomic, strong) NSMutableSet<NSString *> *ame444_expandedVids;
 
 @end
 
@@ -518,8 +521,12 @@ static UIImage *ZL2VersionsSystemImage(NSString *name, NSString *fallback) {
     }];
 
     // 行构建：条目按 id 降序（沿旧版注册表键降序观感）；json 缺失目录不入列。
-    // 先做 inheritsFrom 并入预演（父 → childIds），再行构建——与遍历序无关。
+    // 先做 inheritsFrom 并入预演（父 → childIds + 完整子条目），再行构建——
+    // 与遍历序无关。★Task444：另存 childEntriesByParent（完整条目字典）——
+    // 子版本展开行需要与父行同构的完整字段（loader/mc/valid/registered…），
+    // 仅 childIds 的 id 数组不够。
     NSMutableDictionary<NSString *, NSMutableArray<NSString *> *> *ame428_kidsByParent = [NSMutableDictionary dictionary];
+    NSMutableDictionary<NSString *, NSMutableArray<NSDictionary *> *> *ame444_childEntriesByParent = [NSMutableDictionary dictionary];
     for (NSDictionary *ame428_e in ame428_scan) {
         if (![ame428_e[@"inheritsParentListed"] boolValue]) continue;
         NSString *ame428_parentId = ame428_e[@"inheritsFromParent"];
@@ -530,6 +537,12 @@ static UIImage *ZL2VersionsSystemImage(NSString *name, NSString *fallback) {
             ame428_kidsByParent[ame428_parentId] = ame428_kids;
         }
         [ame428_kids addObject:ame428_e[@"id"]];
+        NSMutableArray<NSDictionary *> *ame444_kidEntries = ame444_childEntriesByParent[ame428_parentId];
+        if (!ame444_kidEntries) {
+            ame444_kidEntries = [NSMutableArray array];
+            ame444_childEntriesByParent[ame428_parentId] = ame444_kidEntries;
+        }
+        [ame444_kidEntries addObject:ame428_e];
     }
 
     NSMutableArray<NSDictionary *> *ame428_rows = [NSMutableArray array];
@@ -541,35 +554,66 @@ static UIImage *ZL2VersionsSystemImage(NSString *name, NSString *fallback) {
         if ([ame428_e[@"inheritsParentListed"] boolValue]) continue; // 子版本：并入父行（不重复展示）
         NSString *ame428_vid = ame428_e[@"id"];
 
-        // 注册表关联（engage 前的未登记版本：显示名 = 版本 id；选用时补登记）
-        NSArray<NSString *> *ame428_refs = [PLProfiles ame428_profileNamesReferencingVid:ame428_vid];
-        NSString *ame428_link = ame428_refs.count > 0 ? ame428_refs.firstObject : nil;
-        NSDictionary *ame428_linkProfile = (ame428_link && [ame428_profiles[ame428_link] isKindOfClass:[NSDictionary class]])
-            ? ame428_profiles[ame428_link] : nil;
+        NSMutableDictionary *ame428_row = [[self ame444_makeRowForScanEntry:ame428_e
+                                                                   profiles:ame428_profiles
+                                                                   selected:ame428_selected] mutableCopy];
+        ame428_row[@"childIds"] = (ame428_kidsByParent[ame428_vid] ?: @[]);
 
-        BOOL ame428_alias = [self ame_isLatestAlias:ame428_vid];
-        NSString *ame428_loader = (ame428_vid && !ame428_alias)
-            ? [ModLoaderIconHelper detectLoaderFromVersionId:ame428_vid] : nil;
-        NSDictionary *ame428_parsed = (ame428_vid && !ame428_alias)
-            ? [ModpackExportService parseVersionId:ame428_vid] : @{};
-        NSString *ame428_mc = ame428_parsed[@"minecraft"] ?: (ame428_alias ? @"" : ame428_vid);
-
-        [ame428_rows addObject:@{
-            @"name": (ame428_link ?: ame428_vid),                  // 卡片显示名：关联实例名优先
-            @"profileName": (ame428_link ?: @""),                  // engage 动作目标（注册表键）
-            @"registered": @(ame428_link.length > 0),
-            @"versionId": ame428_vid ?: @"",
-            @"loader": ame428_loader ?: @"",
-            @"mcVersion": ame428_mc ?: @"",
-            @"summary": [self ame_formatLastPlayed:ame428_linkProfile[@"lastPlayed"]],
-            @"valid": @([ame428_e[@"jsonState"] integerValue] == 1),
-            @"damaged": @([ame428_e[@"jsonBroken"] boolValue]),
-            @"childIds": (ame428_kidsByParent[ame428_vid] ?: @[]),
-            @"isSelected": @([ame428_selectedProfile[@"lastVersionId"] isKindOfClass:[NSString class]] &&
-                [ame428_selectedProfile[@"lastVersionId"] isEqualToString:ame428_vid]),
-        }];
+        // ★Task444：子行完整数据（展开行渲染源；isChild 标记驱动缩进样式）
+        NSArray<NSDictionary *> *ame444_kidEntries = ame444_childEntriesByParent[ame428_vid];
+        if (ame444_kidEntries.count > 0) {
+            NSMutableArray<NSDictionary *> *ame444_childRows = [NSMutableArray array];
+            for (NSDictionary *ame444_kid in ame444_kidEntries) {
+                NSMutableDictionary *ame444_childRow = [[self ame444_makeRowForScanEntry:ame444_kid
+                                                                                profiles:ame428_profiles
+                                                                                selected:ame428_selected] mutableCopy];
+                ame444_childRow[@"isChild"] = @YES;
+                ame444_childRow[@"parentVid"] = ame428_vid;
+                [ame444_childRows addObject:ame444_childRow];
+            }
+            ame428_row[@"childRows"] = ame444_childRows;
+        }
+        [ame428_rows addObject:ame428_row];
     }
     self.ame_allRows = ame428_rows;
+}
+
+/// ★Task444：行构建同构抽取（原 ame_rebuildData 内联字段构建平移；父/子
+/// 条目共用同一字段口径，子行由调用方追加 isChild/parentVid/childIds）。
+/// name = 关联实例名优先（未登记回落版本 id），与既有消费链逐字段一致。
+- (NSDictionary *)ame444_makeRowForScanEntry:(NSDictionary *)entry
+                                    profiles:(NSDictionary *)profiles
+                                    selected:(NSString *)selected {
+    NSString *ame444_vid = entry[@"id"];
+    // 注册表关联（engage 前的未登记版本：显示名 = 版本 id；选用时补登记）
+    NSArray<NSString *> *ame444_refs = [PLProfiles ame428_profileNamesReferencingVid:ame444_vid];
+    NSString *ame444_link = ame444_refs.count > 0 ? ame444_refs.firstObject : nil;
+    NSDictionary *ame444_linkProfile = (ame444_link && [profiles[ame444_link] isKindOfClass:[NSDictionary class]])
+        ? profiles[ame444_link] : nil;
+    NSDictionary *ame444_selectedProfile = [profiles[selected] isKindOfClass:[NSDictionary class]]
+        ? profiles[selected] : nil;
+
+    BOOL ame444_alias = [self ame_isLatestAlias:ame444_vid];
+    NSString *ame444_loader = (ame444_vid && !ame444_alias)
+        ? [ModLoaderIconHelper detectLoaderFromVersionId:ame444_vid] : nil;
+    NSDictionary *ame444_parsed = (ame444_vid && !ame444_alias)
+        ? [ModpackExportService parseVersionId:ame444_vid] : @{};
+    NSString *ame444_mc = ame444_parsed[@"minecraft"] ?: (ame444_alias ? @"" : ame444_vid);
+
+    return @{
+        @"name": (ame444_link ?: ame444_vid),                  // 卡片显示名：关联实例名优先
+        @"profileName": (ame444_link ?: @""),                  // engage 动作目标（注册表键）
+        @"registered": @(ame444_link.length > 0),
+        @"versionId": ame444_vid ?: @"",
+        @"loader": ame444_loader ?: @"",
+        @"mcVersion": ame444_mc ?: @"",
+        @"summary": [self ame_formatLastPlayed:ame444_linkProfile[@"lastPlayed"]],
+        @"valid": @([entry[@"jsonState"] integerValue] == 1),
+        @"damaged": @([entry[@"jsonBroken"] boolValue]),
+        @"childIds": @[],
+        @"isSelected": @([ame444_selectedProfile[@"lastVersionId"] isKindOfClass:[NSString class]] &&
+            [ame444_selectedProfile[@"lastVersionId"] isEqualToString:ame444_vid]),
+    };
 }
 
 - (BOOL)ame_isVersionIdValid:(NSString *)versionId {
@@ -694,6 +738,19 @@ static UIImage *ZL2VersionsSystemImage(NSString *name, NSString *fallback) {
     }
     for (NSDictionary *row in visibleRows) {
         [self.cardsStack addArrangedSubview:[self ame_cardForRow:row]];
+        // ★Task444：展开态父行下插入派生版本子行（子行跟随父行过滤语义，
+        //   不参与分类计数——计数仍按顶级行口径）；收起态仅父行。
+        if (![row[@"isChild"] boolValue]) {
+            NSString *ame444_vid = row[@"versionId"];
+            NSArray<NSDictionary *> *ame444_childRows = [row[@"childRows"] isKindOfClass:[NSArray class]]
+                ? row[@"childRows"] : @[];
+            if (ame444_vid.length > 0 && ame444_childRows.count > 0 &&
+                [self.ame444_expandedVids containsObject:ame444_vid]) {
+                for (NSDictionary *ame444_childRow in ame444_childRows) {
+                    [self.cardsStack addArrangedSubview:[self ame_cardForRow:ame444_childRow]];
+                }
+            }
+        }
     }
 }
 
@@ -731,6 +788,9 @@ static UIImage *ZL2VersionsSystemImage(NSString *name, NSString *fallback) {
     NSArray<NSString *> *childIds = [row[@"childIds"] isKindOfClass:[NSArray class]]
         ? row[@"childIds"] : @[];
     BOOL isSelected = [row[@"isSelected"] boolValue];
+    // ★Task444：子行标记（派生版本展开行）——缩进样式 + 显示名前缀；
+    //   动作目标（profileName/versionId）不受前缀污染（显示/动作分离）。
+    BOOL ame444_isChild = [row[@"isChild"] boolValue];
 
     ZL2VersionsTapControl *card = [[ZL2VersionsTapControl alloc] init];
     card.backgroundColor = [ZL2Theme surfaceContainer];
@@ -800,7 +860,11 @@ static UIImage *ZL2VersionsSystemImage(NSString *name, NSString *fallback) {
 
     // —— 中列：版本名 / 描述 / 标签行 ——
     UILabel *nameLabel = [[UILabel alloc] init];
-    nameLabel.text = profileName;
+    // ★Task444：子行显示名加「⤷ 」前缀（纯字符缩进语义，不入 i18n 表；
+    //   name 原值仍是动作目标，前缀只落显示面）
+    nameLabel.text = ame444_isChild
+        ? [NSString stringWithFormat:@"⤷ %@", profileName]
+        : profileName;
     nameLabel.font = [ZL2Theme fontLabelLarge];
     nameLabel.textColor = [ZL2Theme onSurface];
     nameLabel.numberOfLines = 1;
@@ -919,7 +983,32 @@ static UIImage *ZL2VersionsSystemImage(NSString *name, NSString *fallback) {
         }
     };
 
-    UIStackView *rightStack = [[UIStackView alloc] initWithArrangedSubviews:@[settingsButton, moreButton]];
+    // ★Task444：父行派生版本展开/收起钮（childIds>0 时追加第三枚；子行无钮）
+    ZL2VersionsTapControl *ame444_expandButton = nil;
+    if (childIds.count > 0 && !ame444_isChild) {
+        BOOL ame444_open = [self.ame444_expandedVids containsObject:versionId];
+        ame444_expandButton = [self iconButtonWithImageName:(ame444_open ? @"chevron.up" : @"chevron.down")
+                                                   fallback:nil
+                                                       size:32
+                                             accessibility:localize(@"ame444.vers.derived_toggle", @"派生版本")];
+        ame444_expandButton.ame_action = ^{
+            if (!weakSelf.ame444_expandedVids) {
+                weakSelf.ame444_expandedVids = [NSMutableSet set];
+            }
+            if ([weakSelf.ame444_expandedVids containsObject:versionId]) {
+                [weakSelf.ame444_expandedVids removeObject:versionId];
+            } else {
+                [weakSelf.ame444_expandedVids addObject:versionId];
+            }
+            [weakSelf ame_rebuildList];
+        };
+    }
+
+    // ★Task444：展开钮有则追加进右列（子行与无派生父行保持两枚原样）
+    NSArray<UIView *> *ame444_rightItems = ame444_expandButton
+        ? @[settingsButton, moreButton, ame444_expandButton]
+        : @[settingsButton, moreButton];
+    UIStackView *rightStack = [[UIStackView alloc] initWithArrangedSubviews:ame444_rightItems];
     // ★ Task399：竖排改横排（对不齐根修，见上注释）
     rightStack.axis = UILayoutConstraintAxisHorizontal;
     rightStack.alignment = UIStackViewAlignmentCenter;
@@ -937,7 +1026,9 @@ static UIImage *ZL2VersionsSystemImage(NSString *name, NSString *fallback) {
     [NSLayoutConstraint activateConstraints:@[
         [innerRow.topAnchor constraintEqualToAnchor:card.topAnchor constant:14],
         [innerRow.bottomAnchor constraintEqualToAnchor:card.bottomAnchor constant:-14],
-        [innerRow.leadingAnchor constraintEqualToAnchor:card.leadingAnchor constant:14],
+        // ★Task444：子行整体右缩 12pt（层级缩进与「⤷ 」前缀双重辨识）
+        [innerRow.leadingAnchor constraintEqualToAnchor:card.leadingAnchor
+                                               constant:(ame444_isChild ? 26.0 : 14.0)],
         [innerRow.trailingAnchor constraintEqualToAnchor:card.trailingAnchor constant:-14],
 
         [radioButton.widthAnchor constraintEqualToConstant:20],

@@ -43,20 +43,23 @@ check('A2 假阳性抑制分支（[Ame442] suppressed 日志 + 指引改道语�
       '[Ame442] auto-rescue arming suppressed' in mh
       and 'mirror track is the only viable track under TXM debugger JIT' in mh
       and 'per-app script reassignment guidance applies instead' in mh)
-check('A3 取证 marker（ame442_mapping_pattern.txt 落盘 + 判决行）',
+check('A3 取证 marker（ame442_mapping_pattern.txt 落盘 + verdict 分叉诚实落盘）',
       'ame442_mapping_pattern.txt' in mh
-      and 'verdict=channel fake-positive at dialog time (mapping-response pattern; Task442, gen2 issue#3 round4)' in mh
-      and 'healthy_grant=low user-space RX + RW=0x7000000000 fixed base' in mh
-      and 'broken_grant=RX in debugger alias pool + RW=RX+64MB pair' in mh)
+      and 'verdict=%s' in mh
+      and 'channel fake-positive (mapping-response pattern conviction' in mh
+      and 'inconclusive via pattern axis (parse failed or healthy-shape grant' in mh
+      and 'healthy_grant=low user-space RX (run1 0x173518000) + RW=RX+64MB alias' in mh
+      and 'broken_grant=RX in debugger alias pool >= 0x1000000000 (run2 0x700d300000) + RW=RX+64MB pair' in mh)
 
 # ══ B 形态判决（扫描捕获 + 双判据）═════════════════════════════
 check('B1 扫描期捕获最后一次映射应答行（ame442_mapline = s）',
       'const char *ame442_mapline = NULL;' in mh
       and 'if (strstr(s, "mapping at RW=") != NULL) ame442_mapline = s;' in mh)
-check('B2 形态双判据（RX ≥ 0x1000000000 别名池 ∨ RW-RX==0x4000000 64MB 成对）',
+check('B2 形态判据单轴（RX ≥ 0x1000000000 别名池；★Task448 RW−RX 64MB 轴退役=健康 Run1 同为 64MB 成对零区分度，+5 偏移解析在位）',
       'ame442_rx >= 0x1000000000ULL' in mh
-      and 'ame442_rw - ame442_rx == 0x4000000ULL' in mh
-      and 'strtoull' in mh)
+      and 'ame442_rw - ame442_rx == 0x4000000ULL' not in mh
+      and 'strtoull(ame442_p + 5, NULL, 16)' in mh
+      and 'BOOL ame442_patternParsed' in mh)
 check('B3 形态定罪日志（[Ame442] conviction + Run1/Run2 证据句）',
       '[Ame442] mapping-response pattern conviction' in mh
       and 'run1/run2 verbatim comparison' in mh)

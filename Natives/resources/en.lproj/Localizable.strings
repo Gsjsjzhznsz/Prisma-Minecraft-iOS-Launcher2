@@ -4177,6 +4177,7 @@
 "ame428.iso.row.title" = "Version Isolation";
 "ame428.shell.virtual_controls" = "Virtual Buttons";
 "ame428.vers.children_fmt" = " · %lu derived versions";
+"ame444.vers.derived_toggle" = "Derived versions";
 "ame428.vers.json_damaged" = "Metadata damaged";
 "ame428.vpage.export_modpack" = "Export Modpack";
 

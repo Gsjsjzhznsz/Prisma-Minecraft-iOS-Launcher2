@@ -4,6 +4,8 @@
 */
 
 "game.menu.force_close" = "強制終了";
+
+"ame444.vers.derived_toggle" = "派生バージョン";
 "game.menu.confirm.force_close" = "本当に強制終了しますか？";
 "game.menu.log_output" = "ログ";
 "game.menu.custom_controls" = "カスタムコントロール";

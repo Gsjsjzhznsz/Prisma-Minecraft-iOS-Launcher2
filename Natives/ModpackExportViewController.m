@@ -62,10 +62,15 @@
             // 分栏居中：label.centerX = self.width * (i+1)/3
             // ★Task428-r1：NSLayoutXAxisAnchor 无 multiplier 变体（系统间距除外）——
             //   回退 NSLayoutConstraint constraintWithItem 经典 API（multiplier 原生支持）
+            // ★ Task446: 根因修复"Invalid pairing of layout attributes"闪退——原第二属性
+            //   写成 NSLayoutAttributeWidth，centerX（水平位置属性）配 width（尺寸属性）
+            //   属跨维度配对，iOS 17+ 在 constraintWithItem 创建时即抛异常。
+            //   改为 centerX↔centerX + multiplier ×2(i+1)/3：self.centerX = self.width/2，
+            //   故 label.centerX = width/2 * 2(i+1)/3 = width*(i+1)/3，与原设计意图等价。
             [labelConstraints addObject:[NSLayoutConstraint
                 constraintWithItem:label attribute:NSLayoutAttributeCenterX
-                relatedBy:NSLayoutRelationEqual toItem:self attribute:NSLayoutAttributeWidth
-                multiplier:((CGFloat)(i + 1) / 3.0) constant:0.0]];
+                relatedBy:NSLayoutRelationEqual toItem:self attribute:NSLayoutAttributeCenterX
+                multiplier:((CGFloat)(i + 1) * 2.0 / 3.0) constant:0.0]];
             [labelConstraints addObject:[label.topAnchor constraintEqualToAnchor:self.topAnchor constant:38]];
             [labelConstraints addObject:[label.heightAnchor constraintLessThanOrEqualToConstant:20]];
         }

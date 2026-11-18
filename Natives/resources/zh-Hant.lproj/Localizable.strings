@@ -4174,6 +4174,7 @@
 "ame428.iso.row.title" = "版本隔離";
 "ame428.shell.virtual_controls" = "虛擬按鍵";
 "ame428.vers.children_fmt" = " · %lu 衍生版本";
+"ame444.vers.derived_toggle" = "衍生版本";
 "ame428.vers.json_damaged" = "元資料損壞";
 "ame428.vpage.export_modpack" = "匯出整合包";
 

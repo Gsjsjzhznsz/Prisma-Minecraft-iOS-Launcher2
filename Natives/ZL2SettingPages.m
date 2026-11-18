@@ -25,8 +25,18 @@
 //                                  Task255/256 单一事实源）
 //   java.jvm_preset_custom_args    自定义 JVM 参数（预设=custom 时注入）
 //   java.java_args                 JVM 启动参数（全局）
-//   internal.isolated              版本隔离（实例 plist 键；写后 toggleIsolatedPref(NO)
-//                                  重算应用——LauncherPreferences 既有契约）
+//   ★Task447: 版本隔离行改读【真实隔离态】——原读 internal.isolated（实例
+//                                  plist 偏好桶键）与本仓隔离四消费链（启动链
+//                                  JavaLauncher/ModService/版本详情页/版本列表
+//                                  engage）脱钩 = 写 A 读 B。现读侧 =
+//                                  PLProfiles ame428 决策树（profile gameDir
+//                                  锚定 + versions/<vid>/version.config 覆盖
+//                                  + general.isolation_default 全局默认档，
+//                                  启动链同源），写侧经 ame428 搬移流 +
+//                                  version.config + gameDir 三件套；
+//                                  internal.isolated 偏好桶机制原样保留
+//                                  （存量设备启动语义零回归，仅不再从本行
+//                                  读写——见 ame447_applyIsolationToggle: 注）
 //   ★Task432：底部「更多设置」行退役（长尾已直挂分组）
 //
 // ③ 控制屏（旧「触控设置」页顶层项，TouchControllerPreferencesViewController 同键族）
@@ -766,6 +776,22 @@ static NSUInteger ame432_paletteEchoIndex(NSInteger mode) {
 
 #pragma mark - ② 游戏屏
 
+// ★ Task447: PLProfiles ame428 族本地前置声明（PLProfiles.h 未暴露该族——
+//   ZL2VersionPages.m L96 同判例：类目前置声明，签名与 PLProfiles.m 实现
+//   逐字对齐勿漂移）。版本隔离行真实态读/写消费，替代原 internal.isolated
+//   偏好桶直读直写（写 A 读 B 根修，见 ame_buildGroups 组 2 注）。
+@interface PLProfiles (Ame428Task447Settings)
++ (NSInteger)ame428_effectiveIsolationForVid:(NSString *)vid profile:(NSDictionary *)profile;
++ (NSInteger)ame428_overrideForVid:(NSString *)vid;
++ (NSInteger)ame428_globalDefault;
++ (BOOL)ame428_writeOverride:(NSInteger)override vid:(NSString *)vid;
++ (void)ame428_presentIsolationMoveFlowFrom:(UIViewController *)presenter
+                                        vid:(NSString *)vid
+                                 toIsolated:(BOOL)toIsolated
+                                     reason:(NSString *)reason
+                                  onCommit:(void (^)(void))onCommit;
+@end
+
 @interface ZL2GameSettingsPage ()
 @property (nonatomic, strong) ZL2SettingRowSlider *memoryRow;
 @property (nonatomic, strong) ZL2SettingRowEnum *presetRow;
@@ -856,15 +882,24 @@ static NSUInteger ame432_paletteEchoIndex(NSInteger mode) {
     [self ame_addGroup:group1];
 
     // --- 组 2：实例 ---
-    // 版本隔离（internal.isolated——实例 plist 键；写后 toggleIsolatedPref(NO)
-    // 重算应用，LauncherPreferences 既有契约；重启后完全生效）
+    // ★ Task447: 版本隔离行改读【真实隔离态】。原实现读偏好桶键
+    //   internal.isolated（PojavLauncher 遗留「独立偏好集」开关）——该键除
+    //   本行自身外全仓零写入方，而本仓真实隔离（安装器自动隔离 gameDir、
+    //   版本详情页三选 version.config、全局默认档）全部经 PLProfiles ame428
+    //   决策树消费 = 用户在版本详情页存下的隔离值在这枚开关上永远不可见
+    //   （写 A 读 B），装机复诉「版本隔离界面的数据还是没有」根因。
+    //   现读侧 = ame428_effectiveIsolationForVid（与启动链 JavaLauncher
+    //   gameDir 对齐块同一事实源），开关 = 有效隔离态，副标题携带状态来源；
+    //   写侧 = ame447_applyIsolationToggle:（gameDir + version.config +
+    //   ame428 数据搬移流三件套）。internal.isolated 偏好桶机制原样保留
+    //   （存量设备启动语义零回归，仅此行不再读写）。
     ZL2SettingRowSwitch *isolationRow =
         [[ZL2SettingRowSwitch alloc] initWithTitle:@"" subtitle:nil];
     isolationRow.title = localize(@"ame369.setpg.version_isolation", @"版本隔离");
-    isolationRow.subtitle = localize(@"ame369.setpg.version_isolation.subtitle", @"当前游戏目录使用独立偏好集（重启启动器后完全生效）");
-    [isolationRow ame_setOn:getPrefBool(@"internal.isolated")];
+    isolationRow.subtitle = [self ame447_isolationStateText];
+    [isolationRow ame_setOn:[self ame447_isolationSwitchOn]];
     isolationRow.onToggle = ^(BOOL on) {
-        [weakSelf ame_writeInstanceIsolation:on];
+        [weakSelf ame447_applyIsolationToggle:on];
     };
     self.isolationRow = isolationRow;
 
@@ -957,22 +992,155 @@ static NSUInteger ame432_paletteEchoIndex(NSInteger mode) {
     //  本页分组直挂，长尾不再经旧设置页兜底）
 }
 
-// 版本隔离写入：直接落实例 plist 的 internal.isolated（PLPreferences
-// toggleIsolationForced 的读取源），再 toggleIsolatedPref(NO) 重算应用
-- (void)ame_writeInstanceIsolation:(BOOL)on {
-    const char *gameDir = getenv("POJAV_GAME_DIR");
-    if (!gameDir) return;   // 环境未就绪：放弃写入（不造假成功）
-    NSString *instancePath = [NSString stringWithFormat:@"%s/launcher_preferences.plist", gameDir];
-    NSMutableDictionary *dict =
-        [[NSMutableDictionary dictionaryWithContentsOfFile:instancePath] mutableCopy]
-            ?: [NSMutableDictionary dictionary];
-    NSMutableDictionary *internalSection =
-        [[dict objectForKey:@"internal"] mutableCopy] ?: [NSMutableDictionary dictionary];
-    internalSection[@"isolated"] = @(on);
-    dict[@"internal"] = internalSection;
-    [dict writeToFile:instancePath atomically:YES];
-    toggleIsolatedPref(NO);
-    NSLog(@"[ZL2Settings] instance isolation -> %d (%@)", on, instancePath);
+#pragma mark - ★ Task447: 版本隔离行真实态装载/写入（ame428 决策树单源对齐）
+
+// 开关态 = 当前选中实例（PLProfiles.selectedProfile，与本页内存行同桶）
+// 版本的有效隔离（ame428_effectiveIsolationForVid：profile gameDir 锚定 /
+// versions/<vid>/version.config 覆盖 / general.isolation_default 全局默认
+// / MODDED 自动嗅探四层决策树）。不可操作态（未选版本/latest 别名/A3
+// 自定义路径）一律 NO，原因由副标题如实呈现。
+- (BOOL)ame447_isolationSwitchOn {
+    NSDictionary *profile = [[PLProfiles current] selectedProfile];
+    if (![profile isKindOfClass:[NSDictionary class]]) return NO;
+    NSString *vid = [profile[@"lastVersionId"] isKindOfClass:[NSString class]]
+        ? profile[@"lastVersionId"] : nil;
+    if (vid.length == 0) return NO;
+    return ([PLProfiles ame428_effectiveIsolationForVid:vid profile:profile] == 1);
+}
+
+// 副标题 = 真实状态 + 来源（读侧与启动链同源，用户在设置页看到的即启动
+// 时会发生的目录归属）。ZL2 域动态文案按本文件 i18n 纪律属性行硬编码中文。
+- (NSString *)ame447_isolationStateText {
+    NSDictionary *profile = [[PLProfiles current] selectedProfile];
+    if (![profile isKindOfClass:[NSDictionary class]]) {
+        return @"当前未选中实例，安装或选用实例后可管理版本隔离";
+    }
+    NSString *vid = [profile[@"lastVersionId"] isKindOfClass:[NSString class]]
+        ? profile[@"lastVersionId"] : nil;
+    if (vid.length == 0) {
+        return @"当前实例未选择版本，安装或选用版本后可管理版本隔离";
+    }
+    if ([vid hasPrefix:@"latest-"] || [vid isEqualToString:@"latest"]) {
+        return @"当前版本为线上别名（latest-*），启动时在线解析，安装正式版本后可管理隔离";
+    }
+    NSString *gd = [profile[@"gameDir"] isKindOfClass:[NSString class]]
+        ? profile[@"gameDir"] : nil;
+    BOOL ame447_a2 = (gd.length > 0
+        && ([gd isEqualToString:[NSString stringWithFormat:@"versions/%@", vid]]
+            || [gd isEqualToString:[NSString stringWithFormat:@"versions/%@/game", vid]]));
+    BOOL ame447_a3 = (gd.length > 0 && !ame447_a2
+        && ![gd isEqualToString:@"."] && ![gd isEqualToString:@"./"]);
+    if (ame447_a3) {
+        return @"自定义游戏目录——不受版本隔离管辖（版本详情页同口径）";
+    }
+    NSInteger ame447_ov = [PLProfiles ame428_overrideForVid:vid];
+    NSInteger ame447_gl = [PLProfiles ame428_globalDefault];
+    NSInteger ame447_eff = [PLProfiles ame428_effectiveIsolationForVid:vid profile:profile];
+    if (ame447_eff == 1) {
+        NSString *ame447_src;
+        if (ame447_ov == 1) ame447_src = @"版本级覆盖·启用";
+        else if (ame447_a2) ame447_src = @"实例目录锚定（gameDir）";
+        else ame447_src = (ame447_gl == 1)
+            ? @"全局默认档·始终隔离"
+            : @"全局默认档·自动（检测到模组/加载器）";
+        return [NSString stringWithFormat:@"已隔离：数据独立存放于 versions/%@/（来源：%@）", vid, ame447_src];
+    }
+    NSString *ame447_src;
+    if (ame447_ov == 2) ame447_src = @"版本级覆盖·显式禁用";
+    else if (ame447_gl == 2) ame447_src = @"全局默认档·从不隔离";
+    else ame447_src = @"跟随全局默认·自动（未检测到模组/加载器）";
+    return [NSString stringWithFormat:@"未隔离（%@，与实例根共享数据目录）", ame447_src];
+}
+
+// 版本隔离写入 = 真实链（替代原 ame_writeInstanceIsolation: 的
+// internal.isolated 偏好桶直写——该键除本行外全仓零写入方，且与启动链/
+// ModService/版本详情页/engage 四消费链脱钩）。两态映射与旧 ProfileSettings
+// 三态选择器（Task217/224，gameDir 锚定制）+ Task428 决策树对齐，保证
+// 「开关状态 ↔ 有效态」往返确定：
+//   ON  → profile gameDir = versions/<vid>（Task322 新口径锚定，ModService
+//         mods 解析/ame219 徽标/启动链嗅探全栈同向）+ version.config
+//         isolation=1（显式启用，防全局默认档翻转回退）；
+//   OFF → profile gameDir = "."（共享）+ version.config isolation=2
+//         （显式禁用可压过全局默认档「始终/自动」——无此键则 gl=始终的
+//         设备 OFF 后下次启动又被翻转）。
+// 翻转涉及用户数据搬移时复用 ame428_presentIsolationMoveFlow（确认框 +
+// 快照 + 失败回滚，与版本详情页隔离行/版本列表 engage 流同一实现防漂移）；
+// 取消不落任何状态（开关视觉先按真实态回拨）。internal.isolated 偏好桶
+// 键自此不再有 UI 写入方：存量已开启设备启动语义不变（PLPreferences
+// toggleIsolationForced 照常读实例 plist），需要关闭走「重置设置」（诚实
+// 取舍入档 worklog）。
+- (void)ame447_applyIsolationToggle:(BOOL)on {
+    NSDictionary *profile = [[PLProfiles current] selectedProfile];
+    NSString *vid = [profile[@"lastVersionId"] isKindOfClass:[NSString class]]
+        ? profile[@"lastVersionId"] : nil;
+    NSString *gd = [profile[@"gameDir"] isKindOfClass:[NSString class]]
+        ? profile[@"gameDir"] : nil;
+    NSString *ame447_refuse = nil;
+    if (!profile || vid.length == 0) {
+        ame447_refuse = @"当前实例未选择版本，无法切换版本隔离";
+    } else if ([vid hasPrefix:@"latest-"] || [vid isEqualToString:@"latest"]) {
+        ame447_refuse = @"线上别名版本（latest-*）启动时才解析，无法在此切换隔离";
+    } else if (gd.length > 0
+        && ![gd isEqualToString:@"."]
+        && ![gd isEqualToString:@"./"]
+        && ![gd isEqualToString:[NSString stringWithFormat:@"versions/%@", vid]]
+        && ![gd isEqualToString:[NSString stringWithFormat:@"versions/%@/game", vid]]) {
+        ame447_refuse = @"自定义游戏目录实例不受版本隔离管辖";
+    }
+    __weak typeof(self) weakSelf = self;
+    if (ame447_refuse) {
+        // 开关视觉已被用户翻转 → 按真实态回拨（拒绝路径零状态变化）
+        [weakSelf ame_refreshState];
+        UIAlertController *ame447_alert = [UIAlertController
+            alertControllerWithTitle:localize(@"ame369.setpg.version_isolation", @"版本隔离")
+                             message:ame447_refuse
+                      preferredStyle:UIAlertControllerStyleAlert];
+        [ame447_alert addAction:[UIAlertAction actionWithTitle:localize(@"OK", nil)
+                                                         style:UIAlertActionStyleDefault
+                                                       handler:nil]];
+        [self ame_presentVC:ame447_alert];
+        return;
+    }
+
+    NSInteger ame447_before = [PLProfiles ame428_effectiveIsolationForVid:vid profile:profile];
+    // 开关视觉先回拨真实态：用户取消迁移确认框时界面不残留假态
+    [weakSelf ame_refreshState];
+
+    void (^ame447_commit)(void) = ^{
+        NSMutableDictionary *ame447_live = [[PLProfiles current] selectedProfile];
+        if (![ame447_live isKindOfClass:[NSMutableDictionary class]]) return;
+        ame447_live[@"gameDir"] = on
+            ? [NSString stringWithFormat:@"versions/%@", vid]
+            : @".";
+        // version.config 覆盖仅在版本目录在场时落（ame428_writeOverride 会
+        // 创建 versions/<vid>/——OFF 且目录缺席时写它 = 凭空造出 jsonState=0
+        // 的「损坏」扫描条目；此场景 gameDir="." 已足以共享，全局默认档
+        // 「始终隔离」+ 目录缺席的极端组合在启动链才建目录，此处不预造）。
+        NSString *ame447_root = @(getenv("POJAV_GAME_DIR") ?: "");
+        NSString *ame447_vdir = (ame447_root.length > 0)
+            ? [[ame447_root stringByAppendingPathComponent:@"versions"]
+                stringByAppendingPathComponent:vid] : @"";
+        if (ame447_vdir.length > 0 &&
+            [NSFileManager.defaultManager fileExistsAtPath:ame447_vdir]) {
+            [PLProfiles ame428_writeOverride:(on ? 1 : 2) vid:vid];
+        }
+        [[PLProfiles current] save];
+        [[NSNotificationCenter defaultCenter] postNotificationName:@"ReloadProfileList" object:nil];
+        NSLog(@"[ZL2Settings] Task447: isolation -> %@ (vid=%@, gameDir=%@, override=%ld)",
+              on ? @"ON" : @"OFF", vid, ame447_live[@"gameDir"], on ? 1L : 2L);
+        [weakSelf ame_refreshState];
+    };
+
+    if ((ame447_before == 1) != on) {
+        // 有效态将翻转：数据搬移走共享呈现流（确认 + 快照 + 失败回滚）
+        [PLProfiles ame428_presentIsolationMoveFlowFrom:self
+                                                    vid:vid
+                                             toIsolated:on
+                                                 reason:@"settings-game-row"
+                                               onCommit:ame447_commit];
+        return;
+    }
+    ame447_commit();
 }
 
 - (void)ame_refreshState {
