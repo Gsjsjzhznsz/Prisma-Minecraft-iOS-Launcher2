@@ -87,6 +87,7 @@ NSString *const Ame223WallpaperChangedNotification = @"Ame223WallpaperChanged";
 @interface BackgroundManager : NSObject
 + (instancetype)sharedManager;
 - (void)makeViewControllerTransparent:(UIViewController *)viewController;
+- (void)ame449_applyWallpaperTransparencyToViewTree:(UIView *)root;   // ★Task449：chrome/卡面清扫（预览无壁纸管线 = no-op）
 @end
 
 @implementation BackgroundManager
@@ -109,6 +110,13 @@ NSString *const Ame223WallpaperChangedNotification = @"Ame223WallpaperChanged";
 //   缺失 = ZL2ShellViewController 真壳渲染 unrecognized selector 崩溃。
 - (BOOL)hasBackground {
     return NO;
+}
+
+// ★Task449：预览桩 no-op（预览无壁纸管线，清扫即还原态恒等；真实现见
+// BackgroundManager.m ame449_sweepChromeAndCardsInView——缺失 = 设置页
+// viewDidLoad unrecognized selector 崩溃，ui-smoke 判例实锤）
+- (void)ame449_applyWallpaperTransparencyToViewTree:(UIView *)root {
+    if (![root isKindOfClass:[UIView class]]) return;
 }
 
 - (nullable UIImage *)ame223_currentWallpaperImage {
