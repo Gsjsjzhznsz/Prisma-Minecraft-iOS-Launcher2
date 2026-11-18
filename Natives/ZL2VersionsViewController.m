@@ -51,6 +51,7 @@
 
 #import "ZL2VersionsViewController.h"
 #import "ZL2Theme.h"
+#import "BackgroundManager.h"   // ★Task449：chrome 壁纸清扫标记
 #import "PLProfiles.h"
 #import "ModLoaderIconHelper.h"
 #import "ModpackExportService.h"   // +parseVersionId:（lastVersionId 反解 MC 版本）
@@ -239,6 +240,7 @@ static UIImage *ZL2VersionsSystemImage(NSString *name, NSString *fallback) {
 - (void)buildViews {
     _scrollView = [[UIScrollView alloc] init];
     _scrollView.backgroundColor = [ZL2Theme surface];
+    Ame449MarkChromeSurface(_scrollView);   // ★Task449：壁纸上透出
     _scrollView.alwaysBounceVertical = YES;
     _scrollView.translatesAutoresizingMaskIntoConstraints = NO;
     [self.view addSubview:_scrollView];

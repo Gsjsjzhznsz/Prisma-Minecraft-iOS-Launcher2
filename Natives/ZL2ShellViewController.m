@@ -897,6 +897,7 @@ static UIImage *ZL2ShellSystemImageSizedEx(NSString *name, NSString *fallback, C
     self.bareHeaderView = [[UIView alloc] init];
     self.bareHeaderView.translatesAutoresizingMaskIntoConstraints = NO;
     self.bareHeaderView.backgroundColor = [ZL2Theme surface];
+    Ame449MarkChromeSurface(self.bareHeaderView);   // ★Task449：壁纸上透出（ZL2 TopBar 无底色口径）
     [self.view addSubview:self.bareHeaderView];
 
     self.bareTitleLabel = [[UILabel alloc] init];
@@ -1274,6 +1275,7 @@ static UIImage *ZL2ShellSystemImageSizedEx(NSString *name, NSString *fallback, C
     self.contentHeader = [[UIView alloc] init];
     self.contentHeader.translatesAutoresizingMaskIntoConstraints = NO;
     self.contentHeader.backgroundColor = [ZL2Theme surface];
+    Ame449MarkChromeSurface(self.contentHeader);   // ★Task449：壁纸上透出
     [self.view addSubview:self.contentHeader];
 
     self.hamburgerButton = [[ZL2ShellIconButton alloc] initWithSymbol:@"line.3.horizontal" fallback:@"text.justify"];

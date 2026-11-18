@@ -446,6 +446,12 @@ NSString *const PREF_MOD_MIRROR = @"general.mod_mirror";
             @"proxy_mode": @(0),
             @"proxy_host": @"",
             @"proxy_port": @"",
+            // ★Task449 设置折叠记忆（单键承载，防 Setter 静默丢弃族）：ui.
+            //   settings 组折叠的用户显式覆盖集，格式 = 空格分隔 token，
+            //   "+key"=用户展开（压过默认折叠）、"-key"=用户收起（压过默认
+            //   展开）；未出现的组走页面 defaultCollapsed 语义。读/写侧
+            //   ZL2SettingCardGroup ame449_foldOverride 读写链。
+            @"fold_overrides": @"",
         };
         [defaults[@"general"] addEntriesFromDictionary:general];
 

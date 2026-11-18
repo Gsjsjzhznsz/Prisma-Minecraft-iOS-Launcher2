@@ -103,7 +103,7 @@ static BOOL gPL355GateInFlight = NO;
             NSLog(@"[JIT] [Gate] Task185 openURL apple-magnifier:// -> %d", ame185_ok);
             if (!ame185_ok) {
                 dispatch_async(dispatch_get_main_queue(), ^{
-                    showDialog(localize(@"Error", nil), @"apple-magnifier:// 无响应（TrollStore JIT 助手未接管，常见于 TrollStore 版本过旧）。请更新 TrollStore，或在设置的 JIT 开启工具改用 stikjit / SideStore / StosDebug 后重试。\napple-magnifier:// not handled. Update TrollStore or switch the JIT enabler in Settings.");
+                    showDialog(localize(@"Error", nil), localize(@"ame449.jitgate.magnifier_no_response", @"apple-magnifier:// 无响应（TrollStore JIT 助手未接管，常见于 TrollStore 版本过旧）。请更新 TrollStore，或在设置的 JIT 开启工具改用 stikjit / SideStore / StosDebug 后重试。\napple-magnifier:// not handled. Update TrollStore or switch the JIT enabler in Settings."));
                 });
             }
         }];

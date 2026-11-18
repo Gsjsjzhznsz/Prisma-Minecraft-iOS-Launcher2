@@ -14,6 +14,7 @@
 
 #import "ZL2RailView.h"
 #import "ZL2Theme.h"
+#import "BackgroundManager.h"   // ★Task449：chrome 壁纸清扫标记
 
 #pragma mark - 私有项视图
 
@@ -107,6 +108,7 @@
 
     _items = [NSMutableArray array];
     self.backgroundColor = [ZL2Theme surface];
+    Ame449MarkChromeSurface(self);   // ★Task449：壁纸上透出（ZL2 rail 无底色口径）
 
     // 右缘 1pt 分隔线（outlineVariant，随深浅动态）
     _divider = [[UIView alloc] init];

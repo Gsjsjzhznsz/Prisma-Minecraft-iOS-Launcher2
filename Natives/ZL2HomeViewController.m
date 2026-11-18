@@ -935,14 +935,14 @@ static UIImage *ZL2HomeSizedImage(NSString *name, NSString *fallback, CGFloat po
     // 卡尾动作行：账户管理小钮（原账号卡点击语义收口于此）+ 选中链忙态 spinner
     _accountManageButton = [self ame_accountActionButtonWithSymbol:@"person.badge.plus"
                                                           fallback:@"person.crop.circle.badge.plus"
-                                                             title:@"添加账户"];
+                                                             title:localize(@"login.option.add", nil)];
     _accountManageButton.ame_action = ^{
         [weakSelf ame_requestAccountAction:@"ZL2AccountsRequestAdd"];
     };
     [_accountCard addSubview:_accountManageButton];
     _accountDeleteButton = [self ame_accountActionButtonWithSymbol:@"person.crop.circle.badge.minus"
                                                           fallback:@"trash"
-                                                             title:@"删除账户"];
+                                                             title:localize(@"account.menu.delete", nil)];
     _accountDeleteButton.ame_action = ^{
         [weakSelf ame_requestAccountAction:@"ZL2AccountsRequestDeleteCurrent"];
     };

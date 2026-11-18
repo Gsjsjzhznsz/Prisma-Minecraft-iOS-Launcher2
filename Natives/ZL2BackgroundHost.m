@@ -168,6 +168,9 @@ static const CGFloat Ame429DimSpan = 0.20;
     for (UIViewController *child in ownerVC.childViewControllers) {
         child.view.backgroundColor = [ZL2Theme surface];
     }
+    // ★Task449：chrome/卡面标记面对称还原（壳层顶栏/设置左轨等标记面回
+    // ZL2Theme surface，卡面回基色——透明化管线的无壁纸侧收口）
+    [[BackgroundManager sharedManager] ame449_applyWallpaperTransparencyToViewTree:ownerVC.view];
 }
 
 @end

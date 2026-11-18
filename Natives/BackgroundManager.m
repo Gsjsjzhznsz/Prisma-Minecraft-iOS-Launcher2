@@ -796,6 +796,44 @@ static const CGFloat Ame429WallpaperMaxPixelCap = 2048.0;
     }
 }
 
+#pragma mark - ★Task449 壳层 chrome/卡面清扫（壁纸可见性对标 ZL2 矩阵）
+
+static void *kAme449CardBaseColorKey = &kAme449CardBaseColorKey;
+
+void Ame449MarkCardSurface(UIView *view) {
+    if (!view) return;
+    view.tag = kAme449CardSurfaceTag;
+    objc_setAssociatedObject(view, kAme449CardBaseColorKey, view.backgroundColor,
+                             OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+}
+
+// 卡面透明态：基色×α(max(uiOpacity, 0.5))——ZL2 cardColor·α(opacity/100)
+// 对标；0.5 下限 = 可读性护栏（ZL2 滑条 20 起步语义在本仓卡面档内的等值落点，
+// 壁纸本体另有 uiOpacity 直调，双层叠压不至文字没入壁纸）。
+- (void)ame449_sweepChromeAndCardsInView:(UIView *)root transparent:(BOOL)transparent {
+    if (!root) return;
+    if (root.tag == kAme449ChromeSurfaceTag) {
+        root.backgroundColor = transparent ? [UIColor clearColor] : [ZL2Theme surface];
+    } else if (root.tag == kAme449CardSurfaceTag) {
+        UIColor *base = objc_getAssociatedObject(root, kAme449CardBaseColorKey);
+        if (base) {
+            root.backgroundColor = transparent
+                ? [base colorWithAlphaComponent:MAX(self.uiOpacity, 0.5)]
+                : base;
+        }
+    }
+    for (UIView *sub in root.subviews) {
+        [self ame449_sweepChromeAndCardsInView:sub transparent:transparent];
+    }
+}
+
+// 统一入口（建页后一次 + Task152 无→有重走链共用）：透明态 = hasBackground，
+// 还原态 = 无壁纸（对称面，ZL2BackgroundHost 无壁纸还原路径同源）
+- (void)ame449_applyWallpaperTransparencyToViewTree:(UIView *)root {
+    if (!root) return;
+    [self ame449_sweepChromeAndCardsInView:root transparent:[self hasBackground]];
+}
+
 - (void)makeViewControllerTransparent:(UIViewController *)viewController {
     if (!viewController) return;
 
@@ -851,6 +889,10 @@ static const CGFloat Ame429WallpaperMaxPixelCap = 2048.0;
     for (UIViewController *childVC in viewController.childViewControllers) {
         [self makeViewControllerTransparent:childVC];
     }
+
+    // ★Task449：chrome/卡面标记面清扫（页根之外的整块底色面 + MD3 卡面）。
+    // 放子 VC 递归后 = 子树旗标面一次清完；幂等可重入（Task152 无→有链复用）。
+    [self ame449_sweepChromeAndCardsInView:viewController.view transparent:YES];
 
     // Task161：模态弹窗页面级毛玻璃底收口到方法末尾——必须在上方
     // UITableViewController 分支（backgroundView = nil）之后执行，否则

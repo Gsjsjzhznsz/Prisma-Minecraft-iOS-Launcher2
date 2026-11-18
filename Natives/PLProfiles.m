@@ -1170,7 +1170,7 @@ static void ame428_dosDateTime(NSDate *when, uint16_t *outTime, uint16_t *outDat
         BOOL ame428_sDir = NO, ame428_dExists = NO;
         if (![ame428_fm fileExistsAtPath:ame428_s isDirectory:&ame428_sDir] || !ame428_sDir) continue;
         if ([ame428_fm fileExistsAtPath:ame428_d]) {
-            [ame428_skipped addObject:[NSString stringWithFormat:@"%@（目标已存在，跳过不覆盖）", ame428_item]];
+            [ame428_skipped addObject:[NSString stringWithFormat:localize(@"ame449.iso.move_skip_fmt", @"%@（目标已存在，跳过不覆盖）"), ame428_item]];
             continue;
         }
         [ame428_plan addObject:@{@"item": ame428_item, @"src": ame428_s, @"dst": ame428_d}];
@@ -1223,7 +1223,7 @@ static void ame428_dosDateTime(NSDate *when, uint16_t *outTime, uint16_t *outDat
     // —— delete 阶段（全部 copy 成功后才删源；删失败 = 双份数据，绝不丢失）——
     for (NSDictionary *ame428_step in ame428_plan) {
         if (![ame428_fm removeItemAtPath:ame428_step[@"src"] error:nil]) {
-            [ame428_failed addObject:[NSString stringWithFormat:@"%@（删源失败，两份数据并存）", ame428_step[@"item"]]];
+            [ame428_failed addObject:[NSString stringWithFormat:localize(@"ame449.iso.move_delsrc_fmt", @"%@（删源失败，两份数据并存）"), ame428_step[@"item"]]];
         }
     }
 
