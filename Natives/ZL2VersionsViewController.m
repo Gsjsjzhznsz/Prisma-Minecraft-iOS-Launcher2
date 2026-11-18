@@ -1556,7 +1556,7 @@ static NSDictionary *ame428_byIdLocal(NSArray<NSDictionary *> *list, NSString *v
             //   versions/<x> 时补挂父根（真实游戏根）——该根的 versions/ 才是
             //   版本实体所在层级；去重由 addRoot 闭包天然承担。
             NSString *ame450_parent = [ame428_resolved stringByDeletingLastPathComponent];
-            if ([ame450_parent lastPathComponent] isEqualToString:@"versions"]) {
+            if ([[ame450_parent lastPathComponent] isEqualToString:@"versions"]) {
                 ame428_addRoot([ame450_parent stringByDeletingLastPathComponent]);
             }
         }
