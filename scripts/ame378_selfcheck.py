@@ -84,8 +84,8 @@ check("A3 豁免 API 兼容保留（外部 extern 调用点零改动：文件浏
       "void ame229_labelSetStrokeExempt(UILabel *label, BOOL exempt) {" in bm
       and "void ame230_setViewTreeStrokeExempt(UIView *view, BOOL exempt) {" in bm
       and "ame229_labelIsStrokeExempt" in bm
-      and bm_code.count("objc_setAssociatedObject") == 2
-      and bm_code.count("objc_getAssociatedObject") == 1)
+      and bm_code.count("objc_setAssociatedObject") == 3   # ★Task449 重锚 2→3（卡面标记 Ame449MarkCardSurface 增设 kAme449CardBaseColorKey 关联对）
+      and bm_code.count("objc_getAssociatedObject") == 2)  # ★Task449 重锚 1→2（同上清扫读取侧）
 
 check("A4 ame224 四入口语义化（反色调用零残留：恒 AmeCard 动态令牌 = AmeTheme textPrimary/Secondary）",
       "return AmeCardPrimaryTextColor();" in bm_code

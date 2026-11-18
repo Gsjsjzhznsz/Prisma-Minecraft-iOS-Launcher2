@@ -3227,9 +3227,9 @@
 "ame267.launch.overlay_timeout" = "O carregamento está demorando mais que o esperado; a tela do jogo foi revelada automaticamente. Se ainda estiver preta, use o botão de fechar no menu do jogo para voltar.";
 "ame267.toast.vulkan_fallback" = "O jogo voltou para a renderização Vulkan (backend GL indisponível). Se você encontrar falhas ou desempenho ruim, troque o renderizador nas configurações da instância.";
 "ame267.jit.legacy_lc" = "O Prisma foi iniciado com um script JIT legado. Ele foi atualizado automaticamente para o script Universal; reinicie o LiveContainer para continuar.";
-"ame267.jit.legacy_stik" = "O suporte a scripts JIT legados foi removido; mude para o script JIT Universal. As versões atuais do StikDebug atribuem o script automaticamente pelo nome do app (versões mais antigas instaladas via sideload incluíam o mesmo script que Amethyst-MeloNX.js), então atualizar o StikDebug é a correção mais fácil. Para atribuir manualmente: mantenha pressionado o app do launcher ao ativar o JIT no StikDebug, toque em "Assign Script" e escolha UniversalJIT26.js no diretório Documents do launcher (exportado automaticamente a cada inicialização).";
+"ame267.jit.legacy_stik" = "O suporte a scripts JIT legados foi removido; mude para o script JIT Universal. As versões atuais do StikDebug atribuem o script automaticamente pelo nome do app (versões mais antigas instaladas via sideload incluíam o mesmo script que Amethyst-MeloNX.js), então atualizar o StikDebug é a correção mais fácil. Para atribuir manualmente: mantenha pressionado o app do launcher ao ativar o JIT no StikDebug, toque em \"Assign Script\" e escolha UniversalJIT26.js no diretório Documents do launcher (exportado automaticamente a cada inicialização).";
 "ame267.download.target_title" = "Download · Instância: %@";
-"ame267.download.target_mismatch" = "Observação: os downloads ainda têm como alvo a instância "%@" (fixada quando a página foi aberta). Reentre na página de download para trocar de instância.";
+"ame267.download.target_mismatch" = "Observação: os downloads ainda têm como alvo a instância \"%@\" (fixada quando a página foi aberta). Reentre na página de download para trocar de instância.";
 "ame291.dl.source_aggregate" = "Tudo";
 "ame291.dl.source_modrinth" = "Modrinth";
 "ame291.dl.source_curseforge" = "CurseForge";
@@ -3321,7 +3321,7 @@
 "ame317.detail.not_declared" = "Não declarado no manifest (%@)";
 "ame317.detail.uninstall" = "Desinstalar plugin";
 "ame317.detail.uninstall_confirm_title" = "Desinstalar plugin?";
-"ame317.detail.uninstall_confirm_body" = ""%@" e as permissões concedidas a ele serão removidos. Isso não pode ser desfeito.";
+"ame317.detail.uninstall_confirm_body" = "\"%@\" e as permissões concedidas a ele serão removidos. Isso não pode ser desfeito.";
 "ame317.bridge.denied" = "[ame] permissão negada: o plugin %@ não tem concessão para %@";
 "ame317.bridge.invalid_value" = "[ame] valor inválido: %@";
 "ame317.bridge.bad_url" = "[ame] URL inválida";
@@ -3403,7 +3403,7 @@
 "ame317.perm.logs.read.desc" = "Ler o final dos logs do launcher/jogo/falhas (para autodiagnóstico de falhas)";
 "ame327.plugin.rows.title" = "Linhas de plugins";
 "ame327.plugin.guide.title" = "Como usar plugins";
-"ame327.plugin.guide.body" = "1. Efeitos - toque nas linhas da seção "Linhas de plugins" desta página ou no grupo "Linhas de plugins" das Configurações para acioná-los; eles são os recursos que os plugins fornecem.\n2. Permissões - permissões perigosas (rede / tema / escrita do renderizador / gerenciamento de instâncias / pasta do jogo) são negadas por padrão; abra a página de detalhes do plugin e ative-as.\n3. Plugins escritos por IA - peça ao assistente de IA "escreva um plugin para mim" com a sua ideia; ele gera, instala e carrega um instantaneamente.";
+"ame327.plugin.guide.body" = "1. Efeitos - toque nas linhas da seção \"Linhas de plugins\" desta página ou no grupo \"Linhas de plugins\" das Configurações para acioná-los; eles são os recursos que os plugins fornecem.\n2. Permissões - permissões perigosas (rede / tema / escrita do renderizador / gerenciamento de instâncias / pasta do jogo) são negadas por padrão; abra a página de detalhes do plugin e ative-as.\n3. Plugins escritos por IA - peça ao assistente de IA \"escreva um plugin para mim\" com a sua ideia; ele gera, instala e carrega um instantaneamente.";
 "ame317.perm.ame.super.name" = "Assunção total (super)";
 "ame317.perm.ame.super.desc" = "Concessão de nível mais alto: o plugin pode usar TODAS as APIs do launcher e todos os portões de permissão passam; todos os outros interruptores ficam esmaecidos enquanto estiver ativado";
 "ame317.perm.game.read.name" = "Consultar estado do jogo";
@@ -4098,7 +4098,7 @@
 "ame429.j.layer.to_front" = "Trazer para a frente";
 "ame429.j.load.error" = "Falha ao ler o arquivo de layout; verifique os arquivos JSON dentro de controlmap";
 "ame429.j.more.discard" = "Descartar alterações e sair";
-"ame429.j.more.hint" = "Arraste os nós para movê-los; eles se assentam conforme as configurações de encaixe ao soltar (alternador e modos em "Mais"). Arraste uma alça de canto para escalar uniformemente. Use "Camadas" para reordenar, renomear ou focar; "Estilos" para mudar o visual do layout inteiro ou salvar predefinições personalizadas; "Pré-visualização" para experimentar os controles.";
+"ame429.j.more.hint" = "Arraste os nós para movê-los; eles se assentam conforme as configurações de encaixe ao soltar (alternador e modos em \"Mais\"). Arraste uma alça de canto para escalar uniformemente. Use \"Camadas\" para reordenar, renomear ou focar; \"Estilos\" para mudar o visual do layout inteiro ou salvar predefinições personalizadas; \"Pré-visualização\" para experimentar os controles.";
 "ame429.j.more.title" = "Mais";
 "ame429.j.save.error.json" = "Os dados do layout não puderam ser serializados em JSON; nada foi gravado.";
 "ame429.j.save.error.json_title" = "Falha ao salvar";
@@ -4130,7 +4130,7 @@
 "ame429.s1.backup.fail_fmt" = "Falha no backup: %@";
 "ame429.s1.backup.ok_fmt" = "Backup concluído: %@ (armazenado em world_backups/)";
 "ame429.s1.backup.pick.title" = "Backups (%lu)";
-"ame429.s1.backupdel.confirm.msg_fmt" = "O backup "%@" será movido para a lixeira (POJAV_HOME/trash), não excluído definitivamente.";
+"ame429.s1.backupdel.confirm.msg_fmt" = "O backup \"%@\" será movido para a lixeira (POJAV_HOME/trash), não excluído definitivamente.";
 "ame429.s1.backupdel.confirm.title" = "Excluir backup";
 "ame429.s1.backupdel.do" = "Excluir backup";
 "ame429.s1.backupdel.fail_fmt" = "Falha ao excluir: %@";
@@ -4167,7 +4167,7 @@
 "ame429.s1.proxy.socks" = "SOCKS5";
 "ame429.s1.proxy.subtitle" = "Canal de proxy para downloads do launcher e rede no jogo (SOCKS5)";
 "ame429.s1.proxy.title" = "Proxy de download";
-"ame429.s1.restore.confirm.msg_fmt" = "Isto extrairá "%@" para o diretório de salvamentos desta instância; um mundo existente com o mesmo nome é movido para a lixeira primeiro.";
+"ame429.s1.restore.confirm.msg_fmt" = "Isto extrairá \"%@\" para o diretório de salvamentos desta instância; um mundo existente com o mesmo nome é movido para a lixeira primeiro.";
 "ame429.s1.restore.confirm.title" = "Restaurar backup";
 "ame429.s1.restore.do" = "Restaurar este backup";
 "ame429.s1.restore.fail_fmt" = "Falha na restauração: %@";
@@ -4175,7 +4175,7 @@
 "ame429.s1.row.title" = "Backups de mundos";
 "ame429.s1.sheet.message" = "Instância: %@ · Mundos excluídos ou sobrescritos vão para a lixeira, nunca são excluídos definitivamente";
 "ame429.s1.sheet.title" = "Backups de mundos";
-"ame429.s1.trash.confirm.msg_fmt" = "O mundo "%@" será movido para a lixeira (pasta POJAV_HOME/trash/timestamp) e pode ser recuperado manualmente.";
+"ame429.s1.trash.confirm.msg_fmt" = "O mundo \"%@\" será movido para a lixeira (pasta POJAV_HOME/trash/timestamp) e pode ser recuperado manualmente.";
 "ame429.s1.trash.confirm.title" = "Excluir mundo";
 "ame429.s1.trash.fail_fmt" = "Falha ao excluir: %@";
 "ame429.s1.trash.ok_fmt" = "Movido para a lixeira: %@";
@@ -4304,7 +4304,7 @@
 "ame436.editor.props.forwardlock" = "Trava para frente";
 "ame436.editor.props.clone" = "Duplicar controle (deslocamento de 8pt)";
 "ame436.editor.props.delete" = "Excluir controle";
-"ame436.editor.delete.confirm.body_fmt" = ""%@" será removido. A remoção é gravada no arquivo de layout ao salvar; use "Descartar alterações e sair" para desfazer antes de salvar.";
+"ame436.editor.delete.confirm.body_fmt" = "\"%@\" será removido. A remoção é gravada no arquivo de layout ao salvar; use \"Descartar alterações e sair\" para desfazer antes de salvar.";
 "ame436.editor.toast.cloned_fmt" = "Duplicado: %@ (deslocamento de 8pt)";
 "ame436.editor.toast.deleted" = "Controle excluído";
 "ame436.editor.clone.suffix" = "Cópia";
@@ -4325,14 +4325,14 @@
 "ame441.editor.snap.mode" = "Modo de encaixe";
 "ame441.editor.snap.mode.grid" = "Grade de 8pt";
 "ame441.editor.snap.mode.edge" = "Bordas de elemento";
-"ame441.editor.snap.foot" = "Com o encaixe desligado, os nós ficam livres (ainda limitados ao canvas). No modo "Bordas de elemento", uma linha-guia aparece durante o arrasto para alinhar com as bordas de outros controles, e o nó se assenta no alinhamento ao soltar.";
+"ame441.editor.snap.foot" = "Com o encaixe desligado, os nós ficam livres (ainda limitados ao canvas). No modo \"Bordas de elemento\", uma linha-guia aparece durante o arrasto para alinhar com as bordas de outros controles, e o nó se assenta no alinhamento ao soltar.";
 "ame441.editor.style.cabinet" = "Coleção de estilos";
 "ame441.editor.style.cabinet.empty" = "Ainda não há predefinições personalizadas — salve o estilo atual primeiro";
 "ame441.editor.style.save" = "Salvar o estilo atual como predefinição";
 "ame441.editor.style.save.hint" = "Amostra a opacidade de botões/fundo e o contorno do layout inteiro, depois dá um nome e armazena";
 "ame441.editor.style.params_fmt" = "Botões %d%% · Fundo %d%% · Contorno %.1f";
 "ame441.editor.style.delete.confirm.title" = "Excluir predefinição";
-"ame441.editor.style.delete.confirm.body_fmt" = "A predefinição "%@" será excluída. Isso não pode ser desfeito.";
+"ame441.editor.style.delete.confirm.body_fmt" = "A predefinição \"%@\" será excluída. Isso não pode ser desfeito.";
 "ame441.editor.preview.enter" = "Modo de pré-visualização";
 "ame441.editor.preview.enter.sub" = "Oculta a UI de edição; experimente os controles e saia a qualquer momento";
 "ame441.editor.preview.exit" = "Sair da pré-visualização";
@@ -4348,11 +4348,11 @@
 "ame441.editor.coach.p1.title" = "Arrastar e encaixar";
 "ame441.editor.coach.p1.body" = "Arraste um controle para movê-lo; ele se assenta conforme as configurações de encaixe atuais ao soltar. Arraste uma alça de canto para escalar uniformemente.";
 "ame441.editor.coach.p2.title" = "Criar e propriedades";
-"ame441.editor.coach.p2.body" = "Use "+" para criar botões/caixas de texto/joysticks; selecione um e edite nome, keycodes, opacidade e mais no painel de propriedades.";
+"ame441.editor.coach.p2.body" = "Use \"+\" para criar botões/caixas de texto/joysticks; selecione um e edite nome, keycodes, opacidade e mais no painel de propriedades.";
 "ame441.editor.coach.p3.title" = "Camadas e foco";
-"ame441.editor.coach.p3.body" = "Use "Camadas" para reordenar, renomear um controle ou colocar um único controle em foco para edição.";
+"ame441.editor.coach.p3.body" = "Use \"Camadas\" para reordenar, renomear um controle ou colocar um único controle em foco para edição.";
 "ame441.editor.coach.p4.title" = "Estilos e pré-visualização";
-"ame441.editor.coach.p4.body" = "Aplique predefinições de estilo ou salve as suas na coleção; "Mais" oferece o modo de pré-visualização para experimentar os controles; salvar grava de volta no arquivo de layout.";
+"ame441.editor.coach.p4.body" = "Aplique predefinições de estilo ou salve as suas na coleção; \"Mais\" oferece o modo de pré-visualização para experimentar os controles; salvar grava de volta no arquivo de layout.";
 "ame449.iso.no_profile" = "Nenhuma instância selecionada — instale ou selecione uma instância para gerenciar o isolamento de versão";
 "ame449.iso.no_version" = "A instância selecionada não tem versão — instale ou selecione uma versão para gerenciar o isolamento";
 "ame449.iso.latest_alias" = "A versão atual é um alias online (latest-*) — resolvido online na inicialização; instale uma versão real para gerenciar o isolamento";

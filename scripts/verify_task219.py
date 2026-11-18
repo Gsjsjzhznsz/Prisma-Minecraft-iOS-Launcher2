@@ -145,8 +145,8 @@ for lang in ["en", "zh-Hans", "zh-Hant", "zh-CN"]:
     # ★ Task426 重锚：+9 键增量四表同步（ame426 dial.caption/time 四态/weather 三段 = task191 同锚 3741）= 3741
     # ★ Task427 重锚：+5 键增量四表同步（ame427 fs 双态/占位/维度固定光照/姿态 a11y = task191 同锚 3746）= 3746
     # ★ Task428 重锚：+79 键增量四表同步（PDF v5 P0 批次：聚合搜索 4/完整性校验 17/关于页+设置行 46/节日彩蛋与 logshare 上传 11/游戏内菜单入口 1 = task191 同锚 3825）= 3825
-    # ★ Task431 重锚：+2 = 4099 → ★ Task432 重锚：+72 = 4171（第 8 期整改批四工位：导入文件夹 6/布局卡 25/主题拆行+色板 5/许可证 2/修改版本页 20/数据包子页 9/SearchId 闭环 3/设置尾行 2） → ★ Task434 重锚：+2 = 4173（A1 应用图标导入 launch.ui.icon.import{,.subtitle} 四表同步） → ★ Task436 重锚：+58 = 4231（批次二/三四工位：SC 编辑器闭环 40 / SD 取色器+陀螺仪浮层 13 / SB 版本列表新页+收藏筛选 5） → ★ Task441 重锚：+40 = 4271（编辑器五件 ame441.* 四表同步） → ★ Task444 重锚：+1 = 4272（ame444.vers.derived_toggle 五表同步）
-    check(f"J-{lang} 唯一键 4272（★Task436 重锚 4231 → ★Task441 编辑器五件 +40 = 4271 → ★Task444 派生展开钮 +1 = 4272）", len(keys) == 4272, f"got {len(keys)}")
+    # ★ Task431 重锚：+2 = 4099 → ★ Task432 重锚：+72 = 4171（第 8 期整改批四工位：导入文件夹 6/布局卡 25/主题拆行+色板 5/许可证 2/修改版本页 20/数据包子页 9/SearchId 闭环 3/设置尾行 2） → ★ Task434 重锚：+2 = 4173（A1 应用图标导入 launch.ui.icon.import{,.subtitle} 四表同步） → ★ Task436 重锚：+58 = 4231（批次二/三四工位：SC 编辑器闭环 40 / SD 取色器+陀螺仪浮层 13 / SB 版本列表新页+收藏筛选 5） → ★ Task441 重锚：+40 = 4271（编辑器五件 ame441.* 四表同步） → ★ Task444 重锚：+1 = 4348（ame444.vers.derived_toggle 五表同步）
+    check(f"J-{lang} 唯一键 4348（★Task436 重锚 4231 → ★Task441 编辑器五件 +40 = 4271 → ★Task444 派生展开钮 +1 = 4272 → ★Task449 硬编码清扫+折叠组名 +76 = 4348）", len(keys) == 4348, f"got {len(keys)}")
 check("J-公告 6 条（★Task419 补锚：repo2 实态——Task413-r3 起 6 条，region-notice 为 repo1 专有从未入 repo2；pin 语义保持）",
       len(ann) == 6
       and any(a["id"] == "server-recommend-2026-09-24" for a in ann)

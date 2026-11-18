@@ -4734,6 +4734,17 @@ int launchJVM(NSString *accountId, id launchTarget, int width, int height, int m
             PUSH_MARGV_LITERAL("-XX:G1NewSizePercent=30");
             PUSH_MARGV_LITERAL("-XX:G1MaxNewSizePercent=50");
             NSLog(@"[JavaLauncher] Task255 JVM preset=performance: G1GC throughput (pause=20, young 30..50)");
+        } else if (allocmem <= 1024) {
+            // ★ Task449（issue#3 第六轮 + Witch 启动器实测对标）：小堆档
+            //   （≤1024MB——调试态 jetsam 钉 ~1GB 的主流量面）G1 换 ParallelGC
+            //   + ParallelGCThreads=2。判据：~920MB 级堆上 G1 Full GC 压缩
+            //   停顿可达 1-2min 量级（Witch JavaLauncher.m:940-945 同结论落地），
+            //   与报告者「卡顿掉到 20fps」主诉同源；ParallelGC 双线程小堆
+            //   吞吐/停顿更稳。UseStringDeduplication 为 G1 专属（ParallelGC
+            //   下 JVM 拒启），本分支不注入。大堆（>1024MB）保持 G1 不变。
+            PUSH_MARGV_LITERAL("-XX:+UseParallelGC");
+            PUSH_MARGV_LITERAL("-XX:ParallelGCThreads=2");
+            NSLog(@"[JavaLauncher] Task449 JVM preset=normal: small-heap (allocmem=%d MB <= 1024) ParallelGC x2 (Witch parity; G1 full-GC freeze mitigation)", allocmem);
         } else {
             // G1GC：Java 9+ 默认 GC，显式启用确保一致性。
             // 适合大堆内存（MC 通常分配 2-4GB），减少 Full GC 停顿。
