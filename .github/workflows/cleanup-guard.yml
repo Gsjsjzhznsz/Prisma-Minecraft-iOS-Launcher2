@@ -5,7 +5,7 @@ name: Cleanup guard (build list + duplicate classes)
 #   2) CMake 列了文件但文件已删（配置期才报错）
 #   3) 同一个类被两个已编译文件重复实现（符号冲突/行为不确定）
 #
-# 只做静态检查，不编译、不出包，单次 <30s。
+# 只做静态检查，不编译、不出包，单次 <30s；10 分钟硬超时防止 runner 卡死。
 on:
   push:
     branches: [main, 'cleanup/**']
@@ -15,6 +15,7 @@ on:
 jobs:
   guard:
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@v4
       - name: Check
