@@ -1,0 +1,78 @@
+name: Cleanup guard (build list + duplicate classes)
+
+# 目的：给“清理冗余”建立可验证的护栏，避免再次出现
+#   1) 源码文件存在但没进 CMake 清单（不会被编译，却让人以为在生效）
+#   2) CMake 列了文件但文件已删（配置期才报错）
+#   3) 同一个类被两个已编译文件重复实现（符号冲突/行为不确定）
+#
+# 只做静态检查，不编译、不出包，单次 <30s。
+on:
+  push:
+    branches: [main, 'cleanup/**']
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  guard:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Check
+        shell: python3 {0}
+        run: |
+          import os, re, sys
+
+          ROOT = 'Natives'
+          # 预览 harness：由 scripts/ui_fluent_smoke.sh 单独编译，故意不进 app 的 CMake 清单
+          ALLOW_UNLISTED = {
+              'Preview/AmeFluentPreviewMain.m',
+              'Preview/ZL2PagesStub.m',
+              'non_darwin_utils.m',   # 仅 Linux/Android 构建时追加
+          }
+
+          cm = open(os.path.join(ROOT, 'CMakeLists.txt'), encoding='utf-8').read()
+          listed = set()
+          for line in cm.splitlines():
+              line = line.split('#', 1)[0].strip().rstrip('\\').strip()
+              m = re.fullmatch(r'([\w./+-]+\.(?:m|mm|c|cpp))', line)
+              if m:
+                  listed.add(m.group(1))
+
+          found = set()
+          for dp, dn, fn in os.walk(ROOT):
+              dn[:] = [d for d in dn if d not in ('external', 'ThirdParty', 'resources', 'build')]
+              for f in fn:
+                  if f.endswith('.m'):
+                      found.add(os.path.relpath(os.path.join(dp, f), ROOT))
+
+          missing = sorted(p for p in listed
+                           if p.endswith('.m') and not p.startswith('external/')
+                           and not os.path.exists(os.path.join(ROOT, p)))
+          unlisted = sorted(found - listed - ALLOW_UNLISTED)
+
+          impl = {}
+          for rel in sorted(listed):
+              p = os.path.join(ROOT, rel)
+              if not rel.endswith('.m') or not os.path.exists(p):
+                  continue
+              txt = open(p, encoding='utf-8', errors='ignore').read()
+              for m in re.finditer(r'^@implementation\s+([A-Za-z0-9_]+)\s*$', txt, re.M):
+                  impl.setdefault(m.group(1), []).append(rel)
+          dups = {k: v for k, v in impl.items() if len(v) > 1}
+
+          ok = True
+          if missing:
+              ok = False
+              print('::error::CMake 列出了不存在的源文件：')
+              for p in missing: print('  ', p)
+          if unlisted:
+              ok = False
+              print('::error::存在未进 CMake 的 .m（不会参与 app 构建）：')
+              for p in unlisted: print('  ', p)
+          if dups:
+              ok = False
+              print('::error::已编译文件中存在重复 @implementation：')
+              for k, v in sorted(dups.items()): print(f'  {k}: {v}')
+          if ok:
+              print(f'OK: {len(listed)} 条清单、无缺失、无重复类')
+          sys.exit(0 if ok else 1)
