@@ -21,6 +21,7 @@
 //
 
 #import "ZL2SettingCards.h"
+#import "utils.h"   // ★Task449：localize（组头标题 i18n 化）
 #import "ZL2Theme.h"
 #import "ZL2M3Kit.h"
 #import "LauncherPreferences.h"   // ★Task449：折叠覆盖集持久化（general.fold_overrides）

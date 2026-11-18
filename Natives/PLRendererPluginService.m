@@ -1,5 +1,6 @@
 #import "PLRendererPluginService.h"
 #import "AmePluginPermissions.h"
+#import "utils.h"   // ★Task449：localize（演示插件档显示名 i18n 化）
 #import "UnzipKit.h"
 
 #import <UIKit/UIKit.h>

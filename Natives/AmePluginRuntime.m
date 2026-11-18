@@ -1,5 +1,6 @@
 #import "AmePluginRuntime.h"
 #import "AmePluginKit.h"
+#import "utils.h"   // ★Task449：localize（隔离化原因 i18n 化）
 #import "ZL2Theme.h"   // Task317：主题令牌覆盖钩子（ame317_setPluginThemeTokens）
 #import "ZL2ShellViewController.h"   // ★ Task366：页面切换通知契约（page.changed 事件源）
 
