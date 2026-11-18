@@ -1,4 +1,5 @@
 #import "PLRendererPluginService.h"
+#import "utils.h"   // localize() 声明（Task449 构建断裂修复）
 #import "AmePluginPermissions.h"
 #import "UnzipKit.h"
 
