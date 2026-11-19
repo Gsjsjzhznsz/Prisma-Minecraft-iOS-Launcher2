@@ -5601,3 +5601,5 @@ Work Log:
 
 Stage Summary:
 - 装机锚点（BuildTag=「Task456 · 2026-11-19」）：①启动观察：日志应只见 [Task452] shell viewDidLoad done ×2（初建+flush 补建）且其后零 Task346 广播（echo 落沉降窗吞掉留痕）；点启动→JIT 往返全程零整壳重建（Ame380 去抖翻回零广播）②主页右栏观察：版本卡尾刷新/齿轮两钮恒在首屏可视区（任意窗高/滚轮位相），末条目不再贴缘裁切 ③小屏设备观察：插件关/未覆盖设备开机即 ZL2 左窗格侧栏（默认蓝图），窄窗口 ≥500pt 常驻简侧栏不再藏汉堡 ④「UI不占满」= 宿主窗口化系统覆盖层（判读留档）：应用侧壁纸/内容已满幅全出血，消除观感缺口的唯一解在宿主侧（StikDebug/LiveContainer 全屏选项或窗口拖满），不盲修 ⑤若再复发 = 下一轮携装机 latestlog + 截图按本轮三件套证据链判读
+
+- 【闭环补记·Task456】docs 轮终态规范构建 44545855725 success = 规范装机构建；四产物 Task456 唯一命名归档（AngelAuraAmethyst__Task456__44545855725.ipa/.tipa/dSYM/preview zip）+ task456_artifact_verify 14 断言 ALL PASS（zip 零错×4 + BuildTag UTF-16LE Task456 在场 + Task455 归零 + dSYM 新 UUID 异于 58f8b2d2/88ad191b/a2dc7f20 + 修复面符号三件在场（-[ZL2HomeViewController ame456_setVersionCardFlowHeight:] 卡高写入单点 / ame414_relayoutVersionHeight 自适应链 / -[SceneDelegate applyLanguageChange:] 换根保护链）+ ipa/dSYM __TEXT vmsize 产物对一致）；验证器 scripts/task456_artifact_verify.py 入册；预览 harness 440pt 极矮窗版本卡区域与 Task455 基线逐像素同貌（极矮窗劣化形态两代一致零回归，真机面板 avail≥单行域为修复确定生效域，IMG_0727 装机面板 avail≈142pt 实测域：卡高 192 ≤ 可视 208 尾行恒在首屏）；本补记提交后续轮构建与 44545855725 二进制等价（零生产代码差），归档锚不迁移。
