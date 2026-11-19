@@ -5585,3 +5585,5 @@ Work Log:
 
 Stage Summary:
 - 装机锚点（BuildTag=「Task455 · 2026-11-19」）：①启动观察：日志应只见一次 [ZL2Theme] Task455: startup token burst coalesced -> trailing rebuild flush + [Task452] shell viewDidLoad done 仅 ×2（初建+补建），无 Unbalanced appearance transitions；首帧后的交互令牌变化照常即时重建 ②侧栏观察：每次启动窗格恒 280pt 展开带标题与条目文字（存量设备旧折叠值自动清账）；开关钮会话内折叠/展开照旧，重启回展开 ③版本页观察：日志 loaded ~929 cached versions from disk (age≤24h)，秒开零网络；24h 后或缓存缺失才走网络并在成功后写回 ④设置→控件仓库页开关 control.auto_control_update_check=ON 后启动链 4s 静默检查复活（可更新 toast）⑤三症状中「版本数据重下」的版本页具体细节仍待用户下轮截图/说明（Ame349 健康态维持原判）
+
+- 【闭环补记·Task455】docs 轮终态规范构建 44525987308 success = 规范装机构建；四产物 Task455 唯一命名归档（AngelAuraAmethyst__Task455__44525987308.ipa/.tipa/dSYM/preview zip）+ task455_artifact_verify 14 断言 ALL PASS（zip 零错×4 + BuildTag UTF-16LE Task455 在场 + Task454 归零 + dSYM 新 UUID a2dc7f20-03c6-39bd-8d83-c0b5fb81df1a 异于 58f8b2d2/88ad191b + 修复面符号三件在场（+[ZL2Theme ame455_consumeStartupRebuild] / -[ZL2VersionIndex ame455_hydrateFromManifestCacheAllowStale:] / autoCheckControlUpdatesOnce 链）+ ipa/dSYM __TEXT vmsize 0xe04000 产物对一致）；验证器 scripts/task455_artifact_verify.py 入册；本补记提交后续轮构建与 44525987308 二进制等价（零生产代码差），归档锚不迁移。
