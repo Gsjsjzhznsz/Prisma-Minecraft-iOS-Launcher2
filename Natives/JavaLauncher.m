@@ -480,6 +480,182 @@ static void ame437_selfVerifyJit26Channel(void *ame437_region) {
     }
 }
 
+// ★Task451（二代 issue#3 第七轮）：JIT26ExecPreflight —— 授予前 64MB 级通道预检。
+//   第七轮证据组（评论 6988757293）钉死两件事：①ame442 形态判决链再次实战定罪
+//   （rx=0x70088cc000 落调试器别名池 ≥ 0x1000000000，崩型不变 = java.lang <clinit>
+//   首次生成代码执行 SIGBUS）；②报告者新事实「re-assign scripts doesn't help, it
+//   only starts to work for single launch every time I reinstall prisma」——重指派
+//   已失效、只有重装 Prisma 才恢复首跑 = 劣化态跨发射持久，检测发生在授予时、JVM
+//   仍会执行已定罪的坏区（Task449 评论承诺的剩余缺口）。
+//   本预检把检测前移到 JVM 之前，落地 Witch 启动器 JIT26ExecPreflight 同型防线
+//   （Task449-G 研究采纳清单第 1 项）：协议取证（UniversalJIT26.js）——brk0x69 =
+//   握手 ping（罐头魔数应答，非真实分配），真实分配走 brk#0xf00d/x16=1 →
+//   JIT26PrepareRegion(NULL,len) → 调试器 `_M<len>,rx`——与 libjvm 稍后自请的
+//   64m 镜像映射请求完全同形（"Requesting 64m mirror mapping" 同一客户端协议）。
+//   RX 视图只读 + RW 别名视图位置随会话漂移（四轮 0x7000000000 固定基址 vs 五轮
+//   RW=RX+64MB 成对），写桩探测不可行；判别器改为「零取指执行探测」：
+//   直接调用返回的全零 RX 区——真实授予 = 页已映射且可执行 → 取指成功 → 全零字
+//   解码为 UDF #0 → SIGILL；空壳授予 = 页从未映射/未授权可执行 → 取指即
+//   SIGBUS/SIGSEGV（BAD_ACCESS 端口已清，:3004 task_set_exception_ports，信号直
+//   达 Unix 安全网，ame437 canned 写故障装机实证同通道）。信号类型即判决：
+//   SIGILL = 通道健康，SIGBUS/SEGV = 空壳定罪，其余（SIGTRAP 等）= 不定不拦。
+//   预检 PASS / 不定 = 清历史定罪 marker 正常启动（零回归：最坏退化为本轮之前
+//   的既有行为，事后 ame273 链照常兜底）；3 次全新分配全部空壳 = 会话级定罪 →
+//   拒绝发射（showDialog + return 1，与 Task301 优雅失败同型）——SIGBUS 黑屏
+//   根除，弹窗内联处置阶梯（第七轮实录改排：彻底重启 StikDebug → 重指派 →
+//   重装 Prisma → 换 JIT 开启方式）。逃生阀 = debug.jit26_preflight_disable
+//   （与 debug.jit26_script_disable 同族命名）。
+static sigjmp_buf ame451_prepEnv;
+static volatile sig_atomic_t ame451_prepArmed = 0;
+
+static void ame451_prepCatch(int sig) {
+    if (!ame451_prepArmed) {
+        signal(sig, SIG_DFL);
+        raise(sig);
+        return;
+    }
+    ame451_prepArmed = 0;
+    siglongjmp(ame451_prepEnv, 1);
+}
+
+// 有界 JIT26PrepareRegion(NULL,len)：SIGTRAP 安全网（brk 无人应答场景，Task91 判例）。
+static void* ame451_prepareGuarded(size_t len, BOOL *trapped) {
+    struct sigaction sa, oldsa;
+    memset(&sa, 0, sizeof(sa));
+    sa.sa_handler = ame451_prepCatch;
+    sigemptyset(&sa.sa_mask);
+    sa.sa_flags = SA_NODEFER;
+    sigaction(SIGTRAP, &sa, &oldsa);
+
+    void *result = NULL;
+    *trapped = NO;
+    if (sigsetjmp(ame451_prepEnv, 1) == 0) {
+        ame451_prepArmed = 1;
+        result = JIT26PrepareRegion(NULL, len);
+        ame451_prepArmed = 0;
+    } else {
+        *trapped = YES;
+        result = NULL;
+    }
+    sigaction(SIGTRAP, &oldsa, NULL);
+    return result;
+}
+
+static sigjmp_buf ame451_execEnv;
+static volatile sig_atomic_t ame451_execArmed = 0;
+static volatile sig_atomic_t ame451_execSignal = 0;
+
+static void ame451_execCatch(int sig) {
+    ame451_execSignal = sig;
+    if (ame451_execArmed) {
+        ame451_execArmed = 0;
+        siglongjmp(ame451_execEnv, 1);
+    }
+}
+
+// 零取指执行探测：0 = 通过（SIGILL 取指成功后 UDF 解码陷阱 / 未 fault 返回），
+// 1 = 空壳定罪（取指即 SIGBUS/SIGSEGV），2 = 不定（意外信号）。
+static int ame451_execProbe(void *rx) {
+    struct sigaction sa, oldTrap, oldBus, oldSegv, oldIll;
+    memset(&sa, 0, sizeof(sa));
+    sa.sa_handler = ame451_execCatch;
+    sigemptyset(&sa.sa_mask);
+    sa.sa_flags = SA_NODEFER;
+    sigaction(SIGTRAP, &sa, &oldTrap);
+    sigaction(SIGBUS, &sa, &oldBus);
+    sigaction(SIGSEGV, &sa, &oldSegv);
+    sigaction(SIGILL, &sa, &oldIll);
+
+    ame451_execSignal = 0;
+    ame451_execArmed = 1;
+    int verdict = 0;
+    if (sigsetjmp(ame451_execEnv, 1) == 0) {
+        volatile int (*fn)(void) = (volatile int (*)(void))rx;
+        fn();              // 全零页：取指成功 → UDF #0 → SIGILL；空壳 → 取指 fault
+        verdict = 0;       // 未 fault 返回 = 可执行（判过）
+        ame451_execArmed = 0;
+    } else {
+        ame451_execArmed = 0;
+        switch (ame451_execSignal) {
+            case SIGILL:  verdict = 0; break;   // 取指+解码成功，UDF 陷阱 = 映射真实且可执行
+            case SIGBUS:
+            case SIGSEGV: verdict = 1; break;   // 取指即 fault = 空壳
+            default:      verdict = 2; break;   // 意外信号 = 不定，不定罪不拦启动
+        }
+    }
+    sigaction(SIGTRAP, &oldTrap, NULL);
+    sigaction(SIGBUS, &oldBus, NULL);
+    sigaction(SIGSEGV, &oldSegv, NULL);
+    sigaction(SIGILL, &oldIll, NULL);
+    return verdict;
+}
+
+// 预检主链：返回 0 = 通过/不定（放行启动），1 = 会话级空壳定罪（调用方拒绝发射）。
+static int ame451_preflightJit26Channel(void) {
+    const size_t ame451_len = 64UL * 1024UL * 1024UL;   // 与 libjvm 64m 镜像请求同形
+    const char *ame451_home = getenv("POJAV_HOME");
+    char ame451_marker[1024];
+    BOOL ame451_haveMarker = NO;
+    if (ame451_home != NULL) {
+        snprintf(ame451_marker, sizeof(ame451_marker),
+                 "%s/ame451_preflight_conviction.txt", ame451_home);
+        ame451_haveMarker = YES;
+    }
+    for (int attempt = 1; attempt <= 3; attempt++) {
+        // brk#0xf00d 后台线程 + 30s 有界等待（ame301「泄漏一条阻塞线程优于整机
+        // 永久卡死」判例；活调试器毫秒级应答，超时 = 调试器异常 → 不定放行，
+        // 既有 JIT26 链自会暴露同一状态，不新增中断面）。
+        dispatch_semaphore_t sem = dispatch_semaphore_create(0);
+        __block void *rx = NULL;
+        __block BOOL trapped = NO;
+        dispatch_async(dispatch_get_global_queue(QOS_CLASS_USER_INITIATED, 0), ^{
+            rx = ame451_prepareGuarded(ame451_len, &trapped);
+            dispatch_semaphore_signal(sem);
+        });
+        if (dispatch_semaphore_wait(sem, dispatch_time(DISPATCH_TIME_NOW, (int64_t)30 * NSEC_PER_SEC)) != 0) {
+            NSLog(@"[Ame451] preflight attempt %d: brk#0xf00d allocation stalled >30s -- inconclusive, proceeding (existing JIT26 chains will surface the same state)", attempt);
+            return 0;
+        }
+        if (trapped) {
+            NSLog(@"[Ame451] preflight attempt %d: allocation brk unanswered (SIGTRAP safety net) -- inconclusive, proceeding", attempt);
+            return 0;
+        }
+        if (rx == NULL) {
+            NSLog(@"[Ame451] preflight attempt %d: debugger refused the 64MB allocation (x0 unchanged) -- inconclusive, proceeding (libjvm will hit the same refusal and log its own lines)", attempt);
+            return 0;
+        }
+        if (((uint32_t)(uintptr_t)rx) == 0x690000E0u) {
+            NSLog(@"[Ame451] preflight attempt %d: canned ping-ack magic for a 64MB request (unexpected for Universal scripts) -- inconclusive, proceeding", attempt);
+            return 0;
+        }
+        NSLog(@"[Ame451] preflight attempt %d: 64MB-class grant RX=%p -- zero-fetch exec probe (mapped+executable zeros decode as UDF->SIGILL; hollow fetch faults SIGBUS/SEGV)", attempt, rx);
+        int probe = ame451_execProbe(rx);
+        munmap(rx, ame451_len);   // 试错性分配不携带进会话（调试器侧 _M 无簿记，状态无关）
+        if (probe == 0) {
+            NSLog(@"[Ame451] preflight attempt %d PASSED (fetch-decode trap on zero-filled page = mapping is real and executable) -- JIT26 channel healthy at 64MB scale, clearing stale conviction marker", attempt);
+            if (ame451_haveMarker) unlink(ame451_marker);
+            return 0;
+        }
+        if (probe == 2) {
+            NSLog(@"[Ame451] preflight attempt %d: unexpected signal during exec probe -- inconclusive, proceeding (post-mortem ame273 chain remains the honest verdict)", attempt);
+            return 0;
+        }
+        NSLog(@"[Ame451] preflight attempt %d CONVICTED: fetch faulted on the granted RX view -- grant is hollow (address returned, contents never landed), retrying with a fresh allocation", attempt);
+    }
+    NSLog(@"[Ame451] preflight CONVICTION after 3/3 fresh allocations hollow -- debugger-side per-app JIT channel is degraded for this session; refusing to launch (JVM would SIGBUS at java.lang <clinit>)");
+    if (ame451_haveMarker) {
+        FILE *f = fopen(ame451_marker, "w");
+        if (f != NULL) {
+            fprintf(f, "time=%lld\nverdict=conviction (3/3 fresh 64MB-class grants hollow at zero-fetch exec probe; Task451 JIT26ExecPreflight, gen2 issue#3 round7)\nattempts=3\nladder=restart StikDebug fully -> re-assign UniversalJIT26.js -> reinstall launcher (round7 evidence: reinstall restores first-launch health) -> alternative JIT enabler\n",
+                    (long long)time(NULL));
+            fflush(f);
+            fsync(fileno(f));
+            fclose(f);
+        }
+    }
+    return 1;
+}
+
 void init_loadMobileGluesConfig() {
     // Task 144：改读 ame_effective_renderer()（单一事实源）而非裸 profile 键。
     // Task142 后 profile 存的是 "mg" 逻辑键，旧白名单永远 miss；解析后拿到的
@@ -3014,6 +3190,23 @@ int launchJVM(NSString *accountId, id launchTarget, int width, int height, int m
             NSLog(@"[JIT] [JavaLauncher] Task437 probe region high-32 = 0xCCCCCCCC (poisoned pattern) -- debugger returned a suspicious address; the self-verify probe below gives the real verdict");
         }
         ame437_selfVerifyJit26Channel(result);
+        // ★Task451：授予前 64MB 级通道预检（JIT26ExecPreflight，Witch 同型防线）——
+        //   ame437 探针为 1 页级（Universal 脚本下是罐头 ping-ack，只验握手活性，
+        //   Task438 判例），验不出 libjvm 64MB 级假阳性（六轮装机实录：探针过、
+        //   64MB 空壳、<clinit> SIGBUS）。此处对同一通道做与 libjvm 完全同形的
+        //   64MB 分配 + 零取指执行探测；3/3 全空壳 = 会话级定罪 → 拒绝发射，
+        //   SIGBUS 黑屏根除（弹窗内联处置阶梯，ame451_preflightJit26Channel 注释
+        //   全链）。逃生阀 debug.jit26_preflight_disable；PASS/不定 = 放行零回归。
+        if (!getPrefBool(@"debug.jit26_preflight_disable")) {
+            if (ame451_preflightJit26Channel() != 0) {
+                NSLog(@"[JIT] [JavaLauncher] Task451 preflight conviction -- refusing to launch with actionable guidance (no JVM start, no SIGBUS black screen)");
+                showDialog(localize(@"Error", nil), localize(@"i18n_str_ame451_preflight", nil));
+                [PLLogOutputView handleExitCode:1];
+                return 1;
+            }
+        } else {
+            NSLog(@"[JIT] [JavaLauncher] Task451 preflight skipped (debug.jit26_preflight_disable set)");
+        }
     }
 
     if (jit26AlwaysAttached) {

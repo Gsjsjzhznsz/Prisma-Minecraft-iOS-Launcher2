@@ -1301,6 +1301,7 @@
 "i18n_str_ext_vm_disabled" = "擴展虛擬記憶體: 未開啟";
 
 "i18n_str_jit26_not_ready" = "JIT26 偵錯器尚未就緒：JIT 中斷點無人應答。請確認已在 StikDebug 中指定 Universal JIT 腳本並重新開啟 JIT，然後再點擊啟動。";
+"i18n_str_ame451_preflight" = "JIT 啟動預檢發現：除錯器授予的 JIT 記憶體是空殼（拿到了位址、內容從未落地，JVM 一執行就會崩潰）。為避免黑屏當機，本次啟動已被攔下。問題出在除錯器側對本應用的 JIT 通道狀態，不是啟動器或 Java 執行時期的問題。請按順序處置：①從背景徹底結束 StikDebug（上滑殺掉）後重開，再對本應用重新指派 JIT 腳本（Assign Script → Documents 裡的 UniversalJIT26.js）；②仍不行就在 StikDebug 裡移除本應用的 JIT 記錄後重新開啟；③仍不行則重裝本啟動器（你第七輪實錄：重裝後首次啟動可恢復健康）；④或改用其他 JIT 開啟方式（SideStore/JitStreamer-EB 等）。修復後預檢通過即正常啟動。";
 "i18n_str_423" = "暂无已安装的版本";
 "i18n_str_424" = "请先到下载页面安装一个版本";
 "i18n_str_426" = "管理版本";

@@ -1240,6 +1240,7 @@
 "i18n_str_ext_vm_disabled" = "拡張仮想メモリ: 無効";
 
 "i18n_str_jit26_not_ready" = "JIT26 デバッガーの準備ができていません：JIT ブレークポイントに応答がありません。StikDebug で Universal JIT スクリプトを指定して JIT を再度有効化してから、もう一度起動してください。";
+"i18n_str_ame451_preflight" = "The launch preflight found that the JIT memory granted by the debugger is a hollow shell (an address was returned but its contents never landed; the JVM would crash at the first generated-code execution). This launch was refused to avoid a black-screen crash. The defect is in the debugger-side per-app JIT channel state, not the launcher or the Java runtime. Fix in order: (1) fully quit StikDebug from the app switcher, reopen it, and re-assign the JIT script for this app (Assign Script -> UniversalJIT26.js in Documents); (2) if that fails, remove this app's JIT entry in StikDebug and re-enable; (3) if that still fails, reinstall this launcher (your round-7 evidence: reinstall restores first-launch health); (4) or switch to another JIT enabler (SideStore/JitStreamer-EB). After the fix, a passing preflight starts the game normally.";
 "i18n_str_423" = "No installed versions";
 "i18n_str_424" = "Please install a version in the Downloads page first";
 "i18n_str_426" = "Manage Versions";
