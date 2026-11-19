@@ -302,6 +302,13 @@ BOOL ame185_loaderVersionMatchesGameVersion(NSString *loaderVersion, NSString *g
 void JIT26PrepareRegionForPatching(void *addr, size_t len);
 void JIT26SetDetachAfterFirstBr(BOOL value);
 void JIT26SendJITScript(NSString* script);
+// ★ Task457：brk #0xf00d 超调用安全护栏（Task91 信号网 + Task301 有界看门狗）。
+// 装机 .ips 实锤：op4 无人应答 → JIT26PrepareRegionForPatching+4 brk 61453
+// SIGTRAP 致死（launchMinecraft → launchJVM → searchAndPatch 链）。Safe 变体
+// 在无调试器/死端口两形态下返回 NO（不闪退不冻结），调用方走优雅报错/弃钩。
+// 残余不可防线：调试器在场但 op4 分派失败放行例外（与旧代码同死法，零回归）。
+BOOL JIT26PrepareRegionSafe(void *addr, size_t len);
+BOOL JIT26PrepareRegionForPatchingSafe(void *addr, size_t len);
 
 typedef enum {
     JIT_FLAG_IS_IOS_26 = 1 << 0,
@@ -312,7 +319,10 @@ JITFlags DeviceGetJITFlags(BOOL refresh);
 BOOL DeviceHasJITFlags(JITFlags flags);
 
 // Init functions
-void init_bypassDyldLibValidation();
+// ★ Task457：返回 BOOL（dyld_mmap + dyld_fcntl 两钩是否全部落位）；调用方
+// （JavaLauncher 两处）对 FALSE 弹 ame457 诊断窗并优雅退出，不再带残缺钩子
+// 继续发射 JVM。
+BOOL init_bypassDyldLibValidation(void);
 void init_hookFunctions();
 
 // Zink (Mesa 25.0.7) + MoltenVK vertex stride 4 字节对齐 fix

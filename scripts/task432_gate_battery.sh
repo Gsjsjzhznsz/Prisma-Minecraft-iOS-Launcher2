@@ -72,6 +72,7 @@ run_py task442      scripts/task442_selfcheck.py
 run_py task447      scripts/task447_selfcheck.py
 run_py task451      scripts/task451_selfcheck.py
 run_py task452      scripts/task452_selfcheck.py
+run_py task457      scripts/task457_selfcheck.py
 
 # 括号审计：本轮全部编辑文件逐个过状态机（file args 契约，Task431 判例口径）
 EDITED=$(git diff --name-only HEAD --diff-filter=d -- 'Natives/*.m' 'Natives/*.h' 'Natives/**/*.m' 'Natives/**/*.h' 2>/dev/null | grep -v '^Natives/external/' | tr '\n' ' ')

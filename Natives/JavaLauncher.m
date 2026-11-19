@@ -3218,7 +3218,16 @@ int launchJVM(NSString *accountId, id launchTarget, int width, int height, int m
     // Previously this was skipped when requiresTXMWorkaround was true, which caused
     // JNA and other unsigned dylibs to fail with code signature errors.
     // The TXM hardware breakpoint mechanism (brk #0x69) does not conflict with dlopen hooks.
-    init_bypassDyldLibValidation();
+    // ★ Task457：旁路失败 = JIT26 调试器没接住 op4 超调用（装机 .ips 实锤的
+    //   闪退点：launchMinecraft block 内 JIT26PrepareRegionForPatching+4
+    //   brk 61453 SIGTRAP 致死）——不带残缺钩子继续发射 JVM（必炸形态），
+    //   改走 ame457 诊断窗优雅退出（处置阶梯同 ame451 preflight 家族）。
+    if (!init_bypassDyldLibValidation()) {
+        NSLog(@"[JavaLauncher] Task457: dyld library-validation bypass incomplete (JIT26 debugger did not serve brk #0xf00d op4) -- aborting launch gracefully");
+        showDialog(localize(@"Error", nil), localize(@"i18n_str_ame457_dyldhook", nil));
+        [PLLogOutputView handleExitCode:1];
+        return 1;
+    }
 
     // 加载 MobileGlues 配置（仅当用户手动选择 MobileGlues 渲染器时生效）
     init_loadMobileGluesConfig();
@@ -5636,7 +5645,12 @@ int launchHeadlessJVM(NSString *mainClass, NSArray<NSString *> *args, int minJav
             EXCEPTION_DEFAULT, THREAD_STATE_NONE);
     }
     // Always activate Library Validation bypass (see launchJVM for rationale).
-    init_bypassDyldLibValidation();
+    // ★ Task457：headless 路径同款优雅退出（诊断窗阶梯与 launchJVM 一致）。
+    if (!init_bypassDyldLibValidation()) {
+        NSLog(@"[JavaLauncher] Task457: dyld library-validation bypass incomplete (headless) -- aborting gracefully");
+        showDialog(localize(@"Error", nil), localize(@"i18n_str_ame457_dyldhook", nil));
+        return -1;
+    }
 
     // JRE 选择：按 minJavaVersion 推断 runtime tag（≥25 用 1_26_newer，≥17 用
     // 1_17_newer，否则 1_16_5_older，Task159 对齐 launchJVM 三档分界），

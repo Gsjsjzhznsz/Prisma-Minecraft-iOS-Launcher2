@@ -1301,6 +1301,7 @@
 
 "i18n_str_jit26_not_ready" = "JIT26 调试器未就绪：JIT 断点无人应答。请确认已在 StikDebug 中指定 Universal JIT 脚本并重新开启 JIT，然后再点击启动。";
 "i18n_str_ame451_preflight" = "JIT 启动预检发现：调试器授予的 JIT 内存是空壳（拿到了地址、内容从未落地，JVM 一执行就会崩）。为避免黑屏闪退，本次启动已被拦下。问题出在调试器侧对本应用的 JIT 通道状态，不是启动器或 Java 运行时的问题。请按顺序处置：①从后台彻底退出 StikDebug（上滑杀掉）后重开，再对本应用重新分配 JIT 脚本（Assign Script → Documents 里的 UniversalJIT26.js）；②仍不行就在 StikDebug 里移除本应用的 JIT 记录后重新开启；③仍不行则重装本启动器（你第七轮实录：重装后首次启动可恢复健康）；④或换用其他 JIT 开启方式（SideStore/JitStreamer-EB 等）。修复后预检通过即正常启动。";
+"i18n_str_ame457_dyldhook" = "本次启动已被拦截：JIT 调试器没有应答绕过库验证所需的 dyld 钩子请求（brk op4），缺少它继续启动 JVM 必然闪退（Task457 崩溃日志实证）。这是调试器侧 per-app JIT 通道状态问题，不是启动器的缺陷。请按顺序处置：(1) 从后台任务里完全退出 JIT 调试器 App（StikDebug / SideStore 等）后重新打开，再为本应用重新开启 JIT；(2) 在调试器里为本应用重新指派 Universal 脚本（Assign Script → Documents 里的 UniversalJIT26.js，启动器每次启动都会自动导出）；(3) 删除调试器里本应用的 JIT 条目后重新开启；(4) 仍失败请更新调试器 App 或换用其他 JIT 开启工具（SideStore / JitStreamer-EB）。";
 "i18n_str_423" = "暂无已安装的版本";
 "i18n_str_424" = "请先到下载页面安装一个版本";
 "i18n_str_426" = "管理版本";
