@@ -1136,8 +1136,11 @@ static void AmePreviewApplyFluentTokens(void) {
     if (ame417_paneIdx != NSNotFound && ame417_paneIdx + 1 < ame417_args.count) {
         ame417_expanded = [ame417_args[ame417_paneIdx + 1] isEqualToString:@"expanded"];
     }
+    // ★ Task455：预览驱动键跟随壳回读键迁移（ame376.paneCollapsed →
+    //   .ui 后缀）——设备侧写入面退役后，本键 = CI 预览专属输入（真壳
+    //   构建期回读渲染折叠栏；设备上无人写入 = 恒展开起步）。
     [NSUserDefaults.standardUserDefaults setBool:(!ame417_expanded)
-                                          forKey:@"ame376.paneCollapsed"];
+                                          forKey:@"ame376.paneCollapsed.ui"];
 
     UIViewController *ame417_shell = [[ZL2ShellViewController alloc] init];
     [self addChildViewController:ame417_shell];

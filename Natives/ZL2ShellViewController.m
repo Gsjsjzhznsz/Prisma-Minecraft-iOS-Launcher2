@@ -716,6 +716,7 @@ static UIImage *ZL2ShellSystemImageSizedEx(NSString *name, NSString *fallback, C
 @property(nonatomic, strong) UIView *ame389_slideIndicator;           // ★ Task389：壳级共享选中指示条（3×16 竖条，切签上下滑移）
 @property(nonatomic, strong) NSLayoutConstraint *ame389_indicatorY;  // ★ Task389：指示条 centerY 常量（= 选中项在 paneStack 内中点 Y）
 @property(nonatomic, strong) NSLayoutConstraint *ame388_toggleLeading; // ★ Task388/394：折叠开关钮前导（恒 8 = 绝对 16 真居中；394 抗压缩根修）
+@property(nonatomic, strong) NSLayoutConstraint *ame455_headerTrailing; // ★ Task455：头行尾随等式 pin（999 = 展开态 260/折叠态 44 恒定宽，标题 0 宽根修）
 // ★ Task411：bare 骨架右上角无文字小型切换簇（第 19 轮复诉①——用户钦定
 //   「一开始的无文字右上角小型的切换按钮」形态回归 + 「在其他界面都不见了」
 //   全页面常驻：钉 view safeArea 右上、浮于 container 全部子页之上，bare
@@ -841,6 +842,14 @@ static UIImage *ZL2ShellSystemImageSizedEx(NSString *name, NSString *fallback, C
     if (!ame452_appearMarked) {
         ame452_appearMarked = YES;
         NSLog(@"[Task452] open: home did appear (first frame landed)");
+        // ★ Task455：启动期令牌突发合并补建（首帧落地锚点）——首帧前被抑制
+        //   的令牌重建请求恰好补一次（整壳重建 4→2，CrossDissolve 不再重叠）;
+        //   appear 过渡已终→异步补建 = 零外观过渡重叠，Unbalanced 告警根除。
+        if ([ZL2Theme ame455_consumeStartupRebuild]) {
+            dispatch_async(dispatch_get_main_queue(), ^{
+                [ZL2Theme ame429_requestRootRebuild];
+            });
+        }
     }
     [ZL2FestivalEffects attachToWindow:self.view.window];
     [self ame428_presentFestivalGreeting];
@@ -1114,9 +1123,13 @@ static UIImage *ZL2ShellSystemImageSizedEx(NSString *name, NSString *fallback, C
     self.paneToggleButton.ame_action = ^{
         if (weakSelf.ame347_regular) {
             weakSelf.ame376_paneCollapsed = !weakSelf.ame376_paneCollapsed;
-            [NSUserDefaults.standardUserDefaults setBool:weakSelf.ame376_paneCollapsed
-                                                  forKey:@"ame376.paneCollapsed"];
-            NSLog(@"[Ame376] pane toggled collapsed=%d", weakSelf.ame376_paneCollapsed);
+            // ★ Task455：跨启动持久化退役（会话级状态）——装机 IMG_0720 +
+            //   双轮 latestlog（11-17/11-19）实锤窗格恒以 64pt 图标栏起步
+            //   （title 宽 0 ∈ Task394 设计内），与用户复诉「侧边栏条目
+            //   不显示/不占满」逐项吻合；且历史日志零 [Ame376] pane toggled
+            //   记录 = 折叠值来源不可考（意外触碰嫌疑）。会话内开关照旧，
+            //   每次启动恒展开起步；键面保留为 CI 预览驱动输入（.ui 键）。
+            NSLog(@"[Ame376] pane toggled collapsed=%d (session-scoped, Task455)", weakSelf.ame376_paneCollapsed);
             [weakSelf ame376_applyPaneGeometry:YES];
             // ★ Task388：折叠几何自证——开关钮应居中（compact x=16）、首项
             //   图标折叠态 26pt（★Task402 放大驱动，icon0 读数）；装机日志对
@@ -1351,6 +1364,11 @@ static UIImage *ZL2ShellSystemImageSizedEx(NSString *name, NSString *fallback, C
     // ★ Task388：折叠开关钮前导持引用（紧凑态居中 16 / 展开态 8）
     self.ame388_toggleLeading = [self.paneToggleButton.leadingAnchor
                                  constraintEqualToAnchor:self.ame379_paneHeader.leadingAnchor];
+    // ★ Task455：头行尾随等式 pin（999，展开态 260 / 折叠态 44 恒定宽度；
+    //   判例见下方 activateConstraints 数组邻注）
+    self.ame455_headerTrailing = [self.ame379_paneHeader.trailingAnchor
+                                  constraintEqualToAnchor:self.paneWrap.trailingAnchor constant:-12.0];
+    self.ame455_headerTrailing.priority = 999;
     [NSLayoutConstraint activateConstraints:@[
         self.ame347_paneLeading,
         [self.paneWrap.topAnchor constraintEqualToAnchor:self.view.topAnchor],
@@ -1361,7 +1379,12 @@ static UIImage *ZL2ShellSystemImageSizedEx(NSString *name, NSString *fallback, C
         //   滚动区顶从此不依赖标题 intrinsic 高度，零高塌缩类根绝
         [self.ame379_paneHeader.topAnchor constraintEqualToAnchor:self.paneWrap.safeAreaLayoutGuide.topAnchor constant:10.0],
         [self.ame379_paneHeader.leadingAnchor constraintEqualToAnchor:self.paneWrap.safeAreaLayoutGuide.leadingAnchor constant:8.0],
-        [self.ame379_paneHeader.trailingAnchor constraintLessThanOrEqualToAnchor:self.paneWrap.trailingAnchor constant:-12.0],
+        // ★ Task455：头行宽度定谳 pin（原 trailing<= 弱不等式无宽度驱动源，
+        //   引擎把标题抗压 250 压到 0 宽 = 展开态标题也被吞；装机 [Ame379]
+        //   header 宽 44 = 头行取最小解实锤）。等式降级 999：展开态头行
+        //   260pt 恒定、标题真宽显示；折叠态 44pt 内标题让位（CR 250 < 999
+        //   先断）与既有 compact 行为逐位一致，零冲突告警。
+        self.ame455_headerTrailing,
         [self.ame379_paneHeader.heightAnchor constraintEqualToConstant:32.0],
 
         self.ame388_toggleLeading,
@@ -1455,8 +1478,15 @@ static UIImage *ZL2ShellSystemImageSizedEx(NSString *name, NSString *fallback, C
     self.ame347_regular = YES;
     // ★ Task349（历史判例保留）：宽屏几何构建期即为真值 + 首轮无条件派发
     //   双保险（ame347_widthClassApplied 哨兵）。
-    // ★ Task376：折叠态持久化回读 + 统一几何派发（宽窄 × 折叠 × 抽屉一次落位）
-    self.ame376_paneCollapsed = [NSUserDefaults.standardUserDefaults boolForKey:@"ame376.paneCollapsed"];
+    // ★ Task376：折叠态回读 + 统一几何派发（宽窄 × 折叠 × 抽屉一次落位）
+    // ★ Task455：启动态语义改会话级（恒展开起步）——装机 IMG_0720 + 双轮
+    //   latestlog 实锤窗格恒以 64pt 图标栏起步（title 宽 0 ∈ Task394 设计
+    //   内折叠行为），与用户复诉「侧边栏条目不显示/不占满」逐项吻合；设
+    //   备侧写入面退役（开关只翻会话态），键面保留为 CI 预览驱动输入
+    //   （.ui 键，-zl2shell real 写入渲染折叠栏）；旧键一次性清账（存量
+    //   设备折叠残留立即解除，幂等零开销）。
+    [NSUserDefaults.standardUserDefaults removeObjectForKey:@"ame376.paneCollapsed"];
+    self.ame376_paneCollapsed = [NSUserDefaults.standardUserDefaults boolForKey:@"ame376.paneCollapsed.ui"];
     [self ame376_applyPaneGeometry:NO];
     // ★ Task379：头行置顶（滚动区/分隔线/底部栈之后加入层级，头行必须在最上，
     //   折叠开关钮永不被子覆盖）

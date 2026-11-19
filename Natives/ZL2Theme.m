@@ -206,21 +206,40 @@ static BOOL ame346_rebuildScheduled = NO;
 static CFAbsoluteTime ame346_lastRebuildAt = 0.0;
 static BOOL ame346_trailingPending = NO;
 static const CFAbsoluteTime ame346_rebuildMinInterval = 0.4;   // ★ Task380：重建冷却（秒）
-static void ame346_postRootRebuildNow(void) {
-    @try {
-        UIViewController *ame346_root = nil;
-        if (@available(iOS 13.0, *)) {
-            for (UIScene *ame346_scene in UIApplication.sharedApplication.connectedScenes) {
-                if (![ame346_scene isKindOfClass:[UIWindowScene class]]) continue;
-                for (UIWindow *ame346_w in ((UIWindowScene *)ame346_scene).windows) {
-                    if (ame346_w.isKeyWindow) {
-                        ame346_root = ame346_w.rootViewController;
-                        break;
-                    }
-                }
-                if (ame346_root) break;
+
+// ★ Task455：启动期令牌突发合并——装机 latestlog（2ed20a6 构建）实锤：
+//   启动 ~500ms 窗口内三源令牌先后落表（插件装载色板 + Ame398 启动外观
+//   同步广播 → JS 重应用 + Ame429 壁纸 palette overlay），Task346 杠杆逐
+//   源整壳重建（日志壳 viewDidLoad ×3 + 第 4 次 in flight）+ 两次 0.3s
+//   CrossDissolve 重叠 = "Unbalanced calls to begin/end appearance
+//   transitions" + 启动卡死感。根修：首帧落地（首壳 viewDidAppear，进程
+//   级一次）前，"根已建且视图已加载"状态下的令牌重建请求不再逐源放行，
+//   只记脏；首帧落地时恰好补建一次（整壳重建总量 4→2）。根未建/视图未
+//   加载的请求保持静默跳过（令牌烘焙进首建，既有语义）；首帧后的请求走
+//   既有同拍合并 + Task380 冷却（交互语义零回退）。
+static BOOL ame455_startupLanded = NO;
+static BOOL ame455_startupRebuildDirty = NO;
+
+// 键窗根 VC 探测（ame346_postRootRebuildNow 既有场景遍历的公共化，唯一实现）
+static UIViewController *ame455_keyRootViewController(void) {
+    if (@available(iOS 13.0, *)) {
+        for (UIScene *ame455_scene in UIApplication.sharedApplication.connectedScenes) {
+            if (![ame455_scene isKindOfClass:[UIWindowScene class]]) continue;
+            for (UIWindow *ame455_w in ((UIWindowScene *)ame455_scene).windows) {
+                if (ame455_w.isKeyWindow) return ame455_w.rootViewController;
             }
         }
+    }
+    return nil;
+}
+
+// 首帧落地锚点消费（ZL2ShellViewController viewDidAppear 进程级一次调用）：
+//   返回 YES = 启动窗口内有被抑制的令牌重建请求，调用方应恰好补建一次。
+//   （方法体在 @implementation 内，见 ame429_requestRootRebuild 邻位）
+
+static void ame346_postRootRebuildNow(void) {
+    @try {
+        UIViewController *ame346_root = ame455_keyRootViewController();
         if (!ame346_root) return;   // 启动期根未建：重放路径无需重建
         ame346_lastRebuildAt = CFAbsoluteTimeGetCurrent();
         [[NSNotificationCenter defaultCenter] postNotificationName:@"AppLanguageChanged" object:nil];
@@ -231,6 +250,16 @@ static void ame346_postRootRebuildNow(void) {
 }
 
 static void ame346_requestRootRebuild(void) {
+    // ★ Task455：启动期突发合并（首帧前抑制，首帧后一次补建；判例见上）
+    //   根未建/根视图未加载 → 令牌烘焙进首建，零重建零记脏（原 234 行
+    //   "rootViewController 缺席守卫"只查根分配、不查视图加载 = 插件装载
+    //   期请求漏网，本轮一并收紧）。
+    if (!ame455_startupLanded) {
+        UIViewController *ame455_root = ame455_keyRootViewController();
+        if (!ame455_root || !ame455_root.viewIfLoaded) return;
+        ame455_startupRebuildDirty = YES;
+        return;
+    }
     if (ame346_rebuildScheduled) return;   // 同拍连发合并（连点循环去抖）
     ame346_rebuildScheduled = YES;
     dispatch_async(dispatch_get_main_queue(), ^{
@@ -490,6 +519,17 @@ static void ame346_requestRootRebuild(void) {
     // Task346 根重建杠杆公开包装（ame346 冷却/尾沿补排/启动期守卫全在位）；
     // ZL2DynamicPalette 生效链复用，不发明第二套广播。
     ame346_requestRootRebuild();
+}
+
+// ★ Task455：启动期令牌突发合并——首帧落地锚点消费（类方法体，静态状态
+//   ame455_startupLanded/ame455_startupRebuildDirty 见 ame346 块邻位判例）。
++ (BOOL)ame455_consumeStartupRebuild {
+    if (ame455_startupLanded) return NO;
+    ame455_startupLanded = YES;
+    if (!ame455_startupRebuildDirty) return NO;
+    ame455_startupRebuildDirty = NO;
+    NSLog(@"[ZL2Theme] Task455: startup token burst coalesced -> trailing rebuild flush");
+    return YES;
 }
 
 + (void)ame429_setPaletteBootstrapHook:(void (*)(void))hook {

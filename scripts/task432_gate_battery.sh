@@ -79,6 +79,9 @@ run_py task452      scripts/task452_selfcheck.py
 run_py task453      scripts/task453_selfcheck.py
 # ★Task454 设置闪退根因修复轮：getter/setter 自递归家族全仓静态执法
 run_py task454      scripts/task454_selfcheck.py
+# ★Task455 三症状落码轮：偏好键裸查表家族零容忍 + AppLanguageChanged 广播面
+#   清单锁定（启动合并防绕行）+ 旧折叠键写入面清零（会话级语义防回潮）
+run_py task455      scripts/task455_selfcheck.py
 
 # 括号审计：本轮全部编辑文件逐个过状态机（file args 契约，Task431 判例口径）
 EDITED=$(git diff --name-only HEAD --diff-filter=d -- 'Natives/*.m' 'Natives/*.h' 'Natives/**/*.m' 'Natives/**/*.h' 2>/dev/null | grep -v '^Natives/external/' | tr '\n' ' ')

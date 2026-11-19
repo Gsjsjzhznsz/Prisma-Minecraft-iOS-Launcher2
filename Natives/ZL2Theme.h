@@ -173,6 +173,11 @@ NS_ASSUME_NONNULL_BEGIN
 // 消费方：ZL2DynamicPalette 生效链（勿发明第二套广播）。
 + (void)ame429_requestRootRebuild;
 
+// ★ Task455：启动期令牌突发合并——首帧落地锚点消费（ZL2ShellViewController
+// viewDidAppear 进程级一次调用）。返回 YES = 首帧前有被抑制的令牌重建请求，
+// 调用方应恰好补建一次（整壳重建总量 4→2；判例见 ZL2Theme.m ame346 块）。
++ (BOOL)ame455_consumeStartupRebuild;
+
 // 主题中枢懒启动钩子注册（ZL2DynamicPalette +load 调用；C 函数指针语义，
 // 无上下文捕获）。本 TU 保持 smoke/Preview 目标零新增链接依赖（Task317
 // 判例同口径）——中枢 TU 缺席的目标钩子恒 NULL = 静默跳过，embermire

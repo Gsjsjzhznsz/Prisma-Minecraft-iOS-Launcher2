@@ -63,10 +63,12 @@ check("A5 标题文案 bundle 显示名回退链（processName 宿主不确定�
 check("A6 装机自证日志（[Ame379] pane header 落 header/toggle/tglTrans/title frame；★Task403 重锚：[Ame383] 动作簇自证随右上动作簇退役（bd9e1d9 移除主页重复快捷入口，并行会话未跑门禁未补账）一并摘除）",
       '[Ame379] pane header -- header=%@ toggle=%@ tglTrans=%d title=%@ titleLen=%lu' in shell)
 
-check("A7 376 折叠语义逐字保留（几何派发/宽约束/持久化/紧凑宽 64）",
+check("A7 376 折叠语义逐字保留（几何派发/宽约束/回读/紧凑宽 64；★Task455 重锚："
+      "持久化改会话级，回读键迁移 ame376.paneCollapsed→.ui 后缀，旧键一次性清账）",
       "ame376_applyPaneGeometry:(BOOL)animated" in shell
       and "self.ame376_paneWidth = [self.paneWrap.widthAnchor constraintEqualToConstant:ZL2ShellPaneWidth];" in shell
-      and 'forKey:@"ame376.paneCollapsed"' in shell
+      and 'boolForKey:@"ame376.paneCollapsed.ui"' in shell
+      and 'removeObjectForKey:@"ame376.paneCollapsed"' in shell
       and "ZL2ShellPaneCompactWidth = 64.0;" in shell
       and "[self.paneTitle setHidden:ame376_compact]" in shell.replace("self.paneTitle.hidden = ame376_compact;", "[self.paneTitle setHidden:ame376_compact]"))
 

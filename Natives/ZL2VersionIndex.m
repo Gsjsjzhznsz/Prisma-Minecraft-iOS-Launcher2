@@ -35,6 +35,24 @@ static dispatch_queue_t _ame_lookupQueue = nil;
 // 在途等待上限（秒）：清单网络候选链（官方 + 镜像）的保守预算
 static const NSTimeInterval ZL2VersionIndexRemoteWaitBudget = 10.0;
 
+// ★ Task455：清单磁盘缓存——原实现远程清单纯内存态，每进程启动必走网络
+//   （装机 latestlog 实锤 "loaded 927 remote versions from piston-meta"）
+//   = 版本页列表冷启动加载/慢网不可用，用户观感「版本数据重新要下载」。
+//   缓存语义：新清单 ≤24h（TTL）直接磁盘水合（零网络即时落定）；过期/
+//   缺失走网络且成功后原子写回；网络全候选失败但有过期快照 → 快照兕底
+//   （离线可浏览，落定语义不变）。缓存文件放 NSCachesDirectory（系统
+//   可回收，回收即回退网络路径，零危害）。
+static const NSTimeInterval ame455_manifestCacheTTL = 24.0 * 3600.0;
+
+static NSString *ame455_manifestCachePath(void) {
+    NSString *ame455_caches = NSSearchPathForDirectoriesInDomains(NSCachesDirectory, NSUserDomainMask, YES).firstObject;
+    if (ame455_caches.length == 0) return nil;
+    return [ame455_caches stringByAppendingPathComponent:@"ame_version_manifest_cache.json"];
+}
+
+// 磁盘快照水合与写回的方法体在 @implementation 内（见 ame_fetchRemoteListIfNeeded
+// 邻位）；此处仅文件域常量与纯 C 路径探测。
+
 NSString * const ZL2VersionIndexLogTag = @"[ZL2VersionIndex]";
 
 @implementation ZL2VersionIndex
@@ -356,6 +374,60 @@ NSString * const ZL2VersionIndexLogTag = @"[ZL2VersionIndex]";
 
 #pragma mark - 远程清单拉取（Task218 候选链 1:1）
 
+// ★ Task455：磁盘快照水合（锁外磁盘 IO/JSON 解析，锁内落袋；allowStale =
+//   兕底模式不验 TTL）。返回 YES = 清单已落定（新舊快照均可），调用方不再走网络。
+- (BOOL)ame455_hydrateFromManifestCacheAllowStale:(BOOL)allowStale {
+    NSString *ame455_path = ame455_manifestCachePath();
+    if (ame455_path.length == 0) return NO;
+    NSData *ame455_data = [NSData dataWithContentsOfFile:ame455_path];
+    if (!ame455_data) return NO;
+    id ame455_obj = [NSJSONSerialization JSONObjectWithData:ame455_data options:0 error:nil];
+    if (![ame455_obj isKindOfClass:[NSDictionary class]]) return NO;
+    NSArray *ame455_versions = ame455_obj[@"versions"];
+    if (![ame455_versions isKindOfClass:[NSArray class]] || ame455_versions.count == 0) return NO;
+    NSTimeInterval ame455_age = -1.0;
+    if ([ame455_obj[@"fetchedAt"] isKindOfClass:[NSNumber class]]) {
+        ame455_age = [NSDate date].timeIntervalSince1970 - [ame455_obj[@"fetchedAt"] doubleValue];
+    }
+    if (!allowStale && (ame455_age < 0.0 || ame455_age > ame455_manifestCacheTTL)) return NO;
+    [_ame_cond lock];
+    @try {
+        if (_ame_remoteLoaded) return YES;   // 竞态：网络先回，清单已在袋
+        [_ame_remoteList addObjectsFromArray:ame455_versions];
+        _ame_fetching = NO;
+        _ame_remoteLoaded = YES;
+        NSLog(@"%@ loaded %lu cached versions from disk (age=%.1fh ttl=%.0fh%@)",
+              ZL2VersionIndexLogTag, (unsigned long)_ame_remoteList.count,
+              ame455_age < 0 ? -1.0 : ame455_age, ame455_manifestCacheTTL / 3600.0,
+              allowStale ? @" stale-fallback" : @"");
+        [_ame_cond signal];
+        [_ame_cond broadcast];
+    } @finally {
+        [_ame_cond unlock];
+    }
+    if ([ame455_obj[@"latest"] isKindOfClass:[NSDictionary class]]) {
+        setPrefObject(@"internal.latest_version", ame455_obj[@"latest"]);   // Task218 语义同源
+    }
+    return YES;
+}
+
+// 清单成功落袋后原子写回磁盘缓存（后台队列安全，失败静默——缓存是优化
+// 非依赖，写失败仅回退既有网络路径）
+- (void)ame455_writeManifestCacheWithVersions:(NSArray *)versions latest:(NSDictionary *)latest {
+    @try {
+        NSDictionary *ame455_payload = @{
+            @"fetchedAt": @([[NSDate date] timeIntervalSince1970]),
+            @"latest": latest ?: @{},
+            @"versions": versions ?: @[],
+        };
+        NSData *ame455_data = [NSJSONSerialization dataWithJSONObject:ame455_payload options:0 error:nil];
+        NSString *ame455_path = ame455_manifestCachePath();
+        if (ame455_data && ame455_path) [ame455_data writeToFile:ame455_path atomically:YES];
+    } @catch (NSException *ame455_e) {
+        NSLog(@"%@ Task455 manifest cache write skipped (%@)", ZL2VersionIndexLogTag, ame455_e.name);
+    }
+}
+
 - (void)ame_fetchRemoteListIfNeeded {
     [_ame_cond lock];
     @try {
@@ -373,6 +445,8 @@ NSString * const ZL2VersionIndexLogTag = @"[ZL2VersionIndex]";
     } @finally {
         [_ame_cond unlock];
     }
+    // ★ Task455：磁盘缓存快速路径（≤24h 新鲜快照 = 零网络即时落定）
+    if ([self ame455_hydrateFromManifestCacheAllowStale:NO]) return;
     [self ame_startFetchCandidates];
 }
 
@@ -388,6 +462,9 @@ NSString * const ZL2VersionIndexLogTag = @"[ZL2VersionIndex]";
     __block void (^tryNext)(void) = ^{ };
     tryNext = ^{
         if (remaining.count == 0) {
+            // ★ Task455：网络全候选失败 → 过期磁盘快照兕底（离线可浏览；
+            //   无快照才走既有失败落定，语义不变）
+            if ([self ame455_hydrateFromManifestCacheAllowStale:YES]) return;
             [_ame_cond lock];
             _ame_fetching = NO;
             _ame_remoteLoaded = YES;   // 失败也"落定"：等待方立即醒来走判死
@@ -408,6 +485,8 @@ NSString * const ZL2VersionIndexLogTag = @"[ZL2VersionIndex]";
                     // Task218 语义：latest 写偏好（主线程）；清单本体持锁落袋
                     setPrefObject(@"internal.latest_version", json[@"latest"]);
                     NSArray<NSDictionary *> *versions = json[@"versions"];
+                    // ★ Task455：清单原子写回磁盘缓存（≤24h 内启动零网络）
+                    [self ame455_writeManifestCacheWithVersions:versions latest:json[@"latest"]];
                     [_ame_cond lock];
                     [_ame_remoteList addObjectsFromArray:versions];
                     _ame_fetching = NO;
