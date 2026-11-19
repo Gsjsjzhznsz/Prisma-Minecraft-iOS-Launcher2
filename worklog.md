@@ -5552,3 +5552,18 @@ Stage Summary:
 - 装机锚点（BuildTag=「Task453 · 2026-11-19」）：①wallpaper=1 设备「打开即闪退」直接根除（根因面 = 壁纸卡面家族色识别 dispatch_once 首路径，非 JIT26 非 JSC）②设置→关于版本行显示 Task453 代际（装机旧构建判别锚）③若仍崩 = 新崩溃报告 UUID 必异于 0f1c98c1（对照判代际）。
 
 - 【闭环补记·Task453】代码轮 CI 双绿一轮终绿（2ed20a632：dev run 44482645563 success + ui-smoke 44482645487 success）；docs 轮终态规范构建 run 44487984589 success = 规范装机构建；四产物 Task453 唯一命名归档（AngelAuraAmethyst__Task453__44487984589.ipa / .tipa / AngelAuraAmethyst.dSYM__Task453__44487984589.zip / ame-fluent-preview__Task453__44487984589.zip，字节数与 manifest 逐一核对）；task453_artifact_verify 四重验证 12 断言 ALL PASS（V1 zip 零错×4 + V2 BuildTag UTF-16LE Task453 在场 + V3 旧代际 Task452 归零 + V4a dSYM 新 UUID 88ad191b 异于崩溃代际 0f1c98c1/dev 轮 b911e064 + V4b 修复函数符号在场 + V4c ipa/dSYM __TEXT vmsize 0xe04000 产物对一致）；判例两则：①嵌套 ipa 重打包面摘除内嵌二进制 LC_UUID（产物对一致性改 __TEXT vmsize 双锚）②函数体尺寸不可作修复判据（移除 8B 块调用面经 16B 对齐填充尺寸不变，BuildTag+UUID 代际锚为准）；最终 docs 提交（验证器+闭环）后续轮构建与 44487984589 二进制等价（零生产代码差），归档锚不迁移；议题 #3 第八轮评论已发（JIT26ExecPreflight 交付口径 + 「打开即闪退」家族非 JIT26 范围澄清 + 保持 open 等报告者回归验证）。
+
+## Task 454 · 2026-11-19（「设置闪退」根因修复轮：崩溃 .ips 符号化实锤 = Task449 getter 自递归 31403 帧栈溢出 + 访问器家族门禁入册 + 电池 39→40）
+
+**用户指令**：四症状报告（启动卡死 / 版本数据重新要下载 / 设置闪退 / 侧边栏设置详细+刷新+UI自适应有时不显示不占满）+ latestlog.txt（Commit 2ed20a6=Task453，first frame landed 实证打开闪退已根除）+ LiveContainer-2026-11-19-165559.ips（bug_type 309）
+
+Work Log:
+- 【证据链】崩溃二进制 UUID 58f8b2d2-0b59-304b-aa5c-28157112a4fe 与 Task453 代码轮（2ed20a6/dev run 44482645563）dSYM 逐字符对撞；符号化 17 偏移全链命中：ZL2ShellTapControl ame_fireAction+100 → shell ame_buildNavigationViewShell block→showPageAtIndex+356 → ZL2SettingsViewController viewDidLoad+440 → ame_showPageAtIndex+188 → ame_attachPageIfNeeded+192 → ZL2SettingPage viewDidLoad+3804 → ZL2RendererSettingsPage ame_buildGroups+1816 → ame_addGroup:title:key:defaultCollapsed:+200 → ame449_enableCollapsing+3332 → ame449_applyCollapsedAnimated+252 → 块+240 → -[ZL2SettingCardGroup ame449_isCollapsed]+32 = recursionInfoArray keyFrame ×31403（SIGSEGV KERN_PROTECTION_FAILURE @ StackGuard 页，主线程 1MB 栈耗尽）
+- 【根因】Task449（57240655f 设置折叠改造）双面自斥：@property (getter=ame449_isCollapsed) BOOL ame449_collapsed（L111）+ 手写同名 getter 体内 `return self.ame449_collapsed;`（点语法 = getter 分派 = 无限自递归）；调用面 = 设置页建组 applyCollapsedAnimated 块 row.hidden = self.ame449_collapsed 首读即爆；被 Task453「打开即闪退」根修解锁后用户首进设置即触发（时序判例：遮蔽雷 = 崩溃修复轮的必测回归面）；Task450-A/452-C @try 家法只收敛 NSException 拦不住 SIGSEGV（判例三则）
+- 【修复】getter 改直读 _ame449_collapsed（绕开 getter 分派，语义等价，Task449 折叠语义不回退）+ 判例留档注释（UUID/31403/引入代际/调用面）；新门 task454_selfcheck 10 断言（R 修复形态×5 / X 全仓自定义访问器 property 全量清点 18 处 + 手写访问器体点语法自读自写家族静态扫描零容忍 / S 谓词敏感性×2）+ 电池 39→40 入册；BuildTag Task454 · 2026-11-19
+- 【三症状初判落档】①启动卡死感 = [ZL2Theme] Task346 token change → root rebuild posted ×2（57.523+57.984）→ 壳三重建 churn + Unbalanced appearance transitions（重建竞态嫌疑同源）②侧边栏标题不显示 = [Ame379] pane header title={{44,7},{0,18}} 宽 0（ZL2ShellViewController:1577 埋点，标题约束面）③版本数据 = [Ame349] reconcile(startup) scanned=3 registered=0 orphans=0 为健康态（幂等只增、零孤儿）非数据丢失，需版本页复现细节；[PLPreferences] auto_control_update_check 告警 = control. 前缀键未入注册表（getter 兜底默认值功能可用仅噪声，注册需重锚 68 键族门禁故缓）——三件均下轮落码
+- 【事故零新增】task454 首版即绿；家族扫描实证 18 处自定义访问器 property 中自递归仅此一处（X2 全仓清零）
+- 【门禁+CI】task454_selfcheck ALL PASS；电池 40/40 ALL GREEN；task139/240/括号审计绿（ZL2SettingCards.m/BuildTag.h 零失衡）；代码轮双绿（c185363bb：dev 44495441742 success + ui-smoke 44495441822 success 一轮终绿）
+
+Stage Summary:
+- 装机锚点（BuildTag=「Task454 · 2026-11-19」）：①设置页打开不再闪退（38 组折叠组建页路径全通）②设置→关于 Task454 代际 ③若再崩 = 新 .ips UUID 必异于 58f8b2d2；docs 轮规范构建归档待本提交 CI 终态
