@@ -298,8 +298,15 @@ static void ame449_foldOverrideSet(NSString *key, BOOL expanded) {
     [self ame449_applyCollapsedAnimated:animated];
 }
 
+// ★Task454 设置闪退根因修复（用户崩溃 .ips 符号化实锤 58f8b2d2，栈深 31403 帧栈
+//  溢出 SIGSEGV@StackGuard）：本 getter 初版误用点语法 self.ame449_collapsed 读自身
+//  ——该 property 声明 getter=ame449_isCollapsed（L111），点语法即调用本方法 = 无限
+//  自递归；Task449 引入，被「打开即闪退」遮蔽至 Task453 根修后用户首进设置即触发
+//  （ShellTap 点设置 → SettingsVC attachPage → 建组 enableCollapsing →
+//  applyCollapsedAnimated 块 L270 row.hidden = self.ame449_collapsed 首读即爆）。
+//  改直读下划线 ivar（绕开 getter 分派，语义等价）：
 - (BOOL)ame449_isCollapsed {
-    return self.ame449_collapsed;
+    return _ame449_collapsed;
 }
 
 // 按位置拼圆角（见文件头规格注）：
