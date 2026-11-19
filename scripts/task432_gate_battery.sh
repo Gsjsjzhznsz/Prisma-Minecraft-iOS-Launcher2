@@ -85,6 +85,10 @@ run_py task455      scripts/task455_selfcheck.py
 # ★Task456 三症状残余落码轮：重建回声沉降窗 + 外观去抖 + 游戏面换根保护 +
 #   版本卡结构性重钉（尾行齿轮/刷新不可裁剪）+ shellLayout 默认蓝图内置化
 run_py task456      scripts/task456_selfcheck.py
+# ★Task457 游戏启动 JIT26 op4 brk 无应答闪退根因修复轮：brk #0xf00d 超调用
+#   Safe 护栏（op1/op4，Task91+301 合体）+ dyld 钩子三重防线 + op4 金丝雀
+#   + 裸超调用全仓清零（崩溃机理族静态雷区零容忍）
+run_py task457      scripts/task457_selfcheck.py
 
 # 括号审计：本轮全部编辑文件逐个过状态机（file args 契约，Task431 判例口径）
 EDITED=$(git diff --name-only HEAD --diff-filter=d -- 'Natives/*.m' 'Natives/*.h' 'Natives/**/*.m' 'Natives/**/*.h' 2>/dev/null | grep -v '^Natives/external/' | tr '\n' ' ')

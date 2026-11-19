@@ -1022,6 +1022,82 @@ void JIT26PrepareRegionForPatching(void *addr, size_t size) {
        "brk #0xf00d \n"
        "ret");
 }
+
+// ============================================================================
+// ★ Task457：brk #0xf00d 超调用安全护栏（op1/op4 通用）。
+// 病历（Task457 装机 .ips 符号化实锤，崩溃二进制 UUID bca7c538 = Task456 构建）：
+//   launchMinecraft block → launchJVM → init_bypassDyldLibValidation →
+//   searchAndPatch("dyld_mmap") → redirectFunctionMirrored →
+//   JIT26PrepareRegionForPatching+4 brk #0xf00d（EXC_BREAKPOINT brk 61453，
+//   后台 default-QOS 队列，23:24:35）＝调试器未应答 op4 超调用，裸函数当场
+//   SIGTRAP 致死。同族判例：Task91（brk0x69 无应答闪退 → SIGTRAP 信号网）、
+//   Task301（死调试器端口下 brk 进 mach_msg 永久阻塞 → 有界看门狗、泄漏一条
+//   阻塞线程优于整机冻结）。本护栏 = 两判例合体：
+//   ① SIGTRAP 信号网：无调试器时 brk 以 Unix 信号抵达（调试器在场走 Mach
+//      例外端口，本网不触发——Task91 语义），siglongjmp 收敛为返回 NO；
+//   ② 后台线程 + 20s 有界等待：死端口形态线程泄漏在 mach_msg（Task301 判例），
+//      调用方拿确定性 NO 继续优雅报错。
+//   残余不可防线（如实留档）：调试器在场但 op4 分派失败放行例外（脚本引擎
+//   异常直通宿主崩溃报告）——与旧代码同死法，零回归；调用方以写回校验
+//   （redirectFunctionMirrored 的 vm_protect 返回检查 + memcmp）兜
+//   「应答但未生效」形态。
+// ============================================================================
+static sigjmp_buf ame457_trapEnv;
+static volatile sig_atomic_t ame457_trapArmed = 0;
+
+static void ame457_trapCatch(int sig) {
+    if (!ame457_trapArmed) {
+        // 不属于本安全网的 SIGTRAP：恢复默认语义原样致死，不吞异常（Task91 同款）
+        signal(sig, SIG_DFL);
+        raise(sig);
+        return;
+    }
+    ame457_trapArmed = 0;
+    siglongjmp(ame457_trapEnv, 1);
+}
+
+static BOOL ame457_brkWithNet(void (^fn)(void)) {
+    struct sigaction sa, oldsa;
+    memset(&sa, 0, sizeof(sa));
+    sa.sa_handler = ame457_trapCatch;
+    sigemptyset(&sa.sa_mask);
+    sa.sa_flags = SA_NODEFER;
+    sigaction(SIGTRAP, &sa, &oldsa);
+
+    __block BOOL ame457_served = NO;
+    dispatch_semaphore_t ame457_done = dispatch_semaphore_create(0);
+    dispatch_async(dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_DEFAULT, 0), ^{
+        if (sigsetjmp(ame457_trapEnv, 1) == 0) {
+            ame457_trapArmed = 1;
+            fn();               // naked brk 超调用（调试器应答 = 正常返回）
+            ame457_trapArmed = 0;
+            ame457_served = YES;
+        } else {
+            ame457_served = NO; // 裸 SIGTRAP：无调试器应答（Task457 .ips 形态）
+        }
+        dispatch_semaphore_signal(ame457_done);
+    });
+
+    BOOL ok = NO;
+    if (dispatch_semaphore_wait(ame457_done, dispatch_time(DISPATCH_TIME_NOW, (int64_t)20 * NSEC_PER_SEC)) == 0) {
+        ok = ame457_served;
+    } else {
+        // 死端口：brk 线程泄漏在 mach_msg（Task301 判例：泄漏优于冻结）
+        NSLog(@"[JIT26] Task457: brk hypercall watchdog timeout (20s) -- debugger port dead; leaking the blocked thread, reporting unserved");
+        ok = NO;
+    }
+    sigaction(SIGTRAP, &oldsa, NULL);
+    return ok;
+}
+
+BOOL JIT26PrepareRegionSafe(void *addr, size_t len) {
+    return ame457_brkWithNet(^{ JIT26PrepareRegion(addr, len); });
+}
+
+BOOL JIT26PrepareRegionForPatchingSafe(void *addr, size_t size) {
+    return ame457_brkWithNet(^{ JIT26PrepareRegionForPatching(addr, size); });
+}
+
 void JIT26SendJITScript(NSString* script) {
     NSCAssert(script, @"Script must not be nil");
     BreakSendJITScript((char*)script.UTF8String, script.length);

@@ -7,6 +7,8 @@
 #include <fcntl.h>
 #include <sys/stat.h>
 #include <sys/mman.h>
+#include <unistd.h>
+#include <errno.h>
 #include <mach-o/loader.h>
 #include <mach-o/nlist.h>
 #include <mach-o/dyld.h>
@@ -67,9 +69,18 @@ bool redirectFunctionDirect(char *name, void *patchAddr, void *target) {
     return TRUE;
 }
 // redirectFunction for iOS 26+ (TXM)
+// ★ Task457 三重防线：①op4 超调用改走 Safe 护栏（装机 .ips 实锤：无应答
+//   brk 61453 SIGTRAP 致死；无调试器/死端口 → 返回 NO 弃钩，不闪退）；
+//   ②vm_protect(mirror RW) 返回值检查（旧代码吞返回值：TXM 拒改保护时
+//   memcpy 经只读别名写 → SIGBUS 黑屏族）；③写回校验（镜像与目标页共享
+//   物理页，补丁未穿透时目标页保持原字节 —— SIGBUS 被 init 阶段 SIG_IGN
+//   吞掉的静默半写形态由此检出），任一失败均弃钩，不带残缺钩子发射 JVM。
 bool redirectFunctionMirrored(char *name, void *patchAddr, void *target) {
     if (DeviceHasJITFlags(JIT_FLAG_FORCE_MIRRORED | JIT_FLAG_HAS_TXM)) {
-        JIT26PrepareRegionForPatching(patchAddr, sizeof(patch));
+        if (!JIT26PrepareRegionForPatchingSafe(patchAddr, sizeof(patch))) {
+            NSDebugLog(@"[DyldLVBypass] ame457: JIT26PrepareRegionForPatching unserved (no debugger answer for brk op4) -- hook %s aborted before vm_remap", name);
+            return FALSE;
+        }
     }
     // mirror `addr` (rx, JIT applied) to `mirrored` (rw)
     vm_address_t mirrored = 0;
@@ -81,10 +92,21 @@ bool redirectFunctionMirrored(char *name, void *patchAddr, void *target) {
     }
     
     mirrored += (vm_address_t)patchAddr & PAGE_MASK;
-    vm_protect(mach_task_self(), mirrored, sizeof(patch), NO,
+    kern_return_t ame457_prot = vm_protect(mach_task_self(), mirrored, sizeof(patch), NO,
                VM_PROT_READ | VM_PROT_WRITE);
+    if (ame457_prot != KERN_SUCCESS) {
+        NSDebugLog(@"[DyldLVBypass] ame457: vm_protect(mirror RW) fails (%d) at line %d -- TXM refused; hook %s aborted without writing", ame457_prot, __LINE__, name);
+        vm_deallocate(mach_task_self(), mirrored, sizeof(patch));
+        return FALSE;
+    }
     builtin_memcpy((char *)mirrored, patch, sizeof(patch));
     *(void **)((char*)mirrored + 16) = target;
+    if (memcmp((const void *)patchAddr, patch, 16) != 0 ||
+        *(void **)((char *)patchAddr + 16) != target) {
+        NSDebugLog(@"[DyldLVBypass] ame457: patch write-back verify fails for hook %s -- mirrored write did not land; aborting hook", name);
+        vm_deallocate(mach_task_self(), mirrored, sizeof(patch));
+        return FALSE;
+    }
     sys_icache_invalidate((void*)patchAddr, sizeof(patch));
     
     NSDebugLog(@"[DyldLVBypass] hook %s succeed!", name);
@@ -172,7 +194,14 @@ void* hooked_mmap(void *addr, size_t len, int prot, int flags, int fd, off_t off
         //printf("[DyldLVBypass] mmap(prot=%d, flags=%d, fd=%d)\n", prot, flags, fd);
         map = __mmap(addr, len, prot, flags | MAP_PRIVATE | MAP_ANON, 0, 0);
         if (DeviceHasJITFlags(JIT_FLAG_FORCE_MIRRORED | JIT_FLAG_HAS_TXM)) {
-            JIT26PrepareRegion(map, len);
+            // ★ Task457：op1 超调用同族 Safe 化（无应答 → 干净 MAP_FAILED，
+            //   dlopen 报错收敛到 JVM 既有失败路径，不再裸 SIGTRAP 致死）
+            if (!JIT26PrepareRegionSafe(map, len)) {
+                NSDebugLog(@"[DyldLVBypass] ame457: JIT26PrepareRegion unserved (no debugger answer for brk op1) -- returning MAP_FAILED instead of hollow region");
+                munmap(map, len);
+                errno = EINVAL;
+                return MAP_FAILED;
+            }
         }
         
         void *memoryLoadedFile = __mmap(NULL, len, PROT_READ, MAP_PRIVATE, fd, offset);
@@ -225,9 +254,9 @@ int hooked___fcntl(int fildes, int cmd, void *param) {
     return orig_fcntl(fildes, cmd, param);
 }
 
-void init_bypassDyldLibValidation() {
+BOOL init_bypassDyldLibValidation(void) {
     static BOOL bypassed;
-    if (bypassed) return;
+    if (bypassed) return TRUE;
     bypassed = YES;
 
     NSDebugLog(@"[DyldLVBypass] init");
@@ -261,9 +290,29 @@ void init_bypassDyldLibValidation() {
     
     orig_fcntl = __fcntl;
     char *dyldBase = getDyldBase();
+    // ★ Task457 op4 通道金丝雀：Mirrored 路径下 op4 是 dyld 钩子的前置超调用，
+    //   无应答即闪退（装机 .ips 实锤：launchMinecraft block 内
+    //   JIT26PrepareRegionForPatching+4 brk 61453）。先对匿名 RW 探针页做一次
+    //   Safe op4：NO = 通道死（无调试器/死端口）→ 弃钩优雅返回 FALSE（调用方
+    //   弹 ame457 诊断窗），不再带裸 brk 冲向 dyld 文本页。
+    if (redirectFunction == redirectFunctionMirrored) {
+        BOOL ame457_op4Alive = FALSE;
+        void *ame457_scratch = mmap(NULL, getpagesize(), PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANON, -1, 0);
+        if (ame457_scratch == MAP_FAILED) {
+            NSDebugLog(@"[DyldLVBypass] ame457: op4 canary scratch mmap failed (errno=%d) -- assuming channel dead", errno);
+        } else {
+            ame457_op4Alive = JIT26PrepareRegionForPatchingSafe(ame457_scratch, 16);
+            munmap(ame457_scratch, getpagesize());
+            NSDebugLog(@"[DyldLVBypass] Task457: op4 canary verdict=%d (scratch-page round-trip)", ame457_op4Alive);
+        }
+        if (!ame457_op4Alive) {
+            NSDebugLog(@"[DyldLVBypass] ame457: JIT26 op4 channel dead -- dyld hooks would crash; aborting bypass gracefully");
+            return FALSE;
+        }
+    }
     //redirectFunction("mmap", mmap, hooked_mmap);
     //redirectFunction("fcntl", fcntl, hooked_fcntl);
-    searchAndPatch("dyld_mmap", dyldBase, mmapSig, sizeof(mmapSig), hooked_mmap);
+    bool ame457_mmapHookOK = searchAndPatch("dyld_mmap", dyldBase, mmapSig, sizeof(mmapSig), hooked_mmap);
     bool fcntlPatchSuccess = searchAndPatch("dyld_fcntl", dyldBase, fcntlSig, sizeof(fcntlSig), hooked___fcntl);
     
     // https://github.com/LiveContainer/LiveContainer/commit/c978e62
@@ -287,9 +336,14 @@ void init_bypassDyldLibValidation() {
             int32_t offset = ((int32_t)((*inst)<<6))>>4;
             NSLog(@"[DyldLVBypass] Dopamine hook offset = %x", offset);
             orig_fcntl = (void*)((char*)fcntlAddr + offset);
-            redirectFunction("dyld_fcntl (Dopamine)", fcntlAddr, hooked___fcntl);
+            fcntlPatchSuccess = redirectFunction("dyld_fcntl (Dopamine)", fcntlAddr, hooked___fcntl);
         } else {
             NSLog(@"[DyldLVBypass] Dopamine hook not found");
         }
     }
+    
+    // ★ Task457：两钩落位判定（mmap 钩管可执行映射，fcntl 钩管签名旁路，
+    //   任一残缺 = JVM 发射必炸）→ 调用方弹 ame457 诊断窗优雅退出
+    NSDebugLog(@"[DyldLVBypass] Task457: bypass complete mmapHook=%d fcntlHook=%d", ame457_mmapHookOK, fcntlPatchSuccess);
+    return ame457_mmapHookOK && fcntlPatchSuccess;
 }
