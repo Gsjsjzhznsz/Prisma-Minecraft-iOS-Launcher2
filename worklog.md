@@ -5518,3 +5518,19 @@ Stage Summary:
 - 装机锚点（BuildTag=「Task451 · 2026-11-19」）：①通道劣化会话 = 启动前置弹窗（不再 SIGBUS 黑屏），文案含四步处置阶梯 ②健康会话 = 日志 [Ame451] preflight attempt 1 PASSED，启动链零体感变化 ③定罪会话 Documents 根 ame451_preflight_conviction.txt verdict=conviction ④逃生阀 = debug.jit26_preflight_disable=YES 回到本轮前行为。
 
 - 【闭环补记】CI 双绿终态（be9a2da60：dev run 44448242904 success + ui-smoke run 44448242833 success 一轮终绿）；三产物 Task451 唯一命名归档（AngelAuraAmethyst__Task451__44448242904.ipa / .tipa / AngelAuraAmethyst.dSYM__Task451__44448242904.zip）；ipa+tipa 四重验证（zip 零错 + ame451_preflightJit26Channel/ame451_execProbe/ame451_preflight_conviction.txt/jit26_preflight_disable/i18n_str_ame451_preflight 符号在场 + BuildTag UTF-16LE Task451 在场且 Task450 归零）；议题 #3 第七轮评论已落卷（判读 + JIT26ExecPreflight 交付 + 阶梯改排 + 保持 open 等报告者回归验证）。
+
+## Task 452 · 2026-11-19（「打开即闪退」判读轮：JSC 解释器钉死 + 首帧链分段签名 + 新执行面 @try 收敛 + 电池 33→38 诚实收编）
+
+**用户指令**：「打开即闪退。」+ latestlog.txt（构建 eac50ad=Task451，iPad Air 11 M4 / iPadOS 27.0.1 未越狱 / 窗口模式 711.5pt / 壁纸 blur 档 / 3 实例）
+
+Work Log:
+- 【判读】日志止于 [Ame417] shell rail glyphs（构建尾）且无异常块 = stderr 无缓冲 _IONBF（main.m setvbuf 实证）+ 管道读取线程毫秒级排水（Task441 判例 N+28 同源取证口径）→ 硬信号级死亡（SIGKILL/信号，NSException 路径排除——异常块必达文件，老日志 Task441 会话尾崩溃实录反证）；async frames 探针（dispatch_async main）永未执行 = 主线程首帧 turn 内死亡/挂死；死亡窗口 = [背景宿主安装 → buildViews → autoCheck] 三段静默带（老日志 619ae5e 同设备同状态全序列比对 + 新旧日志序列 diff 双证）。窗口内唯一新执行面 = Task449/450 壁纸清扫（wallpaper=1 专属面，CI harness 无壁纸零覆盖）；Task446 同型 "Invalid pairing of layout attributes" 全仓 constraintWithItem 维度配对审计零再犯（anchor API 有编译期类型防护）+ 老日志尾崩溃源（导出页 centerX↔width）已在 4d14bb3 修复排除。
+- 【结构性裸露定谳】设备处于议题#3 三轮装机定罪的 JIT26 空壳 RX 通道（rx=0x70088cc000 落调试器别名池，ame442 形态判决链），Task451 JIT26ExecPreflight 只护游戏发射路径（JavaLauncher:3201）——启动器进程自身的 JavaScriptCore（插件引擎 AmePluginBridge/JSExport，6 插件 censu 全过）与 JVM 同享 enabler 可执行映射通道：插件 JS 在壳构建/主页生命周期事件爆发期被 Baseline/DFG/FTL JIT 编译，JIT'd 函数落空壳 RX = 首取指 SIGBUS——无 ObjC 异常（NSSetUncaughtExceptionHandler 不进信号）、ame273 报告缺席、日志静默冻结，与装机临床逐项吻合（ame451 预检的镜像盲区）。
+- 【Task452-A JSC 解释器钉死】main.m loadPreferences 后（远早于任何 JSContext）JSC_useJIT/useBaselineJIT/useDFGJIT/useFTLJIT 环境族 setenv（JSC Options 首个 VM 诞生时读环境）= 插件 JS 钉 LLInt 解释器——JIT26 空壳 RX 暴露面对启动器进程整体摘除；插件 JS 均 UI 胶水脚本（6 插件 ≤12KB），解释器开销可忽略零功能变化；逃生阀 debug.plugin_jit_allow 注册 PLPreferences debug 段（默认关 = 钉死，防 Setter 静默丢弃族同款）。Task451 预检（游戏发射）+ Task452 钉死（启动器常驻）= JIT26 防线两面合拢。
+- 【Task452-B 首帧链分段签名 6 锚】壳 [Task452] open: shell background-host installed / shell viewDidLoad done + 主页 home buildViews done (ok=) / home launch-state done / home first layout begin / home did appear (first frame landed)——下轮装机日志尾最后一签名单段钉出崩段（若再崩即一锤定音），Task171 证据链 + Task441 判例 N+28 家法。
+- 【Task452-C 新执行面 @try 收敛】主页 buildViews 整体 @try（异常降级签名 + callStackSymbols 落日志，ame452_buildOK 旗标门控下游防 nil 二次雷，半建 UI 壳存活可上报）/ ZL2BackgroundHost ame429_rebuildLayers @try（装饰层 alpha 恒 0 降级）/ BackgroundManager makeViewControllerTransparent 清扫挂点 @try（Task450-r1 P0 设置闪退装饰面判例同型家法，AME452_* 前缀防撞名）。
+- 【Task452-D 电池 33→38 诚实收编】task447/449/450/451 四门存量自检首次入列（此前仅单跑，worklog 声称绿但电池面缺失 = 覆盖口径诚实化）+ task452_selfcheck 新门 17 断言（A1 JSC 钉死×4/A2 注册×1/A3 签名×6/A4 @try×5/A5 BuildTag×1）；清偿四漂移：449/450/451 T1 轮次锁死字面量（'Task4NN · ' in tag 每轮推进必红 = 从未入电池的结构性根因）改形态验 Task\d+ · 日期（Task439 判例④同型，新鲜度职责移交 task439_buildtag_anchor 专门门）+ 449 D8 "MAX(uiOpacity,0.5)" 断言随 Task450② 固定 0.72 档语义实质退役重锚 + ame365 深历史基线 git show 浅克隆硬崩（unshallow 4733 提交环境修复，非代码问题）。
+- 【门禁】task452_selfcheck 17/17 ALL PASS；电池 38/38 ALL GREEN（33 存量 + 5 收编/新门）；task139/240 语法导入双闸 + 括号审计（shell/home/main 三文件）绿；verify219 零 i18n 增键免重锚；BuildTag Task452 · 2026-11-19。
+
+Stage Summary:
+- 装机锚点（BuildTag=「Task452 · 2026-11-19」）：①若 JSC/JIT26 假说成立 = 打开即崩直接根除（插件 JS 解释器执行，不再触碰可执行映射通道）②若崩因在窗口内其它点 = 日志尾 [Task452] open: 最后一签名单段钉出崩段 + @try 签名行给出异常栈，一锤定音后下轮根修 ③诊断对照通道 = debug.plugin_jit_allow=YES 恢复历史 JIT 行为（仅判读用）。
