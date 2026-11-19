@@ -468,6 +468,9 @@ NSString *const PREF_MOD_MIRROR = @"general.mod_mirror";
             // ★ Task342：JIT 镜像代码缓存退役自救开关（默认关零行为变化；
             //   SIGBUS@call_stub 装机实弹的自救通道，崩溃弹窗一键开启）
             @"mirror_codecache_disable": @NO,
+            // ★Task451：JIT26 授予前预检逃生阀（默认关 = 预检启用；3/3 空壳
+            //   定罪拒绝发射防 SIGBUS 黑屏，假阳性误拦时的用户侧旁路开关）
+            @"jit26_preflight_disable": @NO,
             @"debug_hide_home_indicator": @NO,
             // Task 129g：同 hidden_sidebar——model 推导，避免求值时机依赖。
             @"debug_ipad_ui": @([[[UIDevice currentDevice].model lowercaseString] containsString:@"ipad"]),
