@@ -5534,3 +5534,19 @@ Work Log:
 
 Stage Summary:
 - 装机锚点（BuildTag=「Task452 · 2026-11-19」）：①若 JSC/JIT26 假说成立 = 打开即崩直接根除（插件 JS 解释器执行，不再触碰可执行映射通道）②若崩因在窗口内其它点 = 日志尾 [Task452] open: 最后一签名单段钉出崩段 + @try 签名行给出异常栈，一锤定音后下轮根修 ③诊断对照通道 = debug.plugin_jit_allow=YES 恢复历史 JIT 行为（仅判读用）。
+
+- 【闭环补记·Task452】CI 双绿一轮终终态（261c19308：dev run 44470112942 success + ui-smoke 44470112921 success；docs 轮 44473637233 = 终态规范构建）；四产物 Task452 唯一命名归档（规范装机构建 run 44473637233）+ ipa/tipa 四重验证全 OK；装机回归结果 = 用户装机 Task452 规范构建（dSYM UUID 0f1c98c1 对撞证实）仍打开即崩 → 崩溃报告实锤下轮根因（见 Task453）。
+
+## Task 453 · 2026-11-19（「打开即闪退」根因修复轮：崩溃日志符号化实锤 = Task450② UIColor-当-block 类型混淆 + 全仓同类雷门禁入册 + 电池 38→39）
+
+**用户指令**：「打开即闪退。」+ bug_type 309 崩溃报告 JSON（LiveContainer 3.8.10 容器 guest=com.prisma-devs.prisma.app/AngelAuraAmethyst，iPad16,8 / iPhone OS 27.0.1 (24A446) / developerMode=1，procLaunch→procExit 322ms，PC=0 EXC_BAD_ACCESS (SIGKILL) / termination CODESIGNING "Invalid Page"，ktriage = "Failed to fault in a page with execute permissions"）
+
+Work Log:
+- 【证据链】崩溃二进制 UUID 0f1c98c1-f46f-3ac1-994a-b6aa5e5be4dd 与 Task452 规范装机构建 run 44473637233 的 dSYM 逐字符对撞成功（dev 轮 44470112942 dSYM = b911e064 同源异 UUID，__TEXT 0xe04000 双轮一致）；Linux 侧手解 Mach-O（LC_UUID / LC_SEGMENT_64 / LC_SYMTAB nlist-64，scripts/crash452_symbolicate.py）符号化崩溃线程 7 偏移全落壁纸清扫链：-[ZL2ShellViewController viewDidLoad]+400 → ame429_installBackgroundHost+1196 → -[ZL2BackgroundHost ame429_refreshWithOwnerViewController:]+188（block+448）→ makeViewControllerTransparent+1904 → ame449_sweepChromeAndCardsInView:transparent:+724 → +[BackgroundManager ame450_isCardFamilyColor:]+192（dispatch_once 调用点）→ _dispatch_once_callout → _dispatch_client_callout → PC=0；现场寄存器 x1 = countByEnumeratingWithState:objects:count: 锁定 for-in 枚举上下文；后台线程 27215643 = prometheus::SaveToFile worker（sleep 循环，无涉）。
+- 【根因】Task450② ame450_isCardFamilyColor 的 dispatch_once 块内三族色构建循环：@[] 字面量里是 [ZL2Theme surfaceContainer] 等**类方法的返回值（UIColor 实例）**，循环变量却声明为块指针并在体内直接调用 → for-in 把 UIColor 强转 block 指针、调用读对象偏移 16 当 invoke 函数指针跳转 = PC=0 / CODESIGNING Invalid Page。三重隐蔽性：编译期零告警（id→block 隐式转换合法）+ CI harness 无壁纸零覆盖（hasBackground=NO 时 makeViewControllerTransparent 首行早退）+ 450/451/452 三代构建均含雷 = 用户「打开即闪退」三轮不复主因。判例两则：①Task452 JIT26/JSC 启动崩溃假说**收回**（@try 防线只收敛 ObjC NSException 面，硬信号级 NULL 跳转必须源头根修——AME452 挂点 @try 与本崩点共存实证）②JIT26 游戏发射定罪链（议题#3 本体）不涉本雷，Task451 预检与 Task452 JSC 解释器钉死保留（后者降级为插件引擎纵深防御）。
+- 【修复】改直接枚举 UIColor（语义等价：原数组求值本就调用三类方法三次）+ 判例留档注释（含 0f1c98c1 实锤 UUID / 机理 / 三重隐蔽性）；新门 task453_selfcheck 12 断言（R 修复形态执法×3 / X 全仓 block 型 for-in 循环变量清单执法——允许清单入册制，现存合法面 = IconLoader.m callbacks 真块集合，新增合法面必须登记 / O dispatch_once 第二实参字面量 ^ 起步执法 = nil-block 变量传参类雷零容忍，判据 = 逗号后首字符 / S 谓词敏感性自证×3）+ 电池 38→39 入册；清偿 task452 A5 BuildTag 字面量锁死漏改（worklog Task452 宣称「轮次锁死字面量改形态验」但 A5 漏网 = N+32 收编轮 T1 族判例再现，Task439 判例④同型）；BuildTag Task453 · 2026-11-19。
+- 【事故两件·首版自检即红即修】①task453 判例注释引用旧雷字面量被自身 X1/R2 扫描扫中（自斥，第 11 期 sweep 首版 fix 自斥同款判例）→ 注释改述不留字面量；②O 门首版正则 [^)] 闭合匹配被字面量体内嵌括号破匹配（SurfaceViewController/ModDependencyResolver/ZeroTierBridge/StikDebugEngine 四文件误报）→ 改「逗号后首字符必须 ^」判据（不用括号闭合匹配）。
+- 【门禁】task453_selfcheck ALL PASS；电池 39/39 ALL GREEN；task139/240 语法导入双闸 + 括号审计（BackgroundManager.m / BuildTag.h 零失衡）绿；verify219 零 i18n 增键免重锚。
+
+Stage Summary:
+- 装机锚点（BuildTag=「Task453 · 2026-11-19」）：①wallpaper=1 设备「打开即闪退」直接根除（根因面 = 壁纸卡面家族色识别 dispatch_once 首路径，非 JIT26 非 JSC）②设置→关于版本行显示 Task453 代际（装机旧构建判别锚）③若仍崩 = 新崩溃报告 UUID 必异于 0f1c98c1（对照判代际）。
