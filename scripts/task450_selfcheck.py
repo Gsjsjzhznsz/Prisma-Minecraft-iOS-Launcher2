@@ -70,7 +70,9 @@ check("E4 小屏摘文件项", "if (ame450_compactDevice && ame347_footerPages[i
 check("E5 日志锚", shell.count("[Task450] shell rail compact device=") == 1)
 
 # ============ T BuildTag ============
-check("T1 BuildTag=Task450", "Task450 · " in rd("BuildTag.h"))
+# ★Task452 收编判例④（Task439 同型）：字面量锁死改形态验，新鲜度职责移交专门门
+check("T1 BuildTag 形态验（代际新鲜度由 task439_buildtag_anchor 门执法）",
+      re.search(r"Task\d+ · \d{4}-\d\d-\d\d", rd("BuildTag.h")) is not None)
 
 # ============ S 反向注入（程序化） ============
 check("S1 A2 计数谓词敏感性", n_guard == 4)

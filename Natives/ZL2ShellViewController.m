@@ -777,6 +777,11 @@ static UIImage *ZL2ShellSystemImageSizedEx(NSString *name, NSString *fallback, C
     // ★Task429：ZL2 页背景挂载（8.3——两骨架共用内容宿主 self.container，
     //   骨架分支后单点安装；详见 ame429_installBackgroundHost 注记）
     [self ame429_installBackgroundHost];
+    // ★Task452（「打开即闪退」判读轮）：首帧链分段签名——stderr 无缓冲 +
+    //   管道读取线程毫秒级排水（Task441 判例 N+28 取证口径），装机死亡点
+    //   被夹在 [背景宿主安装 → 主页构建 → autoCheck] 静默带内；逐段落
+    //   NSLog 签名，下轮日志尾最后一签名即钉出崩段（Task171 证据链同型）。
+    NSLog(@"[Task452] open: shell background-host installed (nav=%d)", (int)self.ame347_navMode);
 
     // 右上角快捷入口已移除；主页右栏是五个入口的唯一位置。
 
@@ -813,6 +818,7 @@ static UIImage *ZL2ShellSystemImageSizedEx(NSString *name, NSString *fallback, C
                                                object:nil];
 
     [self showPageAtIndex:0];
+    NSLog(@"[Task452] open: shell viewDidLoad done (index=%ld)", (long)self.currentIndex);
 }
 
 - (void)viewWillAppear:(BOOL)animated {
@@ -829,6 +835,13 @@ static UIImage *ZL2ShellSystemImageSizedEx(NSString *name, NSString *fallback, C
 //   （不受特效开关影响——问候是文案层，特效开关只管粒子）。
 - (void)viewDidAppear:(BOOL)animated {
     [super viewDidAppear:animated];
+    // ★Task452：首帧完成签名（进程级一次）——装机日志见此行 = 首帧已落地，
+    //   崩段在后帧/前台链（Task289 frost/节日彩蛋/前景激活）。
+    static BOOL ame452_appearMarked = NO;
+    if (!ame452_appearMarked) {
+        ame452_appearMarked = YES;
+        NSLog(@"[Task452] open: home did appear (first frame landed)");
+    }
     [ZL2FestivalEffects attachToWindow:self.view.window];
     [self ame428_presentFestivalGreeting];
 }

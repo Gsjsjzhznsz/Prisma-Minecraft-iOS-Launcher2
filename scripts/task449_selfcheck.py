@@ -86,7 +86,10 @@ for f, needles in [
         marks += 1 if n in t else 0
 check("D6 chrome 标记六处", marks == 6, f"marks={marks}")
 check("D7 卡面标记（行卡）", "Ame449MarkCardSurface(row)" in cards)
-check("D8 可读性下限 0.5", "MAX(self.uiOpacity, 0.5)" in bmm)
+# ★Task452 收编重锚：0.5 可读性下限已被 Task450② 实质退役（卡面固定 0.72
+#   档、与壁纸滑条解耦 = 15 期「还是有地方不是透明半透明」根修），断言随语义
+check("D8 卡面固定半透明档 0.72（★Task450 与滑条解耦，0.5 下限退役）",
+      "colorWithAlphaComponent:0.72" in bmm and "MAX(self.uiOpacity, 0.5)" not in bmm)
 
 # ============ E 硬编码清扫 ============
 check("E1 隔离动态文案键化", 'ame449.iso.no_profile' in pages and 'return localize(@"ame449.iso.no_profile"' in pages)
@@ -127,7 +130,10 @@ check("G3 分支日志锚", "[JavaLauncher] Task449 JVM preset=normal: small-hea
 
 # ============ BuildTag ============
 tag = rd("BuildTag.h")
-check("T1 BuildTag=Task449", 'Task449 · ' in tag)
+# ★Task452 收编判例④（Task439 同型）：锚值字面量锁死改形态验——本轮推进
+#   必红 = 从未入电池的结构性根因；新鲜度职责移交 task439_buildtag_anchor 专门门
+check("T1 BuildTag 形态验（代际新鲜度由 task439_buildtag_anchor 门执法）",
+      re.search(r"Task\d+ · \d{4}-\d\d-\d\d", tag) is not None)
 
 # ============ S 反向注入 ============
 if os.environ.get("AME449_SFRAG") == "1":

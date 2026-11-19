@@ -611,17 +611,36 @@ static UIImage *ZL2HomeSizedImage(NSString *name, NSString *fallback, CGFloat po
     [super viewDidLoad];
 
     self.view.backgroundColor = [ZL2Theme surface];
-    [self buildViews];
-    // ★Task343：控件自动检查更新挂载点（Task255 链 1:1——旧 Root 壳物理退役，
-    // 开关门控 + 静态一次性守卫在 autoCheckControlUpdatesOnce 实现内，主页
-    // viewDidLoad 每启动恰一次）
-    [ZL2ControlRepoViewController autoCheckControlUpdatesOnce];   // ★Task436：A4 迁移改名同步
-    // 复用注册（经典 dataSource 路径；cell 类自带 configure，无 iOS15+ registration）
-    [self.gridView registerClass:[ZL2HomeVersionCardCell class]
-      forCellWithReuseIdentifier:@"zl2_home_version_card"];
-    [self ame_restoreMenuSide];
-    [self ame_applySideConstraintsAnimated:NO];
-    [self refreshLaunchState];
+    // ★Task452（「打开即闪退」判读轮）：主页构建静默段收敛（Task450-r1 P0
+    //   设置闪退装饰面 @try 判例同型家法）。装机临床：日志止于壳构建尾
+    //   （Ame417）且无异常块，死亡点夹在 [背景宿主安装 → buildViews →
+    //   autoCheck] 三段静默带内。三段各落签名；buildViews 整体 @try：
+    //   任何 ObjC 异常降级为签名日志（半建 UI 但壳存活可上报），下游
+    //   依赖面在 ame452_buildOK 旗标下门控（nil 化子页不再二次雷）。
+    BOOL ame452_buildOK = YES;
+    @try {
+        [self buildViews];
+    } @catch (NSException *ame452_ex) {
+        ame452_buildOK = NO;
+        NSLog(@"[Task452] open: home buildViews EXCEPTION signature: %@ (%@) -- degraded-but-alive", ame452_ex.name, ame452_ex.reason);
+        NSLog(@"[Task452] open: home buildViews stack:\n%@", ame452_ex.callStackSymbols);
+    }
+    NSLog(@"[Task452] open: home buildViews done (ok=%d)", (int)ame452_buildOK);
+    if (ame452_buildOK) {
+        // ★Task343：控件自动检查更新挂载点（Task255 链 1:1——旧 Root 壳物理退役，
+        // 开关门控 + 静态一次性守卫在 autoCheckControlUpdatesOnce 实现内，主页
+        // viewDidLoad 每启动恰一次）
+        [ZL2ControlRepoViewController autoCheckControlUpdatesOnce];   // ★Task436：A4 迁移改名同步
+        // 复用注册（经典 dataSource 路径；cell 类自带 configure，无 iOS15+ registration）
+        [self.gridView registerClass:[ZL2HomeVersionCardCell class]
+          forCellWithReuseIdentifier:@"zl2_home_version_card"];
+        [self ame_restoreMenuSide];
+        [self ame_applySideConstraintsAnimated:NO];
+        [self refreshLaunchState];
+        NSLog(@"[Task452] open: home launch-state done");
+    } else {
+        NSLog(@"[Task452] open: home downstream skipped (buildViews failed -- signature above)");
+    }
 
     // 通知监听：账号信息变化 / 壳切回主页 → 刷新三态（旧契约 1:1）；
     // 实例表变化（版本页选用/删除、本页删除链）→ 网格与选择卡刷新。
@@ -671,6 +690,13 @@ static UIImage *ZL2HomeSizedImage(NSString *name, NSString *fallback, CGFloat po
 
 - (void)viewDidLayoutSubviews {
     [super viewDidLayoutSubviews];
+    // ★Task452：首布局签名（进程级一次）——崩段若在 ame_refreshPanelMask /
+    //   ame414_relayoutVersionHeight（Task443 新公式）内，下一轮日志尾直接钉出。
+    static BOOL ame452_layoutMarked = NO;
+    if (!ame452_layoutMarked) {
+        ame452_layoutMarked = YES;
+        NSLog(@"[Task452] open: home first layout begin");
+    }
     // ★ Task401：面板卡窗随布局实时重抠（旋转/换边/滚轮重建后窗口位移动）
     [self ame_refreshPanelMask];
     // ★Task414 右栏自适应：版本滚轮视口高随可用余量收敛（五行下限/全部行上限）

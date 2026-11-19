@@ -929,7 +929,15 @@ void Ame449MarkCardSurface(UIView *view) {
 
     // ★Task449：chrome/卡面标记面清扫（页根之外的整块底色面 + MD3 卡面）。
     // 放子 VC 递归后 = 子树旗标面一次清完；幂等可重入（Task152 无→有链复用）。
-    [self ame449_sweepChromeAndCardsInView:viewController.view transparent:YES];
+    // ★Task452（「打开即闪退」判读轮）：清扫为 Task449/450 新增开机路径代码
+    //   （唯一在装机死亡窗口内的新执行面），@try 收敛 + 签名落日志（Task450-r1
+    //   P0 判例同型）——任何异常降级为日志，透明化半途不阻断壳/主页构建。
+    @try {
+        [self ame449_sweepChromeAndCardsInView:viewController.view transparent:YES];
+    } @catch (NSException *ame452_ex) {
+        NSLog(@"[Task452] open: wallpaper sweep EXCEPTION signature: %@ (%@) vc=%@",
+              ame452_ex.name, ame452_ex.reason, viewController);
+    }
 
     // Task161：模态弹窗页面级毛玻璃底收口到方法末尾——必须在上方
     // UITableViewController 分支（backgroundView = nil）之后执行，否则
