@@ -74,6 +74,9 @@ run_py task449      scripts/task449_selfcheck.py
 run_py task450      scripts/task450_selfcheck.py
 run_py task451      scripts/task451_selfcheck.py
 run_py task452      scripts/task452_selfcheck.py
+# ★Task453「打开即闪退」根因修复轮：block 型循环变量清单执法 + dispatch_once
+#   字面量执法（崩溃机理族静态雷区零容忍）+ 判例留档
+run_py task453      scripts/task453_selfcheck.py
 
 # 括号审计：本轮全部编辑文件逐个过状态机（file args 契约，Task431 判例口径）
 EDITED=$(git diff --name-only HEAD --diff-filter=d -- 'Natives/*.m' 'Natives/*.h' 'Natives/**/*.m' 'Natives/**/*.h' 2>/dev/null | grep -v '^Natives/external/' | tr '\n' ' ')

@@ -89,7 +89,11 @@ check("A4-5 清扫调用点 @try 包裹（递归体裸调 1 处 + 收敛点护�
       bg_m.count("@try {") >= 1)
 
 # ---- A5 BuildTag 重锚 ----
-check("A5 BuildTag Task452 · 2026-11-19", 'Task452 · 2026-11-19' in tag_h)
+# ★Task453 校正：字面量锁死改形态验（Task439 判例④ / 本门 T1 同型——worklog
+#   Task452 宣称「轮次锁死字面量改形态验，新鲜度职责移交专门门」但 A5 漏改，
+#   本轮 BuildTag 推进 Task453 时暴露）；代际新鲜度由 task439_buildtag_anchor 门执法
+check("A5 BuildTag 形态验（代际新鲜度由 task439_buildtag_anchor 门执法）",
+      re.search(r"Task\d+ · \d{4}-\d\d-\d\d", tag_h) is not None)
 
 print()
 if fails:

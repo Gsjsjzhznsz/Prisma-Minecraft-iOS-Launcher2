@@ -821,8 +821,14 @@ void Ame449MarkCardSurface(UIView *view) {
         UITraitCollection *ame450_light = [UITraitCollection traitCollectionWithUserInterfaceStyle:UIUserInterfaceStyleLight];
         NSMutableArray *ame450_d = [NSMutableArray array];
         NSMutableArray *ame450_l = [NSMutableArray array];
-        for (UIColor *(^token)(void) in @[[ZL2Theme surfaceContainer], [ZL2Theme surfaceContainerHigh], [ZL2Theme surfaceContainerLow]]) {
-            UIColor *ame450_t = token();
+        // ★Task453 打开即闪退根因修复（用户崩溃日志符号化实锤 0f1c98c1，UUID 与归档
+        //  dSYM b911e064 同源同构 __TEXT 0xe04000）：本块初版误把三族色数组当 block
+        //  表枚举——循环变量误声明为块指针并在体内直接调用（UIColor 对象被当 block
+        //  跳转，对象偏移 16 被当 invoke 指针 = PC=0 EXC_BAD_ACCESS / CODESIGNING
+        //  Invalid Page）；wallpaper=1 设备壳 viewDidLoad→ame429 刷新→ame449 清扫→
+        //  本方法 dispatch_once 首路径必崩（编译期零告警、CI 无壁纸零覆盖、450/451/
+        //  452 三代构建均含本雷）。改直接枚举 UIColor：
+        for (UIColor *ame450_t in @[[ZL2Theme surfaceContainer], [ZL2Theme surfaceContainerHigh], [ZL2Theme surfaceContainerLow]]) {
             [ame450_d addObject:[ame450_t resolvedColorWithTraitCollection:ame450_dark]];
             [ame450_l addObject:[ame450_t resolvedColorWithTraitCollection:ame450_light]];
         }
