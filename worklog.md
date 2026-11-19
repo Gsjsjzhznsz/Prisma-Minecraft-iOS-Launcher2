@@ -5501,3 +5501,20 @@ Work Log:
 Stage Summary:
 - 装机锚点（BuildTag=「Task450 · 2026-11-19」）：①设置可打开（若再崩：日志 [Task450] settings * degraded 行 = 真实异常签名，直接回传可定位）②壁纸在场时全 app 卡面（设置行卡+下载/版本/资源页卡+按钮面）半透明 0.72，与壁纸滑条解耦③安装 fabric/neoforge 加载器版本 → 隔离目录自动播种父版本数据（saves/options/config 等，已存在不覆盖）④版本页：记录式实例版本实体全部可见（含缺 json 登记行）+ 派生版本子行默认展开（chevron 可再收起）⑤iPad 全屏转盘宽度 330（不再 300 压扁）⑥iPhone/小屏侧栏 = 主页/下载/版本/多人+设置 简单形式。
 - 【闭环补记】CI 双绿终态（06fe937a2：dev run 44368002545 success + ui-smoke run 44375047179 dispatch 补跑 success）；三产物 Task450 唯一命名归档（ipa/tipa/dSYM）；ipa 四重验证（zip 零错 + ame450_seedIsolatedVersionData/ame450_isCardFamilyColor/ame444_collapsedVids 符号在场 + BuildTag UTF-16LE Task450 在场且 Task449 归零）。
+
+## Task 451 · 2026-11-19（议题#3 第七轮判读 + JIT26ExecPreflight 授予前预检落码：64MB 同形分配 + 零取指执行探测 + 拒绝发射防 SIGBUS 黑屏）
+
+**用户指令**：「处理3议题」（议题#3 第七轮证据组，评论 6988757293：latestlog.old.txt 首跑健康 / ame442_mapping_pattern.txt rx=0x70088cc000 落调试器别名池 conviction 诚实分叉 / fatal_trace java.lang <clinit> 首次生成代码执行 SIGBUS / 报告者决定性新事实「re-assign scripts doesn't help, it only starts to work for single launch every time I reinstall prisma」）
+
+Work Log:
+- 【第七轮判读】ame442 形态判决链连续三轮装机定罪成功（判据轴 = RX ≥ 0x1000000000 调试器别名池）；崩溃临床不变（二跑别名池 RX → call_stub 首取指 SIGBUS）；新事实 = 处置阶梯第一步（重指派）已失效、只有重装 Prisma 恢复首跑 → 劣化态跨发射持久（调试器侧 per-app JIT 通道状态机），而检测发生在授予时、JVM 仍会执行已定罪坏区 = Task449 评论承诺的剩余缺口（"nothing stops the JVM from executing a convicted-bad grant"）。
+- 【Task451 JIT26ExecPreflight（Witch 同型防线落地，Task449-G 采纳清单第 1 项）】协议取证（UniversalJIT26.js 逐行）：brk0x69 = 握手 ping（罐头魔数 0x690000E0 应答，非真实分配，Task438 判例）；真实分配 = brk#0xf00d/x16=1 → JIT26PrepareRegion(NULL,len) → 调试器 `_M<len>,rx` —— 与 libjvm 64m 镜像映射请求完全同形。Witch 式写桩不可移植（RX 视图只读 + RW 别名位置随会话漂移：四轮 0x7000000000 固定基址 vs 五轮 RW=RX+64MB 成对）→ 判别器改为零取指执行探测：直接调用全零 RX 区，SIGILL（全零字 UDF #0 解码陷阱）= 页已映射且可执行（健康）；SIGBUS/SIGSEGV = 取指即 fault（空壳定罪）；其余 = 不定不拦。BAD_ACCESS 端口已清（task_set_exception_ports）信号直达 Unix 安全网（ame437 canned 写故障装机实证同通道）。
+- 【预检主链】3 试全新分配重试环（覆盖瞬时假阳性）；不定四态（brk 分配 30s 超时 / SIGTRAP 安全网 / 调试器拒分配 / 罐头魔数）= 放行零回归（最坏退化为本轮前既有行为，事后 ame273/ame442 链兜底）；3/3 全空壳 = 会话级定罪 → 拒绝发射（showDialog + handleExitCode + return 1，Task301 优雅失败同型）—— SIGBUS 黑屏根除；PASS 清历史定罪 marker（新鲜度语义同 ame437）；定罪落 ame451_preflight_conviction.txt（fopen+fsync 双通道）。试错分配 munmap 释放不携带进会话；brk 分配后台线程 + 30s 有界等待（ame301「泄漏一条阻塞线程优于整机永久卡死」判例）。
+- 【逃生阀 + i18n】debug.jit26_preflight_disable 注册（PLPreferences debug 段，防 Setter 静默丢弃族，默认关 = 预检启用）；i18n_str_ame451_preflight 54 表（zh-Hans/zh-CN/zh-Hant 原生中文、其余 en 兜底结构对齐，Task449-F 抢救链口径），弹窗处置阶梯按第七轮实录改排四步（彻底重启 StikDebug → 重指派 → 重装 Prisma → 换 JIT enabler）。
+- 【门禁】新门 task451_selfcheck.py 26 断言（A 预检主链×11/B 接线×5/C 注册×2/D i18n×4/T BuildTag/S 反向×3）ALL PASS；电池 33/33 ALL GREEN；verify219 唯一键代际重锚 4348→4349（+1 预检指引键）；task240/括号审计绿。
+- 【事故·自检 D 组两缺陷】①i18n 脚本 VALUES 键名漏 .lproj 后缀 → zh 家族首轮拿到 en 兜底文本（脚本改幂等覆写重跑修复）②D4 断言串多含 split 已吞的首位引号（探针改 4 字节 ' = "'）。
+
+Stage Summary:
+- 装机锚点（BuildTag=「Task451 · 2026-11-19」）：①通道劣化会话 = 启动前置弹窗（不再 SIGBUS 黑屏），文案含四步处置阶梯 ②健康会话 = 日志 [Ame451] preflight attempt 1 PASSED，启动链零体感变化 ③定罪会话 Documents 根 ame451_preflight_conviction.txt verdict=conviction ④逃生阀 = debug.jit26_preflight_disable=YES 回到本轮前行为。
+
+- 【闭环补记】CI 双绿终态（be9a2da60：dev run 44448242904 success + ui-smoke run 44448242833 success 一轮终绿）；三产物 Task451 唯一命名归档（AngelAuraAmethyst__Task451__44448242904.ipa / .tipa / AngelAuraAmethyst.dSYM__Task451__44448242904.zip）；ipa+tipa 四重验证（zip 零错 + ame451_preflightJit26Channel/ame451_execProbe/ame451_preflight_conviction.txt/jit26_preflight_disable/i18n_str_ame451_preflight 符号在场 + BuildTag UTF-16LE Task451 在场且 Task450 归零）；议题 #3 第七轮评论已落卷（判读 + JIT26ExecPreflight 交付 + 阶梯改排 + 保持 open 等报告者回归验证）。
