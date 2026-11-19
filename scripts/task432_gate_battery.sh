@@ -67,6 +67,11 @@ run_py task439      scripts/task439_selfcheck.py
 run_py task439_tag  scripts/task439_buildtag_anchor.py
 run_py task440      scripts/task440_selfcheck.py
 run_py task442      scripts/task442_selfcheck.py
+# ★Task452 收编轮：447/449/450/451 四门此前仅单跑未入电池（worklog 声称绿
+#   但电池面缺失 = 覆盖口径诚实化），452 新门同步入列
+run_py task447      scripts/task447_selfcheck.py
+run_py task451      scripts/task451_selfcheck.py
+run_py task452      scripts/task452_selfcheck.py
 
 # 括号审计：本轮全部编辑文件逐个过状态机（file args 契约，Task431 判例口径）
 EDITED=$(git diff --name-only HEAD --diff-filter=d -- 'Natives/*.m' 'Natives/*.h' 'Natives/**/*.m' 'Natives/**/*.h' 2>/dev/null | grep -v '^Natives/external/' | tr '\n' ' ')

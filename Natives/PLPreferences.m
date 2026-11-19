@@ -465,6 +465,11 @@ NSString *const PREF_MOD_MIRROR = @"general.mod_mirror";
             // ★Task451：JIT26 授予前预检逃生阀（默认关 = 预检启用；3/3 空壳
             //   定罪拒绝发射防 SIGBUS 黑屏，假阳性误拦时的用户侧旁路开关）
             @"jit26_preflight_disable": @NO,
+            // ★Task452：启动器自身 JSC 解释器钉死逃生阀（默认关 = 钉死；
+            //   议题#3 JIT26 空壳 RX 通道下插件 JIT'd 函数首取指硬崩的开机面
+            //   摘除，见 main.m Task452 注记；ON = 恢复历史 JIT 行为，仅诊断
+            //   对照用）
+            @"plugin_jit_allow": @NO,
             @"debug_hide_home_indicator": @NO,
             // Task 129g：同 hidden_sidebar——model 推导，避免求值时机依赖。
             @"debug_ipad_ui": @([[[UIDevice currentDevice].model lowercaseString] containsString:@"ipad"]),

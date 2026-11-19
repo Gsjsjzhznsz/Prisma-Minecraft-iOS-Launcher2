@@ -97,7 +97,9 @@ check("D4 无裸引号未转义（tokenizer 安全）",
           for t in tables if '"i18n_str_ame451_preflight"' in open(t, encoding="utf-8").read()))
 
 # ============ T BuildTag ============
-check("T1 BuildTag=Task451", "Task451 · " in rd("BuildTag.h"))
+# ★Task452 收编判例④（Task439 同型）：字面量锁死改形态验，新鲜度职责移交专门门
+check("T1 BuildTag 形态验（代际新鲜度由 task439_buildtag_anchor 门执法）",
+      re.search(r"Task\d+ · \d{4}-\d\d-\d\d", rd("BuildTag.h")) is not None)
 
 # ============ S 反向注入 ============
 check("S1 A3 判决映射完备性（三 verdict 覆盖 0/1/2）",
