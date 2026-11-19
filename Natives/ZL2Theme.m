@@ -220,6 +220,19 @@ static const CFAbsoluteTime ame346_rebuildMinInterval = 0.4;   // ★ Task380：
 static BOOL ame455_startupLanded = NO;
 static BOOL ame455_startupRebuildDirty = NO;
 
+// ★ Task456：重建回声沉降窗——装机 latestlog（c737883/Task455 构建）实锤：
+//   首帧后整壳重建（Task455 flush 补建）自身的构建序列再落令牌（插件色板 /
+//   Ame429 壁纸 overlay 等），echo 请求走既有同拍合并 + Task380 冷却(0.4s)，
+//   但首建时 ame346_lastRebuildAt 尚无值（首建非 Task346 广播）→ 冷却守卫
+//   ame346_lastRebuildAt > 0.0 恒假 → echo 直接放行 = "shell viewDidLoad
+//   done → Task346 posted" 链式再排整壳重建（21:40:39.277 补建后回声广播 +
+//   21:41:19.95 第三次壳构建 + 第 4 次 in flight = 「依旧启动卡死」残余）。
+//   根修 = 每次 Task346 重建落地后 0.8s 沉降窗：窗口内请求一律视为重建自身
+//   回声吞掉（不调度不尾沿）。令牌态全局现读，重建本身已烘焙当前值，无语义
+//   损失；窗口外真变更（用户交互/插件新事件）照常即时重建。尾沿补排计时器
+//   落窗内由 postRootRebuildNow 入口统一拦截（不追加新广播）。
+static CFAbsoluteTime ame456_settleUntil = 0.0;
+
 // 键窗根 VC 探测（ame346_postRootRebuildNow 既有场景遍历的公共化，唯一实现）
 static UIViewController *ame455_keyRootViewController(void) {
     if (@available(iOS 13.0, *)) {
@@ -239,9 +252,18 @@ static UIViewController *ame455_keyRootViewController(void) {
 
 static void ame346_postRootRebuildNow(void) {
     @try {
+        // ★ Task456：沉降窗拦截（含冷却期尾沿补排计时器落窗内的补排——
+        //   补排若在窗内落地 = 回声重建，吞掉并留痕；真变更窗口外自然放行）
+        CFAbsoluteTime ame456_now0 = CFAbsoluteTimeGetCurrent();
+        if (ame456_settleUntil > 0.0 && ame456_now0 < ame456_settleUntil) {
+            NSLog(@"[ZL2Theme] Task456: root rebuild request swallowed in settle window (%.2fs left)",
+                  ame456_settleUntil - ame456_now0);
+            return;
+        }
         UIViewController *ame346_root = ame455_keyRootViewController();
         if (!ame346_root) return;   // 启动期根未建：重放路径无需重建
         ame346_lastRebuildAt = CFAbsoluteTimeGetCurrent();
+        ame456_settleUntil = ame346_lastRebuildAt + 0.8;   // ★ Task456：回声沉降窗 0.8s
         [[NSNotificationCenter defaultCenter] postNotificationName:@"AppLanguageChanged" object:nil];
         NSLog(@"[ZL2Theme] Task346: token change -> root rebuild posted (AppLanguageChanged lever)");
     } @catch (NSException *ame346_e) {
@@ -491,13 +513,20 @@ static void ame346_requestRootRebuild(void) {
     }
     NSLog(@"[AmePlugin:%@] 结构令牌覆盖 %lu/%lu 项（shellLayout=%@）", pluginId,
           (unsigned long)applied, (unsigned long)tokens.count,
-          Ame347StructureOverride(@"shellLayout", @"topbar"));
+          Ame347StructureOverride(@"shellLayout", @"navigationview"));
     ame346_requestRootRebuild();   // ★ Task346：结构落表即整壳重建
     return YES;
 }
 
 + (NSString *)ame347_shellLayout {
-    return Ame347StructureOverride(@"shellLayout", @"topbar");
+    // ★ Task456：骨架默认蓝图 topbar → navigationview（用户复诉「小屏幕设备
+    //   怎么不是 zl2 的侧边栏」：ZL2 左窗格侧栏此前只在 fluent-ui 插件覆盖
+    //   shellLayout=navigationview 时存在——小屏设备插件关/未覆盖即整壳落
+    //   bare 骨架（无左栏），侧栏 = 插件奢侈品而非应用自有形态）。默认改
+    //   navigationview 后：插件开 = 全维度换装（语义不变），插件关 = ZL2 侧
+    //   栏裸形态（默认令牌，Task450⑥ 小屏简侧栏语义不变）；bare 骨架保留
+    //   编译（结构令牌 topbar 仍可经插件覆盖进入）。
+    return Ame347StructureOverride(@"shellLayout", @"navigationview");
 }
 
 #pragma mark - ★Task429 活动色板覆盖层（8.1 动态主题中枢对接点）

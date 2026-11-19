@@ -891,12 +891,31 @@ static UIImage *ZL2ShellSystemImageSizedEx(NSString *name, NSString *fallback, C
     static BOOL ame380_hasLastDark = NO;
     static BOOL ame380_lastDark = NO;
     if (ame380_hasLastDark && ame379_dark == ame380_lastDark) return;
-    ame380_hasLastDark = YES;
-    ame380_lastDark = ame379_dark;
-    [[NSNotificationCenter defaultCenter] postNotificationName:@"AmeAppearanceTraitChanged"
-                                                        object:nil
-                                                      userInfo:@{@"dark": @(ame379_dark)}];
-    NSLog(@"[Ame380] appearance broadcast dark=%d (dedup armed)", ame379_dark);
+    // ★ Task456：广播去抖 350ms——装机 latestlog（c737883/Task455 构建）实锤：
+    //   JIT 等待后台/前台往返（stikjit:// 深链换手）窗口 trait 明暗翻转
+    //   dark→light→dark（100ms 内两翻，21:41:19.83/19.93 两轮 palette applied
+    //   + 两轮 Ame380 广播），即时广播逐翻放行 → JS 色板重应用 ×2 → 令牌落表
+    //   → Task346 整壳重建（21:41:19.95 第三次壳构建，恰落在启动游戏手势与
+    //   JIT 往返之间 = 「依旧启动卡死」主源）。去抖 = 广播延后 350ms 且只播
+    //   最终值；翻回（终值 == 上次广播值）→ 零广播零 JS 重应用（真翻转值必
+    //   不同，仅晚 350ms 到达，色板实时跟随观感无感；Task380 同值去重保留为
+    //   第二层，ZL2Theme Task456 沉降窗为第三层）。
+    static BOOL ame456_debounceArmed = NO;
+    static BOOL ame456_pendingDark = NO;
+    ame456_pendingDark = ame379_dark;
+    if (ame456_debounceArmed) return;   // 待播窗内后翻覆盖前值（只播终值）
+    ame456_debounceArmed = YES;
+    dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.35 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
+        ame456_debounceArmed = NO;
+        BOOL ame456_finalDark = ame456_pendingDark;
+        if (ame380_hasLastDark && ame456_finalDark == ame380_lastDark) return;   // 翻回 = 抖动，零广播
+        ame380_hasLastDark = YES;
+        ame380_lastDark = ame456_finalDark;
+        [[NSNotificationCenter defaultCenter] postNotificationName:@"AmeAppearanceTraitChanged"
+                                                            object:nil
+                                                          userInfo:@{@"dark": @(ame456_finalDark)}];
+        NSLog(@"[Ame380] appearance broadcast dark=%d (debounced 350ms)", ame456_finalDark);
+    });
 }
 
 #pragma mark - ★ Task378 bare 壳构建（顶栏退役：容器直铺 + 子页自带导航栏）
@@ -1583,7 +1602,16 @@ static UIImage *ZL2ShellSystemImageSizedEx(NSString *name, NSString *fallback, C
 - (void)viewDidLayoutSubviews {
     [super viewDidLayoutSubviews];
     if (!self.ame347_navMode) return;
-    BOOL ame347_nowRegular = self.view.bounds.size.width >= ZL2ShellRegularMinWidth;
+    // ★ Task456：小屏设备常驻窗格门槛自适应（Task450⑥「识别到小屏幕设备就
+    //   使用没有太复杂的侧边栏」的几何面收口——原 640pt 恒定门槛下，LC 窗口
+    //   化/分屏窄窗（500-639pt）落抽屉态 = 侧栏藏进汉堡开关 = 「小屏不是 zl2
+    //   侧边栏」几何面；紧凑设备（min 维 < 500pt，Task450⑥ 同款判定）门槛降
+    //   至 500pt，横屏 iPhone/窄窗口常驻简侧栏（AI/文件项摘除语义不变），
+    //   再窄仍抽屉不挤内容区；大屏门槛 640pt 不变）。
+    BOOL ame456_compactDevice = (MIN(UIScreen.mainScreen.bounds.size.width,
+                                     UIScreen.mainScreen.bounds.size.height) < 500.0);
+    CGFloat ame456_regularMin = ame456_compactDevice ? 500.0 : ZL2ShellRegularMinWidth;
+    BOOL ame347_nowRegular = self.view.bounds.size.width >= ame456_regularMin;
     // ★ Task349：首轮无条件派发（原"变化才派发"在 iPad 上永不点火——预置
     //   regular=YES 与实际宽类相同，见 ame_buildNavigationViewShell 内注释）。
     if (!self.ame347_widthClassApplied || ame347_nowRegular != self.ame347_regular) {

@@ -339,6 +339,20 @@ extern BOOL Amethyst_EnforceSDL3Presentation(void);
     // 7.0-UI-11：与 willConnect 同口径——根壳一律 ZL2Shell（旧壳退役后，
     // 这里重建 LauncherRoot/CardLayout 是"切语言整个界面退回旧版"病灶，
     // 用户连报两轮的旧页面残留来源之一）。
+    // ★ Task456：游戏面换根保护——Task346 重建杠杆（令牌落表/结构覆盖/
+    //   Task455 flush 补建）全部经本方法换根；装机 latestlog（c737883）实锤
+    //   第三次壳构建落在启动游戏手势与 JIT 往返之间、第 4 次换根请求与
+    //   Task183 同步换根（SurfaceViewController）赛跑——若换根请求在游戏面
+    //   就位后落地，会把整个游戏面连根拆掉。非壳根（游戏会话面）在位时
+    //   跳过换根并留痕：游戏退场回壳走 ios_uikit_bridge 全新建壳，令牌/
+    //   语言构建期现读烘焙，零语义损失；顺带根除「游戏中系统切语言拆游戏
+    //   画面」理论雷面。
+    UIViewController *ame456_currentRoot = self.window.rootViewController;
+    if (ame456_currentRoot && ![ame456_currentRoot isKindOfClass:[ZL2ShellViewController class]]) {
+        NSLog(@"[SceneDelegate] Task456: root rebuild skipped (non-shell root %@ in place)",
+              NSStringFromClass([ame456_currentRoot class]));
+        return;
+    }
     UIViewController *rootVC = [[ZL2ShellViewController alloc] init];
     [UIView transitionWithView:self.window duration:0.3 options:UIViewAnimationOptionTransitionCrossDissolve animations:^{
         self.window.rootViewController = rootVC;

@@ -573,7 +573,7 @@ static UIImage *ZL2HomeSizedImage(NSString *name, NSString *fallback, CGFloat po
 //    实例版本信息高度——用户规格「实例版本也一样改」）——
 @property (nonatomic, strong) UIView *versionCard;
 @property (nonatomic, strong) AmeFlowSelectView *versionFlow;
-@property (nonatomic, strong) NSLayoutConstraint *ame414_versionHeight;   // ★Task414 版本滚轮视口高（自适应改写）
+@property (nonatomic, strong) NSLayoutConstraint *ame456_versionCardHeight;   // ★Task456 版本卡总高常量（flow 视口由约束链自卡高推导，尾行结构性不可裁剪；原 ame414_versionHeight flow 独立高常量与尾行钉链超定 = 断钉后尾行出卡被裁）
 @property (nonatomic, strong) ZL2HomeTapControl *versionRefreshButton;  // 卡尾刷新小钮
 @property (nonatomic, strong) ZL2HomeTapControl *versionSettingsButton; // 卡尾齿轮小钮
 @property (nonatomic, copy, nullable) NSArray<NSString *> *ame400_versionRowNames;  // 上轮行名序（数据未变则免重建防吸附回跳）
@@ -738,7 +738,7 @@ static UIImage *ZL2HomeSizedImage(NSString *name, NSString *fallback, CGFloat po
 //   卡间间隙 − 版本卡内构」（旧减 _launchCard 帧失效）；矮窗连五行都放不下
 //   时收到三行软下限（滚轮可拖语义无损）——启动卡钉底永可见优先于五行口径。
 - (void)ame414_relayoutVersionHeight {
-    if (!_ame414_versionHeight || self.menuScrollView.bounds.size.height < 1.0) return;
+    if (!_ame456_versionCardHeight || self.menuScrollView.bounds.size.height < 1.0) return;
     CGFloat ame414_pitch = ZL2HomeVersionFlowItemH + ZL2HomeFlowItemGap;
     CGFloat ame414_ideal = _versionFlow.viewportHeight;   // 五行口径下限
     CGFloat ame414_full = ame414_ideal;
@@ -747,7 +747,7 @@ static UIImage *ZL2HomeSizedImage(NSString *name, NSString *fallback, CGFloat po
         ame414_full = ZL2HomeVersionFlowItemH + (CGFloat)(ame414_n - 1) * ame414_pitch;
     }
     if (ame414_full <= ame414_ideal + 0.5) {
-        if (fabs(_ame414_versionHeight.constant - ame414_ideal) > 0.5) _ame414_versionHeight.constant = ame414_ideal;
+        [self ame456_setVersionCardFlowHeight:ame414_ideal];
         return;
     }
     // ★Task415c 余量重算：启动卡钉出滚动区后视口 = menuScrollView 自身高
@@ -769,15 +769,27 @@ static UIImage *ZL2HomeSizedImage(NSString *name, NSString *fallback, CGFloat po
         - (2.0 * ZL2HomeCardPadding + ZL2HomeCardFooterHeight + 6.0 + 4.0);   // 版本卡内构
     CGFloat ame414_target = ame414_full;
     if (ame414_avail < ame414_full) {
-        // ★Task415c 软下限：五行常规下限；连五行都放不下的矮窗收到三行
-        //   （滚轮可拖语义无损），仍优于把启动卡/插件 chip 顶出屏（第 24 轮
-        //   「部分区域都卡在下面」优先级高于五行口径）
-        CGFloat ame414_floor3 = ZL2HomeVersionFlowItemH + 2.0 * ame414_pitch;
-        CGFloat ame414_softFloor = fmax(ame414_floor3, fmin(ame414_ideal, ame414_avail));
-        ame414_target = fmax(ame414_softFloor, fmin(ame414_full, ame414_avail));
+        // ★Task456 矮窗劣化终版（「侧边栏齿轮按钮不显示」终局根因）：旧软下限
+        //   fmax(floor3, …) 在 avail < 三行下限时仍把卡顶出滚动视口——卡尾刷新/
+        //   齿轮两钮（卡底 −4 钉）落折叠带 = 「必须切换几下（滚动）才有」，
+        //   Task443 公式补减只修了常量漏项、未修下限越权分支（IMG_0727 装机
+        //   实锤：卡尾两钮不可见、末条目贴卡底缘裁切）。终版 = target 恒 ≤
+        //   avail（单行为绝对下限，滚轮拖动语义无损），尾行恒在首屏可视区；
+        //   五行/三行下限仅在余量足够时生效。
+        ame414_target = fmax(ZL2HomeVersionFlowItemH, fmin(ame414_full, ame414_avail));
     }
-    if (fabs(_ame414_versionHeight.constant - ame414_target) > 0.5) {
-        _ame414_versionHeight.constant = ame414_target;
+    [self ame456_setVersionCardFlowHeight:ame414_target];
+}
+
+// ★Task456 卡高写入单点：卡高常量 = flow 视口 + 真实内构 chrome（顶 8 +
+//   flow→尾行 6 + 尾行 32 + 底 4 = 50）；flow 高度不再持独立常量（由
+//   flow.bottom = 尾行钮.top−6 链自卡高推导）= 卡内零超定，尾行两钮结构性
+//   不可裁剪（旧形态三约束争卡高，AutoLayout 断钉位相随机 = 齿轮时隐时现）。
+//   方法体必须在 @implementation 内（Task455 事故①判例）。
+- (void)ame456_setVersionCardFlowHeight:(CGFloat)ame456_flow {
+    CGFloat ame456_card = ame456_flow + 2.0 * ZL2HomeCardPadding + 6.0 + ZL2HomeCardFooterHeight + 4.0;
+    if (fabs(_ame456_versionCardHeight.constant - ame456_card) > 0.5) {
+        _ame456_versionCardHeight.constant = ame456_card;
         [self.view setNeedsLayout];
     }
 }
@@ -1227,14 +1239,17 @@ static UIImage *ZL2HomeSizedImage(NSString *name, NSString *fallback, CGFloat po
         [_accountSpinner.centerXAnchor constraintEqualToAnchor:_accountCard.centerXAnchor],
         [_accountSpinner.centerYAnchor constraintEqualToAnchor:_accountManageButton.centerYAnchor],
 
-        // ③ 版本卡内布局：竖排滚轮（★Task414 高度持引用 = 自适应视口：
-        //    五行下限 / 全部行上限 / 可用余量收敛——「右栏不会自适应下面被
-        //    挡住」根修，见 ame414_relayoutVersionHeight）
+        // ③ 版本卡内布局：竖排滚轮（★Task414 自适应视口 + ★Task456 结构性
+        //    重钉：flow 高不再持独立常量，改由 flow.bottom = 尾行钮.top−6 自
+        //    卡高推导；卡高常量 = ame456_versionCardHeight（ame414 逐帧改写）
+        //    ——卡内零超定，卡尾刷新/齿轮两钮结构性不可裁剪，「侧边栏齿轮
+        //    按钮不显示」根修，见 ame414_relayoutVersionHeight）
         [_versionFlow.topAnchor constraintEqualToAnchor:_versionCard.topAnchor constant:ZL2HomeCardPadding],
         [_versionFlow.leadingAnchor constraintEqualToAnchor:_versionCard.leadingAnchor constant:ZL2HomeCardPadding],
         [_versionFlow.trailingAnchor constraintEqualToAnchor:_versionCard.trailingAnchor constant:-ZL2HomeCardPadding],
-        // 高度常量不再在此建（见末尾持引用条目：ame414_relayoutVersionHeight 逐帧改写）
-        [_versionSettingsButton.topAnchor constraintEqualToAnchor:_versionFlow.bottomAnchor constant:6],
+        // ★Task456：原「flow 高常量 + 尾行 top=flow.bottom+6 + 尾行 bottom=卡底−4」
+        //   三约束争卡高超定（断钉位相随机）；改 flow.bottom 自尾行推导
+        [_versionFlow.bottomAnchor constraintEqualToAnchor:_versionSettingsButton.topAnchor constant:-6],
         _ame_pinSettingsTrailing,   // ★Task406 齿轮贴右原钉（换边镜像可卸）
         [_versionSettingsButton.widthAnchor constraintEqualToConstant:ZL2HomeCardFooterHeight],
         [_versionSettingsButton.heightAnchor constraintEqualToConstant:ZL2HomeCardFooterHeight],
@@ -1259,10 +1274,12 @@ static UIImage *ZL2HomeSizedImage(NSString *name, NSString *fallback, CGFloat po
     // ★ Task401 r4：面板灰棱视图挂四卡窗宿主（drawRect 绘制期自取帧）
     [_panelBackdrop ame401_setHostCards:@[_quickNavCard, _accountCard, _versionCard, _launchCard]];
 
-    // ★Task414 版本滚轮高度持引用（ame414_relayoutVersionHeight 逐帧改写；
-    //   required 常量 = 唯一高度约束，视口自适应后仍钉卡缘）
-    _ame414_versionHeight = [_versionFlow.heightAnchor constraintEqualToConstant:_versionFlow.viewportHeight];
-    _ame414_versionHeight.active = YES;
+    // ★Task414→456 版本卡高持引用（ame414_relayoutVersionHeight 逐帧改写；
+    //   required 常量钉卡总高 = flow 视口 + 内构 chrome 50；初值 = 五行口径
+    //   viewportHeight + chrome，首次布局前与旧 flow 常量同值零视觉回退）
+    _ame456_versionCardHeight = [_versionCard.heightAnchor constraintEqualToConstant:_versionFlow.viewportHeight
+                                                             + 2.0 * ZL2HomeCardPadding + 6.0 + ZL2HomeCardFooterHeight + 4.0];
+    _ame456_versionCardHeight.active = YES;
 }
 
 #pragma mark - ★ Task378 五入口快航瓦片（★ Task400 驻右栏顶卡：用户规格「五个按钮在顶上」）
