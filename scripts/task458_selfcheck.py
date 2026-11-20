@@ -156,8 +156,8 @@ check("S3 插件结构覆盖面保留",
       "Ame347StructureOverride(@" in theme
       and "+ (BOOL)ame347_setPluginThemeStructure:(NSString *)pluginId" in theme)
 # S4 BuildTag 代际
-check("S4 BuildTag 代际锚（★Task458 重锚：每轮门禁强制重锚判例）",
-      'ame415_buildTag = @"Task459 · 2026-11-21"' in buildtag)
+check("S4 BuildTag 代际锚（★Task460 重锚：每轮门禁强制重锚判例）",
+      'ame415_buildTag = @"Task460 · 2026-11-21"' in buildtag)
 
 print()
 if FAILS:

@@ -117,8 +117,8 @@ for f in (ROOT / "Natives" / "resources").glob("*/Localizable.strings"):
 check("R6a i18n 全语种入册（ame457 键面 == ame451 锚点键面）",
       lproj_key == lproj_anchor and lproj_key >= 54,
       f"ame457={lproj_key} anchor={lproj_anchor}")
-check("R6b BuildTag 代际锚（★Task459 重锚：每轮门禁强制重锚判例）",
-      'ame415_buildTag = @"Task459 · 2026-11-21"' in buildtag)
+check("R6b BuildTag 代际锚（★Task460 重锚：每轮门禁强制重锚判例）",
+      'ame415_buildTag = @"Task460 · 2026-11-21"' in buildtag)
 
 print("== X 全仓扫描 ==")
 

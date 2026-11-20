@@ -112,7 +112,10 @@ check("② ame369.* 键四表齐备",
 #   control_repo / ame369.common.gamepad_repo）+ case 8/9 nav 宿主标题 +2（case 10
 #   的 ame318.repo.title 两站点不落 ame369.* 计数口径）= 445 + 4 = 449
 #   （git stash 双向核验：HEAD=445，Task458 工作区=449）。
-check("① ame369 改写点数 == 449（…★Task432 重锚 -24 = 443 → ★Task436 重锚 +6 = 449 → ★Task440 重锚 -4 = 445 → ★Task458 重锚 +4：下载中心仓库三轨回归（Task323 原版形态复位）titles 数组 +2 + case 8/9 标题 +2 = 449）", ame369_sites == 449, str(ame369_sites))
+# ★Task460 重锚：非折叠钦定（用户「我要的是非折叠侧边栏的zl2式」）——窗格
+#   开关钮整体退役，其 ame369.shell.nav_a11y a11y 站点 -1（汉堡钮同键站点
+#   保留）= 449 - 1 = 448。
+check("① ame369 改写点数 == 448（…★Task458 重锚 +4 = 449 → ★Task460 重锚 -1：窗格开关钮退役（非折叠钦定）nav_a11y 站点 -1 = 448）", ame369_sites == 448, str(ame369_sites))
 
 # 复用站点：4 处 localize(@"ame193.misc.[13]"（内容级匹配——5 个补 import 文件行号整体 +1，行级断言会错位）
 REUSE_EXPECT = {

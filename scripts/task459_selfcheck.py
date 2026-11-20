@@ -98,8 +98,8 @@ check("R4 齿轮=版本管理 / 刷新=刷新实例列表 a11y 在位",
       and 'a11y:localize(@"ame369.home.refresh_instances_a11y", @"刷新实例列表")' in home)
 
 # R5 BuildTag 代际
-check("R5 BuildTag = Task459 · 2026-11-21",
-      'ame415_buildTag = @"Task459 · 2026-11-21"' in buildtag)
+check("R5 BuildTag = Task460 · 2026-11-21（★Task460 重锚）",
+      'ame415_buildTag = @"Task460 · 2026-11-21"' in buildtag)
 
 print("== X 全仓扫描 ==")
 

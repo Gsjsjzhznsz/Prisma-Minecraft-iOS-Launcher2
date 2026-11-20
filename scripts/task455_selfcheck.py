@@ -68,13 +68,17 @@ check("R5a 头行尾随等式 pin（999，等式替代弱不等式；旧 LessTha
       and "self.ame455_headerTrailing.priority = 999;" in shell
       and "constraintEqualToAnchor:self.paneWrap.trailingAnchor constant:-12.0]" in shell
       and "constraintLessThanOrEqualToAnchor:self.paneWrap.trailingAnchor constant:-12.0" not in shell)
-check("R5b 回读键迁移 .ui + 旧键一次性清账",
-      'boolForKey:@"ame376.paneCollapsed.ui"' in shell
-      and 'removeObjectForKey:@"ame376.paneCollapsed"' in shell)
+check("R5b 回读键整链退役（★Task460 重锚：非折叠钦定——折叠二态/回读/清账全链退役，壳零键面零状态）",
+      'boolForKey:@"ame376.paneCollapsed.ui"' not in shell
+      and 'removeObjectForKey:@"ame376.paneCollapsed"' not in shell
+      and "BOOL ame376_paneCollapsed;" not in shell
+      and "self.paneToggleButton" not in shell)
 check("R5c 设备侧写入面退役（开关块零 setBool 持久化）",
       "setBool:weakSelf.ame376_paneCollapsed" not in shell)
-check("R5d CI 预览驱动键跟随迁移（-zl2shell real 折叠渲染面保留）",
-      'forKey:@"ame376.paneCollapsed.ui"' in preview)
+check("R5d CI 预览驱动链退役（★Task460 重锚：-zl2pane 真壳驱动退役 = 真壳恒 280 展开渲染；镜像轨 -zl2pane 契约保留）",
+      'forKey:@"ame376.paneCollapsed.ui"' not in preview
+      and "ame417_expanded" not in preview
+      and "-zl2pane" in preview)
 
 # —— ③ 版本清单磁盘缓存 + 裸键根修 ——
 check("R6a 缓存四件套（TTL/路径/水合/写回）在场",
@@ -130,8 +134,8 @@ for dirpath, dirnames, filenames in os.walk(NAT):
 check("X2 AppLanguageChanged 广播面清单锁定（ZL2Theme×1/SettingPages×1/DataTransfer×2）",
       observed == allowed, detail=str(observed))
 
-# X3 旧折叠键写入面清零 + 读面锚定（持久化退役防回潮：
-#    无 .ui 后缀的 forKey:@"ame376.paneCollapsed" 全仓只允许出现在清账 removeObject）
+# X3 旧折叠键写入面清零 + 清账点退役（★Task460 重锚：非折叠钦定——读/写/
+#    清账全链退役，键面全仓零容忍防回潮）
 old_key_writers = 0
 old_key_remove = 0
 for dirpath, dirnames, filenames in os.walk(NAT):
@@ -144,8 +148,8 @@ for dirpath, dirnames, filenames in os.walk(NAT):
         for m in re.finditer(r'set(?:Bool|Object|Float|Int):\s*[^;]*?forKey:@"ame376\.paneCollapsed"', text):
             old_key_writers += 1
         old_key_remove += text.count('removeObjectForKey:@"ame376.paneCollapsed"')
-check("X3 旧折叠键写入面 = 0 且清账点恰 1（会话级语义防回潮）",
-      old_key_writers == 0 and old_key_remove == 1,
+check("X3 旧折叠键写入面 = 0 且清账/读面全退役（★Task460 重锚：键面全链零容忍）",
+      old_key_writers == 0 and old_key_remove == 0,
       detail="writers=%d remove=%d" % (old_key_writers, old_key_remove))
 
 # ============ S 敏感性自证（--selftest） ============

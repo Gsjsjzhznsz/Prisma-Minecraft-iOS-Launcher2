@@ -626,8 +626,9 @@ PLIST
     xcrun simctl bootstatus "$ipad_udid" -b >/dev/null 2>&1 || true
     xcrun simctl install "$ipad_udid" "$app" || { echo "✗ iPad 安装失败（iPad 腿跳过，不阻塞）"; xcrun simctl delete "$ipad_udid" 2>/dev/null || true; return; }
     local ip
-    for ip in "real-collapsed:home -zl2shell real" \
-              "real-expanded:home -zl2shell real -zl2pane expanded" \
+    # ★Task460：真壳轨收敛单轨（非折叠退役——原二态真壳轨（折叠/展开两轨）
+    #   随壳侧折叠机制退役同帧化，恒 280pt 展开非折叠形态唯一真壳图证）
+    for ip in "real-pane:home -zl2shell real" \
               "probe:probe" \
               "accounts:accounts"; do
       local ip_name="${ip%%:*}"
