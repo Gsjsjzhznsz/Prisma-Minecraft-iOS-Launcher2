@@ -5652,3 +5652,5 @@ Work Log:
 
 Stage Summary:
 - 装机锚点（BuildTag=「Task459 · 2026-11-21」）：①主页右栏版本卡尾 = 刷新+齿轮两钮恒在首屏可视区（任意实例数/窗高），齿轮点入 = 📦版本页（版本管理）②单实例设备卡高随窗收敛（≈349-418pt 域），滚轮拖动语义不变 ③左栏展开态 = 窗格顶小钮一键展开（280pt 带标题条目），折叠为会话态重启自动展开 ④下载页左轨 11 轨含 控件/手柄/插件仓库三轨（Task458 交付不变）⑤若版本卡尾两钮再现不可见 = 携装机截图 + latestlog 按本轮像素取证链复判
+
+- 【闭环补记·Task459】docs 轮终态规范构建 44799982617 success = 规范装机构建；四产物 Task459 唯一命名归档（AngelAuraAmethyst__Task459__44799982617.ipa/.tipa/dSYM/preview zip，本轮起 ipa/tipa 为直装本体单层形态，验证器同步单层直读判例）+ task459_artifact_verify 12 断言 ALL PASS（zip 零错×4 + BuildTag UTF-16LE Task459 在场 + Task458 归零 + dSYM 新 UUID 异于退役族含 f8f16c73 + 修复面符号二件在场（-[ZL2HomeViewController ame414_relayoutVersionHeight] / -[ZL2HomeViewController ame456_setVersionCardFlowHeight:]）+ ipa/dSYM __TEXT vmsize 产物对一致）；验证器 scripts/task459_artifact_verify.py 入册；代码轮 ba8e4565d CI 双绿一轮终绿（dev 44795871456 + ui-smoke 44795871737，attempt 1）；CI 图证判读 = harness 宿主从不触发 ame414 布局驱动（预览卡恒初值常量形态），chrome 修复使条目 4pt 上移（y834-925 差异域精确吻合）＝harness 预览非本修复验收面（ame414 实跑域 = 真机，Task443/456 装机判读链实证），装机验收 = 用户下轮截图版本卡尾刷新/齿轮两钮首屏可视；闭环补记提交后续轮构建与 44799982617 二进制等价（零生产代码差），归档锚不迁移。
