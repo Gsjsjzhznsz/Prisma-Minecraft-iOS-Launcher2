@@ -499,7 +499,12 @@ static UIImage *ZL2ShellSystemImageSizedEx(NSString *name, NSString *fallback, C
 
         _iconView.tintColor = [ZL2Theme onSurfaceVariant];
         _label.textColor = [ZL2Theme onSurfaceVariant];
-        self.layer.cornerRadius = [ZL2Theme radiusS];
+        // ★Task458：圆角随选中语义双族同源（默认蓝图 MD3/ZL2 胶囊 radiusM /
+        //   插件覆盖 WinUI 抬升 radiusS）——首帧即正确，后续 ame_setSelected
+        //   单一 styling 路径逐拍维护（ZL2DownloadRailItem ame_applySelected
+        //   同构判例：圆角随选中应用点走）。
+        self.layer.cornerRadius = [ZL2Theme ame347_shellLayoutPluginOverridden]
+                                      ? [ZL2Theme radiusS] : [ZL2Theme radiusM];
         self.layer.masksToBounds = YES;
 
         self.isAccessibilityElement = YES;
@@ -510,22 +515,44 @@ static UIImage *ZL2ShellSystemImageSizedEx(NSString *name, NSString *fallback, C
 }
 
 - (void)ame_setSelected:(BOOL)selected {
-    // WinUI 11 选中语义：指示条 + 中性抬升行底（M3 映射 = surfaceContainerHigh；
-    // 内容着色 onSurface 强调）——区别于 ZL2 顶栏 secondaryContainer 胶囊语义
     // ★ Task389：行内指示条退役——指示条上收为壳级共享滑动条
     //   （ame389_slideIndicator，切换标签时上下滑移到新选中项，WinUI
     //   SelectionIndicator 动效口径）；行内保留视图占位（零布局影响），
-    //   恒隐藏。行底/着色语义不变。
+    //   恒隐藏。
     self.indicator.hidden = YES;
-    // ★Task414 选中底色 surfaceContainerHigh → Highest（第 23 轮复诉⑥
-    //   「fui左边的侧边栏你要修多久」：fui 暗板 surfaceContainerHigh 28 与
-    //   窗格底 1D 仅差 ~4% 亮度 = 选中态几乎不可辨 IMG_0606 实锤；Highest
-    //   = surface 上最亮容器档，暗板对比翻倍且亮板仍属克制中性抬升，
-    //   WinUI 选中 pill「中性抬升」语义不破）
-    self.backgroundColor = selected ? [ZL2Theme surfaceContainerHighest] : [UIColor clearColor];
-    UIColor *tint = selected ? [ZL2Theme onSurface] : [ZL2Theme onSurfaceVariant];
-    self.iconView.tintColor = tint;
-    self.label.textColor = tint;
+    // ★ Task458：选中语义双族分流（用户复诉「我的md3界面怎么变成了fui。
+    //   zl2格式去哪里了」根修）。判读 = Task456 默认蓝图内置化后，默认骨架
+    //   （插件关/未覆盖 = 用户设备实态）沿用插件族 WinUI 选中语义 = 观感
+    //   错位（默认面板看起来像 fui，ZL2/MD3 格式凭空消失）。分流判据 =
+    //   结构令牌插件覆盖在位（ZL2Theme ame347_shellLayoutPluginOverridden）：
+    //   · 插件覆盖在位（fluent-ui 全维度换装契约，Task347 起「插件开=语义
+    //     不变」承诺）= WinUI 11 中性抬升行底（surfaceContainerHighest +
+    //     onSurface，★Task414 对比度重锚原样保留）+ radiusS + 滑移指示条；
+    //   · 默认蓝图 = ZL2/MD3 选中胶囊（secondaryContainer 圆角胶囊 radiusM
+    //     + onSecondaryContainer 强调，与 ZL2DownloadRailItem「M3
+    //     NavigationRailItem 语义」同源；ZL2 真机截图顶栏「下载」选中 pill
+    //     底 = secondaryContainer 深板 0x643122 同源取值；ZalithLauncher2
+    //     NavigationRail/Drawer 原版 = 胶囊行底自带选中态、无边缘指示条）。
+    //   覆盖表只经 setter 写入且 Token 变更自带 Task346 根重建 = 分流与骨架
+    //   生命周期逐位同拍，行级实时读零缓存。
+    BOOL ame458_pluginOverride = [ZL2Theme ame347_shellLayoutPluginOverridden];
+    self.layer.cornerRadius = ame458_pluginOverride ? [ZL2Theme radiusS] : [ZL2Theme radiusM];
+    if (ame458_pluginOverride) {
+        // ★Task414 选中底色 surfaceContainerHigh → Highest（第 23 轮复诉⑥
+        //   「fui左边的侧边栏你要修多久」：fui 暗板 surfaceContainerHigh 28 与
+        //   窗格底 1D 仅差 ~4% 亮度 = 选中态几乎不可辨 IMG_0606 实锤；Highest
+        //   = surface 上最亮容器档，暗板对比翻倍且亮板仍属克制中性抬升，
+        //   WinUI 选中 pill「中性抬升」语义不破）
+        self.backgroundColor = selected ? [ZL2Theme surfaceContainerHighest] : [UIColor clearColor];
+        UIColor *tint = selected ? [ZL2Theme onSurface] : [ZL2Theme onSurfaceVariant];
+        self.iconView.tintColor = tint;
+        self.label.textColor = tint;
+    } else {
+        self.backgroundColor = selected ? [ZL2Theme secondaryContainer] : [UIColor clearColor];
+        UIColor *tint = selected ? [ZL2Theme onSecondaryContainer] : [ZL2Theme onSurfaceVariant];
+        self.iconView.tintColor = tint;
+        self.label.textColor = tint;
+    }
     self.accessibilityTraits = selected ? (UIAccessibilityTraitButton | UIAccessibilityTraitSelected)
                                         : UIAccessibilityTraitButton;
 }
@@ -1693,6 +1720,17 @@ static UIImage *ZL2ShellSystemImageSizedEx(NSString *name, NSString *fallback, C
 //   centerY 常量 = 选中项在 paneStack 内的中点 Y；无选中项（瞬时页）隐藏。
 - (void)ame389_syncIndicatorYAnimated:(BOOL)animated {
     if (!self.ame389_slideIndicator || !self.isViewLoaded) return;
+    // ★ Task458：默认蓝图恒无边缘指示条（M3/ZL2 导航选中 = 胶囊行底自带
+    //   状态，ZalithLauncher2 NavigationRail/Drawer 原版无 WinUI
+    //   SelectionIndicator——用户复诉「md3 界面变成 fui」观感 signature 之二；
+    //   分流判据与 ame_setSelected 同源零漂移）。滑移竖条仅在结构令牌插件
+    //   覆盖态（fui 全维度换装契约，Task347 起）保留；fui 蓝条测量纠偏插件
+    //   （v2.6.1/2.6.2 ame.views 家族）在覆盖态照旧命中本视图，默认态纠偏
+    //   目标恒隐 = 幂等空转零危害。
+    if (![ZL2Theme ame347_shellLayoutPluginOverridden]) {
+        self.ame389_slideIndicator.hidden = YES;
+        return;
+    }
     ZL2ShellNavItem *ame389_target = nil;
     for (ZL2ShellNavItem *ame389_item in self.navItems) {
         if (ame389_item.pageIndex >= 0 && ame389_item.pageIndex == self.currentIndex) {

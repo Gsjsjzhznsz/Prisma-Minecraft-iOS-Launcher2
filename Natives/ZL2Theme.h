@@ -155,8 +155,20 @@ NS_ASSUME_NONNULL_BEGIN
 + (BOOL)ame347_setPluginThemeStructure:(NSString *)pluginId
                                 tokens:(nullable NSDictionary *)tokens;
 
-// 结构蓝图读取（壳层构建期消费）：无覆盖时返回 @"topbar"（M3 基线不变）。
+// 结构蓝图读取（壳层构建期消费）：★Task456 默认蓝图 topbar → navigationview
+// （小屏 ZL2 侧栏内置化）；插件覆盖在位时返回覆盖值（后写者胜）。
 + (NSString *)ame347_shellLayout;
+
+// ★Task458：结构令牌插件覆盖在位判定（无写面）。YES = 某插件经
+// ame347_setPluginThemeStructure 落了 shellLayout 覆盖（fluent-ui 全维度换装
+// 契约，Task347 起「插件开=语义不变」）→ 壳骨架选中语义走 WinUI 族
+// （中性抬升行底 + 滑移指示条，Task347/389/414 判例原样）；NO = 默认蓝图
+// （插件关/未覆盖）→ MD3/ZL2 族（secondaryContainer 胶囊选中、无边缘指示
+// 条，ZalithLauncher2 原版语义）。覆盖表只经 setter 写入（还原即清账）且
+// Token 变更自带 Task346 根重建 = 判定与骨架生命周期逐位同拍，读侧零缓存。
+// 用户复诉「md3 界面怎么变成了 fui / zl2 格式去哪里了」判读锚：Task456 默认
+// 蓝图内置化后默认骨架沿用插件族 WinUI 选中语义 = 观感错位根因。
++ (BOOL)ame347_shellLayoutPluginOverridden;
 
 #pragma mark - ★Task429 活动色板覆盖层（PDF 第五版 §8.1 动态主题）
 

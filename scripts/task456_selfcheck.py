@@ -135,7 +135,7 @@ check("S3 插件结构覆盖面保留（覆盖读取器未旁路）",
       "Ame347StructureOverride(@" in theme)
 # S4 BuildTag 代际
 check("S4 BuildTag 代际锚（★Task457 重锚：每轮门禁强制重锚判例）",
-      'ame415_buildTag = @"Task457 · 2026-11-19"' in buildtag)
+      'ame415_buildTag = @"Task458 · 2026-11-20"' in buildtag)
 
 print()
 if FAILS:

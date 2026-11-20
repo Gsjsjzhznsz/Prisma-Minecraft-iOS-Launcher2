@@ -529,6 +529,14 @@ static void ame346_requestRootRebuild(void) {
     return Ame347StructureOverride(@"shellLayout", @"navigationview");
 }
 
++ (BOOL)ame347_shellLayoutPluginOverridden {
+    // ★ Task458：覆盖在位判定（契约见 ZL2Theme.h 同名注释）。与
+    // Ame347StructureOverride 同一判据形态（entry.count == 2）= nil 表/缺键/
+    // 畸形条目三态全落 NO（默认 MD3 族），零新增失效面。
+    NSArray *ame458_entry = ame347_structureOverride[@"shellLayout"];
+    return ame458_entry.count == 2;
+}
+
 #pragma mark - ★Task429 活动色板覆盖层（8.1 动态主题中枢对接点）
 
 + (void)ame429_setActivePaletteOverlay:(NSDictionary<NSString *, NSArray<NSNumber *> *> *)overlay {

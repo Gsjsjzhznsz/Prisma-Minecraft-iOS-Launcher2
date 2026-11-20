@@ -107,7 +107,12 @@ check("② ame369.* 键四表齐备",
 # ★Task429 重锚：+3 实测站点（429-A 收藏钮态切换复用 ame369.asearch.unfavorite、
 #   429-BC 完整性行复用既有键站点、429-S1 世界备份/代理行复用既有键）= 466 → 431 仓库行三态空态新站点 +1 = 467
 #   （git stash 双向核验口径同前；AME_REPO=/home/z/my-project/work429）。
-check("① ame369 改写点数 == 445（…★Task432 重锚 -24 = 443 → ★Task436 重锚 +6 = 449 → ★Task440 重锚 -4：批次二旧三版本页整链退役（ModVersionViewController.m 内 4 站点随页离场，功能由 ZL2VersionListPage Mod 域接棒）= 445）", ame369_sites == 445, str(ame369_sites))
+# ★Task458 重锚：下载中心仓库三轨回归（用户指令「下载中心的插件和控件给我恢
+#   复」Task432 摘除面复位）复用既有键零新增——titles 数组 +2（ame369.common.
+#   control_repo / ame369.common.gamepad_repo）+ case 8/9 nav 宿主标题 +2（case 10
+#   的 ame318.repo.title 两站点不落 ame369.* 计数口径）= 445 + 4 = 449
+#   （git stash 双向核验：HEAD=445，Task458 工作区=449）。
+check("① ame369 改写点数 == 449（…★Task432 重锚 -24 = 443 → ★Task436 重锚 +6 = 449 → ★Task440 重锚 -4 = 445 → ★Task458 重锚 +4：下载中心仓库三轨回归（Task323 原版形态复位）titles 数组 +2 + case 8/9 标题 +2 = 449）", ame369_sites == 449, str(ame369_sites))
 
 # 复用站点：4 处 localize(@"ame193.misc.[13]"（内容级匹配——5 个补 import 文件行号整体 +1，行级断言会错位）
 REUSE_EXPECT = {

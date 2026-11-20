@@ -1129,7 +1129,19 @@ static void AmePreviewApplyFluentTokens(void) {
 //    ZL2ShellViewController 子 VC 充满 —— CI 截图从此渲染的是真壳真类
 //    真字形管线，而非镜像 ──
 - (void)ame417_buildRealShell {
-    AmePreviewApplyFluentTokens();
+    // ★ Task458：-zl2theme default → 默认 embermire 令牌轨（跳过 fluent 四族
+    //   注入 = 结构覆盖不在位 = MD3/ZL2 默认选中语义的真壳截图验收面，用户
+    //   复诉「md3 界面变成 fui」修复的直接图证轨；无旗标保持 fui 四族注入 =
+    //   插件覆盖态契约不变）。
+    NSArray<NSString *> *ame458_args = [NSProcessInfo processInfo].arguments;
+    NSUInteger ame458_themeIdx = [ame458_args indexOfObject:@"-zl2theme"];
+    BOOL ame458_defaultTheme = (ame458_themeIdx != NSNotFound && ame458_themeIdx + 1 < ame458_args.count
+                                && [ame458_args[ame458_themeIdx + 1] isEqualToString:@"default"]);
+    if (!ame458_defaultTheme) {
+        AmePreviewApplyFluentTokens();
+    } else {
+        NSLog(@"[Ame417] Task458: default-theme track (embermire baseline, no fluent structure override)");
+    }
     BOOL ame417_expanded = NO;   // 真机用户态 = 折叠 64 图标栏（IMG_0611 实锤口径）
     NSArray<NSString *> *ame417_args = [NSProcessInfo processInfo].arguments;
     NSUInteger ame417_paneIdx = [ame417_args indexOfObject:@"-zl2pane"];

@@ -118,7 +118,7 @@ check("R6a i18n 全语种入册（ame457 键面 == ame451 锚点键面）",
       lproj_key == lproj_anchor and lproj_key >= 54,
       f"ame457={lproj_key} anchor={lproj_anchor}")
 check("R6b BuildTag = Task457 · 2026-11-19",
-      'ame415_buildTag = @"Task457 · 2026-11-19"' in buildtag)
+      'ame415_buildTag = @"Task458 · 2026-11-20"' in buildtag)
 
 print("== X 全仓扫描 ==")
 
