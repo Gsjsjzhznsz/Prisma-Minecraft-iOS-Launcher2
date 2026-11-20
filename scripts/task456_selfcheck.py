@@ -87,7 +87,7 @@ check("R6d 矮窗劣化 target 恒 ≤ avail（单行绝对下限，三行软下
       "fmax(ZL2HomeVersionFlowItemH, fmin(ame414_full, ame414_avail))" in home
       and "ame414_softFloor" not in home)
 check("R6e 卡高初值 = 五行口径 + chrome（首布局前零视觉回退）",
-      "_versionFlow.viewportHeight\n                                                             + 2.0 * ZL2HomeCardPadding + 6.0 + ZL2HomeCardFooterHeight + 4.0];" in home)
+      "_versionFlow.viewportHeight\n                                                             + ame456_versionCardChrome];" in home)
 
 print("== X 全仓扫描 ==")
 
@@ -135,7 +135,7 @@ check("S3 插件结构覆盖面保留（覆盖读取器未旁路）",
       "Ame347StructureOverride(@" in theme)
 # S4 BuildTag 代际
 check("S4 BuildTag 代际锚（★Task457 重锚：每轮门禁强制重锚判例）",
-      'ame415_buildTag = @"Task458 · 2026-11-20"' in buildtag)
+      'ame415_buildTag = @"Task459 · 2026-11-21"' in buildtag)
 
 print()
 if FAILS:

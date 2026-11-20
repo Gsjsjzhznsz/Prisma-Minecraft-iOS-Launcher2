@@ -147,6 +147,12 @@ static const CGFloat ZL2HomeAccountFlowGapH    = 4;   // 横排条目间隙
 static const CGFloat ZL2HomeVersionFlowItemH   = 64;  // 版本滚轮条目高（图标 40 + 双行文 =「五个正常的实例版本信息高度」口径）
 static const CGFloat ZL2HomeFlowItemGap        = 10;  // 竖排条目间隙（实例卡图标→名称间隙参照，Task393 用户规格沿用）
 static const CGFloat ZL2HomeCardFooterHeight   = 32;  // 卡尾动作行钮边长（账户管理/刷新/齿轮）
+// ★Task459 版本卡内构 chrome 单源常量：flow.top 8（单侧 padding——flow 底挂
+//   尾行钮 top−6，不触卡底）+ flow→尾行 6 + 尾行钮 32 + 卡底 4 = 50。
+//   旧形态卡高常量与 ame414 avail 各自手写 58（2.0×padding 误计双侧），
+//   与内容链 50 差 8pt = required 超定随机断钉家族（ame456_setVersionCardFlowHeight
+//   与卡高常量创建点、ame414 余量式三点同源引用本常量）。
+static const CGFloat ame456_versionCardChrome  = 50;
 
 // ★ Task378 五入口快航瓦片（顶栏退役承接：壳 RailItem×5 → 本栏顶部）
 // ★ Task392 一行化+图标减半（用户规格 2026-11-03：图标“缩小两倍”+“改成一行的”+
@@ -746,36 +752,29 @@ static UIImage *ZL2HomeSizedImage(NSString *name, NSString *fallback, CGFloat po
     if (ame414_n > 5) {
         ame414_full = ZL2HomeVersionFlowItemH + (CGFloat)(ame414_n - 1) * ame414_pitch;
     }
-    if (ame414_full <= ame414_ideal + 0.5) {
-        [self ame456_setVersionCardFlowHeight:ame414_ideal];
-        return;
-    }
-    // ★Task415c 余量重算：启动卡钉出滚动区后视口 = menuScrollView 自身高
-    //   （旧式减 _launchCard 帧的口径随钉底三钉失效）；余量 = 视口 − 账户卡
-    //   − 卡间间隙 − 版本卡内构
-    // ★Task443（用户复诉「转盘的设置和刷新必须切换几下才有，第二次刷新就
-    //   吞掉」· 数学实锤根修）：旧公式漏减快航瓦片卡高与其下方卡间间隙——
-    //   滚动内容总高 = quickNavH + gap + accountH + gap + (target + 内构)，
-    //   代入旧 avail 恒等于 scrollH + quickNavH + gap > 视口 = 版本卡尾部
-    //   （卡尾刷新/齿轮两钮 + flow 底行）恒卷出滚动可视区，滚动侧栏才可见
-    //   = 「切换几下才有」实体；两次 Task346 根重建重置滚动位相放大观感。
-    //   补减快航卡帧与其下间隙后，target 收敛时内容总高 ≤ 视口，卡尾两钮
-    //   恒在首屏可视区（滚动位相无关）。
+    // ★Task459 余量统一前置（「版本设置去哪里了」第四轮复发根因收口）：
+    //   旧形态 n≤5 分支直接以五行理想高落定早退（ame414_full==ideal 恒真），
+    //   avail 钳制只护 n>5 分支 = Task456「target 恒 ≤ avail」断言的漏网面。
+    //   单实例设备（出厂 (Default) 卡，Task459 装机 IMG_0741 像素实锤）卡恒
+    //   418pt：可见卡高恰 = 滚动视口余量 357pt（418 被视口底缘裁剪），卡尾
+    //   刷新/齿轮两钮（卡底 −4 钉 = 卡顶 366-398pt 域）整体落裁剪带零像素
+    //   ＝「侧边栏齿轮按钮不显示」Task443→455→456→459 四轮同源临床。本轮
+    //   余量计算前置为两分支共用：快航卡（Task443 补减项）+ 账户卡 + 两段
+    //   卡间间隙 + 版本卡内构 chrome 50（flow.top 8 + flow→尾行 6 + 尾行 32 + 卡底 4）。
+    //   判例：卡内重钉（Task456）只保证「钮在卡内不可裁」，卡本体仍须
+    //   「整体进视口」两道闸缺一不可——单行 64pt 为绝对下限（滚轮可拖语义
+    //   无损，Task456 矮窗劣化终版同口径），启动卡钉底永可见优先于五行口径。
     CGFloat ame414_avail = self.menuScrollView.bounds.size.height
         - _quickNavCard.frame.size.height   // ★Task443 补：快航瓦片卡（旧公式漏减）
         - ZL2HomeCardGap   // ★Task443 补：快航卡→账户卡间隙
         - _accountCard.frame.size.height
         - ZL2HomeCardGap   // 账户卡→版本卡间隙（stack spacing 同值）
-        - (2.0 * ZL2HomeCardPadding + ZL2HomeCardFooterHeight + 6.0 + 4.0);   // 版本卡内构
+        - ame456_versionCardChrome;   // ★Task459 版本卡内构单源 50（旧手写 58）
     CGFloat ame414_target = ame414_full;
     if (ame414_avail < ame414_full) {
-        // ★Task456 矮窗劣化终版（「侧边栏齿轮按钮不显示」终局根因）：旧软下限
-        //   fmax(floor3, …) 在 avail < 三行下限时仍把卡顶出滚动视口——卡尾刷新/
-        //   齿轮两钮（卡底 −4 钉）落折叠带 = 「必须切换几下（滚动）才有」，
-        //   Task443 公式补减只修了常量漏项、未修下限越权分支（IMG_0727 装机
-        //   实锤：卡尾两钮不可见、末条目贴卡底缘裁切）。终版 = target 恒 ≤
-        //   avail（单行为绝对下限，滚轮拖动语义无损），尾行恒在首屏可视区；
-        //   五行/三行下限仅在余量足够时生效。
+        // ★Task456 矮窗劣化终版形态（★Task459 起两分支同享此钳制）：
+        //   target = fmax(单行, fmin(full, avail)) 恒 ≤ avail，尾行两钮
+        //   结构性落在首屏可视区（滚动位相无关）；五行/单行下限仅在余量足够时生效。
         ame414_target = fmax(ZL2HomeVersionFlowItemH, fmin(ame414_full, ame414_avail));
     }
     [self ame456_setVersionCardFlowHeight:ame414_target];
@@ -787,7 +786,7 @@ static UIImage *ZL2HomeSizedImage(NSString *name, NSString *fallback, CGFloat po
 //   不可裁剪（旧形态三约束争卡高，AutoLayout 断钉位相随机 = 齿轮时隐时现）。
 //   方法体必须在 @implementation 内（Task455 事故①判例）。
 - (void)ame456_setVersionCardFlowHeight:(CGFloat)ame456_flow {
-    CGFloat ame456_card = ame456_flow + 2.0 * ZL2HomeCardPadding + 6.0 + ZL2HomeCardFooterHeight + 4.0;
+    CGFloat ame456_card = ame456_flow + ame456_versionCardChrome;   // ★Task459 chrome 单源 50（旧 58 = 8pt 超定断钉家族）
     if (fabs(_ame456_versionCardHeight.constant - ame456_card) > 0.5) {
         _ame456_versionCardHeight.constant = ame456_card;
         [self.view setNeedsLayout];
@@ -1277,8 +1276,13 @@ static UIImage *ZL2HomeSizedImage(NSString *name, NSString *fallback, CGFloat po
     // ★Task414→456 版本卡高持引用（ame414_relayoutVersionHeight 逐帧改写；
     //   required 常量钉卡总高 = flow 视口 + 内构 chrome 50；初值 = 五行口径
     //   viewportHeight + chrome，首次布局前与旧 flow 常量同值零视觉回退）
+    //   ★Task459 chrome 单源对齐：内容链真实内构 = flow.top 8（单侧 padding，
+    //   flow 底挂尾行钮不触卡底）+ flow→尾行 6 + 尾行 32 + 卡底 4 = 50。
+    //   旧形态 2.0×padding(16) = 常量比内容链超定 8pt（注释 50 vs 代码 58
+    //   判例留档）→ required 常量与 required 内容链必有一断 = AutoLayout
+    //   「Unable to simultaneously satisfy constraints」随机断钉家族现行。
     _ame456_versionCardHeight = [_versionCard.heightAnchor constraintEqualToConstant:_versionFlow.viewportHeight
-                                                             + 2.0 * ZL2HomeCardPadding + 6.0 + ZL2HomeCardFooterHeight + 4.0];
+                                                             + ame456_versionCardChrome];
     _ame456_versionCardHeight.active = YES;
 }
 

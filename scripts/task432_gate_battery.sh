@@ -92,6 +92,7 @@ run_py task457      scripts/task457_selfcheck.py
 # ★Task458 三诉落码轮：md3→fui/zl2 格式观感错位（选中语义双族分流 + 滑移条
 #   默认恒隐）+ 下载中心仓库三轨回归（Task323 原版形态 1:1 + 设置域双面共存）
 run_py task458      scripts/task458_selfcheck.py
+run_py task459      scripts/task459_selfcheck.py
 
 # 括号审计：本轮全部编辑文件逐个过状态机（file args 契约，Task431 判例口径）
 EDITED=$(git diff --name-only HEAD --diff-filter=d -- 'Natives/*.m' 'Natives/*.h' 'Natives/**/*.m' 'Natives/**/*.h' 2>/dev/null | grep -v '^Natives/external/' | tr '\n' ' ')
