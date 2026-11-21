@@ -126,6 +126,12 @@ banned = [
     ("ame460_", "X4-3 460 族"),
     ("ame459_", "X4-2 459 族"),
 ]
+# ★判例 N+18（task240 [] 盲区同族）：壁纸清扫伴生符号含大写 C 函数命名
+# Ame449MarkCardSurface——ame 小写前缀 grep 盲区，本轮 CI 实证第二雷。
+banned += [
+    ("Ame449MarkCardSurface", "X2-3 壁纸清扫伴生 C 函数（大写命名盲区）"),
+    ('#import "BackgroundManager.h"', "壁纸清扫伴生 import"),
+]
 for sym, label in banned:
     if sym == "ame458_":
         if "ame347_shellLayoutPluginOverridden" in new_text:

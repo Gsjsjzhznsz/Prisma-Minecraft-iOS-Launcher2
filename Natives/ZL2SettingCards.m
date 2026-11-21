@@ -25,7 +25,6 @@
 #import "ZL2Theme.h"
 #import "ZL2M3Kit.h"
 #import "LauncherPreferences.h"   // ★Task449：折叠覆盖集持久化（general.fold_overrides）
-#import "BackgroundManager.h"     // ★Task449：行卡面壁纸清扫标记（Ame449MarkCardSurface）
 
 #pragma mark - 私有小件
 
@@ -319,7 +318,6 @@ static void ame449_foldOverrideSet(NSString *key, BOOL expanded) {
     CGFloat inner = [ZL2Theme radiusXS];
     [rows enumerateObjectsUsingBlock:^(UIView *row, NSUInteger idx, BOOL *stop) {
         row.backgroundColor = [ZL2Theme surfaceContainer];
-        Ame449MarkCardSurface(row);   // ★Task449：卡面标记（壁纸在场 = 基色×α(uiOpacity)）
         CALayer *layer = row.layer;
         if (count == 1) {
             layer.cornerRadius = outer;
