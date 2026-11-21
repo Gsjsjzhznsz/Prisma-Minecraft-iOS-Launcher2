@@ -5518,3 +5518,18 @@ Work Log:
 Stage Summary:
 - 装机锚点（BuildTag=Task462 · 2026-11-21）：①小屏设备侧边栏回归简单形态（主列四项无 AI/底部单设置项）②版本列表三修回潮（json 缺失被引用实例入列/派生子行默认展开/记录式隔离版本实体在列）③iPad 转盘 460 自适应 ④Fabric/NeoForge 隔离安装自动播种六数据面 ⑤语言选择列表原生名全量+撞名去重 ⑥小堆档 ParallelGC×2（G1 冻结缓解）⑦控件自动更新开关真正生效（Task255 裸键十年账清偿）⑧窄屏抽屉打开窗格置顶可见 ⑨八国原生翻译回潮（54 表全量）⑩粉色钦定 bare 壳/topbar 蓝图/下载三轨/版本卡钳制/四件崩溃防线原样在场（Task461 契约零回归）；产物四件唯一命名归档 + task462_artifact_verify 17 断言 ALL PASS
 - 【Task462 闭环补记】代码轮双绿 attempt 3（dev 44905054447 + ui-smoke 44906514837）+ 四产物唯一命名归档（__Task462__44905054447 集：ipa/tipa/dSYM/preview）+ task462_artifact_verify 17 断言 ALL PASS（BuildTag Task462 UTF-16LE 在场/Task461 代际归零/修复面符号三件旧防线 ame451·Task452 JSC·ame457 + 找回面新符号二件 ame450_seedIsolatedVersionData·ame_languageDisplayNamesForCodes/退役面二进制级归零 ame449_sweep·ame450_isCardFamilyColor·ame449_enableCollapsing/dSYM 新 UUID）；闭环轮推送
+---
+Task ID: 463
+Agent: main (Super Z)
+Task: Prisma-Minecraft-iOS-Launcher2「设置折叠恢复」判例翻转轮（用户诉「游戏没有正常启动。还有设置折叠怎么没有恢复。」）
+
+Work Log:
+- 双诉分诊：①「游戏没有正常启动」——latestlog.txt 全链取证：Ame451 preflight PASSED（JIT26 内存通道健康）→ DyldLVBypass Task457 op4 canary verdict=0（调试器未应答 brk #0xf00d op4）→ graceful abort 弹窗（Task457 设计内防线，弹窗自带四步处置指引）= 调试器侧 per-app JIT 通道状态问题，非启动器缺陷非本轮回归（失败点在 JVM 启动前，GC 调优/隔离播种均未执行；十项找回面零 JIT/Dyld 触碰）；装机代际确认 dac1485f4（用户已装 Task462 构建上最新树）②「设置折叠怎么没有恢复」——Task461 门头判例定谳：设置折叠退役依据「用户指令『这才是3天前』+ 粉色装机截图非折叠钦定」，本轮用户明确诉求恢复 = 判例翻转授权，折叠一项出锁定面，其余锁定面维持退役执法不变
+- 移植面（对照 1d9abe692 = Task460 末代折叠形态逐 hunk 溯源）：①ZL2SettingCards.h 折叠 API 三声明（+14 行纯声明）②ZL2SettingCards.m 折叠态实现整文件（227 行 diff 纯折叠面，锁定面符号零污染预检）③ZL2SettingPages.m helper 注入（ame_addGroup:title:key:defaultCollapsed: Task449 原始裸形态 57240655f——不带 450 时代 @try/@catch(ame450_foldEx) 降级块，零锁定面前缀）+ 38 处折叠调用点顺序配对 1:1 替换（组名重名 group1×10/group2×6/group3×3 → 出现顺序 zip + 逐位组名一致性断言 PASS；38 调用点 vs 当前 HEAD 平铺调用点数精确相等 = 448→460 组结构零增减实锚）
+- CI 一轮判例：r0（7f3510e4f）ui-smoke 红 = Task460 版 Cards.m L28 #import BackgroundManager.h + L322 Ame449MarkCardSurface 壁纸清扫伴生面随文件携带（隐式函数声明雷，该 C 函数定义于 BackgroundManager 壁纸管线 Task461 回退已删）；**判例 N+18（task240 [] 盲区同族）**：锁定面伴生符号含大写 C 函数命名，ame 小写前缀 grep 盲区——task463_restore_folding.py banned 清单补双锚；r1（702c9d870）剔除后代码轮双绿 attempt 2（dev 44931024805 + ui-smoke 44934245366 dispatch 补触发——push 事件偶发未触发 ui-smoke 判例首例）
+- 门禁：task461 X1-1/X1-2/X6-2 三断言翻转（归零→在场执法，判例翻转入册门头）+ task462 X1/X6-2 翻转 + S1 代际重锚 Task463 · 2026-11-22（BuildTag.h/task452 A5/task457 R6b 四锚同步）；电池 37/37 ALL GREEN；verify219 唯一键锚 4350 稳定（折叠 38 组标题键 ame449.setpg.group.* 已在 54 表——Task462 轮全量恢复覆盖，零新增键）；task463_restore_folding.py 移植脚本入册（锁定面八族零引入断言 + 三括号平衡内置 + N+18 双锚）
+- 产物四件唯一命名归档（__Task463__44931024805 集：ipa/tipa/dSYM/preview）+ 二进制验证 8/8 ALL PASS（BuildTag Task463 UTF-16LE 在场/Task462 代际归零/折叠面符号三件 ame449_enableCollapsingWithTitle·ame449.setpg.group.*·general.fold_overrides 在场/性能面 ParallelGC 在场/退役面二进制级归零 ame449_sweep·ame450_isCardFamilyColor·Ame449MarkCardSurface·ame455_consumeStartupRebuild·ame460_）；判例校准：ipa 为 zip 容器，UTF-16 常量验证必须解包 Payload 主二进制直读字节流（容器层直搜必假阴）
+
+Stage Summary:
+- 装机锚点（BuildTag=Task463 · 2026-11-22）：①设置页 38 组折叠回潮（组头 = 标题+行数徽章+chevron，点按折叠/展开；general.fold_overrides 单键持久化，用户覆盖压过页面默认）②renderer/video/memory_jvm/touch/gamepad/appearance/runtime_map/layouts 默认展开七类，其余默认折叠 ③折叠面四件旧防线与十项找回面原样在场（Task462 契约零回归）④壁纸清扫/455/456/458/460/topbar 锁定面维持退役（X 门执法不变）；JIT op4 处置移交用户（重启调试器 App → 重新指派 Universal 脚本 → 删条目重开 → 换工具，弹窗四步）
+- 【Task463 闭环补记】代码轮双绿 attempt 2（dev 44931024805 + ui-smoke 44934245366）+ website 规范构建 44936320627 success + 四产物唯一命名归档 + 二进制验证 8/8 ALL PASS；闭环轮推送
