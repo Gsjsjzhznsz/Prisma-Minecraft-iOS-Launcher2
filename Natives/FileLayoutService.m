@@ -9,6 +9,7 @@
 //
 
 #import "FileLayoutService.h"
+#import "utils.h"   // ★Task449：localize（跨启动器导入报告 i18n 化）
 #import <UIKit/UIKit.h>
 
 #define FLLog(fmt, ...) NSLog(@"[FileLayout] ame316: " fmt, ##__VA_ARGS__)
