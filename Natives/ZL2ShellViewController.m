@@ -1203,6 +1203,15 @@ static UIImage *ZL2ShellSystemImageSizedEx(NSString *name, NSString *fallback, C
     ]];
 
     // 主导航项（账户管理已由右栏的添加/删除动作取代，页面 3 仅保留为内部流程宿主）。
+    // ★Task450 ⑥：小屏设备简单侧栏（用户钦定「识别到小屏幕设备就使用没有太
+    //   复杂的侧边栏，也就是提交转盘的时候的 zl2 形式的简单」）——设备级判定
+    //   （min 维度 < 500pt = iPhone/紧凑档）→ 主列摘 AI 项 + 底部摘文件项
+    //   （AI 仍可经下载页内入口/插件行可达，文件仍可经主页瓦片/顶栏同链可达；
+    //   大屏保持全量五项 + 双底部项不变）。
+    BOOL ame450_compactDevice = (MIN(UIScreen.mainScreen.bounds.size.width,
+                                     UIScreen.mainScreen.bounds.size.height) < 500.0);
+    NSLog(@"[Task450] shell rail compact device=%@ (min dim %.0f)", ame450_compactDevice ? @"YES" : @"NO",
+          MIN(UIScreen.mainScreen.bounds.size.width, UIScreen.mainScreen.bounds.size.height));
     NSArray<NSString *> *ame347_titles = @[localize(@"ame369.common.home", @"主页"), localize(@"ame369.shell.tab.downloads", @"下载"), localize(@"ame369.shell.tab.versions", @"版本"),
                                            localize(@"ame369.common.multiplayer", @"多人联机"), localize(@"ame192.ai.title", nil)];
     NSArray<NSString *> *ame347_symbols = @[@"house.fill",
@@ -1218,6 +1227,7 @@ static UIImage *ZL2ShellSystemImageSizedEx(NSString *name, NSString *fallback, C
     NSArray<NSNumber *> *ame347_pages = @[@0, @1, @2, @5, @6];
     NSMutableArray<ZL2ShellNavItem *> *ame347_items = [NSMutableArray array];
     [ame347_titles enumerateObjectsUsingBlock:^(NSString *itemTitle, NSUInteger idx, BOOL *stop) {
+        if (ame450_compactDevice && ame347_pages[idx].integerValue == 6) return;   // ★Task450 ⑥：小屏摘 AI 项
         ZL2ShellNavItem *item = [[ZL2ShellNavItem alloc]
             initWithTitle:itemTitle
                     symbol:ame347_symbols[idx]
@@ -1251,6 +1261,7 @@ static UIImage *ZL2ShellSystemImageSizedEx(NSString *name, NSString *fallback, C
     NSArray<NSString *> *ame347_footerFallbacks = @[@"gearshape", @"folder"];
     NSArray<NSNumber *> *ame347_footerPages = @[@4, @(-1)];
     [ame347_footerTitles enumerateObjectsUsingBlock:^(NSString *itemTitle, NSUInteger idx, BOOL *stop) {
+        if (ame450_compactDevice && ame347_footerPages[idx].integerValue < 0) return;   // ★Task450 ⑥：小屏摘文件项
         ZL2ShellNavItem *item = [[ZL2ShellNavItem alloc]
             initWithTitle:itemTitle
                     symbol:ame347_footerSymbols[idx]
@@ -1510,6 +1521,12 @@ static UIImage *ZL2ShellSystemImageSizedEx(NSString *name, NSString *fallback, C
     BOOL ame347_paneShown = self.ame347_regular || self.ame347_drawerOpen;
     CGFloat ame347_target = ame347_paneShown ? 0.0 : -(ZL2ShellPaneWidth + 12.0);
     self.ame347_paneLeading.constant = ame347_target;
+    // ★Task460 抽屉 z 序根修（单面移植）：paneWrap 构建序最早 = 视图栈最底，
+    //   窄屏抽屉打开时被 dimOverlay（35% 黑罩）与内容区（栈顶）整体盖住 =
+    //   窗格不可见。置顶后：抽屉打开 = 窗格浮于遮罩与内容之上（MD3 modal
+    //   drawer 标准层级）；宽屏常驻/闭合态窗格列 (0..280) 与内容区前导 (280)
+    //   零重叠 = 置顶零几何影响；闭合态窗格平移 (-292) 于屏外 = 零触达劫持。
+    [self.view bringSubviewToFront:self.paneWrap];
     self.paneWrap.layer.shadowOpacity = (!self.ame347_regular && self.ame347_drawerOpen) ? 0.25f : 0.0f;
     self.paneWrap.layer.shadowRadius = 16.0;
     self.paneWrap.layer.shadowOffset = CGSizeMake(8.0, 0.0);

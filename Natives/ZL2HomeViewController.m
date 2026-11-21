@@ -119,8 +119,8 @@ static NSString * const ZL2SidebarCardOrderDefaultsKey = @"zl2.home.sidebarCardO
 static NSString * const ZL2HomeMenuSideDefaultsKey = @"zl2.home.actionMenuSide";
 
 // 双栏布局常量（LauncherScreen.kt Row 规格）
-static const CGFloat ZL2HomeMenuWidthRatio   = 0.28;  // 右栏比例（停靠换边恢复后沿用 73c10b7 收窄值，用户未复诉宽度）
-static const CGFloat ZL2HomeMenuWidthMax     = 300;
+static const CGFloat ZL2HomeMenuWidthRatio   = 0.28;  // 右栏比例（停靠换边恢复后沿用 73c10b7 收窄值）
+static const CGFloat ZL2HomeMenuWidthMax     = 460;   // ★Task450 ⑤：300→460（15 期「转盘没有正常自适应」——iPad 1180pt 全屏 0.28×=330 被旧上钳 300 压扁，转盘/账户滚轮在大屏恒手机宽；460 = iPad 全屏 330 放行 + 12.9" 440 内收敛，手机 0.28×=105 走下限 220 不受影响）
 static const CGFloat ZL2HomeMenuWidthMin     = 220;
 static const CGFloat ZL2HomeGridSpacing      = 6;     // 卡片间距（行/列同值）
 static const CGFloat ZL2HomeGridInsetH       = 12;    // section 左右 inset
@@ -956,14 +956,14 @@ static UIImage *ZL2HomeSizedImage(NSString *name, NSString *fallback, CGFloat po
     // 卡尾动作行：账户管理小钮（原账号卡点击语义收口于此）+ 选中链忙态 spinner
     _accountManageButton = [self ame_accountActionButtonWithSymbol:@"person.badge.plus"
                                                           fallback:@"person.crop.circle.badge.plus"
-                                                             title:@"添加账户"];
+                                                             title:localize(@"login.option.add", nil)];
     _accountManageButton.ame_action = ^{
         [weakSelf ame_requestAccountAction:@"ZL2AccountsRequestAdd"];
     };
     [_accountCard addSubview:_accountManageButton];
     _accountDeleteButton = [self ame_accountActionButtonWithSymbol:@"person.crop.circle.badge.minus"
                                                           fallback:@"trash"
-                                                             title:@"删除账户"];
+                                                             title:localize(@"account.menu.delete", nil)];
     _accountDeleteButton.ame_action = ^{
         [weakSelf ame_requestAccountAction:@"ZL2AccountsRequestDeleteCurrent"];
     };

@@ -517,7 +517,7 @@ static NSString *ame317_facadeSource(void) {
         id json = raw ? [NSJSONSerialization JSONObjectWithData:raw options:0 error:nil] : nil;
         if (![json isKindOfClass:[NSDictionary class]]) {
             [self ame344_quarantinePluginDir:dir pluginId:pid
-                                      reason:(raw ? @"manifest.json 非 JSON 对象" : @"manifest.json 不可读")];
+                                      reason:(raw ? localize(@"ame449.plugin.mf_not_json", @"manifest.json 非 JSON 对象") : localize(@"ame449.plugin.mf_unreadable", @"manifest.json 不可读"))];
             continue;
         }
         // ① 权限谱系映射（一代 Task318 注册表 → 现役注册表）

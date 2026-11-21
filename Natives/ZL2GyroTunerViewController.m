@@ -125,7 +125,7 @@ static const CGFloat Ame436TuneriPadHeight  = 520.0;
     [self ame436_addSliderRowWithTitle:localize(@"ame436.gyro.smooth_window", @"平滑窗口")
                               minimum:Ame436TunerWindowMin
                               maximum:Ame436TunerWindowMax
-                                suffix:@" 样本"
+                                suffix:localize(@"ame449.gyro.samples_suffix", @" 样本")
                              initValue:[self ame436_echoSmoothWindow]
                             writeBlock:^(NSInteger value) {
                                 setPrefInt(Ame436TunerKeySmoothWindow, value);

@@ -40,13 +40,13 @@ static NSString * const kPL429DemoBuiltinId        = @"mobileglues-demo";
 static NSDictionary *kPL429SeedBuiltinManifest(void) {
     return @{
         @"id": kPL429DemoBuiltinId,
-        @"name": @"MobileGlues 渲染器插件（内置演示档）",
+        @"name": localize(@"ame449.plugin.mg_demo_name", @"MobileGlues 渲染器插件（内置演示档）"),
         @"version": @"1.0.0",
-        kPL429ManifestRendererName: @"MobileGlues（渲染器插件档）",
+        kPL429ManifestRendererName: localize(@"ame449.plugin.mg_plugin_name", @"MobileGlues（渲染器插件档）"),
         kPL429ManifestDriverType: kPL429DriverMobileGlues,
         kPL429ManifestABI: @[kPL429DeviceABI],
         kPL429ManifestDylib: @"libmobileglues.dylib",
-        @"description": @"内置渲染器插件包单条链路演示：清单注册→扫描→启动注入→UI 呈现渲染器档位。dylib 绑定随包 Frameworks/libmobileglues.dylib（白名单回退源②）。",
+        @"description": localize(@"ame449.plugin.mg_demo_desc", @"内置渲染器插件包单条链路演示：清单注册→扫描→启动注入→UI 呈现渲染器档位。dylib 绑定随包 Frameworks/libmobileglues.dylib（白名单回退源②）。"),
     };
 }
 

@@ -94,3 +94,6 @@ echo "PASS $((${#RESULT[@]} - fails)) / ${#RESULT[@]}  FAIL $fails"
 
 # ★Task461 回退树组合执法（重应用四件防线 + 退役面归零 + 粉色钦定形态）
 run_py task461     scripts/task461_selfcheck.py
+
+# ★Task462 「其他修改找回」轮执法（449/450/455/460 修改面外科重应用 + 锁定面继承归零 + i18n 54 表回归）
+run_py task462     scripts/task462_selfcheck.py

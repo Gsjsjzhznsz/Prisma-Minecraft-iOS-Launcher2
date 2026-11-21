@@ -1170,7 +1170,7 @@ static void ame428_dosDateTime(NSDate *when, uint16_t *outTime, uint16_t *outDat
         BOOL ame428_sDir = NO, ame428_dExists = NO;
         if (![ame428_fm fileExistsAtPath:ame428_s isDirectory:&ame428_sDir] || !ame428_sDir) continue;
         if ([ame428_fm fileExistsAtPath:ame428_d]) {
-            [ame428_skipped addObject:[NSString stringWithFormat:@"%@（目标已存在，跳过不覆盖）", ame428_item]];
+            [ame428_skipped addObject:[NSString stringWithFormat:localize(@"ame449.iso.move_skip_fmt", @"%@（目标已存在，跳过不覆盖）"), ame428_item]];
             continue;
         }
         [ame428_plan addObject:@{@"item": ame428_item, @"src": ame428_s, @"dst": ame428_d}];
@@ -1223,7 +1223,7 @@ static void ame428_dosDateTime(NSDate *when, uint16_t *outTime, uint16_t *outDat
     // —— delete 阶段（全部 copy 成功后才删源；删失败 = 双份数据，绝不丢失）——
     for (NSDictionary *ame428_step in ame428_plan) {
         if (![ame428_fm removeItemAtPath:ame428_step[@"src"] error:nil]) {
-            [ame428_failed addObject:[NSString stringWithFormat:@"%@（删源失败，两份数据并存）", ame428_step[@"item"]]];
+            [ame428_failed addObject:[NSString stringWithFormat:localize(@"ame449.iso.move_delsrc_fmt", @"%@（删源失败，两份数据并存）"), ame428_step[@"item"]]];
         }
     }
 
@@ -1573,6 +1573,50 @@ static void ame428_dosDateTime(NSDate *when, uint16_t *outTime, uint16_t *outDat
         profile[@"serverIp"] = serverIp ?: @"";
         self.profiles[profileName] = profile;
         [self save];
+    }
+}
+
+#pragma mark - ★Task450 ③ 隔离数据播种（15 期③「版本隔离文件夹没有文件」根修）
+
+// Task322 混居口径在安装器建 versions/<vid>/ 时只落 jar/json/mods/——
+// 用户视角「隔离文件夹没有文件」= 基础版本既有数据未随隔离迁移（15 期
+// 截图实锤：fabric-loader 隔离目录仅 mods(空)/jar/json）。HMCL 语义的
+// 诚实实现 = 播种（copy-from-parent，非 move）：父版本目录（缺席回落
+// 共享根）顶层数据面复制进新隔离目录，已存在项绝不覆盖；best-effort
+// 不阻塞安装链。调用点 = FabricUtils/NeoForgeDirectInstaller 安装落盘后。
++ (void)ame450_seedIsolatedVersionData:(NSString *)versionId inheritsFrom:(NSString *)parentId {
+    if (versionId.length == 0 || parentId.length == 0) return;
+    const char *ame450_env = getenv("POJAV_GAME_DIR");
+    NSString *ame450_root = ame450_env ? [NSString stringWithUTF8String:ame450_env] : NSHomeDirectory();
+    if (ame450_root.length == 0) return;
+    NSString *ame450_dst = [ame450_root stringByAppendingPathComponent:
+        [NSString stringWithFormat:@"versions/%@", versionId]];
+    NSFileManager *ame450_fm = [NSFileManager defaultManager];
+    BOOL ame450_dstDir = NO;
+    if (![ame450_fm fileExistsAtPath:ame450_dst isDirectory:&ame450_dstDir] || !ame450_dstDir) return;
+    NSString *ame450_src = [ame450_root stringByAppendingPathComponent:
+        [NSString stringWithFormat:@"versions/%@", parentId]];
+    BOOL ame450_srcDir = NO;
+    if (![ame450_fm fileExistsAtPath:ame450_src isDirectory:&ame450_srcDir] || !ame450_srcDir) {
+        ame450_src = ame450_root;   // 父版本目录缺席 → 共享根
+    }
+    static NSArray<NSString *> *ame450_dataNames = nil;
+    static dispatch_once_t ame450_once;
+    dispatch_once(&ame450_once, ^{
+        ame450_dataNames = @[@"saves", @"config", @"resourcepacks", @"screenshots",
+                             @"options.txt", @"servers.dat"];
+    });
+    for (NSString *ame450_name in ame450_dataNames) {
+        NSString *ame450_from = [ame450_src stringByAppendingPathComponent:ame450_name];
+        NSString *ame450_to = [ame450_dst stringByAppendingPathComponent:ame450_name];
+        if (![ame450_fm fileExistsAtPath:ame450_from]) continue;
+        if ([ame450_fm fileExistsAtPath:ame450_to]) continue;   // 已存在绝不覆盖
+        NSError *ame450_err = nil;
+        if ([ame450_fm copyItemAtPath:ame450_from toPath:ame450_to error:&ame450_err]) {
+            NSLog(@"[Task450] isolation seed: %@ → versions/%@ (from %@)", ame450_name, versionId, ame450_src.lastPathComponent);
+        } else {
+            NSLog(@"[Task450] isolation seed skip %@ (vid=%@): %@", ame450_name, versionId, ame450_err.localizedDescription);
+        }
     }
 }
 

@@ -1013,15 +1013,15 @@ static NSUInteger ame432_paletteEchoIndex(NSInteger mode) {
 - (NSString *)ame447_isolationStateText {
     NSDictionary *profile = [[PLProfiles current] selectedProfile];
     if (![profile isKindOfClass:[NSDictionary class]]) {
-        return @"当前未选中实例，安装或选用实例后可管理版本隔离";
+        return localize(@"ame449.iso.no_profile", @"当前未选中实例，安装或选用实例后可管理版本隔离");
     }
     NSString *vid = [profile[@"lastVersionId"] isKindOfClass:[NSString class]]
         ? profile[@"lastVersionId"] : nil;
     if (vid.length == 0) {
-        return @"当前实例未选择版本，安装或选用版本后可管理版本隔离";
+        return localize(@"ame449.iso.no_version", @"当前实例未选择版本，安装或选用版本后可管理版本隔离");
     }
     if ([vid hasPrefix:@"latest-"] || [vid isEqualToString:@"latest"]) {
-        return @"当前版本为线上别名（latest-*），启动时在线解析，安装正式版本后可管理隔离";
+        return localize(@"ame449.iso.latest_alias", @"当前版本为线上别名（latest-*），启动时在线解析，安装正式版本后可管理隔离");
     }
     NSString *gd = [profile[@"gameDir"] isKindOfClass:[NSString class]]
         ? profile[@"gameDir"] : nil;
@@ -1031,25 +1031,25 @@ static NSUInteger ame432_paletteEchoIndex(NSInteger mode) {
     BOOL ame447_a3 = (gd.length > 0 && !ame447_a2
         && ![gd isEqualToString:@"."] && ![gd isEqualToString:@"./"]);
     if (ame447_a3) {
-        return @"自定义游戏目录——不受版本隔离管辖（版本详情页同口径）";
+        return localize(@"ame449.iso.custom_dir", @"自定义游戏目录——不受版本隔离管辖（版本详情页同口径）");
     }
     NSInteger ame447_ov = [PLProfiles ame428_overrideForVid:vid];
     NSInteger ame447_gl = [PLProfiles ame428_globalDefault];
     NSInteger ame447_eff = [PLProfiles ame428_effectiveIsolationForVid:vid profile:profile];
     if (ame447_eff == 1) {
         NSString *ame447_src;
-        if (ame447_ov == 1) ame447_src = @"版本级覆盖·启用";
-        else if (ame447_a2) ame447_src = @"实例目录锚定（gameDir）";
+        if (ame447_ov == 1) ame447_src = localize(@"ame449.iso.src_override_on", @"版本级覆盖·启用");
+        else if (ame447_a2) ame447_src = localize(@"ame449.iso.src_gamedir", @"实例目录锚定（gameDir）");
         else ame447_src = (ame447_gl == 1)
-            ? @"全局默认档·始终隔离"
-            : @"全局默认档·自动（检测到模组/加载器）";
-        return [NSString stringWithFormat:@"已隔离：数据独立存放于 versions/%@/（来源：%@）", vid, ame447_src];
+            ? localize(@"ame449.iso.src_global_always", @"全局默认档·始终隔离")
+            : localize(@"ame449.iso.src_global_auto_modded", @"全局默认档·自动（检测到模组/加载器）");
+        return [NSString stringWithFormat:localize(@"ame449.iso.on_fmt", @"已隔离：数据独立存放于 versions/%@/（来源：%@）"), vid, ame447_src];
     }
     NSString *ame447_src;
-    if (ame447_ov == 2) ame447_src = @"版本级覆盖·显式禁用";
-    else if (ame447_gl == 2) ame447_src = @"全局默认档·从不隔离";
-    else ame447_src = @"跟随全局默认·自动（未检测到模组/加载器）";
-    return [NSString stringWithFormat:@"未隔离（%@，与实例根共享数据目录）", ame447_src];
+    if (ame447_ov == 2) ame447_src = localize(@"ame449.iso.src_override_off", @"版本级覆盖·显式禁用");
+    else if (ame447_gl == 2) ame447_src = localize(@"ame449.iso.src_global_never", @"全局默认档·从不隔离");
+    else ame447_src = localize(@"ame449.iso.src_global_auto_vanilla", @"跟随全局默认·自动（未检测到模组/加载器）");
+    return [NSString stringWithFormat:localize(@"ame449.iso.off_fmt", @"未隔离（%@，与实例根共享数据目录）"), ame447_src];
 }
 
 // 版本隔离写入 = 真实链（替代原 ame_writeInstanceIsolation: 的
@@ -1077,15 +1077,15 @@ static NSUInteger ame432_paletteEchoIndex(NSInteger mode) {
         ? profile[@"gameDir"] : nil;
     NSString *ame447_refuse = nil;
     if (!profile || vid.length == 0) {
-        ame447_refuse = @"当前实例未选择版本，无法切换版本隔离";
+        ame447_refuse = localize(@"ame449.iso.cannot_no_version", @"当前实例未选择版本，无法切换版本隔离");
     } else if ([vid hasPrefix:@"latest-"] || [vid isEqualToString:@"latest"]) {
-        ame447_refuse = @"线上别名版本（latest-*）启动时才解析，无法在此切换隔离";
+        ame447_refuse = localize(@"ame449.iso.cannot_latest", @"线上别名版本（latest-*）启动时才解析，无法在此切换隔离");
     } else if (gd.length > 0
         && ![gd isEqualToString:@"."]
         && ![gd isEqualToString:@"./"]
         && ![gd isEqualToString:[NSString stringWithFormat:@"versions/%@", vid]]
         && ![gd isEqualToString:[NSString stringWithFormat:@"versions/%@/game", vid]]) {
-        ame447_refuse = @"自定义游戏目录实例不受版本隔离管辖";
+        ame447_refuse = localize(@"ame449.iso.cannot_custom", @"自定义游戏目录实例不受版本隔离管辖");
     }
     __weak typeof(self) weakSelf = self;
     if (ame447_refuse) {
@@ -1492,7 +1492,7 @@ static NSUInteger ame432_paletteEchoIndex(NSInteger mode) {
         if (ame436_window < 2 || ame436_window > 10) ame436_window = 4;
         ZL2SettingRowSlider *gyroSmoothWindowRow =
             [[ZL2SettingRowSlider alloc] initWithTitle:@"" subtitle:nil
-                                   minimum:2 maximum:10 suffix:@" 样本"];
+                                   minimum:2 maximum:10 suffix:localize(@"ame449.gyro.samples_suffix", @" 样本")];
         gyroSmoothWindowRow.title = localize(@"ame436.gyro.smooth_window", @"平滑窗口");
         [gyroSmoothWindowRow ame_setValue:ame436_window];
         gyroSmoothWindowRow.onValueChanged = ^(NSInteger value) {
@@ -2051,23 +2051,61 @@ didPickDocumentsAtURLs:(NSArray<NSURL *> *)urls {
     return codes;
 }
 
-// 语言码 → 原生显示名（ame202_languageDisplayName 同款思路：原生名优先，
-// 未知码回退裸码；语言名是其自身语言书写的字面量，非 UI 硬编码文案）
+// 语言码 → 原生显示名（★Task449 根修：旧 16 条手写映射只覆盖一小撮语言，
+// 其余 38 个内置语言码全部裸码上屏（用户实测「简中变成 zh-cn」同族）。改用
+// NSLocale displayNameForKey 全量自动覆盖任意码，特殊自定义语言手工表兜底；
+// 语言名是其自身语言书写的字面量，非 UI 硬编码文案。）
 + (NSString *)ame_languageDisplayName:(NSString *)code {
     static NSDictionary *native = nil;
     static dispatch_once_t once;
     dispatch_once(&once, ^{
+        // 特殊/自定义语言：NSLocale 无典可查或典名不合用（自定义彩蛋语言）
         native = @{
-            @"de": @"Deutsch",        @"en": @"English",       @"es": @"Español",
-            @"fr": @"Français",       @"it": @"Italiano",      @"ja": @"日本語",
-            @"ko": @"한국어",          @"ru": @"Русский",       @"th": @"ไทย",
-            @"tr": @"Türkçe",         @"uk": @"Українська",    @"vi": @"Tiếng Việt",
-            @"zh": @"中文",           @"zh-Hans": @"简体中文", @"zh-Hant": @"繁體中文",
-            @"zh-CN": @"简体中文 (zh-CN)",
+            @"en-UD": @"English (Upside Down)",
+            @"en-PT": @"English (Pirate)",
+            @"lol": @"LOLCAT English",
+            @"pr": @"Pirate English",
         };
     });
     NSString *name = native[code];
+    if (name == nil) {
+        // NSLocale 全量路径：任意 BCP-47 码自动给出其自身语言书写名
+        // （zh-CN → 简体中文（中国）、ja → 日本語、km → ខ្មែរ …）
+        NSLocale *locale = [NSLocale localeWithLocaleIdentifier:code];
+        name = [locale displayNameForKey:NSLocaleIdentifier value:code];
+    }
     return name ?: code;
+}
+
+// ★Task449：码表 → 显示名表（撞名去重）。同一语言多码（zh-CN/zh-Hans、
+// en-GB/en 等）displayName 可能同文——首现保真名，撞名码追加「 (code)」
+// 后缀，选择列表不再出现两行一模一样。
++ (NSArray<NSString *> *)ame_languageDisplayNamesForCodes:(NSArray<NSString *> *)codes {
+    NSMutableArray<NSString *> *names = [NSMutableArray arrayWithCapacity:codes.count];
+    NSMutableDictionary<NSString *, NSMutableArray<NSString *> *> *byName =
+        [NSMutableDictionary dictionary];
+    for (NSString *code in codes) {
+        NSString *name = [self ame_languageDisplayName:code];
+        [names addObject:name];
+        NSMutableArray *bucket = byName[name];
+        if (bucket == nil) {
+            bucket = [NSMutableArray array];
+            byName[name] = bucket;
+        }
+        [bucket addObject:code];
+    }
+    // 仅对撞名桶追码后缀（首个不改，其余追加），全单名零开销
+    for (NSString *name in byName) {
+        NSMutableArray *bucket = byName[name];
+        if (bucket.count < 2) continue;
+        for (NSUInteger i = 1; i < bucket.count; i++) {
+            NSString *code = bucket[i];
+            NSUInteger idx = [codes indexOfObject:code];
+            if (idx == NSNotFound || idx >= names.count) continue;
+            names[idx] = [NSString stringWithFormat:@"%@ (%@)", name, code];
+        }
+    }
+    return [names copy];
 }
 
 #pragma mark - ★Task434 A1 应用图标导入链（退役批次一回归修复）
@@ -2257,14 +2295,14 @@ didFinishPicking:(NSArray<PHPickerResult *> *)results {
     self.ame429_paletteRow = ame429_paletteRow;
 
     // 应用语言（general.app_language；system + 全部内置语言，写后广播重载）
+    // ★Task449：显示名走 NSLocale 全量 + 撞名去重（旧 16 条映射外语言裸码上屏根修）
     NSArray<NSString *> *builtinCodes = [ZL2LauncherSettingsPage ame_availableLanguageCodes];
     NSArray<NSString *> *langCodes =
         [@[@"system"] arrayByAddingObjectsFromArray:builtinCodes];
     NSMutableArray<NSString *> *langNames =
         [NSMutableArray arrayWithObject:localize(@"i18n_str_382", nil)];
-    for (NSString *code in builtinCodes) {
-        [langNames addObject:[ZL2LauncherSettingsPage ame_languageDisplayName:code]];
-    }
+    [langNames addObjectsFromArray:
+        [ZL2LauncherSettingsPage ame_languageDisplayNamesForCodes:builtinCodes]];
     ZL2SettingRowList *languageRow =
         [[ZL2SettingRowList alloc] initWithTitle:@"" subtitle:nil
                                  options:langNames optionKeys:langCodes];
@@ -4178,7 +4216,7 @@ didPickDocumentsAtURLs:(NSArray<NSURL *> *)urls {
     ZL2SettingCardGroup *depGroup = [[ZL2SettingCardGroup alloc] init];
     NSArray<NSArray<NSString *> *> *ame428_deps = @[
         @[@"MetalANGLE",      @"ame428.dep.metalangle",
-          @"BSD-3-Clause（ANGLE 条款）",
+          localize(@"ame449.about.deps.angle", @"BSD-3-Clause（ANGLE 条款）"),
           @"https://github.com/khanhduytran0/MetalANGLE/blob/master/LICENSE"],
         @[@"GL4ES",           @"ame428.dep.gl4es",
           @"MIT",
