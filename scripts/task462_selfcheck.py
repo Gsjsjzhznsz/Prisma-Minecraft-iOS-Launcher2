@@ -14,8 +14,8 @@
   R9 Task449⑤ 硬编码中文清扫（filexlate/iso/jitgate/gyro/mg_demo/mf_* 家族 localize 化）
   R10 i18n 54 表全量恢复（460 代际表回归：af 4376/en 4669/ja 4513/km 4496…，r0 误伤面）
 
-随树退役面（X 继承 Task461 全量执法——本轮找回不含任何锁定面）：
-  设置折叠 38 组 / 壁纸清扫管线（PC=0 雷 ame450_isCardFamilyColor）/ 455 启动抑制 /
+随树退役面（X 继承 Task461 全量执法——★Task463 判例翻转：设置折叠已按用户诉求恢复在场，其余锁定面不变）：
+  壁纸清扫管线（PC=0 雷 ame450_isCardFamilyColor）/ 455 启动抑制 /
   456 蓝图翻转+沉降窗 / 458 选中双族 / 460 非折叠退役符号 / topbar 粉色钦定蓝图
 """
 import re
@@ -138,8 +138,9 @@ def scan_count(pattern):
     return n
 
 
-check("X1 设置折叠符号归零",
-      scan_count(r"ame449_enableCollapsing|ame449_isCollapsed|ame449_applyCollapsedAnimated|ame449_collapsed") == 0)
+check("X1 折叠面恢复在场（★Task463 判例翻转：用户诉求恢复设置折叠）",
+      scan_count(r"ame449_enableCollapsing") >= 3
+      and scan_count(r"ame449_collapsed") >= 8)
 check("X2-1 壁纸清扫符号归零", scan_count(r"ame449_sweep") == 0)
 check("X2-2 PC=0 雷符号归零", scan_count(r"ame450_isCardFamilyColor") == 0)
 check("X2-3 壁纸透明管线归零", scan_count(r"ame449_applyWallpaperTransparency") == 0)
@@ -155,7 +156,7 @@ check("X6-1 默认蓝图保持 topbar（粉色钦定形态）",
       'Ame347StructureOverride(@"shellLayout", @"topbar")' in theme
       and 'Ame347StructureOverride(@"shellLayout", @"navigationview")' not in theme)
 cards = rd("Natives/ZL2SettingCards.m")
-check("X6-2 设置卡折叠态不回归", "ame449" not in cards)
+check("X6-2 设置卡折叠态在场（★Task463 判例翻转）", "ame449_enableCollapsingWithTitle" in cards)
 check("X7-1 448 侧栏折叠机制原样在场（Task376 设计）",
       "ame376_paneCollapsed" in rd("Natives/ZL2ShellViewController.m"))
 check("X7-2 壁纸功能本体在场（ame429）",
@@ -163,7 +164,7 @@ check("X7-2 壁纸功能本体在场（ame429）",
 
 print("== S 敏感性样本 ==")
 tag = rd("Natives/BuildTag.h")
-check("S1 BuildTag Task462 · 2026-11-21", "Task462 · 2026-11-21" in tag)
+check("S1 BuildTag Task463 · 2026-11-22", "Task463 · 2026-11-22" in tag)
 check("S2 电池注册 task462", "task462_selfcheck" in rd("scripts/task432_gate_battery.sh"))
 
 print(f"\n========================================")

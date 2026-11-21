@@ -2,6 +2,10 @@
 # -*- coding: utf-8 -*-
 """★Task461 自检门：非折叠钦定 + 「回退3天以前」全树回退轮（用户指令「这才是3天前」+ 粉色装机截图 235C8E02 定谳）。
 
+★Task463 判例翻转（2026-11-22）：用户明确诉求「设置折叠怎么没有恢复」——推翻本门
+原判「设置折叠退役」一项（X1/X6-2 由「归零执法」翻转为「在场执法」）；其余锁定面
+（壁纸清扫/455/456/458/459/460/topbar 粉色钦定）维持退役零容忍不变。
+
 回退构成（Task461 = Task448 构建树 3f34a1d606 + 四件外科重应用）：
   基线 3f34a1d606（Task448 · 2026-11-18，用户钦定「3天以前的样子」= 粉色 bare 壳 + topbar 蓝图 + 浅色色板）
   + Task451 JIT26ExecPreflight（游戏发射空壳 RX 黑屏防线，议题#3 慢性面）
@@ -75,8 +79,11 @@ def scan_count(pattern):
     return n
 
 
-check("X1-1 设置折叠符号归零", scan_count(r"ame449_enableCollapsing|ame449_isCollapsed|ame449_applyCollapsedAnimated") == 0)
-check("X1-2 设置折叠属性归零", scan_count(r"ame449_collapsed") == 0)
+check("X1-1 折叠 API 在场（★Task463 判例翻转：用户诉求恢复设置折叠，推翻 461 非折叠钦定之折叠项）",
+      scan_count(r"ame449_enableCollapsing") >= 3
+      and scan_count(r"ame449_isCollapsed") >= 3
+      and scan_count(r"ame449_applyCollapsedAnimated") >= 3)
+check("X1-2 折叠态属性在场（Task463 翻转）", scan_count(r"ame449_collapsed") >= 8)
 check("X2-1 壁纸清扫符号归零", scan_count(r"ame449_sweep") == 0)
 check("X2-2 PC=0 雷符号归零", scan_count(r"ame450_isCardFamilyColor") == 0)
 check("X2-3 壁纸透明管线归零", scan_count(r"ame449_applyWallpaperTransparency") == 0)
@@ -90,13 +97,13 @@ theme = rd("Natives/ZL2Theme.m")
 check("X6-1 默认蓝图保持 topbar（粉色钦定形态）", 'Ame347StructureOverride(@"shellLayout", @"topbar")' in theme
       and 'Ame347StructureOverride(@"shellLayout", @"navigationview")' not in theme)
 cards = rd("Natives/ZL2SettingCards.m")
-check("X6-2 设置卡折叠态不回归", "ame449" not in cards)
+check("X6-2 设置卡折叠态在场（Task463 翻转）", "ame449_enableCollapsingWithTitle" in cards)
 check("X7-1 448 侧栏折叠机制原样在场（Task376 设计）", "ame376_paneCollapsed" in rd("Natives/ZL2ShellViewController.m"))
 check("X7-2 壁纸功能本体在场（ame429，数据面恢复后可用）", "ame429" in rd("Natives/ZL2BackgroundHost.m"))
 
 print("== S 敏感性样本 ==")
 tag = rd("Natives/BuildTag.h")
-check("S1 BuildTag Task462 · 2026-11-21（找回轮代际重锚）", "Task462 · 2026-11-21" in tag)
+check("S1 BuildTag Task463 · 2026-11-22（折叠恢复轮代际重锚）", "Task463 · 2026-11-22" in tag)
 en = rd("Natives/resources/en.lproj/Localizable.strings")
 zh = rd("Natives/resources/zh-Hans.lproj/Localizable.strings")
 check("S2 ame451 键在场（en/zh-Hans）", "ame451" in en and "ame451" in zh)
