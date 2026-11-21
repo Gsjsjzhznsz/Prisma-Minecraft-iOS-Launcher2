@@ -5501,3 +5501,20 @@ Stage Summary:
 - 装机锚点（BuildTag=Task461 · 2026-11-21）：①壳 = 粉色钦定 bare 形态（topbar 蓝图，无左侧栏）②下载页三仓库轨复位 ③JIT26 预检 + dyld Safe 双防线在场 ④JSC 钉死在场 ⑤版本卡钳制在场；数据面待用户装机后五分钟重置（插件×6 + 壁纸 + 账户）
 
 - 【Task461 闭环补记】docs 轮规范构建 44888413253 success + 四产物唯一命名归档（AngelAuraAmethyst__Task461__44888413253 集：ipa/tipa/dSYM/preview，ipa=嵌套形态 tipa=直装本体单层）+ task461_artifact_verify 15 断言 ALL PASS（BuildTag Task461 UTF-16LE 在场/Task459 代际归零/修复面符号三件 ame451·Task452 JSC·ame457/退役面二进制级归零 ame449_sweep·ame450_isCardFamilyColor·ame449_enableCollapsing/dSYM 新 UUID）；Task461 铁律全链闭环
+
+---
+Task ID: 462
+Agent: main (Super Z)
+Task: Prisma-Minecraft-iOS-Launcher2「其他修改找回」外科重应用轮（用户诉「确实变回去了。但是我的其他修改怎么全部不见了。」）
+
+Work Log:
+- 仓库重 orient：沙箱回收后 repo-l2 再度丢失，按 worklog 闭环记录重新克隆（5e50d589d = Task461 闭环补记 HEAD）；Task461 轮 worklog 条目补读（r0 全树回退 Task448 构建态 3f34a1d606 + r1 下载三轨单面移植 + 收尾粉色 bare 壳钦定形态）
+- 误伤面定谳（对照 449-460 提交群逐 hunk 溯源 + task461_selfcheck X 门锁定面清单）：Task461 r0 把 449-460 全部随树退役，其中**执法锁定面**（设置折叠38组/壁纸清扫管线+PC=0 雷 ame450_isCardFamilyColor/455 启动抑制·会话折叠·版本缓存/456 蓝图翻转·沉降窗·去抖/458 选中双族/460 非折叠退役符号/topbar 粉色钦定蓝图）维持退役不动；**被误伤的有效修改**十项外科找回：①450⑥ 小屏简单侧栏（min 维度<500pt 摘 AI 项+文件项，ame347 导航构建三点同源；用户设备即小屏，最高优先）②450④ 版本列表三修（json 缺失 referenced 入列+派生子行默认展开语义倒置 ame444_collapsedVids+扫描父根补挂 versions/<x> 落点）③450⑤ 转盘上钳 300→460 自适应 iPad ④450③ 隔离数据播种 copy-from-parent（PLProfiles ame450_seedIsolatedVersionData 六数据面已存在绝不覆盖+FabricUtils/NeoForge 双调用点）⑤449① MD3 语言原生名 NSLocale displayNameForKey 全量+撞名去重 ⑥449 性能采纳小堆≤1024MB ParallelGC×2 对标 Witch（G1 Full GC 冻结缓解）⑦455 附带真雷 Task255 裸键查表根修（auto_control_update_check 缺 control. 前缀=开关 ON 功能自上线零生效）⑧460 抽屉 z 序根修单面移植（paneWrap bringSubviewToFront）⑨449⑤ 硬编码中文清扫 18 站点 localize 化（iso/filexlate/gyro/jitgate/plugin/mf 家族+账户钮）⑩i18n 54 表全量恢复（460 代际表回归：af 346→4376/en 4591→4669/ja 3289→4513/km 2283→4496 全 54 表，八国原生翻译回潮）
+- moot 判读：450① @try 收敛（包裹对象 ame449_applyWallpaperTransparency 管线已锁退役，call site 不存在）/455 启动抑制·会话展开·版本缓存/456 沉降窗·去抖·蓝图/458 选中双族维持 461 退役裁决（X 门执法）；449② 折叠展开动画随 ③ 锁定面 moot
+- 门禁：新门 task462_selfcheck 62 断言（R 恢复形态 28 + R10 表回归 17 + X 锁定面继承 15 + S 2）+ 突变双向验证（460→300 与置顶摘除必红 3 断言，还原复绿 62/62）+ 电池 36→37 ALL GREEN（verify219 J 区唯一键重锚 4274→4350 = i18n 恢复后实测四表一致）+ task452 A5/task457 R6b/task461 S1 三门 BuildTag 代际重锚 Task462 · 2026-11-21 + task248 i18n 三闸缺键0/硬编码0/动态键0 + task240 语法全平衡 + task461 锁定面 35 断言零污染继承全绿
+- CI 三轮判例：r0（cf847faa1）双红 = Task450④ 原始提交自带 missing '[' 雷（450-r1 判例 N+31 移植面复现——移植 hunk 漏带 r-fix 链第二例）；r1（c99e6d199）补外 '[' 后再红 = 449⑤ localize 消费三文件缺 utils.h 声明（449-r1 判例 N+17 同族第二例）；r2（740d85db8）utils.h 三件补齐 + grep 级声明审计（PLJITGate L14/PLProfiles L10/GyroTuner L22/ControlRepo L6 448 形态本已导入 + allocmem L4008 作用域 + 双安装器 PLProfiles.h 导入预检）后代码轮双绿 attempt 3（dev 44905054447 + ui-smoke 44906514837）
+- 教训入册：**r-fix 链伴生面移植判例**——移植含 CI 编译雷清偿史的 hunk 必须连带其 r1/r2 修复面（450④ '[' + 449⑤ utils.h 两例同源：原始提交进 CI 必经 r-fix 清偿，移植面取原始形态必复发）；「N+31 missing '['（task240 门 {}() 不含 [] 盲区）」与「N+17 undeclared localize（本地无 ObjC 语义编译覆盖）」双判例移植面复现留档
+
+Stage Summary:
+- 装机锚点（BuildTag=Task462 · 2026-11-21）：①小屏设备侧边栏回归简单形态（主列四项无 AI/底部单设置项）②版本列表三修回潮（json 缺失被引用实例入列/派生子行默认展开/记录式隔离版本实体在列）③iPad 转盘 460 自适应 ④Fabric/NeoForge 隔离安装自动播种六数据面 ⑤语言选择列表原生名全量+撞名去重 ⑥小堆档 ParallelGC×2（G1 冻结缓解）⑦控件自动更新开关真正生效（Task255 裸键十年账清偿）⑧窄屏抽屉打开窗格置顶可见 ⑨八国原生翻译回潮（54 表全量）⑩粉色钦定 bare 壳/topbar 蓝图/下载三轨/版本卡钳制/四件崩溃防线原样在场（Task461 契约零回归）；产物四件唯一命名归档 + task462_artifact_verify 17 断言 ALL PASS
+- 【Task462 闭环补记】代码轮双绿 attempt 3（dev 44905054447 + ui-smoke 44906514837）+ 四产物唯一命名归档（__Task462__44905054447 集：ipa/tipa/dSYM/preview）+ task462_artifact_verify 17 断言 ALL PASS（BuildTag Task462 UTF-16LE 在场/Task461 代际归零/修复面符号三件旧防线 ame451·Task452 JSC·ame457 + 找回面新符号二件 ame450_seedIsolatedVersionData·ame_languageDisplayNamesForCodes/退役面二进制级归零 ame449_sweep·ame450_isCardFamilyColor·ame449_enableCollapsing/dSYM 新 UUID）；闭环轮推送
