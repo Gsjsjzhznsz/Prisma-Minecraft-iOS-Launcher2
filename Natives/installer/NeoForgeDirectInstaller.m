@@ -294,8 +294,6 @@ NSString *const NeoForgeDirectInstallerErrorDomain = @"NeoForgeDirectInstallerEr
     // 之前"直接从 maven 下载预打补丁 jar"的方案是错的——官方 maven 从未发布过
     // 这些 processor 输出产物（实测 client classifier 均 404）。
     NSString *minecraftVersion = [versionJson[@"inheritsFrom"] isKindOfClass:[NSString class]] ? versionJson[@"inheritsFrom"] : nil;
-    // ★Task450 ③：隔离数据播种（copy-from-parent，已存在不覆盖，best-effort）
-    [PLProfiles ame450_seedIsolatedVersionData:versionId inheritsFrom:minecraftVersion ?: @""];
     if (minecraftVersion.length == 0) {
         NSLog(@"[NeoForgeDirect] version.json missing inheritsFrom, cannot run processors");
         if (error) {

@@ -9,7 +9,6 @@
 //
 
 #import "FileLayoutService.h"
-#import "utils.h"   // ★Task449：localize（跨启动器导入报告 i18n 化）
 #import <UIKit/UIKit.h>
 
 #define FLLog(fmt, ...) NSLog(@"[FileLayout] ame316: " fmt, ##__VA_ARGS__)
@@ -249,7 +248,7 @@
         BOOL isDir = NO;
         if (![fm fileExistsAtPath:srcPath isDirectory:&isDir] || !isDir) {
             if (error) *error = [NSError errorWithDomain:@"FileLayoutService" code:1
-                                userInfo:@{NSLocalizedDescriptionKey : localize(@"ame449.filexlate.not_dir", @"所选路径不是文件夹")}];
+                                userInfo:@{NSLocalizedDescriptionKey : @"所选路径不是文件夹"}];
             return nil;
         }
 
@@ -261,25 +260,25 @@
             && ([fm fileExistsAtPath:[dotMC stringByAppendingPathComponent:@"saves"]]
              || [fm fileExistsAtPath:[dotMC stringByAppendingPathComponent:@"mods"]]);
         NSString *contentRoot = srcPath;
-        NSString *kind = localize(@"ame449.filexlate.kind_content", @"通用内容目录");
+        NSString *kind = @"通用内容目录";
         BOOL fullRoot = NO;   // 含核心层（versions/libraries/assets）的 .minecraft 全量根
         if (hasMMCPack) {
-            kind = localize(@"ame449.filexlate.kind_multimc", @"MultiMC/Prism 实例");
+            kind = @"MultiMC/Prism 实例";
             contentRoot = hasDotMCContent ? dotMC : srcPath;
         } else if (hasDotMCContent) {
-            kind = localize(@"ame449.filexlate.kind_desktop_mc", @"桌面启动器目录（.minecraft）");
+            kind = @"桌面启动器目录（.minecraft）";
             contentRoot = dotMC;
             fullRoot = YES;   // .minecraft 子目录所在 = 上级即全量根（版本隔离外层）
         } else if ([fm fileExistsAtPath:[srcPath stringByAppendingPathComponent:@"versions"]]
                 || [fm fileExistsAtPath:[srcPath stringByAppendingPathComponent:@"launcher_profiles.json"]]) {
-            kind = localize(@"ame449.filexlate.kind_mc_root", @".minecraft 全量根");
+            kind = @".minecraft 全量根";
             fullRoot = YES;
             contentRoot = srcPath;
         } else if ([fm fileExistsAtPath:[srcPath stringByAppendingPathComponent:@"saves"]]
                 || [fm fileExistsAtPath:[srcPath stringByAppendingPathComponent:@"mods"]]) {
-            kind = localize(@"ame449.filexlate.kind_contents", @"内容目录（HMCL/PCL 隔离目录或纯内容）");
+            kind = @"内容目录（HMCL/PCL 隔离目录或纯内容）";
         }
-        [report appendFormat:localize(@"ame449.filexlate.kind_fmt", @"识别类型：%@"), kind];
+        [report appendFormat:@"识别类型：%@", kind];
 
         NSString *gameDir = [self ame316_currentGameDir];
         NSInteger coreCopied = 0, contentCopied = 0, skipped = 0;
@@ -314,11 +313,11 @@
             }
         }
 
-        [report appendFormat:localize(@"ame449.filexlate.core_fmt", @"\n核心层并入：%ld 项（版本/库/资产，全实例共享）"), (long)coreCopied];
-        [report appendFormat:localize(@"ame449.filexlate.content_fmt", @"\n内容层合入：%ld 项（存档/模组/资源包等 → 当前实例）"), (long)contentCopied];
-        [report appendFormat:localize(@"ame449.filexlate.skip_fmt", @"\n已存在跳过：%ld 项（不覆盖你的既有数据）"), (long)skipped];
-        [report appendString:localize(@"ame449.filexlate.src_ro", @"\n源目录只读未改动。")];
-        if (fullRoot) [report appendString:localize(@"ame449.filexlate.tip_full", @"\n提示：源目录的启动器配置（账号/配置）不迁移，游戏数据已就位。")];
+        [report appendFormat:@"\n核心层并入：%ld 项（版本/库/资产，全实例共享）", (long)coreCopied];
+        [report appendFormat:@"\n内容层合入：%ld 项（存档/模组/资源包等 → 当前实例）", (long)contentCopied];
+        [report appendFormat:@"\n已存在跳过：%ld 项（不覆盖你的既有数据）", (long)skipped];
+        [report appendString:@"\n源目录只读未改动。"];
+        if (fullRoot) [report appendString:@"\n提示：源目录的启动器配置（账号/配置）不迁移，游戏数据已就位。"];
         FLLog(@"import: kind=%@ core=%ld content=%ld skipped=%ld src=%@",
               kind, (long)coreCopied, (long)contentCopied, (long)skipped, srcPath);
         return report;

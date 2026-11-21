@@ -450,38 +450,10 @@ static NSUInteger ame432_paletteEchoIndex(NSInteger mode) {
     fillWidth.active = YES;
 
     [self ame_buildGroups];
-    // ★Task449：建组后即扫（chrome 标记面 + 行卡面；壁纸变化链另有全窗覆盖）。
-    // ★Task450 P0 加固：装饰面收敛——装机 15 期「打开设置闪退」复诉（33892c9
-    //   实机、冒烟同码绿 = 设备依赖面未定位），壁纸透明清扫属纯装饰，任何
-    //   异常降级为「本轮不扫」（功能零损）+ 异常签名 NSLog 落日志给下轮。
-    @try {
-        [[BackgroundManager sharedManager] ame449_applyWallpaperTransparencyToViewTree:self.view];
-    } @catch (NSException *ame450_sweepEx) {
-        NSLog(@"[Task450] settings page wallpaper sweep degraded: %@ (%@)", ame450_sweepEx.name, ame450_sweepEx.reason);
-    }
 }
 
 - (void)ame_addGroup:(UIView *)group {
     [self.groupsStack addArrangedSubview:group];
-}
-
-// ★Task449：追加并启用折叠组（组头标题走 ame449.setpg.group.* 键；
-// 折叠态持久化 general.fold_overrides，用户覆盖压过页面默认）
-- (void)ame_addGroup:(UIView *)group
-               title:(NSString *)title
-                 key:(NSString *)key
-     defaultCollapsed:(BOOL)defaultCollapsed {
-    if ([group isKindOfClass:[ZL2SettingCardGroup class]] && title.length && key.length) {
-        @try {
-            [(ZL2SettingCardGroup *)group ame449_enableCollapsingWithTitle:title
-                                                                       key:key
-                                                              defaultCollapsed:defaultCollapsed];
-        } @catch (NSException *ame450_foldEx) {
-            // 折叠组头属装饰面：异常降级 = 该组保持平铺（功能零损）+ 签名落日志
-            NSLog(@"[Task450] fold group '%@' degraded: %@ (%@)", key, ame450_foldEx.name, ame450_foldEx.reason);
-        }
-    }
-    [self ame_addGroup:group];
 }
 
 - (void)ame_push:(UIViewController *)vc titled:(NSString *)fallbackTitle {
@@ -579,10 +551,7 @@ static NSUInteger ame432_paletteEchoIndex(NSInteger mode) {
 
     ZL2SettingCardGroup *group1 = [[ZL2SettingCardGroup alloc] init];
     [group1 ame_addRows:@[rendererRow, resolutionRow, fullscreenRow]];
-    [self ame_addGroup:group1
-                     title:localize(@"ame449.setpg.group.renderer", nil)
-                       key:@"renderer"
-         defaultCollapsed:NO];
+    [self ame_addGroup:group1];
 
     // ── ★ Task344 旧设置全量迁移：video 分区渲染增强四项 ──
     ZL2SettingCardGroup *videoGroup = [[ZL2SettingCardGroup alloc] init];
@@ -662,10 +631,7 @@ static NSUInteger ame432_paletteEchoIndex(NSInteger mode) {
     } else {
         [videoGroup ame_addRows:@[fsrRow, rcasRow, vsyncRow]];
     }
-    [self ame_addGroup:videoGroup
-                     title:localize(@"ame449.setpg.group.video", nil)
-                       key:@"video"
-         defaultCollapsed:YES];
+    [self ame_addGroup:videoGroup];
 
     // ── ★ Task344 旧设置全量迁移：MobileGlues 高级九项 ──
     ZL2SettingCardGroup *mgGroup = [[ZL2SettingCardGroup alloc] init];
@@ -793,10 +759,7 @@ static NSUInteger ame432_paletteEchoIndex(NSInteger mode) {
         setPrefString(@"mobileglues.custom_gl_version", glvKeys[index]);
     };
     [mgGroup ame_addRow:glvRow];
-    [self ame_addGroup:mgGroup
-                     title:localize(@"ame449.setpg.group.mg", nil)
-                       key:@"mg"
-         defaultCollapsed:YES];
+    [self ame_addGroup:mgGroup];
 
     // Task432 退役批次一：旧设置页本体删除，长尾功能迁移见第 8 期报告 §5.4
     //（原「更多视频与图形设置」引流行整行摘除——push LauncherPreferencesViewController
@@ -916,10 +879,7 @@ static NSUInteger ame432_paletteEchoIndex(NSInteger mode) {
 
     ZL2SettingCardGroup *group1 = [[ZL2SettingCardGroup alloc] init];
     [group1 ame_addRows:@[memoryRow, presetRow, customArgsRow, javaArgsRow]];
-    [self ame_addGroup:group1
-                     title:localize(@"ame449.setpg.group.memory_jvm", nil)
-                       key:@"memory_jvm"
-         defaultCollapsed:NO];
+    [self ame_addGroup:group1];
 
     // --- 组 2：实例 ---
     // ★ Task447: 版本隔离行改读【真实隔离态】。原实现读偏好桶键
@@ -945,10 +905,7 @@ static NSUInteger ame432_paletteEchoIndex(NSInteger mode) {
 
     ZL2SettingCardGroup *group2 = [[ZL2SettingCardGroup alloc] init];
     [group2 ame_addRow:isolationRow];
-    [self ame_addGroup:group2
-                     title:localize(@"ame449.setpg.group.isolation", nil)
-                       key:@"isolation"
-         defaultCollapsed:YES];
+    [self ame_addGroup:group2];
 
     // ── ★ Task344 旧设置全量迁移：音频/兼容组（video+general 跨分区收拢）──
     ZL2SettingCardGroup *audioGroup = [[ZL2SettingCardGroup alloc] init];
@@ -999,10 +956,7 @@ static NSUInteger ame432_paletteEchoIndex(NSInteger mode) {
     };
     [audioGroup ame_addRows:@[silenceOtherRow, silenceSwitchRow, micRow,
                               legacyCompatRow, cosmeticaRow]];
-    [self ame_addGroup:audioGroup
-                     title:localize(@"ame449.setpg.group.audio", nil)
-                       key:@"audio"
-         defaultCollapsed:YES];
+    [self ame_addGroup:audioGroup];
     // 内存限制帮助（说明弹窗 + 教程直达；旧页 showMemoryLimitHelp 平移）
     ZL2SettingCardGroup *memHelpGroup = [[ZL2SettingCardGroup alloc] init];
     ZL2SettingRowAction *memHelpRow =
@@ -1031,10 +985,7 @@ static NSUInteger ame432_paletteEchoIndex(NSInteger mode) {
         [weakSelf ame_presentVC:alert];
     };
     [memHelpGroup ame_addRow:memHelpRow];
-    [self ame_addGroup:memHelpGroup
-                     title:localize(@"ame449.setpg.group.mem_help", nil)
-                       key:@"mem_help"
-         defaultCollapsed:YES];
+    [self ame_addGroup:memHelpGroup];
 
     // Task432 退役批次一：旧设置页本体删除，长尾功能迁移见第 8 期报告 §5.4
     //（原「更多游戏设置」引流行整行摘除——Java 版本/环境变量/调试行已在
@@ -1058,20 +1009,19 @@ static NSUInteger ame432_paletteEchoIndex(NSInteger mode) {
 }
 
 // 副标题 = 真实状态 + 来源（读侧与启动链同源，用户在设置页看到的即启动
-// 时会发生的目录归属）。★Task449：动态文案 i18n 化（ame449.iso.* 键，旧
-// 「属性行硬编码中文」纪律自本轮废止——硬编码面全量清扫后由门禁接管）。
+// 时会发生的目录归属）。ZL2 域动态文案按本文件 i18n 纪律属性行硬编码中文。
 - (NSString *)ame447_isolationStateText {
     NSDictionary *profile = [[PLProfiles current] selectedProfile];
     if (![profile isKindOfClass:[NSDictionary class]]) {
-        return localize(@"ame449.iso.no_profile", @"当前未选中实例，安装或选用实例后可管理版本隔离");
+        return @"当前未选中实例，安装或选用实例后可管理版本隔离";
     }
     NSString *vid = [profile[@"lastVersionId"] isKindOfClass:[NSString class]]
         ? profile[@"lastVersionId"] : nil;
     if (vid.length == 0) {
-        return localize(@"ame449.iso.no_version", @"当前实例未选择版本，安装或选用版本后可管理版本隔离");
+        return @"当前实例未选择版本，安装或选用版本后可管理版本隔离";
     }
     if ([vid hasPrefix:@"latest-"] || [vid isEqualToString:@"latest"]) {
-        return localize(@"ame449.iso.latest_alias", @"当前版本为线上别名（latest-*），启动时在线解析，安装正式版本后可管理隔离");
+        return @"当前版本为线上别名（latest-*），启动时在线解析，安装正式版本后可管理隔离";
     }
     NSString *gd = [profile[@"gameDir"] isKindOfClass:[NSString class]]
         ? profile[@"gameDir"] : nil;
@@ -1081,25 +1031,25 @@ static NSUInteger ame432_paletteEchoIndex(NSInteger mode) {
     BOOL ame447_a3 = (gd.length > 0 && !ame447_a2
         && ![gd isEqualToString:@"."] && ![gd isEqualToString:@"./"]);
     if (ame447_a3) {
-        return localize(@"ame449.iso.custom_dir", @"自定义游戏目录——不受版本隔离管辖（版本详情页同口径）");
+        return @"自定义游戏目录——不受版本隔离管辖（版本详情页同口径）";
     }
     NSInteger ame447_ov = [PLProfiles ame428_overrideForVid:vid];
     NSInteger ame447_gl = [PLProfiles ame428_globalDefault];
     NSInteger ame447_eff = [PLProfiles ame428_effectiveIsolationForVid:vid profile:profile];
     if (ame447_eff == 1) {
         NSString *ame447_src;
-        if (ame447_ov == 1) ame447_src = localize(@"ame449.iso.src_override_on", @"版本级覆盖·启用");
-        else if (ame447_a2) ame447_src = localize(@"ame449.iso.src_gamedir", @"实例目录锚定（gameDir）");
+        if (ame447_ov == 1) ame447_src = @"版本级覆盖·启用";
+        else if (ame447_a2) ame447_src = @"实例目录锚定（gameDir）";
         else ame447_src = (ame447_gl == 1)
-            ? localize(@"ame449.iso.src_global_always", @"全局默认档·始终隔离")
-            : localize(@"ame449.iso.src_global_auto_modded", @"全局默认档·自动（检测到模组/加载器）");
-        return [NSString stringWithFormat:localize(@"ame449.iso.on_fmt", @"已隔离：数据独立存放于 versions/%@/（来源：%@）"), vid, ame447_src];
+            ? @"全局默认档·始终隔离"
+            : @"全局默认档·自动（检测到模组/加载器）";
+        return [NSString stringWithFormat:@"已隔离：数据独立存放于 versions/%@/（来源：%@）", vid, ame447_src];
     }
     NSString *ame447_src;
-    if (ame447_ov == 2) ame447_src = localize(@"ame449.iso.src_override_off", @"版本级覆盖·显式禁用");
-    else if (ame447_gl == 2) ame447_src = localize(@"ame449.iso.src_global_never", @"全局默认档·从不隔离");
-    else ame447_src = localize(@"ame449.iso.src_global_auto_vanilla", @"跟随全局默认·自动（未检测到模组/加载器）");
-    return [NSString stringWithFormat:localize(@"ame449.iso.off_fmt", @"未隔离（%@，与实例根共享数据目录）"), ame447_src];
+    if (ame447_ov == 2) ame447_src = @"版本级覆盖·显式禁用";
+    else if (ame447_gl == 2) ame447_src = @"全局默认档·从不隔离";
+    else ame447_src = @"跟随全局默认·自动（未检测到模组/加载器）";
+    return [NSString stringWithFormat:@"未隔离（%@，与实例根共享数据目录）", ame447_src];
 }
 
 // 版本隔离写入 = 真实链（替代原 ame_writeInstanceIsolation: 的
@@ -1127,15 +1077,15 @@ static NSUInteger ame432_paletteEchoIndex(NSInteger mode) {
         ? profile[@"gameDir"] : nil;
     NSString *ame447_refuse = nil;
     if (!profile || vid.length == 0) {
-        ame447_refuse = localize(@"ame449.iso.cannot_no_version", @"当前实例未选择版本，无法切换版本隔离");
+        ame447_refuse = @"当前实例未选择版本，无法切换版本隔离";
     } else if ([vid hasPrefix:@"latest-"] || [vid isEqualToString:@"latest"]) {
-        ame447_refuse = localize(@"ame449.iso.cannot_latest", @"线上别名版本（latest-*）启动时才解析，无法在此切换隔离");
+        ame447_refuse = @"线上别名版本（latest-*）启动时才解析，无法在此切换隔离";
     } else if (gd.length > 0
         && ![gd isEqualToString:@"."]
         && ![gd isEqualToString:@"./"]
         && ![gd isEqualToString:[NSString stringWithFormat:@"versions/%@", vid]]
         && ![gd isEqualToString:[NSString stringWithFormat:@"versions/%@/game", vid]]) {
-        ame447_refuse = localize(@"ame449.iso.cannot_custom", @"自定义游戏目录实例不受版本隔离管辖");
+        ame447_refuse = @"自定义游戏目录实例不受版本隔离管辖";
     }
     __weak typeof(self) weakSelf = self;
     if (ame447_refuse) {
@@ -1292,10 +1242,7 @@ static NSUInteger ame432_paletteEchoIndex(NSInteger mode) {
 
     ZL2SettingCardGroup *group1 = [[ZL2SettingCardGroup alloc] init];
     [group1 ame_addRows:@[modeRow, vibrateRow, intensityRow, moveViewRow, hideControlsRow]];
-    [self ame_addGroup:group1
-                     title:localize(@"ame449.setpg.group.touch", nil)
-                       key:@"touch"
-         defaultCollapsed:NO];
+    [self ame_addGroup:group1];
 
     // ── ★Task428：触控手势小节（点击/长按动作映射 + 长按延迟；
     //   general.gesture_* 键名契约由并行工程师的运行时手势层按同名键
@@ -1349,10 +1296,7 @@ static NSUInteger ame432_paletteEchoIndex(NSInteger mode) {
         setPrefFloat(@"general.gesture_longpress_delay", (float)value / 10.0f);
     };
     [ame428_gestureGroup ame_addRows:@[ame428_tapRow, ame428_lpRow, ame428_delayRow]];
-    [self ame_addGroup:ame428_gestureGroup
-                     title:localize(@"ame449.setpg.group.gesture", nil)
-                       key:@"gesture"
-         defaultCollapsed:YES];
+    [self ame_addGroup:ame428_gestureGroup];
 
     // ── ★ Task344 旧设置全量迁移：键鼠与控件组（旧 control 分区主体）──
     ZL2SettingCardGroup *kbGroup = [[ZL2SettingCardGroup alloc] init];
@@ -1448,10 +1392,7 @@ static NSUInteger ame432_paletteEchoIndex(NSInteger mode) {
         setPrefFloat(@"control.press_duration", (float)value);
     };
     [kbGroup ame_addRows:@[buttonScaleRow, mouseScaleRow, mouseSpeedRow, pressRow]];
-    [self ame_addGroup:kbGroup
-                     title:localize(@"ame449.setpg.group.buttons", nil)
-                       key:@"buttons"
-         defaultCollapsed:YES];
+    [self ame_addGroup:kbGroup];
 
     // ── ★ Task344：键盘/触感/陀螺仪组 ──
     ZL2SettingCardGroup *kbdGroup = [[ZL2SettingCardGroup alloc] init];
@@ -1551,7 +1492,7 @@ static NSUInteger ame432_paletteEchoIndex(NSInteger mode) {
         if (ame436_window < 2 || ame436_window > 10) ame436_window = 4;
         ZL2SettingRowSlider *gyroSmoothWindowRow =
             [[ZL2SettingRowSlider alloc] initWithTitle:@"" subtitle:nil
-                                   minimum:2 maximum:10 suffix:localize(@"ame449.gyro.samples_suffix", @" 样本")];
+                                   minimum:2 maximum:10 suffix:@" 样本"];
         gyroSmoothWindowRow.title = localize(@"ame436.gyro.smooth_window", @"平滑窗口");
         [gyroSmoothWindowRow ame_setValue:ame436_window];
         gyroSmoothWindowRow.onValueChanged = ^(NSInteger value) {
@@ -1571,10 +1512,7 @@ static NSUInteger ame432_paletteEchoIndex(NSInteger mode) {
                                 gyroSmoothEnableRow, gyroSmoothWindowRow,
                                 gyroTunerRow]];
     }
-    [self ame_addGroup:kbdGroup
-                     title:localize(@"ame449.setpg.group.keyboard", nil)
-                       key:@"keyboard"
-         defaultCollapsed:YES];
+    [self ame_addGroup:kbdGroup];
 
     // ── ★ Task344：指针/可见性/实例工具组 ──
     ZL2SettingCardGroup *miscGroup = [[ZL2SettingCardGroup alloc] init];
@@ -1636,10 +1574,7 @@ static NSUInteger ame432_paletteEchoIndex(NSInteger mode) {
         [weakSelf ame229_syncKeybindsAcrossInstances];
     };
     [miscGroup ame_addRows:@[sprintRow, keybindRow]];
-    [self ame_addGroup:miscGroup
-                     title:localize(@"ame449.setpg.group.mouse_misc", nil)
-                       key:@"mouse_misc"
-         defaultCollapsed:YES];
+    [self ame_addGroup:miscGroup];
 
     // --- 组 2：完整触控设置（长尾兜底）---
     ZL2SettingCardGroup *group2 = [[ZL2SettingCardGroup alloc] init];
@@ -1651,10 +1586,7 @@ static NSUInteger ame432_paletteEchoIndex(NSInteger mode) {
         [weakSelf ame_push:[[TouchControllerPreferencesViewController alloc] init] titled:localize(@"ame369.setpg.touch_settings", @"触控设置")];
     };
     [group2 ame_addRow:fullRow];
-    [self ame_addGroup:group2
-                     title:localize(@"ame449.setpg.group.fullscreen_touch", nil)
-                       key:@"fullscreen_touch"
-         defaultCollapsed:YES];
+    [self ame_addGroup:group2];
 }
 
 // 通信方式写入 = TouchControllerPreferencesViewController
@@ -2003,10 +1935,7 @@ didFinishPickingMediaWithInfo:(NSDictionary<UIImagePickerControllerInfoKey,id> *
 
     ZL2SettingCardGroup *group1 = [[ZL2SettingCardGroup alloc] init];
     [group1 ame_addRows:@[typeRow, mappingRow, scrollRow]];
-    [self ame_addGroup:group1
-                     title:localize(@"ame449.setpg.group.gamepad", nil)
-                       key:@"gamepad"
-         defaultCollapsed:NO];
+    [self ame_addGroup:group1];
 
     // Task432 退役批次一：旧设置页本体删除，长尾功能迁移见第 8 期报告 §5.4
     //（原「更多控制与手柄设置」引流行整行摘除——键位调整/自定义鼠标/陀螺仪
@@ -2122,61 +2051,23 @@ didPickDocumentsAtURLs:(NSArray<NSURL *> *)urls {
     return codes;
 }
 
-// 语言码 → 原生显示名（★Task449 根修：旧 16 条手写映射只覆盖一小撮语言，
-// 其余 38 个内置语言码全部裸码上屏（用户实测「简中变成 zh-cn」同族）。改用
-// NSLocale displayNameForKey 全量自动覆盖任意码，特殊自定义语言手工表兜底；
-// 语言名是其自身语言书写的字面量，非 UI 硬编码文案。）
+// 语言码 → 原生显示名（ame202_languageDisplayName 同款思路：原生名优先，
+// 未知码回退裸码；语言名是其自身语言书写的字面量，非 UI 硬编码文案）
 + (NSString *)ame_languageDisplayName:(NSString *)code {
     static NSDictionary *native = nil;
     static dispatch_once_t once;
     dispatch_once(&once, ^{
-        // 特殊/自定义语言：NSLocale 无典可查或典名不合用（自定义彩蛋语言）
         native = @{
-            @"en-UD": @"English (Upside Down)",
-            @"en-PT": @"English (Pirate)",
-            @"lol": @"LOLCAT English",
-            @"pr": @"Pirate English",
+            @"de": @"Deutsch",        @"en": @"English",       @"es": @"Español",
+            @"fr": @"Français",       @"it": @"Italiano",      @"ja": @"日本語",
+            @"ko": @"한국어",          @"ru": @"Русский",       @"th": @"ไทย",
+            @"tr": @"Türkçe",         @"uk": @"Українська",    @"vi": @"Tiếng Việt",
+            @"zh": @"中文",           @"zh-Hans": @"简体中文", @"zh-Hant": @"繁體中文",
+            @"zh-CN": @"简体中文 (zh-CN)",
         };
     });
     NSString *name = native[code];
-    if (name == nil) {
-        // NSLocale 全量路径：任意 BCP-47 码自动给出其自身语言书写名
-        // （zh-CN → 简体中文（中国）、ja → 日本語、km → ខ្មែរ …）
-        NSLocale *locale = [NSLocale localeWithLocaleIdentifier:code];
-        name = [locale displayNameForKey:NSLocaleIdentifier value:code];
-    }
     return name ?: code;
-}
-
-// ★Task449：码表 → 显示名表（撞名去重）。同一语言多码（zh-CN/zh-Hans、
-// en-GB/en 等）displayName 可能同文——首现保真名，撞名码追加「 (code)」
-// 后缀，选择列表不再出现两行一模一样。
-+ (NSArray<NSString *> *)ame_languageDisplayNamesForCodes:(NSArray<NSString *> *)codes {
-    NSMutableArray<NSString *> *names = [NSMutableArray arrayWithCapacity:codes.count];
-    NSMutableDictionary<NSString *, NSMutableArray<NSString *> *> *byName =
-        [NSMutableDictionary dictionary];
-    for (NSString *code in codes) {
-        NSString *name = [self ame_languageDisplayName:code];
-        [names addObject:name];
-        NSMutableArray *bucket = byName[name];
-        if (bucket == nil) {
-            bucket = [NSMutableArray array];
-            byName[name] = bucket;
-        }
-        [bucket addObject:code];
-    }
-    // 仅对撞名桶追码后缀（首个不改，其余追加），全单名零开销
-    for (NSString *name in byName) {
-        NSMutableArray *bucket = byName[name];
-        if (bucket.count < 2) continue;
-        for (NSUInteger i = 1; i < bucket.count; i++) {
-            NSString *code = bucket[i];
-            NSUInteger idx = [codes indexOfObject:code];
-            if (idx == NSNotFound || idx >= names.count) continue;
-            names[idx] = [NSString stringWithFormat:@"%@ (%@)", name, code];
-        }
-    }
-    return [names copy];
 }
 
 #pragma mark - ★Task434 A1 应用图标导入链（退役批次一回归修复）
@@ -2366,14 +2257,14 @@ didFinishPicking:(NSArray<PHPickerResult *> *)results {
     self.ame429_paletteRow = ame429_paletteRow;
 
     // 应用语言（general.app_language；system + 全部内置语言，写后广播重载）
-    // ★Task449：显示名走 NSLocale 全量 + 撞名去重（旧 16 条映射外语言裸码上屏根修）
     NSArray<NSString *> *builtinCodes = [ZL2LauncherSettingsPage ame_availableLanguageCodes];
     NSArray<NSString *> *langCodes =
         [@[@"system"] arrayByAddingObjectsFromArray:builtinCodes];
     NSMutableArray<NSString *> *langNames =
         [NSMutableArray arrayWithObject:localize(@"i18n_str_382", nil)];
-    [langNames addObjectsFromArray:
-        [ZL2LauncherSettingsPage ame_languageDisplayNamesForCodes:builtinCodes]];
+    for (NSString *code in builtinCodes) {
+        [langNames addObject:[ZL2LauncherSettingsPage ame_languageDisplayName:code]];
+    }
     ZL2SettingRowList *languageRow =
         [[ZL2SettingRowList alloc] initWithTitle:@"" subtitle:nil
                                  options:langNames optionKeys:langCodes];
@@ -2455,10 +2346,7 @@ didFinishPicking:(NSArray<PHPickerResult *> *)results {
     // ★Task428：+ 节日彩蛋行（外观/个性化组第 6 行）
     // ★Task429：+ 主题色板行（深浅行近邻第 2 位；8.1 动态主题模式选择）
     [group1 ame_addRows:@[themeRow, ame429_paletteRow, languageRow, effectRow, opacityRow, blurRow, festivalRow]];
-    [self ame_addGroup:group1
-                     title:localize(@"ame449.setpg.group.appearance", nil)
-                       key:@"appearance"
-         defaultCollapsed:NO];
+    [self ame_addGroup:group1];
     // ★ Task328：插件贡献行动态组上移（Task327 挂页尾 = 用户不可达面重现——
     //   四内置插件已装载而用户仍报"没看到任何功能"：组在第 3 屏外）。上移到
     //   外观组之后第 2 位，进入首屏可视域。
@@ -2621,10 +2509,7 @@ didFinishPicking:(NSArray<PHPickerResult *> *)results {
     iconImportRow.subtitle = localize(@"launch.ui.icon.import.subtitle", @"从相册选取图片，裁剪后用作应用图标");
     iconImportRow.onTap = ^{ [weakSelf ame434_pickAppIconForRow:weakIconRow]; };
     [advGroup ame_addRow:iconImportRow];
-    [self ame_addGroup:advGroup
-                     title:localize(@"ame449.setpg.group.style", nil)
-                       key:@"style"
-         defaultCollapsed:YES];
+    [self ame_addGroup:advGroup];
 
     // --- 组 2：下载源（download.* 四分类真键；值域 official/mirror/speed_first）---
     NSArray<NSString *> *sourceKeys = @[@"official_first", @"mirror_first", @"speed_first"];
@@ -2679,10 +2564,7 @@ didFinishPicking:(NSArray<PHPickerResult *> *)results {
 
     ZL2SettingCardGroup *group2 = [[ZL2SettingCardGroup alloc] init];
     [group2 ame_addRows:[sourceRows copy]];
-    [self ame_addGroup:group2
-                     title:localize(@"ame449.setpg.group.icon_source", nil)
-                       key:@"icon_source"
-         defaultCollapsed:YES];
+    [self ame_addGroup:group2];
 
     // ── ★ Task344 旧设置全量迁移：下载完整性与公告组 ──
     ZL2SettingCardGroup *miscGroup = [[ZL2SettingCardGroup alloc] init];
@@ -2870,10 +2752,7 @@ didFinishPicking:(NSArray<PHPickerResult *> *)results {
     //   自此零消费；键定义与 i18n 词条按「旧键不删」家法留待后续轮，
     //   见 Task436 报告登记）
     [miscGroup ame_addRows:@[dbgLogRow]];
-    [self ame_addGroup:miscGroup
-                     title:localize(@"ame449.setpg.group.integrity_proxy", nil)
-                       key:@"integrity_proxy"
-         defaultCollapsed:YES];
+    [self ame_addGroup:miscGroup];
 
     // ── ★ Task344 旧设置全量迁移：数据管理组（导出/导入/兄弟迁移/重置）──
     ZL2SettingCardGroup *dataGroup = [[ZL2SettingCardGroup alloc] init];
@@ -2947,10 +2826,7 @@ didFinishPicking:(NSArray<PHPickerResult *> *)results {
                       onCancel:nil];
     };
     [dataGroup ame_addRows:@[exportRow, importRow2, siblingRow, eraseDemoRow, resetWarnRow, resetSetRow]];
-    [self ame_addGroup:dataGroup
-                     title:localize(@"ame449.setpg.group.data", nil)
-                       key:@"data"
-         defaultCollapsed:YES];
+    [self ame_addGroup:dataGroup];
 
     // --- 组 3：入口 ---
     ZL2SettingCardGroup *group3 = [[ZL2SettingCardGroup alloc] init];
@@ -3005,10 +2881,7 @@ didFinishPicking:(NSArray<PHPickerResult *> *)results {
                    titled:localize(@"ame318.repo.title", nil)];
     };
     [group3 ame_addRows:@[backgroundRow, galleryRow, gameDirRow, importRow, pluginRow, repoRow]];
-    [self ame_addGroup:group3
-                     title:localize(@"ame449.setpg.group.dirs", nil)
-                       key:@"dirs"
-         defaultCollapsed:YES];
+    [self ame_addGroup:group3];
     // ★ Task327：插件贡献行动态组（Task318 ame.addLauncherRow 的消费端）
     //   ★ Task328：构建点已上移至外观组之后（首屏可视域），见彼处注释
 }
@@ -3068,10 +2941,7 @@ didFinishPicking:(NSArray<PHPickerResult *> *)results {
         };
         [group ame_addRow:row];
     }
-    [self ame_addGroup:group
-                     title:localize(@"ame449.setpg.group.plugins", nil)
-                       key:@"plugins"
-         defaultCollapsed:YES];
+    [self ame_addGroup:group];
     self.ame327_pluginGroup = group;
 }
 
@@ -3417,10 +3287,7 @@ didFinishPicking:(NSArray<PHPickerResult *> *)results {
         };
         [group1 ame_addRow:row];
     }
-    [self ame_addGroup:group1
-                     title:localize(@"ame449.setpg.group.runtime_map", nil)
-                       key:@"runtime_map"
-         defaultCollapsed:NO];
+    [self ame_addGroup:group1];
 
     // --- 组 2：已安装运行时（名称/版本/内外部标签；删除走旧页）---
     ZL2SettingCardGroup *group2 = [[ZL2SettingCardGroup alloc] init];
@@ -3446,10 +3313,7 @@ didFinishPicking:(NSArray<PHPickerResult *> *)results {
             [group2 ame_addRow:row];
         }
     }
-    [self ame_addGroup:group2
-                     title:localize(@"ame449.setpg.group.installed", nil)
-                       key:@"installed"
-         defaultCollapsed:YES];
+    [self ame_addGroup:group2];
 
     // --- 组 3：执行 Jar + 完整管理 ---
     ZL2SettingCardGroup *group3 = [[ZL2SettingCardGroup alloc] init];
@@ -3469,10 +3333,7 @@ didFinishPicking:(NSArray<PHPickerResult *> *)results {
                    titled:localize(@"preference.title.manage_runtime", nil)];
     };
     [group3 ame_addRows:@[runJarRow, manageRow]];
-    [self ame_addGroup:group3
-                     title:localize(@"ame449.setpg.group.tools", nil)
-                       key:@"tools"
-         defaultCollapsed:YES];
+    [self ame_addGroup:group3];
 }
 
 - (void)ame_refreshState {
@@ -3647,10 +3508,7 @@ didFinishPicking:(NSArray<PHPickerResult *> *)results {
         };
         [group1 ame_addRow:layoutRow];
     }
-    [self ame_addGroup:group1
-                     title:localize(@"ame449.setpg.group.layouts", nil)
-                       key:@"layouts"
-         defaultCollapsed:NO];
+    [self ame_addGroup:group1];
 
     // --- 组 1.5：手柄映射（Task316 6.5.5 新功能 UI 适配：Task310/311
     //   手柄下载分类+本地 gamepads 清单进 ZL2 壳；落盘 controlmap/gamepads/
@@ -3684,10 +3542,7 @@ didFinishPicking:(NSArray<PHPickerResult *> *)results {
         [gamepadGroup ame_addRow:gpRow];
     }
     // ★Task432：原「手柄仓库」行移入下方仓库三行组（三仓库入口归拢一处）
-    [self ame_addGroup:gamepadGroup
-                     title:localize(@"ame449.setpg.group.gamepad_map", nil)
-                       key:@"gamepad_map"
-         defaultCollapsed:YES];
+    [self ame_addGroup:gamepadGroup];
 
     // --- 组 2（★Task432 新增）：布局卡列表（ZL2 ControlLayoutList 对齐：
     //   每卡 = 布局名 + 状态，点击进既有拖拽编辑器）---
@@ -3720,10 +3575,7 @@ didFinishPicking:(NSArray<PHPickerResult *> *)results {
             [cardsGroup ame_addRow:ame432_card];
         }
     }
-    [self ame_addGroup:cardsGroup
-                     title:localize(@"ame449.setpg.group.my_layouts", nil)
-                       key:@"my_layouts"
-         defaultCollapsed:YES];
+    [self ame_addGroup:cardsGroup];
 
     // --- 组 3（★Task432 新增）：布局管理（新建 / 导入 / 删除 / 恢复默认 /
     //   画布编辑器——ZL2 CreateNew/Import/Delete 三能力 + 画布编辑器入口）---
@@ -3776,10 +3628,7 @@ didFinishPicking:(NSArray<PHPickerResult *> *)results {
                       onCancel:nil];
     };
     [manageGroup ame_addRows:@[createRow, importRow, deleteRow, editorRow, resetRow]];
-    [self ame_addGroup:manageGroup
-                     title:localize(@"ame449.setpg.group.manage", nil)
-                       key:@"manage"
-         defaultCollapsed:YES];
+    [self ame_addGroup:manageGroup];
 
     // --- 组 4（★Task432 新增）：仓库三行（控件仓库 / 手柄仓库 / 插件仓库）。
     //   Task432 自下载页轨迁入，共享基础设施迁移改名在批次二。
@@ -3814,10 +3663,7 @@ didFinishPicking:(NSArray<PHPickerResult *> *)results {
         [weakSelf ame_push:[[ZL2PluginRepoViewController alloc] init] titled:localize(@"ame318.repo.title", nil)];
     };
     [repoGroup ame_addRows:@[repoRow, gamepadRepoRow, pluginRepoRow]];
-    [self ame_addGroup:repoGroup
-                     title:localize(@"ame449.setpg.group.repo", nil)
-                       key:@"repo"
-         defaultCollapsed:YES];
+    [self ame_addGroup:repoGroup];
 
     // Task432 退役批次一：旧设置页本体删除，长尾功能迁移见第 8 期报告 §5.4
     //（原「更多控制设置」引流行整行摘除——手柄映射/虚拟鼠标/陀螺仪行已在本页
@@ -4272,10 +4118,7 @@ didPickDocumentsAtURLs:(NSArray<NSURL *> *)urls {
 
     [group1 ame_addRows:@[versionRow, buildRow, tagRow, autoUpdateRow, checkRow,
                           projectRow, qqRow, teamRow, kxdwRow]];
-    [self ame_addGroup:group1
-                     title:localize(@"ame449.setpg.group.about", nil)
-                       key:@"about"
-         defaultCollapsed:NO];
+    [self ame_addGroup:group1];
 
     // ════ ★Task428 块 2/4：鸣谢（连体组卡列表：名称 + 一句话定位）════
     // ★Task432 openLicense：确知许可条目补许可证行内弹窗 + 全文链接
@@ -4323,10 +4166,7 @@ didPickDocumentsAtURLs:(NSArray<NSURL *> *)urls {
         }
         [creditGroup ame_addRow:ame428_creditRow];
     }
-    [self ame_addGroup:creditGroup
-                     title:localize(@"ame449.setpg.group.credits", nil)
-                       key:@"credits"
-         defaultCollapsed:YES];
+    [self ame_addGroup:creditGroup];
 
     // ════ ★Task428 块 3/4：依赖库（AGENTS.md「核心依赖」权威清单八项；
     //   图形适配 / AWT 支持 / 其他三族，描述只写仓内已证实的用途）════
@@ -4338,7 +4178,7 @@ didPickDocumentsAtURLs:(NSArray<NSURL *> *)urls {
     ZL2SettingCardGroup *depGroup = [[ZL2SettingCardGroup alloc] init];
     NSArray<NSArray<NSString *> *> *ame428_deps = @[
         @[@"MetalANGLE",      @"ame428.dep.metalangle",
-          localize(@"ame449.about.deps.angle", @"BSD-3-Clause（ANGLE 条款）"),
+          @"BSD-3-Clause（ANGLE 条款）",
           @"https://github.com/khanhduytran0/MetalANGLE/blob/master/LICENSE"],
         @[@"GL4ES",           @"ame428.dep.gl4es",
           @"MIT",
@@ -4379,10 +4219,7 @@ didPickDocumentsAtURLs:(NSArray<NSURL *> *)urls {
         }
         [depGroup ame_addRow:ame428_depRow];
     }
-    [self ame_addGroup:depGroup
-                     title:localize(@"ame449.setpg.group.deps", nil)
-                       key:@"deps"
-         defaultCollapsed:YES];
+    [self ame_addGroup:depGroup];
 
     // ════ ★Task428 块 4/4：已加载插件（AmePluginManager installedPluginIds
     //   枚举 + manifestForPlugin: 取 manifest：名称/版本/描述三字段逐行展示；
@@ -4417,10 +4254,7 @@ didPickDocumentsAtURLs:(NSArray<NSURL *> *)urls {
             [pluginGroup ame_addRow:ame428_pluginRow];
         }
     }
-    [self ame_addGroup:pluginGroup
-                     title:localize(@"ame449.setpg.group.about_plugins", nil)
-                       key:@"about_plugins"
-         defaultCollapsed:YES];
+    [self ame_addGroup:pluginGroup];
     // ★Task428：「更多关于信息」push 老关于页（moreRow）退役——四块信息
     //   本页全量自持；AboutViewController 仍可从欢迎页/旧设置页进入。
 }
@@ -4576,10 +4410,7 @@ didPickDocumentsAtURLs:(NSArray<NSURL *> *)urls {
         [weakSelf ame_presentVC:nav];
     };
     [group1 ame_addRows:@[providerRow, sessionRow, promptRow]];
-    [self ame_addGroup:group1
-                     title:localize(@"ame449.setpg.group.ai_provider", nil)
-                       key:@"ai_provider"
-         defaultCollapsed:NO];
+    [self ame_addGroup:group1];
 
     // --- 组 2：行为开关（安全模式三档 + Markdown 渲染）---
     ZL2SettingCardGroup *group2 = [[ZL2SettingCardGroup alloc] init];
@@ -4623,10 +4454,7 @@ didPickDocumentsAtURLs:(NSArray<NSURL *> *)urls {
         [[AiSettings sharedSettings] setMarkdownEnabled:on];
     };
     [group2 ame_addRows:@[safetyRow, markdownRow]];
-    [self ame_addGroup:group2
-                     title:localize(@"ame449.setpg.group.ai_behavior", nil)
-                       key:@"ai_behavior"
-         defaultCollapsed:YES];
+    [self ame_addGroup:group2];
 }
 
 - (void)ame_refreshState {
@@ -4682,10 +4510,7 @@ didPickDocumentsAtURLs:(NSArray<NSURL *> *)urls {
         [weakSelf ame_presentVC:nav];
     };
     [group1 ame_addRow:stikRow];
-    [self ame_addGroup:group1
-                     title:localize(@"ame449.setpg.group.jit", nil)
-                       key:@"jit"
-         defaultCollapsed:NO];
+    [self ame_addGroup:group1];
 
     // --- 组 2：JIT 故障面（四开关；后两件有前置条件——旧页 enableCondition 同口径）---
     ZL2SettingCardGroup *group2 = [[ZL2SettingCardGroup alloc] init];
@@ -4737,10 +4562,7 @@ didPickDocumentsAtURLs:(NSArray<NSURL *> *)urls {
         setPrefBool(@"debug.debug_skip_wait_jit", on);
     };
     [group2 ame_addRow:skipWaitRow];
-    [self ame_addGroup:group2
-                     title:localize(@"ame449.setpg.group.jit26", nil)
-                       key:@"jit26"
-         defaultCollapsed:YES];
+    [self ame_addGroup:group2];
 
     // --- 组 3：界面调试（三开关）---
     ZL2SettingCardGroup *group3 = [[ZL2SettingCardGroup alloc] init];
@@ -4773,10 +4595,7 @@ didPickDocumentsAtURLs:(NSArray<NSURL *> *)urls {
         setPrefBool(@"debug.debug_auto_correction", on);
     };
     [group3 ame_addRows:@[ipadRow, autoCorrRow]];
-    [self ame_addGroup:group3
-                     title:localize(@"ame449.setpg.group.debug_ui", nil)
-                       key:@"debug_ui"
-         defaultCollapsed:YES];
+    [self ame_addGroup:group3];
 }
 
 - (void)ame_refreshState {

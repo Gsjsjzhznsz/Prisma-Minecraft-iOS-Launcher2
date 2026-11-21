@@ -23,27 +23,6 @@ typedef NS_ENUM(NSInteger, BackgroundUIEffect) {
     BackgroundUIEffectBlur              // 毛玻璃效果
 };
 
-#pragma mark - ★Task449 壳层 chrome/卡面清扫标记（壁纸可见性对标 ZL2 矩阵）
-
-// ZL2 参照矩阵（Task449 R-zl2wall 取证）：壁纸 = 全 UI 最底层；透明面 = 页根
-// + 顶栏 + 左栏 + 各屏容器；卡面 = 卡色×α(不透明度)；刻意遮挡 = 任务抽屉与
-// 游戏内菜单。本仓对齐：页根透明走 Task111 既有管线；页根之外的整块底色面
-// （壳层顶栏/内容头/设置左轨/内容容器/滚动容器等）打 chrome 标记由清扫管
-// 线统一透出；MD3 卡面（设置行卡）打卡面标记 = 基色×α(uiOpacity)。
-// 透明/还原统一入口 = ame449_applyWallpaperTransparencyToViewTree:。
-
-/// chrome 整块底色面标记（有壁纸 = clearColor 透壁纸；无壁纸 = 回 [ZL2Theme surface]）
-static NSInteger const kAme449ChromeSurfaceTag = 0xA4491;
-/// MD3 卡面标记（有壁纸 = 基色×α(max(uiOpacity, 0.5))；无壁纸 = 基色）
-static NSInteger const kAme449CardSurfaceTag = 0xA4492;
-
-static inline void Ame449MarkChromeSurface(UIView *view) {
-    view.tag = kAme449ChromeSurfaceTag;
-}
-
-/// 卡面标记（幂等；基色 = 调用时刻 view.backgroundColor，重建重标自动更新）
-void Ame449MarkCardSurface(UIView *view);
-
 @interface BackgroundManager : NSObject
 
 + (instancetype)sharedManager;
@@ -192,11 +171,6 @@ void ame229_labelSetStrokeExempt(UILabel *label, BOOL exempt);
 
 // Apply UI effect settings to current split view controller
 - (void)refreshUIEffect;
-
-/// ★Task449：对整棵视图树做壁纸透明/还原清扫（chrome 标记面 + 卡面标记面）。
-/// 透明态 = hasBackground；还原态 = 无壁纸。页根之外的标记面统一由此管，
-/// 建页后调用一次 + 壁纸变化通知链（refreshTransparencyForWindowUI）自动覆盖。
-- (void)ame449_applyWallpaperTransparencyToViewTree:(UIView *)root;
 
 @end
 

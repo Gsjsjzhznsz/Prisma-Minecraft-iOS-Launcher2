@@ -1071,30 +1071,6 @@ int main(int argc, char *argv[]) {
     debugLogEnabled = getPrefBool(@"general.debug_logging");
     NSLog(@"[Debugging] Debug log enabled: %@", debugLogEnabled ? @"YES" : @"NO");
 
-    // ★Task452（「打开即闪退」判读轮）：启动器自身 JavaScriptCore 解释器钉死。
-    //   临床：装机（iPadOS 27.0.1，议题#3 三轮装机定罪的 JIT26 通道劣化态——
-    //   RX 授予落调试器别名池空壳）反馈打开即闪退，latestlog 止于壳构建尾
-    //   （[Ame417]）且无异常块（stderr 无缓冲 + Task171 证据链口径）= 硬信号
-    //   级死亡。Task451 预检只护游戏发射路径（JavaLauncher 授予前预检），
-    //   而启动器进程自身的 JSC（插件引擎 AmePluginBridge/JSExport）与 JVM
-    //   同享 enabler 的可执行映射通道：插件 JS 在壳构建/主页生命周期事件
-    //   爆发期被 Baseline/DFG/FTL JIT 编译，JIT'd 函数落空壳 RX = 首取指
-    //   SIGBUS——无 ObjC 异常（NSSetUncaughtExceptionHandler 不进信号）、
-    //   ame273 报告缺席、日志静默冻结，与装机临床逐项吻合。摘除面 =
-    //   JSC_useJIT 环境族钉 LLInt 解释器（JSC Options 首个 VM 诞生时读环境，
-    //   本点远早于任何 JSContext；插件 JS 均为 UI 胶水脚本，解释器开销可
-    //   忽略，零功能变化）。逃生阀 debug.plugin_jit_allow（默认关 = 钉死；
-    //   ON = 恢复历史 JIT 行为，仅诊断对照用）。
-    if (!getPrefBool(@"debug.plugin_jit_allow")) {
-        setenv("JSC_useJIT", "0", 1);
-        setenv("JSC_useBaselineJIT", "0", 1);
-        setenv("JSC_useDFGJIT", "0", 1);
-        setenv("JSC_useFTLJIT", "0", 1);
-        NSLog(@"[Task452] open: JSC interpreter pinned (JIT26 hollow-RX exposure removed for launcher process; escape valve debug.plugin_jit_allow=OFF)");
-    } else {
-        NSLog(@"[Task452] open: JSC pinning skipped (debug.plugin_jit_allow=ON -- legacy JIT behavior restored)");
-    }
-
     init_setupResolvConf();
     // ★ Task321（旧版升级自动迁移）：一代 Prisma1（≤6.5.5）原地升级识别 + 快照落档。
     //   必须先于 init_setupMultiDir/init_setupPCLLayout——二代痕迹（Prisma2/、

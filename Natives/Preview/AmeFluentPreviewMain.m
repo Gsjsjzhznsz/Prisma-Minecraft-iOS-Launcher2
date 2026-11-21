@@ -87,7 +87,6 @@ NSString *const Ame223WallpaperChangedNotification = @"Ame223WallpaperChanged";
 @interface BackgroundManager : NSObject
 + (instancetype)sharedManager;
 - (void)makeViewControllerTransparent:(UIViewController *)viewController;
-- (void)ame449_applyWallpaperTransparencyToViewTree:(UIView *)root;   // ★Task449：chrome/卡面清扫（预览无壁纸管线 = no-op）
 @end
 
 @implementation BackgroundManager
@@ -110,13 +109,6 @@ NSString *const Ame223WallpaperChangedNotification = @"Ame223WallpaperChanged";
 //   缺失 = ZL2ShellViewController 真壳渲染 unrecognized selector 崩溃。
 - (BOOL)hasBackground {
     return NO;
-}
-
-// ★Task449：预览桩 no-op（预览无壁纸管线，清扫即还原态恒等；真实现见
-// BackgroundManager.m ame449_sweepChromeAndCardsInView——缺失 = 设置页
-// viewDidLoad unrecognized selector 崩溃，ui-smoke 判例实锤）
-- (void)ame449_applyWallpaperTransparencyToViewTree:(UIView *)root {
-    if (![root isKindOfClass:[UIView class]]) return;
 }
 
 - (nullable UIImage *)ame223_currentWallpaperImage {
@@ -1124,27 +1116,20 @@ static void AmePreviewApplyFluentTokens(void) {
 }
 
 // ── ★Task417 真壳本体模式（-zl2shell real）：fui 四族令牌真路径先行于真壳
-//    viewDidLoad（ame347_shellLayout 构建期消费），然后真
+//    viewDidLoad（ame347_shellLayout 构建期消费），折叠态按 -zl2pane 落
+//    ame376.paneCollapsed 偏好（真壳几何派发构建期回读），然后真
 //    ZL2ShellViewController 子 VC 充满 —— CI 截图从此渲染的是真壳真类
-//    真字形管线，而非镜像（★Task460：折叠态 -zl2pane 驱动链退役，真壳
-//    恒 280pt 展开非折叠形态）──
+//    真字形管线，而非镜像 ──
 - (void)ame417_buildRealShell {
-    // ★ Task458：-zl2theme default → 默认 embermire 令牌轨（跳过 fluent 四族
-    //   注入 = 结构覆盖不在位 = MD3/ZL2 默认选中语义的真壳截图验收面，用户
-    //   复诉「md3 界面变成 fui」修复的直接图证轨；无旗标保持 fui 四族注入 =
-    //   插件覆盖态契约不变）。
-    NSArray<NSString *> *ame458_args = [NSProcessInfo processInfo].arguments;
-    NSUInteger ame458_themeIdx = [ame458_args indexOfObject:@"-zl2theme"];
-    BOOL ame458_defaultTheme = (ame458_themeIdx != NSNotFound && ame458_themeIdx + 1 < ame458_args.count
-                                && [ame458_args[ame458_themeIdx + 1] isEqualToString:@"default"]);
-    if (!ame458_defaultTheme) {
-        AmePreviewApplyFluentTokens();
-    } else {
-        NSLog(@"[Ame417] Task458: default-theme track (embermire baseline, no fluent structure override)");
+    AmePreviewApplyFluentTokens();
+    BOOL ame417_expanded = NO;   // 真机用户态 = 折叠 64 图标栏（IMG_0611 实锤口径）
+    NSArray<NSString *> *ame417_args = [NSProcessInfo processInfo].arguments;
+    NSUInteger ame417_paneIdx = [ame417_args indexOfObject:@"-zl2pane"];
+    if (ame417_paneIdx != NSNotFound && ame417_paneIdx + 1 < ame417_args.count) {
+        ame417_expanded = [ame417_args[ame417_paneIdx + 1] isEqualToString:@"expanded"];
     }
-    // ★ Task460：-zl2pane 驱动链整体退役（非折叠钦定——壳侧折叠态/回读键
-    //   双双退役，真壳恒 280pt 展开渲染；镜像轨 -zl2pane 消费面不受影响，
-    //   历史判例注释留档 git）。
+    [NSUserDefaults.standardUserDefaults setBool:(!ame417_expanded)
+                                          forKey:@"ame376.paneCollapsed"];
 
     UIViewController *ame417_shell = [[ZL2ShellViewController alloc] init];
     [self addChildViewController:ame417_shell];
@@ -1157,7 +1142,7 @@ static void AmePreviewApplyFluentTokens(void) {
         [ame417_shell.view.bottomAnchor constraintEqualToAnchor:self.view.bottomAnchor],
     ]];
     [ame417_shell didMoveToParentViewController:self];
-    NSLog(@"[Ame417] real shell hosted (non-collapsible, pane 280 expanded, Task460) — real ZL2ShellViewController");
+    NSLog(@"[Ame417] real shell hosted (expanded=%d) — real ZL2ShellViewController + fui token path", ame417_expanded);
 
     // ★Task441 批次四：第四腿驱动调度（-ame441Smoke 门控；真壳 attach 后 3s 起跑）
     if ([[NSProcessInfo processInfo].arguments containsObject:@"-ame441Smoke"]) {

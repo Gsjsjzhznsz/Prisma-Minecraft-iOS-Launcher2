@@ -31,14 +31,6 @@ NS_ASSUME_NONNULL_BEGIN
 /// 追加一个连体组卡到内容栈
 - (void)ame_addGroup:(UIView *)group;
 
-/// ★Task449：追加并启用折叠组（设置去杂乱：每功能区默认折叠大部分选项）。
-/// group 为 ZL2SettingCardGroup 时挂组头（标题 + 行数 + chevron），折叠态
-/// 持久化到 general.fold_overrides；title/key 为空或类型不符 = 退化为 ame_addGroup:
-- (void)ame_addGroup:(UIView *)group
-               title:(nullable NSString *)title
-                 key:(nullable NSString *)key
-     defaultCollapsed:(BOOL)defaultCollapsed;
-
 /// push 统一入口：子页未自设标题时以 fallbackTitle 兜底（旧页大多在自身
 /// viewDidLoad 设 self.title，后于本赋值执行，自动覆盖兜底值）
 - (void)ame_push:(UIViewController *)vc titled:(NSString *)fallbackTitle;

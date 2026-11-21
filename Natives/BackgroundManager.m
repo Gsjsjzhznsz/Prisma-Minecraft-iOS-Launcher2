@@ -796,87 +796,6 @@ static const CGFloat Ame429WallpaperMaxPixelCap = 2048.0;
     }
 }
 
-#pragma mark - ★Task449 壳层 chrome/卡面清扫（壁纸可见性对标 ZL2 矩阵）
-
-static void *kAme449CardBaseColorKey = &kAme449CardBaseColorKey;
-
-void Ame449MarkCardSurface(UIView *view) {
-    if (!view) return;
-    view.tag = kAme449CardSurfaceTag;
-    objc_setAssociatedObject(view, kAme449CardBaseColorKey, view.backgroundColor,
-                             OBJC_ASSOCIATION_RETAIN_NONATOMIC);
-}
-
-// ★Task450 ②：卡面家族色识别（15 期②「壁纸还是有地方不是透明半透明」——
-// 标记制只覆盖设置行卡，下载/版本/资源页各卡面裸用 surfaceContainer 恒不透
-// 明；逐点补标 = 面散且漏网，改按色解算收编：双 trait 解算 RGBA 对表 ZL2Theme
-// 卡面三族（Container/High/Low），命中即收编入册（tag+基色关联）幂等化）。
-+ (BOOL)ame450_isCardFamilyColor:(UIColor *)color {
-    if (![color isKindOfClass:[UIColor class]]) return NO;
-    static NSArray<UIColor *> *ame450_darkFamily = nil;
-    static NSArray<UIColor *> *ame450_lightFamily = nil;
-    static dispatch_once_t ame450_once;
-    dispatch_once(&ame450_once, ^{
-        UITraitCollection *ame450_dark = [UITraitCollection traitCollectionWithUserInterfaceStyle:UIUserInterfaceStyleDark];
-        UITraitCollection *ame450_light = [UITraitCollection traitCollectionWithUserInterfaceStyle:UIUserInterfaceStyleLight];
-        NSMutableArray *ame450_d = [NSMutableArray array];
-        NSMutableArray *ame450_l = [NSMutableArray array];
-        // ★Task453 打开即闪退根因修复（用户崩溃日志符号化实锤 0f1c98c1，UUID 与归档
-        //  dSYM b911e064 同源同构 __TEXT 0xe04000）：本块初版误把三族色数组当 block
-        //  表枚举——循环变量误声明为块指针并在体内直接调用（UIColor 对象被当 block
-        //  跳转，对象偏移 16 被当 invoke 指针 = PC=0 EXC_BAD_ACCESS / CODESIGNING
-        //  Invalid Page）；wallpaper=1 设备壳 viewDidLoad→ame429 刷新→ame449 清扫→
-        //  本方法 dispatch_once 首路径必崩（编译期零告警、CI 无壁纸零覆盖、450/451/
-        //  452 三代构建均含本雷）。改直接枚举 UIColor：
-        for (UIColor *ame450_t in @[[ZL2Theme surfaceContainer], [ZL2Theme surfaceContainerHigh], [ZL2Theme surfaceContainerLow]]) {
-            [ame450_d addObject:[ame450_t resolvedColorWithTraitCollection:ame450_dark]];
-            [ame450_l addObject:[ame450_t resolvedColorWithTraitCollection:ame450_light]];
-        }
-        ame450_darkFamily = [ame450_d copy];
-        ame450_lightFamily = [ame450_l copy];
-    });
-    UIColor *ame450_d = [color resolvedColorWithTraitCollection:
-        [UITraitCollection traitCollectionWithUserInterfaceStyle:UIUserInterfaceStyleDark]];
-    UIColor *ame450_l = [color resolvedColorWithTraitCollection:
-        [UITraitCollection traitCollectionWithUserInterfaceStyle:UIUserInterfaceStyleLight]];
-    for (UIColor *ame450_ref in ame450_darkFamily) if ([ame450_d isEqual:ame450_ref]) return YES;
-    for (UIColor *ame450_ref in ame450_lightFamily) if ([ame450_l isEqual:ame450_ref]) return YES;
-    return NO;
-}
-
-// 卡面透明态：基色×α(0.72 固定档)——ZL2 cardColor·α(80%) 默认档对标（15 期
-// 判例：旧 max(uiOpacity,0.5) 与壁纸滑条耦合，用户 opacity=1.00 时卡面恒不透
-// 明 =「还是有地方不是透明半透明」主诉；滑条语义 = 壁纸可见度，卡面脱钩取
-// ZL2 默认档等值，可读性由 onSurface 文字 + 壁纸 dim 层兜底）。
-- (void)ame449_sweepChromeAndCardsInView:(UIView *)root transparent:(BOOL)transparent {
-    if (!root) return;
-    if (root.tag == kAme449ChromeSurfaceTag) {
-        root.backgroundColor = transparent ? [UIColor clearColor] : [ZL2Theme surface];
-    } else if (root.tag == kAme449CardSurfaceTag) {
-        UIColor *base = objc_getAssociatedObject(root, kAme449CardBaseColorKey);
-        if (base) {
-            root.backgroundColor = transparent
-                ? [base colorWithAlphaComponent:0.72]
-                : base;
-        }
-    } else if (transparent && [BackgroundManager ame450_isCardFamilyColor:root.backgroundColor]) {
-        // 未标记卡面家族 → 收编入册（基色=当前家族色）再半透明；下一轮走 tag
-        // 分支幂等；无壁纸还原路径经同一 tag 分支回基色（零残留）。
-        Ame449MarkCardSurface(root);
-        root.backgroundColor = [root.backgroundColor colorWithAlphaComponent:0.72];
-    }
-    for (UIView *sub in root.subviews) {
-        [self ame449_sweepChromeAndCardsInView:sub transparent:transparent];
-    }
-}
-
-// 统一入口（建页后一次 + Task152 无→有重走链共用）：透明态 = hasBackground，
-// 还原态 = 无壁纸（对称面，ZL2BackgroundHost 无壁纸还原路径同源）
-- (void)ame449_applyWallpaperTransparencyToViewTree:(UIView *)root {
-    if (!root) return;
-    [self ame449_sweepChromeAndCardsInView:root transparent:[self hasBackground]];
-}
-
 - (void)makeViewControllerTransparent:(UIViewController *)viewController {
     if (!viewController) return;
 
@@ -931,18 +850,6 @@ void Ame449MarkCardSurface(UIView *view) {
     // Child view controllers
     for (UIViewController *childVC in viewController.childViewControllers) {
         [self makeViewControllerTransparent:childVC];
-    }
-
-    // ★Task449：chrome/卡面标记面清扫（页根之外的整块底色面 + MD3 卡面）。
-    // 放子 VC 递归后 = 子树旗标面一次清完；幂等可重入（Task152 无→有链复用）。
-    // ★Task452（「打开即闪退」判读轮）：清扫为 Task449/450 新增开机路径代码
-    //   （唯一在装机死亡窗口内的新执行面），@try 收敛 + 签名落日志（Task450-r1
-    //   P0 判例同型）——任何异常降级为日志，透明化半途不阻断壳/主页构建。
-    @try {
-        [self ame449_sweepChromeAndCardsInView:viewController.view transparent:YES];
-    } @catch (NSException *ame452_ex) {
-        NSLog(@"[Task452] open: wallpaper sweep EXCEPTION signature: %@ (%@) vc=%@",
-              ame452_ex.name, ame452_ex.reason, viewController);
     }
 
     // Task161：模态弹窗页面级毛玻璃底收口到方法末尾——必须在上方

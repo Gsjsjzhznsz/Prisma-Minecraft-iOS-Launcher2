@@ -119,8 +119,8 @@ static NSString * const ZL2SidebarCardOrderDefaultsKey = @"zl2.home.sidebarCardO
 static NSString * const ZL2HomeMenuSideDefaultsKey = @"zl2.home.actionMenuSide";
 
 // 双栏布局常量（LauncherScreen.kt Row 规格）
-static const CGFloat ZL2HomeMenuWidthRatio   = 0.28;  // 右栏比例（停靠换边恢复后沿用 73c10b7 收窄值）
-static const CGFloat ZL2HomeMenuWidthMax     = 460;   // ★Task450 ⑤：300→460（15 期「转盘没有正常自适应」——iPad 1180pt 全屏 0.28×=330 被旧上钳 300 压扁，转盘/账户滚轮在大屏恒手机宽；460 = iPad 全屏 330 放行 + 12.9" 440 内收敛，手机 0.28×=105 走下限 220 不受影响）
+static const CGFloat ZL2HomeMenuWidthRatio   = 0.28;  // 右栏比例（停靠换边恢复后沿用 73c10b7 收窄值，用户未复诉宽度）
+static const CGFloat ZL2HomeMenuWidthMax     = 300;
 static const CGFloat ZL2HomeMenuWidthMin     = 220;
 static const CGFloat ZL2HomeGridSpacing      = 6;     // 卡片间距（行/列同值）
 static const CGFloat ZL2HomeGridInsetH       = 12;    // section 左右 inset
@@ -147,12 +147,6 @@ static const CGFloat ZL2HomeAccountFlowGapH    = 4;   // 横排条目间隙
 static const CGFloat ZL2HomeVersionFlowItemH   = 64;  // 版本滚轮条目高（图标 40 + 双行文 =「五个正常的实例版本信息高度」口径）
 static const CGFloat ZL2HomeFlowItemGap        = 10;  // 竖排条目间隙（实例卡图标→名称间隙参照，Task393 用户规格沿用）
 static const CGFloat ZL2HomeCardFooterHeight   = 32;  // 卡尾动作行钮边长（账户管理/刷新/齿轮）
-// ★Task459 版本卡内构 chrome 单源常量：flow.top 8（单侧 padding——flow 底挂
-//   尾行钮 top−6，不触卡底）+ flow→尾行 6 + 尾行钮 32 + 卡底 4 = 50。
-//   旧形态卡高常量与 ame414 avail 各自手写 58（2.0×padding 误计双侧），
-//   与内容链 50 差 8pt = required 超定随机断钉家族（ame456_setVersionCardFlowHeight
-//   与卡高常量创建点、ame414 余量式三点同源引用本常量）。
-static const CGFloat ame456_versionCardChrome  = 50;
 
 // ★ Task378 五入口快航瓦片（顶栏退役承接：壳 RailItem×5 → 本栏顶部）
 // ★ Task392 一行化+图标减半（用户规格 2026-11-03：图标“缩小两倍”+“改成一行的”+
@@ -579,7 +573,7 @@ static UIImage *ZL2HomeSizedImage(NSString *name, NSString *fallback, CGFloat po
 //    实例版本信息高度——用户规格「实例版本也一样改」）——
 @property (nonatomic, strong) UIView *versionCard;
 @property (nonatomic, strong) AmeFlowSelectView *versionFlow;
-@property (nonatomic, strong) NSLayoutConstraint *ame456_versionCardHeight;   // ★Task456 版本卡总高常量（flow 视口由约束链自卡高推导，尾行结构性不可裁剪；原 ame414_versionHeight flow 独立高常量与尾行钉链超定 = 断钉后尾行出卡被裁）
+@property (nonatomic, strong) NSLayoutConstraint *ame414_versionHeight;   // ★Task414 版本滚轮视口高（自适应改写）
 @property (nonatomic, strong) ZL2HomeTapControl *versionRefreshButton;  // 卡尾刷新小钮
 @property (nonatomic, strong) ZL2HomeTapControl *versionSettingsButton; // 卡尾齿轮小钮
 @property (nonatomic, copy, nullable) NSArray<NSString *> *ame400_versionRowNames;  // 上轮行名序（数据未变则免重建防吸附回跳）
@@ -617,36 +611,17 @@ static UIImage *ZL2HomeSizedImage(NSString *name, NSString *fallback, CGFloat po
     [super viewDidLoad];
 
     self.view.backgroundColor = [ZL2Theme surface];
-    // ★Task452（「打开即闪退」判读轮）：主页构建静默段收敛（Task450-r1 P0
-    //   设置闪退装饰面 @try 判例同型家法）。装机临床：日志止于壳构建尾
-    //   （Ame417）且无异常块，死亡点夹在 [背景宿主安装 → buildViews →
-    //   autoCheck] 三段静默带内。三段各落签名；buildViews 整体 @try：
-    //   任何 ObjC 异常降级为签名日志（半建 UI 但壳存活可上报），下游
-    //   依赖面在 ame452_buildOK 旗标下门控（nil 化子页不再二次雷）。
-    BOOL ame452_buildOK = YES;
-    @try {
-        [self buildViews];
-    } @catch (NSException *ame452_ex) {
-        ame452_buildOK = NO;
-        NSLog(@"[Task452] open: home buildViews EXCEPTION signature: %@ (%@) -- degraded-but-alive", ame452_ex.name, ame452_ex.reason);
-        NSLog(@"[Task452] open: home buildViews stack:\n%@", ame452_ex.callStackSymbols);
-    }
-    NSLog(@"[Task452] open: home buildViews done (ok=%d)", (int)ame452_buildOK);
-    if (ame452_buildOK) {
-        // ★Task343：控件自动检查更新挂载点（Task255 链 1:1——旧 Root 壳物理退役，
-        // 开关门控 + 静态一次性守卫在 autoCheckControlUpdatesOnce 实现内，主页
-        // viewDidLoad 每启动恰一次）
-        [ZL2ControlRepoViewController autoCheckControlUpdatesOnce];   // ★Task436：A4 迁移改名同步
-        // 复用注册（经典 dataSource 路径；cell 类自带 configure，无 iOS15+ registration）
-        [self.gridView registerClass:[ZL2HomeVersionCardCell class]
-          forCellWithReuseIdentifier:@"zl2_home_version_card"];
-        [self ame_restoreMenuSide];
-        [self ame_applySideConstraintsAnimated:NO];
-        [self refreshLaunchState];
-        NSLog(@"[Task452] open: home launch-state done");
-    } else {
-        NSLog(@"[Task452] open: home downstream skipped (buildViews failed -- signature above)");
-    }
+    [self buildViews];
+    // ★Task343：控件自动检查更新挂载点（Task255 链 1:1——旧 Root 壳物理退役，
+    // 开关门控 + 静态一次性守卫在 autoCheckControlUpdatesOnce 实现内，主页
+    // viewDidLoad 每启动恰一次）
+    [ZL2ControlRepoViewController autoCheckControlUpdatesOnce];   // ★Task436：A4 迁移改名同步
+    // 复用注册（经典 dataSource 路径；cell 类自带 configure，无 iOS15+ registration）
+    [self.gridView registerClass:[ZL2HomeVersionCardCell class]
+      forCellWithReuseIdentifier:@"zl2_home_version_card"];
+    [self ame_restoreMenuSide];
+    [self ame_applySideConstraintsAnimated:NO];
+    [self refreshLaunchState];
 
     // 通知监听：账号信息变化 / 壳切回主页 → 刷新三态（旧契约 1:1）；
     // 实例表变化（版本页选用/删除、本页删除链）→ 网格与选择卡刷新。
@@ -696,13 +671,6 @@ static UIImage *ZL2HomeSizedImage(NSString *name, NSString *fallback, CGFloat po
 
 - (void)viewDidLayoutSubviews {
     [super viewDidLayoutSubviews];
-    // ★Task452：首布局签名（进程级一次）——崩段若在 ame_refreshPanelMask /
-    //   ame414_relayoutVersionHeight（Task443 新公式）内，下一轮日志尾直接钉出。
-    static BOOL ame452_layoutMarked = NO;
-    if (!ame452_layoutMarked) {
-        ame452_layoutMarked = YES;
-        NSLog(@"[Task452] open: home first layout begin");
-    }
     // ★ Task401：面板卡窗随布局实时重抠（旋转/换边/滚轮重建后窗口位移动）
     [self ame_refreshPanelMask];
     // ★Task414 右栏自适应：版本滚轮视口高随可用余量收敛（五行下限/全部行上限）
@@ -744,7 +712,7 @@ static UIImage *ZL2HomeSizedImage(NSString *name, NSString *fallback, CGFloat po
 //   卡间间隙 − 版本卡内构」（旧减 _launchCard 帧失效）；矮窗连五行都放不下
 //   时收到三行软下限（滚轮可拖语义无损）——启动卡钉底永可见优先于五行口径。
 - (void)ame414_relayoutVersionHeight {
-    if (!_ame456_versionCardHeight || self.menuScrollView.bounds.size.height < 1.0) return;
+    if (!_ame414_versionHeight || self.menuScrollView.bounds.size.height < 1.0) return;
     CGFloat ame414_pitch = ZL2HomeVersionFlowItemH + ZL2HomeFlowItemGap;
     CGFloat ame414_ideal = _versionFlow.viewportHeight;   // 五行口径下限
     CGFloat ame414_full = ame414_ideal;
@@ -752,43 +720,38 @@ static UIImage *ZL2HomeSizedImage(NSString *name, NSString *fallback, CGFloat po
     if (ame414_n > 5) {
         ame414_full = ZL2HomeVersionFlowItemH + (CGFloat)(ame414_n - 1) * ame414_pitch;
     }
-    // ★Task459 余量统一前置（「版本设置去哪里了」第四轮复发根因收口）：
-    //   旧形态 n≤5 分支直接以五行理想高落定早退（ame414_full==ideal 恒真），
-    //   avail 钳制只护 n>5 分支 = Task456「target 恒 ≤ avail」断言的漏网面。
-    //   单实例设备（出厂 (Default) 卡，Task459 装机 IMG_0741 像素实锤）卡恒
-    //   418pt：可见卡高恰 = 滚动视口余量 357pt（418 被视口底缘裁剪），卡尾
-    //   刷新/齿轮两钮（卡底 −4 钉 = 卡顶 366-398pt 域）整体落裁剪带零像素
-    //   ＝「侧边栏齿轮按钮不显示」Task443→455→456→459 四轮同源临床。本轮
-    //   余量计算前置为两分支共用：快航卡（Task443 补减项）+ 账户卡 + 两段
-    //   卡间间隙 + 版本卡内构 chrome 50（flow.top 8 + flow→尾行 6 + 尾行 32 + 卡底 4）。
-    //   判例：卡内重钉（Task456）只保证「钮在卡内不可裁」，卡本体仍须
-    //   「整体进视口」两道闸缺一不可——单行 64pt 为绝对下限（滚轮可拖语义
-    //   无损，Task456 矮窗劣化终版同口径），启动卡钉底永可见优先于五行口径。
+    if (ame414_full <= ame414_ideal + 0.5) {
+        if (fabs(_ame414_versionHeight.constant - ame414_ideal) > 0.5) _ame414_versionHeight.constant = ame414_ideal;
+        return;
+    }
+    // ★Task415c 余量重算：启动卡钉出滚动区后视口 = menuScrollView 自身高
+    //   （旧式减 _launchCard 帧的口径随钉底三钉失效）；余量 = 视口 − 账户卡
+    //   − 卡间间隙 − 版本卡内构
+    // ★Task443（用户复诉「转盘的设置和刷新必须切换几下才有，第二次刷新就
+    //   吞掉」· 数学实锤根修）：旧公式漏减快航瓦片卡高与其下方卡间间隙——
+    //   滚动内容总高 = quickNavH + gap + accountH + gap + (target + 内构)，
+    //   代入旧 avail 恒等于 scrollH + quickNavH + gap > 视口 = 版本卡尾部
+    //   （卡尾刷新/齿轮两钮 + flow 底行）恒卷出滚动可视区，滚动侧栏才可见
+    //   = 「切换几下才有」实体；两次 Task346 根重建重置滚动位相放大观感。
+    //   补减快航卡帧与其下间隙后，target 收敛时内容总高 ≤ 视口，卡尾两钮
+    //   恒在首屏可视区（滚动位相无关）。
     CGFloat ame414_avail = self.menuScrollView.bounds.size.height
         - _quickNavCard.frame.size.height   // ★Task443 补：快航瓦片卡（旧公式漏减）
         - ZL2HomeCardGap   // ★Task443 补：快航卡→账户卡间隙
         - _accountCard.frame.size.height
         - ZL2HomeCardGap   // 账户卡→版本卡间隙（stack spacing 同值）
-        - ame456_versionCardChrome;   // ★Task459 版本卡内构单源 50（旧手写 58）
+        - (2.0 * ZL2HomeCardPadding + ZL2HomeCardFooterHeight + 6.0 + 4.0);   // 版本卡内构
     CGFloat ame414_target = ame414_full;
     if (ame414_avail < ame414_full) {
-        // ★Task456 矮窗劣化终版形态（★Task459 起两分支同享此钳制）：
-        //   target = fmax(单行, fmin(full, avail)) 恒 ≤ avail，尾行两钮
-        //   结构性落在首屏可视区（滚动位相无关）；五行/单行下限仅在余量足够时生效。
-        ame414_target = fmax(ZL2HomeVersionFlowItemH, fmin(ame414_full, ame414_avail));
+        // ★Task415c 软下限：五行常规下限；连五行都放不下的矮窗收到三行
+        //   （滚轮可拖语义无损），仍优于把启动卡/插件 chip 顶出屏（第 24 轮
+        //   「部分区域都卡在下面」优先级高于五行口径）
+        CGFloat ame414_floor3 = ZL2HomeVersionFlowItemH + 2.0 * ame414_pitch;
+        CGFloat ame414_softFloor = fmax(ame414_floor3, fmin(ame414_ideal, ame414_avail));
+        ame414_target = fmax(ame414_softFloor, fmin(ame414_full, ame414_avail));
     }
-    [self ame456_setVersionCardFlowHeight:ame414_target];
-}
-
-// ★Task456 卡高写入单点：卡高常量 = flow 视口 + 真实内构 chrome（顶 8 +
-//   flow→尾行 6 + 尾行 32 + 底 4 = 50）；flow 高度不再持独立常量（由
-//   flow.bottom = 尾行钮.top−6 链自卡高推导）= 卡内零超定，尾行两钮结构性
-//   不可裁剪（旧形态三约束争卡高，AutoLayout 断钉位相随机 = 齿轮时隐时现）。
-//   方法体必须在 @implementation 内（Task455 事故①判例）。
-- (void)ame456_setVersionCardFlowHeight:(CGFloat)ame456_flow {
-    CGFloat ame456_card = ame456_flow + ame456_versionCardChrome;   // ★Task459 chrome 单源 50（旧 58 = 8pt 超定断钉家族）
-    if (fabs(_ame456_versionCardHeight.constant - ame456_card) > 0.5) {
-        _ame456_versionCardHeight.constant = ame456_card;
+    if (fabs(_ame414_versionHeight.constant - ame414_target) > 0.5) {
+        _ame414_versionHeight.constant = ame414_target;
         [self.view setNeedsLayout];
     }
 }
@@ -972,14 +935,14 @@ static UIImage *ZL2HomeSizedImage(NSString *name, NSString *fallback, CGFloat po
     // 卡尾动作行：账户管理小钮（原账号卡点击语义收口于此）+ 选中链忙态 spinner
     _accountManageButton = [self ame_accountActionButtonWithSymbol:@"person.badge.plus"
                                                           fallback:@"person.crop.circle.badge.plus"
-                                                             title:localize(@"login.option.add", nil)];
+                                                             title:@"添加账户"];
     _accountManageButton.ame_action = ^{
         [weakSelf ame_requestAccountAction:@"ZL2AccountsRequestAdd"];
     };
     [_accountCard addSubview:_accountManageButton];
     _accountDeleteButton = [self ame_accountActionButtonWithSymbol:@"person.crop.circle.badge.minus"
                                                           fallback:@"trash"
-                                                             title:localize(@"account.menu.delete", nil)];
+                                                             title:@"删除账户"];
     _accountDeleteButton.ame_action = ^{
         [weakSelf ame_requestAccountAction:@"ZL2AccountsRequestDeleteCurrent"];
     };
@@ -1238,17 +1201,14 @@ static UIImage *ZL2HomeSizedImage(NSString *name, NSString *fallback, CGFloat po
         [_accountSpinner.centerXAnchor constraintEqualToAnchor:_accountCard.centerXAnchor],
         [_accountSpinner.centerYAnchor constraintEqualToAnchor:_accountManageButton.centerYAnchor],
 
-        // ③ 版本卡内布局：竖排滚轮（★Task414 自适应视口 + ★Task456 结构性
-        //    重钉：flow 高不再持独立常量，改由 flow.bottom = 尾行钮.top−6 自
-        //    卡高推导；卡高常量 = ame456_versionCardHeight（ame414 逐帧改写）
-        //    ——卡内零超定，卡尾刷新/齿轮两钮结构性不可裁剪，「侧边栏齿轮
-        //    按钮不显示」根修，见 ame414_relayoutVersionHeight）
+        // ③ 版本卡内布局：竖排滚轮（★Task414 高度持引用 = 自适应视口：
+        //    五行下限 / 全部行上限 / 可用余量收敛——「右栏不会自适应下面被
+        //    挡住」根修，见 ame414_relayoutVersionHeight）
         [_versionFlow.topAnchor constraintEqualToAnchor:_versionCard.topAnchor constant:ZL2HomeCardPadding],
         [_versionFlow.leadingAnchor constraintEqualToAnchor:_versionCard.leadingAnchor constant:ZL2HomeCardPadding],
         [_versionFlow.trailingAnchor constraintEqualToAnchor:_versionCard.trailingAnchor constant:-ZL2HomeCardPadding],
-        // ★Task456：原「flow 高常量 + 尾行 top=flow.bottom+6 + 尾行 bottom=卡底−4」
-        //   三约束争卡高超定（断钉位相随机）；改 flow.bottom 自尾行推导
-        [_versionFlow.bottomAnchor constraintEqualToAnchor:_versionSettingsButton.topAnchor constant:-6],
+        // 高度常量不再在此建（见末尾持引用条目：ame414_relayoutVersionHeight 逐帧改写）
+        [_versionSettingsButton.topAnchor constraintEqualToAnchor:_versionFlow.bottomAnchor constant:6],
         _ame_pinSettingsTrailing,   // ★Task406 齿轮贴右原钉（换边镜像可卸）
         [_versionSettingsButton.widthAnchor constraintEqualToConstant:ZL2HomeCardFooterHeight],
         [_versionSettingsButton.heightAnchor constraintEqualToConstant:ZL2HomeCardFooterHeight],
@@ -1273,17 +1233,10 @@ static UIImage *ZL2HomeSizedImage(NSString *name, NSString *fallback, CGFloat po
     // ★ Task401 r4：面板灰棱视图挂四卡窗宿主（drawRect 绘制期自取帧）
     [_panelBackdrop ame401_setHostCards:@[_quickNavCard, _accountCard, _versionCard, _launchCard]];
 
-    // ★Task414→456 版本卡高持引用（ame414_relayoutVersionHeight 逐帧改写；
-    //   required 常量钉卡总高 = flow 视口 + 内构 chrome 50；初值 = 五行口径
-    //   viewportHeight + chrome，首次布局前与旧 flow 常量同值零视觉回退）
-    //   ★Task459 chrome 单源对齐：内容链真实内构 = flow.top 8（单侧 padding，
-    //   flow 底挂尾行钮不触卡底）+ flow→尾行 6 + 尾行 32 + 卡底 4 = 50。
-    //   旧形态 2.0×padding(16) = 常量比内容链超定 8pt（注释 50 vs 代码 58
-    //   判例留档）→ required 常量与 required 内容链必有一断 = AutoLayout
-    //   「Unable to simultaneously satisfy constraints」随机断钉家族现行。
-    _ame456_versionCardHeight = [_versionCard.heightAnchor constraintEqualToConstant:_versionFlow.viewportHeight
-                                                             + ame456_versionCardChrome];
-    _ame456_versionCardHeight.active = YES;
+    // ★Task414 版本滚轮高度持引用（ame414_relayoutVersionHeight 逐帧改写；
+    //   required 常量 = 唯一高度约束，视口自适应后仍钉卡缘）
+    _ame414_versionHeight = [_versionFlow.heightAnchor constraintEqualToConstant:_versionFlow.viewportHeight];
+    _ame414_versionHeight.active = YES;
 }
 
 #pragma mark - ★ Task378 五入口快航瓦片（★ Task400 驻右栏顶卡：用户规格「五个按钮在顶上」）

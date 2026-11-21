@@ -84,8 +84,8 @@ check("A3 豁免 API 兼容保留（外部 extern 调用点零改动：文件浏
       "void ame229_labelSetStrokeExempt(UILabel *label, BOOL exempt) {" in bm
       and "void ame230_setViewTreeStrokeExempt(UIView *view, BOOL exempt) {" in bm
       and "ame229_labelIsStrokeExempt" in bm
-      and bm_code.count("objc_setAssociatedObject") == 3   # ★Task449 重锚 2→3（卡面标记 Ame449MarkCardSurface 增设 kAme449CardBaseColorKey 关联对）
-      and bm_code.count("objc_getAssociatedObject") == 2)  # ★Task449 重锚 1→2（同上清扫读取侧）
+      and bm_code.count("objc_setAssociatedObject") == 2
+      and bm_code.count("objc_getAssociatedObject") == 1)
 
 check("A4 ame224 四入口语义化（反色调用零残留：恒 AmeCard 动态令牌 = AmeTheme textPrimary/Secondary）",
       "return AmeCardPrimaryTextColor();" in bm_code
@@ -408,10 +408,7 @@ ame378_c20 = [
     # ⑤ 主页右栏自适应（滚轮 112 + 版本视口收敛）
     ("wheel-112", "ZL2HomeAccountWheelH      = 112" in home),
     ("version-adaptive", "ame414_relayoutVersionHeight" in home_code),
-    # ★Task456 重锚：版本卡高持引用 ame414_versionHeight(flow 独立高常量，
-    #   与尾行钉链超定断钉 = 尾行出卡被裁)退役 → ame456_versionCardHeight
-    #   （卡总高常量，flow 高自约束链推导，尾行结构性不可裁剪）
-    ("version-height-pin", "_ame456_versionCardHeight" in home_code),
+    ("version-height-pin", "_ame414_versionHeight" in home_code),
     # 预览 harness 双骨架镜像 + 冒烟 nav 轨（「你不会运用预览吗」）
     ("preview-nav-shell", "ame414_buildNavPane" in preview_code),
     ("preview-capsule", "ame414_buildCapsule" in preview_code),
@@ -501,10 +498,7 @@ ame378_c21 = [
     ("launch-out-stack", "addArrangedSubview:_launchCard]" not in home_code),
     ("launch-pin", "_launchCard.bottomAnchor constraintEqualToAnchor:_actionMenu.bottomAnchor" in home_code),
     ("scroll-anchor-launch", "_menuScrollView.bottomAnchor constraintEqualToAnchor:_launchCard.topAnchor" in home_code),
-    # ★Task456 重锚：矮窗劣化终版 = target 恒 ≤ avail（三行软下限 ame414_floor3
-    #   越权分支退役——avail < 三行下限时旧形态仍把卡顶出视口 = 尾行齿轮/刷新
-    #   落折叠带；单行绝对下限 + avail 钳制，尾行恒首屏可见）
-    ("floor3-soft", "fmax(ZL2HomeVersionFlowItemH, fmin(ame414_full, ame414_avail))" in home_code),
+    ("floor3-soft", "ame414_floor3" in home_code),
     # ② 工作室卡幅面自适应（「依旧压缩」：高 = 视口 − 48，clamp[460,640]）
     ("studio-fill-height", "_studioCard.heightAnchor constraintEqualToAnchor:frameLG.heightAnchor" in accounts_code),
     ("studio-cap", "constraintLessThanOrEqualToConstant:640.0" in accounts_code),

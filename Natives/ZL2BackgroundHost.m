@@ -99,15 +99,7 @@ static const CGFloat Ame429DimSpan = 0.20;
 
 - (void)ame429_refreshWithOwnerViewController:(UIViewController *)ownerVC {
     void (^apply)(void) = ^{
-        // ★Task452（「打开即闪退」判读轮）：壁纸层重建 @try 收敛（Task450-r1
-        //   P0 设置闪退装饰面判例同型）——宿主为纯装饰层，重建异常降级为
-        //   签名日志 + alpha 恒 0（无壁纸观感），壳/主页存活零阻断。
-        @try {
-            [self ame429_rebuildLayers];
-        } @catch (NSException *ame452_ex) {
-            self.alpha = 0.0;
-            NSLog(@"[Task452] open: background-host rebuild EXCEPTION signature: %@ (%@) -- wallpaper layer degraded", ame452_ex.name, ame452_ex.reason);
-        }
+        [self ame429_rebuildLayers];
         // 可见性机制（既有管线，不新增广播）：有壁纸 = Task111 透明化管线
         // 透出壳层树基色（hasBackground 守卫幂等）；无壁纸 = 对称还原
         //（owner 树基色回 [ZL2Theme surface]，宿主已隐藏）。
@@ -176,9 +168,6 @@ static const CGFloat Ame429DimSpan = 0.20;
     for (UIViewController *child in ownerVC.childViewControllers) {
         child.view.backgroundColor = [ZL2Theme surface];
     }
-    // ★Task449：chrome/卡面标记面对称还原（壳层顶栏/设置左轨等标记面回
-    // ZL2Theme surface，卡面回基色——透明化管线的无壁纸侧收口）
-    [[BackgroundManager sharedManager] ame449_applyWallpaperTransparencyToViewTree:ownerVC.view];
 }
 
 @end

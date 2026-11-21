@@ -950,12 +950,7 @@ static NSArray<NSString *> *ame232_layoutSafetyIssues(NSData *raw, id jsonObj) {
     static BOOL ame255_checked = NO;
     if (ame255_checked) return;
     ame255_checked = YES;
-    // ★ Task455：裸键查表根修——注册表键是点分路径 control.auto_control_update_check
-    //   （PLPreferences 节字典），本处原用裸键 → Ame239 安全行走两表皆 nil
-    //   → "Getter could not find" 告警 + getPrefBool 回落 [nil boolValue]=NO
-    //   = 开关 ON 也恒早退，Task255 功能自上线零生效（装机 latestlog .1:75
-    //   实锤告警；Task230 auto_keyboard_sdl 同款病历家族第二例）。
-    if (!getPrefBool(@"control.auto_control_update_check")) return;
+    if (!getPrefBool(@"auto_control_update_check")) return;
 
     dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(4.0 * NSEC_PER_SEC)),
                    dispatch_get_global_queue(QOS_CLASS_USER_INITIATED, 0), ^{

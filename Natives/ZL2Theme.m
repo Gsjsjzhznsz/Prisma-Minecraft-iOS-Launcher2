@@ -206,64 +206,23 @@ static BOOL ame346_rebuildScheduled = NO;
 static CFAbsoluteTime ame346_lastRebuildAt = 0.0;
 static BOOL ame346_trailingPending = NO;
 static const CFAbsoluteTime ame346_rebuildMinInterval = 0.4;   // ★ Task380：重建冷却（秒）
-
-// ★ Task455：启动期令牌突发合并——装机 latestlog（2ed20a6 构建）实锤：
-//   启动 ~500ms 窗口内三源令牌先后落表（插件装载色板 + Ame398 启动外观
-//   同步广播 → JS 重应用 + Ame429 壁纸 palette overlay），Task346 杠杆逐
-//   源整壳重建（日志壳 viewDidLoad ×3 + 第 4 次 in flight）+ 两次 0.3s
-//   CrossDissolve 重叠 = "Unbalanced calls to begin/end appearance
-//   transitions" + 启动卡死感。根修：首帧落地（首壳 viewDidAppear，进程
-//   级一次）前，"根已建且视图已加载"状态下的令牌重建请求不再逐源放行，
-//   只记脏；首帧落地时恰好补建一次（整壳重建总量 4→2）。根未建/视图未
-//   加载的请求保持静默跳过（令牌烘焙进首建，既有语义）；首帧后的请求走
-//   既有同拍合并 + Task380 冷却（交互语义零回退）。
-static BOOL ame455_startupLanded = NO;
-static BOOL ame455_startupRebuildDirty = NO;
-
-// ★ Task456：重建回声沉降窗——装机 latestlog（c737883/Task455 构建）实锤：
-//   首帧后整壳重建（Task455 flush 补建）自身的构建序列再落令牌（插件色板 /
-//   Ame429 壁纸 overlay 等），echo 请求走既有同拍合并 + Task380 冷却(0.4s)，
-//   但首建时 ame346_lastRebuildAt 尚无值（首建非 Task346 广播）→ 冷却守卫
-//   ame346_lastRebuildAt > 0.0 恒假 → echo 直接放行 = "shell viewDidLoad
-//   done → Task346 posted" 链式再排整壳重建（21:40:39.277 补建后回声广播 +
-//   21:41:19.95 第三次壳构建 + 第 4 次 in flight = 「依旧启动卡死」残余）。
-//   根修 = 每次 Task346 重建落地后 0.8s 沉降窗：窗口内请求一律视为重建自身
-//   回声吞掉（不调度不尾沿）。令牌态全局现读，重建本身已烘焙当前值，无语义
-//   损失；窗口外真变更（用户交互/插件新事件）照常即时重建。尾沿补排计时器
-//   落窗内由 postRootRebuildNow 入口统一拦截（不追加新广播）。
-static CFAbsoluteTime ame456_settleUntil = 0.0;
-
-// 键窗根 VC 探测（ame346_postRootRebuildNow 既有场景遍历的公共化，唯一实现）
-static UIViewController *ame455_keyRootViewController(void) {
-    if (@available(iOS 13.0, *)) {
-        for (UIScene *ame455_scene in UIApplication.sharedApplication.connectedScenes) {
-            if (![ame455_scene isKindOfClass:[UIWindowScene class]]) continue;
-            for (UIWindow *ame455_w in ((UIWindowScene *)ame455_scene).windows) {
-                if (ame455_w.isKeyWindow) return ame455_w.rootViewController;
-            }
-        }
-    }
-    return nil;
-}
-
-// 首帧落地锚点消费（ZL2ShellViewController viewDidAppear 进程级一次调用）：
-//   返回 YES = 启动窗口内有被抑制的令牌重建请求，调用方应恰好补建一次。
-//   （方法体在 @implementation 内，见 ame429_requestRootRebuild 邻位）
-
 static void ame346_postRootRebuildNow(void) {
     @try {
-        // ★ Task456：沉降窗拦截（含冷却期尾沿补排计时器落窗内的补排——
-        //   补排若在窗内落地 = 回声重建，吞掉并留痕；真变更窗口外自然放行）
-        CFAbsoluteTime ame456_now0 = CFAbsoluteTimeGetCurrent();
-        if (ame456_settleUntil > 0.0 && ame456_now0 < ame456_settleUntil) {
-            NSLog(@"[ZL2Theme] Task456: root rebuild request swallowed in settle window (%.2fs left)",
-                  ame456_settleUntil - ame456_now0);
-            return;
+        UIViewController *ame346_root = nil;
+        if (@available(iOS 13.0, *)) {
+            for (UIScene *ame346_scene in UIApplication.sharedApplication.connectedScenes) {
+                if (![ame346_scene isKindOfClass:[UIWindowScene class]]) continue;
+                for (UIWindow *ame346_w in ((UIWindowScene *)ame346_scene).windows) {
+                    if (ame346_w.isKeyWindow) {
+                        ame346_root = ame346_w.rootViewController;
+                        break;
+                    }
+                }
+                if (ame346_root) break;
+            }
         }
-        UIViewController *ame346_root = ame455_keyRootViewController();
         if (!ame346_root) return;   // 启动期根未建：重放路径无需重建
         ame346_lastRebuildAt = CFAbsoluteTimeGetCurrent();
-        ame456_settleUntil = ame346_lastRebuildAt + 0.8;   // ★ Task456：回声沉降窗 0.8s
         [[NSNotificationCenter defaultCenter] postNotificationName:@"AppLanguageChanged" object:nil];
         NSLog(@"[ZL2Theme] Task346: token change -> root rebuild posted (AppLanguageChanged lever)");
     } @catch (NSException *ame346_e) {
@@ -272,16 +231,6 @@ static void ame346_postRootRebuildNow(void) {
 }
 
 static void ame346_requestRootRebuild(void) {
-    // ★ Task455：启动期突发合并（首帧前抑制，首帧后一次补建；判例见上）
-    //   根未建/根视图未加载 → 令牌烘焙进首建，零重建零记脏（原 234 行
-    //   "rootViewController 缺席守卫"只查根分配、不查视图加载 = 插件装载
-    //   期请求漏网，本轮一并收紧）。
-    if (!ame455_startupLanded) {
-        UIViewController *ame455_root = ame455_keyRootViewController();
-        if (!ame455_root || !ame455_root.viewIfLoaded) return;
-        ame455_startupRebuildDirty = YES;
-        return;
-    }
     if (ame346_rebuildScheduled) return;   // 同拍连发合并（连点循环去抖）
     ame346_rebuildScheduled = YES;
     dispatch_async(dispatch_get_main_queue(), ^{
@@ -513,28 +462,13 @@ static void ame346_requestRootRebuild(void) {
     }
     NSLog(@"[AmePlugin:%@] 结构令牌覆盖 %lu/%lu 项（shellLayout=%@）", pluginId,
           (unsigned long)applied, (unsigned long)tokens.count,
-          Ame347StructureOverride(@"shellLayout", @"navigationview"));
+          Ame347StructureOverride(@"shellLayout", @"topbar"));
     ame346_requestRootRebuild();   // ★ Task346：结构落表即整壳重建
     return YES;
 }
 
 + (NSString *)ame347_shellLayout {
-    // ★ Task456：骨架默认蓝图 topbar → navigationview（用户复诉「小屏幕设备
-    //   怎么不是 zl2 的侧边栏」：ZL2 左窗格侧栏此前只在 fluent-ui 插件覆盖
-    //   shellLayout=navigationview 时存在——小屏设备插件关/未覆盖即整壳落
-    //   bare 骨架（无左栏），侧栏 = 插件奢侈品而非应用自有形态）。默认改
-    //   navigationview 后：插件开 = 全维度换装（语义不变），插件关 = ZL2 侧
-    //   栏裸形态（默认令牌，Task450⑥ 小屏简侧栏语义不变）；bare 骨架保留
-    //   编译（结构令牌 topbar 仍可经插件覆盖进入）。
-    return Ame347StructureOverride(@"shellLayout", @"navigationview");
-}
-
-+ (BOOL)ame347_shellLayoutPluginOverridden {
-    // ★ Task458：覆盖在位判定（契约见 ZL2Theme.h 同名注释）。与
-    // Ame347StructureOverride 同一判据形态（entry.count == 2）= nil 表/缺键/
-    // 畸形条目三态全落 NO（默认 MD3 族），零新增失效面。
-    NSArray *ame458_entry = ame347_structureOverride[@"shellLayout"];
-    return ame458_entry.count == 2;
+    return Ame347StructureOverride(@"shellLayout", @"topbar");
 }
 
 #pragma mark - ★Task429 活动色板覆盖层（8.1 动态主题中枢对接点）
@@ -556,17 +490,6 @@ static void ame346_requestRootRebuild(void) {
     // Task346 根重建杠杆公开包装（ame346 冷却/尾沿补排/启动期守卫全在位）；
     // ZL2DynamicPalette 生效链复用，不发明第二套广播。
     ame346_requestRootRebuild();
-}
-
-// ★ Task455：启动期令牌突发合并——首帧落地锚点消费（类方法体，静态状态
-//   ame455_startupLanded/ame455_startupRebuildDirty 见 ame346 块邻位判例）。
-+ (BOOL)ame455_consumeStartupRebuild {
-    if (ame455_startupLanded) return NO;
-    ame455_startupLanded = YES;
-    if (!ame455_startupRebuildDirty) return NO;
-    ame455_startupRebuildDirty = NO;
-    NSLog(@"[ZL2Theme] Task455: startup token burst coalesced -> trailing rebuild flush");
-    return YES;
 }
 
 + (void)ame429_setPaletteBootstrapHook:(void (*)(void))hook {

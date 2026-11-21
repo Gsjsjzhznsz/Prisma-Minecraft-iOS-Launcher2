@@ -553,27 +553,7 @@ PLIST
   grep -aE "Ame417|ZL2SkinPreview|Ame404" "$OUT/ame417-diag.log" | tail -20 || true
 
   xcrun simctl terminate "$device" com.prisma-devs.ame-fluent-preview >/dev/null 2>&1 || true
-
-  # ── ★Task458 默认蓝图真壳轨（-zl2theme default）：跳过 fluent 四族注入 =
-  #    embermire 基线 + 结构覆盖不在位 = MD3/ZL2 选中胶囊（secondaryContainer
-  #    + radiusM）+ 无滑移指示条的真壳截图验收面 —— 用户复诉「md3 界面变成
-  #    fui / zl2 格式去哪里了」修复的直接图证（默认面板不再像 fui）──
-  xcrun simctl terminate "$device" com.prisma-devs.ame-fluent-preview >/dev/null 2>&1 || true
-  xcrun simctl launch --console-pty "$device" com.prisma-devs.ame-fluent-preview -zl2page home -zl2shell real -zl2theme default > "$OUT/console-real-default.log" 2>&1 &
-  local ame458_realpid=$!
-  sleep 6
-  xcrun simctl ui "$device" appearance dark >/dev/null 2>&1 || true
-  sleep 2
-  xcrun simctl io "$device" screenshot "$OUT/ame-zl2-real-default-home-dark.png" >/dev/null 2>&1 \
-    && ame418_orient_landscape "$OUT/ame-zl2-real-default-home-dark.png" \
-    && echo "  ✓ 截图[real-default/home/embermire-dark]: $OUT/ame-zl2-real-default-home-dark.png"
-  xcrun simctl ui "$device" appearance light >/dev/null 2>&1 || true
-  grep -aE "Ame417|Ame404|Ame388|Task458" "$OUT/console-real-default.log" | head -8 || true
-  kill "$ame458_realpid" 2>/dev/null || true
-  wait "$ame458_realpid" 2>/dev/null || true
-
-  xcrun simctl terminate "$device" com.prisma-devs.ame-fluent-preview >/dev/null 2>&1 || true
-  echo "== 预览冒烟完成（bare 六页浅/深 12 张 + fui nav 镜像 2 张 + 展开态 1 张 + 真壳 1 张 + ★Task458 默认蓝图真壳 1 张 = 17 张截图即视觉验收）=="
+  echo "== 预览冒烟完成（bare 六页浅/深 12 张 + fui nav 镜像 2 张 + 展开态 1 张 + 真壳 1 张 = 16 张截图即视觉验收）=="
 
   # ── ★Task417 iPad 仿真腿：真机用户是 iPad（IMG_0611/0612 = 1180×820pt
   #    @2x 横屏），而既往冒烟只跑 iPhone 模拟器 = iPad 尺寸类从未被截图验证
@@ -626,9 +606,8 @@ PLIST
     xcrun simctl bootstatus "$ipad_udid" -b >/dev/null 2>&1 || true
     xcrun simctl install "$ipad_udid" "$app" || { echo "✗ iPad 安装失败（iPad 腿跳过，不阻塞）"; xcrun simctl delete "$ipad_udid" 2>/dev/null || true; return; }
     local ip
-    # ★Task460：真壳轨收敛单轨（非折叠退役——原二态真壳轨（折叠/展开两轨）
-    #   随壳侧折叠机制退役同帧化，恒 280pt 展开非折叠形态唯一真壳图证）
-    for ip in "real-pane:home -zl2shell real" \
+    for ip in "real-collapsed:home -zl2shell real" \
+              "real-expanded:home -zl2shell real -zl2pane expanded" \
               "probe:probe" \
               "accounts:accounts"; do
       local ip_name="${ip%%:*}"

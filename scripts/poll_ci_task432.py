@@ -6,8 +6,6 @@
 import json
 import re
 import subprocess
-import os as _os
-REPO_LOCAL = _os.environ.get("AME_REPO") or _os.path.abspath(_os.path.join(_os.path.dirname(_os.path.abspath(__file__)), ".."))   # ★Task455：脚本自身位置解析（历史绝对路径随沙箱回收失效）
 import sys
 import time
 import urllib.request
@@ -17,7 +15,7 @@ MAXS = int(sys.argv[2]) if len(sys.argv) > 2 else 500
 REPO = "Gsjsjzhznsz/Prisma-Minecraft-iOS-Launcher2"
 
 url = subprocess.check_output(
-    ["git", "-C", REPO_LOCAL, "remote", "get-url", "origin"],
+    ["git", "-C", "/home/z/my-project/repo-prisma2", "remote", "get-url", "origin"],
     text=True).strip()
 tok = re.search(r":([^@]+)@", url).group(1)
 owner_repo = re.search(r"github\.com/([^@]+?)(?:\.git)?$", url).group(1)

@@ -67,35 +67,6 @@ run_py task439      scripts/task439_selfcheck.py
 run_py task439_tag  scripts/task439_buildtag_anchor.py
 run_py task440      scripts/task440_selfcheck.py
 run_py task442      scripts/task442_selfcheck.py
-# ★Task452 收编轮：447/449/450/451 四门此前仅单跑未入电池（worklog 声称绿
-#   但电池面缺失 = 覆盖口径诚实化），452 新门同步入列
-run_py task447      scripts/task447_selfcheck.py
-run_py task449      scripts/task449_selfcheck.py
-run_py task450      scripts/task450_selfcheck.py
-run_py task451      scripts/task451_selfcheck.py
-run_py task452      scripts/task452_selfcheck.py
-# ★Task453「打开即闪退」根因修复轮：block 型循环变量清单执法 + dispatch_once
-#   字面量执法（崩溃机理族静态雷区零容忍）+ 判例留档
-run_py task453      scripts/task453_selfcheck.py
-# ★Task454 设置闪退根因修复轮：getter/setter 自递归家族全仓静态执法
-run_py task454      scripts/task454_selfcheck.py
-# ★Task455 三症状落码轮：偏好键裸查表家族零容忍 + AppLanguageChanged 广播面
-#   清单锁定（启动合并防绕行）+ 旧折叠键写入面清零（会话级语义防回潮）
-run_py task455      scripts/task455_selfcheck.py
-# ★Task456 三症状残余落码轮：重建回声沉降窗 + 外观去抖 + 游戏面换根保护 +
-#   版本卡结构性重钉（尾行齿轮/刷新不可裁剪）+ shellLayout 默认蓝图内置化
-run_py task456      scripts/task456_selfcheck.py
-# ★Task457 游戏启动 JIT26 op4 brk 无应答闪退根因修复轮：brk #0xf00d 超调用
-#   Safe 护栏（op1/op4，Task91+301 合体）+ dyld 钩子三重防线 + op4 金丝雀
-#   + 裸超调用全仓清零（崩溃机理族静态雷区零容忍）
-run_py task457      scripts/task457_selfcheck.py
-# ★Task458 三诉落码轮：md3→fui/zl2 格式观感错位（选中语义双族分流 + 滑移条
-#   默认恒隐）+ 下载中心仓库三轨回归（Task323 原版形态 1:1 + 设置域双面共存）
-run_py task458      scripts/task458_selfcheck.py
-run_py task459      scripts/task459_selfcheck.py
-# ★Task460 非折叠钦定轮：侧边栏折叠机制整体退役（窗格恒 280pt ZL2 式展开带
-#   标题）+ 窄屏抽屉 z 序根修（paneWrap 置顶）+ 预览真壳 -zl2pane 驱动链退役
-run_py task460      scripts/task460_selfcheck.py
 
 # 括号审计：本轮全部编辑文件逐个过状态机（file args 契约，Task431 判例口径）
 EDITED=$(git diff --name-only HEAD --diff-filter=d -- 'Natives/*.m' 'Natives/*.h' 'Natives/**/*.m' 'Natives/**/*.h' 2>/dev/null | grep -v '^Natives/external/' | tr '\n' ' ')

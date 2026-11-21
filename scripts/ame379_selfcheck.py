@@ -45,9 +45,9 @@ check("A1 头行容器在位（属性 + 构建 + 固定 32pt 高 + 安全区上 
       and "[self.ame379_paneHeader.heightAnchor constraintEqualToConstant:32.0]," in shell
       and "[self.ame379_paneHeader.topAnchor constraintEqualToAnchor:self.paneWrap.safeAreaLayoutGuide.topAnchor constant:10.0]," in shell)
 
-check("A2 标题锚头行容器直接 8pt（★Task460 重锚：开关钮退役非折叠钦定，钮锚头行/标题让位二态全退役）",
-      "[self.paneTitle.leadingAnchor constraintEqualToAnchor:self.ame379_paneHeader.leadingAnchor constant:8.0]," in shell
-      and "self.paneToggleButton" not in shell)
+check("A2 开关钮锚头行容器（旧口径锚 paneTitle.centerY 退役）",
+      "[self.paneToggleButton.centerYAnchor constraintEqualToAnchor:self.ame379_paneHeader.centerYAnchor]," in shell
+      and "paneToggleButton.centerYAnchor constraintEqualToAnchor:self.paneTitle.centerYAnchor" not in shell)
 
 check("A3 滚动区顶锚头行容器底（旧口径锚 paneTitle.bottom 退役）",
       "[self.paneScroll.topAnchor constraintEqualToAnchor:self.ame379_paneHeader.bottomAnchor constant:8.0]," in shell
@@ -60,19 +60,15 @@ check("A5 标题文案 bundle 显示名回退链（processName 宿主不确定�
       'infoDictionary[@"CFBundleDisplayName"]' in shell
       and 'if (ame379_bundleName.length == 0) ame379_bundleName = @"Prisma Ⅱ";' in shell)
 
-check("A6 装机自证日志（[Ame379] pane header 落 header/title frame；★Task460 重锚：窗格开关钮退役（非折叠钦定），唯头行/标题 frame 判读）",
-      '[Ame379] pane header -- header=%@ title=%@ titleLen=%lu' in shell)
+check("A6 装机自证日志（[Ame379] pane header 落 header/toggle/tglTrans/title frame；★Task403 重锚：[Ame383] 动作簇自证随右上动作簇退役（bd9e1d9 移除主页重复快捷入口，并行会话未跑门禁未补账）一并摘除）",
+      '[Ame379] pane header -- header=%@ toggle=%@ tglTrans=%d title=%@ titleLen=%lu' in shell)
 
-check("A7 376→460 非折叠钦定（几何派发/宽约束保留；★Task460 重锚：折叠二态/"
-      "回读键/开关钮/紧凑宽全链退役 = 窗格恒 280 展开带标题，标题前导锚头行直接 8pt）",
+check("A7 376 折叠语义逐字保留（几何派发/宽约束/持久化/紧凑宽 64）",
       "ame376_applyPaneGeometry:(BOOL)animated" in shell
       and "self.ame376_paneWidth = [self.paneWrap.widthAnchor constraintEqualToConstant:ZL2ShellPaneWidth];" in shell
-      and "self.ame376_paneWidth.constant = ZL2ShellPaneWidth;" in shell
-      and "self.paneTitle.hidden = NO;" in shell
-      and "[self.paneTitle.leadingAnchor constraintEqualToAnchor:self.ame379_paneHeader.leadingAnchor constant:8.0]," in shell
-      and "static const CGFloat ZL2ShellPaneCompactWidth" not in shell
-      and 'boolForKey:@"ame376.paneCollapsed.ui"' not in shell
-      and "self.paneToggleButton" not in shell)
+      and 'forKey:@"ame376.paneCollapsed"' in shell
+      and "ZL2ShellPaneCompactWidth = 64.0;" in shell
+      and "[self.paneTitle setHidden:ame376_compact]" in shell.replace("self.paneTitle.hidden = ame376_compact;", "[self.paneTitle setHidden:ame376_compact]"))
 
 # ══ B 线：版本详情轨列对齐页头边距 ═══════════════════════════════
 

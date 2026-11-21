@@ -5,7 +5,7 @@
 import subprocess, io, os, sys
 
 import os as _os
-REPO = _os.environ.get("AME_REPO") or _os.path.abspath(_os.path.join(_os.path.dirname(_os.path.abspath(__file__)), ".."))   # ★Task455：脚本自身位置解析（历史绝对路径随沙箱回收失效）
+REPO = _os.environ.get("AME_REPO", "/home/z/my-project/repo-prisma2")
 src = subprocess.run(
     ["git", "-C", REPO, "show", "HEAD:Natives/AI/AiSettings.m"],
     capture_output=True, text=True, check=True).stdout.replace("\r\n", "\n")

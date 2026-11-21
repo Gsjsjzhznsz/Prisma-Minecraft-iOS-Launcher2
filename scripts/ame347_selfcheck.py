@@ -122,15 +122,11 @@ check('B1 结构 setter 在位（白名单 topbar|navigationview + 记账还原�
       "+ (BOOL)ame347_setPluginThemeStructure:(NSString *)pluginId" in theme_code
       and '@[ @"topbar", @"navigationview" ]' in theme
       and "ame347_structureOverride" in theme_code
-      # ★Task456 重锚：8→9 —— 第 9 处 = ame429_requestRootRebuild 公开包装
-      #   （Task429 代际 ZL2DynamicPalette 生效链复用同杠杆，历史漂移如实收编）
-      and theme_code.count("ame346_requestRootRebuild()") == 9)
+      and theme_code.count("ame346_requestRootRebuild()") == 8)
 
-check('B2 结构 getter 在位（★Task456 重锚：默认蓝图 topbar→navigationview —— '
-      'ZL2 左窗格侧栏内置化，插件关 = 侧栏裸形态；topbar 值域白名单仍保留，'
-      '插件覆盖可进 bare 骨架）',
+check('B2 结构 getter 在位（默认 topbar 基线）',
       "+ (NSString *)ame347_shellLayout {" in theme_code
-      and 'return Ame347StructureOverride(@"shellLayout", @"navigationview");' in theme
+      and 'Ame347StructureOverride(@"shellLayout", @"topbar")' in theme
       and "+ (NSString *)ame347_shellLayout;" in theme_h)
 
 check('B3 桥面全链（JSExport 协议声明 + 实现走 ZL2Theme + __structure 持久化）',

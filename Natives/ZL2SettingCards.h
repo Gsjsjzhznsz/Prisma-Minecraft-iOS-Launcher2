@@ -48,20 +48,6 @@ NS_ASSUME_NONNULL_BEGIN
 /// 清空全部行（页面重建内容用；重建后圆角自动复位）
 - (void)ame_removeAllRows;
 
-/// ★Task449：启用可折叠组头（设置去杂乱：每功能区默认折叠大部分选项）。
-/// 组头 = 标题 + 行数徽章 + chevron，点按折叠/展开；折叠态 = 用户覆盖集
-/// （general.fold_overrides 单键持久化）压过 defaultCollapsed 语义。
-/// 只可启用一次（重复调用零操作）；title/key 为空 = 保持非折叠组。
-- (void)ame449_enableCollapsingWithTitle:(nullable NSString *)title
-                                     key:(nullable NSString *)key
-                        defaultCollapsed:(BOOL)defaultCollapsed;
-
-/// 程序赋值折叠态（不落盘——刷新路径安全回写；未启用折叠 = 零操作）
-- (void)ame449_setCollapsed:(BOOL)collapsed animated:(BOOL)animated;
-
-/// 当前折叠态（未启用折叠 = NO）
-- (BOOL)ame449_isCollapsed;
-
 @end
 
 #pragma mark - 行卡基类

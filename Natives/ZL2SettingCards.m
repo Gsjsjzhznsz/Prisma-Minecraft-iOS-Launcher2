@@ -21,40 +21,10 @@
 //
 
 #import "ZL2SettingCards.h"
-#import "utils.h"   // ★Task449：localize（组头标题 i18n 化）
 #import "ZL2Theme.h"
 #import "ZL2M3Kit.h"
-#import "LauncherPreferences.h"   // ★Task449：折叠覆盖集持久化（general.fold_overrides）
-#import "BackgroundManager.h"     // ★Task449：行卡面壁纸清扫标记（Ame449MarkCardSurface）
 
 #pragma mark - 私有小件
-
-/// ★Task449：折叠覆盖集读写（单键 general.fold_overrides，空格分隔 token：
-///   "+key"=用户展开压过默认折叠 / "-key"=用户收起压过默认展开；未登记的组
-///   走页面 defaultCollapsed 语义。注册键见 PLPreferences defaults general 段。）
-static NSMutableDictionary<NSString *, NSNumber *> *ame449_foldOverrideMap(void) {
-    NSMutableDictionary<NSString *, NSNumber *> *map = [NSMutableDictionary dictionary];
-    NSString *raw = [getPrefObject(@"general.fold_overrides") isKindOfClass:NSString.class]
-        ? (NSString *)getPrefObject(@"general.fold_overrides") : @"";
-    for (NSString *token in [raw componentsSeparatedByCharactersInSet:
-                             [NSCharacterSet whitespaceCharacterSet]]) {
-        if (token.length < 2) continue;
-        NSString *key = [token substringFromIndex:1];
-        if ([token hasPrefix:@"+"]) map[key] = @YES;
-        else if ([token hasPrefix:@"-"]) map[key] = @NO;
-    }
-    return map;
-}
-
-static void ame449_foldOverrideSet(NSString *key, BOOL expanded) {
-    NSMutableDictionary *map = ame449_foldOverrideMap();
-    map[key] = @(expanded);
-    NSMutableArray<NSString *> *tokens = [NSMutableArray array];
-    for (NSString *k in map) {
-        [tokens addObject:[NSString stringWithFormat:@"%@%@", map[k] ? @"+" : @"-", k]];
-    }
-    setPrefString(@"general.fold_overrides", [tokens componentsJoinedByString:@" "]);
-}
 
 /// M3 RadioButton 圆钮（20pt 圆环：未选 onSurfaceVariant 描边空心，
 /// 选中 primary 描边 + 10pt primary 圆点）——List 行与 Enum 行共用
@@ -101,15 +71,6 @@ static void ame449_foldOverrideSet(NSString *key, BOOL expanded) {
 
 @interface ZL2SettingCardGroup ()
 @property (nonatomic, strong) UIStackView *stack;
-// ★Task449：可折叠组头（nil = 非折叠组，布局与旧版逐字节一致）
-@property (nonatomic, strong) UIControl *ame449_header;
-@property (nonatomic, strong) UILabel *ame449_titleLabel;
-@property (nonatomic, strong) UILabel *ame449_countLabel;
-@property (nonatomic, strong) UIImageView *ame449_chevron;
-@property (nonatomic, strong) NSLayoutConstraint *ame449_stackTopNoHeader;
-@property (nonatomic, strong) NSLayoutConstraint *ame449_stackTopWithHeader;
-@property (nonatomic, assign, getter=ame449_isCollapsed) BOOL ame449_collapsed;
-@property (nonatomic, copy) NSString *ame449_persistKey;
 @end
 
 @implementation ZL2SettingCardGroup
@@ -123,10 +84,8 @@ static void ame449_foldOverrideSet(NSString *key, BOOL expanded) {
     _stack.spacing = 0.0;   // 连体：行间零缝
     _stack.translatesAutoresizingMaskIntoConstraints = NO;
     [self addSubview:_stack];
-    NSLayoutConstraint *topNoHeader = [_stack.topAnchor constraintEqualToAnchor:self.topAnchor];
-    _ame449_stackTopNoHeader = topNoHeader;
     [NSLayoutConstraint activateConstraints:@[
-        topNoHeader,
+        [_stack.topAnchor constraintEqualToAnchor:self.topAnchor],
         [_stack.bottomAnchor constraintEqualToAnchor:self.bottomAnchor],
         [_stack.leadingAnchor constraintEqualToAnchor:self.leadingAnchor],
         [_stack.trailingAnchor constraintEqualToAnchor:self.trailingAnchor],
@@ -141,13 +100,11 @@ static void ame449_foldOverrideSet(NSString *key, BOOL expanded) {
 - (void)ame_addRow:(UIView *)row {
     [self.stack addArrangedSubview:row];
     [self ame_reapplyCorners];
-    [self ame449_refreshHeader];
 }
 
 - (void)ame_addRows:(NSArray<UIView *> *)rows {
     for (UIView *row in rows) [self.stack addArrangedSubview:row];
     [self ame_reapplyCorners];
-    [self ame449_refreshHeader];
 }
 
 - (void)ame_removeAllRows {
@@ -155,158 +112,10 @@ static void ame449_foldOverrideSet(NSString *key, BOOL expanded) {
         [self.stack removeArrangedSubview:row];
         [row removeFromSuperview];
     }
-    [self ame449_refreshHeader];
 }
 
 - (NSUInteger)rowCount {
     return self.stack.arrangedSubviews.count;
-}
-
-#pragma mark - ★Task449 可折叠组头（设置去杂乱：每功能区默认折叠大部分选项）
-
-// 最近 UIScrollView 公共祖先（折叠动画单 pass 全量捕获：旧 RowList 判例同款）
-- (UIScrollView *)ame449_nearestScrollView {
-    UIView *node = self.superview;
-    while (node && ![node isKindOfClass:[UIScrollView class]]) node = node.superview;
-    return (UIScrollView *)node;
-}
-
-// 组头刷新：行数徽章 + chevron 旋转态
-- (void)ame449_refreshHeader {
-    if (!self.ame449_header) return;
-    self.ame449_countLabel.text = [NSString stringWithFormat:@"%lu", (unsigned long)self.stack.arrangedSubviews.count];
-    self.ame449_chevron.transform = self.ame449_collapsed
-        ? CGAffineTransformIdentity : CGAffineTransformMakeRotation(M_PI_2);
-}
-
-// 启用折叠（页建组时调用一次）：组头 = 标题 + 行数徽章 + chevron；
-// 折叠态 = 用户覆盖集 > 页面 defaultCollapsed
-- (void)ame449_enableCollapsingWithTitle:(NSString *)title
-                                     key:(NSString *)key
-                        defaultCollapsed:(BOOL)defaultCollapsed {
-    if (self.ame449_header || title.length == 0 || key.length == 0) return;
-    self.ame449_persistKey = key;
-
-    UIControl *header = [[UIControl alloc] init];
-    header.translatesAutoresizingMaskIntoConstraints = NO;
-    header.backgroundColor = UIColor.clearColor;
-    header.isAccessibilityElement = YES;
-    header.accessibilityTraits = UIAccessibilityTraitButton;
-    header.accessibilityLabel = title;
-
-    UILabel *titleLabel = [[UILabel alloc] init];
-    titleLabel.text = title;
-    titleLabel.font = [ZL2Theme fontTitleMedium];
-    titleLabel.textColor = [ZL2Theme onSurfaceVariant];
-    titleLabel.numberOfLines = 1;
-    titleLabel.translatesAutoresizingMaskIntoConstraints = NO;
-
-    UILabel *countLabel = [[UILabel alloc] init];
-    countLabel.font = [ZL2Theme fontLabelMedium];
-    countLabel.textColor = [ZL2Theme onSurfaceVariant];
-    countLabel.textAlignment = NSTextAlignmentRight;
-    countLabel.numberOfLines = 1;
-    countLabel.translatesAutoresizingMaskIntoConstraints = NO;
-
-    UIImage *chevronImg = [UIImage systemImageNamed:@"chevron.right"];
-    if (!chevronImg) chevronImg = [UIImage systemImageNamed:@"chevron.forward"];
-    UIImageView *chevron = [[UIImageView alloc] initWithImage:
-        [chevronImg imageWithRenderingMode:UIImageRenderingModeAlwaysTemplate]];
-    chevron.tintColor = [ZL2Theme onSurfaceVariant];
-    chevron.contentMode = UIViewContentModeScaleAspectFit;
-    chevron.translatesAutoresizingMaskIntoConstraints = NO;
-
-    [header addSubview:titleLabel];
-    [header addSubview:countLabel];
-    [header addSubview:chevron];
-    [self addSubview:header];
-
-    NSLayoutConstraint *topWithHeader = [self.stack.topAnchor constraintEqualToAnchor:header.bottomAnchor];
-    self.ame449_stackTopWithHeader = topWithHeader;
-    [NSLayoutConstraint activateConstraints:@[
-        [header.topAnchor constraintEqualToAnchor:self.topAnchor],
-        [header.leadingAnchor constraintEqualToAnchor:self.leadingAnchor],
-        [header.trailingAnchor constraintEqualToAnchor:self.trailingAnchor],
-        [header.heightAnchor constraintEqualToConstant:44.0],
-
-        [titleLabel.leadingAnchor constraintEqualToAnchor:header.leadingAnchor constant:16],
-        [titleLabel.centerYAnchor constraintEqualToAnchor:header.centerYAnchor],
-        [titleLabel.trailingAnchor constraintLessThanOrEqualToAnchor:countLabel.leadingAnchor constant:-8],
-
-        [countLabel.trailingAnchor constraintEqualToAnchor:chevron.leadingAnchor constant:-8],
-        [countLabel.centerYAnchor constraintEqualToAnchor:header.centerYAnchor],
-
-        [chevron.trailingAnchor constraintEqualToAnchor:header.trailingAnchor constant:-16],
-        [chevron.centerYAnchor constraintEqualToAnchor:header.centerYAnchor],
-        [chevron.widthAnchor constraintEqualToConstant:14],
-        [chevron.heightAnchor constraintEqualToConstant:14],
-
-        topWithHeader,
-    ]];
-
-    self.ame449_header = header;
-    self.ame449_titleLabel = titleLabel;
-    self.ame449_countLabel = countLabel;
-    self.ame449_chevron = chevron;
-
-    // 顶约束切换：栈顶从组视图顶改为组头底（旧约束保留待退役）
-    self.ame449_stackTopNoHeader.active = NO;
-    topWithHeader.active = YES;
-
-    // 折叠初态：用户覆盖集优先，未登记走 defaultCollapsed
-    NSNumber *override = ame449_foldOverrideMap()[key];
-    self.ame449_collapsed = override ? !override.boolValue : defaultCollapsed;
-    [header addTarget:self action:@selector(ame449_toggleTapped) forControlEvents:UIControlEventTouchUpInside];
-    [self ame449_applyCollapsedAnimated:NO];
-}
-
-// 折叠/展开：行卡 arranged hidden 切换（stack 高度即随行数变化），
-// 动画走最近 UIScrollView 祖先单 pass（RowList 展开动画判例同款：
-// 深子树 layoutIfNeeded 会让祖先帧在动画块外裸奔 = 组外行瞬移）
-- (void)ame449_applyCollapsedAnimated:(BOOL)animated {
-    NSArray<UIView *> *rows = self.stack.arrangedSubviews;
-    UIScrollView *page = [self ame449_nearestScrollView];
-    void (^apply)(void) = ^{
-        for (UIView *row in rows) row.hidden = self.ame449_collapsed;
-        [self ame449_refreshHeader];
-    };
-    if (!animated) {
-        apply();
-        return;
-    }
-    [UIView animateWithDuration:0.24
-                          delay:0.0
-                        options:UIViewAnimationOptionCurveEaseInOut
-                     animations:^{
-        apply();
-        [(page ?: self.superview) layoutIfNeeded];
-    } completion:nil];
-}
-
-- (void)ame449_toggleTapped {
-    self.ame449_collapsed = !self.ame449_collapsed;
-    if (self.ame449_persistKey.length) {
-        ame449_foldOverrideSet(self.ame449_persistKey, !self.ame449_collapsed);
-    }
-    [self ame449_applyCollapsedAnimated:(self.superview != nil)];
-}
-
-// 程序赋值入口（不落盘——刷新路径安全回写）
-- (void)ame449_setCollapsed:(BOOL)collapsed animated:(BOOL)animated {
-    if (!self.ame449_header) return;
-    self.ame449_collapsed = collapsed;
-    [self ame449_applyCollapsedAnimated:animated];
-}
-
-// ★Task454 设置闪退根因修复（用户崩溃 .ips 符号化实锤 58f8b2d2，栈深 31403 帧栈
-//  溢出 SIGSEGV@StackGuard）：本 getter 初版误用点语法 self.ame449_collapsed 读自身
-//  ——该 property 声明 getter=ame449_isCollapsed（L111），点语法即调用本方法 = 无限
-//  自递归；Task449 引入，被「打开即闪退」遮蔽至 Task453 根修后用户首进设置即触发
-//  （ShellTap 点设置 → SettingsVC attachPage → 建组 enableCollapsing →
-//  applyCollapsedAnimated 块 L270 row.hidden = self.ame449_collapsed 首读即爆）。
-//  改直读下划线 ivar（绕开 getter 分派，语义等价）：
-- (BOOL)ame449_isCollapsed {
-    return _ame449_collapsed;
 }
 
 // 按位置拼圆角（见文件头规格注）：
@@ -319,7 +128,6 @@ static void ame449_foldOverrideSet(NSString *key, BOOL expanded) {
     CGFloat inner = [ZL2Theme radiusXS];
     [rows enumerateObjectsUsingBlock:^(UIView *row, NSUInteger idx, BOOL *stop) {
         row.backgroundColor = [ZL2Theme surfaceContainer];
-        Ame449MarkCardSurface(row);   // ★Task449：卡面标记（壁纸在场 = 基色×α(uiOpacity)）
         CALayer *layer = row.layer;
         if (count == 1) {
             layer.cornerRadius = outer;
@@ -700,48 +508,23 @@ static void ame449_foldOverrideSet(NSString *key, BOOL expanded) {
     [self ame_setExpanded:!self.expanded animated:(self.superview != nil)];
 }
 
-// ★Task449：最近 UIScrollView 公共祖先（展开动画单 pass 捕获面）
-- (UIScrollView *)ame449_nearestScrollView {
-    UIView *node = self.superview;
-    while (node && ![node isKindOfClass:[UIScrollView class]]) node = node.superview;
-    return (UIScrollView *)node;
-}
-
-// ★Task449 展开动画根修（用户实测三症状：标题被顶上去 / 居中展开 / 抖动）。
-//   旧实现三缺陷：
-//   ① optionsStack.hidden 翻转与约束切换同块动画——非排列子视图 unhide 触发
-//     独立布局 pass，两套帧叠算 = 抖动源；
-//   ② [self.superview layoutIfNeeded] 落在 group.stack 深子树——祖先卡片/
-//     组栈/滚动内容帧在动画块外裸奔（runloop 末瞬移），组外行不跟随；
-//   ③ 深子树 pass 内组栈自身高度被旧卡片高度钉死，展开行在不可满足空间里
-//     被压缩折衷（文本栈顶约束被牺牲）= 标题被顶 + 视觉居中展开。
-//   新序：准备段（非动画：unhide + 约束切换预置）→ 动画段（最近 UIScrollView
-//   公共祖先 layoutIfNeeded，行顶恒被组栈钉住 = 顺滑向下展开零跳动）。
 - (void)ame_setExpanded:(BOOL)expanded animated:(BOOL)animated {
     if (self.expanded == expanded) return;
     self.expanded = expanded;
     void (^apply)(void) = ^{
+        self.optionsStack.hidden = !expanded;
         self.collapsedBottom.active = !expanded;
         self.expandedBottom.active = expanded;
         self.chevronView.transform = expanded ? CGAffineTransformMakeRotation(M_PI_2)
                                               : CGAffineTransformIdentity;
     };
     if (animated) {
-        if (expanded) self.optionsStack.hidden = NO;   // 准备段：解除隐藏不参与动画
-        UIScrollView *page = [self ame449_nearestScrollView];
-        [UIView animateWithDuration:0.24
-                              delay:0.0
-                            options:UIViewAnimationOptionCurveEaseInOut
-                                  | UIViewAnimationOptionAllowUserInteraction
-                         animations:^{
+        [UIView animateWithDuration:0.18 animations:^{
             apply();
-            [(page ?: self.superview) layoutIfNeeded];
-        } completion:^(BOOL finished) {
-            if (!expanded) self.optionsStack.hidden = YES;   // 收起动画后再隐藏
+            [self.superview layoutIfNeeded];
         }];
     } else {
         apply();
-        self.optionsStack.hidden = !expanded;
     }
 }
 

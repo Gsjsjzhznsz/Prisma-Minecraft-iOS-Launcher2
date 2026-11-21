@@ -1,6 +1,5 @@
 #import "AmePluginRuntime.h"
 #import "AmePluginKit.h"
-#import "utils.h"   // ★Task449：localize（隔离化原因 i18n 化）
 #import "ZL2Theme.h"   // Task317：主题令牌覆盖钩子（ame317_setPluginThemeTokens）
 #import "ZL2ShellViewController.h"   // ★ Task366：页面切换通知契约（page.changed 事件源）
 
@@ -518,7 +517,7 @@ static NSString *ame317_facadeSource(void) {
         id json = raw ? [NSJSONSerialization JSONObjectWithData:raw options:0 error:nil] : nil;
         if (![json isKindOfClass:[NSDictionary class]]) {
             [self ame344_quarantinePluginDir:dir pluginId:pid
-                                      reason:(raw ? localize(@"ame449.plugin.mf_not_json", @"manifest.json 非 JSON 对象") : localize(@"ame449.plugin.mf_unreadable", @"manifest.json 不可读"))];
+                                      reason:(raw ? @"manifest.json 非 JSON 对象" : @"manifest.json 不可读")];
             continue;
         }
         // ① 权限谱系映射（一代 Task318 注册表 → 现役注册表）
