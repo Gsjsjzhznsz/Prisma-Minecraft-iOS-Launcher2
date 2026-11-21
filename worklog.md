@@ -5533,3 +5533,19 @@ Work Log:
 Stage Summary:
 - 装机锚点（BuildTag=Task463 · 2026-11-22）：①设置页 38 组折叠回潮（组头 = 标题+行数徽章+chevron，点按折叠/展开；general.fold_overrides 单键持久化，用户覆盖压过页面默认）②renderer/video/memory_jvm/touch/gamepad/appearance/runtime_map/layouts 默认展开七类，其余默认折叠 ③折叠面四件旧防线与十项找回面原样在场（Task462 契约零回归）④壁纸清扫/455/456/458/460/topbar 锁定面维持退役（X 门执法不变）；JIT op4 处置移交用户（重启调试器 App → 重新指派 Universal 脚本 → 删条目重开 → 换工具，弹窗四步）
 - 【Task463 闭环补记】代码轮双绿 attempt 2（dev 44931024805 + ui-smoke 44934245366）+ website 规范构建 44936320627 success + 四产物唯一命名归档 + 二进制验证 8/8 ALL PASS；闭环轮推送
+---
+Task ID: 464
+Agent: main (Super Z)
+Task: Prisma-Minecraft-iOS-Launcher2「JIT op4 金丝雀误杀修正」轮（用户诉「问题依旧。为什么一代正常。拉个对比一下。」）
+
+Work Log:
+- 同机 A/B 对比取证（用户关键证据「一代正常」）：Task463 构建日志 Ame451 preflight PASSED（x16=1 分配通道健康，64MB grant 零取指 exec 探针过）→ Task457 canary verdict=0（x16=4 探测，SIGTRAP 快速失败无 20s watchdog）→ graceful abort；同机一代构建正常启动 = 一代 mirrored 的 op4 分支未执行（若执行，一代裸调 JIT26PrepareRegionForPatching 无 SIGTRAP handler 必进程死亡，与「一代正常」矛盾）→ 用户设备 FORCE_MIRRORED=0（iOS 27 匿名页 RX 可建）实锚
+- 协议考古定谳：UniversalJIT26.js（两代 bundle 逐字节一致，296 行）commands 表仅 x16=0/1/2（DETACH/PREPARE_REGION/NEW_BREAKPOINTS）——x16=4（PrepareRegionForPatching）在脚本协议中不存在：调试器侧 Unknown command 4 → return 不推进 PC → 异常回交系统 SIGTRAP → canary served=NO = 协议必然，与调试器健康无关。Task457 canary 无条件对 Mirrored 路径探测「实际不会走的路径」（mirrored 内 op4 调用条件 FORCE_MIRRORED|HAS_TXM 与语义，用户设备 FORCE_MIRRORED=0 永不进入）= 必然误杀（Task463/462 树连续两轮启动失败同一根因，非调试器侧状态问题——上轮弹窗文案的「调试器侧」定性被本轮对比实证推翻）
+- 修复（一代行为逐指令对齐）：init canary 运行条件收紧为与 redirectFunctionMirrored 内部 op4 实际调用条件完全一致（redirectFunction == redirectFunctionMirrored && DeviceHasJITFlags(JIT_FLAG_FORCE_MIRRORED | JIT_FLAG_HAS_TXM)）——用户设备 canary 跳过 → searchAndPatch vm_remap 直达（与一代同路径）→ 启动恢复；真需 op4 设备（FORCE_MIRRORED=1，Task457 .ips 实锤闪退形态）canary 保留：死=真死→ame457 诊断窗优雅退出，防线零回退
+- 门禁：新门 task464_selfcheck 11 断言（R1 canary 双行条件锚 + R2 判例注释三锚 + R3 脚本 commands 表协议取证锚 + R4-R8 Task457 防线四件不回退 + S1 代际 + S2 电池注册 + S3 i18n 抽样）+ task457 R4b+ 条件锚新增/S1 位置序锚随判例更新（单行→双行形态）+ 电池 37/37 ALL GREEN + BuildTag 五锚代际重锚 Task464 · 2026-11-22（BuildTag.h/task452 A5/task457 R6b/task461 S1/task462 S1）
+- CI 一轮双绿（dev 44938100901 + ui-smoke 44938100861 push 触发，attempt 1 零雷）；产物四件唯一命名归档（__Task464__44938100901 集：ipa/tipa/dSYM/preview）+ 二进制验证 6/6 PASS（BuildTag Task464 UTF-16LE 在场/Task463 代际归零/Task457 Safe 防线在场/Task463 折叠面 ame449_enableCollapsingWithTitle+general.fold_overrides 在场/锁定面退役归零 ame449_sweep·ame450_isCardFamilyColor·Ame449MarkCardSurface·ame455_consumeStartupRebuild）+ 判例校准：C 注释与代码条件为编译期剥离物不入二进制，源码级断言由 task464 R1 门 + CI 构建链背书
+- 判例入册：**「同机 A/B 对比优先于环境归因」**——用户提供对照样本（一代正常）直接推翻上轮环境性归因（弹窗文案「调试器侧通道状态问题」定性错误）；canary 类防线设计铁律：探测对象必须与防线保护路径的实际调用条件严格一致，探测「条件性不可达路径」= 必然假阴性
+
+Stage Summary:
+- 装机锚点（BuildTag=Task464 · 2026-11-22）：①同机一代行为对齐——启动不再弹 ame457 拦截窗，JVM 经 vm_remap bypass 直达（用户设备 canary 跳过实锚）②Task457 防线对真需 op4 设备原样在场（FORCE_MIRRORED=1 形态不变）③Task463 折叠 38 组/十项找回面/粉色钦定壳原样在场零回归；装机后验证锚：启动游戏应越过「等待 JIT」弹窗进入 JVM 日志（`[DyldLVBypass] hook dyld_mmap succeed!` 预期锚）；若 FORCE_MIRRORED=1 设备（非用户机型）仍弹窗 = canary 真死 = 防线正确工作
+- 【Task464 闭环补记】代码轮 attempt 1 双绿（dev 44938100901 + ui-smoke 44938100861）+ 四产物唯一命名归档 + 二进制验证 6/6 PASS；闭环轮推送
