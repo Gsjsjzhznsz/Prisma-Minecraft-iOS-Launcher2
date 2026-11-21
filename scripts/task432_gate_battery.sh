@@ -91,3 +91,6 @@ for k in "${!RESULT[@]}"; do
 done
 echo "PASS $((${#RESULT[@]} - fails)) / ${#RESULT[@]}  FAIL $fails"
 [ $fails -eq 0 ] && echo "Task432 gate battery ALL GREEN"
+
+# ★Task461 回退树组合执法（重应用四件防线 + 退役面归零 + 粉色钦定形态）
+run_py task461     scripts/task461_selfcheck.py

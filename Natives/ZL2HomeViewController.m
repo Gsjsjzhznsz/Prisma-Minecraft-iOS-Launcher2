@@ -746,35 +746,30 @@ static UIImage *ZL2HomeSizedImage(NSString *name, NSString *fallback, CGFloat po
     if (ame414_n > 5) {
         ame414_full = ZL2HomeVersionFlowItemH + (CGFloat)(ame414_n - 1) * ame414_pitch;
     }
-    if (ame414_full <= ame414_ideal + 0.5) {
-        if (fabs(_ame414_versionHeight.constant - ame414_ideal) > 0.5) _ame414_versionHeight.constant = ame414_ideal;
-        return;
-    }
-    // ★Task415c 余量重算：启动卡钉出滚动区后视口 = menuScrollView 自身高
-    //   （旧式减 _launchCard 帧的口径随钉底三钉失效）；余量 = 视口 − 账户卡
-    //   − 卡间间隙 − 版本卡内构
-    // ★Task443（用户复诉「转盘的设置和刷新必须切换几下才有，第二次刷新就
-    //   吞掉」· 数学实锤根修）：旧公式漏减快航瓦片卡高与其下方卡间间隙——
-    //   滚动内容总高 = quickNavH + gap + accountH + gap + (target + 内构)，
-    //   代入旧 avail 恒等于 scrollH + quickNavH + gap > 视口 = 版本卡尾部
-    //   （卡尾刷新/齿轮两钮 + flow 底行）恒卷出滚动可视区，滚动侧栏才可见
-    //   = 「切换几下才有」实体；两次 Task346 根重建重置滚动位相放大观感。
-    //   补减快航卡帧与其下间隙后，target 收敛时内容总高 ≤ 视口，卡尾两钮
-    //   恒在首屏可视区（滚动位相无关）。
+    // ★Task461（Task459 余量钳制最小适配·回退树版）：余量计算前置，n≤5 分支
+    //   同享钳制——448 形态 full==ideal 恒真早退直接 set(ideal) 无余量约束，
+    //   avail < 卡理想高（矮窗/少实例）时卡尾刷新/齿轮两钮被滚动视口底缘整体
+    //   裁剪 = 第四轮「版本设置去哪里了」临床面。n≤5 收 target =
+    //   fmax(单行64, fmin(full, avail))（Task459 同款，余量充足时恒等 ideal
+    //   零观感差）；n>5 的 Task443 补减公式与 Task415c 软下限语义原样保留。
     CGFloat ame414_avail = self.menuScrollView.bounds.size.height
         - _quickNavCard.frame.size.height   // ★Task443 补：快航瓦片卡（旧公式漏减）
         - ZL2HomeCardGap   // ★Task443 补：快航卡→账户卡间隙
         - _accountCard.frame.size.height
         - ZL2HomeCardGap   // 账户卡→版本卡间隙（stack spacing 同值）
         - (2.0 * ZL2HomeCardPadding + ZL2HomeCardFooterHeight + 6.0 + 4.0);   // 版本卡内构
-    CGFloat ame414_target = ame414_full;
-    if (ame414_avail < ame414_full) {
+    CGFloat ame414_target;
+    if (ame414_full <= ame414_ideal + 0.5) {
+        ame414_target = fmax((CGFloat)ZL2HomeVersionFlowItemH, fmin(ame414_full, ame414_avail));
+    } else if (ame414_avail < ame414_full) {
         // ★Task415c 软下限：五行常规下限；连五行都放不下的矮窗收到三行
         //   （滚轮可拖语义无损），仍优于把启动卡/插件 chip 顶出屏（第 24 轮
         //   「部分区域都卡在下面」优先级高于五行口径）
         CGFloat ame414_floor3 = ZL2HomeVersionFlowItemH + 2.0 * ame414_pitch;
         CGFloat ame414_softFloor = fmax(ame414_floor3, fmin(ame414_ideal, ame414_avail));
         ame414_target = fmax(ame414_softFloor, fmin(ame414_full, ame414_avail));
+    } else {
+        ame414_target = ame414_full;
     }
     if (fabs(_ame414_versionHeight.constant - ame414_target) > 0.5) {
         _ame414_versionHeight.constant = ame414_target;

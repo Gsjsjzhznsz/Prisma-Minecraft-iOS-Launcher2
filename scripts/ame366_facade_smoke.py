@@ -7,7 +7,7 @@
 # ame.dialog 对象字面量覆盖顶层函数（四内置件兼容性回归）双雷均由此拦下。
 import io, re, subprocess, sys
 
-REPO = "/home/z/my-project/repo-prisma2"
+REPO = __import__("os").environ.get("AME_REPO") or __import__("os").path.abspath(__import__("os").path.join(__import__("os").path.dirname(__import__("os").path.abspath(__file__)), ".."))   # ★Task461：默认口径改脚本自身位置解析（历史绝对路径 repo-prisma2 随沙箱回收失效，Task455 六脚本判例同族；AME_REPO 覆盖语义保留）
 rt = io.open(REPO + "/Natives/AmePluginRuntime.m", encoding="utf-8").read()
 start = rt.index("static NSString *ame317_facadeSource(void)")
 end = rt.index("#pragma mark - 装载 / 卸载", start)

@@ -852,7 +852,6 @@ static const CGFloat Ame429WallpaperMaxPixelCap = 2048.0;
         [self makeViewControllerTransparent:childVC];
     }
 
-(fix(cycle17): Task452 —— 「打开即闪退」判读轮四件交付（装机 eac50ad latestlog 实锤：日志止于 [Ame417] 壳构建尾且无异常块 = stderr 无缓冲 _IONBF + Task171 证据链口径下硬信号级死亡；死亡窗口 = [背景宿主安装 → buildViews → autoCheck] 三段静默带，窗口内唯一新执行面 = Task449/450 壁纸清扫（wallpaper=1 专属，CI harness 无壁纸零覆盖）；设备处于议题#3 三轮装机定罪的 JIT26 空壳 RX 通道，Task451 预检只护游戏发射而启动器自身 JSC（插件引擎 AmePluginBridge）与 JVM 同享 enabler 可执行映射通道 = 插件 JS 生命周期事件爆发期 JIT'd 函数首取指 SIGBUS 结构性裸露）：①启动器自身 JSC 解释器钉死（main.m JSC_useJIT/useBaselineJIT/useDFGJIT/useFTLJIT 环境族，JSC Options 首 VM 读环境远早于任何 JSContext；插件 JS 均 UI 胶水脚本零功能变化；逃生阀 debug.plugin_jit_allow 注册 PLPreferences debug 段默认关）②首帧链分段签名 6 锚（壳背景宿主/壳 viewDidLoad 收尾 + 主页 buildViews done/launch-state/首布局/首帧完成——下轮装机日志尾最后一签名单段钉出崩段，Task441 判例 N+28 取证口径同源）③新执行面 @try 收敛（主页 buildViews 整体 @try 异常降级签名 + ame452_buildOK 下游门控防 nil 二次雷 / 背景宿主重建 @try alpha 恒 0 装饰降级 / 清扫管线挂点 @try——Task450-r1 P0 判例同型家法）④电池 33→38 诚实收编（task447/449/450/451 存量自检首次入列 + task452 新门 17 断言；清偿四漂移：449/450/451 T1 轮次锁死字面量改形态验（Task439 判例④同型，新鲜度职责移交专门门）+ 449 D8 0.5 下限断言随 Task450② 固定 0.72 档语义重锚 + ame365 深历史基线 unshallow 环境修复）+ BuildTag Task452 · 2026-11-19)
     // Task161：模态弹窗页面级毛玻璃底收口到方法末尾——必须在上方
     // UITableViewController 分支（backgroundView = nil）之后执行，否则
     // table 控制器的 glass 会被立即清掉。仅毛玻璃模式（Task160 语义）。

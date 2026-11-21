@@ -81,15 +81,14 @@ check("A4-2 buildViews 失败下游门控",
       and "home downstream skipped" in home_m)
 check("A4-3 背景宿主重建 @try",
       "@try {" in host_m and "background-host rebuild EXCEPTION signature" in host_m)
-check("A4-4 清扫管线 makeViewControllerTransparent 挂点 @try",
-      "wallpaper sweep EXCEPTION signature" in bg_m)
-sweep_calls = len(re.findall(r"\[self ame449_sweepChromeAndCardsInView:", bg_m))
-check("A4-5 清扫调用点 @try 包裹（递归体裸调 1 处 + 收敛点护栏）",
-      sweep_calls >= 2 and
-      bg_m.count("@try {") >= 1)
+# ★Task461 判例重锚：A4-4/A4-5 清扫挂点断言随 Task449/450 壁纸清扫管线整链退役
+#   而退役（Task461 回退树 = 448 基线，ame449_sweep 全仓归零由 task461_selfcheck
+#   X2-1/X2-2 执法）；A4 家族收敛为 A4-1~A4-3 三件（主页/门控/背景宿主）。
+check("A4-4 清扫挂点随 449 退役判例（BackgroundManager 无 ame449_sweep 残留）",
+      "ame449_sweep" not in bg_m)
 
 # ---- A5 BuildTag 重锚 ----
-check("A5 BuildTag Task452 · 2026-11-19", 'Task452 · 2026-11-19' in tag_h)
+check("A5 BuildTag Task461 · 2026-11-21（回退树代际重锚）", 'Task461 · 2026-11-21' in tag_h)
 
 print()
 if fails:

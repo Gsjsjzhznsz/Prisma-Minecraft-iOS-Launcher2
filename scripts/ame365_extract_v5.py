@@ -5,7 +5,7 @@
 import subprocess, io, os, sys
 
 import os as _os
-REPO = _os.environ.get("AME_REPO", "/home/z/my-project/repo-prisma2")
+REPO = __import__("os").environ.get("AME_REPO") or __import__("os").path.abspath(__import__("os").path.join(__import__("os").path.dirname(__import__("os").path.abspath(__file__)), ".."))   # ★Task461：默认口径改脚本自身位置解析（历史绝对路径 repo-prisma2 随沙箱回收失效，Task455 六脚本判例同族；AME_REPO 覆盖语义保留）
 src = subprocess.run(
     ["git", "-C", REPO, "show", "HEAD:Natives/AI/AiSettings.m"],
     capture_output=True, text=True, check=True).stdout.replace("\r\n", "\n")
