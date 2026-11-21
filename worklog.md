@@ -5499,3 +5499,5 @@ Work Log:
 
 Stage Summary:
 - 装机锚点（BuildTag=Task461 · 2026-11-21）：①壳 = 粉色钦定 bare 形态（topbar 蓝图，无左侧栏）②下载页三仓库轨复位 ③JIT26 预检 + dyld Safe 双防线在场 ④JSC 钉死在场 ⑤版本卡钳制在场；数据面待用户装机后五分钟重置（插件×6 + 壁纸 + 账户）
+
+- 【Task461 闭环补记】docs 轮规范构建 44888413253 success + 四产物唯一命名归档（AngelAuraAmethyst__Task461__44888413253 集：ipa/tipa/dSYM/preview，ipa=嵌套形态 tipa=直装本体单层）+ task461_artifact_verify 15 断言 ALL PASS（BuildTag Task461 UTF-16LE 在场/Task459 代际归零/修复面符号三件 ame451·Task452 JSC·ame457/退役面二进制级归零 ame449_sweep·ame450_isCardFamilyColor·ame449_enableCollapsing/dSYM 新 UUID）；Task461 铁律全链闭环
