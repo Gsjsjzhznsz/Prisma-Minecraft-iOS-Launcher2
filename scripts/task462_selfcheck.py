@@ -164,7 +164,7 @@ check("X7-2 壁纸功能本体在场（ame429）",
 
 print("== S 敏感性样本 ==")
 tag = rd("Natives/BuildTag.h")
-check("S1 BuildTag Task463 · 2026-11-22", "Task463 · 2026-11-22" in tag)
+check("S1 BuildTag Task464 · 2026-11-22", "Task464 · 2026-11-22" in tag)
 check("S2 电池注册 task462", "task462_selfcheck" in rd("scripts/task432_gate_battery.sh"))
 
 print(f"\n========================================")

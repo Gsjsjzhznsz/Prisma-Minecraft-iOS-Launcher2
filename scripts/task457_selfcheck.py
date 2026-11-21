@@ -86,6 +86,8 @@ check("R4b op4 通道金丝雀（匿名 RW 探针页 round-trip，死通道 → 
       "op4 canary verdict=%d (scratch-page round-trip)" in dyld
       and "JIT26PrepareRegionForPatchingSafe(ame457_scratch, 16)" in dyld
       and "JIT26 op4 channel dead -- dyld hooks would crash; aborting bypass gracefully" in dyld)
+check("R4b+ canary 条件收紧（★Task464：与 mirrored 内部 op4 实际调用条件一致）",
+      "redirectFunction == redirectFunctionMirrored\n        && DeviceHasJITFlags(JIT_FLAG_FORCE_MIRRORED | JIT_FLAG_HAS_TXM)) {" in dyld)
 check("R4c 金丝雀探针页释放（无泄漏）",
       "munmap(ame457_scratch, getpagesize());" in dyld)
 check("R4d dopamine 回退结果收编 + 两钩落位判定返回",
@@ -117,8 +119,8 @@ for f in (ROOT / "Natives" / "resources").glob("*/Localizable.strings"):
 check("R6a i18n 全语种入册（ame457 键面 == ame451 锚点键面）",
       lproj_key == lproj_anchor and lproj_key >= 54,
       f"ame457={lproj_key} anchor={lproj_anchor}")
-check("R6b BuildTag = Task463 · 2026-11-22（折叠恢复轮代际重锚）",
-      'ame415_buildTag = @"Task463 · 2026-11-22"' in buildtag)
+check("R6b BuildTag = Task464 · 2026-11-22（op4 误杀修正轮代际重锚）",
+      'ame415_buildTag = @"Task464 · 2026-11-22"' in buildtag)
 
 print("== X 全仓扫描 ==")
 
@@ -149,8 +151,9 @@ check("X4 utils.h 病历留档（.ips 判例防遗忘）",
 print("== S 敏感性自证 ==")
 
 # S1 金丝雀只在 Mirrored 路径（Direct/HW 通道零影响）
-check("S1 金丝雀仅 Mirrored（redirectFunctionDirect/HW 不受影响）",
-      dyld.index("if (redirectFunction == redirectFunctionMirrored) {") > dyld.index("redirectFunction = redirectFunctionMirrored;"))
+# ★Task464：canary 条件收紧为双行形态（+FORCE_MIRRORED|HAS_TXM），锚随判例更新
+check("S1 金丝雀仅 Mirrored 且带 op4 实调条件（redirectFunctionDirect/HW 不受影响）",
+      dyld.index("redirectFunction == redirectFunctionMirrored\n        && DeviceHasJITFlags(JIT_FLAG_FORCE_MIRRORED | JIT_FLAG_HAS_TXM)) {") > dyld.index("redirectFunction = redirectFunctionMirrored;"))
 check("S2 redirectFunctionDirect 函数体无 Safe 注入（零回归面）",
       "JIT26PrepareRegionForPatchingSafe" not in dyld.split("bool redirectFunctionHWBreakpoint")[0].split("bool redirectFunctionMirrored")[0])
 # S3 诊断窗文案阶梯与 ame451 家族一致（弹窗键 + 三语种样本在场）

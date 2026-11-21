@@ -295,7 +295,25 @@ BOOL init_bypassDyldLibValidation(void) {
     //   JIT26PrepareRegionForPatching+4 brk 61453）。先对匿名 RW 探针页做一次
     //   Safe op4：NO = 通道死（无调试器/死端口）→ 弃钩优雅返回 FALSE（调用方
     //   弹 ame457 诊断窗），不再带裸 brk 冲向 dyld 文本页。
-    if (redirectFunction == redirectFunctionMirrored) {
+    // ★ Task464 判例修正（用户诉「问题依旧。为什么一代正常。拉个对比一下」，
+    //   同机一代正常 + 二代 Task463 构建日志取证）：
+    //   ① UniversalJIT26.js commands 表仅 x16=0/1/2（DETACH/PREPARE_REGION/
+    //      NEW_BREAKPOINTS）——x16=4（PrepareRegionForPatching）在脚本协议中
+    //      不存在，Unknown command → 异常回交 SIGTRAP → canary verdict=0 =
+    //      协议必然，与调试器通道健康无关（同日志 Ame451 preflight x16=1
+    //      分配通道 PASSED 实证）；
+    //   ② 一代行为对齐：redirectFunctionMirrored 内 op4 仅在
+    //      DeviceHasJITFlags(FORCE_MIRRORED|HAS_TXM)（与语义）时才调用（两代
+    //      同条件）——用户设备 FORCE_MIRRORED=0（iOS 27 匿名页 RX 可建，否则
+    //      一代裸调 op4 连 SIGTRAP handler 都没有必闪退，与「一代正常」实证
+    //      矛盾）→ op4 永不被调用 → canary 探测的是实际不会走的路径 = 必然
+    //      误杀（Task463 树 verdict=0 abort 根因）；
+    //   ③ 本轮 canary 运行条件收紧为与 mirrored 内部 op4 实际调用条件完全
+    //      一致：FORCE_MIRRORED && HAS_TXM 设备保留 .ips 防线（真需 op4 的
+    //      设备 canary 死 = 真死 → 优雅诊断窗），其余设备 canary 跳过 → 与
+    //      一代行为逐指令对齐（vm_remap 直达）。
+    if (redirectFunction == redirectFunctionMirrored
+        && DeviceHasJITFlags(JIT_FLAG_FORCE_MIRRORED | JIT_FLAG_HAS_TXM)) {
         BOOL ame457_op4Alive = FALSE;
         void *ame457_scratch = mmap(NULL, getpagesize(), PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANON, -1, 0);
         if (ame457_scratch == MAP_FAILED) {
