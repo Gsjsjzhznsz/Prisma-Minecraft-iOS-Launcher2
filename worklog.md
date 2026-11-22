@@ -5549,3 +5549,20 @@ Work Log:
 Stage Summary:
 - 装机锚点（BuildTag=Task464 · 2026-11-22）：①同机一代行为对齐——启动不再弹 ame457 拦截窗，JVM 经 vm_remap bypass 直达（用户设备 canary 跳过实锚）②Task457 防线对真需 op4 设备原样在场（FORCE_MIRRORED=1 形态不变）③Task463 折叠 38 组/十项找回面/粉色钦定壳原样在场零回归；装机后验证锚：启动游戏应越过「等待 JIT」弹窗进入 JVM 日志（`[DyldLVBypass] hook dyld_mmap succeed!` 预期锚）；若 FORCE_MIRRORED=1 设备（非用户机型）仍弹窗 = canary 真死 = 防线正确工作
 - 【Task464 闭环补记】代码轮 attempt 1 双绿（dev 44938100901 + ui-smoke 44938100861）+ 四产物唯一命名归档 + 二进制验证 6/6 PASS；闭环轮推送
+---
+Task ID: 465
+Agent: main (Super Z)
+Task: Prisma-Minecraft-iOS-Launcher2「游戏启动链恢复仓库第一个预发行版」轮（用户诉「直接把游戏启动部分的代码恢复到仓库第一个预发行版的吧。」）
+
+Work Log:
+- 首预发行版定位：v2 仓唯一 release v1.0（f3d31003，2026-10-31「Prisma 2 Beta 发布」，全仓首个/唯一 prerelease）= 恢复靶；全项目更早预发行版为一代仓 v1.0.0-lwjgl3.4.1（2026-08-28），一代仓终态 v7.0（Task 333 时代）与 v2 v1.0 在 JIT26/dyld 家族同形态
+- Task464 定谳被装机证伪（关键转折）：Task464 构建装机 latestlog 显示 op4 canary **实跑且 verdict=0** ——Task464 前提「用户设备 FORCE_MIRRORED=0 → canary 跳过」错误，实况 = FORCE_MIRRORED 与 HAS_TXM 双 flags 为真（canary 条件与语义双 flags 必须全真才会运行）；即用户设备本就走 mirrored 路径、op4 是必经超调用
+- 根因定谳（Task465 判例）：UniversalJIT26.js 三代零改动（两仓 commit 哈希同源 479f75ca，cmp 逐字节一致），commands 表仅 x16=0/1/2，op4 处理器仅由 UniversalJIT26Extension.js（op2 BreakSendJITScript 推送、调试器 eval 注册）提供；脚本主循环对已知 brk 先 P20=pc+4 跳越再派发 → 未知命令 = 优雅跳过 = 裸函数正常返回；**canary/探针/预检的「调试器主动应答」语义在标准脚本会话永假**——Task437/451/457/464 四层启动拦截面在脚本协议不主动应答 op4 的现实下无一通过 = v2 独有拒发射链；同机一代（无此四层，v1.0 同形态裸调 best-effort + vm_remap 直达）正常起游戏 = 恢复靶形态实证可用
+- 恢复面（外科，+10/−644）：dyld_bypass_validation.m 整文件回填 v1.0（git show 直取，void init + 镜像裸 op4 + mmap 裸 op1 + 直写形态）；utils.h Safe 声明面退役 + init 签名回退 void；utils.m Task457 信号网+Safe 包装块退役（裸超调用四件套 x16=1/2/3/4 保留）；JavaLauncher.m 剥 Task437/451 静态家族（339-657）+ 调用块 + Task457 两中止面 + Task437 三 include（信号 API 残余扫描归零为前提）；PLPreferences jit26_preflight_disable 阀退役；54 语种两弹窗键（ame451_preflight/ame457_dyldhook）随面退役。保留面零触碰：Task433/434 TXM 镜像轨闸（JVM 可运行命脉）、Task304/301/342/267/302（≤368 = v1.0 原生）、main_hook 崩溃分类轴（Task437 分类器消费历史 marker，与启动拦截无关）、Task463 折叠 38 组
+- 门禁（判例 N+20：恢复轮双向执法 = 退役面归零 + 历史形态在场 + 保留面回归锚三组并行）：task465_restore_launchchain.py 恢复脚本入册（git blob 健全断言 + 切除块括号自证 + banned 五锚复核）；新门 task465_selfcheck 16 断言；task457/451/464 三门重写翻转（防线执法→退役执法，task464 R3 脚本取证锚保留）；task433 A17/A18 翻转 + S-5/S-6 改注入式敏感性；task461 R1-1/R1-2/R2-1/R2-3/S2/S3 六项翻转；task462 R10 地板 15 表 −2 + 代理键翻转；verify219 唯一键锚 4350→4348（−2 = 两弹窗键退役）；BuildTag 五锚代际重锚 Task465 · 2026-11-22；电池总裁决移至全部门之后（461/462/464 历史追加越线修复——总裁决原在 87 行、后追加门在其后执行致统计缺员）；电池 41/41 ALL GREEN
+- 判例入册：**N+19（注释含幂假阴）**——信号 API 残余扫描只认调用形态（带括号/类型声明），注释文本匹配会制造假阴；**N+20（恢复轮双向执法）**——「恢复到历史形态」的门禁必须三组并行（归零+在场+回归锚），缺一组即盲区；**判例校准（Task464 判例修正之修正）**——canary 类防线的探测对象若依赖调试器侧协议能力，必须先证该能力在目标会话中存在，否则防线 = 对标准会话的必然误杀
+- CI 一轮双绿（dev 45007378096 + ui-smoke 45007378129 push 触发，attempt 1 零雷）；产物四件唯一命名归档（__Task465__45007378096 集：ipa/tipa/dSYM/preview）+ 二进制验证 25/25 ALL PASS（BuildTag Task465 UTF-16LE 在场/Task464·463 代际归零/四层拦截面二进制级归零 Task457 中止串·op4 canary·Safe 双符号·ame457 信号网·ame451 预检·ame437 探针·两弹窗键·逃生阀/v1.0 保留面七件在场 Task301 窗·Task342 探针·ame267 分支·Task433 镜像轨·ame434 marker·ame302 清扫·redirectFunctionMirrored/折叠面两件在场/壁纸清扫退役归零延续）
+
+Stage Summary:
+- 装机锚点（BuildTag=Task465 · 2026-11-22）：①启动链与同机一代逐指令同形态——init_bypassDyldLibValidation 裸调用直达，无 canary/预检/探针拦截面，不再弹 ame457/ame451 拦截窗；②op4 行为 = 一代行为（Extension 注册成功则主动应答，否则脚本优雅跳过，vm_remap 钩子 best-effort 落位）；③Task433/434 TXM 镜像轨、Task463 折叠 38 组、十项找回面、粉色钦定壳零回归；装机后验证锚：启动游戏应越过「等待 JIT」→ JVM 日志出现 `[DyldLVBypass] hook dyld_mmap succeed!`（v1.0 形态预期锚）→ 游戏进入渲染；若调试器未指派 Universal 脚本仍会走 Task301/342 既有优雅失败路径（与一代同款）
+- 【Task465 闭环补记】代码轮 attempt 1 双绿（dev 45007378096 + ui-smoke 45007378129）+ 四产物唯一命名归档 + 二进制验证 25/25 ALL PASS；闭环轮推送
