@@ -5,6 +5,12 @@
 #     1.20.1 fabric-loader 0.14.23 内嵌旧版 ASM → exit(1)；Task201 门禁只管
 #     -javaagent 参数管不住 -cp 目录扫描，launchJVM + launchHeadlessJVM 两处
 #     循环同修 + Task201 误导文案修正）
+#     ★Task466 演进：launchJVM 主路径排除条件化（ame466-agent-cp-conditional）
+#     —— 26 会话 agent 以 -javaagent 挂载时 jar 必须保留在 -cp：Knot 暴露
+#     白名单取自 java.class.path，-javaagent 自动追加不更新该属性 → 织入
+#     代码引用 agent 类被 "hasn't been exposed" 拒载（Task465 构建 0a3151f
+#     装机实证）；旧会话（未挂载）排除原样保留；headless 路径无条件排除
+#     保留（无 metallum 消费面）
 #   B Fluent 插件完全重设计（用户点题：Fluent 插件要完全重新设计 UI，而不是
 #     依旧使用 zl2 样式）—— ZL2Theme 引擎新增形状/字体覆盖面（ame341，默认值
 #     M3 不变）+ 桥面 setThemeShape（JSExport/ui.theme 执法/__shape 持久化/
@@ -92,11 +98,13 @@ plugin_manifest = json.loads(read('plugin-repo/src/fluent-ui/manifest.json'))
 if '--selftest' in sys.argv:
     print('== ame341 selftest（反向验证：内存注入病灶，必翻红）==')
     bad = 0
-    # S-A1: classpath 排除被摘（双处全摘，模拟病灶完整击穿）→ A2 探针必翻红
+    # S-A1: classpath 排除被摘（无条件 + 条件式两形态全摘，模拟病灶完整击穿）→ A2 探针必翻红
     inj_jl = strip_real(jl).replace('if ([libFile isEqualToString:@""]) continue;', '')
-    ok_a1 = 'if ([libFile isEqualToString:@""]) continue;' not in inj_jl
+    inj_jl = inj_jl.replace('if (!ame466_metallumAgentMounted && [libFile isEqualToString:@""]) continue;', '')
+    ok_a1 = ('if ([libFile isEqualToString:@""]) continue;' not in inj_jl
+             and 'if (!ame466_metallumAgentMounted && [libFile isEqualToString:@""]) continue;' not in inj_jl)
     if ok_a1:
-        print('ok  S-A1 反向：classpath 排除摘除 -> FAIL（符合预期）')
+        print('ok  S-A1 反向：classpath 排除（双形态）摘除 -> FAIL（符合预期）')
     else:
         print('S-A1 未翻红（classpath 排除探针失效）'); bad += 1
     # S-B1: 引擎 setter 记账被击穿（形状表永不写入）→ B2 探针必翻红
@@ -116,21 +124,32 @@ if '--selftest' in sys.argv:
     print(f'selftest: {"FAIL " + str(bad) + " probes failed to trigger" if bad else "3/3 反向探针全翻红"}')
     sys.exit(1 if bad else 0)
 
-# ══ A 线 metallum_agent.jar 禁入 -cp（1.20.1 闪退根修）═════════════════
+# ══ A 线 metallum_agent.jar 禁入 -cp（1.20.1 闪退根修；★Task466 条件化）═══
 EXCL = 'if ([libFile isEqualToString:@"metallum_agent.jar"]) continue;'
-EXCL_REAL = 'if ([libFile isEqualToString:@""]) continue;'   # strip_real 后字符串变形特征
-check('A1 classpath 排除双落位（launchJVM + launchHeadlessJVM，锚点两处）',
-      jl.count(EXCL) == 2 and jl.count('ame341-agent-cp-exclusion') == 2,
-      f'排除行 {jl.count(EXCL)} 处 / 锚点 {jl.count("ame341-agent-cp-exclusion")} 处')
-check('A2 排除是真实代码（单遍扫描剥离后变形特征恰 2 处）',
-      jl_real.count(EXCL_REAL) == 2,
-      f'strip 后 {jl_real.count(EXCL_REAL)} 处（应 2；假阴性=剥器/注释问题）')
-check('A3 排除先于 classpath 拼接（launchJVM 主循环顺序）',
-      0 < jl_real.find(EXCL_REAL) < jl_real.find('[classpathBuilder appendString:lwjglJar];'),
+COND = ('if (!ame466_metallumAgentMounted && [libFile isEqualToString:@"metallum_agent.jar"]) continue;')
+EXCL_REAL = 'if ([libFile isEqualToString:@""]) continue;'   # strip_real 后字符串变形特征（无条件形态）
+COND_REAL = ('if (!ame466_metallumAgentMounted && [libFile isEqualToString:@""]) continue;')  # 变形特征（条件形态）
+check('A1 launchJVM 条件排除 + headless 无条件排除各恰 1 处（双锚点齐备）',
+      jl.count(COND) == 1 and jl.count(EXCL) == 1
+      and jl.count('ame466-agent-cp-conditional') == 2
+      and jl.count('ame341-agent-cp-exclusion') == 4,
+      f'条件式 {jl.count(COND)} / 无条件 {jl.count(EXCL)} / ame466 锚 {jl.count("ame466-agent-cp-conditional")} / ame341 锚 {jl.count("ame341-agent-cp-exclusion")}（应 4：ame429 引用 1 + launchJVM 注释 2 + headless 1）')
+check('A2 排除是真实代码（单遍扫描剥离后两形态变形特征恰各 1 处）',
+      jl_real.count(COND_REAL) == 1 and jl_real.count(EXCL_REAL) == 1,
+      f'strip 后条件 {jl_real.count(COND_REAL)} / 无条件 {jl_real.count(EXCL_REAL)}（应各 1；假阴性=剥器/注释问题）')
+check('A3 排除先于 classpath 拼接（launchJVM 主循环顺序，条件式形态）',
+      0 < jl_real.find(COND_REAL) < jl_real.find('[classpathBuilder appendString:lwjglJar];'),
       '排除行不在拼接之前')
 check('A4 Task201 误导文案退役（注释剥离后旧文案零残留）',
       'this session runs Java 8' not in jl_nocom and 'kept off -cp per Task341' in jl_nocom,
       '文案未修正（或仅存在于修正注释内）')
+check('A5 Task466 挂载旗标全链（hoist 声明 + >=26 分支置 YES + 与排除行同文件）',
+      jl_real.count('BOOL ame466_metallumAgentMounted = NO;') == 1
+      and jl_real.count('ame466_metallumAgentMounted = YES;') == 1
+      and 0 < jl_real.find('BOOL ame466_metallumAgentMounted = NO;')
+          < jl_real.find('ame466_metallumAgentMounted = YES;')
+          < jl_real.find(COND_REAL),
+      '旗标 hoist/置位/顺序缺件')
 
 # ══ B 线 Fluent 完全重设计（引擎形状/字体覆盖 + 桥面 + 插件 v2）═══════
 check('B1 ZL2Theme.h 声明 ame341_setPluginThemeShape',
@@ -172,11 +191,11 @@ check('B8 插件 v2 全维度（Fluent 形状五档 + 字阶七档 + setThemeSha
       and 'ame.setThemeShape({})' in plugin_js
       and 'primary:' in plugin_js and "ame.setThemeToken(pal.tokens)" in plugin_js,
       'Fluent 全维度缺件')
-check('B9 manifest v2.2.0（★Task347 演进顺延：NavigationView 结构文案；版本 + 名称 + ui.theme 权限保持）',
-      plugin_manifest.get('version') == '2.2.0'
+check('B9 manifest v2.6.2（★Task466 重锚：fui 插件历 347→432 多轮升版至 2.6.2，门禁滞后校准；版本 + 名称 + ui.theme 权限保持）',
+      plugin_manifest.get('version') == '2.6.2'
       and plugin_manifest.get('name') == 'Fluent UI'
       and 'ui.theme' in plugin_manifest.get('permissions', []),
-      'manifest 未升级')
+      'manifest 版本漂移（或权限缺件）')
 # B10: index/zip 实算对拍（sha256/size 单一事实源，ame333 打包器口径）
 _idx = json.loads(read('plugin-repo/index.json'))
 _fe = next((p for p in _idx['plugins'] if p['id'] == 'fluent-ui'), None)
@@ -184,10 +203,10 @@ _zpath = os.path.join(REPO, 'plugin-repo', 'plugins', 'fluent-ui.zip')
 _zdata = open(_zpath, 'rb').read() if os.path.isfile(_zpath) else b''
 _zsha = hashlib.sha256(_zdata).hexdigest()
 _znames = zipfile.ZipFile(_zpath).namelist() if os.path.isfile(_zpath) else []
-check('B10 index/zip 实算对拍（★Task347 演进顺延：sha256+size 逐位一致 + zip 根两文件 + v2.2.0）',
+check('B10 index/zip 实算对拍（★Task466 重锚 v2.6.2：sha256+size 逐位一致 + zip 根两文件）',
       _fe is not None and _fe['sha256'] == _zsha and _fe['size'] == len(_zdata)
       and sorted(_znames) == ['main.js', 'manifest.json']
-      and _fe['version'] == '2.2.0',
+      and _fe['version'] == '2.6.2',
       'index 与 zip 漂移')
 
 # ══ D 线 结构护栏 ═════════════════════════════════════════════

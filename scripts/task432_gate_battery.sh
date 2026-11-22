@@ -1,6 +1,9 @@
 #!/bin/bash
 # Task432 门禁电池 —— 全量本地复跑（Task439 修幽灵门：run_sh 补定义，声明门数 =
-#   实跑门数，每轮 RESULT 汇总行即真实门数；Task465 轮 = 40 门且总裁决移至全部门之后（461/462/464 历史追加越线修复；27 既有 runner +
+#   实跑门数，每轮 RESULT 汇总行即真实门数；Task466 轮 = 44 门（Task465 41 门 +
+#   ame341 正反双门幽灵门清偿登记（Task439 判例同族：门在库不在电池 = 静默漂移，
+#   HEAD 实测 ame341 锚 3≠2 / fui v2.6.2≠2.2.0 已红而电池视而不见）+
+#   task466 新门）且总裁决移至全部门之后（461/462/464 历史追加越线修复；27 既有 runner +
 #   task439 双新门 + task440/task442 自检门 + 括号审计 + ame366 自检门（★Task441/442 入册，
 #   第 11 期报告 5.3 节验收项），历史头注「16 门」自第 9 期起已失实，Task439 校正）
 # 用法: bash scripts/task432_gate_battery.sh
@@ -41,6 +44,8 @@ run_py ame369       scripts/ame369_selfcheck.py
 run_py ame379       scripts/ame379_selfcheck.py
 run_py ame330       scripts/ame330_selfcheck.py
 run_py ame339       scripts/ame339_selfcheck.py
+run_py ame341       scripts/ame341_selfcheck.py
+run_py ame341_self  scripts/ame341_selfcheck.py --selftest
 run_py ame343       scripts/ame343_selfcheck.py
 run_py ame348       scripts/ame348_selfcheck.py
 run_py ame349       scripts/ame349_selfcheck.py
@@ -90,6 +95,10 @@ run_py task461     scripts/task461_selfcheck.py
 run_py task462     scripts/task462_selfcheck.py
 run_py task464     scripts/task464_selfcheck.py
 run_py task465     scripts/task465_selfcheck.py
+
+# ★Task466 metallum agent -cp 暴露条件化（Task341 排除面演进：26 会话 Knot
+#   白名单恢复 agent jar 在场；旧会话排除保留；headless 不变）
+run_py task466     scripts/task466_selfcheck.py
 
 echo
 echo "════════ 电池总裁决 ════════"

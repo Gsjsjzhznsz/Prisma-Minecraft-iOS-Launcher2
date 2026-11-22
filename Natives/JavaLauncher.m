@@ -4268,6 +4268,9 @@ int launchJVM(NSString *accountId, id launchTarget, int width, int height, int m
     //     "processing of -javaagent failed" -> JVM 直接 abort，premain 阶段
     //     全灭，GL/SFPEW 代码根本没机会跑）。
     //     26.x 强制 Java 25（ResolveLwjglVersion 同款 major 判定），class 65 可加载。
+    // ★ Task466：挂载旗标（ame466-agent-cp-conditional）——下方 classpath 循环
+    //   的 Task341 排除改为条件式：仅 agent 未挂载（旧会话）时才禁入 -cp。
+    BOOL ame466_metallumAgentMounted = NO;
     if ([[NSFileManager defaultManager] fileExistsAtPath:
             [librariesPath stringByAppendingPathComponent:@"metallum_agent.jar"]]) {
         NSString *metallumMcVersionId = nil;
@@ -4278,6 +4281,7 @@ int launchJVM(NSString *accountId, id launchTarget, int width, int height, int m
         }
         NSInteger metallumMcMajor = ame98_mcMajorFromVersionId(metallumMcVersionId);
         if (metallumMcMajor >= 26) {
+            ame466_metallumAgentMounted = YES;
             PUSH_MARGV_FORMAT(@"-javaagent:%@/metallum_agent.jar=", librariesPath);
             // 把实例的 MC 版本 id 传给 agent（按版本选 metallum 类映射）
             if (metallumMcVersionId.length > 0) {
@@ -4906,24 +4910,35 @@ int launchJVM(NSString *accountId, id launchTarget, int width, int height, int m
         // AmethystAccountJNI 闪退即此）。launcher.jar 与 minecraft 的 split
         // package 由上方 ignoreList 注入根除。
         if (![libFile hasSuffix:@".jar"]) continue;
-        // ★ Task341：metallum_agent.jar 禁入 -cp（ame341-agent-cp-exclusion）。
-        //   病历（装机 0d4a588 latestlog 实弹，用户 1.20.1 报障“无法启动/安装
-        //   完成闪退”）：Fabric 首启 remap（GameProviderHelper.deobfuscate →
-        //   tiny-remapper readClassPathAsync）把 -cp 全量喂给继承索引扫描，
+        // ★ Task341：metallum_agent.jar 禁入 -cp（ame341-agent-cp-exclusion）——
+        //   ★Task466 起条件化（ame466-agent-cp-conditional）：仅 agent 未挂载
+        //   （旧会话，-javaagent 已 skip）时才禁入 -cp；26 会话保留在场。
+        //   Task341 原病历（装机 0d4a588 latestlog 实弹，用户 1.20.1 报障“无法
+        //   启动/安装完成闪退”）：Fabric 首启 remap（GameProviderHelper.deobfuscate
+        //   → tiny-remapper readClassPathAsync）把 -cp 全量喂给继承索引扫描，
         //   libs/ 目录全量收集把 metallum_agent.jar 也带上了；agent 类集
         //   classes262/*（MTLWinding 等）是 Java 25 class（major 69），
         //   1.20.1 fabric-loader 0.14.23 内嵌旧版 ASM ClassReader 直接
         //   IllegalArgumentException: Unsupported class file major version 69
         //   → 未捕获 → JVM exit(1)。Task201 的 -javaagent 门禁（MC major
         //   >= 26 才启用）只管 agent 参数，管不住本循环的 -cp 目录扫描。
-        //   修法：agent jar 从 -cp 排除——agent 自身由 -javaagent 自加载
-        //   （26 会话），metallum 类集经 defineClass 直接注入 MC 类加载器
-        //   （见下方 4038 注释段），全程无需 -cp。注：-javaagent 的 jar 会被
-        //   JVM 自动追加到系统 classpath，26 会话 metallum_agent.jar 仍在
-        //   classpath（agent 链路必须），但 26.x 走 fabric-loader 0.20.x 新版
-        //   ASM（支持 major 69）不受此伤；旧会话 Task201 已 skip -javaagent
-        //   → jar 完全不在 classpath → 根修达成。
-        if ([libFile isEqualToString:@"metallum_agent.jar"]) continue;
+        //   Task341 原修法把两会话一律禁入，其注释自证前提有误：“-javaagent
+        //   的 jar 会被 JVM 自动追加到系统 classpath，26 会话
+        //   metallum_agent.jar 仍在 classpath”——对系统类加载器成立（premain
+        //   能跑、agent 自身代码可用），但 fabric-loader 0.20.x 的 Knot
+        //   暴露白名单取自 java.class.path（-cp 实参），-javaagent 的自动
+        //   追加只进系统类加载器 ucp、不更新 java.class.path → agent 类对
+        //   Knot 永不暴露。装机实证（Task465 构建 0a3151f latestlog）：JIT
+        //   链修复后 JVM 首次真达 MC 初始化，织入后的 MouseHandler.
+        //   resyncMousePosition 引用 com.metallum.agent.MetallumAgent →
+        //   KnotClassDelegate "can't load class ... as it hasn't been exposed
+        //   to the game" → NoClassDefFoundError → Description: Initializing
+        //   game 崩溃；同机一代（无 Task341 排除，agent jar 恒在 -cp）正常。
+        //   Task341→Task465 间 v2 无会话能进 JVM（四层拦截链），潜伏至今。
+        //   26 会话恢复在场的安全性：fabric-loader 0.20.x 新版 ASM 支持
+        //   major 69（Task341 自己注明），remap 继承索引扫描无雷；旧会话
+        //   排除原样保留（ame341-agent-cp-exclusion 根修零回归）。
+        if (!ame466_metallumAgentMounted && [libFile isEqualToString:@"metallum_agent.jar"]) continue;
         [classpathBuilder appendFormat:@"%@/%@:", librariesPath, libFile];
     }
     [classpathBuilder appendString:lwjglJar];
