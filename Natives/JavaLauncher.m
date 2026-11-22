@@ -2260,17 +2260,20 @@ static void ame467_presentMissingArtifactDialog(NSArray<NSDictionary *> *missing
             alertControllerWithTitle:localize(@"i18n_str_ame467_srg_missing_title", nil)
             message:[NSString stringWithFormat:localize(@"i18n_str_ame467_srg_missing", nil), ame467_first]
             preferredStyle:UIAlertControllerStyleAlert];
-        UIWindow *ame467_top = nil;
+        UIWindow *ame467_key = nil;
         for (UIScene *ame467_scene in [UIApplication sharedApplication].connectedScenes) {
             if (![ame467_scene isKindOfClass:[UIWindowScene class]]) continue;
             if (@available(iOS 15.0, *)) {
                 if (ame467_scene.activationState != UISceneActivationStateForegroundActive) continue;
             }
             for (UIWindow *ame467_win in ((UIWindowScene *)ame467_scene).windows) {
-                if (ame467_win.isKeyWindow) { ame467_top = ame467_win; break; }
+                if (ame467_win.isKeyWindow) { ame467_key = ame467_win; break; }
             }
-            if (ame467_top) break;
+            if (ame467_key) break;
         }
+        // presentedViewController/present 链在 UIViewController 上（CI 判例 N+23：
+        // UIWindow 无 presented 面——r0 编译雷 2274/2279，rootVC 下溯同 Task175）
+        UIViewController *ame467_top = ame467_key.rootViewController;
         while (ame467_top.presentedViewController != nil) {
             ame467_top = ame467_top.presentedViewController;
         }
