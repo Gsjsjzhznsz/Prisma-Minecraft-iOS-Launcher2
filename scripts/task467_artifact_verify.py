@@ -104,8 +104,8 @@ if not bin_ipa:
     sys.exit(1)
 
 # ── Task467 新面 ─────────────────────────────────────────────
-check('V3 BuildTag Task467 · 2026-11-22 UTF-16LE 在场',
-      bin_has(bin_ipa, utf16_le("Task467 · 2026-11-22")))
+check('V3 BuildTag Task468 · 2026-11-23 UTF-16LE 在场',
+      bin_has(bin_ipa, utf16_le("Task468 · 2026-11-23")))
 check('V4 旧代际归零（Task466/465 · 2026-11-22 UTF-16LE 双消）',
       not bin_has(bin_ipa, utf16_le("Task466 · 2026-11-22"))
       and not bin_has(bin_ipa, utf16_le("Task465 · 2026-11-22")))

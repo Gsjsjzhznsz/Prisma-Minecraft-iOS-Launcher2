@@ -45,6 +45,17 @@
 
 extern char **environ;
 
+// Task468：mobilegl.* 偏好归一化读取器（plist-only，ame280_kw_batch 同款零 UI 行）。
+// getPrefObject 返回值可能是 NSString 或 NSNumber，统一转字符串后再做值域比较。
+// 定义于 init_loadDefaultEnv 之前：Task468 的 MVK 参数缓冲开关在该函数内调用。
+static NSString *ame468_pref_string(NSString *key) {
+    id v = getPrefObject(key);
+    if (!v) return nil;
+    if ([v isKindOfClass:[NSString class]]) return v;
+    if ([v respondsToSelector:@selector(stringValue)]) return [v stringValue];
+    return nil;
+}
+
 BOOL validateVirtualMemorySpace(size_t size) {
     size <<= 20; // convert to MB
     void *map = mmap(0, size, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
@@ -89,6 +100,24 @@ void init_loadDefaultEnv() {
 
     // Override OpenGL version to 4.1 for Zink
     setenv("MESA_GL_VERSION_OVERRIDE", "4.1", 1);
+
+    // Task468：MoltenVK Metal 参数缓冲开关（抄 Witch-Launcher 调优面）。Witch 侧
+    // 实锤：MoltenVK 1.4.1 的 argument buffers 在 A11 上拿坏 chunk lightmap 的
+    // texelFetch（世界渲染发黑），其 JavaLauncher 无条件
+    // MVK_CONFIG_USE_METAL_ARGUMENT_BUFFERS=0。本仓不跟无条件档（M4 级设备
+    // 参数缓冲是正收益，盲关反向回退）——plist-only 偏好
+    // moltenvk.use_metal_argument_buffers 透传（"0"=关/"1"=开，未设=引擎默认；
+    // A11 类设备装机复黑时置 0 一键止损）。
+    {
+        NSString *mvkArgBuf = ame468_pref_string(@"moltenvk.use_metal_argument_buffers");
+        if (mvkArgBuf && [mvkArgBuf length]) {
+            int mvkVal = [mvkArgBuf intValue] != 0;
+            char mvkBuf[4];
+            snprintf(mvkBuf, sizeof(mvkBuf), "%d", mvkVal);
+            setenv("MVK_CONFIG_USE_METAL_ARGUMENT_BUFFERS", mvkBuf, 1);
+            NSLog(@"[JavaLauncher] Task468: MVK_CONFIG_USE_METAL_ARGUMENT_BUFFERS=%d (moltenvk.use_metal_argument_buffers)", mvkVal);
+        }
+    }
 
     // Suppress [mvk-info] log spam (swapchain creation, etc.)
     // 对齐 Ynnyny 仓库：抑制 MoltenVK 日志刷屏，便于诊断启动问题
@@ -177,6 +206,7 @@ void init_loadDefaultEnv() {
     NSLog(@"[JavaLauncher]   POJAV_DISABLE_VSYNC=%s", getenv("POJAV_DISABLE_VSYNC"));
     NSLog(@"[JavaLauncher]   UIScreen.maximumFramesPerSecond=%d (readonly panel capability)", (int)UIScreen.mainScreen.maximumFramesPerSecond);
 }
+
 
 void init_loadCustomEnv() {
     NSString *envvars = getPrefObject(@"java.env_variables");
@@ -3567,12 +3597,101 @@ int launchJVM(NSString *accountId, id launchTarget, int width, int height, int m
                 setenv("MOBILEGL_ESPRYT_MULTIDRAW_MODE", "drawelements", 1);
                 NSLog(@"[JavaLauncher] Task156: Espryt multidraw tier forced to 'drawelements' (ES blocks-invisible workaround)");
             }
+            // Task468：MobileGL/Magma 引擎级性能旋钮层（抄 Witch-Launcher 渲染调优面，
+            // 用户钦定「渲染性能很好,赶紧抄点过来」）。Witch 的 Natives/MobileGLConfig.m
+            // 对 MobileGL 暴露 11 个引擎旋钮（三缓冲/异步着色器编译/host-coherent 语义/
+            // subgroup/timer query/FP64 广播/纹理视图/SPIRV 校验/大缓冲收养）；本仓
+            // libMobileGL.dylib（26.08-dev@874b9e8 预编译）strings 实证支持其中 12 个
+            // MOBILEGL_* 变量，此前仅设 BACKEND_TYPE/LOG_FILE_PATH/ESPRYT_MULTIDRAW_MODE
+            // 三件，性能旋钮全部走引擎默认——本轮对齐 Witch 调优姿态。vendored 二进制
+            // 不支持的上游新变量（MOBILEGL_MAGMA_VMA_BLOCK_SIZE_MB /
+            // MOBILEGL_LARGE_BUFFER_ADOPT_MB / MOBILEGL_ANGLE_BACKEND，ame468 门禁
+            // 逐名对 strings 验证）有意不设，等 dylib 上游同步后再接，防幽灵变量。
+            // MAGMA_* 仅 Vulkan 直连档有意义；ES（DirectGLES）档只应用引擎通用件。
+            // 偏好全部 plist-only（mobilegl.* 分区，零 UI 行）。
+            {
+                BOOL ame468_vulkanTier = (strcmp(backend, "DirectVulkan") == 0);
+                NSInteger ame468_frames = getPrefInt(@"mobilegl.frames_in_flight");
+                if (ame468_frames <= 0) ame468_frames = 3;   // Witch 默认三缓冲
+                char ame468_framesBuf[16];
+                snprintf(ame468_framesBuf, sizeof(ame468_framesBuf), "%ld", (long)ame468_frames);
+                setenv("MOBILEGL_MAGMA_FRAMESINFLIGHT", ame468_framesBuf, 1);
+                // 异步着色器编译：vendored 二进制 strings 只认 0/1（Witch 新版 dylib
+                // 的 On/Off/Auto 三态是上游后加），默认 1 = 广播
+                // GL_KHR_parallel_shader_compile + 编译线程池，shaderpack/世界加载期
+                // 重叠编译（对齐 Witch 姿态）；仅字符串 "0" 显式关。
+                NSString *ame468_async = ame468_pref_string(@"mobilegl.async_shader_compile");
+                BOOL ame468_asyncOn = !(ame468_async && [ame468_async isEqualToString:@"0"]);
+                setenv("MOBILEGL_ASYNC_SHADER_COMPILE", ame468_asyncOn ? "1" : "0", 1);
+                // 着色器缓存：vendored 无值域 strings 实证，不设默认（引擎原生行为），
+                // 仅用户显式偏好时透传。
+                NSString *ame468_cache = ame468_pref_string(@"mobilegl.shader_cache");
+                if (ame468_cache && [ame468_cache length]) {
+                    setenv("MOBILEGL_SHADER_CACHE", ame468_cache.UTF8String, 1);
+                }
+                // host-coherent 直信（Apple 统一内存真连贯，省 flush 往返；Witch 姿态）
+                setenv("MOBILEGL_COHERENT_AS_FLUSH",
+                       getPrefBool(@"mobilegl.coherent_as_flush") ? "1" : "0", 1);
+                setenv("MOBILEGL_DISABLE_TIMERQUERY",
+                       getPrefBool(@"mobilegl.disable_timer_query") ? "1" : "0", 1);
+                setenv("MOBILEGL_ADVERTISE_FP64",
+                       getPrefBool(@"mobilegl.advertise_fp64") ? "1" : "0", 1);
+                setenv("MOBILEGL_DISABLE_TEXTURE_VIEW",
+                       getPrefBool(@"mobilegl.disable_texture_view") ? "1" : "0", 1);
+                setenv("MOBILEGL_ENABLE_SPIRV_VALIDATION",
+                       getPrefBool(@"mobilegl.enable_spirv_validation") ? "1" : "0", 1);
+                setenv("MOBILEGL_DISABLE_LARGE_BUFFER_ADOPTION",
+                       getPrefBool(@"mobilegl.disable_large_buffer_adoption") ? "1" : "0", 1);
+                if (ame468_vulkanTier) {
+                    setenv("MOBILEGL_MAGMA_DISABLE_SUBGROUP",
+                           getPrefBool(@"mobilegl.disable_subgroup") ? "1" : "0", 1);
+                    // Magma multidraw 档位仅显式偏好透传（Vulkan 档装机验证正常，
+                    // Task156 口径不触碰 ES 档）。
+                    NSString *ame468_mgMulti = ame468_pref_string(@"mobilegl.magma_multidraw_mode");
+                    if (ame468_mgMulti && [ame468_mgMulti length]) {
+                        setenv("MOBILEGL_MAGMA_MULTIDRAW_MODE", ame468_mgMulti.UTF8String, 1);
+                    }
+                }
+                NSString *ame468_threads = ame468_pref_string(@"mobilegl.async_shader_compile_threads");
+                if (ame468_threads && [ame468_threads intValue] > 0) {
+                    char ame468_threadsBuf[16];
+                    snprintf(ame468_threadsBuf, sizeof(ame468_threadsBuf), "%ld", (long)[ame468_threads intValue]);
+                    setenv("MOBILEGL_ASYNC_SHADER_COMPILE_THREADS", ame468_threadsBuf, 1);
+                }
+                if (getPrefBool(@"mobilegl.async_optimistic_shader_status")) {
+                    setenv("MOBILEGL_ASYNC_OPTIMISTIC_SHADER_STATUS", "1", 1);
+                }
+                NSLog(@"[JavaLauncher] Task468: MobileGL perf knobs applied (Witch port): frames=%ld async=%d coherent=%d timerQ=%d fp64=%d texview=%d spirvV=%d lba=%d tier=%s",
+                      (long)ame468_frames, ame468_asyncOn ? 1 : 0,
+                      getPrefBool(@"mobilegl.coherent_as_flush") ? 1 : 0,
+                      getPrefBool(@"mobilegl.disable_timer_query") ? 1 : 0,
+                      getPrefBool(@"mobilegl.advertise_fp64") ? 1 : 0,
+                      getPrefBool(@"mobilegl.disable_texture_view") ? 1 : 0,
+                      getPrefBool(@"mobilegl.enable_spirv_validation") ? 1 : 0,
+                      getPrefBool(@"mobilegl.disable_large_buffer_adoption") ? 1 : 0,
+                      backend);
+            }
             NSLog(@"[JavaLauncher] MobileGL renderer active: backend=%s", backend);
         } else {
             // 切换渲染器后清掉，避免残留影响后续启动
             unsetenv("MOBILEGL_BACKEND_TYPE");
             unsetenv("MOBILEGL_LOG_FILE_PATH");
             unsetenv("MOBILEGL_ESPRYT_MULTIDRAW_MODE");
+            // Task468：性能旋钮层对称清偿（与上方 setenv 面一一对应）
+            unsetenv("MOBILEGL_MAGMA_FRAMESINFLIGHT");
+            unsetenv("MOBILEGL_ASYNC_SHADER_COMPILE");
+            unsetenv("MOBILEGL_SHADER_CACHE");
+            unsetenv("MOBILEGL_COHERENT_AS_FLUSH");
+            unsetenv("MOBILEGL_DISABLE_TIMERQUERY");
+            unsetenv("MOBILEGL_ADVERTISE_FP64");
+            unsetenv("MOBILEGL_DISABLE_TEXTURE_VIEW");
+            unsetenv("MOBILEGL_ENABLE_SPIRV_VALIDATION");
+            unsetenv("MOBILEGL_DISABLE_LARGE_BUFFER_ADOPTION");
+            unsetenv("MOBILEGL_MAGMA_DISABLE_SUBGROUP");
+            unsetenv("MOBILEGL_MAGMA_MULTIDRAW_MODE");
+            unsetenv("MOBILEGL_ASYNC_SHADER_COMPILE_THREADS");
+            unsetenv("MOBILEGL_ASYNC_OPTIMISTIC_SHADER_STATUS");
+            unsetenv("MVK_CONFIG_USE_METAL_ARGUMENT_BUFFERS");
         }
 
         // Mithril 渲染器（libmithril.dylib）自带 EGL + GL 3.3 Core（Vulkan backend），

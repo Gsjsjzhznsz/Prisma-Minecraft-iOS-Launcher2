@@ -6,6 +6,7 @@
 #   task466 新门）+ Task467 轮 = 46 门（+task467 新门 + selftest 反向门）且总裁决移至全部门之后（461/462/464 历史追加越线修复；27 既有 runner +
 #   task439 双新门 + task440/task442 自检门 + 括号审计 + ame366 自检门（★Task441/442 入册，
 #   第 11 期报告 5.3 节验收项），历史头注「16 门」自第 9 期起已失实，Task439 校正）
+#   Task468 轮 = 48 门（+ame468 MobileGL 旋钮门 + selftest 反向门）
 # 用法: bash scripts/task432_gate_battery.sh
 cd "$(dirname "$0")/.." || exit 1
 
@@ -105,6 +106,13 @@ run_py task466     scripts/task466_selfcheck.py
 #   回注 + SceneDelegate 0.8s 呈现位回填 + 哨兵键回册
 run_py task467     scripts/task467_selfcheck.py
 run_py task467_self scripts/task467_selfcheck.py --selftest
+
+# ★Task468 MobileGL/Magma 引擎性能旋钮层（抄 Witch-Launcher 调优面）+ 内置渲染器
+#   上游更新扫描轮：12 个 MOBILEGL_* setenv（strings 反锚逐名验证 vendored dylib
+#   真支持）+ 3 个上游新变量幽灵零引入 + unsetenv 对称清偿 + Task156/158 口径
+#   零回归 + Task463 折叠面零污染 + MVK 参数缓冲偏好透传
+run_py task468     scripts/ame468_selfcheck.py
+run_py task468_self scripts/ame468_selfcheck.py --selftest
 
 echo
 echo "════════ 电池总裁决 ════════"
