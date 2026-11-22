@@ -4380,3 +4380,5 @@
 "ame449.setpg.group.jit" = "JIT";
 "ame449.setpg.group.jit26" = "JIT26 mirror";
 "ame449.setpg.group.debug_ui" = "UI debugging";
+"i18n_str_ame467_srg_missing_title" = "Cannot launch: NeoForge mapped artifacts missing";
+"i18n_str_ame467_srg_missing" = "The NeoForge mapping jar (%@), which is generated locally by installer processors, is missing.\n\nReinstall NeoForge from version management, or re-import this instance, then launch the game again.";

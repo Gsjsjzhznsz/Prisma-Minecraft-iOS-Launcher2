@@ -4444,3 +4444,5 @@
 "ame449.filexlate.src_ro" = "\nSource directory left untouched (read-only).";
 "ame449.filexlate.tip_full" = "\nNote: launcher config (accounts/settings) in the source directory is not migrated; game data is in place.";
 "ame449.jitgate.magnifier_no_response" = "apple-magnifier:// not handled (the TrollStore JIT helper has not taken over; often TrollStore is too old). Update TrollStore, or switch the JIT enabler to stikjit / SideStore / StosDebug in Settings and retry.\napple-magnifier:// not handled. Update TrollStore or switch the JIT enabler in Settings.";
+"i18n_str_ame467_srg_missing_title" = "Cannot launch: NeoForge mapped artifacts missing";
+"i18n_str_ame467_srg_missing" = "The NeoForge mapping jar (%@), which is generated locally by installer processors, is missing.\n\nReinstall NeoForge from version management, or re-import this instance, then launch the game again.";

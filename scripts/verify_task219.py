@@ -28,6 +28,13 @@ tg = rd("Natives/external/gl4es/tinygl4angle.c")
 #   ——原 C/D/E 三段（向导布局/LC 检测/关于页收尾）断言随页离场，收敛为退役断言
 wv_retired = (not os.path.exists("Natives/WelcomeViewController.m")
               and not os.path.exists("Natives/WelcomeViewController.h"))
+# ★Task467 重锚：Task436 A3 断链判例用户指令翻转（「把欢迎UI重新恢复」）——
+#   Welcome 本体回注（5231bf0c7^ 逐字节）+ SceneDelegate 0.8s 呈现位回填；
+#   旧断言（本体缺席）收敛为恢复断言（本体在位 + 哨兵键回册）
+wv_restored = (os.path.exists("Natives/WelcomeViewController.m")
+               and os.path.exists("Natives/WelcomeViewController.h")
+               and '[WelcomeViewController presentIfNeededFromViewController:rootVC];'
+                   in rd("Natives/SceneDelegate.m"))
 ab = rd("Natives/AboutViewController.m")
 dt = rd("Natives/DataTransferService.m")
 # ★Task440 退役重锚：ProfileSettings 本体删除——G 段 TC/Sodium 组件安装链
@@ -86,10 +93,11 @@ check("B5 Task183 漏网监测器保留（回归哨兵不退役）",
 check("B6 旧 1xx 转换路径保留（低版本形态行为不变）",
       "converted[9] == '1'" in tg)
 
-print("== C/D/E. Welcome 向导链退役（★Task440 终局：Task436 A3 断链 + 本体删除） ==")
-check("C+D+E Welcome 本体缺席 + 旧向导链断言收敛",
-      wv_retired
-      and not os.path.exists("Natives/WelcomeViewController.h"))
+print("== C/D/E. Welcome 向导链（★Task467 翻转重锚：Task436 A3 断链 + Task439 批次一删除的用户指令翻转，本体回注 + 哨兵回册） ==")
+check("C+D+E Welcome 本体回注 + 呈现位回填（恢复态）",
+      wv_restored)
+check("C+D+E-welcome_completed 哨兵键回册",
+      '@"welcome_completed": @NO,' in rd("Natives/PLPreferences.m"))
 
 print("== F. 数据导出增强（⑨） ==")
 check("F1 导出前预检（文件数 + 总量 + 预检日志）",
@@ -145,8 +153,8 @@ for lang in ["en", "zh-Hans", "zh-Hant", "zh-CN"]:
     # ★ Task426 重锚：+9 键增量四表同步（ame426 dial.caption/time 四态/weather 三段 = task191 同锚 3741）= 3741
     # ★ Task427 重锚：+5 键增量四表同步（ame427 fs 双态/占位/维度固定光照/姿态 a11y = task191 同锚 3746）= 3746
     # ★ Task428 重锚：+79 键增量四表同步（PDF v5 P0 批次：聚合搜索 4/完整性校验 17/关于页+设置行 46/节日彩蛋与 logshare 上传 11/游戏内菜单入口 1 = task191 同锚 3825）= 3825
-    # ★ Task431 重锚：+2 = 4099 → ★ Task432 重锚：+72 = 4171（第 8 期整改批四工位：导入文件夹 6/布局卡 25/主题拆行+色板 5/许可证 2/修改版本页 20/数据包子页 9/SearchId 闭环 3/设置尾行 2） → ★ Task434 重锚：+2 = 4173（A1 应用图标导入 launch.ui.icon.import{,.subtitle} 四表同步） → ★ Task436 重锚：+58 = 4231（批次二/三四工位：SC 编辑器闭环 40 / SD 取色器+陀螺仪浮层 13 / SB 版本列表新页+收藏筛选 5） → ★ Task441 重锚：+40 = 4271（编辑器五件 ame441.* 四表同步） → ★ Task444 重锚：+1 = 4272（ame444.vers.derived_toggle 五表同步） → ★ Task461 重锚：+1 = 4274（Task451 ame451_preflight +1=4273 → Task457 ame457_dyldhook +1=4274，449/450 键批次不在本回退树） → ★ Task462 重锚：+76 = 4350（i18n 54 表全量恢复 + 449/450 键批次回潮：ame449.iso/filexlate/gyro/jitgate/plugin 家族 76 键，实测四表一致） → ★ Task465 重锚：−2 = 4348（启动链恢复轮：ame451_preflight/ame457_dyldhook 两弹窗键随四层拦截面退役，54 表同步移除）
-    check(f"J-{lang} 唯一键 4348（★Task462 锚 4350 → ★Task465 两弹窗键退役 −2 = 4348）", len(keys) == 4348, f"got {len(keys)}")
+    # ★ Task431 重锚：+2 = 4099 → ★ Task432 重锚：+72 = 4171（第 8 期整改批四工位：导入文件夹 6/布局卡 25/主题拆行+色板 5/许可证 2/修改版本页 20/数据包子页 9/SearchId 闭环 3/设置尾行 2） → ★ Task434 重锚：+2 = 4173（A1 应用图标导入 launch.ui.icon.import{,.subtitle} 四表同步） → ★ Task436 重锚：+58 = 4231（批次二/三四工位：SC 编辑器闭环 40 / SD 取色器+陀螺仪浮层 13 / SB 版本列表新页+收藏筛选 5） → ★ Task441 重锚：+40 = 4271（编辑器五件 ame441.* 四表同步） → ★ Task444 重锚：+1 = 4272（ame444.vers.derived_toggle 五表同步） → ★ Task461 重锚：+1 = 4274（Task451 ame451_preflight +1=4273 → Task457 ame457_dyldhook +1=4274，449/450 键批次不在本回退树） → ★ Task462 重锚：+76 = 4350（i18n 54 表全量恢复 + 449/450 键批次回潮：ame449.iso/filexlate/gyro/jitgate/plugin 家族 76 键，实测四表一致） → ★ Task465 重锚：−2 = 4348（启动链恢复轮：ame451_preflight/ame457_dyldhook 两弹窗键随四层拦截面退役，54 表同步移除） → ★ Task467 重锚：+2 = 4350（启动链 srg 保环轮：i18n_str_ame467_srg_missing{_title,} 两弹窗键 54 表同步，实测四表一致）
+    check(f"J-{lang} 唯一键 4350（★Task465 锚 4348 → ★Task467 srg 保环两弹窗键 +2 = 4350）", len(keys) == 4350, f"got {len(keys)}")
 check("J-公告 6 条（★Task419 补锚：repo2 实态——Task413-r3 起 6 条，region-notice 为 repo1 专有从未入 repo2；pin 语义保持）",
       len(ann) == 6
       and any(a["id"] == "server-recommend-2026-09-24" for a in ann)

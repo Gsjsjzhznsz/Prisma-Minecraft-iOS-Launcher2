@@ -3,7 +3,7 @@
 #   实跑门数，每轮 RESULT 汇总行即真实门数；Task466 轮 = 44 门（Task465 41 门 +
 #   ame341 正反双门幽灵门清偿登记（Task439 判例同族：门在库不在电池 = 静默漂移，
 #   HEAD 实测 ame341 锚 3≠2 / fui v2.6.2≠2.2.0 已红而电池视而不见）+
-#   task466 新门）且总裁决移至全部门之后（461/462/464 历史追加越线修复；27 既有 runner +
+#   task466 新门）+ Task467 轮 = 46 门（+task467 新门 + selftest 反向门）且总裁决移至全部门之后（461/462/464 历史追加越线修复；27 既有 runner +
 #   task439 双新门 + task440/task442 自检门 + 括号审计 + ame366 自检门（★Task441/442 入册，
 #   第 11 期报告 5.3 节验收项），历史头注「16 门」自第 9 期起已失实，Task439 校正）
 # 用法: bash scripts/task432_gate_battery.sh
@@ -99,6 +99,12 @@ run_py task465     scripts/task465_selfcheck.py
 # ★Task466 metallum agent -cp 暴露条件化（Task341 排除面演进：26 会话 Knot
 #   白名单恢复 agent jar 在场；旧会话排除保留；headless 不变）
 run_py task466     scripts/task466_selfcheck.py
+
+# ★Task467 双线轮（启动链 srg 保环 + 欢迎UI恢复）：ame158 门 BOOL 化 +
+#   ame467 三层保环（搁浅回收/processor 自愈/指引弹窗）；Welcome 双文件
+#   回注 + SceneDelegate 0.8s 呈现位回填 + 哨兵键回册
+run_py task467     scripts/task467_selfcheck.py
+run_py task467_self scripts/task467_selfcheck.py --selftest
 
 echo
 echo "════════ 电池总裁决 ════════"

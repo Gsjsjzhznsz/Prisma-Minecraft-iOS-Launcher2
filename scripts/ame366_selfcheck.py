@@ -161,12 +161,12 @@ docs_text = produced(dtool)
 d10_zone = dtool[dtool.index("【10. 设置键目录"):dtool.index("【11. 渲染器")]
 d10_rows = re.findall(r'@"\s{2}([A-Za-z0-9_]+\.[A-Za-z0-9_.]+)（默认', d10_zone)
 m10 = re.search(r'【10\. 设置键目录（(\d+) 键 × get/set = (\d+) 个可寻址操作', docs_text)
-check('D1 文档 v7 头 + 计数真执法（★Task441：【10】逐键实数==声称=100、get/set=2×实数=200、general.download_source 退役行零残留）',
+check('D1 文档 v7 头 + 计数真执法（★Task441 实数执法 → ★Task467 重锚：welcome_completed 回册，逐键实数==声称=101、get/set=2×实数=202、general.download_source 退役行零残留）',
       "全量 API 参考 v7" in docs_text
       and "桥面方法 118" in docs_text
       and m10 is not None
       and int(m10.group(1)) == len(d10_rows)
-      and len(d10_rows) == 100
+      and len(d10_rows) == 101
       and int(m10.group(2)) == 2 * len(d10_rows)
       and "general.download_source（默认" not in docs_text,
       f"claimed={m10.groups() if m10 else None} actual_rows={len(d10_rows)}")

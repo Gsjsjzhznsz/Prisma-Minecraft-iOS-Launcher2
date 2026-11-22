@@ -609,6 +609,9 @@ add_executable(AngelAuraAmethyst
   FileListViewController.m
   FolderBrowserViewController.m
   Ame223CoachMarksView.m
+  # ★ Task467（欢迎UI恢复轮）：WelcomeViewController 双文件回注（Task436 A3 断链 +
+  #   Task439 批次一物理删除的用户指令翻转，present 唯一点仍 = SceneDelegate 0.8s 位）
+  WelcomeViewController.m
   GameSurfaceView.m
   JavaGUIViewController.m
   # ★ [MP-RESTORE] Task222：ZeroTier 联机恢复

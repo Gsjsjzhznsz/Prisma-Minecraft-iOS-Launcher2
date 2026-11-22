@@ -70,13 +70,11 @@ cmk_lines = read("Natives/CMakeLists.txt").split("\n")
 cmk_code = [ln.split("#")[0] for ln in cmk_lines]
 resid = [ln.strip() for ln in cmk_code for n in FAMILY if n in ln]
 check('A2 CMakeLists 零退役面 TU（注释豁免）', not resid, f'residual: {resid[:3]}')
-check('A3 保留面已全退役（★Task440 终局重锚：批次④漏网旧三页 + 死代码六件全链删除，'
-      'ProfileSettings/ModVersion/AssetVersion/ShaderVersion/AccountLogin/FabricInstall/Welcome'
-      ' 七页 CMake 条目归零；批次二旧 DownloadViewController/五管理页维持删除态）',
+check('A3 保留面已全退役（★Task440 终局重锚 → ★Task467 翻转重锚：Welcome 退出退役清单，'
+      '六页 CMake 条目归零；批次二旧 DownloadViewController/五管理页维持删除态）',
       not any(n in ln for n in ("ProfileSettingsViewController.m", "ModVersionViewController.m",
                                 "AssetVersionViewController.m", "ShaderVersionViewController.m",
-                                "AccountLoginViewController.m", "FabricInstallViewController.m",
-                                "WelcomeViewController.m")
+                                "AccountLoginViewController.m", "FabricInstallViewController.m")
               for ln in cmk_code)
       and not any(ln.strip() == n   # CMake 源清单行形态 = strip 后整行等于文件名（ZL2 前缀新类不受子串误伤）
                   for n in ("ModsManagerViewController.m", "DownloadViewController.m")
@@ -105,9 +103,14 @@ for _root, _dirs, _files in os.walk(os.path.join(REPO, "Natives")):
             _code = re.sub(r"//[^\n]*", "", _t)   # 剥行注释，墓碑豁免
             if "WelcomeViewController" in _code:
                 welcome_refs.append(_p)
-check('A5 Welcome 旧壳本体删除 + 活代码引用清零（死代码六件之一，★Task440 终局；'
+# ★Task467 翻转重锚：Welcome 本体回注（Task436 A3 断链 + Task439 批次一删除判例
+#   用户指令翻转）——活代码引用面收敛为恰两文件（SceneDelegate 呈现位 + 本体自身）
+_welcome_allowed = {os.path.join(REPO, "Natives", "WelcomeViewController.m"),
+                    os.path.join(REPO, "Natives", "WelcomeViewController.h"),
+                    os.path.join(REPO, "Natives", "SceneDelegate.m")}
+check('A5 Welcome 本体回注 + 活代码引用面收敛（恰 SceneDelegate + 本体自身，★Task467；'
       '注释墓碑家法豁免）',
-      welcome_gone and not welcome_refs, f'refs: {welcome_refs[:3]}')
+      not welcome_gone and set(welcome_refs) == _welcome_allowed, f'refs: {welcome_refs[:3]}')
 
 smoke = read("scripts/ui_fluent_smoke.sh")
 check('A6 smoke harness 零旧壳 TU（LauncherMenuViewController 摘除，注释豁免）',

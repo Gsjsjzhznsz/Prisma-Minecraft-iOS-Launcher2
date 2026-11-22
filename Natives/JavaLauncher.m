@@ -30,6 +30,8 @@
 #import "ModService.h"   // Task225：隔离嗅探（与 ModService/ModsManager 同源）
 #import "MinecraftResourceUtils.h"
 #import "PLGameIntegrityService.h"   // ★Task428：启动前游戏完整性校验（3.3，HMCL checkGameState 对标）
+#import "installer/ForgeProcessorExecutor.h"   // ★Task467：NeoForge processor 产物保环 Tier B 执行器
+#import "external/UnzipKit/UZKArchive.h"      // ★Task467：installer jar 抽 install_profile.json（NeoForgeDirectInstaller dataFromZip 同源 API）
 #import "PLRendererPluginService.h"   // ★Task429：渲染器插件（§11.4）——仅头文件类型面；消费一律 NSClassFromString 软链，零链接符号依赖
 
 // ★Task428（1.2）：PLProfiles 新增类方法的本地前置声明（PLProfiles.h 不在
@@ -2012,12 +2014,303 @@ static NSString *ame158_bmclapiMirror(NSString *urlString) {
     return nil;
 }
 
-static void ame158_repairMissingLibraries(NSDictionary *launchTarget) {
+// ═════════════════════════════════════════════════════════════════════
+// ★ Task467（NeoForge processor 产物保环）：SRG/PATCHED/EXTRA 三类 processor
+//   本地产物（install_profile processors 输出，官方 maven 从不发布——
+//   ForgeDirectInstaller.m Step D 注释实锤）在 Modrinth 版本 json 写入
+//   路径（无 installer 处理链）天然缺失。病历（装机 ffb71a0 latestlog
+//   2026-11-22）：JIT/dyld 链修复后 FML 首次真达模组加载，
+//   "Failed to find required file .../libraries/net/minecraft/client/
+//   26.3-1/client-26.3-1-srg.jar" → FML 视角 minecraft/neoforge 双未安装
+//   → 28 条模组依赖全 [MISSING] → ModLoadingException 致命错误屏 exit(1)。
+//   既有一号门（本函数）与 Task428 完整性服务对无 downloads URL 条目
+//   双双跳过/不修 = 结构性盲区。保环三层：
+//     Tier A 搁浅回收：旧库根（版本轴统一/迁移前形态）探到即零流量拷贝；
+//     Tier B processor 自愈：maven.neoforged.net 拉 installer → UZK 抽
+//       install_profile.json → 工具链库预下载 → ForgeProcessorExecutor
+//       本地生成（进程内 headless JVM 单次约束）→ 成功即复用 ame173
+//       「重启并启动」弹窗收束（internal.autolaunch_profile 冷启自动续跑）；
+//     Tier C 指引弹窗：自愈不可用/失败 → 新 i18n 双键
+//       i18n_str_ame467_srg_missing{_title,} 指引重装，启动中断
+//       （不再烧 JIT 等待烧进 FML 致命屏）。
+// ═════════════════════════════════════════════════════════════════════
+
+// maven 坐标 → 库相对路径（ForgeDirectInstaller mavenPathToRelativePath 同源语义）
+static NSString *ame467_mavenNameToRelPath(NSString *ame467_name) {
+    NSArray *ame467_seg = [ame467_name componentsSeparatedByString:@":"];
+    if (ame467_seg.count < 3) return nil;
+    NSString *ame467_group = ame467_seg[0];
+    NSString *ame467_artifact = ame467_seg[1];
+    NSString *ame467_version = ame467_seg[2];
+    NSString *ame467_classifier = ame467_seg.count > 3 ? ame467_seg[3] : nil;
+    NSString *ame467_file = ame467_classifier.length
+        ? [NSString stringWithFormat:@"%@-%@-%@.jar", ame467_artifact, ame467_version, ame467_classifier]
+        : [NSString stringWithFormat:@"%@-%@.jar", ame467_artifact, ame467_version];
+    return [NSString stringWithFormat:@"%@/%@/%@/%@",
+            [ame467_group stringByReplacingOccurrencesOfString:@"."
+                                     withString:@"/"], ame467_artifact, ame467_version, ame467_file];
+}
+
+// NeoForge 目标判定（launchTarget id 或 libraries 坐标含 neoforge/fancymodloader）
+static BOOL ame467_isNeoForgeTarget(NSDictionary *launchTarget) {
+    NSString *ame467_vid = [launchTarget[@"id"] isKindOfClass:NSString.class] ? launchTarget[@"id"] : @"";
+    if ([ame467_vid containsString:@"neoforge"]) return YES;
+    NSArray *ame467_libs = [launchTarget[@"libraries"] isKindOfClass:NSArray.class] ? launchTarget[@"libraries"] : nil;
+    for (NSDictionary *ame467_lib in ame467_libs) {
+        if (![ame467_lib isKindOfClass:NSDictionary.class]) continue;
+        NSString *ame467_name = [ame467_lib[@"name"] isKindOfClass:NSString.class] ? ame467_lib[@"name"] : @"";
+        if ([ame467_name containsString:@"neoforged"] || [ame467_name containsString:@"fancymodloader"]) return YES;
+    }
+    return NO;
+}
+
+// 收集缺失的 processor 产物：无 downloads URL 且 name = group:artifact:version:
+// classifier、classifier ∈ {srg, client, extra} 三类（jar-in-jar 无关，只看 json）
+static NSArray<NSDictionary *> *ame467_missingProcessorArtifacts(NSDictionary *launchTarget, NSString *libRoot) {
+    NSMutableArray *ame467_missing = [NSMutableArray array];
+    NSArray *ame467_libs = [launchTarget[@"libraries"] isKindOfClass:NSArray.class] ? launchTarget[@"libraries"] : nil;
+    NSFileManager *ame467_fm = NSFileManager.defaultManager;
+    for (NSDictionary *ame467_lib in ame467_libs) {
+        if (![ame467_lib isKindOfClass:NSDictionary.class]) continue;
+        if ([ame467_lib[@"skip"] boolValue]) continue;
+        NSString *ame467_name = [ame467_lib[@"name"] isKindOfClass:NSString.class] ? ame467_lib[@"name"] : nil;
+        if (!ame467_name) continue;
+        NSArray *ame467_seg = [ame467_name componentsSeparatedByString:@":"];
+        if (ame467_seg.count != 4) continue;   // 必须带 classifier 段
+        NSString *ame467_classifier = ame467_seg[3];
+        if (![ame467_classifier isEqualToString:@"srg"] &&
+            ![ame467_classifier isEqualToString:@"client"] &&
+            ![ame467_classifier isEqualToString:@"extra"]) continue;
+        id ame467_dl = ame467_lib[@"downloads"];
+        if ([ame467_dl isKindOfClass:NSDictionary.class] &&
+            [ame467_dl[@"artifact"] isKindOfClass:NSDictionary.class] &&
+            [ame467_dl[@"artifact"][@"url"] isKindOfClass:NSString.class] &&
+            ((NSString *)ame467_dl[@"artifact"][@"url"]).length > 0) {
+            continue;   // 有 URL：一号门 URL 补链已覆盖，不属本环
+        }
+        NSString *ame467_rel = ame467_mavenNameToRelPath(ame467_name);
+        if (!ame467_rel) continue;
+        NSString *ame467_dest = [libRoot stringByAppendingPathComponent:ame467_rel];
+        if ([ame467_fm fileExistsAtPath:ame467_dest]) continue;
+        [ame467_missing addObject:@{@"name": ame467_name, @"rel": ame467_rel, @"dest": ame467_dest}];
+    }
+    return ame467_missing;
+}
+
+// Tier A 搁浅回收：版本轴统一/迁移前的历史库根探到即零流量拷贝
+static NSUInteger ame467_strandedRecovery(NSArray<NSDictionary *> *missing, NSString *libRoot, NSString *vid) {
+    if (missing.count == 0) return 0;
+    const char *ame467_homeC = getenv("POJAV_HOME");
+    if (!ame467_homeC || !*ame467_homeC) return 0;
+    NSString *ame467_home = @(ame467_homeC);
+    NSMutableArray<NSString *> *ame467_roots = [NSMutableArray array];
+    [ame467_roots addObject:[ame467_home stringByAppendingPathComponent:@"libraries"]];
+    [ame467_roots addObject:[ame467_home stringByAppendingPathComponent:@"Library/Application Support/minecraft/libraries"]];
+    if (vid.length > 0) {
+        [ame467_roots addObject:[NSString stringWithFormat:@"%@/versions/%@/libraries",
+                                 libRoot.stringByDeletingLastPathComponent, vid]];
+    }
+    NSFileManager *ame467_fm = NSFileManager.defaultManager;
+    NSUInteger ame467_recovered = 0;
+    for (NSDictionary *ame467_item in missing) {
+        NSString *ame467_rel = ame467_item[@"rel"];
+        NSString *ame467_dest = ame467_item[@"dest"];
+        for (NSString *ame467_root in ame467_roots) {
+            NSString *ame467_src = [ame467_root stringByAppendingPathComponent:ame467_rel];
+            if (![ame467_fm fileExistsAtPath:ame467_src]) continue;
+            [ame467_fm createDirectoryAtPath:ame467_dest.stringByDeletingLastPathComponent
+                       withIntermediateDirectories:YES attributes:nil error:nil];
+            NSError *ame467_err = nil;
+            if ([ame467_fm copyItemAtPath:ame467_src toPath:ame467_dest error:&ame467_err]) {
+                ame467_recovered++;
+                NSLog(@"[JavaLauncher] Task467: stranded artifact recovered %@ (root=%@)", ame467_rel, ame467_root);
+            } else {
+                NSLog(@"[JavaLauncher] Task467: stranded copy failed %@ (%@)", ame467_rel, ame467_err.localizedDescription ?: @"unknown");
+            }
+            break;
+        }
+    }
+    return ame467_recovered;
+}
+
+// Tier B：processor 自愈——installer 拉取 → install_profile 抽取 → 工具链库
+// 预下载 → ForgeProcessorExecutor 本地生成（进程内 headless JVM 单次约束，
+// 成功后本进程不得再进游戏 JVM —— 调用方复用 ame173「重启并启动」弹窗收束）
+static BOOL ame467_runProcessorHeal(NSArray<NSDictionary *> *missing, NSDictionary *launchTarget, NSString *libRoot, NSString *gameDir) {
+    if ([ForgeProcessorExecutor jvmUsedThisProcess]) {
+        NSLog(@"[JavaLauncher] Task467: headless JVM already used this process -- Tier B unavailable");
+        return NO;
+    }
+    NSString *ame467_vid = [launchTarget[@"id"] isKindOfClass:NSString.class] ? launchTarget[@"id"] : @"";
+    NSString *ame467_mc = [launchTarget[@"inheritsFrom"] isKindOfClass:NSString.class] ? launchTarget[@"inheritsFrom"] : nil;
+    if (ame467_mc.length == 0 || ame467_vid.length == 0) {
+        NSLog(@"[JavaLauncher] Task467: inheritsFrom/id unavailable -- Tier B unavailable");
+        return NO;
+    }
+    NSString *ame467_marker = [NSString stringWithFormat:@"%@-neoforge-", ame467_mc];
+    if (![ame467_vid hasPrefix:ame467_marker]) {
+        NSLog(@"[JavaLauncher] Task467: id %@ does not carry <mc>-neoforge- prefix -- Tier B unavailable", ame467_vid);
+        return NO;
+    }
+    NSString *ame467_pureLoader = [ame467_vid substringFromIndex:ame467_marker.length];
+    // installer URL 构造 1:1 对齐 PLComponentService ame429_installForgeLikeVendor
+    // （同源勿漂移；NeoForge = 新坐标 net/neoforged/neoforge，1.20.1 才走老 forge 坐标）
+    NSString *ame467_installerURL = [NSString stringWithFormat:
+        @"https://maven.neoforged.net/releases/net/neoforged/neoforge/%@/neoforge-%@-installer.jar",
+        ame467_pureLoader, ame467_pureLoader];
+    NSLog(@"[JavaLauncher] Task467: Tier B fetching installer %@", ame467_installerURL);
+    NSData *ame467_blob = ame158_fetchSynchronous(ame467_installerURL);
+    if (!ame467_blob) {
+        NSLog(@"[JavaLauncher] Task467: installer fetch failed -- Tier B unavailable");
+        return NO;
+    }
+    NSString *ame467_tmp = [NSTemporaryDirectory() stringByAppendingPathComponent:@"ame467-neoforge-installer.jar"];
+    if (![ame467_blob writeToFile:ame467_tmp options:NSDataWritingAtomic error:nil]) {
+        NSLog(@"[JavaLauncher] Task467: installer tmp write failed");
+        return NO;
+    }
+    // install_profile.json 抽取（NeoForgeDirectInstaller dataFromZip 同源 UZK API）
+    NSError *ame467_zipErr = nil;
+    UZKArchive *ame467_archive = [[UZKArchive alloc] initWithPath:ame467_tmp error:&ame467_zipErr];
+    NSData *ame467_profileData = ame467_archive
+        ? [ame467_archive extractDataFromFile:@"install_profile.json" error:&ame467_zipErr] : nil;
+    if (!ame467_profileData && ame467_archive) {
+        ame467_profileData = [ame467_archive extractDataFromFile:@"/install_profile.json" error:nil];
+    }
+    if (!ame467_profileData) {
+        NSLog(@"[JavaLauncher] Task467: install_profile.json extract failed (%@)", ame467_zipErr.localizedDescription ?: @"unknown");
+        return NO;
+    }
+    NSError *ame467_jsonErr = nil;
+    NSDictionary *ame467_profile = [NSJSONSerialization JSONObjectWithData:ame467_profileData
+                                                                  options:0 error:&ame467_jsonErr];
+    if (![ame467_profile isKindOfClass:NSDictionary.class] || ame467_jsonErr) {
+        NSLog(@"[JavaLauncher] Task467: install_profile.json parse failed");
+        return NO;
+    }
+    // processor 工具链库预下载（ForgeDirectInstaller Step C 同源语义：
+    // processor 的 jar 与 classpath 全部来自这份清单）
+    NSArray *ame467_toolLibs = [ame467_profile[@"libraries"] isKindOfClass:NSArray.class] ? ame467_profile[@"libraries"] : nil;
+    NSUInteger ame467_toolFetched = 0, ame467_toolFailed = 0;
+    for (NSDictionary *ame467_lib in ame467_toolLibs) {
+        if (![ame467_lib isKindOfClass:NSDictionary.class]) continue;
+        NSString *ame467_name = [ame467_lib[@"name"] isKindOfClass:NSString.class] ? ame467_lib[@"name"] : nil;
+        NSDictionary *ame467_art = [ame467_lib[@"downloads"][@"artifact"] isKindOfClass:NSDictionary.class]
+            ? ame467_lib[@"downloads"][@"artifact"] : nil;
+        NSString *ame467_url = [ame467_art[@"url"] isKindOfClass:NSString.class] ? ame467_art[@"url"] : nil;
+        if (!ame467_name || !ame467_url.length) continue;
+        NSString *ame467_rel = [ame467_art[@"path"] isKindOfClass:NSString.class] && ((NSString *)ame467_art[@"path"]).length
+            ? ame467_art[@"path"] : ame467_mavenNameToRelPath(ame467_name);
+        if (!ame467_rel) continue;
+        NSString *ame467_dest = [libRoot stringByAppendingPathComponent:ame467_rel];
+        if ([NSFileManager.defaultManager fileExistsAtPath:ame467_dest]) continue;
+        NSData *ame467_toolBlob = ame158_fetchSynchronous(ame467_url);
+        if (!ame467_toolBlob) {
+            NSString *ame467_mirror = ame158_bmclapiMirror(ame467_url);
+            if (ame467_mirror) ame467_toolBlob = ame158_fetchSynchronous(ame467_mirror);
+        }
+        if (ame467_toolBlob) {
+            [NSFileManager.defaultManager createDirectoryAtPath:ame467_dest.stringByDeletingLastPathComponent
+                                       withIntermediateDirectories:YES attributes:nil error:nil];
+            if ([ame467_toolBlob writeToFile:ame467_dest options:NSDataWritingAtomic error:nil]) {
+                ame467_toolFetched++;
+                continue;
+            }
+        }
+        ame467_toolFailed++;
+        NSLog(@"[JavaLauncher] Task467: toolchain fetch failed %@ (%@)", ame467_name, ame467_rel);
+    }
+    NSLog(@"[JavaLauncher] Task467: toolchain libraries fetched=%lu failed=%lu",
+          (unsigned long)ame467_toolFetched, (unsigned long)ame467_toolFailed);
+    // 本地生成（executor 自带 JVM 单次防御 + vanilla client/mojmaps 自拉）
+    NSLog(@"[JavaLauncher] Task467: Tier B running processors (mc=%@ loader=%@) -- headless JVM, may take ~30s",
+          ame467_mc, ame467_pureLoader);
+    NSError *ame467_execErr = nil;
+    BOOL ame467_ok = [ForgeProcessorExecutor runProcessorsWithProfile:ame467_profile
+                                                         installerPath:ame467_tmp
+                                                      minecraftVersion:ame467_mc
+                                                           mainGameDir:gameDir
+                                                          baseProgress:0.0
+                                                         progressSpan:0.0
+                                                             progress:nil
+                                                                error:&ame467_execErr];
+    if (!ame467_ok) {
+        NSLog(@"[JavaLauncher] Task467: processors failed (%@)", ame467_execErr.localizedDescription ?: @"unknown");
+        return NO;
+    }
+    // 产物验证（missing 清单逐项 fileExists）
+    NSFileManager *ame467_fm = NSFileManager.defaultManager;
+    for (NSDictionary *ame467_item in missing) {
+        if (![ame467_fm fileExistsAtPath:ame467_item[@"dest"]]) {
+            NSLog(@"[JavaLauncher] Task467: post-heal verification FAILED: %@ still missing", ame467_item[@"rel"]);
+            return NO;
+        }
+    }
+    NSLog(@"[JavaLauncher] Task467: Tier B SUCCESS -- %lu artifact(s) generated; restart required before game JVM",
+          (unsigned long)missing.count);
+    return YES;
+}
+
+// Tier C：指引弹窗（新 i18n 双键；既有弹窗家族同构——启动中断，不再烧 JIT
+// 等待烧进 FML 致命屏。窗口遍历 = Task175 同款 boilerplate）
+static void ame467_presentMissingArtifactDialog(NSArray<NSDictionary *> *missing) {
+    NSString *ame467_first = missing.firstObject[@"rel"] ?: @"client-*-srg.jar";
+    dispatch_async(dispatch_get_main_queue(), ^{
+        UIAlertController *ame467_alert = [UIAlertController
+            alertControllerWithTitle:localize(@"i18n_str_ame467_srg_missing_title", nil)
+            message:[NSString stringWithFormat:localize(@"i18n_str_ame467_srg_missing", nil), ame467_first]
+            preferredStyle:UIAlertControllerStyleAlert];
+        UIWindow *ame467_top = nil;
+        for (UIScene *ame467_scene in [UIApplication sharedApplication].connectedScenes) {
+            if (![ame467_scene isKindOfClass:[UIWindowScene class]]) continue;
+            if (@available(iOS 15.0, *)) {
+                if (ame467_scene.activationState != UISceneActivationStateForegroundActive) continue;
+            }
+            for (UIWindow *ame467_win in ((UIWindowScene *)ame467_scene).windows) {
+                if (ame467_win.isKeyWindow) { ame467_top = ame467_win; break; }
+            }
+            if (ame467_top) break;
+        }
+        while (ame467_top.presentedViewController != nil) {
+            ame467_top = ame467_top.presentedViewController;
+        }
+        [ame467_alert addAction:[UIAlertAction actionWithTitle:localize(@"resman.common.cancel", nil)
+                                                        style:UIAlertActionStyleDefault handler:nil]];
+        [ame467_top presentViewController:ame467_alert animated:YES completion:nil];
+    });
+}
+
+// 保环主入口：YES = 产物齐备可继续启动；NO = 已弹窗收束（Tier B 重启链 /
+// Tier C 指引），调用方中断启动（return 1，不进 JIT 等待）
+static BOOL ame467_processorArtifactRescue(NSDictionary *launchTarget, NSString *libRoot, NSString *gameDir) {
+    if (!ame467_isNeoForgeTarget(launchTarget)) return YES;   // 原版/Fabric 零触碰
+    NSString *ame467_vid = [launchTarget[@"id"] isKindOfClass:NSString.class] ? launchTarget[@"id"] : @"";
+    NSArray *ame467_missing = ame467_missingProcessorArtifacts(launchTarget, libRoot);
+    if (ame467_missing.count == 0) return YES;
+    NSLog(@"[JavaLauncher] Task467: %lu processor artifact(s) missing (NeoForge target %@) -- rescue chain engaged",
+          (unsigned long)ame467_missing.count, ame467_vid);
+    NSUInteger ame467_recovered = ame467_strandedRecovery(ame467_missing, libRoot, ame467_vid);
+    ame467_missing = ame467_missingProcessorArtifacts(launchTarget, libRoot);   // 重新收集
+    if (ame467_missing.count == 0) {
+        NSLog(@"[JavaLauncher] Task467: Tier A recovered %lu stranded artifact(s) -- launch continues",
+              (unsigned long)ame467_recovered);
+        return YES;
+    }
+    if (ame467_runProcessorHeal(ame467_missing, launchTarget, libRoot, gameDir)) {
+        ame173_showJvmUsedRestartDialog(PLProfiles.current.selectedProfileName ?: @"");
+        return NO;   // 进程内 headless JVM 已创建——本进程不得再进游戏 JVM
+    }
+    NSLog(@"[JavaLauncher] Task467: rescue exhausted -- aborting launch with guidance dialog");
+    ame467_presentMissingArtifactDialog(ame467_missing);
+    return NO;
+}
+
+static BOOL ame158_repairMissingLibraries(NSDictionary *launchTarget) {
     const char *ame158_gameDir = getenv("POJAV_GAME_DIR");
-    if (!ame158_gameDir || !*ame158_gameDir) return;
+    if (!ame158_gameDir || !*ame158_gameDir) return YES;
     NSArray *ame158_libs = [launchTarget[@"libraries"] isKindOfClass:NSArray.class]
         ? launchTarget[@"libraries"] : nil;
-    if (ame158_libs.count == 0) return;
+    if (ame158_libs.count == 0) return YES;
 
     NSFileManager *ame158_fm = NSFileManager.defaultManager;
     NSString *ame158_libRoot = [@(ame158_gameDir) stringByAppendingPathComponent:@"libraries"];
@@ -2097,6 +2390,12 @@ static void ame158_repairMissingLibraries(NSDictionary *launchTarget) {
         NSLog(@"[JavaLauncher] Task158: library gate clean (%lu present, %lu skipped)",
               (unsigned long)ame158_present, (unsigned long)ame158_skipped);
     }
+
+    // ★Task467：NeoForge processor 产物保环（SRG/PATCHED/EXTRA 无 URL 条目
+    // 是本门与 Task428 的共同盲区——三层保环见上方 ame467 块注释）。
+    return ame467_processorArtifactRescue(launchTarget,
+        [@(ame158_gameDir) stringByAppendingPathComponent:@"libraries"],
+        @(ame158_gameDir));
 }
 
 // Task181：老 Forge（1.x 谱系）SplashProgress 禁用（1.8.9+vgpu 会话崩溃根修）。
@@ -2955,7 +3254,12 @@ int launchJVM(NSString *accountId, id launchTarget, int width, int height, int m
         // Task 158（Fix B）：启动前游戏库完整性自愈闸门——见上方
         // ame158_repairMissingLibraries 病历（Forge text2speech CNFE 根修 +
         // 未来任何缺库的静默黑洞自愈）。非阻断：失败只记日志点名。
-        ame158_repairMissingLibraries(launchTarget);
+        // ★Task467：门 BOOL 化——NeoForge processor 产物保环中断路径
+        // （Tier B 重启链 / Tier C 指引弹窗已展示）直接 return 1，
+        // 不再进 JIT 等待烧进 FML 致命屏。
+        if (!ame158_repairMissingLibraries(launchTarget)) {
+            return 1;
+        }
 
         // Get preferred Java version from current profile
         // 26.x 官方强制要求 Java 25（Mojang 自 26.x 起将 javaVersion.majorVersion 设为 25），

@@ -92,8 +92,8 @@ check('T6 病历证据注释在场（Knot 白名单 = java.class.path 语义留�
 check('T7 旧会话语义保持（skip 分支文案 still kept off -cp per Task341）',
       'agent jar also kept off -cp per Task341' in jl,
       '旧会话文案漂移')
-check('T8 BuildTag 代际锚 Task466（ame415_buildTag 重锚）',
-      'ame415_buildTag = @"Task466 · 2026-11-22"' in read('Natives/BuildTag.h'),
+check('T8 BuildTag 代际锚 Task467（ame415_buildTag 重锚）',
+      'ame415_buildTag = @"Task467 · 2026-11-22"' in read('Natives/BuildTag.h'),
       'BuildTag 未重锚')
 check('T9 ame341 门禁与条件形态同步（跨门锁：门在库已知晓条件式）',
       COND in read('scripts/ame341_selfcheck.py'),

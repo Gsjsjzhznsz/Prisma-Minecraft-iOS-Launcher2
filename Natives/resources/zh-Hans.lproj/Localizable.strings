@@ -4664,3 +4664,5 @@
 "ame449.setpg.group.jit" = "JIT";
 "ame449.setpg.group.jit26" = "JIT26 镜像";
 "ame449.setpg.group.debug_ui" = "界面调试";
+"i18n_str_ame467_srg_missing_title" = "无法启动：NeoForge 映射产物缺失";
+"i18n_str_ame467_srg_missing" = "缺少 NeoForge 安装时由本机处理器生成的映射 jar（%@）。\n\n请在版本管理中重新安装 NeoForge，或重新导入该实例后再启动游戏。";

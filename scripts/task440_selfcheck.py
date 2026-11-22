@@ -43,9 +43,11 @@ def code_only(text):
     return "\n".join(out)
 
 
+# ★Task467 翻转重锚：WelcomeViewController 退出退役清单（用户指令「把欢迎UI重新恢复」，
+#   Task436 A3 断链 + Task439 批次一删除判例翻转——同 Task463 折叠翻转型家法）
 RETIRE = ["ModVersionViewController", "AssetVersionViewController", "ShaderVersionViewController",
           "AccountLoginViewController", "ProfileSettingsViewController",
-          "FabricInstallViewController", "WelcomeViewController"]
+          "FabricInstallViewController"]
 
 vpages = read("Natives/ZL2VersionPages.m")
 vpages_code = code_only(vpages)
@@ -89,14 +91,16 @@ def t5_versions(text):
 
 
 def t6_docs(text):
-    ok_keys = all(k not in text for k in ("general.news_url（默认", "general.announcement_preview_level（默认", "general.welcome_completed（默认"))
-    # ★Task441 随计数链实数重锚（ame366 D1 真执法同步）：103/206/407 → 100/200/404
-    ok_counts = "100 键 × get/set = 200" in text and "约 404 个" in text
+    # ★Task467 翻转重锚：welcome_completed 键回册（欢迎UI恢复轮），禁在清单仅余两键
+    ok_keys = all(k not in text for k in ("general.news_url（默认", "general.announcement_preview_level（默认"))
+    # ★Task467 计数实数重锚（ame366 D1 真执法同步）：100/200/404 → 101/202/407
+    ok_counts = "101 键 × get/set = 202" in text and "约 407 个" in text
     return ok_keys and ok_counts
 
 
 def t7_plprefs(text):
-    return ('@"announcement_preview_level"' not in text and '@"welcome_completed"' not in text)
+    # ★Task467 翻转重锚：welcome_completed 回册合法（哨兵键随向导链回注）
+    return '@"announcement_preview_level"' not in text
 
 
 def t8_verifiers(text_unused=None):
@@ -113,22 +117,22 @@ def t8_verifiers(text_unused=None):
 CHECKS = [
     ("T1 ameV13-reroute-zl2page", "Natives/ZL2VersionPages.m", t1_reroute),
     ("T2 assetsearch-vestigial-gone", "Natives/ZL2AssetSearchViewController.m", t2_asset),
-    ("T3 retire-14-files-gone", None, t3_deleted),
-    ("T4 cmake-7-entries-gone", "Natives/CMakeLists.txt", t4_cmake),
+    ("T3 retire-12-files-gone", None, t3_deleted),
+    ("T4 cmake-6-entries-gone", "Natives/CMakeLists.txt", t4_cmake),
     ("T5 versions-import-gone", "Natives/ZL2VersionsViewController.m", t5_versions),
-    ("T6 aiplugin-docs-3keys-gone", "Natives/AI/AiPluginDocsTool.m", t6_docs),
-    ("T7 plprefs-2keys-gone", "Natives/PLPreferences.m", t7_plprefs),
+    ("T6 aiplugin-docs-2keys-gone", "Natives/AI/AiPluginDocsTool.m", t6_docs),
+    ("T7 plprefs-1key-gone", "Natives/PLPreferences.m", t7_plprefs),
     ("T8 rot-family-reanchored", None, t8_verifiers),
 ]
 
 INJECT_MARKERS = {
     "T1 ameV13-reroute-zl2page": "initWithDomain:ZL2VersionListDomainMod",
     "T2 assetsearch-vestigial-gone": "ZL2VersionListPageDelegate>",
-    "T3 retire-14-files-gone": None,
-    "T4 cmake-7-entries-gone": "★Task440 注记",
+    "T3 retire-12-files-gone": None,
+    "T4 cmake-6-entries-gone": "★Task440 注记",
     "T5 versions-import-gone": None,
-    "T6 aiplugin-docs-3keys-gone": "100 键 × get/set = 200",
-    "T7 plprefs-2keys-gone": None,
+    "T6 aiplugin-docs-2keys-gone": "101 键 × get/set = 202",
+    "T7 plprefs-1key-gone": None,
     "T8 rot-family-reanchored": None,   # 跨文件元断言无单点标记，selftest 跳过
 }
 
