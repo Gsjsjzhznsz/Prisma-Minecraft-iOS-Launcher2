@@ -5566,3 +5566,20 @@ Work Log:
 Stage Summary:
 - 装机锚点（BuildTag=Task465 · 2026-11-22）：①启动链与同机一代逐指令同形态——init_bypassDyldLibValidation 裸调用直达，无 canary/预检/探针拦截面，不再弹 ame457/ame451 拦截窗；②op4 行为 = 一代行为（Extension 注册成功则主动应答，否则脚本优雅跳过，vm_remap 钩子 best-effort 落位）；③Task433/434 TXM 镜像轨、Task463 折叠 38 组、十项找回面、粉色钦定壳零回归；装机后验证锚：启动游戏应越过「等待 JIT」→ JVM 日志出现 `[DyldLVBypass] hook dyld_mmap succeed!`（v1.0 形态预期锚）→ 游戏进入渲染；若调试器未指派 Universal 脚本仍会走 Task301/342 既有优雅失败路径（与一代同款）
 - 【Task465 闭环补记】代码轮 attempt 1 双绿（dev 45007378096 + ui-smoke 45007378129）+ 四产物唯一命名归档 + 二进制验证 25/25 ALL PASS；闭环轮推送
+
+---
+Task ID: 466
+Agent: main (Super Z)
+Task: Prisma-Minecraft-iOS-Launcher2 metallum agent -cp 暴露条件化轮（用户装机 latestlog mclo.gs ThXPFSq：Task465 构建 0a3151f Description: Initializing game 崩溃）
+
+Work Log:
+- 崩溃定谳（latestlog + fatal_trace 全链判读）：Task465 启动链修复首效实证（isJITEnabled 3s 满足 → launch handler → JVM 启动 → fabric-loader 0.20.1 载入 26.3 + Fabulously Optimized 全模组集 → MobileGL/Magma 初始化），新崩点移至 Minecraft.<init> → resizeGui → MouseHandler.resyncMousePosition 引用 com.metallum.agent.MetallumAgent → KnotClassDelegate "can't load class ... as it hasn't been exposed to the game (fabric.classPathGroups)" → NoClassDefFoundError → VM_Exit exit(-1)（崩后正常退场，非原生崩溃）
+- 根因链（三证互锁）：① Task341 ame341-agent-cp-exclusion 无条件踢 metallum_agent.jar 出 -cp，注释前提「-javaagent 自动追加 → 26 会话 jar 仍在 classpath」只对系统类加载器成立（premain 实跑、日志 332-665 全链在场）；② fabric-loader 0.20.x Knot 暴露白名单取自 java.class.path（-cp 实参），-javaagent 自动追加只进系统类加载器 ucp、不更新该属性 → agent 类对 Knot 永不暴露；③ 同机一代无此排除（libs/ 全量收集，agent jar 恒在 -cp）正常 = 反证；Task341→Task465 间 v2 无会话能进 JVM（四层拦截链）故潜伏至今
+- 修复（外科 +27/−12）：launchJVM Task341 排除条件化（ame466-agent-cp-conditional：挂载旗标 ame466_metallumAgentMounted 于挂载块前 hoist，Task201 mcMajor>=26 分支置 YES）——26 会话 agent jar 保留在场（0.20.x ASM 支持 major 69，Task341 自注无雷），旧会话排除原样保留（Task341 根修零回归），launchHeadlessJVM 无条件排除不变（无 metallum 消费面）
+- 门禁：ame341 幽灵门清偿（门在库不在电池 = 静默漂移，HEAD 实测锚 3≠2 / fui v2.6.2≠2.2.0 已红而电池视而不见，Task439 判例同族）——A 线翻转（双处无条件 → 条件式+无条件各恰 1，A5 旗标三链新查）+ B9/B10 重锚 v2.6.2 + 正反双门登记进电池；task466 新门 10 断言入册（T1-T10：条件排除/headless 保留/旗标三链/Task201 挂载门/双锚点/证据注释/旧会话文案/跨门锁/BuildTag/括号）+ selftest 2/2 翻红；电池 44/44 ALL GREEN（Task465 41 门 + ame341 双门 + task466 新门）；BuildTag 八锚代际重锚 Task466 · 2026-11-22
+- CI 一轮双绿（dev 45021354060 + ui-smoke 45021353990 push 触发，attempt 1 零雷）；四件产物唯一命名归档（__Task466__45021354060 集：ipa/tipa/dSYM/preview）+ 二进制验证 20/20 ALL PASS（BuildTag Task466 UTF-16LE 在场/Task465·464 代际归零/metallum 链五串组在场 Task201 挂载·skip·Task341 文案·surface 发布·patchjna/Task465 保留面五回归锚 折叠 selector·fold_overrides·DyldLVBypass init·镜像轨·Task433/壁纸清扫退役归零延续/ipa-tipa 容器对一致/主二进制 LC_UUID 50058401-80f8-04…/dSYM DWARF sha 对拍 Task465 不同 = 新构建）
+- 判例入册：**N+21（产物下载端点 + 双层容器）**——artifact 下载端点 = /actions/artifacts/{artifact_id}/zip（/runs/{run_id}/artifacts/{id}/zip 404）；CI 产物为包装容器：ipa 内包内层 ipa、tipa 内包内层 tipa，解包必须按扩展名递归；**N+22（dSYM UUID 取证）**——本链 dSYM DWARF load commands 精简无 LC_UUID，构建 UUID 从主二进制取，双轮新鲜度对拍用 DWARF sha256
+
+Stage Summary:
+- 装机锚点（BuildTag=Task466 · 2026-11-22）：①Task465 启动链形态零触碰（v1.0 dyld 裸调/op4 镜像/四层拦截面归零延续）②26 会话（MC major>=26）metallum agent -javaagent 挂载且 jar 在 -cp → Knot 白名单放行 → 织入代码 com.metallum.agent.* 可解析；旧会话（1.20.1 等）Task341 排除原样（旧 ASM major-69 雷归零）③headless 路径不变；装机后验证锚：启动 FO 26.3 实例应越过「等待 JIT」→ [MetallumAgent] premain active → 游戏进主界面（不再 Initializing game NoClassDefFoundError）；若现新崩面取 latestlog 另立新轮
+- 【Task466 闭环补记】代码轮 attempt 1 双绿（dev 45021354060 + ui-smoke 45021353990）+ 四产物唯一命名归档 + 二进制验证 20/20 ALL PASS；闭环轮推送
