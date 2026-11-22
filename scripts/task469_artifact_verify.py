@@ -150,10 +150,12 @@ check('V10 libMobileGL.dylib 随包（app Frameworks 内恰一份）', len(mg_dy
 if mg_dylibs:
     d = mg_dylibs[0]
     sz = os.path.getsize(d)
-    check('V11 dylib 换装代际反锚（GIT@8df5508 在场 + 旧代 GIT@874b9e8 双消 + 尺寸 16447088）',
+    # 打包链 codesign/签名摘除会形变体积（仓库侧未剥离母本 16447088 → 随包 12266784
+    # 实测，-4.18MB 签名面），尺寸判据用带域防旧代（旧代 85757760B 远超上界）：
+    check('V11 dylib 换装代际反锚（GIT@8df5508 在场 + 旧代 GIT@874b9e8 双消 + 带域 10-20MB）',
           bin_has(d, b"GIT@8df5508")
           and not bin_has(d, b"GIT@874b9e8")
-          and sz == 16447088,
+          and 10_000_000 <= sz <= 20_000_000,
           f"size={sz}")
     check('V12 vendored dylib 反锚延续（16 旋钮名在其字符串表）',
           all(bin_has(d, s.encode()) for s in KNOB_ENVS))
