@@ -1,6 +1,6 @@
 #!/bin/bash
 # Task432 门禁电池 —— 全量本地复跑（Task439 修幽灵门：run_sh 补定义，声明门数 =
-#   实跑门数，每轮 RESULT 汇总行即真实门数；当前 33 门 = 27 既有 runner +
+#   实跑门数，每轮 RESULT 汇总行即真实门数；Task465 轮 = 40 门且总裁决移至全部门之后（461/462/464 历史追加越线修复；27 既有 runner +
 #   task439 双新门 + task440/task442 自检门 + 括号审计 + ame366 自检门（★Task441/442 入册，
 #   第 11 期报告 5.3 节验收项），历史头注「16 门」自第 9 期起已失实，Task439 校正）
 # 用法: bash scripts/task432_gate_battery.sh
@@ -83,6 +83,14 @@ local_rc=$?
 tail -3 /tmp/task432_bracket.log
 if [ $local_rc -eq 0 ]; then RESULT[bracket]="PASS"; else RESULT[bracket]="FAIL(rc=$local_rc)"; fi
 
+# ★Task461 回退树组合执法（重应用四件防线 + 退役面归零 + 粉色钦定形态）
+run_py task461     scripts/task461_selfcheck.py
+
+# ★Task462 「其他修改找回」轮执法（449/450/455/460 修改面外科重应用 + 锁定面继承归零 + i18n 54 表回归）
+run_py task462     scripts/task462_selfcheck.py
+run_py task464     scripts/task464_selfcheck.py
+run_py task465     scripts/task465_selfcheck.py
+
 echo
 echo "════════ 电池总裁决 ════════"
 fails=0
@@ -91,10 +99,3 @@ for k in "${!RESULT[@]}"; do
 done
 echo "PASS $((${#RESULT[@]} - fails)) / ${#RESULT[@]}  FAIL $fails"
 [ $fails -eq 0 ] && echo "Task432 gate battery ALL GREEN"
-
-# ★Task461 回退树组合执法（重应用四件防线 + 退役面归零 + 粉色钦定形态）
-run_py task461     scripts/task461_selfcheck.py
-
-# ★Task462 「其他修改找回」轮执法（449/450/455/460 修改面外科重应用 + 锁定面继承归零 + i18n 54 表回归）
-run_py task462     scripts/task462_selfcheck.py
-run_py task464     scripts/task464_selfcheck.py

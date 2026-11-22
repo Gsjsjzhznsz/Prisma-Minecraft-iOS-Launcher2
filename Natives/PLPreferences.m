@@ -462,9 +462,6 @@ NSString *const PREF_MOD_MIRROR = @"general.mod_mirror";
             // ★ Task342：JIT 镜像代码缓存退役自救开关（默认关零行为变化；
             //   SIGBUS@call_stub 装机实弹的自救通道，崩溃弹窗一键开启）
             @"mirror_codecache_disable": @NO,
-            // ★Task451：JIT26 授予前预检逃生阀（默认关 = 预检启用；3/3 空壳
-            //   定罪拒绝发射防 SIGBUS 黑屏，假阳性误拦时的用户侧旁路开关）
-            @"jit26_preflight_disable": @NO,
             // ★Task452：启动器自身 JSC 解释器钉死逃生阀（默认关 = 钉死；
             //   议题#3 JIT26 空壳 RX 通道下插件 JIT'd 函数首取指硬崩的开机面
             //   摘除，见 main.m Task452 注记；ON = 恢复历史 JIT 行为，仅诊断

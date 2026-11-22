@@ -113,18 +113,20 @@ check("R9-8 449⑤ iso 设置页文案 localize 化",
 
 print("== R10 i18n 54 表全量恢复执法 ==")
 res = ROOT / "Natives" / "resources"
-expect_lines = {"af": 4376, "ar": 4427, "de": 4445, "en": 4669, "es": 4432, "fr": 4440,
-                "it": 4430, "ja": 4513, "km": 4496, "ko": 4425, "pt-BR": 4449, "ru": 4448,
-                "zh-CN": 4665, "zh-Hans": 4668, "zh-Hant": 4666}
+# ★Task465：ame451_preflight/ame457_dyldhook 两弹窗键 54 表退役 → 各表地板 −2
+expect_lines = {"af": 4374, "ar": 4425, "de": 4443, "en": 4667, "es": 4430, "fr": 4438,
+                "it": 4428, "ja": 4511, "km": 4494, "ko": 4423, "pt-BR": 4447, "ru": 4446,
+                "zh-CN": 4663, "zh-Hans": 4666, "zh-Hant": 4664}
 for lang, expect in expect_lines.items():
     f = res / f"{lang}.lproj" / "Localizable.strings"
     n = len(f.read_text(encoding="utf-8", errors="replace").splitlines()) if f.exists() else 0
-    check(f"R10 {lang}.lproj ≥ {expect} 行（460 代际表回归）", n >= expect, f"got {n}")
+    check(f"R10 {lang}.lproj ≥ {expect} 行（460 代际表回归 + Task465 −2）", n >= expect, f"got {n}")
 check("R10 ame449.iso 键入 zh-Hans 表",
       "ame449.iso.no_profile" in rd("Natives/resources/zh-Hans.lproj/Localizable.strings"))
-check("R10 ame450 时代键仍在 en 表（451/457 不被表恢复冲掉）",
-      "ame451" in rd("Natives/resources/en.lproj/Localizable.strings")
-      and "ame457" in rd("Natives/resources/en.lproj/Localizable.strings"))
+check("R10 451/457 退役键不在 en 表 + ame449.iso 时代键在场（★Task465 翻转：退役执法，回潮检测由行数地板承担）",
+      "ame451" not in rd("Natives/resources/en.lproj/Localizable.strings")
+      and "ame457" not in rd("Natives/resources/en.lproj/Localizable.strings")
+      and "ame449.iso.no_profile" in rd("Natives/resources/en.lproj/Localizable.strings"))
 
 print("== X 锁定面继承执法（Task461 X 全量继承，本轮找回零污染） ==")
 SCAN_FILES = list((ROOT / "Natives").rglob("*.m")) + list((ROOT / "Natives").rglob("*.h"))
@@ -164,7 +166,7 @@ check("X7-2 壁纸功能本体在场（ame429）",
 
 print("== S 敏感性样本 ==")
 tag = rd("Natives/BuildTag.h")
-check("S1 BuildTag Task464 · 2026-11-22", "Task464 · 2026-11-22" in tag)
+check("S1 BuildTag Task465 · 2026-11-22（启动链恢复首预发行版轮代际重锚）", "Task465 · 2026-11-22" in tag)
 check("S2 电池注册 task462", "task462_selfcheck" in rd("scripts/task432_gate_battery.sh"))
 
 print(f"\n========================================")

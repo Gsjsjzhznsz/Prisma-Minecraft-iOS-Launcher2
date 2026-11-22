@@ -26,6 +26,13 @@
 #   全零）。A16 ame273 jit26_mapping_shadow 分支（扫描轴 + marker 双通
 #   道，优先级压过 ame434）· A17 JavaLauncher 通道自证探针（写已知指令
 #   + Prepare + icache + 真调用，三信号安全网）· S-5 反向注入探针。
+# ★Task465 判例翻转：A17/A18（JavaLauncher 侧探针家族与 canned 判别块）
+#   随启动链四层拦截面（Task437/451/457/464）整体退役——canary/探针的
+#   「主动应答」语义在标准 UniversalJIT26.js 会话永假（三代零改动，
+#   commands 表仅 x16=0/1/2），同机一代（v1.0 同形态）正常起游戏。
+#   A16/A19-A21（main_hook 崩溃日志分类轴）原样保留：分类器消费历史
+#   marker/hs_err 文本，与启动拦截面无关。翻转后 A17/A18 改执法归零，
+#   S-5/S-6 反向注入改为「注入即翻红」验证退役断言的敏感性。
 import os
 import sys
 
@@ -119,29 +126,30 @@ if '--selftest' in sys.argv:
         print('ok  S-4 反向：证伪建议回流 -> A15 FAIL（符合预期）')
     else:
         print('S-4 未翻红（证伪建议探针失效）'); bad += 1
-    # S-5（★Task437）：通道自证探针接线被摘 → A17 必翻红
-    inj_jl3 = jl_code.replace('ame437_selfVerifyJit26Channel(result);', '/* REDACTED */;')
-    ok = 'ame437_selfVerifyJit26Channel(result);' not in inj_jl3
+    # S-5（★Task437 → ★Task465 翻转）：退役断言敏感性——注入探针调用行
+    #      必须令 A17 退役断言翻红（门必须拦得住探针面回流）
+    def a17_pred(src):
+        return ('ame437_selfVerifyJit26Channel' not in src and
+                '0xD28266E0' not in src and
+                'ame437_probe_shadow.txt' not in src)
+    inj_jl3 = jl_code + '\n// ame437_selfVerifyJit26Channel(result); 0xD28266E0 ame437_probe_shadow.txt'
+    ok = a17_pred(jl_code) and (not a17_pred(inj_jl3))
     if ok:
-        print('ok  S-5 反向：通道自证探针接线摘除 -> A17 FAIL（符合预期）')
+        print('ok  S-5 反向：探针面回流注入 -> A17 FAIL（符合预期）')
     else:
-        print('S-5 未翻红（自证探针接线探针失效）'); bad += 1
-    # S-6（★Task438）：canned ping-ack 判别被摘（判定恒 NO）→ A18 必翻红
-    #      （判别摘除后 canned 区 fault 会回到不定罪前的旧定罪语义——判决
-    #      诚实化倒退，门必须拦住）
+        print('S-5 未翻红（退役断言探针失效）'); bad += 1
+    # S-6（★Task438 → ★Task465 翻转）：退役断言敏感性——注入 canned 判别块
+    #      标识串必须令 A18 退役断言翻红
     def a18_pred(src):
-        return ('BOOL ame437_cannedAck = ((uint32_t)(uintptr_t)ame437_region) == 0x690000E0u;' in src and
-                'ame437_probe_canned.txt' in src and
-                'not a conviction' in src and
-                'verdict=inconclusive' in src)
-    inj_jl4 = jl_code.replace(
-        'BOOL ame437_cannedAck = ((uint32_t)(uintptr_t)ame437_region) == 0x690000E0u;',
-        'BOOL ame437_cannedAck = NO;')
+        return ('BOOL ame437_cannedAck' not in src and
+                'ame437_probe_canned.txt' not in src and
+                'verdict=inconclusive' not in src)
+    inj_jl4 = jl_code + '\n// BOOL ame437_cannedAck = NO; ame437_probe_canned.txt verdict=inconclusive'
     ok = a18_pred(jl_code) and (not a18_pred(inj_jl4))
     if ok:
-        print('ok  S-6 反向：canned ping-ack 判别摘除 -> A18 FAIL（符合预期）')
+        print('ok  S-6 反向：canned 判别块回流注入 -> A18 FAIL（符合预期）')
     else:
-        print('S-6 未翻红（canned 判别探针失效）'); bad += 1
+        print('S-6 未翻红（退役断言探针失效）'); bad += 1
     # S-7（★Task448）：+5 偏移回退到 +4（第五轮实录病态）→ A20 必翻红
     #      （偏移回退后 rx/rw 恒 0，形态判决空转——门必须拦住倒退）
     def a20_pred(src):
@@ -217,11 +225,12 @@ check('A15 被证伪的 Java 21 建议退役（Java 17 指引在场）',
       '或对该实例改用 Java 17 运行时' in mh_code and
       'switch this instance to a Java 17 runtime' in mh_code)
 
-print('== A16/A17 组：Task437 JIT26 映射假阳性（二代 issue#3 第五层）==')
+print('== A16/A17 组：Task437 JIT26 映射假阳性（★Task465 翻转：A17 退役执法） ==')
 
 # A16: main_hook 映射假阳性分支——扫描轴（Got JIT mapping / mapping at RW=）
 #      + 新类别 jit26_mapping_shadow + marker 双通道判据 + 优先级压过
 #      ame434 + 证伪文案（换 Java 17 没用 → 更新调试器侧）。
+#      ★Task465：main_hook 分类轴保留（崩溃日志诊断面，非启动拦截面）。
 check('A16 main_hook 映射假阳性分支（jit26_mapping_shadow + 双通道判据）',
       '"jit26_mapping_shadow"' in mh_code and
       'ame437_gotmap' in mh_code and 'ame437_mapline' in mh_code and
@@ -231,32 +240,25 @@ check('A16 main_hook 映射假阳性分支（jit26_mapping_shadow + 双通道判
       'JIT26 镜像通道假阳性' in mh_code and
       mh_code.index('if (ame437_shadow)') < mh_code.index('else if (ame434_jit26Missing)'))
 
-# A17: JavaLauncher 通道自证探针——写已知指令（movz x0,#0x1337 / ret）
-#      + JIT26PrepareRegion + sys_icache_invalidate + 真调用校验 + 三信号
-#      安全网（sigsetjmp）+ marker 通道 + 新鲜度（通过即清）+ 启动链接线。
-check('A17 JavaLauncher JIT26 通道自证探针（真调用 + 三信号 + marker）',
-      'static void ame437_selfVerifyJit26Channel(void *ame437_region)' in jl_code and
-      '0xD28266E0' in jl_code and '0xD65F03C0' in jl_code and
-      'JIT26PrepareRegion(ame437_region' in jl_code and
-      'sys_icache_invalidate(ame437_region' in jl_code and
-      'sigsetjmp(ame437_verifyEnv' in jl_code and
-      'ame437_probe_shadow.txt' in jl_code and
-      'unlink(ame437_path)' in jl_code and
-      jl_code.count('ame437_selfVerifyJit26Channel(result);') == 1)
+# A17（★Task465 翻转）：JavaLauncher 通道自证探针退役——家族 + 真调用
+#      接线 + 三信号安全网 + marker 落盘全部归零（探针「主动应答」语义
+#      在标准脚本会话永假，同机一代 v1.0 同形态正常起游戏）。
+check('A17(★Task465 翻转) 通道自证探针退役（家族 + 接线 + marker 归零）',
+      'ame437_selfVerifyJit26Channel' not in jl_code and
+      '0xD28266E0' not in jl_code and
+      'sys_icache_invalidate' not in jl_code and
+      'ame437_probe_shadow.txt' not in jl_code)
 
-print('== A18/A19 组：Task438 探针判决诚实化 + per-app 脚本指引（二代 issue#3 三轮装机跟进）==')
+print('== A18/A19 组：Task438 探针判决诚实化（★Task465 翻转：A18 退役执法） ==')
 
-# A18: 探针判决诚实化——canned ping-ack 魔数判别（0x690000E0 低 32 位），
-#      魔数区 fault 落 inconclusive marker（不定罪），非魔数真区域 fault 才
-#      定罪 shadow marker，双 marker 互斥新鲜度（命中一路清另一路）。
-check('A18 探针判决诚实化（canned 不定罪 / 真区域定罪 / 双 marker 互斥清）',
-      'BOOL ame437_cannedAck = ((uint32_t)(uintptr_t)ame437_region) == 0x690000E0u;' in jl_code and
-      'ame437_probe_canned.txt' in jl_code and
-      'not a conviction' in jl_code and
-      'on a NON-magic region' in jl_code and
-      'verdict=inconclusive' in jl_code and
-      'mapping fake-positive conviction' in jl_code and
-      jl_code.count('ame437_probe_canned.txt') >= 3)
+# A18（★Task465 翻转）：canned ping-ack 判别块随探针家族整体退役——
+#      判别、双 marker 落盘、互斥新鲜度全部归零（main_hook 分类轴中的
+#      ame437_probe_canned.txt 感知保留，见 A19）。
+check('A18(★Task465 翻转) canned 判别块退役（判别 + marker 落盘归零）',
+      'BOOL ame437_cannedAck' not in jl_code and
+      'ame437_probe_canned.txt' not in jl_code and
+      'verdict=inconclusive' not in jl_code and
+      'not a conviction' not in jl_code)
 
 # A19: main_hook shadow 分支文案重写——per-app 脚本重分配三步指引
 #      （Assign Script / 删除重指派 / 移除重开），三运行时客户端逐指令同构
