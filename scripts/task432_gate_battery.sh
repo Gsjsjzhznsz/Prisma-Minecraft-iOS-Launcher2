@@ -7,6 +7,7 @@
 #   task439 双新门 + task440/task442 自检门 + 括号审计 + ame366 自检门（★Task441/442 入册，
 #   第 11 期报告 5.3 节验收项），历史头注「16 门」自第 9 期起已失实，Task439 校正）
 #   Task468 轮 = 48 门（+ame468 MobileGL 旋钮门 + selftest 反向门）
+#   Task469 轮 = 48 门（ame468 门内扩展：16 旋钮 + 幽灵清单翻转 + S10 升代产物代际锚；门数不变）
 # 用法: bash scripts/task432_gate_battery.sh
 cd "$(dirname "$0")/.." || exit 1
 

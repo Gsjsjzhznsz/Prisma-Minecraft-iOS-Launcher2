@@ -82,8 +82,8 @@ check("A5 病历注释含 SOFTSystemEvents 崩溃链（可追溯性）",
 
 print("== B. Task113/120/131 MobileGL（Task131 重锚：三后端回渲染器菜单，独立行退役）==")
 dylib = os.path.join(REPO, "Natives/resources/Frameworks/libMobileGL.dylib")
-check("B1 libMobileGL.dylib 已 vendor（上游 caf6822 同款 85757760B）",
-      os.path.exists(dylib) and os.path.getsize(dylib) == 85757760)
+check("B1 libMobileGL.dylib 已 vendor（Task469 升代 Witch fork 8df5508 同款 16447088B）",
+      os.path.exists(dylib) and os.path.getsize(dylib) == 16447088)
 # Task 131 重锚：用户四次反馈“设置项还是分开的/二级菜单入口无法使用”，
 # 三后端回到渲染器悬浮菜单（上游形态），mobilegl_backend 独立行退役。
 check("B2 渲染器列表七项（Task132 重锚：MobileGL 家族三后端已合并进统一浮窗行）",

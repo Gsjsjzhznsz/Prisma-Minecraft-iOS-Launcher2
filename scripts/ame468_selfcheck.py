@@ -1,15 +1,18 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """Task468 自检门 —— MobileGL/Magma 引擎级性能旋钮层（抄 Witch-Launcher 渲染调优面）
-+ 内置渲染器上游更新扫描轮。
++ 内置渲染器上游更新扫描轮。Task469 轮扩展：dylib 升代换装（Witch fork GIT@8df5508）
++ 幽灵三旋钮转正 + 16 旋钮面 + S10 升代产物代际锚。
 
 门禁锚面（S 组）：
   S1  ame468 旋钮层在 JavaLauncher.m 落位（函数 + 12 个 MOBILEGL_* setenv 名）；
   S2  二进制反锚：每个被应用的 MOBILEGL_* 变量名必须真的存在于
-      Natives/resources/Frameworks/libMobileGL.dylib 的字符串表——vendored
-      二进制不支持的变量（上游 26.11 才加的 VMA_BLOCK_SIZE_MB /
-      LARGE_BUFFER_ADOPT_MB / ANGLE_BACKEND）必须在源码零引入（幽灵变量防再犯，
-      Task439 幽灵门同族判例）；
+      Natives/resources/Frameworks/libMobileGL.dylib 的字符串表（Task469 升代后 =
+      Witch fork GIT@8df5508 构建，16 旋钮全支持）——上游 MobileGL main 26.11 线
+      的更名/新增变量（FRAMES_IN_FLIGHT 新名 / SUBGROUP_EMULATION / ITRP_FIX /
+      MAGMA_MAX_DRAWS_PER_COMMAND_BUFFER / MAGMA_DESCRIPTOR_TRIM_FRAMES /
+      MAGMA_EXTRA_SWAPCHAIN_IMAGES / SERVER_FRAME_STATS / ESPRYT_YUV_DRIVER_CONVERSION）
+      在本 dylib 不存在，必须源码零引入（幽灵变量防再犯，Task439 幽灵门同族判例）；
   S3  默认值字面量：三缓冲默认 3、异步着色器编译默认开（"1"）；
   S4  else 分支 unsetenv 对称清偿（每个 setenv 名都有 unsetenv 镜像）；
   S5  既有口径零回归：Task156 ESPRYT drawelements、Task158 DSA=@0、
@@ -21,6 +24,9 @@
   S8  日志锚行（[JavaLauncher] Task468: MobileGL perf knobs applied）在场；
   S9  偏好归一化读取器 ame468_pref_string 定义于首个调用点之前（编译序防线，
       本轮 r0 复盘：初版 helper 定义在 init_loadDefaultEnv 之后即隐式声明雷）。
+  S10 升代产物代际锚（Task469）：libMobileGL.dylib 尺寸 16447088 + sha256
+      fd907f65… 前缀 + GIT@8df5508 在场 + 旧代 GIT@874b9e8 双消 +
+      libMoltenVK.dylib 14769224/sha 3378bf8d… 前缀 + 出处档案互证。
 
 --selftest 反向门：合成负样本验证本门真的会咬人（缺 setenv 的假源 / 二进制
   不存在的变量名 / 默认值被改的假源，三者都必须 FAIL 才算门活着）。
@@ -51,13 +57,25 @@ APPLIED_ENVS = [
     "MOBILEGL_MAGMA_MULTIDRAW_MODE",
     "MOBILEGL_ASYNC_SHADER_COMPILE_THREADS",
     "MOBILEGL_ASYNC_OPTIMISTIC_SHADER_STATUS",
-]
-
-# vendored libMobileGL.dylib（26.08-dev@874b9e8）不支持的上游新变量——源码零引入
-GHOST_ENVS = [
     "MOBILEGL_MAGMA_VMA_BLOCK_SIZE_MB",
     "MOBILEGL_LARGE_BUFFER_ADOPT_MB",
     "MOBILEGL_ANGLE_BACKEND",
+    "MOBILEGL_MAGMA_R11G11B10F_FALLBACK",
+]
+
+# Task469 幽灵清单翻转：VMA/ADOPT/ANGLE 三名已在 Witch fork GIT@8df5508 dylib
+# strings 实证在场并转正接线（见 APPLIED_ENVS）。本清单改为看守「上游 MobileGL
+# main 26.11 线的更名/新增变量」——fork@8df5508 构建（2026-10-16）不含它们，
+# 下轮若做 MobileGL main 源码构建升代才可解禁；防再犯判例同 Task439 幽灵门。
+GHOST_ENVS = [
+    "MOBILEGL_FRAMES_IN_FLIGHT",
+    "MOBILEGL_SUBGROUP_EMULATION",
+    "MOBILEGL_ITRP_FIX",
+    "MOBILEGL_MAGMA_MAX_DRAWS_PER_COMMAND_BUFFER",
+    "MOBILEGL_MAGMA_DESCRIPTOR_TRIM_FRAMES",
+    "MOBILEGL_MAGMA_EXTRA_SWAPCHAIN_IMAGES",
+    "MOBILEGL_SERVER_FRAME_STATS",
+    "MOBILEGL_ESPRYT_YUV_DRIVER_CONVERSION",
 ]
 
 # Task463 折叠面四元组（零污染面）
@@ -100,6 +118,8 @@ def check_source(text, fails, prefix=""):
     # S1 旋钮层函数注释锚
     if "Task468：MobileGL/Magma 引擎级性能旋钮层" not in text:
         fails.append(f"{prefix}S1 旋钮层注释锚缺失")
+    if "Task469 渲染器真正升代" not in text:
+        fails.append(f"{prefix}S1 Task469 升代注释锚缺失")
     for name in APPLIED_ENVS:
         if not has_real_setenv(text, name):
             fails.append(f"{prefix}S1 setenv 缺失: {name}")
@@ -108,6 +128,14 @@ def check_source(text, fails, prefix=""):
         fails.append(f"{prefix}S3 三缓冲默认 3 缺失")
     if 'ame468_asyncOn ? "1" : "0"' not in text:
         fails.append(f"{prefix}S3 异步编译默认开缺失")
+    if "if (ame468_vma <= 0) ame468_vma = 32;" not in text:
+        fails.append(f"{prefix}S3 VMA 块默认 32 缺失")
+    if "if (ame468_adopt <= 0) ame468_adopt = 4;" not in text:
+        fails.append(f"{prefix}S3 收养阈值默认 4 缺失")
+    if ']) ? "vulkan" : "tgles", 1)' not in text:
+        fails.append(f"{prefix}S3 ANGLE 后端默认 tgles 缺失")
+    if 'getPrefBool(@"mobilegl.r11g11b10f_fallback") ? "1" : "0"' not in text:
+        fails.append(f"{prefix}S3 R11G11B10F 默认关缺失")
     # S4 unsetenv 对称
     for name in APPLIED_ENVS:
         if f'unsetenv("{name}")' not in text:
@@ -124,7 +152,7 @@ def check_source(text, fails, prefix=""):
     if 'setenv("MOBILEGL_ESPRYT_MULTIDRAW_MODE", "drawelements", 1);' not in text:
         fails.append(f"{prefix}S5 Task156 drawelements 回归")
     # S8 日志锚
-    if "[JavaLauncher] Task468: MobileGL perf knobs applied" not in text:
+    if "[JavaLauncher] Task469: MobileGL perf knobs applied" not in text:
         fails.append(f"{prefix}S8 日志锚缺失")
     # S9 编译序：helper 定义必须在 init_loadDefaultEnv 定义之前
     helper_pos = text.find("static NSString *ame468_pref_string")
@@ -161,6 +189,36 @@ def main():
                 # dylib 自己有的名字反而进 GHOST 清单 = 清单配置错（双保险反向校验）
                 fails.append(f"S2 GHOST 清单配置矛盾（dylib 实际支持）: {name}")
 
+    # S10 升代产物代际锚（Task469：dylib 换装校验）
+    import hashlib as _hashlib
+    if DYLIB_MG.exists():
+        _sz = DYLIB_MG.stat().st_size
+        if _sz != 16447088:
+            fails.append(f"S10 dylib 尺寸漂移 {_sz} != 16447088")
+        _sha = _hashlib.sha256(DYLIB_MG.read_bytes()).hexdigest()
+        if not _sha.startswith("fd907f655061aaa9"):
+            fails.append(f"S10 dylib sha256 漂移 {_sha[:16]}…")
+        _blob = "\n".join(dylib_strings(DYLIB_MG) or [])
+        if "GIT@8df5508" not in _blob:
+            fails.append("S10 dylib 无 GIT@8df5508 标记（未换装？）")
+        if "GIT@874b9e8" in _blob:
+            fails.append("S10 dylib 旧代标记残留（GIT@874b9e8）")
+        _prov = ROOT / "Natives" / "resources" / "Frameworks" / "libMobileGL.PROVENANCE.md"
+        if not _prov.exists():
+            fails.append("S10 产物出处档案缺失")
+        else:
+            _ptext = _prov.read_text(encoding="utf-8", errors="replace")
+            if "fd907f655061aaa9" not in _ptext or "3378bf8d6fd1e5bd" not in _ptext:
+                fails.append("S10 出处档案指纹不符")
+    else:
+        fails.append("S10 libMobileGL.dylib 不存在")
+    if DYLIB_MVK.exists():
+        if DYLIB_MVK.stat().st_size != 14769224:
+            fails.append(f"S10 MoltenVK 尺寸漂移 {DYLIB_MVK.stat().st_size} != 14769224")
+        _msha = _hashlib.sha256(DYLIB_MVK.read_bytes()).hexdigest()
+        if not _msha.startswith("3378bf8d6fd1e5bd"):
+            fails.append(f"S10 MoltenVK sha256 漂移 {_msha[:16]}…")
+
     # S7 MVK 反锚
     if not has_real_setenv(text, "MVK_CONFIG_USE_METAL_ARGUMENT_BUFFERS"):
         fails.append("S7 MVK 参数缓冲开关缺失")
@@ -183,15 +241,15 @@ def main():
 
     # S 代际锚（轻校验；完整执法在 task439_buildtag_anchor.py）
     tag = BUILD_TAG.read_text(encoding="utf-8", errors="replace")
-    if 'ame415_buildTag = @"Task468 · ' not in tag:
-        fails.append("S BuildTag 未进代 Task468")
+    if 'ame415_buildTag = @"Task469 · ' not in tag:
+        fails.append("S BuildTag 未进代 Task469")
 
     if fails:
         print(f"[FAIL] task468_selfcheck {len(fails)} 项:")
         for f in fails:
             print("  -", f)
         return 1
-    print(f"[PASS] task468_selfcheck: S1-S9 全绿 "
+    print(f"[PASS] task468_selfcheck: S1-S10 全绿 "
           f"({len(APPLIED_ENVS)} 个 MOBILEGL_* setenv 反锚 + {len(GHOST_ENVS)} 幽灵变量零引入 + 折叠面零污染)")
     return 0
 
@@ -208,7 +266,7 @@ def selftest():
 
     # 负样本 1b：幽灵变量实调用注入 → S2 必须红
     bad1b = good.replace('setenv("MOBILEGL_MAGMA_FRAMESINFLIGHT", ame468_framesBuf, 1);',
-                         'setenv("MOBILEGL_MAGMA_FRAMESINFLIGHT", ame468_framesBuf, 1);\n                setenv("MOBILEGL_MAGMA_VMA_BLOCK_SIZE_MB", "32", 1);')
+                         'setenv("MOBILEGL_MAGMA_FRAMESINFLIGHT", ame468_framesBuf, 1);\n                setenv("MOBILEGL_FRAMES_IN_FLIGHT", "3", 1);')
     f1b = []
     check_source(bad1b, f1b, prefix="n1b/")
     assert any("S2 幽灵变量实调用引入" in x for x in f1b), "n1b 未咬人"

@@ -134,8 +134,8 @@ check('R17 i18n 双键 54 表同步',
 check('R18 verify219 J 锚 4350 重锚',
       'len(keys) == 4350' in read('scripts/verify_task219.py'),
       'J 锚未重锚')
-check('S1 BuildTag 代际锚 Task468 · 2026-11-23',
-      'ame415_buildTag = @"Task468 · 2026-11-23"' in tag_h,
+check('S1 BuildTag 代际锚 Task469 · 2026-11-23',
+      'ame415_buildTag = @"Task469 · 2026-11-23"' in tag_h,
       'BuildTag 未重锚')
 check('S2 电池登记 task467（声明即实跑）',
       'task467' in read('scripts/task432_gate_battery.sh'),

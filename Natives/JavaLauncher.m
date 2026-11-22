@@ -3598,17 +3598,20 @@ int launchJVM(NSString *accountId, id launchTarget, int width, int height, int m
                 NSLog(@"[JavaLauncher] Task156: Espryt multidraw tier forced to 'drawelements' (ES blocks-invisible workaround)");
             }
             // Task468：MobileGL/Magma 引擎级性能旋钮层（抄 Witch-Launcher 渲染调优面，
-            // 用户钦定「渲染性能很好,赶紧抄点过来」）。Witch 的 Natives/MobileGLConfig.m
-            // 对 MobileGL 暴露 11 个引擎旋钮（三缓冲/异步着色器编译/host-coherent 语义/
-            // subgroup/timer query/FP64 广播/纹理视图/SPIRV 校验/大缓冲收养）；本仓
-            // libMobileGL.dylib（26.08-dev@874b9e8 预编译）strings 实证支持其中 12 个
-            // MOBILEGL_* 变量，此前仅设 BACKEND_TYPE/LOG_FILE_PATH/ESPRYT_MULTIDRAW_MODE
-            // 三件，性能旋钮全部走引擎默认——本轮对齐 Witch 调优姿态。vendored 二进制
-            // 不支持的上游新变量（MOBILEGL_MAGMA_VMA_BLOCK_SIZE_MB /
-            // MOBILEGL_LARGE_BUFFER_ADOPT_MB / MOBILEGL_ANGLE_BACKEND，ame468 门禁
-            // 逐名对 strings 验证）有意不设，等 dylib 上游同步后再接，防幽灵变量。
-            // MAGMA_* 仅 Vulkan 直连档有意义；ES（DirectGLES）档只应用引擎通用件。
-            // 偏好全部 plist-only（mobilegl.* 分区，零 UI 行）。
+            // 用户钦定「渲染性能很好,赶紧抄点过来」）。Task469 渲染器真正升代（用户钦定
+            // 「继续优化和真正的升级渲染器」）：libMobileGL.dylib 由 Amethyst 线
+            // 874b9e8@2026-09-05（85757760B 未剥离）换装 Witch fork Ynnyny/MobileGL-fix
+            // GIT@8df5508@2026-10-16 构建（16447088B，vulkan-sdk-1.4.321 基线，自带
+            // MC26.3 几何/UI 间歇损坏修复 + VMA 块尺寸配置 + iOS loader/EGL 修复 +
+            // MetalANGLE GLES32 shim），libMoltenVK.dylib 配套对同轮换装。升代后
+            // 上游 26.11 才有的三变量在 fork dylib strings 实证在场，幽灵清单翻转
+            // 转正接线：MOBILEGL_MAGMA_VMA_BLOCK_SIZE_MB（默认 32，钳 8..256）/
+            // MOBILEGL_LARGE_BUFFER_ADOPT_MB（默认 4，钳 1..64）/ MOBILEGL_ANGLE_BACKEND
+            // （tgles|vulkan，GLES+ANGLE 路径消费，Vulkan 档惰性）+ Witch 现役第四旋钮
+            // MOBILEGL_MAGMA_R11G11B10F_FALLBACK（默认关）。对齐 Witch 现役
+            // MobileGLConfig.m 姿态（fork 源码级实锚：ConfigLoader QueryEnvUint32 +
+            // Loader.cpp getenv）。MAGMA_* 仅 Vulkan 直连档有意义；ES（DirectGLES）
+            // 档引擎自动忽略。偏好全部 plist-only（mobilegl.* 分区，零 UI 行）。
             {
                 BOOL ame468_vulkanTier = (strcmp(backend, "DirectVulkan") == 0);
                 NSInteger ame468_frames = getPrefInt(@"mobilegl.frames_in_flight");
@@ -3616,15 +3619,14 @@ int launchJVM(NSString *accountId, id launchTarget, int width, int height, int m
                 char ame468_framesBuf[16];
                 snprintf(ame468_framesBuf, sizeof(ame468_framesBuf), "%ld", (long)ame468_frames);
                 setenv("MOBILEGL_MAGMA_FRAMESINFLIGHT", ame468_framesBuf, 1);
-                // 异步着色器编译：vendored 二进制 strings 只认 0/1（Witch 新版 dylib
-                // 的 On/Off/Auto 三态是上游后加），默认 1 = 广播
+                // 异步着色器编译：fork dylib QueryEnvQuirkOverride truthy 解析兼容
+                // 0/1（On/Off/Auto 三态是 Witch 上层语义），默认 1 = 广播
                 // GL_KHR_parallel_shader_compile + 编译线程池，shaderpack/世界加载期
                 // 重叠编译（对齐 Witch 姿态）；仅字符串 "0" 显式关。
                 NSString *ame468_async = ame468_pref_string(@"mobilegl.async_shader_compile");
                 BOOL ame468_asyncOn = !(ame468_async && [ame468_async isEqualToString:@"0"]);
                 setenv("MOBILEGL_ASYNC_SHADER_COMPILE", ame468_asyncOn ? "1" : "0", 1);
-                // 着色器缓存：vendored 无值域 strings 实证，不设默认（引擎原生行为），
-                // 仅用户显式偏好时透传。
+                // 着色器缓存：无默认（引擎原生行为），仅用户显式偏好时透传。
                 NSString *ame468_cache = ame468_pref_string(@"mobilegl.shader_cache");
                 if (ame468_cache && [ame468_cache length]) {
                     setenv("MOBILEGL_SHADER_CACHE", ame468_cache.UTF8String, 1);
@@ -3661,7 +3663,25 @@ int launchJVM(NSString *accountId, id launchTarget, int width, int height, int m
                 if (getPrefBool(@"mobilegl.async_optimistic_shader_status")) {
                     setenv("MOBILEGL_ASYNC_OPTIMISTIC_SHADER_STATUS", "1", 1);
                 }
-                NSLog(@"[JavaLauncher] Task468: MobileGL perf knobs applied (Witch port): frames=%ld async=%d coherent=%d timerQ=%d fp64=%d texview=%d spirvV=%d lba=%d tier=%s",
+                // Task469：幽灵三旋钮转正 + Witch 现役第四旋钮（升代后 strings 反锚全场）
+                NSInteger ame468_vma = getPrefInt(@"mobilegl.vma_block_size");
+                if (ame468_vma <= 0) ame468_vma = 32;   // fork 默认 32MB VMA 大块堆
+                char ame468_vmaBuf[16];
+                snprintf(ame468_vmaBuf, sizeof(ame468_vmaBuf), "%ld", (long)ame468_vma);
+                setenv("MOBILEGL_MAGMA_VMA_BLOCK_SIZE_MB", ame468_vmaBuf, 1);
+                NSInteger ame468_adopt = getPrefInt(@"mobilegl.large_buffer_adopt_size");
+                if (ame468_adopt <= 0) ame468_adopt = 4;   // fork 默认 4MB GPU 常驻收养阈值
+                char ame468_adoptBuf[16];
+                snprintf(ame468_adoptBuf, sizeof(ame468_adoptBuf), "%ld", (long)ame468_adopt);
+                setenv("MOBILEGL_LARGE_BUFFER_ADOPT_MB", ame468_adoptBuf, 1);
+                // ANGLE 后端（DirectGLES 档的 ANGLE 装载路径消费；默认 TGLES）
+                NSString *ame468_angle = ame468_pref_string(@"mobilegl.angle_backend");
+                setenv("MOBILEGL_ANGLE_BACKEND",
+                       (ame468_angle && [ame468_angle isEqualToString:@"vulkan"]) ? "vulkan" : "tgles", 1);
+                // Magma R11G11B10F 格式回退（Witch 现役姿态，默认关）
+                setenv("MOBILEGL_MAGMA_R11G11B10F_FALLBACK",
+                       getPrefBool(@"mobilegl.r11g11b10f_fallback") ? "1" : "0", 1);
+                NSLog(@"[JavaLauncher] Task469: MobileGL perf knobs applied (Witch dylib GIT@8df5508): frames=%ld async=%d coherent=%d timerQ=%d fp64=%d texview=%d spirvV=%d lba=%d vma=%ld adopt=%ld angle=%s r11=%d tier=%s",
                       (long)ame468_frames, ame468_asyncOn ? 1 : 0,
                       getPrefBool(@"mobilegl.coherent_as_flush") ? 1 : 0,
                       getPrefBool(@"mobilegl.disable_timer_query") ? 1 : 0,
@@ -3669,6 +3689,9 @@ int launchJVM(NSString *accountId, id launchTarget, int width, int height, int m
                       getPrefBool(@"mobilegl.disable_texture_view") ? 1 : 0,
                       getPrefBool(@"mobilegl.enable_spirv_validation") ? 1 : 0,
                       getPrefBool(@"mobilegl.disable_large_buffer_adoption") ? 1 : 0,
+                      (long)ame468_vma, (long)ame468_adopt,
+                      getenv("MOBILEGL_ANGLE_BACKEND") ? getenv("MOBILEGL_ANGLE_BACKEND") : "tgles",
+                      getPrefBool(@"mobilegl.r11g11b10f_fallback") ? 1 : 0,
                       backend);
             }
             NSLog(@"[JavaLauncher] MobileGL renderer active: backend=%s", backend);
@@ -3691,6 +3714,10 @@ int launchJVM(NSString *accountId, id launchTarget, int width, int height, int m
             unsetenv("MOBILEGL_MAGMA_MULTIDRAW_MODE");
             unsetenv("MOBILEGL_ASYNC_SHADER_COMPILE_THREADS");
             unsetenv("MOBILEGL_ASYNC_OPTIMISTIC_SHADER_STATUS");
+            unsetenv("MOBILEGL_MAGMA_VMA_BLOCK_SIZE_MB");
+            unsetenv("MOBILEGL_LARGE_BUFFER_ADOPT_MB");
+            unsetenv("MOBILEGL_ANGLE_BACKEND");
+            unsetenv("MOBILEGL_MAGMA_R11G11B10F_FALLBACK");
             unsetenv("MVK_CONFIG_USE_METAL_ARGUMENT_BUFFERS");
         }
 
