@@ -78,16 +78,18 @@ static void ame428_dosDateTime(NSDate *when, uint16_t *outTime, uint16_t *outDat
 // 宿主 = 本模型类：ZL2Home 与版本页共用，页面间零直连（ZL2Home 文件头
 // Task323 判例纪律）。
 // ---------------------------------------------------------------------------
++ (BOOL)ame428_jsonManifestParsesAtPath:(NSString *)path;   // ★Task472 回植修正：类扩展=原型声明（r2：实现误植 @interface 块 CI 实锚 PLProfiles.m:81）
+
+@end
+
+@implementation PLProfiles
+
 + (BOOL)ame428_jsonManifestParsesAtPath:(NSString *)path {
     if (path.length == 0) return NO;
     if (![NSFileManager.defaultManager fileExistsAtPath:path]) return NO;
     NSMutableDictionary *ame428_parsed = parseJSONFromFile(path);
     return [ame428_parsed isKindOfClass:[NSDictionary class]] && !ame428_parsed[@"NSErrorObject"];
 }
-
-@end
-
-@implementation PLProfiles
 
 + (id)defaultProfiles {
     return @{
