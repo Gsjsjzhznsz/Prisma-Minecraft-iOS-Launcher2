@@ -54,10 +54,6 @@ extern BOOL Amethyst_EnforceSDL3Presentation(void);
         // 启动即合并（幂等自愈：无重复实例时空转零 IO；导入进行中自动让路；
         // 冲突文件一律进 .ame269_backup 备份绝不丢失；选中实例被合并自动切 canonical）。
         [ModpackImportService ame269_migrateDuplicateModpackInstancesIfNeeded];
-        // ★ Task271（271-a F2 自适应恢复）：隔离自愈——gameDir 缺失/"." 但
-        //   versions/<id>/ 下已有真实隔离数据的 profile，注册表落定为隔离
-        //   （幂等保守：已显式配置绝不碰，无数据零 IO 空转）。
-        [ModService ame271_selfHealStrandedIsolation];
         // Task317：插件运行时引导（扫描已装插件→建 JSContext→执行 main.js→app.launch；
         // 内部幂等，场景重建时自动跳过）。
         [AmePluginRuntime bootIfNeeded];

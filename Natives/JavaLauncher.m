@@ -38,7 +38,6 @@
 //   授权清单内；启动链消费有效隔离解析——单一事实源在 PLProfiles.m，
 //   决策树全文见彼处块注释）。签名勿漂移。
 @interface PLProfiles (Ame428Task428Launch)
-+ (NSInteger)ame428_effectiveIsolationForVid:(NSString *)vid profile:(NSDictionary *)profile;
 @end
 
 #define fm NSFileManager.defaultManager
@@ -3879,101 +3878,24 @@ int launchJVM(NSString *accountId, id launchTarget, int width, int height, int m
         NSLog(@"[JavaLauncher] GRAPHICS_API is set to %@\n", graphicsApi);
 
         // Setup gameDir
-        // ★ Task275 F5：绝对路径自定义隔离目录原样使用——原实现无条件嵌套拼接
-        //   instances/<gd>/<绝对路径>，stringByStandardizingPath 收拢双斜杠后变为
-        //   instances/<gd>/var/...：启动 chdir 落进嵌套孤儿树，与服务层五处 resolve
-        //   （isAbsolutePath 原样返回）分叉成两套口径（管理页/下载落点在真实目录）。
+        // ★Task472: 版本隔离体系整体退役（用户钦定全删）——gameDir 一律 =
+        //   主游戏目录（Task226 对齐的 POJAV_GAME_DIR env 根，POJAV_HOME
+        //   兜底）。旧 ame275/ame225/ame428 三层解析（实例级三态/嗅探/
+        //   version.config/全局默认档）全部退役，profile.gameDir 键失效。
         {
-            NSString *ame275_gd = [PLProfiles resolveKeyForCurrentProfile:@"gameDir"];
-            if ([ame275_gd isAbsolutePath]) {
-                gameDir = ame275_gd;
-            } else {
-                gameDir = [NSString stringWithFormat:@"%s/instances/%@/%@",
-                    getenv("POJAV_HOME"), getPrefObject(@"general.game_directory"), ame275_gd]
-                    .stringByStandardizingPath;
+            NSString *ame472_root = @(getenv("POJAV_GAME_DIR") ?: "");
+            if (ame472_root.length == 0) {
+                const char *ame472_homeC = getenv("POJAV_HOME");
+                if (ame472_homeC && *ame472_homeC) {
+                    ame472_root = [NSString stringWithUTF8String:ame472_homeC];
+                }
+            }
+            if (ame472_root.length > 0) {
+                gameDir = ame472_root;
+                NSLog(@"[JavaLauncher] Task472: gameDir = shared root %@ (version isolation retired)", gameDir);
             }
         }
 
-        // ★ Task225（反馈 #5：与 ModService 同源的隔离嗅探）：profile 的
-        // gameDir 为 "."/缺失时，若 versions/<vid>/game（或旧口径
-        // versions/<vid>/）下已有 mods/saves 用户数据，启动目录自动解析为
-        // 该隔离目录——与上游 PCL VER-ISOLATE 的 auto 语义及 ModService/
-        // ModsManager 的解析完全一致（三处同规则，杜绝"游戏跑共享目录而
-        // mod 装到隔离目录"的错位）。显式 gameDir（自定义路径）永远优先。
-        {
-            NSString *ame225_profGameDir = [PLProfiles resolveKeyForCurrentProfile:@"gameDir"];
-            BOOL ame225_isShared = ![ame225_profGameDir isKindOfClass:[NSString class]] ||
-                ame225_profGameDir.length == 0 || [ame225_profGameDir isEqualToString:@"."];
-            if (ame225_isShared) {
-                NSDictionary *ame225_prof = [PLProfiles.current.profiles objectForKey:PLProfiles.current.selectedProfileName];
-                NSString *ame225_sniffed = [ModService ame225_sniffedIsolationGameDirForProfile:ame225_prof];
-                if (ame225_sniffed.length > 0) {
-                    gameDir = ame225_sniffed;
-                    NSLog(@"[JavaLauncher] Task225 auto-sniffed isolation gameDir -> %@ (mods/saves present; ModService 同源嗅探)", gameDir);
-                }
-            }
-        }
-
-        // ★Task428（1.2）：版本级有效隔离——cwd 对齐（1.3 自洽红线闭环点）。
-        //   单一事实源 PLProfiles.ame428_effectiveIsolationForVid（决策树全文
-        //   见 PLProfiles.m 块注释）。本块置于 ame225 嗅探【之后】、
-        //   ame287 Forge 收口【之前】：显式版本级覆盖必须赢过自动嗅探
-        //   （用户意图至高），而 forge URI-safe 收口对最终 gameDir 生效。
-        //   返回值：1=隔离 → gameDir 解析到 <env根>/versions/<vid>/（目录
-        //   不存在则创建；env 根由 ZL2Home Ame353 对齐点保证 = 版本根 R，
-        //   env 与 cwd 恒同根 R——与既有 state-1 隔离启动流完全同构，
-        //   “setenv POJAV_GAME_DIR 对齐”由此成立，无需改写 env 指向）；
-        //   0=共享 → 仅当现 gameDir 恰为 versions/<vid> 形（state-1 被显式
-        //   禁用/ame225 嗅探误中）时重指回实例根；
-        //   -1=自定义实例路径 / latest 别名 → 零触碰（现有各层语义原样）。
-        {
-            NSString *ame428_vid = [launchTarget isKindOfClass:[NSDictionary class]]
-                ? launchTarget[@"id"] : nil;
-            if ([ame428_vid isKindOfClass:[NSString class]] && ame428_vid.length > 0
-                && ![ame428_vid hasPrefix:@"latest-"] && ![ame428_vid isEqualToString:@"latest"]) {
-                NSDictionary *ame428_prof = [PLProfiles.current.profiles
-                    objectForKey:PLProfiles.current.selectedProfileName];
-                NSInteger ame428_eff = [PLProfiles ame428_effectiveIsolationForVid:ame428_vid
-                                                                          profile:ame428_prof];
-                if (ame428_eff == 1 || ame428_eff == 0) {
-                    NSString *ame428_base = @(getenv("POJAV_GAME_DIR") ?: "");
-                    if (ame428_base.length == 0) {
-                        const char *ame428_homeC = getenv("POJAV_HOME");
-                        if (ame428_homeC && *ame428_homeC) {
-                            ame428_base = [NSString stringWithUTF8String:ame428_homeC];
-                        }
-                    }
-                    if (ame428_base.length > 0) {
-                        NSString *ame428_vdir = [[ame428_base stringByAppendingPathComponent:@"versions"]
-                            stringByAppendingPathComponent:ame428_vid];
-                        // 归一比较（符号链接 vs 真实路径：ame275/ame353 两套根形可能
-                        // 同目录异串——stringByStandardizingPath 收敛后再比）
-                        NSString *ame428_gameNorm = [gameDir stringByStandardizingPath];
-                        NSString *ame428_vdirNorm = [ame428_vdir stringByStandardizingPath];
-                        if (ame428_eff == 1) {
-                            // 隔离：目录不存在则创建（首次启用即落位）
-                            BOOL ame428_vdirIsDir = NO;
-                            if (![fm fileExistsAtPath:ame428_vdir isDirectory:&ame428_vdirIsDir] || !ame428_vdirIsDir) {
-                                if ([fm createDirectoryAtPath:ame428_vdir
-                                      withIntermediateDirectories:YES attributes:nil error:nil]) {
-                                    NSLog(@"[JavaLauncher] Task428: isolated gameDir created at %@", ame428_vdir);
-                                }
-                            }
-                            if (![ame428_gameNorm isEqualToString:ame428_vdirNorm]) {
-                                NSLog(@"[JavaLauncher] Task428: effective isolation ON -> gameDir %@ -> %@ (vid=%@)",
-                                      gameDir, ame428_vdir, ame428_vid);
-                                gameDir = ame428_vdir;
-                            }
-                        } else if ([ame428_gameNorm isEqualToString:ame428_vdirNorm]) {
-                            // 显式禁用（或嗅探误中）：仅 versions/<vid> 形重指回实例根
-                            NSLog(@"[JavaLauncher] Task428: effective isolation OFF -> gameDir %@ -> %@ (vid=%@)",
-                                      gameDir, ame428_base, ame428_vid);
-                            gameDir = ame428_base;
-                        }
-                    }
-                }
-            }
-        }
 
         // ★ Task287（PocketJ 对标移植）：Forge URI-safe 游戏根——先于全部
         //   mods 目录扫描与 chdir（Task97 CwdAlign 消费本 gameDir），命中

@@ -13,8 +13,6 @@
 #import <CommonCrypto/CommonCrypto.h>
 #import <UIKit/UIKit.h>
 #import "PLProfiles.h"
-#import "ModService.h"   // Task274-h S11: Task225 isolation sniff (ame225_sniffedIsolationGameDirForProfile)
-#import "WorldItem.h"
 #import "UZKArchive.h"
 #import "DownloadTaskManager.h"
 #import "DownloadTaskItem.h"
@@ -101,12 +99,6 @@
             //   逐行同口径）——此前 World 缺嗅探，'.' 实例（AiInstanceCreator 仍写 '.'、
             //   A3 sweep 仅启动期收敛）的世界下载落共享根，与 mods 落点短暂分居。
             {
-                NSString *ame225_sniffed = [ModService ame225_sniffedIsolationGameDirForProfile:prof];
-                if (ame225_sniffed.length > 0) {
-                    NSLog(@"[WorldService] Task225 auto-sniffed isolation for profile %@ -> %@ (mods/saves present)",
-                          profile, ame225_sniffed.lastPathComponent);
-                    return ame225_sniffed;
-                }
             }
             if ([gameDir isKindOfClass:[NSString class]] && [gameDir isEqualToString:@"."]) {
                 const char *baseC = getenv("POJAV_GAME_DIR");

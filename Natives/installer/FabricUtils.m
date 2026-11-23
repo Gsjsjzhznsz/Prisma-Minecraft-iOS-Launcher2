@@ -165,11 +165,10 @@ static void ame336_fetchProfile(NSArray<NSURL *> *candidates, void (^completion)
     NSString *apiUrl = [PLMirrorCenter preferredURLForOriginalURL:[NSURL URLWithString:originalAPIURL]
                                                    resourceType:PLMirrorResourceTypeAssetSearch].absoluteString ?: originalAPIURL;
 
-    // 实例 mods 目录：Task322 混居 gameDir=versions/<profileId>（本执行器 saveProfile 口径）
+    // ★Task472: 版本隔离退役——mods 安装目标 = 主游戏目录 mods/
     const char *env = getenv("POJAV_GAME_DIR");
     NSString *baseDir = env ? [NSString stringWithUTF8String:env] : NSHomeDirectory();
-    NSString *modsPath = [[baseDir stringByAppendingPathComponent:
-        [NSString stringWithFormat:@"versions/%@", profileId]] stringByAppendingPathComponent:@"mods"];
+    NSString *modsPath = [baseDir stringByAppendingPathComponent:@"mods"];
     [[NSFileManager defaultManager] createDirectoryAtPath:modsPath
                               withIntermediateDirectories:YES attributes:nil error:nil];
 
@@ -261,7 +260,6 @@ static void ame336_fetchProfile(NSArray<NSURL *> *candidates, void (^completion)
         // ★Task450 ③：隔离数据播种（copy-from-parent，已存在不覆盖，best-effort）
         NSString *ame450_parent = [profileJson[@"inheritsFrom"] isKindOfClass:[NSString class]]
             ? profileJson[@"inheritsFrom"] : @"";
-        [PLProfiles ame450_seedIsolatedVersionData:profileId inheritsFrom:ame450_parent];
 
         // ★ Task337 线①闪退根修：profile 注册段整体主线程执行。
         //   旧写法在 NSURLSession 回调线程直接执行

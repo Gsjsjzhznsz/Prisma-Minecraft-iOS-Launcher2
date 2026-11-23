@@ -53,7 +53,6 @@
 //   对应，勿漂移。ZL2VersionsViewController/ZL2SettingPages 同判例）。
 //   仅用于报告文件的 profile 维度字段（有效隔离态），纯读零副作用。
 @interface PLProfiles (Ame429Task429)
-+ (NSInteger)ame428_effectiveIsolationForVid:(NSString *)vid profile:(NSDictionary *)profile;
 @end
 
 // ★Task428：与 JavaLauncher.m 的立桩/清除共用同一文件名与首行格式
@@ -336,8 +335,7 @@ typedef NS_ENUM(NSInteger, Ame428ItemState) {
         NSString *rawGameDir = [profile[@"gameDir"] isKindOfClass:[NSString class]]
             ? profile[@"gameDir"] : nil;
         ctx.gameDirRaw = rawGameDir.length > 0 ? rawGameDir : @".";
-        ctx.isolationEffective = [PLProfiles ame428_effectiveIsolationForVid:versionId
-                                                                    profile:profile];
+        ctx.isolationEffective = 0; // ★Task472: 版本隔离退役——报告恒共享根
         return ctx;
     }
 }

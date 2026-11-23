@@ -25,18 +25,8 @@
 //                                  Task255/256 单一事实源）
 //   java.jvm_preset_custom_args    自定义 JVM 参数（预设=custom 时注入）
 //   java.java_args                 JVM 启动参数（全局）
-//   ★Task447: 版本隔离行改读【真实隔离态】——原读 internal.isolated（实例
-//                                  plist 偏好桶键）与本仓隔离四消费链（启动链
-//                                  JavaLauncher/ModService/版本详情页/版本列表
-//                                  engage）脱钩 = 写 A 读 B。现读侧 =
-//                                  PLProfiles ame428 决策树（profile gameDir
-//                                  锚定 + versions/<vid>/version.config 覆盖
-//                                  + general.isolation_default 全局默认档，
-//                                  启动链同源），写侧经 ame428 搬移流 +
-//                                  version.config + gameDir 三件套；
-//                                  internal.isolated 偏好桶机制原样保留
-//                                  （存量设备启动语义零回归，仅不再从本行
-//                                  读写——见 ame447_applyIsolationToggle: 注）
+//   ★Task472: 版本隔离行随隔离体系整体退役（行与读写侧均已移除，
+//                                  internal.isolated 偏好桶键惰性不读不写）
 //   ★Task432：底部「更多设置」行退役（长尾已直挂分组）
 //
 // ③ 控制屏（旧「触控设置」页顶层项，TouchControllerPreferencesViewController 同键族）
@@ -243,7 +233,6 @@
 // ★Task428（1.2）：PLProfiles 新增类方法的本地前置声明（PLProfiles.h 不在
 //   授权清单内；全局隔离档行消费翻转计算 + 下沉执行）。签名勿漂移。
 @interface PLProfiles (Ame428Task428Settings)
-+ (NSArray<NSDictionary *> *)ame428_computeGlobalFlipsFrom:(NSInteger)oldG to:(NSInteger)newG;
 + (NSDictionary *)ame428_executeIsolationDataMoveForVid:(NSString *)vid
                                             toIsolated:(BOOL)toIsolated reason:(NSString *)reason;
 @end
@@ -804,15 +793,6 @@ static NSUInteger ame432_paletteEchoIndex(NSInteger mode) {
 //   逐字对齐勿漂移）。版本隔离行真实态读/写消费，替代原 internal.isolated
 //   偏好桶直读直写（写 A 读 B 根修，见 ame_buildGroups 组 2 注）。
 @interface PLProfiles (Ame428Task447Settings)
-+ (NSInteger)ame428_effectiveIsolationForVid:(NSString *)vid profile:(NSDictionary *)profile;
-+ (NSInteger)ame428_overrideForVid:(NSString *)vid;
-+ (NSInteger)ame428_globalDefault;
-+ (BOOL)ame428_writeOverride:(NSInteger)override vid:(NSString *)vid;
-+ (void)ame428_presentIsolationMoveFlowFrom:(UIViewController *)presenter
-                                        vid:(NSString *)vid
-                                 toIsolated:(BOOL)toIsolated
-                                     reason:(NSString *)reason
-                                  onCommit:(void (^)(void))onCommit;
 @end
 
 @interface ZL2GameSettingsPage ()
@@ -820,7 +800,6 @@ static NSUInteger ame432_paletteEchoIndex(NSInteger mode) {
 @property (nonatomic, strong) ZL2SettingRowEnum *presetRow;
 @property (nonatomic, strong) ZL2SettingRowInput *customArgsRow;
 @property (nonatomic, strong) ZL2SettingRowInput *javaArgsRow;
-@property (nonatomic, strong) ZL2SettingRowSwitch *isolationRow;
 @end
 
 @implementation ZL2GameSettingsPage
@@ -907,34 +886,6 @@ static NSUInteger ame432_paletteEchoIndex(NSInteger mode) {
                        key:@"memory_jvm"
          defaultCollapsed:NO];
 
-    // --- 组 2：实例 ---
-    // ★ Task447: 版本隔离行改读【真实隔离态】。原实现读偏好桶键
-    //   internal.isolated（PojavLauncher 遗留「独立偏好集」开关）——该键除
-    //   本行自身外全仓零写入方，而本仓真实隔离（安装器自动隔离 gameDir、
-    //   版本详情页三选 version.config、全局默认档）全部经 PLProfiles ame428
-    //   决策树消费 = 用户在版本详情页存下的隔离值在这枚开关上永远不可见
-    //   （写 A 读 B），装机复诉「版本隔离界面的数据还是没有」根因。
-    //   现读侧 = ame428_effectiveIsolationForVid（与启动链 JavaLauncher
-    //   gameDir 对齐块同一事实源），开关 = 有效隔离态，副标题携带状态来源；
-    //   写侧 = ame447_applyIsolationToggle:（gameDir + version.config +
-    //   ame428 数据搬移流三件套）。internal.isolated 偏好桶机制原样保留
-    //   （存量设备启动语义零回归，仅此行不再读写）。
-    ZL2SettingRowSwitch *isolationRow =
-        [[ZL2SettingRowSwitch alloc] initWithTitle:@"" subtitle:nil];
-    isolationRow.title = localize(@"ame369.setpg.version_isolation", @"版本隔离");
-    isolationRow.subtitle = [self ame447_isolationStateText];
-    [isolationRow ame_setOn:[self ame447_isolationSwitchOn]];
-    isolationRow.onToggle = ^(BOOL on) {
-        [weakSelf ame447_applyIsolationToggle:on];
-    };
-    self.isolationRow = isolationRow;
-
-    ZL2SettingCardGroup *group2 = [[ZL2SettingCardGroup alloc] init];
-    [group2 ame_addRow:isolationRow];
-    [self ame_addGroup:group2
-                     title:localize(@"ame449.setpg.group.isolation", nil)
-                       key:@"isolation"
-         defaultCollapsed:YES];
 
     // ── ★ Task344 旧设置全量迁移：音频/兼容组（video+general 跨分区收拢）──
     ZL2SettingCardGroup *audioGroup = [[ZL2SettingCardGroup alloc] init];
@@ -1028,155 +979,6 @@ static NSUInteger ame432_paletteEchoIndex(NSInteger mode) {
 }
 
 #pragma mark - ★ Task447: 版本隔离行真实态装载/写入（ame428 决策树单源对齐）
-
-// 开关态 = 当前选中实例（PLProfiles.selectedProfile，与本页内存行同桶）
-// 版本的有效隔离（ame428_effectiveIsolationForVid：profile gameDir 锚定 /
-// versions/<vid>/version.config 覆盖 / general.isolation_default 全局默认
-// / MODDED 自动嗅探四层决策树）。不可操作态（未选版本/latest 别名/A3
-// 自定义路径）一律 NO，原因由副标题如实呈现。
-- (BOOL)ame447_isolationSwitchOn {
-    NSDictionary *profile = [[PLProfiles current] selectedProfile];
-    if (![profile isKindOfClass:[NSDictionary class]]) return NO;
-    NSString *vid = [profile[@"lastVersionId"] isKindOfClass:[NSString class]]
-        ? profile[@"lastVersionId"] : nil;
-    if (vid.length == 0) return NO;
-    return ([PLProfiles ame428_effectiveIsolationForVid:vid profile:profile] == 1);
-}
-
-// 副标题 = 真实状态 + 来源（读侧与启动链同源，用户在设置页看到的即启动
-// 时会发生的目录归属）。ZL2 域动态文案按本文件 i18n 纪律属性行硬编码中文。
-- (NSString *)ame447_isolationStateText {
-    NSDictionary *profile = [[PLProfiles current] selectedProfile];
-    if (![profile isKindOfClass:[NSDictionary class]]) {
-        return localize(@"ame449.iso.no_profile", @"当前未选中实例，安装或选用实例后可管理版本隔离");
-    }
-    NSString *vid = [profile[@"lastVersionId"] isKindOfClass:[NSString class]]
-        ? profile[@"lastVersionId"] : nil;
-    if (vid.length == 0) {
-        return localize(@"ame449.iso.no_version", @"当前实例未选择版本，安装或选用版本后可管理版本隔离");
-    }
-    if ([vid hasPrefix:@"latest-"] || [vid isEqualToString:@"latest"]) {
-        return localize(@"ame449.iso.latest_alias", @"当前版本为线上别名（latest-*），启动时在线解析，安装正式版本后可管理隔离");
-    }
-    NSString *gd = [profile[@"gameDir"] isKindOfClass:[NSString class]]
-        ? profile[@"gameDir"] : nil;
-    BOOL ame447_a2 = (gd.length > 0
-        && ([gd isEqualToString:[NSString stringWithFormat:@"versions/%@", vid]]
-            || [gd isEqualToString:[NSString stringWithFormat:@"versions/%@/game", vid]]));
-    BOOL ame447_a3 = (gd.length > 0 && !ame447_a2
-        && ![gd isEqualToString:@"."] && ![gd isEqualToString:@"./"]);
-    if (ame447_a3) {
-        return localize(@"ame449.iso.custom_dir", @"自定义游戏目录——不受版本隔离管辖（版本详情页同口径）");
-    }
-    NSInteger ame447_ov = [PLProfiles ame428_overrideForVid:vid];
-    NSInteger ame447_gl = [PLProfiles ame428_globalDefault];
-    NSInteger ame447_eff = [PLProfiles ame428_effectiveIsolationForVid:vid profile:profile];
-    if (ame447_eff == 1) {
-        NSString *ame447_src;
-        if (ame447_ov == 1) ame447_src = localize(@"ame449.iso.src_override_on", @"版本级覆盖·启用");
-        else if (ame447_a2) ame447_src = localize(@"ame449.iso.src_gamedir", @"实例目录锚定（gameDir）");
-        else ame447_src = (ame447_gl == 1)
-            ? localize(@"ame449.iso.src_global_always", @"全局默认档·始终隔离")
-            : localize(@"ame449.iso.src_global_auto_modded", @"全局默认档·自动（检测到模组/加载器）");
-        return [NSString stringWithFormat:localize(@"ame449.iso.on_fmt", @"已隔离：数据独立存放于 versions/%@/（来源：%@）"), vid, ame447_src];
-    }
-    NSString *ame447_src;
-    if (ame447_ov == 2) ame447_src = localize(@"ame449.iso.src_override_off", @"版本级覆盖·显式禁用");
-    else if (ame447_gl == 2) ame447_src = localize(@"ame449.iso.src_global_never", @"全局默认档·从不隔离");
-    else ame447_src = localize(@"ame449.iso.src_global_auto_vanilla", @"跟随全局默认·自动（未检测到模组/加载器）");
-    return [NSString stringWithFormat:localize(@"ame449.iso.off_fmt", @"未隔离（%@，与实例根共享数据目录）"), ame447_src];
-}
-
-// 版本隔离写入 = 真实链（替代原 ame_writeInstanceIsolation: 的
-// internal.isolated 偏好桶直写——该键除本行外全仓零写入方，且与启动链/
-// ModService/版本详情页/engage 四消费链脱钩）。两态映射与旧 ProfileSettings
-// 三态选择器（Task217/224，gameDir 锚定制）+ Task428 决策树对齐，保证
-// 「开关状态 ↔ 有效态」往返确定：
-//   ON  → profile gameDir = versions/<vid>（Task322 新口径锚定，ModService
-//         mods 解析/ame219 徽标/启动链嗅探全栈同向）+ version.config
-//         isolation=1（显式启用，防全局默认档翻转回退）；
-//   OFF → profile gameDir = "."（共享）+ version.config isolation=2
-//         （显式禁用可压过全局默认档「始终/自动」——无此键则 gl=始终的
-//         设备 OFF 后下次启动又被翻转）。
-// 翻转涉及用户数据搬移时复用 ame428_presentIsolationMoveFlow（确认框 +
-// 快照 + 失败回滚，与版本详情页隔离行/版本列表 engage 流同一实现防漂移）；
-// 取消不落任何状态（开关视觉先按真实态回拨）。internal.isolated 偏好桶
-// 键自此不再有 UI 写入方：存量已开启设备启动语义不变（PLPreferences
-// toggleIsolationForced 照常读实例 plist），需要关闭走「重置设置」（诚实
-// 取舍入档 worklog）。
-- (void)ame447_applyIsolationToggle:(BOOL)on {
-    NSDictionary *profile = [[PLProfiles current] selectedProfile];
-    NSString *vid = [profile[@"lastVersionId"] isKindOfClass:[NSString class]]
-        ? profile[@"lastVersionId"] : nil;
-    NSString *gd = [profile[@"gameDir"] isKindOfClass:[NSString class]]
-        ? profile[@"gameDir"] : nil;
-    NSString *ame447_refuse = nil;
-    if (!profile || vid.length == 0) {
-        ame447_refuse = localize(@"ame449.iso.cannot_no_version", @"当前实例未选择版本，无法切换版本隔离");
-    } else if ([vid hasPrefix:@"latest-"] || [vid isEqualToString:@"latest"]) {
-        ame447_refuse = localize(@"ame449.iso.cannot_latest", @"线上别名版本（latest-*）启动时才解析，无法在此切换隔离");
-    } else if (gd.length > 0
-        && ![gd isEqualToString:@"."]
-        && ![gd isEqualToString:@"./"]
-        && ![gd isEqualToString:[NSString stringWithFormat:@"versions/%@", vid]]
-        && ![gd isEqualToString:[NSString stringWithFormat:@"versions/%@/game", vid]]) {
-        ame447_refuse = localize(@"ame449.iso.cannot_custom", @"自定义游戏目录实例不受版本隔离管辖");
-    }
-    __weak typeof(self) weakSelf = self;
-    if (ame447_refuse) {
-        // 开关视觉已被用户翻转 → 按真实态回拨（拒绝路径零状态变化）
-        [weakSelf ame_refreshState];
-        UIAlertController *ame447_alert = [UIAlertController
-            alertControllerWithTitle:localize(@"ame369.setpg.version_isolation", @"版本隔离")
-                             message:ame447_refuse
-                      preferredStyle:UIAlertControllerStyleAlert];
-        [ame447_alert addAction:[UIAlertAction actionWithTitle:localize(@"OK", nil)
-                                                         style:UIAlertActionStyleDefault
-                                                       handler:nil]];
-        [self ame_presentVC:ame447_alert];
-        return;
-    }
-
-    NSInteger ame447_before = [PLProfiles ame428_effectiveIsolationForVid:vid profile:profile];
-    // 开关视觉先回拨真实态：用户取消迁移确认框时界面不残留假态
-    [weakSelf ame_refreshState];
-
-    void (^ame447_commit)(void) = ^{
-        NSMutableDictionary *ame447_live = [[PLProfiles current] selectedProfile];
-        if (![ame447_live isKindOfClass:[NSMutableDictionary class]]) return;
-        ame447_live[@"gameDir"] = on
-            ? [NSString stringWithFormat:@"versions/%@", vid]
-            : @".";
-        // version.config 覆盖仅在版本目录在场时落（ame428_writeOverride 会
-        // 创建 versions/<vid>/——OFF 且目录缺席时写它 = 凭空造出 jsonState=0
-        // 的「损坏」扫描条目；此场景 gameDir="." 已足以共享，全局默认档
-        // 「始终隔离」+ 目录缺席的极端组合在启动链才建目录，此处不预造）。
-        NSString *ame447_root = @(getenv("POJAV_GAME_DIR") ?: "");
-        NSString *ame447_vdir = (ame447_root.length > 0)
-            ? [[ame447_root stringByAppendingPathComponent:@"versions"]
-                stringByAppendingPathComponent:vid] : @"";
-        if (ame447_vdir.length > 0 &&
-            [NSFileManager.defaultManager fileExistsAtPath:ame447_vdir]) {
-            [PLProfiles ame428_writeOverride:(on ? 1 : 2) vid:vid];
-        }
-        [[PLProfiles current] save];
-        [[NSNotificationCenter defaultCenter] postNotificationName:@"ReloadProfileList" object:nil];
-        NSLog(@"[ZL2Settings] Task447: isolation -> %@ (vid=%@, gameDir=%@, override=%ld)",
-              on ? @"ON" : @"OFF", vid, ame447_live[@"gameDir"], on ? 1L : 2L);
-        [weakSelf ame_refreshState];
-    };
-
-    if ((ame447_before == 1) != on) {
-        // 有效态将翻转：数据搬移走共享呈现流（确认 + 快照 + 失败回滚）
-        [PLProfiles ame428_presentIsolationMoveFlowFrom:self
-                                                    vid:vid
-                                             toIsolated:on
-                                                 reason:@"settings-game-row"
-                                               onCommit:ame447_commit];
-        return;
-    }
-    ame447_commit();
-}
 
 - (void)ame_refreshState {
     // Task344：音频/兼容组随切轨刷新——全量重建（与内存/隔离行同链）
@@ -2690,32 +2492,6 @@ didFinishPicking:(NSArray<PHPickerResult *> *)results {
     integrityRow.onTap = ^{
         [weakSelf ame428_runIntegrityVerify];
     };
-    // ★Task428（1.2）：全局隔离默认档（general.isolation_default；HMCL 语义
-    //   三态：0=自动 MODDED / 1=始终 ALWAYS / 2=从不 NEVER）。位置按任务书
-    //   放 check_sha/完整性组附近。改档导致某版本有效隔离翻转时走
-    //   确认框 + 一次性下沉（ame428_applyGlobalIsolation…）；取消 = 不改档。
-    //   行值回滚由 ame_reloadSelectedIndex 承接（List 行自带徽章同步）。
-    ZL2SettingRowList *isoRow =
-        [[ZL2SettingRowList alloc] initWithTitle:@"" subtitle:nil
-                                 options:@[
-                                     localize(@"ame428.iso.global.auto", @"自动（有模组/加载器的版本隔离）"),
-                                     localize(@"ame428.iso.global.always", @"始终隔离"),
-                                     localize(@"ame428.iso.global.never", @"从不隔离"),
-                                 ] optionKeys:@[@"0", @"1", @"2"]];
-    isoRow.title = localize(@"ame428.iso.global.title", @"版本隔离默认");
-    isoRow.subtitle = localize(@"ame428.iso.global.subtitle", @"新版本未单独设置时遵循的全局默认；每版本可在版本详情页覆盖");
-    {
-        NSInteger ame428_g = getPrefInt(@"general.isolation_default");
-        if (ame428_g < 0 || ame428_g > 2) ame428_g = 0;
-        [isoRow ame_reloadSelectedIndex:ame428_g];
-    }
-    isoRow.onSelect = ^(NSInteger index) {
-        if (index < 0 || index > 2) return;
-        NSInteger ame428_old = getPrefInt(@"general.isolation_default");
-        if (ame428_old < 0 || ame428_old > 2) ame428_old = 0;
-        if (ame428_old == index) return;
-        [weakSelf ame428_applyGlobalIsolationFrom:ame428_old to:index row:isoRow];
-    };
     // 多线程下载（general.multi_threaded）
     ZL2SettingRowSwitch *mtRow =
         [[ZL2SettingRowSwitch alloc] initWithTitle:@"" subtitle:nil];
@@ -3141,109 +2917,6 @@ didFinishPicking:(NSArray<PHPickerResult *> *)results {
     } else {
         [self ame344_showNotice:localize(@"ame428.integrity.unavailable", @"校验服务在当前构建暂不可用")];
     }
-}
-
-// ---------------------------------------------------------------------------
-// ★Task428（1.2/1.4）：全局隔离档变更 = 翻转计算 + 确认 + 批量下沉/回迁。
-//   翻转集合来自 PLProfiles ame428_computeGlobalFlips（A1 profile 唯一 vid
-//   集，按 lastPlayed 降序——共享根数据归最近游玩的版本；多版本同时翻转
-//   时第一顺位取得数据，其余执行期自然扑空跳过，迁移报告逐条留痕）。
-//   取消 = 不改档（行值由调用方回滚）；确认 = 进度弹窗 → 后台逐个执行
-//   （快照→copy 全→删源，中途失败恢复）→ 全部完成后才 setPrefInt 落档
-//   + ReloadProfileList（首页/版本页同步刷新）。仅无翻转时静默直改。
-// ---------------------------------------------------------------------------
-- (void)ame428_applyGlobalIsolationFrom:(NSInteger)oldG to:(NSInteger)newG row:(ZL2SettingRowList *)row {
-    if (oldG == newG) return;
-    NSArray<NSDictionary *> *ame428_flips = [PLProfiles ame428_computeGlobalFlipsFrom:oldG to:newG];
-    if (ame428_flips.count == 0) {
-        setPrefInt(@"general.isolation_default", newG);
-        return;
-    }
-    // 确认清单（逐版本：方向 + 将搬移条目）
-    NSMutableArray<NSString *> *ame428_lines = [NSMutableArray array];
-    NSMutableArray<NSString *> *ame428_moving = [NSMutableArray array];
-    for (NSDictionary *ame428_f in ame428_flips) {
-        NSArray<NSString *> *ame428_items = [ame428_f[@"items"] isKindOfClass:[NSArray class]]
-            ? ame428_f[@"items"] : @[];
-        if (ame428_items.count == 0) continue;   // 无候选：无需确认（执行期 noop）
-        [ame428_moving addObject:ame428_f[@"vid"]];
-        NSString *ame428_dir = ([ame428_f[@"to"] integerValue] == 1)
-            ? localize(@"ame428.iso.flip.into", @"移入独立目录")
-            : localize(@"ame428.iso.flip.outof", @"移回实例根目录");
-        [ame428_lines addObject:[NSString stringWithFormat:
-            @"· %@：%@（%@）", ame428_f[@"vid"], ame428_dir,
-            [ame428_items componentsJoinedByString:@", "]]];
-    }
-    if (ame428_moving.count == 0) {
-        setPrefInt(@"general.isolation_default", newG);
-        return;
-    }
-    UIAlertController *ame428_alert = [UIAlertController
-        alertControllerWithTitle:localize(@"ame428.iso.confirm.title", @"确认数据迁移")
-                         message:[NSString stringWithFormat:
-                             @"%@\n\n%@\n%@\n%@",
-                             [NSString stringWithFormat:localize(@"ame428.iso.global.confirm", @"切换全局默认档将使以下版本的有效隔离状态翻转（共 %lu 个）："), (unsigned long)ame428_moving.count],
-                             [ame428_lines componentsJoinedByString:@"\n"],
-                             localize(@"ame428.iso.confirm.snapshot",
-                                 @"每个版本搬移前会先做完整备份（Prisma2/backups/pre-isolation-<版本>-<时间>.zip），中途失败自动恢复，数据不会丢失。"),
-                             localize(@"ame428.iso.confirm.cancel_note", @"取消则不作任何更改。")]
-                          preferredStyle:UIAlertControllerStyleAlert];
-    [ame428_alert addAction:[UIAlertAction actionWithTitle:localize(@"resman.common.cancel", nil)
-                                                     style:UIAlertActionStyleCancel handler:^(__unused UIAlertAction *a) {
-        // 取消：不改档——行徽章回滚到旧值（List 行选中态由 ame_reloadSelectedIndex 同步）
-        NSInteger ame428_cur = getPrefInt(@"general.isolation_default");
-        if (ame428_cur < 0 || ame428_cur > 2) ame428_cur = 0;
-        [row ame_reloadSelectedIndex:ame428_cur];
-    }]];
-    [ame428_alert addAction:[UIAlertAction
-        actionWithTitle:localize(@"ame428.iso.confirm.go", @"开始迁移")
-                  style:UIAlertActionStyleDefault
-                handler:^(__unused UIAlertAction *a) {
-        UIAlertController *ame428_prog = [UIAlertController
-            alertControllerWithTitle:localize(@"ame428.iso.confirm.title", @"确认数据迁移")
-                             message:localize(@"ame428.iso.progress", @"正在迁移游戏数据…")
-                      preferredStyle:UIAlertControllerStyleAlert];
-        dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.35 * NSEC_PER_SEC)),
-                       dispatch_get_main_queue(), ^{
-            [self presentViewController:ame428_prog animated:NO completion:nil];
-        });
-        dispatch_async(dispatch_get_global_queue(QOS_CLASS_USER_INITIATED, 0), ^{
-            NSMutableArray<NSString *> *ame428_failed = [NSMutableArray array];
-            for (NSDictionary *ame428_f in ame428_flips) {
-                NSDictionary *ame428_r = [PLProfiles ame428_executeIsolationDataMoveForVid:ame428_f[@"vid"]
-                    toIsolated:([ame428_f[@"to"] integerValue] == 1)
-                        reason:[NSString stringWithFormat:@"global-default %ld->%ld", (long)oldG, (long)newG]];
-                if (![ame428_r[@"ok"] boolValue]) {
-                    [ame428_failed addObject:[NSString stringWithFormat:@"%@（%@）",
-                        ame428_f[@"vid"], ame428_r[@"error"] ?: @"?"]];
-                }
-            }
-            dispatch_async(dispatch_get_main_queue(), ^{
-                [ame428_prog dismissViewControllerAnimated:NO completion:^{
-                    if (ame428_failed.count == 0) {
-                        setPrefInt(@"general.isolation_default", newG);
-                        [[NSNotificationCenter defaultCenter] postNotificationName:@"ReloadProfileList" object:nil];
-                    } else {
-                        // 有失败：不落档（保持旧档），失败明细入报告 + 弹窗
-                        UIAlertController *ame428_fail = [UIAlertController
-                            alertControllerWithTitle:localize(@"i18n_str_388", nil)
-                                             message:[NSString stringWithFormat:
-                                                 localize(@"ame428.iso.result.failed_fmt",
-                                                     @"迁移未完成，数据已恢复原状：%@"),
-                                                 [ame428_failed componentsJoinedByString:@"; "]]
-                                  preferredStyle:UIAlertControllerStyleAlert];
-                        [ame428_fail addAction:[UIAlertAction actionWithTitle:localize(@"i18n_str_44", nil)
-                                                                         style:UIAlertActionStyleDefault handler:nil]];
-                        [self presentViewController:ame428_fail animated:YES completion:nil];
-                    }
-                    NSInteger ame428_cur = getPrefInt(@"general.isolation_default");
-                    if (ame428_cur < 0 || ame428_cur > 2) ame428_cur = 0;
-                    [row ame_reloadSelectedIndex:ame428_cur];
-                }];
-            });
-        });
-    }]];
-    [self presentViewController:ame428_alert animated:YES completion:nil];
 }
 
 // 自定义颜色选择（旧 openColorPickerForKey 平移；iOS 14+ UIColorPicker）

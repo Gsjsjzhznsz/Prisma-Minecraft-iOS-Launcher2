@@ -68,25 +68,12 @@
 //   不在任务授权文件清单内，分类声明 = 零 .h 侵入；签名与 PLProfiles.m
 //   实现逐一对应，勿漂移）。
 @interface PLProfiles (Ame428Task428)
-+ (NSInteger)ame428_effectiveIsolationForVid:(NSString *)vid profile:(NSDictionary *)profile;
-+ (NSInteger)ame428_effectiveCore:(NSString *)vid profile:(NSDictionary *)profile
-                    forcedOverride:(NSInteger)forcedOverride forcedGlobal:(NSInteger)forcedGlobal;
 + (NSString *)ame428_registerProfileForVid:(NSString *)vid;
 + (NSArray<NSString *> *)ame428_profileNamesReferencingVid:(NSString *)vid;
-+ (NSArray<NSDictionary *> *)ame428_computeGlobalFlipsFrom:(NSInteger)oldG to:(NSInteger)newG;
 + (NSDictionary *)ame428_executeIsolationDataMoveForVid:(NSString *)vid
                                             toIsolated:(BOOL)toIsolated reason:(NSString *)reason;
-+ (BOOL)ame428_writeOverride:(NSInteger)override vid:(NSString *)vid;
-+ (NSInteger)ame428_overrideForVid:(NSString *)vid;
 + (NSString *)ame428_versionDirForVid:(NSString *)vid;
 + (NSString *)ame428_scanRoot;
-+ (void)ame428_recordScanCensusOnce:(NSDictionary *)stats;
-+ (NSArray<NSString *> *)ame428_moveCandidatesForVid:(NSString *)vid toIsolated:(BOOL)toIsolated;
-+ (void)ame428_presentIsolationMoveFlowFrom:(UIViewController *)presenter
-                                        vid:(NSString *)vid
-                                 toIsolated:(BOOL)toIsolated
-                                     reason:(NSString *)reason
-                                  onCommit:(void (^)(void))onCommit;
 + (BOOL)ame428_isVersionInstalledPerScan:(NSString *)versionId profile:(NSDictionary *)profile;
 @end
 
@@ -511,16 +498,6 @@ static UIImage *ZL2VersionsSystemImage(NSString *name, NSString *fallback) {
     NSDictionary *ame428_selectedProfile = [ame428_profiles[ame428_selected] isKindOfClass:[NSDictionary class]]
         ? ame428_profiles[ame428_selected] : nil;
 
-    // census（12.2：首次全量扫描清查记入迁移报告；真首次由报告内 marker 去重）
-    [PLProfiles ame428_recordScanCensusOnce:@{
-        @"total": @(ame428_scan.count),
-        @"selfHealed": @([ame428_scan filteredArrayUsingPredicate:
-            [NSPredicate predicateWithFormat:@"jsonBroken == YES"]].count),
-        @"jsonMissingExcluded": @([ame428_scan filteredArrayUsingPredicate:
-            [NSPredicate predicateWithFormat:@"jsonState == 0"]].count),
-        @"inheritsExcluded": @([ame428_scan filteredArrayUsingPredicate:
-            [NSPredicate predicateWithFormat:@"inheritsParentListed == YES"]].count),
-    }];
 
     // 行构建：条目按 id 降序（沿旧版注册表键降序观感）；json 缺失目录不入列。
     // 先做 inheritsFrom 并入预演（父 → childIds + 完整子条目），再行构建——
@@ -1074,23 +1051,13 @@ static UIImage *ZL2VersionsSystemImage(NSString *name, NSString *fallback) {
 - (void)ame428_selectVersionRow:(NSDictionary *)row {
     NSString *vid = row[@"versionId"];
     if (![vid isKindOfClass:[NSString class]] || vid.length == 0) return;
-    NSInteger ame428_before = [PLProfiles ame428_effectiveIsolationForVid:vid profile:nil];
     __weak ZL2VersionsViewController *weakSelf = self;
     void (^ame428_commit)(void) = ^{
         [PLProfiles ame428_registerProfileForVid:vid];
         [weakSelf ame_selectProfileNamed:vid];
         [[NSNotificationCenter defaultCenter] postNotificationName:@"ReloadProfileList" object:nil];
     };
-    if (ame428_before == 0) {
-        // 注册后（gameDir=versions/<vid>）即隔离——先问再动（1.4；共享呈现流
-        // 宿主 = PLProfiles 模型类，页面间零直连纪律）
-        [PLProfiles ame428_presentIsolationMoveFlowFrom:self
-                                                   vid:vid
-                                            toIsolated:YES
-                                                reason:@"engage-select"
-                                               onCommit:ame428_commit];
-        return;
-    }
+    // Task472：隔离体系退役，翻转确认流不再存在——选择即直接落位（共享根）。
     ame428_commit();
 }
 
@@ -1098,18 +1065,6 @@ static UIImage *ZL2VersionsSystemImage(NSString *name, NSString *fallback) {
 - (void)ame428_engageSettingsForRow:(NSDictionary *)row {
     NSString *vid = row[@"versionId"];
     if (![vid isKindOfClass:[NSString class]] || vid.length == 0) return;
-    NSInteger ame428_before = [PLProfiles ame428_effectiveIsolationForVid:vid profile:nil];
-    if (ame428_before == 0) {
-        __weak ZL2VersionsViewController *weakSelf = self;
-        [PLProfiles ame428_presentIsolationMoveFlowFrom:self
-                                                   vid:vid
-                                            toIsolated:YES
-                                                reason:@"engage-settings"
-                                               onCommit:^{
-            [weakSelf ame428_openSettingsForVidAfterEngage:vid];
-        }];
-        return;
-    }
     [self ame428_openSettingsForVidAfterEngage:vid];
 }
 
@@ -1345,8 +1300,7 @@ static UIImage *ZL2VersionsSystemImage(NSString *name, NSString *fallback) {
                     NSMutableDictionary *profile = [NSMutableDictionary dictionary];
                     profile[@"name"] = vid;
                     profile[@"lastVersionId"] = vid;
-                    // Task242 口径：新实例自动版本隔离（Task322 混居通例）
-                    profile[@"gameDir"] = [NSString stringWithFormat:@"versions/%@", vid];
+            // ★Task472: 版本隔离退役——不再写 gameDir
                     profile[@"type"] = @"custom";
                     profile[@"created"] = [NSDate date].description;
                     [PLProfiles.current saveProfile:profile withName:vid];

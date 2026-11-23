@@ -7,7 +7,7 @@ from pathlib import Path
 
 ROOT = Path("/home/z/my-project/repo-l2")
 OLD_TAG = "Task470 · 2026-11-23"
-NEW_TAG = "Task471 · 2026-11-23"
+NEW_TAG = "Task472 · 2026-11-24"
 
 
 def rd(p: Path) -> str:

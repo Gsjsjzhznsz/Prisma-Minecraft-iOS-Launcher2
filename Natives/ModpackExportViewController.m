@@ -704,20 +704,9 @@
 
 /// 实例根目录（沿用 ModpackExportService 的 gameDir 解析口径；无 profile 时回退主目录）
 - (NSString *)ame428_gameDirForSelectedProfile {
-    NSString *profileName = self.selectedProfileName;
-    if (profileName.length == 0) {
-        const char *env = getenv("POJAV_GAME_DIR");
-        return env ? [NSString stringWithUTF8String:env] : NSHomeDirectory();
-    }
-    NSDictionary *profiles = PLProfiles.current.profiles;
-    NSDictionary *profile = [profiles[profileName] isKindOfClass:[NSDictionary class]] ? profiles[profileName] : nil;
-    NSString *gameDir = [profile[@"gameDir"] isKindOfClass:[NSString class]] ? profile[@"gameDir"] : nil;
+    // ★Task472: 版本隔离退役——导出根 = 主游戏目录（profile.gameDir 失效）
     const char *env = getenv("POJAV_GAME_DIR");
-    NSString *baseDir = env ? [NSString stringWithUTF8String:env] : NSHomeDirectory();
-    if (gameDir.length == 0 || [gameDir isEqualToString:@"."]) return baseDir;
-    if ([gameDir isAbsolutePath]) return gameDir;
-    NSString *clean = [gameDir hasPrefix:@"./"] ? [gameDir substringFromIndex:2] : gameDir;
-    return [baseDir stringByAppendingPathComponent:clean];
+    return env ? [NSString stringWithUTF8String:env] : NSHomeDirectory();
 }
 
 /// 类别副标题：目录/文件计数 + 体积（NSByteCountFormatter 本地化）；目录不存在给明确提示

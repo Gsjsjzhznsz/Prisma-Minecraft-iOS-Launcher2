@@ -294,8 +294,6 @@ NSString *const NeoForgeDirectInstallerErrorDomain = @"NeoForgeDirectInstallerEr
     // 之前"直接从 maven 下载预打补丁 jar"的方案是错的——官方 maven 从未发布过
     // 这些 processor 输出产物（实测 client classifier 均 404）。
     NSString *minecraftVersion = [versionJson[@"inheritsFrom"] isKindOfClass:[NSString class]] ? versionJson[@"inheritsFrom"] : nil;
-    // ★Task450 ③：隔离数据播种（copy-from-parent，已存在不覆盖，best-effort）
-    [PLProfiles ame450_seedIsolatedVersionData:versionId inheritsFrom:minecraftVersion ?: @""];
     if (minecraftVersion.length == 0) {
         NSLog(@"[NeoForgeDirect] version.json missing inheritsFrom, cannot run processors");
         if (error) {
@@ -618,13 +616,7 @@ NSString *const NeoForgeDirectInstallerErrorDomain = @"NeoForgeDirectInstallerEr
     NSMutableDictionary *profileDict = [NSMutableDictionary dictionary];
     profileDict[@"name"] = versionId;
     profileDict[@"lastVersionId"] = versionId;
-    // ★ Task242（用户："安装模组端的时候为什么不会自动开启版本隔离"）：
-    //   新装模组端自动开版本隔离（PCL/FCL 行业惯例）——gameDir =
-    //   versions/<id>/game（Task224 数据分居新口径，ame217_isolationState
-    //   识别为"隔离此版本"；mods/saves/configs 由 ModService 隔离优先
-    //   解析自动落隔离目录）。旧"共享根 + 手动切换"机制退役，用户仍可
-    //   在版本设置页三态选择器改回。
-    profileDict[@"gameDir"] = [NSString stringWithFormat:@"versions/%@/game", versionId];
+    // ★Task472: 版本隔离退役——安装不再写 gameDir（恒共享根）
     profileDict[@"type"] = @"custom";
     profileDict[@"created"] = [NSDate date].description;
     // 推断 Java 版本：NeoForge 1.20.5+ 需 Java 21，1.18+ 需 Java 17，1.17 需 Java 16

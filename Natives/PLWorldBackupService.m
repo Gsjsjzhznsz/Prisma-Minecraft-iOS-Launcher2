@@ -103,7 +103,6 @@ static BOOL ame429_s1_movePath(NSString *src, NSString *dst, BOOL deleteOnCopy, 
 //   PLProfiles.h 未声明；Gfin 判例同款本地分类前向声明（PLProfiles.h 零侵入，
 //   签名逐字对应）。
 @interface PLProfiles (Ame429Task429S1)
-+ (NSInteger)ame428_effectiveIsolationForVid:(NSString *)vid profile:(NSDictionary *)profile;
 @end
 
 @implementation PLWorldBackupService
@@ -149,7 +148,7 @@ static BOOL ame429_s1_movePath(NSString *src, NSString *dst, BOOL deleteOnCopy, 
     }
     // ② 共享形态 → Task225 嗅探（mods/saves 目录形状；未命中回落 base）
     if (resolved == nil) {
-        NSString *sniffed = [ModService ame225_sniffedIsolationGameDirForProfile:prof];
+        NSString *sniffed = nil; // ★Task472: 版本隔离退役
         resolved = sniffed.length > 0 ? sniffed : base;
     }
 
@@ -157,7 +156,7 @@ static BOOL ame429_s1_movePath(NSString *src, NSString *dst, BOOL deleteOnCopy, 
     if (versionId.length > 0
         && ![versionId hasPrefix:@"latest-"]
         && ![versionId isEqualToString:@"latest"]) {
-        NSInteger eff = [PLProfiles ame428_effectiveIsolationForVid:versionId profile:prof];
+        NSInteger eff = 0; // ★Task472: 版本隔离退役——恒共享根
         if (eff == 1) {
             resolved = [[base stringByAppendingPathComponent:@"versions"]
                 stringByAppendingPathComponent:versionId];

@@ -20,6 +20,6 @@
 
 #import <Foundation/Foundation.h>
 
-static NSString *const ame415_buildTag = @"Task471 · 2026-11-23";   // 常量名留档 415 判例，值随轮次推进；★Task439 起由 scripts/task439_buildtag_anchor.py 每轮门禁强制重锚（第 10 期报告 6.3 节代际锚落后 2 轮整改）
+static NSString *const ame415_buildTag = @"Task472 · 2026-11-24";   // 常量名留档 415 判例，值随轮次推进；★Task439 起由 scripts/task439_buildtag_anchor.py 每轮门禁强制重锚（第 10 期报告 6.3 节代际锚落后 2 轮整改）
 
 #endif /* BUILD_TAG_H */

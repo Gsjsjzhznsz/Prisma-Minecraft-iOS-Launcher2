@@ -51,9 +51,4 @@
 - (void)setServerIp:(NSString *)serverIp forProfile:(NSString *)profileName;
 
 
-/// ★Task450 ③：隔离数据播种（安装器建 versions/<vid>/ 后从父版本目录/共享根
-/// 复制顶层数据面 saves/config/resourcepacks/screenshots/options.txt/servers.dat，
-/// 已存在绝不覆盖，best-effort）——15 期③「版本隔离文件夹没有文件」根修。
-+ (void)ame450_seedIsolatedVersionData:(NSString *)versionId inheritsFrom:(NSString *)parentId;
-
 @end

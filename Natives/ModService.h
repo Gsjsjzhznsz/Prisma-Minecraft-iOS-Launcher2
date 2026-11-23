@@ -68,30 +68,6 @@ typedef void(^ModDownloadHandler)(NSError * _Nullable error); // Added for downl
 /// 获取当前 profile 的 mods 目录，不存在时自动创建
 - (nullable NSString *)ensureModsFolderForProfile:(NSString *)profileName error:(NSError **)error;
 
-/// Task219（⑪ 版本隔离自动识别）：profile 的隔离态。0 = 不隔离（gameDir
-/// 缺失或 "." 且嗅探未命中）；1 = 显式隔离（versions/<id> 或自定义
-/// gameDir）；2 = 嗅探隔离（Task225：gameDir 为 "." 但 versions/<vid>/
-/// 下已有 mods/saves——上游 PCL auto 语义）。
-+ (NSInteger)ame219_isolationStateForProfile:(NSString *)profileName;
-
-/// Task225：目录形状嗅探（上游 ameVISniffVersionFolder 同源规则）——
-/// versions/<vid>/game 优先、旧口径 versions/<vid>/ 兑底，mods/saves 有
-/// 任一非隐藏条目即返回该隔离目录绝对路径；不命中返回 nil。
-+ (nullable NSString *)ame225_sniffedIsolationGameDirForProfile:(NSDictionary *)prof;
-
-/// ★ Task271（271-a F2 自适应恢复）：启动自愈——注册表与运行时行为对齐。
-/// 对 gameDir 缺失/"." 且嗅探命中隔离数据的 profile，落定 gameDir 为隔离
-/// 目录（幂等；已显式配置的条目绝不碰；SceneDelegate 启动钩子调用）。
-+ (void)ame271_selfHealStrandedIsolation;
-
-// ★ Task324：隔离实例骨架补齐（FCL/HMCL/PCL parity；仅隔离态创建，幂等零副作用）
-// 六目录 = mods/saves/config/resourcepacks/shaderpacks/screenshots；
-// 默认实例与非隔离版本绝不创建（防"放了模组却不生效"误导）
-+ (void)ame324_ensureIsolationSkeletonForVersionId:(NSString *)vid;
-+ (void)ame324_ensureIsolationSkeletonsAll;
-/// Task325: instance-axis skeleton pass (modpack instances under instances/<id>/)
-+ (void)ame325_ensureInstanceAxisSkeletons;
-
 @end
 
 NS_ASSUME_NONNULL_END

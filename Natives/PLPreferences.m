@@ -424,11 +424,7 @@ NSString *const PREF_MOD_MIRROR = @"general.mod_mirror";
             @"thirdparty_servers": [NSArray new],
             @"translation_notice_dismissed": @NO,
             @"disable_window_rotation_shim": @NO,
-            // ★Task428（1.2 授权行，仅此一行）：全局版本隔离默认档
-            //   （HMCL 语义三态；int 0=自动 MODDED / 1=始终 ALWAYS /
-            //   2=从不 NEVER，默认 0）。读侧 PLProfiles ame428_globalDefault
-            //   （钳 0-2），写侧 ZL2SettingPages 设置行 setPrefInt。
-            @"isolation_default": @(0),
+            // Task472：全局版本隔离默认档 isolation_default 随体系退役，注册项移除。
             // ★Task429 主控合流（工位片段注册，防 Setter 静默丢弃族）：
             //   mirror_mode：下载镜像三态（int 0=自动大陆探测/1=官方/2=手动 BMCLAPI，
             //   默认 0=Task428 存量语义原样）。读侧 PLMirrorCenter +policyForType:

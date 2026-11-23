@@ -217,9 +217,7 @@ static UIImage *ZL2V13SystemImage(NSString *name, NSString *fallback) {
     if (![prof isKindOfClass:[NSDictionary class]]) prof = @{};
     NSString *gameDir = prof[@"gameDir"];
     if (![gameDir isKindOfClass:[NSString class]] || gameDir.length == 0 || [gameDir isEqualToString:@"."]) {
-        // Task225：无显式隔离 → 嗅探版本目录形状（auto 语义）
-        NSString *sniffed = [ModService ame225_sniffedIsolationGameDirForProfile:prof];
-        if ([sniffed isKindOfClass:[NSString class]] && sniffed.length > 0) return sniffed;
+        // Task472：嗅探退役——无显式路径一律共享根（GAME_DIR 优先 HOME 兜底）
         const char *env = getenv("POJAV_GAME_DIR");
         return env ? [NSString stringWithUTF8String:env] : NSHomeDirectory();
     }

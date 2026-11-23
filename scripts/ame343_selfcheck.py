@@ -144,9 +144,10 @@ check('B1 新模组页服务面 imports（ModService/ModUpdateService/PLDownload
                             '#import "ZL2DownloadViewController.h"',
                             '#import <CommonCrypto/CommonDigest.h>')))
 svc_calls = ("scanModsForProfile:", "toggleEnableForMod:", "deleteMod:",
-             "fetchMetadataForMod:", "ame219_isolationStateForProfile:",
-             "ame264_effectiveModsFolderForProfile:")
-check('B2 数据层六消费点全接线（scan/toggle/delete/metadata/隔离/目录）',
+             "fetchMetadataForMod:", "ame264_effectiveModsFolderForProfile:")
+# ★Task472 重锚：隔离退役——ame219_isolationStateForProfile 徽标数据源退役，
+#   六消费点收敛为五消费点（隔离态恒 0，直写于页面 stub）。
+check('B2 数据层五消费点全接线（scan/toggle/delete/metadata/目录；★Task472 隔离退役）',
       all(s in vp_code for s in svc_calls))
 upd_ok = ("ZL2V13ModSHA1ForFile" in vp_code
           and "checkUpdateForMod:" in vp_code

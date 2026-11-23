@@ -14,8 +14,6 @@
 #import <CommonCrypto/CommonCrypto.h>
 #import <UIKit/UIKit.h>
 #import "PLProfiles.h"
-#import "ModService.h"   // Task274-h S11: Task225 isolation sniff (ame225_sniffedIsolationGameDirForProfile)
-#import "ResourcePackItem.h"
 #import "UZKArchive.h"
 #import "DownloadTaskManager.h"
 #import "DownloadTaskItem.h"
@@ -136,16 +134,6 @@
             //   versions/<lastVersionId>/game 隔离形状（ModService 同口径）——命中且
             //   其 resourcepacks 已存在才重定向（本方法"存在即用"契约不变）。
             if (![gameDir isKindOfClass:[NSString class]] || gameDir.length == 0 || [gameDir isEqualToString:@"."]) {
-                NSString *ame225_sniffed = [ModService ame225_sniffedIsolationGameDirForProfile:prof];
-                if (ame225_sniffed.length > 0) {
-                    NSString *ame225_rp = [ame225_sniffed stringByAppendingPathComponent:@"resourcepacks"];
-                    BOOL ame225_isDir = NO;
-                    if ([fm fileExistsAtPath:ame225_rp isDirectory:&ame225_isDir] && ame225_isDir) {
-                        NSLog(@"[ResourcePackService] Task225 auto-sniffed isolation for profile %@ -> %@",
-                              profile, ame225_sniffed.lastPathComponent);
-                        return ame225_rp;
-                    }
-                }
             }
             // Task269-r3：相对路径（如 ./custom_gamedir/<id>）统一相对 POJAV_GAME_DIR
             // 解析成绝对路径——裸相对依赖进程 CWD，CWD 会被启动链 chdir 永久切走
@@ -194,12 +182,6 @@
             // ★ Task274-h S11（Task225 嗅探平移）：gameDir 缺失/空/"." 时先嗅探——命中
             //   即落嗅探目录（ensure 语义=惰性建目录，与 ModService ensure 同口径）。
             if (![gameDir isKindOfClass:[NSString class]] || gameDir.length == 0 || [gameDir isEqualToString:@"."]) {
-                NSString *ame225_sniffed = [ModService ame225_sniffedIsolationGameDirForProfile:prof];
-                if (ame225_sniffed.length > 0) {
-                    NSLog(@"[ResourcePackService] Task225 auto-sniffed isolation for profile %@ -> %@ (ensure)",
-                          profile, ame225_sniffed.lastPathComponent);
-                    resourcePacksPath = [ame225_sniffed stringByAppendingPathComponent:@"resourcepacks"];
-                }
             }
             // Task269-r3：同 existing——相对路径统一相对 POJAV_GAME_DIR 解析（review-c H1）
             if ([gameDir isKindOfClass:[NSString class]] && gameDir.length > 0 && ![gameDir isEqualToString:@"."]) {

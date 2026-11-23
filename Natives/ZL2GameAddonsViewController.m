@@ -1063,8 +1063,6 @@
                 if (success) {
                     [[NSNotificationCenter defaultCenter]
                         postNotificationName:@"ReloadProfileList" object:nil];
-                    // Task324：安装成功即时补齐隔离骨架（注册表已隔离 → 六目录可见可即用）
-                    [ModService ame324_ensureIsolationSkeletonsAll];
                     [ZL2M3Dialog showTitle:localize(@"ame369.addon.install_done", @"安装完成")
                                       body:[NSString stringWithFormat:@"%@\n(%@ %@)",
                                             profileId ?: st.gameVersion, vendor, loaderVer]
@@ -1126,8 +1124,6 @@
                 }
                 [[NSNotificationCenter defaultCenter]
                     postNotificationName:@"ReloadProfileList" object:nil];
-                // Task324：forge/neoforge 安装成功即时补齐隔离骨架（全量扫描幂等）
-                [ModService ame324_ensureIsolationSkeletonsAll];
                 NSString *optiPayload = (st.optifineCard.selectedItem.length > 0
                                          && neoforge.length == 0) ? st.optifineCard.selectedItem : nil;
                 if (optiPayload.length > 0) {
@@ -1179,8 +1175,7 @@
     NSMutableDictionary *profile = [NSMutableDictionary dictionary];
     profile[@"name"] = versionId;
     profile[@"lastVersionId"] = self.gameVersion;
-    // ★ Task322：game/ 分居层退役 —— versions/<id> 混居通例（Task242 口径五键）
-    profile[@"gameDir"] = [NSString stringWithFormat:@"versions/%@", versionId];
+            // ★Task472: 版本隔离退役——不再写 gameDir
     profile[@"type"] = @"custom";
     profile[@"created"] = [NSDate date].description;
     [PLProfiles.current saveProfile:profile withName:versionId];
@@ -1223,8 +1218,6 @@
     [[NSNotificationCenter defaultCenter]
         postNotificationName:@"ReloadProfileList" object:nil];
     if (success) {
-        // Task324：原版安装成功即时补齐隔离骨架（上方 profile 已写 gameDir=versions/<id>）
-        [ModService ame324_ensureIsolationSkeletonsAll];
         [ZL2M3Dialog showTitle:localize(@"ame369.addon.install_done", @"安装完成")
                           body:self.gameVersion
                   confirmTitle:localize(@"ame369.common.got_it", @"知道了")

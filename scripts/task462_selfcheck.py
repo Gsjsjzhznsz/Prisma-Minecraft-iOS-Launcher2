@@ -67,14 +67,14 @@ pph = rd("Natives/PLProfiles.h")
 ppm = rd("Natives/PLProfiles.m")
 fu = rd("Natives/installer/FabricUtils.m")
 nf = rd("Natives/installer/NeoForgeDirectInstaller.m")
-check("R4-1 450③ 播种 API 声明+实现",
-      "ame450_seedIsolatedVersionData:(NSString *)versionId inheritsFrom:(NSString *)parentId" in pph
-      and "+ (void)ame450_seedIsolatedVersionData:(NSString *)versionId inheritsFrom:(NSString *)parentId {" in ppm)
-check("R4-2 450③ FabricUtils 调用点", "[PLProfiles ame450_seedIsolatedVersionData:profileId inheritsFrom:ame450_parent];" in fu)
-check("R4-3 450③ NeoForge 调用点", "[PLProfiles ame450_seedIsolatedVersionData:versionId inheritsFrom:minecraftVersion ?: @\"\"];" in nf)
-check("R4-4 450③ 播种六数据面（已存在绝不覆盖）",
-      "@[@\"saves\", @\"config\", @\"resourcepacks\", @\"screenshots\"," in ppm
-      and "已存在绝不覆盖" in ppm)
+# ★Task472 退役化重锚：版本隔离退役——ame450 播种族（隔离数据面）随体系
+#   整体删除，R4 四断言反转为缺席执法。
+check("R4-1 472 隔离退役：ame450 播种 API 声明+实现缺席",
+      "ame450_seedIsolatedVersionData" not in pph and "ame450_seedIsolatedVersionData" not in ppm)
+check("R4-2 472 隔离退役：FabricUtils 播种调用点缺席", "ame450_seedIsolatedVersionData" not in fu)
+check("R4-3 472 隔离退役：NeoForge 播种调用点缺席", "ame450_seedIsolatedVersionData" not in nf)
+check("R4-4 472 隔离退役：播种六数据面缺席",
+      "已存在绝不覆盖" not in ppm and "ame428_moveItemNames" not in ppm)
 
 sp = rd("Natives/ZL2SettingPages.m")
 check("R5-1 449① NSLocale 全量路径", "displayNameForKey:NSLocaleIdentifier value:code" in sp)
@@ -101,15 +101,17 @@ check("R9-3 449⑤ manifest 隔离文案 localize 化",
       'localize(@"ame449.plugin.mf_not_json"' in rd("Natives/AmePluginRuntime.m"))
 check("R9-4 449⑤ JITGate magnifier localize 化",
       'localize(@"ame449.jitgate.magnifier_no_response"' in rd("Natives/PLJITGate.m"))
-check("R9-5 449⑤ iso 迁移文案 localize 化",
-      'localize(@"ame449.iso.move_skip_fmt"' in ppm)
+# ★Task472 退役化重锚：iso 迁移流随隔离退役删除，文案键无代码站点。
+check("R9-5 472 隔离退役：iso 迁移文案站点缺席",
+      'ame449.iso.move_skip_fmt' not in ''.join(re.sub(r'//.*', '', x) for x in ppm.split('\n')))
 check("R9-6 449⑤ gyro 样本后缀 localize 化",
       'localize(@"ame449.gyro.samples_suffix"' in rd("Natives/ZL2GyroTunerViewController.m"))
 check("R9-7 449⑤ 账户钮 localize 化",
       'title:localize(@"login.option.add", nil)]' in home
       and 'title:localize(@"account.menu.delete", nil)]' in home)
-check("R9-8 449⑤ iso 设置页文案 localize 化",
-      'localize(@"ame449.iso.no_profile"' in sp)
+# ★Task472 退役化重锚：iso 设置页文案随隔离行退役删除。
+check("R9-8 472 隔离退役：iso 设置页文案站点缺席",
+      'ame449.iso.no_profile' not in ''.join(re.sub(r'//.*', '', x) for x in sp.split('\n')))
 
 print("== R10 i18n 54 表全量恢复执法 ==")
 res = ROOT / "Natives" / "resources"
@@ -166,7 +168,7 @@ check("X7-2 壁纸功能本体在场（ame429）",
 
 print("== S 敏感性样本 ==")
 tag = rd("Natives/BuildTag.h")
-check("S1 BuildTag Task471 · 2026-11-23（启动链恢复首预发行版轮代际重锚）", "Task471 · 2026-11-23" in tag)
+check("S1 BuildTag Task472 · 2026-11-24（启动链恢复首预发行版轮代际重锚）", "Task472 · 2026-11-24" in tag)
 check("S2 电池注册 task462", "task462_selfcheck" in rd("scripts/task432_gate_battery.sh"))
 
 print(f"\n========================================")

@@ -102,7 +102,6 @@ BOOL ZL2AccountsSharedIsThirdParty(NSDictionary *accountData);
 + (BOOL)ame428_isVersionInstalledPerScan:(NSString *)versionId profile:(NSDictionary *)profile;
 + (NSString *)ame428_registerProfileForVid:(NSString *)vid;
 + (NSArray<NSString *> *)ame428_profileNamesReferencingVid:(NSString *)vid;
-+ (NSInteger)ame428_effectiveIsolationForVid:(NSString *)vid profile:(NSDictionary *)profile;
 @end
 
 // ★ Task400：AFNetworking 错误响应体键（仅消费此一个 extern 常量——账户页

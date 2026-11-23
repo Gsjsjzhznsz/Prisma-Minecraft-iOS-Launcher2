@@ -44,6 +44,14 @@
 @property (nonatomic, strong) NSMutableDictionary<NSString *, ModItem *> *metadataCache;
 @property (nonatomic, strong) NSMutableDictionary<NSString *, NSDate *> *checkpointTimes;
 @property (nonatomic, strong) dispatch_queue_t cacheQueue;
+
+#pragma mark - ★Task472: 版本隔离退役后的统一目录解析（恒共享根）
+- (nullable NSString *)resolveAbsoluteGameDirForProfile:(NSString *)profileName {
+    // ★Task472: profile.gameDir 失效；一律主游戏目录（POJAV_GAME_DIR 优先）。
+    const char *ame472_env = getenv("POJAV_GAME_DIR");
+    return ame472_env && *ame472_env ? [NSString stringWithUTF8String:ame472_env] : NSHomeDirectory();
+}
+
 @end
 
 @implementation ModService
@@ -176,290 +184,6 @@
     if (!archive || err) return nil;
     NSData *data = [archive extractDataFromFile:entryName error:&err];
     return data;
-}
-
-/// 解析 profile 的 gameDir 为绝对路径。
-/// profile gameDir 通常是相对路径（如 "./custom_gamedir/{name}"），需相对于 POJAV_GAME_DIR 解析。
-/// 之前直接使用相对路径会导致 mods 文件夹找不到（fileExistsAtPath 对相对路径基于 cwd 解析，
-/// 而 cwd 不一定是 POJAV_GAME_DIR）。
-/// ★ Task225（反馈 #5：安装模组端默认共享目录——上游 PCL VER-ISOLATE 嗅探
-///   语义补齐）：gameDir 缺失或 "." 时，若 versions/<lastVersionId>/game
-///   （或旧口径 versions/<lastVersionId>/）下已有 mods/saves 等用户数据，
-///   【自动解析为该隔离目录】——与上游 amePCLVersionIsolationForProfile 的
-///   第 2 步（ShouldBeIndie 启发式）同源：目录形状说明用户已把该版本当
-///   隔离实例用，mod 安装/扫描只认隔离目录，不再落到共享根。
-- (nullable NSString *)resolveAbsoluteGameDirForProfile:(NSString *)profileName {
-    // ★ Task274-h S7：nil 入参跟随当前选中实例（ame267 语义），不再落恒 miss 的
-    // @"default" 字面量（真实默认键 "(Default)"；对齐 Task270 M1 服务层口径）。
-    if (!profileName.length) profileName = PLProfiles.current.selectedProfileName ?: @"(Default)";
-    NSString *profile = profileName;
-    @try {
-        NSDictionary *profiles = PLProfiles.current.profiles;
-        NSDictionary *prof = profiles[profile];
-        if (![prof isKindOfClass:[NSDictionary class]]) return nil;
-        NSString *gameDir = prof[@"gameDir"];
-        if (![gameDir isKindOfClass:[NSString class]] || gameDir.length == 0 || [gameDir isEqualToString:@"."]) {
-            // Task225：无显式隔离 → 嗅探版本目录形状（auto 语义）。
-            NSString *ame225_sniffed = [ModService ame225_sniffedIsolationGameDirForProfile:prof];
-            if (ame225_sniffed.length > 0) {
-                NSLog(@"[ModService] Task225 auto-sniffed isolation for profile %@ -> %@ (mods/saves present)",
-                      profile, ame225_sniffed.lastPathComponent);
-                return ame225_sniffed;
-            }
-            // "." 表示主目录
-            const char *env = getenv("POJAV_GAME_DIR");
-            return env ? [NSString stringWithUTF8String:env] : NSHomeDirectory();
-        }
-        if ([gameDir isAbsolutePath]) {
-            return gameDir;
-        }
-        // 相对路径，相对于 POJAV_GAME_DIR 解析
-        const char *env = getenv("POJAV_GAME_DIR");
-        NSString *baseDir = env ? [NSString stringWithUTF8String:env] : NSHomeDirectory();
-        // 去掉 "./" 前缀（如果有），stringByAppendingPathComponent 能正确处理
-        NSString *cleanGameDir = [gameDir hasPrefix:@"./"] ? [gameDir substringFromIndex:2] : gameDir;
-        return [baseDir stringByAppendingPathComponent:cleanGameDir];
-    } @catch (NSException *ex) {
-        return nil;
-    }
-}
-
-/// Task225：目录形状嗅探（上游 ameVISniffVersionFolder / PCL ShouldBeIndie
-/// 同源规则）——versions/<vid>/game 优先，旧口径 versions/<vid>/ 兑底；
-/// mods 或 saves 目录下存在任一非隐藏条目即判“已隔离”。返回隔离目录的
-/// 绝对路径；不命中返回 nil。静态方法：ModsManager 徽标 / 启动链都可调。
-+ (nullable NSString *)ame225_sniffedIsolationGameDirForProfile:(NSDictionary *)prof {
-    if (![prof isKindOfClass:[NSDictionary class]]) return nil;
-    NSString *vid = prof[@"lastVersionId"];
-    if (![vid isKindOfClass:[NSString class]] || vid.length == 0) return nil;
-    const char *env = getenv("POJAV_GAME_DIR");
-    if (!env || !*env) return nil;
-    NSString *base = [NSString stringWithUTF8String:env];
-    if (base.length == 0) return nil;
-
-    NSFileManager *fm = [NSFileManager defaultManager];
-    for (NSString *rel in @[
-        [NSString stringWithFormat:@"versions/%@", vid],
-        [NSString stringWithFormat:@"versions/%@/game", vid],
-    ]) {
-        NSString *dir = [base stringByAppendingPathComponent:rel];
-        for (NSString *leaf in @[@"mods", @"saves"]) {
-            NSString *probe = [dir stringByAppendingPathComponent:leaf];
-            NSArray<NSString *> *entries = [fm contentsOfDirectoryAtPath:probe error:nil];
-            for (NSString *e in entries) {
-                if (![e hasPrefix:@"."]) {
-                    return dir;
-                }
-            }
-        }
-    }
-    return nil;
-}
-
-/// ★ Task271（271-a F2 自适应恢复·用户铁律"写个自适应恢复"）：启动自愈——
-///   注册表与运行时行为对齐。运行时嗅探（ame225/JavaLauncher 同口径）早已
-///   把 versions/<vid>/game|/ 视作隔离目录，但 profile 条目 gameDir 缺失/
-///   "." 时（历史安装器写入 gameDir="."、旧版整条替换 saveProfile 抹键等，
-///   装机实锤：fabric-loader-* 实例模组列表变共享目录），模组管理页与下载
-///   落点仍走共享。启动时把【实际存在隔离数据】的 profile 落定为隔离：
-///   幂等（已显式配置的条目绝不碰）、保守（只认非空 mods/saves）、单键覆写
-///   （其余字段原样存活）。
-+ (void)ame271_selfHealStrandedIsolation {
-    // ★ Task275 F6：导入/迁移进行中让路（幂等，下轮启动再愈）——原自愈写与
-    //   后台导入写者无锁竞跑（iPad 多窗口 willConnect 可重入放大触发面）。
-    if ([ModpackImportService ame269_isImportBusy]) {
-        NSLog(@"[Ame271] self-heal skipped: import busy");
-        return;
-    }
-    const char *ame271_env = getenv("POJAV_GAME_DIR");
-    if (!ame271_env || !*ame271_env) return;
-    NSString *ame271_base = [NSString stringWithUTF8String:ame271_env];
-    if (ame271_base.length == 0) return;
-    NSDictionary *ame271_profiles = PLProfiles.current.profiles;
-    if (![ame271_profiles isKindOfClass:[NSDictionary class]] || ame271_profiles.count == 0) return;
-    NSInteger ame271_healed = 0;
-    for (NSString *ame271_key in [ame271_profiles allKeys]) {
-        NSDictionary *ame271_prof = ame271_profiles[ame271_key];
-        if (![ame271_prof isKindOfClass:[NSDictionary class]]) continue;
-        NSString *ame271_gd = ame271_prof[@"gameDir"];
-        BOOL ame271_unset = (![ame271_gd isKindOfClass:[NSString class]] || ame271_gd.length == 0
-            || [ame271_gd isEqualToString:@"."] || [ame271_gd isEqualToString:@"./"]);
-        if (!ame271_unset) continue;                       // 已显式配置：绝不碰
-        NSString *ame271_hit = [self ame225_sniffedIsolationGameDirForProfile:ame271_prof];
-        if (ame271_hit.length == 0) continue;              // 无隔离数据：空转零 IO
-        // 嗅探命中 → 反推注册表相对路径（★ Task322 新口径 versions/<vid> 优先）
-        NSString *ame271_vid = ame271_prof[@"lastVersionId"];
-        if (![ame271_vid isKindOfClass:[NSString class]] || ame271_vid.length == 0) continue;
-        NSString *ame271_rel = [NSString stringWithFormat:@"versions/%@", ame271_vid];
-        if (![ame271_hit isEqualToString:[ame271_base stringByAppendingPathComponent:ame271_rel]]) {
-            ame271_rel = [NSString stringWithFormat:@"versions/%@/game", ame271_vid];
-        }
-        NSMutableDictionary *ame271_updated = [ame271_prof mutableCopy];
-        ame271_updated[@"gameDir"] = ame271_rel;
-        [PLProfiles.current applyChanges:^(NSMutableDictionary<NSString *, id> *ame275_profiles) {
-            ame275_profiles[ame271_key] = ame271_updated;
-        }];
-        ame271_healed++;
-        NSLog(@"[Ame271] self-heal: profile \"%@\" gameDir '%@' -> %@ (stranded isolation data)",
-              ame271_key, ame271_gd ?: @"(nil)", ame271_rel);
-    }
-    // ★ Task272（默认隔离收敛清扫·用户铁律"自适应恢复"第二阶段）：F2 只治
-    //   "有滞留隔离数据"的条目；隔离目录为空/不存在的旧条目（gameDir='.' 且
-    //   从未显式选择）永远滞留共享根 = 跨实例串目录（装机实锤：26.2 实例模组
-    //   列表显示的是隔壁 26.1.2 的模组）。本清扫把从未被用户显式配置过的 '.'
-    //   条目收敛到 versions/<vid>/game（与 Task242 新实例默认隔离语义对齐）：
-    //   - gameDirExplicit 标记（三态选择器/自定义路径写入）= 用户显式选择，绝不碰
-    //   - default 主实例不参与（它就是共享根本体）
-    //   - 整合包实例 gameDir 为 ./custom_gamedir/... 非 '.'，天然不在范围
-    //   - 幂等：跑过一次后 gameDir 已非 '.'；隔离目录由 ensureModsFolder 惰性创建
-    NSInteger ame272_swept = 0;
-    for (NSString *ame272_key in [ame271_profiles allKeys]) {
-        // Task274: 真实默认键是 "(Default)"（旧守卫 @"default" 恒不匹配 =
-        // (Default) 主实例会被误 sweep 进隔离，共享模组从列表"消失"）；
-        // 两个键名都排除，宁可漏扫不可误扫。
-        if ([ame272_key isEqualToString:@"(Default)"] || [ame272_key isEqualToString:@"default"]) continue;
-        NSDictionary *ame272_prof = ame271_profiles[ame272_key];
-        if (![ame272_prof isKindOfClass:[NSDictionary class]]) continue;
-        if (ame272_prof[@"gameDirExplicit"] != nil) continue;   // 显式选择过：尊重用户
-        NSString *ame272_gd = ame272_prof[@"gameDir"];
-        BOOL ame272_unset = (![ame272_gd isKindOfClass:[NSString class]] || ame272_gd.length == 0
-            || [ame272_gd isEqualToString:@"."] || [ame272_gd isEqualToString:@"./"]);
-        if (!ame272_unset) continue;
-        NSString *ame272_vid = ame272_prof[@"lastVersionId"];
-        if (![ame272_vid isKindOfClass:[NSString class]] || ame272_vid.length == 0) continue;
-        NSMutableDictionary *ame272_updated = [ame272_prof mutableCopy];
-        // ★ Task322：game/ 分居层退役 —— 收敛目标对齐 FCL/HMCL/PCL 混居通例
-        ame272_updated[@"gameDir"] = [NSString stringWithFormat:@"versions/%@", ame272_vid];
-        [PLProfiles.current applyChanges:^(NSMutableDictionary<NSString *, id> *ame275_profiles) {
-            ame275_profiles[ame272_key] = ame272_updated;
-        }];
-        ame272_swept++;
-        NSLog(@"[Ame271] default-isolation sweep: profile \"%@\" gameDir '%@' -> versions/%@ (never explicitly configured)",
-              ame272_key, ame272_gd ?: @"(nil)", ame272_vid);
-    }
-    if (ame272_swept > 0) {
-        ame271_healed += ame272_swept;
-        NSLog(@"[Ame271] default-isolation sweep: %ld profile(s) converged to versions/<id>",
-              (long)ame272_swept);
-    }
-    // ★ Task322（game 层退役·profile 重指）：main.m init_flattenIsolatedGameDirs
-    //   已把 game/ 内容上提到 versions/<id>/；本步把仍指向 versions/<id>/game
-    //   的 profile 重指 versions/<id>（Task224 分居口径退役）。幂等：重指后
-    //   不再命中；只认字符串精确匹配，自定义路径绝不碰。
-    NSInteger ame322_repointed = 0;
-    for (NSString *ame322_key in [ame271_profiles allKeys]) {
-        NSDictionary *ame322_prof = ame271_profiles[ame322_key];
-        if (![ame322_prof isKindOfClass:[NSDictionary class]]) continue;
-        NSString *ame322_gd = ame322_prof[@"gameDir"];
-        if (![ame322_gd isKindOfClass:[NSString class]]) continue;
-        NSString *ame322_vid = ame322_prof[@"lastVersionId"];
-        if (![ame322_vid isKindOfClass:[NSString class]] || ame322_vid.length == 0) continue;
-        if (![ame322_gd isEqualToString:[NSString stringWithFormat:@"versions/%@/game", ame322_vid]]) continue;
-        NSMutableDictionary *ame322_updated = [ame322_prof mutableCopy];
-        ame322_updated[@"gameDir"] = [NSString stringWithFormat:@"versions/%@", ame322_vid];
-        [PLProfiles.current applyChanges:^(NSMutableDictionary<NSString *, id> *ame275_profiles) {
-            ame275_profiles[ame322_key] = ame322_updated;
-        }];
-        ame322_repointed++;
-        NSLog(@"[Ame271] Task322: profile \"%@\" gameDir versions/%@/game -> versions/%@ (game-subdir retired)",
-              ame322_key, ame322_vid, ame322_vid);
-    }
-    if (ame322_repointed > 0) {
-        ame271_healed += ame322_repointed;
-        NSLog(@"[Ame271] Task322: %ld profile(s) repointed off retired game/ subdir", (long)ame322_repointed);
-    }
-    if (ame271_healed > 0) {
-        [PLProfiles.current save];
-        NSLog(@"[Ame271] self-heal done: %ld profile(s) re-isolated", (long)ame271_healed);
-    }
-    // ★ Task324（用户三问③：文件架构同步后 versions 下实例仍缺隔离文件）：
-    //   自愈/清扫/重指链收尾后全量补齐隔离骨架——注册表已隔离的版本目录
-    //   直接可见 mods 等六目录（FCL/HMCL/PCL/ZL2 同款观感），放模组即生效
-    [ModService ame324_ensureIsolationSkeletonsAll];
-}
-
-/// ★ Task324：隔离实例骨架补齐（用户指令："versions 下的实例还是没有其他
-/// 游戏隔离文件，比如模组"——Task322 拍平后实例目录里必须能直接看到 mods
-/// 等标准隔离目录，FCL/HMCL/PCL/ZL2 同款观感；Prisma1 ame323 同源移植）。
-/// 六目录 = mods/saves/config/resourcepacks/shaderpacks/screenshots。
-/// 仅隔离态创建：注册表存在指向该版本的隔离 profile（gameDir = 平铺新口径
-/// 或旧 game 叶子）或目录形状已有隔离数据（mods/saves 非空，ame225 同源）；
-/// 非隔离/默认实例绝不创建（防"放了模组却不生效"的误导）。幂等零副作用。
-+ (void)ame324_ensureIsolationSkeletonForVersionId:(NSString *)vid {
-    if (![vid isKindOfClass:[NSString class]] || vid.length == 0) return;
-    const char *ame324_env = getenv("POJAV_GAME_DIR");
-    if (!ame324_env || !*ame324_env) return;
-    NSString *ame324_base = [NSString stringWithUTF8String:ame324_env];
-    if (ame324_base.length == 0) return;
-    // 默认实例（jar/json 与共享数据同根）不补骨架：它就是共享根本体，
-    // 建 mods/ 会跟共享 mods 撞名（Task274 "(Default)" 守卫同款口径）
-    if ([vid isEqualToString:@"(Default)"] || [vid isEqualToString:@"default"]) return;
-    NSFileManager *ame324_fm = [NSFileManager defaultManager];
-    NSString *ame324_flat = [ame324_base stringByAppendingPathComponent:
-        [NSString stringWithFormat:@"versions/%@", vid]];
-    // ★ Task332：实例轴接管守卫（ame324×ame328 每启动抖动消除）—— 同 vid
-    //   存在【绝对路径】gameDir 的 profile（实例轴/自定义目录接管，ame329
-    //   统一后的深层形态 instances/<id>/versions/<vid>）时，版本轴 claim
-    //   一律失效。此前本方法只认相对平铺两种 gameDir（下方判据①），而
-    //   Task271 清扫建档的 ghost 档（gameDir=versions/<vid>）每轮命中 →
-    //   共享 versions/<vid>/ 重建 6 空目录 → 同轮 ame328 因
-    //   claimed&&instanceBound 判诱饵清除 = 每启动 ensure→prune 纯抖动
-    //   （装机 c711f745 日志实锤：Ame324 ensured 6 dir(s) → 同轮 Ame328
-    //   pruned 6 dir(s)）。守卫语义与 ame328 逐字节镜像：先扫实例轴接管，
-    //   命中即 return（深层形态的六目录观感由实例版本目录本体承载，
-    //   共享侧版本目录维持 FCL 形态 = json+jar only）。
-    for (NSDictionary *ame332_prof in PLProfiles.current.profiles.allValues) {
-        if (![ame332_prof isKindOfClass:[NSDictionary class]]) continue;
-        if (![ame332_prof[@"lastVersionId"] isEqualToString:vid]) continue;
-        NSString *ame332_gd = ame332_prof[@"gameDir"];
-        if ([ame332_gd isKindOfClass:[NSString class]] && ame332_gd.isAbsolutePath) {
-            return;
-        }
-    }
-    BOOL ame324_isolated = NO;
-    // 隔离判据①：注册表里存在指向该版本的隔离 profile（gameDir = 平铺新口径
-    // 或旧 game 叶子；Task322 重指后新口径为主）
-    NSDictionary *ame324_profiles = PLProfiles.current.profiles;
-    for (NSDictionary *ame324_prof in ame324_profiles.allValues) {
-        if (![ame324_prof isKindOfClass:[NSDictionary class]]) continue;
-        if (![ame324_prof[@"lastVersionId"] isEqualToString:vid]) continue;
-        NSString *ame324_gd = ame324_prof[@"gameDir"];
-        if (![ame324_gd isKindOfClass:[NSString class]]) continue;
-        if ([ame324_gd isEqualToString:[NSString stringWithFormat:@"versions/%@", vid]] ||
-            [ame324_gd isEqualToString:[NSString stringWithFormat:@"versions/%@/game", vid]]) {
-            ame324_isolated = YES;
-            break;
-        }
-    }
-    // 隔离判据②：目录形状兑底——平铺目录已有 mods/saves 数据 = 事实上隔离
-    if (!ame324_isolated) {
-        for (NSString *ame324_leaf in @[@"mods", @"saves"]) {
-            NSString *ame324_probe = [ame324_flat stringByAppendingPathComponent:ame324_leaf];
-            NSArray<NSString *> *ame324_entries = [ame324_fm contentsOfDirectoryAtPath:ame324_probe error:nil];
-            for (NSString *ame324_e in ame324_entries) {
-                if (![ame324_e hasPrefix:@"."]) { ame324_isolated = YES; break; }
-            }
-            if (ame324_isolated) break;
-        }
-    }
-    if (!ame324_isolated) return;
-    NSInteger ame324_created = 0;
-    for (NSString *ame324_dir in @[@"mods", @"saves", @"config", @"resourcepacks", @"shaderpacks", @"screenshots"]) {
-        NSString *ame324_path = [ame324_flat stringByAppendingPathComponent:ame324_dir];
-        if (![ame324_fm fileExistsAtPath:ame324_path]) {
-            NSError *ame324_err = nil;
-            if ([ame324_fm createDirectoryAtPath:ame324_path withIntermediateDirectories:YES attributes:nil error:&ame324_err]) {
-                ame324_created++;
-            } else {
-                NSLog(@"[Ame324] skeleton mkdir failed for %@/%@: %@", vid, ame324_dir, ame324_err.localizedDescription);
-            }
-        }
-    }
-    // 旧 game 叶子若仍在（拍平前刻到达的调用），骨架建进平铺目录即可，
-    // 叶子由 main.m init_flattenIsolatedGameDirs 负责上提——不向叶子内建目录
-    if (ame324_created > 0) {
-        NSLog(@"[Ame324] isolation skeleton ensured for versions/%@ (%ld dir(s) created, FCL/HMCL/PCL parity)", vid, (long)ame324_created);
-    }
 }
 
 /// ★ Task327：实例 versions/ 真实文件物化（FCL 观感终态，替代 Task326 符号链接）。
@@ -905,94 +629,6 @@ static BOOL ame329_moveEntry(NSFileManager *fm, NSString *src, NSString *dstDir,
           ame330_rest, ame330_vid, (long)ame330_moved, (unsigned long)ame330_names.count);
 }
 
-/// ★ Task325：实例轴骨架 pass —— 整合包/AI 实例的隔离单元是 instances/<id>/
-/// （profile gameDir = 绝对路径，ModpackImportService Task316/269/275-F5 铸成），
-/// 与版本轴（versions/<id>/，Task322/324 铸成）零交集：Task324 的两条隔离判据
-/// 在实例轴上定义性为假（gameDir 字面不匹配 versions/<vid>；目录形状探针只
-/// 探 POJAV_GAME_DIR/versions/<vid>/），整合包实例永远得不到六目录骨架 ——
-/// 用户装机实测“versions 里还是一个文件都没有”（病历：modrinth_<UUID> 实例
-/// 整个活在 instances/ 树，用户在文件 App 里翻到的实例 versions/ 又是空壳）。
-/// 本 pass 遍历注册表：gameDir 为绝对路径且位于 POJAV_HOME/instances/ 之下、
-/// 目录真实存在的 profile → 在该 gameDir 下补齐六目录（幂等零副作用）。
-/// FCL 观感对齐：实例目录打开即见 mods/saves/config 等隔离文件；全部内容类
-/// 扫描（ModService/WorldService/ResourcePackService 跟随 gameDir）无需一行
-/// 改动自动受益。守卫：仅接受 instances/ 子目录（防任意绝对路径误伤）。
-+ (void)ame325_ensureInstanceAxisSkeletons {
-    const char *ame325_homeEnv = getenv("POJAV_HOME");
-    if (!ame325_homeEnv || !*ame325_homeEnv) return;
-    NSString *ame325_home = [NSString stringWithUTF8String:ame325_homeEnv];
-    if (ame325_home.length == 0) return;
-    NSString *ame325_instancesRoot = [ame325_home stringByAppendingPathComponent:@"instances"];
-    NSFileManager *ame325_fm = [NSFileManager defaultManager];
-    NSInteger ame325_created = 0;
-    NSInteger ame325_hit = 0;
-    NSDictionary *ame325_profiles = PLProfiles.current.profiles;
-    for (NSDictionary *ame325_prof in ame325_profiles.allValues) {
-        if (![ame325_prof isKindOfClass:[NSDictionary class]]) continue;
-        NSString *ame325_gd = ame325_prof[@"gameDir"];
-        if (![ame325_gd isKindOfClass:[NSString class]] || ame325_gd.length == 0) continue;
-        // 判据：绝对路径 + instances/ 子目录 + 目录真实存在（不凭空建实例目录）
-        if (![ame325_gd isAbsolutePath]) continue;
-        NSString *ame325_gdComp = [ame325_gd stringByStandardizingPath];
-        NSString *ame325_rootComp = [ame325_instancesRoot stringByStandardizingPath];
-        if (![ame325_gdComp hasPrefix:[ame325_rootComp stringByAppendingString:@"/"]]) continue;
-        BOOL ame325_isDir = NO;
-        if (![ame325_fm fileExistsAtPath:ame325_gdComp isDirectory:&ame325_isDir] || !ame325_isDir) continue;
-        ame325_hit++;
-        for (NSString *ame325_dir in @[@"mods", @"saves", @"config", @"resourcepacks", @"shaderpacks", @"screenshots"]) {
-            NSString *ame325_path = [ame325_gdComp stringByAppendingPathComponent:ame325_dir];
-            if (![ame325_fm fileExistsAtPath:ame325_path]) {
-                NSError *ame325_err = nil;
-                if ([ame325_fm createDirectoryAtPath:ame325_path withIntermediateDirectories:YES attributes:nil error:&ame325_err]) {
-                    ame325_created++;
-                } else {
-                    NSLog(@"[Ame325] instance-axis skeleton mkdir failed for %@/%@: %@",
-                          ame325_gdComp.lastPathComponent, ame325_dir, ame325_err.localizedDescription);
-                }
-            }
-        }
-        // ★ Task327：versions/ 真实文件物化（符号链接在文件 App/FileProvider
-        //   视图不解析——装机两轮"空目录依旧"实锤；装机锚点 latestlog 搜
-        //   "[Ame327] instance versions materialized"）
-        [ModService ame327_materializeInstanceVersions:ame325_gdComp fm:ame325_fm];
-    }
-    if (ame325_created > 0) {
-        NSLog(@"[Ame325] instance-axis isolation skeleton ensured (%ld instance(s), %ld dir(s) created, FCL parity)",
-              (long)ame325_hit, (long)ame325_created);
-    }
-}
-
-/// ★ Task324：全量骨架 pass——遍历 versions/<id>/<id>.json 真实版本实例，
-/// 逐个走 ame324_ensureIsolationSkeletonForVersionId（注册表/形状判据在内）。
-/// 调用点：ame271 自愈链收尾（SceneDelegate 启动段，Task322 重指后）+
-/// ZL2GameAddons 三个安装成功分支（装完即见，无需等下轮启动）。幂等零副作用。
-/// ★ Task325：尾部追加实例轴 pass（instances/<id>/ 整合包实例六目录）。
-+ (void)ame324_ensureIsolationSkeletonsAll {
-    const char *ame324_env = getenv("POJAV_GAME_DIR");
-    if (!ame324_env || !*ame324_env) return;
-    // ★ Task329：版本轴统一先行（实例根数据搬家进版本目录 + gameDir 重指）
-    //   —— 后续骨架/实例轴/清扫三 pass 都以搬家后的终态为准（迁移后版本
-    //   目录自带数据，ame324 判据②"事实上隔离"自然保它；空壳诱饵仍归
-    //   ame328 摘除）。
-    [ModService ame329_unifyInstanceDataIntoVersionAxis];
-    NSString *ame324_base = [NSString stringWithUTF8String:ame324_env];
-    if (ame324_base.length == 0) return;
-    NSFileManager *ame324_fm = [NSFileManager defaultManager];
-    NSString *ame324_versions = [ame324_base stringByAppendingPathComponent:@"versions"];
-    NSArray<NSString *> *ame324_vdirs = [ame324_fm contentsOfDirectoryAtPath:ame324_versions error:nil];
-    for (NSString *ame324_vd in ame324_vdirs) {
-        if ([ame324_vd hasPrefix:@"."]) continue;
-        NSString *ame324_marker = [[ame324_versions stringByAppendingPathComponent:ame324_vd]
-            stringByAppendingPathComponent:[NSString stringWithFormat:@"%@.json", ame324_vd]];
-        if (![ame324_fm fileExistsAtPath:ame324_marker]) continue;   // 非版本实例（残根/杂项）跳过
-        [ModService ame324_ensureIsolationSkeletonForVersionId:ame324_vd];
-    }
-    [ModService ame325_ensureInstanceAxisSkeletons];
-    // ★ Task328：诱饵版本骨架清扫（六空目录诱饵形态摘除，见方法头注）——
-    //   跟随全量骨架 pass 同点运行（启动自愈链 + 安装成功分支），摘完即静默
-    [ModService ame328_pruneDecoyVersionSkeletons];
-}
-
 - (nullable NSString *)existingModsFolderForProfile:(NSString *)profileName {
     // ★ Task274-h S7：nil 入参跟随当前选中实例（ame267 语义），不再落恒 miss 的
     // @"default" 字面量（真实默认键 "(Default)"；对齐 Task270 M1 服务层口径）。
@@ -1023,56 +659,12 @@ static BOOL ame329_moveEntry(NSFileManager *fm, NSString *src, NSString *dstDir,
     return nil;
 }
 
-/// Task219（⑪ 版本隔离深度优化·用户指令“支持自动识别是否开启版本隔离，
-/// 比如 Mod 端”）：隔离优先的 mods 目录解析——profile 一旦配置了 gameDir
-///（隔离此版本 / 自定义目录），下载与扫描【只认】隔离目录，缺目录即创建，
-/// 绝不回退共享目录。旧 existingModsFolderForProfile 的“隔离目录还没建
-/// mods/ 就回退 POJAV_GAME_DIR/mods”语义 = 隔离版本下载的 mod 落到共享
-/// 目录，游戏里永远看不到（装机可复现：新开隔离 → 装模组 → 进游戏无此
-/// 模组）。返回 nil 仅当两条路径都无法解析。
-- (nullable NSString *)ame219_isolationFirstModsFolderForProfile:(NSString *)profileName {
-    NSError *ame219_err = nil;
-    NSString *ame219_path = [self ensureModsFolderForProfile:profileName error:&ame219_err];
-    if (ame219_path.length > 0) {
-        return ame219_path;
-    }
-    // 兑底：ensure 失败（如创建受限）退回“存在即用”语义，保持旧行为下限
-    return [self existingModsFolderForProfile:profileName];
-}
-
 /// Task264：当前 profile 实际生效的 mods 目录（与 scanModsForProfile 同源同目录，
 /// Task219 隔离优先语义）。模组管理页展示"扫描目录"提示行 + 文件 App 定点打开。
 /// 用户中途放入该目录的 .jar 重扫后必然可见；此前导入按钮走 ensureModsFolderForProfile(nil)
 /// 恒解析到 default 主目录，整合包实例的隔离目录永远收不到文件——中途加 mod 不显示根因。
 - (nullable NSString *)ame264_effectiveModsFolderForProfile:(NSString *)profileName {
-    return [self ame219_isolationFirstModsFolderForProfile:profileName];
-}
-
-/// Task219：当前 profile 的隔离态对外暴露（ModsManager 徽标用）。
-/// 0 = 不隔离（gameDir 缺失或 "." 且嗅探未命中）；1 = 显式隔离
-/// （gameDir 为 versions/<id>/... 或自定义目录）；2 = 嗅探隔离（Task225：
-/// gameDir 为 "." 但 versions/<vid>/ 下已有 mods/saves——上游 auto 语义）。
-+ (NSInteger)ame219_isolationStateForProfile:(NSString *)profileName {
-    // ★ Task274-h S7：nil 入参跟随当前选中实例（ame267 语义），不再落恒 miss 的
-    // @"default" 字面量（真实默认键 "(Default)"；对齐 Task270 M1 服务层口径）。
-    if (!profileName.length) profileName = PLProfiles.current.selectedProfileName ?: @"(Default)";
-    NSString *profile = profileName;
-    @try {
-        NSDictionary *profiles = PLProfiles.current.profiles;
-        NSDictionary *prof = profiles[profile];
-        if (![prof isKindOfClass:[NSDictionary class]]) return 0;
-        NSString *gameDir = prof[@"gameDir"];
-        if (![gameDir isKindOfClass:[NSString class]] || gameDir.length == 0) {
-            // Task225：无显式 gameDir → 嗅探（auto 语义）
-            return [self ame225_sniffedIsolationGameDirForProfile:prof] != nil ? 2 : 0;
-        }
-        if ([gameDir isEqualToString:@"."]) {
-            return [self ame225_sniffedIsolationGameDirForProfile:prof] != nil ? 2 : 0;
-        }
-        return 1;
-    } @catch (NSException *ex) {
-        return 0;
-    }
+    return [self ensureModsFolderForProfile:profileName error:nil];
 }
 
 /// 获取当前 profile 的 mods 目录，不存在时自动创建
@@ -1270,7 +862,7 @@ static BOOL ame329_moveEntry(NSFileManager *fm, NSString *src, NSString *dstDir,
         // 语义，装哪儿扫哪儿）。
         // ★ Task371：改为版本轴多根联合扫描（同文件名先到先得去重）——主根
         //   语义不变，实例轴/全局根/game 变体补读，见 ame371_scanRootsForProfile。
-        NSString *modsFolder = [self ame219_isolationFirstModsFolderForProfile:profileName];
+        NSString *modsFolder = [self ensureModsFolderForProfile:profileName error:nil];
         NSArray<NSString *> *ame371_roots = [self ame371_scanRootsForProfile:profileName];
         NSMutableArray<ModItem *> *items = [NSMutableArray array];
         NSMutableSet<NSString *> *ame371_seen = [NSMutableSet set];
@@ -1565,7 +1157,7 @@ static BOOL ame329_moveEntry(NSFileManager *fm, NSString *src, NSString *dstDir,
               profileName, ame269_fallback ?: @"(nil)");
         profileName = ame269_fallback;
     }
-    NSString *modsFolder = [self ame219_isolationFirstModsFolderForProfile:profileName];
+    NSString *modsFolder = [self ensureModsFolderForProfile:profileName error:nil];
     // ★ Task265：下载目标锚——今后任何"下载了但游戏/管理页看不到"直接看这行
     NSLog(@"[ModService] Task265 download dest: profile=%@ folder=%@ file=%@",
           profileName ?: @"(nil)", modsFolder, mod.fileName ?: @"(nil)");

@@ -5674,3 +5674,18 @@ Stage Summary:
 - 【待办移交】用户侧：MnPXaJV 的 modrinth_9BACE99E 实例装一次「重新安装 NeoForge」（版本管理内）即可立即解锁本轮保环无需自愈的快路径；渲染域下一轮候选仍为 MobileGL main 26.11 dylib 升代（fork rebase 后取件，Task469/470 留档）
 
 - 【Task471 闭环补记】r0 dev 编译红（45164669414：E4 改名漏改 ame467_roots ×2 @2147/2149——本地电池无 ObjC 编译器，CI 编译面第一道实锚）→ r1 545f7674c 清偿；CI 双 workflow 一轮双绿（dev 45167916362 + ui-smoke 45170501073，attempt 内零热修）；四件产物归档 task471_dl + task470_artifact_verify 二进制验证 19/19 ALL PASS（V3 Task471 UTF-16LE 代际锚 + V13 折叠/DyldLV 保留面 + V17-V19 伴侣对随包三连执法）
+
+---
+## Task 472——版本隔离体系整体退役（用户钦定「全部删除，包括整合包的一部分代码」+「我们先全部删除」；两代四层机制出清，gameDir 统一共享根；重放重建轮）
+
+Work Log:
+- 退役范围定谳（承 Task472 只读盘点）：四层机制全删——实例级三态（ame217/ame275 块）、目录嗅探（ame225/ame219 + 四服务嗅探块）、版本级 version.config（ame428_overrideForVid/writeOverride/override family + ame428_versionConfigPathForVid）、全局默认档（general.isolation_default 注册行 + ame428_globalDefault + applyGlobalIsolation 翻转流）；ame428 决策树主体出清（PLProfiles 决策树全文注释随之退役），仅中性路径 helper 原样保留（ame428_scanRoot/versionDirForVid/registerProfileForVid/profileNamesReferencingVid/isVersionInstalledPerScan + ame428_jsonManifestParsesAtPath 中性依赖 git HEAD 原样回植）
+- 整合包写键清零（用户点名连带面）：Forge/NeoForge 自动隔离写入（installer 双族 gameDir=versions/* 写键）、FabricUtils 混居注册 + mods 目标、ame450 播种双调用点、ame271 自愈、ame324/325 骨架族、ModpackImportService 导入后骨架补齐——整合包安装/导入非隔离功能全部存活
+- 启动链三块合一：JavaLauncher 三层解析（gameDir→ame225→ame428）替换为单块共享根解析，日志锚 [JavaLauncher] Task472: gameDir = shared root；消费方管线拆除 = JavaLauncher/WorldService/ResourcePackService/ShaderService/ModService/PLWorldBackupService/PLGameIntegrityService/ZL2Versions/ZL2Home/ZL2VersionDetail 十面各自拼装管线统一收口
+- UI 退役：设置页隔离组（ame369 行 + 折叠面 42→41 重锚）、ame447 三方法（isolationStateText/isolationSwitchOn/applyIsolationToggle）、全局档行、版本页翻转流简化为直落位（ame428_selectVersionRow 选择即直接落位、engageSettingsForRow 直进详情、ame428_applyOverride 桩化保刷新语义）
+- 门禁：BuildTag Task472 · 2026-11-24 进代；12+1 门代际重锚（451/452/457/461/462/464/465/466/467/ame468-S/task471/task470_artifact_verify）；ame343 B2 六→五消费点 + ame369 449→447 + task471_selfcheck A10 折叠 42→41；verify219/task447/task462 R4/R9/task467 R18 四门退役化反转（反向执法：隔离符号零残留）；电池 52/52 ALL GREEN
+- 判例存档：part3 块字面量非贪婪截断三处 [m 吞字（memoryRow/micRow/ame_addRows:@[）+ 悬孤 key:@"isolation" 尾行——门禁扫描器（含注释剥离栈）为唯一可信裁判，裸大括号 delta 计数会漏错型闭合；bash 页缓存幽灵旧页可致同一文件双视图分裂，以 git diff + 门禁扫描器双重仲裁
+- 【重建轮注记】原 Task472 本地提交（8d6ef3694+936fe2143）随沙箱回收丢失（未及推送），本轮由幸存手术脚本（task472_strip_isolation/part2/part3/part4 + gate_reanchor×2）全量重放重建 + 三处外科复修（选行死分支保直落位/悬孤块清除/详情页嗅探残留拆除），终态语义与原轮一致；电池提交后自愈 S6 复验 52/52
+
+Stage Summary:
+- 装机锚点（BuildTag=Task472 · 2026-11-24）：①任意版本启动 latestlog 应现 "[JavaLauncher] Task472: gameDir = shared root"（mods/存档/资源包/光影等全部落主游戏目录）②设置页不再有版本隔离组与全局默认档项；版本详情页隔离行退役③历史隔离目录（versions/<vid>/ 内数据）磁盘原样保留、启动器不再读写④整合包安装/导入功能正常（仅不再写隔离键、不再补骨架）

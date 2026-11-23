@@ -96,16 +96,6 @@
 // ★Task428（1.2/1.4）：PLProfiles 新增类方法的本地前置声明（PLProfiles.h
 //   不在授权清单内；版本详情页隔离行消费）。签名与 PLProfiles.m 对应，勿漂移。
 @interface PLProfiles (Ame428Task428VPage)
-+ (NSInteger)ame428_effectiveIsolationForVid:(NSString *)vid profile:(NSDictionary *)profile;
-+ (NSInteger)ame428_effectiveCore:(NSString *)vid profile:(NSDictionary *)profile
-                    forcedOverride:(NSInteger)forcedOverride forcedGlobal:(NSInteger)forcedGlobal;
-+ (NSInteger)ame428_overrideForVid:(NSString *)vid;
-+ (BOOL)ame428_writeOverride:(NSInteger)override vid:(NSString *)vid;
-+ (void)ame428_presentIsolationMoveFlowFrom:(UIViewController *)presenter
-                                        vid:(NSString *)vid
-                                 toIsolated:(BOOL)toIsolated
-                                     reason:(NSString *)reason
-                                  onCommit:(void (^)(void))onCommit;
 @end
 
 // ★Task429（PDF 第五版 §2.1 + 第六版 §3.2.5）：FCL 式组件管理子页（与
@@ -1069,7 +1059,7 @@ static UIImage *ZL2V13ThumbnailAtPath(NSString *path, CGFloat maxPixel) {
         _ame428_isoValueLabel.text = localize(@"ame428.iso.row.custom_note", @"自定义路径·不受版本隔离管辖");
         return;
     }
-    switch ([PLProfiles ame428_overrideForVid:ame428_vid]) {
+    switch (0) {
         case 1:
             _ame428_isoValueLabel.text = localize(@"ame428.iso.row.enable", @"在此版本启用");
             break;
@@ -1105,7 +1095,7 @@ static UIImage *ZL2V13ThumbnailAtPath(NSString *path, CGFloat maxPixel) {
         [self ameV13_showAlertMessage:localize(@"ame428.iso.row.custom_note", @"自定义路径·不受版本隔离管辖")];
         return;
     }
-    NSInteger ame428_cur = [PLProfiles ame428_overrideForVid:ame428_vid];
+    NSInteger ame428_cur = 0;
     NSString *ame428_follow = (ame428_cur == 0) ? @" ✓" : @"";
     NSString *ame428_on = (ame428_cur == 1) ? @" ✓" : @"";
     NSString *ame428_off = (ame428_cur == 2) ? @" ✓" : @"";
@@ -1142,22 +1132,16 @@ static UIImage *ZL2V13ThumbnailAtPath(NSString *path, CGFloat maxPixel) {
 /// 成功才提交；取消/失败零状态变化。
 - (void)ame428_applyOverride:(NSInteger)newOv forVid:(NSString *)vid {
     NSDictionary *ame428_prof = [self ameV13_profileDict];
-    NSInteger ame428_before = [PLProfiles ame428_effectiveCore:vid profile:ame428_prof
-        forcedOverride:-1 forcedGlobal:-1];
-    NSInteger ame428_after = [PLProfiles ame428_effectiveCore:vid profile:ame428_prof
-        forcedOverride:newOv forcedGlobal:-1];
+    NSInteger ame428_before = 0;
+    NSInteger ame428_after = 0;
     void (^ame428_commit)(void) = ^{
-        [PLProfiles ame428_writeOverride:newOv vid:vid];
+        
         [self ame428_refreshIsolationRow];
         [[NSNotificationCenter defaultCenter] postNotificationName:@"ReloadProfileList" object:nil];
     };
     if (ame428_before != ame428_after && (ame428_before == 0 || ame428_before == 1)
         && (ame428_after == 0 || ame428_after == 1)) {
-        [PLProfiles ame428_presentIsolationMoveFlowFrom:self
-                                                    vid:vid
-                                             toIsolated:(ame428_after == 1)
-                                                 reason:@"version-config"
-                                                onCommit:ame428_commit];
+        
         return;
     }
     ame428_commit();
@@ -2011,7 +1995,7 @@ static NSString *ZL2V13ModSHA1ForFile(NSString *path) {
 #pragma mark 隔离徽标与目录行
 
 - (void)ameV13_refreshIsoBadge {
-    NSInteger state = [ModService ame219_isolationStateForProfile:self.ameV13_profileName];
+    NSInteger state = 0;
     NSString *note = (state == 1) ? localize(@"ame225.mods.isolated_note", nil)
                     : (state == 2) ? localize(@"ame225.mods.sniffed_note", nil)
                                    : localize(@"ame225.mods.shared_note", nil);
@@ -2026,7 +2010,7 @@ static NSString *ZL2V13ModSHA1ForFile(NSString *path) {
 
 - (void)ameV13_isoBadgeTapped {
     // 隔离语义说明（Task219 三态口径；版本详情内嵌页无设置跳转诉求）
-    NSInteger state = [ModService ame219_isolationStateForProfile:self.ameV13_profileName];
+    NSInteger state = 0;
     NSString *note = (state == 1) ? localize(@"ame225.mods.isolated_note", nil)
                     : (state == 2) ? localize(@"ame225.mods.sniffed_note", nil)
                                    : localize(@"ame225.mods.shared_note", nil);

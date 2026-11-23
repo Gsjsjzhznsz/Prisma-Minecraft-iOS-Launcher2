@@ -437,13 +437,7 @@ NSString *const ForgeDirectInstallerErrorDomain = @"ForgeDirectInstallerErrorDom
     NSMutableDictionary *profileDict = [NSMutableDictionary dictionary];
     profileDict[@"name"] = versionId;
     profileDict[@"lastVersionId"] = versionId;
-    // ★ Task242（用户："安装模组端的时候为什么不会自动开启版本隔离"）：
-    //   新装模组端自动开版本隔离（PCL/FCL 行业惯例）——gameDir =
-    //   versions/<id>/game（Task224 数据分居新口径，ame217_isolationState
-    //   识别为"隔离此版本"；mods/saves/configs 由 ModService 隔离优先
-    //   解析自动落隔离目录）。旧"共享根 + 手动切换"机制退役，用户仍可
-    //   在版本设置页三态选择器改回。
-    profileDict[@"gameDir"] = [NSString stringWithFormat:@"versions/%@/game", versionId];
+    // ★Task472: 版本隔离退役——安装不再写 gameDir（恒共享根）
     profileDict[@"type"] = @"custom";
     profileDict[@"created"] = [NSDate date].description;
     // 推断 Java 版本：Forge 1.20.5+ 需 Java 21，1.18+ 需 Java 17，1.17 需 Java 16，其他 Java 8

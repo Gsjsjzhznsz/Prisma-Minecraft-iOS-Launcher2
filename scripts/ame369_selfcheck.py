@@ -112,7 +112,7 @@ check("② ame369.* 键四表齐备",
 #   control_repo / ame369.common.gamepad_repo）+ case 8/9 nav 宿主标题 +2（case 10
 #   的 ame318.repo.title 两站点不落 ame369.* 计数口径）= 445 + 4 = 449
 #   （git stash 双向核验：HEAD=445，Task458 工作区=449）。
-check("① ame369 改写点数 == 449（…★Task432 重锚 -24 = 443 → ★Task436 重锚 +6 = 449 → ★Task440 重锚 -4 = 445 → ★Task458 重锚 +4：下载中心仓库三轨回归（Task323 原版形态复位）titles 数组 +2 + case 8/9 标题 +2 = 449）", ame369_sites == 449, str(ame369_sites))
+check("① ame369 改写点数 == 447（…★Task458 重锚 +4 = 449 → ★Task472 重锚 -2 = 447：版本隔离退役（设置页隔离行 + 翻转确认弹窗两站点摘除））", ame369_sites == 447, str(ame369_sites))
 
 # 复用站点：4 处 localize(@"ame193.misc.[13]"（内容级匹配——5 个补 import 文件行号整体 +1，行级断言会错位）
 REUSE_EXPECT = {

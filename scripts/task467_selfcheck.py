@@ -133,11 +133,14 @@ check('R17 i18n 双键 54 表同步',
               and 'i18n_str_ame467_srg_missing' in open(t, encoding='utf-8').read()
               for t in tables),
       f'表数 {len(tables)} 或键覆盖不全')
-check('R18 verify219 J 锚 4350 重锚',
-      'len(keys) == 4350' in read('scripts/verify_task219.py'),
-      'J 锚未重锚')
-check('S1 BuildTag 代际锚 Task471 · 2026-11-23',
-      'ame415_buildTag = @"Task471 · 2026-11-23"' in tag_h,
+# ★Task472 退役化重锚：verify219 改写为隔离退役缺席执法门（原 J 锚 4350
+#   随旧 Task219 断言体退役）。
+check('R18 verify219 退役化改写（Task472 缺席执法 + 共享根锚）',
+      '退役化' in read('scripts/verify_task219.py')
+      and 'ame225_sniffedIsolationGameDirForProfile' in read('scripts/verify_task219.py'),
+      '退役化改写未重锚')
+check('S1 BuildTag 代际锚 Task472 · 2026-11-24',
+      'ame415_buildTag = @"Task472 · 2026-11-24"' in tag_h,
       'BuildTag 未重锚')
 check('S2 电池登记 task467（声明即实跑）',
       'task467' in read('scripts/task432_gate_battery.sh'),

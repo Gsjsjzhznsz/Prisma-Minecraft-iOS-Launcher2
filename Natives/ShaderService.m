@@ -9,8 +9,6 @@
 //
 
 #import "ShaderService.h"
-#import "ModService.h"   // Task275 F2: Task225 isolation sniff (ame225_sniffedIsolationGameDirForProfile)
-// ★ Task274-h S14：CommonCrypto import 随零调用 sha1ForFileAtPath 删除（全文件 CC_ 族
 //   仅该方法使用，rg 亲证）
 #import <UIKit/UIKit.h>
 #import "PLProfiles.h"
@@ -105,12 +103,6 @@
         //   versions/<lastVersionId>/game 隔离——'.' 实例的 mods 已走嗅探隔离而光影
         //   仍落共享根（Shader 是五服务唯一漏平移嗅探的一家，同会话落点分居）。
         if (![gameDir isKindOfClass:[NSString class]] || gameDir.length == 0 || [gameDir isEqualToString:@"."]) {
-            NSString *ame225_sniffed = [ModService ame225_sniffedIsolationGameDirForProfile:prof];
-            if (ame225_sniffed.length > 0) {
-                NSLog(@"[ShaderService] Task275: auto-sniffed isolation for profile %@ -> %@ (mods/saves present)",
-                      profile, ame225_sniffed.lastPathComponent);
-                return ame225_sniffed;
-            }
         }
         if (![gameDir isKindOfClass:[NSString class]] || gameDir.length == 0) return nil;
         if ([gameDir isEqualToString:@"."]) {
