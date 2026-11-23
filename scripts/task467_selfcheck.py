@@ -78,7 +78,8 @@ check('R7 欢迎 present 点全仓唯一（SceneDelegate 0.8s 位）',
 
 # ── R 线：启动链 srg 保环面 ────────────────────────────────────
 check('R8 ame158 门 BOOL 化（空表/无环境早退双 return YES + 签名 static BOOL）',
-      'static BOOL ame158_repairMissingLibraries(NSDictionary *launchTarget) {' in jl
+      'static BOOL ame158_repairMissingLibraries(NSDictionary *launchTarget, '
+          'NSString *launchGameDir) {' in jl
       and jl.count('if (ame158_libs.count == 0) return YES;') == 1
       and 'if (!ame158_gameDir || !*ame158_gameDir) return YES;' in jl,
       '门签名/早退形态漂移')
@@ -111,10 +112,11 @@ check('R12 Tier B 成功收束复用 ame173 重启链（进程内 JVM 单次约�
 check('R13 Tier C 指引弹窗双 i18n 键在位',
       'i18n_str_ame467_srg_missing_title' in jl and 'i18n_str_ame467_srg_missing' in jl,
       'Tier C 弹窗键缺失')
-check('R14 调用点中断语义（!gate → return 1，不进 JIT 等待）',
-      'if (!ame158_repairMissingLibraries(launchTarget)) {' in jl
-      and jl.find('if (!ame158_repairMissingLibraries(launchTarget)) {') < jl.find('ame158_repairMissingLibraries(launchTarget);') if 'ame158_repairMissingLibraries(launchTarget);' in jl else True,
-      '调用点仍为旧 void 调用')
+check('R14 调用点中断语义（!gate → return 1，Task471 gameDir 显式传根 + 终解析后位置）',
+      'if (!ame158_repairMissingLibraries(launchTarget, gameDir)) {' in jl
+      and jl.find('ame287_configureForgeUriSafeRoot(ame287_vid, gameDir);') < jl.find('if (!ame158_repairMissingLibraries(launchTarget, gameDir)) {')
+      and jl.find('if (!ame158_repairMissingLibraries(launchTarget, gameDir)) {') < jl.find('preLaunchCheckForCurrentProfile'),
+      '调用点形态/位置漂移（Task471 双根脱节回退）')
 check('R15 原版/Fabric 零触碰（保环主入口 NeoForge 早退）',
       'if (!ame467_isNeoForgeTarget(launchTarget)) return YES;   // 原版/Fabric 零触碰' in jl,
       '早退面漂移')
@@ -134,8 +136,8 @@ check('R17 i18n 双键 54 表同步',
 check('R18 verify219 J 锚 4350 重锚',
       'len(keys) == 4350' in read('scripts/verify_task219.py'),
       'J 锚未重锚')
-check('S1 BuildTag 代际锚 Task470 · 2026-11-23',
-      'ame415_buildTag = @"Task470 · 2026-11-23"' in tag_h,
+check('S1 BuildTag 代际锚 Task471 · 2026-11-23',
+      'ame415_buildTag = @"Task471 · 2026-11-23"' in tag_h,
       'BuildTag 未重锚')
 check('S2 电池登记 task467（声明即实跑）',
       'task467' in read('scripts/task432_gate_battery.sh'),

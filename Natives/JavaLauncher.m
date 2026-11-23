@@ -2096,9 +2096,12 @@ static BOOL ame467_isNeoForgeTarget(NSDictionary *launchTarget) {
 
 // 收集缺失的 processor 产物：无 downloads URL 且 name = group:artifact:version:
 // classifier、classifier ∈ {srg, client, extra} 三类（jar-in-jar 无关，只看 json）
-static NSArray<NSDictionary *> *ame467_missingProcessorArtifacts(NSDictionary *launchTarget, NSString *libRoot) {
+// ★Task471：入参换链合并库数组（Task428 同款 inheritsFrom 链合并，见
+//   ame471_mergedLibraries）——child-only 扫描对「条目落父辈 json」的
+//   Modrinth 导入形态天然漏报。
+static NSArray<NSDictionary *> *ame467_missingProcessorArtifacts(NSArray *libs, NSString *libRoot) {
     NSMutableArray *ame467_missing = [NSMutableArray array];
-    NSArray *ame467_libs = [launchTarget[@"libraries"] isKindOfClass:NSArray.class] ? launchTarget[@"libraries"] : nil;
+    NSArray *ame467_libs = [libs isKindOfClass:NSArray.class] ? libs : nil;
     NSFileManager *ame467_fm = NSFileManager.defaultManager;
     for (NSDictionary *ame467_lib in ame467_libs) {
         if (![ame467_lib isKindOfClass:NSDictionary.class]) continue;
@@ -2111,13 +2114,11 @@ static NSArray<NSDictionary *> *ame467_missingProcessorArtifacts(NSDictionary *l
         if (![ame467_classifier isEqualToString:@"srg"] &&
             ![ame467_classifier isEqualToString:@"client"] &&
             ![ame467_classifier isEqualToString:@"extra"]) continue;
-        id ame467_dl = ame467_lib[@"downloads"];
-        if ([ame467_dl isKindOfClass:NSDictionary.class] &&
-            [ame467_dl[@"artifact"] isKindOfClass:NSDictionary.class] &&
-            [ame467_dl[@"artifact"][@"url"] isKindOfClass:NSString.class] &&
-            ((NSString *)ame467_dl[@"artifact"][@"url"]).length > 0) {
-            continue;   // 有 URL：一号门 URL 补链已覆盖，不属本环
-        }
+        // ★Task471：URL 豁免撤销——srg/client/extra 三类是 installer processor
+        //   本地生成产物（官方 maven 从不发布），json 携带的 URL 即便存在也
+        //   不可依赖（ame158 URL 补链 404 即黑洞；MnPXaJV 判例的 FML 需要
+        //   与 URL 有无无关，文件在场是唯一判据）。
+        (void)ame467_lib[@"downloads"];
         NSString *ame467_rel = ame467_mavenNameToRelPath(ame467_name);
         if (!ame467_rel) continue;
         NSString *ame467_dest = [libRoot stringByAppendingPathComponent:ame467_rel];
@@ -2133,8 +2134,16 @@ static NSUInteger ame467_strandedRecovery(NSArray<NSDictionary *> *missing, NSSt
     const char *ame467_homeC = getenv("POJAV_HOME");
     if (!ame467_homeC || !*ame467_homeC) return 0;
     NSString *ame467_home = @(ame467_homeC);
-    NSMutableArray<NSString *> *ame467_roots = [NSMutableArray array];
-    [ame467_roots addObject:[ame467_home stringByAppendingPathComponent:@"libraries"]];
+    NSMutableArray<NSString *> *ame471_roots = [NSMutableArray array];
+    // ★Task471：基础游戏根（POJAV_GAME_DIR）列入搁浅源——旧门口径的查库根
+    //   正是它，历史安装产物最可能搁浅于此（MnPXaJV 判例：门 clean 71
+    //   present 与实例轴缺失并存的唯一自洽解释）。
+    const char *ame471_baseC = getenv("POJAV_GAME_DIR");
+    if (ame471_baseC && *ame471_baseC) {
+        NSString *ame471_baseRoot = [@(ame471_baseC) stringByAppendingPathComponent:@"libraries"];
+        if (![ame471_roots containsObject:ame471_baseRoot]) [ame471_roots addObject:ame471_baseRoot];
+    }
+    [ame471_roots addObject:[ame467_home stringByAppendingPathComponent:@"libraries"]];
     [ame467_roots addObject:[ame467_home stringByAppendingPathComponent:@"Library/Application Support/minecraft/libraries"]];
     if (vid.length > 0) {
         [ame467_roots addObject:[NSString stringWithFormat:@"%@/versions/%@/libraries",
@@ -2145,7 +2154,7 @@ static NSUInteger ame467_strandedRecovery(NSArray<NSDictionary *> *missing, NSSt
     for (NSDictionary *ame467_item in missing) {
         NSString *ame467_rel = ame467_item[@"rel"];
         NSString *ame467_dest = ame467_item[@"dest"];
-        for (NSString *ame467_root in ame467_roots) {
+        for (NSString *ame467_root in ame471_roots) {
             NSString *ame467_src = [ame467_root stringByAppendingPathComponent:ame467_rel];
             if (![ame467_fm fileExistsAtPath:ame467_src]) continue;
             [ame467_fm createDirectoryAtPath:ame467_dest.stringByDeletingLastPathComponent
@@ -2313,17 +2322,91 @@ static void ame467_presentMissingArtifactDialog(NSArray<NSDictionary *> *missing
     });
 }
 
+// ★Task471（R2 链展开）：inheritsFrom 链展开（chain = [子, 父, 祖父...]，
+//   Task428 PLGameIntegrityService 同款解析口径，根 = 启动链 gameDir/versions）。
+static NSArray<NSDictionary *> *ame471_versionChainFrom(NSDictionary *child, NSString *gameDir) {
+    NSMutableArray<NSDictionary *> *ame471_chain = [NSMutableArray array];
+    if (![child isKindOfClass:NSDictionary.class]) return ame471_chain;
+    [ame471_chain addObject:child];
+    NSString *ame471_versionsRoot = [gameDir stringByAppendingPathComponent:@"versions"];
+    NSString *ame471_cursor = [child[@"inheritsFrom"] isKindOfClass:NSString.class]
+        ? child[@"inheritsFrom"] : nil;
+    NSInteger ame471_guard = 0;
+    while (ame471_cursor.length > 0 && ame471_guard++ < 8) {
+        NSString *ame471_parentPath = [[ame471_versionsRoot stringByAppendingPathComponent:ame471_cursor]
+            stringByAppendingPathComponent:[NSString stringWithFormat:@"%@.json", ame471_cursor]];
+        NSDictionary *ame471_parent = [NSJSONSerialization JSONObjectWithData:
+            [NSData dataWithContentsOfFile:ame471_parentPath] options:0 error:nil];
+        if (![ame471_parent isKindOfClass:NSDictionary.class]) {
+            NSLog(@"[JavaLauncher] Task471: inheritsFrom parent JSON unreadable (%@) -- chain truncated", ame471_parentPath);
+            break;
+        }
+        [ame471_chain addObject:ame471_parent];
+        ame471_cursor = [ame471_parent[@"inheritsFrom"] isKindOfClass:NSString.class]
+            ? ame471_parent[@"inheritsFrom"] : nil;
+    }
+    return ame471_chain;
+}
+
+// ★Task471（R2 链合并）：从最父辈向子辈收敛，子辈同组覆盖（组键 = name 的
+//   最后冒号前段，Task428 库合并同语义，杜绝父辈同组条目遮蔽子辈覆盖）。
+static NSArray<NSDictionary *> *ame471_mergedLibraries(NSDictionary *launchTarget, NSString *gameDir) {
+    NSArray<NSDictionary *> *ame471_chain = ame471_versionChainFrom(launchTarget, gameDir);
+    NSMutableArray<NSDictionary *> *ame471_merged = [NSMutableArray array];
+    for (NSInteger ame471_i = (NSInteger)ame471_chain.count - 1; ame471_i >= 0; ame471_i--) {
+        NSArray *ame471_arr = [ame471_chain[ame471_i][@"libraries"] isKindOfClass:NSArray.class]
+            ? ame471_chain[ame471_i][@"libraries"] : nil;
+        for (NSDictionary *ame471_lib in ame471_arr) {
+            if (![ame471_lib isKindOfClass:NSDictionary.class]) continue;
+            NSString *ame471_name = [ame471_lib[@"name"] isKindOfClass:NSString.class]
+                ? ame471_lib[@"name"] : nil;
+            if (ame471_name.length == 0) continue;
+            NSRange ame471_colon = [ame471_name rangeOfString:@":" options:NSBackwardsSearch];
+            if (ame471_colon.location == NSNotFound || ame471_colon.location == 0) continue;
+            NSString *ame471_group = [ame471_name substringToIndex:ame471_colon.location];
+            BOOL ame471_replaced = NO;
+            for (NSUInteger ame471_j = 0; ame471_j < ame471_merged.count; ame471_j++) {
+                NSString *ame471_existing = [ame471_merged[ame471_j][@"name"] isKindOfClass:NSString.class]
+                    ? ame471_merged[ame471_j][@"name"] : nil;
+                NSRange ame471_eColon = [ame471_existing rangeOfString:@":" options:NSBackwardsSearch];
+                if (ame471_eColon.location != NSNotFound && ame471_eColon.location > 0 &&
+                    [[ame471_existing substringToIndex:ame471_eColon.location] isEqualToString:ame471_group]) {
+                    ame471_merged[ame471_j] = ame471_lib;   // 子辈覆盖父辈
+                    ame471_replaced = YES;
+                    break;
+                }
+            }
+            if (!ame471_replaced) [ame471_merged addObject:ame471_lib];
+        }
+    }
+    return ame471_merged;
+}
+
+// ★Task471：缺失收集统一入口（链合并扫描 + rel 去重）——保环主入口两次收集
+//   （初扫 + Tier A 回收后复扫）共用，口径单一。
+static NSArray<NSDictionary *> *ame471_collectMissing(NSDictionary *launchTarget, NSString *gameDir, NSString *libRoot) {
+    NSArray<NSDictionary *> *ame471_libs = ame471_mergedLibraries(launchTarget, gameDir);
+    NSArray<NSDictionary *> *ame471_jsonMissing = ame467_missingProcessorArtifacts(ame471_libs, libRoot);
+    NSMutableDictionary<NSString *, NSDictionary *> *ame471_index = [NSMutableDictionary dictionary];
+    for (NSDictionary *ame471_item in ame471_jsonMissing) {
+        ame471_index[ame471_item[@"rel"]] = ame471_item;
+    }
+    return ame471_index.allValues;
+}
+
 // 保环主入口：YES = 产物齐备可继续启动；NO = 已弹窗收束（Tier B 重启链 /
 // Tier C 指引），调用方中断启动（return 1，不进 JIT 等待）
 static BOOL ame467_processorArtifactRescue(NSDictionary *launchTarget, NSString *libRoot, NSString *gameDir) {
     if (!ame467_isNeoForgeTarget(launchTarget)) return YES;   // 原版/Fabric 零触碰
     NSString *ame467_vid = [launchTarget[@"id"] isKindOfClass:NSString.class] ? launchTarget[@"id"] : @"";
-    NSArray *ame467_missing = ame467_missingProcessorArtifacts(launchTarget, libRoot);
+    NSArray *ame467_missing = ame471_collectMissing(launchTarget, gameDir, libRoot);
+    NSLog(@"[JavaLauncher] Task471: rescue scan launch-root=%@ missing=%lu",
+          libRoot, (unsigned long)ame467_missing.count);
     if (ame467_missing.count == 0) return YES;
     NSLog(@"[JavaLauncher] Task467: %lu processor artifact(s) missing (NeoForge target %@) -- rescue chain engaged",
           (unsigned long)ame467_missing.count, ame467_vid);
     NSUInteger ame467_recovered = ame467_strandedRecovery(ame467_missing, libRoot, ame467_vid);
-    ame467_missing = ame467_missingProcessorArtifacts(launchTarget, libRoot);   // 重新收集
+    ame467_missing = ame471_collectMissing(launchTarget, gameDir, libRoot);   // 重新收集（Task471 链合并口径同初扫）
     if (ame467_missing.count == 0) {
         NSLog(@"[JavaLauncher] Task467: Tier A recovered %lu stranded artifact(s) -- launch continues",
               (unsigned long)ame467_recovered);
@@ -2338,7 +2421,7 @@ static BOOL ame467_processorArtifactRescue(NSDictionary *launchTarget, NSString 
     return NO;
 }
 
-static BOOL ame158_repairMissingLibraries(NSDictionary *launchTarget) {
+static BOOL ame158_repairMissingLibraries(NSDictionary *launchTarget, NSString *launchGameDir) {
     const char *ame158_gameDir = getenv("POJAV_GAME_DIR");
     if (!ame158_gameDir || !*ame158_gameDir) return YES;
     NSArray *ame158_libs = [launchTarget[@"libraries"] isKindOfClass:NSArray.class]
@@ -2346,7 +2429,12 @@ static BOOL ame158_repairMissingLibraries(NSDictionary *launchTarget) {
     if (ame158_libs.count == 0) return YES;
 
     NSFileManager *ame158_fm = NSFileManager.defaultManager;
-    NSString *ame158_libRoot = [@(ame158_gameDir) stringByAppendingPathComponent:@"libraries"];
+    // ★Task471：库根对齐启动链——优先显式 launchGameDir（JVM chdir 同根，
+    //   MnPXaJV 判例：门查 POJAV_GAME_DIR 基础根 71 present 而 FML 查实例轴
+    //   根即死）；POJAV_GAME_DIR 仅兜底（无实例轴时与旧口径等价）。
+    NSString *ame158_libRoot = (launchGameDir.length > 0)
+        ? [launchGameDir stringByAppendingPathComponent:@"libraries"]
+        : [@(ame158_gameDir) stringByAppendingPathComponent:@"libraries"];
     NSUInteger ame158_present = 0, ame158_repaired = 0, ame158_failed = 0, ame158_skipped = 0;
 
     for (NSDictionary *ame158_lib in ame158_libs) {
@@ -2426,9 +2514,11 @@ static BOOL ame158_repairMissingLibraries(NSDictionary *launchTarget) {
 
     // ★Task467：NeoForge processor 产物保环（SRG/PATCHED/EXTRA 无 URL 条目
     // 是本门与 Task428 的共同盲区——三层保环见上方 ame467 块注释）。
-    return ame467_processorArtifactRescue(launchTarget,
-        [@(ame158_gameDir) stringByAppendingPathComponent:@"libraries"],
-        @(ame158_gameDir));
+    // ★Task471：libRoot/gameDir 全部换启动链解析根（launchGameDir）——
+    //   Tier B ForgeProcessorExecutor 的 mainGameDir 同根，自愈产物落位
+    //   FML 实际查找处（否则自愈成功也救不了实例轴）。
+    return ame467_processorArtifactRescue(launchTarget, ame158_libRoot,
+        launchGameDir.length > 0 ? launchGameDir : @(ame158_gameDir));
 }
 
 // Task181：老 Forge（1.x 谱系）SplashProgress 禁用（1.8.9+vgpu 会话崩溃根修）。
@@ -3284,15 +3374,13 @@ int launchJVM(NSString *accountId, id launchTarget, int width, int height, int m
     NSString *gameDir;
     NSString *defaultJRETag;
     if ([launchTarget isKindOfClass:NSDictionary.class]) {
-        // Task 158（Fix B）：启动前游戏库完整性自愈闸门——见上方
-        // ame158_repairMissingLibraries 病历（Forge text2speech CNFE 根修 +
-        // 未来任何缺库的静默黑洞自愈）。非阻断：失败只记日志点名。
-        // ★Task467：门 BOOL 化——NeoForge processor 产物保环中断路径
-        // （Tier B 重启链 / Tier C 指引弹窗已展示）直接 return 1，
-        // 不再进 JIT 等待烧进 FML 致命屏。
-        if (!ame158_repairMissingLibraries(launchTarget)) {
-            return 1;
-        }
+        // Task 158（Fix B）：启动前游戏库完整性自愈闸门——★Task471 调用点后移：
+        //   gameDir 解析（ame275/ame225/ame428 CwdAlign/ame287 forge 收口）完成
+        //   之后才查库（现调用点位于 Task428 之前），否则门查 POJAV_GAME_DIR
+        //   基础根、FML 查实例轴根 = 双根脱节（MnPXaJV 装机判例：门 clean
+        //   71 present 而 FML 死于实例轴 client-26.3-1-srg.jar 缺失）。
+        //   ★Task467 中端口径原样：Tier B 重启链 / Tier C 指引弹窗已展示即
+        //   return 1，不进 JVM。
 
         // Get preferred Java version from current profile
         // 26.x 官方强制要求 Java 25（Mojang 自 26.x 起将 javaVersion.majorVersion 设为 25），
@@ -3976,6 +4064,13 @@ int launchJVM(NSString *accountId, id launchTarget, int width, int height, int m
             if (ame225_vid.length > 0) {
                 ame225_healMissingAssets(ame225_vid);
             }
+        }
+
+        // ★Task471：ame158 门 + ame467 保环调用点（gameDir 终解析之后、Task428
+        //   完整性检查之前）——launchGameDir 显式传参，与 JVM chdir 同根；
+        //   中断语义 = Task467 口径（Tier B/C 已展示即 return 1，不进 JVM）。
+        if (!ame158_repairMissingLibraries(launchTarget, gameDir)) {
+            return 1;
         }
 
         // ★Task428（3.3 完整性检查重建）：开关语义纠正——general.check_sha 开启时，

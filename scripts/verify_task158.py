@@ -93,8 +93,8 @@ check("C1 JavaApp/Makefile：mojang-stubs.jar 规则（tab 配方 + launcher.jar
 check("C2 根 Makefile payload 拷贝 mojang-stubs.jar 进 app/libs",
       "JavaApp/build/mojang-stubs.jar" in rmk)
 check("C3 JavaLauncher：闸门函数 + 调用点 + evaluateRules 复用",
-      "static void ame158_repairMissingLibraries(NSDictionary *launchTarget)" in jl
-      and "ame158_repairMissingLibraries(launchTarget);" in jl
+      "static BOOL ame158_repairMissingLibraries(NSDictionary *launchTarget, NSString *launchGameDir)" in jl
+      and "ame158_repairMissingLibraries(launchTarget, gameDir)" in jl
       and "#import \"MinecraftResourceUtils.h\"" in jl)
 check("C4 闸门跳过集与 Java _skip 同步（text2speech 桩独占，防 split-package）",
       'hasPrefix:@"com.mojang:text2speech"' in jl

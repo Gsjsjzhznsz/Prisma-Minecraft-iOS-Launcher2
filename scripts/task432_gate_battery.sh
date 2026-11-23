@@ -11,6 +11,11 @@
 #   Task470 轮 = 50 门（+task470 运行时伴侣对门 + selftest 反向门——9gW8EeL 判例：
 #     libMobileGL@8df5508 的 libc++_cxx23/libc++abi_cxx23 未随包 dlopen 崩，伴侣对
 #     随包 + 全 Frameworks Mach-O 依赖闭包执法）
+#   Task471 轮 = 52 门（+task471 保环盲区收口门 + selftest 反向门——MnPXaJV
+#     判例：门查 POJAV_GAME_DIR 基础根 clean 而 FML 查实例轴根死于
+#     client-26.3-1-srg.jar 缺失 = 双根脱节 + child-only 扫描 + URL 豁免三盲；
+#     门调用移至 gameDir 终解析后显式传根 + inheritsFrom 链合并扫描 +
+#     processor 三类 URL 豁免撤销 + 搁浅源补基础根）
 # 用法: bash scripts/task432_gate_battery.sh
 cd "$(dirname "$0")/.." || exit 1
 
@@ -116,6 +121,12 @@ run_py task467_self scripts/task467_selfcheck.py --selftest
 #   PROVENANCE 伴侣对段 + 装机日志锚双行 + selftest 三态反向
 run_py task470     scripts/task470_runtime_verify.py
 run_py task470_self scripts/task470_runtime_verify.py --selftest
+
+# ★Task471 NeoForge processor 保环盲区收口（MnPXaJV 装机判例制度化）：
+#   双根脱节根修（门调用 gameDir 显式传根 + 终解析后位置执法）+
+#   链合并扫描 + URL 豁免撤销 + 搁浅源补基础根 + 链合并口径单一化
+run_py task471     scripts/task471_selfcheck.py
+run_py task471_self scripts/task471_selfcheck.py --selftest
 
 # ★Task468 MobileGL/Magma 引擎性能旋钮层（抄 Witch-Launcher 调优面）+ 内置渲染器
 #   上游更新扫描轮：12 个 MOBILEGL_* setenv（strings 反锚逐名验证 vendored dylib
