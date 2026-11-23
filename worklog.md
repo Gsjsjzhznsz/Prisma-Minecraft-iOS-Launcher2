@@ -5672,3 +5672,5 @@ Work Log:
 Stage Summary:
 - 装机锚点（BuildTag=Task471 · 2026-11-23）：①NeoForge 实例启动若缺 srg.jar，latestlog 应现 "[JavaLauncher] Task471: rescue scan launch-root=…/instances/modrinth_…/libraries missing=1" + Task467 三层保环照常接力（Tier A 搁浅回收 → Tier B processor 自愈 + ame173 重启链 → Tier C 指引弹窗），不再出现「门 clean 直进 JVM 烧 FML 致命屏」②fabric/原版会话门面零感知（保环早退 + ame158 库根与旧口径等价）③终局兜底：实例轴缺件时 Tier B 产物落在 FML 实际查找根（本轮前会落错根）
 - 【待办移交】用户侧：MnPXaJV 的 modrinth_9BACE99E 实例装一次「重新安装 NeoForge」（版本管理内）即可立即解锁本轮保环无需自愈的快路径；渲染域下一轮候选仍为 MobileGL main 26.11 dylib 升代（fork rebase 后取件，Task469/470 留档）
+
+- 【Task471 闭环补记】r0 dev 编译红（45164669414：E4 改名漏改 ame467_roots ×2 @2147/2149——本地电池无 ObjC 编译器，CI 编译面第一道实锚）→ r1 545f7674c 清偿；CI 双 workflow 一轮双绿（dev 45167916362 + ui-smoke 45170501073，attempt 内零热修）；四件产物归档 task471_dl + task470_artifact_verify 二进制验证 19/19 ALL PASS（V3 Task471 UTF-16LE 代际锚 + V13 折叠/DyldLV 保留面 + V17-V19 伴侣对随包三连执法）
