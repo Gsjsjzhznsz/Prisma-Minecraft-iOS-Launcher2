@@ -1307,7 +1307,6 @@ typedef NS_ENUM(NSInteger, InlineMessageType) {
 @interface PLProfiles (Ame428Task428Stubs)
 + (NSString *)ame428_scanRoot;
 + (NSString *)ame428_versionDirForVid:(NSString *)vid;
-+ (NSInteger)ame428_effectiveIsolationForVid:(NSString *)vid profile:(NSDictionary *)profile;
 + (BOOL)ame428_isVersionInstalledPerScan:(NSString *)versionId profile:(NSDictionary *)profile;
 + (NSString *)ame428_registerProfileForVid:(NSString *)vid;
 + (NSArray<NSString *> *)ame428_profileNamesReferencingVid:(NSString *)vid;
@@ -1318,7 +1317,6 @@ typedef NS_ENUM(NSInteger, InlineMessageType) {
 @implementation PLProfiles (Ame428Task428Stubs)
 + (NSString *)ame428_scanRoot { return nil; }
 + (NSString *)ame428_versionDirForVid:(NSString *)vid { return nil; }
-+ (NSInteger)ame428_effectiveIsolationForVid:(NSString *)vid profile:(NSDictionary *)profile { return -1; }
 + (BOOL)ame428_isVersionInstalledPerScan:(NSString *)versionId profile:(NSDictionary *)profile { return NO; }
 + (NSString *)ame428_registerProfileForVid:(NSString *)vid { return nil; }
 + (NSArray<NSString *> *)ame428_profileNamesReferencingVid:(NSString *)vid { return @[]; }

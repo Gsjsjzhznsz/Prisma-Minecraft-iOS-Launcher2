@@ -4416,3 +4416,8 @@
 "ame449.setpg.group.debug_ui" = "UI debugging";
 "i18n_str_ame467_srg_missing_title" = "Cannot launch: NeoForge mapped artifacts missing";
 "i18n_str_ame467_srg_missing" = "The NeoForge mapping jar (%@), which is generated locally by installer processors, is missing.\n\nReinstall NeoForge from version management, or re-import this instance, then launch the game again.";
+
+// ★Task473: ZL2 版本隔离系统移植（全局默认档组）
+"ame473.setpg.global_isolation" = "Version Isolation";
+"ame473.setpg.global_isolation.detail" = "Global default: when enabled, each version uses its own game folder (mods/saves live inside the version folder)";
+"ame473.setpg.group.isolation" = "Version Isolation";

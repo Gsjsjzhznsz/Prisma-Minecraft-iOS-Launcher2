@@ -127,6 +127,8 @@ run_py task470_self scripts/task470_runtime_verify.py --selftest
 #   链合并扫描 + URL 豁免撤销 + 搁浅源补基础根 + 链合并口径单一化
 run_py task471     scripts/task471_selfcheck.py
 run_py task471_self scripts/task471_selfcheck.py --selftest
+run_py task473     scripts/task473_selfcheck.py
+run_py task473_self scripts/task473_selfcheck.py --selftest
 
 # ★Task468 MobileGL/Magma 引擎性能旋钮层（抄 Witch-Launcher 调优面）+ 内置渲染器
 #   上游更新扫描轮：12 个 MOBILEGL_* setenv（strings 反锚逐名验证 vendored dylib

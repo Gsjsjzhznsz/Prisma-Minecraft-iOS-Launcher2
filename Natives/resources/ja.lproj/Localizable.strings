@@ -4511,3 +4511,8 @@
 "ame441.editor.coach.p4.body" = "スタイルプリセットの適用や、独自プリセットのキャビネットへの保存ができます。「その他」からプレビューモードでコントロールを試せます。保存するとレイアウトファイルへ書き戻します。";
 "i18n_str_ame467_srg_missing_title" = "起動できません：NeoForge マップ済み成果物が不足";
 "i18n_str_ame467_srg_missing" = "NeoForge インストール時にローカル プロセッサが生成するマッピング jar（%@）が見つかりません。\n\nバージョン管理から NeoForge を再インストールするか、このインスタンスを再インポートしてからゲームを起動してください。";
+
+// ★Task473: ZL2 版本隔离系统移植（全局默认档组）
+"ame473.setpg.global_isolation" = "Version Isolation";
+"ame473.setpg.global_isolation.detail" = "Global default: when enabled, each version uses its own game folder (mods/saves live inside the version folder)";
+"ame473.setpg.group.isolation" = "Version Isolation";

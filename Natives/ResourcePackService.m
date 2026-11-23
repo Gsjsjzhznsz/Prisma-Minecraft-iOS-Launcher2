@@ -1,4 +1,5 @@
 #import "utils.h"
+#import "ZL2GamePath.h" // ★Task473: ZL2 版本隔离系统单入口
 //
 //  ResourcePackService.m
 //  Amethyst
@@ -119,48 +120,24 @@
 
 // 查找指定 profile 的 resourcepacks 目录（已存在时返回路径，否则返回 nil）
 - (nullable NSString *)existingResourcePacksFolderForProfile:(NSString *)profileName {
-    // ★ Task274-h S7：nil 入参跟随当前选中实例（ame267 语义），不再落恒 miss 的
-    // @"default" 字面量（真实默认键 "(Default)"；对齐 Task270 M1 gameDirForProfile 口径）。
-    if (!profileName.length) profileName = PLProfiles.current.selectedProfileName ?: @"(Default)";
-    NSString *profile = profileName;
-    NSFileManager *fm = [NSFileManager defaultManager];
-
-    @try {
-        NSDictionary *profiles = PLProfiles.current.profiles;
-        NSDictionary *prof = profiles[profile];
-        if ([prof isKindOfClass:[NSDictionary class]]) {
-            NSString *gameDir = prof[@"gameDir"];
-            // ★ Task274-h S11（Task225 嗅探平移）：gameDir 缺失/空/"." 时先嗅探
-            //   versions/<lastVersionId>/game 隔离形状（ModService 同口径）——命中且
-            //   其 resourcepacks 已存在才重定向（本方法"存在即用"契约不变）。
-            if (![gameDir isKindOfClass:[NSString class]] || gameDir.length == 0 || [gameDir isEqualToString:@"."]) {
-            }
-            // Task269-r3：相对路径（如 ./custom_gamedir/<id>）统一相对 POJAV_GAME_DIR
-            // 解析成绝对路径——裸相对依赖进程 CWD，CWD 会被启动链 chdir 永久切走
-            // （review-c H1；与 ModService 同口径）。
-            if ([gameDir isKindOfClass:[NSString class]] && gameDir.length > 0 && ![gameDir isEqualToString:@"."]) {
-                if (![gameDir isAbsolutePath]) {
-                    NSString *clean = [gameDir hasPrefix:@"./"] ? [gameDir substringFromIndex:2] : gameDir;
-                    const char *baseC = getenv("POJAV_GAME_DIR");
-                    gameDir = baseC ? [[NSString stringWithUTF8String:baseC] stringByAppendingPathComponent:clean] : gameDir;
-                }
-                NSString *resourcePacksPath = [gameDir stringByAppendingPathComponent:@"resourcepacks"];
-                BOOL isDir = NO;
-                if ([fm fileExistsAtPath:resourcePacksPath isDirectory:&isDir] && isDir) {
-                    return resourcePacksPath;
-                }
-            }
+    // ★Task473: 资源包落点经 ZL2GamePath 单入口
+    NSFileManager *ame473_fm = [NSFileManager defaultManager];
+    NSString *ame473_gameDir = [ZL2GamePath gameDirForProfile:profileName];
+    if (ame473_gameDir.length > 0) {
+        NSString *ame473_rp = [ame473_gameDir stringByAppendingPathComponent:@"resourcepacks"];
+        BOOL ame473_isDir = NO;
+        if ([ame473_fm fileExistsAtPath:ame473_rp isDirectory:&ame473_isDir] && ame473_isDir) {
+            return ame473_rp;
         }
-    } @catch (NSException *ex) { }
-
-    // 回退：读取 POJAV_GAME_DIR 环境变量
-    const char *gameDirC = getenv("POJAV_GAME_DIR");
-    if (gameDirC) {
-        NSString *gameDir = [NSString stringWithUTF8String:gameDirC];
-        NSString *resourcePacksPath = [gameDir stringByAppendingPathComponent:@"resourcepacks"];
-        BOOL isDir = NO;
-        if ([fm fileExistsAtPath:resourcePacksPath isDirectory:&isDir] && isDir) {
-            return resourcePacksPath;
+    }
+    // 回退：共享根 resourcepacks（历史回退口径保留）
+    const char *ame473_env = getenv("POJAV_GAME_DIR");
+    if (ame473_env) {
+        NSString *ame473_rp = [[NSString stringWithUTF8String:ame473_env]
+            stringByAppendingPathComponent:@"resourcepacks"];
+        BOOL ame473_isDir = NO;
+        if ([ame473_fm fileExistsAtPath:ame473_rp isDirectory:&ame473_isDir] && ame473_isDir) {
+            return ame473_rp;
         }
     }
     return nil;

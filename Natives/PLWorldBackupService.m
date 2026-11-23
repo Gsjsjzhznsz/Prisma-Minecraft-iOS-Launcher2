@@ -1,4 +1,5 @@
 #import "utils.h"
+#import "ZL2GamePath.h" // ★Task473: ZL2 版本隔离系统单入口
 //
 //  PLWorldBackupService.m
 //  Amethyst
@@ -98,10 +99,8 @@ static BOOL ame429_s1_movePath(NSString *src, NSString *dst, BOOL deleteOnCopy, 
     return NO;
 }
 
-// ★Task429-r7 热修（dev run 43691459560 实录：:151 no known class method）——
-//   ame428_effectiveIsolationForVid:profile: 实现于 PLProfiles.m:941 但
-//   PLProfiles.h 未声明；Gfin 判例同款本地分类前向声明（PLProfiles.h 零侵入，
-//   签名逐字对应）。
+// ★Task473：备份源/恢复落点改经 ZL2GamePath 单入口（旧 ame428 决策树前向
+//   声明分类随体系退役；解析链三层拼装由单入口取代）。
 @interface PLProfiles (Ame429Task429S1)
 @end
 
@@ -111,69 +110,11 @@ static BOOL ame429_s1_movePath(NSString *src, NSString *dst, BOOL deleteOnCopy, 
 
 + (nullable NSString *)ame429_s1_gameDirForProfileName:(NSString *)profileName
                                               versionId:(NSString *)versionId {
-    // ★Task429 同源红线（第六版 §3.3）：本方法为备份源与恢复目标的唯一取值口。
-    // 解析链逐层对齐 JavaLauncher :3010-3089（只读版，零副作用不建目录）：
-    // ① 显式 gameDir（abs/rel）→ ② ame225 嗅探（共享形态时）→ ③ ame428 版本级
-    // 有效隔离（vid 合法时 1=versions/<vid>，0=共享根，-1=零触碰）。
-    NSDictionary *prof = nil;
-    NSString *key = profileName.length > 0 ? profileName : PLProfiles.current.selectedProfileName;
-    if (key.length > 0) {
-        id candidate = PLProfiles.current.profiles[key];
-        if ([candidate isKindOfClass:[NSDictionary class]]) prof = candidate;
-    }
-    if (![prof isKindOfClass:[NSDictionary class]]) prof = @{};
-
-    // env 根（POJAV_GAME_DIR 优先，POJAV_HOME 兜底——ame428_scanRoot 同口径）
-    NSString *base = nil;
-    const char *gameDirC = getenv("POJAV_GAME_DIR");
-    if (gameDirC && *gameDirC) {
-        base = [NSString stringWithUTF8String:gameDirC];
-    } else {
-        const char *homeC = getenv("POJAV_HOME");
-        if (homeC && *homeC) base = [NSString stringWithUTF8String:homeC];
-    }
-    if (base.length == 0) base = NSHomeDirectory();
-
-    // ① 显式 gameDir（ZL2VersionDetailViewController ameV13_resolvedGameDir 同口径：
-    //   缺失/"."/"./" 走嗅探与根；绝对路径原样；相对路径剥 "./" 相对 base 拼接）
-    NSString *resolved = nil;
-    NSString *gd = [prof[@"gameDir"] isKindOfClass:[NSString class]] ? prof[@"gameDir"] : nil;
-    if (gd.length > 0 && ![gd isEqualToString:@"."] && ![gd isEqualToString:@"./"]) {
-        if ([gd isAbsolutePath]) {
-            resolved = gd;
-        } else {
-            NSString *clean = [gd hasPrefix:@"./"] ? [gd substringFromIndex:2] : gd;
-            resolved = [base stringByAppendingPathComponent:clean];
-        }
-    }
-    // ② 共享形态 → Task225 嗅探（mods/saves 目录形状；未命中回落 base）
-    if (resolved == nil) {
-        NSString *sniffed = nil; // ★Task472: 版本隔离退役
-        resolved = sniffed.length > 0 ? sniffed : base;
-    }
-
-    // ③ 版本级有效隔离（ame428 决策树；vid 合法 = 非空非 latest 别名）
-    if (versionId.length > 0
-        && ![versionId hasPrefix:@"latest-"]
-        && ![versionId isEqualToString:@"latest"]) {
-        NSInteger eff = 0; // ★Task472: 版本隔离退役——恒共享根
-        if (eff == 1) {
-            resolved = [[base stringByAppendingPathComponent:@"versions"]
-                stringByAppendingPathComponent:versionId];
-        } else if (eff == 0) {
-            // 共享：仅当现值恰为 versions/<vid> 形（显式禁用/嗅探误中）时重指回根
-            NSString *vdir = [[base stringByAppendingPathComponent:@"versions"]
-                stringByAppendingPathComponent:versionId];
-            // ★Task429-r8 热修（dev run 43693267578 实录：:168 missing '[' at
-            //   start of message send expression = isEqualToString: 右实参后
-            //   多一个 ']'）——修括号。
-                        if ([[resolved stringByStandardizingPath] isEqualToString:[vdir stringByStandardizingPath]]) {
-                resolved = base;
-            }
-        }
-        // eff == -1（自定义路径 / latest 形态不可达此处）：零触碰，保留 ①② 结果
-    }
-    return resolved.length > 0 ? resolved : nil;
+    // ★Task473（上游 Version.getGameDir 同构）：备份源与恢复目标唯一取值口
+    //   经 ZL2GamePath 单入口（与启动 chdir / 各服务同源）：版本级隔离 ENABLE →
+    //   versions/<vid>/；FOLLOW_GLOBAL 折叠全局档；否则实例自定义路径 / 主游戏根。
+    //   （旧 ①显式gameDir→②嗅探→③ame428 决策树三层拼装退役——Task472 判例延续）
+    return [ZL2GamePath gameDirForProfile:profileName];
 }
 
 + (NSString *)ame429_s1_backupsRoot {

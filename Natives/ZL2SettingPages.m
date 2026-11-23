@@ -174,6 +174,7 @@
 //
 
 #import "ZL2SettingPages.h"
+#import "ZL2GamePath.h" // ★Task473: ZL2 版本隔离系统单入口
 #import "ZL2SettingCards.h"
 #import "ZL2Theme.h"
 #import "ZL2M3Kit.h"
@@ -884,6 +885,25 @@ static NSUInteger ame432_paletteEchoIndex(NSInteger mode) {
     [self ame_addGroup:group1
                      title:localize(@"ame449.setpg.group.memory_jvm", nil)
                        key:@"memory_jvm"
+         defaultCollapsed:NO];
+
+    // ── ★Task473：版本隔离全局默认档组（上游 GameSettings.versionIsolation 同构；
+    //    版本详情页三态 FOLLOW_GLOBAL 折叠此档；默认关 = 存量共享根用户零回归）──
+    ZL2SettingCardGroup *ame473_isoGroup = [[ZL2SettingCardGroup alloc] init];
+    ZL2SettingRowSwitch *ame473_isoRow =
+        [[ZL2SettingRowSwitch alloc] initWithTitle:@"" subtitle:nil];
+    ame473_isoRow.title = localize(@"ame473.setpg.global_isolation", @"版本隔离");
+    ame473_isoRow.subtitle = localize(@"ame473.setpg.global_isolation.detail",
+        @"全局默认档：开启后每个版本使用独立游戏目录（mods/存档等存于版本文件夹）");
+    [ame473_isoRow ame_setOn:getPrefBool(@"versionIsolation")];
+    ame473_isoRow.onToggle = ^(BOOL on) {
+        setPrefBool(@"versionIsolation", on);
+        [[NSNotificationCenter defaultCenter] postNotificationName:@"ReloadProfileList" object:nil];
+    };
+    [ame473_isoGroup ame_addRow:ame473_isoRow];
+    [self ame_addGroup:ame473_isoGroup
+                     title:localize(@"ame473.setpg.group.isolation", @"版本隔离")
+                       key:@"isolation_task473"
          defaultCollapsed:NO];
 
 

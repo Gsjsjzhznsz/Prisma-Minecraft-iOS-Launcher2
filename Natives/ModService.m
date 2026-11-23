@@ -1,4 +1,5 @@
 #import "utils.h"
+#import "ZL2GamePath.h" // ★Task473: ZL2 版本隔离系统单入口
 //
 //  ModService.m
 //  AmethystMods
@@ -46,10 +47,13 @@
 @property (nonatomic, strong) dispatch_queue_t cacheQueue;
 
 #pragma mark - ★Task472: 版本隔离退役后的统一目录解析（恒共享根）
+#pragma mark - ★Task473: ZL2 版本隔离系统单入口路由（上游 Version.getGameDir 同构）
+#pragma mark - ★Task473: ZL2 版本隔离系统单入口路由（上游 Version.getGameDir 同构）
+#pragma mark - ★Task473: ZL2 版本隔离系统单入口路由（上游 Version.getGameDir 同构）
 - (nullable NSString *)resolveAbsoluteGameDirForProfile:(NSString *)profileName {
-    // ★Task472: profile.gameDir 失效；一律主游戏目录（POJAV_GAME_DIR 优先）。
-    const char *ame472_env = getenv("POJAV_GAME_DIR");
-    return ame472_env && *ame472_env ? [NSString stringWithUTF8String:ame472_env] : NSHomeDirectory();
+    // ★Task473: 全部 mods 落点经 ZL2GamePath 单入口（版本级隔离开 → versions/<vid>/；
+    //   否则实例自定义路径 / 主游戏根）——与启动 chdir 同源。
+    return [ZL2GamePath gameDirForProfile:profileName];
 }
 
 @end

@@ -4664,3 +4664,8 @@
 "ame449.setpg.group.debug_ui" = "介面除錯";
 "i18n_str_ame467_srg_missing_title" = "无法启动：NeoForge 映射产物缺失";
 "i18n_str_ame467_srg_missing" = "缺少 NeoForge 安装时由本机处理器生成的映射 jar（%@）。\n\n请在版本管理中重新安装 NeoForge，或重新导入该实例后再启动游戏。";
+
+// ★Task473: ZL2 版本隔离系统移植（全局默认档组）
+"ame473.setpg.global_isolation" = "版本隔离";
+"ame473.setpg.global_isolation.detail" = "全局默认档：开启后每个版本使用独立游戏目录（mods/存档等存于版本文件夹）";
+"ame473.setpg.group.isolation" = "版本隔离";

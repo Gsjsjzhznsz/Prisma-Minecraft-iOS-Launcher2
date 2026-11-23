@@ -5689,3 +5689,19 @@ Work Log:
 
 Stage Summary:
 - 装机锚点（BuildTag=Task472 · 2026-11-24）：①任意版本启动 latestlog 应现 "[JavaLauncher] Task472: gameDir = shared root"（mods/存档/资源包/光影等全部落主游戏目录）②设置页不再有版本隔离组与全局默认档项；版本详情页隔离行退役③历史隔离目录（versions/<vid>/ 内数据）磁盘原样保留、启动器不再读写④整合包安装/导入功能正常（仅不再写隔离键、不再补骨架）
+
+---
+## Task 473——ZL2（ZalithLauncher2 上游）版本隔离系统移植·单一入口全操作路由（用户钦定「搬运zl2的隔离系统,确保全部操作都是这个系统」；电池 52→54）
+
+Work Log:
+- 上游定谳（ZalithLauncher2 b6310dd 浅克隆源码逐文件研读）：Version.getGameDir() 三分支（isolation→版本夹 / customPath→自定义 / gameHome→主根）+ VersionConfig.isolationType 三态（FOLLOW_GLOBAL/ENABLE/DISABLE，Gson @SerializedName 字符串存 versions/<v>/<启动器标识>/version.config）+ GameSettings.versionIsolation 全局默认档 + GameInstaller createIsolation=true / ModPackInstaller createIsolationForModPack 强制隔离 + 16 消费方全走单入口（Mods/Saves/ResourcePack/Shaders/Screenshots/ServerList/Export/MCOptions/GameLaunchFlow/GameLauncher/Lwjgl3ifyPatcher 等）
+- 移植落地：新模块 Natives/ZL2GamePath.h/.m——单一入口 gameDirForVersion:/gameDirForProfile:（nil 跟随选中实例 ame267 语义）+ 三态枚举 ZL2IsolationType + JSON 持久化 versions/<vid>/prisma/version.config（{"isolationType":"ENABLE|DISABLE|FOLLOW_GLOBAL","schema":"prisma.zl2-isolation/1"}，兼容上游字符串形态与整数码）+ 全局档折叠（PLPreferences versionIsolation 默认 NO=存量共享根用户零回归）+ applyIsolationForModPackVersion 强制隔离（幂等）+ isIsolationFormGameDir 历史隔离形态值惰性不读（Task472 退役语义延续，versions/<vid>[//game] 不作自定义路径消费）
+- 全操作路由九面（「确保全部操作都是这个系统」）：①启动链 JavaLauncher Task473 块（chdir 与日志锚 [JavaLauncher] Task473: gameDir = %@ (isolation=%d vid=%@)）②ModService mods ③WorldService saves ④ShaderService shaderpacks ⑤ResourcePackService resourcepacks ⑥PLWorldBackupService 备份源/恢复落点（ame429_s1 唯一取值口）⑦ModpackExportViewController 导出取材根 ⑧ZL2VersionDetailViewController 详情页解析器 ⑨共享 versions/assets/libraries 轴恒主根（上游隔离语义：版本夹只收内容数据，不动 assets/libraries/versions 本体——PLComponentService/PLGameIntegrityService/ZL2VersionIndex/版本扫描零触碰）
+- 整合包强制隔离：ModpackImportService 导入成功即 applyIsolationForModPackVersion（上游 createIsolationForModPack 同构，mods/存档/配置随包落 versions/<vid>/ 内互不混居）
+- UI 三面：①版本详情页隔离行复活接线（ame428_isoRowControl 三态 sheet 完整幸存——Task472 只删逻辑，ame428_refreshIsolationRow 读 ZL2GamePath 三态实值 + ame428_applyOverride 落盘 + 跟随全局时 A3 自定义路径注记）②设置页新增版本隔离全局档组（ZL2SettingRowSwitch，key isolation_task473，折叠组 41→42）③PLPreferences 注册 @"versionIsolation": @NO（读侧 globalIsolationDefault，写侧设置行）
+- 门禁：新门 task473_selfcheck 12 断言（A1 模块+API 全族/A2 消费七面全路由/A3 启动链+日志锚/A4 整合包强制/A5 三态行接线/A6 全局档组+注册/A7 绕过执法 resolver 体零 env 直拼/A8 退役符号零残留（注释豁免——verify219 判例）/A9 三态持久化格式/A10 折叠面≥41（宽松断言 +1 组仍绿）/A11 BuildTag Task473/A12 括号平衡（task240 字符状态机同款——简化剥离器对含 // 字符串误判判例））+ selftest 双负样本（启动链回退直拼/整合包隔离摘除必红）；电池 52→54 全绿；i18n 三键（ame473.setpg.*）补齐 54 语言表（en/zh 译文，其余英文兜底——ame428 54 表在场惯例）；12 门代际重锚（451/452/457/461/462/464/465/466/467/ame468-S/task471/task470_artifact_verify V3）+ verify219 日志锚换代
+- 判例入册：①沙箱页缓存幽灵旧页（bash sed/grep 与 git/工具视图对同一文件双态分裂——git diff + 门禁字符扫描器双仲裁定谳）②死代码文件（pbxproj 零引用）基线遗留括号不平衡形态不入审计清单（与 task240 FILES 同判例）③Preview 存根 mock 声明随退役清理（两行 decl+impl 无调用方）
+
+Stage Summary:
+- 装机锚点（BuildTag=Task473 · 2026-11-24）：①任意版本启动 latestlog 应现 "[JavaLauncher] Task473: gameDir = … (isolation=0 vid=…)"（isolation=0 = 全局档默认关，行为与 Task472 共享根逐位相同——存量用户零回归）②设置→游戏设置新增「版本隔离」组：全局开关（默认关）③版本详情页「版本隔离」行点按 → 三选 sheet（跟随全局/在此版本启用/在此版本禁用）④开隔离的版本：mods/存档/资源包/光影/截图落 versions/<vid>/ 内（版本夹即 .minecraft），启动 chdir 同步；整合包导入的版本自动强制开启⑤关隔离/跟随全局(关)：一切回落主目录（Task472 终态原样）
+- 【待办移交】渲染域下一轮候选仍为 MobileGL main 26.11 dylib 升代（Task471 留档）；本轮 [Plugin:github] 通道缺失（插件未连接），推送待凭据通道恢复后补记闭环

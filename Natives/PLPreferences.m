@@ -425,6 +425,11 @@ NSString *const PREF_MOD_MIRROR = @"general.mod_mirror";
             @"translation_notice_dismissed": @NO,
             @"disable_window_rotation_shim": @NO,
             // Task472：全局版本隔离默认档 isolation_default 随体系退役，注册项移除。
+            // ★Task473（上游 GameSettings.versionIsolation 同构）：ZL2 版本隔离
+            //   全局默认档（版本详情页三态 FOLLOW_GLOBAL 折叠此档；默认 NO =
+            //   存量共享根用户零回归）。读侧 ZL2GamePath globalIsolationDefault，
+            //   写侧 ZL2SettingPages ame473 全局档行。
+            @"versionIsolation": @NO,
             // ★Task429 主控合流（工位片段注册，防 Setter 静默丢弃族）：
             //   mirror_mode：下载镜像三态（int 0=自动大陆探测/1=官方/2=手动 BMCLAPI，
             //   默认 0=Task428 存量语义原样）。读侧 PLMirrorCenter +policyForType:

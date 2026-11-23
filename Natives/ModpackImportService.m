@@ -1,4 +1,5 @@
 #import "utils.h"
+#import "ZL2GamePath.h" // ★Task473: ZL2 版本隔离系统单入口
 //
 //  ModpackImportService.m
 //  Amethyst
@@ -1234,6 +1235,9 @@ static BOOL ame269_sMigrationRunning = NO;
     savedModpack[@"versionId"] = versionId;
     savedModpack[@"importDate"] = [self iso8601StringFromDate:[NSDate date]];
     [self saveImportedModpack:savedModpack];
+    // ★ Task473（上游 createIsolationForModPack 同构）：整合包导入成功即强制
+    //   版本隔离（mods/存档/配置随包落 versions/<vid>/ 内，互不混居）
+    [ZL2GamePath applyIsolationForModPackVersion:versionId];
     // ★ Task274-h S6：导入收尾备份老化（保留最近 2 份；绝不触碰活实例与 staging）
     [self ame274_pruneInstanceBackupsForInstanceId:modpackId];
 

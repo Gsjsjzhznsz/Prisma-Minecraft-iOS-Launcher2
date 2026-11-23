@@ -29,6 +29,7 @@
 //
 
 #import "ZL2VersionDetailViewController.h"
+#import "ZL2GamePath.h" // ★Task473: ZL2 版本隔离系统单入口
 #import "ZL2Theme.h"
 #import "ZL2VersionPages.h"
 #import "PLProfiles.h"
@@ -213,19 +214,8 @@ static UIImage *ZL2V13SystemImage(NSString *name, NSString *fallback) {
 /// （VersionManagerViewController switchGameDirTo: L1624-1641 建立），
 /// 故此链与 JavaLauncher L2422-2426 的启动目录解析终点一致。
 + (NSString *)ameV13_resolvedGameDirForProfileName:(NSString *)profileName {
-    NSDictionary *prof = PLProfiles.current.profiles[profileName];
-    if (![prof isKindOfClass:[NSDictionary class]]) prof = @{};
-    NSString *gameDir = prof[@"gameDir"];
-    if (![gameDir isKindOfClass:[NSString class]] || gameDir.length == 0 || [gameDir isEqualToString:@"."]) {
-        // Task472：嗅探退役——无显式路径一律共享根（GAME_DIR 优先 HOME 兜底）
-        const char *env = getenv("POJAV_GAME_DIR");
-        return env ? [NSString stringWithUTF8String:env] : NSHomeDirectory();
-    }
-    if ([gameDir isAbsolutePath]) return gameDir;
-    const char *env = getenv("POJAV_GAME_DIR");
-    NSString *base = env ? [NSString stringWithUTF8String:env] : NSHomeDirectory();
-    NSString *clean = [gameDir hasPrefix:@"./"] ? [gameDir substringFromIndex:2] : gameDir;
-    return [base stringByAppendingPathComponent:clean];
+    // ★Task473: 详情页解析器经 ZL2GamePath 单入口（与启动链/各服务同源——第六版红线）
+    return [ZL2GamePath gameDirForProfile:profileName];
 }
 
 #pragma mark - Lifecycle

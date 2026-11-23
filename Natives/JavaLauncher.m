@@ -16,6 +16,7 @@
 
 // god knows why Copilot was trying to add this.
 #import "authenticator/BaseAuthenticator.h"
+#import "ZL2GamePath.h" // ★Task473: ZL2 版本隔离系统单入口
 #import "authenticator/ThirdPartyAuthenticator.h"
 #import "NMToast.h"
 #import "CrashAnalyzer.h"   // Task218：崩溃识别引擎（hs_err 分型/渲染器归因）
@@ -3878,21 +3879,22 @@ int launchJVM(NSString *accountId, id launchTarget, int width, int height, int m
         NSLog(@"[JavaLauncher] GRAPHICS_API is set to %@\n", graphicsApi);
 
         // Setup gameDir
-        // ★Task472: 版本隔离体系整体退役（用户钦定全删）——gameDir 一律 =
-        //   主游戏目录（Task226 对齐的 POJAV_GAME_DIR env 根，POJAV_HOME
-        //   兜底）。旧 ame275/ame225/ame428 三层解析（实例级三态/嗅探/
-        //   version.config/全局默认档）全部退役，profile.gameDir 键失效。
+        // ★Task473: ZL2 版本隔离系统移植（上游 ZalithLauncher2 Version.getGameDir
+        //   同构）——启动 chdir 与全部内容操作同源单入口：版本级隔离 ENABLE →
+        //   versions/<vid>/（版本夹即 .minecraft）；FOLLOW_GLOBAL 折叠全局档；
+        //   否则实例自定义路径 / 主游戏根（共享根）。
         {
-            NSString *ame472_root = @(getenv("POJAV_GAME_DIR") ?: "");
-            if (ame472_root.length == 0) {
-                const char *ame472_homeC = getenv("POJAV_HOME");
-                if (ame472_homeC && *ame472_homeC) {
-                    ame472_root = [NSString stringWithUTF8String:ame472_homeC];
-                }
-            }
-            if (ame472_root.length > 0) {
-                gameDir = ame472_root;
-                NSLog(@"[JavaLauncher] Task472: gameDir = shared root %@ (version isolation retired)", gameDir);
+            NSString *ame473_dir = [ZL2GamePath gameDirForProfile:nil];
+            if (ame473_dir.length > 0) {
+                gameDir = ame473_dir;
+                NSString *ame473_sel = PLProfiles.current.selectedProfileName ?: @"";
+                id ame473_cand = PLProfiles.current.profiles[ame473_sel];
+                NSDictionary *ame473_prof = [ame473_cand isKindOfClass:[NSDictionary class]]
+                    ? ame473_cand : @{};
+                NSString *ame473_vid = [ame473_prof[@"lastVersionId"] isKindOfClass:[NSString class]]
+                    ? ame473_prof[@"lastVersionId"] : @"";
+                NSLog(@"[JavaLauncher] Task473: gameDir = %@ (isolation=%d vid=%@)", gameDir,
+                      [ZL2GamePath isIsolationForVersion:ame473_vid] ? 1 : 0, ame473_vid);
             }
         }
 

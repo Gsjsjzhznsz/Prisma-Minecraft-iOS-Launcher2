@@ -64,6 +64,7 @@
 //
 
 #import "ZL2VersionPages.h"
+#import "ZL2GamePath.h" // ★Task473: ZL2 版本隔离系统单入口
 #import "ZL2Theme.h"
 #import "ZL2M3Kit.h"
 #import "ZL2VersionNBT.h"
@@ -1048,28 +1049,27 @@ static UIImage *ZL2V13ThumbnailAtPath(NSString *path, CGFloat maxPixel) {
         _ame428_isoValueLabel.text = localize(@"ame351.instance.no_version", nil);
         return;
     }
+    // ★Task473：行值 = ZL2GamePath 三态实值（FOLLOW_GLOBAL→全局档折叠语义见门注）
+    ZL2IsolationType ame473_type = [ZL2GamePath isolationTypeForVersion:ame428_vid];
+    if (ame473_type == ZL2IsolationEnable) {
+        _ame428_isoValueLabel.text = localize(@"ame428.iso.row.enable", @"在此版本启用");
+        return;
+    }
+    if (ame473_type == ZL2IsolationDisable) {
+        _ame428_isoValueLabel.text = localize(@"ame428.iso.row.disable", @"在此版本禁用");
+        return;
+    }
     NSString *ame428_gd = [ame428_prof[@"gameDir"] isKindOfClass:[NSString class]]
         ? ame428_prof[@"gameDir"] : nil;
     BOOL ame428_a3 = (ame428_gd.length > 0
         && ![ame428_gd isEqualToString:@"."]
         && ![ame428_gd isEqualToString:@"./"]
-        && ![ame428_gd isEqualToString:[NSString stringWithFormat:@"versions/%@", ame428_vid]]
-        && ![ame428_gd isEqualToString:[NSString stringWithFormat:@"versions/%@/game", ame428_vid]]);
+        && ![ZL2GamePath isIsolationFormGameDir:ame428_gd]);
     if (ame428_a3) {
         _ame428_isoValueLabel.text = localize(@"ame428.iso.row.custom_note", @"自定义路径·不受版本隔离管辖");
         return;
     }
-    switch (0) {
-        case 1:
-            _ame428_isoValueLabel.text = localize(@"ame428.iso.row.enable", @"在此版本启用");
-            break;
-        case 2:
-            _ame428_isoValueLabel.text = localize(@"ame428.iso.row.disable", @"在此版本禁用");
-            break;
-        default:
-            _ame428_isoValueLabel.text = localize(@"ame428.iso.row.follow_global", @"跟随全局");
-            break;
-    }
+    _ame428_isoValueLabel.text = localize(@"ame428.iso.row.follow_global", @"跟随全局");
 }
 
 /// 隔离行点按：A3 → 注记弹窗；否则三选 actionSheet（当前项 ✓）。
@@ -1131,20 +1131,11 @@ static UIImage *ZL2V13ThumbnailAtPath(NSString *path, CGFloat maxPixel) {
 /// 落盘 version.config（读-改-写，plist）；翻转 → 先问再动（共享呈现流），
 /// 成功才提交；取消/失败零状态变化。
 - (void)ame428_applyOverride:(NSInteger)newOv forVid:(NSString *)vid {
-    NSDictionary *ame428_prof = [self ameV13_profileDict];
-    NSInteger ame428_before = 0;
-    NSInteger ame428_after = 0;
-    void (^ame428_commit)(void) = ^{
-        
-        [self ame428_refreshIsolationRow];
-        [[NSNotificationCenter defaultCenter] postNotificationName:@"ReloadProfileList" object:nil];
-    };
-    if (ame428_before != ame428_after && (ame428_before == 0 || ame428_before == 1)
-        && (ame428_after == 0 || ame428_after == 1)) {
-        
-        return;
-    }
-    ame428_commit();
+    // ★Task473：三态落盘 → versions/<vid>/prisma/version.config（0=跟随全局 1=启用 2=禁用）
+    if (vid.length == 0) return;
+    [ZL2GamePath ame473_setIsolationType:(ZL2IsolationType)newOv forVersion:vid];
+    [self ame428_refreshIsolationRow];
+    [[NSNotificationCenter defaultCenter] postNotificationName:@"ReloadProfileList" object:nil];
 }
 
 /// 导出整合包入口行：ModpackExportViewController 公开 init API

@@ -24,7 +24,7 @@ for sym in ['ame219_isolationStateForProfile', 'ame225_sniffedIsolationGameDirFo
     if hits:
         fails.append(f'隔离符号残留 {sym}: {hits[:4]}')
 jl = (ROOT / 'Natives' / 'JavaLauncher.m').read_text(encoding='utf-8')
-if 'Task472: gameDir = shared root' not in jl:
+if '[JavaLauncher] Task473: gameDir = %@ (isolation=%d vid=%@)' not in jl:
     fails.append('启动链 Task472 共享根锚缺席')
 ms = (ROOT / 'Natives' / 'ModService.m').read_text(encoding='utf-8')
 if 'resolveAbsoluteGameDirForProfile' not in ms or 'POJAV_GAME_DIR' not in ms:

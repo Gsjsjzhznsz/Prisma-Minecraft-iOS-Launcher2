@@ -1,4 +1,5 @@
 #import "utils.h"
+#import "ZL2GamePath.h" // ★Task473: ZL2 版本隔离系统单入口
 //
 //  ModpackExportViewController.m
 //  Amethyst
@@ -704,9 +705,8 @@
 
 /// 实例根目录（沿用 ModpackExportService 的 gameDir 解析口径；无 profile 时回退主目录）
 - (NSString *)ame428_gameDirForSelectedProfile {
-    // ★Task472: 版本隔离退役——导出根 = 主游戏目录（profile.gameDir 失效）
-    const char *env = getenv("POJAV_GAME_DIR");
-    return env ? [NSString stringWithUTF8String:env] : NSHomeDirectory();
+    // ★Task473: 导出取材根经 ZL2GamePath 单入口（隔离版本导出 = 版本目录内取材）
+    return [ZL2GamePath gameDirForProfile:nil];
 }
 
 /// 类别副标题：目录/文件计数 + 体积（NSByteCountFormatter 本地化）；目录不存在给明确提示

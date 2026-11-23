@@ -1,4 +1,5 @@
 #import "utils.h"
+#import "ZL2GamePath.h" // ★Task473: ZL2 版本隔离系统单入口
 //
 //  ShaderService.m
 //  Amethyst
@@ -89,36 +90,8 @@
 /// 用户点击下载光影按钮后没反应（实际是 ensureShadersFolderForProfile 创建目录到错误位置，
 /// 下载完成后 moveItem 失败但 handler 已切主线程报错，用户感知"无反应"）。
 - (nullable NSString *)resolveAbsoluteGameDirForProfile:(NSString *)profileName {
-    // Task270 M1/M8：nil 入参跟随当前选中实例（ame267 语义），不再落恒 miss 的
-    // @"default" 字面量（真实默认键 "(Default)"）——抽屉入口/导入传 nil 时
-    // 光影不再错位到共享目录。
-    if (!profileName.length) profileName = PLProfiles.current.selectedProfileName ?: @"(Default)";
-    NSString *profile = profileName;
-    @try {
-        NSDictionary *profiles = PLProfiles.current.profiles;
-        NSDictionary *prof = profiles[profile];
-        if (![prof isKindOfClass:[NSDictionary class]]) return nil;
-        NSString *gameDir = prof[@"gameDir"];
-        // ★ Task275 F2（Task274-h S11 补漏）：gameDir 缺失/空/"." 时先按目录形状嗅探
-        //   versions/<lastVersionId>/game 隔离——'.' 实例的 mods 已走嗅探隔离而光影
-        //   仍落共享根（Shader 是五服务唯一漏平移嗅探的一家，同会话落点分居）。
-        if (![gameDir isKindOfClass:[NSString class]] || gameDir.length == 0 || [gameDir isEqualToString:@"."]) {
-        }
-        if (![gameDir isKindOfClass:[NSString class]] || gameDir.length == 0) return nil;
-        if ([gameDir isEqualToString:@"."]) {
-            const char *env = getenv("POJAV_GAME_DIR");
-            return env ? [NSString stringWithUTF8String:env] : NSHomeDirectory();
-        }
-        if ([gameDir isAbsolutePath]) {
-            return gameDir;
-        }
-        const char *env = getenv("POJAV_GAME_DIR");
-        NSString *baseDir = env ? [NSString stringWithUTF8String:env] : NSHomeDirectory();
-        NSString *cleanGameDir = [gameDir hasPrefix:@"./"] ? [gameDir substringFromIndex:2] : gameDir;
-        return [baseDir stringByAppendingPathComponent:cleanGameDir];
-    } @catch (NSException *ex) {
-        return nil;
-    }
+    // ★Task473: 光影落点经 ZL2GamePath 单入口（旧 nil-on-missing 缺口随单入口收敛）
+    return [ZL2GamePath gameDirForProfile:profileName];
 }
 
 - (nullable NSString *)existingShadersFolderForProfile:(NSString *)profileName {

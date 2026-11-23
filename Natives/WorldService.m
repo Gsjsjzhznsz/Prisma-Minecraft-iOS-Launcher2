@@ -1,4 +1,5 @@
 #import "utils.h"
+#import "ZL2GamePath.h" // ★Task473: ZL2 版本隔离系统单入口
 //
 //  WorldService.m
 //  Amethyst
@@ -75,43 +76,8 @@
 
 // 解析 profile 的 gameDir，返回 gameDir 或 nil
 - (nullable NSString *)gameDirForProfile:(NSString *)profileName {
-    // Task270 M1 服务层语义对齐：nil 入参不再落 @"default" 字面量（真实默认键
-    // 是 "(Default)"，profiles[@"default"] 恒 miss）——跟随当前选中实例，
-    // 无选中时回落 "(Default)"（ame267 跟随语义的服务层版本）。
-    if (!profileName.length) profileName = PLProfiles.current.selectedProfileName ?: @"(Default)";
-    NSString *profile = profileName;
-    @try {
-        NSDictionary *profiles = PLProfiles.current.profiles;
-        NSDictionary *prof = profiles[profile];
-        if ([prof isKindOfClass:[NSDictionary class]]) {
-            NSString *gameDir = prof[@"gameDir"];
-            // Task269-r3：相对路径（如 ./custom_gamedir/<id>）统一相对 POJAV_GAME_DIR
-            // 解析成绝对路径——裸相对依赖进程 CWD，而 CWD 会被启动链 chdir 永久切走，
-            // 玩过一局后存档/资源包/数据包全部错位（review-c H1；与 ModService 同口径）。
-            if ([gameDir isKindOfClass:[NSString class]] && gameDir.length > 0 && ![gameDir isEqualToString:@"."]) {
-                if ([gameDir isAbsolutePath]) return gameDir;
-                NSString *clean = [gameDir hasPrefix:@"./"] ? [gameDir substringFromIndex:2] : gameDir;
-                const char *baseC = getenv("POJAV_GAME_DIR");
-                return baseC ? [[NSString stringWithUTF8String:baseC] stringByAppendingPathComponent:clean] : gameDir;
-            }
-            // ★ Task274-h S11（Task225 嗅探平移·双保险）：gameDir 缺失/空/"." 时先按
-            //   目录形状嗅探 versions/<lastVersionId>/game 隔离（与 ModService resolve
-            //   逐行同口径）——此前 World 缺嗅探，'.' 实例（AiInstanceCreator 仍写 '.'、
-            //   A3 sweep 仅启动期收敛）的世界下载落共享根，与 mods 落点短暂分居。
-            {
-            }
-            if ([gameDir isKindOfClass:[NSString class]] && [gameDir isEqualToString:@"."]) {
-                const char *baseC = getenv("POJAV_GAME_DIR");
-                if (baseC) return [NSString stringWithUTF8String:baseC];
-            }
-        }
-    } @catch (NSException *ex) { }
-
-    const char *gameDirC = getenv("POJAV_GAME_DIR");
-    if (gameDirC) {
-        return [NSString stringWithUTF8String:gameDirC];
-    }
-    return nil;
+    // ★Task473: 存档落点经 ZL2GamePath 单入口（nil 跟随选中实例——ame267 语义）
+    return [ZL2GamePath gameDirForProfile:profileName];
 }
 
 #pragma mark - Saves folder detection & scan
