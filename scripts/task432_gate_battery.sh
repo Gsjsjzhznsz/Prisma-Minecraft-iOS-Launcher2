@@ -8,6 +8,9 @@
 #   第 11 期报告 5.3 节验收项），历史头注「16 门」自第 9 期起已失实，Task439 校正）
 #   Task468 轮 = 48 门（+ame468 MobileGL 旋钮门 + selftest 反向门）
 #   Task469 轮 = 48 门（ame468 门内扩展：16 旋钮 + 幽灵清单翻转 + S10 升代产物代际锚；门数不变）
+#   Task470 轮 = 50 门（+task470 运行时伴侣对门 + selftest 反向门——9gW8EeL 判例：
+#     libMobileGL@8df5508 的 libc++_cxx23/libc++abi_cxx23 未随包 dlopen 崩，伴侣对
+#     随包 + 全 Frameworks Mach-O 依赖闭包执法）
 # 用法: bash scripts/task432_gate_battery.sh
 cd "$(dirname "$0")/.." || exit 1
 
@@ -107,6 +110,12 @@ run_py task466     scripts/task466_selfcheck.py
 #   回注 + SceneDelegate 0.8s 呈现位回填 + 哨兵键回册
 run_py task467     scripts/task467_selfcheck.py
 run_py task467_self scripts/task467_selfcheck.py --selftest
+
+# ★Task470 渲染器 C++ 运行时伴侣对门（9gW8EeL 装机判例制度化）：伴侣对在场+
+#   sha256 互证 + 全 Frameworks Mach-O 依赖闭包（19 份手解 load commands）+
+#   PROVENANCE 伴侣对段 + 装机日志锚双行 + selftest 三态反向
+run_py task470     scripts/task470_runtime_verify.py
+run_py task470_self scripts/task470_runtime_verify.py --selftest
 
 # ★Task468 MobileGL/Magma 引擎性能旋钮层（抄 Witch-Launcher 调优面）+ 内置渲染器
 #   上游更新扫描轮：12 个 MOBILEGL_* setenv（strings 反锚逐名验证 vendored dylib

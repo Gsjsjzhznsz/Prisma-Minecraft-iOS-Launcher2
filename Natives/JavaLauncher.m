@@ -3693,6 +3693,32 @@ int launchJVM(NSString *accountId, id launchTarget, int width, int height, int m
                       getenv("MOBILEGL_ANGLE_BACKEND") ? getenv("MOBILEGL_ANGLE_BACKEND") : "tgles",
                       getPrefBool(@"mobilegl.r11g11b10f_fallback") ? 1 : 0,
                       backend);
+                // Task470：C++ 运行时伴侣对在场自检（mclo.gs/9gW8EeL 装机判例——
+                // Task469 换装的 libMobileGL.dylib GIT@8df5508 其 LC_LOAD_DYLIB 带
+                // @rpath/libc++_cxx23.dylib + @rpath/libc++abi_cxx23.dylib 两个新代
+                // C++ 运行时依赖，伴侣对未随包 → dlopen 直接 UnsatisfiedLinkError
+                // 「Loading library OpenGL」崩（dyld tried 全列表 no such file，
+                // /usr/lib 亦不在 dyld cache = iPadOS 27 未越狱设备结构性缺失）。
+                // 主执行档 @executable_path/Frameworks rpath 已被装机日志 tried 列表
+                // 实证解析到 app Frameworks 目录，伴侣对落位该目录即全链闭环
+                //（libc++_cxx23 自身仅再依赖 libc++abi_cxx23 + libSystem = OS 自带，
+                // libc++abi_cxx23 仅依赖 libSystem = 叶子，Mach-O 手解闭包全绿）。
+                // 本处仅自检日志不阻断启动：缺失时显式点出缺哪份与后果签名，
+                // 装机日志一锚定谳，不再靠「Loading library OpenGL」盲猜。
+                {
+                    NSString *ame470_fwDir = [[NSBundle mainBundle].bundlePath
+                                              stringByAppendingPathComponent:@"Frameworks"];
+                    NSFileManager *ame470_fm = [NSFileManager defaultManager];
+                    BOOL ame470_cxx = [ame470_fm fileExistsAtPath:
+                        [ame470_fwDir stringByAppendingPathComponent:@"libc++_cxx23.dylib"]];
+                    BOOL ame470_cxxabi = [ame470_fm fileExistsAtPath:
+                        [ame470_fwDir stringByAppendingPathComponent:@"libc++abi_cxx23.dylib"]];
+                    NSLog(@"[JavaLauncher] Task470: MobileGL C++ runtime companion pair: libc++_cxx23=%d libc++abi_cxx23=%d dir=%@",
+                          ame470_cxx ? 1 : 0, ame470_cxxabi ? 1 : 0, ame470_fwDir);
+                    if (!ame470_cxx || !ame470_cxxabi) {
+                        NSLog(@"[JavaLauncher] Task470: WARNING companion pair incomplete -- libMobileGL.dylib (Witch GIT@8df5508) will fail dlopen (UnsatisfiedLinkError 'Loading library OpenGL')");
+                    }
+                }
             }
             NSLog(@"[JavaLauncher] MobileGL renderer active: backend=%s", backend);
         } else {

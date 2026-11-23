@@ -103,7 +103,7 @@ check("X7-2 壁纸功能本体在场（ame429，数据面恢复后可用）", "a
 
 print("== S 敏感性样本 ==")
 tag = rd("Natives/BuildTag.h")
-check("S1 BuildTag Task469 · 2026-11-23（启动链恢复首预发行版轮代际重锚）", "Task469 · 2026-11-23" in tag)
+check("S1 BuildTag Task470 · 2026-11-23（启动链恢复首预发行版轮代际重锚）", "Task470 · 2026-11-23" in tag)
 en = rd("Natives/resources/en.lproj/Localizable.strings")
 zh = rd("Natives/resources/zh-Hans.lproj/Localizable.strings")
 check("S2(★Task465 翻转) ame451 键退役归零（en/zh-Hans）", "ame451" not in en and "ame451" not in zh)

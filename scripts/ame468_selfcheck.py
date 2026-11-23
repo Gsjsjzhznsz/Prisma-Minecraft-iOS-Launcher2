@@ -241,8 +241,8 @@ def main():
 
     # S 代际锚（轻校验；完整执法在 task439_buildtag_anchor.py）
     tag = BUILD_TAG.read_text(encoding="utf-8", errors="replace")
-    if 'ame415_buildTag = @"Task469 · ' not in tag:
-        fails.append("S BuildTag 未进代 Task469")
+    if 'ame415_buildTag = @"Task470 · ' not in tag:
+        fails.append("S BuildTag 未进代 Task470")
 
     if fails:
         print(f"[FAIL] task468_selfcheck {len(fails)} 项:")

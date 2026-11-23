@@ -93,7 +93,7 @@ check('T7 旧会话语义保持（skip 分支文案 still kept off -cp per Task3
       'agent jar also kept off -cp per Task341' in jl,
       '旧会话文案漂移')
 check('T8 BuildTag 代际锚 Task467（ame415_buildTag 重锚）',
-      'ame415_buildTag = @"Task469 · 2026-11-23"' in read('Natives/BuildTag.h'),
+      'ame415_buildTag = @"Task470 · 2026-11-23"' in read('Natives/BuildTag.h'),
       'BuildTag 未重锚')
 check('T9 ame341 门禁与条件形态同步（跨门锁：门在库已知晓条件式）',
       COND in read('scripts/ame341_selfcheck.py'),

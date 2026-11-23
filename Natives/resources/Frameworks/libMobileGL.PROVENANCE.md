@@ -22,3 +22,26 @@
   装机日志锚 [JavaLauncher] Task469: MobileGL perf knobs applied
 - 旧代出处（留档）: Amethyst-iOS-MyRemastered vendor 线，sha256 e7a8043b…（85757760 B，
   GIT@874b9e8 · 2026-09-05T02:34:22）
+
+## C++ 运行时伴侣对（Task470 补装）
+
+- 补装轮：Task470 · 2026-11-23（装机判例 mclo.gs/9gW8EeL——Task469 换装后首启
+  「Loading library OpenGL」UnsatisfiedLinkError 定谳：dylib 升代了，运行时没跟上）
+- libc++_cxx23.dylib
+  - sha256: `7243bc688668be68...`（size: 1134848 B）
+  - 来源: Witch-Launcher/Witch_launcher@main `Natives/resources/Frameworks/`
+    （同仓同构建环境 = fork dylib 的 ABI 伴生面，原仓库按惯例随包）
+  - 依赖闭包（Mach-O 手解）: @rpath/libc++abi_cxx23.dylib（伴侣对内闭环）+
+    /usr/lib/libSystem.B.dylib（OS）
+- libc++abi_cxx23.dylib
+  - sha256: `bfb6ddabd3b7aeae...`（size: 349104 B）
+  - 来源: 同上
+  - 依赖闭包: /usr/lib/libSystem.B.dylib（OS）= 叶子
+- 解析链: 主执行档 @executable_path/Frameworks rpath → app Frameworks 目录
+  （9gW8EeL 装机日志 dyld tried 列表同族路径实证在场）；libMobileGL.dylib 的
+  LC_RPATH `/Volumes/project/...`（构建机残留路径）设备上恒 miss，无害冗余，
+  留档不改二进制（签名面稳定性优先）
+- 全 Frameworks 目录 Mach-O 依赖闭包门: scripts/task470_runtime_verify.py
+  （R3 段——全部 dylib 的 LC_LOAD_DYLIB 逐一判定 OS/bundled/rpath-bundled）
+- 装机日志锚: [JavaLauncher] Task470: MobileGL C++ runtime companion pair:
+  libc++_cxx23=1 libc++abi_cxx23=1（缺失时附 WARNING + UnsatisfiedLinkError 签名）
