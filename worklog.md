@@ -5655,3 +5655,20 @@ Work Log:
 Stage Summary:
 - 装机锚点（BuildTag=Task470 · 2026-11-23）：①渲染启动 latestlog 应现 "[JavaLauncher] Task470: MobileGL C++ runtime companion pair: libc++_cxx23=1 libc++abi_cxx23=1 dir=…/Frameworks"（双 1 = 闭包在位）②紧接着 Task469 旋钮行后游戏应越过「Loading library OpenGL」直达 MC 主屏（前轮死点消证）③若再崩，日志将有 "Task470: WARNING companion pair incomplete" 显式点缺哪份
 - 【Task470 闭环补记】代码轮 attempt 1 双绿（dev 45133465471 + smoke 45133465413）+ 四件归档 + 二进制验证 19/19 ALL PASS；闭环轮推送
+
+
+---
+## Task 471——NeoForge processor 保环盲区收口（MnPXaJV 三日志定谳「为什么错误」+ 启动链免回退定案；保环三盲双根脱节/child-only/URL 豁免三修；电池 50→52）
+
+Work Log:
+- 装机日志判读（用户装机 9b3f4d4 = Task470 构建，mclo.gs/MnPXaJV，iPad Air M4/iPadOS 27.0.1/LiveContainer guest）：启动链全程正标记——Task304 JIT 申请 → stikjit:// 深链 → isJITEnabled 7.9s 满足（traced=1 exn=1）→ DyldLVBypass redirectFunctionMirrored + dyld_mmap/dyld_fcntl 双 hook 成功 → JIT26 64MB mapping 到手（RW/RX 双映射）→ libjvm 起跑 → Task470 伴侣对自检 libc++_cxx23=1 libc++abi_cxx23=1 → MobileGL 26.08-dev GIT@8df5508 Direct(Vulkan) 后端建上下文 + 首帧 eglSwapBuffers OK + Task188 readback 非零 rgb（内容在场）——**9gW8EeL 渲染器 dlopen 崩与 0a3151f MetallumAgent CNFE 崩双双消证，前两轮修复装机实证生效**；终局死点唯一 = [ForkJoinPool] Failed to find required file instances/modrinth_9BACE99E.../libraries/net/minecraft/client/26.3-1/client-26.3-1-srg.jar → minecraft/neoforge 双 [MISSING] 28 条依赖全灭 → "Your NeoForge installation is corrupted." → JVM exit(1)
+- 三日志时间线闭环（同机）：ThXPFSq（0a3151f，11-22 19:57，Fabric 包）Initializing game NoClassDefFoundError MetallumAgent = Task466 已修；9gW8EeL（b79fdbf，11-23 15:25，同 Fabric 包）Loading library OpenGL UnsatisfiedLinkError libc++_cxx23.dylib 未随包 = Task470 已修；MnPXaJV（9b3f4d4，11-23 18:47，NeoForge 包）= 本轮唯一活口。**「启动链恢复到 v1.0」指令经新证据重新评估后不执行**：MnPXaJV 自证现役启动链端到端可用（JIT 门/旁路/映射/渲染器全绿），整链回退将把 Task466 metallum 修复、Task470 伴侣对、Task452 JIT26 三件装机实证的存活修复一并回滚 = 三崩复引；保环（Task467）反而要在场收口本轮死点——启动部分只做外科保环收口，不做整链回退
+- 保环三盲定谳（MnPXaJV：Task158 门 clean 71 present/69 skipped 与 FML 实例轴 srg.jar 缺失并存）：①双根脱节——ame158/ame467 门查 getenv("POJAV_GAME_DIR")（基础根，Task226 pre-init 仅对 default 重指），FML 查启动链解析 gameDir（ame275/ame225/ame428/ame287 全链收口后 = JVM chdir 根），且旧调用点在 gameDir 解析之前（Task179「调用点后移」同族错位）②child-only 扫描——ame467_missingProcessorArtifacts 只看 launchTarget[@"libraries"]，不走近 Task428 同款 inheritsFrom 链 ③URL 豁免——三类 processor 产物（srg/client/extra）条目即便带 downloads URL 也整条跳过，官方 maven 从不发布 = URL 形同虚设（ame158 URL 补链 404 即黑洞）
+- 修法（单变量原则，只动保环面九编辑 E1-E9）：门签名加 launchGameDir 显式传参；库根优先 launchGameDir（POJAV_GAME_DIR 仅兜底）；missingProcessorArtifacts 改收链合并数组 + 撤销三类 classifier URL 豁免（文件在场唯一判据）；搁浅源补基础游戏根（旧门口径根 = 历史产物最可能搁浅点）；新增 ame471_versionChainFrom/ame471_mergedLibraries/ame471_collectMissing 三件（Task428 同款链展开 guard 8 + 父→子组覆盖合并 + rel 去重统一收集）；门调用点移至 gameDir 终解析之后（ame287 收口 → Task428 之间）并显式传根；门尾保环调用换 launchGameDir 口径（Tier B ForgeProcessorExecutor mainGameDir 同根——否则自愈产物落错根救不了实例轴）；launch-root 日志锚
+- 门禁：新门 task471_selfcheck 11 断言（A1 签名/A2 旧调用归零/A3 调用点位置执法 ame287 后 Task428 前/A4 库根双口径/A5 链三件/A6 URL 豁免撤销/A7 搁浅源基础根/A8 collect 恰两处/A9 Tier B 口径/A10 折叠面 42 锚保形/A11 BuildTag 进代）+ 括号状态机 + selftest 双负样本（签名回退/collect 单处化必红）；电池 50→52（+task471 +task471_self）ALL GREEN；task467 R8/R14 适配（签名/调用点新形态 + 位置证明）；verify_task158 C3 适配（BOOL 双参签名）
+- 判例 N+27 入册：保环门的「查库根」必须与「消费面（FML/JVM cwd）根」同源显式传参，禁读 env 间接根——env 根是 pre-init 轴（default 实例），launch 轴（实例/版本隔离）靠 ame275/ame225/ame428/ame287 四层收口，两轴错位即「门 clean 而 FML 死」；同族风险面全仓排查：ame158/ame467 是唯一 env 根查库点（Task428 服务层 Ame428GameDir/ame353 已同源自洽）
+- BuildTag Task471 · 2026-11-23 进代 + 十门代际重锚（451/452/457/461/462/464/465/466/467/ame468-S + task470_artifact_verify V3）；渲染域零触碰（Task468 旋钮/Task469 dylib/Task470 伴侣对面原样）
+
+Stage Summary:
+- 装机锚点（BuildTag=Task471 · 2026-11-23）：①NeoForge 实例启动若缺 srg.jar，latestlog 应现 "[JavaLauncher] Task471: rescue scan launch-root=…/instances/modrinth_…/libraries missing=1" + Task467 三层保环照常接力（Tier A 搁浅回收 → Tier B processor 自愈 + ame173 重启链 → Tier C 指引弹窗），不再出现「门 clean 直进 JVM 烧 FML 致命屏」②fabric/原版会话门面零感知（保环早退 + ame158 库根与旧口径等价）③终局兜底：实例轴缺件时 Tier B 产物落在 FML 实际查找根（本轮前会落错根）
+- 【待办移交】用户侧：MnPXaJV 的 modrinth_9BACE99E 实例装一次「重新安装 NeoForge」（版本管理内）即可立即解锁本轮保环无需自愈的快路径；渲染域下一轮候选仍为 MobileGL main 26.11 dylib 升代（fork rebase 后取件，Task469/470 留档）
