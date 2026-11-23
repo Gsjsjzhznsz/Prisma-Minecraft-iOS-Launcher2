@@ -2144,9 +2144,9 @@ static NSUInteger ame467_strandedRecovery(NSArray<NSDictionary *> *missing, NSSt
         if (![ame471_roots containsObject:ame471_baseRoot]) [ame471_roots addObject:ame471_baseRoot];
     }
     [ame471_roots addObject:[ame467_home stringByAppendingPathComponent:@"libraries"]];
-    [ame467_roots addObject:[ame467_home stringByAppendingPathComponent:@"Library/Application Support/minecraft/libraries"]];
+    [ame471_roots addObject:[ame467_home stringByAppendingPathComponent:@"Library/Application Support/minecraft/libraries"]];
     if (vid.length > 0) {
-        [ame467_roots addObject:[NSString stringWithFormat:@"%@/versions/%@/libraries",
+        [ame471_roots addObject:[NSString stringWithFormat:@"%@/versions/%@/libraries",
                                  libRoot.stringByDeletingLastPathComponent, vid]];
     }
     NSFileManager *ame467_fm = NSFileManager.defaultManager;

@@ -140,6 +140,17 @@ def surgery() -> None:
     new = "    for (NSString *ame467_root in ame471_roots) {"
     must_unique(jl, old, "E4b 根遍历锚")
     jl = jl.replace(old, new, 1)
+    old = "[ame467_roots addObject:"
+    n = jl.count(old)
+    if n != 2:
+        print(f"[FAIL] E4c 旧根引用计数 {n}（期望 2）")
+        sys.exit(1)
+    jl = jl.replace(old, "[ame471_roots addObject:")
+    if "ame467_roots" in jl:
+        print("[FAIL] ame467_roots 残留")
+        sys.exit(1)
+    must_unique(jl, old, "E4b 根遍历锚")
+    jl = jl.replace(old, new, 1)
 
     # ── E5 链合并三 helper 注入（保环主入口之前） ──
     anchor = (
