@@ -5637,3 +5637,21 @@ Work Log:
 Stage Summary:
 - 装机锚点（BuildTag=Task469 · 2026-11-23）：①设置→关于版本行 = Task469（旧构建判别）②渲染启动 latestlog = "[JavaLauncher] Task469: MobileGL perf knobs applied (Witch dylib GIT@8df5508): frames=3 … vma=32 adopt=4 angle=tgles r11=0 tier=DirectVulkan" ③渲染观感升级面 = MC26.3 几何/UI 间歇损坏修复 + VMA 大块堆分配（默认 32MB）+ 4MB 阈值 GPU 常驻收养 + 三缓冲/异步编译延续 ④IPA 体积回落（dylib 随包 85MB→12.3MB）⑤调优面扩容 = mobilegl.vma_block_size/large_buffer_adopt_size/angle_backend/r11g11b10f_fallback 四新偏好
 - 【Task469 闭环补记】代码轮 attempt 1 双绿（dev 45067100381 + smoke 45067163166）+ 四件归档 + 二进制验证 16/16 ALL PASS（r1 V11 判据精化 78dceef61）；闭环轮推送
+
+---
+Task ID: 470
+Agent: main (Super Z)
+Task: Prisma-Minecraft-iOS-Launcher2 渲染器 C++ 运行时伴侣对补装（用户装机日志 mclo.gs/9gW8EeL 定谳）——Task469 升代 dylib 的 libc++_cxx23/libc++abi_cxx23 依赖闭环 + 全目录 Mach-O 依赖闭包门
+
+Work Log:
+- 定谳 9gW8EeL 装机日志（b79fdbf 构建 = Task469 闭环版）：失败签名完全换代——前轮 SIGKILL/启动链问题清零（Ame273 sigkill_like 旧报告 surface+consume 一笔带过），本轮启动链全通（JIT gate → StikJIT 附加 traced=1 exn=1 → DyldLVBypass hook dyld_mmap/fcntl 双成 → JIT26 拿 64MB mapping → JVM 起 → Fabric 60+ mod 全载），死点=MC NativeLibrariesBootstrap.loadOpenGL：dlopen(libMobileGL.dylib) 抛 UnsatisfiedLinkError「Loading library OpenGL」——dyld tried 列表六路径全 no such file：构建机残留 LC_RPATH /Volumes/project/Angel-Aura-Amethyst-iOS/… 两形态 + 主执行档 @executable_path/Frameworks→app Frameworks（文件真不在场）+ /usr/local/lib + /usr/lib（not in dyld cache = iPadOS 27 未越狱结构性缺失）
+- 根因锁定：Task469 换装的 Witch fork GIT@8df5508 dylib 由新代工具链构建，LC_LOAD_DYLIB 携 @rpath/libc++_cxx23.dylib + @rpath/libc++abi_cxx23.dylib（versioned C++ 运行时，Xcode 26 面随包惯例），旧代 874b9e8 线仅依赖 /usr/lib/libc++.1.dylib OS 自带故从未暴露；Mach-O 手解审计（scripts/macho_dep_audit.py，Linux 无 otool 同义手解 load commands + FAT 多架构切片合并）全目录扫雷：libMobileGL 双 cxx23 依赖 + libmetallum /usr/lib/swift 五族（OS 自带 iOS 13+）+ 其余全 OS/bundled——缺包集合恰为 cxx23 双件
+- 补装双件：libc++_cxx23.dylib（1134848B，sha256 7243bc688668be68…）+ libc++abi_cxx23.dylib（349104B，sha256 bfb6ddabd3b7aeae…），源 = Witch-Launcher/Witch_launcher@main Natives/resources/Frameworks/（同仓同构建环境 = fork dylib ABI 伴生面，其原仓按惯例随包）；Makefile:920 cp -R Natives/resources/* 零打包面改动自动随包；解析链全通：主执行档 rpath（装机日志 tried 实证在场）→ app Frameworks → cxx23 → cxxabi23 → libSystem 叶子
+- 三层门禁落地：①仓库门 task470_runtime_verify 7 断言（R1 尺寸精确/R2 sha256 互证/R3 全 Frameworks 19 份 dylib LC_LOAD_DYLIB 逐一 OS/bundled/rpath-bundled 判定零缺失/R4 libMobileGL 三 @rpath 落位/R5 PROVENANCE 伴侣对段/R6 装机日志锚双行/R7 内容 @rpath 字面量自证）+ selftest 三态反向 3/3（错内容/错尺寸/依赖缺失必红）②产物门 task470_artifact_verify 19 断言（469 十六断言全继承 + V3/V4 代际翻转 + V6 日志锚换代 + V17/V18/V19 伴侣对随包执法：带域尺寸 N+25 判例 + Mach-O 魔数 + 自身 @rpath 字面量 + 与 libMobileGL 同目录三依赖闭环）③电池 48→50（+task470 +task470_self）
+- 装机日志锚：[JavaLauncher] Task470: MobileGL C++ runtime companion pair: libc++_cxx23=%d libc++abi_cxx23=%d dir=%@（缺失时第二行 WARNING 附 UnsatisfiedLinkError 签名——装机一锚定谳不再盲猜「Loading library OpenGL」）；PROVENANCE 档案伴侣对段落档（解析链 + 构建机残留 rpath 无害冗余留档不改二进制的签名面稳定性取舍）
+- BuildTag Task470 · 2026-11-23 进代 + 十门代际重锚（451/452/457/461/462/464/465/466/467/ame468-S）；电池 50/50 ALL GREEN；CI 双 workflow 一轮全绿（push 触发 dev 45133465471 + ui-smoke 45133465413，attempt 1 零热修）；四件产物归档 task470_dl 集 + task470_artifact_verify 二进制验证 19/19 ALL PASS（含 V14 容器对 LC_UUID 对拍一致 + V16 dSYM 配对 + V17-V19 伴侣对随包三连执法）
+- 上游扫描结论（承接「扫描内置渲染器的仓库有没有更新」）：fork Witch-Launcher/MobileGL-fix（原 Ynnyny/MobileGL-fix 改名，GitHub API redirect 1376968730 实锚）dev tip = 8df55081 = 随包 dylib 构建点，零漂移无升代项；上游 MobileGL-Dev/MobileGL main 26.11 线实质前移（2026-10-16 基线后：gl_ClipDistance 模拟族 6182704c/cdf43a4a + DirectVulkan deferred window clear perf 族 6c59b039/05dfff91 + proxy texture 修复 04c8773d + DirectGLES 32 fragment texture units b4b2ccfe + draw-start perf 5a48bd80 + shader prewarm 旋钮 b44805eb）——下一轮 dylib 升代候选（fork rebase 后取件，门禁幽灵清单八名届时复核）；本轮单变量原则：先闭环运行时伴侣对装机验证，再动 dylib 本体
+
+Stage Summary:
+- 装机锚点（BuildTag=Task470 · 2026-11-23）：①渲染启动 latestlog 应现 "[JavaLauncher] Task470: MobileGL C++ runtime companion pair: libc++_cxx23=1 libc++abi_cxx23=1 dir=…/Frameworks"（双 1 = 闭包在位）②紧接着 Task469 旋钮行后游戏应越过「Loading library OpenGL」直达 MC 主屏（前轮死点消证）③若再崩，日志将有 "Task470: WARNING companion pair incomplete" 显式点缺哪份
+- 【Task470 闭环补记】代码轮 attempt 1 双绿（dev 45133465471 + smoke 45133465413）+ 四件归档 + 二进制验证 19/19 ALL PASS；闭环轮推送
