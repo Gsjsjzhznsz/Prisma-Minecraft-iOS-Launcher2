@@ -660,6 +660,7 @@ ame441_ensure_import_chain() {
   local ame441_uzinc=(-I"$ame441_uzk/Source" -I"$ame441_uzk/Lib/MiniZip" -I"$NATIVES/external/UnzipKit")
   local ame441_s ame441_base ame441_uzm ame441_uzbase
   local ame441_chain=(
+    ZL2GamePath
     ModpackImportService
     installer/modpack/ModpackUtils
     PLDownloadClient

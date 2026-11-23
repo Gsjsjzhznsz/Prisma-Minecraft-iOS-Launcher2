@@ -545,6 +545,7 @@ add_executable(AngelAuraAmethyst
   ZL2ControlLayoutEditorViewController.m
   PLComponentService.m
   PLWorldBackupService.m
+  ZL2GamePath.m              # ★Task473: ZL2 版本隔离系统单入口（九面路由）
   # ★ Task413：账户页内嵌皮肤 3D 预览视图（纯 CALayer CATransform3D 盒体，
   #   Y 轴翻转根修 + yggdrasil 真皮链 + slim 模型；412f 独立弹窗 VC 退役）
   ZL2SkinPreviewView.m
