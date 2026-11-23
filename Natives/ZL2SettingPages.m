@@ -2633,7 +2633,7 @@ didFinishPicking:(NSArray<PHPickerResult *> *)results {
     };
     // ★Task429：+ ame429_mirrorRow（下载镜像三态，紧随下载并发数行）
     // ★Task429 S1：+ 代理三行（下载代理/代理主机/代理端口，紧随镜像行）
-    [miscGroup ame_addRows:@[shaRow, integrityRow, isoRow, mtRow, dlThreadRow, ame429_mirrorRow,
+    [miscGroup ame_addRows:@[shaRow, integrityRow, mtRow, dlThreadRow, ame429_mirrorRow,
                              ame429_s1_proxyModeRow, ame429_s1_proxyHostRow, ame429_s1_proxyPortRow,
                              cfKeyRow]];
     // 调试日志（general.debug_logging；游戏会话下轮生效——Task205 口径）
