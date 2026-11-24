@@ -68,6 +68,22 @@ typedef void(^ModDownloadHandler)(NSError * _Nullable error); // Added for downl
 /// 获取当前 profile 的 mods 目录，不存在时自动创建
 - (nullable NSString *)ensureModsFolderForProfile:(NSString *)profileName error:(NSError **)error;
 
+/// ★Task474：payload 对账提升——把 srcDir 根级的整合包内容（mods/config/
+/// resourcepacks/shaderpacks/texturepacks/saves/screenshots/servers.dat/
+/// options.txt）冲突安全地合并搬进 dstDir（调用方经 ZL2GamePath 单入口解析
+/// 的游戏数据根：隔离=versions/<vid>/，非隔离=主根）。同名文件冲突改名
+/// <name>.ame329-<ts> 并置绝不覆盖（ame329_moveEntry 家法原语）；目录递归
+/// 合并、搬空摘壳；返回实际搬移条目数。
++ (NSInteger)ame474_promotePayloadFrom:(nullable NSString *)srcDir
+                                    to:(nullable NSString *)dstDir;
+
+/// ★Task474：存量搁浅对账（启动期幂等自愈）——Task473 九面路由补齐导入
+/// 写面之前落位 instances/<id>/ 根级的整合包 payload（装机 4da7866 实锤：
+/// 50/50 mod 下载成功但三个扫描根 jars=0），此处按 profile.gameDir 归属
+/// 判据（无主不盲搬，ame329 家法）一次性搬进 ZL2 解析根，搬后空壳摘除。
+/// 装机锚点 "[Ame474] rescued ..."。
++ (void)ame474_rescueStrandedPayload;
+
 @end
 
 NS_ASSUME_NONNULL_END

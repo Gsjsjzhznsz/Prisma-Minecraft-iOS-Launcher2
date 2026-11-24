@@ -1238,6 +1238,20 @@ static BOOL ame269_sMigrationRunning = NO;
     // ★ Task473（上游 createIsolationForModPack 同构）：整合包导入成功即强制
     //   版本隔离（mods/存档/配置随包落 versions/<vid>/ 内，互不混居）
     [ZL2GamePath applyIsolationForModPackVersion:versionId];
+    // ★ Task474：导入写面对齐 ZL2 单入口（第十面）——payload（mods/config/
+    //   资源包/光影/存档/截图/servers.dat/options.txt）从实例账本目录提升进
+    //   [ZL2GamePath gameDirForVersion:versionId]（隔离=versions/<vid>/，
+    //   非隔离=主根），与启动链/模组页扫描同源同目录——根治病历"50 mod 下载
+    //   成功但三扫描根 jars=0"（写 instances/<id>/ 读 versions/<vid>/ 分居，
+    //   装机 4da7866 latestlog.old.txt 实锤）。冲突改名并置绝不覆盖
+    //   （ame329_moveEntry 家法）；账本目录保留（Task269 复用/Task274 账本链
+    //   不变）。装机锚点 "[ModpackImport] Task474: payload promoted"。
+    {
+        NSString *ame474_target = [ZL2GamePath gameDirForVersion:versionId];
+        NSInteger ame474_moved = [ModService ame474_promotePayloadFrom:gameDirAbsolute to:ame474_target];
+        NSLog(@"[ModpackImport] Task474: payload promoted → %@ (%ld item(s) moved, ZL2 单入口写面对齐)",
+              ame474_target, (long)ame474_moved);
+    }
     // ★ Task274-h S6：导入收尾备份老化（保留最近 2 份；绝不触碰活实例与 staging）
     [self ame274_pruneInstanceBackupsForInstanceId:modpackId];
 

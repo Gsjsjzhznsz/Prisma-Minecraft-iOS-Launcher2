@@ -11,6 +11,7 @@
 #import "LauncherPreferences.h"
 #import "PLLogOutputView.h"
 #import "PLProfiles.h"
+#import "ModService.h"    // ★Task474：启动期存量搁浅 payload 对账挂载
 #import "SurfaceViewController.h"
 #import "UIKit+hook.h"
 #import "config.h"
@@ -1128,6 +1129,15 @@ int main(int argc, char *argv[]) {
         [PLProfiles ame349_reconcileOrphanInstancesLogTag:@"startup"];
     } @catch (NSException *ame349_e) {
         NSLog(@"[Pre-init] Task349: instance reconcile exception (%@)", ame349_e);
+    }
+    // ★ Task474：存量搁浅 payload 对账（ZL2 单入口第十面收尾）——Task473 补齐
+    //   导入写面之前落位 instances/<id>/ 根级的整合包内容（mods/config/存档
+    //   等，装机 4da7866 实锤 50 mod 全部下载成功但扫描根 jars=0）在此一次性
+    //   搬进 ZL2 解析根。幂等自愈；装机锚点 "[Ame474] rescued ..."。
+    @try {
+        [ModService ame474_rescueStrandedPayload];
+    } @catch (NSException *ame474_e) {
+        NSLog(@"[Pre-init] Task474: stranded payload rescue exception (%@)", ame474_e);
     }
     init_setupAccounts();
     init_setupCustomControls();

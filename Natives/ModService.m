@@ -758,6 +758,109 @@ static BOOL ame329_moveEntry(NSFileManager *fm, NSString *src, NSString *dstDir,
     });
 }
 
+// ---------- ★Task474：整合包 payload 对账提升（ZL2 单入口第十面·导入写面） ----------
+// 病历（装机 4da7866 latestlog.old.txt 实锤）：Fabulously Optimized 导入
+// "Mod download completed: 50/50 succeeded, 42.13 MB"，但落盘走 Task329 实例
+// 账本轴 instances/<modpackId>/mods，而 Task473 ZL2 单入口后的启动/模组页
+// 读 versions/<vid>/mods（isolation=1，launch 锚 "[JavaLauncher] Task473:
+// gameDir = .../versions/<vid>"）——写读分居，三扫描根 jars=0，用户
+// "模组全部不见了"。ame329/ame330 实例轴对账经查全仓零调用点（死代码），
+// 存量搁浅无自愈路径。
+// 修法 = ①导入收尾（applyIsolationForModPackVersion 之后）payload 提升进
+// [ZL2GamePath gameDirForVersion:versionId]；②启动期 sweep 救存量
+// （profile.gameDir 归属判据，无主不盲搬）。冲突改名并置绝不覆盖
+// （ame329_moveEntry 家法原语直接复用，零新增搬家代码路径）。
+
+static NSArray<NSString *> *ame474_payloadItems(void) {
+    static NSArray<NSString *> *ame474_items;
+    static dispatch_once_t ame474_once;
+    dispatch_once(&ame474_once, ^{
+        ame474_items = @[@"mods", @"config", @"resourcepacks", @"shaderpacks",
+                         @"texturepacks", @"saves", @"screenshots",
+                         @"servers.dat", @"options.txt"];
+    });
+    return ame474_items;
+}
+
++ (NSInteger)ame474_promotePayloadFrom:(NSString *)srcDir to:(NSString *)dstDir {
+    if (srcDir.length == 0 || dstDir.length == 0) return 0;
+    NSString *ame474_srcStd = [srcDir stringByStandardizingPath];
+    NSString *ame474_dstStd = [dstDir stringByStandardizingPath];
+    if (ame474_srcStd.length == 0 || [ame474_srcStd isEqualToString:ame474_dstStd]) return 0; // 同目录自搬家防呆
+    NSFileManager *ame474_fm = [NSFileManager defaultManager];
+    BOOL ame474_srcIsDir = NO;
+    if (![ame474_fm fileExistsAtPath:ame474_srcStd isDirectory:&ame474_srcIsDir] || !ame474_srcIsDir) return 0;
+    if (![ame474_fm fileExistsAtPath:ame474_dstStd]) {
+        [ame474_fm createDirectoryAtPath:ame474_dstStd withIntermediateDirectories:YES attributes:nil error:nil];
+    }
+    NSString *ame474_ts = [NSString stringWithFormat:@"%ld", (long)[[NSDate date] timeIntervalSince1970]];
+    NSInteger ame474_moved = 0;
+    for (NSString *ame474_item in ame474_payloadItems()) {
+        NSString *ame474_src = [ame474_srcStd stringByAppendingPathComponent:ame474_item];
+        if (![ame474_fm fileExistsAtPath:ame474_src]) continue;
+        ame329_moveEntry(ame474_fm, ame474_src, ame474_dstStd, ame474_ts, &ame474_moved);
+    }
+    return ame474_moved;
+}
+
++ (void)ame474_rescueStrandedPayload {
+    const char *ame474_homeC = getenv("POJAV_HOME");
+    if (!ame474_homeC || !*ame474_homeC) return;
+    NSString *ame474_instances = [[NSString stringWithUTF8String:ame474_homeC]
+        stringByAppendingPathComponent:@"instances"];
+    NSFileManager *ame474_fm = [NSFileManager defaultManager];
+    NSString *ame474_rootStd = [ame474_instances stringByStandardizingPath];
+    NSString *ame474_rootPrefix = [ame474_rootStd stringByAppendingString:@"/"];
+    NSDictionary *ame474_profiles = PLProfiles.current.profiles;
+    NSInteger ame474_hit = 0;
+    for (NSString *ame474_name in ame474_profiles.allKeys) {
+        NSDictionary *ame474_prof = ame474_profiles[ame474_name];
+        if (![ame474_prof isKindOfClass:[NSDictionary class]]) continue;
+        NSString *ame474_gd = ame474_prof[@"gameDir"];
+        if (![ame474_gd isKindOfClass:[NSString class]] || ![ame474_gd isAbsolutePath]) continue;
+        NSString *ame474_gdStd = [ame474_gd stringByStandardizingPath];
+        // 判据①：恰为 instances/<id> 两层实例根（深层形态 instances/<id>/versions/<vid>
+        //   已被 ame371 扫描根④覆盖，不属搁浅面）
+        if (![ame474_gdStd hasPrefix:ame474_rootPrefix]) continue;
+        NSString *ame474_rest = [ame474_gdStd substringFromIndex:ame474_rootPrefix.length];
+        if (ame474_rest.length == 0 || [ame474_rest rangeOfString:@"/"].location != NSNotFound) continue;
+        if ([ame474_rest isEqualToString:@"default"]) continue; // 默认实例轴不碰
+        NSDictionary *ame474_attrs = [ame474_fm attributesOfItemAtPath:ame474_gdStd error:nil];
+        if (!ame474_attrs || [ame474_attrs[NSFileType] isEqualToString:NSFileTypeSymbolicLink]) continue;
+        BOOL ame474_dirOK = NO;
+        if (![ame474_fm fileExistsAtPath:ame474_gdStd isDirectory:&ame474_dirOK] || !ame474_dirOK) continue;
+        // 判据②：lastVersionId 可解析（latest-* 别名不参与实体定位，ame371 同判据）
+        NSString *ame474_vid = ame474_prof[@"lastVersionId"];
+        if (![ame474_vid isKindOfClass:[NSString class]] || ame474_vid.length == 0) continue;
+        if ([ame474_vid hasPrefix:@"latest-"]) continue;
+        // 目标根走 profile 轴单入口（gameDirForProfile）：隔离 vid → versions/<vid>；
+        //   非隔离+自定义目录 → instances/<id> 本身（=src，等值守卫跳过零搬运，
+        //   绝不误搬共享根造成新脱同步——消费方读哪儿就对齐哪儿）
+        NSString *ame474_target = [ZL2GamePath gameDirForProfile:ame474_name];
+        NSString *ame474_targetStd = [ame474_target stringByStandardizingPath];
+        if ([ame474_targetStd isEqualToString:ame474_gdStd]) continue;
+        NSInteger ame474_moved = [self ame474_promotePayloadFrom:ame474_gdStd to:ame474_targetStd];
+        if (ame474_moved > 0) {
+            ame474_hit++;
+            NSLog(@"[Ame474] rescued %ld payload item(s) from instances/%@ → %@ (ZL2 单入口对账, profile=%@, vid=%@)",
+                  (long)ame474_moved, ame474_rest, ame474_targetStd, ame474_name, ame474_vid);
+        }
+        // 搬后空壳摘除（仅剩隐藏条目时；有数据的账本目录绝不触碰）
+        NSArray<NSString *> *ame474_left = [ame474_fm contentsOfDirectoryAtPath:ame474_gdStd error:nil] ?: @[];
+        BOOL ame474_empty = YES;
+        for (NSString *ame474_e in ame474_left) {
+            if ([ame474_e hasPrefix:@"."]) continue;
+            ame474_empty = NO;
+            break;
+        }
+        if (ame474_empty) [ame474_fm removeItemAtPath:ame474_gdStd error:nil];
+    }
+    if (ame474_hit > 0) {
+        NSLog(@"[Ame474] stranded payload rescue done: %ld instance dir(s) reconciled into ZL2 单入口根",
+              (long)ame474_hit);
+    }
+}
+
 // ---------- 扫描模组（核心优化）----------
 // ★ Task371：版本轴多根联合扫描 —— "模组列表加载不出来"根修。
 //   病历（装机 f3854ee latestlog 实锤）：模组管理页对版本轴形态只认单根
