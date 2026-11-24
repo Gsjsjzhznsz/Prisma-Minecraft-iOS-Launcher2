@@ -21,7 +21,7 @@
   A7 搁浅源补基础根（ame471_baseRoot）；
   A8 链合并 collect 恰两处（初扫 + Tier A 复扫）；
   A9 Tier B mainGameDir 换 launchGameDir 口径；
-  A10 Task463 折叠面零污染（≥38 组）；A11 BuildTag Task474 · 2026-11-24；
+  A10 Task463 折叠面零污染（≥38 组）；A11 BuildTag Task475 · 2026-11-25；
   A12 括号平衡（ame_bracket_audit 状态机）。
 selftest：负样本注入（签名回退单参 / collect 单处化）必须翻红。
 """
@@ -69,7 +69,7 @@ def run_checks(jl: str, tag: str) -> list:
                ROOT / "Natives" / "ZL2SettingCards.h"):
         fold += ff.read_text(encoding="utf-8").count("defaultCollapsed:")
     check("A10", fold >= 41, f"Task463 折叠面污染（HEAD 基线 42 → ★Task472 重锚 -1 = 41，实测 {fold}）")
-    check("A11", f'ame415_buildTag = @"Task474 · 2026-11-24"' in tag, "BuildTag 未进代 Task472")
+    check("A11", f'ame415_buildTag = @"Task475 · 2026-11-25"' in tag, "BuildTag 未进代 Task472")
     return fails
 
 

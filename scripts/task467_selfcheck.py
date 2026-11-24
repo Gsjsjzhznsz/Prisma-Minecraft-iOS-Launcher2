@@ -139,8 +139,8 @@ check('R18 verify219 退役化改写（Task472 缺席执法 + 共享根锚）',
       '退役化' in read('scripts/verify_task219.py')
       and 'ame225_sniffedIsolationGameDirForProfile' in read('scripts/verify_task219.py'),
       '退役化改写未重锚')
-check('S1 BuildTag 代际锚 Task474 · 2026-11-24',
-      'ame415_buildTag = @"Task474 · 2026-11-24"' in tag_h,
+check('S1 BuildTag 代际锚 Task475 · 2026-11-25',
+      'ame415_buildTag = @"Task475 · 2026-11-25"' in tag_h,
       'BuildTag 未重锚')
 check('S2 电池登记 task467（声明即实跑）',
       'task467' in read('scripts/task432_gate_battery.sh'),
