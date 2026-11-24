@@ -371,40 +371,9 @@ jobs:
         with:
           name: libMobileGL-gles.dylib
           path: Natives/build/libMobileGL-gles.dylib
-      - name: Commit MobileGL dylibs back to repo (one-shot)
-        # 绝不能因为这一步失败就拖垮 ipa 产物：提交是锦上添花，dylib 已随 artifact 上传，
-        # 用户始终可以从 artifact 直接取用。
-        continue-on-error: true
-        if: matrix.platform_name == 'ios' && success() && hashFiles('Natives/build/libMobileGL.dylib') != '' && hashFiles('Natives/build/libMobileGL-gles.dylib') != '' && vars.COMMIT_MOBILEGL == '1'
-        env:
-          BRANCH_NAME: ${{ github.ref_name }}
-        run: |
-          set -e -x
-          # 把 CI 编译出的 dylib 提交回仓库，避免每次构建重编 glslang + SPIRV-Cross
-          # （macOS runner 约二三十分钟，且 Actions 对 macOS 按 10 倍计费）。
-          # dylib 未剥离，各约 90MB：git 默认 http.postBuffer 只有 1MB，推大文件会
-          # 出现 HTTP 413 / send-pack 断连，这里放大到 500MB。
-          git config http.postBuffer 524288000
-          git config http.version HTTP/1.1
-          git config http.lowSpeedLimit 1000
-          git config http.lowSpeedTime 300
-          cp Natives/build/libMobileGL.dylib Natives/resources/Frameworks/libMobileGL.dylib
-          cp Natives/build/libMobileGL-gles.dylib Natives/resources/Frameworks/libMobileGL-gles.dylib
-          git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add -f Natives/resources/Frameworks/libMobileGL.dylib Natives/resources/Frameworks/libMobileGL-gles.dylib
-          if git diff --cached --quiet; then
-            echo "[ci] MobileGL dylibs unchanged, nothing to commit."
-            exit 0
-          fi
-          git commit -m "chore(mobilegl): 提交 iOS 版 MobileGL 预编译产物 [skip ci]"
-          # 期间可能已有新提交，先 rebase 再推；仍失败则打印远端状态便于定位。
-          if ! git push origin HEAD:"$BRANCH_NAME"; then
-            echo "[ci] 首次推送失败，尝试 pull --rebase 后重试"
-            git pull --rebase origin "$BRANCH_NAME" || true
-            git push origin HEAD:"$BRANCH_NAME"
-          fi
-          echo "[ci] MobileGL dylibs committed: libMobileGL.dylib (DirectVulkan), libMobileGL-gles.dylib (DirectGLES)"
+      # ★Task475 渲染器真插件化：MobileGL commit-back 通道退役（vendored
+      # libMobileGL.dylib 已出包，渲染器能力改由 renderer-repo 在线仓库插件
+      # 包提供；构建期产物仍随 artifact 上传可取，但不再回植仓库树防复活）。
 
       - name: Upload MobileGL build log
         # MobileGL 从源码编译，Prisma 仓库历史上 9 个提交都没编过。

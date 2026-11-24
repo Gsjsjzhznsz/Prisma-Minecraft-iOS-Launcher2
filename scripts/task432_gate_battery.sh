@@ -16,6 +16,7 @@
 #     client-26.3-1-srg.jar 缺失 = 双根脱节 + child-only 扫描 + URL 豁免三盲；
 #     门调用移至 gameDir 终解析后显式传根 + inheritsFrom 链合并扫描 +
 #     processor 三类 URL 豁免撤销 + 搁浅源补基础根）
+#   Task475 轮 = 56 门（+task475 主页侧边栏双形态/渲染器在线仓库双面门 + selftest 反向门）
 # 用法: bash scripts/task432_gate_battery.sh
 cd "$(dirname "$0")/.." || exit 1
 
@@ -129,6 +130,11 @@ run_py task471     scripts/task471_selfcheck.py
 run_py task471_self scripts/task471_selfcheck.py --selftest
 run_py task473     scripts/task473_selfcheck.py
 run_py task473_self scripts/task473_selfcheck.py --selftest
+
+# ★Task475 主页侧边栏双形态（精简 rail 默认/转盘设置开启）+ 渲染器真插件化
+#   （在线仓库单一获取面 + egl_bridge 插件目录真装载 + 内置包出包反锚）
+run_py task475     scripts/task475_selfcheck.py
+run_py task475_self scripts/task475_selfcheck.py --selftest
 
 # ★Task468 MobileGL/Magma 引擎性能旋钮层（抄 Witch-Launcher 调优面）+ 内置渲染器
 #   上游更新扫描轮：12 个 MOBILEGL_* setenv（strings 反锚逐名验证 vendored dylib

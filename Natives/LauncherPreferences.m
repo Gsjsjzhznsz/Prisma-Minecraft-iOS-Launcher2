@@ -790,6 +790,15 @@ static NSArray<NSDictionary *> *availableRendererCandidates(void) {
         if (file.length > 0 && !rendererLibraryExists(file) && ![key isEqualToString:current]) {
             continue;
         }
+        if ([key isEqualToString:@ RENDERER_KEY_MG] &&
+            !rendererLibraryExists(RENDERER_NAME_MOBILEGL) &&
+            ![key isEqualToString:current]) {
+            // ★Task475 渲染器真插件化：vendored libMobileGL.dylib 出包后 mg
+            //   家族随实体缺席隐去（存量选中项 current 豁免照常显示；
+            //   MobileGlues 能力改由 renderer-repo 在线渲染器插件档提供，
+            //   档位经 rendererChoiceOverrides 动态扩展表尾追加）。
+            continue;
+        }
         if ([key isEqualToString:@ RENDERER_NAME_MOBILEGLUES] &&
             ![key isEqualToString:current]) {
             continue;

@@ -602,6 +602,7 @@ add_executable(AngelAuraAmethyst
   ZL2PluginDetailViewController.m
   # Task318：内置插件仓库页（浏览/一键安装随包预置插件）
   ZL2PluginRepoViewController.m
+  ZL2RendererRepoViewController.m  # ★Task475: 在线渲染器仓库（三镜像下载→sha256→安装）
   AppDelegate.m
   CustomControlsViewController.m
   CustomControlsViewController+UndoManager.m

@@ -1,0 +1,18 @@
+{
+  "schema": 1,
+  "repo": "Gsjsjzhznsz/Prisma-Minecraft-iOS-Launcher2",
+  "updated": "2026-11-24",
+  "renderers": [
+    {
+      "id": "mobileglues-dev",
+      "name": "MobileGlues（iOS 适配档）",
+      "version": "1.0.0",
+      "author": "Prisma",
+      "summary": "MobileGlues 渲染器插件包（Witch fork 8df5508 代）：16 旋钮调优面 + 着色器缓存；安装后在设置→渲染器选择该档位。",
+      "file": "plugins/mobileglues-dev-1.0.0.zip",
+      "size": 4826908,
+      "sha256": "171c7a1c6753d5c3143a3aedc657cb72baf15e32ebb5a810c007b0a24a700f1d",
+      "official": true
+    }
+  ]
+}

@@ -2344,6 +2344,26 @@ didFinishPicking:(NSArray<PHPickerResult *> *)results {
         setPrefBool(@"general.hidden_sidebar", on);
     };
     [advGroup ame_addRow:sidebarRow];
+    // ★Task475 主页侧边栏形态（int 0=精简侧边栏 ZL2 rail【默认】/1=转盘封面流；
+    //   用户规格「默认就是精简，转盘要在设置里打开」）。切换广播
+    //   Ame475HomeMenuStyleChanged → 主页整容器重建（ame475_styleDidChange）。
+    ZL2SettingRowList *ame475_styleRow =
+        [[ZL2SettingRowList alloc] initWithTitle:@"" subtitle:nil
+                                 options:@[
+                                     localize(@"ame475.setpg.home_sidebar.rail", @"精简侧边栏"),
+                                     localize(@"ame475.setpg.home_sidebar.flow", @"转盘封面流"),
+                                 ] optionKeys:@[@"0", @"1"]];
+    ame475_styleRow.title    = localize(@"ame475.setpg.home_sidebar.title", @"主页侧边栏");
+    ame475_styleRow.subtitle = localize(@"ame475.setpg.home_sidebar.subtitle", @"精简侧边栏为默认形态；经典转盘封面流可在此切回");
+    {   NSInteger ame475_style = getPrefInt(@"general.home_sidebar_style");
+        if (ame475_style < 0 || ame475_style > 1) ame475_style = 0;
+        [ame475_styleRow ame_reloadSelectedIndex:ame475_style]; }
+    ame475_styleRow.onSelect = ^(NSInteger index) {
+        if (index < 0 || index > 1) return;
+        setPrefInt(@"general.home_sidebar_style", index);
+        [[NSNotificationCenter defaultCenter] postNotificationName:@"Ame475HomeMenuStyleChanged" object:nil];
+    };
+    [advGroup ame_addRow:ame475_styleRow];
     // 自定义三色（强调/文字/卡片，UIColorPicker 平移）+ 一键还原
     ZL2SettingRowAction *accentRow =
         [[ZL2SettingRowAction alloc] initWithTitle:@"" subtitle:nil];

@@ -1,4 +1,0 @@
-{
-  "_comment": "★Task429 渲染器插件驱动配置（§11.4 插件包三要素之三）。driverType=mobileglues：键型与 MobileGlues config.json 同构，JavaLauncher init_loadMobileGluesConfig 在该插件档会话做末位覆盖（插件 wins）；用户 MobileGlues 分区偏好照常先生效，此表仅覆盖列出的键。未列出的键不受影响。",
-  "enableNoError": 0
-}

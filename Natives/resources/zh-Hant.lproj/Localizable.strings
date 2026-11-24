@@ -4620,9 +4620,6 @@
 "ame449.filexlate.tip_full" = "\n提示：源目錄的啟動器配置（帳號/配置）不遷移，遊戲資料已就位。";
 "ame449.plugin.mf_not_json" = "manifest.json 非 JSON 物件";
 "ame449.plugin.mf_unreadable" = "manifest.json 不可讀";
-"ame449.plugin.mg_demo_name" = "MobileGlues 渲染器外掛（內建示範檔）";
-"ame449.plugin.mg_plugin_name" = "MobileGlues（渲染器外掛檔）";
-"ame449.plugin.mg_demo_desc" = "內建渲染器外掛包單鏈路示範：清單註冊→掃描→啟動注入→UI 呈現渲染器檔位。dylib 綁定隨包 Frameworks/libmobileglues.dylib（白名單回退源②）。";
 "ame449.jitgate.magnifier_no_response" = "apple-magnifier:// 無回應（TrollStore JIT 助手未接管，常見於 TrollStore 版本過舊）。請更新 TrollStore，或在設定的 JIT 開啟工具改用 stikjit / SideStore / StosDebug 後重試。\napple-magnifier:// not handled. Update TrollStore or switch the JIT enabler in Settings.";
 "ame449.setpg.group.renderer" = "渲染器";
 "ame449.setpg.group.video" = "視訊增強";
@@ -4669,3 +4666,28 @@
 "ame473.setpg.global_isolation" = "版本隔离";
 "ame473.setpg.global_isolation.detail" = "全局默认档：开启后每个版本使用独立游戏目录（mods/存档等存于版本文件夹）";
 "ame473.setpg.group.isolation" = "版本隔离";
+
+/* ★Task475 主页侧边栏双形态 + 在线渲染器仓库（自动同步） */
+"ame475.setpg.home_sidebar.title" = "主頁側邊欄";
+"ame475.setpg.home_sidebar.subtitle" = "精簡側邊欄為預設形態；經典轉盤封面流可在此切回";
+"ame475.setpg.home_sidebar.rail" = "精簡側邊欄";
+"ame475.setpg.home_sidebar.flow" = "轉盤封面流";
+"ame475.list.renderer_online.title" = "線上渲染器庫…";
+"ame475.list.renderer_online.subtitle" = "線上目錄下載渲染器外掛套件（raw/jsdelivr/ghfast 三鏡像加速）";
+"ame475.repo.title" = "渲染器倉庫";
+"ame475.repo.fetching" = "正在擷取線上目錄…";
+"ame475.repo.fetch_failed" = "線上目錄擷取失敗（三鏡像均不可達）";
+"ame475.repo.empty" = "線上目錄為空";
+"ame475.repo.install" = "安裝";
+"ame475.repo.installed" = "已安裝";
+"ame475.repo.update" = "更新";
+"ame475.repo.installing" = "下載中…";
+"ame475.repo.install_ok" = "渲染器外掛已安裝並啟用；在設定→渲染器選擇該檔位後啟動遊戲生效。";
+"ame475.repo.install_failed" = "安裝失敗";
+"ame475.repo.download_failed" = "下載失敗（網路不可達），請檢查網路或稍後重試。";
+"ame475.repo.sha_mismatch" = "下載內容校驗失敗（sha256 不符），請重試或切換鏡像。";
+"ame475.repo.section_remote" = "線上目錄";
+"ame475.repo.section_local" = "已安裝";
+"ame475.repo.official" = "官方件";
+"ame475.repo.enabled" = "已啟用";
+"ame475.repo.disabled" = "已停用（外掛頁可啟停）";

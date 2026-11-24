@@ -205,19 +205,20 @@ def main():
           checked >= 18 and not problems,
           "; ".join(f"{n}: {d}" for n, d in problems[:8]))
 
-    # R4 libMobileGL 三 @rpath 依赖落位
-    bundled = set(os.listdir(FW))
-    mg_deps, note = parse_deps(os.path.join(FW, "libMobileGL.dylib"))
-    need = {"libc++_cxx23.dylib", "libc++abi_cxx23.dylib", "libMoltenVK.dylib"}
-    rpath_deps = {d[len("@rpath/"):] for d in (mg_deps or []) if d.startswith("@rpath/")}
-    check("R4 libMobileGL @rpath 三依赖全落位（cxx23/cxxabi23/MoltenVK）",
-          (mg_deps is not None) and need.issubset(rpath_deps) and need.issubset(bundled),
-          f"rpath_deps={sorted(rpath_deps)}")
+    # R4 ★Task475 vendored libMobileGL 出包反锚（在线插件包单一获取面；
+    #   插件包内 dylib 指纹/依赖闭包由 ame468 S2/S10 + task435 站3 执法）
+    mg_gone = not os.path.exists(os.path.join(FW, "libMobileGL.dylib"))
+    pkg_zip = os.path.join(ROOT, "renderer-repo", "plugins", "mobileglues-dev-1.0.0.zip")
+    check("R4 vendored libMobileGL 已出包 + renderer-repo 插件包在场（防复活/防断链）",
+          mg_gone and os.path.isfile(pkg_zip),
+          f"vendored_exists={not mg_gone} zip={os.path.isfile(pkg_zip)}")
 
-    # R5 PROVENANCE 伴侣对段
-    prov = open(PROV, encoding="utf-8", errors="replace").read() if os.path.isfile(PROV) else ""
-    check("R5 PROVENANCE 伴侣对档案段在场（Task470 + cxx23 双名）",
-          "Task470" in prov and "libc++_cxx23" in prov and "libc++abi_cxx23" in prov)
+    # R5 ★Task475 PROVENANCE 随 vendored 出包退役（反锚）；伴侣对实体仍在
+    prov_gone = not os.path.isfile(PROV)
+    pair_here = (os.path.isfile(os.path.join(FW, "libc++_cxx23.dylib"))
+                 and os.path.isfile(os.path.join(FW, "libc++abi_cxx23.dylib")))
+    check("R5 PROVENANCE 已出包（反锚）+ 伴侣对实体仍在 Frameworks",
+          prov_gone and pair_here, f"prov_gone={prov_gone} pair={pair_here}")
 
     # R6 装机日志锚双行
     jl = open(JL, encoding="utf-8", errors="replace").read() if os.path.isfile(JL) else ""

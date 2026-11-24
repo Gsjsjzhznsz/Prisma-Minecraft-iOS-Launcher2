@@ -4622,9 +4622,6 @@
 "ame449.filexlate.tip_full" = "\n提示：源目录的启动器配置（账号/配置）不迁移，游戏数据已就位。";
 "ame449.plugin.mf_not_json" = "manifest.json 非 JSON 对象";
 "ame449.plugin.mf_unreadable" = "manifest.json 不可读";
-"ame449.plugin.mg_demo_name" = "MobileGlues 渲染器插件（内置演示档）";
-"ame449.plugin.mg_plugin_name" = "MobileGlues（渲染器插件档）";
-"ame449.plugin.mg_demo_desc" = "内置渲染器插件包单条链路演示：清单注册→扫描→启动注入→UI 呈现渲染器档位。dylib 绑定随包 Frameworks/libmobileglues.dylib（白名单回退源②）。";
 "ame449.jitgate.magnifier_no_response" = "apple-magnifier:// 无响应（TrollStore JIT 助手未接管，常见于 TrollStore 版本过旧）。请更新 TrollStore，或在设置的 JIT 开启工具改用 stikjit / SideStore / StosDebug 后重试。\napple-magnifier:// not handled. Update TrollStore or switch the JIT enabler in Settings.";
 "ame449.setpg.group.renderer" = "渲染器";
 "ame449.setpg.group.video" = "视频增强";
@@ -4671,3 +4668,28 @@
 "ame473.setpg.global_isolation" = "版本隔离";
 "ame473.setpg.global_isolation.detail" = "全局默认档：开启后每个版本使用独立游戏目录（mods/存档等存于版本文件夹）";
 "ame473.setpg.group.isolation" = "版本隔离";
+
+/* ★Task475 主页侧边栏双形态 + 在线渲染器仓库（自动同步） */
+"ame475.setpg.home_sidebar.title" = "主页侧边栏";
+"ame475.setpg.home_sidebar.subtitle" = "精简侧边栏为默认形态；经典转盘封面流可在此切回";
+"ame475.setpg.home_sidebar.rail" = "精简侧边栏";
+"ame475.setpg.home_sidebar.flow" = "转盘封面流";
+"ame475.list.renderer_online.title" = "在线渲染器库…";
+"ame475.list.renderer_online.subtitle" = "在线目录下载渲染器插件包（raw/jsdelivr/ghfast 三镜像加速）";
+"ame475.repo.title" = "渲染器仓库";
+"ame475.repo.fetching" = "正在拉取在线目录…";
+"ame475.repo.fetch_failed" = "在线目录拉取失败（三镜像均不可达）";
+"ame475.repo.empty" = "在线目录为空";
+"ame475.repo.install" = "安装";
+"ame475.repo.installed" = "已安装";
+"ame475.repo.update" = "更新";
+"ame475.repo.installing" = "下载中…";
+"ame475.repo.install_ok" = "渲染器插件已安装并启用；在设置→渲染器选择该档位后启动游戏生效。";
+"ame475.repo.install_failed" = "安装失败";
+"ame475.repo.download_failed" = "下载失败（网络不可达），请检查网络或稍后重试。";
+"ame475.repo.sha_mismatch" = "下载内容校验失败（sha256 不符），请重试或切换镜像。";
+"ame475.repo.section_remote" = "在线目录";
+"ame475.repo.section_local" = "已安装";
+"ame475.repo.official" = "官方件";
+"ame475.repo.enabled" = "已启用";
+"ame475.repo.disabled" = "已停用（插件页可启停）";

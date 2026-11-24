@@ -9,6 +9,8 @@
 
 // ═══ ★Task429（§11.4 管理端最小接入）：渲染器插件软链协议 ═══
 // PLRendererPluginService / PLRendererPluginEntry 的影子协议 —— 本页零
+#import "ZL2RendererRepoViewController.h"   // ★Task475 在线渲染器仓库入口页
+
 // import 服务头、零链接符号依赖（服务 TU 未进构建时 NSClassFromString 得
 // nil，渲染器插件组整组隐藏；ame428 PLGameIntegrityService 软链判例同款）。
 @protocol Ame429RendererServiceShadow <NSObject>
@@ -607,7 +609,7 @@ didPickDocumentsAtURLs:(NSArray<NSURL *> *)urls {
 - (NSInteger)tableView:(UITableView *)tableView numberOfRowsInSection:(NSInteger)section {
     if (section == 0) return MAX(self.cards.count, 1); // 空态占位行
     if (section == 1) return self.contributedRows.count;
-    if (section == 4) return self.ame429_rendererEntries.count;   // ★Task429：渲染器插件
+    if (section == 4) return self.ame429_rendererEntries.count + 1;   // ★Task429：渲染器插件 + ★Task475 在线获取入口行
     return 1; // API 版本说明行 / 指南行
 }
 
@@ -676,6 +678,14 @@ didPickDocumentsAtURLs:(NSArray<NSURL *> *)urls {
         return cell;
     }
     if (indexPath.section == 4) {
+        // ★Task475：末行 = 在线渲染器库入口（在线目录下载→sha256 校验→安装
+        //   单一获取面；装机零预置后 MobileGlues 等渲染器由此获得）
+        if ((NSUInteger)indexPath.row == self.ame429_rendererEntries.count) {
+            [cell ame345_setTitles:localize(@"ame475.list.renderer_online.title", @"在线渲染器库…")
+                              sub:localize(@"ame475.list.renderer_online.subtitle", @"在线目录下载渲染器插件包（raw/jsdelivr/ghfast 三镜像加速）")
+                             icon:@"arrow.down.circle"];
+            return cell;
+        }
         // ★Task429：渲染器插件卡（启停开关与 JS 插件同源 state.json；
         //   点按 = 卸载确认弹窗）。副文 = 驱动类型 · ABI · 版本（§11.4 三字段
         //   档位呈现面）。
@@ -769,6 +779,12 @@ didPickDocumentsAtURLs:(NSArray<NSURL *> *)urls {
         NSDictionary *row = self.contributedRows[(NSUInteger)indexPath.row];
         [AmePluginRuntime invokeRowTap:row[@"id"]];
     } else if (indexPath.section == 4) {
+        // ★Task475：末行 = 在线渲染器库入口（push 仓库页）
+        if ((NSUInteger)indexPath.row == self.ame429_rendererEntries.count) {
+            [self.navigationController pushViewController:[[ZL2RendererRepoViewController alloc] init]
+                                                 animated:YES];
+            return;
+        }
         // ★Task429：卸载确认（与 JS 插件卸载同款 purge state；运行中会话
         //   不受影响，下次启动生效）。
         id<Ame429RendererEntryShadow> ame429_entry =

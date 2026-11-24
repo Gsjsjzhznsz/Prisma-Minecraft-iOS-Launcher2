@@ -643,7 +643,26 @@ static int pojavInitOpenGLInternal(BOOL setLwjglProperty) {
         const char *ame131_load = strcmp(renderer.UTF8String, RENDERER_NAME_MOBILEGL_GLES) == 0
             ? RENDERER_NAME_MOBILEGL
             : renderer.UTF8String;
-        dlopen([NSString stringWithFormat:@"@rpath/%s", ame131_load].UTF8String, RTLD_GLOBAL);
+        // ★Task475 渲染器插件真装载（名字遮蔽根修）：插件会话由启动链设置
+        //   AME429_RENDERER_PLUGIN_DIR（插件包目录）。绝对路径优先 dlopen =
+        //   插件目录内 dylib 真身上下文（Task146 同款 dyld 规范路径去重语义，
+        //   与 LWJGL java.library.path 刀口③同源同文件——预加载与 LWJGL 解析
+        //   必然同一实例）；未命中/非插件会话维持 @rpath 经典路径零回归。
+        //   Task472 时代插件档恒被 Frameworks 内置同名件遮蔽（@rpath 按文件
+        //   名解析）=「插件渲染器其实是集成在启动器里的」装机根因，自此根修。
+        const char *ame475_dir = getenv("AME429_RENDERER_PLUGIN_DIR");
+        BOOL ame475_loaded = NO;
+        if (ame475_dir && ame475_dir[0] != '\0') {
+            NSString *ame475_path = [NSString stringWithFormat:@"%s/%s", ame475_dir, ame131_load];
+            if ([[NSFileManager defaultManager] fileExistsAtPath:ame475_path]) {
+                ame475_loaded = dlopen(ame475_path.UTF8String, RTLD_GLOBAL) != NULL;
+                NSLog(@"[egl_bridge] Task475 renderer plugin dylib preload (%@): %@",
+                      ame475_path, ame475_loaded ? @"ok" : @"failed -- fallback @rpath");
+            }
+        }
+        if (!ame475_loaded) {
+            dlopen([NSString stringWithFormat:@"@rpath/%s", ame131_load].UTF8String, RTLD_GLOBAL);
+        }
     }
 
     // ★ Task309：帧率解锁钩子（mg_vsync_hook.m）按用户指令整体回退退役——

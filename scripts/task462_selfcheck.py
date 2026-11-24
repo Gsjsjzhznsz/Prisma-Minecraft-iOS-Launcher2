@@ -95,8 +95,10 @@ check("R7-2 Task255 裸键形态退役（消费端）",
 
 check("R9-1 449⑤ filexlate 家族 localize 化",
       'localize(@"ame449.filexlate.kind_fmt"' in rd("Natives/FileLayoutService.m"))
-check("R9-2 449⑤ mg_demo 家族 localize 化",
-      'localize(@"ame449.plugin.mg_demo_name"' in rd("Natives/PLRendererPluginService.m"))
+check("R9-2 ★Task475 mg_demo 种子家族退役（code 零引用 + 在线仓库安装链在场）",
+      'ame449.plugin.mg_demo_name' not in rd("Natives/PLRendererPluginService.m")
+      and 'installRendererPluginFromZip:ame475_tmpZip' in rd("Natives/ZL2RendererRepoViewController.m")
+      and 'ZL2RendererRepoViewController.m' in rd("Natives/CMakeLists.txt"))
 check("R9-3 449⑤ manifest 隔离文案 localize 化",
       'localize(@"ame449.plugin.mf_not_json"' in rd("Natives/AmePluginRuntime.m"))
 check("R9-4 449⑤ JITGate magnifier localize 化",

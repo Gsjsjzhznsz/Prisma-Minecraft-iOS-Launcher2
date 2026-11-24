@@ -113,11 +113,11 @@ if not bin_ipa:
     sys.exit(1)
 
 # ── 代际 + 旋钮 + 锚 ─────────────────────────────────────────
-check('V3 BuildTag Task474 · 2026-11-24 UTF-16LE 在场',
-      bin_has(bin_ipa, utf16_le("Task474 · 2026-11-24")))
-check('V4 旧代际归零（Task473 · 2026-11-24 / Task472 · 2026-11-24 UTF-16LE 双消）',
-      not bin_has(bin_ipa, utf16_le("Task473 · 2026-11-24"))
-      and not bin_has(bin_ipa, utf16_le("Task472 · 2026-11-24")))
+check('V3 BuildTag Task475 · 2026-11-25 UTF-16LE 在场',
+      bin_has(bin_ipa, utf16_le("Task475 · 2026-11-25")))
+check('V4 旧代际归零（Task474 · 2026-11-24 / Task473 · 2026-11-24 UTF-16LE 双消）',
+      not bin_has(bin_ipa, utf16_le("Task474 · 2026-11-24"))
+      and not bin_has(bin_ipa, utf16_le("Task473 · 2026-11-24")))
 
 KNOB_ENVS = [
     "MOBILEGL_MAGMA_FRAMESINFLIGHT",
@@ -154,23 +154,17 @@ check('V9 幽灵三旋钮转正（VMA/ADOPT/ANGLE 主二进制在场执法）',
           "MOBILEGL_LARGE_BUFFER_ADOPT_MB",
           "MOBILEGL_ANGLE_BACKEND")))
 
+# ★Task475 渲染器出包：vendored dylib/builtin-renderers 零随包；在线仓库
+# 消费面（仓库页类符号 + renderer-repo 基址串 + 插件真装载日志锚）随包执法。
 mg_dylibs = glob.glob(os.path.join(ipa_app, "Payload", "*.app", "**", "libMobileGL.dylib"), recursive=True)
-check('V10 libMobileGL.dylib 随包（app Frameworks 内恰一份）', len(mg_dylibs) == 1, str(mg_dylibs))
-if mg_dylibs:
-    d = mg_dylibs[0]
-    sz = os.path.getsize(d)
-    # 打包链 codesign/签名摘除会形变体积（N+25 判例：仓库侧 16447088 → 随包带域），
-    # 尺寸判据用带域防旧代（旧代 85757760B 远超上界）：
-    check('V11 dylib 换装代际反锚（GIT@8df5508 在场 + 旧代 GIT@874b9e8 双消 + 带域 10-20MB）',
-          bin_has(d, b"GIT@8df5508")
-          and not bin_has(d, b"GIT@874b9e8")
-          and 10_000_000 <= sz <= 20_000_000,
-          f"size={sz}")
-    check('V12 vendored dylib 反锚延续（16 旋钮名在其字符串表）',
-          all(bin_has(d, s.encode()) for s in KNOB_ENVS))
-else:
-    check('V11 dylib 换装代际反锚', False, "dylib 缺失")
-    check('V12 vendored dylib 反锚延续', False, "dylib 缺失")
+builtin_dirs = glob.glob(os.path.join(ipa_app, "Payload", "*.app", "**", "builtin-renderers"), recursive=True)
+check('V10 ★Task475 渲染器出包反锚（libMobileGL.dylib 零随包 + builtin-renderers 零随包）',
+      len(mg_dylibs) == 0 and len(builtin_dirs) == 0, str(mg_dylibs + builtin_dirs))
+check('V11 在线渲染器仓库消费面随包（ZL2RendererRepoViewController 类符号 + renderer-repo 基址串）',
+      bin_has(bin_ipa, b"ZL2RendererRepoViewController")
+      and bin_has(bin_ipa, b"renderer-repo"))
+check('V12 Task475 插件真装载日志锚（egl_bridge Task475 preload 行）',
+      bin_has(bin_ipa, b"[egl_bridge] Task475 renderer plugin dylib preload"))
 
 # ── Task470 新面：C++ 运行时伴侣对随包执法 ────────────────────
 cxx_dylibs = glob.glob(os.path.join(ipa_app, "Payload", "*.app", "**", "libc++_cxx23.dylib"), recursive=True)
@@ -184,14 +178,13 @@ check('V18 libc++abi_cxx23.dylib 随包（恰一份 + Mach-O 魔数 + 带域 0.2
       len(cxxabi_dylibs) == 1 and is_macho(cxxabi_dylibs[0])
       and 250_000 <= os.path.getsize(cxxabi_dylibs[0]) <= 500_000,
       str(cxxabi_dylibs) + f' size={os.path.getsize(cxxabi_dylibs[0]) if cxxabi_dylibs else "-"}')
-if mg_dylibs and cxx_dylibs and cxxabi_dylibs:
-    same_dir = (os.path.dirname(mg_dylibs[0]) == os.path.dirname(cxx_dylibs[0])
-                and os.path.dirname(mg_dylibs[0]) == os.path.dirname(cxxabi_dylibs[0]))
-    mvk_nearby = os.path.isfile(os.path.join(os.path.dirname(mg_dylibs[0]), "libMoltenVK.dylib"))
-    check('V19 伴侣对与 libMobileGL 同目录三依赖闭环（@rpath 解析目录一致 + libMoltenVK 在场）',
+if cxx_dylibs and cxxabi_dylibs:
+    same_dir = os.path.dirname(cxx_dylibs[0]) == os.path.dirname(cxxabi_dylibs[0])
+    mvk_nearby = os.path.isfile(os.path.join(os.path.dirname(cxx_dylibs[0]), "libMoltenVK.dylib"))
+    check('V19 ★Task475 伴侣对同目录闭环（@rpath 解析目录一致 + libMoltenVK 同目录在场）',
           same_dir and mvk_nearby)
 else:
-    check('V19 伴侣对与 libMobileGL 同目录三依赖闭环', False, "前置 dylib 缺失")
+    check('V19 伴侣对同目录闭环', False, "伴侣对缺失")
 
 # ── 保留面回归锚 ─────────────────────────────────────────────
 check('V13 Task465/156/158 保留面（折叠 selector + fold_overrides + DyldLV init + drawelements + DSA 键）',

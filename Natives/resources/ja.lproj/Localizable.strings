@@ -3321,9 +3321,6 @@
 "ame449.filexlate.tip_full" = "\nヒント：ソースのランチャー設定（アカウント/設定）は移行しません。ゲームデータは配置済みです。";
 "ame449.plugin.mf_not_json" = "manifest.json が JSON オブジェクトではありません";
 "ame449.plugin.mf_unreadable" = "manifest.json を読み取れません";
-"ame449.plugin.mg_demo_name" = "MobileGlues レンダラープラグイン（内蔵デモ）";
-"ame449.plugin.mg_plugin_name" = "MobileGlues（レンダラープラグイン）";
-"ame449.plugin.mg_demo_desc" = "内蔵レンダラープラグインのデモチェーン：マニフェスト登録 → スキャン → 起動注入 → UI にレンダラーティアを表示。dylib は同梱 Frameworks/libmobileglues.dylib にバインド（許可リスト代替ソース②）。";
 "ame449.jitgate.magnifier_no_response" = "apple-magnifier:// が応答なし（TrollStore の JIT ヘルパーが未接管。TrollStore が古い場合が多い）。TrollStore を更新するか、設定の JIT ツールを stikjit / SideStore / StosDebug に切り替えて再試行してください。\napple-magnifier:// not handled. Update TrollStore or switch the JIT enabler in Settings.";
 "ame449.setpg.group.renderer" = "レンダラー";
 "ame449.setpg.group.video" = "映像強化";
@@ -4516,3 +4513,28 @@
 "ame473.setpg.global_isolation" = "Version Isolation";
 "ame473.setpg.global_isolation.detail" = "Global default: when enabled, each version uses its own game folder (mods/saves live inside the version folder)";
 "ame473.setpg.group.isolation" = "Version Isolation";
+
+/* ★Task475 主页侧边栏双形态 + 在线渲染器仓库（自动同步） */
+"ame475.setpg.home_sidebar.title" = "ホームサイドバー";
+"ame475.setpg.home_sidebar.subtitle" = "コンパクトサイドバーが既定。クラシックなホイールフローはここで切替";
+"ame475.setpg.home_sidebar.rail" = "コンパクトサイドバー";
+"ame475.setpg.home_sidebar.flow" = "ホイールフロー";
+"ame475.list.renderer_online.title" = "オンラインレンダラーライブラリ…";
+"ame475.list.renderer_online.subtitle" = "オンラインカタログからレンダラープラグインをダウンロード（raw/jsdelivr/ghfast 三ミラー加速）";
+"ame475.repo.title" = "レンダラーリポジトリ";
+"ame475.repo.fetching" = "オンラインカタログを取得中…";
+"ame475.repo.fetch_failed" = "オンラインカタログの取得に失敗（三ミラーとも到達不可）";
+"ame475.repo.empty" = "オンラインカタログは空です";
+"ame475.repo.install" = "インストール";
+"ame475.repo.installed" = "インストール済み";
+"ame475.repo.update" = "更新";
+"ame475.repo.installing" = "ダウンロード中…";
+"ame475.repo.install_ok" = "レンダラープラグインをインストールして有効化しました。設定→レンダラーで該当档位を選んでゲームを起動すると反映されます。";
+"ame475.repo.install_failed" = "インストール失敗";
+"ame475.repo.download_failed" = "ダウンロード失敗（ネットワーク到達不可）。回線を確認するか後でお試しください。";
+"ame475.repo.sha_mismatch" = "ダウンロード内容の検証に失敗（sha256 不一致）。再試行するかミラーを切替えてください。";
+"ame475.repo.section_remote" = "オンラインカタログ";
+"ame475.repo.section_local" = "インストール済み";
+"ame475.repo.official" = "公式";
+"ame475.repo.enabled" = "有効";
+"ame475.repo.disabled" = "無効（プラグインページで切替可能）";

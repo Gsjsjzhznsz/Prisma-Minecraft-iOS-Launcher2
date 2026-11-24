@@ -4379,9 +4379,6 @@
 "ame449.filexlate.tip_full" = "\n참고: 소스 디렉터리의 런처 구성(계정/설정)은 이전되지 않으며 게임 데이터만 그 자리에 들어갑니다.";
 "ame449.plugin.mf_not_json" = "manifest.json이 JSON 객체가 아닙니다";
 "ame449.plugin.mf_unreadable" = "manifest.json을 읽을 수 없습니다";
-"ame449.plugin.mg_demo_name" = "MobileGlues 렌더러 플러그인(내장 데모)";
-"ame449.plugin.mg_plugin_name" = "MobileGlues(렌더러 플러그인 등급)";
-"ame449.plugin.mg_demo_desc" = "내장 렌더러 플러그인 데모 체인: 매니페스트 등록 → 스캔 → 실행 주입 → UI의 렌더러 등급. dylib는 번들된 Frameworks/libmobileglues.dylib에 바인딩됩니다(허용 목록 대체 소스 ②).";
 "ame449.jitgate.magnifier_no_response" = "apple-magnifier://를 처리하지 못했습니다(TrollStore JIT 헬퍼가 인수하지 않았습니다. 보통 TrollStore가 너무 오래된 경우입니다). TrollStore를 업데이트하거나 설정에서 JIT 활성화 도구를 stikjit / SideStore / StosDebug로 바꾼 뒤 다시 시도하세요.\napple-magnifier://를 처리하지 못했습니다. TrollStore를 업데이트하거나 설정에서 JIT 활성화 도구를 바꾸세요.";
 "ame449.setpg.group.renderer" = "렌더러";
 "ame449.setpg.group.video" = "비디오 향상";
@@ -4428,3 +4425,28 @@
 "ame473.setpg.global_isolation" = "Version Isolation";
 "ame473.setpg.global_isolation.detail" = "Global default: when enabled, each version uses its own game folder (mods/saves live inside the version folder)";
 "ame473.setpg.group.isolation" = "Version Isolation";
+
+/* ★Task475 主页侧边栏双形态 + 在线渲染器仓库（自动同步） */
+"ame475.setpg.home_sidebar.title" = "Home sidebar";
+"ame475.setpg.home_sidebar.subtitle" = "Compact sidebar is the default; the classic wheel flow can be switched back here";
+"ame475.setpg.home_sidebar.rail" = "Compact sidebar";
+"ame475.setpg.home_sidebar.flow" = "Wheel cover flow";
+"ame475.list.renderer_online.title" = "Online renderer library…";
+"ame475.list.renderer_online.subtitle" = "Download renderer plugin packages from the online catalog (raw/jsdelivr/ghfast triple mirrors)";
+"ame475.repo.title" = "Renderer repository";
+"ame475.repo.fetching" = "Fetching online catalog…";
+"ame475.repo.fetch_failed" = "Failed to fetch the online catalog (all three mirrors unreachable)";
+"ame475.repo.empty" = "The online catalog is empty";
+"ame475.repo.install" = "Install";
+"ame475.repo.installed" = "Installed";
+"ame475.repo.update" = "Update";
+"ame475.repo.installing" = "Downloading…";
+"ame475.repo.install_ok" = "Renderer plugin installed and enabled; pick it in Settings → Renderer, then launch the game.";
+"ame475.repo.install_failed" = "Install failed";
+"ame475.repo.download_failed" = "Download failed (network unreachable). Check your connection or retry later.";
+"ame475.repo.sha_mismatch" = "Downloaded content failed verification (sha256 mismatch). Retry or switch mirrors.";
+"ame475.repo.section_remote" = "Online catalog";
+"ame475.repo.section_local" = "Installed";
+"ame475.repo.official" = "Official";
+"ame475.repo.enabled" = "Enabled";
+"ame475.repo.disabled" = "Disabled (toggle on the Plugins page)";

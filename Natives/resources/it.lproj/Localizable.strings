@@ -4384,9 +4384,6 @@
 "ame449.filexlate.tip_full" = "\nNota: la configurazione del launcher (account/impostazioni) nella directory di origine non viene migrata; i dati di gioco sono al loro posto.";
 "ame449.plugin.mf_not_json" = "manifest.json non è un oggetto JSON";
 "ame449.plugin.mf_unreadable" = "manifest.json è illeggibile";
-"ame449.plugin.mg_demo_name" = "Plugin renderer MobileGlues (demo integrata)";
-"ame449.plugin.mg_plugin_name" = "MobileGlues (livello plugin renderer)";
-"ame449.plugin.mg_demo_desc" = "Catena demo integrata del plugin renderer: registrazione del manifest → scansione → iniezione al lancio → livello renderer nell'UI. La dylib si collega a Frameworks/libmobileglues.dylib inclusa (fonte di fallback della allowlist ②).";
 "ame449.jitgate.magnifier_no_response" = "apple-magnifier:// non gestito (l'helper JIT di TrollStore non ha preso il controllo; spesso TrollStore è troppo vecchio). Aggiorna TrollStore, oppure passa l'attivatore JIT a stikjit / SideStore / StosDebug nelle impostazioni e riprova.\napple-magnifier:// non gestito. Aggiorna TrollStore oppure cambia l'attivatore JIT nelle impostazioni.";
 "ame449.setpg.group.renderer" = "Renderer";
 "ame449.setpg.group.video" = "Miglioramenti video";
@@ -4433,3 +4430,28 @@
 "ame473.setpg.global_isolation" = "Version Isolation";
 "ame473.setpg.global_isolation.detail" = "Global default: when enabled, each version uses its own game folder (mods/saves live inside the version folder)";
 "ame473.setpg.group.isolation" = "Version Isolation";
+
+/* ★Task475 主页侧边栏双形态 + 在线渲染器仓库（自动同步） */
+"ame475.setpg.home_sidebar.title" = "Home sidebar";
+"ame475.setpg.home_sidebar.subtitle" = "Compact sidebar is the default; the classic wheel flow can be switched back here";
+"ame475.setpg.home_sidebar.rail" = "Compact sidebar";
+"ame475.setpg.home_sidebar.flow" = "Wheel cover flow";
+"ame475.list.renderer_online.title" = "Online renderer library…";
+"ame475.list.renderer_online.subtitle" = "Download renderer plugin packages from the online catalog (raw/jsdelivr/ghfast triple mirrors)";
+"ame475.repo.title" = "Renderer repository";
+"ame475.repo.fetching" = "Fetching online catalog…";
+"ame475.repo.fetch_failed" = "Failed to fetch the online catalog (all three mirrors unreachable)";
+"ame475.repo.empty" = "The online catalog is empty";
+"ame475.repo.install" = "Install";
+"ame475.repo.installed" = "Installed";
+"ame475.repo.update" = "Update";
+"ame475.repo.installing" = "Downloading…";
+"ame475.repo.install_ok" = "Renderer plugin installed and enabled; pick it in Settings → Renderer, then launch the game.";
+"ame475.repo.install_failed" = "Install failed";
+"ame475.repo.download_failed" = "Download failed (network unreachable). Check your connection or retry later.";
+"ame475.repo.sha_mismatch" = "Downloaded content failed verification (sha256 mismatch). Retry or switch mirrors.";
+"ame475.repo.section_remote" = "Online catalog";
+"ame475.repo.section_local" = "Installed";
+"ame475.repo.official" = "Official";
+"ame475.repo.enabled" = "Enabled";
+"ame475.repo.disabled" = "Disabled (toggle on the Plugins page)";

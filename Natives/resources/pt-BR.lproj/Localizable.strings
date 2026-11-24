@@ -4387,9 +4387,6 @@
 "ame449.filexlate.tip_full" = "\nObservação: a configuração do launcher (contas/configurações) no diretório de origem não é migrada; os dados do jogo ficam como estão.";
 "ame449.plugin.mf_not_json" = "manifest.json não é um objeto JSON";
 "ame449.plugin.mf_unreadable" = "manifest.json está ilegível";
-"ame449.plugin.mg_demo_name" = "Plugin de renderizador MobileGlues (demonstração integrada)";
-"ame449.plugin.mg_plugin_name" = "MobileGlues (nível de plugin de renderizador)";
-"ame449.plugin.mg_demo_desc" = "Cadeia de demonstração integrada do plugin de renderizador: registro no manifest → varredura → injeção na inicialização → nível de renderizador na UI. A dylib vincula-se à Frameworks/libmobileglues.dylib incluída (fonte alternativa da allowlist ②).";
 "ame449.jitgate.magnifier_no_response" = "apple-magnifier:// não foi tratado (o auxiliar de JIT do TrollStore não assumiu o controle; geralmente o TrollStore está muito antigo). Atualize o TrollStore, ou troque o ativador de JIT para stikjit / SideStore / StosDebug nas Configurações e tente novamente.\napple-magnifier:// não foi tratado. Atualize o TrollStore ou troque o ativador de JIT nas Configurações.";
 "ame449.setpg.group.renderer" = "Renderizador";
 "ame449.setpg.group.video" = "Aprimoramentos de vídeo";
@@ -4452,3 +4449,28 @@
 "ame473.setpg.global_isolation" = "Version Isolation";
 "ame473.setpg.global_isolation.detail" = "Global default: when enabled, each version uses its own game folder (mods/saves live inside the version folder)";
 "ame473.setpg.group.isolation" = "Version Isolation";
+
+/* ★Task475 主页侧边栏双形态 + 在线渲染器仓库（自动同步） */
+"ame475.setpg.home_sidebar.title" = "Home sidebar";
+"ame475.setpg.home_sidebar.subtitle" = "Compact sidebar is the default; the classic wheel flow can be switched back here";
+"ame475.setpg.home_sidebar.rail" = "Compact sidebar";
+"ame475.setpg.home_sidebar.flow" = "Wheel cover flow";
+"ame475.list.renderer_online.title" = "Online renderer library…";
+"ame475.list.renderer_online.subtitle" = "Download renderer plugin packages from the online catalog (raw/jsdelivr/ghfast triple mirrors)";
+"ame475.repo.title" = "Renderer repository";
+"ame475.repo.fetching" = "Fetching online catalog…";
+"ame475.repo.fetch_failed" = "Failed to fetch the online catalog (all three mirrors unreachable)";
+"ame475.repo.empty" = "The online catalog is empty";
+"ame475.repo.install" = "Install";
+"ame475.repo.installed" = "Installed";
+"ame475.repo.update" = "Update";
+"ame475.repo.installing" = "Downloading…";
+"ame475.repo.install_ok" = "Renderer plugin installed and enabled; pick it in Settings → Renderer, then launch the game.";
+"ame475.repo.install_failed" = "Install failed";
+"ame475.repo.download_failed" = "Download failed (network unreachable). Check your connection or retry later.";
+"ame475.repo.sha_mismatch" = "Downloaded content failed verification (sha256 mismatch). Retry or switch mirrors.";
+"ame475.repo.section_remote" = "Online catalog";
+"ame475.repo.section_local" = "Installed";
+"ame475.repo.official" = "Official";
+"ame475.repo.enabled" = "Enabled";
+"ame475.repo.disabled" = "Disabled (toggle on the Plugins page)";

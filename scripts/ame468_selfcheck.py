@@ -175,43 +175,65 @@ def main():
     # S1/S3/S4/S5/S8/S9
     check_source(text, fails)
 
-    # S2 二进制反锚（libMobileGL.dylib）
-    strs = dylib_strings(DYLIB_MG)
-    if strs is None:
-        fails.append("S2 libMobileGL.dylib 不存在，无法反锚")
+    # S2 二进制反锚（★Task475 载体迁移：vendored dylib 出包，反锚载体 =
+    # renderer-repo 在线插件包内 libmobileglues.dylib——同一 GIT@8df5508 构建）
+    import zipfile as _zipfile
+    ZIP_MG = ROOT / "renderer-repo" / "plugins" / "mobileglues-dev-1.0.0.zip"
+    strs = None
+    if not ZIP_MG.is_file():
+        fails.append("S2 renderer-repo 插件包缺失")
     else:
+        with _zipfile.ZipFile(ZIP_MG) as _z:
+            if "libmobileglues.dylib" not in _z.namelist():
+                fails.append("S2 插件包内 dylib 缺席")
+            else:
+                _probe = ROOT / "build" / "ame468_dylib_probe.dylib"
+                _probe.parent.mkdir(exist_ok=True)
+                _probe.write_bytes(_z.read("libmobileglues.dylib"))
+                strs = dylib_strings(_probe)
+                _probe.unlink(missing_ok=True)
+        if strs is None:
+            fails.append("S2 插件包 dylib 字符串表不可解析")
+    if strs is not None:
         blob = "\n".join(strs)
         for name in APPLIED_ENVS:
             if name not in blob:
-                fails.append(f"S2 二进制反锚失败（vendored dylib 无此变量）: {name}")
+                fails.append(f"S2 二进制反锚失败（插件包 dylib 无此变量）: {name}")
         for name in GHOST_ENVS:
             if name in blob:
                 # dylib 自己有的名字反而进 GHOST 清单 = 清单配置错（双保险反向校验）
                 fails.append(f"S2 GHOST 清单配置矛盾（dylib 实际支持）: {name}")
 
-    # S10 升代产物代际锚（Task469：dylib 换装校验）
+    # S10 升代产物代际锚（★Task475 载体迁移：指纹沿袭执法对象 =
+    # renderer-repo 插件包 dylib——vendored 出包后在线资产必须同源同指纹）
     import hashlib as _hashlib
-    if DYLIB_MG.exists():
-        _sz = DYLIB_MG.stat().st_size
+    import zipfile as _zipfile2
+    ZIP_MG2 = ROOT / "renderer-repo" / "plugins" / "mobileglues-dev-1.0.0.zip"
+    if ZIP_MG2.is_file():
+        _pkgdylib = ROOT / "build" / "ame468_s10_dylib_probe.dylib"
+        _pkgdylib.parent.mkdir(exist_ok=True)
+        with _zipfile2.ZipFile(ZIP_MG2) as _z2:
+            _pkgdylib.write_bytes(_z2.read("libmobileglues.dylib"))
+        _sz = _pkgdylib.stat().st_size
         if _sz != 16447088:
-            fails.append(f"S10 dylib 尺寸漂移 {_sz} != 16447088")
-        _sha = _hashlib.sha256(DYLIB_MG.read_bytes()).hexdigest()
+            fails.append(f"S10 插件包 dylib 尺寸漂移 {_sz} != 16447088")
+        _sha = _hashlib.sha256(_pkgdylib.read_bytes()).hexdigest()
         if not _sha.startswith("fd907f655061aaa9"):
-            fails.append(f"S10 dylib sha256 漂移 {_sha[:16]}…")
-        _blob = "\n".join(dylib_strings(DYLIB_MG) or [])
+            fails.append(f"S10 插件包 dylib sha256 漂移 {_sha[:16]}…")
+        _blob = "\n".join(dylib_strings(_pkgdylib) or [])
         if "GIT@8df5508" not in _blob:
-            fails.append("S10 dylib 无 GIT@8df5508 标记（未换装？）")
+            fails.append("S10 插件包 dylib 无 GIT@8df5508 标记（未换装？）")
         if "GIT@874b9e8" in _blob:
-            fails.append("S10 dylib 旧代标记残留（GIT@874b9e8）")
-        _prov = ROOT / "Natives" / "resources" / "Frameworks" / "libMobileGL.PROVENANCE.md"
-        if not _prov.exists():
-            fails.append("S10 产物出处档案缺失")
-        else:
-            _ptext = _prov.read_text(encoding="utf-8", errors="replace")
-            if "fd907f655061aaa9" not in _ptext or "3378bf8d6fd1e5bd" not in _ptext:
-                fails.append("S10 出处档案指纹不符")
+            fails.append("S10 旧代标记残留（GIT@874b9e8）")
+        _pkgdylib.unlink(missing_ok=True)
     else:
-        fails.append("S10 libMobileGL.dylib 不存在")
+        fails.append("S10 renderer-repo 插件包缺失")
+    # ★Task475 vendored 出包反锚（防复活）
+    if DYLIB_MG.exists():
+        fails.append("S10 vendored libMobileGL.dylib 应已出包（防复活锚）")
+    _prov = ROOT / "Natives" / "resources" / "Frameworks" / "libMobileGL.PROVENANCE.md"
+    if _prov.exists():
+        fails.append("S10 vendored PROVENANCE 应已出包（防复活锚）")
     if DYLIB_MVK.exists():
         if DYLIB_MVK.stat().st_size != 14769224:
             fails.append(f"S10 MoltenVK 尺寸漂移 {DYLIB_MVK.stat().st_size} != 14769224")
@@ -241,8 +263,8 @@ def main():
 
     # S 代际锚（轻校验；完整执法在 task439_buildtag_anchor.py）
     tag = BUILD_TAG.read_text(encoding="utf-8", errors="replace")
-    if 'ame415_buildTag = @"Task474 · ' not in tag:
-        fails.append("S BuildTag 未进代 Task473")
+    if 'ame415_buildTag = @"Task475 · ' not in tag:
+        fails.append("S BuildTag 未进代 Task475")
 
     if fails:
         print(f"[FAIL] task468_selfcheck {len(fails)} 项:")

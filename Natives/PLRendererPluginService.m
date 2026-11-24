@@ -31,31 +31,10 @@ static NSString * const kPL429BuiltinMarker        = @".ame429-builtin";
 static NSString * const kPL429BundleBuiltinDir     = @"builtin-renderers";
 static NSString * const kPL429DeviceABI            = @"arm64";
 static NSString * const kPL429DriverMobileGlues    = @"mobileglues";
-static NSString * const kPL429DemoBuiltinId        = @"mobileglues-demo";
-
-/// 内置渲染器插件包兜底清单（bundle builtin-renderers 缺席时的代码侧
-/// 种子——第六版"清单注册"单一链路的保底通道：随包 dylib 绑定走 bundle
-/// Frameworks 回退（libmobileglues.dylib 恒随包），manifest/driver 配置
-/// 由此处落到插件目录后与 zip 安装件完全同生命周期。防御守卫配真实现：
-/// 资源打包通道（主控补 CMakeLists Resources 行）就绪前链条照常可证）。
-static NSDictionary *kPL429SeedBuiltinManifest(void) {
-    return @{
-        @"id": kPL429DemoBuiltinId,
-        @"name": localize(@"ame449.plugin.mg_demo_name", @"MobileGlues 渲染器插件（内置演示档）"),
-        @"version": @"1.0.0",
-        kPL429ManifestRendererName: localize(@"ame449.plugin.mg_plugin_name", @"MobileGlues（渲染器插件档）"),
-        kPL429ManifestDriverType: kPL429DriverMobileGlues,
-        kPL429ManifestABI: @[kPL429DeviceABI],
-        kPL429ManifestDylib: @"libmobileglues.dylib",
-        @"description": localize(@"ame449.plugin.mg_demo_desc", @"内置渲染器插件包单条链路演示：清单注册→扫描→启动注入→UI 呈现渲染器档位。dylib 绑定随包 Frameworks/libmobileglues.dylib（白名单回退源②）。"),
-    };
-}
-
-static NSDictionary *kPL429SeedBuiltinDriverConfig(void) {
-    // 与 MobileGlues config.json 同构的驱动配置种子（仅演示覆盖层链路：
-    // 用户分区偏好照常生效，本表仅在该插件档会话做末位覆盖）
-    return @{ @"enableNoError": @0 };
-}
+// ★Task475 渲染器真插件化（在线下载单一获取面）：代码侧演示档种子通道
+//（kPL429DemoBuiltinId / kPL429SeedBuiltinManifest / kPL429SeedBuiltinDriverConfig）
+// 随内置包出包一并退役——渲染器能力改由 renderer-repo 在线仓库下载提供，
+// 装机不再预置任何渲染器档（bundle builtin-renderers 引导通道保留供未来官方件）。
 
 // ★Task429-r10：类扩展 readwrite 重声明（同文件服务 @implementation 给
 //   PLRendererPluginEntry 装配只读属性——跨 @implementation 私有 ivar 直访
@@ -507,10 +486,11 @@ static NSDictionary *kPL429SeedBuiltinDriverConfig(void) {
 #pragma mark - 内置渲染器插件包引导（第六版单条链路：清单注册）
 
 /// 内置包引导（幂等）：bundle builtin-renderers/<dir> 有而未装即落位
-/// （manifest + driver.json 双件，dylib 缺省走 Frameworks 回退）；bundle
-/// 通道缺席时代码侧种子清单保底（防御守卫配真实现）。首方信任语义
-/// （Task326 heal 同族）：内置档自动启用——启用仅新增渲染器列表档位，
-/// 不改写用户当前选中渲染器，无越权面。
+/// （manifest + driver.json 双件，dylib 缺省走 Frameworks 回退）。
+/// ★Task475 渲染器真插件化：bundle 通道缺席 = 零预置（代码侧演示档种子
+/// 通道退役——渲染器能力统一走 renderer-repo 在线仓库下载安装）。
+/// 首方信任语义（Task326 heal 同族）：内置档自动启用——启用仅新增渲染器
+/// 列表档位，不改写用户当前选中渲染器，无越权面。
 + (void)pl429_bootstrapBuiltinRendererPackages {
     static dispatch_once_t pl429_once;
     dispatch_once(&pl429_once, ^{
@@ -526,12 +506,7 @@ static NSDictionary *kPL429SeedBuiltinDriverConfig(void) {
              stringByAppendingPathComponent:@"manifest.json"]];
         if (mf) [ids addObject:dir];
     }
-    BOOL seeded = NO;
-    // bundle 通道缺席时代码侧种子（第六版链路保底：装机无需等待资源打包线）
-    if (ids.count == 0) {
-        [ids addObject:kPL429DemoBuiltinId];
-        seeded = YES;
-    }
+    // ★Task475 代码侧种子通道退役：bundle 无内置包 = 零预置（在线仓库获取）
     for (NSString *pid in ids) {
         NSString *dstDir = [[self rendererPluginsRootDir] stringByAppendingPathComponent:pid];
         if ([fm fileExistsAtPath:[dstDir stringByAppendingPathComponent:@"manifest.json"]]) {
@@ -540,7 +515,7 @@ static NSDictionary *kPL429SeedBuiltinDriverConfig(void) {
         NSDictionary *manifest = nil;
         NSDictionary *driverCfg = nil;
         NSString *srcDir = nil;
-        if (!seeded) {
+        {
             srcDir = [bundleRoot stringByAppendingPathComponent:pid];
             NSData *mf = [NSData dataWithContentsOfFile:
                 [srcDir stringByAppendingPathComponent:@"manifest.json"]];
@@ -551,9 +526,6 @@ static NSDictionary *kPL429SeedBuiltinDriverConfig(void) {
                 [srcDir stringByAppendingPathComponent:kPL429DriverConfigFile]];
             id cfgJson = cfg ? [NSJSONSerialization JSONObjectWithData:cfg options:0 error:nil] : nil;
             if ([cfgJson isKindOfClass:[NSDictionary class]]) driverCfg = cfgJson;
-        } else {
-            manifest = kPL429SeedBuiltinManifest();
-            driverCfg = kPL429SeedBuiltinDriverConfig();
         }
         AmePluginInstallResult code = AmePluginInstallOK;
         if (![self pl429_validateRendererManifest:manifest errCode:&code]) {
@@ -573,7 +545,7 @@ static NSDictionary *kPL429SeedBuiltinDriverConfig(void) {
                             atomically:YES];
         }
         // 包内 dylib 随拷（bundle 件自带库时落位；无库 = Frameworks 回退）
-        if (!seeded && srcDir) {
+        if (srcDir) {
             NSString *pl429_bundleDylib = manifest[kPL429ManifestDylib];
             if (pl429_bundleDylib.length > 0) {
                 NSString *srcDylib = [srcDir stringByAppendingPathComponent:pl429_bundleDylib];

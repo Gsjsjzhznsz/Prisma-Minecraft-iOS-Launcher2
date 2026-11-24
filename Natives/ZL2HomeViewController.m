@@ -540,6 +540,9 @@ static UIImage *ZL2HomeSizedImage(NSString *name, NSString *fallback, CGFloat po
 @property (nonatomic, assign) BOOL ame_menuOnRight;
 // 停靠边提示（★Task404 恢复：73c10b7 退役后 b78a16c 摘除的「长按菜单可切换停靠边」，随功能一并回滚）
 @property (nonatomic, strong) UILabel *menuHintLabel;
+// ★Task475 主页侧边栏双形态（精简 rail 默认 / 转盘封面流）：rail 背板 + 当前形态
+@property (nonatomic, strong) UIView *ame475_railBackdrop;
+@property (nonatomic, assign) BOOL ame475_railMode;
 // ★Task406 停靠镜像（第14轮规格「切换停靠边之后转盘和按钮是不是要镜像」）：
 // 面板停靠左 = 卡尾四钮换钉 + 启动钮/插件 chip 内容组反排 + 版本滚轮条目镜像重建。
 // 原钉四约束持引用，换边时整组卸/立（防新旧钉对峙互破）。
@@ -660,6 +663,12 @@ static UIImage *ZL2HomeSizedImage(NSString *name, NSString *fallback, CGFloat po
                                              selector:@selector(profileListDidChange)
                                                  name:@"ReloadProfileList"
                                                object:nil];
+    // ★Task475 主页侧边栏形态切换（设置页外观进阶组写 general.home_sidebar_style
+    //   后广播）：rail ↔ 转盘封面流整容器重建
+    [[NSNotificationCenter defaultCenter] addObserver:self
+                                             selector:@selector(ame475_styleDidChange:)
+                                                 name:@"Ame475HomeMenuStyleChanged"
+                                               object:nil];
     // ★ Task400：ZL2HomeShowVersionPicker 总线入口随弹层退役（版本滚轮
     //   原地驻右栏，无呈现/收起时序）
 
@@ -667,11 +676,7 @@ static UIImage *ZL2HomeSizedImage(NSString *name, NSString *fallback, CGFloat po
     // ★Task404 恢复；★Task408 再装——3dc220d「重写主页右侧四卡栏」曾随重写
     // 拆除本手势并把停靠边改死右侧，用户第 16 轮复诉「停靠边也无法调节」。
     // 面板任意处长按 0.5s = 换边；排序长按已同轮退役（手势冲突，见 C 线注）。
-    UILongPressGestureRecognizer *menuLongPress =
-        [[UILongPressGestureRecognizer alloc] initWithTarget:self
-                                                      action:@selector(ame_handleMenuLongPress:)];
-    menuLongPress.minimumPressDuration = 0.5;
-    [self.actionMenu addGestureRecognizer:menuLongPress];
+    [self ame475_attachDockSwitchGesture];   // ★Task475：形态重建后需重挂（方法内幂等）
 
     // 长按实例卡 = M3 底部菜单
     UILongPressGestureRecognizer *cardLongPress =
@@ -829,7 +834,7 @@ static UIImage *ZL2HomeSizedImage(NSString *name, NSString *fallback, CGFloat po
 #pragma mark - Layout
 
 - (void)buildViews {
-    [self ame_buildActionMenu];
+    [self ame475_buildMenu];   // ★Task475：主页侧边栏双形态分流（rail 默认/转盘）
     [self ame_buildContentArea];
     [self ame_buildEmptyState];
 }
@@ -864,20 +869,8 @@ static UIImage *ZL2HomeSizedImage(NSString *name, NSString *fallback, CGFloat po
     [_actionMenu addSubview:_panelBackdrop];
 
     // —— ④ 启动组卡窗（钉底；先建，滚动区底缘锚它；卡底透明 = 挖洞）——
-    _launchCard = [[UIView alloc] init];
-    _launchCard.backgroundColor = [ZL2Theme surfaceContainer];
-    _launchCard.layer.cornerRadius = [ZL2Theme radiusXL];
-    _launchCard.layer.masksToBounds = YES;
-    _launchCard.accessibilityIdentifier = @"zl2.sidebar.launch";
-    _launchCard.translatesAutoresizingMaskIntoConstraints = NO;
-    [_actionMenu addSubview:_launchCard];
-
-    _launchStack = [[UIStackView alloc] init];
-    _launchStack.axis = UILayoutConstraintAxisVertical;
-    _launchStack.alignment = UIStackViewAlignmentFill;
-    _launchStack.spacing = ZL2HomeCardPadding;
-    _launchStack.translatesAutoresizingMaskIntoConstraints = NO;
-    [_launchCard addSubview:_launchStack];
+    // ★Task475：启动组构建体抽公共 helper（rail/转盘双形态同一来源零分叉）
+    [self ame475_buildLaunchCard];
 
     // —— 中段滚动区（瓦片/账户滚轮/版本滚轮三卡窗；总高超出时滚动；
     //    ★ Task401 四边内缩 8pt = 面板四周留灰边与卡间隙同律）——
@@ -1043,6 +1036,138 @@ static UIImage *ZL2HomeSizedImage(NSString *name, NSString *fallback, CGFloat po
         }
     };
 
+    // ★Task406 卡尾四钮原钉持引用（ame_applyPanelMirror 换边时整组卸/立）；
+    // ★Task409 第五钉：管理↔删除相邻链——左停靠镜像把两钮分钉卡两侧后
+    // 此链仍要求相邻 = 超定无解（卡宽=18pt 才可满足）→ AutoLayout 随机
+    // 断钉 = 「镜像显示有问题」实体（管理钮消失/错位），随镜像面同卸同立。
+    _ame_pinManageLeading = [_accountManageButton.leadingAnchor constraintEqualToAnchor:_accountCard.leadingAnchor constant:12];
+    _ame_pinDeleteTrailing = [_accountDeleteButton.trailingAnchor constraintEqualToAnchor:_accountCard.trailingAnchor constant:-12];
+    _ame_pinSettingsTrailing = [_versionSettingsButton.trailingAnchor constraintEqualToAnchor:_versionCard.trailingAnchor constant:-12];
+    _ame_pinRefreshChain = [_versionRefreshButton.trailingAnchor constraintEqualToAnchor:_versionSettingsButton.leadingAnchor constant:-4];
+    _ame_pinFooterChain = [_accountManageButton.trailingAnchor constraintEqualToAnchor:_accountDeleteButton.leadingAnchor constant:-6];
+
+    [NSLayoutConstraint activateConstraints:@[
+        // ★ Task401 面板背板：钉栏容器四边（面板 = 原右边栏整块灰面板）
+        [_panelBackdrop.topAnchor constraintEqualToAnchor:_actionMenu.topAnchor],
+        [_panelBackdrop.bottomAnchor constraintEqualToAnchor:_actionMenu.bottomAnchor],
+        [_panelBackdrop.leadingAnchor constraintEqualToAnchor:_actionMenu.leadingAnchor],
+        [_panelBackdrop.trailingAnchor constraintEqualToAnchor:_actionMenu.trailingAnchor],
+
+        // 中段滚动区：四边内缩 8pt（面板四周留灰边 = 卡间隙同律，用户规格
+        // 「每个卡片中间都要留点间隙（右侧栏距离屏幕边缘的距离）」）；
+        // ★Task415c 底缘改锚启动卡顶（钉底回归；旧锚 actionMenu 底 = 启动卡
+        //   在滚动内容内被折叠在滚动下缘 = 「部分区域都卡在下面了」实体）
+        [_menuScrollView.topAnchor constraintEqualToAnchor:_actionMenu.topAnchor constant:ZL2HomeCardGap],
+        [_menuScrollView.leadingAnchor constraintEqualToAnchor:_actionMenu.leadingAnchor constant:ZL2HomeCardGap],
+        [_menuScrollView.trailingAnchor constraintEqualToAnchor:_actionMenu.trailingAnchor constant:-ZL2HomeCardGap],
+        [_menuScrollView.bottomAnchor constraintEqualToAnchor:_launchCard.topAnchor constant:-ZL2HomeCardGap],
+
+        // ★Task415c 启动组卡钉底三钉（相对 actionMenu = 换边镜像零耦合；
+        //   Task400「钉底永可见」语义自此真正在约束面成立）
+        [_launchCard.leadingAnchor constraintEqualToAnchor:_actionMenu.leadingAnchor constant:ZL2HomeCardGap],
+        [_launchCard.trailingAnchor constraintEqualToAnchor:_actionMenu.trailingAnchor constant:-ZL2HomeCardGap],
+        [_launchCard.bottomAnchor constraintEqualToAnchor:_actionMenu.bottomAnchor constant:-ZL2HomeCardGap],
+
+        // 滚动内容：三边钉 contentLayoutGuide + 底缘 ≥ 内容底（短内容不滚动），
+        // 宽 = 视口宽（fill）
+        [_menuStack.topAnchor constraintEqualToAnchor:_menuScrollView.contentLayoutGuide.topAnchor],
+        [_menuStack.leadingAnchor constraintEqualToAnchor:_menuScrollView.contentLayoutGuide.leadingAnchor],
+        [_menuStack.trailingAnchor constraintEqualToAnchor:_menuScrollView.contentLayoutGuide.trailingAnchor],
+        [_menuScrollView.contentLayoutGuide.bottomAnchor constraintEqualToAnchor:_menuStack.bottomAnchor],
+        [_menuStack.widthAnchor constraintEqualToAnchor:_menuScrollView.frameLayoutGuide.widthAnchor],
+
+        // ① 瓦片卡内布局（瓦片行四边 8pt）
+        [_quickNavWrap.topAnchor constraintEqualToAnchor:_quickNavCard.topAnchor constant:ZL2HomeCardPadding],
+        [_quickNavWrap.bottomAnchor constraintEqualToAnchor:_quickNavCard.bottomAnchor constant:-ZL2HomeCardPadding],
+        [_quickNavWrap.leadingAnchor constraintEqualToAnchor:_quickNavCard.leadingAnchor constant:ZL2HomeCardPadding],
+        [_quickNavWrap.trailingAnchor constraintEqualToAnchor:_quickNavCard.trailingAnchor constant:-ZL2HomeCardPadding],
+
+        // ② 账户卡内布局：横排滚轮（高 = 视口定高 88；宽吃满卡内）+ 卡尾动作行
+        [_accountFlow.topAnchor constraintEqualToAnchor:_accountCard.topAnchor constant:ZL2HomeCardPadding],
+        [_accountFlow.leadingAnchor constraintEqualToAnchor:_accountCard.leadingAnchor constant:ZL2HomeCardPadding],
+        [_accountFlow.trailingAnchor constraintEqualToAnchor:_accountCard.trailingAnchor constant:-ZL2HomeCardPadding],
+        [_accountFlow.heightAnchor constraintEqualToConstant:ZL2HomeAccountWheelH],
+        [_accountManageButton.topAnchor constraintEqualToAnchor:_accountFlow.bottomAnchor constant:6],
+        _ame_pinManageLeading,   // ★Task406 管理钮贴左原钉（换边镜像可卸）
+        [_accountManageButton.heightAnchor constraintEqualToConstant:ZL2HomeCardFooterHeight],
+        [_accountManageButton.bottomAnchor constraintEqualToAnchor:_accountCard.bottomAnchor constant:-4],
+        _ame_pinDeleteTrailing,  // ★Task406 删除钮贴右原钉（换边镜像可卸）
+        [_accountManageButton.widthAnchor constraintEqualToAnchor:_accountDeleteButton.widthAnchor],
+        _ame_pinFooterChain,   // ★Task409 相邻链原钉化（换边镜像可卸，防超定断钉）
+        [_accountDeleteButton.centerYAnchor constraintEqualToAnchor:_accountManageButton.centerYAnchor],
+        [_accountDeleteButton.heightAnchor constraintEqualToConstant:ZL2HomeCardFooterHeight],
+        [_accountSpinner.centerXAnchor constraintEqualToAnchor:_accountCard.centerXAnchor],
+        [_accountSpinner.centerYAnchor constraintEqualToAnchor:_accountManageButton.centerYAnchor],
+
+        // ③ 版本卡内布局：竖排滚轮（★Task414 高度持引用 = 自适应视口：
+        //    五行下限 / 全部行上限 / 可用余量收敛——「右栏不会自适应下面被
+        //    挡住」根修，见 ame414_relayoutVersionHeight）
+        [_versionFlow.topAnchor constraintEqualToAnchor:_versionCard.topAnchor constant:ZL2HomeCardPadding],
+        [_versionFlow.leadingAnchor constraintEqualToAnchor:_versionCard.leadingAnchor constant:ZL2HomeCardPadding],
+        [_versionFlow.trailingAnchor constraintEqualToAnchor:_versionCard.trailingAnchor constant:-ZL2HomeCardPadding],
+        // 高度常量不再在此建（见末尾持引用条目：ame414_relayoutVersionHeight 逐帧改写）
+        [_versionSettingsButton.topAnchor constraintEqualToAnchor:_versionFlow.bottomAnchor constant:6],
+        _ame_pinSettingsTrailing,   // ★Task406 齿轮贴右原钉（换边镜像可卸）
+        [_versionSettingsButton.widthAnchor constraintEqualToConstant:ZL2HomeCardFooterHeight],
+        [_versionSettingsButton.heightAnchor constraintEqualToConstant:ZL2HomeCardFooterHeight],
+        [_versionSettingsButton.bottomAnchor constraintEqualToAnchor:_versionCard.bottomAnchor constant:-4],
+        _ame_pinRefreshChain,    // ★Task406 刷新↔齿轮链条原钉（换边镜像可卸）
+        [_versionRefreshButton.centerYAnchor constraintEqualToAnchor:_versionSettingsButton.centerYAnchor],
+        [_versionRefreshButton.widthAnchor constraintEqualToConstant:ZL2HomeCardFooterHeight],
+        [_versionRefreshButton.heightAnchor constraintEqualToConstant:ZL2HomeCardFooterHeight],
+
+    ]];
+
+    // ★ Task401 r4：面板灰棱视图挂四卡窗宿主（drawRect 绘制期自取帧）
+    [_panelBackdrop ame401_setHostCards:@[_quickNavCard, _accountCard, _versionCard, _launchCard]];
+
+    // ★Task414 版本滚轮高度持引用（ame414_relayoutVersionHeight 逐帧改写；
+    //   required 常量 = 唯一高度约束，视口自适应后仍钉卡缘）
+    _ame414_versionHeight = [_versionFlow.heightAnchor constraintEqualToConstant:_versionFlow.viewportHeight];
+    _ame414_versionHeight.active = YES;
+}
+
+
+#pragma mark - ★Task475 主页侧边栏双形态（精简 rail 默认 / 转盘封面流设置开启）
+
+// 形态单一读点：general.home_sidebar_style（int 0=精简 rail【默认】/1=转盘封面流；
+// 未注册/非法值一律回落精简 = 用户钦定「默认就是精简」）。写侧 ZL2SettingPages
+// 外观进阶组 ame475_styleRow，切换广播 Ame475HomeMenuStyleChanged。
++ (BOOL)ame475_railStylePreferred {
+    NSInteger ame475_style = getPrefInt(@"general.home_sidebar_style");
+    return ame475_style != 1;
+}
+
+// buildViews 分流器：rail = ame475_buildSlimRailMenu；转盘 = ame_buildActionMenu
+// 原路径逐字不动（Task378/379/401/404/406/409/414/452 门禁锚全量保绿）。
+- (void)ame475_buildMenu {
+    self.ame475_railMode = [ZL2HomeViewController ame475_railStylePreferred];
+    if (self.ame475_railMode) {
+        [self ame475_buildSlimRailMenu];
+    } else {
+        [self ame_buildActionMenu];
+    }
+}
+
+// 启动组卡公共构建器（转盘/精简 rail 双形态单一来源）：卡体+栈+状态行+大启动钮
+// +插件 chip+停靠提示+内层约束，全量原样平移自 ame_buildActionMenu（Task401/
+// 415c/328/404 口径逐字保留 = 门禁锚同源）。
+- (void)ame475_buildLaunchCard {
+    _launchCard = [[UIView alloc] init];
+    _launchCard.backgroundColor = [ZL2Theme surfaceContainer];
+    _launchCard.layer.cornerRadius = [ZL2Theme radiusXL];
+    _launchCard.layer.masksToBounds = YES;
+    _launchCard.accessibilityIdentifier = @"zl2.sidebar.launch";
+    _launchCard.translatesAutoresizingMaskIntoConstraints = NO;
+    [_actionMenu addSubview:_launchCard];
+
+    _launchStack = [[UIStackView alloc] init];
+    _launchStack.axis = UILayoutConstraintAxisVertical;
+    _launchStack.alignment = UIStackViewAlignmentFill;
+    _launchStack.spacing = ZL2HomeCardPadding;
+    _launchStack.translatesAutoresizingMaskIntoConstraints = NO;
+    [_launchCard addSubview:_launchStack];
+
     // —— 下载状态行（KVO 百分比态；非下载态隐藏塌缩）——
     _launchStatusLabel = [[UILabel alloc] init];
     _launchStatusLabel.font = [ZL2Theme fontLabelMedium];
@@ -1144,99 +1269,18 @@ static UIImage *ZL2HomeSizedImage(NSString *name, NSString *fallback, CGFloat po
     _ame_pluginContentStack = pluginChipContent;   // ★Task406 换边反排引用
     [_pluginChipButton addSubview:pluginChipContent];
 
-    [_pluginChipButton.heightAnchor constraintEqualToConstant:34].active = YES;
     [NSLayoutConstraint activateConstraints:@[
+        [_pluginChipButton.heightAnchor constraintEqualToConstant:34],
         [pluginChipContent.centerXAnchor constraintEqualToAnchor:_pluginChipButton.centerXAnchor],
         [pluginChipContent.centerYAnchor constraintEqualToAnchor:_pluginChipButton.centerYAnchor],
         [pluginChipContent.leadingAnchor constraintGreaterThanOrEqualToAnchor:_pluginChipButton.leadingAnchor constant:12],
         [_pluginChipButton.trailingAnchor constraintGreaterThanOrEqualToAnchor:pluginChipContent.trailingAnchor constant:12],
-    ]];
-
-    // ★Task406 卡尾四钮原钉持引用（ame_applyPanelMirror 换边时整组卸/立）；
-    // ★Task409 第五钉：管理↔删除相邻链——左停靠镜像把两钮分钉卡两侧后
-    // 此链仍要求相邻 = 超定无解（卡宽=18pt 才可满足）→ AutoLayout 随机
-    // 断钉 = 「镜像显示有问题」实体（管理钮消失/错位），随镜像面同卸同立。
-    _ame_pinManageLeading = [_accountManageButton.leadingAnchor constraintEqualToAnchor:_accountCard.leadingAnchor constant:12];
-    _ame_pinDeleteTrailing = [_accountDeleteButton.trailingAnchor constraintEqualToAnchor:_accountCard.trailingAnchor constant:-12];
-    _ame_pinSettingsTrailing = [_versionSettingsButton.trailingAnchor constraintEqualToAnchor:_versionCard.trailingAnchor constant:-12];
-    _ame_pinRefreshChain = [_versionRefreshButton.trailingAnchor constraintEqualToAnchor:_versionSettingsButton.leadingAnchor constant:-4];
-    _ame_pinFooterChain = [_accountManageButton.trailingAnchor constraintEqualToAnchor:_accountDeleteButton.leadingAnchor constant:-6];
-
-    [NSLayoutConstraint activateConstraints:@[
-        // ★ Task401 面板背板：钉栏容器四边（面板 = 原右边栏整块灰面板）
-        [_panelBackdrop.topAnchor constraintEqualToAnchor:_actionMenu.topAnchor],
-        [_panelBackdrop.bottomAnchor constraintEqualToAnchor:_actionMenu.bottomAnchor],
-        [_panelBackdrop.leadingAnchor constraintEqualToAnchor:_actionMenu.leadingAnchor],
-        [_panelBackdrop.trailingAnchor constraintEqualToAnchor:_actionMenu.trailingAnchor],
-
-        // 中段滚动区：四边内缩 8pt（面板四周留灰边 = 卡间隙同律，用户规格
-        // 「每个卡片中间都要留点间隙（右侧栏距离屏幕边缘的距离）」）；
-        // ★Task415c 底缘改锚启动卡顶（钉底回归；旧锚 actionMenu 底 = 启动卡
-        //   在滚动内容内被折叠在滚动下缘 = 「部分区域都卡在下面了」实体）
-        [_menuScrollView.topAnchor constraintEqualToAnchor:_actionMenu.topAnchor constant:ZL2HomeCardGap],
-        [_menuScrollView.leadingAnchor constraintEqualToAnchor:_actionMenu.leadingAnchor constant:ZL2HomeCardGap],
-        [_menuScrollView.trailingAnchor constraintEqualToAnchor:_actionMenu.trailingAnchor constant:-ZL2HomeCardGap],
-        [_menuScrollView.bottomAnchor constraintEqualToAnchor:_launchCard.topAnchor constant:-ZL2HomeCardGap],
-
-        // ★Task415c 启动组卡钉底三钉（相对 actionMenu = 换边镜像零耦合；
-        //   Task400「钉底永可见」语义自此真正在约束面成立）
-        [_launchCard.leadingAnchor constraintEqualToAnchor:_actionMenu.leadingAnchor constant:ZL2HomeCardGap],
-        [_launchCard.trailingAnchor constraintEqualToAnchor:_actionMenu.trailingAnchor constant:-ZL2HomeCardGap],
-        [_launchCard.bottomAnchor constraintEqualToAnchor:_actionMenu.bottomAnchor constant:-ZL2HomeCardGap],
-
-        // 滚动内容：三边钉 contentLayoutGuide + 底缘 ≥ 内容底（短内容不滚动），
-        // 宽 = 视口宽（fill）
-        [_menuStack.topAnchor constraintEqualToAnchor:_menuScrollView.contentLayoutGuide.topAnchor],
-        [_menuStack.leadingAnchor constraintEqualToAnchor:_menuScrollView.contentLayoutGuide.leadingAnchor],
-        [_menuStack.trailingAnchor constraintEqualToAnchor:_menuScrollView.contentLayoutGuide.trailingAnchor],
-        [_menuScrollView.contentLayoutGuide.bottomAnchor constraintEqualToAnchor:_menuStack.bottomAnchor],
-        [_menuStack.widthAnchor constraintEqualToAnchor:_menuScrollView.frameLayoutGuide.widthAnchor],
 
         // 启动卡内布局（四边 8pt 同律）
         [_launchStack.topAnchor constraintEqualToAnchor:_launchCard.topAnchor constant:ZL2HomeCardPadding],
         [_launchStack.bottomAnchor constraintEqualToAnchor:_launchCard.bottomAnchor constant:-ZL2HomeCardPadding],
         [_launchStack.leadingAnchor constraintEqualToAnchor:_launchCard.leadingAnchor constant:ZL2HomeCardPadding],
         [_launchStack.trailingAnchor constraintEqualToAnchor:_launchCard.trailingAnchor constant:-ZL2HomeCardPadding],
-
-        // ① 瓦片卡内布局（瓦片行四边 8pt）
-        [_quickNavWrap.topAnchor constraintEqualToAnchor:_quickNavCard.topAnchor constant:ZL2HomeCardPadding],
-        [_quickNavWrap.bottomAnchor constraintEqualToAnchor:_quickNavCard.bottomAnchor constant:-ZL2HomeCardPadding],
-        [_quickNavWrap.leadingAnchor constraintEqualToAnchor:_quickNavCard.leadingAnchor constant:ZL2HomeCardPadding],
-        [_quickNavWrap.trailingAnchor constraintEqualToAnchor:_quickNavCard.trailingAnchor constant:-ZL2HomeCardPadding],
-
-        // ② 账户卡内布局：横排滚轮（高 = 视口定高 88；宽吃满卡内）+ 卡尾动作行
-        [_accountFlow.topAnchor constraintEqualToAnchor:_accountCard.topAnchor constant:ZL2HomeCardPadding],
-        [_accountFlow.leadingAnchor constraintEqualToAnchor:_accountCard.leadingAnchor constant:ZL2HomeCardPadding],
-        [_accountFlow.trailingAnchor constraintEqualToAnchor:_accountCard.trailingAnchor constant:-ZL2HomeCardPadding],
-        [_accountFlow.heightAnchor constraintEqualToConstant:ZL2HomeAccountWheelH],
-        [_accountManageButton.topAnchor constraintEqualToAnchor:_accountFlow.bottomAnchor constant:6],
-        _ame_pinManageLeading,   // ★Task406 管理钮贴左原钉（换边镜像可卸）
-        [_accountManageButton.heightAnchor constraintEqualToConstant:ZL2HomeCardFooterHeight],
-        [_accountManageButton.bottomAnchor constraintEqualToAnchor:_accountCard.bottomAnchor constant:-4],
-        _ame_pinDeleteTrailing,  // ★Task406 删除钮贴右原钉（换边镜像可卸）
-        [_accountManageButton.widthAnchor constraintEqualToAnchor:_accountDeleteButton.widthAnchor],
-        _ame_pinFooterChain,   // ★Task409 相邻链原钉化（换边镜像可卸，防超定断钉）
-        [_accountDeleteButton.centerYAnchor constraintEqualToAnchor:_accountManageButton.centerYAnchor],
-        [_accountDeleteButton.heightAnchor constraintEqualToConstant:ZL2HomeCardFooterHeight],
-        [_accountSpinner.centerXAnchor constraintEqualToAnchor:_accountCard.centerXAnchor],
-        [_accountSpinner.centerYAnchor constraintEqualToAnchor:_accountManageButton.centerYAnchor],
-
-        // ③ 版本卡内布局：竖排滚轮（★Task414 高度持引用 = 自适应视口：
-        //    五行下限 / 全部行上限 / 可用余量收敛——「右栏不会自适应下面被
-        //    挡住」根修，见 ame414_relayoutVersionHeight）
-        [_versionFlow.topAnchor constraintEqualToAnchor:_versionCard.topAnchor constant:ZL2HomeCardPadding],
-        [_versionFlow.leadingAnchor constraintEqualToAnchor:_versionCard.leadingAnchor constant:ZL2HomeCardPadding],
-        [_versionFlow.trailingAnchor constraintEqualToAnchor:_versionCard.trailingAnchor constant:-ZL2HomeCardPadding],
-        // 高度常量不再在此建（见末尾持引用条目：ame414_relayoutVersionHeight 逐帧改写）
-        [_versionSettingsButton.topAnchor constraintEqualToAnchor:_versionFlow.bottomAnchor constant:6],
-        _ame_pinSettingsTrailing,   // ★Task406 齿轮贴右原钉（换边镜像可卸）
-        [_versionSettingsButton.widthAnchor constraintEqualToConstant:ZL2HomeCardFooterHeight],
-        [_versionSettingsButton.heightAnchor constraintEqualToConstant:ZL2HomeCardFooterHeight],
-        [_versionSettingsButton.bottomAnchor constraintEqualToAnchor:_versionCard.bottomAnchor constant:-4],
-        _ame_pinRefreshChain,    // ★Task406 刷新↔齿轮链条原钉（换边镜像可卸）
-        [_versionRefreshButton.centerYAnchor constraintEqualToAnchor:_versionSettingsButton.centerYAnchor],
-        [_versionRefreshButton.widthAnchor constraintEqualToConstant:ZL2HomeCardFooterHeight],
-        [_versionRefreshButton.heightAnchor constraintEqualToConstant:ZL2HomeCardFooterHeight],
 
         // 大启动钮内布局（图标+文案水平组居中，高 48；不等式四边防溢出）
         [_launchButton.heightAnchor constraintEqualToConstant:ZL2HomeLaunchButtonHeight],
@@ -1249,14 +1293,168 @@ static UIImage *ZL2HomeSizedImage(NSString *name, NSString *fallback, CGFloat po
         [_launchIconView.widthAnchor constraintEqualToConstant:18],
         [_launchIconView.heightAnchor constraintEqualToConstant:18],
     ]];
+}
 
-    // ★ Task401 r4：面板灰棱视图挂四卡窗宿主（drawRect 绘制期自取帧）
-    [_panelBackdrop ame401_setHostCards:@[_quickNavCard, _accountCard, _versionCard, _launchCard]];
+// 精简侧边栏（ZL2 rail）：固定窄栏背板 + 瓦片纵列（复用 ame378 瓦片工厂与既有
+// i18n 键零新增）+ 钉底启动组卡（与转盘形态同一构建器来源）。tap = 壳导航总线
+// 直达（ame378_navigateToPage 同款 ZL2ShellNavigate 通知），文件项走壳 sheet。
+- (void)ame475_buildSlimRailMenu {
+    _actionMenu = [[UIView alloc] init];
+    _actionMenu.backgroundColor = [UIColor clearColor];
+    _actionMenu.translatesAutoresizingMaskIntoConstraints = NO;
+    [self.view addSubview:_actionMenu];
 
-    // ★Task414 版本滚轮高度持引用（ame414_relayoutVersionHeight 逐帧改写；
-    //   required 常量 = 唯一高度约束，视口自适应后仍钉卡缘）
-    _ame414_versionHeight = [_versionFlow.heightAnchor constraintEqualToConstant:_versionFlow.viewportHeight];
-    _ame414_versionHeight.active = YES;
+    // rail 背板：surfaceContainer 圆角整块（精简形态无卡窗挖洞面）
+    _ame475_railBackdrop = [[UIView alloc] init];
+    _ame475_railBackdrop.backgroundColor = [ZL2Theme surfaceContainer];
+    _ame475_railBackdrop.layer.cornerRadius = [ZL2Theme radiusXL];
+    _ame475_railBackdrop.layer.masksToBounds = YES;
+    _ame475_railBackdrop.translatesAutoresizingMaskIntoConstraints = NO;
+    _ame475_railBackdrop.accessibilityIdentifier = @"zl2.sidebar.rail";
+    [_actionMenu addSubview:_ame475_railBackdrop];
+
+    // 钉底启动组卡（与转盘形态共用同一构建器：状态行/大启动钮/插件 chip/停靠提示）
+    [self ame475_buildLaunchCard];
+
+    // 中段滚动区 + rail 瓦片纵列（总高超出时滚动）
+    _menuScrollView = [[UIScrollView alloc] init];
+    _menuScrollView.backgroundColor = [UIColor clearColor];
+    _menuScrollView.showsVerticalScrollIndicator = NO;
+    _menuScrollView.translatesAutoresizingMaskIntoConstraints = NO;
+    _menuScrollView.delegate = self;
+    [_actionMenu addSubview:_menuScrollView];
+
+    _menuStack = [[UIStackView alloc] init];
+    _menuStack.axis = UILayoutConstraintAxisVertical;
+    _menuStack.alignment = UIStackViewAlignmentFill;
+    _menuStack.spacing = ZL2HomeCardGap;
+    _menuStack.translatesAutoresizingMaskIntoConstraints = NO;
+    [_menuScrollView addSubview:_menuStack];
+
+    __weak ZL2HomeViewController *weakSelf = self;
+    NSString *ame475_aiTitle = localize(@"ame192.ai.title", nil);
+    if (ame475_aiTitle.length == 0) ame475_aiTitle = @"AI";
+    NSArray<ZL2HomeTapControl *> *ame475_tiles = @[
+        [self ame378_quickNavTileWithSymbol:@"square.grid.2x2.fill" fallback:@"square.grid.2x2"
+                                      title:localize(@"ame369.shell.tab.versions", @"版本")
+                                     action:^{ [weakSelf ame378_navigateToPage:2]; }],
+        [self ame378_quickNavTileWithSymbol:@"person.crop.circle.fill" fallback:@"person.crop.circle"
+                                      title:localize(@"ame369.shell.tab.accounts", @"账户")
+                                     action:^{ [weakSelf ame378_navigateToPage:3]; }],
+        [self ame378_quickNavTileWithSymbol:@"arrow.down.circle.fill" fallback:@"arrow.down.circle"
+                                      title:localize(@"ame369.shell.tab.downloads", @"下载")
+                                     action:^{ [weakSelf ame378_navigateToPage:1]; }],
+        [self ame378_quickNavTileWithSymbol:@"person.2.fill" fallback:@"person.2"
+                                      title:localize(@"ame369.shell.tab.terracotta", @"Terracotta | 陶瓦联机")
+                                     action:^{ [weakSelf ame378_navigateToPage:5]; }],
+        [self ame378_quickNavTileWithSymbol:@"sparkles" fallback:@"sparkles"
+                                      title:ame475_aiTitle
+                                     action:^{ [weakSelf ame378_navigateToPage:6]; }],
+        [self ame378_quickNavTileWithSymbol:@"folder.fill" fallback:@"folder"
+                                      title:localize(@"ame369.shell.tab.files", @"文件")
+                                     action:^{ [weakSelf ame378_openFileManagerSheet]; }],
+        [self ame378_quickNavTileWithSymbol:@"gearshape.fill" fallback:@"gearshape"
+                                      title:localize(@"ame369.shell.tab.settings", @"设置")
+                                     action:^{ [weakSelf ame378_navigateToPage:4]; }],
+    ];
+    for (ZL2HomeTapControl *ame475_tile in ame475_tiles) {
+        [_menuStack addArrangedSubview:ame475_tile];
+    }
+
+    [NSLayoutConstraint activateConstraints:@[
+        // rail 背板钉栏容器四边
+        [_ame475_railBackdrop.topAnchor constraintEqualToAnchor:_actionMenu.topAnchor],
+        [_ame475_railBackdrop.bottomAnchor constraintEqualToAnchor:_actionMenu.bottomAnchor],
+        [_ame475_railBackdrop.leadingAnchor constraintEqualToAnchor:_actionMenu.leadingAnchor],
+        [_ame475_railBackdrop.trailingAnchor constraintEqualToAnchor:_actionMenu.trailingAnchor],
+
+        // 中段滚动区：四边内缩 8pt（与转盘形态卡间隙同律），底缘锚启动卡顶
+        [_menuScrollView.topAnchor constraintEqualToAnchor:_actionMenu.topAnchor constant:ZL2HomeCardGap],
+        [_menuScrollView.leadingAnchor constraintEqualToAnchor:_actionMenu.leadingAnchor constant:ZL2HomeCardGap],
+        [_menuScrollView.trailingAnchor constraintEqualToAnchor:_actionMenu.trailingAnchor constant:-ZL2HomeCardGap],
+        [_menuScrollView.bottomAnchor constraintEqualToAnchor:_launchCard.topAnchor constant:-ZL2HomeCardGap],
+
+        // 启动组卡钉底三钉（Task415c 口径同源）
+        [_launchCard.leadingAnchor constraintEqualToAnchor:_actionMenu.leadingAnchor constant:ZL2HomeCardGap],
+        [_launchCard.trailingAnchor constraintEqualToAnchor:_actionMenu.trailingAnchor constant:-ZL2HomeCardGap],
+        [_launchCard.bottomAnchor constraintEqualToAnchor:_actionMenu.bottomAnchor constant:-ZL2HomeCardGap],
+
+        // 滚动内容：三边钉 contentLayoutGuide + 底缘 ≥ 内容底，宽 = 视口宽
+        [_menuStack.topAnchor constraintEqualToAnchor:_menuScrollView.contentLayoutGuide.topAnchor],
+        [_menuStack.leadingAnchor constraintEqualToAnchor:_menuScrollView.contentLayoutGuide.leadingAnchor],
+        [_menuStack.trailingAnchor constraintEqualToAnchor:_menuScrollView.contentLayoutGuide.trailingAnchor],
+        [_menuScrollView.contentLayoutGuide.bottomAnchor constraintEqualToAnchor:_menuStack.bottomAnchor],
+        [_menuStack.widthAnchor constraintEqualToAnchor:_menuScrollView.frameLayoutGuide.widthAnchor],
+    ]];
+    NSLog(@"[Ame475] home slim rail menu built (7 tiles + pinned launch card)");
+}
+
+// 换边长按手势挂载（幂等）：viewDidLoad 首建 + Task475 形态重建后均走此入口
+//（重建产生全新 _actionMenu，手势必须重挂；重复调用零副作用）。
+- (void)ame475_attachDockSwitchGesture {
+    if (!self.actionMenu) return;
+    for (UIGestureRecognizer *ame475_g in self.actionMenu.gestureRecognizers) {
+        if ([ame475_g isKindOfClass:[UILongPressGestureRecognizer class]] &&
+            ((UILongPressGestureRecognizer *)ame475_g).minimumPressDuration == 0.5) {
+            return;   // 已挂幂等
+        }
+    }
+    UILongPressGestureRecognizer *menuLongPress =
+        [[UILongPressGestureRecognizer alloc] initWithTarget:self
+                                                      action:@selector(ame_handleMenuLongPress:)];
+    menuLongPress.minimumPressDuration = 0.5;
+    [self.actionMenu addGestureRecognizer:menuLongPress];
+}
+
+// 形态切换广播响应：形态真变才重建（幂等闸）
+- (void)ame475_styleDidChange:(NSNotification *)note {
+    BOOL ame475_now = [ZL2HomeViewController ame475_railStylePreferred];
+    if (ame475_now == self.ame475_railMode) return;
+    [self ame475_rebuildMenu];
+}
+
+// 整容器重建：拆解全部菜单面 ivar + 约束组 → 当前形态重建 → 停靠边/三态刷新。
+// 免重建守卫缓存（ame400_accountKeys/ame400_versionRowNames）一并清位，防新容器
+// 被旧键序守卫跳过 = 空滚轮。
+- (void)ame475_rebuildMenu {
+    if (!self.actionMenu) return;
+    [self ame475_teardownMenu];
+    [self ame475_buildMenu];
+    [self ame_restoreMenuSide];
+    [self ame_applySideConstraintsAnimated:NO];
+    [self ame_refreshAccountCard];
+    [self ame_refreshVersionCard];
+    [self ame328_refreshPluginChip];
+    [self refreshLaunchState];
+    NSLog(@"[Ame475] home menu rebuilt (rail=%d)", (int)self.ame475_railMode);
+}
+
+- (void)ame475_teardownMenu {
+    if (self.ame_sideConstraints) {
+        [NSLayoutConstraint deactivateConstraints:self.ame_sideConstraints];
+        self.ame_sideConstraints = nil;
+    }
+    [self.actionMenu removeFromSuperview];
+    self.actionMenu = nil;
+    self.panelBackdrop = nil; self.menuScrollView = nil; self.menuStack = nil;
+    self.quickNavCard = nil; self.quickNavWrap = nil;
+    self.accountCard = nil; self.accountFlow = nil;
+    self.accountManageButton = nil; self.accountDeleteButton = nil; self.accountSpinner = nil;
+    self.versionCard = nil; self.versionFlow = nil; self.ame414_versionHeight = nil;
+    self.versionRefreshButton = nil; self.versionSettingsButton = nil;
+    self.launchCard = nil; self.launchStack = nil;
+    self.launchButton = nil; self.launchIconView = nil; self.launchButtonLabel = nil;
+    self.launchStatusLabel = nil;
+    self.pluginChipButton = nil; self.pluginChipIconView = nil; self.pluginChipLabel = nil;
+    self.menuHintLabel = nil;
+    self.ame_pinManageLeading = nil; self.ame_pinDeleteTrailing = nil;
+    self.ame_pinSettingsTrailing = nil; self.ame_pinRefreshChain = nil; self.ame_pinFooterChain = nil;
+    self.ame_mirrorConstraints = nil; self.ame_panelMirrorLeft = NO;
+    self.ame_launchContentStack = nil; self.ame_pluginContentStack = nil;
+    self.ame_launchContentReversed = NO; self.ame_pluginContentReversed = NO;
+    self.ame400_accountKeys = nil;
+    self.ame400_versionRowNames = nil;
+    self.ame475_railBackdrop = nil;
 }
 
 #pragma mark - ★ Task378 五入口快航瓦片（★ Task400 驻右栏顶卡：用户规格「五个按钮在顶上」）
@@ -1614,6 +1812,7 @@ static UIImage *ZL2HomeSizedImage(NSString *name, NSString *fallback, CGFloat po
 /// 文字右对齐）。账户横排条目全居中无水平不对称，免重建。幂等：镜像态未
 /// 变直接返回；镜像重钉仅替换卡尾四枚水平钉，纵钉/尺寸钉原样保留。
 - (void)ame_applyPanelMirror {
+    if (self.ame475_railMode) return;   // ★Task475 rail 形态：无卡尾四钮/封面流镜像面，空转
     BOOL ame_left = !self.ame_menuOnRight;
     if (self.ame_panelMirrorLeft == ame_left && self.ame_mirrorConstraints != nil) return;
     self.ame_panelMirrorLeft = ame_left;
@@ -1711,6 +1910,17 @@ static UIImage *ZL2HomeSizedImage(NSString *name, NSString *fallback, CGFloat po
     NSMutableArray<NSLayoutConstraint *> *constraints = [NSMutableArray array];
 
     // 菜单宽：0.3 × 容器宽（可破），上下限 required 收敛出 clamp 语义
+    // ★Task475 主页侧边栏双形态：精简 rail（默认）= 固定窄栏宽（iPhone 88 /
+    //   iPad regular 104，壳层 ZL2RailView 度量同源）；转盘封面流维持原 clamp
+    if (self.ame475_railMode) {
+        CGFloat ame475_railWidth = 88.0;
+        if (self.traitCollection.horizontalSizeClass == UIUserInterfaceSizeClassRegular) {
+            ame475_railWidth = 104.0;
+        }
+        [constraints addObjectsFromArray:@[
+            [menu.widthAnchor constraintEqualToConstant:ame475_railWidth],
+        ]];
+    } else {
     NSLayoutConstraint *ratio = [menu.widthAnchor constraintEqualToAnchor:self.view.widthAnchor
                                                               multiplier:ZL2HomeMenuWidthRatio];
     ratio.priority = 999;
@@ -1718,7 +1928,10 @@ static UIImage *ZL2HomeSizedImage(NSString *name, NSString *fallback, CGFloat po
         ratio,
         [menu.widthAnchor constraintGreaterThanOrEqualToConstant:ZL2HomeMenuWidthMin],
         [menu.widthAnchor constraintLessThanOrEqualToConstant:ZL2HomeMenuWidthMax],
+    ]];
+    }
 
+    [constraints addObjectsFromArray:@[
         // 纵向：菜单列贴安全区上下（内边距由 menuStack 承担）；
         // 内容区贴安全区上下（网格 inset 承担留白）
         // ★Task413 安全区二轮：菜单顶距 8→12（与网格 28 同轮加档；
