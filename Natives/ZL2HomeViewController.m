@@ -786,6 +786,13 @@ static UIImage *ZL2HomeSizedImage(NSString *name, NSString *fallback, CGFloat po
 // 才重画）。必须在主线程且有尺寸后调用（viewDidLayoutSubviews /
 // scrollViewDidScroll 双驱动保证）。
 - (void)ame_refreshPanelMask {
+    // ★Task475-r5 根修（ui-smoke #246/#248/#253 三连实锚 + 崩溃栈逐帧定谳）：
+    //   rail 形态下 quickNav/account/version 三卡为 nil，本函数的
+    //   @[quickNavCard, accountCard, versionCard, launchCard] 数组字面量
+    //   吃 nil 即 NSInvalidArgumentException（viewDidLayoutSubviews 调用面
+    //   无 @try 保护 = 启动即 terminate）。rail 形态无灰棱面板 = 零重抠语义，
+    //   panelBackdrop 缺席直接早退；转盘形态 backdrop 恒在零回归。
+    if (!self.panelBackdrop) return;
     CGSize ame401_size = self.actionMenu.bounds.size;
     if (ame401_size.width < 1.0 || ame401_size.height < 1.0) return;
 
