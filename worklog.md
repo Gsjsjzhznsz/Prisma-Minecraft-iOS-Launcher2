@@ -5720,3 +5720,5 @@ Work Log:
 
 Stage Summary:
 - 装机锚点（BuildTag=Task474 · 2026-11-24）：①装机首启 Pre-init 期应现 "[Ame474] rescued 50 payload item(s) from instances/<modpackId> → …/versions/fabric-loader-0.20.1-26.3-c39cc664"（用户 50 个 Fabulously Optimized 模组原地回家，模组管理页即见全量；FO 配置/资源包同步回家，下次启动游戏生效）②此后新导入整合包收尾现 "[ModpackImport] Task474: payload promoted → …"，导入完成模组页立即可见（不再等下轮启动）③幂等：二次启动零输出零搬动，账本链/复用导入行为不变
+- 【Task474 闭环补记】CI 双绿：dev 45428049510 attempt3 + smoke 45233704201 后继独立 dispatch 45434460272（attempt1 直接成功）；容量取消判例家族重演并新增顺序消踩判例——push 双触发（dev 内嵌 smoke 作业 + 独立 smoke workflow）共享并发组 attempt1/2 双双互踩 cancelled，修法=先独立 dispatch smoke（ref=main，f7e0b4ab2 在 main 顶故 head 同源）待其绿后再 rerun-failed-jobs dev，单实例运行零互踩一轮双绿；四件产物（ipa 238662594B/tipa 238661598B/dSYM 7321113B/preview 3012251B）+ task470_artifact_verify 19/19 ALL PASS（V3/V4 代际翻转=Task474 在场 + Task473/472 双消，本地产物集 task474_dl x_ 前缀形态直验）；head_sha API 过滤须 40 位全 SHA 判例再次踩实（短 SHA 静默零结果空转 8 分钟）
+- 装机交付链就绪：用户从 dev run #361（attempt 3）取 ipa 安装即得 Task474 构建——首启 "[Ame474] rescued 50 payload item(s)" 50 模组原地回家

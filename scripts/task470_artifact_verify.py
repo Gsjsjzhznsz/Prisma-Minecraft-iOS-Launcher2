@@ -113,11 +113,11 @@ if not bin_ipa:
     sys.exit(1)
 
 # ── 代际 + 旋钮 + 锚 ─────────────────────────────────────────
-check('V3 BuildTag Task473 · 2026-11-24 UTF-16LE 在场',
-      bin_has(bin_ipa, utf16_le("Task473 · 2026-11-24")))
-check('V4 旧代际归零（Task469 · 2026-11-23 / Task468 · 2026-11-23 UTF-16LE 双消）',
-      not bin_has(bin_ipa, utf16_le("Task469 · 2026-11-23"))
-      and not bin_has(bin_ipa, utf16_le("Task468 · 2026-11-23")))
+check('V3 BuildTag Task474 · 2026-11-24 UTF-16LE 在场',
+      bin_has(bin_ipa, utf16_le("Task474 · 2026-11-24")))
+check('V4 旧代际归零（Task473 · 2026-11-24 / Task472 · 2026-11-24 UTF-16LE 双消）',
+      not bin_has(bin_ipa, utf16_le("Task473 · 2026-11-24"))
+      and not bin_has(bin_ipa, utf16_le("Task472 · 2026-11-24")))
 
 KNOB_ENVS = [
     "MOBILEGL_MAGMA_FRAMESINFLIGHT",
