@@ -1327,9 +1327,12 @@ static UIImage *ZL2HomeSizedImage(NSString *name, NSString *fallback, CGFloat po
     _ame475_railBackdrop.translatesAutoresizingMaskIntoConstraints = NO;
     _ame475_railBackdrop.accessibilityIdentifier = @"zl2.sidebar.rail";
     [_actionMenu addSubview:_ame475_railBackdrop];
+    NSLog(@"[Ame475-r4] rail stage: backdrop ok");
 
     // 钉底启动组卡（与转盘形态共用同一构建器：状态行/大启动钮/插件 chip/停靠提示）
+    NSLog(@"[Ame475-r4] rail stage: pre-launchcard");
     [self ame475_buildLaunchCard];
+    NSLog(@"[Ame475-r4] rail stage: launchcard ok");
 
     // 中段滚动区 + rail 瓦片纵列（总高超出时滚动）
     _menuScrollView = [[UIScrollView alloc] init];
@@ -1372,9 +1375,11 @@ static UIImage *ZL2HomeSizedImage(NSString *name, NSString *fallback, CGFloat po
                                       title:localize(@"ame369.shell.tab.settings", @"设置")
                                      action:^{ [weakSelf ame378_navigateToPage:4]; }],
     ];
+    NSLog(@"[Ame475-r4] rail stage: tiles built (%lu)", (unsigned long)ame475_tiles.count);
     for (ZL2HomeTapControl *ame475_tile in ame475_tiles) {
         [_menuStack addArrangedSubview:ame475_tile];
     }
+    NSLog(@"[Ame475-r4] rail stage: tiles arranged");
 
     [NSLayoutConstraint activateConstraints:@[
         // rail 背板钉栏容器四边
@@ -1401,6 +1406,7 @@ static UIImage *ZL2HomeSizedImage(NSString *name, NSString *fallback, CGFloat po
         [_menuScrollView.contentLayoutGuide.bottomAnchor constraintEqualToAnchor:_menuStack.bottomAnchor],
         [_menuStack.widthAnchor constraintEqualToAnchor:_menuScrollView.frameLayoutGuide.widthAnchor],
     ]];
+    NSLog(@"[Ame475-r4] rail stage: constraints activated");
     NSLog(@"[Ame475] home slim rail menu built (7 tiles + pinned launch card)");
 }
 
