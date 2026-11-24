@@ -188,6 +188,17 @@ static NSString * const ame475_repoMirrorPrefKey = @"ame475.renderer.repo.mirror
     [self.table reloadData];
 }
 
+// 已装档回查（按插件 id 对齐远程目录条目；未装 = nil）
+- (nullable NSDictionary *)ame475_installedEntryForId:(NSString *)pid {
+    for (NSDictionary *ame475_i in self.installedItems) {
+        if ([ame475_i[@"pluginId"] isKindOfClass:[NSString class]]
+            && [(NSString *)ame475_i[@"pluginId"] isEqualToString:pid]) {
+            return ame475_i;
+        }
+    }
+    return nil;
+}
+
 #pragma mark - 本地已装面
 
 - (void)ame475_reloadInstalled {
