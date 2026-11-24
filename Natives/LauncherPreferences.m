@@ -791,7 +791,7 @@ static NSArray<NSDictionary *> *availableRendererCandidates(void) {
             continue;
         }
         if ([key isEqualToString:@ RENDERER_KEY_MG] &&
-            !rendererLibraryExists(RENDERER_NAME_MOBILEGL) &&
+            !rendererLibraryExists(@ RENDERER_NAME_MOBILEGL) &&
             ![key isEqualToString:current]) {
             // ★Task475 渲染器真插件化：vendored libMobileGL.dylib 出包后 mg
             //   家族随实体缺席隐去（存量选中项 current 豁免照常显示；

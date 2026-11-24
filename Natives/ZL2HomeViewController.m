@@ -1142,11 +1142,26 @@ static UIImage *ZL2HomeSizedImage(NSString *name, NSString *fallback, CGFloat po
 // 原路径逐字不动（Task378/379/401/404/406/409/414/452 门禁锚全量保绿）。
 - (void)ame475_buildMenu {
     self.ame475_railMode = [ZL2HomeViewController ame475_railStylePreferred];
+    NSLog(@"[Ame475] buildMenu enter (rail=%d)", (int)self.ame475_railMode);
     if (self.ame475_railMode) {
-        [self ame475_buildSlimRailMenu];
+        @try {
+            [self ame475_buildSlimRailMenu];
+            NSLog(@"[Ame475] slim rail built ok");
+        } @catch (NSException *ame475_ex) {
+            // ★Task475-r2 降级防线：rail 构建异常 → 签名落栈 + 回落转盘路径
+            //（Task452 主页构建静默段收敛同型家法；半建 rail 的约束面随
+            //  _actionMenu 整容器重建清位，零残留）
+            NSLog(@"[Ame475] slim rail EXCEPTION signature: %@ (%) -- fallback to flow",
+                  ame475_ex.name, ame475_ex.reason);
+            NSLog(@"[Ame475] slim rail stack:\n%@", ame475_ex.callStackSymbols);
+            [self ame475_teardownMenu];
+            self.ame475_railMode = NO;
+            [self ame_buildActionMenu];
+        }
     } else {
         [self ame_buildActionMenu];
     }
+    NSLog(@"[Ame475] buildMenu done (rail=%d)", (int)self.ame475_railMode);
 }
 
 // 启动组卡公共构建器（转盘/精简 rail 双形态单一来源）：卡体+栈+状态行+大启动钮

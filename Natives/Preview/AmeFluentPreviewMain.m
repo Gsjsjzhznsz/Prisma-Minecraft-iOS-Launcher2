@@ -1525,8 +1525,10 @@ static void AmePreviewApplyFluentTokens(void) {
 }
 
 - (BOOL)application:(UIApplication *)application didFinishLaunchingWithOptions:(NSDictionary *)launchOptions {
+    NSLog(@"[AmeFluentPreview] boot signature: didFinishLaunching enter");
     // ★ Task393：预览沙盒（假账户/假版本实体 + POJAV_HOME）先行于任何页面
     AmePreviewPrepareSandbox();
+    NSLog(@"[AmeFluentPreview] boot signature: sandbox prepared");
 
     self.window = [[UIWindow alloc] initWithFrame:[UIScreen mainScreen].bounds];
     self.window.backgroundColor = [ZL2Theme surface];
@@ -1596,6 +1598,7 @@ static void AmePreviewApplyFluentTokens(void) {
 @end
 
 int main(int argc, char *argv[]) {
+    NSLog(@"[AmeFluentPreview] boot signature: main enter");
     @autoreleasepool {
         return UIApplicationMain(argc, argv, nil, NSStringFromClass([AmePreviewAppDelegate class]));
     }
