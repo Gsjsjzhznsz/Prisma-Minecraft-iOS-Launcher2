@@ -126,7 +126,7 @@ def main():
           and 'if (!ame475_loaded) {' in egl)
     check('B4 mg 家族实体缺席隐去',
           'RENDERER_KEY_MG' in lpref
-          and 'rendererLibraryExists(RENDERER_NAME_MOBILEGL)' in lpref)
+          and 'rendererLibraryExists(@ RENDERER_NAME_MOBILEGL)' in lpref)
     check('B5 在线仓库页五件',
           'ame475_repoBaseOfficial' in repovc
           and 'ghfast.top/https://raw.githubusercontent.com' in repovc
