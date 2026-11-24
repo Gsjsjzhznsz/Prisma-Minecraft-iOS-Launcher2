@@ -74,6 +74,9 @@ id getPrefObject(NSString *key) {
 //   NSUserDefaults 后备语义与 getPrefObject 同构（未设键返 0 = theme_mode/
 //   mirror_mode/proxy_mode 默认档，预览观感零回归）。
 NSInteger getPrefInt(NSString *key) {
+    // ★Task475-r3 bisect：home 侧边栏形态预览强制转盘（rail 路径死亡面二分——
+    //   #246/#248 静默死亡若随本桩消失 = 雷在 rail；仍在 = 雷在 flow 重构/helper 提取）
+    if ([key isEqualToString:@"general.home_sidebar_style"]) return 1;
     return (NSInteger)[[NSUserDefaults standardUserDefaults] integerForKey:key];
 }
 
