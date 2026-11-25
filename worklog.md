@@ -5769,3 +5769,10 @@ Stage Summary:
 - CI：构建代 BuildTag=Task477 · 2026-11-25（r 轮不动代际日期，13 门日期锚判例）；本地电池 59/60（S6 折叠面触碰=提交后自愈）→ 提交 6f7cd32ce 后 60/60 ALL GREEN。
 - Stage Summary:
 - 装机锚点（BuildTag=Task477 · 2026-11-25）：①主页一进来 = v1.0「Prisma 2 Beta」同款单卡侧边栏（3/10 宽全高卡：头像+名字贴顶 / 版本行 / 中段一大片留白「一堆空地」/ 大启动钮贴底 + 停靠提示；长按卡可换停靠边）②壳内游戏时右上 = 二代 ame411 七钮悬浮胶囊（主页/下载/联机/AI/设置/文件/虚拟按键）③设置→启动器→外观进阶「主页侧边栏」两选项：预发行版经典【默认】/转盘封面流，切换即时重建免重启 ④渲染器卸载三面与徽标维持 Task477 闭环态零回退。
+
+### Task477-r3 闭环补记（CI 双绿 + 21/21 产物验证）
+- CI 判例链：smoke #261（57b8f9cf）红 = 编译面第一道实锚（Task473 家族五连）——ZL2ShellSwitcherButton 类块插位类扩展之后，扩展内 ivar 轻量泛型引用未见类型（unknown type name 370:45）；r1（88d96bca）类块搬位扩展之前（pre477 原位序）零内容改动。
+- 互踩判例再证：push 双 run 并发组互斥两连（#373/#374 dev 撤两轮）；r1 推送仅触发 dev（smoke 未自动触发）→ dispatch smoke #262 单实例；smoke 绿后 rerun dev #374。
+- 双绿：smoke #262（45655066853）success + dev #374（45654965147）success，同头 88d96bca。
+- 四件产物（ipa 221.1MB / tipa 221.1MB / dSYM 7.0MB / preview 2.2MB）21/21 ALL PASS：V3/V4 代际锚（Task477 · 2026-11-25 在场/Task476·475 双消）+ 新立 V20（ame411_buildSwitcherCluster + ZL2ShellSwitcherButton selector 二进制在场 = 二代簇回植实锚）+ V21（ame475_buildSlimRailMenu + ame476_iconRailTileWithSymbol selector 二进制双消 = rail 三代出树实锚）+ 旋钮/伴侣对/dSYM 配对/UUID 同源全保形。
+- 装机复验锚点：主页一进来 = v1.0「Prisma 2 Beta」单卡侧边栏（默认，免设置切换）；设置→主页侧边栏两选项（预发行版经典【默认】/转盘封面流）；游戏壳右上 = ame411 七钮悬浮胶囊。

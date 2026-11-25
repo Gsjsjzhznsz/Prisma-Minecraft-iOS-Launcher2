@@ -118,6 +118,12 @@ check('V3 BuildTag Task477 · 2026-11-25 UTF-16LE 在场',
 check('V4 旧代际归零（Task476 · 2026-11-25 / Task475 · 2026-11-25 UTF-16LE 双消）',
       not bin_has(bin_ipa, utf16_le("Task476 · 2026-11-25"))
       and not bin_has(bin_ipa, utf16_le("Task475 · 2026-11-25")))
+check('V20 ★Task477-r3 二代簇回植实锚（ame411_buildSwitcherCluster + ZL2ShellSwitcherButton selector UTF-8 双在场）',
+      bin_has(bin_ipa, b"ame411_buildSwitcherCluster")
+      and bin_has(bin_ipa, b"ZL2ShellSwitcherButton"))
+check('V21 ★Task477-r3 rail 三代双消实锚（ame475_buildSlimRailMenu + ame476_iconRailTileWithSymbol selector UTF-8 双消）',
+      not bin_has(bin_ipa, b"ame475_buildSlimRailMenu")
+      and not bin_has(bin_ipa, b"ame476_iconRailTileWithSymbol"))
 
 KNOB_ENVS = [
     "MOBILEGL_MAGMA_FRAMESINFLIGHT",
