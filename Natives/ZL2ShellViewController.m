@@ -338,6 +338,20 @@ static UIImage *ZL2ShellSystemImageSizedEx(NSString *name, NSString *fallback, C
 
 #pragma mark - 壳本体
 
+// ZL2 顶栏 RailItem 无文字图标形态复刻（第 19 轮复诉①用户钦定「一开始的
+// 无文字右上角小型的切换按钮」）：40×40 触达 + 22pt 模板图标恒定（无折叠/
+// 展开二态 = 「固定图标」零联动路径，ZL2ShellSystemImageSized 栅格化保底 =
+// Task403/405 字形欠尺判例同源）+ 选中高亮（WinUI/M3 选中语义：primary
+// 着色 + surfaceContainerHigh 行底胶囊，与 ZL2ShellNavItem 同族语言）。
+@interface ZL2ShellSwitcherButton : ZL2ShellTapControl
+@property(nonatomic, assign, readonly) NSInteger pageIndex;   // -1 = 瞬时动作
+// 选中态直接继承 UIControl.selected（getter isSelected）——重声明会抑制
+// 自动 ivar 合成致 _selected 未声明（run 42472682021 编译错判例）
+- (instancetype)initWithSymbol:(NSString *)symbol
+                      fallback:(NSString *)fallback
+                     pageIndex:(NSInteger)pageIndex;
+@end
+
 @interface ZL2ShellViewController () <UINavigationControllerDelegate>
 @property(nonatomic, strong) UIView *topBar;                          // ★ Task378 退役占位（恒 nil；保留声明以兼容 (self.topBar ?: self.contentHeader) 门禁锚点表达式）
 @property(nonatomic, strong) ZL2ShellTaskPill *taskPill;              // 任务胶囊（nav 骨架内容区头专属）
@@ -373,19 +387,6 @@ static UIImage *ZL2ShellSystemImageSizedEx(NSString *name, NSString *fallback, C
 @property(nonatomic, strong) ZL2BackgroundHost *ame429_backgroundHost;
 @end
 
-// ZL2 顶栏 RailItem 无文字图标形态复刻（第 19 轮复诉①用户钦定「一开始的
-// 无文字右上角小型的切换按钮」）：40×40 触达 + 22pt 模板图标恒定（无折叠/
-// 展开二态 = 「固定图标」零联动路径，ZL2ShellSystemImageSized 栅格化保底 =
-// Task403/405 字形欠尺判例同源）+ 选中高亮（WinUI/M3 选中语义：primary
-// 着色 + surfaceContainerHigh 行底胶囊，与 ZL2ShellNavItem 同族语言）。
-@interface ZL2ShellSwitcherButton : ZL2ShellTapControl
-@property(nonatomic, assign, readonly) NSInteger pageIndex;   // -1 = 瞬时动作
-// 选中态直接继承 UIControl.selected（getter isSelected）——重声明会抑制
-// 自动 ivar 合成致 _selected 未声明（run 42472682021 编译错判例）
-- (instancetype)initWithSymbol:(NSString *)symbol
-                      fallback:(NSString *)fallback
-                     pageIndex:(NSInteger)pageIndex;
-@end
 
 @implementation ZL2ShellSwitcherButton
 
