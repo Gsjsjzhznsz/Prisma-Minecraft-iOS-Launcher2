@@ -1,12 +1,14 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-"""★Task379 门禁 —— ★Task477 整门重锚：导航合并退役反转执法。
+"""★Task379 门禁 —— ★Task477-r3 再反转：一代退 / 二代回植 / 三代 rail 出树。
 
-用户钦定「保留二代侧边栏，删除其他2代」定谳：
-  一代 ame347 NavigationView 抽屉 pane + 二代 ame411 右上悬浮簇全量清场，
-  bare 唯一骨架；主页 rail 二代（Task475/476 ZL2 图标 rail）= 全局唯一切换器。
-  本门由「窗格头行容器在位执法」翻转为「退役零残留 + bare 存量 + 令牌链保留」
-  双向执法（Task472 隔离退役反转同款家法）。
+用户复核裁决（2026-11-26）「保留二代侧边栏，删除其他2代。那三代的位置放我们
+  第一个预发行版本的侧边栏！设置里面的转盘侧边栏保留」：
+  一代 ame347 NavigationView 抽屉 pane 保持退役零残留；二代 ame411 右上悬浮簇
+  回植（pre477 原文逐字恢复 = bare 右上唯一切换区）；三代主页 rail 退役出树，
+  主页侧边栏收敛 v1.0「Prisma 2 Beta」单卡（ame477_buildBetaMenu 默认形态）。
+  本门由「一代/二代双清场」翻转为「一代零残留 + 二代回植正锚 + bare 存量 +
+  令牌链保留」执法（退役反转执法家法）。
 """
 import re
 import sys
@@ -46,9 +48,11 @@ def main():
               'ame376_applyPaneGeometry', 'ame347_applyDrawerGeometry',
               'ame_setDrawerOpen', 'ame_buildNavigationViewShell',
               'ZL2ShellNavItem')))
-    check('A2 二代簇退役零残留（ame411_ 三件 + ZL2ShellSwitcherButton/IconButton 类）',
-          all(sym not in shell_code for sym in (
-              'ame411_', 'ZL2ShellSwitcherButton', 'ZL2ShellIconButton')))
+    check('A2 二代簇回植正锚（★Task477-r3：ame411 簇 + SwitcherButton 类回植；IconButton 类保持退役）',
+          'ame411_buildSwitcherCluster' in shell_code
+          and 'ZL2ShellSwitcherButton' in shell_code
+          and 'ame411_refreshSwitcherSelection' in shell_code
+          and 'ZL2ShellIconButton' not in shell_code)
 
     # ── B 线：bare 唯一骨架存量 ──
     check('B1 bare 壳唯一骨架（构建器在位 + viewDidLoad 唯一分发 + 令牌退役日志）',
@@ -68,7 +72,7 @@ def main():
     if fails:
         print(f'ame379_selfcheck: {len(fails)} FAIL -> ' + '; '.join(fails))
         return 1
-    print('ame379_selfcheck: ALL PASS（一代/二代退役零残留 + bare 唯一骨架 + 令牌链保留）')
+    print('ame379_selfcheck: ALL PASS（一代退役零残留 + 二代簇回植 + bare 唯一骨架 + 令牌链保留）')
     return 0
 
 

@@ -4692,6 +4692,7 @@
 "ame475.repo.enabled" = "已啟用";
 "ame475.repo.disabled" = "已停用（外掛頁可啟停）";
 "ame477.setpg.home_sidebar.beta" = "Beta classic (v1.0 single card)";
+"ame477.setpg.home_sidebar.subtitle2" = "预发行版经典（v1.0 单卡）为默认；转盘封面流可在此切回";
 "ame477.setpg.renderer.badge_plugin" = "Plugin";
 "ame477.setpg.renderer.badge_builtin" = "Built-in";
 "ame477.repo.uninstall" = "Uninstall";

@@ -348,10 +348,12 @@ static UIImage *ZL2ShellSystemImageSizedEx(NSString *name, NSString *fallback, C
 @property(nonatomic, strong) NSMutableDictionary<NSNumber *, UIViewController *> *childCache;
 @property(nonatomic, assign) NSInteger currentIndex;
 
-// ★Task477 导航合并退役（用户钦定「保留二代侧边栏，删除其他2代」）：
-//   一代 ame347 抽屉 pane + 二代 ame411 悬浮簇全量清场（属性/构建/刷新/
-//   宽窄态/抽屉几何/指示条），bare 唯一骨架；主页 rail 二代（Task475/476
-//   ZL2 图标 rail）= 全局唯一切换器，子页返回走系统导航栏。ame347 结构
+// ★Task477-r3 纠偏重锚（用户复核裁决「保留二代侧边栏，删除其他2代。那三代
+//   的位置放我们第一个预发行版本的侧边栏」）：一代 ame347 抽屉 pane 保持
+//   退役；二代 ame411 悬浮簇回植（bare 右上唯一切换区，pre477 原文逐字恢复）；
+//   三代主页 rail（Task475/476）退役出树，主页侧边栏 = 预发行版 v1.0「Prisma
+//   2 Beta」单卡（ZL2HomeViewController ame477_buildBetaMenu，默认形态），
+//   转盘封面流设置保留。子页返回走系统导航栏。ame347 结构
 //   令牌链（ZL2Theme/桥/Runtime）保留 = 插件 API 面零触碰，壳层消费退役。
 //   Task463 折叠面（设置页 41 组）零污染（本手术不触碰 SettingCards/Settings）。
 @property(nonatomic, assign) BOOL ame347_navMode;                     // 结构令牌读数（仅日志语义；消费退役 ★Task477）
@@ -363,8 +365,80 @@ static UIImage *ZL2ShellSystemImageSizedEx(NSString *name, NSString *fallback, C
 //   不再钻状态栏；胶囊入带右上 = 不再压主页右栏顶卡）
 @property(nonatomic, strong) UIView *bareHeaderView;                  // bare 顶带（状态栏区+64 呼吸带）
 @property(nonatomic, strong) UILabel *bareTitleLabel;                 // bare 顶带大标题（fui headerTitle 同源口径）
+// ★Task477-r3 二代悬浮簇回植（Task411 原文三件；七入口 = 六导航 + 虚拟按键瞬时）
+@property(nonatomic, strong) UIView *ame411_switcherCluster;          // 悬浮图标胶囊容器
+@property(nonatomic, strong) NSMutableArray<ZL2ShellSwitcherButton *> *ame411_switcherButtons; // 入口钮
+@property(nonatomic, strong) NSMutableArray<NSNumber *> *ame411_switcherPages;  // 钮→页面索引（-1 = 瞬时）
 // ★Task429：ZL2 页背景层（8.3；仅背景挂载区域消费，两骨架共用内容宿主）
 @property(nonatomic, strong) ZL2BackgroundHost *ame429_backgroundHost;
+@end
+
+// ZL2 顶栏 RailItem 无文字图标形态复刻（第 19 轮复诉①用户钦定「一开始的
+// 无文字右上角小型的切换按钮」）：40×40 触达 + 22pt 模板图标恒定（无折叠/
+// 展开二态 = 「固定图标」零联动路径，ZL2ShellSystemImageSized 栅格化保底 =
+// Task403/405 字形欠尺判例同源）+ 选中高亮（WinUI/M3 选中语义：primary
+// 着色 + surfaceContainerHigh 行底胶囊，与 ZL2ShellNavItem 同族语言）。
+@interface ZL2ShellSwitcherButton : ZL2ShellTapControl
+@property(nonatomic, assign, readonly) NSInteger pageIndex;   // -1 = 瞬时动作
+// 选中态直接继承 UIControl.selected（getter isSelected）——重声明会抑制
+// 自动 ivar 合成致 _selected 未声明（run 42472682021 编译错判例）
+- (instancetype)initWithSymbol:(NSString *)symbol
+                      fallback:(NSString *)fallback
+                     pageIndex:(NSInteger)pageIndex;
+@end
+
+@implementation ZL2ShellSwitcherButton
+
+- (instancetype)initWithSymbol:(NSString *)symbol
+                      fallback:(NSString *)fallback
+                     pageIndex:(NSInteger)pageIndex {
+    self = [super initWithFrame:CGRectZero];
+    if (self) {
+        _pageIndex = pageIndex;
+        UIImage *image = ZL2ShellSystemImageSized(symbol, fallback, 22.0);
+        if (image) image = [image imageWithRenderingMode:UIImageRenderingModeAlwaysTemplate];
+        UIImageView *icon = [[UIImageView alloc] initWithImage:image];
+        icon.translatesAutoresizingMaskIntoConstraints = NO;
+        icon.contentMode = UIViewContentModeScaleAspectFit;
+        icon.userInteractionEnabled = NO;
+        icon.tintColor = [ZL2Theme onSurfaceVariant];
+        [self addSubview:icon];
+        [NSLayoutConstraint activateConstraints:@[
+            [icon.centerXAnchor constraintEqualToAnchor:self.centerXAnchor],
+            [icon.centerYAnchor constraintEqualToAnchor:self.centerYAnchor],
+            // 图标宽高两条独立 required 常量（第 19 轮「你直接固定图标不就行」
+            // 判例同构：零耦合、零二态、零可漂移面）
+            [icon.widthAnchor constraintEqualToConstant:22.0],
+            [icon.heightAnchor constraintEqualToConstant:22.0],
+            [self.widthAnchor constraintEqualToConstant:40.0],
+            [self.heightAnchor constraintEqualToConstant:40.0],
+        ]];
+        // 四轴抗压/抗抱 required 锁死 = AutoLayout 零压缩自由度兜底
+        [icon setContentCompressionResistancePriority:UILayoutPriorityRequired forAxis:UILayoutConstraintAxisHorizontal];
+        [icon setContentCompressionResistancePriority:UILayoutPriorityRequired forAxis:UILayoutConstraintAxisVertical];
+        [icon setContentHuggingPriority:UILayoutPriorityRequired forAxis:UILayoutConstraintAxisHorizontal];
+        [icon setContentHuggingPriority:UILayoutPriorityRequired forAxis:UILayoutConstraintAxisVertical];
+        self.layer.cornerRadius = 12.0;
+        self.layer.masksToBounds = YES;
+        self.isAccessibilityElement = YES;
+        self.accessibilityTraits = UIAccessibilityTraitButton;
+    }
+    return self;
+}
+
+- (void)setSelected:(BOOL)selected {
+    [super setSelected:selected];   // UIControl 原生存储，零私有 ivar
+    self.backgroundColor = selected ? [ZL2Theme surfaceContainerHigh] : [UIColor clearColor];
+    for (UIView *ame411_sub in self.subviews) {
+        if ([ame411_sub isKindOfClass:[UIImageView class]]) {
+            ((UIImageView *)ame411_sub).tintColor =
+                selected ? [ZL2Theme primary] : [ZL2Theme onSurfaceVariant];
+        }
+    }
+    self.accessibilityTraits = selected ? (UIAccessibilityTraitButton | UIAccessibilityTraitSelected)
+                                        : UIAccessibilityTraitButton;
+}
+
 @end
 
 @implementation ZL2ShellViewController
@@ -533,6 +607,11 @@ static UIImage *ZL2ShellSystemImageSizedEx(NSString *name, NSString *fallback, C
 //     既有约定：子页 push 层系统返回栏本就独立工作，顶栏返回仅为辅助手势）；
 //   · 主页内部自理 safeArea（ActionMenu/内容区挂 safe 锚）；bare 容器全屏直铺。
 - (void)ame_buildBareShell {
+    // ★Task411：右上角无文字小型切换簇（bare 唯一切换区，全页面常驻；
+    //   ★Task414 起入带：胶囊仍钉 safeArea 右上 12 = 带内右段，不再压主页右栏顶卡）
+    //   先建胶囊（顶带标题尾缘让位约束引用其 leading，须先存在）
+    [self ame411_buildSwitcherCluster];
+
     // ★Task414 顶带（对齐 fui contentHeader 口径）：状态栏区 surface 全出血
     //   + 64pt 呼吸带（大标题行 + 右上胶囊同行），容器自带下起
     self.bareHeaderView = [[UIView alloc] init];
@@ -564,14 +643,16 @@ static UIImage *ZL2ShellSystemImageSizedEx(NSString *name, NSString *fallback, C
         // 大标题（fui headerTitle 同源几何：centerY = safeArea 顶 + 32）
         [self.bareTitleLabel.leadingAnchor constraintEqualToAnchor:self.view.safeAreaLayoutGuide.leadingAnchor constant:16.0],
         [self.bareTitleLabel.centerYAnchor constraintEqualToAnchor:self.view.safeAreaLayoutGuide.topAnchor constant:32.0],
-        // ★Task477 簇退役：标题尾缘让位改安全区右缘（原簇 leading 锚拆除）
-        [self.bareTitleLabel.trailingAnchor constraintLessThanOrEqualToAnchor:self.view.safeAreaLayoutGuide.trailingAnchor constant:-16.0],
+        // 标题尾缘让位右上胶囊（胶囊 safe+12 入带，与标题同带不重叠；★Task477-r3 簇回植复立）
+        [self.bareTitleLabel.trailingAnchor constraintLessThanOrEqualToAnchor:self.ame411_switcherCluster.leadingAnchor constant:-12.0],
 
         [self.container.topAnchor constraintEqualToAnchor:self.bareHeaderView.bottomAnchor],
         [self.container.leadingAnchor constraintEqualToAnchor:self.view.leadingAnchor],
         self.containerTrailing,
         [self.container.bottomAnchor constraintEqualToAnchor:self.view.bottomAnchor],
     ]];
+    // 胶囊先建 = 被后加的顶带盖住；入带展示须置于顶带之上
+    [self.view bringSubviewToFront:self.ame411_switcherCluster];
 }
 
 #pragma mark - ★Task429 8.3 ZL2 页背景挂载（唯一背景挂载区域）
@@ -602,6 +683,111 @@ static UIImage *ZL2ShellSystemImageSizedEx(NSString *name, NSString *fallback, C
     ame428_nav.modalPresentationStyle = UIModalPresentationPageSheet;
     [self presentViewController:ame428_nav animated:YES completion:nil];
 }
+
+#pragma mark - ★ Task411 bare 右上角无文字小型切换簇
+
+// 第 19 轮复诉①：用户钦定「一开始的无文字右上角小型的切换按钮」回归，且
+// 「在其他界面都不见了」= 全页面常驻。承载形态 = 屏幕右上角悬浮图标胶囊
+// （MD3 悬浮面：surfaceContainer 实底 + elevation 阴影，Task354 材质判例，
+// 玻璃管线零复沾），钉 view safeArea 右上（旋转/分屏自适应），浮于 container
+// 全部子页之上（子页 push 的导航栏也在其下）。六入口 = 壳窗格主导航同符号
+// 族（主页/下载/多人联机/AI）+ 底部固定（设置/文件），文件 = 瞬时动作
+// （PageSheet，同窗格语义）。仅 ame_buildBareShell 调用 = fui/navigationview
+// 骨架不建（壳左栏窗格唯一切换区，第 16 轮防双导航重复口径延续）；主页
+// 五瓦片卡同步二度退役（ZL2HomeViewController hidden=YES）= bare 全场景
+// 唯一切换区收敛到本簇。
+- (void)ame411_buildSwitcherCluster {
+    __weak typeof(self) weakSelf = self;
+    self.ame411_switcherCluster = [[UIView alloc] init];
+    self.ame411_switcherCluster.translatesAutoresizingMaskIntoConstraints = NO;
+    self.ame411_switcherCluster.backgroundColor = [ZL2Theme surfaceContainer];
+    self.ame411_switcherCluster.layer.cornerRadius = 26.0;
+    self.ame411_switcherCluster.layer.masksToBounds = NO;
+    // MD3 elevation-2 悬浮阴影（AmeFloatingMenu 同族；无玻璃管线）
+    self.ame411_switcherCluster.layer.shadowColor = [UIColor blackColor].CGColor;
+    self.ame411_switcherCluster.layer.shadowOpacity = 0.28;
+    self.ame411_switcherCluster.layer.shadowRadius = 8.0;
+    self.ame411_switcherCluster.layer.shadowOffset = CGSizeMake(0, 2);
+    [self.view addSubview:self.ame411_switcherCluster];
+
+    UIStackView *ame411_stack = [[UIStackView alloc] init];
+    ame411_stack.translatesAutoresizingMaskIntoConstraints = NO;
+    ame411_stack.axis = UILayoutConstraintAxisHorizontal;
+    ame411_stack.spacing = 2.0;
+    [self.ame411_switcherCluster addSubview:ame411_stack];
+
+    // 标签走壳窗格既有 i18n 键（零新增键，task248/250 面不变）；
+    // ame192.ai.title 窗格判例 fallback nil → 数组容器需非 nil，中文兜底仅防御。
+    NSArray<NSString *> *ame411_symbols = @[@"house.fill", @"arrow.down.circle.fill",
+                                            @"person.2.fill", @"sparkles",
+                                            @"gearshape.fill", @"folder.fill",
+                                            // ★Task428（6.6）：虚拟按键 / 触控布局直达（瞬时 PageSheet）
+                                            @"hand.tap.fill"];
+    NSArray<NSString *> *ame411_fallbacks = @[@"house", @"arrow.down.circle",
+                                              @"person.2", @"sparkles",
+                                              @"gearshape", @"folder",
+                                              @"hand.tap"];
+    NSArray<NSString *> *ame411_labels = @[localize(@"ame369.common.home", @"主页"),
+                                           localize(@"ame369.shell.tab.downloads", @"下载"),
+                                           localize(@"ame369.common.multiplayer", @"多人联机"),
+                                           localize(@"ame192.ai.title", @"AI 助手"),
+                                           localize(@"ame369.shell.tab.settings", @"设置"),
+                                           localize(@"ame369.shell.tab.files", @"文件"),
+                                           localize(@"ame428.shell.virtual_controls", @"虚拟按键")];
+    // 页面索引 = 壳页面表（0 主页/1 下载/5 联机/6 AI/4 设置）；-1 = 文件瞬时；
+    // ★Task428（6.6）：-2 = 虚拟按键布局瞬时（TouchControllerPreferencesViewController）
+    NSArray<NSNumber *> *ame411_pages = @[@0, @1, @5, @6, @4, @(-1), @(-2)];
+    self.ame411_switcherButtons = [NSMutableArray array];
+    self.ame411_switcherPages = [NSMutableArray array];
+    [ame411_symbols enumerateObjectsUsingBlock:^(NSString *ame411_symbol, NSUInteger ame411_idx, BOOL *ame411_stop) {
+        ZL2ShellSwitcherButton *ame411_btn = [[ZL2ShellSwitcherButton alloc]
+            initWithSymbol:ame411_symbol fallback:ame411_fallbacks[ame411_idx]
+                 pageIndex:ame411_pages[ame411_idx].integerValue];
+        ame411_btn.accessibilityLabel = ame411_labels[ame411_idx];
+        NSInteger ame411_target = ame411_pages[ame411_idx].integerValue;
+        ame411_btn.ame_action = ^{
+            // ★Task428（6.6）：虚拟按键 / 触控布局直达（瞬时 PageSheet，落地页与
+            //   游戏内菜单入口同款）
+            if (ame411_target == -2) {
+                [weakSelf ame428_openTouchControllerSheet];
+                return;
+            }
+            if (ame411_target < 0) {
+                [weakSelf ame_openFileManagerSheet];   // 文件 = 瞬时 PageSheet
+                return;
+            }
+            [weakSelf showPageAtIndex:ame411_target];
+        };
+        [ame411_stack addArrangedSubview:ame411_btn];
+        [self.ame411_switcherButtons addObject:ame411_btn];
+        [self.ame411_switcherPages addObject:ame411_pages[ame411_idx]];
+    }];
+
+    [NSLayoutConstraint activateConstraints:@[
+        // 钉 safeArea 右上（含横竖屏/分屏/iPhone 刘海自适应），浮于全部子页之上
+        //   ★Task413 安全区二轮：顶距 8→12（MD3 悬浮面呼吸带同档加高）
+        [self.ame411_switcherCluster.topAnchor constraintEqualToAnchor:self.view.safeAreaLayoutGuide.topAnchor constant:12.0],
+        [self.ame411_switcherCluster.trailingAnchor constraintEqualToAnchor:self.view.safeAreaLayoutGuide.trailingAnchor constant:-8.0],
+        [ame411_stack.topAnchor constraintEqualToAnchor:self.ame411_switcherCluster.topAnchor constant:6.0],
+        [ame411_stack.bottomAnchor constraintEqualToAnchor:self.ame411_switcherCluster.bottomAnchor constant:-6.0],
+        [ame411_stack.leadingAnchor constraintEqualToAnchor:self.ame411_switcherCluster.leadingAnchor constant:6.0],
+        [ame411_stack.trailingAnchor constraintEqualToAnchor:self.ame411_switcherCluster.trailingAnchor constant:-6.0],
+    ]];
+}
+
+// 选中态随 showPageAtIndex 刷新（bare 分支 = ame_refreshTopBarStateAnimated
+// else 路径统一经过；同页幂等自愈路径同样覆盖）
+
+// ★Task428（6.6）：右上角切换簇「虚拟按键 / 触控布局」直达（瞬时 PageSheet；
+//   PDF v5 §6.6 主屏幕工具条快捷入口；落地页与游戏内菜单入口同款
+//   TouchControllerPreferencesViewController）
+- (void)ame411_refreshSwitcherSelection {
+    if (!self.ame411_switcherButtons) return;
+    [self.ame411_switcherButtons enumerateObjectsUsingBlock:^(ZL2ShellSwitcherButton *ame411_btn, NSUInteger ame411_idx, BOOL *ame411_stop) {
+        ame411_btn.selected = (self.ame411_switcherPages[ame411_idx].integerValue == self.currentIndex);
+    }];
+}
+
 #pragma mark - 通知
 
 - (void)ame_showHome {
@@ -769,12 +955,14 @@ static UIImage *ZL2ShellSystemImageSizedEx(NSString *name, NSString *fallback, C
 
 
 - (void)ame_refreshTopBarStateAnimated:(BOOL)animated {
-    // ★Task477：nav/簇刷新面随一代/二代退役摘除——bare 顶带大标题唯一刷新
-    //   （ame_titleForIndex 同源口径：主页 = 应用名，子页 = 页名）；
-    //   子页返回走各 UINavigationController 系统返回栏（7.0-UI-8 既有约定）。
+    // ★Task477-r3：bare 顶带大标题 + 二代簇选中态（ame_titleForIndex 同源口径：
+    //   主页 = 应用名，子页 = 页名）；子页返回走各 UINavigationController 系统
+    //   返回栏（7.0-UI-8 既有约定）。
     if (self.bareTitleLabel) {
         self.bareTitleLabel.text = [self ame_titleForIndex:self.currentIndex];
     }
+    // ★ Task411：右上角切换簇选中态刷新（bare 唯一切换区随 currentIndex 同步）
+    [self ame411_refreshSwitcherSelection];
 }
 
 - (void)ame_popCurrentIfPossible {

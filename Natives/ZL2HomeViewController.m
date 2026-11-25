@@ -153,7 +153,6 @@ static const CGFloat ZL2HomeCardFooterHeight   = 32;  // 卡尾动作行钮边�
 //   瓦片高 94 → 66.5（10 + 27.5 图标 + 2 + 15 标签 + 12），间距/留白口径不变）
 static const CGFloat ZL2HomeQuickNavIconSize   = 27.5;  // 图标 = 55 ÷ 2（用户规格“缩小两倍”）
 static const CGFloat ZL2HomeQuickNavTileHeight = 66.5;  // 瓦片高（10 + 27.5 图标 + 2 + 15 标签 + 12）
-static const CGFloat ZL2HomeRailTileHeight    = 44.0;   // ★Task476 ZL2 式纯图标 rail 瓦片高（图标单行居中，TopBarRailItem 家法）
 static const CGFloat ZL2HomeQuickNavGap        = 6;    // 行内统一间距（与两侧行内对称留白同值）
 
 // SF Symbols 取图兜底（本页符号全为 SF1.0 级，均带旧名 fallback；保留兜底
@@ -541,9 +540,7 @@ static UIImage *ZL2HomeSizedImage(NSString *name, NSString *fallback, CGFloat po
 @property (nonatomic, assign) BOOL ame_menuOnRight;
 // 停靠边提示（★Task404 恢复：73c10b7 退役后 b78a16c 摘除的「长按菜单可切换停靠边」，随功能一并回滚）
 @property (nonatomic, strong) UILabel *menuHintLabel;
-// ★Task475 主页侧边栏双形态（精简 rail 默认 / 转盘封面流）：rail 背板 + 当前形态
-@property (nonatomic, strong) UIView *ame475_railBackdrop;
-@property (nonatomic, assign) BOOL ame475_railMode;
+// ★Task475 主页侧边栏形态旗（★Task477-r3：rail 三代退役出树，仅存 beta/flow 双态）
 // ★Task477 三代形态（第一个预发行版本 v1.0「Prisma 2 Beta」单卡移植）：
 //   v1.0 原文八枚标签 ivar 回册（Task400 重写期拆除）+ 形态旗
 //   （railMode 守卫语义沿用 = 非 flow；betaMode = 三代分发/宽度/刷新分流）
@@ -854,7 +851,7 @@ static UIImage *ZL2HomeSizedImage(NSString *name, NSString *fallback, CGFloat po
 #pragma mark - Layout
 
 - (void)buildViews {
-    [self ame475_buildMenu];   // ★Task475：主页侧边栏双形态分流（rail 默认/转盘）
+    [self ame475_buildMenu];   // ★Task475：主页侧边栏形态分流（beta v1.0 单卡默认/转盘）
     [self ame_buildContentArea];
     [self ame_buildEmptyState];
 }
@@ -1148,61 +1145,37 @@ static UIImage *ZL2HomeSizedImage(NSString *name, NSString *fallback, CGFloat po
 }
 
 
-#pragma mark - ★Task475 主页侧边栏双形态（精简 rail 默认 / 转盘封面流设置开启）
+#pragma mark - ★Task475 主页侧边栏形态分发（★Task477-r3：三代 v1.0 单卡默认 / 转盘封面流设置开启；rail 退役出树）
 
-// 形态单一读点：general.home_sidebar_style（int 0=精简 rail【默认】/1=转盘封面流；
-// 未注册/非法值一律回落精简 = 用户钦定「默认就是精简」）。写侧 ZL2SettingPages
-// 外观进阶组 ame475_styleRow，切换广播 Ame475HomeMenuStyleChanged。
-+ (BOOL)ame475_railStylePreferred {
-    NSInteger ame475_style = getPrefInt(@"general.home_sidebar_style");
-    return ame475_style != 1;
-}
-
-// buildViews 分流器：rail = ame475_buildSlimRailMenu；转盘 = ame_buildActionMenu
-// 原路径逐字不动（Task378/379/401/404/406/409/414/452 门禁锚全量保绿）。
+// buildViews 分流器：beta = ame477_buildBetaMenu（★Task477-r3 默认形态）；
+// 转盘 = ame_buildActionMenu 原路径逐字不动（Task378/379/401/404/406/409/414/452
+// 门禁锚全量保绿）。
 - (void)ame475_buildMenu {
-    self.ame475_railMode = [ZL2HomeViewController ame475_railStylePreferred];
-    self.ame477_betaMode = ([ZL2HomeViewController ame477_styleIndex] == 2);
-    NSLog(@"[Ame475] buildMenu enter (rail=%d beta=%d)", (int)self.ame475_railMode, (int)self.ame477_betaMode);
+    self.ame477_betaMode = ([ZL2HomeViewController ame477_styleIndex] == 0);
+    NSLog(@"[Ame475] buildMenu enter (beta=%d)", (int)self.ame477_betaMode);
     if (self.ame477_betaMode) {
         @try {
             [self ame477_buildBetaMenu];
             NSLog(@"[Ame477] beta classic built ok");
         } @catch (NSException *ame477_ex) {
             // ★Task477 降级防线：三代构建异常 → 签名落栈 + 回落转盘路径
-            //（Task475-r2 rail 降级同型家法；半建面随 _actionMenu 整容器清位）
+            //（Task475-r2 降级同型家法；半建面随 _actionMenu 整容器清位）
             NSLog(@"[Ame477] beta classic EXCEPTION signature: %@ (%) -- fallback to flow",
                   ame477_ex.name, ame477_ex.reason);
             NSLog(@"[Ame477] beta classic stack:\n%@", ame477_ex.callStackSymbols);
             [self ame475_teardownMenu];
-            self.ame475_railMode = NO;
             self.ame477_betaMode = NO;
-            [self ame_buildActionMenu];
-        }
-    } else if (self.ame475_railMode) {
-        @try {
-            [self ame475_buildSlimRailMenu];
-            NSLog(@"[Ame475] slim rail built ok");
-        } @catch (NSException *ame475_ex) {
-            // ★Task475-r2 降级防线：rail 构建异常 → 签名落栈 + 回落转盘路径
-            //（Task452 主页构建静默段收敛同型家法；半建 rail 的约束面随
-            //  _actionMenu 整容器重建清位，零残留）
-            NSLog(@"[Ame475] slim rail EXCEPTION signature: %@ (%) -- fallback to flow",
-                  ame475_ex.name, ame475_ex.reason);
-            NSLog(@"[Ame475] slim rail stack:\n%@", ame475_ex.callStackSymbols);
-            [self ame475_teardownMenu];
-            self.ame475_railMode = NO;
             [self ame_buildActionMenu];
         }
     } else {
         [self ame_buildActionMenu];
     }
-    NSLog(@"[Ame475] buildMenu done (rail=%d beta=%d)", (int)self.ame475_railMode, (int)self.ame477_betaMode);
+    NSLog(@"[Ame475] buildMenu done (beta=%d)", (int)self.ame477_betaMode);
 }
 
-// 启动组卡公共构建器（转盘/精简 rail 双形态单一来源）：卡体+栈+状态行+大启动钮
-// +插件 chip+停靠提示+内层约束，全量原样平移自 ame_buildActionMenu（Task401/
-// 415c/328/404 口径逐字保留 = 门禁锚同源）。
+// 启动组卡公共构建器（转盘形态单一来源；★Task477-r3 beta 单卡自带启动组）：
+// 卡体+栈+状态行+大启动钮+插件 chip+停靠提示+内层约束，全量原样平移自
+// ame_buildActionMenu（Task401/415c/328/404 口径逐字保留 = 门禁锚同源）。
 - (void)ame475_buildLaunchCard {
     _launchCard = [[UIView alloc] init];
     _launchCard.backgroundColor = [ZL2Theme surfaceContainer];
@@ -1349,149 +1322,13 @@ static UIImage *ZL2HomeSizedImage(NSString *name, NSString *fallback, CGFloat po
 // 精简侧边栏（ZL2 rail）：固定窄栏背板 + 瓦片纵列（复用 ame378 瓦片工厂与既有
 // i18n 键零新增）+ 钉底启动组卡（与转盘形态同一构建器来源）。tap = 壳导航总线
 // 直达（ame378_navigateToPage 同款 ZL2ShellNavigate 通知），文件项走壳 sheet。
-// ★Task476 ZL2 式纯图标 rail 瓦片工厂（TopBarRailItem/TextRailItem 家法：图标
-// 常驻、文字不占位——文案仅入 VoiceOver 无障碍标签；ame369.shell.tab.* 站点
-// localize 字面量在调用点原位保留 = ame369 453 改写点锚零漂移）。转盘形态
-// ame378 带字瓦片工厂原样保留，双形态观感分工：rail=精简图标列，转盘=完整封面流。
-- (ZL2HomeTapControl *)ame476_iconRailTileWithSymbol:(NSString *)symbol
-                                            fallback:(NSString *)fallback
-                                               title:(NSString *)title
-                                              action:(void (^)(void))action {
-    ZL2HomeTapControl *tile = [[ZL2HomeTapControl alloc] init];
-    tile.backgroundColor = [UIColor clearColor];
-    tile.layer.cornerRadius = [ZL2Theme radiusS];
-    tile.translatesAutoresizingMaskIntoConstraints = NO;
-    tile.isAccessibilityElement = YES;
-    tile.accessibilityTraits = UIAccessibilityTraitButton;
-    tile.accessibilityLabel = title;
-
-    UIImage *ame476_image = ZL2HomeSystemImage(symbol, fallback);
-    if (ame476_image) ame476_image = [ame476_image imageWithRenderingMode:UIImageRenderingModeAlwaysTemplate];
-    UIImageView *ame476_icon = [[UIImageView alloc] initWithImage:ame476_image];
-    ame476_icon.tintColor = [ZL2Theme onSurface];            // 系统深浅自适应主色（同 ame378 口径）
-    ame476_icon.contentMode = UIViewContentModeScaleAspectFit;
-    ame476_icon.translatesAutoresizingMaskIntoConstraints = NO;
-    ame476_icon.userInteractionEnabled = NO;
-    [tile addSubview:ame476_icon];
-
-    [NSLayoutConstraint activateConstraints:@[
-        [tile.heightAnchor constraintEqualToConstant:ZL2HomeRailTileHeight],
-        [ame476_icon.centerXAnchor constraintEqualToAnchor:tile.centerXAnchor],
-        [ame476_icon.centerYAnchor constraintEqualToAnchor:tile.centerYAnchor],
-        [ame476_icon.widthAnchor constraintEqualToConstant:ZL2HomeQuickNavIconSize],
-        [ame476_icon.heightAnchor constraintEqualToConstant:ZL2HomeQuickNavIconSize],
-    ]];
-
-    tile.ame_action = action;
-    return tile;
-}
-
-- (void)ame475_buildSlimRailMenu {
-    _actionMenu = [[UIView alloc] init];
-    _actionMenu.backgroundColor = [UIColor clearColor];
-    _actionMenu.translatesAutoresizingMaskIntoConstraints = NO;
-    [self.view addSubview:_actionMenu];
-
-    // rail 背板：surfaceContainer 圆角整块（精简形态无卡窗挖洞面）
-    _ame475_railBackdrop = [[UIView alloc] init];
-    _ame475_railBackdrop.backgroundColor = [ZL2Theme surfaceContainer];
-    _ame475_railBackdrop.layer.cornerRadius = [ZL2Theme radiusXL];
-    _ame475_railBackdrop.layer.masksToBounds = YES;
-    _ame475_railBackdrop.translatesAutoresizingMaskIntoConstraints = NO;
-    _ame475_railBackdrop.accessibilityIdentifier = @"zl2.sidebar.rail";
-    [_actionMenu addSubview:_ame475_railBackdrop];
-    NSLog(@"[Ame475-r4] rail stage: backdrop ok");
-
-    // 钉底启动组卡（与转盘形态共用同一构建器：状态行/大启动钮/插件 chip/停靠提示）
-    NSLog(@"[Ame475-r4] rail stage: pre-launchcard");
-    [self ame475_buildLaunchCard];
-    NSLog(@"[Ame475-r4] rail stage: launchcard ok");
-
-    // 中段滚动区 + rail 瓦片纵列（总高超出时滚动）
-    _menuScrollView = [[UIScrollView alloc] init];
-    _menuScrollView.backgroundColor = [UIColor clearColor];
-    _menuScrollView.showsVerticalScrollIndicator = NO;
-    _menuScrollView.translatesAutoresizingMaskIntoConstraints = NO;
-    _menuScrollView.delegate = self;
-    [_actionMenu addSubview:_menuScrollView];
-
-    _menuStack = [[UIStackView alloc] init];
-    _menuStack.axis = UILayoutConstraintAxisVertical;
-    _menuStack.alignment = UIStackViewAlignmentFill;
-    _menuStack.spacing = ZL2HomeCardGap;
-    _menuStack.translatesAutoresizingMaskIntoConstraints = NO;
-    [_menuScrollView addSubview:_menuStack];
-
-    __weak ZL2HomeViewController *weakSelf = self;
-    NSString *ame475_aiTitle = localize(@"ame192.ai.title", nil);
-    if (ame475_aiTitle.length == 0) ame475_aiTitle = @"AI";
-    NSArray<ZL2HomeTapControl *> *ame475_tiles = @[
-        [self ame476_iconRailTileWithSymbol:@"square.grid.2x2.fill" fallback:@"square.grid.2x2"
-                                      title:localize(@"ame369.shell.tab.versions", @"版本")
-                                     action:^{ [weakSelf ame378_navigateToPage:2]; }],
-        [self ame476_iconRailTileWithSymbol:@"person.crop.circle.fill" fallback:@"person.crop.circle"
-                                      title:localize(@"ame369.shell.tab.accounts", @"账户")
-                                     action:^{ [weakSelf ame378_navigateToPage:3]; }],
-        [self ame476_iconRailTileWithSymbol:@"arrow.down.circle.fill" fallback:@"arrow.down.circle"
-                                      title:localize(@"ame369.shell.tab.downloads", @"下载")
-                                     action:^{ [weakSelf ame378_navigateToPage:1]; }],
-        [self ame476_iconRailTileWithSymbol:@"person.2.fill" fallback:@"person.2"
-                                      title:localize(@"ame369.shell.tab.terracotta", @"Terracotta | 陶瓦联机")
-                                     action:^{ [weakSelf ame378_navigateToPage:5]; }],
-        [self ame476_iconRailTileWithSymbol:@"sparkles" fallback:@"sparkles"
-                                      title:ame475_aiTitle
-                                     action:^{ [weakSelf ame378_navigateToPage:6]; }],
-        [self ame476_iconRailTileWithSymbol:@"folder.fill" fallback:@"folder"
-                                      title:localize(@"ame369.shell.tab.files", @"文件")
-                                     action:^{ [weakSelf ame378_openFileManagerSheet]; }],
-        [self ame476_iconRailTileWithSymbol:@"gearshape.fill" fallback:@"gearshape"
-                                      title:localize(@"ame369.shell.tab.settings", @"设置")
-                                     action:^{ [weakSelf ame378_navigateToPage:4]; }],
-    ];
-    NSLog(@"[Ame475-r4] rail stage: tiles built (%lu)", (unsigned long)ame475_tiles.count);
-    for (ZL2HomeTapControl *ame475_tile in ame475_tiles) {
-        [_menuStack addArrangedSubview:ame475_tile];
-    }
-    NSLog(@"[Ame475-r4] rail stage: tiles arranged");
-
-    [NSLayoutConstraint activateConstraints:@[
-        // rail 背板钉栏容器四边
-        [_ame475_railBackdrop.topAnchor constraintEqualToAnchor:_actionMenu.topAnchor],
-        [_ame475_railBackdrop.bottomAnchor constraintEqualToAnchor:_actionMenu.bottomAnchor],
-        [_ame475_railBackdrop.leadingAnchor constraintEqualToAnchor:_actionMenu.leadingAnchor],
-        [_ame475_railBackdrop.trailingAnchor constraintEqualToAnchor:_actionMenu.trailingAnchor],
-
-        // 中段滚动区：四边内缩 8pt（与转盘形态卡间隙同律），底缘锚启动卡顶
-        [_menuScrollView.topAnchor constraintEqualToAnchor:_actionMenu.topAnchor constant:ZL2HomeCardGap],
-        [_menuScrollView.leadingAnchor constraintEqualToAnchor:_actionMenu.leadingAnchor constant:ZL2HomeCardGap],
-        [_menuScrollView.trailingAnchor constraintEqualToAnchor:_actionMenu.trailingAnchor constant:-ZL2HomeCardGap],
-        [_menuScrollView.bottomAnchor constraintEqualToAnchor:_launchCard.topAnchor constant:-ZL2HomeCardGap],
-
-        // 启动组卡钉底三钉（Task415c 口径同源）
-        [_launchCard.leadingAnchor constraintEqualToAnchor:_actionMenu.leadingAnchor constant:ZL2HomeCardGap],
-        [_launchCard.trailingAnchor constraintEqualToAnchor:_actionMenu.trailingAnchor constant:-ZL2HomeCardGap],
-        [_launchCard.bottomAnchor constraintEqualToAnchor:_actionMenu.bottomAnchor constant:-ZL2HomeCardGap],
-
-        // 滚动内容：三边钉 contentLayoutGuide + 底缘 ≥ 内容底，宽 = 视口宽
-        [_menuStack.topAnchor constraintEqualToAnchor:_menuScrollView.contentLayoutGuide.topAnchor],
-        [_menuStack.leadingAnchor constraintEqualToAnchor:_menuScrollView.contentLayoutGuide.leadingAnchor],
-        [_menuStack.trailingAnchor constraintEqualToAnchor:_menuScrollView.contentLayoutGuide.trailingAnchor],
-        [_menuScrollView.contentLayoutGuide.bottomAnchor constraintEqualToAnchor:_menuStack.bottomAnchor],
-        [_menuStack.widthAnchor constraintEqualToAnchor:_menuScrollView.frameLayoutGuide.widthAnchor],
-    ]];
-    NSLog(@"[Ame475-r4] rail stage: constraints activated");
-    NSLog(@"[Ame475] home slim rail menu built (7 tiles + pinned launch card)");
-}
-
-
 #pragma mark - ★Task477 三代形态（第一个预发行版本 v1.0「Prisma 2 Beta」侧边栏单卡移植）
 
-// ★Task477 形态单一读点（int 0=精简 rail 二代【默认】/1=转盘封面流/2=三代
-//   预发行版经典单卡 v1.0 移植；未注册/非法值一律回落 rail——Task475 读点同款）。
+// ★Task477-r3 形态单一读点（int 0=三代预发行版经典单卡【默认】/1=转盘封面流；
+//   rail 三代退役出树——未注册/旧值（旧 0 精简/旧 2 三代）一律回落 beta 默认）。
 + (NSInteger)ame477_styleIndex {
     NSInteger ame477_style = getPrefInt(@"general.home_sidebar_style");
-    if (ame477_style < 0 || ame477_style > 2) ame477_style = 0;
-    return ame477_style;
+    return (ame477_style == 1) ? 1 : 0;
 }
 
 // v1.0 代常量回册（Task400 重写期退役；值 = v1.0 逐位，git show v1.0 直取）
@@ -1915,11 +1752,10 @@ static const CGFloat ame477_VersionCardHeight = 68;    // v1.0 版本选择卡�
     [self.actionMenu addGestureRecognizer:menuLongPress];
 }
 
-// 形态切换广播响应：形态真变才重建（幂等闸）
+// 形态切换广播响应：形态真变才重建（幂等闸；★Task477-r3 单旗 = beta/flow 双态）
 - (void)ame475_styleDidChange:(NSNotification *)note {
-    BOOL ame475_now = [ZL2HomeViewController ame475_railStylePreferred];
-    BOOL ame477_nowBeta = ([ZL2HomeViewController ame477_styleIndex] == 2);
-    if (ame475_now == self.ame475_railMode && ame477_nowBeta == self.ame477_betaMode) return;
+    BOOL ame477_nowBeta = ([ZL2HomeViewController ame477_styleIndex] == 0);
+    if (ame477_nowBeta == self.ame477_betaMode) return;
     [self ame475_rebuildMenu];
 }
 
@@ -1936,7 +1772,7 @@ static const CGFloat ame477_VersionCardHeight = 68;    // v1.0 版本选择卡�
     [self ame_refreshVersionCard];
     [self ame328_refreshPluginChip];
     [self refreshLaunchState];
-    NSLog(@"[Ame475] home menu rebuilt (rail=%d)", (int)self.ame475_railMode);
+    NSLog(@"[Ame475] home menu rebuilt (beta=%d)", (int)self.ame477_betaMode);
 }
 
 - (void)ame475_teardownMenu {
@@ -1964,7 +1800,6 @@ static const CGFloat ame477_VersionCardHeight = 68;    // v1.0 版本选择卡�
     self.ame_launchContentReversed = NO; self.ame_pluginContentReversed = NO;
     self.ame400_accountKeys = nil;
     self.ame400_versionRowNames = nil;
-    self.ame475_railBackdrop = nil;
     // ★Task477 三代 ivar 清位（八枚标签随容器摘除，防跨形态悬垂引用）
     self.accountAvatarBg = nil; self.accountAvatarView = nil;
     self.accountNameLabel = nil; self.accountTypeLabel = nil;
@@ -2328,7 +2163,7 @@ static const CGFloat ame477_VersionCardHeight = 68;    // v1.0 版本选择卡�
 /// 文字右对齐）。账户横排条目全居中无水平不对称，免重建。幂等：镜像态未
 /// 变直接返回；镜像重钉仅替换卡尾四枚水平钉，纵钉/尺寸钉原样保留。
 - (void)ame_applyPanelMirror {
-    if (self.ame475_railMode) return;   // ★Task475 rail 形态：无卡尾四钮/封面流镜像面，空转
+    if (self.ame477_betaMode) return;   // ★Task477-r3 beta v1.0 单卡：无卡尾四钮/封面流镜像面，空转（v1.0 原型零镜像概念）
     BOOL ame_left = !self.ame_menuOnRight;
     if (self.ame_panelMirrorLeft == ame_left && self.ame_mirrorConstraints != nil) return;
     self.ame_panelMirrorLeft = ame_left;
@@ -2425,18 +2260,9 @@ static const CGFloat ame477_VersionCardHeight = 68;    // v1.0 版本选择卡�
     UIView *content = self.contentArea;
     NSMutableArray<NSLayoutConstraint *> *constraints = [NSMutableArray array];
 
-    // 菜单宽：0.3 × 容器宽（可破），上下限 required 收敛出 clamp 语义
-    // ★Task475 主页侧边栏双形态：精简 rail（默认）= 固定窄栏宽（iPhone 88 /
-    //   iPad regular 104，壳层 ZL2RailView 度量同源）；转盘封面流维持原 clamp
-    if (self.ame475_railMode && !self.ame477_betaMode) {   // ★Task477 三代走转盘 clamp（v1.0 单卡 0.28 比例原口径）
-        CGFloat ame475_railWidth = 88.0;
-        if (self.traitCollection.horizontalSizeClass == UIUserInterfaceSizeClassRegular) {
-            ame475_railWidth = 104.0;
-        }
-        [constraints addObjectsFromArray:@[
-            [menu.widthAnchor constraintEqualToConstant:ame475_railWidth],
-        ]];
-    } else {
+    // 菜单宽：0.28 × 容器宽（可破），上下限 required 收敛出 clamp 语义
+    // ★Task477-r3 rail 三代退役：v1.0 单卡与转盘封面流同一 clamp 口径（v1.0
+    //   原宽 3/10 → 现行 0.28 收窄值沿用，宽度分支单路化）
     NSLayoutConstraint *ratio = [menu.widthAnchor constraintEqualToAnchor:self.view.widthAnchor
                                                               multiplier:ZL2HomeMenuWidthRatio];
     ratio.priority = 999;
@@ -2445,7 +2271,6 @@ static const CGFloat ame477_VersionCardHeight = 68;    // v1.0 版本选择卡�
         [menu.widthAnchor constraintGreaterThanOrEqualToConstant:ZL2HomeMenuWidthMin],
         [menu.widthAnchor constraintLessThanOrEqualToConstant:ZL2HomeMenuWidthMax],
     ]];
-    }
 
     [constraints addObjectsFromArray:@[
         // 纵向：菜单列贴安全区上下（内边距由 menuStack 承担）；

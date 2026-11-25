@@ -2376,24 +2376,24 @@ didFinishPicking:(NSArray<PHPickerResult *> *)results {
         setPrefBool(@"general.hidden_sidebar", on);
     };
     [advGroup ame_addRow:sidebarRow];
-    // ★Task475 主页侧边栏形态（int 0=精简侧边栏 ZL2 rail 二代【默认】/1=转盘
-    //   封面流；★Task477 新增 2=三代预发行版经典单卡（v1.0「Prisma 2 Beta」
-    //   移植）。切换广播 Ame475HomeMenuStyleChanged → 主页整容器重建
+    // ★Task475 主页侧边栏形态（★Task477-r3 用户复核裁决落地：int 0=三代预发行
+    //   版经典单卡（v1.0「Prisma 2 Beta」移植）【默认】/1=转盘封面流设置保留；
+    //   rail 三代退役出树，旧值（旧 0 精简/旧 2 三代）读侧 clamp 回落 beta 默认）。
+    //   切换广播 Ame475HomeMenuStyleChanged → 主页整容器重建
     //   （ame475_styleDidChange）。
     ZL2SettingRowList *ame475_styleRow =
         [[ZL2SettingRowList alloc] initWithTitle:@"" subtitle:nil
                                  options:@[
-                                     localize(@"ame475.setpg.home_sidebar.rail", @"精简侧边栏"),
-                                     localize(@"ame475.setpg.home_sidebar.flow", @"转盘封面流"),
                                      localize(@"ame477.setpg.home_sidebar.beta", @"预发行版经典（Beta 单卡）"),
-                                 ] optionKeys:@[@"0", @"1", @"2"]];
+                                     localize(@"ame475.setpg.home_sidebar.flow", @"转盘封面流"),
+                                 ] optionKeys:@[@"0", @"1"]];
     ame475_styleRow.title    = localize(@"ame475.setpg.home_sidebar.title", @"主页侧边栏");
-    ame475_styleRow.subtitle = localize(@"ame475.setpg.home_sidebar.subtitle", @"精简侧边栏为默认；转盘封面流与 v1.0 预发行版经典单卡可在此切回");
+    ame475_styleRow.subtitle = localize(@"ame477.setpg.home_sidebar.subtitle2", @"预发行版经典（v1.0 单卡）为默认；转盘封面流可在此切回");
     {   NSInteger ame475_style = getPrefInt(@"general.home_sidebar_style");
-        if (ame475_style < 0 || ame475_style > 2) ame475_style = 0;
+        if (ame475_style < 0 || ame475_style > 1) ame475_style = 0;
         [ame475_styleRow ame_reloadSelectedIndex:ame475_style]; }
     ame475_styleRow.onSelect = ^(NSInteger index) {
-        if (index < 0 || index > 2) return;
+        if (index < 0 || index > 1) return;
         setPrefInt(@"general.home_sidebar_style", index);
         [[NSNotificationCenter defaultCenter] postNotificationName:@"Ame475HomeMenuStyleChanged" object:nil];
     };

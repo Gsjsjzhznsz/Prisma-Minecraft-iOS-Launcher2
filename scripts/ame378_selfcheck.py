@@ -199,11 +199,11 @@ check("C5 ★Task393 壳通知观察者保留（ZL2ShellOpenFileManager 承接�
       'name:@"ZL2ShellOpenFileManager"' in shell
       and "ame_openFileManagerSheet" in shell_code)
 
-check("C6 i18n 零新增键（★Task477 重锚：rail 七瓦片同款键驻主页 = 键站点随簇退役迁移壳→主页零新增；raw 断言 = 键入字面量面）",
+check("C6 i18n 零新增键（★Task477-r3 重锚：rail 三代退役出树——主页幸存 quickNav 三站点 files/downloads/settings + AI ame192；versions/accounts/terracotta 站点随 rail 出树而键留 54 表零改写；raw 断言 = 键入字面量面）",
       'localize(@"ame369.shell.tab.files", @"文件")' in home
       and 'localize(@"ame369.shell.tab.downloads", @"下载")' in home
       and 'localize(@"ame369.shell.tab.settings", @"设置")' in home
-      and 'localize(@"ame369.shell.tab.terracotta", @"Terracotta | 陶瓦联机")' in home
+      and 'localize(@"ame369.shell.tab.terracotta", @"Terracotta | 陶瓦联机")' not in home
       and 'localize(@"ame192.ai.title", nil)' in home)
 
 check("C9 账户/版本滚轮卡功能锚（★Task401 重锚 Task408 重锚：a11y id 随 3dc220d 更名\n      zl2.sidebar.accounts/instances——双卡 AmeFlowSelectView 原地封面流不变，\n      落定回调/卡尾钮（添加/删除账户文本钮+刷新+齿轮）在位；卡体点击链退役 = 拖拽即选择）",
@@ -310,15 +310,16 @@ check("C16 转盘弧度恢复（★Task410 第 18 轮复诉「转盘的弧度怎
       and "AmeFlowSelectCenterScale" not in flow   # 缩放类根因零复沾（C15 同口径复核）
       and "AmeFlowSelectScalePerStep" not in flow)
 
-check("C17 右上簇退役反转 + 主页 rail 图标瓦片恒定（★Task411 立 ★Task412 重锚 ★Task477 终局——\n      用户钦定「保留二代侧边栏，删除其他2代」：右上簇随一代清场 = 单一全局切换器收敛主页\n      rail 二代（Task475/476 图标 rail）；①壳层 ame411_ 代码面零残留；②主页图标瓦片工厂\n      ame476_iconRailTileWithSymbol 纯图标 44pt 居中恒定（TopBarRailItem 家法）+ 瓦片高\n      单一常量零二态；③rail 宽 88/104 度量同源）",
-      "ame411_" not in shell_code
-      and "ame476_iconRailTileWithSymbol" in home_code
-      and "ZL2HomeRailTileHeight" in home
+check("C17 二代簇回植终局 + rail 三代退役（★Task411 立 ★Task412 重锚 ★Task477-r3 终局——\n      用户复核裁决「保留二代侧边栏，删除其他2代。那三代的位置放我们第一个预发行版本\n      的侧边栏」：①二代 ame411 悬浮簇 pre477 原文回植（构建器/类/刷新三件 + 标题让位\n      胶囊 + bare 装配）；②三代主页 rail 退役出树（ame476 图标瓦片工厂/ZL2HomeRailTileHeight/\n      rail 88/104 宽分支零残留）；③一代抽屉几何面维持零残留）",
+      "ame411_buildSwitcherCluster" in shell_code
+      and "ZL2ShellSwitcherButton" in shell_code
+      and "constraintLessThanOrEqualToAnchor:self.ame411_switcherCluster.leadingAnchor" in shell_code
+      and "ame476_iconRailTileWithSymbol" not in home_code
+      and "ZL2HomeRailTileHeight" not in home
       and "constraintEqualToConstant:38.0" not in shell_code
       and "compact ? 38.0 : 24.0" not in shell_code
       and "compact ? 7.0 : 14.0" not in shell_code
-      and "ame475_railWidth = 88.0" in home_code
-      and "ame475_railWidth = 104.0" in home_code)
+      and "ame475_railWidth" not in home_code)
 
 check("C18 转盘镜像+模组行对齐（★Task412 立 ★Task413 重锚——①AmeFlowSelectView\n      ame_mirrored：竖轴弧向外移方向翻转 + 横轴排布向翻转 + 横轴点按反解同构\n      翻转；★Task413 手势恒指随判例：拖动/惯性向翻转整体退役（镜像只翻几何，\n      手势零翻转 = 左右手握持侧拖动恒跟手），宿主 ame_applyPanelMirror 双流\n      挂接（右停靠 = 镜像）；②模组行卡 trailing LessThanOrEqualTo → 等式钉卡缘\n      + spacer 拥抱 248 独家吸收 = 全列开关/删除右缘垂直对齐）",
       "ame_mirrored" in flow_code
@@ -348,7 +349,7 @@ modsvc_raw = read("Natives/ModService.m")   # 字符串字面量断言走 raw（
 ame378_c19 = [
     ("hdr64", "ZL2ShellHeaderHeight = 64.0" in shell),
     ("cy32", "safeAreaLayoutGuide.topAnchor constant:32.0]" in shell_code),
-    ("cap12", "safeAreaLayoutGuide.topAnchor constant:12.0]" not in shell_code),   # ★Task477 簇顶距 12 随簇退役（入带面清零）
+    ("cap12", "safeAreaLayoutGuide.topAnchor constant:12.0]" in shell_code),   # ★Task477-r3 簇回植：胶囊顶距 12 复立（Task413 安全面原口径）
     ("grid28", "ZL2HomeGridInsetTop     = 28" in home),
     ("glyph-lock", "_ame413_appliedGlyphPt" not in shell_code),   # ★Task477 NavItem 字形幂等锁随一代退役
     ("glyph-skip", "ame413_appliedGlyphPt != 24.0" not in shell_code),
@@ -471,7 +472,7 @@ ame378_c21 = [
     # ⑦ ★Task417 真壳本体入预览（镜像不可信教训的结构性终点：真机 10pt vs
     #    CI 镜像 20pt 两倍差 = 镜像自绘图标从未经过真字形管线）
     ("real-shell-host", "ame417_buildRealShell" in preview_code),
-    ("real-navitem", "ZL2ShellNavItem" in preview_code),
+    ("real-navitem", "ZL2ShellNavItem" not in preview_code),   # ★Task477-r2 清场 ★Task477-r3 补翻转（r2 漏翻转假绿判例：剥注释面零残留）
     ("probe-page", "ame417_buildProbePage" in preview_code),
     ("flu-token-path", "ame347_setPluginThemeStructure" in preview_code),
     ("realistic-skin", "AmePreviewWriteRealisticSkin" in preview_code),

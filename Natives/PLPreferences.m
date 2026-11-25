@@ -449,7 +449,7 @@ NSString *const PREF_MOD_MIRROR = @"general.mod_mirror";
             @"proxy_host": @"",
             @"proxy_port": @"",
             // ★Task475 主页侧边栏形态（int 0=精简侧边栏 ZL2 rail【默认】/1=转盘
-            //   封面流）。读侧 ZL2HomeViewController ame475_railStylePreferred
+            //   封面流）。读侧 ZL2HomeViewController ame477_styleIndex（★Task477-r3 rail 退役后单一读点）
             //   单一读点，写侧 ZL2SettingPages 外观进阶组 ame475_styleRow。
             @"home_sidebar_style": @(0),
         };

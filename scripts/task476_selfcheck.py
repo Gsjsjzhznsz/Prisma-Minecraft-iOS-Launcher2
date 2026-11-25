@@ -50,11 +50,11 @@ def main():
         return ok
 
     if '--selftest' in sys.argv:
-        p1 = lambda s: 'ame476_iconRailTileWithSymbol' in s
+        p1 = lambda s: 'ame378_quickNavTileWithSymbol' in s
         p2 = lambda s: 'index[@"renderers"]' in s
         p3 = lambda s: 'ame415_buildTag = @"Task477 · ' in s
         ok = True
-        ok &= check('S1 selftest 剥纯图标工厂必红', not p1(home.replace('ame476_iconRailTileWithSymbol', '')) and p1(home))
+        ok &= check('S1 selftest 剥转盘带字工厂必红', not p1(home.replace('ame378_quickNavTileWithSymbol', '')) and p1(home))
         ok &= check('S2 selftest 剥 renderers 解析必红', not p2(repovc.replace('index[@"renderers"]', 'index[@"renderers_x"]')) and p2(repovc))
         ok &= check('S3 selftest 翻旧代际必红', not p3(tag.replace('Task477 · ', 'Task475 · ')) and p3(tag))
         if not ok:
@@ -64,19 +64,19 @@ def main():
         return 0
 
     # ── T 线 ──
-    check('T1 纯图标工厂 + 常量 + 七调用点',
-          '- (ZL2HomeTapControl *)ame476_iconRailTileWithSymbol:' in home
-          and 'static const CGFloat ZL2HomeRailTileHeight    = 44.0;' in home
-          and home.count('ame476_iconRailTileWithSymbol') == 8
-          and 'ame476_iconRailTileWithSymbol:@"square.grid.2x2.fill"' in home
-          and 'ame476_iconRailTileWithSymbol:@"gearshape.fill"' in home)
-    check('T2 工厂零文字面（title 仅入 VoiceOver 标签）',
+    check('T1 纯图标工厂随 rail 三代退役（★Task477-r3 反转：工厂/常量/调用点零残留）',
+          'ame476_iconRailTileWithSymbol' not in home
+          and 'ZL2HomeRailTileHeight' not in home
+          and 'zl2.sidebar.rail' not in home)
+    check('T2 转盘带字工厂守恒（★Task477-r3：rail 工厂退役后单厂在位）',
           'ame476_label' not in home
-          and home.count('tile.accessibilityLabel = title;') >= 2
-          and '[ame476_icon.centerYAnchor constraintEqualToAnchor:tile.centerYAnchor]' in home)
-    check('T3 六站点 localize 原位保留（ame369 453 锚协同）',
+          and home.count('tile.accessibilityLabel = title;') >= 1
+          and '[ame476_icon.centerYAnchor constraintEqualToAnchor:tile.centerYAnchor]' not in home)
+    check('T3 幸存三站点 localize 原位保留（★Task477-r3：quickNav files/downloads/settings；versions/accounts/terracotta 随 rail 出树）',
           all(f'localize(@"ame369.shell.tab.{k}"' in home for k in
-              ('versions', 'accounts', 'downloads', 'terracotta', 'files', 'settings')))
+              ('files', 'downloads', 'settings'))
+          and 'localize(@"ame369.shell.tab.versions"' not in home
+          and 'localize(@"ame369.shell.tab.accounts"' not in home)
     check('T4 转盘带字瓦片工厂与五调用点原样保留',
           home.count('ame378_quickNavTileWithSymbol') == 6
           and '- (ZL2HomeTapControl *)ame378_quickNavTileWithSymbol:(NSString *)symbol' in home)

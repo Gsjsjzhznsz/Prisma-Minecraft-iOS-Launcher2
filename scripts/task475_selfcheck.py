@@ -67,11 +67,11 @@ def main():
 
     if '--selftest' in sys.argv:
         # 负样本探针：判定函数必须咬人（对虚拟剥锚内容判 False）
-        p1 = lambda s: 'ame475_buildSlimRailMenu' in s
+        p1 = lambda s: 'ame475_buildLaunchCard' in s
         p2 = lambda s: 'AME429_RENDERER_PLUGIN_DIR' in s
         p3 = lambda s: '@"home_sidebar_style": @(0)' in s
         ok = True
-        ok &= check('S1 selftest 剥 rail 构建器必红', not p1(home.replace('ame475_buildSlimRailMenu', '')) and p1(home))
+        ok &= check('S1 selftest 剥公共启动卡必红', not p1(home.replace('ame475_buildLaunchCard', '')) and p1(home))
         ok &= check('S2 selftest 剥 egl 插件消费必红', not p2(egl.replace('AME429_RENDERER_PLUGIN_DIR', 'AME4XX_UNSET')) and p2(egl))
         ok &= check('S3 selftest 剥 prefs 注册必红', not p3(prefs.replace('@(0)', '@(9)')) or True)  # 注册探针带值形态
         if not ok:
@@ -87,22 +87,23 @@ def main():
           'ame475_styleRow' in setpg
           and 'Ame475HomeMenuStyleChanged' in setpg
           and 'setPrefInt(@"general.home_sidebar_style", index);' in setpg)
-    check('A3 主页分流 + rail 构建器 + 公共启动卡',
+    check('A3 主页分流 + rail 三代退役反转 + 公共启动卡（★Task477-r3）',
           '[self ame475_buildMenu];' in home
-          and '+ (BOOL)ame475_railStylePreferred' in home
-          and '- (void)ame475_buildSlimRailMenu {' in home
+          and '+ (NSInteger)ame477_styleIndex {' in home
+          and 'ame475_buildSlimRailMenu' not in home
+          and '+ (BOOL)ame475_railStylePreferred' not in home
           and '- (void)ame475_buildLaunchCard {' in home
           and 'getPrefInt(@"general.home_sidebar_style")' in home)
-    check('A4 宽度分支（rail 88/104 固定；转盘 clamp 保留）',
-          'ame475_railWidth = 88.0' in home
-          and 'ame475_railWidth = 104.0' in home
+    check('A4 宽度分支（★Task477-r3 rail 88/104 退役；转盘 clamp 单路保留）',
+          'ame475_railWidth' not in home
           and 'ZL2HomeMenuWidthMax     = 460;' in home
           and 'multiplier:ZL2HomeMenuWidthRatio];' in home)
-    check('A5 重建链四件',
+    check('A5 重建链四件（★Task477-r3 rail 早退随退役反转）',
           'ame475_styleDidChange:' in home
           and '- (void)ame475_teardownMenu {' in home
           and 'ame475_attachDockSwitchGesture' in home
-          and 'if (self.ame475_railMode) return;   // ★Task475 rail 形态' in home
+          and 'if (self.ame475_railMode) return;' not in home
+          and 'if (self.ame477_betaMode) return;   // ★Task477-r3 beta v1.0 单卡' in home
           and 'self.ame400_accountKeys = nil;' in home)
     check('A6 转盘形态锚保全（双流/灰棱/瓦片工厂）',
           '_accountFlow = [[AmeFlowSelectView alloc] init];' in home
