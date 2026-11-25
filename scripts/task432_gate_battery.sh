@@ -136,6 +136,11 @@ run_py task473_self scripts/task473_selfcheck.py --selftest
 run_py task475     scripts/task475_selfcheck.py
 run_py task475_self scripts/task475_selfcheck.py --selftest
 
+# ★Task476 主页侧边栏 ZL2 图标化（纯图标 rail 二代）+ 插件仓库并入渲染器区
+#   （plugin-repo renderers[] 同源解析 + 仓库面实体对表 + 代际 Task476）
+run_py task476     scripts/task476_selfcheck.py
+run_py task476_self scripts/task476_selfcheck.py --selftest
+
 # ★Task468 MobileGL/Magma 引擎性能旋钮层（抄 Witch-Launcher 调优面）+ 内置渲染器
 #   上游更新扫描轮：12 个 MOBILEGL_* setenv（strings 反锚逐名验证 vendored dylib
 #   真支持）+ 3 个上游新变量幽灵零引入 + unsetenv 对称清偿 + Task156/158 口径

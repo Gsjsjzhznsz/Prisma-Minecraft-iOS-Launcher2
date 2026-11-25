@@ -153,6 +153,7 @@ static const CGFloat ZL2HomeCardFooterHeight   = 32;  // 卡尾动作行钮边�
 //   瓦片高 94 → 66.5（10 + 27.5 图标 + 2 + 15 标签 + 12），间距/留白口径不变）
 static const CGFloat ZL2HomeQuickNavIconSize   = 27.5;  // 图标 = 55 ÷ 2（用户规格“缩小两倍”）
 static const CGFloat ZL2HomeQuickNavTileHeight = 66.5;  // 瓦片高（10 + 27.5 图标 + 2 + 15 标签 + 12）
+static const CGFloat ZL2HomeRailTileHeight    = 44.0;   // ★Task476 ZL2 式纯图标 rail 瓦片高（图标单行居中，TopBarRailItem 家法）
 static const CGFloat ZL2HomeQuickNavGap        = 6;    // 行内统一间距（与两侧行内对称留白同值）
 
 // SF Symbols 取图兜底（本页符号全为 SF1.0 级，均带旧名 fallback；保留兜底
@@ -1320,6 +1321,43 @@ static UIImage *ZL2HomeSizedImage(NSString *name, NSString *fallback, CGFloat po
 // 精简侧边栏（ZL2 rail）：固定窄栏背板 + 瓦片纵列（复用 ame378 瓦片工厂与既有
 // i18n 键零新增）+ 钉底启动组卡（与转盘形态同一构建器来源）。tap = 壳导航总线
 // 直达（ame378_navigateToPage 同款 ZL2ShellNavigate 通知），文件项走壳 sheet。
+// ★Task476 ZL2 式纯图标 rail 瓦片工厂（TopBarRailItem/TextRailItem 家法：图标
+// 常驻、文字不占位——文案仅入 VoiceOver 无障碍标签；ame369.shell.tab.* 站点
+// localize 字面量在调用点原位保留 = ame369 453 改写点锚零漂移）。转盘形态
+// ame378 带字瓦片工厂原样保留，双形态观感分工：rail=精简图标列，转盘=完整封面流。
+- (ZL2HomeTapControl *)ame476_iconRailTileWithSymbol:(NSString *)symbol
+                                            fallback:(NSString *)fallback
+                                               title:(NSString *)title
+                                              action:(void (^)(void))action {
+    ZL2HomeTapControl *tile = [[ZL2HomeTapControl alloc] init];
+    tile.backgroundColor = [UIColor clearColor];
+    tile.layer.cornerRadius = [ZL2Theme radiusS];
+    tile.translatesAutoresizingMaskIntoConstraints = NO;
+    tile.isAccessibilityElement = YES;
+    tile.accessibilityTraits = UIAccessibilityTraitButton;
+    tile.accessibilityLabel = title;
+
+    UIImage *ame476_image = ZL2HomeSystemImage(symbol, fallback);
+    if (ame476_image) ame476_image = [ame476_image imageWithRenderingMode:UIImageRenderingModeAlwaysTemplate];
+    UIImageView *ame476_icon = [[UIImageView alloc] initWithImage:ame476_image];
+    ame476_icon.tintColor = [ZL2Theme onSurface];            // 系统深浅自适应主色（同 ame378 口径）
+    ame476_icon.contentMode = UIViewContentModeScaleAspectFit;
+    ame476_icon.translatesAutoresizingMaskIntoConstraints = NO;
+    ame476_icon.userInteractionEnabled = NO;
+    [tile addSubview:ame476_icon];
+
+    [NSLayoutConstraint activateConstraints:@[
+        [tile.heightAnchor constraintEqualToConstant:ZL2HomeRailTileHeight],
+        [ame476_icon.centerXAnchor constraintEqualToAnchor:tile.centerXAnchor],
+        [ame476_icon.centerYAnchor constraintEqualToAnchor:tile.centerYAnchor],
+        [ame476_icon.widthAnchor constraintEqualToConstant:ZL2HomeQuickNavIconSize],
+        [ame476_icon.heightAnchor constraintEqualToConstant:ZL2HomeQuickNavIconSize],
+    ]];
+
+    tile.ame_action = action;
+    return tile;
+}
+
 - (void)ame475_buildSlimRailMenu {
     _actionMenu = [[UIView alloc] init];
     _actionMenu.backgroundColor = [UIColor clearColor];
@@ -1360,25 +1398,25 @@ static UIImage *ZL2HomeSizedImage(NSString *name, NSString *fallback, CGFloat po
     NSString *ame475_aiTitle = localize(@"ame192.ai.title", nil);
     if (ame475_aiTitle.length == 0) ame475_aiTitle = @"AI";
     NSArray<ZL2HomeTapControl *> *ame475_tiles = @[
-        [self ame378_quickNavTileWithSymbol:@"square.grid.2x2.fill" fallback:@"square.grid.2x2"
+        [self ame476_iconRailTileWithSymbol:@"square.grid.2x2.fill" fallback:@"square.grid.2x2"
                                       title:localize(@"ame369.shell.tab.versions", @"版本")
                                      action:^{ [weakSelf ame378_navigateToPage:2]; }],
-        [self ame378_quickNavTileWithSymbol:@"person.crop.circle.fill" fallback:@"person.crop.circle"
+        [self ame476_iconRailTileWithSymbol:@"person.crop.circle.fill" fallback:@"person.crop.circle"
                                       title:localize(@"ame369.shell.tab.accounts", @"账户")
                                      action:^{ [weakSelf ame378_navigateToPage:3]; }],
-        [self ame378_quickNavTileWithSymbol:@"arrow.down.circle.fill" fallback:@"arrow.down.circle"
+        [self ame476_iconRailTileWithSymbol:@"arrow.down.circle.fill" fallback:@"arrow.down.circle"
                                       title:localize(@"ame369.shell.tab.downloads", @"下载")
                                      action:^{ [weakSelf ame378_navigateToPage:1]; }],
-        [self ame378_quickNavTileWithSymbol:@"person.2.fill" fallback:@"person.2"
+        [self ame476_iconRailTileWithSymbol:@"person.2.fill" fallback:@"person.2"
                                       title:localize(@"ame369.shell.tab.terracotta", @"Terracotta | 陶瓦联机")
                                      action:^{ [weakSelf ame378_navigateToPage:5]; }],
-        [self ame378_quickNavTileWithSymbol:@"sparkles" fallback:@"sparkles"
+        [self ame476_iconRailTileWithSymbol:@"sparkles" fallback:@"sparkles"
                                       title:ame475_aiTitle
                                      action:^{ [weakSelf ame378_navigateToPage:6]; }],
-        [self ame378_quickNavTileWithSymbol:@"folder.fill" fallback:@"folder"
+        [self ame476_iconRailTileWithSymbol:@"folder.fill" fallback:@"folder"
                                       title:localize(@"ame369.shell.tab.files", @"文件")
                                      action:^{ [weakSelf ame378_openFileManagerSheet]; }],
-        [self ame378_quickNavTileWithSymbol:@"gearshape.fill" fallback:@"gearshape"
+        [self ame476_iconRailTileWithSymbol:@"gearshape.fill" fallback:@"gearshape"
                                       title:localize(@"ame369.shell.tab.settings", @"设置")
                                      action:^{ [weakSelf ame378_navigateToPage:4]; }],
     ];

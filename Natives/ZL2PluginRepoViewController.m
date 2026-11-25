@@ -5,6 +5,8 @@
 #import "ZL2AnimationKit.h" // ★Task429：MD3 动效体系（插件仓库卡列表入场示范接入）
 #import "utils.h" // localize
 #import "UnzipKit.h"
+#import "ZL2RendererRepoViewController.h"  // ★Task476 插件仓库并入渲染器区（行内入口跳渲染器仓库页）
+#import "PLRendererPluginService.h"        // ★Task476 渲染器已装态回查（availableRenderers 唯一扫描口）
 
 #import <CommonCrypto/CommonDigest.h>
 
@@ -161,6 +163,7 @@ static NSString * const ame333_repoMirrorPrefKey = @"ame333.plugin.repo.mirror";
 @property (nonatomic, strong) UITableView *table;
 @property (nonatomic, strong) NSMutableArray<NSDictionary *> *items;      // 包内区 {dirName, manifest}
 @property (nonatomic, strong) NSMutableArray<NSDictionary *> *remoteItems; // 远程区 {id,name,version,author,summary,file,size,sha256,official}
+@property (nonatomic, strong) NSMutableArray<NSDictionary *> *rendererItems; // ★Task476 渲染器区 {id,name,version,rendererName,summary,file,size,sha256,official}（plugin-repo index.json renderers[] 同构）
 @property (nonatomic, strong) NSMutableSet<NSString *> *installing;       // 插件 id 防重入
 @property (nonatomic, copy) NSString *remoteStatus;                       // 远程区状态行（nil=隐藏状态行）
 @property (nonatomic, assign) BOOL remoteFetched;
@@ -176,6 +179,7 @@ static NSString * const ame333_repoMirrorPrefKey = @"ame333.plugin.repo.mirror";
     self.title = localize(@"ame318.repo.title", nil);
     self.items = [NSMutableArray array];
     self.remoteItems = [NSMutableArray array];
+    self.rendererItems = [NSMutableArray array];   // ★Task476
     self.installing = [NSMutableSet set];
     self.remoteStatus = localize(@"ame333.repo.fetching", nil);
 
@@ -404,6 +408,18 @@ static NSString * const ame333_repoMirrorPrefKey = @"ame333.plugin.repo.mirror";
                 if ([p[@"official"] boolValue]) official[pid] =
                     [p[@"version"] isKindOfClass:[NSString class]] ? p[@"version"] : @"";
             }
+            // ★Task476 渲染器目录同源解析（plugin-repo index.json renderers[]，
+            //   与 renderer-repo/index.json 同 schema；行尾动作跳渲染器仓库页
+            //   —— 安装/更新/启用链仍由 ZL2RendererRepoViewController 单一持有）
+            [sself.rendererItems removeAllObjects];
+            for (id raw in ([index[@"renderers"] isKindOfClass:[NSArray class]] ? index[@"renderers"] : @[])) {
+                if (![raw isKindOfClass:[NSDictionary class]]) continue;
+                NSDictionary *r = raw;
+                NSString *rid = [r[@"id"] isKindOfClass:[NSString class]] ? r[@"id"] : nil;
+                NSString *file = [r[@"file"] isKindOfClass:[NSString class]] ? r[@"file"] : nil;
+                if (rid.length == 0 || file.length == 0) continue;
+                [sself.rendererItems addObject:r];
+            }
             sself.remoteStatus = nil;
             [sself ame345_refreshHeroCount];
             [sself tableReloadAndKeepScroll];
@@ -498,7 +514,7 @@ static NSString * const ame333_repoMirrorPrefKey = @"ame333.plugin.repo.mirror";
 }
 
 - (NSInteger)tableView:(UITableView *)tableView numberOfRowsInSection:(NSInteger)section {
-    if (section == 0) return MAX(self.remoteItems.count, 1); // 远程空态/状态行占位
+    if (section == 0) return MAX(self.remoteItems.count, 1) + MAX(self.rendererItems.count, 1); // 远程插件区 + ★Task476 渲染器区（空目录至少一行仓库入口）
     return MAX(self.items.count, 1);                          // 包内空态占位行
 }
 
@@ -526,6 +542,11 @@ static NSString * const ame333_repoMirrorPrefKey = @"ame333.plugin.repo.mirror";
     }
 
     if (indexPath.section == 0) {
+        // ★Task476 渲染器区行（排远程插件之后；空目录静态入口行）
+        NSUInteger ame476_rendererStart = MAX(self.remoteItems.count, 1);
+        if (indexPath.row >= (NSInteger)ame476_rendererStart) {
+            return [self ame476_rendererCardCell:cell forIndexPath:indexPath];
+        }
         // ★ Task333：远程件卡 —— 已装同版=已安装 / 已装低版=可更新 / 未装=安装
         NSDictionary *p = self.remoteItems[(NSUInteger)indexPath.row];
         NSString *pid = p[@"id"];
@@ -600,6 +621,12 @@ static NSString * const ame333_repoMirrorPrefKey = @"ame333.plugin.repo.mirror";
 - (void)tableView:(UITableView *)tableView didSelectRowAtIndexPath:(NSIndexPath *)indexPath {
     [tableView deselectRowAtIndexPath:indexPath animated:YES];
     if (indexPath.section == 0) {
+        NSUInteger ame476_rendererStart = MAX(self.remoteItems.count, 1);
+        if (indexPath.row >= (NSInteger)ame476_rendererStart) {
+            [self.navigationController pushViewController:[[ZL2RendererRepoViewController alloc] init]
+                                                 animated:YES];
+            return;
+        }
         if (self.remoteItems.count == 0) return;
         NSDictionary *p = self.remoteItems[(NSUInteger)indexPath.row];
         NSString *pid = p[@"id"];
@@ -620,6 +647,48 @@ static NSString * const ame333_repoMirrorPrefKey = @"ame333.plugin.repo.mirror";
     if ([[AmePluginManager installedPluginIds] containsObject:m.pluginId]) {
         [self ame431_openPluginDetail:m.pluginId];
     }
+}
+
+// ★Task476 渲染器区卡（远程条目 = 名称/版本/摘要 + 已装态回查；空目录 =
+//   静态仓库入口行）。行尾按钮与行体点击统一跳渲染器仓库页——安装/更新/
+//   启用链由 ZL2RendererRepoViewController 单一持有，不在本页复制下载链。
+- (Ame431PluginRepoCardCell *)ame476_rendererCardCell:(Ame431PluginRepoCardCell *)cell
+                                         forIndexPath:(NSIndexPath *)indexPath {
+    NSUInteger ame476_rendererStart = MAX(self.remoteItems.count, 1);
+    NSInteger ame476_idx = (NSInteger)indexPath.row - (NSInteger)ame476_rendererStart;
+    NSString *ame476_name;
+    NSString *ame476_sub;
+    NSString *ame476_pluginId;
+    if (ame476_idx < (NSInteger)self.rendererItems.count) {
+        NSDictionary *r = self.rendererItems[(NSUInteger)ame476_idx];
+        ame476_pluginId = [r[@"id"] isKindOfClass:[NSString class]] ? r[@"id"] : @"";
+        ame476_name = ([r[@"name"] isKindOfClass:[NSString class]] && ((NSString *)r[@"name"]).length)
+            ? r[@"name"] : ame476_pluginId;
+        ame476_sub = [NSString stringWithFormat:@"v%@ · %@ · %@",
+                      [r[@"version"] isKindOfClass:[NSString class]] ? r[@"version"] : @"?",
+                      ([r[@"rendererName"] isKindOfClass:[NSString class]] ? r[@"rendererName"] : @""),
+                      ([r[@"summary"] isKindOfClass:[NSString class]] ? r[@"summary"] : @"")];
+    } else {
+        ame476_pluginId = nil;
+        ame476_name = localize(@"ame475.repo.title", nil);
+        ame476_sub = localize(@"ame333.repo.section_remote", nil);
+    }
+    cell.titleLabel.text = ame476_name;
+    cell.subLabel.text = ame476_sub;
+    BOOL ame476_installed = NO;
+    if (ame476_pluginId.length > 0) {
+        for (PLRendererPluginEntry *ame476_e in [PLRendererPluginService availableRenderers]) {
+            if ([ame476_e.pluginId isEqualToString:ame476_pluginId]) { ame476_installed = YES; break; }
+        }
+    }
+    __weak typeof(self) ame476_wself = self;
+    [cell ame431_applyActionStyle:(ame476_installed ? 1 : 0)
+                            title:localize(ame476_installed ? @"ame475.repo.installed" : @"ame475.repo.install", nil)
+                          handler:^{
+        [ame476_wself.navigationController pushViewController:[[ZL2RendererRepoViewController alloc] init]
+                                                     animated:YES];
+    }];
+    return cell;
 }
 
 #pragma mark - 远程安装链（镜像下载 → sha256 → installFromZip 全量校验链）
