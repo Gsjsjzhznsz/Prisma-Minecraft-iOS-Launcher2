@@ -122,6 +122,10 @@ static NSString * const ame475_repoMirrorPrefKey = @"ame475.renderer.repo.mirror
             _ame475_button.backgroundColor = [ZL2Theme warning];
             [_ame475_button setTitleColor:[ZL2Theme onPrimary] forState:UIControlStateNormal];
             break;
+        case 4:   // ★Task477 卸载（error destructive）
+            _ame475_button.backgroundColor = [ZL2Theme error];
+            [_ame475_button setTitleColor:[ZL2Theme onPrimary] forState:UIControlStateNormal];
+            break;
         default:  // 安装/更新中（primary）
             _ame475_button.backgroundColor = [ZL2Theme primary];
             [_ame475_button setTitleColor:[ZL2Theme onPrimary] forState:UIControlStateNormal];
@@ -346,7 +350,26 @@ static NSString * const ame475_repoMirrorPrefKey = @"ame475.renderer.repo.mirror
             : localize(@"ame475.repo.disabled", @"已停用（插件页可启停）"))];
     [cell ame475_setTitles:[NSString stringWithFormat:@"%@  v%@",
         ame475_i[@"rendererName"], ame475_i[@"version"]] sub:ame475_isub];
-    [cell ame475_applyActionStyle:3 title:@"" handler:nil];
+    // ★Task477 卸载入口三面之一（用户实测「装完找不到卸载」定谳）：本地已装
+    //   行尾常驻卸载钮（error destructive）→ ZL2M3Dialog 红色确认 →
+    //   uninstallRendererPlugin purge（插件列表页 ame429 同款语义；运行中
+    //   会话不受影响，下次启动生效）。卸载后本地区重扫 + 双区表刷新。
+    __weak typeof(self) wself477 = self;
+    NSString *ame477_pid = ame475_i[@"pluginId"];
+    [cell ame475_applyActionStyle:4
+                            title:localize(@"ame477.repo.uninstall", @"卸载")
+                          handler:^{
+        [ZL2M3Dialog showTitle:ame475_i[@"rendererName"] ?: ame477_pid
+                          body:localize(@"ame429.list.delete_confirm", nil)
+                  confirmTitle:localize(@"ame429.list.delete_ok", nil)
+                   destructive:YES
+                    onConfirm:^{
+            [PLRendererPluginService uninstallRendererPlugin:ame477_pid];
+            [wself477 ame475_reloadInstalled];
+            [wself477.table reloadData];
+        }
+                     onCancel:nil];
+    }];
     return cell;
 }
 

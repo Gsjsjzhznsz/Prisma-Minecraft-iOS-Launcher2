@@ -514,9 +514,41 @@ static NSUInteger ame432_paletteEchoIndex(NSInteger mode) {
     if (currentIdx < 0) currentIdx = (NSInteger)[rendererKeys indexOfObject:@"auto"];
     if (currentIdx < 0) currentIdx = 0;
 
+    // ★Task477 插件/内置徽标：插件档（rendererChoiceOverrides 动态扩展表）
+    //   尾缀「插件」，经典编入档尾缀「内置」，auto/(default) 不标注——
+    //   真内置面（Frameworks 编入件）与插件档从此一眼可辨（键值零触碰，
+    //   仅显示名带徽标）。
+    NSMutableSet<NSString *> *ame477_pluginKeys = [NSMutableSet set];
+    Class ame477_svc = NSClassFromString(@"PLRendererPluginService");
+    SEL ame477_sel = NSSelectorFromString(@"rendererChoiceOverrides");
+    if (ame477_svc && [(id)ame477_svc respondsToSelector:ame477_sel]) {
+        #pragma clang diagnostic push
+        #pragma clang diagnostic ignored "-Warc-performSelector-leaks"
+        for (NSDictionary *ame477_ov in [(id)ame477_svc performSelector:ame477_sel]) {
+            if ([ame477_ov isKindOfClass:[NSDictionary class]] &&
+                [ame477_ov[@"key"] isKindOfClass:[NSString class]]) {
+                [ame477_pluginKeys addObject:ame477_ov[@"key"]];
+            }
+        }
+        #pragma clang diagnostic pop
+    }
+    NSMutableArray<NSString *> *ame477_badged = [NSMutableArray array];
+    [rendererKeys enumerateObjectsUsingBlock:^(NSString *ame477_k, NSUInteger ame477_i, BOOL *ame477_stop) {
+        NSString *ame477_base = rendererNames[ame477_i] ?: @"";
+        if ([ame477_k isEqualToString:@"auto"] || [ame477_k isEqualToString:@"(default)"]) {
+            [ame477_badged addObject:ame477_base];
+        } else if ([ame477_pluginKeys containsObject:ame477_k]) {
+            [ame477_badged addObject:[NSString stringWithFormat:@"%@（%@）", ame477_base,
+                localize(@"ame477.setpg.renderer.badge_plugin", @"插件")]];
+        } else {
+            [ame477_badged addObject:[NSString stringWithFormat:@"%@（%@）", ame477_base,
+                localize(@"ame477.setpg.renderer.badge_builtin", @"内置")]];
+        }
+    }];
+
     ZL2SettingRowList *rendererRow =
         [[ZL2SettingRowList alloc] initWithTitle:@"" subtitle:nil
-                                 options:rendererNames optionKeys:rendererKeys];
+                                 options:ame477_badged optionKeys:rendererKeys];
     rendererRow.title = localize(@"ame369.setpg.renderer_global.title", @"渲染器（全局默认）");
     rendererRow.subtitle = localize(@"ame369.setpg.renderer_global.subtitle", @"各实例可在版本设置的实例页单独覆盖");
     [rendererRow ame_reloadSelectedIndex:currentIdx];
@@ -2344,22 +2376,24 @@ didFinishPicking:(NSArray<PHPickerResult *> *)results {
         setPrefBool(@"general.hidden_sidebar", on);
     };
     [advGroup ame_addRow:sidebarRow];
-    // ★Task475 主页侧边栏形态（int 0=精简侧边栏 ZL2 rail【默认】/1=转盘封面流；
-    //   用户规格「默认就是精简，转盘要在设置里打开」）。切换广播
-    //   Ame475HomeMenuStyleChanged → 主页整容器重建（ame475_styleDidChange）。
+    // ★Task475 主页侧边栏形态（int 0=精简侧边栏 ZL2 rail 二代【默认】/1=转盘
+    //   封面流；★Task477 新增 2=三代预发行版经典单卡（v1.0「Prisma 2 Beta」
+    //   移植）。切换广播 Ame475HomeMenuStyleChanged → 主页整容器重建
+    //   （ame475_styleDidChange）。
     ZL2SettingRowList *ame475_styleRow =
         [[ZL2SettingRowList alloc] initWithTitle:@"" subtitle:nil
                                  options:@[
                                      localize(@"ame475.setpg.home_sidebar.rail", @"精简侧边栏"),
                                      localize(@"ame475.setpg.home_sidebar.flow", @"转盘封面流"),
-                                 ] optionKeys:@[@"0", @"1"]];
+                                     localize(@"ame477.setpg.home_sidebar.beta", @"预发行版经典（Beta 单卡）"),
+                                 ] optionKeys:@[@"0", @"1", @"2"]];
     ame475_styleRow.title    = localize(@"ame475.setpg.home_sidebar.title", @"主页侧边栏");
-    ame475_styleRow.subtitle = localize(@"ame475.setpg.home_sidebar.subtitle", @"精简侧边栏为默认形态；经典转盘封面流可在此切回");
+    ame475_styleRow.subtitle = localize(@"ame475.setpg.home_sidebar.subtitle", @"精简侧边栏为默认；转盘封面流与 v1.0 预发行版经典单卡可在此切回");
     {   NSInteger ame475_style = getPrefInt(@"general.home_sidebar_style");
-        if (ame475_style < 0 || ame475_style > 1) ame475_style = 0;
+        if (ame475_style < 0 || ame475_style > 2) ame475_style = 0;
         [ame475_styleRow ame_reloadSelectedIndex:ame475_style]; }
     ame475_styleRow.onSelect = ^(NSInteger index) {
-        if (index < 0 || index > 1) return;
+        if (index < 0 || index > 2) return;
         setPrefInt(@"general.home_sidebar_style", index);
         [[NSNotificationCenter defaultCenter] postNotificationName:@"Ame475HomeMenuStyleChanged" object:nil];
     };

@@ -21,7 +21,7 @@ B 线（渲染器在线化）：
 C 线（资产与代际）：
   C1 vendored 出包反锚（libMobileGL.dylib / PROVENANCE / builtin-renderers 缺席）
   C2 i18n（zh-CN/en 新键在场 + mg_demo 三键双消）
-  C3 BuildTag Task476 进代
+  C3 BuildTag Task477 进代
 --selftest：负样本探针 ×3（剥 rail 构建器 / 剥 egl 消费 / 剥 prefs 注册——判定函数必须咬人）
 用法: python3 scripts/task475_selfcheck.py [--selftest]
 """
@@ -164,8 +164,8 @@ def main():
           and 'ame475.setpg.home_sidebar.rail' in zhcn
           and 'ame449.plugin.mg_demo_name' not in zhcn
           and 'ame449.plugin.mg_demo_name' not in en)
-    check('C3 BuildTag Task476 进代',
-          'ame415_buildTag = @"Task476 · ' in tag)
+    check('C3 BuildTag Task477 进代',
+          'ame415_buildTag = @"Task477 · ' in tag)
 
     if fails:
         print(f'[FAIL] task475_selfcheck {len(fails)} 项:')

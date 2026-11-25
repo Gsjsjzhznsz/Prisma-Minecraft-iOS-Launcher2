@@ -4474,3 +4474,7 @@
 "ame475.repo.official" = "Official";
 "ame475.repo.enabled" = "Enabled";
 "ame475.repo.disabled" = "Disabled (toggle on the Plugins page)";
+"ame477.setpg.home_sidebar.beta" = "Beta classic (v1.0 single card)";
+"ame477.setpg.renderer.badge_plugin" = "Plugin";
+"ame477.setpg.renderer.badge_builtin" = "Built-in";
+"ame477.repo.uninstall" = "Uninstall";

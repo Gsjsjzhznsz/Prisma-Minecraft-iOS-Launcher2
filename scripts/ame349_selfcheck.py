@@ -60,16 +60,16 @@ mm = read("Natives/main.m")
 # ★ Task370 重锚：构建期真值形态收敛为 ame376_applyPaneGeometry 统一派发
 #   （Task376 折叠侧边栏参与几何；构建期 [self ame376_applyPaneGeometry:NO]
 #   落位 + 宽窄态哨兵与首轮无条件派发双保险语义原样保留）
-check('A1 iPad 宽窄态派发缺陷双保险（构建期统一派发落位 + 首轮无条件派发哨兵）',
-      "[self ame376_applyPaneGeometry:NO];" in shell_code
-      and "!self.ame347_widthClassApplied || ame347_nowRegular != self.ame347_regular" in shell_code
-      and "self.ame347_widthClassApplied = YES;" in shell_code
-      and "@property(nonatomic, assign) BOOL ame347_widthClassApplied;" in shell)
+check('A1 宽窄态派发面退役反转（★Task477 一代抽屉清场 = 349 双保险面随伴退役）',
+      "ame376_applyPaneGeometry" not in shell_code
+      and "ame347_widthClassApplied" not in shell_code
+      and "ame347_regular" not in shell_code)
 
-check('A2 大标题让位左钮槽位（可变前导约束 + 46/16 按汉堡/返回可见性派发）',
-      "@property(nonatomic, strong) NSLayoutConstraint *ame347_headerLeading;" in shell
-      and "self.ame347_headerLeading = [self.headerTitle.leadingAnchor constraintEqualToAnchor:self.contentHeader.safeAreaLayoutGuide.leadingAnchor constant:16.0]," in shell
-      and "(ame347_hamburgerVisible || ame347_backVisible) ? 46.0 : 16.0" in shell_code)
+check('A2 大标题让位左钮槽位退役反转（★Task477 汉堡/返回/headerTitle 随一代清场）',
+      "ame347_headerLeading" not in shell_code
+      and "hamburgerButton" not in shell_code
+      and "navBackButton" not in shell_code
+      and "headerTitle" not in shell_code)
 
 check('B1 ZL2 全壳壁纸描边字体树级豁免（viewDidLoad ame230 + 头文件导入）',
       "ame230_setViewTreeStrokeExempt(self.view, YES);" in shell_code

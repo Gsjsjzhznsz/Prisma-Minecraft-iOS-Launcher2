@@ -20,7 +20,7 @@ V 线（在线仓库面）：
   V1 plugin-repo/index.json renderers[] 实体对表（zip sha256/size）
   V2 renderer-repo 面零回归（B7b 同口径复检）
   V3 plugin-repo/plugins/ 渲染器包实体在场
-W 线（代际）：W1 BuildTag Task476 进代
+W 线（代际）：W1 BuildTag Task477 进代
 --selftest：负样本探针 ×3（剥工厂 / 剥 renderers 解析 / 翻代际——判定函数必须咬人）
 用法: python3 scripts/task476_selfcheck.py [--selftest]
 """
@@ -52,11 +52,11 @@ def main():
     if '--selftest' in sys.argv:
         p1 = lambda s: 'ame476_iconRailTileWithSymbol' in s
         p2 = lambda s: 'index[@"renderers"]' in s
-        p3 = lambda s: 'ame415_buildTag = @"Task476 · ' in s
+        p3 = lambda s: 'ame415_buildTag = @"Task477 · ' in s
         ok = True
         ok &= check('S1 selftest 剥纯图标工厂必红', not p1(home.replace('ame476_iconRailTileWithSymbol', '')) and p1(home))
         ok &= check('S2 selftest 剥 renderers 解析必红', not p2(repovc.replace('index[@"renderers"]', 'index[@"renderers_x"]')) and p2(repovc))
-        ok &= check('S3 selftest 翻旧代际必红', not p3(tag.replace('Task476 · ', 'Task475 · ')) and p3(tag))
+        ok &= check('S3 selftest 翻旧代际必红', not p3(tag.replace('Task477 · ', 'Task475 · ')) and p3(tag))
         if not ok:
             print('SELFTEST FAIL')
             return 1
@@ -95,10 +95,11 @@ def main():
           and '[PLRendererPluginService availableRenderers]' in repovc
           and repovc.count('[[ZL2RendererRepoViewController alloc] init]') >= 2
           and 'ame476_rendererStart' in repovc)
-    check('U4 静态入口兜底（复用 ame475.repo.title）',
+    check('U4 静态入口兜底 + 卸载直卸（★Task477 换代：已装态 = 卸载钮，复用 ame475.repo.title/install + ame477.repo.uninstall）',
           'ame475.repo.title' in repovc
-          and 'ame475.repo.installed' in repovc
-          and 'ame475.repo.install' in repovc)
+          and 'ame475.repo.install' in repovc
+          and 'ame477.repo.uninstall' in repovc
+          and 'uninstallRendererPlugin' in repovc)
 
     # ── V 线 ──
     v_ok = False
@@ -129,7 +130,7 @@ def main():
           (ROOT / 'plugin-repo/plugins/mobileglues-dev-1.0.0.zip').is_file())
 
     # ── W 线 ──
-    check('W1 BuildTag Task476 进代', 'ame415_buildTag = @"Task476 · ' in tag)
+    check('W1 BuildTag Task477 进代', 'ame415_buildTag = @"Task477 · ' in tag)
 
     if fails:
         print(f'[FAIL] task476_selfcheck {len(fails)} 项:')

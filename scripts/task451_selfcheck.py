@@ -84,8 +84,8 @@ check('C2 init 裸调用双站在场（v1.0 直达形态）',
 
 print('== S 组：代际锚 ==')
 
-check('S1 BuildTag Task476 · 2026-11-25（恢复轮代际重锚）',
-      'ame415_buildTag = @"Task476 · 2026-11-25"' in buildtag)
+check('S1 BuildTag Task477 · 2026-11-25（恢复轮代际重锚）',
+      'ame415_buildTag = @"Task477 · 2026-11-25"' in buildtag)
 
 print()
 print(f'== task451_selfcheck: {len(passed)} passed, {len(fails)} failed ==')

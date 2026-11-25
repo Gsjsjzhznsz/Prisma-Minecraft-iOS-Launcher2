@@ -40,12 +40,11 @@ def rd(rel):
 
 print("== R 恢复形态执法（450⑥④⑤③ / 449①性能⑤ / 455 裸键 / 460 抽屉 z 序） ==")
 shell = rd("Natives/ZL2ShellViewController.m")
-check("R1-1 450⑥ compactDevice 判定在场",
-      "ame450_compactDevice = (MIN(UIScreen.mainScreen.bounds.size.width," in shell
-      and "< 500.0)" in shell)
-check("R1-2 450⑥ 主列摘 AI 项守卫", "ame450_compactDevice && ame347_pages[idx].integerValue == 6) return" in shell)
-check("R1-3 450⑥ 底部摘文件项守卫", "ame450_compactDevice && ame347_footerPages[idx].integerValue < 0) return" in shell)
-check("R8-1 460 抽屉 z 序置顶", "[self.view bringSubviewToFront:self.paneWrap];" in shell)
+check("R1-1 450⑥ compactDevice 判定退役反转（★Task477 一代抽屉清场 = 小屏摘项面随伴退役）",
+      "ame450_compactDevice" not in shell)
+check("R1-2 450⑥ 主列摘 AI 项守卫退役反转（★Task477）", "ame347_pages" not in shell)
+check("R1-3 450⑥ 底部摘文件项守卫退役反转（★Task477）", "ame347_footerPages" not in shell)
+check("R8-1 460 抽屉 z 序置顶退役反转（★Task477 paneWrap 清场）", "paneWrap" not in shell)
 
 vers = rd("Natives/ZL2VersionsViewController.m")
 check("R2-1 450④ 折叠态属性语义倒置",
@@ -163,14 +162,14 @@ check("X6-1 默认蓝图保持 topbar（粉色钦定形态）",
       and 'Ame347StructureOverride(@"shellLayout", @"navigationview")' not in theme)
 cards = rd("Natives/ZL2SettingCards.m")
 check("X6-2 设置卡折叠态在场（★Task463 判例翻转）", "ame449_enableCollapsingWithTitle" in cards)
-check("X7-1 448 侧栏折叠机制原样在场（Task376 设计）",
-      "ame376_paneCollapsed" in rd("Natives/ZL2ShellViewController.m"))
+check("X7-1 448 侧栏折叠机制退役反转（★Task477 一代抽屉清场 = ame376 折叠面随伴退役零残留）",
+      "ame376_paneCollapsed" not in rd("Natives/ZL2ShellViewController.m"))
 check("X7-2 壁纸功能本体在场（ame429）",
       "ame429" in rd("Natives/ZL2BackgroundHost.m"))
 
 print("== S 敏感性样本 ==")
 tag = rd("Natives/BuildTag.h")
-check("S1 BuildTag Task476 · 2026-11-25（侧边栏双形态+渲染器在线仓库轮代际重锚）", "Task476 · 2026-11-25" in tag)
+check("S1 BuildTag Task477 · 2026-11-25（侧边栏双形态+渲染器在线仓库轮代际重锚）", "Task477 · 2026-11-25" in tag)
 check("S2 电池注册 task462", "task462_selfcheck" in rd("scripts/task432_gate_battery.sh"))
 
 print(f"\n========================================")

@@ -140,6 +140,8 @@ run_py task475_self scripts/task475_selfcheck.py --selftest
 #   （plugin-repo renderers[] 同源解析 + 仓库面实体对表 + 代际 Task476）
 run_py task476     scripts/task476_selfcheck.py
 run_py task476_self scripts/task476_selfcheck.py --selftest
+run_py task477     scripts/task477_selfcheck.py
+run_py task477_self scripts/task477_selfcheck.py --selftest
 
 # ★Task468 MobileGL/Magma 引擎性能旋钮层（抄 Witch-Launcher 调优面）+ 内置渲染器
 #   上游更新扫描轮：12 个 MOBILEGL_* setenv（strings 反锚逐名验证 vendored dylib

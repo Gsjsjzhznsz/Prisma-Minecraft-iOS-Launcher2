@@ -112,7 +112,7 @@ check("② ame369.* 键四表齐备",
 #   control_repo / ame369.common.gamepad_repo）+ case 8/9 nav 宿主标题 +2（case 10
 #   的 ame318.repo.title 两站点不落 ame369.* 计数口径）= 445 + 4 = 449
 #   （git stash 双向核验：HEAD=445，Task458 工作区=449）。
-check("① ame369 改写点数 == 453（…★Task472 重锚 -2 = 447 → ★Task475 重锚 +6 = 453：主页精简 rail 七瓦片六站点复用 ame369.shell.tab.*（versions/accounts/downloads/terracotta/files/settings；AI 站点 ame192 不计数））", ame369_sites == 453, str(ame369_sites))
+check("① ame369 改写点数 == 436（…★Task475 重锚 +6 = 453 → ★Task477 重锚 -17 = 436：导航合并退役（用户钦定「保留二代侧边栏，删除其他2代」）——一代 ame347 抽屉九站点（主页/下载/版本/联机/AI/设置/文件/nav_a11y×2）+ 二代 ame411 簇六站点（home/downloads/multiplayer/settings/files/virtual）+ navBackButton 返回钮一键随抽屉出树；主页 rail 七瓦片六站点原位保留，AI 站点 ame192 不计数）", ame369_sites == 436, str(ame369_sites))
 
 # 复用站点：4 处 localize(@"ame193.misc.[13]"（内容级匹配——5 个补 import 文件行号整体 +1，行级断言会错位）
 REUSE_EXPECT = {

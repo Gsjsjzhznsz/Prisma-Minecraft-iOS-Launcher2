@@ -88,7 +88,7 @@ check("A4-4 清扫挂点随 449 退役判例（BackgroundManager 无 ame449_swee
       "ame449_sweep" not in bg_m)
 
 # ---- A5 BuildTag 重锚 ----
-check("A5 BuildTag Task476 · 2026-11-25（启动链恢复首预发行版轮代际重锚）", 'Task476 · 2026-11-25' in tag_h)
+check("A5 BuildTag Task477 · 2026-11-25（启动链恢复首预发行版轮代际重锚）", 'Task477 · 2026-11-25' in tag_h)
 
 print()
 if fails:

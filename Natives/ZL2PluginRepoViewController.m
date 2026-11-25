@@ -144,6 +144,10 @@ static NSString * const ame333_repoMirrorPrefKey = @"ame333.plugin.repo.mirror";
             _ame431_button.backgroundColor = [ZL2Theme warning];
             [_ame431_button setTitleColor:[ZL2Theme onPrimary] forState:UIControlStateNormal];
             break;
+        case 4:   // ★Task477 卸载（error destructive）
+            _ame431_button.backgroundColor = [ZL2Theme error];
+            [_ame431_button setTitleColor:[ZL2Theme onPrimary] forState:UIControlStateNormal];
+            break;
         default:
             _ame431_button.backgroundColor = [ZL2Theme primary];
             [_ame431_button setTitleColor:[ZL2Theme onPrimary] forState:UIControlStateNormal];
@@ -682,12 +686,32 @@ static NSString * const ame333_repoMirrorPrefKey = @"ame333.plugin.repo.mirror";
         }
     }
     __weak typeof(self) ame476_wself = self;
-    [cell ame431_applyActionStyle:(ame476_installed ? 1 : 0)
-                            title:localize(ame476_installed ? @"ame475.repo.installed" : @"ame475.repo.install", nil)
-                          handler:^{
-        [ame476_wself.navigationController pushViewController:[[ZL2RendererRepoViewController alloc] init]
-                                                     animated:YES];
-    }];
+    if (ame476_installed) {
+        // ★Task477 卸载入口三面之二：插件仓库渲染器区已装态直卸（error
+        //   destructive 确认链与渲染器仓库页/插件列表页同款 purge 语义）；
+        //   行体点击仍跳渲染器仓库页（安装链单一持有不变）。
+        NSString *ame477_pid = ame476_pluginId;
+        [cell ame431_applyActionStyle:4
+                                title:localize(@"ame477.repo.uninstall", @"卸载")
+                              handler:^{
+            [ZL2M3Dialog showTitle:ame476_name
+                              body:localize(@"ame429.list.delete_confirm", nil)
+                      confirmTitle:localize(@"ame429.list.delete_ok", nil)
+                       destructive:YES
+                        onConfirm:^{
+                [PLRendererPluginService uninstallRendererPlugin:ame477_pid];
+                [ame476_wself tableReloadAndKeepScroll];
+            }
+                         onCancel:nil];
+        }];
+    } else {
+        [cell ame431_applyActionStyle:0
+                                title:localize(@"ame475.repo.install", nil)
+                              handler:^{
+            [ame476_wself.navigationController pushViewController:[[ZL2RendererRepoViewController alloc] init]
+                                                         animated:YES];
+        }];
+    }
     return cell;
 }
 

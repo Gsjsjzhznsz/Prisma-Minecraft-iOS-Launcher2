@@ -4693,3 +4693,7 @@
 "ame475.repo.official" = "官方件";
 "ame475.repo.enabled" = "已启用";
 "ame475.repo.disabled" = "已停用（插件页可启停）";
+"ame477.setpg.home_sidebar.beta" = "预发行版经典（Beta 单卡）";
+"ame477.setpg.renderer.badge_plugin" = "插件";
+"ame477.setpg.renderer.badge_builtin" = "内置";
+"ame477.repo.uninstall" = "卸载";

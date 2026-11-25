@@ -544,6 +544,18 @@ static UIImage *ZL2HomeSizedImage(NSString *name, NSString *fallback, CGFloat po
 // ★Task475 主页侧边栏双形态（精简 rail 默认 / 转盘封面流）：rail 背板 + 当前形态
 @property (nonatomic, strong) UIView *ame475_railBackdrop;
 @property (nonatomic, assign) BOOL ame475_railMode;
+// ★Task477 三代形态（第一个预发行版本 v1.0「Prisma 2 Beta」单卡移植）：
+//   v1.0 原文八枚标签 ivar 回册（Task400 重写期拆除）+ 形态旗
+//   （railMode 守卫语义沿用 = 非 flow；betaMode = 三代分发/宽度/刷新分流）
+@property (nonatomic, strong) UIView *accountAvatarBg;    // v1.0 账号区圆底
+@property (nonatomic, strong) UIImageView *accountAvatarView;
+@property (nonatomic, strong) UILabel *accountNameLabel;
+@property (nonatomic, strong) UILabel *accountTypeLabel;
+@property (nonatomic, strong) UIView *versionIconBg;      // v1.0 版本行 40 图标底
+@property (nonatomic, strong) UIImageView *versionIconView;
+@property (nonatomic, strong) UILabel *versionNameLabel;
+@property (nonatomic, strong) UILabel *versionLoaderLabel;
+@property (nonatomic, assign) BOOL ame477_betaMode;       // 当前形态 = 三代 beta
 // ★Task406 停靠镜像（第14轮规格「切换停靠边之后转盘和按钮是不是要镜像」）：
 // 面板停靠左 = 卡尾四钮换钉 + 启动钮/插件 chip 内容组反排 + 版本滚轮条目镜像重建。
 // 原钉四约束持引用，换边时整组卸/立（防新旧钉对峙互破）。
@@ -1150,8 +1162,24 @@ static UIImage *ZL2HomeSizedImage(NSString *name, NSString *fallback, CGFloat po
 // 原路径逐字不动（Task378/379/401/404/406/409/414/452 门禁锚全量保绿）。
 - (void)ame475_buildMenu {
     self.ame475_railMode = [ZL2HomeViewController ame475_railStylePreferred];
-    NSLog(@"[Ame475] buildMenu enter (rail=%d)", (int)self.ame475_railMode);
-    if (self.ame475_railMode) {
+    self.ame477_betaMode = ([ZL2HomeViewController ame477_styleIndex] == 2);
+    NSLog(@"[Ame475] buildMenu enter (rail=%d beta=%d)", (int)self.ame475_railMode, (int)self.ame477_betaMode);
+    if (self.ame477_betaMode) {
+        @try {
+            [self ame477_buildBetaMenu];
+            NSLog(@"[Ame477] beta classic built ok");
+        } @catch (NSException *ame477_ex) {
+            // ★Task477 降级防线：三代构建异常 → 签名落栈 + 回落转盘路径
+            //（Task475-r2 rail 降级同型家法；半建面随 _actionMenu 整容器清位）
+            NSLog(@"[Ame477] beta classic EXCEPTION signature: %@ (%) -- fallback to flow",
+                  ame477_ex.name, ame477_ex.reason);
+            NSLog(@"[Ame477] beta classic stack:\n%@", ame477_ex.callStackSymbols);
+            [self ame475_teardownMenu];
+            self.ame475_railMode = NO;
+            self.ame477_betaMode = NO;
+            [self ame_buildActionMenu];
+        }
+    } else if (self.ame475_railMode) {
         @try {
             [self ame475_buildSlimRailMenu];
             NSLog(@"[Ame475] slim rail built ok");
@@ -1169,7 +1197,7 @@ static UIImage *ZL2HomeSizedImage(NSString *name, NSString *fallback, CGFloat po
     } else {
         [self ame_buildActionMenu];
     }
-    NSLog(@"[Ame475] buildMenu done (rail=%d)", (int)self.ame475_railMode);
+    NSLog(@"[Ame475] buildMenu done (rail=%d beta=%d)", (int)self.ame475_railMode, (int)self.ame477_betaMode);
 }
 
 // 启动组卡公共构建器（转盘/精简 rail 双形态单一来源）：卡体+栈+状态行+大启动钮
@@ -1455,6 +1483,421 @@ static UIImage *ZL2HomeSizedImage(NSString *name, NSString *fallback, CGFloat po
     NSLog(@"[Ame475] home slim rail menu built (7 tiles + pinned launch card)");
 }
 
+
+#pragma mark - ★Task477 三代形态（第一个预发行版本 v1.0「Prisma 2 Beta」侧边栏单卡移植）
+
+// ★Task477 形态单一读点（int 0=精简 rail 二代【默认】/1=转盘封面流/2=三代
+//   预发行版经典单卡 v1.0 移植；未注册/非法值一律回落 rail——Task475 读点同款）。
++ (NSInteger)ame477_styleIndex {
+    NSInteger ame477_style = getPrefInt(@"general.home_sidebar_style");
+    if (ame477_style < 0 || ame477_style > 2) ame477_style = 0;
+    return ame477_style;
+}
+
+// v1.0 代常量回册（Task400 重写期退役；值 = v1.0 逐位，git show v1.0 直取）
+static const CGFloat ame477_MenuEdgePadding   = 10;    // v1.0 菜单列内边距
+static const CGFloat ame477_VersionCardHeight = 68;    // v1.0 版本选择卡高（40 图标 + 上下 14）
+
+// 三代构建器：v1.0 ame_buildActionMenu 原文逐字回植（ZL2 ActionMenuCardContent
+// = 单张 BackgroundCard：extraLarge 圆角 surfaceBright，账号区居中贴顶 +
+// 版本行/启动钮贴底；无挖洞面板/无滚动区/无快航卡 = 与二代 rail、一代转盘
+// 三形态观感互斥分工）。停靠提示文案走既有 i18n 键（v1.0 字面中文硬编码 →
+// 同文案键回植，视觉逐位、i18n 合规）。
+- (void)ame477_buildBetaMenu {
+    _actionMenu = [[UIView alloc] init];
+    _actionMenu.backgroundColor = [ZL2Theme surfaceBright];
+    _actionMenu.layer.cornerRadius = [ZL2Theme radiusXL];
+    _actionMenu.layer.masksToBounds = YES;
+    _actionMenu.translatesAutoresizingMaskIntoConstraints = NO;
+    [self.view addSubview:_actionMenu];
+
+    _menuStack = [[UIStackView alloc] init];
+    _menuStack.axis = UILayoutConstraintAxisVertical;
+    _menuStack.alignment = UIStackViewAlignmentFill;
+    _menuStack.spacing = 8;
+    _menuStack.translatesAutoresizingMaskIntoConstraints = NO;
+    [_actionMenu addSubview:_menuStack];
+
+    // —— ① 账号区（单卡内贴顶：头像居中 + 名字/类型居中竖排；点击→账号管理）——
+    _accountCard = [[ZL2HomeTapControl alloc] init];
+    _accountCard.backgroundColor = [UIColor clearColor];
+    _accountCard.translatesAutoresizingMaskIntoConstraints = NO;
+    _accountCard.isAccessibilityElement = YES;
+    _accountCard.accessibilityTraits = UIAccessibilityTraitButton;
+    _accountCard.accessibilityIdentifier = @"zl2_home_account_card";
+    [_accountCard addTarget:self
+                     action:@selector(accountCardTapped)
+           forControlEvents:UIControlEventTouchUpInside];
+    [_menuStack addArrangedSubview:_accountCard];
+
+    // 头像 64 圆（ZL2 PlayerFace 64.dp；未登录 = 加号占位）
+    _accountAvatarBg = [[UIView alloc] init];
+    _accountAvatarBg.layer.cornerRadius = 32;
+    _accountAvatarBg.layer.masksToBounds = YES;
+    _accountAvatarBg.translatesAutoresizingMaskIntoConstraints = NO;
+    _accountAvatarBg.userInteractionEnabled = NO;
+    [_accountCard addSubview:_accountAvatarBg];
+
+    _accountAvatarView = [[UIImageView alloc] init];
+    _accountAvatarView.contentMode = UIViewContentModeScaleAspectFit;
+    _accountAvatarView.translatesAutoresizingMaskIntoConstraints = NO;
+    _accountAvatarView.userInteractionEnabled = NO;
+    [_accountAvatarBg addSubview:_accountAvatarView];
+
+    _accountNameLabel = [[UILabel alloc] init];
+    _accountNameLabel.font = [ZL2Theme fontTitleMedium];
+    _accountNameLabel.textColor = [ZL2Theme onSurface];
+    _accountNameLabel.numberOfLines = 1;
+    _accountNameLabel.lineBreakMode = NSLineBreakByTruncatingTail;
+    _accountNameLabel.textAlignment = NSTextAlignmentCenter;
+    _accountNameLabel.translatesAutoresizingMaskIntoConstraints = NO;
+    _accountNameLabel.userInteractionEnabled = NO;
+    [_accountCard addSubview:_accountNameLabel];
+
+    _accountTypeLabel = [[UILabel alloc] init];
+    _accountTypeLabel.font = [ZL2Theme fontLabelMedium];
+    _accountTypeLabel.textColor = [ZL2Theme onSurfaceVariant];
+    _accountTypeLabel.numberOfLines = 1;
+    _accountTypeLabel.lineBreakMode = NSLineBreakByTruncatingTail;
+    _accountTypeLabel.textAlignment = NSTextAlignmentCenter;
+    _accountTypeLabel.translatesAutoresizingMaskIntoConstraints = NO;
+    _accountTypeLabel.userInteractionEnabled = NO;
+    [_accountCard addSubview:_accountTypeLabel];
+
+    // —— ② 版本行（单卡内贴底：ZL2 VersionsContent = 版本行 + 齿轮钮 + 启动钮）——
+    _versionCard = [[ZL2HomeTapControl alloc] init];
+    _versionCard.backgroundColor = [UIColor clearColor];
+    _versionCard.translatesAutoresizingMaskIntoConstraints = NO;
+    _versionCard.isAccessibilityElement = YES;
+    _versionCard.accessibilityTraits = UIAccessibilityTraitButton;
+    _versionCard.accessibilityIdentifier = @"zl2_home_version_card";
+    [_versionCard addTarget:self
+                     action:@selector(versionCardTapped)
+           forControlEvents:UIControlEventTouchUpInside];
+    [_menuStack addArrangedSubview:_versionCard];
+
+    _versionIconBg = [[UIView alloc] init];
+    _versionIconBg.layer.cornerRadius = [ZL2Theme radiusS];
+    _versionIconBg.layer.masksToBounds = YES;
+    _versionIconBg.translatesAutoresizingMaskIntoConstraints = NO;
+    _versionIconBg.userInteractionEnabled = NO;
+    [_versionCard addSubview:_versionIconBg];
+
+    _versionIconView = [[UIImageView alloc] init];
+    _versionIconView.contentMode = UIViewContentModeScaleAspectFit;
+    _versionIconView.translatesAutoresizingMaskIntoConstraints = NO;
+    _versionIconView.userInteractionEnabled = NO;
+    [_versionIconBg addSubview:_versionIconView];
+
+    _versionNameLabel = [[UILabel alloc] init];
+    _versionNameLabel.font = [ZL2Theme fontLabelLarge];
+    _versionNameLabel.textColor = [ZL2Theme onSurface];
+    _versionNameLabel.numberOfLines = 1;
+    _versionNameLabel.lineBreakMode = NSLineBreakByTruncatingTail;
+    _versionNameLabel.translatesAutoresizingMaskIntoConstraints = NO;
+    _versionNameLabel.userInteractionEnabled = NO;
+    [_versionCard addSubview:_versionNameLabel];
+
+    _versionLoaderLabel = [[UILabel alloc] init];
+    _versionLoaderLabel.font = [ZL2Theme fontLabelMedium];
+    _versionLoaderLabel.textColor = [ZL2Theme onSurfaceVariant];
+    _versionLoaderLabel.numberOfLines = 1;
+    _versionLoaderLabel.lineBreakMode = NSLineBreakByTruncatingTail;
+    _versionLoaderLabel.translatesAutoresizingMaskIntoConstraints = NO;
+    _versionLoaderLabel.userInteractionEnabled = NO;
+    [_versionCard addSubview:_versionLoaderLabel];
+
+    // 刷新小图标（arrow.clockwise，SF1.0）：重拉 PLProfiles 注册表并刷新
+    _versionRefreshButton = [self ame_iconButtonWithSymbol:@"arrow.clockwise"
+                                                  fallback:@"sync"
+                                                     a11y:@"刷新实例列表"];
+    // 刷新/设置小钮的 block 统一 weak self（钮为 VC 属性持有，强捕自环）
+    __weak ZL2HomeViewController *weakSelf = self;
+    _versionRefreshButton.ame_action = ^{
+        [weakSelf versionRefreshTapped];
+    };
+    [_versionCard addSubview:_versionRefreshButton];
+
+    // 设置小图标（gearshape，iOS14 符号带旧名 fallback）：壳切版本管理页
+    _versionSettingsButton = [self ame_iconButtonWithSymbol:@"gearshape"
+                                                   fallback:@"gear"
+                                                      a11y:@"版本管理"];
+    _versionSettingsButton.ame_action = ^{
+        [weakSelf versionSettingsTapped];
+    };
+    [_versionCard addSubview:_versionSettingsButton];
+
+    // —— 弹性占位：把启动组压到列底 ——
+    UIView *ame477_spacer = [[UIView alloc] init];
+    ame477_spacer.translatesAutoresizingMaskIntoConstraints = NO;
+    [ame477_spacer setContentHuggingPriority:UILayoutPriorityDefaultLow
+                                      forAxis:UILayoutConstraintAxisVertical];
+    [ame477_spacer setContentCompressionResistancePriority:UILayoutPriorityDefaultLow
+                                                    forAxis:UILayoutConstraintAxisVertical];
+    [_menuStack addArrangedSubview:ame477_spacer];
+
+    // —— 下载状态行（KVO 百分比态；非下载态隐藏塌缩）——
+    _launchStatusLabel = [[UILabel alloc] init];
+    _launchStatusLabel.font = [ZL2Theme fontLabelMedium];
+    _launchStatusLabel.textColor = [ZL2Theme onSurfaceVariant];
+    _launchStatusLabel.textAlignment = NSTextAlignmentCenter;
+    _launchStatusLabel.numberOfLines = 1;
+    _launchStatusLabel.translatesAutoresizingMaskIntoConstraints = NO;
+    _launchStatusLabel.isAccessibilityElement = YES;
+    _launchStatusLabel.hidden = YES;
+    [_menuStack addArrangedSubview:_launchStatusLabel];
+
+    // —— ③ 大启动钮（ScalingActionButton 语义：primary 底 / onPrimary 字 /
+    // 28 圆角 / 高 48 / 播放图标 + 三态文案；"zl2_home_launch" 为向导锚点）——
+    _launchButton = [[UIControl alloc] init];
+    _launchButton.accessibilityIdentifier = @"zl2_home_launch";
+    _launchButton.layer.cornerRadius = [ZL2Theme radiusXL];   // 28（spec 定稿）
+    _launchButton.translatesAutoresizingMaskIntoConstraints = NO;
+    _launchButton.isAccessibilityElement = YES;
+    [_launchButton addTarget:self
+                      action:@selector(launchButtonTapped)
+            forControlEvents:UIControlEventTouchUpInside];
+    [_menuStack addArrangedSubview:_launchButton];
+
+    UIImage *ame477_launchPlayImage = ZL2HomeSizedImage(@"play.fill", @"play", 18);
+    _launchIconView = [[UIImageView alloc] initWithImage:[ame477_launchPlayImage imageWithRenderingMode:UIImageRenderingModeAlwaysTemplate]];
+    _launchIconView.contentMode = UIViewContentModeScaleAspectFit;
+    _launchIconView.translatesAutoresizingMaskIntoConstraints = NO;
+    _launchIconView.userInteractionEnabled = NO;
+
+    _launchButtonLabel = [[UILabel alloc] init];
+    _launchButtonLabel.font = [ZL2Theme fontLabelLarge];
+    _launchButtonLabel.textColor = [ZL2Theme onPrimary];
+    _launchButtonLabel.numberOfLines = 1;
+    _launchButtonLabel.lineBreakMode = NSLineBreakByTruncatingTail;
+    _launchButtonLabel.translatesAutoresizingMaskIntoConstraints = NO;
+    _launchButtonLabel.userInteractionEnabled = NO;
+
+    // 图标 + 文案水平组（stack 自带 intrinsic 尺寸，组内居中零歧义）
+    UIStackView *ame477_launchContent = [[UIStackView alloc] initWithArrangedSubviews:@[_launchIconView, _launchButtonLabel]];
+    ame477_launchContent.axis = UILayoutConstraintAxisHorizontal;
+    ame477_launchContent.alignment = UIStackViewAlignmentCenter;
+    ame477_launchContent.spacing = 8;
+    ame477_launchContent.translatesAutoresizingMaskIntoConstraints = NO;
+    ame477_launchContent.userInteractionEnabled = NO;
+    _ame_launchContentStack = ame477_launchContent;   // ★Task406 换边反排引用（beta 镜像早退零消费，ivar 复用防悬垂）
+    [_launchButton addSubview:ame477_launchContent];
+
+    // —— ⑤ 插件功能直达 chip（★ Task328：插件效果可见性第三刀；无贡献行
+    //    时塌缩隐藏 = 零回归）——
+    _pluginChipButton = [[UIControl alloc] init];
+    _pluginChipButton.backgroundColor = [ZL2Theme surfaceContainerHigh];
+    _pluginChipButton.layer.cornerRadius = [ZL2Theme radiusS];
+    _pluginChipButton.translatesAutoresizingMaskIntoConstraints = NO;
+    _pluginChipButton.isAccessibilityElement = YES;
+    _pluginChipButton.accessibilityTraits = UIAccessibilityTraitButton;
+    _pluginChipButton.accessibilityIdentifier = @"zl2_home_plugin_chip";
+    _pluginChipButton.hidden = YES;   // 初始塌缩，viewWillAppear 计数刷新后放行（防首建闪现）
+    [_pluginChipButton addTarget:self
+                          action:@selector(ame328_pluginChipTapped)
+                forControlEvents:UIControlEventTouchUpInside];
+    [_menuStack addArrangedSubview:_pluginChipButton];
+
+    UIImage *ame477_pluginChipImage = ZL2HomeSizedImage(@"puzzlepiece.extension", @"gearshape", 14);
+    _pluginChipIconView = [[UIImageView alloc] initWithImage:[ame477_pluginChipImage imageWithRenderingMode:UIImageRenderingModeAlwaysTemplate]];
+    _pluginChipIconView.contentMode = UIViewContentModeScaleAspectFit;
+    _pluginChipIconView.tintColor = [ZL2Theme onSurfaceVariant];
+    _pluginChipIconView.translatesAutoresizingMaskIntoConstraints = NO;
+    _pluginChipIconView.userInteractionEnabled = NO;
+
+    _pluginChipLabel = [[UILabel alloc] init];
+    _pluginChipLabel.font = [ZL2Theme fontLabelMedium];
+    _pluginChipLabel.textColor = [ZL2Theme onSurface];
+    _pluginChipLabel.textAlignment = NSTextAlignmentCenter;
+    _pluginChipLabel.numberOfLines = 1;
+    _pluginChipLabel.lineBreakMode = NSLineBreakByTruncatingTail;
+    _pluginChipLabel.translatesAutoresizingMaskIntoConstraints = NO;
+    _pluginChipLabel.userInteractionEnabled = NO;
+
+    UIStackView *ame477_pluginChipContent =
+        [[UIStackView alloc] initWithArrangedSubviews:@[_pluginChipIconView, _pluginChipLabel]];
+    ame477_pluginChipContent.axis = UILayoutConstraintAxisHorizontal;
+    ame477_pluginChipContent.alignment = UIStackViewAlignmentCenter;
+    ame477_pluginChipContent.spacing = 6;
+    ame477_pluginChipContent.translatesAutoresizingMaskIntoConstraints = NO;
+    ame477_pluginChipContent.userInteractionEnabled = NO;
+    _ame_pluginContentStack = ame477_pluginChipContent;   // ★Task406（同上 ivar 复用注记）
+    [_pluginChipButton addSubview:ame477_pluginChipContent];
+
+    [_pluginChipButton.heightAnchor constraintEqualToConstant:34].active = YES;
+    [NSLayoutConstraint activateConstraints:@[
+        [ame477_pluginChipContent.centerXAnchor constraintEqualToAnchor:_pluginChipButton.centerXAnchor],
+        [ame477_pluginChipContent.centerYAnchor constraintEqualToAnchor:_pluginChipButton.centerYAnchor],
+        [ame477_pluginChipContent.leadingAnchor constraintGreaterThanOrEqualToAnchor:_pluginChipButton.leadingAnchor constant:12],
+        [_pluginChipButton.trailingAnchor constraintGreaterThanOrEqualToAnchor:ame477_pluginChipContent.trailingAnchor constant:12],
+    ]];
+
+    // —— ④ 停靠边提示（ActionMenuDrag 简化语义的可见性说明；v1.0 硬编码
+    //    中文 → 既有键同文案回植 = 视觉逐位 i18n 合规）——
+    _menuHintLabel = [[UILabel alloc] init];
+    _menuHintLabel.text = localize(@"ame369.home.menu_dock_hint", @"长按菜单可切换停靠边");
+    _menuHintLabel.font = [ZL2Theme fontLabelMedium];
+    _menuHintLabel.textColor = [ZL2Theme onSurfaceVariant];
+    _menuHintLabel.textAlignment = NSTextAlignmentCenter;
+    _menuHintLabel.numberOfLines = 1;
+    _menuHintLabel.translatesAutoresizingMaskIntoConstraints = NO;
+    [_menuStack addArrangedSubview:_menuHintLabel];
+
+    // 账号区布局（7.0-UI-14 单卡贴顶竖排：64 头像居中 + 名字/类型居中下方）
+    [NSLayoutConstraint activateConstraints:@[
+        [_accountCard.heightAnchor constraintEqualToConstant:148],
+        [_accountAvatarBg.centerXAnchor constraintEqualToAnchor:_accountCard.centerXAnchor],
+        [_accountAvatarBg.topAnchor constraintEqualToAnchor:_accountCard.topAnchor constant:14],
+        [_accountAvatarBg.widthAnchor constraintEqualToConstant:64],
+        [_accountAvatarBg.heightAnchor constraintEqualToConstant:64],
+        [_accountAvatarView.centerXAnchor constraintEqualToAnchor:_accountAvatarBg.centerXAnchor],
+        [_accountAvatarView.centerYAnchor constraintEqualToAnchor:_accountAvatarBg.centerYAnchor],
+        [_accountAvatarView.widthAnchor constraintEqualToConstant:58],
+        [_accountAvatarView.heightAnchor constraintEqualToConstant:58],
+        [_accountNameLabel.topAnchor constraintEqualToAnchor:_accountAvatarBg.bottomAnchor constant:6],
+        [_accountNameLabel.centerXAnchor constraintEqualToAnchor:_accountCard.centerXAnchor],
+        [_accountNameLabel.leadingAnchor constraintGreaterThanOrEqualToAnchor:_accountCard.leadingAnchor constant:8],
+        [_accountNameLabel.trailingAnchor constraintLessThanOrEqualToAnchor:_accountCard.trailingAnchor constant:-8],
+        [_accountTypeLabel.topAnchor constraintEqualToAnchor:_accountNameLabel.bottomAnchor constant:1],
+        [_accountTypeLabel.centerXAnchor constraintEqualToAnchor:_accountCard.centerXAnchor],
+        [_accountTypeLabel.leadingAnchor constraintGreaterThanOrEqualToAnchor:_accountCard.leadingAnchor constant:8],
+        [_accountTypeLabel.trailingAnchor constraintLessThanOrEqualToAnchor:_accountCard.trailingAnchor constant:-8],
+
+        // 版本选择卡内布局（40 图标 + 名字/加载器双行，卡高 68）
+        [_versionCard.heightAnchor constraintEqualToConstant:ame477_VersionCardHeight],
+        [_versionIconBg.leadingAnchor constraintEqualToAnchor:_versionCard.leadingAnchor constant:14],
+        [_versionIconBg.centerYAnchor constraintEqualToAnchor:_versionCard.centerYAnchor],
+        [_versionIconBg.widthAnchor constraintEqualToConstant:40],
+        [_versionIconBg.heightAnchor constraintEqualToConstant:40],
+        [_versionIconView.centerXAnchor constraintEqualToAnchor:_versionIconBg.centerXAnchor],
+        [_versionIconView.centerYAnchor constraintEqualToAnchor:_versionIconBg.centerYAnchor],
+        [_versionIconView.widthAnchor constraintEqualToConstant:24],
+        [_versionIconView.heightAnchor constraintEqualToConstant:24],
+        [_versionNameLabel.leadingAnchor constraintEqualToAnchor:_versionIconBg.trailingAnchor constant:10],
+        [_versionNameLabel.centerYAnchor constraintEqualToAnchor:_versionCard.centerYAnchor constant:-9],
+        [_versionNameLabel.trailingAnchor constraintLessThanOrEqualToAnchor:_versionRefreshButton.leadingAnchor constant:-8],
+        [_versionLoaderLabel.leadingAnchor constraintEqualToAnchor:_versionIconBg.trailingAnchor constant:10],
+        [_versionLoaderLabel.centerYAnchor constraintEqualToAnchor:_versionCard.centerYAnchor constant:9],
+        [_versionLoaderLabel.trailingAnchor constraintLessThanOrEqualToAnchor:_versionRefreshButton.leadingAnchor constant:-8],
+        [_versionRefreshButton.trailingAnchor constraintEqualToAnchor:_versionSettingsButton.leadingAnchor constant:-4],
+        [_versionRefreshButton.centerYAnchor constraintEqualToAnchor:_versionCard.centerYAnchor],
+        [_versionSettingsButton.trailingAnchor constraintEqualToAnchor:_versionCard.trailingAnchor constant:-12],
+        [_versionSettingsButton.centerYAnchor constraintEqualToAnchor:_versionCard.centerYAnchor],
+
+        // 大启动钮内布局（图标+文案水平组居中，高 48；不等式四边防溢出）
+        [_launchButton.heightAnchor constraintEqualToConstant:ZL2HomeLaunchButtonHeight],
+        [ame477_launchContent.centerXAnchor constraintEqualToAnchor:_launchButton.centerXAnchor],
+        [ame477_launchContent.centerYAnchor constraintEqualToAnchor:_launchButton.centerYAnchor],
+        [ame477_launchContent.leadingAnchor constraintGreaterThanOrEqualToAnchor:_launchButton.leadingAnchor constant:16],
+        [ame477_launchContent.trailingAnchor constraintLessThanOrEqualToAnchor:_launchButton.trailingAnchor constant:-16],
+        [ame477_launchContent.topAnchor constraintGreaterThanOrEqualToAnchor:_launchButton.topAnchor constant:4],
+        [ame477_launchContent.bottomAnchor constraintLessThanOrEqualToAnchor:_launchButton.bottomAnchor constant:-4],
+        [_launchIconView.widthAnchor constraintEqualToConstant:18],
+        [_launchIconView.heightAnchor constraintEqualToConstant:18],
+
+        // 菜单列整体内边距
+        [_menuStack.topAnchor constraintEqualToAnchor:_actionMenu.topAnchor constant:ame477_MenuEdgePadding],
+        [_menuStack.bottomAnchor constraintEqualToAnchor:_actionMenu.bottomAnchor constant:-ame477_MenuEdgePadding],
+        [_menuStack.leadingAnchor constraintEqualToAnchor:_actionMenu.leadingAnchor constant:ame477_MenuEdgePadding],
+        [_menuStack.trailingAnchor constraintEqualToAnchor:_actionMenu.trailingAnchor constant:-ame477_MenuEdgePadding],
+    ]];
+    NSLog(@"[Ame477] beta classic menu built (v1.0 single card)");
+}
+
+// —— 三代账户刷新（v1.0 ame_refreshAccountCard 逐字回植：现行刷新链为
+//    Task400 封面流实现，喂 accountFlow；三代标签面由本链供数）——
+- (void)ame477_refreshBetaAccountCard {
+    NSString *ame477_name = localize(@"i18n_str_357", nil);
+    NSString *ame477_typeText = @"";
+    BaseAuthenticator *ame477_auth = BaseAuthenticator.current;
+    NSDictionary *ame477_authData = nil;
+    if (ame477_auth && ame477_auth.authData) {
+        ame477_authData = ame477_auth.authData;
+        NSString *ame477_username = ame477_authData[@"username"];
+        if ([ame477_username isKindOfClass:[NSString class]] && ame477_username.length > 0) {
+            if ([ame477_username hasPrefix:@"Demo."]) {
+                ame477_username = [ame477_username substringFromIndex:5];
+                ame477_typeText = localize(@"login.option.demo", @"演示");
+            } else {
+                ame477_typeText = [self ame_typeTextForAccountData:ame477_auth.authData];
+            }
+            ame477_name = ame477_username;
+        }
+    }
+    self.accountNameLabel.text = ame477_name;
+    self.accountTypeLabel.text = ame477_typeText;
+    self.accountCard.accessibilityLabel = [NSString stringWithFormat:@"账户：%@", ame477_name];
+
+    if (ame477_authData) {
+        __weak ZL2HomeViewController *weakSelf = self;
+        [[AvatarManager sharedManager] ame185_fetchAvatarForAuthData:ame477_authData
+                                                          completion:^(UIImage *image) {
+            if (image) {
+                weakSelf.accountAvatarView.image = image;      // 真头像（默认渲染，圆底裁切）
+                weakSelf.accountAvatarView.tintColor = nil;
+            } else {
+                UIImage *ame477_ph = ZL2HomeSystemImage(@"person.crop.circle.fill", @"person.circle.fill");
+                weakSelf.accountAvatarView.image = [ame477_ph imageWithRenderingMode:UIImageRenderingModeAlwaysTemplate];
+                weakSelf.accountAvatarView.tintColor = [ZL2Theme onSurfaceVariant];
+            }
+        }];
+    } else {
+        // 未登录：加号占位（ZL2 ActionMenu 账号槽语义）
+        UIImage *ame477_plus = ZL2HomeSystemImage(@"plus.circle.fill", @"plus.circle");
+        self.accountAvatarView.image = [ame477_plus imageWithRenderingMode:UIImageRenderingModeAlwaysTemplate];
+        self.accountAvatarView.tintColor = [ZL2Theme onSurfaceVariant];
+    }
+}
+
+// —— 三代版本行刷新（v1.0 ame_refreshVersionCard 逐字回植：当前实例名 +
+//    加载器小标签；无实例显示「选择版本」）——
+- (void)ame477_refreshBetaVersionCard {
+    NSString *ame477_profile = PLProfiles.current.selectedProfileName;
+    if (ame477_profile) {
+        NSDictionary *ame477_pd = PLProfiles.current.profiles[ame477_profile];
+        NSString *ame477_versionId = [ame477_pd isKindOfClass:[NSDictionary class]] ? ame477_pd[@"lastVersionId"] : nil;
+        if (![ame477_versionId isKindOfClass:[NSString class]]) ame477_versionId = nil;
+
+        NSString *ame477_loader = ame477_versionId ? [ModLoaderIconHelper detectLoaderFromVersionId:ame477_versionId] : nil;
+        NSDictionary *ame477_parsed = ame477_versionId ? [ModpackExportService parseVersionId:ame477_versionId] : @{};
+        NSString *ame477_mcVersion = ame477_parsed[@"minecraft"] ?: ame477_versionId;
+
+        self.versionNameLabel.text = ame477_profile;
+        self.versionNameLabel.textColor = [ZL2Theme onSurface];
+
+        if (ame477_mcVersion.length > 0 && ame477_loader.length > 0) {
+            self.versionLoaderLabel.text = [NSString stringWithFormat:@"MC %@ · %@",
+                                            ame477_mcVersion, [ModLoaderIconHelper displayNameForLoader:ame477_loader]];
+        } else if (ame477_mcVersion.length > 0) {
+            self.versionLoaderLabel.text = [NSString stringWithFormat:@"MC %@", ame477_mcVersion];
+        } else if (ame477_loader.length > 0) {
+            self.versionLoaderLabel.text = [ModLoaderIconHelper displayNameForLoader:ame477_loader];
+        } else {
+            self.versionLoaderLabel.text = @"";
+        }
+
+        if (ame477_loader.length > 0) {
+            [ModLoaderIconHelper configureImageView:self.versionIconView
+                                          forLoader:ame477_loader
+                                     traitCollection:self.traitCollection];
+            self.versionIconBg.backgroundColor = [UIColor clearColor];
+        } else {
+            UIImage *ame477_fb = ZL2HomeSystemImage(@"gamecontroller.fill", @"gamecontroller");
+            self.versionIconView.image = [ame477_fb imageWithRenderingMode:UIImageRenderingModeAlwaysTemplate];
+            self.versionIconView.tintColor = [ZL2Theme onSurfaceVariant];
+            self.versionIconBg.backgroundColor = [ZL2Theme surfaceVariant];
+        }
+    } else {
+        self.versionNameLabel.text = @"选择版本";
+        self.versionNameLabel.textColor = [ZL2Theme onSurfaceVariant];
+        self.versionLoaderLabel.text = @"";
+        UIImage *ame477_fb2 = ZL2HomeSystemImage(@"gamecontroller.fill", @"gamecontroller");
+        self.versionIconView.image = [ame477_fb2 imageWithRenderingMode:UIImageRenderingModeAlwaysTemplate];
+        self.versionIconView.tintColor = [ZL2Theme onSurfaceVariant];
+        self.versionIconBg.backgroundColor = [ZL2Theme surfaceVariant];
+    }
+}
+
 // 换边长按手势挂载（幂等）：viewDidLoad 首建 + Task475 形态重建后均走此入口
 //（重建产生全新 _actionMenu，手势必须重挂；重复调用零副作用）。
 - (void)ame475_attachDockSwitchGesture {
@@ -1475,7 +1918,8 @@ static UIImage *ZL2HomeSizedImage(NSString *name, NSString *fallback, CGFloat po
 // 形态切换广播响应：形态真变才重建（幂等闸）
 - (void)ame475_styleDidChange:(NSNotification *)note {
     BOOL ame475_now = [ZL2HomeViewController ame475_railStylePreferred];
-    if (ame475_now == self.ame475_railMode) return;
+    BOOL ame477_nowBeta = ([ZL2HomeViewController ame477_styleIndex] == 2);
+    if (ame475_now == self.ame475_railMode && ame477_nowBeta == self.ame477_betaMode) return;
     [self ame475_rebuildMenu];
 }
 
@@ -1521,6 +1965,12 @@ static UIImage *ZL2HomeSizedImage(NSString *name, NSString *fallback, CGFloat po
     self.ame400_accountKeys = nil;
     self.ame400_versionRowNames = nil;
     self.ame475_railBackdrop = nil;
+    // ★Task477 三代 ivar 清位（八枚标签随容器摘除，防跨形态悬垂引用）
+    self.accountAvatarBg = nil; self.accountAvatarView = nil;
+    self.accountNameLabel = nil; self.accountTypeLabel = nil;
+    self.versionIconBg = nil; self.versionIconView = nil;
+    self.versionNameLabel = nil; self.versionLoaderLabel = nil;
+    self.ame477_betaMode = NO;
 }
 
 #pragma mark - ★ Task378 五入口快航瓦片（★ Task400 驻右栏顶卡：用户规格「五个按钮在顶上」）
@@ -1978,7 +2428,7 @@ static UIImage *ZL2HomeSizedImage(NSString *name, NSString *fallback, CGFloat po
     // 菜单宽：0.3 × 容器宽（可破），上下限 required 收敛出 clamp 语义
     // ★Task475 主页侧边栏双形态：精简 rail（默认）= 固定窄栏宽（iPhone 88 /
     //   iPad regular 104，壳层 ZL2RailView 度量同源）；转盘封面流维持原 clamp
-    if (self.ame475_railMode) {
+    if (self.ame475_railMode && !self.ame477_betaMode) {   // ★Task477 三代走转盘 clamp（v1.0 单卡 0.28 比例原口径）
         CGFloat ame475_railWidth = 88.0;
         if (self.traitCollection.horizontalSizeClass == UIUserInterfaceSizeClassRegular) {
             ame475_railWidth = 104.0;
@@ -2464,6 +2914,7 @@ static UIImage *ZL2HomeSizedImage(NSString *name, NSString *fallback, CGFloat po
 //    = 当前选中账户（accountId 精确比对，同名账户也能正确区分）；无账户 =
 //    单条「未登录」占位（登录入口 = 卡尾管理钮 / 无账号点启动续登录链）——
 - (void)ame_refreshAccountCard {
+    if (self.ame477_betaMode) { [self ame477_refreshBetaAccountCard]; return; }   // ★Task477 三代 v1.0 标签面分流
     [self ame400_reloadAccountList];
 
     NSString *ame400_selectedId = nil;
@@ -2518,6 +2969,7 @@ static UIImage *ZL2HomeSizedImage(NSString *name, NSString *fallback, CGFloat po
 //    实例版本信息高度」）；初始落定 = 当前选中实例；空注册表 = 单条
 //    「选择版本」占位（空态卡引导下载）——
 - (void)ame_refreshVersionCard {
+    if (self.ame477_betaMode) { [self ame477_refreshBetaVersionCard]; return; }   // ★Task477 三代 v1.0 标签面分流
     // ★ Task401：行名序未变时免重建（只重定位选中）——滚轮落定 → 选用 →
     //   SelectedProfileChanged 回环刷新时不再拆建滚轮（Task400 实锤回跳
     //   病灶之一：吸附提交回调内同步全量拆建 = 新条目重置到选中位相），

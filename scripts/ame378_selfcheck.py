@@ -126,13 +126,14 @@ check("B3 容器顶锚（bare：★Task414 起 top = bareHeaderView.bottom——
       "[self.container.topAnchor constraintEqualToAnchor:self.view.topAnchor]," in shell_code
       or "[self.container.topAnchor constraintEqualToAnchor:self.bareHeaderView.bottomAnchor]" in shell_code)
 
-check("B4 存量门禁锚点逐字保留（347 B5/B6 + 349 宽窄哨兵/豁免 + 376 折叠派发）",
-      bool(re.search(r"ame_refreshTopBarStateAnimated:\(BOOL\)animated \{\s*// ★ Task347：nav 骨架走等价刷新", shell))
+check("B4 存量门禁锚点逐字保留（347 B5/B6 + ★Task477 376/347 消费面退役反转：bare 唯一骨架）",
+      "- (void)ame_refreshTopBarStateAnimated:(BOOL)animated {" in shell_code
       and "(self.topBar ?: self.contentHeader).window" in shell_code
       and "ame230_setViewTreeStrokeExempt(self.view, YES);" in shell_code
       and '#import "BackgroundManager.h"' in shell
-      and "[self ame376_applyPaneGeometry:NO];" in shell_code
-      and "ame347_applyWidthClass" in shell_code)
+      and "[self ame_buildBareShell];" in shell_code
+      and "ame376_applyPaneGeometry" not in shell_code
+      and "ame347_applyWidthClass" not in shell_code)
 
 check("B5 任务胶囊 bare 守卫（nav 专属，bare 壳恒 nil 早退）",
       "if (!self.taskPill) return;" in shell_code
@@ -198,12 +199,12 @@ check("C5 ★Task393 壳通知观察者保留（ZL2ShellOpenFileManager 承接�
       'name:@"ZL2ShellOpenFileManager"' in shell
       and "ame_openFileManagerSheet" in shell_code)
 
-check("C6 i18n 零新增键（动作簇同款键驻壳层：ame369.shell.tab.* / ame369.common.multiplayer / ame192.ai.title）",
-      'localize(@"ame369.shell.tab.files", @"文件")' in shell
-      and 'localize(@"ame369.shell.tab.downloads", @"下载")' in shell
-      and 'localize(@"ame369.shell.tab.settings", @"设置")' in shell
-      and 'localize(@"ame369.common.multiplayer", @"多人联机")' in shell
-      and 'localize(@"ame192.ai.title", nil)' in shell)
+check("C6 i18n 零新增键（★Task477 重锚：rail 七瓦片同款键驻主页 = 键站点随簇退役迁移壳→主页零新增；raw 断言 = 键入字面量面）",
+      'localize(@"ame369.shell.tab.files", @"文件")' in home
+      and 'localize(@"ame369.shell.tab.downloads", @"下载")' in home
+      and 'localize(@"ame369.shell.tab.settings", @"设置")' in home
+      and 'localize(@"ame369.shell.tab.terracotta", @"Terracotta | 陶瓦联机")' in home
+      and 'localize(@"ame192.ai.title", nil)' in home)
 
 check("C9 账户/版本滚轮卡功能锚（★Task401 重锚 Task408 重锚：a11y id 随 3dc220d 更名\n      zl2.sidebar.accounts/instances——双卡 AmeFlowSelectView 原地封面流不变，\n      落定回调/卡尾钮（添加/删除账户文本钮+刷新+齿轮）在位；卡体点击链退役 = 拖拽即选择）",
       "_accountFlow = [[AmeFlowSelectView alloc] init];" in home_code
@@ -309,17 +310,15 @@ check("C16 转盘弧度恢复（★Task410 第 18 轮复诉「转盘的弧度怎
       and "AmeFlowSelectCenterScale" not in flow   # 缩放类根因零复沾（C15 同口径复核）
       and "AmeFlowSelectScalePerStep" not in flow)
 
-check("C17 右上角无文字切换簇回归+rail 图标回档恒定（★Task411 立 ★Task412 重锚——①bare 骨架\n      ame411_switcherCluster 悬浮图标胶囊：六入口（主页/下载/联机/AI/设置/文件）\n      钉 safeArea 右上全页面常驻 + 选中态随 currentIndex 刷新（ame411_refreshSwitcherSelection），\n      fui 骨架不建防双导航重复；②壳 rail 图标回档 24pt 恒定单一常量（第 20 轮\n      复诉②「图标放的更大了」= 410b 38pt 二轮放大被实测否决，「一开始」展开态\n      口径回归，仍为折叠/展开单一常量零联动）+ 高度独立 required 常量（宽高两条\n      同值常量零耦合）+ 四轴抗压抗抱死）",
-      "ame411_switcherCluster" in shell_code
-      and "ame411_refreshSwitcherSelection" in shell_code
-      and shell_code.count("constraintEqualToConstant:24.0") >= 2   # 图标宽+高两条独立 required
-      and "self.ame402_iconSize.constant = 24.0;" in shell_code    # 回档 24 恒定
-      and "constraintEqualToConstant:38.0" not in shell_code       # 38 二轮放大口径零残留
+check("C17 右上簇退役反转 + 主页 rail 图标瓦片恒定（★Task411 立 ★Task412 重锚 ★Task477 终局——\n      用户钦定「保留二代侧边栏，删除其他2代」：右上簇随一代清场 = 单一全局切换器收敛主页\n      rail 二代（Task475/476 图标 rail）；①壳层 ame411_ 代码面零残留；②主页图标瓦片工厂\n      ame476_iconRailTileWithSymbol 纯图标 44pt 居中恒定（TopBarRailItem 家法）+ 瓦片高\n      单一常量零二态；③rail 宽 88/104 度量同源）",
+      "ame411_" not in shell_code
+      and "ame476_iconRailTileWithSymbol" in home_code
+      and "ZL2HomeRailTileHeight" in home
+      and "constraintEqualToConstant:38.0" not in shell_code
       and "compact ? 38.0 : 24.0" not in shell_code
-      and "compact ? 7.0 : 14.0" not in shell_code                 # 居中路径二态亦退役（恒 14）
-      and "ZL2ShellSystemImageSized(symbol, fallback, 24.0)" in shell_code
-      and "setContentCompressionResistancePriority:UILayoutPriorityRequired forAxis:UILayoutConstraintAxisHorizontal" in shell_code
-      and "ZL2ShellRailItemIconSize = 24.0" in shell)
+      and "compact ? 7.0 : 14.0" not in shell_code
+      and "ame475_railWidth = 88.0" in home_code
+      and "ame475_railWidth = 104.0" in home_code)
 
 check("C18 转盘镜像+模组行对齐（★Task412 立 ★Task413 重锚——①AmeFlowSelectView\n      ame_mirrored：竖轴弧向外移方向翻转 + 横轴排布向翻转 + 横轴点按反解同构\n      翻转；★Task413 手势恒指随判例：拖动/惯性向翻转整体退役（镜像只翻几何，\n      手势零翻转 = 左右手握持侧拖动恒跟手），宿主 ame_applyPanelMirror 双流\n      挂接（右停靠 = 镜像）；②模组行卡 trailing LessThanOrEqualTo → 等式钉卡缘\n      + spacer 拥抱 248 独家吸收 = 全列开关/删除右缘垂直对齐）",
       "ame_mirrored" in flow_code
@@ -349,10 +348,10 @@ modsvc_raw = read("Natives/ModService.m")   # 字符串字面量断言走 raw（
 ame378_c19 = [
     ("hdr64", "ZL2ShellHeaderHeight = 64.0" in shell),
     ("cy32", "safeAreaLayoutGuide.topAnchor constant:32.0]" in shell_code),
-    ("cap12", "safeAreaLayoutGuide.topAnchor constant:12.0]" in shell_code),
+    ("cap12", "safeAreaLayoutGuide.topAnchor constant:12.0]" not in shell_code),   # ★Task477 簇顶距 12 随簇退役（入带面清零）
     ("grid28", "ZL2HomeGridInsetTop     = 28" in home),
-    ("glyph-lock", "_ame413_appliedGlyphPt" in shell_code),
-    ("glyph-skip", "ame413_appliedGlyphPt != 24.0" in shell_code),
+    ("glyph-lock", "_ame413_appliedGlyphPt" not in shell_code),   # ★Task477 NavItem 字形幂等锁随一代退役
+    ("glyph-skip", "ame413_appliedGlyphPt != 24.0" not in shell_code),
     ("source-sig", "NSNumber *source))completion" in modupd_code),   # .m 签名（.h 同增 _Nullable 形态）
     ("v13-push", "ameV13_pushVersionListWithProjectId" in vpages_code),
     ("v13-pidmap", "ameV13_projectIdByPath" in vpages_code),
@@ -388,7 +387,7 @@ ame378_c20 = [
     ("bare-container", "[self.container.topAnchor constraintEqualToAnchor:self.bareHeaderView.bottomAnchor]" in shell_code),
     ("bare-title-refresh", "[self ame_titleForIndex:self.currentIndex]" in shell_code),
     # ⑥ fui rail 选中态对比度（Highest 抬升）
-    ("rail-highest", "selected ? [ZL2Theme surfaceContainerHighest] : [UIColor clearColor]" in shell_code),
+    ("rail-highest", "selected ? [ZL2Theme surfaceContainerHighest] : [UIColor clearColor]" not in shell_code),   # ★Task477 窗格行选中抬升随一代退役（主页 rail 选中态由瓦片工厂承担）
     # ① 真 3D 四件套（深度序/光影/透视/跑步）★Task416 重锚 CPU 投影引擎
     ("depth-sort", "zPosition" in skinview_code),
     ("face-record", "ZL2SkinViewFace" in skinview_code),
@@ -410,8 +409,8 @@ ame378_c20 = [
     ("version-adaptive", "ame414_relayoutVersionHeight" in home_code),
     ("version-height-pin", "_ame414_versionHeight" in home_code),
     # 预览 harness 双骨架镜像 + 冒烟 nav 轨（「你不会运用预览吗」）
-    ("preview-nav-shell", "ame414_buildNavPane" in preview_code),
-    ("preview-capsule", "ame414_buildCapsule" in preview_code),
+    ("preview-nav-shell", "ame414_buildNavPane" not in preview_code),   # ★Task477 镜像同步退役
+    ("preview-capsule", "ame414_buildCapsule" not in preview_code),
     ("preview-fluent-tokens", "ame317_setPluginThemeTokens" in preview_code),
     ("smoke-nav-track", "-zl2shell nav -zl2theme fluent-dark" in smoke_raw),
 ]
@@ -483,8 +482,8 @@ ame378_c21 = [
         "AIViewController", "AiSessionStore", "ZL2VersionIndex"))),
     # ⑧ ★Task417-r5 过约束根修（紧凑行 52 = 14+24+14+12 = 64 > 52：隐藏标签链
     #    压图标到 12×12 → 字形 10pt = 真机四轮「图标被压缩」总根源）
-    ("label-chain-999", "_ame417_labelLead.priority = 999" in shell_code
-        and "_ame417_labelTrail.priority = 999" in shell_code),
+    ("label-chain-999", "_ame417_labelLead" not in shell_code
+        and "_ame417_labelTrail" not in shell_code),   # ★Task477 NavItem 标题让位链随一代退役
     # ④ ★Task416 转盘镜像定谳：极性回归（右停靠=原生/左停靠=镜像）+ 镜像
     #    几何下拖动/甩向符号同步翻转（恒指随的镜像侧实现）
     ("flow-mirror-sign", "ame416_sign = (ame_horizontal && _ame_mirrored)" in flow_code),
@@ -492,7 +491,7 @@ ame378_c21 = [
     ("home-mirror-polarity", "BOOL ame_flowMirror = ame_left;" in home_code),
     # ⑤ ★Task416 harness 镜像自伤修复：内容随窗格内缩 + 展开态镜像轨
     ("harness-pane-lead", "ame416_paneLead" in preview_code),
-    ("harness-pane-expanded", "ame416_paneExpanded" in preview_code),
+    ("harness-pane-expanded", "ame416_paneExpanded" not in preview_code),   # ★Task477 展开态镜像随一代退役
     ("smoke-expanded", "-zl2pane expanded" in smoke_raw),
     # ② 主页右栏：启动卡钉出滚动区（Task400「钉底永可见」自约束面真正成立）
     ("launch-out-stack", "addArrangedSubview:_launchCard]" not in home_code),
@@ -793,11 +792,10 @@ if "--selftest" in sys.argv:
     # ★Task410 S-C16：弧度常量抹除变体 → C16 必翻红
     rcheck("S-C16", flow_code.replace("AmeFlowSelectArcSagH", "AmeFlowSelectArcGone"),
            "AmeFlowSelectArcSagH" not in flow_code.replace("AmeFlowSelectArcSagH", "AmeFlowSelectArcGone"))
-    # ★Task412 S-C17：图标二档常量回潮变体 → C17 必翻红（回档口径破坏检出）
-    rcheck("S-C17", shell_code.replace("self.ame402_iconSize.constant = 24.0;",
-                                       "self.ame402_iconSize.constant = 38.0;"),
-           "self.ame402_iconSize.constant = 38.0;" in shell_code.replace("self.ame402_iconSize.constant = 24.0;",
-                                                                         "self.ame402_iconSize.constant = 38.0;"))
+    # ★Task477 S-C17：主页 rail 图标瓦片工厂抹除变体 → C17 必翻红（二代切换器破坏检出）
+    rcheck("S-C17", home_code.replace("ame476_iconRailTileWithSymbol", "ame476_goneTile"),
+           "ame476_iconRailTileWithSymbol" not in home_code.replace("ame476_iconRailTileWithSymbol",
+                                                                    "ame476_goneTile"))
     # ★Task413 S-C18：拖向翻转回潮变体 → C18 必翻红（手势恒指随判例破坏检出）
     rcheck("S-C18", flow_code + "CGFloat ame_signed = _ame_mirrored ? -1.0 : 1.0;",
            "ame_signed = _ame_mirrored" in (flow_code + "CGFloat ame_signed = _ame_mirrored ? -1.0 : 1.0;"))

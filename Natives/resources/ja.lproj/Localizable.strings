@@ -4538,3 +4538,7 @@
 "ame475.repo.official" = "公式";
 "ame475.repo.enabled" = "有効";
 "ame475.repo.disabled" = "無効（プラグインページで切替可能）";
+"ame477.setpg.home_sidebar.beta" = "Beta classic (v1.0 single card)";
+"ame477.setpg.renderer.badge_plugin" = "Plugin";
+"ame477.setpg.renderer.badge_builtin" = "Built-in";
+"ame477.repo.uninstall" = "Uninstall";
