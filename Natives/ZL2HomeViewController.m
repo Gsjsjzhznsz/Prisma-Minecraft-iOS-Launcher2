@@ -1525,7 +1525,7 @@ static const CGFloat ame477_VersionCardHeight = 68;    // v1.0 版本选择卡�
     _accountCard.isAccessibilityElement = YES;
     _accountCard.accessibilityTraits = UIAccessibilityTraitButton;
     _accountCard.accessibilityIdentifier = @"zl2_home_account_card";
-    [_accountCard addTarget:self
+    [(ZL2HomeTapControl *)_accountCard addTarget:self          // ★Task477：属性 Task400 期降型 UIView*，v1.0 原文 addTarget 需具体类 cast
                      action:@selector(accountCardTapped)
            forControlEvents:UIControlEventTouchUpInside];
     [_menuStack addArrangedSubview:_accountCard];
@@ -1571,7 +1571,7 @@ static const CGFloat ame477_VersionCardHeight = 68;    // v1.0 版本选择卡�
     _versionCard.isAccessibilityElement = YES;
     _versionCard.accessibilityTraits = UIAccessibilityTraitButton;
     _versionCard.accessibilityIdentifier = @"zl2_home_version_card";
-    [_versionCard addTarget:self
+    [(ZL2HomeTapControl *)_versionCard addTarget:self         // ★Task477：同上降型 cast
                      action:@selector(versionCardTapped)
            forControlEvents:UIControlEventTouchUpInside];
     [_menuStack addArrangedSubview:_versionCard];
