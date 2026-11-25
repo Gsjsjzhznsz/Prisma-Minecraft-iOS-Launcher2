@@ -724,17 +724,8 @@ static NSString *AmePreviewPageTitle(NSInteger index) {
 - (void)showPageAtIndex:(NSInteger)index;   // ★Task441 第四腿：真壳步进遍历入口
 @end
 
-@interface ZL2ShellNavItem : UIView
-- (instancetype)initWithTitle:(NSString *)title
-                       symbol:(NSString *)symbol
-                     fallback:(NSString *)fallback
-                    pageIndex:(NSInteger)pageIndex;
-- (void)ame_setCompact:(BOOL)compact;
-- (void)ame_setSelected:(BOOL)selected;
-// 404/405 判读面（[Ame404] 日志同源读数；真类字形管线健康度数值直出）
-- (CGFloat)ame_iconImageSize;
-- (CGFloat)ame_iconGlyphBBox;
-@end
+// ★Task477：ZL2ShellNavItem 同名直连声明随一代抽屉退役摘除（类本体已出树，
+// 探针页真档同步退役 = 链接面零悬空符号）。
 
 // fui 插件四族令牌真路径（main.js PALETTES[1]/FLUENT_SHAPE/FLUENT_LAYOUT/
 // FLUENT_STRUCTURE 逐值同源；ame317/341/343/347 引擎承载面 = 插件运行时
@@ -1089,9 +1080,10 @@ static void AmePreviewApplyFluentTokens(void) {
 }
 
 // ── ★Task417 字形阶梯探针页（-zl2page probe）：真壳字形管线逐级隔离取证
-//    ——裸符号 / 配置 12 / 24 / 38 / 真 ZL2ShellNavItem（compact+expanded），
+//    ——裸符号 / 配置 12 / 24 / 38 四档（★Task477：真 ZL2ShellNavItem 双档
+//    随一代抽屉退役摘除 = 链接面零悬空符号），
 //    每档 = 说明签（技术文本零 i18n 面）+ 24×24 发丝框盒（盒尺寸可视）；
-//    [Ame417] 数值日志随行直出（image.size + 真类 bbox 读数 = 与截图双证）。
+//    [Ame417] 数值日志随行直出（image.size 读数 = 与截图双证）。
 //    本页为 harness 专用诊断页，不进壳页槽，正式 app 零影响。──
 - (UIViewController *)ame417_buildProbePage {
     UIViewController *ame417_vc = [[UIViewController alloc] init];
@@ -1106,7 +1098,7 @@ static void AmePreviewApplyFluentTokens(void) {
     [ame417_scroll addSubview:ame417_content];
 
     UILabel *ame417_head = [[UILabel alloc] init];
-    ame417_head.text = @"glyph ladder probe (Task417): bare / config12 / config24 / config38 / real NavItem";
+    ame417_head.text = @"glyph ladder probe (Task417): bare / config12 / config24 / config38";
     ame417_head.font = [UIFont monospacedSystemFontOfSize:11.0 weight:UIFontWeightRegular];
     ame417_head.textColor = [ZL2Theme onSurfaceVariant];
     ame417_head.translatesAutoresizingMaskIntoConstraints = NO;
@@ -1116,15 +1108,13 @@ static void AmePreviewApplyFluentTokens(void) {
     [ame417_pins addObject:[ame417_head.topAnchor constraintEqualToAnchor:ame417_content.topAnchor constant:16.0]];
     [ame417_pins addObject:[ame417_head.leadingAnchor constraintEqualToAnchor:ame417_content.leadingAnchor constant:20.0]];
 
-    struct Ame417ProbeRow { NSString *caption; NSInteger kind; };   // kind: 0 bare 1 cfg12 2 cfg24 3 cfg38 4 real-compact 5 real-expanded
+    struct Ame417ProbeRow { NSString *caption; NSInteger kind; };   // kind: 0 bare 1 cfg12 2 cfg24 3 cfg38（★Task477 real 双档退役）
     UIView *ame417_prev = ame417_head;
-    for (NSInteger ame417_i = 0; ame417_i < 6; ame417_i++) {
+    for (NSInteger ame417_i = 0; ame417_i < 4; ame417_i++) {
         NSString *ame417_caption = @[@"bare house.fill (no config)",
                                       @"config pointSize 12",
                                       @"config pointSize 24",
-                                      @"config pointSize 38",
-                                      @"REAL ZL2ShellNavItem (compact 64)",
-                                      @"REAL ZL2ShellNavItem (expanded 280)"][ame417_i];
+                                      @"config pointSize 38"][ame417_i];
 
         UILabel *ame417_lb = [[UILabel alloc] init];
         ame417_lb.text = ame417_caption;
@@ -1167,24 +1157,7 @@ static void AmePreviewApplyFluentTokens(void) {
             ]];
             [ame417_pins addObject:[ame417_box.centerYAnchor constraintEqualToAnchor:ame417_lb.centerYAnchor]];
             [ame417_pins addObject:[ame417_box.leadingAnchor constraintEqualToAnchor:ame417_lb.trailingAnchor constant:16.0]];
-        } else {
-            // 真档：真 ZL2ShellNavItem（真字形管线 + 真盒约束）
-            ZL2ShellNavItem *ame417_item = [[ZL2ShellNavItem alloc]
-                initWithTitle:localize(@"ame369.common.home", @"主页")   // ★Task417 既有键复用（零新键，task248 硬编码零残留）
-                       symbol:@"house.fill" fallback:@"house"
-                    pageIndex:0];
-            [ame417_item ame_setCompact:(ame417_i == 4)];
-            [ame417_item ame_setSelected:YES];
-            ame417_item.translatesAutoresizingMaskIntoConstraints = NO;
-            [ame417_content addSubview:ame417_item];
-            [ame417_pins addObject:[ame417_item.centerYAnchor constraintEqualToAnchor:ame417_lb.centerYAnchor]];
-            [ame417_pins addObject:[ame417_item.leadingAnchor constraintEqualToAnchor:ame417_lb.trailingAnchor constant:16.0]];
-            [ame417_pins addObject:[ame417_item.widthAnchor constraintEqualToConstant:(ame417_i == 4) ? 64.0 : 280.0]];
-            [ame417_pins addObject:[ame417_item.heightAnchor constraintEqualToConstant:44.0]];
-            NSLog(@"[Ame417] real NavItem(%@): imageSize=%.1f glyphBBox=%.1f (盒 24，bbox≪24 = 字形欠尺实锤)",
-                  (ame417_i == 4) ? @"compact" : @"expanded",
-                  [ame417_item ame_iconImageSize], [ame417_item ame_iconGlyphBBox]);
-        }
+        }   // ★Task477 真档 else 分支随一代退役摘除（链接面零悬空符号）
 
         [ame417_pins addObject:[ame417_lb.leadingAnchor constraintEqualToAnchor:ame417_content.leadingAnchor constant:20.0]];
         [ame417_pins addObject:[ame417_lb.topAnchor constraintEqualToAnchor:ame417_prev.bottomAnchor constant:(ame417_i == 0) ? 20.0 : 26.0]];
