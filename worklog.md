@@ -5757,3 +5757,15 @@ Work Log:
 Stage Summary:
 - 装机锚点（BuildTag=Task477 · 2026-11-25）：①主页同屏仅一个切换器 = ZL2 图标 rail 二代（右上悬浮簇消失、左滑抽屉消失、设置→启动器→外观进阶组「主页侧边栏」三选项：精简侧边栏【默认】/转盘封面流/预发行版经典（Beta 单卡））②切「预发行版经典」主页即时重建 = v1.0 Prisma 2 Beta 同款单卡（头像居中贴顶 + 版本行 + 大启动钮贴底；无需重启）③渲染器仓库页「已安装」区每行尾红色「卸载」钮 → 红确认 → 即刻从已装区消失；插件仓库渲染器区已装态同理④设置→渲染器：插件档带「（插件）」尾缀、经典档带「（内置）」尾缀⑤下载/设置等子页顶部系统返回栏回主页，rail 为唯一全局切换器
 - 【Task477 闭环补记】CI 双绿（smoke run 45634295028 attempt2 + dev run 45634296504 attempt2 @ f96d7f93）：r1 = CI 编译面第一道实锚再+1（smoke run 45629142118 syntax+preview-compile 双段：三代 beta 构建器 v1.0 原文 addTarget: 撞 Task400 属性降型 UIView*——[(ZL2HomeTapControl *)_accountCard/_versionCard] 两点 cast）；r2 = smoke 链接面悬空符号清偿（_OBJC_CLASS_$_ZL2ShellNavItem referenced from AmeFluentPreviewMain.o：预览 TU 同名直连声明 + Task417 探针页真档双行随一代退役同步摘除，阶梯 6→4 档；判例入册 = shell 类清场必须同步扫 Preview/桩 TU 的声明与消费两端，禁符扫描器补跨类符号族）；runner 容量取消判例家族三连（smoke dispatch/push 双触发互踩 cancelled ×2 + 未获取 runner cancelled ×1——单实例判例执行：撤 push-dev 让 dispatch-smoke 独跑，attempt2 抢到 runner 一轮绿，随后 dev rerun attempt2 绿）；四件产物 task477_dl 集（ipa 231,790,880B / tipa 231,791,236B / dSYM 7,331,228B / preview 2,115,530B）+ task470_artifact_verify 19/19 ALL PASS（V3 Task477 · 2026-11-25 UTF-16LE 在场 + V4 Task476/475 双消 + V10 渲染器出包反锚 + V13 折叠面 selector 随包 = Task463 面二进制级保形 + V14 容器对 UUID 同源 + V16 dSYM 配对）；沙箱磁盘判例：双包内层展开 ~1.2GB + 历史 dl 集叠加 = Errno 28——验证前清历史 task473/474/476_dl 集与容器 zip（当前代产物集保留）
+
+## Task477-r3——用户复核裁决纠偏反转（「撤销撤销，你搞错了，我要的是预发行版本的启动游戏侧边栏呀！就是一堆空地」「不是启动游戏时的，就是主页一进来就看到的」；电池 60/60 提交后自愈全绿）
+
+- 裁决定谳：上轮 ad334c7c 三刀砍反两刀——二代 ame411 悬浮簇被删、三代 ame475 主页 rail 被留成默认、v1.0 卡埋成设置第三选项；用户「主页一进来」看到的仍是 rail。r3 按裁决原文反转：二代回植 / 三代出树 / v1.0 单卡升默认。
+- 壳层：二代簇 pre477 原文逐字回植（ZL2ShellSwitcherButton 类 + 三 ivar + bare 装配 + 标题尾缘让位胶囊 + bringSubviewToFront + ame411_refreshSwitcherSelection 接回 ame_refreshTopBarStateAnimated，七锚自验，壳层 +189 行）；ame347 抽屉维持退役零残留。
+- 主页：三代 rail 全拆（ame475_buildSlimRailMenu + ame476_iconRailTileWithSymbol 工厂 + ZL2HomeRailTileHeight + 88/104 宽分支 + railMode/railBackdrop ivar + 镜像早退换 beta 早退，-175 行）；v1.0「Prisma 2 Beta」单卡（ame477_buildBetaMenu）升默认形态，ame477_styleIndex 换代 0=beta【默认】/1=转盘，旧值（旧 0 精简/旧 2 三代）读侧 clamp 回落；降级防线回落转盘；宽度分支单路化。
+- 设置页：主页侧边栏三选项→两选项（预发行版经典（Beta 单卡）【默认】/转盘封面流）；subtitle2 新键 ×54 表（zh 译文其余英文兜底，54 插入零改写）；ame475.setpg.home_sidebar.rail 键留表零触碰。
+- 门禁反转 16 处：task475（A3/A4/A5 退役反转 + S1 探针换锚）/task476（T1/T2/T3 工厂退役反转 + S1 换锚）/task477（A1 禁符表 18→16 族 + A1b 回植正锚 + B1 双态语义 + B4 两选项 + B5 单路化 + C4 五键）/ame379（A2 回植正锚）/ame378（C6 幸存三站点 + C17 簇回植终局 + cap12 正锚 + real-navitem r2 漏翻转假绿判例入册——上轮 60/60 台账该子句本红，本轮补翻转）/ame369（436→434 实测重锚，rail -6 簇回植 +5）。
+- 质证链：v1.0 主页 = ActionMenu 单卡（3/10 宽全高：账号区贴顶 + 版本卡 + 弹性空段「一堆空地」+ 启动钮/状态行/停靠提示贴底）+ 内容区（weight 7 版本网格/空态）；刷新链（头像三层回退/加载器显示名）双入口分流在位 = 非死 ivar 空卡。
+- CI：构建代 BuildTag=Task477 · 2026-11-25（r 轮不动代际日期，13 门日期锚判例）；本地电池 59/60（S6 折叠面触碰=提交后自愈）→ 提交 6f7cd32ce 后 60/60 ALL GREEN。
+- Stage Summary:
+- 装机锚点（BuildTag=Task477 · 2026-11-25）：①主页一进来 = v1.0「Prisma 2 Beta」同款单卡侧边栏（3/10 宽全高卡：头像+名字贴顶 / 版本行 / 中段一大片留白「一堆空地」/ 大启动钮贴底 + 停靠提示；长按卡可换停靠边）②壳内游戏时右上 = 二代 ame411 七钮悬浮胶囊（主页/下载/联机/AI/设置/文件/虚拟按键）③设置→启动器→外观进阶「主页侧边栏」两选项：预发行版经典【默认】/转盘封面流，切换即时重建免重启 ④渲染器卸载三面与徽标维持 Task477 闭环态零回退。
