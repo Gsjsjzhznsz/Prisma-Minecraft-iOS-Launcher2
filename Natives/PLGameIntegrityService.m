@@ -91,11 +91,6 @@ static NSString *Ame428GameDir(void) {
     if (!c || !*c) return nil;
     return [NSString stringWithUTF8String:c];
 }
-static NSString *Ame428GameDir(void) {
-    const char *c = getenv("POJAV_GAME_DIR");
-    if (!c || !*c) return nil;
-    return [NSString stringWithUTF8String:c];
-}
 // ★Task479：候选根序列（ame287 alias / 隔离布局自纠的材料源）。ame287 把
 // POJAV_GAME_DIR 换到 $POJAV_HOME/.ame287_forge_root（符号链接 → 隔离
 // gameDir），ame353 祖先链探测沿 alias 字面路径上溯、不解符号链接 → 永远
