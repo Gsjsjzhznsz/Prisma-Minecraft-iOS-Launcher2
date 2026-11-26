@@ -168,8 +168,13 @@ mg_dylibs = glob.glob(os.path.join(ipa_app, "Payload", "*.app", "**", "libMobile
 builtin_dirs = glob.glob(os.path.join(ipa_app, "Payload", "*.app", "**", "builtin-renderers"), recursive=True)
 # ★Task479 回植翻转：vendored dylib 回包（Task475 出包判例反悔——插件可选
 # 下载未装 = 现代 MC 开箱 GL4ES 必崩）；builtin-renderers 维持零随包。
-mg_dylib_ok = [p for p in mg_dylibs if os.path.getsize(p) == 16447088]
-check('V10 ★Task479 vendored libMobileGL.dylib 回包（恰 1 份 16447088B 随包 + builtin-renderers 维持零随包）',
+# Task294 strip 判例：发行 payload dylib 走 strip -x，包内尺寸 = 12266784
+# （Witch fork 8df5508 剥离态规范值；仓库 vendored 件 = 16447088 未剥离），
+# GIT@ 代际标记随包执法。
+mg_dylib_ok = [p for p in mg_dylibs
+               if os.path.getsize(p) == 12266784
+               and b"GIT@8df5508" in open(p, 'rb').read()]
+check('V10 ★Task479 vendored libMobileGL.dylib 回包（恰 1 份 12266784B 剥离态 + GIT@8df5508 随包 + builtin-renderers 维持零随包）',
       len(mg_dylib_ok) == 1 and len(builtin_dirs) == 0, str(mg_dylibs + builtin_dirs))
 check('V11 在线渲染器仓库消费面随包（ZL2RendererRepoViewController 类符号 + renderer-repo 基址串）',
       bin_has(bin_ipa, b"ZL2RendererRepoViewController")
