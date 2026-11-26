@@ -228,12 +228,15 @@ def main():
         _pkgdylib.unlink(missing_ok=True)
     else:
         fails.append("S10 renderer-repo 插件包缺失")
-    # ★Task475 vendored 出包反锚（防复活）
-    if DYLIB_MG.exists():
-        fails.append("S10 vendored libMobileGL.dylib 应已出包（防复活锚）")
+    # ★Task479 回植翻转：vendored dylib/PROVENANCE 在场指纹（Task475 出包
+    #   判例反悔——现代 MC 开箱基线；Task469 升代 Witch fork 8df5508 语义）
+    if not DYLIB_MG.exists():
+        fails.append("S10 vendored libMobileGL.dylib 应在场（Task479 回植）")
+    elif DYLIB_MG.stat().st_size != 16447088:
+        fails.append(f"S10 vendored 尺寸漂移 {DYLIB_MG.stat().st_size} != 16447088")
     _prov = ROOT / "Natives" / "resources" / "Frameworks" / "libMobileGL.PROVENANCE.md"
-    if _prov.exists():
-        fails.append("S10 vendored PROVENANCE 应已出包（防复活锚）")
+    if not _prov.exists():
+        fails.append("S10 vendored PROVENANCE 应在场（Task479 回植）")
     if DYLIB_MVK.exists():
         if DYLIB_MVK.stat().st_size != 14769224:
             fails.append(f"S10 MoltenVK 尺寸漂移 {DYLIB_MVK.stat().st_size} != 14769224")
@@ -263,8 +266,8 @@ def main():
 
     # S 代际锚（轻校验；完整执法在 task439_buildtag_anchor.py）
     tag = BUILD_TAG.read_text(encoding="utf-8", errors="replace")
-    if 'ame415_buildTag = @"Task478 · ' not in tag:
-        fails.append("S BuildTag 未进代 Task475")
+    if 'ame415_buildTag = @"Task479 · ' not in tag:
+        fails.append("S BuildTag 未进代 Task479")
 
     if fails:
         print(f"[FAIL] task468_selfcheck {len(fails)} 项:")

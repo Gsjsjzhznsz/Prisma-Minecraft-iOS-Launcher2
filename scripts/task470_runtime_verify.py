@@ -207,18 +207,22 @@ def main():
 
     # R4 ★Task475 vendored libMobileGL 出包反锚（在线插件包单一获取面；
     #   插件包内 dylib 指纹/依赖闭包由 ame468 S2/S10 + task435 站3 执法）
-    mg_gone = not os.path.exists(os.path.join(FW, "libMobileGL.dylib"))
+    # ★Task479 回植翻转：vendored dylib 回植在场（Task475 出包判例反悔——
+    #   插件可选下载未装 = 现代 MC 开箱 GL4ES 必崩 renderpearl createBuffer，
+    #   crash-2026-11-26_23.15.39 实锚）；Witch fork 8df5508 指纹执法。
+    _mg = os.path.join(FW, "libMobileGL.dylib")
+    mg_here = os.path.isfile(_mg) and os.path.getsize(_mg) == 16447088
     pkg_zip = os.path.join(ROOT, "renderer-repo", "plugins", "mobileglues-dev-1.0.0.zip")
-    check("R4 vendored libMobileGL 已出包 + renderer-repo 插件包在场（防复活/防断链）",
-          mg_gone and os.path.isfile(pkg_zip),
-          f"vendored_exists={not mg_gone} zip={os.path.isfile(pkg_zip)}")
+    check("R4 vendored libMobileGL 在场（Task479 回植 16447088B）+ renderer-repo 插件包在场",
+          mg_here and os.path.isfile(pkg_zip),
+          f"vendored_ok={mg_here} zip={os.path.isfile(pkg_zip)}")
 
-    # R5 ★Task475 PROVENANCE 随 vendored 出包退役（反锚）；伴侣对实体仍在
-    prov_gone = not os.path.isfile(PROV)
+    # R5 ★Task479 PROVENANCE 随 vendored 回植在场；伴侣对实体仍在
+    prov_here = os.path.isfile(PROV)
     pair_here = (os.path.isfile(os.path.join(FW, "libc++_cxx23.dylib"))
                  and os.path.isfile(os.path.join(FW, "libc++abi_cxx23.dylib")))
-    check("R5 PROVENANCE 已出包（反锚）+ 伴侣对实体仍在 Frameworks",
-          prov_gone and pair_here, f"prov_gone={prov_gone} pair={pair_here}")
+    check("R5 PROVENANCE 在场（Task479 回植）+ 伴侣对实体仍在 Frameworks",
+          prov_here and pair_here, f"prov_here={prov_here} pair={pair_here}")
 
     # R6 装机日志锚双行
     jl = open(JL, encoding="utf-8", errors="replace").read() if os.path.isfile(JL) else ""

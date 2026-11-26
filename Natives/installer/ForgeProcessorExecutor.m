@@ -719,8 +719,9 @@ static const double kInnerProcessorsStart = 0.45;
         [NSString stringWithFormat:@"%@.json", versionId]];
 
     if ([[NSFileManager defaultManager] fileExistsAtPath:jsonPath]) {
-        NSDictionary *existing = [NSJSONSerialization JSONObjectWithData:
-            [NSData dataWithContentsOfFile:jsonPath] options:0 error:nil];
+        NSData *ame479_ed = [NSData dataWithContentsOfFile:jsonPath];
+        NSDictionary *existing = ame479_ed.length > 0
+            ? [NSJSONSerialization JSONObjectWithData:ame479_ed options:0 error:nil] : nil;
         if ([existing isKindOfClass:[NSDictionary class]] && existing[@"downloads"]) {
             return existing;
         }

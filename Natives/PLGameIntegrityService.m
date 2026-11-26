@@ -91,6 +91,74 @@ static NSString *Ame428GameDir(void) {
     if (!c || !*c) return nil;
     return [NSString stringWithUTF8String:c];
 }
+static NSString *Ame428GameDir(void) {
+    const char *c = getenv("POJAV_GAME_DIR");
+    if (!c || !*c) return nil;
+    return [NSString stringWithUTF8String:c];
+}
+// ★Task479：候选根序列（ame287 alias / 隔离布局自纠的材料源）。ame287 把
+// POJAV_GAME_DIR 换到 $POJAV_HOME/.ame287_forge_root（符号链接 → 隔离
+// gameDir），ame353 祖先链探测沿 alias 字面路径上溯、不解符号链接 → 永远
+// 探不到共享根。本序列：hint 原样 → hint 符号链接解析 → 解析根尾段恰为
+// versions/<vid> 时上提两级（隔离布局 = 版本目录即 gameDir 的共享根语义）
+// → POJAV_GAME_DIR 同处理。vid 带分隔符/.. 直接拒（路径拼接防注入）。
+static NSArray<NSString *> *Ame428VersionRootCandidates(NSString *hint, NSString *vid) {
+    NSMutableArray<NSString *> *ame479_roots = [NSMutableArray array];
+    if (hint.length == 0 || vid.length == 0) return ame479_roots;
+    if ([vid containsString:@"/"] || [vid containsString:@".."]) return ame479_roots;
+    [ame479_roots addObject:hint];
+    NSString *ame479_suffix = [NSString stringWithFormat:@"/versions/%@", vid];
+    NSMutableArray<NSString *> *ame479_bases = [NSMutableArray arrayWithObject:hint];
+    NSString *ame479_env = Ame428GameDir();
+    if (ame479_env.length > 0 && ![ame479_env isEqualToString:hint]) {
+        [ame479_bases addObject:ame479_env];
+    }
+    for (NSString *ame479_base in ame479_bases) {
+        NSString *ame479_r = [ame479_base stringByResolvingSymlinksInPath];
+        if (ame479_r.length == 0) continue;
+        if (![ame479_roots containsObject:ame479_r]) [ame479_roots addObject:ame479_r];
+        if ([ame479_r hasSuffix:ame479_suffix]) {
+            NSString *ame479_shared = [ame479_r stringByDeletingLastPathComponent];
+            ame479_shared = [ame479_shared stringByDeletingLastPathComponent];
+            if (ame479_shared.length > 0 && ![ame479_roots containsObject:ame479_shared]) {
+                [ame479_roots addObject:ame479_shared];
+            }
+        }
+    }
+    return ame479_roots;
+}
+
+// ★Task479：定位 versions/<vid>/<vid>.json（或平铺变体）真实所在根；
+// 找不到返回 nil（调用方 fail-open）。零裸调。
+static NSString *Ame428LocateVersionRoot(NSString *hint, NSString *vid) {
+    for (NSString *ame479_r in Ame428VersionRootCandidates(hint, vid)) {
+        NSString *ame479_p1 = [[ame479_r stringByAppendingPathComponent:@"versions"]
+            stringByAppendingPathComponent:[NSString stringWithFormat:@"%@/%@.json", vid, vid]];
+        NSString *ame479_p2 = [[ame479_r stringByAppendingPathComponent:@"versions"]
+            stringByAppendingPathComponent:[NSString stringWithFormat:@"%@.json", vid]];
+        if ([NSFileManager.defaultManager fileExistsAtPath:ame479_p1]) return ame479_r;
+        if ([NSFileManager.defaultManager fileExistsAtPath:ame479_p2]) return ame479_r;
+    }
+    return nil;
+}
+
+// ★Task479：版本 JSON 数据读取统一出口（nil 安全；resolveContext 链专用）。
+// 裸调病历见 Ame428VersionRootCandidates 注——数据为 nil 恒返回 nil。
+static NSData *Ame428VersionJSONData(NSString *root, NSString *vid) {
+    if (root.length == 0 || vid.length == 0) return nil;
+    if ([vid containsString:@"/"] || [vid containsString:@".."]) return nil;
+    for (NSString *ame479_r in Ame428VersionRootCandidates(root, vid)) {
+        NSString *ame479_p1 = [[ame479_r stringByAppendingPathComponent:@"versions"]
+            stringByAppendingPathComponent:[NSString stringWithFormat:@"%@/%@.json", vid, vid]];
+        NSData *ame479_d = [NSData dataWithContentsOfFile:ame479_p1];
+        if (ame479_d.length > 0) return ame479_d;
+        NSString *ame479_p2 = [[ame479_r stringByAppendingPathComponent:@"versions"]
+            stringByAppendingPathComponent:[NSString stringWithFormat:@"%@.json", vid]];
+        ame479_d = [NSData dataWithContentsOfFile:ame479_p2];
+        if (ame479_d.length > 0) return ame479_d;
+    }
+    return nil;
+}
 
 /// 流式 SHA-1（任意大文件；PLDownloadClient.m 同款实现语义）
 static NSString *_Nullable Ame428SHA1HexForFile(NSString *path) {
@@ -256,12 +324,22 @@ typedef NS_ENUM(NSInteger, Ame428ItemState) {
         //   ame353 未命中回退 env 时，下方版本 JSON 校验即失败返回 nil，
         //   gameRoot 不可达——此处 versionRoot 恒为启动链同根 R。
         NSString *gameRoot = versionRoot;
+        // ★Task479：ame287 alias / 隔离布局根自纠——按候选根序列定位真实
+        //   版本根并回填，versionRoot/gameRoot 回到共享根口径（版本 JSON /
+        //   client jar / libraries / assets 各环不再拼 alias 双层嵌套路径）。
+        NSString *ame479_located = Ame428LocateVersionRoot(versionRoot, versionId);
+        if (ame479_located.length > 0 && ![ame479_located isEqualToString:versionRoot]) {
+            NSLog(@"[Integrity] Task479: version root relocated %@ -> %@", versionRoot, ame479_located);
+            versionRoot = ame479_located;
+            gameRoot = ame479_located;
+        }
 
         // 版本 JSON（含 inheritsFrom 链：chain = [子, 父, 祖父...]）
         NSString *jsonPath = [[versionRoot stringByAppendingPathComponent:@"versions"]
             stringByAppendingPathComponent:[NSString stringWithFormat:@"%@/%@.json", versionId, versionId]];
-        NSDictionary *json = [NSJSONSerialization JSONObjectWithData:
-            [NSData dataWithContentsOfFile:jsonPath] options:0 error:nil];
+        NSData *ame479_vd = Ame428VersionJSONData(versionRoot, versionId);
+        NSDictionary *json = ame479_vd.length > 0
+            ? [NSJSONSerialization JSONObjectWithData:ame479_vd options:0 error:nil] : nil;
         if (![json isKindOfClass:[NSDictionary class]]) {
             NSLog(@"[Integrity] Task428: version JSON unreadable (%@) -- fail-open", jsonPath);
             return nil;
@@ -273,8 +351,9 @@ typedef NS_ENUM(NSInteger, Ame428ItemState) {
         while (cursor.length > 0 && guardCount++ < 8) {
             NSString *parentPath = [[versionRoot stringByAppendingPathComponent:@"versions"]
                 stringByAppendingPathComponent:[NSString stringWithFormat:@"%@/%@.json", cursor, cursor]];
-            NSDictionary *parent = [NSJSONSerialization JSONObjectWithData:
-                [NSData dataWithContentsOfFile:parentPath] options:0 error:nil];
+            NSData *ame479_pd = Ame428VersionJSONData(versionRoot, cursor);
+            NSDictionary *parent = ame479_pd.length > 0
+                ? [NSJSONSerialization JSONObjectWithData:ame479_pd options:0 error:nil] : nil;
             if (![parent isKindOfClass:[NSDictionary class]]) {
                 NSLog(@"[Integrity] Task428: inheritsFrom parent JSON unreadable (%@) -- chain truncated at %@", parentPath, cursor);
                 break;
@@ -458,8 +537,9 @@ typedef NS_ENUM(NSInteger, Ame428ItemState) {
         [items addObject:idxItem];
 
         // 索引可读 → 展开 objects（确定性抽样：键稳定排序取前 N）
-        NSDictionary *indexJson = [NSJSONSerialization JSONObjectWithData:
-            [NSData dataWithContentsOfFile:idxItem.absPath] options:0 error:nil];
+        NSData *ame479_ixd = [NSData dataWithContentsOfFile:idxItem.absPath];
+        NSDictionary *indexJson = ame479_ixd.length > 0
+            ? [NSJSONSerialization JSONObjectWithData:ame479_ixd options:0 error:nil] : nil;
         NSDictionary *objects = [indexJson isKindOfClass:[NSDictionary class]]
             ? [indexJson[@"objects"] isKindOfClass:[NSDictionary class]] ? indexJson[@"objects"] : nil
             : nil;

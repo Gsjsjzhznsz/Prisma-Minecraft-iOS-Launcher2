@@ -84,7 +84,7 @@ def run_checks(jl, eb, uh, gv, svc, tag=None):
           gv_after_if.count('pojavNotifyFirstFrameIfPending();') == 1
           and 'pojavIncrementFpsCounter();' in gv_after_if.split('pojavNotifyFirstFrameIfPending();', 1)[0])
 
-    check('D1 BuildTag Task478 进代', tag is None or 'ame415_buildTag = @"Task478 · ' in tag)
+    check('D1 BuildTag Task478 进代', tag is None or 'ame415_buildTag = @"Task479 · ' in tag)
 
     check('B4 遮罩消费链保全',
           'name:@"PojavFirstFrameRendered"' in svc

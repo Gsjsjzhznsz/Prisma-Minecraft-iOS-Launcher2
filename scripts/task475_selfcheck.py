@@ -157,16 +157,20 @@ def main():
 
     # ── C 线 ──
     c1 = (not (ROOT / 'Natives/resources/Frameworks/libMobileGL.dylib').exists()
-          and not (ROOT / 'Natives/resources/Frameworks/libMobileGL.PROVENANCE.md').exists()
           and not (ROOT / 'Natives/resources/builtin-renderers').exists())
-    check('C1 vendored 出包反锚（dylib/PROVENANCE/builtin-renderers 缺席）', c1)
+    c1_dy = ROOT / 'Natives/resources/Frameworks/libMobileGL.dylib'
+    c1 = ((ROOT / 'Natives/resources/Frameworks/libMobileGL.PROVENANCE.md').exists()
+          and c1_dy.exists() and c1_dy.stat().st_size == 16447088)
+    # ★Task479 回植翻转：dylib/PROVENANCE 在场指纹；builtin-renderers 维持缺席
+    check('C1 vendored 回植在场（dylib 16447088B/PROVENANCE）+ builtin-renderers 缺席',
+          c1 and not (ROOT / 'Natives/resources/builtin-renderers').exists())
     check('C2 i18n（新键在场 + mg_demo 双消）',
           'ame475.repo.title' in zhcn and 'ame475.repo.title' in en
           and 'ame475.setpg.home_sidebar.rail' in zhcn
           and 'ame449.plugin.mg_demo_name' not in zhcn
           and 'ame449.plugin.mg_demo_name' not in en)
     check('C3 BuildTag Task477 进代',
-          'ame415_buildTag = @"Task478 · ' in tag)
+          'ame415_buildTag = @"Task479 · ' in tag)
 
     if fails:
         print(f'[FAIL] task475_selfcheck {len(fails)} 项:')

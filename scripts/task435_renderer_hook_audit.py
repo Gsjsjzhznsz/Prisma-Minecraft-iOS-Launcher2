@@ -426,10 +426,15 @@ check("kPL429DemoBuiltinId" not in SVC_CODE, "S4b 演示档 id 常量已退役�
 check("ame449.plugin.mg_demo_name" not in SVC_CODE, "S4b mg_demo localize 已退役（零残留）")
 check(not (REPO / "Natives" / "resources" / "builtin-renderers").exists(),
       "S4b bundle builtin-renderers 已出包（防复活锚）")
-check(not (FW_DIR / "libMobileGL.dylib").exists(),
-      "S4b vendored libMobileGL.dylib 已出包（防复活锚）")
-check(not (FW_DIR / "libMobileGL.PROVENANCE.md").exists(),
-      "S4b vendored PROVENANCE 已出包（防复活锚）")
+# ★Task479 回植翻转：Task475 出包判例反悔——装机 f03e3c9 实测 renderer-repo
+#   插件为可选下载、用户未装时 auto 链掉 GL4ES → MC 26.3 renderpearl
+#   GlDevice.createBuffer 崩（crash-2026-11-26_23.15.39）。vendored dylib
+#   回植 = 现代 MC 开箱即玩基线（Task144 语义）；renderer-repo 插件通道保留。
+check((FW_DIR / "libMobileGL.dylib").exists()
+      and (FW_DIR / "libMobileGL.dylib").stat().st_size == 16447088,
+      "S4b vendored libMobileGL.dylib 在场（Task479 回植 Witch fork 8df5508 = 16447088B）")
+check((FW_DIR / "libMobileGL.PROVENANCE.md").exists(),
+      "S4b vendored PROVENANCE 在场（Task479 回植）")
 
 # 4c JavaLauncher 刀口③ + JIT 豁免（hook 权限的执行链）
 has(JL, "isRendererPluginId:", "S4 刀口③ isRendererPluginId 消费在位")

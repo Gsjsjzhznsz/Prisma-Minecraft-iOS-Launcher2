@@ -113,10 +113,11 @@ if not bin_ipa:
     sys.exit(1)
 
 # ── 代际 + 旋钮 + 锚 ─────────────────────────────────────────
-check('V3 BuildTag Task478 · 2026-11-26 UTF-16LE 在场',
-      bin_has(bin_ipa, utf16_le("Task478 · 2026-11-26")))
-check('V4 旧代际归零（Task477 · 2026-11-25 / Task476 · 2026-11-25 / Task475 · 2026-11-25 UTF-16LE 三消）',
-      not bin_has(bin_ipa, utf16_le("Task477 · 2026-11-25"))
+check('V3 BuildTag Task479 · 2026-11-26 UTF-16LE 在场',
+      bin_has(bin_ipa, utf16_le("Task479 · 2026-11-26")))
+check('V4 旧代际归零（Task478 · 2026-11-26 / Task477 · 2026-11-25 / Task476 · 2026-11-25 / Task475 · 2026-11-25 UTF-16LE 四消）',
+      not bin_has(bin_ipa, utf16_le("Task478 · 2026-11-26"))
+      and not bin_has(bin_ipa, utf16_le("Task477 · 2026-11-25"))
       and not bin_has(bin_ipa, utf16_le("Task476 · 2026-11-25"))
       and not bin_has(bin_ipa, utf16_le("Task475 · 2026-11-25")))
 check('V20 ★Task477-r3 二代簇回植实锚（ame411_buildSwitcherCluster + ZL2ShellSwitcherButton selector UTF-8 双在场）',
@@ -165,8 +166,11 @@ check('V9 幽灵三旋钮转正（VMA/ADOPT/ANGLE 主二进制在场执法）',
 # 消费面（仓库页类符号 + renderer-repo 基址串 + 插件真装载日志锚）随包执法。
 mg_dylibs = glob.glob(os.path.join(ipa_app, "Payload", "*.app", "**", "libMobileGL.dylib"), recursive=True)
 builtin_dirs = glob.glob(os.path.join(ipa_app, "Payload", "*.app", "**", "builtin-renderers"), recursive=True)
-check('V10 ★Task475 渲染器出包反锚（libMobileGL.dylib 零随包 + builtin-renderers 零随包）',
-      len(mg_dylibs) == 0 and len(builtin_dirs) == 0, str(mg_dylibs + builtin_dirs))
+# ★Task479 回植翻转：vendored dylib 回包（Task475 出包判例反悔——插件可选
+# 下载未装 = 现代 MC 开箱 GL4ES 必崩）；builtin-renderers 维持零随包。
+mg_dylib_ok = [p for p in mg_dylibs if os.path.getsize(p) == 16447088]
+check('V10 ★Task479 vendored libMobileGL.dylib 回包（恰 1 份 16447088B 随包 + builtin-renderers 维持零随包）',
+      len(mg_dylib_ok) == 1 and len(builtin_dirs) == 0, str(mg_dylibs + builtin_dirs))
 check('V11 在线渲染器仓库消费面随包（ZL2RendererRepoViewController 类符号 + renderer-repo 基址串）',
       bin_has(bin_ipa, b"ZL2RendererRepoViewController")
       and bin_has(bin_ipa, b"renderer-repo"))

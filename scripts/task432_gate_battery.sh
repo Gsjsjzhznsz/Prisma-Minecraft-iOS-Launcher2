@@ -18,7 +18,8 @@
 #     processor 三类 URL 豁免撤销 + 搁浅源补基础根）
 #   Task475 轮 = 56 门（+task475 主页侧边栏双形态/渲染器在线仓库双面门 + selftest 反向门）
 #   Task476/477 轮 = 58→60 门（task475/476/477 三代导航面门随裁决反转逐轮重锚）
-#   Task478 轮 = 62 门（+task478 闪退根修/首帧直显双面门 + selftest 反向门——88d96bc
+#   Task478 轮 = 62 门
+#   Task479 轮 = 64 门（+task479 裸调清雷四卫/vendored MobileGL 回植门 + selftest 反向门）（+task478 闪退根修/首帧直显双面门 + selftest 反向门——88d96bc
 #     装机 'data parameter is nil' 判例：Task473 隔离布局下 ame225/ame471 裸调 JSON
 #     必缺路径抛主线程未捕获异常；MobileGL DirectVulkan 四路首帧信号全灭遮罩干等 90s）
 # 用法: bash scripts/task432_gate_battery.sh
@@ -152,6 +153,14 @@ run_py task477_self scripts/task477_selfcheck.py --selftest
 #   发 PojavFirstFrameRendered，GL 会话先到先占不变；90s 兜底保留）
 run_py task478     scripts/task478_selfcheck.py
 run_py task478_self scripts/task478_selfcheck.py --selftest
+
+# ★Task479 f03e3c9 双日志定谳修复：①Task428 resolveContext 三处裸调 JSON
+#   （ame287 alias 双层嵌套路径 → data nil → 'data parameter is nil'，崩前零
+#   Task428 日志）+ ForgeProcessorExecutor 同族一卫；②Task475 出包判例反悔
+#   ——vendored libMobileGL.dylib 回植（renderer-repo 插件可选下载未装 =
+#   现代 MC 开箱 GL4ES 必崩 renderpearl createBuffer），插件通道保留
+run_py task479     scripts/task479_selfcheck.py
+run_py task479_self scripts/task479_selfcheck.py --selftest
 
 # ★Task468 MobileGL/Magma 引擎性能旋钮层（抄 Witch-Launcher 调优面）+ 内置渲染器
 #   上游更新扫描轮：12 个 MOBILEGL_* setenv（strings 反锚逐名验证 vendored dylib

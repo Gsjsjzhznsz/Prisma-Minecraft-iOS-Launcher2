@@ -83,9 +83,9 @@ check('R8 镜像轨命脉零回归（Task433/434 TXM 闸双站 + ame434 探针�
 
 print('== S 组：代际锚 + 电池注册 ==')
 
-check('S1 BuildTag Task478 · 2026-11-26（恢复轮代际重锚，464 归零）',
+check('S1 BuildTag Task479 · 2026-11-26（恢复轮代际重锚，464 归零）',
       'Task464 · 2026-11-22' not in buildtag
-      and 'ame415_buildTag = @"Task478 · 2026-11-26"' in buildtag)
+      and 'ame415_buildTag = @"Task479 · 2026-11-26"' in buildtag)
 
 check('S2 电池注册 task465（Task439 幽灵门判例：声明即实跑）',
       'task465_selfcheck' in rd('scripts/task432_gate_battery.sh'))
