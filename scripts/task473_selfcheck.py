@@ -13,7 +13,7 @@ Task473 门：ZL2（ZalithLauncher2 上游 b6310dd）版本隔离系统移植执
   A8 退役符号零残留（注释豁免）
   A9 三态持久化格式（configPath prisma/version.config + ENABLE/DISABLE/FOLLOW_GLOBAL 字符串键）
   A10 Task463 折叠面零污染（fold ≥ 41）
-  A11 BuildTag Task479 · 2026-11-26
+  A11 BuildTag Task480 · 2026-11-27
   A12 括号平衡
 selftest：负样本注入（启动链回退共享根直拼 / 整合包强制隔离摘除）必须翻红。
 """
@@ -154,7 +154,7 @@ check("A10 Task463 折叠面零污染（≥41）", fold >= 41, f"实测 {fold}")
 
 # A11 BuildTag
 tag = read('Natives/BuildTag.h')
-check("A11 BuildTag Task479 · 2026-11-26", 'ame415_buildTag = @"Task479 · 2026-11-26"' in tag)
+check("A11 BuildTag Task480 · 2026-11-27", 'ame415_buildTag = @"Task480 · 2026-11-27"' in tag)
 
 # A12 括号
 FILES = ['Natives/ZL2GamePath.h', 'Natives/ZL2GamePath.m', 'Natives/ModService.m',

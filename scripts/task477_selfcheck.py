@@ -169,7 +169,7 @@ def main():
                                     'ame477.repo.uninstall')))
 
     # ── D 线 ──
-    check('D1 BuildTag Task477 进代', 'ame415_buildTag = @"Task479 · ' in tag)
+    check('D1 BuildTag Task477 进代', 'ame415_buildTag = @"Task480 · ' in tag)
 
     if fails:
         print(f'[FAIL] task477_selfcheck {len(fails)} 项:')

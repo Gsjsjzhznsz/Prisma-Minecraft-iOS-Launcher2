@@ -470,10 +470,13 @@ public final class Tools {
         varArgMap.put("auth_player_name", username);
         varArgMap.put("auth_uuid", profile.profileId.replace("-", ""));
         varArgMap.put("auth_xuid", profile.xuid);
-        varArgMap.put("assets_root", Tools.ASSETS_PATH);
+        // ★Task480：assets 根几何候选——隔离 forge 会话 assets 物理落共享根
+        //   （Task428 修复口径），ASSETS_PATH（env 拼串）在 ame287 alias 形态下
+        //   指向版本目录内不存在的 assets/，共享根回潮（ame480_assetsPath）。
+        varArgMap.put("assets_root", ame480_assetsPath());
         varArgMap.put("assets_index_name", versionInfo.assets);
         varArgMap.put("clientid", profile.clientToken);
-        varArgMap.put("game_assets", Tools.ASSETS_PATH);
+        varArgMap.put("game_assets", ame480_assetsPath());
         varArgMap.put("game_directory", gameDir.getAbsolutePath());
         varArgMap.put("user_properties", "{}");
         varArgMap.put("user_type", "mojang");
@@ -806,7 +809,10 @@ public final class Tools {
             }
             libStr.append(perJar + ":");
         }
-        libStr.append(DIR_HOME_VERSION + "/" + info.id + "/" + info.id + ".jar");
+        // ★Task480：客户端 jar 几何候选（隔离布局 = 版本目录直卧 <vid>.jar；
+        //   经典拼串在 ame287 alias 形态下双层嵌套必缺 → 全候选落空回落旧串保
+        //   既有报错语义）。
+        libStr.append(ame480_clientJarPath(info.id));
 
         return libStr.toString();
     }
@@ -921,13 +927,94 @@ createLibraryInfo(libItem);
         return libDir.toArray(new String[0]);
     }
 
+    // ★Task480（Java 层第五雷根修）：Task473 隔离布局的【几何候选】版本元数据解析。
+    // 病历（f9c9205 装机 latestlog = mclo.gs/yslnZnW 实锚）：原生三层守卫（Task478
+    // ame225/ame471 + Task479 resolveContext helper 三件套）全部生效后，崩点下移到
+    // JVM 内 Java 层——getVersionInfo 读 DIR_HOME_VERSION/<vid>/<vid>.json。
+    // DIR_HOME_VERSION = POJAV_GAME_DIR/versions，而 ame287 forge alias 命中时
+    // POJAV_GAME_DIR = .ame287_forge_root（符号链接 → 隔离版本目录本身）→
+    // alias/versions/<vid>/<vid>.json 双层嵌套必缺 → FileNotFoundException →
+    // RuntimeException → JVM exit(1)（L402-419 弹崩溃视图）。Fabric 会话不触发
+    // ame287（env 保持共享根）→ 同代码一崩一通 = 机制唯一解（Task479 判例同族）。
+    // 修法：不依赖 env 字面拼接，改从【生效版本目录】（DIR_GAME_PROFILE = CWD，
+    // Task97 已对齐且 getcwd 天然解符号链接）做几何候选，命中即读；全候选落空按
+    // 经典路径读以保持 Task173 既有报错语义。vid 防注入（Task479 判例同款：
+    // 分隔符/.. 拒收）。File 父子运算为纯字符串数学，不解符号链接、零 FS 触碰。
+    private static List<String> ame480_versionMetaCandidates(String vid, String ext) {
+        List<String> out = new ArrayList<String>();
+        if (vid == null || vid.length() == 0
+                || vid.contains("/") || vid.contains("\\") || vid.contains("..")) {
+            return out;
+        }
+        String ame480_file = vid + ext;
+        // ① 经典布局：env 根 versions/<vid>/<vid>.<ext>（经典/非 forge 会话在此命中，零回归）
+        out.add(DIR_HOME_VERSION + "/" + vid + "/" + ame480_file);
+        // ② 隔离布局：CWD 即生效版本目录，元数据直卧根下（Task97 对齐保证）
+        out.add(new File(DIR_GAME_PROFILE, ame480_file).getAbsolutePath());
+        if (DIR_GAME_NEW != null && DIR_GAME_NEW.length() > 0) {
+            out.add(new File(new File(DIR_GAME_NEW), ame480_file).getAbsolutePath());
+        }
+        // ③ 隔离目录几何上溯：CWD 父目录 = versions/，兄弟形态 <versions>/<vid>/
+        //    与共享根回潮 <shared>/versions/<vid>/（Task479 判例②尾段上提两级语义）
+        File ame480_versionsDir = new File(DIR_GAME_PROFILE).getParentFile();
+        if (ame480_versionsDir != null && "versions".equals(ame480_versionsDir.getName())) {
+            out.add(new File(ame480_versionsDir, vid + "/" + ame480_file).getAbsolutePath());
+            File ame480_shared = ame480_versionsDir.getParentFile();
+            if (ame480_shared != null) {
+                out.add(new File(ame480_shared, "versions/" + vid + "/" + ame480_file).getAbsolutePath());
+            }
+        }
+        return out;
+    }
+
+    /** ★Task480：版本 JSON 几何候选读取（自读 926 / inheritsFrom 父读 930 共用）。 */
+    private static String ame480_readVersionJson(String vid) throws IOException {
+        for (String ame480_p : ame480_versionMetaCandidates(vid, ".json")) {
+            if (new File(ame480_p).isFile()) {
+                return read(ame480_p);
+            }
+        }
+        // 全候选落空：按经典路径读取，保持既有 FileNotFoundException 报错语义（Task173）
+        return read(DIR_HOME_VERSION + "/" + vid + "/" + vid + ".json");
+    }
+
+    /** ★Task480：客户端 jar 几何候选（generateLaunchClassPath 消费；全候选落空
+        回落经典拼串保旧行为——与旧串一致才不影响「Ignored non-exists」日志面）。 */
+    private static String ame480_clientJarPath(String vid) {
+        for (String ame480_p : ame480_versionMetaCandidates(vid, ".jar")) {
+            if (new File(ame480_p).isFile()) {
+                return ame480_p;
+            }
+        }
+        return DIR_HOME_VERSION + "/" + vid + "/" + vid + ".jar";
+    }
+
+    /** ★Task480：assets 根几何候选（getMinecraftArgs 消费；隔离会话 assets 物理
+        落共享根 = Task428 修复口径；缺失回落 ASSETS_PATH 旧行为）。 */
+    private static String ame480_assetsPath() {
+        if (new File(ASSETS_PATH).isDirectory()) {
+            return ASSETS_PATH;
+        }
+        File ame480_versionsDir = new File(DIR_GAME_PROFILE).getParentFile();
+        if (ame480_versionsDir != null && "versions".equals(ame480_versionsDir.getName())) {
+            File ame480_shared = ame480_versionsDir.getParentFile();
+            if (ame480_shared != null) {
+                File ame480_sharedAssets = new File(ame480_shared, "assets");
+                if (ame480_sharedAssets.isDirectory()) {
+                    return ame480_sharedAssets.getAbsolutePath();
+                }
+            }
+        }
+        return ASSETS_PATH;
+    }
+
     public static JMinecraftVersionList.Version getVersionInfo(String versionName) {
         try {
-            JMinecraftVersionList.Version customVer = Tools.GLOBAL_GSON.fromJson(read(DIR_HOME_VERSION + "/" + versionName + "/" + versionName + ".json"), JMinecraftVersionList.Version.class);
+            JMinecraftVersionList.Version customVer = Tools.GLOBAL_GSON.fromJson(ame480_readVersionJson(versionName), JMinecraftVersionList.Version.class);
             if (customVer.inheritsFrom == null || customVer.inheritsFrom.equals(customVer.id)) {
                 return customVer;
             } else {
-                JMinecraftVersionList.Version inheritsVer = Tools.GLOBAL_GSON.fromJson(read(DIR_HOME_VERSION + "/" + customVer.inheritsFrom + "/" + customVer.inheritsFrom + ".json"), JMinecraftVersionList.Version.class);
+                JMinecraftVersionList.Version inheritsVer = Tools.GLOBAL_GSON.fromJson(ame480_readVersionJson(customVer.inheritsFrom), JMinecraftVersionList.Version.class);
                 // Task173（旧版 Forge 崩溃修复）：父版本 JSON 缺失/解析失败时 inheritsVer
                 // 为 null，旧代码下一行 inheritsVer.inheritsFrom = inheritsVer.id 直接 NPE，
                 // 用户看到的是被 RuntimeException 包装后毫无信息的崩溃（815 行）。

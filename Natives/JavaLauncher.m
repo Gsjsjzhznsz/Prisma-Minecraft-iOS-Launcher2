@@ -2380,9 +2380,24 @@ static NSArray<NSDictionary *> *ame471_versionChainFrom(NSDictionary *child, NSS
     //   ——Task473 隔离布局下 gameDir 即 versions/<vid> 本身，<gameDir>/versions
     //   不存在；父辈版本永远落在主根 versions/ 下（ZL2GamePath gameHome 单一
     //   入口）。经典共享根（gameDir/versions）保留为第二候选（历史形态零回归）。
-    NSArray<NSString *> *ame471_roots = @[
+    // ★Task480：几何共享根候选（Task479 判例②同款语义：解析符号链接 + 尾段
+    //   versions/<vid> 上提两级 = 共享根）——ame287 alias 形态下 gameHome 与
+    //   alias 双候选都不落在物理 versions/ 兄弟位（f9c9205 装机 latestlog
+    //   yslnZnW 实锚 chain truncated），补共享根口径后 inheritsFrom 父辈链走全，
+    //   与 Java 侧 ame480 几何候选同一家法（JavaApp/Tools.java 同轮根修）。
+    NSMutableArray<NSString *> *ame471_roots = [NSMutableArray arrayWithArray:@[
         [ZL2GamePath gameHome], gameDir,
-    ];
+    ]];
+    {
+        NSString *ame480_real = [gameDir stringByResolvingSymlinksInPath];
+        NSString *ame480_versions = [ame480_real stringByDeletingLastPathComponent];
+        if ([[ame480_versions lastPathComponent] isEqualToString:@"versions"]) {
+            NSString *ame480_shared = [ame480_versions stringByDeletingLastPathComponent];
+            if (ame480_shared.length > 0 && ![ame480_roots containsObject:ame480_shared]) {
+                [ame480_roots addObject:ame480_shared];
+            }
+        }
+    }
     NSString *ame471_cursor = [child[@"inheritsFrom"] isKindOfClass:NSString.class]
         ? child[@"inheritsFrom"] : nil;
     NSInteger ame471_guard = 0;

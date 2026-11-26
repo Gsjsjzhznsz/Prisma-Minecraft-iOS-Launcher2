@@ -26,7 +26,7 @@ B 线（vendored MobileGL 回植）：
   B1 vendored dylib 16447088B（Witch fork 8df5508）在场 + PROVENANCE 在场
   B2 task435 S4b 翻转为在场锚（builtin-renderers 出包锚保留）
 C 线（代际 + 通道）：
-  C1 BuildTag Task479 · 2026-11-26 进代
+  C1 BuildTag Task480 · 2026-11-27 进代
   C2 renderer-repo 在线插件通道保留（index.json + 插件包在场）
 --selftest：负样本 ×2（剥根自纠消费点 / 剥 dylib——判定函数必须咬人）
 用法: python3 scripts/task479_selfcheck.py [--selftest]
@@ -84,7 +84,7 @@ def run_checks(svc, fpe, tag, audit435, dylib_size, prov_exists, repo_ok):
 
     # ── C 线 ──
     check('C1 BuildTag Task479 进代',
-          'Task479 · 2026-11-26' in tag and 'Task478 · 2026-11-26' not in tag)
+          'Task480 · 2026-11-27' in tag and 'Task478 · 2026-11-26' not in tag)
     check('C2 renderer-repo 插件通道保留', repo_ok)
     return fails
 

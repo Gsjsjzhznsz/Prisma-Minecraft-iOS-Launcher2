@@ -22,6 +22,9 @@
 #   Task479 轮 = 64 门（+task479 裸调清雷四卫/vendored MobileGL 回植门 + selftest 反向门）（+task478 闪退根修/首帧直显双面门 + selftest 反向门——88d96bc
 #     装机 'data parameter is nil' 判例：Task473 隔离布局下 ame225/ame471 裸调 JSON
 #     必缺路径抛主线程未捕获异常；MobileGL DirectVulkan 四路首帧信号全灭遮罩干等 90s）
+#   Task480 轮 = 66 门（+task480 Java 层第五雷几何候选门 + selftest 反向门——
+#     f9c9205 装机 yslnZnW 判例：ame287 alias 形态下 JVM 内 Tools.getVersionInfo
+#     经典拼串 alias/versions/<vid>/<vid>.json 双层嵌套必缺 → exit(1)）
 # 用法: bash scripts/task432_gate_battery.sh
 cd "$(dirname "$0")/.." || exit 1
 
@@ -161,6 +164,13 @@ run_py task478_self scripts/task478_selfcheck.py --selftest
 #   现代 MC 开箱 GL4ES 必崩 renderpearl createBuffer），插件通道保留
 run_py task479     scripts/task479_selfcheck.py
 run_py task479_self scripts/task479_selfcheck.py --selftest
+
+# ★Task480 第五雷：Task473 隔离布局 × ame287 forge alias 的 JVM 内 Java 层
+#   经典布局假设（f9c9205 装机 yslnZnW 实锚 Tools.getVersionInfo:926 双层嵌套
+#   必缺 → exit(1)）——Java 侧 ame480 几何候选四消费点（自读/父读/jar/assets，
+#   全候选落空回落经典读保 Task173 报错语义）+ 原生 ame471 共享根候选去截断
+run_py task480     scripts/task480_selfcheck.py
+run_py task480_self scripts/task480_selfcheck.py --selftest
 
 # ★Task468 MobileGL/Magma 引擎性能旋钮层（抄 Witch-Launcher 调优面）+ 内置渲染器
 #   上游更新扫描轮：12 个 MOBILEGL_* setenv（strings 反锚逐名验证 vendored dylib

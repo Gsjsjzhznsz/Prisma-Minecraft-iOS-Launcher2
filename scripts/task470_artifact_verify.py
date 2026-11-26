@@ -113,10 +113,11 @@ if not bin_ipa:
     sys.exit(1)
 
 # ── 代际 + 旋钮 + 锚 ─────────────────────────────────────────
-check('V3 BuildTag Task479 · 2026-11-26 UTF-16LE 在场',
-      bin_has(bin_ipa, utf16_le("Task479 · 2026-11-26")))
-check('V4 旧代际归零（Task478 · 2026-11-26 / Task477 · 2026-11-25 / Task476 · 2026-11-25 / Task475 · 2026-11-25 UTF-16LE 四消）',
-      not bin_has(bin_ipa, utf16_le("Task478 · 2026-11-26"))
+check('V3 BuildTag Task480 · 2026-11-27 UTF-16LE 在场',
+      bin_has(bin_ipa, utf16_le("Task480 · 2026-11-27")))
+check('V4 旧代际归零（Task479 · 2026-11-26 / Task478 · 2026-11-26 / Task477 · 2026-11-25 / Task476 · 2026-11-25 / Task475 · 2026-11-25 UTF-16LE 五消）',
+      not bin_has(bin_ipa, utf16_le("Task479 · 2026-11-26"))
+      and not bin_has(bin_ipa, utf16_le("Task478 · 2026-11-26"))
       and not bin_has(bin_ipa, utf16_le("Task477 · 2026-11-25"))
       and not bin_has(bin_ipa, utf16_le("Task476 · 2026-11-25"))
       and not bin_has(bin_ipa, utf16_le("Task475 · 2026-11-25")))
