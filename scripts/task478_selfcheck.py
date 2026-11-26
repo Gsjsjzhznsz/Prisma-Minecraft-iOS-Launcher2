@@ -39,7 +39,7 @@ def strip_code(src):
     return re.sub(r'//[^"\n]*', '', src)
 
 
-def run_checks(jl, eb, uh, gv, svc):
+def run_checks(jl, eb, uh, gv, svc, tag=None):
     fails = []
     jl_code = strip_code(jl)
 
@@ -84,6 +84,8 @@ def run_checks(jl, eb, uh, gv, svc):
           gv_after_if.count('pojavNotifyFirstFrameIfPending();') == 1
           and 'pojavIncrementFpsCounter();' in gv_after_if.split('pojavNotifyFirstFrameIfPending();', 1)[0])
 
+    check('D1 BuildTag Task478 进代', tag is None or 'ame415_buildTag = @"Task478 · ' in tag)
+
     check('B4 遮罩消费链保全',
           'name:@"PojavFirstFrameRendered"' in svc
           and 'onFirstFrameRendered' in svc
@@ -101,7 +103,8 @@ def main():
     svc = rd('Natives/SurfaceViewController.m')
 
     if not selftest:
-        fails = run_checks(jl, eb, uh, gv, svc)
+        tag = rd('Natives/BuildTag.h')
+        fails = run_checks(jl, eb, uh, gv, svc, tag=tag)
         if fails:
             print(f'[FAIL] task478_selfcheck {len(fails)} 项:')
             for f in fails:

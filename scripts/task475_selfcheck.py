@@ -166,7 +166,7 @@ def main():
           and 'ame449.plugin.mg_demo_name' not in zhcn
           and 'ame449.plugin.mg_demo_name' not in en)
     check('C3 BuildTag Task477 进代',
-          'ame415_buildTag = @"Task477 · ' in tag)
+          'ame415_buildTag = @"Task478 · ' in tag)
 
     if fails:
         print(f'[FAIL] task475_selfcheck {len(fails)} 项:')
