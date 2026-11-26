@@ -70,6 +70,27 @@ void pojavIncrementFpsCounter() {
     }
 }
 
+/// ★Task478：首帧通知独立出口（不携带 FPS 计数语义，一次性去重共用
+/// s_firstFrameRendered 门）。病历：MobileGL DirectVulkan（renderer=auto 对
+/// MC 1.17+ 的默认解析）内部 MoltenVK 直呈 CAMetalLayer——pojavSwapBuffers
+/// 不经过（无 EGL swap）、pojavIsActualVulkanPath 恒 NO（clientAPI 从不置
+/// NO_API，装机日志 actualVulkanPath=0 实锚）、Task202 钩子门（AMETHYST_METAL
+/// 只在 Metallum 会话导出）与 ame267 SDL_uikit 属主探针也不命中 = 四路首帧
+/// 信号全灭，启动遮罩只能干等 90s 超时兜底（Task267）——用户装机实锚
+/// 「等到主界面加载完成才看到 Mojang」。出口由 GameSurfaceView 的
+/// Ame248FPSMetalLayer.nextDrawable 调用（MoltenVK present 必经公开 API），
+/// 首帧（= Mojang 画面首帧）即发通知揭遮罩；GL 会话 pojavSwapBuffers 先到
+/// 先占，行为不变。
+void pojavNotifyFirstFrameIfPending() {
+    if (!s_firstFrameRendered) {
+        s_firstFrameRendered = YES;
+        dispatch_async(dispatch_get_main_queue(), ^{
+            [[NSNotificationCenter defaultCenter] postNotificationName:@"PojavFirstFrameRendered" object:nil];
+            NSLog(@"[egl_bridge] Task478 first frame rendered (Metal surface nextDrawable path), game is ready");
+        });
+    }
+}
+
 /// 运行时判定 MC 真实渲染路径是否为 Vulkan。
 ///
 /// 修复 FPS 显示错误的根本问题：

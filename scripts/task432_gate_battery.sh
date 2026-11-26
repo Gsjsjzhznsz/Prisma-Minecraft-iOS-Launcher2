@@ -17,6 +17,10 @@
 #     门调用移至 gameDir 终解析后显式传根 + inheritsFrom 链合并扫描 +
 #     processor 三类 URL 豁免撤销 + 搁浅源补基础根）
 #   Task475 轮 = 56 门（+task475 主页侧边栏双形态/渲染器在线仓库双面门 + selftest 反向门）
+#   Task476/477 轮 = 58→60 门（task475/476/477 三代导航面门随裁决反转逐轮重锚）
+#   Task478 轮 = 62 门（+task478 闪退根修/首帧直显双面门 + selftest 反向门——88d96bc
+#     装机 'data parameter is nil' 判例：Task473 隔离布局下 ame225/ame471 裸调 JSON
+#     必缺路径抛主线程未捕获异常；MobileGL DirectVulkan 四路首帧信号全灭遮罩干等 90s）
 # 用法: bash scripts/task432_gate_battery.sh
 cd "$(dirname "$0")/.." || exit 1
 
@@ -142,6 +146,12 @@ run_py task476     scripts/task476_selfcheck.py
 run_py task476_self scripts/task476_selfcheck.py --selftest
 run_py task477     scripts/task477_selfcheck.py
 run_py task477_self scripts/task477_selfcheck.py --selftest
+
+# ★Task478 装机 88d96bc 一启动闪退根修（Task473 隔离布局三裸调 JSON = 主线程
+#   未捕获异常）+ MoltenVK 直呈首帧直显（四路信号全灭 → nextDrawable 无条件
+#   发 PojavFirstFrameRendered，GL 会话先到先占不变；90s 兜底保留）
+run_py task478     scripts/task478_selfcheck.py
+run_py task478_self scripts/task478_selfcheck.py --selftest
 
 # ★Task468 MobileGL/Magma 引擎性能旋钮层（抄 Witch-Launcher 调优面）+ 内置渲染器
 #   上游更新扫描轮：12 个 MOBILEGL_* setenv（strings 反锚逐名验证 vendored dylib

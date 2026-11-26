@@ -979,6 +979,20 @@ static NSString *lwjglBareLibName(const char *fileName) {
 // 预检 + 自动补齐】——读 assets/indexes/<id>.json，逐 object stat，
 // 缺失者从官方资源服串行补下（预算 20s / 上限 300 个；超限只告警不强撑，
 // 下轮继续补）。镜像走 PLMirrorCenter 不引入（预检路径保持零依赖）。
+// ★Task478（装机 88d96bc 一启动闪退根修公共件）：nil 守卫 JSON 字典读取——
+// dataWithContentsOfFile 对缺失文件返回 nil，裸传 JSONObjectWithData 会抛
+// NSInvalidArgumentException('data parameter is nil')（Task473 版本隔离
+// 布局判例见 ame225/ame471 函数内注释）。ame138_readJSONDictionary 同族
+// 口径收编进发射路径。
+static NSDictionary *ame478_jsonDictFromFile(NSString *path) {
+    if (path.length == 0) return nil;
+    NSData *ame478_data = [NSData dataWithContentsOfFile:path];
+    if (ame478_data.length == 0) return nil;
+    id ame478_obj = [NSJSONSerialization JSONObjectWithData:ame478_data
+                                                    options:0 error:nil];
+    return [ame478_obj isKindOfClass:[NSDictionary class]] ? ame478_obj : nil;
+}
+
 static int ame225_healMissingAssets(NSString *versionId) {
     if (versionId.length == 0) return 0;
     const char *gameRootC = getenv("POJAV_GAME_DIR");
@@ -986,21 +1000,55 @@ static int ame225_healMissingAssets(NSString *versionId) {
     NSString *gameRoot = [NSString stringWithUTF8String:gameRootC];
 
     // 1. 版本 JSON → assets 索引名（"assets" 字段，如 "5"）
-    NSString *versionJsonPath = [gameRoot stringByAppendingPathComponent:
-        [NSString stringWithFormat:@"versions/%@/%@.json", versionId, versionId]];
-    NSDictionary *versionJson = [NSJSONSerialization JSONObjectWithData:
-        [NSData dataWithContentsOfFile:versionJsonPath] options:0 error:nil];
-    NSString *indexId = [versionJson isKindOfClass:[NSDictionary class]]
-        ? versionJson[@"assets"] : nil;
+    // ★Task478（闪退根修，88d96bc 装机 latestlog 实锚 'data parameter is nil'）：
+    //   Task473 版本隔离开启（isolation=1）时 POJAV_GAME_DIR 即版本目录本身，
+    //   旧布局拼接 versions/<vid>/<vid>.json 必不存在 → dataWithContentsOfFile
+    //   返回 nil → JSONObjectWithData 裸调抛 NSInvalidArgumentException =
+    //   一按启动就闪退（主线程未捕获异常，Task287 日志行后即崩）。修法三层：
+    //   a) 候选路径族（经典布局 / 隔离布局）；b) 仍缺再通配扫版本目录 *.json
+    //   取首个含 "assets" 键的（MCDL/NeoForge 落盘名不一定是 <vid>.json，
+    //   装机实锚 26.3.json）；c) 每跳读取走 ame478_jsonDictFromFile nil 守卫
+    //   （ame138 家族口径），全落空静默退出交既有流程（与旧版语义一致）。
+    NSString *ame478_vidJson = [versionId stringByAppendingPathExtension:@"json"];
+    NSDictionary *versionJson = ame478_jsonDictFromFile(
+        [gameRoot stringByAppendingPathComponent:
+            [NSString stringWithFormat:@"versions/%@/%@", versionId, ame478_vidJson]]);
+    if (!versionJson) {
+        versionJson = ame478_jsonDictFromFile(
+            [gameRoot stringByAppendingPathComponent:ame478_vidJson]);
+    }
+    if (!versionJson) {
+        NSArray<NSString *> *ame478_dirs = @[
+            [gameRoot stringByAppendingPathComponent:
+                [NSString stringWithFormat:@"versions/%@", versionId]],
+            gameRoot, // 隔离布局（版本目录即 gameRoot）
+        ];
+        for (NSString *ame478_dir in ame478_dirs) {
+            NSArray<NSString *> *ame478_entries = [[NSFileManager defaultManager]
+                contentsOfDirectoryAtPath:ame478_dir error:nil];
+            for (NSString *ame478_name in ame478_entries) {
+                if (![ame478_name hasSuffix:@".json"]) continue;
+                NSDictionary *ame478_cand = ame478_jsonDictFromFile(
+                    [ame478_dir stringByAppendingPathComponent:ame478_name]);
+                if ([ame478_cand[@"assets"] isKindOfClass:[NSString class]]) {
+                    versionJson = ame478_cand;
+                    break;
+                }
+            }
+            if (versionJson) break;
+        }
+    }
+    NSString *indexId = versionJson[@"assets"];
     if (![indexId isKindOfClass:[NSString class]] || indexId.length == 0) {
         return 0;  // 老版本/异常 JSON：无从预检，交给既有流程
     }
 
-    // 2. 索引 JSON → objects
+    // 2. 索引 JSON → objects（★Task478 同族守卫：索引缺席 = 全新安装会整包
+    //    下载，静默退出交既有流程；旧裸调在隔离布局缺索引时即抛
+    //    'data parameter is nil'，与版本 JSON 同族闪退第三形态）
     NSString *indexPath = [gameRoot stringByAppendingPathComponent:
         [NSString stringWithFormat:@"assets/indexes/%@.json", indexId]];
-    NSDictionary *indexJson = [NSJSONSerialization JSONObjectWithData:
-        [NSData dataWithContentsOfFile:indexPath] options:0 error:nil];
+    NSDictionary *indexJson = ame478_jsonDictFromFile(indexPath);
     NSDictionary *objects = [indexJson isKindOfClass:[NSDictionary class]]
         ? indexJson[@"objects"] : nil;
     if (![objects isKindOfClass:[NSDictionary class]] || objects.count == 0) {
@@ -2328,15 +2376,28 @@ static NSArray<NSDictionary *> *ame471_versionChainFrom(NSDictionary *child, NSS
     NSMutableArray<NSDictionary *> *ame471_chain = [NSMutableArray array];
     if (![child isKindOfClass:NSDictionary.class]) return ame471_chain;
     [ame471_chain addObject:child];
-    NSString *ame471_versionsRoot = [gameDir stringByAppendingPathComponent:@"versions"];
+    // ★Task478（闪退二连根修）：inheritsFrom 父辈版本 JSON 的 versions 根双口径
+    //   ——Task473 隔离布局下 gameDir 即 versions/<vid> 本身，<gameDir>/versions
+    //   不存在；父辈版本永远落在主根 versions/ 下（ZL2GamePath gameHome 单一
+    //   入口）。经典共享根（gameDir/versions）保留为第二候选（历史形态零回归）。
+    NSArray<NSString *> *ame471_roots = @[
+        [ZL2GamePath gameHome], gameDir,
+    ];
     NSString *ame471_cursor = [child[@"inheritsFrom"] isKindOfClass:NSString.class]
         ? child[@"inheritsFrom"] : nil;
     NSInteger ame471_guard = 0;
     while (ame471_cursor.length > 0 && ame471_guard++ < 8) {
-        NSString *ame471_parentPath = [[ame471_versionsRoot stringByAppendingPathComponent:ame471_cursor]
-            stringByAppendingPathComponent:[NSString stringWithFormat:@"%@.json", ame471_cursor]];
-        NSDictionary *ame471_parent = [NSJSONSerialization JSONObjectWithData:
-            [NSData dataWithContentsOfFile:ame471_parentPath] options:0 error:nil];
+        NSDictionary *ame471_parent = nil;
+        NSString *ame471_parentPath = nil;
+        for (NSString *ame471_root in ame471_roots) {
+            ame471_parentPath = [[[ame471_root stringByAppendingPathComponent:@"versions"]
+                stringByAppendingPathComponent:ame471_cursor]
+                stringByAppendingPathComponent:[NSString stringWithFormat:@"%@.json", ame471_cursor]];
+            // ★Task478：ame478_jsonDictFromFile nil 守卫（旧裸调 JSONObjectWithData
+            //   在父辈 JSON 缺席时抛 'data parameter is nil' = 同族闪退第二雷）。
+            ame471_parent = ame478_jsonDictFromFile(ame471_parentPath);
+            if (ame471_parent) break;
+        }
         if (![ame471_parent isKindOfClass:NSDictionary.class]) {
             NSLog(@"[JavaLauncher] Task471: inheritsFrom parent JSON unreadable (%@) -- chain truncated", ame471_parentPath);
             break;

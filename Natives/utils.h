@@ -408,6 +408,12 @@ int callback_SurfaceViewController_touchHotbar(CGFloat x, CGFloat y);
 unsigned int pojavGetAndResetFps();
 // 显式递增 FPS 计数器（供 Vulkan 模式 CADisplayLink fallback 使用）
 void pojavIncrementFpsCounter();
+// ★Task478：首帧通知独立出口（egl_bridge.m 实现）。MoltenVK 直呈会话
+//（MobileGL DirectVulkan 等）不经 pojavSwapBuffers、clientAPI 也从不置
+// NO_API——四路既有首帧信号全灭（详见 egl_bridge.m 实现头病历），启动遮罩
+// 干等 90s 超时兜底。本出口由游戏表面层 nextDrawable 在首帧调用，一次性
+// 去重（共用 s_firstFrameRendered 门），幂等可重入；GL 会话行为不变。
+void pojavNotifyFirstFrameIfPending();
 // 黑屏取证（Task 32）：eglSwapBuffers 真实成功/失败计数（gl_bridge.m 实现）。
 // 与上面的 FPS 计数器区分：FPS 计 pojavSwapBuffers 入口调用（成功与否都+1），
 // 这两个计数器计 eglSwapBuffers 的真实返回值，用于判断呈现路径是否断裂。

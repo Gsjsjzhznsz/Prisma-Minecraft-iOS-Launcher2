@@ -43,6 +43,13 @@
     if (pojavIsActualVulkanPath()) {
         pojavIncrementFpsCounter();
     }
+    // ★Task478：首帧直显——MoltenVK 直呈会话（MobileGL DirectVulkan 等）四路
+    //   既有首帧信号全灭（病历见 egl_bridge.m pojavNotifyFirstFrameIfPending），
+    //   启动遮罩干等 90s 超时 = 用户「等到主界面加载完成才看到 Mojang」。
+    //   本层是 MoltenVK present 必经点，无条件发首帧通知（一次性去重在
+    //   egl_bridge s_firstFrameRendered 门内；GL 会话 pojavSwapBuffers 先到
+    //   先占，行为不变）。FPS 计数仍守 pojavIsActualVulkanPath 门（双计零险）。
+    pojavNotifyFirstFrameIfPending();
     return [super nextDrawable];
 }
 
