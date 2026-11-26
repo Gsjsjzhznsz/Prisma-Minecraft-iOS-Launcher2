@@ -2393,8 +2393,8 @@ static NSArray<NSDictionary *> *ame471_versionChainFrom(NSDictionary *child, NSS
         NSString *ame480_versions = [ame480_real stringByDeletingLastPathComponent];
         if ([[ame480_versions lastPathComponent] isEqualToString:@"versions"]) {
             NSString *ame480_shared = [ame480_versions stringByDeletingLastPathComponent];
-            if (ame480_shared.length > 0 && ![ame480_roots containsObject:ame480_shared]) {
-                [ame480_roots addObject:ame480_shared];
+            if (ame480_shared.length > 0 && ![ame471_roots containsObject:ame480_shared]) {
+                [ame471_roots addObject:ame480_shared];
             }
         }
     }

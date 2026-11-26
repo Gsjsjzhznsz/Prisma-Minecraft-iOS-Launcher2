@@ -87,12 +87,14 @@ def run_checks(tools, jl, tag):
           f"fallback 出场 {tools.count('return read(DIR_HOME_VERSION + \"/\" + vid + \"/\" + vid + \".json\");')} 次（期望恰 1）")
 
     # ── B 线：原生侧 ──
-    check('B1 ame471 roots 几何共享根候选',
+    check('B1 ame471 roots 几何共享根候选（标识符交叉核对）',
           'NSMutableArray<NSString *> *ame471_roots = [NSMutableArray arrayWithArray:@[' in jl
           and 'NSString *ame480_real = [gameDir stringByResolvingSymlinksInPath];' in jl
           and '[[ame480_versions lastPathComponent] isEqualToString:@"versions"]' in jl
-          and '[ame480_roots addObject:ame480_shared];' in jl,
-          'ame471 共享根候选块缺席')
+          and '![ame471_roots containsObject:ame480_shared]' in jl
+          and '[ame471_roots addObject:ame480_shared];' in jl
+          and 'ame480_roots' not in jl,
+          'ame471 共享根候选块缺席或 ame480_roots 幽灵标识符残留（CI r0 实锚：锚串须与声明名交叉核对）')
 
     check('B2 BuildTag 代际 = Task480 · 2026-11-27',
           'ame415_buildTag = @"Task480 · 2026-11-27"' in tag,
@@ -123,8 +125,8 @@ def selftest():
     else:
         print('probe1 探针未咬人（A2 判定失效）'); return 1
 
-    # 探针 2：ame471 共享根块剥除
-    probe2 = jl.replace('[ame480_roots addObject:ame480_shared];', '/*ame480-probe*/;')
+    # 探针 2：ame471 共享根块剥除（含幽灵标识符注入负样本）
+    probe2 = jl.replace('[ame471_roots addObject:ame480_shared];', '/*ame480-probe*/;')
     f2 = run_checks(tools, probe2, tag)
     if any(f.startswith('B1') for f in f2):
         print('probe2 ame471 共享根剥除探针 咬人 OK')
