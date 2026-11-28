@@ -1301,6 +1301,108 @@ static int ame287_disableUnsupportedInputMods(NSString *gameDir) {
 //   修复：realRoot 一律取入参 gameDir（生效目录）；env 仅用于识别
 //   "上次 forge 命中遗留的别名指针"以做还原。隔离目录无空格时本函数
 //   自然零行为（ forge 版本装在默认共享布局才需要别名）。
+// ★ Task482-A（去 instances 化：安卓 Pojav 经典扁平布局回归——单一真实根）：
+//   病历（用户 2026-11-28 最新 JVM 日志 + 五代崩案链 Task479/480/481）：启动链
+//   = lasmPath（符号链接 → instances/<cur>）→ Task473 隔离 versions/<vid>
+//   → ame287 forge+空格 alias .ame287_forge_root（链尾 = instances/default/
+//   versions/<vid>）——三层间接让 Java 几何候选、integrity 定位、FML game
+//   locator 各自为政，五代判例全在「链尾真实目录与字面几何错位」。本轮按
+//   用户决策把 instances 链接层从启动路径彻底退役：lasmPath 若为符号链接且
+//   链尾落在 instances/ 下，则整树 rename 回 lasmPath 真实目录（同卷 rename
+//   原子、绝不拷贝绝不删除），写 .ame482_flat_root 标记。此后：
+//     · gameDir 解析链全真实目录（Task473 隔离语义不变：versions/<vid> 即
+//       gameDir，mods/saves/config 隔离观感零变化）；
+//     · ame480 经典候选①（env/versions/<vid>）首次物理命中；
+//     · .minecraft/minecraft 可见层链（Task319/331）经 lasmPath 直达实根；
+//     · 多实例档案轴（instances/<id> 显式 gameDir）保留原语义不触碰。
+//   标记消费方：main.m Task226（真实根不再迁回 instances/不再重建链接）、
+//   LauncherPrefGameDirViewController / AiInstanceCreator（真实根绝不
+//   remove——切实例对扁平根降级，数据安全第一）。任何一步失败 = fail-open
+//   还原链接零回归；锚点日志行 = 本轮装机验证锚。
+static NSString *ame482_flattenInstanceLink(NSString *gameDir) {
+    @try {
+        const char *ame482_homeC = getenv("POJAV_HOME");
+        const char *ame482_envC = getenv("POJAV_GAME_DIR");
+        if (!ame482_homeC || !*ame482_homeC || !ame482_envC || !*ame482_envC) return gameDir;
+        NSString *ame482_lasm = @(ame482_envC);
+        if (![ame482_lasm hasPrefix:@(ame482_homeC)]) return gameDir; // 只处理本容器全局根
+        NSFileManager *ame482_fm = NSFileManager.defaultManager;
+        NSDictionary *ame482_attrs = [ame482_fm attributesOfItemAtPath:ame482_lasm error:nil];
+        if (!ame482_attrs || [ame482_attrs fileType] != NSFileTypeSymbolicLink) return gameDir; // 已真实根/缺席 = 语义达成或非本链
+        NSString *ame482_rel = [ame482_fm destinationOfSymbolicLinkAtPath:ame482_lasm error:nil];
+        if (ame482_rel.length == 0) return gameDir;
+        NSString *ame482_target = [[ame482_lasm.stringByDeletingLastPathComponent
+            stringByAppendingPathComponent:ame482_rel] stringByResolvingSymlinksInPath];
+        NSString *ame482_instPrefix = [@(ame482_homeC) stringByAppendingPathComponent:@"instances/"];
+        if (![ame482_target hasPrefix:ame482_instPrefix]) return gameDir; // 非实例轴不动
+        // 真实根落位：拆链接 → 整树 rename（同卷原子）
+        [ame482_fm removeItemAtPath:ame482_lasm error:nil];
+        if ([ame482_fm fileExistsAtPath:ame482_lasm]) {
+            NSLog(@"[JavaLauncher] Task482: lasmPath occupied after link removal -- flatten aborted (fail-open)");
+            return gameDir;
+        }
+        if (![ame482_fm moveItemAtPath:ame482_target toPath:ame482_lasm error:nil]) {
+            // rename 失败 = 还原链接零回归（绝不半迁移）
+            [ame482_fm createSymbolicLinkAtPath:ame482_lasm withDestinationPath:ame482_rel error:nil];
+            NSLog(@"[JavaLauncher] Task482: move failed -- link restored, flatten aborted (fail-open)");
+            return gameDir;
+        }
+        [@"" writeToFile:[ame482_lasm stringByAppendingPathComponent:@".ame482_flat_root"]
+              atomically:YES encoding:NSUTF8StringEncoding error:nil];
+        NSLog(@"[JavaLauncher] Task482: instance link flattened -> real root %@ (was -> %@)", ame482_lasm, ame482_target);
+        // gameDir 重算：真实路径（旧值可能含 instances 字面段，作废）
+        NSString *ame482_real = gameDir.stringByResolvingSymlinksInPath;
+        return ame482_real.length > 0 ? ame482_real : gameDir;
+    } @catch (NSException *ame482_e) {
+        NSLog(@"[JavaLauncher] Task482: flatten exception %@ -- fail-open keep %@", ame482_e.name, gameDir);
+        return gameDir;
+    }
+}
+
+// ★ Task482-B（FML 早显窗口真退役）：装机实锚（用户 2026-11-28 JVM 日志）
+//   'Loading ImmediateWindowProvider fmlearlywindow' 在场 = 旧三条 -D
+//   （fml.earlyprogresswindow / neoforge.enabledEarlyDisplay /
+//   forge.disableEarlyDisplay）对 FML 12.x 全部无效（FML 源码核验：FMLConfig
+//   只读 config/fml.toml，无系统属性桥）。早显在 MobileGL 转译栈上拉第二 GL
+//   上下文，两代着色器事故（Task203 'initializing shaders' → 本轮
+//   'Missing uniform tex in GlProgram{color@6}'——源码核验非致命但污染日志、
+//   浪费 GPU、纯风险面）。修法 = FML 官方开关 earlyWindowControl=false +
+//   earlyWindowProvider="none" 写入 <gameDir>/config/fml.toml（FML 优雅禁用
+//   路径 ImmediateWindowHandler.load：provider=null 继续启动）。Task478 原生
+//   Metal 首帧遮罩已在位，早显纯冗余。幂等：已含 earlyWindowControl 键则
+//   不动（不与用户配置打架）。
+static void ame482_writeFmlEarlyDisplayConfig(NSString *gameDir) {
+    if (gameDir.length == 0) return;
+    @try {
+        NSString *ame482_cfgDir = [gameDir stringByAppendingPathComponent:@"config"];
+        [[NSFileManager defaultManager] createDirectoryAtPath:ame482_cfgDir
+                                  withIntermediateDirectories:YES attributes:nil error:nil];
+        NSString *ame482_toml = [ame482_cfgDir stringByAppendingPathComponent:@"fml.toml"];
+        NSString *ame482_old = [NSString stringWithContentsOfFile:ame482_toml
+                                                        encoding:NSUTF8StringEncoding error:nil];
+        if (ame482_old && [ame482_old containsString:@"earlyWindowControl"]) return; // 幂等：用户配置优先
+        NSMutableString *ame482_out = [NSMutableString string];
+        if (ame482_old.length > 0) {
+            [ame482_out appendString:ame482_old];
+            if (![ame482_old hasSuffix:@"\n"]) [ame482_out appendString:@"\n"];
+        }
+        [ame482_out appendString:
+            @"# Task482: FML 12.x ignores the legacy -Dfml.earlyprogresswindow /\n"
+            "# -Dneoforge.enabledEarlyDisplay / -Dforge.disableEarlyDisplay system\n"
+            "# properties (device log anchor: 'Loading ImmediateWindowProvider\n"
+            "# fmlearlywindow'). Disable the early display via the supported FML\n"
+            "# config keys -- the native Metal overlay (Task478) already covers\n"
+            "# startup UX, and the extra GL context has produced two generations of\n"
+            "# shader failures on the MobileGL translation stack.\n"
+            "earlyWindowControl = false\n"
+            "earlyWindowProvider = \"none\"\n"];
+        [ame482_out writeToFile:ame482_toml atomically:YES encoding:NSUTF8StringEncoding error:nil];
+        NSLog(@"[JavaLauncher] Task482: FML early display disabled via fml.toml -> %@", ame482_toml);
+    } @catch (NSException *ame482_e) {
+        NSLog(@"[JavaLauncher] Task482: fml.toml write exception %@ -- early display left as-is", ame482_e.name);
+    }
+}
+
 static NSString *ame287_configureForgeUriSafeRoot(NSString *versionId, NSString *gameDir) {
     if (gameDir.length == 0) {
         return gameDir;
@@ -3975,6 +4077,10 @@ int launchJVM(NSString *accountId, id launchTarget, int width, int height, int m
         }
 
 
+        // ★ Task482-A：instances 链接层退役（先于 ame287——alias 目标必须落在
+        //   真实根上，解析链中不得再含 instances 字面段）。
+        gameDir = ame482_flattenInstanceLink(gameDir);
+
         // ★ Task287（PocketJ 对标移植）：Forge URI-safe 游戏根——先于全部
         //   mods 目录扫描与 chdir（Task97 CwdAlign 消费本 gameDir），命中
         //   时同步重指 POJAV_GAME_DIR（headless/JVM 侧消费者同口径）。
@@ -4012,6 +4118,10 @@ int launchJVM(NSString *accountId, id launchTarget, int width, int height, int m
                       @" (existing candidates keep)");
             }
         }
+
+        // ★ Task482-B：FML 早显窗口真退役（fml.toml 官方开关；置于 481 发布块
+        //   之后，不扰动 Task479 relocated → Task481 published 邻接验证锚）。
+        ame482_writeFmlEarlyDisplayConfig(gameDir);
 
         // ★ Task331：可见层 .minecraft 跟随现役实例（ZL2/PCL2 版本隔离观感收口，
         //   用户第六轮复访："versions 依旧没有游戏独立文件"）。病历（装机

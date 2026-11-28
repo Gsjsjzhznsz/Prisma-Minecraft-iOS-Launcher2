@@ -530,7 +530,11 @@ void init_setupMultiDir() {
     if (lasmAttrs && [lasmAttrs fileType] == NSFileTypeSymbolicLink) {
         ame226_isSymlink = YES;
     }
-    if (!ame226_isSymlink && lasmAttrs) {
+    if (!ame226_isSymlink && lasmAttrs
+            // ★ Task482（去 instances 化单一真实根）：启动链 flatten 后的真实根带
+            //   .ame482_flat_root 标记——Task226 迁移/清空分支整段跳过，
+            //   数据绝不回流 instances/、链接层不重建。
+            && ![fm fileExistsAtPath:[lasmPath stringByAppendingPathComponent:@".ame482_flat_root"]]) {
         // 真实目录：数内容判空
         NSArray *lasmEntries = [fm contentsOfDirectoryAtPath:lasmPath error:nil];
         NSUInteger ame226_legacyCount = lasmEntries.count;
@@ -586,9 +590,13 @@ void init_setupMultiDir() {
             [fm createSymbolicLinkAtPath:lasmPath withDestinationPath:multidirPath error:nil];
             NSLog(@"[Pre-init] Task226 game-dir symlink re-pointed to instances/%@", multidir);
         }
-    } else {
+    } else if (![fm fileExistsAtPath:lasmPath]) {
         [fm removeItemAtPath:lasmPath error:nil];
         [fm createSymbolicLinkAtPath:lasmPath withDestinationPath:multidirPath error:nil];
+    } else {
+        // ★ Task482: flatten 后的真实游戏根在位——不建链、不迁移（instances 链接层
+        //   退役，单一真实根政策；重建链接会把数据根再挂回 instances/ 链）
+        NSLog(@"[Pre-init] Task482: flattened real game root preserved as real directory (instances link layer retired)");
     }
     // ★ Task318 → Task319/320 升级：原「minecraft 可见别名折中」（单条链接）已
     //   升级为完整 PCL 风格顶层布局三件套 —— .minecraft（游戏目录，桌面生态

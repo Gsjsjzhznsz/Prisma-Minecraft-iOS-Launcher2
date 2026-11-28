@@ -72,6 +72,22 @@
     setPrefObject(@"general.game_directory", name);
     const char *gameDirEnv = getenv("POJAV_GAME_DIR");
     NSString *lasmPath = (gameDirEnv && strlen(gameDirEnv) > 0) ? [NSString stringWithUTF8String:gameDirEnv] : nil;
+    // ★ Task482（去 instances 化单一真实根）：flatten 真实根绝不 remove——
+    //   标记在场的真实目录 = 游戏数据本体，切换链接层拒绝并向调用方如实回报
+    //（实例轴已随 Task482 退役；新建实例目录步骤仍可执行，但不再切换）。
+    NSDictionary *ame482_attrs = lasmPath.length > 0
+        ? [[NSFileManager defaultManager] attributesOfItemAtPath:lasmPath error:nil] : nil;
+    BOOL ame482_flatReal = ame482_attrs
+        && [ame482_attrs fileType] != NSFileTypeSymbolicLink
+        && [[NSFileManager defaultManager] fileExistsAtPath:
+                [lasmPath stringByAppendingPathComponent:@".ame482_flat_root"]];
+    if (ame482_flatReal) {
+        NSLog(@"[AiInstanceCreator] Task482: flattened real game root in place -- switch link layer rejected (no removal)");
+        completion(nil, [NSError errorWithDomain:@"AiTool" code:409
+                                     userInfo:@{NSLocalizedDescriptionKey:
+                                         @"单一真实根已生效（Task482）：instances 切换链接层已退役，切换请求被拒绝（数据零删除）。"}]);
+        return;
+    }
     if (lasmPath.length > 0) {
         [[NSFileManager defaultManager] removeItemAtPath:lasmPath error:nil];
         NSError *linkError = nil;

@@ -113,14 +113,14 @@ if not bin_ipa:
     sys.exit(1)
 
 # ── 代际 + 旋钮 + 锚 ─────────────────────────────────────────
-check('V3 BuildTag Task480 · 2026-11-27 UTF-16LE 在场',
-      bin_has(bin_ipa, utf16_le("Task480 · 2026-11-27")))
-check('V4 旧代际归零（Task479 · 2026-11-26 / Task478 · 2026-11-26 / Task477 · 2026-11-25 / Task476 · 2026-11-25 / Task475 · 2026-11-25 UTF-16LE 五消）',
-      not bin_has(bin_ipa, utf16_le("Task479 · 2026-11-26"))
+check('V3 BuildTag Task482 · 2026-11-28 UTF-16LE 在场',
+      bin_has(bin_ipa, utf16_le("Task482 · 2026-11-28")))
+check('V4 旧代际归零（Task481 · 2026-11-28 / Task480 · 2026-11-27 / Task479 · 2026-11-26 / Task478 · 2026-11-26 / Task477 · 2026-11-25 UTF-16LE 五消）',
+      not bin_has(bin_ipa, utf16_le("Task481 · 2026-11-28"))
+      and not bin_has(bin_ipa, utf16_le("Task480 · 2026-11-27"))
+      and not bin_has(bin_ipa, utf16_le("Task479 · 2026-11-26"))
       and not bin_has(bin_ipa, utf16_le("Task478 · 2026-11-26"))
-      and not bin_has(bin_ipa, utf16_le("Task477 · 2026-11-25"))
-      and not bin_has(bin_ipa, utf16_le("Task476 · 2026-11-25"))
-      and not bin_has(bin_ipa, utf16_le("Task475 · 2026-11-25")))
+      and not bin_has(bin_ipa, utf16_le("Task477 · 2026-11-25")))
 check('V20 ★Task477-r3 二代簇回植实锚（ame411_buildSwitcherCluster + ZL2ShellSwitcherButton selector UTF-8 双在场）',
       bin_has(bin_ipa, b"ame411_buildSwitcherCluster")
       and bin_has(bin_ipa, b"ZL2ShellSwitcherButton"))

@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """★Task480 换代重锚 sweep —— 门禁日期字面量族 Task479 · 2026-11-26 →
-Task480 · 2026-11-27（Task479 轮同款脚本家族的幂等重放）。
+Task482 · 2026-11-28（Task479 轮同款脚本家族的幂等重放）。
 
 范围：scripts/ 下 .py/.sh 全量（除 task470_artifact_verify.py——V3/V4 已在本轮
 单独手术：V3 在场翻转 + V4 退役清单补 479（五消），避免 sweep 二次翻转 V4
@@ -14,13 +14,13 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent
 OLD = "Task479 · 2026-11-26"
-NEW = "Task480 · 2026-11-27"
+NEW = "Task482 · 2026-11-28"
 # ★Task480：进代下限门家族的前缀形（无日期字面量）——ame468 S / task475 /
 #   task476 p3+S3/W1 / task477 D1 / task478 D1 等 check 用 'ame415_buildTag =
 #   @"Task479 · ' 判在场（Task479 判例③：谓词副本须与主检查同批换代——S3 内联
 #   replace 对 'Task479 · ' 的变异串一并翻转，变异目标 'Task476 · ' 保持旧代）。
 PREFIX_OLD = '@"Task479 · '
-PREFIX_NEW = '@"Task480 · '
+PREFIX_NEW = '@"Task482 · '
 SKIP = {"task480_generation_sweep.py", "task470_artifact_verify.py"}
 
 

@@ -64,6 +64,16 @@
     setPrefObject(@"general.game_directory", name);
     NSString *multidirPath = [NSString stringWithFormat:@"%s/instances/%@", getenv("POJAV_HOME"), name];
     NSString *lasmPath = @(getenv("POJAV_GAME_DIR"));
+    // ★ Task482（去 instances 化单一真实根）：flatten 真实根绝不 remove——
+    //   旧实现无条件删除 lasmPath 重建链接，扁平化后整棵游戏树（versions/
+    //   saves/mods/config）都在里面，一次切换 = 数据无声蒸发。标记在场的
+    //   真实目录跳过链接层（切换对扁平根降级为只改偏好，数据安全第一）。
+    NSDictionary *ame482_attrs = [NSFileManager.defaultManager attributesOfItemAtPath:lasmPath error:nil];
+    BOOL ame482_flatReal = ame482_attrs
+        && [ame482_attrs fileType] != NSFileTypeSymbolicLink
+        && [NSFileManager.defaultManager fileExistsAtPath:
+                [lasmPath stringByAppendingPathComponent:@".ame482_flat_root"]];
+    if (!ame482_flatReal) {
     NSError *removeError = nil;
     [NSFileManager.defaultManager removeItemAtPath:lasmPath error:&removeError];
     // removeItem 失败不一定是致命的（首次切换时 lasmPath 可能不存在），忽略并继续
@@ -79,6 +89,9 @@
         showDialog(localize(@"Error", nil),
                    [NSString stringWithFormat:localize(@"i18n_str_363", nil), linkError.localizedDescription]);
         return;
+    }
+    } else {
+        NSLog(@"[GameDir] Task482: flattened real game root in place -- link layer skipped, no removal (single real root policy)");
     }
     [NSFileManager.defaultManager changeCurrentDirectoryPath:lasmPath];
     // 切换 pref.instancePath 到新目录的 launcher_preferences.plist

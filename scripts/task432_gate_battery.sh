@@ -179,6 +179,13 @@ run_py task480_self scripts/task480_selfcheck.py --selftest
 run_py task468     scripts/ame468_selfcheck.py
 run_py task468_self scripts/ame468_selfcheck.py --selftest
 
+# ★Task482 去 instances 化单一真实根 + FML 早显真退役：lasmPath 链接层退役
+#   （整树 rename 回扁平根 + .ame482_flat_root 三态保护：main.m 迁移跳过/链接
+#   不重建 + 切换入口绝不 remove）+ fml.toml earlyWindowControl=false 官方
+#   开关（FMLConfig 无 sysprop 桥实证；旧三条 -D 死属性保形）
+run_py task482     scripts/task482_selfcheck.py
+run_py task482_self scripts/task482_selfcheck.py --selftest
+
 echo
 echo "════════ 电池总裁决 ════════"
 fails=0
