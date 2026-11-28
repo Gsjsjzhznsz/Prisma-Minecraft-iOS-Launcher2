@@ -22,7 +22,7 @@ A 线（JavaApp/Tools.java 几何候选五锚）：
   A7 全候选落空回落经典读（Task173 报错语义保全）
 B 线（原生侧同家法两锚）：
   B1 ame471 roots 几何共享根候选（resolveSymlinks + 上提两级 + addObject）
-  B2 BuildTag 代际 = Task482 · 2026-11-28
+  B2 BuildTag 代际 = Task483 · 2026-11-28
 C 线（隔离语义保形）：
   C1 game_directory 仍 = gameDir（CWD/隔离不回退）+ DIR_GAME_PROFILE 消费在位
 --selftest：负样本探针 ×2（自读换口回退 / ame471 共享根块剥除——判定函数必须咬人）
@@ -96,8 +96,8 @@ def run_checks(tools, jl, tag):
           and 'ame480_roots' not in jl,
           'ame471 共享根候选块缺席或 ame480_roots 幽灵标识符残留（CI r0 实锚：锚串须与声明名交叉核对）')
 
-    check('B2 BuildTag 代际 = Task482 · 2026-11-28',
-          'ame415_buildTag = @"Task482 · 2026-11-28"' in tag,
+    check('B2 BuildTag 代际 = Task483 · 2026-11-28',
+          'ame415_buildTag = @"Task483 · 2026-11-28"' in tag,
           'BuildTag 未进代')
 
     # ── C 线：隔离语义保形 ──

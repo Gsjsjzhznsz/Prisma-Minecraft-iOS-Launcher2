@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """★Task482 换代重锚 sweep —— 门禁日期字面量族 Task480 · 2026-11-27 /
-Task481 · 2026-11-28 → Task482 · 2026-11-28（task480 轮同款脚本家族的幂等
+Task481 · 2026-11-28 → Task483 · 2026-11-28（task480 轮同款脚本家族的幂等
 重放；Task481 轮 sweep 欠账随本批一并清偿）。
 
 范围：scripts/ 下 .py/.sh 全量（除 task482_generation_sweep.py 本体与
@@ -19,13 +19,13 @@ OLDS = [
     "Task481 · 2026-11-28",   # Task481 轮代际（装机线，sweep 欠账）
     "Task480 · 2026-11-27",   # Task480 轮代际
 ]
-NEW = "Task482 · 2026-11-28"
+NEW = "Task483 · 2026-11-28"
 # ★进代下限门家族的前缀形（无日期字面量）——ame468 S / task475 / task476
 #   p3+S3/W1 / task477 D1 / task478 D1 等 check 用 'ame415_buildTag = @"Task4xx · '
 #   判在场（判例③：谓词副本须与主检查同批换代——S3 内联 replace 的变异串
 #   目标 'Task476 · ' 保持旧代，不在翻转面）。
 PREFIX_OLDS = ['@"Task481 · ', '@"Task480 · ']
-PREFIX_NEW = '@"Task482 · '
+PREFIX_NEW = '@"Task483 · '
 SKIP = {"task482_generation_sweep.py", "task470_artifact_verify.py"}
 
 

@@ -210,14 +210,16 @@
                                         fm:(NSFileManager *)fm {
     const char *ame327_env = getenv("POJAV_GAME_DIR");
     if (!ame327_env || !*ame327_env) return;
-    // ★ Task329：版本轴形态守卫 —— gameDir 已是版本隔离目录（instances/<id>/
-    // versions/<vid>，ame329 统一后的形态）时绝不再物化：否则会在版本目录里
-    // 再套一层 versions/<vid>/<vid>.json 嵌套垃圾（ame329 结构性排除面）。
+    // ★ Task329/483：版本轴形态守卫 —— gameDir 已是版本隔离目录（<root>/
+    // versions/<vid>，Task473 隔离与 ame329 统一后的形态）时绝不再物化：
+    // 否则会在版本目录里再套一层 versions/<vid>/<vid>.json 嵌套垃圾。
+    // ★Task483：旧 instances/<id>/ 前缀判据随 instances 布局退役，改为
+    // 通用形态判据——gameDir 路径中出现 "versions" 组件即视为版本轴形态
+    // （与共享根形态互斥；lasm/versions 纯目录同样命中跳过）。
     NSArray<NSString *> *ame327_comps = [gameDirAbsolute stringByStandardizingPath]
         .pathComponents;
     NSUInteger ame327_vIdx = [ame327_comps indexOfObject:@"versions"];
-    if (ame327_vIdx != NSNotFound && ame327_vIdx > 1 && ame327_vIdx < ame327_comps.count - 1
-        && [ame327_comps[ame327_vIdx - 2] isEqualToString:@"instances"]) {
+    if (ame327_vIdx != NSNotFound && ame327_vIdx > 0) {
         return;
     }
     NSString *sharedVersions = [[NSString stringWithUTF8String:ame327_env]

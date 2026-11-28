@@ -485,6 +485,63 @@ void init_setupCustomControls() {
     }
 }
 
+// ★ Task483 注册表绝对路径重写：launcher_profiles.json 里 gameDir 含
+// "/instances/" 字面段（历史绝对路径任意 home 前缀形态）或以 "instances/"
+// 相对前缀的条目 → 原位重写为 lasm/<rest>（整合包 profile 全悬空防线）。
+// 同名 .ame483 备份保底（绝不删数据）。返回重写条数；文件缺席/解析失败=0。
+static NSInteger ame483_rewriteInstancesPrefixInProfiles(NSString *registryPath,
+                                                         NSString *lasmPath) {
+    if (registryPath.length == 0 || lasmPath.length == 0) return 0;
+    NSFileManager *ame483_fm = NSFileManager.defaultManager;
+    if (![ame483_fm fileExistsAtPath:registryPath]) return 0;
+    NSData *ame483_raw = [NSData dataWithContentsOfFile:registryPath];
+    if (!ame483_raw) return 0;
+    NSError *ame483_jsonErr = nil;
+    NSMutableDictionary *ame483_root = [[NSJSONSerialization JSONObjectWithData:ame483_raw
+        options:NSJSONReadingMutableContainers error:&ame483_jsonErr] mutableCopy];
+    if (!ame483_root || ![ame483_root isKindOfClass:NSDictionary.class]) return 0;
+    NSMutableDictionary *ame483_profiles = [ame483_root[@"profiles"] isKindOfClass:NSDictionary.class]
+        ? [ame483_root[@"profiles"] mutableCopy] : nil;
+    if (!ame483_profiles) return 0;
+    NSInteger ame483_changed = 0;
+    for (NSString *ame483_key in ame483_profiles.allKeys) {
+        NSMutableDictionary *ame483_p = [ame483_profiles[ame483_key] isKindOfClass:NSDictionary.class]
+            ? [ame483_profiles[ame483_key] mutableCopy] : nil;
+        if (!ame483_p) continue;
+        NSString *ame483_gd = [ame483_p[@"gameDir"] isKindOfClass:NSString.class]
+            ? ame483_p[@"gameDir"] : nil;
+        if (ame483_gd.length == 0) continue;
+        NSString *ame483_new = nil;
+        NSRange ame483_hit = [ame483_gd rangeOfString:@"/instances/" options:NSBackwardsSearch];
+        if (ame483_hit.location != NSNotFound) {
+            ame483_new = [lasmPath stringByAppendingString:
+                [ame483_gd substringFromIndex:NSMaxRange(ame483_hit) - 1]];   // 保留 '/<rest>' 尾段
+        } else if ([ame483_gd hasPrefix:@"instances/"]) {
+            ame483_new = [lasmPath stringByAppendingPathComponent:
+                [ame483_gd substringFromIndex:@"instances/".length]];
+        }
+        if (ame483_new.length == 0 || [ame483_new isEqualToString:ame483_gd]) continue;
+        ame483_p[@"gameDir"] = ame483_new;
+        ame483_profiles[ame483_key] = ame483_p;
+        ame483_changed++;
+    }
+    if (ame483_changed == 0) return 0;
+    ame483_root[@"profiles"] = ame483_profiles;
+    NSData *ame483_out = [NSJSONSerialization dataWithJSONObject:ame483_root
+        options:NSJSONWritingPrettyPrinted error:nil];
+    if (!ame483_out) return 0;
+    if (![ame483_fm fileExistsAtPath:[registryPath stringByAppendingString:@".ame483"]]) {
+        [ame483_fm copyItemAtPath:registryPath
+            toPath:[registryPath stringByAppendingString:@".ame483"] error:nil];
+    }
+    if ([ame483_out writeToFile:registryPath atomically:YES]) {
+        NSLog(@"[Task483] profiles rewritten: %ld gameDir(s) re-rooted -> %@ (%@)",
+              (long)ame483_changed, lasmPath, registryPath.lastPathComponent);
+        return ame483_changed;
+    }
+    return 0;
+}
+
 void init_setupMultiDir() {
     NSString *multidir = getPrefObject(@"general.game_directory");
     if (multidir.length == 0) {
@@ -497,106 +554,146 @@ void init_setupMultiDir() {
 
     const char *home = getenv("POJAV_HOME");
     NSString *lasmPath = [NSString stringWithFormat:@"%s/Library/Application Support/minecraft", home];
-    NSString *multidirPath = [NSString stringWithFormat:@"%s/instances/%@", home, multidir];
 
 
+    // ★ Task483：instances/ 不再预建（单一真实根政策， instances 目录永不重建）
     NSArray *dirsToCreate = @[
         [NSString stringWithFormat:@"%s/.demo", home],
         [NSString stringWithFormat:@"%s/java_runtimes", home],
-        lasmPath.stringByDeletingLastPathComponent,
-        multidirPath
+        lasmPath.stringByDeletingLastPathComponent
     ];
     for (NSString *dir in dirsToCreate) {
         [fm createDirectoryAtPath:dir withIntermediateDirectories:YES attributes:nil error:nil];
     }
-    // ★ Task316（文件层桌面/安卓同构）：一次性布局迁移——共享核心去重
-    // （instances/*/{versions,libraries,assets} → shared_core 符号链接回指）
-    // + 整合包实例扁平化（custom_gamedir/<id> → 顶层 instances/<id>，
-    // profile gameDir 绝对路径锚定）。marker 幂等，先于 ame226 软链块执行。
-    [FileLayoutService ame316_migrateIfNeeded];
-    // ★ Task226（反馈 #5：上游软件更新到本软件，数据要能正常识别）：
-    // 旧代码无条件 removeItemAtPath:lasmPath——若这里是【真实目录】
-    //（上游老版本 / 更新前残留的游戏数据：saves/mods/config 等全在里面），
-    // 整目录被永久删除 = 用户数据无声蒸发。改为三态：
-    //   ① 已是符号链接 → 原样保留（幂等重指也不做，目标一致性由下面保证）；
-    //   ② 真实目录且有内容 → 先把内容【迁移】进 instances/<multidir>
-    //     （仅补缺失条目、绝不覆盖；PCL VER-ISOLATE 哲学：只挪不删），
-    //     迁移完成后才把原目录改名归档（.lasm-legacy-backup）再建链接；
-    //   ③ 空目录 → 删除建链接（旧行为）。
-    // 迁移清单与隔离向导（ProfileSettings ame217_items）同口径：游戏读写
-    // 的用户数据，排除共享层（assets/libraries/versions 由安装器管理）。
-    BOOL ame226_isSymlink = NO;
-    NSDictionary *lasmAttrs = [fm attributesOfItemAtPath:lasmPath error:nil];
-    if (lasmAttrs && [lasmAttrs fileType] == NSFileTypeSymbolicLink) {
-        ame226_isSymlink = YES;
-    }
-    if (!ame226_isSymlink && lasmAttrs
-            // ★ Task482（去 instances 化单一真实根）：启动链 flatten 后的真实根带
-            //   .ame482_flat_root 标记——Task226 迁移/清空分支整段跳过，
-            //   数据绝不回流 instances/、链接层不重建。
-            && ![fm fileExistsAtPath:[lasmPath stringByAppendingPathComponent:@".ame482_flat_root"]]) {
-        // 真实目录：数内容判空
-        NSArray *lasmEntries = [fm contentsOfDirectoryAtPath:lasmPath error:nil];
-        NSUInteger ame226_legacyCount = lasmEntries.count;
-        if (ame226_legacyCount > 0) {
-            NSLog(@"[Pre-init] Task226 legacy real game dir detected at %@ (%lu entries) -- migrating into instances/%@ (no data loss)", lasmPath, (unsigned long)ame226_legacyCount, multidir);
-            NSArray *ame226_items = @[
-                @"saves", @"mods", @"config", @"resourcepacks", @"shaderpacks",
-                @"options.txt", @"servers.dat", @"servers.dat_old", @"usercache.json",
-                @"screenshots", @"crash-reports", @"logs", @"hotbar.nbt",
-                @"options~", @"realms_persistence.json"
-            ];
-            NSUInteger ame226_moved = 0;
-            for (NSString *ame226_item in ame226_items) {
-                NSString *src = [lasmPath stringByAppendingPathComponent:ame226_item];
-                if (![fm fileExistsAtPath:src]) continue;
-                NSString *dst = [multidirPath stringByAppendingPathComponent:ame226_item];
-                if ([fm fileExistsAtPath:dst]) continue;  // 目标已有 → 绝不覆盖
-                if ([fm moveItemAtPath:src toPath:dst error:nil]) {
-                    ame226_moved++;
-                }
-            }
-            // 剩余未识别条目也一并搬走（上游可能带插件数据等）；versions/
-            // assets/libraries 等共享层保留原位（链接后经 instances 访问）。
-            for (NSString *ame226_left in [fm contentsOfDirectoryAtPath:lasmPath error:nil]) {
-                NSString *src = [lasmPath stringByAppendingPathComponent:ame226_left];
-                NSString *dst = [multidirPath stringByAppendingPathComponent:ame226_left];
-                if ([fm fileExistsAtPath:dst]) continue;
-                [fm moveItemAtPath:src toPath:dst error:nil];
-            }
-            NSLog(@"[Pre-init] Task226 legacy migration done: %lu tracked + leftovers moved (watched-items=%lu)", (unsigned long)ame226_moved, (unsigned long)ame226_items.count);
-            // 归档空壳（保名不保数据；万一还有残留条目则保留为备份目录）
-            NSString *ame226_archive = [lasmPath stringByAppendingString:@"-lasm-legacy-backup"];
-            [fm removeItemAtPath:ame226_archive error:nil];
-            if (![fm moveItemAtPath:lasmPath toPath:ame226_archive error:nil]) {
-                [fm removeItemAtPath:lasmPath error:nil];
+    // ★ Task483（单根终局，用户指令：命中 instances 的代码全部删除）：
+    //   病历（用户三轮复诉 + 装机 147a119 latestlog 21:22 实锚链）：Task226 每次
+    //   pre-init 把 lasm 链接重指 instances/default（="程序自动重建 instances"
+    //   本体）+ Task479/481 把版本根发布到 instances/default（="删 instances 即
+    //   丢数据"本体）+ Task482-A flatten 因绝对符号链接目标被二次拼接
+    //   （'Application Support/private/var/mobile/...' 废路）target-not-instances
+    //   跳过 = 拆链从未执行。本轮把命中 instances 的机制代码全部退役：
+    //   Task316 调用 + Task226 整段（本文件）/ Task482-A + Task331（JavaLauncher.m）
+    //   / FileLayoutService ame316 迁移体同批删除。
+    //   终局架构：<home>/Library/Application Support/minecraft（lasm）=【单一真实
+    //   数据根】（安卓 Pojav 扁平布局同构）；.ame287_forge_root 仅存 Forge URI-safe
+    //   空格别名；instances 目录迁移后删除、永不重建。
+    //   迁移规则（绝不丢数据）：
+    //     ① lasm 为符号链接 → 解析物理目标；摘链接；rename 物理树 → lasm（同卷
+    //        原子）；占用/失败 → 恢复链接 fail-open 下轮重试；
+    //     ② instances/ 残余（仅 lasm 已为真实目录时）：非空 → 整目录 move 到
+    //        lasm/<name>（整合包 profile gameDir 绝对路径经 ③ 重写后仍成立）；
+    //        同名冲突 move-if-absent 合并摘壳；空壳直接删除（装机判例 modrinth_*
+    //        空壳 = ParseJSON 噪声源）；instances/ 摘空后删除；异常残留 → 整目录
+    //        归档 instances_retired-<ts>（出游戏路径，绝不回流）；
+    //     ③ launcher_profiles.json gameDir 含 "/instances/" 字面段/前缀 → 原位
+    //        重写为 lasm/<rest>（.ame483 备份保底）；
+    //     ④ 幂等：lasm 真实且 instances/ 缺席 → 零动作（首至落 .ame483_single_root）。
+    //   验证锚点（下一轮 latestlog）：首轮 [Task483] single-root migration 行在
+    //   场；次轮全日志零 instances 数据路径、零 Task226 re-point 行。
+    {
+        NSString *ame483_inst = [home stringByAppendingPathComponent:@"instances"];
+        NSString *ame483_marker = [home stringByAppendingPathComponent:@".ame483_single_root"];
+        BOOL ame483_lasmIsLink = NO;
+        NSDictionary *ame483_lasmAttrs = [fm attributesOfItemAtPath:lasmPath error:nil];
+        if (ame483_lasmAttrs && [ame483_lasmAttrs fileType] == NSFileTypeSymbolicLink) ame483_lasmIsLink = YES;
+        BOOL ame483_instExists = [fm fileExistsAtPath:ame483_inst];
+        if (!ame483_lasmIsLink && !ame483_instExists) {
+            // ④ 幂等直通：单根已达成
+            if (![fm fileExistsAtPath:ame483_marker]) {
+                [@"" writeToFile:ame483_marker atomically:YES encoding:NSUTF8StringEncoding error:nil];
+                NSLog(@"[Task483] single-root marker written -> %@", ame483_marker);
             }
         } else {
-            [fm removeItemAtPath:lasmPath error:nil];
+            @try {
+                NSInteger ame483_flattened = 0, ame483_absorbed = 0, ame483_removed = 0, ame483_profiles = 0;
+                // ① 拆链接：物理树 rename 回 lasm（同卷原子，绝不拷贝）
+                if (ame483_lasmIsLink) {
+                    NSString *ame483_phys = [lasmPath stringByResolvingSymlinksInPath] ?: @"";
+                    [fm removeItemAtPath:lasmPath error:nil];
+                    BOOL ame483_renamed = NO;
+                    if (![fm fileExistsAtPath:lasmPath]
+                            && ame483_phys.length > 0
+                            && ![ame483_phys isEqualToString:lasmPath]
+                            && [fm fileExistsAtPath:ame483_phys]) {
+                        ame483_renamed = [fm moveItemAtPath:ame483_phys toPath:lasmPath error:nil];
+                    }
+                    if (ame483_renamed) {
+                        ame483_flattened++;
+                        NSLog(@"[Task483] single-root migration: physical tree renamed -> %@ (was %@)", lasmPath, ame483_phys);
+                    } else if (![fm fileExistsAtPath:lasmPath]) {
+                        NSLog(@"[Task483] single-root migration: link removed (physical tree absent or move failed) -> %@", ame483_phys);
+                    } else {
+                        // lasm 被异常占用：恢复链接保数据可见（fail-open，下轮重试）
+                        [fm createSymbolicLinkAtPath:lasmPath withDestinationPath:ame483_phys error:nil];
+                        NSLog(@"[Task483] single-root migration: lasm occupied -- link restored (fail-open)");
+                    }
+                }
+                // ② instances/ 残余收编（仅 lasm 已为真实目录时执行，防写穿链接）
+                NSDictionary *ame483_lasmAttrs2 = [fm attributesOfItemAtPath:lasmPath error:nil];
+                BOOL ame483_lasmReal = ame483_lasmAttrs2 && [ame483_lasmAttrs2 fileType] != NSFileTypeSymbolicLink;
+                if (ame483_lasmReal && [fm fileExistsAtPath:ame483_inst]) {
+                    for (NSString *ame483_name in [fm contentsOfDirectoryAtPath:ame483_inst error:nil] ?: @[]) {
+                        if (ame483_name.length == 0 || [ame483_name hasPrefix:@"."]) continue;
+                        NSString *ame483_src = [ame483_inst stringByAppendingPathComponent:ame483_name];
+                        NSString *ame483_dst = [lasmPath stringByAppendingPathComponent:ame483_name];
+                        NSArray *ame483_inner = [fm contentsOfDirectoryAtPath:ame483_src error:nil] ?: @[];
+                        if (ame483_inner.count == 0) {
+                            // 空壳直删（modrinth_* 壳 = ParseJSON 噪声源；空目录零数据）
+                            if ([fm removeItemAtPath:ame483_src error:nil]) ame483_removed++;
+                            continue;
+                        }
+                        if (![fm fileExistsAtPath:ame483_dst]) {
+                            if ([fm moveItemAtPath:ame483_src toPath:ame483_dst error:nil]) ame483_absorbed++;
+                            continue;
+                        }
+                        // 同名冲突：move-if-absent 逐条合并后摘壳（绝不覆盖）
+                        NSInteger ame483_merged = 0;
+                        for (NSString *ame483_item in ame483_inner) {
+                            NSString *ame483_from = [ame483_src stringByAppendingPathComponent:ame483_item];
+                            NSString *ame483_to = [ame483_dst stringByAppendingPathComponent:ame483_item];
+                            if ([fm fileExistsAtPath:ame483_to]) continue;
+                            if ([fm moveItemAtPath:ame483_from toPath:ame483_to error:nil]) ame483_merged++;
+                        }
+                        NSArray *ame483_left = [fm contentsOfDirectoryAtPath:ame483_src error:nil] ?: @[];
+                        if (ame483_left.count == 0 && [fm removeItemAtPath:ame483_src error:nil]) {
+                            ame483_absorbed++;
+                            NSLog(@"[Task483] single-root migration: merged %@ (%ld items, no overwrite)", ame483_name, (long)ame483_merged);
+                        } else {
+                            NSLog(@"[Task483] single-root migration: leftover residue kept at %@ (no data loss)", ame483_src);
+                        }
+                    }
+                    NSArray *ame483_residue = [fm contentsOfDirectoryAtPath:ame483_inst error:nil] ?: @[];
+                    if (ame483_residue.count == 0) {
+                        if ([fm removeItemAtPath:ame483_inst error:nil]) {
+                            NSLog(@"[Task483] single-root migration: instances dir removed (data lives solely under %@)", lasmPath);
+                        }
+                    } else {
+                        NSString *ame483_ts = [NSString stringWithFormat:@"%f", [NSDate date].timeIntervalSince1970];
+                        ame483_ts = [ame483_ts stringByReplacingOccurrencesOfString:@"." withString:@""];
+                        NSString *ame483_archive = [home stringByAppendingPathComponent:
+                            [NSString stringWithFormat:@"instances_retired-%@", ame483_ts]];
+                        [fm removeItemAtPath:ame483_archive error:nil];
+                        if ([fm moveItemAtPath:ame483_inst toPath:ame483_archive error:nil]) {
+                            NSLog(@"[Task483] single-root migration: residue archived -> %@ (out of game path, never recreated)", ame483_archive);
+                        }
+                    }
+                    // ③ 注册表绝对路径重写（现役注册表 + 一层整合包注册表）
+                    ame483_profiles = ame483_rewriteInstancesPrefixInProfiles(
+                        [lasmPath stringByAppendingPathComponent:@"launcher_profiles.json"], lasmPath);
+                    for (NSString *ame483_pack in [fm contentsOfDirectoryAtPath:lasmPath error:nil] ?: @[]) {
+                        if ([ame483_pack hasPrefix:@"."]) continue;
+                        NSString *ame483_packReg = [[lasmPath stringByAppendingPathComponent:ame483_pack]
+                            stringByAppendingPathComponent:@"launcher_profiles.json"];
+                        ame483_profiles += ame483_rewriteInstancesPrefixInProfiles(ame483_packReg, lasmPath);
+                    }
+                }
+                [@"" writeToFile:ame483_marker atomically:YES encoding:NSUTF8StringEncoding error:nil];
+                NSLog(@"[Task483] single-root migration done: flattened=%ld absorbed=%ld removed=%ld profilesRewritten=%ld",
+                      (long)ame483_flattened, (long)ame483_absorbed, (long)ame483_removed, (long)ame483_profiles);
+            } @catch (NSException *ame483_e) {
+                NSLog(@"[Task483] single-root migration exception %@ (%@) -- continuing", ame483_e.name, ame483_e.reason);
+            }
         }
-    }
-    // 符号链接：重指到当前 multidir（实例切换后老链接可能指向旧实例）
-    if (ame226_isSymlink) {
-        NSString *curTarget = [fm destinationOfSymbolicLinkAtPath:lasmPath error:nil];
-        BOOL sameTarget = NO;
-        if (curTarget.length > 0) {
-            NSString *resolvedCur = [[lasmPath.stringByDeletingLastPathComponent
-                stringByAppendingPathComponent:curTarget]
-                stringByResolvingSymlinksInPath];
-            sameTarget = [resolvedCur isEqualToString:multidirPath.stringByResolvingSymlinksInPath];
-        }
-        if (!sameTarget) {
-            [fm removeItemAtPath:lasmPath error:nil];
-            [fm createSymbolicLinkAtPath:lasmPath withDestinationPath:multidirPath error:nil];
-            NSLog(@"[Pre-init] Task226 game-dir symlink re-pointed to instances/%@", multidir);
-        }
-    } else if (![fm fileExistsAtPath:lasmPath]) {
-        [fm removeItemAtPath:lasmPath error:nil];
-        [fm createSymbolicLinkAtPath:lasmPath withDestinationPath:multidirPath error:nil];
-    } else {
-        // ★ Task482: flatten 后的真实游戏根在位——不建链、不迁移（instances 链接层
-        //   退役，单一真实根政策；重建链接会把数据根再挂回 instances/ 链）
-        NSLog(@"[Pre-init] Task482: flattened real game root preserved as real directory (instances link layer retired)");
     }
     // ★ Task318 → Task319/320 升级：原「minecraft 可见别名折中」（单条链接）已
     //   升级为完整 PCL 风格顶层布局三件套 —— .minecraft（游戏目录，桌面生态

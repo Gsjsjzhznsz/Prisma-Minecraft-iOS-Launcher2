@@ -3629,7 +3629,7 @@
 "ame369.setpg.more_launcher" = "更多啟動器設定";
 "ame369.setpg.more_launcher.subtitle" = "介面縮放、強調色、公告、資料匯出等完整分割槽";
 "ame369.setpg.gamedir_instances" = "遊戲目錄與例項";
-"ame369.setpg.gamedir_instances.subtitle" = "檢視/切換例項目錄（instances），切換後重啟生效";
+"ame369.setpg.gamedir_instances.subtitle" = "查看遊戲資料目錄（單一真實根；instances 多目錄布局已隨 Task483 退役）";
 "ame369.setpg.import_external" = "匯入外部啟動器資料";
 "ame369.setpg.import_external.subtitle" = "識別 .minecraft / HMCL·PCL / MultiMC·Prism / 安卓啟動器目錄，合入當前例項";
 "ame369.setpg.runtime_fallback.subtitle" = "未安裝匹配執行時時啟動鏈自動回退";
@@ -4696,3 +4696,5 @@
 "ame477.setpg.renderer.badge_plugin" = "Plugin";
 "ame477.setpg.renderer.badge_builtin" = "Built-in";
 "ame477.repo.uninstall" = "Uninstall";
+"ame483.gamedir.single_root_hint" = "單一遊戲目錄已啟用（instances 多目錄布局已退役），遊戲資料統一存放在 Library/Application Support/minecraft";
+"ai.instance.single_root_rejected" = "單一真實根已生效（Task483）：instances 多目錄布局已退役，新建/切換遊戲目錄不再受支援；現有資料已統一收編到 Library/Application Support/minecraft。";

@@ -66,14 +66,13 @@
     if (root && strlen(root) > 0) return @(root);
     const char *home = getenv("POJAV_HOME");
     if (home && strlen(home) > 0) {
-        NSString *name = getPrefObject(@"general.game_directory");
-        if (name.length == 0) name = @"default";
-        return [NSString stringWithFormat:@"%s/instances/%@", home, name];
+        // ★ Task483：单根兜底 = lasm（instances/<name> 拼接随布局退役）
+        return [NSString stringWithFormat:@"%s/Library/Application Support/minecraft", home];
     }
     return [NSSearchPathForDirectoriesInDomains(NSDocumentDirectory, NSUserDomainMask, YES) firstObject];
 }
 
-/// 解析 instance 参数 → 实例根目录（<POJAV_HOME>/instances/<instance>，缺省当前实例）
+/// 解析 instance 参数 → 游戏目录（单一真实根下一层 <instance>，缺省当前根；★Task483 instances 布局退役）
 + (NSString *)gameRootForParams:(NSDictionary *)params {
     NSString *instance = [params[@"instance"] isKindOfClass:[NSString class]] ? params[@"instance"] : @"";
     if (instance.length == 0) return [self currentGameRoot];
@@ -81,7 +80,7 @@
     NSArray *parts = [instance componentsSeparatedByCharactersInSet:
                       [NSCharacterSet characterSetWithCharactersInString:@"/\\:"]];
     NSString *safe = [parts componentsJoinedByString:@"_"];
-    NSString *root = [NSString stringWithFormat:@"%@/instances/%@", [self launcherHome], safe];
+    NSString *root = [[self currentGameRoot] stringByAppendingPathComponent:safe];   // ★Task483：单根下一层
     BOOL isDir = NO;
     if ([[NSFileManager defaultManager] fileExistsAtPath:root isDirectory:&isDir] && isDir) {
         return root;

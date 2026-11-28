@@ -644,8 +644,7 @@ static const NSUInteger ame317_storageMaxBytes = 4 * 1024 * 1024;
         const char *ame327_home = getenv("POJAV_HOME");
         gameDir = ame327_home
             ? [[NSString stringWithUTF8String:ame327_home]
-               stringByAppendingPathComponent:
-               [NSString stringWithFormat:@"instances/%@", name]]
+               stringByAppendingPathComponent:@"Library/Application Support/minecraft"]   // ★Task483：单根兜底（instances/<name> 拼接退役）
             : @"";
     }
     NSMutableDictionary *entry = [NSMutableDictionary dictionary];

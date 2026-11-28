@@ -14,6 +14,17 @@ public class PatchSVC implements ClassFileTransformer {
         {"de/maxhenkel/lame4j/Mp3Decoder", "de/maxhenkel/lame4j/Mp3Decoder.class.patch"},
         {"de/maxhenkel/lame4j/Mp3Encoder", "de/maxhenkel/lame4j/Mp3Encoder.class.patch"},
         {"de/maxhenkel/speex4j/AutomaticGainControl", "de/maxhenkel/speex4j/AutomaticGainControl.class.patch"},
+   
+        // ★Task483（iOS 致命错可见化）：FML FatalErrorReporting 替换——原类把
+        //   完整错误链只喂给桌面 Swing/SDL 模态弹窗，iOS 上弹窗永不返回 =
+        //   "无法启动"挂死表象且日志零可见。补丁版（JavaApp/patches_src/
+        //   net/neoforged/fml/startup/，基线 loader 12.0.8 官方 sources 唯一
+        //   delta = reportFatalError(String)）把错误全文打进 stdout 后干净
+        //   exit(1)，交由启动器看门狗（Task251/Task86）有序收尾。
+        //   资源落位：JavaApp/libs/ame_patches/net/neoforged/fml/startup/
+        //   FatalErrorReporting.class.patch（javap 签名集与原类逐条一致，
+        //   major 69 同代；sha256 见 worklog）。
+        {"net/neoforged/fml/startup/FatalErrorReporting", "net/neoforged/fml/startup/FatalErrorReporting.class.patch"},
     };
 
     @Override
@@ -64,6 +75,18 @@ public class PatchSVC implements ClassFileTransformer {
     }
 
     private String getPatchFile(String className) {
+        // ★Task483 版本守卫：FML 替换类仅对 fml_loader 12.0.8 精确代际启用
+        //   （12.0.9+ 类形未验，误替换有 NoSuchMethodError 面；守卫未命中时
+        //   保持原生弹窗路径 = Task482 时代行为，装机日志锚点可判读）。
+        if ("net/neoforged/fml/startup/FatalErrorReporting".equals(className)) {
+            String ame483_cp = System.getProperty("java.class.path", "");
+            if (ame483_cp.contains("fancymodloader/loader/12.0.8/loader-12.0.8.jar")) {
+                System.out.println("[PatchSVC] Task483: FML fatal-report patch ENGAGED (fml_loader 12.0.8 pinned) -- fatal dialog prints to launcher log + exit(1)");
+                return "net/neoforged/fml/startup/FatalErrorReporting.class.patch";
+            }
+            System.out.println("[PatchSVC] Task483: FML fatal-report patch SKIP (fml_loader 12.0.8 not on classpath) -- stock dialog path kept");
+            return null;
+        }
         for (String[] patch : PATCHES) {
             if (patch[0].equals(className)) {
                 return patch[1];

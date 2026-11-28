@@ -72,7 +72,7 @@ check("R8 ame451 preflight 通道归零（x16=1 预检面随四层退役）",
 print("== S 代际与注册 ==")
 tag = rd("Natives/BuildTag.h")
 check("S1 BuildTag Task474 · 2026-11-24", "Task464 · 2026-11-22" not in tag
-      and "Task482 · 2026-11-28" in tag)
+      and "Task483 · 2026-11-28" in tag)
 check("S2 电池注册 task465", "task465_selfcheck" in rd("scripts/task432_gate_battery.sh"))
 
 print()

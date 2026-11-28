@@ -104,9 +104,11 @@ check('B2 回读命中提前 return（defaultProfiles+[self save] 不执行 = �
           < plp_code.index("_ame353_registryLastGoodPath = [self.profilePath copy];"))
 
 # ══ C ZL2VersionIndex 实例树兜底 ═══════════════════════════
-check('C1 实例树扫描实现（instances/*/versions/<id> 目录级 + 隐藏目录跳过）',
+# ★Task483：扫描根随 instances 布局退役改挂单一真实数据根（POJAV_GAME_DIR）
+check('C1 单根整合包树扫描实现（<pack>/versions/<id> 目录级 + 隐藏目录跳过）',
       "- (NSDictionary *)ame_scanInstancesTreeForVersionId:(NSString *)versionId {" in idx_code
-      and 'stringByAppendingPathComponent:@"instances"' in idx
+      and 'NSString *instancesDir = [NSString stringWithUTF8String:homeC]' in idx
+      and 'Task483: 根 = 单一真实数据根' in idx
       and '[inst hasPrefix:@"."]' in idx)
 
 check('C2 hook 顺序 ②→②\'→③（实例树在本地扫描后、Task72 磁盘兜底前）',
@@ -114,7 +116,7 @@ check('C2 hook 顺序 ②→②\'→③（实例树在本地扫描后、Task72 �
           > idx_code.index("ame_scanLocalVersionId:versionId")
       and idx_code.index("ame_scanInstancesTreeForVersionId:versionId")
           < idx_code.index("ame_versionJsonOnDisk:versionId")
-      and "resolved '%@' from instances tree scan (Task353)" in idx)
+      and "resolved '%@' from single-root pack tree scan (Task353/483)" in idx)
 
 check('C3 .h 契约注释同步（②\' 层语义可 grep）',
       "实例树兜底扫描命中" in idxh and "Task353" in idxh)

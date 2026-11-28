@@ -19,12 +19,11 @@
 }
 
 - (NSString *)summary {
-    return @"新建游戏目录（实例）并切换为当前目录。"
-           "\n参数：name（string，必填，目录名，推荐「MC版本 加载器 YYYY.MM.DD」格式，如「1.20.1 Fabric 2026.08.26」）、"
-           "mcVersion（string，可选）、loader（string，可选）。"
-           "\n行为：在 instances/ 下创建目录 → 切换当前游戏目录（重建符号链接）→ 注册并选中同名 profile。"
-           "\n返回实例完整路径。后续 install_* 的 instance 参数传该目录名即可。"
-           "\n边界：目录已存在时直接切换不报错（幂等）。";
+    // ★ Task483：单根终局——本工具恒拒绝（instances 布局退役）
+    return @"新建游戏目录（已停用）。"
+           "\n单一真实根已生效：instances 多目录布局已退役，新建/切换游戏目录不再受支持，"
+           "现有数据已统一收编到 Library/Application Support/minecraft。"
+           "\n行为：调用本工具恒返回错误，不产生任何目录。";
 }
 
 - (void)execute:(NSDictionary<NSString *, id> *)params
@@ -48,88 +47,15 @@
         return;
     }
 
-    const char *homeEnv = getenv("POJAV_HOME");
-    NSString *home = (homeEnv && strlen(homeEnv) > 0) ? [NSString stringWithUTF8String:homeEnv] : nil;
-    if (home.length == 0) {
-        home = [NSSearchPathForDirectoriesInDomains(NSDocumentDirectory, NSUserDomainMask, YES) firstObject];
-    }
-
-    // 1. 创建实例目录（幂等）
-    NSString *instancePath = [home stringByAppendingPathComponent:
-                              [NSString stringWithFormat:@"instances/%@", name]];
-    NSError *dirError = nil;
-    if (![[NSFileManager defaultManager] createDirectoryAtPath:instancePath
-                                   withIntermediateDirectories:YES
-                                                    attributes:nil
-                                                         error:&dirError]) {
-        completion(nil, [NSError errorWithDomain:@"AiTool" code:500
-                                     userInfo:@{NSLocalizedDescriptionKey:
-                                         [NSString stringWithFormat:localize(@"ai.instance.mkdir_failed_fmt", nil), dirError.localizedDescription ?: localize(@"resman.common.unknown_error", nil)]}]);
-        return;
-    }
-
-    // 2. 切换当前游戏目录（复刻 LauncherPrefGameDirViewController.changeSelectionTo / VersionManagerViewController.switchGameDirTo）
-    setPrefObject(@"general.game_directory", name);
-    const char *gameDirEnv = getenv("POJAV_GAME_DIR");
-    NSString *lasmPath = (gameDirEnv && strlen(gameDirEnv) > 0) ? [NSString stringWithUTF8String:gameDirEnv] : nil;
-    // ★ Task482（去 instances 化单一真实根）：flatten 真实根绝不 remove——
-    //   标记在场的真实目录 = 游戏数据本体，切换链接层拒绝并向调用方如实回报
-    //（实例轴已随 Task482 退役；新建实例目录步骤仍可执行，但不再切换）。
-    NSDictionary *ame482_attrs = lasmPath.length > 0
-        ? [[NSFileManager defaultManager] attributesOfItemAtPath:lasmPath error:nil] : nil;
-    BOOL ame482_flatReal = ame482_attrs
-        && [ame482_attrs fileType] != NSFileTypeSymbolicLink
-        && [[NSFileManager defaultManager] fileExistsAtPath:
-                [lasmPath stringByAppendingPathComponent:@".ame482_flat_root"]];
-    if (ame482_flatReal) {
-        NSLog(@"[AiInstanceCreator] Task482: flattened real game root in place -- switch link layer rejected (no removal)");
-        completion(nil, [NSError errorWithDomain:@"AiTool" code:409
-                                     userInfo:@{NSLocalizedDescriptionKey:
-                                         @"单一真实根已生效（Task482）：instances 切换链接层已退役，切换请求被拒绝（数据零删除）。"}]);
-        return;
-    }
-    if (lasmPath.length > 0) {
-        [[NSFileManager defaultManager] removeItemAtPath:lasmPath error:nil];
-        NSError *linkError = nil;
-        BOOL linkOK = [[NSFileManager defaultManager] createSymbolicLinkAtPath:lasmPath
-                                                         withDestinationPath:instancePath
-                                                                       error:&linkError];
-        if (!linkOK) {
-            completion(nil, [NSError errorWithDomain:@"AiTool" code:500
-                                         userInfo:@{NSLocalizedDescriptionKey:
-                                             [NSString stringWithFormat:localize(@"ai.instance.symlink_failed_fmt", nil), linkError.localizedDescription ?: localize(@"resman.common.unknown_error", nil)]}]);
-            return;
-        }
-        [[NSFileManager defaultManager] changeCurrentDirectoryPath:lasmPath];
-    }
-    toggleIsolatedPref(NO);
-    [PLProfiles updateCurrent];
-
-    // 3. 注册并选中同名 profile（mcVersion/loader 仅作备注写入 userInfo 字段）
-    NSMutableDictionary *prof = [[PLProfiles current].profiles[name] mutableCopy];
-    if (!prof) prof = [NSMutableDictionary dictionary];
-    if (!prof[@"name"]) prof[@"name"] = name;
-    if (!prof[@"gameDir"]) prof[@"gameDir"] = @".";
-    prof[@"type"] = @"custom";
-    prof[@"created"] = [[NSDate date] description];
-    NSString *mcVersion = [params[@"mcVersion"] isKindOfClass:[NSString class]] ? params[@"mcVersion"] : @"";
-    NSString *loader = [params[@"loader"] isKindOfClass:[NSString class]] ? params[@"loader"] : @"";
-    if (mcVersion.length > 0) prof[@"aiMcVersion"] = mcVersion;
-    if (loader.length > 0) prof[@"aiLoader"] = loader;
-    [[PLProfiles current] saveProfile:prof withName:name];
-    [PLProfiles current].selectedProfileName = name;
-
-    // 4. 广播刷新
-    [[NSNotificationCenter defaultCenter] postNotificationName:@"ReloadProfileList" object:nil];
-    [[NSNotificationCenter defaultCenter] postNotificationName:@"SelectedProfileChanged" object:nil];
-
-    NSString *note = @"";
-    if (mcVersion.length > 0 || loader.length > 0) {
-        note = [NSString stringWithFormat:localize(@"ai.instance.note_fmt", nil),
-                mcVersion.length > 0 ? mcVersion : localize(@"ai.instance.unspecified", nil), loader.length > 0 ? loader : localize(@"ai.instance.no_loader", nil)];
-    }
-    completion([NSString stringWithFormat:localize(@"ai.instance.created_fmt", nil),
-                name, instancePath, note], nil);
+    // ★ Task483（单根终局，用户指令：命中 instances 的代码全部删除）：
+    //   instances/<name> 目录创建 + lasm 链接重指整段退役——单一真实数据根
+    //   政策下「新建游戏目录」不再是合法操作（历史数据由 main.m Task483
+    //   单根迁移收编）。工具如实拒绝并指引单根语义。
+    NSLog(@"[AiInstanceCreator] Task483: single real root policy -- create_instance rejected (instances layout retired, no directory created)");
+    completion(nil, [NSError errorWithDomain:@"AiTool" code:409
+                                 userInfo:@{NSLocalizedDescriptionKey:
+                                         localize(@"ai.instance.single_root_rejected", @"单一真实根已生效（Task483）：instances 多目录布局已退役，新建/切换游戏目录不再受支持；现有数据已统一收编到 Library/Application Support/minecraft。")}]);
+    return;
 }
 
 @end

@@ -1585,41 +1585,34 @@ didFinishPickingMediaWithInfo:(NSDictionary<UIImagePickerControllerInfoKey,id> *
     }];
 }
 
-// 跨实例 options.txt 全集（旧 ame229_allInstanceOptionsPaths 1:1 平移）
+// 跨目录 options.txt 全集（旧 ame229_allInstanceOptionsPaths 1:1 平移）
+// ★Task483：instances 根扫描退役——扫描根 = 单一真实数据根（POJAV_GAME_DIR），
+// 覆盖 根自身 + 根下一层整合包目录（Task483 迁移后的旧 instances/<x> 同位）。
 - (NSArray<NSString *> *)ame229_allInstanceOptionsPaths {
-    const char *home = getenv("POJAV_HOME");
-    if (home == NULL || home[0] == '\0') return @[];
-    NSString *instancesRoot = [NSString stringWithFormat:@"%s/instances", home];
+    const char *rootC = getenv("POJAV_GAME_DIR");
+    if (rootC == NULL || rootC[0] == '\0') return @[];
+    NSString *rootDir = [NSString stringWithUTF8String:rootC];
     NSFileManager *fm = NSFileManager.defaultManager;
     NSMutableArray<NSString *> *out = [NSMutableArray array];
-    for (NSString *inst in [fm contentsOfDirectoryAtPath:instancesRoot error:nil]) {
-        NSString *instDir = [instancesRoot stringByAppendingPathComponent:inst];
+    NSMutableArray<NSString *> *scanRoots = [NSMutableArray arrayWithObject:rootDir];
+    for (NSString *pack in [fm contentsOfDirectoryAtPath:rootDir error:nil] ?: @[]) {
+        if ([pack hasPrefix:@"."]) continue;
+        NSString *packDir = [rootDir stringByAppendingPathComponent:pack];
         BOOL isDir = NO;
-        if (![fm fileExistsAtPath:instDir isDirectory:&isDir] || !isDir) continue;
-        // 新隔离布局：instances/<inst>/versions/<ver>/game/options.txt
+        if ([fm fileExistsAtPath:packDir isDirectory:&isDir] && isDir) [scanRoots addObject:packDir];
+    }
+    for (NSString *instDir in scanRoots) {
+        // 版本隔离布局：<root>/versions/<ver>/game/options.txt
         NSString *versionsDir = [instDir stringByAppendingPathComponent:@"versions"];
         for (NSString *ver in [fm contentsOfDirectoryAtPath:versionsDir error:nil]) {
             NSString *opt = [[versionsDir stringByAppendingPathComponent:ver]
                 stringByAppendingPathComponent:@"game/options.txt"];
-            if ([fm fileExistsAtPath:opt]) [out addObject:opt];
+            if ([fm fileExistsAtPath:opt] && ![out containsObject:opt]) [out addObject:opt];
         }
-        // 兼容旧布局：实例根直接挂 options.txt
+        // 根直挂 options.txt
         NSString *optRoot = [instDir stringByAppendingPathComponent:@"options.txt"];
         if ([fm fileExistsAtPath:optRoot] && ![out containsObject:optRoot]) {
             [out addObject:optRoot];
-        }
-        // Task270 (M6)：custom_gamedir 第二层（ame269 整合包实例）
-        NSString *customRoot = [instDir stringByAppendingPathComponent:@"custom_gamedir"];
-        BOOL customIsDir = NO;
-        if ([fm fileExistsAtPath:customRoot isDirectory:&customIsDir] && customIsDir) {
-            for (NSString *customId in [fm contentsOfDirectoryAtPath:customRoot error:nil]) {
-                if ([customId hasPrefix:@"."]) continue;
-                NSString *optCustom = [[customRoot stringByAppendingPathComponent:customId]
-                    stringByAppendingPathComponent:@"options.txt"];
-                if ([fm fileExistsAtPath:optCustom] && ![out containsObject:optCustom]) {
-                    [out addObject:optCustom];
-                }
-            }
         }
     }
     // mtime 降序（最近玩的在前）
@@ -2809,7 +2802,7 @@ didFinishPicking:(NSArray<PHPickerResult *> *)results {
     ZL2SettingRowAction *gameDirRow =
         [[ZL2SettingRowAction alloc] initWithTitle:@"" subtitle:nil];
     gameDirRow.title = localize(@"ame369.setpg.gamedir_instances", @"游戏目录与实例");
-    gameDirRow.subtitle = localize(@"ame369.setpg.gamedir_instances.subtitle", @"查看/切换实例目录（instances），切换后重启生效");
+    gameDirRow.subtitle = localize(@"ame369.setpg.gamedir_instances.subtitle", @"查看游戏数据目录（单一真实根；instances 多目录布局已随 Task483 退役）");
     gameDirRow.onTap = ^{
         [weakSelf ame_push:[[LauncherPrefGameDirViewController alloc] init]
                    titled:localize(@"preference.title.game_directory", nil)];

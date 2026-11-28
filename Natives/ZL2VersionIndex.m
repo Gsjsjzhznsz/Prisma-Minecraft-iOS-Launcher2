@@ -210,8 +210,8 @@ NSString * const ZL2VersionIndexLogTag = @"[ZL2VersionIndex]";
         return;
     }
 
-    // ②' 实例树兜底扫描（★ Task353）：版本轴/多实例布局下版本实体常驻
-    //    POJAV_HOME/instances/<x>/versions/<id>（Ame329 版本轴统一、Task349
+    // ②' 单根整合包树兜底扫描（★ Task353→483）：版本轴/多实例布局下版本实体常驻
+    //    POJAV_GAME_DIR/<pack>/versions/<id>（Ame329 版本轴统一、Task349
     //    收编、1.0 备份导入同此形态），两个标准根均够不着 → 全实例树一跳
     //    （只读枚举；命中即"本地已装"语义，与②同目录级口径）。启动侧根
     //    对齐（ZL2Home [Ame353] launch version-root aligned）是主修，本扫描
@@ -219,7 +219,7 @@ NSString * const ZL2VersionIndexLogTag = @"[ZL2VersionIndex]";
     if (!versionObject) {
         versionObject = [self ame_scanInstancesTreeForVersionId:versionId];
         if (versionObject) {
-            NSLog(@"%@ resolved '%@' from instances tree scan (Task353)", ZL2VersionIndexLogTag, versionId);
+            NSLog(@"%@ resolved '%@' from single-root pack tree scan (Task353/483)", ZL2VersionIndexLogTag, versionId);
             [self ame_finish:versionObject callback:callback];
             return;
         }
@@ -297,14 +297,13 @@ NSString * const ZL2VersionIndexLogTag = @"[ZL2VersionIndex]";
     return nil;
 }
 
-// ★ Task353：instances/<x>/versions/<id> 实例树兜底扫描（② 同口径：目录存在
+// ★ Task353→483：单根整合包树兜底扫描 <pack>/versions/<id>（② 同口径：目录存在
 //   即"本地已装"；只读枚举，实例数个位级成本；隐藏目录跳过防误命中）
 - (NSDictionary *)ame_scanInstancesTreeForVersionId:(NSString *)versionId {
     if (versionId.length == 0) return nil;
-    const char *homeC = getenv("POJAV_HOME");
+    const char *homeC = getenv("POJAV_GAME_DIR");
     if (!homeC || !*homeC) return nil;
-    NSString *instancesDir = [[NSString stringWithUTF8String:homeC]
-        stringByAppendingPathComponent:@"instances"];
+    NSString *instancesDir = [NSString stringWithUTF8String:homeC];   // Task483: 根 = 单一真实数据根 POJAV_GAME_DIR
     NSFileManager *fileManager = [NSFileManager defaultManager];
     for (NSString *inst in [fileManager contentsOfDirectoryAtPath:instancesDir error:nil] ?: @[]) {
         if (inst.length == 0 || [inst hasPrefix:@"."]) continue;

@@ -75,8 +75,14 @@ static NSString * const kImportedModpacksKey = @"ImportedModpacks";
         // （MultiMC 实例同构：instances/<id> 即实例目录，不再双层嵌套）；
         // profile gameDir 写绝对路径（Task275 F5 全链绝对路径直通口径），
         // 与当前所选实例彻底解耦。旧布局由 FileLayoutService ame316 迁移。
-        const char *gameDirEnv = getenv("POJAV_HOME");
-        self.customGameDir = [@(gameDirEnv ?: ".") stringByAppendingPathComponent:@"instances"];
+        // ★ Task483：instances 工作区根退役——整合包导入统一落单一真实数据根
+        //   （POJAV_GAME_DIR = lasm），<packId> 为根下一层目录（与 main.m Task483
+        //   迁移后的存量整合包同位）。
+        const char *gameDirEnv = getenv("POJAV_GAME_DIR");
+        const char *ame483_homeEnv = getenv("POJAV_HOME");
+        self.customGameDir = (gameDirEnv && strlen(gameDirEnv) > 0)
+            ? [NSString stringWithUTF8String:gameDirEnv]
+            : [@(ame483_homeEnv ?: ".") stringByAppendingPathComponent:@"Library/Application Support/minecraft"];
         NSFileManager *fm = [NSFileManager defaultManager];
         if (![fm fileExistsAtPath:self.customGameDir]) {
             [fm createDirectoryAtPath:self.customGameDir withIntermediateDirectories:YES attributes:nil error:nil];

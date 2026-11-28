@@ -26,7 +26,7 @@ B 线（标记消费方四门）：
   B3 LauncherPrefGameDirViewController 切换入口保护（绝不 remove）
   B4 AiInstanceCreator 切换入口保护（绝不 remove + 409 如实回报）
 C 线：
-  C1 BuildTag 代际 = Task482 · 2026-11-28
+  C1 BuildTag 代际 = Task483 · 2026-11-28
   C2 Task473/ame287/Task481 三块保形（零删除）
   C3 括号平衡（四个编辑 ObjC 文件 {} 计数）
 --selftest：负样本探针 ×2（fml.toml 块剥除 / main.m 标记门剥除——判定函数必须咬人）
@@ -51,22 +51,22 @@ def run_checks(jl, mainm, prefvc, aicreator, tag):
             fails.append(f"{name}: {detail}")
 
     # ── A 线：JavaLauncher.m flatten + fml.toml ──
-    check('A1 flatten 定义 + 调用序(Task473后/ame287前)',
-          'static NSString *ame482_flattenInstanceLink(NSString *gameDir) {' in jl
-          and 'gameDir = ame482_flattenInstanceLink(gameDir);' in jl
-          and jl.index('Task473: gameDir = %@') < jl.index('gameDir = ame482_flattenInstanceLink(gameDir);') < jl.index('gameDir = ame287_configureForgeUriSafeRoot(ame287_vid, gameDir);'),
-          'flatten 定义或调用序错位')
+    # ★Task483：flatten 机制（ame482_flattenInstanceLink + .ame482_flat_root
+    #   标记）已随 instances 布局退役删除，A1/A2/A3 转为退役反锚（在场即红）；
+    #   单根收编锚点迁移至 task483_selfcheck.py。
+    check('A1-r2 flatten 退役反锚（定义与调用必须零在场）',
+          'ame482_flattenInstanceLink' not in jl,
+          'flatten 代码残留（应已随 Task483 删除）')
 
-    check('A2 标记写入 + 装机验证锚日志行',
-          '.ame482_flat_root' in jl
-          and 'Task482: instance link flattened -> real root' in jl,
-          '标记或锚点日志缺席')
+    check('A2-r2 .ame482_flat_root 标记退役反锚',
+          '.ame482_flat_root' not in jl and 'instance link flattened -> real root' not in jl,
+          'flatten 标记/锚点日志残留')
 
-    check('A3 fail-open 三重',
-          'lasmPath occupied after link removal' in jl
-          and 'move failed -- link restored, flatten aborted' in jl
-          and 'flatten exception' in jl,
-          'fail-open 三重缺席')
+    check('A3-r2 flatten fail-open 诊断退役反锚',
+          'lasmPath occupied after link removal' not in jl
+          and 'move failed -- link restored, flatten aborted' not in jl
+          and 'flatten exception' not in jl,
+          'flatten fail-open 日志残留')
 
     check('A4 fml.toml 写入器 + r1 值感知幂等门 + 锚点',
           'earlyWindowControl = false\\n' in jl
@@ -76,12 +76,12 @@ def run_checks(jl, mainm, prefvc, aicreator, tag):
           and 'Task482: FML early display disabled via fml.toml' in jl,
           'fml.toml 写入器或 r1 值感知门缺席')
 
-    check('A4-r1 旧 containsString 门已退役（FML 出厂 true 误判判例）',
+    check('A4-r1 旧 containsString 门已退役（FML 出厂 true 误判判例；flatten reason= 诊断已随 Task483 退役）',
           'containsString:@"earlyWindowControl"' not in jl
-          and 'reason=env-missing' in jl
-          and 'reason=lasm-not-symlink' in jl
-          and 'reason=target-not-instances' in jl,
-          '旧幂等门未拆或 flatten 五关卡诊断日志缺席')
+          and 'reason=env-missing' not in jl
+          and 'reason=lasm-not-symlink' not in jl
+          and 'reason=target-not-instances' not in jl,
+          '旧幂等门或 flatten 诊断日志残留')
 
     check('A5 482-B 调用在 Task481 published 锚之后',
           'Task481: located version root published' in jl
@@ -95,28 +95,33 @@ def run_checks(jl, mainm, prefvc, aicreator, tag):
           and '-Dforge.disableEarlyDisplay=true' in jl,
           '旧属性被误删（保形红线）')
 
-    # ── B 线：标记消费方 ──
-    check('B1 main.m 迁移分支标记门',
-          'ame482_flat_root' in mainm
-          and '&& ![fm fileExistsAtPath:[lasmPath stringByAppendingPathComponent:@".ame482_flat_root"]]' in mainm,
-          'main.m 迁移分支标记门缺席')
+    # ── B 线：标记消费方（★Task483 instances 布局退役 → 反锚 + 单根新锚）──
+    check('B1-r2 main.m flatten 标记门退役反锚（单根迁移锚点移交 task483_selfcheck）',
+          'ame482_flat_root' not in mainm
+          and 'Task226 game-dir symlink re-pointed' not in mainm
+          and '[Task483] single-root migration done' in mainm,
+          'main.m flatten 残留或缺 Task483 迁移锚')
 
-    check('B2 main.m 真实根保留分支',
-          'Task482: flattened real game root preserved as real directory' in mainm,
-          'main.m relink 保留分支缺席')
+    check('B2-r2 main.m relink 保留分支退役反锚（永不重指 instances；fail-open 原位还原除外）',
+          'flattened real game root preserved as real directory' not in mainm
+          and 'withDestinationPath:multidirPath' not in mainm
+          and 'withDestinationPath:instances/' not in mainm,
+          'main.m 链接重指 instances 路径残留（单根政策红线）')
 
-    check('B3 切换入口(PrefVC)保护',
-          'ame482_flatReal' in prefvc
-          and 'Task482: flattened real game root in place -- link layer skipped' in prefvc,
-          'PrefVC 保护缺席')
+    check('B3-r2 切换入口(PrefVC)单根化反锚（链接手术退役，真实根只读）',
+          'ame482_flatReal' not in prefvc
+          and 'createSymbolicLinkAtPath:lasmPath' not in prefvc
+          and 'ame483_singleRoot' in prefvc,
+          'PrefVC 链接手术残留或缺单根锚')
 
-    check('B4 切换入口(AiInstanceCreator)保护',
-          'ame482_flatReal' in aicreator
-          and 'switch link layer rejected' in aicreator,
-          'AiInstanceCreator 保护缺席')
+    check('B4-r2 切换入口(AiInstanceCreator)拒绝化反锚（创建/切换整段退役）',
+          'ame482_flatReal' not in aicreator
+          and 'single_root_rejected' in aicreator
+          and 'instances/%@' not in aicreator,
+          'AiInstanceCreator 创建路径残留')
 
     # ── C 线 ──
-    check('C1 BuildTag 代际', 'Task482 · 2026-11-28' in tag, 'BuildTag 未进代')
+    check('C1 BuildTag 代际', 'Task483 · 2026-11-28' in tag, 'BuildTag 未进代')
 
     check('C2 Task473/ame287/Task481 三块保形',
           '[ZL2GamePath gameDirForProfile:nil]' in jl
@@ -151,8 +156,8 @@ def main():
         jl_mut = jl.replace('earlyWindowControl = false\\n', 'XPROBE_X\n')
         f1 = run_checks(jl_mut, mainm, prefvc, aicreator, tag)
         assert any(x.startswith('A4') for x in f1), 'selftest1 失效：A4 未咬人'
-        # 探针2：剥除 main.m 标记门 → B1 必红
-        mainm_mut = mainm.replace('.ame482_flat_root', 'XPROBE_X')
+        # 探针2：剥除 main.m Task483 完成锚 → B1 必红（★483 反锚语义）
+        mainm_mut = mainm.replace('[Task483] single-root migration done', 'XPROBE_X')
         f2 = run_checks(jl, mainm_mut, prefvc, aicreator, tag)
         assert any(x.startswith('B1') for x in f2), 'selftest2 失效：B1 未咬人'
         print('selftest 2/2 探针咬人（判定函数有效）')

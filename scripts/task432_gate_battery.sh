@@ -186,6 +186,12 @@ run_py task468_self scripts/ame468_selfcheck.py --selftest
 run_py task482     scripts/task482_selfcheck.py
 run_py task482_self scripts/task482_selfcheck.py --selftest
 
+# ★Task483 单根终局（命中 instances 的代码全部删除）+ FML 致命错可见化：
+#   main.m Task483 单根迁移（rename 收编 + 空壳直删 + 残余归档 + 注册表
+#   gameDir 前缀重写）/ 启动功能链十门去 instances / PatchSVC FML 12.0.8
+#   版本守卫补丁（[FML-FATAL] 全文进日志 + exit(1)，消灭 Swing 弹窗挂死）
+run_py task483     scripts/task483_selfcheck.py
+
 echo
 echo "════════ 电池总裁决 ════════"
 fails=0

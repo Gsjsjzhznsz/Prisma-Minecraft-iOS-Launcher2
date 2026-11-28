@@ -8,11 +8,25 @@
 #import "AmeNativeMenu.h"       // Task247（T9）：伪玻璃档长按菜单 ame240 路由
 #import "LiquidGlassCompat.h"   // Task247（T9）：伪玻璃档分档判定
 
-@interface LauncherPrefGameDirViewController ()<UITextFieldDelegate>
-@property(nonatomic) NSMutableArray *array;
-@end
+// ★ Task483（单根终局）：instances 多实例管理页整体退役重写——单一真实数据根
+//   = lasm（Library/Application Support/minecraft），本页降级为「游戏目录」
+//   只读信息页：单条目展示真实根（体量统计 + 外部打开），不再列出/新建/改名/
+//   删除/切换 instances 目录（旧实现的 removeItemAtPath + 重建符号链接 =
+//   「删 instances 丢数据」直接病灶面，随 instances 布局一并退役）。
 
 @implementation LauncherPrefGameDirViewController
+
+// 单一真实数据根（与 main.m init_setupMultiDir 同源：POJAV_GAME_DIR 已由
+// pre-init 指向 lasm 真实目录；env 缺席时按 lasm 字面量兜底）。
++ (NSString *)ame483_singleRoot {
+    const char *gd = getenv("POJAV_GAME_DIR");
+    if (gd && strlen(gd) > 0) return [NSString stringWithUTF8String:gd];
+    const char *home = getenv("POJAV_HOME");
+    if (home && strlen(home) > 0) {
+        return [NSString stringWithFormat:@"%s/Library/Application Support/minecraft", home];
+    }
+    return [NSSearchPathForDirectoriesInDomains(NSDocumentDirectory, NSUserDomainMask, YES) firstObject];
+}
 
 - (void)viewDidLoad {
     [super viewDidLoad];
@@ -28,77 +42,34 @@
     [self setTitle:localize(@"preference.title.game_directory", nil)];
 
     self.array = [[NSMutableArray alloc] init];
-    [self.array addObject:@"default"];
+    // ★ Task483：仅单一真实根一个条目（instances/<name> 列表扫描退役）
+    [self.array addObject:[[self class] ame483_singleRoot].lastPathComponent ?: @"minecraft"];
 
     self.tableView = [[UITableView alloc] initWithFrame:CGRectZero style:UITableViewStyleInsetGrouped];
     self.tableView.keyboardDismissMode = UIScrollViewKeyboardDismissModeInteractive;
     self.tableView.sectionFooterHeight = 50;
-
-    NSString *path = [NSString stringWithFormat:@"%s/instances", getenv("POJAV_HOME")];
-
-    NSFileManager *fm = NSFileManager.defaultManager;
-    NSArray *files = [fm contentsOfDirectoryAtPath:path error:nil];
-    BOOL isDir;
-    for (NSString *file in files) {
-        [fm fileExistsAtPath:path isDirectory:(&isDir)];
-        if (isDir && ![file isEqualToString:@"default"]) {
-            [self.array addObject:file];
-        }
-    }
 
     // 适配自定义启动器背景：将当前视图控制器透明化，让全局背景（图片/视频）能够透出显示。
     // 放在 tableView 重新创建之后调用，确保 makeViewControllerTransparent 处理的是最终的 tableView。
     [[BackgroundManager sharedManager] makeViewControllerTransparent:self];
 
     // 监听背景 UI 效果变化通知：当用户在背景设置中切换毛玻璃/半透明或调整透明度时，
-    // 重新调用 makeViewControllerTransparent 以应用最新的视觉效果，保证背景始终正确透出。
+    // 重新调用 makeViewControllerTransparent 以应用最终的视觉效果，保证背景始终正确透出。
     [[NSNotificationCenter defaultCenter] addObserver:self
                                              selector:@selector(reapplyBackgroundEffect)
                                                  name:@"BackgroundUIEffectChanged"
                                                object:nil];
 }
 
+// ★ Task483：instances 切换（remove + 重建符号链接）整段退役。单根下唯一
+//   合法目标 = 真实根自身：仅刷新 profile 缓存与列表通知（保持调用方兼容），
+//   不做任何文件系统手术、绝不触碰 lasm。
 - (void)changeSelectionTo:(NSString *)name {
     if (getenv("DEMO_LOCK")) return;
-
-    setPrefObject(@"general.game_directory", name);
-    NSString *multidirPath = [NSString stringWithFormat:@"%s/instances/%@", getenv("POJAV_HOME"), name];
-    NSString *lasmPath = @(getenv("POJAV_GAME_DIR"));
-    // ★ Task482（去 instances 化单一真实根）：flatten 真实根绝不 remove——
-    //   旧实现无条件删除 lasmPath 重建链接，扁平化后整棵游戏树（versions/
-    //   saves/mods/config）都在里面，一次切换 = 数据无声蒸发。标记在场的
-    //   真实目录跳过链接层（切换对扁平根降级为只改偏好，数据安全第一）。
-    NSDictionary *ame482_attrs = [NSFileManager.defaultManager attributesOfItemAtPath:lasmPath error:nil];
-    BOOL ame482_flatReal = ame482_attrs
-        && [ame482_attrs fileType] != NSFileTypeSymbolicLink
-        && [NSFileManager.defaultManager fileExistsAtPath:
-                [lasmPath stringByAppendingPathComponent:@".ame482_flat_root"]];
-    if (!ame482_flatReal) {
-    NSError *removeError = nil;
-    [NSFileManager.defaultManager removeItemAtPath:lasmPath error:&removeError];
-    // removeItem 失败不一定是致命的（首次切换时 lasmPath 可能不存在），忽略并继续
-
-    NSError *linkError = nil;
-    BOOL linkOK = [NSFileManager.defaultManager createSymbolicLinkAtPath:lasmPath
-                                                       withDestinationPath:multidirPath
-                                                                     error:&linkError];
-    if (!linkOK) {
-        // 符号链接创建失败：POJAV_GAME_DIR 仍是断链，后续所有路径都会失败。
-        // 提示用户并尽早返回，避免把状态搞得更乱。
-        NSLog(@"[GameDir] createSymbolicLink failed: %@", linkError.localizedDescription);
-        showDialog(localize(@"Error", nil),
-                   [NSString stringWithFormat:localize(@"i18n_str_363", nil), linkError.localizedDescription]);
-        return;
-    }
-    } else {
-        NSLog(@"[GameDir] Task482: flattened real game root in place -- link layer skipped, no removal (single real root policy)");
-    }
-    [NSFileManager.defaultManager changeCurrentDirectoryPath:lasmPath];
-    // 切换 pref.instancePath 到新目录的 launcher_preferences.plist
-    // （内部会基于 POJAV_GAME_DIR 重新计算，已修复之前需重启启动器的 bug）
+    NSLog(@"[GameDir] Task483: single real root policy -- switch request to '%@' is a no-op (no link surgery, lasm untouched)", name);
     toggleIsolatedPref(NO);
 
-    // 刷新 PLProfiles 缓存，确保后续读取的是新游戏目录的 launcher_profiles.json
+    // 刷新 PLProfiles 缓存，确保后续读取的是单一真实根的 launcher_profiles.json
     [PLProfiles updateCurrent];
 
     // 尝试直接调用 reloadProfileList，如果 navigationController 响应该选择器
@@ -131,7 +102,8 @@
         view.autoresizingMask = UIViewAutoresizingFlexibleWidth;
         view.delegate = self;
         view.returnKeyType = UIReturnKeyDone;
-        view.userInteractionEnabled = indexPath.row != 0;
+        // ★ Task483：单根条目只读（旧实现 row!=0 可编辑改名 = instances 改名入口）
+        view.userInteractionEnabled = NO;
         [cell.contentView addSubview:view];
         cell.detailTextLabel.text = @"...";
     }
@@ -144,7 +116,7 @@
     // Calculate the instance size
     dispatch_async(dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_DEFAULT, 0), ^{
         unsigned long long folderSize = 0;
-        NSString *directory = [NSString stringWithFormat:@"%s/instances/%@", getenv("POJAV_HOME"), self.array[indexPath.row]];
+        NSString *directory = [[self class] ame483_singleRoot];
         [NSFileManager.defaultManager nr_getAllocatedSize:&folderSize ofDirectoryAtURL:[NSURL fileURLWithPath:directory] error:nil];
         dispatch_async(dispatch_get_main_queue(), ^{
             cell.detailTextLabel.text = [NSByteCountFormatter stringFromByteCount:folderSize countStyle:NSByteCountFormatterCountStyleMemory];
@@ -156,21 +128,20 @@
     } else {
         cell.accessoryType = UITableViewCellAccessoryNone;
     }
-    
+
     return cell;
 }
 
-- (UIView *)tableView:(UITableView *)tableView 
+- (UIView *)tableView:(UITableView *)tableView
 viewForFooterInSection:(NSInteger)section
 {
-    UITextField *view = [[UITextField alloc] init];
-    [view addTarget:view action:@selector(resignFirstResponder) forControlEvents:UIControlEventEditingDidEndOnExit];
-    view.autocorrectionType = UITextAutocorrectionTypeNo;
-    view.autocapitalizationType = UITextAutocapitalizationTypeNone;
-    view.delegate = self;
-    view.placeholder = localize(@"preference.multidir.add_directory", nil);
-    view.returnKeyType = UIReturnKeyDone;
-    return view;
+    // ★ Task483：新建目录入口退役——页脚改为单一真实根说明文案
+    UILabel *footer = [[UILabel alloc] init];
+    footer.text = localize(@"ame483.gamedir.single_root_hint", @"单一游戏目录已启用（instances 多目录布局已退役），游戏数据统一存放在 Library/Application Support/minecraft");
+    footer.font = [UIFont systemFontOfSize:13];
+    footer.textColor = [UIColor secondaryLabelColor];
+    footer.numberOfLines = 0;
+    return footer;
 }
 
 - (void)tableView:(UITableView *)tableView didSelectRowAtIndexPath:(NSIndexPath *)indexPath {
@@ -186,17 +157,8 @@ viewForFooterInSection:(NSInteger)section
     }
 }
 
-- (id)createOpenScheme:(NSString *)scheme at:(NSString *)directory {
-    return ^(UIAction *action) {
-        [UIApplication.sharedApplication
-            openURL:[NSURL URLWithString:[NSString stringWithFormat:@"%@://%@", scheme, directory]]
-            options:@{} completionHandler:nil];
-    };
-}
-
 // ★ Task247（T9）：伪玻璃档长按手势 → ame240 统一路由（磨砂面板）。
-//   菜单项与系统上下文菜单同源：外部打开（按可用 scheme）+ 重命名 + 删除
-//   （default 实例仅外部打开）。
+//   ★Task483：菜单仅保留「外部打开」（单一真实根）；重命名/删除退役。
 - (void)ame247_longPressDirMenu:(UILongPressGestureRecognizer *)gesture {
     if (gesture.state != UIGestureRecognizerStateBegan) return;
     CGPoint ame247_pt = [gesture locationInView:self.tableView];
@@ -204,7 +166,7 @@ viewForFooterInSection:(NSInteger)section
     if (ame247_ip == nil || ame247_ip.row >= self.array.count) return;
 
     NSString *ame247_name = self.array[ame247_ip.row];
-    NSString *ame247_dir = [NSString stringWithFormat:@"%s/instances/%@", getenv("POJAV_HOME"), ame247_name];
+    NSString *ame247_dir = [[self class] ame483_singleRoot];
     NSMutableArray<NSDictionary *> *ame247_items = [NSMutableArray array];
     NSDictionary *ame247_apps = @{
         @"shareddocuments": @"Files",
@@ -225,24 +187,6 @@ viewForFooterInSection:(NSInteger)section
             }];
         }
     }
-    if (ame247_ip.row != 0) {
-        [ame247_items addObject:@{
-            @"title": localize(@"Rename", nil),
-            @"systemImage": @"pencil",
-            @"handler": ^{
-                UITableViewCell *ame247_cell = [self.tableView cellForRowAtIndexPath:ame247_ip];
-                [ame247_cell.contentView.subviews.firstObject becomeFirstResponder];
-            },
-        }];
-        [ame247_items addObject:@{
-            @"title": localize(@"Delete", nil),
-            @"systemImage": @"trash",
-            @"destructive": @YES,
-            @"handler": ^{
-                [self actionDeleteAtIndexPath:ame247_ip];
-            },
-        }];
-    }
     if (ame247_items.count == 0) return;
     UITableViewCell *ame247_anchor = [self.tableView cellForRowAtIndexPath:ame247_ip];
     [AmeNativeMenu ame240_presentMenuWithTitle:ame247_name
@@ -250,15 +194,15 @@ viewForFooterInSection:(NSInteger)section
                                     sourceView:ame247_anchor ?: self.view];
 }
 
-- (UIContextMenuConfiguration *)tableView:(UITableView *)tableView contextMenuConfigurationForRowAtIndexPath:(NSIndexPath *)indexPath point:(CGPoint)point 
+- (UIContextMenuConfiguration *)tableView:(UITableView *)tableView contextMenuConfigurationForRowAtIndexPath:(NSIndexPath *)indexPath point:(CGPoint)point
 {
     // ★ Task247（T9）：伪玻璃档返回 nil（系统上下文菜单不上场），长按由
     //   viewDidLoad 挂的手势经 ame240 路由呈磨砂面板。
     if (LGCIsPseudoGlassStyleActive()) return nil;
-    NSArray *menuItems;
+    // ★ Task483：仅「外部打开」（单一真实根）；重命名/删除退役。
     NSMutableArray *openItems = [[NSMutableArray alloc] init];
 
-    NSString *directory = [NSString stringWithFormat:@"%s/instances/%@", getenv("POJAV_HOME"), self.array[indexPath.row]];
+    NSString *directory = [[self class] ame483_singleRoot];
     NSDictionary *apps = @{
         @"shareddocuments": @"Files",
         @"filza": @"Filza",
@@ -281,85 +225,21 @@ viewForFooterInSection:(NSInteger)section
         options:UIMenuOptionsDisplayInline
         children:openItems];
 
-    if (indexPath.row == 0) {
-        // You can't delete or rename the default instance, though there will be a reset action (TODO)
-        menuItems = @[open];
-    } else {
-        UIAction *rename = [UIAction
-            actionWithTitle:localize(@"Rename", nil)
-            image:[UIImage systemImageNamed:@"pencil"]
-            identifier:nil
-            handler:^(UIAction *action) {
-                UITableViewCell *view = [self.tableView cellForRowAtIndexPath:indexPath];
-                [view.contentView.subviews.firstObject becomeFirstResponder];
-            }
-        ];
-
-        UIAction *delete = [UIAction
-            actionWithTitle:localize(@"Delete", nil)
-            image:[UIImage systemImageNamed:@"trash"]
-            identifier:nil
-            handler:^(UIAction *action) {
-                [self actionDeleteAtIndexPath:indexPath];
-            }
-        ];
-        delete.attributes = UIMenuElementAttributesDestructive;
-
-        menuItems = @[open, rename, delete];
-    }
-
     return [UIContextMenuConfiguration
         configurationWithIdentifier:nil
         previewProvider:nil
         actionProvider:^UIMenu *(NSArray<UIMenuElement *> *suggestedActions) {
-            return [UIMenu menuWithTitle:self.array[indexPath.row] children:menuItems];
+            return [UIMenu menuWithTitle:self.array[indexPath.row] children:@[open]];
         }
     ];
 }
 
-- (void)tableView:(UITableView *)tableView commitEditingStyle:(UITableViewCellEditingStyle)editingStyle forRowAtIndexPath:(NSIndexPath *)indexPath
-{
-    if (editingStyle == UITableViewCellEditingStyleDelete) {
-        [self actionDeleteAtIndexPath:indexPath];
-    }
-}
-
-- (UITableViewCellEditingStyle)tableView:(UITableView *)tableView editingStyleForRowAtIndexPath:(NSIndexPath *)indexPath
-{
-    if (indexPath.row == 0) {
-        // TODO: Reset action?
-        return UITableViewCellEditingStyleNone;
-    } else {
-        return UITableViewCellEditingStyleDelete;
-    }
-}
-
-- (void)actionDeleteAtIndexPath:(NSIndexPath *)indexPath
-{
-    UITableViewCell *view = [self.tableView cellForRowAtIndexPath:indexPath];
-    NSString *title = localize(@"preference.title.confirm", nil);
-    NSString *message = [NSString stringWithFormat:localize(@"preference.title.confirm.delete_game_directory", nil), self.array[indexPath.row]];
-    UIAlertController *confirmAlert = [UIAlertController alertControllerWithTitle:title message:message preferredStyle:UIAlertControllerStyleActionSheet];
-    confirmAlert.popoverPresentationController.sourceView = view;
-    confirmAlert.popoverPresentationController.sourceRect = view.bounds;
-    UIAlertAction *ok = [UIAlertAction actionWithTitle:localize(@"OK", nil) style:UIAlertActionStyleDestructive handler:^(UIAlertAction * _Nonnull action) {
-        NSString *directory = [NSString stringWithFormat:@"%s/instances/%@", getenv("POJAV_HOME"), self.array[indexPath.row]];
-        NSError *error;
-        if([NSFileManager.defaultManager removeItemAtPath:directory error:&error]) {
-            if ([getPrefObject(@"general.game_directory") isEqualToString:self.array[indexPath.row]]) {
-                [self changeSelectionTo:self.array[0]];
-                [self.tableView cellForRowAtIndexPath:[NSIndexPath indexPathForRow:0 inSection:0]].accessoryType = UITableViewCellAccessoryCheckmark;
-            }
-            [self.array removeObjectAtIndex:indexPath.row];
-            [self.tableView deleteRowsAtIndexPaths:@[indexPath] withRowAnimation:UITableViewRowAnimationAutomatic];
-        } else {
-            showDialog(localize(@"Error", nil), error.localizedDescription);
-        }
-    }];
-    UIAlertAction *cancel = [UIAlertAction actionWithTitle:localize(@"Cancel", nil) style:UIAlertActionStyleCancel handler:nil];
-    [confirmAlert addAction:cancel];
-    [confirmAlert addAction:ok];
-    [self presentViewController:confirmAlert animated:YES completion:nil];
+- (id)createOpenScheme:(NSString *)scheme at:(NSString *)directory {
+    return ^(UIAction *action) {
+        [UIApplication.sharedApplication
+            openURL:[NSURL URLWithString:[NSString stringWithFormat:@"%@://%@", scheme, directory]]
+            options:@{} completionHandler:nil];
+    };
 }
 
 - (void) dismissModalViewController {
@@ -369,49 +249,11 @@ viewForFooterInSection:(NSInteger)section
 #pragma mark UITextField
 
 - (void)textFieldDidEndEditing:(UITextField *)sender {
-    BOOL isFooterView = sender.superview == self.tableView;
+    // ★ Task483：单根条目只读、页脚改说明文案——编辑路径只剩文本还原。
     if (!sender.hasText || [sender.text isEqualToString:sender.placeholder]) {
-        if (isFooterView) {
-            return;
-        }
-        sender.text = sender.placeholder;
         return;
     }
-
-    NSError *error;
-
-    NSString *dest = [NSString stringWithFormat:@"%s/instances/%@", getenv("POJAV_HOME"), sender.text];
-    if (isFooterView) {
-        [NSFileManager.defaultManager createDirectoryAtPath:dest withIntermediateDirectories:NO attributes:nil error:&error];
-    } else {
-        NSString *source = [NSString stringWithFormat:@"%s/instances/%@", getenv("POJAV_HOME"), sender.placeholder];
-        [NSFileManager.defaultManager moveItemAtPath:source toPath:dest error:&error];
-    }
-
-    if (error == nil) {
-        [self changeSelectionTo:sender.text];
-        if (isFooterView) {
-            NSIndexPath *indexPath = [NSIndexPath indexPathForRow:self.array.count inSection:0];
-            [self.array addObject:sender.text];
-            [self.tableView beginUpdates];
-            [self.tableView insertRowsAtIndexPaths:@[indexPath] withRowAnimation:UITableViewRowAnimationAutomatic];
-            [self.tableView endUpdates];
-            [self tableView:self.tableView didSelectRowAtIndexPath:indexPath];
-            // Clear text
-            sender.text = @"";
-        } else {
-            int index = [self.array indexOfObject:sender.placeholder];
-            self.array[index] = sender.placeholder = sender.text;
-            NSIndexPath *indexPath = [NSIndexPath indexPathForRow:index inSection:0];
-            [self tableView:self.tableView didSelectRowAtIndexPath:indexPath];
-        }
-    } else {
-        // Restore to the previous name if we encounter an error
-        if (!isFooterView) {
-            sender.text = sender.placeholder;
-        }
-        showDialog(localize(@"Error", nil), error.localizedDescription);
-    }
+    sender.text = sender.placeholder;
 }
 
 - (BOOL)textField:(UITextField *)textField shouldChangeCharactersInRange:(NSRange)range replacementString:(NSString *)string {

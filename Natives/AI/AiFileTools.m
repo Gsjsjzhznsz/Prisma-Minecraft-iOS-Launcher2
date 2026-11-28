@@ -81,9 +81,8 @@ static NSString * const kAiToolDomain = @"AiTool";
     if (root && strlen(root) > 0) return @(root);
     const char *home = getenv("POJAV_HOME");
     if (home && strlen(home) > 0) {
-        NSString *name = getPrefObject(@"general.game_directory");
-        if (name.length == 0) name = @"default";
-        return [NSString stringWithFormat:@"%s/instances/%@", home, name];
+        // ★ Task483：单根兜底 = lasm（instances/<name> 拼接随布局退役）
+        return [NSString stringWithFormat:@"%s/Library/Application Support/minecraft", home];
     }
     return [NSSearchPathForDirectoriesInDomains(NSDocumentDirectory, NSUserDomainMask, YES) firstObject];
 }

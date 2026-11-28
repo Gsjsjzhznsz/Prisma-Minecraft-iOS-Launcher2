@@ -3632,7 +3632,7 @@
 "ame369.setpg.more_launcher" = "More Launcher Settings";
 "ame369.setpg.more_launcher.subtitle" = "Full sections: UI scale, accent color, announcements, data export and more";
 "ame369.setpg.gamedir_instances" = "Game Directory & Instances";
-"ame369.setpg.gamedir_instances.subtitle" = "View/switch the instances directory; takes effect after restart";
+"ame369.setpg.gamedir_instances.subtitle" = "View the single game data directory (instances multi-directory layout retired by Task483)";
 "ame369.setpg.import_external" = "Import External Launcher Data";
 "ame369.setpg.import_external.subtitle" = "Detect .minecraft / HMCL·PCL / MultiMC·Prism / Android launcher directories and merge into the current instance";
 "ame369.setpg.runtime_fallback.subtitle" = "Launch chain falls back automatically when no matching runtime is installed";
@@ -4699,3 +4699,5 @@
 "ame477.setpg.renderer.badge_plugin" = "Plugin";
 "ame477.setpg.renderer.badge_builtin" = "Built-in";
 "ame477.repo.uninstall" = "Uninstall";
+"ame483.gamedir.single_root_hint" = "Single game directory is active (the instances multi-directory layout is retired); all game data now lives under Library/Application Support/minecraft";
+"ai.instance.single_root_rejected" = "Single real root is active (Task483): the instances multi-directory layout is retired; creating or switching game directories is no longer supported. Existing data has been consolidated under Library/Application Support/minecraft.";

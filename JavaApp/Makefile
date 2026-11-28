@@ -171,7 +171,9 @@ $(OUTPUTDIR)/patchsvc.jar: $(CLASSES)
 	@mv $(basename $@)/de/maxhenkel/rnnoise4j/Denoiser.class $(basename $@)/de/maxhenkel/rnnoise4j/Denoiser.class.patch
 	@mv $(basename $@)/de/maxhenkel/speex4j/AutomaticGainControl.class $(basename $@)/de/maxhenkel/speex4j/AutomaticGainControl.class.patch
 	@rm -rf $(basename $@)/de/maxhenkel/*/*.class
-	@echo "Creating $@"
+	@mkdir -p $(basename $@)/net/neoforged/fml/startup
+	@cp libs/ame_patches/net/neoforged/fml/startup/FatalErrorReporting.class.patch $(basename $@)/net/neoforged/fml/startup/
+	@echo "Creating $@ (includes ame483 FML fatal-report patch)"
 	@$(BOOTJDK)/jar -cfm $@ $(SOURCEDIR)/patchsvc.txt -C $(basename $@) .
 
 # Task 158（Forge 模块层 mojang 桩）：Forge 的 MC-BOOTSTRAP/GAME 模块层对

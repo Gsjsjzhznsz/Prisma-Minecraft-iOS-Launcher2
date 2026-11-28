@@ -44,7 +44,7 @@
            "\n无参数。"
            "\n说明：每个实例项包含 profile 名称 name、gameDir、lastVersionId、当前是否选中 selected、"
            "实例完整路径 path，以及已安装的 mods/resourcepacks/shaders/datapacks 数量（counts 子对象）。"
-           "\n数据来源为 POJAV_HOME/instances/ 目录与 launcher_profiles.json 的 profiles。"
+           "\n数据来源为单一真实游戏根（POJAV_GAME_DIR）与 launcher_profiles.json 的 profiles。"
            "\n边界：实例目录不存在时回退返回当前实例信息。";
 }
 
@@ -56,10 +56,7 @@
     return [NSSearchPathForDirectoriesInDomains(NSDocumentDirectory, NSUserDomainMask, YES) firstObject];
 }
 
-+ (NSString *)instancesDirectory {
-    return [[self pojavHome] stringByAppendingPathComponent:@"instances"];
-}
-
+// ★ Task483：instancesDirectory / currentInstanceName 退役（instances 布局删除）
 + (NSString *)currentInstanceName {
     NSString *name = getPrefObject(@"general.game_directory");
     return (name.length > 0) ? name : @"default";
@@ -68,7 +65,7 @@
 + (NSString *)currentGameRoot {
     const char *root = getenv("POJAV_GAME_DIR");
     if (root && strlen(root) > 0) return @(root);
-    return [[self instancesDirectory] stringByAppendingPathComponent:[self currentInstanceName]];
+    return [[self pojavHome] stringByAppendingPathComponent:@"Library/Application Support/minecraft"];
 }
 
 #pragma mark - 资源计数
@@ -130,56 +127,19 @@
 #pragma mark - list_instances
 
 - (void)performListInstances:(void (^)(NSString * _Nullable result, NSError * _Nullable error))completion {
-    NSString *instancesDir = [[self class] instancesDirectory];
-    NSString *currentInstanceName = [[self class] currentInstanceName];
+    // ★ Task483：instances/ 多目录扫描退役——单一真实根恒为唯一条目
+    NSString *currentRoot = [[self class] currentGameRoot];
     PLProfiles *profiles = [PLProfiles current];
-    NSDictionary *profileDict = [profiles profiles];
 
     NSMutableArray *entries = [NSMutableArray array];
-
-    // 列举 instances/ 下的子目录（每个实例 = 一个游戏目录）
-    NSArray *subdirs = [[NSFileManager defaultManager] contentsOfDirectoryAtPath:instancesDir error:nil];
-    for (NSString *dirname in subdirs) {
-        NSString *fullPath = [instancesDir stringByAppendingPathComponent:dirname];
-        BOOL isDir = NO;
-        if ([[NSFileManager defaultManager] fileExistsAtPath:fullPath isDirectory:&isDir] == NO || !isDir) {
-            continue;
-        }
-        if ([dirname hasPrefix:@"."]) continue;
-
-        // 从 launcher_profiles.json 匹配 profile（按 name 匹配目录名）
-        NSDictionary *profile = [profileDict isKindOfClass:[NSDictionary class]] ? profileDict[dirname] : nil;
-        NSString *profileName = dirname;
-        NSString *lastVersionId = @"";
-        NSString *gameDir = @".";
-        if ([profile isKindOfClass:[NSDictionary class]]) {
-            if ([profile[@"name"] isKindOfClass:[NSString class]] && [profile[@"name"] length] > 0) profileName = profile[@"name"];
-            if ([profile[@"lastVersionId"] isKindOfClass:[NSString class]]) lastVersionId = profile[@"lastVersionId"];
-            if ([profile[@"gameDir"] isKindOfClass:[NSString class]] && [profile[@"gameDir"] length] > 0) gameDir = profile[@"gameDir"];
-        }
-
-        [entries addObject:@{
-            @"name": profileName ?: dirname,
-            @"gameDir": [fullPath stringByAppendingPathComponent:gameDir],
-            @"lastVersionId": lastVersionId ?: @"",
-            @"selected": @([dirname isEqualToString:currentInstanceName]),
-            @"path": fullPath,
-            @"counts": [self resourceCountsForDirectory:fullPath],
-        }];
-    }
-
-    // 取不到实例目录时，回退返回当前实例信息
-    if (entries.count == 0) {
-        NSString *currentRoot = [[self class] currentGameRoot];
-        [entries addObject:@{
-            @"name": [profiles selectedProfileName] ?: currentInstanceName,
-            @"gameDir": currentRoot,
-            @"lastVersionId": [PLProfiles resolveKeyForCurrentProfile:@"lastVersionId"] ?: @"",
-            @"selected": @YES,
-            @"path": currentRoot,
-            @"counts": [self resourceCountsForDirectory:currentRoot],
-        }];
-    }
+    [entries addObject:@{
+        @"name": [profiles selectedProfileName] ?: [[self class] currentInstanceName],
+        @"gameDir": currentRoot,
+        @"lastVersionId": [PLProfiles resolveKeyForCurrentProfile:@"lastVersionId"] ?: @"",
+        @"selected": @YES,
+        @"path": currentRoot,
+        @"counts": [self resourceCountsForDirectory:currentRoot],
+    }];
 
     completion([self jsonStringFromObject:entries], nil);
 }

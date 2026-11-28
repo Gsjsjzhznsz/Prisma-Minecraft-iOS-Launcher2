@@ -1281,103 +1281,6 @@ static int ame287_disableUnsupportedInputMods(NSString *gameDir) {
     return disabled;
 }
 
-// ★ Task287（PocketJ 对标移植）：Forge URI-safe 游戏根——版本 id 含
-//   "forge" 且游戏目录路径含空格时，把启动 gameDir/POJAV_GAME_DIR 重指到
-//   POJAV_HOME 下无空格符号链接别名；Forge 工具链（processor/安装器）对
-//   空格路径的 URL/引号处理存在炸面（上游 PocketJ 同款防御，其 alias 命名
-//   .pocketj-loader-runtime 同构）。非命中条件时执行还原（env 回真实根），
-//   幂等可重入。iOS 常规容器路径无空格 = 本防御平时零行为变化。
-//
-// ★ Task288-r1（装机实锤："版本隔离出现异常，打开模组管理都没有这几个
-//   fabric 模组"；gamelog 双锚：ModsManager Task265 扫描隔离目录
-//   versions/NeoForge-26.1.2.122/game/mods jars=2，而 Task287 日志
-//   "real: .../Library/Application Support/minecraft"＝共享根）：
-//   旧实现 realRoot 优先取 getenv("POJAV_GAME_DIR")——该 env 是 main.m
-//   启动期设定的【全局共享根】（含空格 "Application Support"），而启动链
-//   传入的 gameDir 才是本次启动的生效目录（Task275/Task225 已解析出隔离
-//   实例目录）。对隔离实例的 forge 启动：env(共享根,含空格) 命中 forge+
-//   空格双条件 → 别名重指共享根 → chdir/POJAV_GAME_DIR 全部落共享根 →
-//   游戏读共享 mods/（管理页扫隔离 mods/）＝ 两张皮，隔离静默失效。
-//   修复：realRoot 一律取入参 gameDir（生效目录）；env 仅用于识别
-//   "上次 forge 命中遗留的别名指针"以做还原。隔离目录无空格时本函数
-//   自然零行为（ forge 版本装在默认共享布局才需要别名）。
-// ★ Task482-A（去 instances 化：安卓 Pojav 经典扁平布局回归——单一真实根）：
-//   病历（用户 2026-11-28 最新 JVM 日志 + 五代崩案链 Task479/480/481）：启动链
-//   = lasmPath（符号链接 → instances/<cur>）→ Task473 隔离 versions/<vid>
-//   → ame287 forge+空格 alias .ame287_forge_root（链尾 = instances/default/
-//   versions/<vid>）——三层间接让 Java 几何候选、integrity 定位、FML game
-//   locator 各自为政，五代判例全在「链尾真实目录与字面几何错位」。本轮按
-//   用户决策把 instances 链接层从启动路径彻底退役：lasmPath 若为符号链接且
-//   链尾落在 instances/ 下，则整树 rename 回 lasmPath 真实目录（同卷 rename
-//   原子、绝不拷贝绝不删除），写 .ame482_flat_root 标记。此后：
-//     · gameDir 解析链全真实目录（Task473 隔离语义不变：versions/<vid> 即
-//       gameDir，mods/saves/config 隔离观感零变化）；
-//     · ame480 经典候选①（env/versions/<vid>）首次物理命中；
-//     · .minecraft/minecraft 可见层链（Task319/331）经 lasmPath 直达实根；
-//     · 多实例档案轴（instances/<id> 显式 gameDir）保留原语义不触碰。
-//   标记消费方：main.m Task226（真实根不再迁回 instances/不再重建链接）、
-//   LauncherPrefGameDirViewController / AiInstanceCreator（真实根绝不
-//   remove——切实例对扁平根降级，数据安全第一）。任何一步失败 = fail-open
-//   还原链接零回归；锚点日志行 = 本轮装机验证锚。
-static NSString *ame482_flattenInstanceLink(NSString *gameDir) {
-    @try {
-        const char *ame482_homeC = getenv("POJAV_HOME");
-        const char *ame482_envC = getenv("POJAV_GAME_DIR");
-        // ★Task482-r1：五个静默 early-return 全部补诊断日志（装机判例：日志零
-        //   Task482 行时无法区分「包不对」还是「关卡拦截」，下一轮日志一锤定音）
-        if (!ame482_homeC || !*ame482_homeC || !ame482_envC || !*ame482_envC) {
-            NSLog(@"[JavaLauncher] Task482: flatten skip (reason=env-missing)");
-            return gameDir;
-        }
-        NSString *ame482_lasm = @(ame482_envC);
-        if (![ame482_lasm hasPrefix:@(ame482_homeC)]) { // 只处理本容器全局根
-            NSLog(@"[JavaLauncher] Task482: flatten skip (reason=non-container-root) path=%@", ame482_lasm);
-            return gameDir;
-        }
-        NSFileManager *ame482_fm = NSFileManager.defaultManager;
-        NSDictionary *ame482_attrs = [ame482_fm attributesOfItemAtPath:ame482_lasm error:nil];
-        if (!ame482_attrs || [ame482_attrs fileType] != NSFileTypeSymbolicLink) { // 已真实根/缺席 = 语义达成或非本链
-            NSLog(@"[JavaLauncher] Task482: flatten skip (reason=lasm-not-symlink type=%@ exists=%d) path=%@",
-                  ame482_attrs ? [ame482_attrs fileType] : @"nil",
-                  ame482_attrs ? 1 : 0, ame482_lasm);
-            return gameDir;
-        }
-        NSString *ame482_rel = [ame482_fm destinationOfSymbolicLinkAtPath:ame482_lasm error:nil];
-        if (ame482_rel.length == 0) {
-            NSLog(@"[JavaLauncher] Task482: flatten skip (reason=empty-link-dest) path=%@", ame482_lasm);
-            return gameDir;
-        }
-        NSString *ame482_target = [[ame482_lasm.stringByDeletingLastPathComponent
-            stringByAppendingPathComponent:ame482_rel] stringByResolvingSymlinksInPath];
-        NSString *ame482_instPrefix = [@(ame482_homeC) stringByAppendingPathComponent:@"instances/"];
-        if (![ame482_target hasPrefix:ame482_instPrefix]) { // 非实例轴不动
-            NSLog(@"[JavaLauncher] Task482: flatten skip (reason=target-not-instances) target=%@", ame482_target);
-            return gameDir;
-        }
-        // 真实根落位：拆链接 → 整树 rename（同卷原子）
-        [ame482_fm removeItemAtPath:ame482_lasm error:nil];
-        if ([ame482_fm fileExistsAtPath:ame482_lasm]) {
-            NSLog(@"[JavaLauncher] Task482: lasmPath occupied after link removal -- flatten aborted (fail-open)");
-            return gameDir;
-        }
-        if (![ame482_fm moveItemAtPath:ame482_target toPath:ame482_lasm error:nil]) {
-            // rename 失败 = 还原链接零回归（绝不半迁移）
-            [ame482_fm createSymbolicLinkAtPath:ame482_lasm withDestinationPath:ame482_rel error:nil];
-            NSLog(@"[JavaLauncher] Task482: move failed -- link restored, flatten aborted (fail-open)");
-            return gameDir;
-        }
-        [@"" writeToFile:[ame482_lasm stringByAppendingPathComponent:@".ame482_flat_root"]
-              atomically:YES encoding:NSUTF8StringEncoding error:nil];
-        NSLog(@"[JavaLauncher] Task482: instance link flattened -> real root %@ (was -> %@)", ame482_lasm, ame482_target);
-        // gameDir 重算：真实路径（旧值可能含 instances 字面段，作废）
-        NSString *ame482_real = gameDir.stringByResolvingSymlinksInPath;
-        return ame482_real.length > 0 ? ame482_real : gameDir;
-    } @catch (NSException *ame482_e) {
-        NSLog(@"[JavaLauncher] Task482: flatten exception %@ -- fail-open keep %@", ame482_e.name, gameDir);
-        return gameDir;
-    }
-}
-
 // ★ Task482-B（FML 早显窗口真退役）：装机实锚（用户 2026-11-28 JVM 日志）
 //   'Loading ImmediateWindowProvider fmlearlywindow' 在场 = 旧三条 -D
 //   （fml.earlyprogresswindow / neoforge.enabledEarlyDisplay /
@@ -4125,9 +4028,6 @@ int launchJVM(NSString *accountId, id launchTarget, int width, int height, int m
         }
 
 
-        // ★ Task482-A：instances 链接层退役（先于 ame287——alias 目标必须落在
-        //   真实根上，解析链中不得再含 instances 字面段）。
-        gameDir = ame482_flattenInstanceLink(gameDir);
 
         // ★ Task287（PocketJ 对标移植）：Forge URI-safe 游戏根——先于全部
         //   mods 目录扫描与 chdir（Task97 CwdAlign 消费本 gameDir），命中
@@ -4171,60 +4071,6 @@ int launchJVM(NSString *accountId, id launchTarget, int width, int height, int m
         //   之后，不扰动 Task479 relocated → Task481 published 邻接验证锚）。
         ame482_writeFmlEarlyDisplayConfig(gameDir);
 
-        // ★ Task331：可见层 .minecraft 跟随现役实例（ZL2/PCL2 版本隔离观感收口，
-        //   用户第六轮复访："versions 依旧没有游戏独立文件"）。病历（装机
-        //   adb63d33 latestlog 实锤）：boot 期 Task226/319 把 .minecraft 链到
-        //   偏好游戏目录（instances/default），而实际游玩走 profile 轴
-        //   （CwdAlign：instances/modrinth_*/versions/<vid> 深层形态）——用户
-        //   文件 App 打开 .minecraft/versions/ 只见 default 实例的 json+jar
-        //   空壳（Ame328 诱饵清扫口径），真数据躺在现役实例树里，两套根错位
-        //   = "独立文件去哪了"观感本体。修法 = 启动链 gameDir 终点（ame225
-        //   嗅探 + ame287 forge 收口之后）把 .minecraft 重指到现役实例根：
-        //   深层形态 instances/<id>/versions/<vid> 与根形态 instances/<id>
-        //   统一归到 instances/<id>（.minecraft/versions/<vid>/ 即版本隔离
-        //   数据，PCL2/ZL2 桌面语义）。纪律沿用 Task319 三态：链接幂等重指
-        //   （resolved 目标同值零动作）/ 真实目录绝不覆盖 / 缺失创建；非实例
-        //   轴 gameDir（自定义/遗留目录）零触碰零日志。POJAV_GAME_DIR/chdir
-        //   启动链零感知（链接仅文件 App 可见层，游戏数据读写全走绝对 env）。
-        {
-            NSString *ame331_home = @(getenv("POJAV_HOME") ?: "");
-            if (ame331_home.length > 0) {
-                NSString *ame331_base = [[ame331_home stringByAppendingPathComponent:@"instances"]
-                                         stringByStandardizingPath];
-                NSString *ame331_gd = gameDir.stringByStandardizingPath;
-                NSString *ame331_prefix = [ame331_base stringByAppendingString:@"/"];
-                if ([ame331_gd hasPrefix:ame331_prefix]) {
-                    NSString *ame331_id = [ame331_gd substringFromIndex:ame331_prefix.length]
-                        .pathComponents.firstObject;
-                    if (ame331_id.length > 0) {
-                        NSString *ame331_root = [ame331_base stringByAppendingPathComponent:ame331_id];
-                        NSString *ame331_dotMC = [ame331_home stringByAppendingPathComponent:@".minecraft"];
-                        NSFileManager *ame331_fm = [NSFileManager defaultManager];
-                        NSDictionary *ame331_attrs = [ame331_fm attributesOfItemAtPath:ame331_dotMC error:nil];
-                        if (ame331_attrs) {
-                            if ([ame331_attrs fileType] == NSFileTypeSymbolicLink) {
-                                NSString *ame331_cur = [ame331_fm destinationOfSymbolicLinkAtPath:ame331_dotMC error:nil] ?: @"";
-                                NSString *ame331_resolvedCur = ame331_cur.length
-                                    ? [[ame331_dotMC.stringByDeletingLastPathComponent
-                                        stringByAppendingPathComponent:ame331_cur]
-                                       stringByResolvingSymlinksInPath] : @"";
-                                if (![ame331_resolvedCur isEqualToString:ame331_root.stringByResolvingSymlinksInPath]) {
-                                    [ame331_fm removeItemAtPath:ame331_dotMC error:nil];
-                                    [ame331_fm createSymbolicLinkAtPath:ame331_dotMC
-                                                  withDestinationPath:ame331_root error:nil];
-                                    NSLog(@"[JavaLauncher] Task331: .minecraft re-pointed to active instance (%@) -- ZL2 version-isolation visible layer follows the played profile", ame331_id);
-                                }
-                            }
-                            // 真实目录/文件：绝不覆盖用户数据（Task319 纪律原样）
-                        } else {
-                            [ame331_fm createSymbolicLinkAtPath:ame331_dotMC
-                                          withDestinationPath:ame331_root error:nil];
-                            NSLog(@"[JavaLauncher] Task331: .minecraft created -> active instance (%@)", ame331_id);
-                        }
-                    }
-                }
-            }
-        }
 
         // Task 87：桌面弹窗类 mod 预检（病历见 ame87_disableDesktopDialogMods 函数头）
         // ——实证案犯自动禁用（改名 .jar.disabled），Fabric 忽略非 .jar 文件。
