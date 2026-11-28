@@ -591,8 +591,9 @@ void init_setupMultiDir() {
     //   验证锚点（下一轮 latestlog）：首轮 [Task483] single-root migration 行在
     //   场；次轮全日志零 instances 数据路径、零 Task226 re-point 行。
     {
-        NSString *ame483_inst = [home stringByAppendingPathComponent:@"instances"];
-        NSString *ame483_marker = [home stringByAppendingPathComponent:@".ame483_single_root"];
+        NSString *ame483_home = @(home ?: "");   // ★r1：home 是 const char *，ObjC 消息须走 NSString（CI 8435 判例）
+        NSString *ame483_inst = [ame483_home stringByAppendingPathComponent:@"instances"];
+        NSString *ame483_marker = [ame483_home stringByAppendingPathComponent:@".ame483_single_root"];
         BOOL ame483_lasmIsLink = NO;
         NSDictionary *ame483_lasmAttrs = [fm attributesOfItemAtPath:lasmPath error:nil];
         if (ame483_lasmAttrs && [ame483_lasmAttrs fileType] == NSFileTypeSymbolicLink) ame483_lasmIsLink = YES;
@@ -670,7 +671,7 @@ void init_setupMultiDir() {
                     } else {
                         NSString *ame483_ts = [NSString stringWithFormat:@"%f", [NSDate date].timeIntervalSince1970];
                         ame483_ts = [ame483_ts stringByReplacingOccurrencesOfString:@"." withString:@""];
-                        NSString *ame483_archive = [home stringByAppendingPathComponent:
+                        NSString *ame483_archive = [ame483_home stringByAppendingPathComponent:
                             [NSString stringWithFormat:@"instances_retired-%@", ame483_ts]];
                         [fm removeItemAtPath:ame483_archive error:nil];
                         if ([fm moveItemAtPath:ame483_inst toPath:ame483_archive error:nil]) {
