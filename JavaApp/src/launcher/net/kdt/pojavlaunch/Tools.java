@@ -947,6 +947,15 @@ createLibraryInfo(libItem);
             return out;
         }
         String ame480_file = vid + ext;
+        // ★Task481（Jfn4dbP 装机 latestlog 17:31:49.562 exit(1) 根修）：⓪ 原生定位根直读。
+        //   JavaLauncher Task481 发布点在 JLI_Launch 前对本次启动版本跑 Task479 同款
+        //   定位并 setenv AME_VERSION_ROOT（原生 Ame428LocateVersionRoot 全链解析
+        //   符号链接，命中的是【真实数据根】）——此候选最权威，置顶。
+        String ame481_native = System.getenv("AME_VERSION_ROOT");
+        if (ame481_native != null && ame481_native.length() > 0 && !ame481_native.contains("..")) {
+            out.add(ame481_native + "/versions/" + vid + "/" + ame480_file);
+            out.add(ame481_native + "/versions/" + ame480_file);
+        }
         // ① 经典布局：env 根 versions/<vid>/<vid>.<ext>（经典/非 forge 会话在此命中，零回归）
         out.add(DIR_HOME_VERSION + "/" + vid + "/" + ame480_file);
         // ② 隔离布局：CWD 即生效版本目录，元数据直卧根下（Task97 对齐保证）
@@ -963,6 +972,28 @@ createLibraryInfo(libItem);
             if (ame480_shared != null) {
                 out.add(new File(ame480_shared, "versions/" + vid + "/" + ame480_file).getAbsolutePath());
             }
+        }
+        // ★Task481：⑤ 符号链接链尾几何候选。病历（Jfn4dbP）：ame287 alias 形态下
+        //   ②③ 的父子运算全是【字面串数学】——user.dir = alias 字面路径
+        //   （<POJAV_HOME>/.ame287_forge_root），其字面父 = POJAV_HOME（名 ≠
+        //   versions）→ ③ 候选永不生成；① 走 alias 字面拼串 = 链尾目录下再嵌
+        //   versions/ 双层必缺。而 alias 链尾真实目录 instances/default/versions/
+        //   <vid> 的父恰是 versions/，父版本 JSON（inheritsFrom）就躺在那里
+        //   （原生 integrity Task479 定位实锚）。canonical 化把 alias 链解析到尾
+        //   再做同一套几何运算，与原生 locate 对齐。getCanonicalPath 不要求文件
+        //   存在；IO 异常按字面候选回落（fail-open 零回归）。
+        try {
+            String ame481_canon = new File(DIR_GAME_PROFILE).getCanonicalPath();
+            File ame481_canonVersions = new File(ame481_canon).getParentFile();
+            if (ame481_canonVersions != null && "versions".equals(ame481_canonVersions.getName())) {
+                out.add(new File(ame481_canonVersions, vid + "/" + ame480_file).getAbsolutePath());
+                File ame481_canonShared = ame481_canonVersions.getParentFile();
+                if (ame481_canonShared != null) {
+                    out.add(new File(ame481_canonShared, "versions/" + vid + "/" + ame480_file).getAbsolutePath());
+                }
+            }
+        } catch (IOException ame481_e) {
+            // canonical 化失败 = 维持既有字面候选，不新增日志面
         }
         return out;
     }
@@ -990,10 +1021,35 @@ createLibraryInfo(libItem);
     }
 
     /** ★Task480：assets 根几何候选（getMinecraftArgs 消费；隔离会话 assets 物理
-        落共享根 = Task428 修复口径；缺失回落 ASSETS_PATH 旧行为）。 */
+        落共享根 = Task428 修复口径；缺失回落 ASSETS_PATH 旧行为）。
+        ★Task481：补原生定位根（AME_VERSION_ROOT/assets）与 canonical 链尾共享根
+        （alias 链尾 instances/<inst>/assets）两级回落——与版本 JSON ⑤ 同病历：
+        字面父子运算在 alias 形态下探不到链尾实例根的 assets/。 */
     private static String ame480_assetsPath() {
         if (new File(ASSETS_PATH).isDirectory()) {
             return ASSETS_PATH;
+        }
+        String ame481_native = System.getenv("AME_VERSION_ROOT");
+        if (ame481_native != null && ame481_native.length() > 0 && !ame481_native.contains("..")) {
+            File ame481_nativeAssets = new File(ame481_native, "assets");
+            if (ame481_nativeAssets.isDirectory()) {
+                return ame481_nativeAssets.getAbsolutePath();
+            }
+        }
+        try {
+            String ame481_canon = new File(DIR_GAME_PROFILE).getCanonicalPath();
+            File ame481_canonVersions = new File(ame481_canon).getParentFile();
+            if (ame481_canonVersions != null && "versions".equals(ame481_canonVersions.getName())) {
+                File ame481_canonShared = ame481_canonVersions.getParentFile();
+                if (ame481_canonShared != null) {
+                    File ame481_sharedAssets = new File(ame481_canonShared, "assets");
+                    if (ame481_sharedAssets.isDirectory()) {
+                        return ame481_sharedAssets.getAbsolutePath();
+                    }
+                }
+            }
+        } catch (IOException ame481_e) {
+            // canonical 化失败 = 继续走既有字面回落
         }
         File ame480_versionsDir = new File(DIR_GAME_PROFILE).getParentFile();
         if (ame480_versionsDir != null && "versions".equals(ame480_versionsDir.getName())) {

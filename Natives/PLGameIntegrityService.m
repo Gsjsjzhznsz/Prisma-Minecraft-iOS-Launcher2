@@ -282,6 +282,19 @@ typedef NS_ENUM(NSInteger, Ame428ItemState) {
     return shared;
 }
 
+// ★Task481：Task479 定位序列的公开出口（launchJVM 发布点消费）。
+// 病历（Jfn4dbP 装机 latestlog 17:31:49.562 exit(1)）：Task479 的
+// "version root relocated" 仅回填 resolveContext 内部指针，JVM 侧
+// Tools.ame480_* 几何候选全部锚在 env（ame287 alias 字面路径）/CWD 上，
+// alias 链尾实例根（instances/default）不可见 → 父版本 JSON 五候选全落空
+// → FileNotFoundException → exit(1)。启动链需要把定位结果带进 JVM。
+// 实现 = 文件级 Ame428LocateVersionRoot 原样转发（候选根序列/防注入/
+// 零裸调语义零漂移）；nil = 未命中，调用方不发布（fail-open）。
++ (nullable NSString *)ame481_locateVersionRootForHint:(NSString * _Nullable)hint
+                                                   vid:(NSString * _Nullable)vid {
+    return Ame428LocateVersionRoot(hint, vid);
+}
+
 #pragma mark - 上下文解析
 
 /// 解析指定 profile 的校验上下文；任一环节失败返回 nil（调用方 fail-open 放行）。

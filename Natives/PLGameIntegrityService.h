@@ -29,6 +29,15 @@ NS_ASSUME_NONNULL_BEGIN
 - (void)runInteractiveVerifyAndRepairForProfile:(NSString * _Nullable)profileName
                               fromViewController:(UIViewController *)presentingVC;
 
+/// ★Task481（Jfn4dbP 装机 latestlog exit(1) 根修）：Task479 候选根定位序列的
+/// 公开出口。对 hint（启动链收口后的生效 gameDir，可为 ame287 alias）+ vid
+/// 跑 Ame428VersionRootCandidates 全序列（含符号链接全链解析 + versions/<vid>
+/// 尾段上提两级），返回【真实数据根】；未命中返回 nil（调用方 fail-open 不发布）。
+/// 唯一消费方 = JavaLauncher launchJVM 发布点：JLI_Launch 前 setenv
+/// AME_VERSION_ROOT，JVM 内 Tools.ame480_* 几何候选置顶直读（Tools.java ⓪）。
++ (nullable NSString *)ame481_locateVersionRootForHint:(NSString * _Nullable)hint
+                                                   vid:(NSString * _Nullable)vid;
+
 @end
 
 NS_ASSUME_NONNULL_END

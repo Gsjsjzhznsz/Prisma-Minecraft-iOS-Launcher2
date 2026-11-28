@@ -3984,6 +3984,35 @@ int launchJVM(NSString *accountId, id launchTarget, int width, int height, int m
             gameDir = ame287_configureForgeUriSafeRoot(ame287_vid, gameDir);
         }
 
+        // ★ Task481（Jfn4dbP 装机 latestlog 17:31:49.562 exit(1) 实锚根修）：
+        //   定位根发布 JVM——Task479 integrity 侧 Ame428LocateVersionRoot 命中
+        //   实例根（instances/default）后只回填 integrity 内部指针，env
+        //   POJAV_GAME_DIR 仍是 ame287 alias 字面路径（→ 隔离版本目录），JVM 内
+        //   Tools.ame480_* 几何候选全部锚在 env/CWD 字面父子运算上，alias 链尾
+        //   实例根不可见 → 父版本 JSON（inheritsFrom=26.3）五候选全落空 →
+        //   FileNotFoundException → launchMinecraft exit(1)。修法 = gameDir 收口
+        //   （ame287）之后、mods 扫描/chdir/JLI_Launch 之前，对本次启动版本跑
+        //   同款定位并 setenv AME_VERSION_ROOT 把【真实数据根】带进 JVM
+        //   （Tools.java ame480_versionMetaCandidates ⓪ 置顶直读）。不写
+        //   POJAV_GAME_DIR——Task288 判例：全局 env 禁毒化，避免毒化
+        //   ModService 等以 env 为共享根基准的解析。定位未命中（nil）env 不设，
+        //   Java 按既有候选回落，零回归。发布日志行 = 本轮装机验证锚点
+        //   （须紧跟 Task479 relocated 行之后出现）。
+        {
+            NSString *ame481_vid = [launchTarget isKindOfClass:[NSDictionary class]]
+                ? launchTarget[@"id"] : @"";
+            NSString *ame481_root = [PLGameIntegrityService ame481_locateVersionRootForHint:gameDir
+                                                                                        vid:ame481_vid];
+            if (ame481_root.length > 0) {
+                setenv("AME_VERSION_ROOT", ame481_root.UTF8String, 1);
+                NSLog(@"[JavaLauncher] Task481: located version root published -> %@ (vid=%@)",
+                      ame481_root, ame481_vid);
+            } else {
+                NSLog(@"[JavaLauncher] Task481: locate missed -- AME_VERSION_ROOT not set"
+                      @" (existing candidates keep)");
+            }
+        }
+
         // ★ Task331：可见层 .minecraft 跟随现役实例（ZL2/PCL2 版本隔离观感收口，
         //   用户第六轮复访："versions 依旧没有游戏独立文件"）。病历（装机
         //   adb63d33 latestlog 实锤）：boot 期 Task226/319 把 .minecraft 链到
