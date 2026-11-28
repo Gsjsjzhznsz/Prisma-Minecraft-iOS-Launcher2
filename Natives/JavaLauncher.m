@@ -1323,18 +1323,37 @@ static NSString *ame482_flattenInstanceLink(NSString *gameDir) {
     @try {
         const char *ame482_homeC = getenv("POJAV_HOME");
         const char *ame482_envC = getenv("POJAV_GAME_DIR");
-        if (!ame482_homeC || !*ame482_homeC || !ame482_envC || !*ame482_envC) return gameDir;
+        // ★Task482-r1：五个静默 early-return 全部补诊断日志（装机判例：日志零
+        //   Task482 行时无法区分「包不对」还是「关卡拦截」，下一轮日志一锤定音）
+        if (!ame482_homeC || !*ame482_homeC || !ame482_envC || !*ame482_envC) {
+            NSLog(@"[JavaLauncher] Task482: flatten skip (reason=env-missing)");
+            return gameDir;
+        }
         NSString *ame482_lasm = @(ame482_envC);
-        if (![ame482_lasm hasPrefix:@(ame482_homeC)]) return gameDir; // 只处理本容器全局根
+        if (![ame482_lasm hasPrefix:@(ame482_homeC)]) { // 只处理本容器全局根
+            NSLog(@"[JavaLauncher] Task482: flatten skip (reason=non-container-root) path=%@", ame482_lasm);
+            return gameDir;
+        }
         NSFileManager *ame482_fm = NSFileManager.defaultManager;
         NSDictionary *ame482_attrs = [ame482_fm attributesOfItemAtPath:ame482_lasm error:nil];
-        if (!ame482_attrs || [ame482_attrs fileType] != NSFileTypeSymbolicLink) return gameDir; // 已真实根/缺席 = 语义达成或非本链
+        if (!ame482_attrs || [ame482_attrs fileType] != NSFileTypeSymbolicLink) { // 已真实根/缺席 = 语义达成或非本链
+            NSLog(@"[JavaLauncher] Task482: flatten skip (reason=lasm-not-symlink type=%@ exists=%d) path=%@",
+                  ame482_attrs ? [ame482_attrs fileType] : @"nil",
+                  ame482_attrs ? 1 : 0, ame482_lasm);
+            return gameDir;
+        }
         NSString *ame482_rel = [ame482_fm destinationOfSymbolicLinkAtPath:ame482_lasm error:nil];
-        if (ame482_rel.length == 0) return gameDir;
+        if (ame482_rel.length == 0) {
+            NSLog(@"[JavaLauncher] Task482: flatten skip (reason=empty-link-dest) path=%@", ame482_lasm);
+            return gameDir;
+        }
         NSString *ame482_target = [[ame482_lasm.stringByDeletingLastPathComponent
             stringByAppendingPathComponent:ame482_rel] stringByResolvingSymlinksInPath];
         NSString *ame482_instPrefix = [@(ame482_homeC) stringByAppendingPathComponent:@"instances/"];
-        if (![ame482_target hasPrefix:ame482_instPrefix]) return gameDir; // 非实例轴不动
+        if (![ame482_target hasPrefix:ame482_instPrefix]) { // 非实例轴不动
+            NSLog(@"[JavaLauncher] Task482: flatten skip (reason=target-not-instances) target=%@", ame482_target);
+            return gameDir;
+        }
         // 真实根落位：拆链接 → 整树 rename（同卷原子）
         [ame482_fm removeItemAtPath:ame482_lasm error:nil];
         if ([ame482_fm fileExistsAtPath:ame482_lasm]) {
@@ -1380,7 +1399,36 @@ static void ame482_writeFmlEarlyDisplayConfig(NSString *gameDir) {
         NSString *ame482_toml = [ame482_cfgDir stringByAppendingPathComponent:@"fml.toml"];
         NSString *ame482_old = [NSString stringWithContentsOfFile:ame482_toml
                                                         encoding:NSUTF8StringEncoding error:nil];
-        if (ame482_old && [ame482_old containsString:@"earlyWindowControl"]) return; // 幂等：用户配置优先
+        // ★Task482-r1（装机实锚 2026-11-28 20:15 日志 L460 'Loading
+        //   ImmediateWindowProvider fmlearlywindow' 依旧在场）：旧幂等门
+        //   「键名在场即跳过」被 FML 出厂默认 fml.toml 自带的
+        //   earlyWindowControl = true 永久命中 = 早显永不退役。r1 改值
+        //   感知门：键缺席 → 追加整块；值为 true（FML 出厂/误配）→ 原位翻 false
+        //   （其余行零触碰）；值已 false → 幂等静默。用户显式配置仍优先
+        //   （显式 true 视为待纠正出厂值——本键的消费面是启动 UX 风险面，
+        //   Task478 原生 Metal 首帧已覆盖，保留 true 只有风险没有收益）。
+        NSError *ame482_rxErr = nil;
+        NSRegularExpression *ame482_rx = [NSRegularExpression
+            regularExpressionWithPattern:@"^\\s*earlyWindowControl\\s*=\\s*(true|false)"
+                                 options:NSRegularExpressionAnchorsMatchLines
+                                   error:&ame482_rxErr];
+        NSTextCheckingResult *ame482_hit = (ame482_rx && ame482_old.length > 0)
+            ? [ame482_rx firstMatchInString:ame482_old options:0
+                                      range:NSMakeRange(0, ame482_old.length)] : nil;
+        if (ame482_hit && [ame482_hit numberOfRanges] > 1) {
+            NSString *ame482_val = [ame482_old substringWithRange:[ame482_hit rangeAtIndex:1]];
+            if ([ame482_val isEqualToString:@"false"]) return; // 幂等：已禁用
+            NSMutableString *ame482_fix = [ame482_old mutableCopy];
+            [ame482_fix replaceCharactersInRange:[ame482_hit rangeAtIndex:1]
+                                      withString:@"false"];
+            if ([ame482_fix writeToFile:ame482_toml atomically:YES
+                               encoding:NSUTF8StringEncoding error:nil]) {
+                NSLog(@"[JavaLauncher] Task482: FML early display flipped true->false in fml.toml -> %@", ame482_toml);
+            } else {
+                NSLog(@"[JavaLauncher] Task482: fml.toml flip write failed -- left as-is");
+            }
+            return;
+        }
         NSMutableString *ame482_out = [NSMutableString string];
         if (ame482_old.length > 0) {
             [ame482_out appendString:ame482_old];

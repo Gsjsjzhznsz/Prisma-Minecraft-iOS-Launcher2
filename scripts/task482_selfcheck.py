@@ -68,12 +68,20 @@ def run_checks(jl, mainm, prefvc, aicreator, tag):
           and 'flatten exception' in jl,
           'fail-open 三重缺席')
 
-    check('A4 fml.toml 写入器 + 幂等门 + 锚点',
+    check('A4 fml.toml 写入器 + r1 值感知幂等门 + 锚点',
           'earlyWindowControl = false\\n' in jl
           and 'earlyWindowProvider = \\"none\\"' in jl
-          and 'containsString:@"earlyWindowControl"' in jl
+          and 'earlyWindowControl\\\\s*=\\\\s*(true|false)' in jl
+          and 'flipped true->false in fml.toml' in jl
           and 'Task482: FML early display disabled via fml.toml' in jl,
-          'fml.toml 写入器或幂等门缺席')
+          'fml.toml 写入器或 r1 值感知门缺席')
+
+    check('A4-r1 旧 containsString 门已退役（FML 出厂 true 误判判例）',
+          'containsString:@"earlyWindowControl"' not in jl
+          and 'reason=env-missing' in jl
+          and 'reason=lasm-not-symlink' in jl
+          and 'reason=target-not-instances' in jl,
+          '旧幂等门未拆或 flatten 五关卡诊断日志缺席')
 
     check('A5 482-B 调用在 Task481 published 锚之后',
           'Task481: located version root published' in jl
