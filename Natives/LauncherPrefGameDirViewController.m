@@ -14,6 +14,10 @@
 //   删除/切换 instances 目录（旧实现的 removeItemAtPath + 重建符号链接 =
 //   「删 instances 丢数据」直接病灶面，随 instances 布局一并退役）。
 
+@interface LauncherPrefGameDirViewController ()<UITextFieldDelegate>
+@property(nonatomic) NSMutableArray *array;
+@end
+
 @implementation LauncherPrefGameDirViewController
 
 // 单一真实数据根（与 main.m init_setupMultiDir 同源：POJAV_GAME_DIR 已由
